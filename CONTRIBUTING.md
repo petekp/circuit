@@ -1,10 +1,10 @@
-# Contributing to Method
+# Contributing to Flow
 
 ## Adding a New Method
 
 ### Prerequisites
 
-- Familiarity with the method system (read [ARCHITECTURE.md](./ARCHITECTURE.md))
+- Familiarity with the flow system (read [ARCHITECTURE.md](./ARCHITECTURE.md))
 - A workflow that fits the method model (multi-phase, artifact-producing)
 
 ### Using method:create (Recommended)

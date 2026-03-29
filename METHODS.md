@@ -1,6 +1,6 @@
 # Method Catalog
 
-The method plugin provides structured, artifact-driven workflows for complex engineering tasks. Each method defines a fixed phase sequence, produces durable artifacts at every step, and includes gates, circuit breakers, and resume logic so work survives session interruptions. Methods are invoked via `/method:<name>` in Claude Code.
+The Flow plugin provides structured, artifact-driven workflows for complex engineering tasks. Each method defines a fixed phase sequence, produces durable artifacts at every step, and includes gates, circuit breakers, and resume logic so work survives session interruptions. Methods are invoked via `/method:<name>` in Claude Code.
 
 ## Quick Reference Table
 

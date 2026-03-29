@@ -37,7 +37,7 @@ done
 
 RELAY_DIR="${TARGET_DIR}/scripts/relay"
 
-echo "Setting up Method relay scripts..."
+echo "Setting up Flow relay scripts..."
 echo "  Source:  ${PLUGIN_ROOT}/scripts/relay/"
 echo "  Target:  ${RELAY_DIR}/"
 
