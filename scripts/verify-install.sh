@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# verify-install.sh — Check that all Flow plugin prerequisites are met
+# verify-install.sh — Check that all Circuit plugin prerequisites are met
 #
 # Usage:
 #   ./scripts/verify-install.sh
@@ -170,9 +170,9 @@ fi
 printf '\n'
 
 if [[ "$FAIL" -gt 0 ]]; then
-  printf '\n\033[31mSome checks failed. Fix the issues above before using the Flow plugin.\033[0m\n'
+  printf '\n\033[31mSome checks failed. Fix the issues above before using the Circuit plugin.\033[0m\n'
   exit 1
 else
-  printf '\n\033[32mAll checks passed. Flow plugin is ready to use.\033[0m\n'
+  printf '\n\033[32mAll checks passed. Circuit plugin is ready to use.\033[0m\n'
   exit 0
 fi

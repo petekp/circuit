@@ -24,8 +24,8 @@ OUT=""
 # Resolve SKILL_DIR: env var > sibling skills/ dir > ~/.claude/skills
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-if [[ -n "${FLOW_PLUGIN_SKILL_DIR:-}" ]]; then
-  SKILL_DIR="$FLOW_PLUGIN_SKILL_DIR"
+if [[ -n "${CIRCUIT_PLUGIN_SKILL_DIR:-}" ]]; then
+  SKILL_DIR="$CIRCUIT_PLUGIN_SKILL_DIR"
 elif [[ -d "$PLUGIN_ROOT/skills" ]]; then
   SKILL_DIR="$PLUGIN_ROOT/skills"
 else
@@ -33,8 +33,8 @@ else
 fi
 
 # Resolve MANAGE_CODEX_DIR: env var > sibling skills/ dir > ~/.claude/skills
-if [[ -n "${FLOW_PLUGIN_CODEX_DIR:-}" ]]; then
-  MANAGE_CODEX_DIR="$FLOW_PLUGIN_CODEX_DIR"
+if [[ -n "${CIRCUIT_PLUGIN_CODEX_DIR:-}" ]]; then
+  MANAGE_CODEX_DIR="$CIRCUIT_PLUGIN_CODEX_DIR"
 elif [[ -d "$PLUGIN_ROOT/skills/manage-codex/references" ]]; then
   MANAGE_CODEX_DIR="$PLUGIN_ROOT/skills/manage-codex/references"
 else

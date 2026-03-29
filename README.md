@@ -1,4 +1,4 @@
-# Flow
+# Circuit
 
 Structured workflow methods for Claude Code -- disciplined multi-phase approaches to complex engineering tasks.
 
@@ -29,13 +29,13 @@ ends or a context window fills up.
 ### From GitHub (recommended)
 
 ```
-claude plugin add petekp/flow
+claude plugin add petekp/circuit
 ```
 
 ### Local installation
 
 ```bash
-git clone https://github.com/petekp/flow.git ~/.claude/plugins/local/flow
+git clone https://github.com/petekp/circuit.git ~/.claude/plugins/local/circuit
 ```
 
 ### Project setup
@@ -45,10 +45,10 @@ scripts that methods use to assemble Codex worker prompts and manage batch state
 
 ```bash
 # Use the setup helper (recommended)
-"$(claude plugin path flow)/scripts/setup.sh"
+"$(claude plugin path circuit)/scripts/setup.sh"
 
 # Or copy relay scripts manually
-cp -r "$(claude plugin path flow)/scripts/relay" ./scripts/relay
+cp -r "$(claude plugin path circuit)/scripts/relay" ./scripts/relay
 ```
 
 ### Prerequisites
@@ -61,7 +61,7 @@ cp -r "$(claude plugin path flow)/scripts/relay" ./scripts/relay
 ### Verify installation
 
 ```bash
-"$(claude plugin path flow)/scripts/verify-install.sh"
+"$(claude plugin path circuit)/scripts/verify-install.sh"
 ```
 
 The verification script checks for Codex CLI, Python 3, all skill directories,
@@ -149,7 +149,7 @@ For the full design rationale, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Methods can dispatch Codex workers with domain-specific skills injected into
 their prompts via `compose-prompt.sh --skills`. These skills are **not bundled**
-with the Flow plugin -- install them separately if your project uses them.
+with the Circuit plugin -- install them separately if your project uses them.
 
 | Skill | Enhances |
 |-------|----------|
@@ -165,7 +165,7 @@ receive less specialized guidance.
 ## File Structure
 
 ```
-flow-plugin/
+circuit/
   .claude-plugin/
     plugin.json               # Plugin manifest (name, version, metadata)
   hooks/

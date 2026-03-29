@@ -1,11 +1,11 @@
 {
-  "name": "flow",
-  "description": "Structured workflow methods for Claude Code — disciplined multi-phase approaches to complex engineering tasks, powered by Codex workers and artifact chains. The Flow plugin.",
+  "name": "circuit",
+  "description": "Structured workflow methods for Claude Code — disciplined multi-phase approaches to complex engineering tasks, powered by Codex workers and artifact chains. The Circuit plugin.",
   "version": "1.0.0",
   "author": {
     "name": "Pete Petrash"
   },
-  "repository": "https://github.com/petekp/flow",
+  "repository": "https://github.com/petekp/circuit",
   "license": "MIT",
   "keywords": [
     "methods",

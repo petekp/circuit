@@ -1,11 +1,11 @@
-# Flow System Architecture
+# Circuit Architecture
 
-This document explains the design of the flow system: why it exists, how its
+This document explains the design of the circuit system: why it exists, how its
 pieces fit together, and what you need to understand to extend it. It is written
 for an experienced engineer who wants to build new methods or modify existing
 ones, not someone looking for a quick-start guide.
 
-The flow system solves a specific problem: **how do you make an AI agent
+The system solves a specific problem: **how do you make an AI agent
 reliably complete multi-phase engineering work across session boundaries, with
 durable state, bounded autonomy, and honest quality gates?**
 
@@ -103,7 +103,7 @@ canonical identifier used in `method.yaml`'s `id` field.
 
 ## The Artifact Chain Model
 
-The central design insight of the flow system is: **artifacts are the durable
+The central design insight of the circuit system is: **artifacts are the durable
 state, not the chat thread.**
 
 ### Every Step Produces a Named File
@@ -571,7 +571,7 @@ The assembly pipeline:
    `AP-04: Placeholder Leakage`.
 
 The skill directory resolution follows a priority chain:
-1. `FLOW_PLUGIN_SKILL_DIR` environment variable (for testing)
+1. `CIRCUIT_PLUGIN_SKILL_DIR` environment variable (for testing)
 2. Sibling `skills/` directory relative to the script (the plugin layout)
 3. `~/.claude/skills` (legacy layout)
 
@@ -995,7 +995,7 @@ The system catalogs 25 named anti-patterns. The most important:
 ### File Layout
 
 ```
-flow-plugin/
+circuit/
   hooks/
     hooks.json              # SessionStart hook registration
     session-start.sh        # Prerequisite check + method catalog banner
