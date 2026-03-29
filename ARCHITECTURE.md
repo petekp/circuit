@@ -1035,8 +1035,10 @@ method-plugin/
       method.yaml
       SKILL.md
     method-create/
+      method.yaml
       SKILL.md
     method-dry-run/
+      method.yaml
       SKILL.md
 ```
 
