@@ -1,0 +1,21 @@
+{
+  "name": "method",
+  "description": "Structured workflow methods for Claude Code — disciplined multi-phase approaches to complex engineering tasks, powered by Codex workers and artifact chains",
+  "version": "1.0.0",
+  "author": {
+    "name": "Pete Petrash"
+  },
+  "repository": "https://github.com/petekp/method",
+  "license": "MIT",
+  "keywords": [
+    "methods",
+    "workflows",
+    "codex",
+    "orchestration",
+    "artifact-chains",
+    "multi-phase",
+    "autonomous",
+    "quality",
+    "relay"
+  ]
+}
