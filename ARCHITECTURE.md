@@ -2,7 +2,7 @@
 
 This document explains the design of the circuit system: why it exists, how its
 pieces fit together, and what you need to understand to extend it. It is written
-for an experienced engineer who wants to build new methods or modify existing
+for an experienced engineer who wants to build new circuits or modify existing
 ones, not someone looking for a quick-start guide.
 
 The system solves a specific problem: **how do you make an AI agent
@@ -10,33 +10,33 @@ reliably complete multi-phase engineering work across session boundaries, with
 durable state, bounded autonomy, and honest quality gates?**
 
 Chat threads die. Context windows overflow. Workers hallucinate completion.
-Methods are the structural answer to all three failure modes.
+Circuits are the structural answer to all three failure modes.
 
 ---
 
 ## Table of Contents
 
-1. [What Is a Method?](#what-is-a-method)
+1. [What Is a Circuit?](#what-is-a-circuit)
 2. [The Artifact Chain Model](#the-artifact-chain-model)
 3. [Execution Model](#execution-model)
 4. [The Gate System](#the-gate-system)
 5. [Relay Infrastructure](#relay-infrastructure)
-6. [Method Composition](#method-composition)
+6. [Circuit Composition](#circuit-composition)
 7. [Extending the System](#extending-the-system)
 
 ---
 
-## What Is a Method?
+## What Is a Circuit?
 
-A method is a multi-phase workflow encoded as two files:
+A circuit is a multi-phase workflow encoded as two files:
 
 | File | Role | Analogy |
 |------|------|---------|
-| `method.yaml` | Topology declaration | Type signature |
+| `circuit.yaml` | Topology declaration | Type signature |
 | `SKILL.md` | Runtime truth | Implementation |
 
-Both files live in the same directory under `skills/method-<name>/`. The
-`method.yaml` declares the shape: phases, steps, actions, artifacts, gates, and
+Both files live in the same directory under `skills/circuit-<name>/`. The
+`circuit.yaml` declares the shape: phases, steps, actions, artifacts, gates, and
 parallel fanout. The `SKILL.md` contains everything the orchestrator actually
 needs to execute: commands, paths, output schemas, prompt headers, resume rules,
 adapter seams, and reopen choreography.
@@ -45,10 +45,10 @@ adapter seams, and reopen choreography.
 
 The split is deliberate and serves different consumers:
 
-**`method.yaml`** is machine-readable topology. It answers structural questions:
+**`circuit.yaml`** is machine-readable topology. It answers structural questions:
 How many phases? What does each step produce? What does it consume? Is this step
 parallel? What gate type guards it? The router, the dry-run validator, and the
-method-create compiler all read `method.yaml` to reason about method shape
+circuit-create compiler all read `circuit.yaml` to reason about circuit shape
 without parsing prose.
 
 **`SKILL.md`** is the execution contract. It answers operational questions: What
@@ -59,45 +59,45 @@ during execution.
 
 ### What Happens When They Drift
 
-When the two files disagree, the method is mechanically broken. This is not a
+When the two files disagree, the circuit is mechanically broken. This is not a
 documentation nit -- it is the workflow equivalent of a type signature diverging
 from its implementation.
 
-Consider a concrete case: `method.yaml` says Step 5 produces `stability-gate.md`
+Consider a concrete case: `circuit.yaml` says Step 5 produces `stability-gate.md`
 with a `verdict-consistency` gate, but `SKILL.md` describes a simpler
 `outputs_present` gate for the same step. A dry-run validator would trace
-`method.yaml` and expect verdict routing (`stable -> continue`, `repair_again ->
+`circuit.yaml` and expect verdict routing (`stable -> continue`, `repair_again ->
 reopen`), but the actual runtime behavior in `SKILL.md` would skip the reopen
-logic entirely. The method would silently continue past failures that should
+logic entirely. The circuit would silently continue past failures that should
 trigger upstream repair.
 
-The `method:dry-run` validator and the `method:create` compiler both treat
+The `circuit:dry-run` validator and the `circuit:create` compiler both treat
 prose/YAML drift as a first-class defect (anti-pattern `AP-15`). Cross-validation
 is not optional -- it is a required step in both authoring and validation.
 
-### The `method:` Prefix Convention
+### The `circuit:` Prefix Convention
 
-All method skills use a `method:` prefix in their frontmatter `name` field:
+All circuit skills use a `circuit:` prefix in their frontmatter `name` field:
 
 ```yaml
 # In SKILL.md frontmatter
-name: method:autonomous-ratchet
+name: circuit:autonomous-ratchet
 ```
 
 This prefix does three things:
 
 1. **Discovery.** Claude Code's skill matcher uses the frontmatter `name` and
-   `description` to route slash commands. The prefix groups methods visually
+   `description` to route slash commands. The prefix groups circuits visually
    and semantically.
-2. **Router integration.** The `method:router` skill knows to look for
-   `method:*` skills when routing requests.
+2. **Router integration.** The `circuit:router` skill knows to look for
+   `circuit:*` skills when routing requests.
 3. **Namespace separation.** Domain skills (`rust`, `swift-apps`, `tdd`) live
-   in a different namespace from method skills. A method can compose domain
+   in a different namespace from circuit skills. A circuit can compose domain
    skills without naming collisions.
 
-The directory name drops the prefix: `method:autonomous-ratchet` lives at
-`skills/method-autonomous-ratchet/`. The slug `autonomous-ratchet` is the
-canonical identifier used in `method.yaml`'s `id` field.
+The directory name drops the prefix: `circuit:autonomous-ratchet` lives at
+`skills/circuit-autonomous-ratchet/`. The slug `autonomous-ratchet` is the
+canonical identifier used in `circuit.yaml`'s `id` field.
 
 ---
 
@@ -108,8 +108,8 @@ state, not the chat thread.**
 
 ### Every Step Produces a Named File
 
-Each step in a method exits by writing a specific file to a known path. The
-`research-to-implementation` method makes this concrete:
+Each step in a circuit exits by writing a specific file to a known path. The
+`research-to-implementation` circuit makes this concrete:
 
 ```text
 intent-brief.md           [Step 1, interactive]
@@ -139,7 +139,7 @@ limits at any point. If progress lives only in the chat thread, a dead session
 means starting over. With artifacts on disk, a new session scans the artifact
 directory and resumes from the first missing file.
 
-**Context overflow.** A 17-step method like `autonomous-ratchet` generates far
+**Context overflow.** A 17-step circuit like `autonomous-ratchet` generates far
 more content than fits in a single context window. The artifact chain means each
 step only needs to read its declared inputs, not the entire history. Step 14
 (Execution Audit) reads `execution-log.md`, `execution-charter.md`,
@@ -152,7 +152,7 @@ verify. The gate system checks artifact contents, not worker claims.
 
 ### Resume Awareness
 
-Every method includes a `Resume Awareness` section that defines how a fresh
+Every circuit includes a `Resume Awareness` section that defines how a fresh
 session picks up where the last one left off. The algorithm is simple:
 
 1. Check for a reopen marker (a file that says "start here, not where you'd
@@ -177,7 +177,7 @@ ledgers) before blindly re-executing.
 
 The system distinguishes between two kinds of output:
 
-- **Artifacts** (`${RUN_ROOT}/artifacts/*.md`) are canonical method outputs.
+- **Artifacts** (`${RUN_ROOT}/artifacts/*.md`) are canonical circuit outputs.
   They are the durable chain. Each one has a defined schema and a gate.
 - **Handoffs** (`${RUN_ROOT}/phases/step-N/handoffs/*.md`) are raw worker
   outputs. They follow the relay protocol format but are not the canonical
@@ -193,15 +193,15 @@ the canonical artifact with the expected schema.
 All artifacts live under a single run root:
 
 ```bash
-RUN_ROOT=".relay/method-runs/${RUN_SLUG}"
+RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 
-The `RUN_SLUG` incorporates both the topic and the method name. For example,
+The `RUN_SLUG` incorporates both the topic and the circuit name. For example,
 an autonomous ratchet run on a feature called "auth-refactor" would use:
 
 ```bash
-RUN_ROOT=".relay/method-runs/auth-refactor-autonomous-ratchet"
+RUN_ROOT=".relay/circuit-runs/auth-refactor-autonomous-ratchet"
 ```
 
 Step-specific relay state (handoffs, last messages, prompt headers) lives under
@@ -212,7 +212,7 @@ chain clean while preserving the full execution trace for debugging.
 
 ## Execution Model
 
-Methods use three action types, each with different execution semantics:
+Circuits use three action types, each with different execution semantics:
 
 ### The Three Action Types
 
@@ -339,9 +339,9 @@ This is a critical design decision. LLMs are unreliable at maintaining JSON
 state. Making `batch.json` mutations go through a deterministic script eliminates
 an entire class of state-corruption bugs.
 
-### Methods That Use `manage-codex`
+### Circuits That Use `manage-codex`
 
-Several methods delegate their heavy-lifting steps to `manage-codex`:
+Several circuits delegate their heavy-lifting steps to `manage-codex`:
 
 - `research-to-implementation` Step 9 (Implement): Turns the execution packet
   into working code.
@@ -370,14 +370,14 @@ reads back in a specific order:
 2. `batch.json` (the final state of all slices)
 3. `handoffs/handoff-<last-slice-id>.md` (the last implementation handoff)
 
-Then the parent synthesizes the canonical method artifact from that evidence.
+Then the parent synthesizes the canonical circuit artifact from that evidence.
 
 ---
 
 ## The Gate System
 
 Gates are the quality enforcement mechanism. Every non-trivial step has a gate
-that checks the step's output before the method advances.
+that checks the step's output before the circuit advances.
 
 ### The Four Gate Types
 
@@ -426,7 +426,7 @@ Three possible outcomes:
   the user.
 
 This gate type embodies a principle: **disconfirming evidence changes the
-workflow**. Without it, the method would blindly continue building on a
+workflow**. Without it, the circuit would blindly continue building on a
 foundation that just failed its proof step.
 
 #### 3. `verdict-consistency`
@@ -468,7 +468,7 @@ gate:
 ```
 
 The critical property: the review worker that emits this verdict does NOT fix
-code. It only diagnoses. If the verdict is `reopen_execute`, the method routes
+code. It only diagnoses. If the verdict is `reopen_execute`, the circuit routes
 back to the execution ratchet step, not to a "fix it" step inside the review.
 This separation prevents anti-pattern `AP-19: Review Step Mutates Source`.
 
@@ -485,16 +485,16 @@ This separation prevents anti-pattern `AP-19: Review Step Mutates Source`.
 
 Gates have three possible routing actions:
 
-- **continue**: Advance to the next step in the method.
+- **continue**: Advance to the next step in the circuit.
 - **reopen**: Route back to a named upstream step. This triggers the reopen
   invalidation protocol: downstream artifacts are archived, a reopen marker
-  is written, and the method resumes from the reopen target.
+  is written, and the circuit resumes from the reopen target.
 - **escalate**: Stop and involve the user. Used when the circuit breaker fires
   or when evidence invalidation requires human judgment.
 
 ### The Circuit Breaker Pattern
 
-Every method includes a `Circuit Breaker` section that defines when to stop and
+Every circuit includes a `Circuit Breaker` section that defines when to stop and
 redirect. This is the last line of defense against unbounded loops.
 
 From `autonomous-ratchet`:
@@ -506,14 +506,14 @@ From `autonomous-ratchet`:
 > - Build, test, or verify commands cannot be made explicit enough for honest
 >   verification.
 
-The circuit breaker also handles method misrouting:
+The circuit breaker also handles circuit misrouting:
 
-> - Greenfield feature delivery -> `method:research-to-implementation`
-> - Architecture or protocol choice -> `method:decision-pressure-loop`
-> - Cleanup-only scope -> `method:janitor`
+> - Greenfield feature delivery -> `circuit:research-to-implementation`
+> - Architecture or protocol choice -> `circuit:decision-pressure-loop`
+> - Cleanup-only scope -> `circuit:janitor`
 
-This creates a safety net: if the method discovers mid-execution that the work
-does not actually fit its contract, it stops and suggests the right method
+This creates a safety net: if the circuit discovers mid-execution that the work
+does not actually fit its contract, it stops and suggests the right circuit
 instead of forcing a bad fit.
 
 ---
@@ -663,7 +663,7 @@ Write `{relay_root}/handoffs/handoff-{slice_id}.md`.
 The `compose-prompt.sh` script replaces these tokens with the actual path when
 `--root` is provided. This indirection is what makes templates reusable across
 different relay roots -- the same `implement-template.md` works whether the
-relay root is `.relay`, `.relay/method-runs/foo/phases/step-3/attempts/001`, or
+relay root is `.relay`, `.relay/circuit-runs/foo/phases/step-3/attempts/001`, or
 any other path.
 
 If a source file introduces `{relay_root}` tokens but no `--root` flag is
@@ -673,30 +673,30 @@ prompts with unresolved placeholders.
 
 ---
 
-## Method Composition
+## Circuit Composition
 
-Methods do not exist in isolation. They compose with each other and with
-non-method skills through well-defined interfaces.
+Circuits do not exist in isolation. They compose with each other and with
+non-circuit skills through well-defined interfaces.
 
-### How Methods Call `manage-codex` as an Adapter
+### How Circuits Call `manage-codex` as an Adapter
 
-The `manage-codex` skill is not a method -- it is an adapter. Methods delegate
+The `manage-codex` skill is not a circuit -- it is an adapter. Circuits delegate
 their implementation-heavy steps to `manage-codex`, which handles the
 plan-implement-review-converge loop.
 
 The composition contract:
 
-1. **The method owns the child root.** The method creates the directory
+1. **The circuit owns the child root.** The circuit creates the directory
    structure, writes `CHARTER.md`, and defines the domain skills.
 
 2. **`manage-codex` owns the inner loop.** Once dispatched, `manage-codex`
    handles slicing, worker dispatch, review, and convergence autonomously.
 
-3. **The method synthesizes the result.** After `manage-codex` completes, the
-   method reads back the child state and writes its canonical artifact.
+3. **The circuit synthesizes the result.** After `manage-codex` completes, the
+   circuit reads back the child state and writes its canonical artifact.
 
-This is a clean adapter boundary. The method does not reach into `manage-codex`'s
-inner loop, and `manage-codex` does not know about the method's artifact chain.
+This is a clean adapter boundary. The circuit does not reach into `manage-codex`'s
+inner loop, and `manage-codex` does not know about the circuit's artifact chain.
 
 The adapter seam contract requires explicit documentation of:
 - Child root creation and layout
@@ -707,21 +707,21 @@ The adapter seam contract requires explicit documentation of:
 - Synthesis rules for the parent artifact
 - Escalation behavior on failure
 
-### How the Router Selects Methods
+### How the Router Selects Circuits
 
-The `method:router` skill matches requests to methods using positive signals and
+The `circuit:router` skill matches requests to circuits using positive signals and
 exclusions:
 
 ```text
-- method:research-to-implementation
+- circuit:research-to-implementation
   Match: multi-file or cross-domain feature delivery, unclear approach
   Exclude: bug fixes, config changes, or already-clear tasks
 
-- method:decision-pressure-loop
+- circuit:decision-pressure-loop
   Match: architecture or protocol choices with real downside
   Exclude: code delivery, bug fixes, or settled decisions
 
-- method:autonomous-ratchet
+- circuit:autonomous-ratchet
   Match: overnight autonomous quality improvement
   Exclude: interactive work, greenfield features, architecture decisions
 ```
@@ -733,15 +733,15 @@ The router also defines sequencing rules:
   or `research-to-implementation`.
 - Draft exists but is not build-ready -> `spec-hardening` before
   `research-to-implementation`.
-- New method authoring -> `method:create` before `method:dry-run`.
+- New circuit authoring -> `circuit:create` before `circuit:dry-run`.
 
-If nothing fits, the router says so. It does not force a method onto trivial
+If nothing fits, the router says so. It does not force a circuit onto trivial
 work.
 
 ### Domain Skills as Optional Companions
 
 Domain skills (`rust`, `swift-apps`, `tdd`, `next-best-practices`) are not
-bundled into methods. They are composed at dispatch time via `--skills`:
+bundled into circuits. They are composed at dispatch time via `--skills`:
 
 ```bash
 ./scripts/relay/compose-prompt.sh \
@@ -754,14 +754,14 @@ bundled into methods. They are composed at dispatch time via `--skills`:
 
 This design has several advantages:
 
-- **Methods stay domain-agnostic.** The same `research-to-implementation`
-  method works for Rust, Swift, or React projects.
-- **Skill budgets are enforceable.** Methods declare maximum skill counts
+- **Circuits stay domain-agnostic.** The same `research-to-implementation`
+  circuit works for Rust, Swift, or React projects.
+- **Skill budgets are enforceable.** Circuits declare maximum skill counts
   (typically 2 domain skills, 3 total), preventing prompt bloat.
 - **Domain knowledge stays current.** Updating a domain skill immediately
-  affects all methods that compose it, without editing any method files.
+  affects all circuits that compose it, without editing any circuit files.
 
-Each method includes a `Domain Skill Selection` section that defines the rules
+Each circuit includes a `Domain Skill Selection` section that defines the rules
 for choosing skills at dispatch time. `autonomous-ratchet` uses a surface-based
 mapping:
 
@@ -776,19 +776,19 @@ mapping:
 
 ## Extending the System
 
-### Creating New Methods via `method:create`
+### Creating New Circuits via `circuit:create`
 
-The `method:create` skill is a compiler that turns a natural-language workflow
-description into a method skill pair. Its artifact chain:
+The `circuit:create` skill is a compiler that turns a natural-language workflow
+description into a circuit skill pair. Its artifact chain:
 
 ```text
 workflow-brief.md          [Step 1, interactive intake]
-  -> method-analysis.md    [Step 2, Codex dispatch]
-  -> draft-method.yaml     [Step 3, Codex dispatch, staging]
+  -> circuit-analysis.md   [Step 2, Codex dispatch]
+  -> draft-circuit.yaml    [Step 3, Codex dispatch, staging]
   -> draft-SKILL.md        [Step 3, Codex dispatch, staging]
   -> cross-validation.md   [Step 3, Codex dispatch]
   -> validation-report.md  [Step 4, Codex dispatch]
-  -> method.yaml + SKILL.md [Step 5, Claude refinement, installed]
+  -> circuit.yaml + SKILL.md [Step 5, Claude refinement, installed]
 ```
 
 The five phases:
@@ -796,10 +796,10 @@ The five phases:
 1. **Intake.** Interactive conversation to understand the workflow, its phases,
    judgment checkpoints, artifact chain, and external dependencies.
 
-2. **Analysis.** A Codex worker maps the workflow to existing method patterns
-   and determines whether it is an artifact-centric method or a validator.
+2. **Analysis.** A Codex worker maps the workflow to existing circuit patterns
+   and determines whether it is an artifact-centric circuit or a validator.
 
-3. **Authoring.** A Codex worker generates `method.yaml` and `SKILL.md` from
+3. **Authoring.** A Codex worker generates `circuit.yaml` and `SKILL.md` from
    the analysis, then cross-validates them field by field.
 
 4. **Validation.** A separate Codex worker walks six quality categories against
@@ -809,13 +809,13 @@ The five phases:
    validation findings, optimizes trigger metadata for Claude Code, and
    installs the final files.
 
-The compiler distinguishes between two method families:
+The compiler distinguishes between two circuit families:
 
-- **Artifact-centric methods** (the majority): Multi-phase workflows that chain
+- **Artifact-centric circuits** (the majority): Multi-phase workflows that chain
   artifacts. Examples: `research-to-implementation`, `autonomous-ratchet`,
   `flow-audit-and-repair`.
-- **Validator methods**: Methods whose primary job is symbolic execution or
-  mechanical validation. Example: `method:dry-run`.
+- **Validator circuits**: Circuits whose primary job is symbolic execution or
+  mechanical validation. Example: `circuit:dry-run`.
 
 Each family has a different `SKILL.md` starter template. The artifact-centric
 starter includes sections for Setup, Domain Skill Selection, Canonical Header
@@ -823,12 +823,12 @@ Schema, phases, Artifact Chain Summary, Resume Awareness, and Circuit Breaker.
 The validator starter includes Core Model, Inputs, Fixed Checklist, Workflow,
 Failure Logging, and Finish Condition.
 
-### Validating Methods via `method:dry-run`
+### Validating Circuits via `circuit:dry-run`
 
-Before trusting a new method for real work, run it through `method:dry-run`.
+Before trusting a new circuit for real work, run it through `circuit:dry-run`.
 This validator symbolically executes every step with a concrete test feature:
 
-1. Read the target `SKILL.md`, `method.yaml`, and every referenced script,
+1. Read the target `SKILL.md`, `circuit.yaml`, and every referenced script,
    template, and adapter.
 2. For each step, walk a 10-dimension checklist:
    - Setup paths and directory creation
@@ -849,12 +849,12 @@ This validator symbolically executes every step with a concrete test feature:
 The dry run produces a trace file with pass/fail results for every dimension of
 every step, plus a terminal verdict of `PASS`, `PASS_WITH_NOTES`, or `FAIL`.
 
-### The `method.yaml` Schema
+### The `circuit.yaml` Schema
 
 ```yaml
 schema_version: "1"
-method:
-  id: your-method-slug           # kebab-case, matches directory name
+circuit:
+  id: your-circuit-slug          # kebab-case, matches directory name
   version: "YYYY-MM-DD"          # date of last topology change
   title: Human-Readable Title
   description: >
@@ -896,23 +896,23 @@ method:
 Key constraints:
 - Phases are always serial.
 - Parallelism is only intra-step (multiple workers within a single step).
-- Step count in `method.yaml` must match step count in `SKILL.md`.
+- Step count in `circuit.yaml` must match step count in `SKILL.md`.
 - Gate types, verdict vocabularies, and outcome routing must match between files.
 - The `description` field is used by Claude Code for skill discovery -- weak
-  descriptions mean the method will not be found.
+  descriptions mean the circuit will not be found.
 
 ### The `SKILL.md` Structure
 
-An artifact-centric method `SKILL.md` follows this section order:
+An artifact-centric circuit `SKILL.md` follows this section order:
 
 ```markdown
 ---
-name: method:your-method-slug
+name: circuit:your-circuit-slug
 description: >
   Trigger-optimized description with phase count, use-when, and negative scope.
 ---
 
-# Method Title
+# Circuit Title
 
 [1-2 paragraphs: artifact chain thesis and failure mode it prevents]
 
@@ -945,7 +945,7 @@ Each step contract includes:
 
 ### The Quality Gate Checklist
 
-When authoring or reviewing a method, check these six categories:
+When authoring or reviewing a circuit, check these six categories:
 
 1. **Artifact Chain Integrity.** Every step names one canonical artifact. Every
    consumer knows where its input comes from. No dangling produces without a
@@ -968,7 +968,7 @@ When authoring or reviewing a method, check these six categories:
    dispatches.
 
 6. **Prose/YAML Consistency.** Phase order, step count, consumes, produces,
-   parallelism, gates, and adapters match between `SKILL.md` and `method.yaml`.
+   parallelism, gates, and adapters match between `SKILL.md` and `circuit.yaml`.
 
 ### Anti-Patterns to Avoid
 
@@ -982,8 +982,8 @@ The system catalogs 25 named anti-patterns. The most important:
 | `AP-05` | Interactive Skill In Autonomous Dispatch | An interactive skill appended to `codex exec --full-auto` |
 | `AP-07` | Resume By Final Artifacts Only | Resume ignores step-local state like `batch.json` |
 | `AP-10` | Weak Gates | A gate checks only file existence |
-| `AP-11` | No Reopen Rule | Disconfirming evidence appears but the method only says "revise and continue" |
-| `AP-15` | Prose/YAML Drift | `SKILL.md` and `method.yaml` disagree |
+| `AP-11` | No Reopen Rule | Disconfirming evidence appears but the circuit only says "revise and continue" |
+| `AP-15` | Prose/YAML Drift | `SKILL.md` and `circuit.yaml` disagree |
 | `AP-19` | Review Step Mutates Source | A verdict step also changes code |
 | `AP-20` | Reopen Without Governing Issue | "Reopen" is triggered without recording what caused it |
 | `AP-22` | Repeated Dispatch Shell Blocks | The same compose+exec recipe shown in every step instead of once |
@@ -998,7 +998,7 @@ The system catalogs 25 named anti-patterns. The most important:
 circuit/
   hooks/
     hooks.json              # SessionStart hook registration
-    session-start.sh        # Prerequisite check + method catalog banner
+    session-start.sh        # Prerequisite check + circuit catalog banner
   scripts/
     relay/
       compose-prompt.sh     # Prompt assembly pipeline
@@ -1014,41 +1014,41 @@ circuit/
         review-preamble.md
         relay-protocol.md
         agents-md-template.md
-    method-router/
-      SKILL.md              # Routes requests to best-fit method
-    method-research-to-implementation/
-      method.yaml
+    circuit-router/
+      SKILL.md              # Routes requests to best-fit circuit
+    circuit-research-to-implementation/
+      circuit.yaml
       SKILL.md
-    method-decision-pressure-loop/
-      method.yaml
+    circuit-decision-pressure-loop/
+      circuit.yaml
       SKILL.md
-    method-spec-hardening/
-      method.yaml
+    circuit-spec-hardening/
+      circuit.yaml
       SKILL.md
-    method-flow-audit-and-repair/
-      method.yaml
+    circuit-flow-audit-and-repair/
+      circuit.yaml
       SKILL.md
-    method-autonomous-ratchet/
-      method.yaml
+    circuit-autonomous-ratchet/
+      circuit.yaml
       SKILL.md
-    method-janitor/
-      method.yaml
+    circuit-janitor/
+      circuit.yaml
       SKILL.md
-    method-create/
-      method.yaml
+    circuit-create/
+      circuit.yaml
       SKILL.md
-    method-dry-run/
-      method.yaml
+    circuit-dry-run/
+      circuit.yaml
       SKILL.md
 ```
 
 ### Runtime Relay Layout (Example)
 
-When `method:research-to-implementation` executes for a feature called
+When `circuit:research-to-implementation` executes for a feature called
 "sync-engine":
 
 ```
-.relay/method-runs/sync-engine/
+.relay/circuit-runs/sync-engine/
   artifacts/
     intent-brief.md
     external-digest.md
@@ -1104,7 +1104,7 @@ When `method:research-to-implementation` executes for a feature called
 User Request
     |
     v
-method:router ──> selects method
+circuit:router ──> selects circuit
     |
     v
 SKILL.md (runtime truth)
@@ -1140,7 +1140,7 @@ SKILL.md (runtime truth)
 ## Design Principles (Summary)
 
 1. **Artifacts are state.** The chat thread is ephemeral. The artifact chain on
-   disk is the source of truth for method progress.
+   disk is the source of truth for circuit progress.
 
 2. **Separate implementation from review.** Workers that write code must not
    review their own code. Different sessions prevent contamination.
@@ -1156,15 +1156,15 @@ SKILL.md (runtime truth)
 5. **Deterministic state management.** LLMs do not hand-edit JSON. Shell scripts
    with embedded Python handle all state mutations to `batch.json`.
 
-6. **Fail fast and redirect.** Circuit breakers stop methods that are not
-   working. The router redirects to better-fitting methods. Neither the
+6. **Fail fast and redirect.** Circuit breakers stop circuits that are not
+   working. The router redirects to better-fitting circuits. Neither the
    orchestrator nor the worker should ever silently continue past a structural
    failure.
 
 7. **Compose, do not bundle.** Domain skills, adapter contracts, and templates
-   are separate from methods. Methods declare what they need; the relay scripts
+   are separate from circuits. Circuits declare what they need; the relay scripts
    assemble it at dispatch time.
 
 8. **Resume from disk, not from memory.** A fresh session with no chat history
-   can reconstruct the full method state by scanning artifacts, relay state,
+   can reconstruct the full circuit state by scanning artifacts, relay state,
    and reopen markers.

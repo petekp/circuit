@@ -1,65 +1,65 @@
 ---
-name: method:create
+name: circuit:create
 description: >
   Codex-powered compiler for turning a natural-language workflow description into
-  a method skill that matches the live corpus. 5 phases: Intake -> Analysis ->
+  a circuit skill that matches the live corpus. 5 phases: Intake -> Analysis ->
   Authoring -> Validation -> Refinement. Codex workers handle analysis, file
   generation, and quality gate; Claude does intake and a final refinement pass
-  optimized for Claude Code. Use when you want to create a method, compile a
-  method, author a method skill, or turn this workflow into a method. Not for
-  editing existing methods, not a runtime engine, and not for one-off prompts.
+  optimized for Claude Code. Use when you want to create a circuit, compile a
+  circuit, author a circuit skill, or turn this workflow into a circuit. Not for
+  editing existing circuits, not a runtime engine, and not for one-off prompts.
 ---
 
-# Method Create
+# Circuit Create
 
-This skill compiles a workflow description into a method skill pair:
-`method.yaml` for topology and `SKILL.md` for runtime truth. The artifact chain
-is `workflow-brief.md -> method-analysis.md -> draft-method.yaml + draft-SKILL.md
-+ cross-validation.md -> validation-report.md -> method.yaml + SKILL.md`.
+This skill compiles a workflow description into a circuit skill pair:
+`circuit.yaml` for topology and `SKILL.md` for runtime truth. The artifact chain
+is `workflow-brief.md -> circuit-analysis.md -> draft-circuit.yaml + draft-SKILL.md
++ cross-validation.md -> validation-report.md -> circuit.yaml + SKILL.md`.
 
 Codex workers do the heavy lifting: pattern analysis, file generation, and
 quality validation. The orchestrator handles intake (interactive) and a final
-refinement pass that optimizes the generated method for Claude Code — trigger
+refinement pass that optimizes the generated circuit for Claude Code — trigger
 metadata, dispatch patterns, skill discovery, and session ergonomics.
 
 This is a compiler, not a runtime engine. It can author either artifact-centric
-delivery methods or validator methods, but it does not execute the generated
-method. After authoring, recommend `method:dry-run` before anyone trusts the
+delivery circuits or validator circuits, but it does not execute the generated
+circuit. After authoring, recommend `circuit:dry-run` before anyone trusts the
 result for real work.
 
 ## When to Use
 
-- You want to create a new method from a natural-language workflow description
-- You want to turn a proven multi-phase workflow into a reusable method skill
-- You need to decide whether the workflow is an artifact-centric method or a validator
-- You need both `method.yaml` and `SKILL.md` to match the live corpus
+- You want to create a new circuit from a natural-language workflow description
+- You want to turn a proven multi-phase workflow into a reusable circuit skill
+- You need to decide whether the workflow is an artifact-centric circuit or a validator
+- You need both `circuit.yaml` and `SKILL.md` to match the live corpus
 
-Do NOT use for editing an existing method, building a runtime engine, or
-wrapping a tiny one-off prompt in unnecessary method structure.
+Do NOT use for editing an existing circuit, building a runtime engine, or
+wrapping a tiny one-off prompt in unnecessary circuit structure.
 
 ## Glossary
 
-- **Artifact** - A durable method output file under `${RUN_ROOT}/artifacts/`
-  unless the step explicitly writes a final deliverable to `TARGET_METHOD_ROOT`.
+- **Artifact** - A durable circuit output file under `${RUN_ROOT}/artifacts/`
+  unless the step explicitly writes a final deliverable to `TARGET_CIRCUIT_ROOT`.
 - **Runtime truth** - The execution contract in `SKILL.md`: commands, paths,
   headers, gates, resume rules, and adapter seams.
-- **Topology metadata** - The ordered phase and step structure in `method.yaml`.
-- **Method family** - The live branch the workflow fits: artifact-centric or
+- **Topology metadata** - The ordered phase and step structure in `circuit.yaml`.
+- **Circuit family** - The live branch the workflow fits: artifact-centric or
   validator.
 - **Cross-validation** - The field-by-field comparison that proves the authored
-  `method.yaml` and `SKILL.md` agree.
+  `circuit.yaml` and `SKILL.md` agree.
 - **Adapter seam** - A dispatch boundary such as `manage-codex` whose runtime
   contract must be described explicitly in prose.
 
 ## Principles
 
-- **Compiler, not runtime.** `method:create` authors a method skill. It does not
-  execute the generated workflow and it is not itself a `manage-codex` method.
+- **Compiler, not runtime.** `circuit:create` authors a circuit skill. It does not
+  execute the generated workflow and it is not itself a `manage-codex` circuit.
 - **Codex generates, Claude refines.** Codex workers handle analysis, authoring,
   and quality validation. The orchestrator handles intake and a final refinement
   pass that optimizes for Claude Code.
-- **`SKILL.md` is runtime truth.** Treat `method.yaml` as topology only. If the
-  files disagree, the method is mechanically broken.
+- **`SKILL.md` is runtime truth.** Treat `circuit.yaml` as topology only. If the
+  files disagree, the circuit is mechanically broken.
 - **Frontmatter does trigger work.** The generated `name` and `description`
   decide whether the skill is discoverable at all.
 - **Step granularity is a contract.** YAML topology steps must match prose
@@ -67,41 +67,41 @@ wrapping a tiny one-off prompt in unnecessary method structure.
 - **Cross-validate before dry-run.** Codex cross-validates during authoring;
   Claude verifies during refinement. Both passes are mandatory.
 - **Trip the circuit breaker early.** If the workflow does not fit the live
-  method contract, say so instead of forcing a fake method.
+  circuit contract, say so instead of forcing a fake circuit.
 
 ## Setup
 
 ```bash
 WORKFLOW_SOURCE="<inline-description-or-path>"
-TARGET_METHOD_SLUG="<new-method-slug>"
-TARGET_METHOD_ROOT="${HOME}/.claude/skills/method/${TARGET_METHOD_SLUG}"
-RUN_ROOT=".relay/method-runs/${TARGET_METHOD_SLUG}-method-create"
+TARGET_CIRCUIT_SLUG="<new-circuit-slug>"
+TARGET_CIRCUIT_ROOT="${HOME}/.claude/skills/circuit/${TARGET_CIRCUIT_SLUG}"
+RUN_ROOT=".relay/circuit-runs/${TARGET_CIRCUIT_SLUG}-circuit-create"
 STAGING="${RUN_ROOT}/staging"
 mkdir -p "${RUN_ROOT}/artifacts" "${STAGING}" \
   "${RUN_ROOT}/handoffs" "${RUN_ROOT}/last-messages" \
-  "${TARGET_METHOD_ROOT}"
+  "${TARGET_CIRCUIT_ROOT}"
 ```
 
 Record these inputs before authoring:
 
 - `WORKFLOW_SOURCE` - the user's workflow description, notes, or source file
-- `TARGET_METHOD_SLUG` - the generated method directory name (under `method/`)
-- `TARGET_METHOD_ROOT` - where the final `method.yaml` and `SKILL.md` will live
+- `TARGET_CIRCUIT_SLUG` - the generated circuit directory name (under `circuit/`)
+- `TARGET_CIRCUIT_ROOT` - where the final `circuit.yaml` and `SKILL.md` will live
 - `RUN_ROOT` - where relay state, compiler artifacts, and staging drafts live
 - `STAGING` - where Codex workers write draft files (sandbox cannot write to `~/.claude/`)
 
-The `method:` prefix is added automatically to the frontmatter `name` field. For
-example, slug `foo-bar` produces `name: method:foo-bar` and lives at
-`~/.claude/skills/method/foo-bar/`.
+The `circuit:` prefix is added automatically to the frontmatter `name` field. For
+example, slug `foo-bar` produces `name: circuit:foo-bar` and lives at
+`~/.claude/skills/circuit/foo-bar/`.
 
 ## Domain Skill Selection
 
-`method:create` does not need autonomous workers by default. When the workflow
+`circuit:create` does not need autonomous workers by default. When the workflow
 you are compiling includes dispatch steps, author them with these limits:
 
 - Default to 1-2 domain skills and at most 3 total skills per autonomous dispatch
 - Never append interactive skills to `codex exec --full-auto`
-- Document any exception to the skill-budget ceiling explicitly in the generated method
+- Document any exception to the skill-budget ceiling explicitly in the generated circuit
 
 ## Canonical Header Schema
 
@@ -147,7 +147,7 @@ the worker prompt.
 ### Runtime Source Of Truth
 
 - Put identity, phase order, step order, actions, artifacts, fanout shape, and
-  coarse gate types in `method.yaml`
+  coarse gate types in `circuit.yaml`
 - Put commands, paths, output schemas, prompt headers, resume rules, fallback
   synthesis, adapter seams, and reopen choreography in `SKILL.md`
 - Treat drift between the two files as a mechanical defect, not a documentation nit
@@ -155,8 +155,8 @@ the worker prompt.
 ### Trigger Metadata
 
 - Generated frontmatter must contain only `name` and `description`
-- `name` must be kebab-case and match the method directory
-- `description` must encode trigger phrases, method shape, and negative scope
+- `name` must be kebab-case and match the circuit directory
+- `description` must encode trigger phrases, circuit shape, and negative scope
 - Weak metadata like "helps with workflows" is structurally legal and operationally poor
 
 ### Prose And YAML Granularity
@@ -197,18 +197,18 @@ must include all of the following:
 ## Reference Pack
 
 These sections are the inline authoring reference. A fresh session should not
-need the original review package open beside the generated method.
+need the original review package open beside the generated circuit.
 
-### Canonical `method.yaml` Starter
+### Canonical `circuit.yaml` Starter
 
 ```yaml
 schema_version: "1"
-method:
-  id: your-method-slug
+circuit:
+  id: your-circuit-slug
   version: "YYYY-MM-DD"
-  title: Your Method Title
+  title: Your Circuit Title
   description: >
-    One-sentence method thesis. Topology only - this file does not encode runtime
+    One-sentence circuit thesis. Topology only - this file does not encode runtime
     behavior or adapter contracts.
 
   phases:
@@ -293,14 +293,14 @@ method:
 
 ````markdown
 ---
-name: your-method-slug
+name: your-circuit-slug
 description: >
-  Artifact-driven method for [goal]. [N] steps across [M] phases: [Phase A] ->
+  Artifact-driven circuit for [goal]. [N] steps across [M] phases: [Phase A] ->
   [Phase B] -> [Phase C]. Use when [positive trigger]. Do not use for
   [negative trigger].
 ---
 
-# Your Method
+# Your Circuit
 
 One or two paragraphs stating the artifact chain, why it exists, and what kind
 of failure it prevents.
@@ -313,7 +313,7 @@ of failure it prevents.
 Do NOT use for [negative scope].
 
 ## Glossary
-- **Artifact** - Durable method output under `${RUN_ROOT}/artifacts/`.
+- **Artifact** - Durable circuit output under `${RUN_ROOT}/artifacts/`.
 - **Worker handoff** - Raw relay output, not the canonical artifact chain.
 - **Synthesis** - Orchestrator-authored artifact created from upstream artifacts.
 
@@ -325,7 +325,7 @@ Do NOT use for [negative scope].
 ## Setup
 ```bash
 RUN_SLUG="<topic-slug>"
-RUN_ROOT=".relay/method-runs/${RUN_SLUG}"
+RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 
@@ -356,18 +356,18 @@ mkdir -p "${RUN_ROOT}/artifacts"
 
 ### Validator `SKILL.md` Starter
 
-Use this section order instead of the artifact-centric starter when the method's
-primary job is symbolic execution or mechanical validation of another method:
+Use this section order instead of the artifact-centric starter when the circuit's
+primary job is symbolic execution or mechanical validation of another circuit:
 
 ````markdown
 ---
-name: your-method-slug
+name: your-circuit-slug
 description: >
-  Validator method for mechanically tracing [target] against a fixed checklist.
+  Validator circuit for mechanically tracing [target] against a fixed checklist.
   Use when [positive trigger]. Do not use for delivery workflows or runtime execution.
 ---
 
-# Your Validator Method
+# Your Validator Circuit
 
 Short paragraph explaining the validator's core model and what a passing trace means.
 
@@ -392,7 +392,7 @@ Short paragraph explaining the validator's core model and what a passing trace m
 | Gate type | Use when | Required contract | Bad smells |
 |---|---|---|---|
 | `outputs_present` | Artifact quality can be checked from the file plus explicit content checks | Exact output schema, concrete gate checks, fallback synthesis if a worker wrote only `handoffs/handoff.md` | Gate says only "file exists" or "looks good" |
-| `evidence-reopen` | A proof step can validate, adjust, or invalidate the plan | Bounded verdicts, explicit artifact to update, explicit user checkpoint for invalidation | Proof can fail but the method only says "revise and continue" |
+| `evidence-reopen` | A proof step can validate, adjust, or invalidate the plan | Bounded verdicts, explicit artifact to update, explicit user checkpoint for invalidation | Proof can fail but the circuit only says "revise and continue" |
 | `verdict-consistency` | A terminal verdict is valid only if it matches named evidence boundaries | Verdict meanings, exact evidence threshold, exact failing boundary requirement | "Closed" or equivalent is allowed without naming the checked boundary |
 | `verdict-reopen` | A review step decides between continue and upstream revision | Diagnose-only contract, ready threshold, named reopen targets, user prompt for target plus governing issue | Review both edits code and judges it, or `REVISE` has no named target |
 
@@ -401,7 +401,7 @@ Short paragraph explaining the validator's core model and what a passing trace m
 #### Artifact Chain Integrity
 
 - Name one canonical artifact per topology step or one explicit promoted output
-- Distinguish worker handoffs from canonical method artifacts
+- Distinguish worker handoffs from canonical circuit artifacts
 - Name the exact output path and schema for every dispatch step
 - Declare every external input and the first step that reads it
 - Normalize parallel fanout before downstream synthesis depends on one contract
@@ -410,7 +410,7 @@ Short paragraph explaining the validator's core model and what a passing trace m
 
 - Give every non-trivial step a gate stronger than file existence
 - Bound verdict vocabulary and next-action routing
-- Preserve the same gate semantics in `SKILL.md` and `method.yaml`
+- Preserve the same gate semantics in `SKILL.md` and `circuit.yaml`
 - Record the governing issue whenever a verdict triggers reopen
 
 #### Handoff Contract Compliance
@@ -440,20 +440,20 @@ Short paragraph explaining the validator's core model and what a passing trace m
 - Keep runtime semantics in `SKILL.md`
 - Author both files, then cross-validate them field by field
 - Surface unsupported capabilities explicitly instead of implying hidden runtime behavior
-- Verify total SKILL.md line count is proportional to method complexity. Comparable methods in the corpus: flow-audit-and-repair (593), research-to-implementation (646), spec-hardening (628), decision-pressure-loop (600). A method with similar topology should not exceed ~750 lines without justification. If it does, run the conciseness rules before shipping.
+- Verify total SKILL.md line count is proportional to circuit complexity. Comparable circuits in the corpus: flow-audit-and-repair (593), research-to-implementation (646), spec-hardening (628), decision-pressure-loop (600). A circuit with similar topology should not exceed ~750 lines without justification. If it does, run the conciseness rules before shipping.
 
 ### Authoring Checklist
 
-1. Define the method family and trigger surface.
+1. Define the circuit family and trigger surface.
 2. Lock the topology and step granularity.
 3. Inventory the artifact chain and every external input.
-4. Draft `method.yaml` with the live topology schema.
+4. Draft `circuit.yaml` with the live topology schema.
 5. Draft `SKILL.md` frontmatter and shared sections.
 6. Write every step contract with the right action pattern.
 7. Add gates, verdicts, and reopen choreography.
 8. Add worker-role and adapter contracts.
 9. Add resume and circuit-breaker behavior.
-10. Cross-validate `SKILL.md` and `method.yaml`.
+10. Cross-validate `SKILL.md` and `circuit.yaml`.
 10b. **Apply conciseness rules:**
     - Setup must not re-list inputs that Step 1 captures — forward-reference only
     - The canonical header schema should be shown compressed (required section names + relay heading rule), not as a full markdown template
@@ -462,7 +462,7 @@ Short paragraph explaining the validator's core model and what a passing trace m
     - Remove standalone `Verify: test -f` lines — the gate owns existence checks
     - Principles should not restate the intro or the dual-mode description in abstract form
     - Body negative scope can reference frontmatter instead of repeating the full list
-11. Run the quality gate and recommend `method:dry-run`.
+11. Run the quality gate and recommend `circuit:dry-run`.
 
 ### Quality-Gate Crosswalk
 
@@ -487,18 +487,18 @@ Short paragraph explaining the validator's core model and what a passing trace m
 | `AP-06` | Relay Layout Drift - parent, child, and adapter layouts assume different ownership boundaries |
 | `AP-07` | Resume By Final Artifacts Only - resume logic ignores step-local relay state such as `batch.json` |
 | `AP-08` | Review Overwrites Implementation Evidence - the only implementation story lives in a path reused by review |
-| `AP-09` | Ambiguous Final Synthesis - the method says "copy the final handoff" without explicit source artifacts and synthesis rules |
+| `AP-09` | Ambiguous Final Synthesis - the circuit says "copy the final handoff" without explicit source artifacts and synthesis rules |
 | `AP-10` | Weak Gates - a gate checks only existence or generic completion |
-| `AP-11` | No Reopen Rule - disconfirming evidence appears but the method only says "revise and continue" |
+| `AP-11` | No Reopen Rule - disconfirming evidence appears but the circuit only says "revise and continue" |
 | `AP-12` | Guide Instead Of Contract - downstream work gets a guide that drops invariants, tests, or rollback triggers |
 | `AP-13` | Multiple Authoritative Packets - old and new packets coexist without a supersession rule |
-| `AP-14` | Faux Runtime Claims - the method denies being a runtime engine while depending on hidden runtime behavior |
-| `AP-15` | Prose/YAML Drift - `SKILL.md` and `method.yaml` disagree about topology or branching |
+| `AP-14` | Faux Runtime Claims - the circuit denies being a runtime engine while depending on hidden runtime behavior |
+| `AP-15` | Prose/YAML Drift - `SKILL.md` and `circuit.yaml` disagree about topology or branching |
 | `AP-16` | Boilerplate Swamps Signal - shell ceremony buries the only step-specific rules that matter |
-| `AP-17` | Hidden External Input - a required source document, script, template, or method root is never declared |
+| `AP-17` | Hidden External Input - a required source document, script, template, or circuit root is never declared |
 | `AP-18` | Faux Validator - a validator names checks but never defines symbolic execution, citations, or a fixed checklist |
 | `AP-19` | Review Step Mutates Source - a verdict step also changes code or rewrites the artifact under review |
-| `AP-20` | Reopen Without Governing Issue - the method says "reopen" but never records what issue caused it |
+| `AP-20` | Reopen Without Governing Issue - the circuit says "reopen" but never records what issue caused it |
 | `AP-21` | Setup Duplicates Intake - the Setup section lists runtime inputs that Step 1's interactive intake already captures. Keep runtime inputs in one place (the intake step). Setup should only contain `RUN_ROOT` creation and a forward reference to Step 1. |
 | `AP-22` | Repeated Dispatch Shell Blocks - near-identical `compose-prompt.sh \| codex exec --full-auto` blocks appear in every dispatch step. Show the full recipe once (first dispatch step), then reference it. Per-step blocks should only name the header path, skills, and template if non-default. |
 | `AP-23` | Duplicate Readback Orders - the same readback order appears in both the adapter contract and a later summary. Keep it in one location (the adapter contract section). |
@@ -513,27 +513,27 @@ Short paragraph explaining the validator's core model and what a passing trace m
 before any topology is invented.
 
 **User checkpoint:** The user confirms the real workflow shape, what should
-trigger the generated method, and whether this is a delivery method or validator.
+trigger the generated circuit, and whether this is a delivery circuit or validator.
 
 Ask the user:
 
-> 1. What should a fresh session be able to accomplish with this method end to end?
+> 1. What should a fresh session be able to accomplish with this circuit end to end?
 > 2. What phases or checkpoints already exist in the workflow?
 > 3. Which steps require human judgment, and which are interactive, dispatch, or synthesis candidates?
 > 4. What artifacts must survive each phase?
 > 5. What external inputs, adapters, scripts, templates, or child workflows does it depend on?
-> 6. Is this an artifact-centric method or a validator? If unsure, what is being validated and does the workflow execute product work?
+> 6. Is this an artifact-centric circuit or a validator? If unsure, what is being validated and does the workflow execute product work?
 > 7. What should trigger the skill, and what is explicitly out of scope?
-> 8. Where should the generated method be written?
+> 8. Where should the generated circuit be written?
 
 Write `${RUN_ROOT}/artifacts/workflow-brief.md`:
 
 ```markdown
 # Workflow Brief
-## Method Goal
+## Circuit Goal
 ## Trigger Surface
 ## Negative Scope
-## Method Family
+## Circuit Family
 ## Candidate Phase List
 ## Judgment Checkpoints
 ## Artifact Chain
@@ -542,17 +542,17 @@ Write `${RUN_ROOT}/artifacts/workflow-brief.md`:
 ## Open Questions
 ```
 
-**Gate:** `workflow-brief.md` exists with non-empty Method Goal, Trigger Surface,
-Negative Scope, Method Family, and Output Target sections.
+**Gate:** `workflow-brief.md` exists with non-empty Circuit Goal, Trigger Surface,
+Negative Scope, Circuit Family, and Output Target sections.
 
-**Failure mode:** The compiler authors a method for the wrong problem, wrong
+**Failure mode:** The compiler authors a circuit for the wrong problem, wrong
 family, or wrong trigger surface.
 
 ## Phase 2: Analysis
 
 ### Step 2: Pattern Mapping - `dispatch`
 
-**Objective:** Normalize the brief into the live method patterns and identify the
+**Objective:** Normalize the brief into the live circuit patterns and identify the
 exact contract the generated files must encode.
 
 Write a prompt header to `${RUN_ROOT}/prompt-header-analysis.md`:
@@ -561,8 +561,8 @@ Write a prompt header to `${RUN_ROOT}/prompt-header-analysis.md`:
 # Step 2: Pattern Mapping
 
 ## Mission
-Read the workflow brief and map it to the live method patterns. Determine whether
-this is an artifact-centric method or a validator method. Output a structured
+Read the workflow brief and map it to the live circuit patterns. Determine whether
+this is an artifact-centric circuit or a validator circuit. Output a structured
 analysis that will feed directly into file generation.
 
 ## Inputs
@@ -571,9 +571,9 @@ analysis that will feed directly into file generation.
   quality gate, anti-patterns)
 
 ## Output
-- **Path:** `${RUN_ROOT}/artifacts/method-analysis.md`
+- **Path:** `${RUN_ROOT}/artifacts/circuit-analysis.md`
 - **Schema:**
-  ## Recommended Method Family
+  ## Recommended Circuit Family
   ## Phase Topology
   ## Step Inventory
   ## Action Map
@@ -585,7 +585,7 @@ analysis that will feed directly into file generation.
   ## Inline Reference Requirements
 
 ## Success Criteria
-- Method family is explicitly chosen with reasoning
+- Circuit family is explicitly chosen with reasoning
 - Every step has an action type, artifact(s), and gate plan
 - Circuit breaker triggered if the workflow does not fit
 
@@ -609,20 +609,20 @@ cat "${RUN_ROOT}/prompt-analysis.md" | \
   -o "${RUN_ROOT}/last-messages/last-message-analysis.txt" -
 ```
 
-Verify: `test -f ${RUN_ROOT}/artifacts/method-analysis.md`
+Verify: `test -f ${RUN_ROOT}/artifacts/circuit-analysis.md`
 
 Analysis rules (encode in the prompt header):
 
 - Choose the artifact-centric family unless the primary job is symbolic
-  execution or validation of another method
+  execution or validation of another circuit
 - Do not invent a third family
 - Keep phases serial and use worker fanout only inside a single step
 - Mark review steps as diagnose-only when they should not mutate source
 - If `manage-codex` appears, record the full adapter-seam contract now
 - If the workflow is too small, too graph-like, or too runtime-dependent for the
-  live method contract, trip the circuit breaker instead of forcing it
+  live circuit contract, trip the circuit breaker instead of forcing it
 
-**Gate:** `method-analysis.md` exists with explicit Phase Topology, Step
+**Gate:** `circuit-analysis.md` exists with explicit Phase Topology, Step
 Inventory, Action Map, Artifact Chain and Promotion Rules, Gate Plan, and
 Resume and Reopen Plan.
 
@@ -631,18 +631,18 @@ wrong topology, or hidden runtime assumptions.
 
 ## Phase 3: Authoring
 
-### Step 3: Compile Method Files - `dispatch`
+### Step 3: Compile Circuit Files - `dispatch`
 
-**Objective:** Generate draft `method.yaml` and `SKILL.md` from the analysis,
+**Objective:** Generate draft `circuit.yaml` and `SKILL.md` from the analysis,
 cross-validate them, and write all three to the staging area.
 
 Write a prompt header to `${RUN_ROOT}/prompt-header-authoring.md` that includes:
 
 - The full workflow brief digest
-- The full method analysis digest
+- The full circuit analysis digest
 - The Reference Pack (canonical starters, gate table, quality gate, anti-patterns)
 - Instructions to write:
-  - `${STAGING}/method.yaml` — from the canonical YAML starter
+  - `${STAGING}/circuit.yaml` — from the canonical YAML starter
   - `${STAGING}/SKILL.md` — from the appropriate family starter
   - `${RUN_ROOT}/artifacts/cross-validation.md` — field-by-field comparison
 
@@ -660,7 +660,7 @@ cat "${RUN_ROOT}/prompt-authoring.md" | \
   -o "${RUN_ROOT}/last-messages/last-message-authoring.txt" -
 ```
 
-Verify: `test -f ${STAGING}/method.yaml && test -f ${STAGING}/SKILL.md && test -f ${RUN_ROOT}/artifacts/cross-validation.md`
+Verify: `test -f ${STAGING}/circuit.yaml && test -f ${STAGING}/SKILL.md && test -f ${RUN_ROOT}/artifacts/cross-validation.md`
 
 Cross-validation rules (encode in the prompt header):
 
@@ -670,14 +670,14 @@ Cross-validation rules (encode in the prompt header):
 - Compare gate types, verdict vocabularies, and reopen outcomes
 - Compare the declared external inputs and adapter seams
 - Fix every drift before declaring done
-- The generated `name` must use `method:` prefix (e.g., `method:foo-bar`)
+- The generated `name` must use `circuit:` prefix (e.g., `circuit:foo-bar`)
 
-**Gate:** `method.yaml`, `SKILL.md`, and `cross-validation.md` exist in staging,
+**Gate:** `circuit.yaml`, `SKILL.md`, and `cross-validation.md` exist in staging,
 the files agree on topology and branching, and the generated `SKILL.md` includes
 the embedded reference pack.
 
-**Failure mode:** The method looks polished but fails because `SKILL.md` and
-`method.yaml` describe different workflows.
+**Failure mode:** The circuit looks polished but fails because `SKILL.md` and
+`circuit.yaml` describe different workflows.
 
 ## Phase 4: Validation
 
@@ -688,7 +688,7 @@ draft files. This step is assessment only — the worker does NOT modify the dra
 
 Write a prompt header to `${RUN_ROOT}/prompt-header-validation.md` that includes:
 
-- Digests of `${STAGING}/method.yaml` and `${STAGING}/SKILL.md`
+- Digests of `${STAGING}/circuit.yaml` and `${STAGING}/SKILL.md`
 - Full `cross-validation.md` content
 - The Quality Gate Checklist and Anti-Pattern Catalog from this skill
 - Instructions to write `${RUN_ROOT}/artifacts/validation-report.md`
@@ -728,10 +728,10 @@ Validation rules (encode in the prompt header):
 
 - Walk every quality category explicitly; do not stop at the first defect
 - Name anti-patterns by ID when they appear
-- If the generated method claims validator behavior, confirm the validator
+- If the generated circuit claims validator behavior, confirm the validator
   contract actually includes inputs, citations, fixed checklist, workflow,
   failure logging, and finish condition
-- If the generated method claims adapter support, verify the seam is concrete
+- If the generated circuit claims adapter support, verify the seam is concrete
 - This step is assessment only — do NOT modify the draft files
 - Check for AP-21 through AP-25 (conciseness anti-patterns). Pay special attention to:
   - AP-22 (Repeated Dispatch Shell Blocks) — count the number of full compose+exec blocks. More than one is a smell.
@@ -740,7 +740,7 @@ Validation rules (encode in the prompt header):
 **Gate:** `validation-report.md` exists with all six quality categories walked
 and a binary READY/REVISE verdict.
 
-**Failure mode:** A surface-level review passes a method with hidden gaps.
+**Failure mode:** A surface-level review passes a circuit with hidden gaps.
 
 ## Phase 5: Refinement
 
@@ -748,11 +748,11 @@ and a binary READY/REVISE verdict.
 
 **Objective:** The orchestrator reads all upstream artifacts and the Codex
 validation findings, refines the draft files for Claude Code optimization, and
-installs the final method to `TARGET_METHOD_ROOT`.
+installs the final circuit to `TARGET_CIRCUIT_ROOT`.
 
 Read these inputs:
 
-- `${STAGING}/method.yaml` and `${STAGING}/SKILL.md` (Codex drafts)
+- `${STAGING}/circuit.yaml` and `${STAGING}/SKILL.md` (Codex drafts)
 - `${RUN_ROOT}/artifacts/cross-validation.md`
 - `${RUN_ROOT}/artifacts/validation-report.md`
 
@@ -764,13 +764,13 @@ Refinement checklist:
 2. **Dispatch patterns** — Do all `dispatch` steps use the correct
    `compose-prompt.sh` flags and `codex exec --full-auto` patterns? Are relay
    headings present in every header?
-3. **Session ergonomics** — Will this method feel natural when invoked via
-   `/method:<name>`? Are interactive steps conversational? Are synthesis steps
+3. **Session ergonomics** — Will this circuit feel natural when invoked via
+   `/circuit:<name>`? Are interactive steps conversational? Are synthesis steps
    clear about what the orchestrator writes?
 4. **Address REVISE findings** — If the validation report says REVISE, fix every
    named issue in the drafts before installing.
 5. **Cross-validate again** — After any refinement edits, re-verify that
-   `method.yaml` and `SKILL.md` still agree on topology.
+   `circuit.yaml` and `SKILL.md` still agree on topology.
 5b. **Conciseness pass** — Before installing, verify:
     - No setup/intake duplication (AP-21)
     - Dispatch recipe shown in full once only (AP-22)
@@ -779,36 +779,36 @@ Refinement checklist:
     - No circuit breaker echo lists (AP-25)
     - Canonical header schema is compressed, not templated
     - SKILL.md line count is proportional to corpus norms
-6. **Install** — Copy refined files to `${TARGET_METHOD_ROOT}/method.yaml` and
-   `${TARGET_METHOD_ROOT}/SKILL.md`.
+6. **Install** — Copy refined files to `${TARGET_CIRCUIT_ROOT}/circuit.yaml` and
+   `${TARGET_CIRCUIT_ROOT}/SKILL.md`.
 
 **Gate with reopen:** Read the validation verdict plus refinement results.
 
-- `READY` after refinement -> install to `TARGET_METHOD_ROOT` and recommend
-  running `method:dry-run` against one concrete feature
+- `READY` after refinement -> install to `TARGET_CIRCUIT_ROOT` and recommend
+  running `circuit:dry-run` against one concrete feature
 - `REVISE` with issues the orchestrator cannot resolve -> present findings to
   the user and ask:
-  1. Which artifact should reopen: `workflow-brief.md`, `method-analysis.md`, or the authored files?
+  1. Which artifact should reopen: `workflow-brief.md`, `circuit-analysis.md`, or the authored files?
   2. What specific issue should govern the reopen?
 
 Append a `## Reopen Decision` section to `validation-report.md`, update the
 chosen upstream artifact if needed, and resume from the selected step.
 
-**Failure mode:** The compiler ships a method that looks corpus-shaped but still
+**Failure mode:** The compiler ships a circuit that looks corpus-shaped but still
 contains hidden gaps, weak gates, or unusable adapter seams.
 
 ## Artifact Chain Summary
 
 ```text
 workflow-brief.md                              [Step 1, interactive]
-  -> method-analysis.md                        [Step 2, Codex dispatch]
-  -> draft-method.yaml + draft-SKILL.md        [Step 3, Codex dispatch, staging]
+  -> circuit-analysis.md                       [Step 2, Codex dispatch]
+  -> draft-circuit.yaml + draft-SKILL.md       [Step 3, Codex dispatch, staging]
   -> cross-validation.md                       [Step 3, Codex dispatch]
   -> validation-report.md                      [Step 4, Codex dispatch]
-  -> method.yaml + SKILL.md                    [Step 5, Claude refinement, installed]
+  -> circuit.yaml + SKILL.md                   [Step 5, Claude refinement, installed]
 ```
 
-Draft files live in `${STAGING}/`. Final deliverables live in `${TARGET_METHOD_ROOT}/`.
+Draft files live in `${STAGING}/`. Final deliverables live in `${TARGET_CIRCUIT_ROOT}/`.
 Compiler artifacts (`cross-validation.md`, `validation-report.md`) stay under
 `${RUN_ROOT}/artifacts/` as the authoring audit trail.
 
@@ -817,17 +817,17 @@ Compiler artifacts (`cross-validation.md`, `validation-report.md`) stay under
 If work already exists, resume in this order:
 
 1. Check `${RUN_ROOT}/artifacts/workflow-brief.md`
-2. Check `${RUN_ROOT}/artifacts/method-analysis.md`
-3. Check `${STAGING}/method.yaml`, `${STAGING}/SKILL.md`, and
+2. Check `${RUN_ROOT}/artifacts/circuit-analysis.md`
+3. Check `${STAGING}/circuit.yaml`, `${STAGING}/SKILL.md`, and
    `${RUN_ROOT}/artifacts/cross-validation.md`
 4. Check `${RUN_ROOT}/artifacts/validation-report.md`
-5. Check `${TARGET_METHOD_ROOT}/method.yaml` and `${TARGET_METHOD_ROOT}/SKILL.md`
+5. Check `${TARGET_CIRCUIT_ROOT}/circuit.yaml` and `${TARGET_CIRCUIT_ROOT}/SKILL.md`
 
 If `validation-report.md` exists with a `REVISE` verdict, read its
 `## Reopen Decision` section and resume from the chosen step instead of blindly
 rerunning validation.
 
-If the final files exist in `TARGET_METHOD_ROOT` but not in staging, the
+If the final files exist in `TARGET_CIRCUIT_ROOT` but not in staging, the
 refinement step already completed — do not re-run.
 
 This is best-effort. The durable state is the artifact set on disk, not the chat
@@ -839,16 +839,16 @@ Stop and recommend a different path when:
 
 - the workflow is a simple prompt or a tiny conventional skill with no real
   multi-phase contract
-- the request is to edit an existing method instead of authoring a new one
+- the request is to edit an existing circuit instead of authoring a new one
 - the workflow needs arbitrary graph execution, hidden runtime ledgers, or
-  pipeline orchestration that the live method schema does not model
+  pipeline orchestration that the live circuit schema does not model
 - the workflow is really a runtime engine, installer, or adapter implementation
-  task rather than a method authoring task
-- the method family cannot honestly be expressed as artifact-centric or validator
+  task rather than a circuit authoring task
+- the circuit family cannot honestly be expressed as artifact-centric or validator
 
 Good alternatives:
 
-- Hand-author a small non-method skill
-- Use `skill-creator` for ordinary skill work that does not need method topology
-- Use `method:dry-run` to validate an already-authored method
+- Hand-author a small non-circuit skill
+- Use `skill-creator` for ordinary skill work that does not need circuit topology
+- Use `circuit:dry-run` to validate an already-authored circuit
 - Use `pipeline` or a design/architecture skill if the real need is orchestration

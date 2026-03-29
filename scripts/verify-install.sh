@@ -75,15 +75,15 @@ section "Skill directories"
 
 EXPECTED_SKILLS=(
   manage-codex
-  method-autonomous-ratchet
-  method-create
-  method-decision-pressure-loop
-  method-dry-run
-  method-flow-audit-and-repair
-  method-janitor
-  method-research-to-implementation
-  method-router
-  method-spec-hardening
+  circuit-autonomous-ratchet
+  circuit-create
+  circuit-decision-pressure-loop
+  circuit-dry-run
+  circuit-flow-audit-and-repair
+  circuit-janitor
+  circuit-research-to-implementation
+  circuit-router
+  circuit-spec-hardening
 )
 
 for skill in "${EXPECTED_SKILLS[@]}"; do

@@ -1,7 +1,7 @@
 ---
-name: method:spec-hardening
+name: circuit:spec-hardening
 description: >
-  Artifact-driven method for turning a rough RFC, design spec, PRD, or method
+  Artifact-driven circuit for turning a rough RFC, design spec, PRD, or circuit
   schema into a canonical amended spec, a build-ready execution packet, and a
   reviewed implementation plan without crossing into code. 10 steps across 6
   phases: Intake -> Multi-Angle Review -> Amendment -> Contracting -> Planning
@@ -9,7 +9,7 @@ description: >
   from.
 ---
 
-# Spec-Hardening Method
+# Spec-Hardening Circuit
 
 An artifact-centric workflow that chains draft -> digest -> critique -> amendment
 -> contract -> plan. Each phase produces a named artifact that becomes the next
@@ -18,7 +18,7 @@ disposition, and reopen decisions matter most.
 
 ## When to Use
 
-- Existing RFCs, design specs, PRDs, or method schemas that are promising but not
+- Existing RFCs, design specs, PRDs, or circuit schemas that are promising but not
   yet safe to implement from directly
 - Drafts where buildability, system fit, or prior art still need pressure before
   rewrite
@@ -28,18 +28,18 @@ disposition, and reopen decisions matter most.
 
 Do NOT use for unformed ideas, bug fixes, or specs that are already implementation-ready.
 
-This method sits between review and execution: `proposal-review` helps collect
-structured reactions, but this method turns critique into canonical amended
+This circuit sits between review and execution: `proposal-review` helps collect
+structured reactions, but this circuit turns critique into canonical amended
 artifacts and a build plan. `pipeline` can host it during align work. It is a
 natural downstream step after a decision loop and an upstream step before
-`method:research-to-implementation` or `manage-codex`.
+`circuit:research-to-implementation` or `manage-codex`.
 
 ## Glossary
 
-- **Artifact** - A canonical method output file in `${RUN_ROOT}/artifacts/`. These
+- **Artifact** - A canonical circuit output file in `${RUN_ROOT}/artifacts/`. These
   are the durable chain. Each step produces exactly one artifact.
-- **Source draft** - The starting RFC, design spec, PRD, or method schema under
-  review. It is an external input, not a method artifact.
+- **Source draft** - The starting RFC, design spec, PRD, or circuit schema under
+  review. It is an external input, not a circuit artifact.
 - **Review pass** - One of the three independent critique lenses: implementer,
   systems, or comparative.
 - **Prompt header** - A self-contained file the orchestrator writes before
@@ -61,7 +61,7 @@ natural downstream step after a decision loop and an upstream step before
   work without reinterpreting the contract.
 - **Self-contained headers.** Dispatch steps do NOT use `--template`. The prompt
   header carries the full worker contract and the standard handoff headings.
-- **Stop before code.** This method hardens documents only. There is no
+- **Stop before code.** This circuit hardens documents only. There is no
   `manage-codex` delegation step and no implementation phase.
 
 ## Setup
@@ -69,7 +69,7 @@ natural downstream step after a decision loop and an upstream step before
 ```bash
 SOURCE_DRAFT="<path-to-source-draft>"
 RUN_SLUG="<spec-slug>"
-RUN_ROOT=".relay/method-runs/${RUN_SLUG}"
+RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 
@@ -573,7 +573,7 @@ If the worker only wrote `handoffs/handoff.md`, the orchestrator reads it and
 synthesizes `plan-review.md` manually using the required schema.
 
 **Gate with reopen:** Read the plan review verdict.
-- `READY` -> method complete
+- `READY` -> circuit complete
 - `REVISE` -> present `plan-review.md` to the user and ask (via AskUserQuestion):
   > The plan review verdict is REVISE.
   >
@@ -615,7 +615,7 @@ If `${RUN_ROOT}/artifacts/` already has files, determine the resume point:
 If `plan-review.md` exists with a `REVISE` verdict, resume from the user-selected
 reopen point rather than blindly repeating Step 10.
 
-This is best-effort - the method has no durable state beyond artifacts on disk and
+This is best-effort - the circuit has no durable state beyond artifacts on disk and
 step-local relay directories. If a session dies mid-step, check the step's relay
 directory for worker output before concluding the step failed.
 

@@ -1,10 +1,10 @@
 schema_version: "1"
-method:
+circuit:
   id: research-to-implementation
   version: "2026-03-21"
   title: Research-to-Implementation
   description: >
-    Artifact-driven method for taking a significant feature from idea to shipped code.
+    Artifact-driven circuit for taking a significant feature from idea to shipped code.
     Chains intent → constraints → decision → contract → code through 5 phases.
     Topology only — this file does not encode runtime behavior or adapter contracts.
 

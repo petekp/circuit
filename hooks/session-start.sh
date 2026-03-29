@@ -2,7 +2,7 @@
 # session-start.sh — Outputs the Circuit plugin session banner as markdown
 #
 # Called by hooks.json on SessionStart. Checks prerequisites and lists
-# available methods.
+# available circuits.
 
 set -uo pipefail
 
@@ -12,7 +12,7 @@ if ! command -v codex >/dev/null 2>&1; then
 > **Warning: Codex CLI not found**
 >
 > The Circuit plugin dispatches heavy implementation to Codex workers.
-> Without `codex`, methods that use `manage-codex` will fail.
+> Without `codex`, circuits that use `manage-codex` will fail.
 >
 > Install it:
 > ```
@@ -32,23 +32,23 @@ cat <<'BANNER'
 
 You have access to the **Circuit** plugin — structured multi-phase workflows for complex engineering tasks.
 
-## Available Methods
+## Available Circuits
 
-| Method | Invoke | Use When |
-|--------|--------|----------|
-| **Router** | `/method:router` | Unsure which method fits — routes to the best one |
-| **Research-to-Implementation** | `/method:research-to-implementation` | Multi-file feature delivery with unclear approach |
-| **Decision Pressure Loop** | `/method:decision-pressure-loop` | Architecture choices with real tradeoffs |
-| **Spec Hardening** | `/method:spec-hardening` | Existing RFC/spec that needs to become build-ready |
-| **Flow Audit & Repair** | `/method:flow-audit-and-repair` | Broken/flaky end-to-end flow that needs forensic repair |
-| **Autonomous Ratchet** | `/method:autonomous-ratchet` | Overnight autonomous quality improvement |
-| **Janitor** | `/method:janitor` | Systematic dead code/stale docs cleanup |
-| **Method Create** | `/method:create` | Author a new method from a workflow description |
-| **Dry Run** | `/method:dry-run` | Validate a method skill's mechanical soundness |
+| Circuit | Invoke | Use When |
+|---------|--------|----------|
+| **Router** | `/circuit:router` | Unsure which circuit fits — routes to the best one |
+| **Research-to-Implementation** | `/circuit:research-to-implementation` | Multi-file feature delivery with unclear approach |
+| **Decision Pressure Loop** | `/circuit:decision-pressure-loop` | Architecture choices with real tradeoffs |
+| **Spec Hardening** | `/circuit:spec-hardening` | Existing RFC/spec that needs to become build-ready |
+| **Flow Audit & Repair** | `/circuit:flow-audit-and-repair` | Broken/flaky end-to-end flow that needs forensic repair |
+| **Autonomous Ratchet** | `/circuit:autonomous-ratchet` | Overnight autonomous quality improvement |
+| **Janitor** | `/circuit:janitor` | Systematic dead code/stale docs cleanup |
+| **Circuit Create** | `/circuit:create` | Author a new circuit from a workflow description |
+| **Dry Run** | `/circuit:dry-run` | Validate a circuit skill's mechanical soundness |
 
 ## How It Works
 
-Methods produce **artifact chains** — each phase writes a durable file that feeds the next. Heavy implementation is dispatched to **Codex workers** via the `manage-codex` orchestrator.
+Circuits produce **artifact chains** — each phase writes a durable file that feeds the next. Heavy implementation is dispatched to **Codex workers** via the `manage-codex` orchestrator.
 
 The relay scripts (`compose-prompt.sh`, `update-batch.sh`) handle prompt assembly and batch state.
 
@@ -56,7 +56,7 @@ The relay scripts (`compose-prompt.sh`, `update-batch.sh`) handle prompt assembl
 
 1. Copy relay scripts to your project: `cp -r "$(claude plugin path circuit)/scripts/relay" ./scripts/relay`
 2. Ensure `codex` CLI is installed: `npm install -g @openai/codex`
-3. Invoke a method: `/method:router <describe your task>`
+3. Invoke a circuit: `/circuit:router <describe your task>`
 
-Use `/manage-codex` to orchestrate Codex workers directly without a method wrapper.
+Use `/manage-codex` to orchestrate Codex workers directly without a circuit wrapper.
 BANNER

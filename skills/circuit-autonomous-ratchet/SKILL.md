@@ -1,7 +1,7 @@
 ---
-name: method:autonomous-ratchet
+name: circuit:autonomous-ratchet
 description: >
-  Autonomous-only artifact-centric method for overnight quality improvement
+  Autonomous-only artifact-centric circuit for overnight quality improvement
   runs on an existing codebase. 17 steps across 6 phases: Triage -> Stabilize
   -> Envision -> Plan -> Execute -> Finalize. Use when asked to run this
   overnight, improve while I sleep, ratchet quality autonomously, or do an
@@ -17,7 +17,7 @@ restore baseline trust, generate better options, turn them into an executable
 charter, deliver the work in batches, and publish a truthful closeout packet.
 The artifact chain is the source of truth. Relay handoffs and child roots are
 supporting evidence, not the workflow state.
-This method exists to prevent a common unattended-run failure mode: ambitious
+This circuit exists to prevent a common unattended-run failure mode: ambitious
 changes built on an untrusted baseline, vague quality bars, hidden reopen logic,
 and stale downstream packets that still look current after a session dies. The
 topology stays static, judgment becomes durable artifacts, and every reopen or
@@ -32,7 +32,7 @@ Do NOT use for interactive steering, net-new feature delivery, architecture
 decisions, cleanup-only sweeps, trivial fixes, or repos that cannot support
 explicit verification. See the frontmatter for the full negative scope.
 ## Glossary
-- **Artifact** - Canonical method output under `${RUN_ROOT}/artifacts/`.
+- **Artifact** - Canonical circuit output under `${RUN_ROOT}/artifacts/`.
 - **Authoritative packet** - The ratchet artifact that supersedes an earlier
   draft or review artifact for downstream use.
 - **Review coverage** - The explicit table proving which `RQ-*`, `MP-*`, batch,
@@ -64,7 +64,7 @@ explicit verification. See the frontmatter for the full negative scope.
 ## Setup
 ```bash
 RUN_SLUG="<scope-slug>"
-RUN_ROOT=".relay/method-runs/${RUN_SLUG}-autonomous-ratchet"
+RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}-autonomous-ratchet"
 mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
 ```
 Setup only defines `RUN_ROOT`. Step 1 captures every runtime input that varies
@@ -477,14 +477,14 @@ the deferred work surface without hiding partials or reopen state.
 **Schemas:**
 - `overnight-handoff.md`: `Run Verdict`; `Scope Delivered`; `Verification Snapshot`; `Deferred or Reopened Work`; `Resume Notes`
 - `pr-brief.md`: `Summary`; `Key Changes`; `Verification`; `Risks and Follow-Ups`
-- `deferred-work.md`: `Deferred Items`; `Governing Issues`; `Recommended Next Method`
+- `deferred-work.md`: `Deferred Items`; `Governing Issues`; `Recommended Next Circuit`
 **Gate:** `outputs_present`
 - All 3 closeout artifacts contain the promised section names.
 - `Run Verdict` in `overnight-handoff.md` matches `final-review.md`.
 - `deferred-work.md` includes every deferred item named by `final-review.md` or `execution-report.md`.
 - `pr-brief.md` and `overnight-handoff.md` summarize the same delivered scope and verification snapshot.
 ## manage-codex Adapter Seam Contract
-The method uses one shared `manage-codex` seam with step-specific charters.
+The circuit uses one shared `manage-codex` seam with step-specific charters.
 Parent steps own the child roots and synthesize the canonical parent artifact.
 ### Common Child Root Layout
 Use these parent-owned child roots:
@@ -599,7 +599,7 @@ That means:
 - Review steps may propose additional work.
 - Only the immediately following ratchet step may admit or reject that work.
 - No review step, external orchestrator, or hidden runtime loop may consume injections directly.
-- Injected work never edits `method.yaml` and never creates new topology steps.
+- Injected work never edits `circuit.yaml` and never creates new topology steps.
 Triggering review artifacts:
 - `stability-findings.md`
 - `design-review.md`
@@ -748,6 +748,6 @@ Stop and redirect when:
 - The request is really greenfield feature delivery, a major architecture
   choice, cleanup-only scope, or work that needs live user steering.
 Redirects:
-- Greenfield or substantial feature delivery -> `method:research-to-implementation`
-- Architecture or protocol choice -> `method:decision-pressure-loop`
-- Cleanup-only scope -> `method:janitor`
+- Greenfield or substantial feature delivery -> `circuit:research-to-implementation`
+- Architecture or protocol choice -> `circuit:decision-pressure-loop`
+- Cleanup-only scope -> `circuit:janitor`

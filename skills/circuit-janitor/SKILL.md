@@ -1,7 +1,7 @@
 ---
-name: method:janitor
+name: circuit:janitor
 description: >
-  Artifact-centric method for systematic codebase cleanup — dead code, stale
+  Artifact-centric circuit for systematic codebase cleanup — dead code, stale
   docs, orphaned artifacts, vestigial comments, and redundant abstractions. 8
   steps across 5 phases: Survey -> Triage -> Prove -> Clean -> Verify. Dual-mode:
   interactive (user checkpoints) or autonomous (evidence-gated with deferred
@@ -16,7 +16,7 @@ description: >
 Systematic codebase cleanup with false-positive protection at every gate.
 Every removal must be backed by evidence, not intuition.
 
-The method operates in two modes:
+The circuit operates in two modes:
 
 - **Interactive (default):** User checkpoints at triage review and before each
   cleanup batch. Human judgment decides borderline cases.
@@ -31,14 +31,14 @@ The method operates in two modes:
 - Sweep orphaned test fixtures, config for removed features, vestigial comments
 - Reduce codebase noise to improve coding-agent context quality
 - Systematic cleanup after a major refactor or migration
-- `/method:janitor` for interactive mode
-- `/method:janitor --auto` or `/method:janitor autonomous` for autonomous mode
+- `/circuit:janitor` for interactive mode
+- `/circuit:janitor --auto` or `/circuit:janitor autonomous` for autonomous mode
 
 See frontmatter for full negative scope.
 
 ## Glossary
 
-- **Artifact** — Durable method output under `${RUN_ROOT}/artifacts/`.
+- **Artifact** — Durable circuit output under `${RUN_ROOT}/artifacts/`.
 - **Detritus** — Dead code, stale docs, orphaned artifacts, vestigial comments,
   or redundant abstractions — anything that pollutes a codebase without carrying
   load.
@@ -58,7 +58,7 @@ See frontmatter for full negative scope.
   headers, composes prompts with `compose-prompt.sh`, dispatches to Codex, and
   reads back results. Claude performs `synthesis` and `interactive` steps
   directly. This is non-negotiable — the relay/Codex execution model is the
-  method's core assumption.
+  circuit's core assumption.
 - **False-positive aversion.** Better to leave something suspicious than to
   remove something load-bearing. "I couldn't find any references" is evidence;
   "it looks unused" is not.
@@ -75,7 +75,7 @@ See frontmatter for full negative scope.
 
 ```bash
 RUN_SLUG="<target-slug>"
-RUN_ROOT=".relay/method-runs/${RUN_SLUG}-janitor"
+RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}-janitor"
 mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
 ```
 
@@ -702,11 +702,11 @@ Resume should be relay-first, then artifact-first:
 Stop and recommend a different path when:
 
 - The codebase has fewer than 5 candidate findings — the overhead of a
-  multi-phase method is not justified for a handful of known deletions
+  multi-phase circuit is not justified for a handful of known deletions
 - The target is a single file or a known specific item — use direct deletion
   instead
 - The cleanup requires behavior changes (refactoring, API migration) — use
-  `method:research-to-implementation` instead
+  `circuit:research-to-implementation` instead
 - The user wants architecture simplification, not detritus removal — use
-  `method:decision-pressure-loop` or `improve-codebase-architecture` instead
+  `circuit:decision-pressure-loop` or `improve-codebase-architecture` instead
 - Build/test infrastructure does not exist or is broken — fix that first

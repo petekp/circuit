@@ -1,13 +1,13 @@
 ---
-name: method:research-to-implementation
+name: circuit:research-to-implementation
 description: >
-  Artifact-driven method for taking a significant feature from idea to shipped code.
+  Artifact-driven circuit for taking a significant feature from idea to shipped code.
   10 steps across 5 phases: Alignment → Evidence → Decision → Preflight → Delivery.
   Use when the user describes a non-trivial feature that needs research, design, and
   implementation — not for bug fixes, single-file changes, or quick wiring tasks.
 ---
 
-# Research-to-Implementation Method
+# Research-to-Implementation Circuit
 
 An artifact-centric workflow that chains intent → constraints → decision → contract → code.
 Each phase produces a named artifact that becomes the next phase's input. The user steers
@@ -24,7 +24,7 @@ Do NOT use for bug fixes, config changes, or tasks where the approach is already
 
 ## Glossary
 
-- **Artifact** — A canonical method output file in `${RUN_ROOT}/artifacts/`. These are the
+- **Artifact** — A canonical circuit output file in `${RUN_ROOT}/artifacts/`. These are the
   durable chain. Each step produces exactly one artifact.
 - **Worker handoff** — The raw output a Codex worker writes to its relay `handoffs/` directory.
   Worker handoffs are inputs to artifact synthesis, not artifacts themselves.
@@ -51,7 +51,7 @@ Do NOT use for bug fixes, config changes, or tasks where the approach is already
 
 ```bash
 RUN_SLUG="<feature-slug>"
-RUN_ROOT=".relay/method-runs/${RUN_SLUG}"
+RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 
@@ -605,7 +605,7 @@ cp ${RUN_ROOT}/phases/step-10/ship-review.md ${RUN_ROOT}/artifacts/ship-review.m
 2. Re-runs Step 10 (max 2 total attempts)
 3. If still `ISSUES FOUND` after 2 attempts → escalate to user
 
-**If verdict is `SHIP-READY`:** Method complete.
+**If verdict is `SHIP-READY`:** Circuit complete.
 
 ---
 
@@ -634,7 +634,7 @@ If `${RUN_ROOT}/artifacts/` already has files, determine the resume point:
    resume state before restarting implementation
 4. Continue from the next step
 
-This is best-effort — the method has no durable state beyond artifacts on disk and
+This is best-effort — the circuit has no durable state beyond artifacts on disk and
 step-local relay directories. If a session dies mid-step, check the step's relay
 directory for worker output before concluding the step failed.
 

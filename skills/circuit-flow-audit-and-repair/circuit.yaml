@@ -1,10 +1,10 @@
 schema_version: "1"
-method:
+circuit:
   id: flow-audit-and-repair
   version: "2026-03-22"
   title: Flow Audit and Repair
   description: >
-    Forensic debugging method for broken, flaky, or operationally unsafe end-to-end flows.
+    Forensic debugging circuit for broken, flaky, or operationally unsafe end-to-end flows.
     Chains observed failure → audit → causal model → regression contract → ordered repair
     → live re-audit through 5 phases. Topology only — this file does not encode runtime
     behavior or adapter contracts.

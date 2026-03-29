@@ -1,14 +1,14 @@
 schema_version: "1"
-method:
-  id: method-dry-run
+circuit:
+  id: circuit-dry-run
   version: "2026-03-22"
-  title: Method Dry Run
+  title: Circuit Dry Run
   description: >
-    Interactive validation of a method skill by symbolically executing one concrete
+    Interactive validation of a circuit skill by symbolically executing one concrete
     feature through every step. Combines a fixed 10-dimension structural checklist
     with step-by-step simulation of prompt assembly, worker output, and artifact
     promotion. Topology only — this file describes the dry-run workflow, not the
-    target method being validated.
+    target circuit being validated.
 
   phases:
     - id: validation

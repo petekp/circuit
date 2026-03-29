@@ -1,5 +1,5 @@
 ---
-name: method:decision-pressure-loop
+name: circuit:decision-pressure-loop
 description: >
   Architecture decision workflow for choosing between meaningful architectural or
   protocol options under uncertainty before implementation begins. 8 steps across
@@ -9,7 +9,7 @@ description: >
   goal is already code delivery.
 ---
 
-# Decision-Pressure-Loop Method
+# Decision-Pressure-Loop Circuit
 
 An artifact-centric workflow that turns architectural uncertainty into a pressure-tested
 decision before code begins. It chains decision framing -> system reality -> serious options
@@ -27,7 +27,7 @@ Do NOT use for code delivery, bug fixes, or tasks where the decision is already 
 
 ## Glossary
 
-- **Artifact** — A canonical method output file in `${RUN_ROOT}/artifacts/`. These are the
+- **Artifact** — A canonical circuit output file in `${RUN_ROOT}/artifacts/`. These are the
   durable chain. Each step produces exactly one artifact.
 - **Worker handoff** — The raw output a Codex worker writes to its relay `handoffs/` directory.
   Worker handoffs are inputs to artifact synthesis, not artifacts themselves.
@@ -48,17 +48,17 @@ Do NOT use for code delivery, bug fixes, or tasks where the decision is already 
   attacked, which prevents hidden priority drift.
 - **User steers priorities, not approvals.** Checkpoints ask the user to choose what to
   optimize and what downside to accept on purpose.
-- **Stop before code.** This method ends with a durable decision guide, not an execution
+- **Stop before code.** This circuit ends with a durable decision guide, not an execution
   packet or delivery contract.
 - **Skill composition, not redundancy.** `architecture-exploration` and `solution-explorer`
   generate grounded options, `seam-ripper` and `clean-architecture` harden the pressure
-  step, and `method:spec-hardening` can follow once the decision is stable.
+  step, and `circuit:spec-hardening` can follow once the decision is stable.
 
 ## Setup
 
 ```bash
 RUN_SLUG="<decision-slug>"
-RUN_ROOT=".relay/method-runs/${RUN_SLUG}"
+RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 
@@ -170,7 +170,7 @@ Write their response to `${RUN_ROOT}/artifacts/decision-brief.md`:
 **Gate:** `decision-brief.md` exists with non-empty Decision Question, Must-Protect Qualities,
 and Non-Decision Space.
 
-**Failure mode:** The method optimizes a vague aspiration instead of a real decision.
+**Failure mode:** The circuit optimizes a vague aspiration instead of a real decision.
 
 ---
 
@@ -587,7 +587,7 @@ If `${RUN_ROOT}/artifacts/` already has files, determine the resume point:
 2. Find the last complete artifact with passing gate
 3. Continue from the next step
 
-This is best-effort — the method has no durable state beyond artifacts on disk and
+This is best-effort — the circuit has no durable state beyond artifacts on disk and
 step-local relay directories. If a session dies mid-step, check the step's relay
 directory for worker output before concluding the step failed.
 

@@ -1,10 +1,10 @@
 schema_version: "1"
-method:
+circuit:
   id: autonomous-ratchet
   version: "2026-03-26"
   title: Autonomous Ratchet
   description: >
-    Autonomous-only artifact-centric method for overnight quality improvement
+    Autonomous-only artifact-centric circuit for overnight quality improvement
     runs on an existing codebase. 17 steps across 6 phases: Triage ->
     Stabilize -> Envision -> Plan -> Execute -> Finalize. Use when asked to
     run this overnight, improve while I sleep, ratchet quality autonomously,

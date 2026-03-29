@@ -1,10 +1,10 @@
 schema_version: "1"
-method:
+circuit:
   id: janitor
   version: "2026-03-26"
   title: Janitor
   description: >
-    Artifact-centric method for systematic codebase cleanup: dead code, stale
+    Artifact-centric circuit for systematic codebase cleanup: dead code, stale
     docs, orphaned artifacts, vestigial comments, and redundant abstractions.
     5 phases (Survey, Triage, Prove, Clean, Verify) across 8 steps. Dual-mode:
     interactive (user checkpoints) or autonomous (evidence-gated, deferred

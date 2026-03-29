@@ -1,12 +1,12 @@
 schema_version: "1"
-method:
-  id: method-create
+circuit:
+  id: circuit-create
   version: "2026-03-26"
-  title: Method Create
+  title: Circuit Create
   description: >
     Codex-powered compiler for turning a natural-language workflow description
-    into a method skill that matches the live corpus. Chains workflow brief ->
-    method analysis -> draft files -> validation report -> refined install across
+    into a circuit skill that matches the live corpus. Chains workflow brief ->
+    circuit analysis -> draft files -> validation report -> refined install across
     5 phases. Topology only - this file does not encode runtime behavior or
     authoring references.
 
@@ -23,9 +23,9 @@ method:
             type: outputs_present
             required: [workflow-brief.md]
             checks:
-              - "Method goal explicit"
+              - "Circuit goal explicit"
               - "Trigger surface and negative scope explicit"
-              - "Method family explicit or intentionally unresolved"
+              - "Circuit family explicit or intentionally unresolved"
               - "Output target explicit"
 
     - id: analysis
@@ -36,36 +36,36 @@ method:
           title: Pattern Mapping
           action: dispatch
           consumes: [workflow-brief.md]
-          produces: method-analysis.md
+          produces: circuit-analysis.md
           gate:
             type: outputs_present
-            required: [method-analysis.md]
+            required: [circuit-analysis.md]
             checks:
               - "Phase topology explicit"
               - "Action types, artifact chain, and external inputs explicit"
               - "Gate, reopen, and resume plan explicit"
           notes: >
-            Codex worker reads the workflow brief and maps it to the live method
+            Codex worker reads the workflow brief and maps it to the live circuit
             patterns. Determines artifact-centric vs validator family.
 
     - id: authoring
       title: Authoring
       execution: serial
       steps:
-        - id: compile-method-files
-          title: Compile Method Files
+        - id: compile-circuit-files
+          title: Compile Circuit Files
           action: dispatch
-          consumes: [workflow-brief.md, method-analysis.md]
-          produces: [draft-method.yaml, draft-SKILL.md, cross-validation.md]
+          consumes: [workflow-brief.md, circuit-analysis.md]
+          produces: [draft-circuit.yaml, draft-SKILL.md, cross-validation.md]
           gate:
             type: outputs_present
-            required: [draft-method.yaml, draft-SKILL.md, cross-validation.md]
+            required: [draft-circuit.yaml, draft-SKILL.md, cross-validation.md]
             checks:
               - "Draft files agree on topology, triggers, and gate semantics"
               - "Starter templates, decision table, quality gate, and anti-pattern catalog present"
               - "Compiler-only scope, resume rules, and circuit breaker explicit"
           notes: >
-            Codex worker generates draft method.yaml and SKILL.md to staging,
+            Codex worker generates draft circuit.yaml and SKILL.md to staging,
             then cross-validates them field by field.
 
     - id: validation
@@ -75,7 +75,7 @@ method:
         - id: quality-gate
           title: Quality Gate
           action: dispatch
-          consumes: [draft-method.yaml, draft-SKILL.md, cross-validation.md]
+          consumes: [draft-circuit.yaml, draft-SKILL.md, cross-validation.md]
           produces: validation-report.md
           gate:
             type: outputs_present
@@ -95,8 +95,8 @@ method:
         - id: claude-code-refinement
           title: Claude Code Refinement
           action: synthesis
-          consumes: [draft-method.yaml, draft-SKILL.md, cross-validation.md, validation-report.md]
-          produces: [method.yaml, SKILL.md]
+          consumes: [draft-circuit.yaml, draft-SKILL.md, cross-validation.md, validation-report.md]
+          produces: [circuit.yaml, SKILL.md]
           gate:
             type: verdict-reopen
             outcomes:
@@ -104,5 +104,5 @@ method:
               revise: interactive-reopen
           notes: >
             Orchestrator reads all upstream artifacts plus validation findings,
-            refines for Claude Code optimization, and installs to TARGET_METHOD_ROOT.
+            refines for Claude Code optimization, and installs to TARGET_CIRCUIT_ROOT.
             This is the only step that writes to the final skill directory.

@@ -1,9 +1,9 @@
 # Circuit for Claude Code
 
-Structured workflow methods for Claude Code -- disciplined multi-phase approaches to complex engineering tasks.
+Structured workflow circuits for Claude Code -- disciplined multi-phase approaches to complex engineering tasks.
 
-This plugin gives Claude Code nine reusable methods for tackling complex software
-engineering work. Each method is a multi-phase workflow that produces **artifact
+This plugin gives Claude Code nine reusable circuits for tackling complex software
+engineering work. Each circuit is a multi-phase workflow that produces **artifact
 chains** -- durable files that track progress and survive session restarts. Heavy
 implementation work is dispatched to **Codex workers** for parallel execution,
 while interactive steps keep you in control of key decisions. The result is
@@ -12,17 +12,17 @@ ends or a context window fills up.
 
 ## What's Inside
 
-| Method | Invoke | Best For |
-|--------|--------|----------|
-| Router | `/method:router` | Picking the right method when you're not sure which fits |
-| Research-to-Implementation | `/method:research-to-implementation` | Taking a feature from idea to shipped code |
-| Decision Pressure Loop | `/method:decision-pressure-loop` | Architecture decisions under real uncertainty |
-| Spec Hardening | `/method:spec-hardening` | Turning a rough RFC or PRD into something safe to build from |
-| Flow Audit and Repair | `/method:flow-audit-and-repair` | Debugging and repairing broken end-to-end flows |
-| Autonomous Ratchet | `/method:autonomous-ratchet` | Overnight unattended quality improvement runs |
-| Janitor | `/method:janitor` | Systematic dead code, stale docs, and codebase cleanup |
-| Method Create | `/method:create` | Authoring a new method from a workflow description |
-| Dry Run | `/method:dry-run` | Validating a method is mechanically sound before real use |
+| Circuit | Invoke | Best For |
+|---------|--------|----------|
+| Router | `/circuit:router` | Picking the right circuit when you're not sure which fits |
+| Research-to-Implementation | `/circuit:research-to-implementation` | Taking a feature from idea to shipped code |
+| Decision Pressure Loop | `/circuit:decision-pressure-loop` | Architecture decisions under real uncertainty |
+| Spec Hardening | `/circuit:spec-hardening` | Turning a rough RFC or PRD into something safe to build from |
+| Flow Audit and Repair | `/circuit:flow-audit-and-repair` | Debugging and repairing broken end-to-end flows |
+| Autonomous Ratchet | `/circuit:autonomous-ratchet` | Overnight unattended quality improvement runs |
+| Janitor | `/circuit:janitor` | Systematic dead code, stale docs, and codebase cleanup |
+| Circuit Create | `/circuit:create` | Authoring a new circuit from a workflow description |
+| Dry Run | `/circuit:dry-run` | Validating a circuit is mechanically sound before real use |
 
 ## Installation
 
@@ -41,7 +41,7 @@ git clone https://github.com/petekp/circuit.git ~/.claude/plugins/local/circuit
 ### Project setup
 
 After installing, set up relay scripts in your project. These are the shell
-scripts that methods use to assemble Codex worker prompts and manage batch state.
+scripts that circuits use to assemble Codex worker prompts and manage batch state.
 
 ```bash
 # Use the setup helper (recommended)
@@ -70,19 +70,19 @@ pipeline.
 
 ## Quick Start
 
-Start with the router if you're not sure which method to use:
+Start with the router if you're not sure which circuit to use:
 
 ```
-/method:router I need to add a recording and playback system that spans our Rust core and Swift app layers
+/circuit:router I need to add a recording and playback system that spans our Rust core and Swift app layers
 ```
 
 Here's what happens:
 
-1. **The router analyzes your task** and recommends the best method (or a
-   sequence of methods). In this case, it might suggest
+1. **The router analyzes your task** and recommends the best circuit (or a
+   sequence of circuits). In this case, it might suggest
    `decision-pressure-loop` followed by `research-to-implementation`.
 
-2. **The method creates an artifact chain** in `.relay/method-runs/`. Each phase
+2. **The circuit creates an artifact chain** in `.relay/circuit-runs/`. Each phase
    writes a durable file that feeds the next:
    `intent-brief.md` -> `external-digest.md` -> `options.md` -> `decision-packet.md` -> ...
 
@@ -99,10 +99,10 @@ Here's what happens:
 
 ## How Circuits Work
 
-A circuit is defined by two files that work together: **`method.yaml`** declares
+A circuit is defined by two files that work together: **`circuit.yaml`** declares
 the topology (what phases and steps exist), and **`SKILL.md`** contains the full
 execution contract (what actually happens at each step). When these two files
-agree, the circuit is mechanically sound. When they drift, `/method:dry-run`
+agree, the circuit is mechanically sound. When they drift, `/circuit:dry-run`
 catches it.
 
 ### Anatomy of a circuit
@@ -111,9 +111,9 @@ Here's the topology of `research-to-implementation` -- the circuit for taking a
 feature from idea to shipped code:
 
 ```yaml
-# method.yaml (simplified)
+# circuit.yaml (simplified)
 schema_version: "1"
-method:
+circuit:
   id: research-to-implementation
   phases:
     - id: alignment
@@ -361,7 +361,7 @@ For the full design rationale, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Domain Skills (Optional Companions)
 
-Methods can dispatch Codex workers with domain-specific skills injected into
+Circuits can dispatch Codex workers with domain-specific skills injected into
 their prompts via `compose-prompt.sh --skills`. These skills are **not bundled**
 with the Circuit plugin -- install them separately if your project uses them.
 
@@ -370,10 +370,10 @@ with the Circuit plugin -- install them separately if your project uses them.
 | `tdd` | flow-audit-and-repair, autonomous-ratchet |
 | `deep-research` | research-to-implementation, decision-pressure-loop |
 | `clean-architecture` | autonomous-ratchet, decision-pressure-loop |
-| `swift-apps` | Any method working on Swift codebases |
-| `rust` | Any method working on Rust codebases |
+| `swift-apps` | Any circuit working on Swift codebases |
+| `rust` | Any circuit working on Rust codebases |
 
-Domain skills are entirely optional. Methods work without them -- workers just
+Domain skills are entirely optional. Circuits work without them -- workers just
 receive less specialized guidance.
 
 ## File Structure
@@ -384,7 +384,7 @@ circuit/
     plugin.json               # Plugin manifest (name, version, metadata)
   hooks/
     hooks.json                # Hook registration (SessionStart banner)
-    session-start.sh          # Prerequisite checks + available methods table
+    session-start.sh          # Prerequisite checks + available circuits table
   scripts/
     relay/
       compose-prompt.sh       # Assembles Codex worker prompts from parts
@@ -395,64 +395,64 @@ circuit/
     manage-codex/             # Batch orchestrator (implement/review/converge)
       SKILL.md
       references/             # Prompt templates for each worker role
-    method-router/            # Routes tasks to the best method
+    circuit-router/           # Routes tasks to the best circuit
       SKILL.md
-    method-research-to-implementation/
-      method.yaml             # Topology: phases, steps, artifacts, gates
+    circuit-research-to-implementation/
+      circuit.yaml            # Topology: phases, steps, artifacts, gates
       SKILL.md                # Execution contract: commands, resume logic
-    method-decision-pressure-loop/
-      method.yaml
+    circuit-decision-pressure-loop/
+      circuit.yaml
       SKILL.md
-    method-spec-hardening/
-      method.yaml
+    circuit-spec-hardening/
+      circuit.yaml
       SKILL.md
-    method-flow-audit-and-repair/
-      method.yaml
+    circuit-flow-audit-and-repair/
+      circuit.yaml
       SKILL.md
-    method-autonomous-ratchet/
-      method.yaml
+    circuit-autonomous-ratchet/
+      circuit.yaml
       SKILL.md
-    method-janitor/
-      method.yaml
+    circuit-janitor/
+      circuit.yaml
       SKILL.md
-    method-create/            # Meta-method: authors new methods
-      method.yaml
+    circuit-create/           # Meta-circuit: authors new circuits
+      circuit.yaml
       SKILL.md
-    method-dry-run/           # Validates method mechanical soundness
-      method.yaml
+    circuit-dry-run/          # Validates circuit mechanical soundness
+      circuit.yaml
       SKILL.md
   ARCHITECTURE.md             # Deep dive into system design
-  METHODS.md                  # Detailed catalog of all methods with examples
+  CIRCUITS.md                 # Detailed catalog of all circuits with examples
   LICENSE                     # MIT
 ```
 
-Each method skill has two files: `method.yaml` declares the topology (phases,
+Each circuit skill has two files: `circuit.yaml` declares the topology (phases,
 steps, artifacts, gates) and `SKILL.md` contains the full execution contract.
-When these two files agree, the method is mechanically sound. When they drift,
-`method:dry-run` catches it.
+When these two files agree, the circuit is mechanically sound. When they drift,
+`circuit:dry-run` catches it.
 
 ## Further Reading
 
-- **[METHODS.md](METHODS.md)** -- detailed catalog of all nine methods with
+- **[CIRCUITS.md](CIRCUITS.md)** -- detailed catalog of all nine circuits with
   phase breakdowns, artifact chains, and concrete usage examples
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** -- deep dive into the system design:
   artifact chain model, execution model, gate system, relay infrastructure,
-  method composition, and extension guide
+  circuit composition, and extension guide
 
 ## Contributing
 
 Contributions are welcome. The plugin includes built-in tools for extending
 itself:
 
-- **`/method:create`** -- author a new method from a natural-language
+- **`/circuit:create`** -- author a new circuit from a natural-language
   workflow description. It interviews you about the workflow shape, generates
-  both `method.yaml` and `SKILL.md`, cross-validates them, and installs the
+  both `circuit.yaml` and `SKILL.md`, cross-validates them, and installs the
   result.
-- **`/method:dry-run`** -- validate that a method is mechanically sound before
+- **`/circuit:dry-run`** -- validate that a circuit is mechanically sound before
   using it for real work. Simulates every step, checks artifact chain closure,
   gate validity, and template compliance.
 
-When submitting a new method, run `dry-run` against it and include the
+When submitting a new circuit, run `dry-run` against it and include the
 `dry-run-trace.md` output in your PR.
 
 ## License

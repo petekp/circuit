@@ -1,5 +1,5 @@
 ---
-name: method:flow-audit-and-repair
+name: circuit:flow-audit-and-repair
 description: >
   Forensic debugging workflow for broken end-to-end flows.
   8 steps across 5 phases: Failure Framing → Forensics → Repair Design →
@@ -8,7 +8,7 @@ description: >
   verified repair — not for greenfield features or speculative design work.
 ---
 
-# Flow-Audit-and-Repair Method
+# Flow-Audit-and-Repair Circuit
 
 An artifact-centric workflow that chains observed failure → live audit → layered
 causality → regression contract → ordered repair → live re-audit. Each phase
@@ -28,7 +28,7 @@ real broken flow needs to be reproduced.
 
 ## Glossary
 
-- **Artifact** — A canonical method output file in `${RUN_ROOT}/artifacts/`. These are the
+- **Artifact** — A canonical circuit output file in `${RUN_ROOT}/artifacts/`. These are the
   durable chain. Each step produces exactly one artifact.
 - **Worker handoff** — The raw output a Codex worker writes to its relay `handoffs/` directory.
   Worker handoffs are inputs to artifact synthesis, not artifacts themselves.
@@ -46,22 +46,22 @@ real broken flow needs to be reproduced.
 - **Self-contained headers.** Dispatch steps do NOT use `--template`. The prompt header
   carries the full worker contract: mission, inputs, output schema, success criteria,
   and handoff instructions.
-- **Start from observed failure.** This method begins with broken behavior in the real flow,
+- **Start from observed failure.** This circuit begins with broken behavior in the real flow,
   not product intent, design preference, or speculative cleanup.
 - **Audit before repair.** `exhaustive-systems-analysis` supplies audit rigor, but this
-  method forces the live-flow evidence pass before repair slicing starts.
+  circuit forces the live-flow evidence pass before repair slicing starts.
 - **Prove repair with executable obligations.** `tdd` is not optional here; it is the
   mechanism that turns symptoms into durable regression obligations.
 - **Repair by layer, then re-audit the real flow.** `manage-codex` executes slices only
   after a repair packet exists, and closure requires a live re-audit rather than a test pass.
-- **Existing skills are components, not the method.** `pipeline` can host this loop, but
-  this method defines the domain-specific choreography from failure evidence to reopen decision.
+- **Existing skills are components, not the circuit.** `pipeline` can host this loop, but
+  this circuit defines the domain-specific choreography from failure evidence to reopen decision.
 
 ## Setup
 
 ```bash
 RUN_SLUG="<flow-slug>"
-RUN_ROOT=".relay/method-runs/${RUN_SLUG}"
+RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 
@@ -268,7 +268,7 @@ thrash and accidental regressions.
 ### Step 4: Repair Focus Checkpoint — `interactive`
 
 **Objective:** Let the user choose which failure matters most, which tradeoff is
-acceptable, and where the method should draw the line on v1 repair scope.
+acceptable, and where the circuit should draw the line on v1 repair scope.
 
 Present `causal-map.md` to the user. Ask (via AskUserQuestion):
 
@@ -580,7 +580,7 @@ If `${RUN_ROOT}/artifacts/` already has files, determine the resume point:
    resume state before restarting layered repair
 4. Continue from the next step
 
-This is best-effort — the method has no durable state beyond artifacts on disk and
+This is best-effort — the circuit has no durable state beyond artifacts on disk and
 step-local relay directories. If a session dies mid-step, check the step's relay
 directory for worker output before concluding the step failed.
 

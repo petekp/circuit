@@ -1,17 +1,17 @@
 ---
-name: method:dry-run
+name: circuit:dry-run
 description: >
-  Validate a Claude Code method skill for mechanical soundness by dry-running a
+  Validate a Claude Code circuit skill for mechanical soundness by dry-running a
   concrete feature through every step. Use when you need to dry run, validate a
-  method, trace a method skill, check mechanical soundness, or verify that a
-  method's setup, paths, commands, artifact chains, headers, templates, gates,
+  circuit, trace a circuit skill, check mechanical soundness, or verify that a
+  circuit's setup, paths, commands, artifact chains, headers, templates, gates,
   and topology are wired correctly. Invoke this after authoring or editing any
-  method skill, and before trusting it for real work.
+  circuit skill, and before trusting it for real work.
 ---
 
-# Method Dry Run
+# Circuit Dry Run
 
-Validate a method skill by instantiating it with one concrete feature, then
+Validate a circuit skill by instantiating it with one concrete feature, then
 symbolically executing every step. Each step gets a fixed 10-dimension checklist
 AND a full simulation of its prompt assembly and worker output. Failures emerge
 from both the systematic checklist and the execution trace.
@@ -24,61 +24,61 @@ it to Codex workers. The goal is mechanical soundness, not product quality.
 Think of the dry run as symbolic execution for workflow text:
 
 - The target `SKILL.md` is the executable behavior
-- The target `method.yaml` is the declared topology
+- The target `circuit.yaml` is the declared topology
 - `compose-prompt.sh` and any other referenced scripts are the runtime library
 - The test feature is the concrete input
 - The dry-run trace is the execution log
 
-`SKILL.md` says what the orchestrator actually does. `method.yaml` only says what
-the method claims its phases, actions, and artifacts are. Mechanical drift between
+`SKILL.md` says what the orchestrator actually does. `circuit.yaml` only says what
+the circuit claims its phases, actions, and artifacts are. Mechanical drift between
 them is the workflow equivalent of type signatures diverging from implementation.
 
 ## When to Use
 
-- "Dry run this method skill"
-- "Validate this method"
-- "Trace this method with a concrete feature"
-- "Check this method for mechanical soundness"
-- After authoring or editing any method skill
-- Before trusting a method skill for real work on a feature
+- "Dry run this circuit skill"
+- "Validate this circuit"
+- "Trace this circuit with a concrete feature"
+- "Check this circuit for mechanical soundness"
+- After authoring or editing any circuit skill
+- Before trusting a circuit skill for real work on a feature
 
 Do NOT use for architecture critique, feature design, or product judgment.
-This skill only answers: "Can this method execute cleanly as written?"
+This skill only answers: "Can this circuit execute cleanly as written?"
 
 ## Inputs
 
-- `METHOD_ROOT` — absolute path to the target method skill directory
+- `METHOD_ROOT` — absolute path to the target circuit skill directory
 - `TEST_FEATURE` — concrete feature description (specific enough to generate real slugs, paths, and likely worker outputs)
-- `REPO_ROOT` — repo where the method would execute
+- `REPO_ROOT` — repo where the circuit would execute
 - `DOMAIN_SKILLS` — comma-separated domain skills relevant to the feature (or "none")
 
-Prefer a feature that touches the method's hardest seam. Good dry runs use a feature
-that forces the method to exercise its adapters and artifact chain honestly.
+Prefer a feature that touches the circuit's hardest seam. Good dry runs use a feature
+that forces the circuit to exercise its adapters and artifact chain honestly.
 
 Read these source files before tracing:
 
 - `METHOD_SKILL="${METHOD_ROOT}/SKILL.md"` — required
-- `METHOD_TOPOLOGY="${METHOD_ROOT}/method.yaml"` — if present
-- The prompt assembler the method uses (usually `${REPO_ROOT}/scripts/relay/compose-prompt.sh`)
-- **Every template, adapter, and script the method explicitly invokes.** Scan `SKILL.md`
+- `METHOD_TOPOLOGY="${METHOD_ROOT}/circuit.yaml"` — if present
+- The prompt assembler the circuit uses (usually `${REPO_ROOT}/scripts/relay/compose-prompt.sh`)
+- **Every template, adapter, and script the circuit explicitly invokes.** Scan `SKILL.md`
   for `--template`, `--skills`, adapter references (like `manage-codex`), and any script
   paths. Read each one so you can trace their real behavior, not guess from names.
 
-If `method.yaml` is missing, record that and keep going. If the method uses a prompt
+If `circuit.yaml` is missing, record that and keep going. If the circuit uses a prompt
 assembler other than `compose-prompt.sh`, read that assembler's source and trace its
-real interface instead. If the method uses no assembler at all (e.g., it writes prompts
+real interface instead. If the circuit uses no assembler at all (e.g., it writes prompts
 directly), skip the prompt-assembly simulation and note the alternate approach. Do not
-false-fail methods for using a different assembly mechanism.
+false-fail circuits for using a different assembly mechanism.
 
 ## Output Location
 
-Write the dry-run under a dedicated trace root, separate from the target method's
+Write the dry-run under a dedicated trace root, separate from the target circuit's
 own artifact space:
 
 ```bash
 METHOD_ID="$(basename "${METHOD_ROOT}")"
 FEATURE_SLUG="<slug-from-test-feature>"
-TRACE_ROOT="${REPO_ROOT}/.relay/method-dry-run/${METHOD_ID}-${FEATURE_SLUG}"
+TRACE_ROOT="${REPO_ROOT}/.relay/circuit-dry-run/${METHOD_ID}-${FEATURE_SLUG}"
 mkdir -p "${TRACE_ROOT}"
 ```
 
@@ -96,23 +96,23 @@ Before tracing, create line-numbered copies so every failure can cite exact loca
 ```bash
 nl -ba "${METHOD_SKILL}" > "${TRACE_ROOT}/skill-lines.txt"
 if [[ -f "${METHOD_TOPOLOGY}" ]]; then
-  nl -ba "${METHOD_TOPOLOGY}" > "${TRACE_ROOT}/method-lines.txt"
+  nl -ba "${METHOD_TOPOLOGY}" > "${TRACE_ROOT}/circuit-lines.txt"
 fi
 if [[ -f "${COMPOSE_SCRIPT}" ]]; then
   nl -ba "${COMPOSE_SCRIPT}" > "${TRACE_ROOT}/compose-lines.txt"
 fi
 ```
 
-Cite failures as `[SKILL.md:L142]`, `[SKILL.md:L142-L168]`, or `[method.yaml:L31-L46]`.
+Cite failures as `[SKILL.md:L142]`, `[SKILL.md:L142-L168]`, or `[circuit.yaml:L31-L46]`.
 
 ## Source-of-Truth Rule
 
 Treat `SKILL.md` as the runtime source of truth. It defines commands, prompt-header
 contracts, file paths, and gates.
 
-Treat `method.yaml` as topology-only metadata. It must agree with `SKILL.md`, but it
+Treat `circuit.yaml` as topology-only metadata. It must agree with `SKILL.md`, but it
 does not define runtime behavior. When they disagree, cite both files and fail the
-`method.yaml topology match` dimension.
+`circuit.yaml topology match` dimension.
 
 ## Fixed Checklist (10 Dimensions)
 
@@ -129,8 +129,8 @@ is to surface the full mechanical failure set.
 | 6 | Template contamination | `--template` use and the template's implied output contract | No template used, OR any template is proven to match the step's expected artifact |
 | 7 | Placeholder leak | Unresolved `{...}` tokens after simulated prompt assembly | No unresolved placeholders remain in the final worker prompt |
 | 8 | Action-type consistency | Match between declared action and actual behavior | Interactive → user prompt; dispatch → `codex exec --full-auto`; synthesis → orchestrator writes. No interactive skills in autonomous dispatches |
-| 9 | Gate validity | Gate text vs the output schema actually promised by the step | Every gate references concrete sections the schema contains AND every gate outcome maps cleanly to the method's next action (continue, reopen, escalate). Loops like "re-run on failure" must have a concrete artifact path and execution contract |
-| 10 | method.yaml topology match | Step ids, titles, actions, consumes, produces, parallel markers, execution mode, gate shape | Every runtime step has a matching topology entry with agreeing metadata on ALL fields. Title drift counts as a failure |
+| 9 | Gate validity | Gate text vs the output schema actually promised by the step | Every gate references concrete sections the schema contains AND every gate outcome maps cleanly to the circuit's next action (continue, reopen, escalate). Loops like "re-run on failure" must have a concrete artifact path and execution contract |
+| 10 | circuit.yaml topology match | Step ids, titles, actions, consumes, produces, parallel markers, execution mode, gate shape | Every runtime step has a matching topology entry with agreeing metadata on ALL fields. Title drift counts as a failure |
 
 **N/A handling:** Some dimensions don't apply to all step types. Mark as `N/A` with a
 one-word reason (e.g., "interactive step" for Template contamination). N/A does not
@@ -144,7 +144,7 @@ Ask for any missing inputs, then write `validation-scope.md`:
 
 ```markdown
 # Validation Scope
-## Target Method
+## Target Circuit
 ## Concrete Test Feature
 ## Repo Root
 ## Domain Skills
@@ -153,9 +153,9 @@ Ask for any missing inputs, then write `validation-scope.md`:
 ## Missing Sources
 ```
 
-If the target method lacks `method.yaml`, record that in `## Missing Sources` and keep going.
+If the target circuit lacks `circuit.yaml`, record that in `## Missing Sources` and keep going.
 
-**Gate:** Target Method, Test Feature, Repo Root, and Source Files are non-empty.
+**Gate:** Target Circuit, Test Feature, Repo Root, and Source Files are non-empty.
 
 ### Step 2: Resolve Constants — `synthesis`
 
@@ -171,7 +171,7 @@ Write `resolved-constants.md`:
 ```
 
 Resolve in two passes:
-1. Extract symbols from the target method's setup section (`RUN_ROOT`, `IMPL_ROOT`, `step_dir`, etc.)
+1. Extract symbols from the target circuit's setup section (`RUN_ROOT`, `IMPL_ROOT`, `step_dir`, etc.)
 2. Add symbols that appear later in commands or paths. If a symbol is used but never defined, record it under `## Undefined Symbols` as a failure and bind a minimal placeholder so the trace can continue.
 
 For each symbol record: concrete value, source, and confidence (`fact` or `assumption`).
@@ -195,7 +195,7 @@ Write `step-inventory.md`:
 ## Topology Mismatches
 ```
 
-Build one record per runtime step from `SKILL.md`, using `method.yaml` only as the
+Build one record per runtime step from `SKILL.md`, using `circuit.yaml` only as the
 topology cross-check. For each step: number, title, phase, action type, setup commands,
 dispatch commands, artifacts consumed/produced, gate text, parallel workers.
 
@@ -229,7 +229,7 @@ the canonical header schema. Verify the three relay-safe headings
 (`### Files Changed`, `### Tests Run`, `### Completion Claim`) are present.
 
 #### 4d. Assemble the prompt mentally
-If the method uses `compose-prompt.sh`, simulate its real assembly order:
+If the circuit uses `compose-prompt.sh`, simulate its real assembly order:
 
 1. Copy header into output
 2. Append each domain skill's SKILL.md
@@ -242,9 +242,9 @@ If the method uses `compose-prompt.sh`, simulate its real assembly order:
 6. Replace `{relay_root}` if `--root` supplied
 7. Fail if unresolved `{relay_root}` remains
 
-If the method uses a different assembler, trace that assembler's real behavior instead.
+If the circuit uses a different assembler, trace that assembler's real behavior instead.
 
-Check: valid flags, no `--template` in self-contained methods, no relay-protocol
+Check: valid flags, no `--template` in self-contained circuits, no relay-protocol
 contamination, no review-preamble contamination for non-review steps, no unresolved
 `{slice_id}` / `{charter_or_task_description}` / etc.
 
@@ -264,7 +264,7 @@ the check is mechanically verifiable.
 
 #### 4h. Trace the chain forward
 Update the live artifact map. Does the next step's `consumes` match what's now in
-`artifacts/`? Does `method.yaml` claim the same edge?
+`artifacts/`? Does `circuit.yaml` claim the same edge?
 
 After the simulation loop, fill the 10-row checklist table for the step:
 
@@ -281,20 +281,20 @@ After the simulation loop, fill the 10-row checklist table for the step:
 | Placeholder leak | PASS/FAIL/N/A | ... |
 | Action-type consistency | PASS/FAIL/N/A | ... |
 | Gate validity | PASS/FAIL/N/A | ... |
-| method.yaml topology match | PASS/FAIL/N/A | ... |
+| circuit.yaml topology match | PASS/FAIL/N/A | ... |
 ```
 
 ### Special Step Types
 
 #### Interactive Steps
-Trace the user prompt the method would show. Verify the method writes the resulting
+Trace the user prompt the circuit would show. Verify the circuit writes the resulting
 artifact directly, with concrete headings satisfying the later gate. Fail if the step
-dispatches instead of asking the user, or if `method.yaml` marks it interactive but
+dispatches instead of asking the user, or if `circuit.yaml` marks it interactive but
 `SKILL.md` dispatches it.
 
 #### Synthesis Steps
 Verify the orchestrator writes the artifact directly from specified source inputs and
-output schema. Fail if the method secretly dispatches or if the output schema is
+output schema. Fail if the circuit secretly dispatches or if the output schema is
 underspecified for deterministic writing.
 
 #### Adapter Steps
@@ -304,7 +304,7 @@ as a contract surface:
 - What workspace is created?
 - What files are copied in (e.g., CHARTER.md from execution-packet.md)?
 - What file is the adapter's primary output?
-- How does the orchestrator convert that output back into the method's artifact chain?
+- How does the orchestrator convert that output back into the circuit's artifact chain?
 
 Adapter bugs are often semantic, not just path-based. Example: promoting a convergence
 assessment as though it were an implementation handoff.
@@ -313,10 +313,10 @@ assessment as though it were an implementation handoff.
 
 After the end-to-end simulation, do one short sweep for issues that hide between steps:
 
-1. Compare `SKILL.md` and `method.yaml` step-by-step for any drift the per-step trace missed
+1. Compare `SKILL.md` and `circuit.yaml` step-by-step for any drift the per-step trace missed
 2. Re-scan every mentally assembled prompt for unresolved `{...}` tokens
 3. Verify every consumed artifact has exactly one upstream producer
-4. If the method uses external templates or scripts, verify flags and output names match the real interface
+4. If the circuit uses external templates or scripts, verify flags and output names match the real interface
 
 This is a safety net, not a second audit. Keep it brief.
 
@@ -342,8 +342,8 @@ Format:
 For drift bugs between files, cite both:
 
 ```markdown
-2. [Topology][SKILL.md:L310-L336][method.yaml:L31-L46]
-   SKILL.md promotes `internal-digest.md`, but method.yaml does not declare it as produced.
+2. [Topology][SKILL.md:L310-L336][circuit.yaml:L31-L46]
+   SKILL.md promotes `internal-digest.md`, but circuit.yaml does not declare it as produced.
 ```
 
 ## Output Schema
@@ -391,7 +391,7 @@ The dry run is complete only when:
 - Every step has a filled 10-row checklist table
 - Every gate was checked against a real output schema
 - The artifact chain closes from first artifact to last
-- `method.yaml` and `SKILL.md` agree on topology, or every disagreement is logged
+- `circuit.yaml` and `SKILL.md` agree on topology, or every disagreement is logged
 - The trace artifact is written to the durable trace path
 - The verdict is binary and justified by the failure list
 
@@ -399,8 +399,8 @@ The dry run is complete only when:
 
 - Prefer evidence over interpretation. Quote the path, command, or schema name.
 - Keep failures mechanical. "This seems confusing" is not a dry-run failure.
-- If the method mixes valid and invalid mechanics in the same step, finish all 10 checks.
-- If a target method is mid-migration, do not paper over inconsistencies. Record them.
+- If the circuit mixes valid and invalid mechanics in the same step, finish all 10 checks.
+- If a target circuit is mid-migration, do not paper over inconsistencies. Record them.
 - For parallel branches, trace each worker under its own `##### Worker: <name>` subheading
   within the parent step. Each worker gets its own simulation (4a-4h) and its own checklist
   table. A parallel step only passes if every worker passes its own mechanical checks.
