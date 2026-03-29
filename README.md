@@ -97,51 +97,265 @@ Here's what happens:
    where the last one stopped. The artifact chain is the state -- no chat
    history required.
 
-## How Methods Work
+## How Circuits Work
 
-### The artifact chain model
+A circuit is defined by two files that work together: **`method.yaml`** declares
+the topology (what phases and steps exist), and **`SKILL.md`** contains the full
+execution contract (what actually happens at each step). When these two files
+agree, the circuit is mechanically sound. When they drift, `/method:dry-run`
+catches it.
 
-Every method step produces a named artifact file. The next step reads the
-previous artifacts as input. This chain is the durable state of the workflow:
+### Anatomy of a circuit
 
+Here's the topology of `research-to-implementation` -- the circuit for taking a
+feature from idea to shipped code:
+
+```yaml
+# method.yaml (simplified)
+schema_version: "1"
+method:
+  id: research-to-implementation
+  phases:
+    - id: alignment
+      steps:
+        - id: intent-lock
+          action: interactive          # Claude interviews you
+          produces: intent-brief.md
+          gate:
+            type: outputs_present
+            checks: ["Ranked Outcomes non-empty"]
+
+    - id: evidence
+      steps:
+        - id: evidence-probes
+          action: dispatch             # Codex workers research in parallel
+          execution: parallel
+          workers:
+            - id: external
+              produces: external-digest.md
+            - id: internal
+              produces: internal-digest.md
+        - id: constraints-synthesis
+          action: synthesis            # Claude combines the evidence
+          consumes: [external-digest.md, internal-digest.md]
+          produces: constraints.md
+
+    - id: decision
+      steps:
+        - id: generate-candidates
+          action: dispatch
+          produces: options.md
+        - id: adversarial-evaluation
+          action: dispatch
+          produces: decision-packet.md
+        - id: tradeoff-decision
+          action: interactive          # You choose the direction
+          produces: adr.md
+
+    - id: preflight
+      steps:
+        - id: implementation-contract
+          action: synthesis
+          produces: execution-packet.md
+        - id: prove-seam
+          action: dispatch
+          produces: seam-proof.md
+          gate:
+            type: evidence-reopen      # Can reopen if design breaks
+            outcomes:
+              design_holds: continue
+              design_invalidated: interactive-reopen
+
+    - id: delivery
+      steps:
+        - id: implement
+          action: dispatch
+          adapter: manage-codex        # Full implement/review/converge cycle
+          produces: implementation-handoff.md
+        - id: ship-review
+          action: dispatch
+          produces: ship-review.md
 ```
-Step 1 -> intent-brief.md
-Step 2 -> external-digest.md (reads intent-brief.md)
-Step 3 -> options.md (reads intent-brief.md + external-digest.md)
-Step 4 -> decision-packet.md (reads options.md)
-...
+
+### The artifact chain
+
+Every step produces a named file. Each file feeds the next step. This chain is
+the durable state of the entire workflow:
+
+```mermaid
+graph LR
+    A[intent-brief.md] --> B[external-digest.md]
+    A --> C[internal-digest.md]
+    B --> D[constraints.md]
+    C --> D
+    A --> E[options.md]
+    D --> E
+    D --> F[decision-packet.md]
+    E --> F
+    F --> G[adr.md]
+    G --> H[execution-packet.md]
+    D --> H
+    A --> H
+    H --> I[seam-proof.md]
+    H --> J[implementation-handoff.md]
+    H --> K[ship-review.md]
+    J --> K
+    A --> K
+
+    style A fill:#2d4a22,stroke:#4a7c34
+    style G fill:#2d4a22,stroke:#4a7c34
+    style D fill:#1a3a4a,stroke:#2a6a8a
+    style H fill:#1a3a4a,stroke:#2a6a8a
+    style B fill:#4a3a1a,stroke:#8a6a2a
+    style C fill:#4a3a1a,stroke:#8a6a2a
+    style E fill:#4a3a1a,stroke:#8a6a2a
+    style F fill:#4a3a1a,stroke:#8a6a2a
+    style I fill:#4a3a1a,stroke:#8a6a2a
+    style J fill:#4a3a1a,stroke:#8a6a2a
+    style K fill:#4a3a1a,stroke:#8a6a2a
 ```
 
-If a session dies at Step 3, a new session reads the existing artifacts, detects
-that `options.md` is the last completed file, and resumes from Step 4. No
-progress is lost.
+**Green** = interactive (you decide) · **Blue** = synthesis (Claude combines) · **Amber** = dispatch (Codex workers execute)
+
+If a session dies at any point, a fresh session reads the artifacts on disk,
+finds the last completed file, and resumes from the next step. No chat history
+required.
 
 ### Three action types
 
-Each step in a method uses one of three action types:
+```mermaid
+graph TD
+    subgraph Interactive
+        I1[Claude asks questions] --> I2[You set priorities] --> I3[Artifact written]
+    end
+    subgraph Dispatch
+        D1[Orchestrator writes prompt header] --> D2[compose-prompt.sh assembles full prompt]
+        D2 --> D3[codex exec runs the worker]
+        D3 --> D4[Worker writes handoff + artifact]
+    end
+    subgraph Synthesis
+        S1[Claude reads prior artifacts] --> S2[Claude writes new artifact]
+    end
+```
 
-| Action | What happens | Example |
-|--------|-------------|---------|
-| **interactive** | Claude talks to you, asks questions, gathers input | Alignment interviews, priority setting, approval gates |
-| **dispatch** | Work is sent to Codex workers via `manage-codex` | Implementation, parallel research, code review |
-| **synthesis** | Claude reads prior artifacts and produces a new one | Summarizing evidence, scoring options, writing final reports |
-
-### The relay pipeline
-
-Dispatch steps use two relay scripts to communicate with Codex workers:
-
-- **`compose-prompt.sh`** -- assembles a worker prompt from a task-specific
-  header, optional domain skills, and a template (implement, review, converge)
-- **`update-batch.sh`** -- manages batch state transitions deterministically,
-  replacing manual JSON bookkeeping with event-driven mutations
+| Action | Who does the work | When to use |
+|--------|-------------------|-------------|
+| **interactive** | You + Claude together | Alignment, priority setting, approval gates |
+| **dispatch** | Codex worker (separate process) | Research, implementation, code review |
+| **synthesis** | Claude alone | Combining evidence, scoring options, writing contracts |
 
 ### Quality gates
 
-Methods include gates that verify quality at phase boundaries. A gate checks the
-output of the current step before allowing the workflow to proceed. Gate types
-include output presence checks, verdict routing (stable/repair/fail), and
-consistency validation. If a gate fails, the method reopens the relevant step
-rather than silently continuing past problems.
+Every non-trivial step has a **gate** -- a quality check that must pass before
+the circuit advances. Four gate types handle different situations:
+
+```mermaid
+graph TD
+    G1[outputs_present] -->|"Files exist + content checks pass"| Continue
+    G2[evidence-reopen] -->|"Evidence supports the plan"| Continue
+    G2 -->|"Evidence invalidates the plan"| Reopen[Reopen earlier step]
+    G3[verdict-reopen] -->|"READY"| Continue
+    G3 -->|"REVISE"| Reopen
+    G4[verdict-consistency] -->|"Verdict matches evidence"| Continue
+    G4 -->|"Verdict contradicts evidence"| Fail[Escalate]
+```
+
+| Gate | Purpose | Example |
+|------|---------|---------|
+| `outputs_present` | Artifact exists with required content | "constraints.md has at least one hard invariant" |
+| `evidence-reopen` | Evidence can validate or invalidate the plan | Seam proof fails → reopen execution-packet |
+| `verdict-reopen` | Review decides continue vs. revise | Ship review finds issues → reopen implementation |
+| `verdict-consistency` | Terminal verdict must match evidence | Final audit contradicts evidence → escalate |
+
+When a gate fails, the circuit doesn't silently continue -- it **reopens** the
+relevant upstream step and re-derives everything downstream.
+
+### The relay pipeline
+
+Dispatch steps use two shell scripts to communicate with Codex workers:
+
+```mermaid
+sequenceDiagram
+    participant O as Orchestrator (Claude)
+    participant C as compose-prompt.sh
+    participant X as codex exec
+    participant W as Codex Worker
+    participant U as update-batch.sh
+
+    O->>O: Write prompt header (mission, inputs, output schema)
+    O->>C: --header prompt-header.md --skills tdd --template implement
+    C->>C: Assemble: header + skill SKILL.md + template
+    C-->>O: prompt.md
+    O->>X: cat prompt.md | codex exec --full-auto
+    X->>W: Worker executes in isolated session
+    W-->>X: handoff-slice-001.md
+    X-->>O: Worker complete
+    O->>O: Read handoff, spot-check claims
+    O->>U: --slice slice-001 --event review_clean
+    U->>U: Update batch.json deterministically
+```
+
+- **`compose-prompt.sh`** assembles a worker prompt from a task-specific header,
+  optional domain skills, and a template (implement, review, ship-review, converge)
+- **`update-batch.sh`** manages batch state transitions deterministically --
+  the orchestrator never hand-edits JSON
+
+### Putting it all together
+
+A complete circuit execution looks like this:
+
+```mermaid
+graph TD
+    Start([Start]) --> Phase1
+
+    subgraph Phase1[Phase 1: Alignment]
+        S1[Step 1: Intent Lock<br><i>interactive</i>]
+    end
+
+    Phase1 --> Phase2
+
+    subgraph Phase2[Phase 2: Evidence]
+        S2a[Step 2a: External Patterns<br><i>dispatch, parallel</i>]
+        S2b[Step 2b: Internal Surface<br><i>dispatch, parallel</i>]
+        S2a --> S3
+        S2b --> S3
+        S3[Step 3: Constraints Synthesis<br><i>synthesis</i>]
+    end
+
+    Phase2 --> Phase3
+
+    subgraph Phase3[Phase 3: Decision]
+        S4[Step 4: Generate Candidates<br><i>dispatch</i>]
+        S4 --> S5
+        S5[Step 5: Adversarial Evaluation<br><i>dispatch</i>]
+        S5 --> S6
+        S6[Step 6: Tradeoff Decision<br><i>interactive</i>]
+    end
+
+    Phase3 --> Phase4
+
+    subgraph Phase4[Phase 4: Preflight]
+        S7[Step 7: Implementation Contract<br><i>synthesis</i>]
+        S7 --> S8
+        S8[Step 8: Prove Hardest Seam<br><i>dispatch</i>]
+    end
+
+    S8 -->|design_holds| Phase5
+    S8 -.->|design_invalidated| S6
+
+    subgraph Phase5[Phase 5: Delivery]
+        S9[Step 9: Implement<br><i>manage-codex</i>]
+        S9 --> S10
+        S10[Step 10: Ship Review<br><i>dispatch</i>]
+    end
+
+    S10 -->|READY| Done([Done])
+    S10 -.->|ISSUES FOUND| S9
+```
+
+Solid arrows are the happy path. Dotted arrows are gate-driven reopens -- when
+evidence disconfirms a downstream assumption, the circuit routes back to the
+right upstream step instead of patching around the problem locally.
 
 For the full design rationale, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
