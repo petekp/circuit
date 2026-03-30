@@ -1,4 +1,4 @@
-# circuit.config.yaml — Optional per-project skill configuration for Circuit
+# circuit.config.yaml — Optional per-project configuration for Circuit
 #
 # Place this file at your project root (./circuit.config.yaml) or globally
 # at ~/.claude/circuit.config.yaml. Project-level config takes precedence.
@@ -25,3 +25,17 @@ circuits:
     skills: [clean-architecture, tdd]
   cleanup:
     skills: [dead-code-sweep]
+
+# Dispatch engine configuration (optional).
+# Controls what process runs dispatch steps. Default: auto-detect (codex if
+# installed, otherwise agent).
+#
+# Built-in engines: "codex", "agent"
+# Custom engines: any shell command that accepts (prompt_file, output_file)
+#   e.g. "gemini run", "claude -p", "./scripts/my-agent.sh"
+#
+# dispatch:
+#   engine: auto               # global default (auto | codex | agent | <command>)
+#   per_circuit:               # override per circuit
+#     develop: codex
+#     decide: agent
