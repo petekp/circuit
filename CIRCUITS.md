@@ -6,7 +6,7 @@ The Circuit plugin provides structured, artifact-driven workflows for complex en
 
 | Circuit | Invoke | Best For |
 |---------|--------|----------|
-| Do | `/circuit <task>` | The default: any clear task that benefits from planning and review |
+| Do | `/circuit:run <task>` | The default: any clear task that benefits from planning and review |
 | Develop | `/circuit:develop` | Taking a non-trivial feature from idea to shipped code |
 | Decide | `/circuit:decide` | Making architecture or protocol decisions under real uncertainty |
 | Harden Spec | `/circuit:harden-spec` | Turning a rough RFC, spec, or PRD into something safe to build from |
@@ -22,12 +22,12 @@ The Circuit plugin provides structured, artifact-driven workflows for complex en
 
 ### Do
 
-**Invoke:** `/circuit <task>` (routed automatically, or direct)
+**Invoke:** `/circuit:run <task>`
 **Phases:** Scope, Execute, Summary (4 steps)
 **Artifact chain:** `scope.md` -> `scope-confirmed.md` -> `execution-handoff.md` -> `done.md`
 **Example:** You need to add a dark mode toggle to the settings page that persists to localStorage. The circuit reads the codebase, writes a 2-slice scope (theme toggle component + persistence logic), shows you the plan for confirmation. After you confirm, workers implement each slice with independent review, convergence runs verification, and a summary tells you what changed.
 
-The default entry point for Circuit. Start with `/circuit <task>` for any non-trivial work. The router runs silently underneath: if your task needs a specialized circuit (research, architecture decisions, debugging), you get one automatically. Otherwise, circuit handles it with auto-scope, confirmation, and implement/review/converge.
+The default entry point for Circuit. Start with `/circuit:run <task>` for any non-trivial work, or `/circuit:router <task>` to have the router pick the best circuit automatically. If your task needs a specialized circuit (research, architecture decisions, debugging), you get one automatically. Otherwise, circuit:run handles it with auto-scope, confirmation, and implement/review/converge.
 
 ---
 
@@ -175,10 +175,10 @@ The key question: *Are you improving living code or removing dead code?*
 
 ## Choosing a Circuit
 
-Start with `/circuit <task>` for any non-trivial work. The router picks the right
+Start with `/circuit:run <task>` for any non-trivial work. The router picks the right
 circuit automatically. If you want to choose manually:
 
-- **"I have a clear task that spans multiple files"** -> `/circuit <task>`
+- **"I have a clear task that spans multiple files"** -> `/circuit:run <task>`
 - **"I have a broken flow or flaky behavior"** -> `repair-flow`
 - **"I need to choose between architectural approaches"** -> `decide`
 - **"I have a draft spec/RFC that needs hardening before build"** -> `harden-spec`

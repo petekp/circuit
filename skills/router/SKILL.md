@@ -2,9 +2,9 @@
 name: circuit:router
 description: >
   The default entry point for all circuit work. Routes tasks to the best-fit
-  circuit. Use `/circuit <task>` or `/circuit:router <task>` to start.
-  Recommends specialized circuits when they match, falls back to circuit
-  for non-trivial tasks that don't match a specific circuit.
+  circuit. Use `/circuit:router <task>` to start. Recommends specialized
+  circuits when they match, falls back to circuit:run for non-trivial tasks
+  that don't match a specific circuit.
 ---
 
 # Circuit Router
@@ -27,7 +27,7 @@ Route only when positive signals match and exclusions do not.
 - `circuit:develop`
   Match: multi-file or cross-domain feature delivery where the approach is unclear, or research is needed before build.
   Supports `--light` flag for tasks where the user explicitly wants to set priorities, non-goals, and kill criteria before execution.
-  Exclude: bug fixes, config changes, or single-file wiring tasks. For clear-approach tasks where the user just wants it done, route to `circuit`. Only recommend `develop --light` when the user signals they want to explicitly shape the intent (e.g., "I want to set priorities first", "let me define what's out of scope").
+  Exclude: bug fixes, config changes, or single-file wiring tasks. For clear-approach tasks where the user just wants it done, route to `circuit:run`. Only recommend `develop --light` when the user signals they want to explicitly shape the intent (e.g., "I want to set priorities first", "let me define what's out of scope").
 - `circuit:decide`
   Match: architecture or protocol choices with real downside, serious options, or reopen conditions needed before build.
   Exclude: code delivery, bug fixes, or settled decisions.
@@ -55,7 +55,7 @@ Route only when positive signals match and exclusions do not.
 - `circuit:setup`
   Match: configuring which skills circuits use, setting up Circuit for a new project, generating circuit.config.yaml, or discovering installed skills.
   Exclude: running circuits, building features, or making decisions.
-- `circuit`
+- `circuit:run`
   Match: any non-trivial task that benefits from structured execution but doesn't match a specialized circuit above. Multi-file changes, feature additions with clear approach, refactoring, test additions, integration work.
   Exclude: tasks that need research or decisions (route to develop or decide). Tasks debugging broken flows (route to repair-flow). Dead code cleanup (route to cleanup). Migrations with coexistence (route to migrate). Truly trivial single-line changes, config edits, or typo fixes where circuit overhead isn't worth it.
 
@@ -71,7 +71,7 @@ Use a sequence only when an earlier phase must happen before a later one.
 - Cleanup-only scope: `circuit:cleanup` instead of `circuit:ratchet-quality` (ratchet is for quality improvement, cleanup is for removal).
 - New circuit authoring: `circuit:create` before `circuit:dry-run`.
 - If both `circuit:decide` and `circuit:harden-spec` match, start with `circuit:decide`.
-- If no specialized circuit matches but the task is non-trivial (multi-file, needs planning, benefits from review): route to `circuit`.
+- If no specialized circuit matches but the task is non-trivial (multi-file, needs planning, benefits from review): route to `circuit:run`.
 - If truly trivial (single-line change, config edit, typo fix, quick wiring): say so directly. No circuit needed.
 
 ## Overlap Disambiguation
@@ -85,7 +85,7 @@ These circuits share surface-level similarity. Use these rules to disambiguate:
 - **decide vs harden-spec:** Decide chooses *between* options. Harden-spec stress-tests *one* spec that already exists. If the decision is unsettled, route to decide first, then harden-spec.
 - **ratchet vs develop:** Ratchet improves *existing* code without adding features. Develop adds *new* capabilities. If the user wants "make this codebase better" without new features, route to ratchet.
 - **develop full vs develop --light:** Full develop is for unclear approaches that need research and decision phases. Light develop (`--light`) is for clear-approach tasks that still span multiple files and benefit from structured intent/contract/implement/review. If the user says "add X following the existing pattern" or "the approach is obvious but non-trivial," recommend `circuit:develop --light`.
-- **circuit vs develop --light:** Both are for clear-approach tasks. The difference is control. `circuit` auto-scopes autonomously and shows the scope for a quick confirm/amend. `develop --light` has an interactive intent-lock where the user explicitly sets priorities, non-goals, and kill criteria. If the user wants to "just do it" with minimal friction, route to `circuit`. If they want to explicitly shape the intent before execution, recommend `develop --light`.
+- **circuit:run vs develop --light:** Both are for clear-approach tasks. The difference is control. `circuit:run` auto-scopes autonomously and shows the scope for a quick confirm/amend. `develop --light` has an interactive intent-lock where the user explicitly sets priorities, non-goals, and kill criteria. If the user wants to "just do it" with minimal friction, route to `circuit:run`. If they want to explicitly shape the intent before execution, recommend `develop --light`.
 
 ## Auto-Confirm
 
@@ -93,7 +93,7 @@ When invoked as `/circuit <task>` (not `/circuit:router <task>`):
 
 - If exactly one specialized circuit matches with high confidence: invoke it directly without asking for confirmation.
 - If the match is ambiguous (two circuits could fit, or the task sits on a decision boundary): present the recommendation and ask for confirmation (standard behavior).
-- If routing to `circuit` (the fallback for non-trivial unmatched tasks): invoke it directly without confirmation. The circuit skill has its own scope-confirmation step built in.
+- If routing to `circuit:run` (the fallback for non-trivial unmatched tasks): invoke it directly without confirmation. circuit:run has its own scope-confirmation step built in.
 - If truly trivial: say so directly. No circuit needed.
 
 When invoked as `/circuit:router <task>`, always present the recommendation and ask for confirmation before invoking (existing behavior, unchanged).

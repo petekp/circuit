@@ -92,8 +92,7 @@ Record these inputs before authoring:
 
 The `circuit:` prefix is added automatically to the frontmatter `name` field. For
 example, slug `foo-bar` produces `name: circuit:foo-bar` and lives at
-`~/.claude/skills/circuit/foo-bar/`. The only exception is the default circuit,
-which uses `name: circuit` (no suffix) so `/circuit` resolves directly.
+`~/.claude/skills/circuit/foo-bar/`.
 
 ## Domain Skill Selection
 
@@ -677,7 +676,7 @@ Cross-validation rules (encode in the prompt header):
 - Compare gate types, verdict vocabularies, and reopen outcomes
 - Compare the declared external inputs and adapter seams
 - Fix every drift before declaring done
-- The generated `name` must use `circuit:` prefix (e.g., `circuit:foo-bar`). The only exception is the default circuit (`name: circuit`).
+- The generated `name` must use `circuit:` prefix (e.g., `circuit:foo-bar`)
 
 **Gate:** `circuit.yaml`, `SKILL.md`, and `cross-validation.md` exist in staging,
 the files agree on topology and branching, and the generated `SKILL.md` includes

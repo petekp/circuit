@@ -1,5 +1,5 @@
 ---
-name: circuit
+name: circuit:run
 description: >
   Default circuit for tasks that benefit from structured execution but don't
   match a specialized circuit. 4 steps across 3 phases: Scope -> Execute ->
@@ -39,7 +39,7 @@ Do NOT use for:
 
 If you want to explicitly set priorities, non-goals, and kill criteria before
 execution, use `circuit:develop --light` instead. It has an interactive
-intent-lock step that circuit skips.
+intent-lock step that circuit:run skips.
 
 ## Principles
 

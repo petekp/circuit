@@ -20,7 +20,7 @@ product judgment matters. The rest runs on its own.
 
 | Circuit | Invoke | Best For |
 |---------|--------|----------|
-| Do | `/circuit <task>` | The default: any clear task that benefits from planning and review |
+| Do | `/circuit:run <task>` | The default: any clear task that benefits from planning and review |
 | Develop | `/circuit:develop` | Taking a feature from idea to shipped code (`--light` for clear-approach tasks) |
 | Decide | `/circuit:decide` | Architecture decisions under real uncertainty |
 | Harden Spec | `/circuit:harden-spec` | Turning a rough RFC or PRD into something safe to build from |
@@ -84,7 +84,7 @@ pipeline.
 ## Quick Start
 
 ```
-/circuit add a dark mode toggle that persists to localStorage
+/circuit:run add a dark mode toggle that persists to localStorage
 ```
 
 Here's what happens:
