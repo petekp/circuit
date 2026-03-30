@@ -28,16 +28,32 @@ ROOT=""
 BACKEND=""
 OUT=""
 
-# Resolve SKILL_DIR: env var > sibling skills/ dir > ~/.claude/skills
+# Resolve SKILL_DIRS: ordered search path for domain skills.
+# Domain skills (tdd, swift-apps, etc.) may live in any of these locations.
+# The plugin's own skills/ dir contains circuit definitions, not domain skills,
+# so ~/.claude/skills is always included as a fallback.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SKILL_DIRS=()
 if [[ -n "${CIRCUIT_PLUGIN_SKILL_DIR:-}" ]]; then
-  SKILL_DIR="$CIRCUIT_PLUGIN_SKILL_DIR"
-elif [[ -d "$PLUGIN_ROOT/skills" ]]; then
-  SKILL_DIR="$PLUGIN_ROOT/skills"
-else
-  SKILL_DIR="$HOME/.claude/skills"
+  SKILL_DIRS+=("$CIRCUIT_PLUGIN_SKILL_DIR")
 fi
+if [[ -d "$PLUGIN_ROOT/skills" ]]; then
+  SKILL_DIRS+=("$PLUGIN_ROOT/skills")
+fi
+SKILL_DIRS+=("$HOME/.claude/skills")
+
+# resolve_skill <name> — prints the SKILL.md path or returns 1
+resolve_skill() {
+  local name="$1"
+  for dir in "${SKILL_DIRS[@]}"; do
+    if [[ -f "$dir/$name/SKILL.md" ]]; then
+      echo "$dir/$name/SKILL.md"
+      return 0
+    fi
+  done
+  return 1
+}
 
 # Resolve MANAGE_CODEX_DIR: env var > script-local references/ dir >
 # plugin-relative references/ dir > ~/.claude/skills
@@ -223,13 +239,12 @@ cp "$HEADER" "$OUT"
 if [[ -n "$SKILLS" ]]; then
   IFS=',' read -ra SKILL_ARRAY <<< "$SKILLS"
   for skill in "${SKILL_ARRAY[@]}"; do
-    skill_file="$SKILL_DIR/$skill/SKILL.md"
-    if [[ -f "$skill_file" ]]; then
+    if skill_file="$(resolve_skill "$skill")"; then
       track_relay_root_source "$skill_file"
       printf '\n---\n## Domain Guidance: %s\n\n' "$skill" >> "$OUT"
       cat "$skill_file" >> "$OUT"
     else
-      echo "WARNING: skill not found: $skill_file" >&2
+      echo "WARNING: skill not found: $skill (searched: ${SKILL_DIRS[*]})" >&2
     fi
   done
 fi
