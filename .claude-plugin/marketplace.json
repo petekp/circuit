@@ -1,5 +1,5 @@
 {
-  "name": "circuit",
+  "name": "petekp-circuit",
   "metadata": {
     "description": "Structured workflow circuits for Claude Code — disciplined multi-phase engineering workflows powered by Codex workers and artifact chains"
   },
