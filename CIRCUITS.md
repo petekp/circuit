@@ -6,7 +6,7 @@ The Circuit plugin provides structured, artifact-driven workflows for complex en
 
 | Circuit | Invoke | Best For |
 |---------|--------|----------|
-| Router | `/circuit:router` | Picking the right circuit when you are not sure which one fits |
+| Do | `/circuit <task>` | The default: any clear task that benefits from planning and review |
 | Develop | `/circuit:develop` | Taking a non-trivial feature from idea to shipped code |
 | Decide | `/circuit:decide` | Making architecture or protocol decisions under real uncertainty |
 | Harden Spec | `/circuit:harden-spec` | Turning a rough RFC, spec, or PRD into something safe to build from |
@@ -19,6 +19,17 @@ The Circuit plugin provides structured, artifact-driven workflows for complex en
 | Setup | `/circuit:setup` | Discover installed skills and generate circuit.config.yaml |
 
 ## Circuit Details
+
+### Do
+
+**Invoke:** `/circuit <task>` (routed automatically) or `/circuit:do <task>` (direct)
+**Phases:** Scope, Execute, Summary (4 steps)
+**Artifact chain:** `scope.md` -> `scope-confirmed.md` -> `execution-handoff.md` -> `done.md`
+**Example:** You need to add a dark mode toggle to the settings page that persists to localStorage. The circuit reads the codebase, writes a 2-slice scope (theme toggle component + persistence logic), shows you the plan for confirmation. After you confirm, workers implement each slice with independent review, convergence runs verification, and a summary tells you what changed.
+
+The default entry point for Circuit. Start with `/circuit <task>` for any non-trivial work. The router runs silently underneath: if your task needs a specialized circuit (research, architecture decisions, debugging), you get one automatically. Otherwise, circuit:do handles it with auto-scope, confirmation, and implement/review/converge.
+
+---
 
 ### Router
 
@@ -164,8 +175,10 @@ The key question: *Are you improving living code or removing dead code?*
 
 ## Choosing a Circuit
 
-Use this decision tree to find the right starting point:
+Start with `/circuit <task>` for any non-trivial work. The router picks the right
+circuit automatically. If you want to choose manually:
 
+- **"I have a clear task that spans multiple files"** -> `/circuit <task>` (routes to `do`)
 - **"I have a broken flow or flaky behavior"** -> `repair-flow`
 - **"I need to choose between architectural approaches"** -> `decide`
 - **"I have a draft spec/RFC that needs hardening before build"** -> `harden-spec`
@@ -175,7 +188,6 @@ Use this decision tree to find the right starting point:
 - **"I need to migrate from one framework/library/architecture to another"** -> `migrate`
 - **"I want to turn a workflow into a reusable circuit"** -> `create`, then `dry-run`
 - **"I want to verify a circuit works before using it for real"** -> `dry-run`
-- **"I am not sure which circuit fits"** -> `router`
 
 Common sequences:
 
@@ -184,4 +196,4 @@ Common sequences:
 - **Broken flow before expansion:** `repair-flow` -> then whatever comes next
 - **New circuit authoring:** `create` -> `dry-run`
 
-If none of these fit -- the task is a single-file change, a config edit, a quick wiring job, or a trivial bug fix -- you probably do not need a circuit at all.
+For single-line changes, config edits, quick wiring, or trivial bug fixes, a raw prompt is faster.

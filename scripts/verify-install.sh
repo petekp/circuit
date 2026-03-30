@@ -91,6 +91,7 @@ EXPECTED_SKILLS=(
   create
   decide
   develop
+  do
   dry-run
   harden-spec
   migrate

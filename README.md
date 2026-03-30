@@ -20,7 +20,7 @@ product judgment matters. The rest runs on its own.
 
 | Circuit | Invoke | Best For |
 |---------|--------|----------|
-| Router | `/circuit:router` | Picking the right circuit when you're not sure which fits |
+| Do | `/circuit <task>` | The default: any clear task that benefits from planning and review |
 | Develop | `/circuit:develop` | Taking a feature from idea to shipped code (`--light` for clear-approach tasks) |
 | Decide | `/circuit:decide` | Architecture decisions under real uncertainty |
 | Harden Spec | `/circuit:harden-spec` | Turning a rough RFC or PRD into something safe to build from |
@@ -83,27 +83,26 @@ pipeline.
 
 ## Quick Start
 
-Start with the router if you're not sure which circuit to use:
-
 ```
-/circuit:router I need to add user preferences that sync across devices
+/circuit add a dark mode toggle that persists to localStorage
 ```
 
 Here's what happens:
 
-1. **The router analyzes your task** and recommends the best circuit (or a
-   sequence of circuits). In this case, it might suggest `develop`.
+1. **Circuit routes your task automatically.** If it needs a specialized
+   workflow (research, architecture decision, debugging), you get one. Otherwise
+   it scopes the work, shows you the plan, and executes on confirmation.
 
-2. **The circuit creates an artifact chain** in `.relay/circuit-runs/`. Each phase
-   writes a durable file that feeds the next:
-   `intent-brief.md` -> `external-digest.md` -> `options.md` -> `decision-packet.md` -> ...
+2. **An artifact chain tracks progress** in `.relay/circuit-runs/`. For the
+   default workflow: `scope.md` -> `scope-confirmed.md` -> `execution-handoff.md`
+   -> `done.md`. Specialized circuits have longer chains.
 
-3. **Interactive steps ask for your input** at decision points. You set
-   priorities, choose between options, and approve direction.
+3. **You confirm the scope** before any code is written. One checkpoint, then
+   autonomous execution.
 
-4. **Dispatch steps run workers** for heavy lifting. Research,
-   implementation, review, and convergence happen in worker processes
-   (via Codex CLI when installed, or Agent fallback otherwise).
+4. **Workers handle the heavy lifting.** Implementation, review, and
+   convergence happen in parallel worker processes (via Codex CLI when
+   installed, or Agent fallback otherwise).
 
 5. **Resume awareness** means a fresh Claude Code session can pick up exactly
    where the last one stopped. The artifact chain is the state, not the chat
@@ -220,6 +219,9 @@ circuit/
       SKILL.md
       references/             # Prompt templates for each worker role
     router/                   # Routes tasks to the best circuit
+      SKILL.md
+    do/                       # Default circuit: auto-scope + execute
+      circuit.yaml
       SKILL.md
     develop/
       circuit.yaml            # Topology: phases, steps, artifacts, gates

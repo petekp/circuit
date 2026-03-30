@@ -13,6 +13,8 @@
 # Maximum 2 domain skills per circuit dispatch (3 total including manage-codex).
 
 circuits:
+  do:
+    skills: []  # auto-detected from file scope; override here if needed
   develop:
     skills: [tdd, deep-research]
   decide:

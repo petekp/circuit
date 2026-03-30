@@ -33,32 +33,13 @@ cat <<'BANNER'
 # Circuit
 
 ```
-/circuit:router <describe your task>
+/circuit <describe your task>
 ```
 
-Circuits are structured, multi-phase workflows that break complex engineering tasks into artifact chains — each phase writes a durable file that feeds the next. Heavy implementation is dispatched to workers automatically — via **Codex CLI** when installed, or **Claude Agent** as a fallback.
+Structured execution with planning, review, and convergence. Routes automatically to the right workflow.
 
-The router picks the right circuit for your task. Start there.
-
----
-
-### Reference: All Circuits
-
-| Circuit | Invoke | Use When |
-|---------|--------|----------|
-| **Router** | `/circuit:router` | Unsure which circuit fits — start here |
-| **Develop** | `/circuit:develop` | Feature delivery with unclear approach |
-| **Decide** | `/circuit:decide` | Architecture choices with real tradeoffs |
-| **Harden Spec** | `/circuit:harden-spec` | Turn a rough spec into a build-ready plan |
-| **Repair Flow** | `/circuit:repair-flow` | Fix a broken or flaky end-to-end flow |
-| **Ratchet Quality** | `/circuit:ratchet-quality` | Autonomous overnight quality improvement |
-| **Cleanup** | `/circuit:cleanup` | Dead code and stale docs sweep |
-| **Migrate** | `/circuit:migrate` | Framework swaps, dependency replacements, architecture transitions |
-| **Circuit Create** | `/circuit:create` | Author a new circuit from a workflow description |
-| **Dry Run** | `/circuit:dry-run` | Validate a circuit skill's mechanical soundness |
-| **Setup** | `/circuit:setup` | Discover skills and generate circuit.config.yaml |
-
-Use `/manage-codex` to orchestrate workers directly without a circuit wrapper.
+For a specific circuit: `/circuit:develop`, `/circuit:decide`, `/circuit:repair-flow`, `/circuit:cleanup`, `/circuit:migrate`, `/circuit:harden-spec`, `/circuit:ratchet-quality`
+Full catalog and help: `/circuit:router` or see CIRCUITS.md
 BANNER
 
 # ── Project setup hint (only if relay scripts are missing) ───────────

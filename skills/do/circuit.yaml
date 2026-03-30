@@ -1,0 +1,92 @@
+schema_version: "1"
+circuit:
+  id: do
+  version: "2026-03-29"
+  title: Do
+  description: >
+    Default circuit for tasks that benefit from structured execution but don't
+    match a specialized circuit. Auto-scopes the work, shows the scope for
+    confirmation, then executes with implement/review/converge. 4 steps across
+    3 phases: Scope -> Execute -> Summary.
+
+  phases:
+    - id: scope
+      title: Scope
+      execution: serial
+      steps:
+        - id: auto-scope
+          title: Auto-Scope
+          action: synthesis
+          # NOTE: This synthesis step may ask ONE clarifying question if the
+          # task is genuinely ambiguous. This is a bounded exception to the
+          # architecture rule that only interactive steps ask questions.
+          # The question is not an interview; it resolves a single ambiguity
+          # so the synthesis can proceed.
+          produces: scope.md
+          gate:
+            type: outputs_present
+            required: [scope.md]
+            checks:
+              - "Approach non-empty"
+              - "At least one Slice with files and verification"
+              - "Verification section non-empty"
+              - "Out of Scope non-empty"
+          notes: >
+            Claude reads the task and codebase, writes scope.md autonomously.
+            If the task is genuinely ambiguous (multiple plausible interpretations
+            that lead to different implementations), asks ONE clarifying question
+            first. If the task signals a specialized circuit, notes this in the
+            Escalation Notes section.
+
+        - id: scope-confirmation
+          title: Scope Confirmation
+          action: interactive
+          consumes: [scope.md]
+          produces: scope-confirmed.md
+          gate:
+            type: outputs_present
+            required: [scope-confirmed.md]
+            checks:
+              - "User confirmed, amended, or switched circuits"
+          notes: >
+            Presents scope.md to the user. User can confirm (proceed),
+            amend (edit scope and proceed), or switch to a specialized circuit
+            (stop this circuit and invoke the recommended one).
+
+    - id: execute
+      title: Execute
+      execution: serial
+      steps:
+        - id: implement
+          title: Implement
+          action: dispatch
+          adapter: manage-codex
+          consumes: [scope-confirmed.md]
+          produces: execution-handoff.md
+          max_attempts: 3
+          gate:
+            type: outputs_present
+            required: [execution-handoff.md]
+            checks:
+              - "Convergence verdict is COMPLETE AND HARDENED"
+          notes: >
+            Orchestrator creates CHARTER.md from scope-confirmed.md.
+            Slices map to batch.json entries with file_scope and
+            verification_commands. Standard implement/review/converge loop.
+            Orchestrator synthesizes execution-handoff.md from convergence output.
+
+    - id: summary
+      title: Summary
+      execution: serial
+      steps:
+        - id: done-summary
+          title: Done Summary
+          action: synthesis
+          consumes: [scope-confirmed.md, execution-handoff.md]
+          produces: done.md
+          gate:
+            type: outputs_present
+            required: [done.md]
+            checks:
+              - "Changes section non-empty"
+              - "Verification results present"
