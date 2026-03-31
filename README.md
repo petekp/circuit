@@ -59,7 +59,7 @@ Here's what happens:
    shows you the plan, and waits for your confirmation before writing any
    code.
 
-2. **Progress is saved to disk** in `.relay/` as a chain of markdown
+2. **Progress is saved to disk** in `.circuitry/` as a chain of markdown
    files. For the default workflow: `scope.md` -> `scope-confirmed.md`
    -> `execution-handoff.md` -> `done.md`. Specialized circuits have
    longer chains.

@@ -193,7 +193,7 @@ the canonical artifact with the expected schema.
 All artifacts live under a single run root:
 
 ```bash
-RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 
@@ -201,7 +201,7 @@ The `RUN_SLUG` incorporates both the topic and the circuit name. For example,
 a ratchet-quality run on a feature called "auth-refactor" would use:
 
 ```bash
-RUN_ROOT=".relay/circuit-runs/auth-refactor-ratchet-quality"
+RUN_ROOT=".circuitry/circuit-runs/auth-refactor-ratchet-quality"
 ```
 
 Step-specific relay state (handoffs, last messages, prompt headers) lives under
@@ -664,7 +664,7 @@ Write `{relay_root}/handoffs/handoff-{slice_id}.md`.
 The `compose-prompt.sh` script replaces these tokens with the actual path when
 `--root` is provided. This indirection is what makes templates reusable across
 different relay roots -- the same `implement-template.md` works whether the
-relay root is `.relay`, `.relay/circuit-runs/foo/phases/step-3/attempts/001`, or
+relay root is `.circuitry`, `.circuitry/circuit-runs/foo/phases/step-3/attempts/001`, or
 any other path.
 
 If a source file introduces `{relay_root}` tokens but no `--root` flag is
@@ -1049,7 +1049,7 @@ When `circuit:develop` executes for a feature called
 "sync-engine":
 
 ```
-.relay/circuit-runs/sync-engine/
+.circuitry/circuit-runs/sync-engine/
   artifacts/
     intent-brief.md
     external-digest.md
