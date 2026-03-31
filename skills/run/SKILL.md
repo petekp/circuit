@@ -3,13 +3,15 @@ name: circuit:run
 description: >
   Default circuit for tasks that benefit from structured execution but don't
   match a specialized circuit. 4 steps across 3 phases: Scope -> Execute ->
-  Summary. Auto-scopes the work, shows the plan for confirmation, then runs
-  implement/review/converge. Use when the approach is clear and the work is
-  non-trivial. Not for tasks needing research (develop), architecture decisions
-  (decide), debugging (repair-flow), cleanup, or migrations.
+  Summary. Auto-scopes the work, shows the plan for one user confirmation, then
+  runs implement/review/converge autonomously. Use when the approach is clear,
+  the work spans multiple files, and you want planning and review without full
+  develop overhead. Not for tasks needing research (develop), architecture
+  decisions (decide), debugging broken flows (repair-flow), dead code removal
+  (cleanup), or framework migrations (migrate).
 ---
 
-# Do Circuit
+# Run Circuit
 
 Auto-scope, confirm, execute. The default circuit for clear tasks that span
 multiple files and benefit from planning, independent review, and convergence.
@@ -41,6 +43,15 @@ If you want to explicitly set priorities, non-goals, and kill criteria before
 execution, use `circuit:develop --light` instead. It has an interactive
 intent-lock step that circuit:run skips.
 
+## Glossary
+
+- **Artifact** -- A canonical circuit output file in `${RUN_ROOT}/artifacts/`. These are the
+  durable chain. Each step produces exactly one artifact.
+- **Worker handoff** -- The raw output a worker writes to its relay `handoffs/` directory.
+  Worker handoffs are inputs to artifact synthesis, not artifacts themselves.
+- **Synthesis** -- When the orchestrator (Claude session) reads prior artifacts and writes a
+  new artifact directly, without dispatching a worker.
+
 ## Principles
 
 - **Show the scope, then execute.** The user always sees the plan before any
@@ -65,7 +76,7 @@ Record `RUN_ROOT`. All paths below are relative to it.
 ## Domain Skill Selection
 
 When dispatching workers, pick 1-2 domain skills matching the affected code.
-Check `circuit.config.yaml` for a `do:` entry first. If no config exists,
+Check `circuit.config.yaml` for a `run:` entry first. If no config exists,
 auto-detect from the file scope in the confirmed scope.
 
 Never exceed 3 total skills per dispatch.
@@ -327,7 +338,9 @@ Read `scope-confirmed.md` and `execution-handoff.md`. Write
 <anything the user should know: edge cases, deferred work, follow-ups>
 ```
 
-**Gate:** `done.md` exists with non-empty Changes and Verification results.
+**Gate:** `done.md` exists with non-empty Changes (listing files from
+`execution-handoff.md`) and non-empty Verification results (from scope-confirmed
+verification commands).
 
 ---
 

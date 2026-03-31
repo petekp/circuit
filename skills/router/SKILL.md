@@ -2,9 +2,10 @@
 name: circuit:router
 description: >
   The default entry point for all circuit work. Routes tasks to the best-fit
-  circuit. Use `/circuit:router <task>` to start. Recommends specialized
-  circuits when they match, falls back to circuit:run for non-trivial tasks
-  that don't match a specific circuit.
+  circuit. Use `/circuit:router <task>` or `/circuit <task>` to start. Analyzes
+  the task, recommends specialized circuits when they match, falls back to
+  circuit:run for non-trivial tasks that don't match a specific circuit.
+  `/circuit <task>` auto-confirms high-confidence matches.
 ---
 
 # Circuit Router
@@ -53,7 +54,7 @@ Route only when positive signals match and exclusions do not.
   Match: dry-running, validating, tracing, or mechanically checking a circuit skill, especially after authoring or editing it.
   Exclude: architecture critique, feature design, or product judgment.
 - `circuit:setup`
-  Match: configuring which skills circuits use, setting up Circuit for a new project, generating circuit.config.yaml, or discovering installed skills.
+  Match: configuring which skills circuits use, setting up Circuitry for a new project, generating circuit.config.yaml, or discovering installed skills.
   Exclude: running circuits, building features, or making decisions.
 - `circuit:run`
   Match: any non-trivial task that benefits from structured execution but doesn't match a specialized circuit above. Multi-file changes, feature additions with clear approach, refactoring, test additions, integration work.

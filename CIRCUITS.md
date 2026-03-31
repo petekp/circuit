@@ -1,6 +1,6 @@
 # Circuit Catalog
 
-The Circuit plugin provides structured, artifact-driven workflows for complex engineering tasks. Each circuit defines a fixed phase sequence, produces durable artifacts at every step, and includes gates, circuit breakers, and resume logic so work survives session interruptions. Circuits are invoked via `/circuit:<name>` in Claude Code.
+The Circuitry plugin provides structured, artifact-driven workflows for complex engineering tasks. Each circuit defines a fixed phase sequence, produces durable artifacts at every step, and includes gates, circuit breakers, and resume logic so work survives session interruptions. Circuits are invoked via `/circuit:<name>` in Claude Code.
 
 ## Quick Reference Table
 
@@ -20,14 +20,14 @@ The Circuit plugin provides structured, artifact-driven workflows for complex en
 
 ## Circuit Details
 
-### Do
+### Run
 
 **Invoke:** `/circuit:run <task>`
 **Phases:** Scope, Execute, Summary (4 steps)
 **Artifact chain:** `scope.md` -> `scope-confirmed.md` -> `execution-handoff.md` -> `done.md`
 **Example:** You need to add a dark mode toggle to the settings page that persists to localStorage. The circuit reads the codebase, writes a 2-slice scope (theme toggle component + persistence logic), shows you the plan for confirmation. After you confirm, workers implement each slice with independent review, convergence runs verification, and a summary tells you what changed.
 
-The default entry point for Circuit. Start with `/circuit:run <task>` for any non-trivial work, or `/circuit:router <task>` to have the router pick the best circuit automatically. If your task needs a specialized circuit (research, architecture decisions, debugging), you get one automatically. Otherwise, circuit:run handles it with auto-scope, confirmation, and implement/review/converge.
+The default entry point for Circuitry. Start with `/circuit:run <task>` for any non-trivial work, or `/circuit:router <task>` to have the router pick the best circuit automatically. If your task needs a specialized circuit (research, architecture decisions, debugging), you get one automatically. Otherwise, circuit:run handles it with auto-scope, confirmation, and implement/review/converge.
 
 ---
 
@@ -77,12 +77,12 @@ The default entry point for Circuit. Start with `/circuit:run <task>` for any no
 
 ---
 
-### Ratchet
+### Ratchet Quality
 
 **Invoke:** `/circuit:ratchet-quality`
 **Phases:** Triage, Stabilize, Envision, Plan, Execute, Finalize (17 steps)
-**Artifact chain:** `mission-brief.md` -> `baseline-report.md` -> ratchet options and scoring -> `ratchet-charter.md` -> batch execution via manage-codex -> `closeout-packet.md`
-**Example:** It is Friday evening and you want the codebase in better shape by Monday. You invoke ratchet-quality, it freezes a mission brief with your build/test/verify commands, establishes a trusted baseline, generates improvement options, scores and plans them, executes batches overnight via manage-codex, and publishes a truthful closeout packet showing exactly what improved, what was attempted, and what was left untouched.
+**Artifact chain:** `mission-brief.md` -> `baseline-audit.md` + `quality-calibration.md` + `improvement-backlog.md` -> `stabilization-report.md` -> `stability-findings.md` -> `stability-gate.md` -> `inside-out-digest.md` + `outside-in-digest.md` -> `improvement-proposal.md` -> `design-review.md` -> `envisioned-packet.md` -> `implementation-plan.md` -> `plan-review.md` -> `execution-charter.md` -> `execution-log.md` -> `execution-audit.md` -> `execution-report.md` -> `final-review.md` -> `overnight-handoff.md` + `pr-brief.md` + `deferred-work.md`
+**Example:** It is Friday evening and you want the codebase in better shape by Monday. You invoke ratchet-quality, it freezes a mission brief with your build/test/verify commands, runs parallel triage probes (baseline, quality calibration, improvement backlog), stabilizes the baseline before improving, explores improvement directions from inside and outside the codebase, synthesizes and reviews a proposal, plans batched execution with verification and rollback, executes batches via manage-codex, audits the result, and publishes a truthful closeout packet showing exactly what improved, what was attempted, and what was left untouched.
 
 ---
 
@@ -127,7 +127,7 @@ The default entry point for Circuit. Start with `/circuit:run <task>` for any no
 **Invoke:** `/circuit:setup`
 **Phases:** Single-pass interactive (not a circuit itself)
 **Artifact chain:** None -- produces `circuit.config.yaml`
-**Example:** You just installed the Circuit plugin and have several skills installed (tdd, deep-research, swift-apps). Setup scans your installed skills, maps them to circuits that benefit from them, suggests additional skills you might want, and writes a `circuit.config.yaml` so every circuit dispatch automatically uses the right domain skills for your project.
+**Example:** You just installed the Circuitry plugin and have several skills installed (tdd, deep-research, swift-apps). Setup scans your installed skills, maps them to circuits that benefit from them, suggests additional skills you might want, and writes a `circuit.config.yaml` so every circuit dispatch automatically uses the right domain skills for your project.
 
 ---
 

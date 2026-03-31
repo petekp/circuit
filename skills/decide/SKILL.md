@@ -21,7 +21,7 @@ three checkpoints where judgment must become conscious rather than implicit.
 - Architectural or protocol decisions with real downside either way
 - Work where multiple serious options exist and tradeoffs are not obvious
 - Situations where the team needs reopen conditions before implementation starts
-- Align work inside `pipeline` when downstream execution depends on a safe architectural call
+- Sequence before `circuit:develop` or `circuit:migrate` when downstream execution depends on a safe architectural call
 
 Do NOT use for code delivery, bug fixes, or tasks where the decision is already settled.
 
@@ -607,13 +607,17 @@ decision-brief.md                           [user: decision frame]
 
 If `${RUN_ROOT}/artifacts/` already has files, determine the resume point:
 
-1. Check artifacts in chain order (decision-brief -> current-system-map -> ... -> decision-guide)
-2. Find the last complete artifact with passing gate
-3. Continue from the next step
+1. For each step, check the step's relay directory (`${RUN_ROOT}/phases/<step-name>/`)
+   for in-flight worker output before concluding the step failed. A session may have
+   died mid-dispatch; the worker's handoff or last-message trace may contain usable output.
+2. Check artifacts in chain order (decision-brief -> current-system-map -> ... -> decision-guide)
+3. Find the last complete artifact with a passing gate
+4. If `decision-guide.md` exists but an upstream artifact fails its gate, the downstream
+   artifact is suspect. Resume from the first failing gate.
+5. Continue from the next step
 
-This is best-effort — the circuit has no durable state beyond artifacts on disk and
-step-local relay directories. If a session dies mid-step, check the step's relay
-directory for worker output before concluding the step failed.
+This is best-effort -- the circuit has no durable state beyond artifacts on disk and
+step-local relay directories.
 
 ## Circuit Breaker
 

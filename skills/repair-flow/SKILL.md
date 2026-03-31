@@ -54,8 +54,9 @@ real broken flow needs to be reproduced.
   mechanism that turns symptoms into durable regression obligations.
 - **Repair by layer, then re-audit the real flow.** `manage-codex` executes slices only
   after a repair packet exists, and closure requires a live re-audit rather than a test pass.
-- **Existing skills are components, not the circuit.** `pipeline` can host this loop, but
-  this circuit defines the domain-specific choreography from failure evidence to reopen decision.
+- **Existing skills are components, not the circuit.** Domain skills like
+  `exhaustive-systems-analysis` and `tdd` contribute evidence and proof, but this
+  circuit defines the choreography from failure evidence to reopen decision.
 
 ## Setup
 

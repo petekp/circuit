@@ -3,13 +3,13 @@ name: circuit:setup
 description: >
   Interactive skill that discovers installed skills, maps them to circuits, and
   generates a circuit.config.yaml file. Use when the user wants to configure
-  which skills their circuits use, set up Circuit for a new project, or
-  customize their workflow. Invoke with /circuit:setup.
+  which skills their circuits use, set up Circuitry for a new project, or
+  customize their workflow.
 ---
 
-# Circuit Setup
+# Circuitry Setup
 
-Set up your Circuit configuration by discovering installed skills and mapping
+Set up your Circuitry configuration by discovering installed skills and mapping
 them to the circuits that benefit from them. Produces a `circuit.config.yaml`
 file that circuits use automatically.
 

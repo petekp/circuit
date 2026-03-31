@@ -30,9 +30,8 @@ Do NOT use for unformed ideas, bug fixes, or specs that are already implementati
 
 This circuit sits between review and execution: `proposal-review` helps collect
 structured reactions, but this circuit turns critique into canonical amended
-artifacts and a build plan. `pipeline` can host it during align work. It is a
-natural downstream step after a decision loop and an upstream step before
-`circuit:develop` or `manage-codex`.
+artifacts and a build plan. It is a natural downstream step after `circuit:decide`
+and an upstream step before `circuit:develop` or `manage-codex`.
 
 ## Glossary
 
@@ -619,25 +618,29 @@ spec-brief.md
 
 If `${RUN_ROOT}/artifacts/` already has files, determine the resume point:
 
-1. Check artifacts in chain order (spec-brief -> draft-digest -> implementer-review,
+1. For each step, check the step's relay directory (`${RUN_ROOT}/phases/<step-name>/`)
+   for in-flight worker output before concluding the step failed. A session may have
+   died mid-dispatch; the worker's handoff or last-message trace may contain usable output.
+2. Check artifacts in chain order (spec-brief -> draft-digest -> implementer-review,
    systems-review, comparative-review -> caveat-resolution -> amended-spec ->
    execution-packet -> implementation-plan -> plan-review)
-2. Treat the multi-angle review phase as complete only when all three review
+3. Treat the multi-angle review phase as complete only when all three review
    artifacts exist and satisfy their gates
-3. Find the last complete artifact with a passing gate
-4. Continue from the next step
+4. Find the last complete artifact with a passing gate
+5. Continue from the next step
 
 If `plan-review.md` exists with a `REVISE` verdict, resume from the user-selected
 reopen point rather than blindly repeating Step 10.
 
 This is best-effort - the circuit has no durable state beyond artifacts on disk and
-step-local relay directories. If a session dies mid-step, check the step's relay
-directory for worker output before concluding the step failed.
+step-local relay directories.
 
 ## Circuit Breaker
 
 Escalate to the user when:
 - A dispatch step fails twice (no valid output after 2 attempts)
-- Caveat resolution cannot produce explicit accepted, rejected, and deferred buckets
-- Plan review returns `REVISE` twice for the same unresolved gap
-- The user chooses to pause for a new decision loop upstream
+- Caveat resolution produces only vague dispositions without concrete accepted,
+  rejected, and deferred buckets after the user has been asked to clarify
+- Plan review returns `REVISE` twice for the same unresolved gap (the gap is
+  likely structural, not fixable by local revision)
+- The user chooses to pause for a new decision loop upstream (route to `circuit:decide`)

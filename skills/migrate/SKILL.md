@@ -82,6 +82,20 @@ When a step says `<domain-skills>`, pick 1-2 skills matching the affected code.
 Never exceed 3 total skills per dispatch. For Step 6, because `manage-codex` is
 already required, pick at most 2 domain skills.
 
+## Dispatch Backend
+
+Dispatch steps use either **Codex CLI** or **Claude Code Agent** as the worker
+backend. The backend is auto-detected: if `codex` is on PATH, use Codex; otherwise,
+fall back to Agent. The assembled prompt is identical for both backends.
+
+Or use the dispatch helper which auto-detects:
+```bash
+./scripts/relay/dispatch.sh --prompt ${step_dir}/prompt.md --output ${step_dir}/last-messages/last-message.txt
+```
+
+The artifact chain, gates, handoff format, and resume logic are identical
+regardless of backend.
+
 ## Canonical Header Schema
 
 Every dispatch step's prompt header MUST include these fields:
@@ -235,9 +249,9 @@ Include the canonical header schema with:
   --root ${RUN_ROOT}/phases/step-2a \
   --out ${RUN_ROOT}/phases/step-2a/prompt.md
 
-cat ${RUN_ROOT}/phases/step-2a/prompt.md | \
-  codex exec --full-auto \
-  -o ${RUN_ROOT}/phases/step-2a/last-messages/last-message.txt -
+./scripts/relay/dispatch.sh \
+  --prompt ${RUN_ROOT}/phases/step-2a/prompt.md \
+  --output ${RUN_ROOT}/phases/step-2a/last-messages/last-message.txt
 ```
 
 ```bash
@@ -247,9 +261,9 @@ cat ${RUN_ROOT}/phases/step-2a/prompt.md | \
   --root ${RUN_ROOT}/phases/step-2b \
   --out ${RUN_ROOT}/phases/step-2b/prompt.md
 
-cat ${RUN_ROOT}/phases/step-2b/prompt.md | \
-  codex exec --full-auto \
-  -o ${RUN_ROOT}/phases/step-2b/last-messages/last-message.txt -
+./scripts/relay/dispatch.sh \
+  --prompt ${RUN_ROOT}/phases/step-2b/prompt.md \
+  --output ${RUN_ROOT}/phases/step-2b/last-messages/last-message.txt
 ```
 
 **Verify and promote:**
@@ -393,9 +407,9 @@ mkdir -p "${MIGRATION_ROOT}/archive" "${MIGRATION_ROOT}/handoffs" \
      --root ${MIGRATION_ROOT} \
      --out ${MIGRATION_ROOT}/prompt.md
 
-   cat ${MIGRATION_ROOT}/prompt.md | \
-     codex exec --full-auto \
-     -o ${MIGRATION_ROOT}/last-messages/last-message-manage-codex.txt -
+   ./scripts/relay/dispatch.sh \
+     --prompt ${MIGRATION_ROOT}/prompt.md \
+     --output ${MIGRATION_ROOT}/last-messages/last-message-manage-codex.txt
    ```
 
 4. **After manage-codex completes**, the orchestrator synthesizes `batch-log.md`:
@@ -477,7 +491,7 @@ Include the canonical header schema with:
   explicitly deferred. No surprise dual-system artifacts.
 - Handoff: `handoffs/handoff.md`
 
-**Dispatch:** Same compose-prompt + codex exec pattern as Step 2, with
+**Dispatch:** Same compose-prompt + dispatch pattern as Steps 2-3, with
 `--header ${RUN_ROOT}/phases/step-7/prompt-header.md`,
 `--skills <domain-skills>`,
 `--root ${RUN_ROOT}/phases/step-7`.
@@ -535,7 +549,7 @@ Include the canonical header schema with:
   REVISE, the exact governing issue is named.
 - Handoff: `handoffs/handoff.md`
 
-**Dispatch:** Same compose-prompt + codex exec pattern as Step 2, with
+**Dispatch:** Same compose-prompt + dispatch pattern as Steps 2-3, with
 `--header ${RUN_ROOT}/phases/step-8/prompt-header.md`,
 `--skills <domain-skills>`,
 `--root ${RUN_ROOT}/phases/step-8`.
@@ -577,18 +591,20 @@ migration-brief.md                              [Step 1, interactive]
 
 If `${RUN_ROOT}/artifacts/` already has files, determine the resume point:
 
-1. Check artifacts in chain order (migration-brief -> dependency-inventory + risk-assessment
+1. For each step, check the step's relay directory (`${RUN_ROOT}/phases/<step-name>/`)
+   for in-flight worker output before concluding the step failed. A session may have
+   died mid-dispatch; the worker's handoff or last-message trace may contain usable output.
+2. Check artifacts in chain order (migration-brief -> dependency-inventory + risk-assessment
    -> coexistence-plan -> migration-steer -> batch-log -> verification-report -> cutover-report)
-2. Find the last complete artifact with a passing gate
-3. For Step 6 specifically: check `${RUN_ROOT}/phases/step-6/batch.json` for manage-codex
+3. Find the last complete artifact with a passing gate
+4. For Step 6 specifically: check `${RUN_ROOT}/phases/step-6/batch.json` for manage-codex
    resume state before restarting batch migration
-4. If `cutover-report.md` exists with a `REVISE` verdict, read its governing issue and
+5. If `cutover-report.md` exists with a `REVISE` verdict, read its governing issue and
    resume from Step 6 with that issue as input
-5. Continue from the next step
+6. Continue from the next step
 
 This is best-effort -- the circuit has no durable state beyond artifacts on disk and
-step-local relay directories. If a session dies mid-step, check the step's relay
-directory for worker output before concluding the step failed.
+step-local relay directories.
 
 ## Circuit Breaker
 

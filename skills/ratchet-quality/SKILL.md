@@ -31,6 +31,7 @@ partial closeout is explicit.
 Do NOT use for interactive steering, net-new feature delivery, architecture
 decisions, cleanup-only sweeps, trivial fixes, or repos that cannot support
 explicit verification. See the frontmatter for the full negative scope.
+
 ## Glossary
 - **Artifact** - Canonical circuit output under `${RUN_ROOT}/artifacts/`.
 - **Authoritative packet** - The ratchet artifact that supersedes an earlier
@@ -45,6 +46,7 @@ explicit verification. See the frontmatter for the full negative scope.
 - **Command set** - A named build/test/verify bundle captured in `mission-brief.md`.
 - **Reopen marker** - The root-level redirect artifact that tells a fresh
   session where to resume after downstream state has been archived.
+
 ## Principles
 - **Artifacts, not chat.** Progress is the artifact chain on disk. Commentary is
   helpful, but it is never authoritative.
@@ -111,13 +113,13 @@ Handoff instructions must include these exact relay headings:
 - `### Completion Claim`
 - `### Issues Found`
 - `### Next Steps`
-### Dispatch Backend
+## Dispatch Backend
 Dispatch steps use either **Codex CLI** or **Claude Code Agent** as the worker
 backend. The backend is auto-detected: if `codex` is on PATH, use Codex; otherwise,
 fall back to Agent. The artifact chain, gates, and handoff format are identical
 regardless of backend.
 
-### Shared Dispatch Recipe
+## Shared Dispatch Recipe
 All non-`manage-codex` dispatch steps use the same relay recipe:
 ```bash
 STEP_ROOT="${RUN_ROOT}/phases/step-<n>"

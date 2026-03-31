@@ -338,6 +338,10 @@ cp ${RUN_ROOT}/phases/step-2b/internal-digest.md ${RUN_ROOT}/artifacts/internal-
 If the worker only wrote `handoffs/handoff.md`, the orchestrator reads it and
 synthesizes the digest artifact manually using the evidence digest schema.
 
+**Gate:** Both digest artifacts exist. Each digest contains non-empty Facts,
+Unknowns, and Implications for This Feature sections. Source Confidence labels
+are present.
+
 ### Step 3: Constraints Synthesis — `synthesis`
 
 **Objective:** Merge parallel research into decision-grade substrate.
@@ -799,4 +803,10 @@ start a new run.
 Escalate to the user when:
 - A dispatch step fails twice (no valid output after 2 attempts)
 - The seam proof returns `DESIGN INVALIDATED` (Step 8 gate)
+- Any manage-codex slice hits `impl_attempts > 3` or
+  `impl_attempts + review_rejections > 5` (Step 9)
+- Convergence fails after max attempts (Step 9)
 - Ship review says `ISSUES FOUND` after 2 attempts (Step 10)
+
+Include in the escalation: counter values, failure output, the failure pattern,
+and options (adjust scope, skip the problematic slice, switch circuits, or abort).
