@@ -74,7 +74,7 @@ See frontmatter for full negative scope.
 
 ```bash
 RUN_SLUG="<target-slug>"
-RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}-cleanup"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}-cleanup"
 mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
 ```
 

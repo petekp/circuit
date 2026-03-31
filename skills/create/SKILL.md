@@ -75,7 +75,7 @@ wrapping a tiny one-off prompt in unnecessary circuit structure.
 WORKFLOW_SOURCE="<inline-description-or-path>"
 TARGET_CIRCUIT_SLUG="<new-circuit-slug>"
 TARGET_CIRCUIT_ROOT="${HOME}/.claude/skills/circuit/${TARGET_CIRCUIT_SLUG}"
-RUN_ROOT=".relay/circuit-runs/${TARGET_CIRCUIT_SLUG}-circuit-create"
+RUN_ROOT=".circuitry/circuit-runs/${TARGET_CIRCUIT_SLUG}-circuit-create"
 STAGING="${RUN_ROOT}/staging"
 mkdir -p "${RUN_ROOT}/artifacts" "${STAGING}" \
   "${RUN_ROOT}/handoffs" "${RUN_ROOT}/last-messages" \
@@ -331,7 +331,7 @@ Do NOT use for [negative scope].
 ## Setup
 ```bash
 RUN_SLUG="<topic-slug>"
-RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 

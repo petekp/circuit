@@ -58,7 +58,7 @@ Do NOT use for code delivery, bug fixes, or tasks where the decision is already 
 
 ```bash
 RUN_SLUG="<decision-slug>"
-RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 

@@ -78,7 +78,7 @@ own artifact space:
 ```bash
 METHOD_ID="$(basename "${METHOD_ROOT}")"
 FEATURE_SLUG="<slug-from-test-feature>"
-TRACE_ROOT="${REPO_ROOT}/.relay/circuit-dry-run/${METHOD_ID}-${FEATURE_SLUG}"
+TRACE_ROOT="${REPO_ROOT}/.circuitry/circuit-dry-run/${METHOD_ID}-${FEATURE_SLUG}"
 mkdir -p "${TRACE_ROOT}"
 ```
 

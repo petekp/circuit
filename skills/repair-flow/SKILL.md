@@ -61,7 +61,7 @@ real broken flow needs to be reproduced.
 
 ```bash
 RUN_SLUG="<flow-slug>"
-RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 

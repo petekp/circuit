@@ -54,7 +54,7 @@ intent/contract/implement/review flow, use `--light` mode (see Mode Selection be
 
 ```bash
 RUN_SLUG="<feature-slug>"
-RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 

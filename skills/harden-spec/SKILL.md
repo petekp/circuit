@@ -69,7 +69,7 @@ natural downstream step after a decision loop and an upstream step before
 ```bash
 SOURCE_DRAFT="<path-to-source-draft>"
 RUN_SLUG="<spec-slug>"
-RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 

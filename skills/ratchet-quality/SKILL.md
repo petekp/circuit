@@ -64,7 +64,7 @@ explicit verification. See the frontmatter for the full negative scope.
 ## Setup
 ```bash
 RUN_SLUG="<scope-slug>"
-RUN_ROOT=".relay/circuit-runs/${RUN_SLUG}-ratchet-quality"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}-ratchet-quality"
 mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
 ```
 Setup only defines `RUN_ROOT`. Step 1 captures every runtime input that varies
