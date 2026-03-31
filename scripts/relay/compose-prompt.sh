@@ -2,10 +2,10 @@
 # compose-prompt.sh — Assemble a worker prompt from header + skills + template
 #
 # Usage:
-#   ./scripts/relay/compose-prompt.sh --header .relay/prompt-header.md --skills swift-apps,rust --out .relay/prompt.md
-#   ./scripts/relay/compose-prompt.sh --header .relay/review-header.md --template review --out .relay/review-prompt.md
-#   ./scripts/relay/compose-prompt.sh --header .relay/prompt-header.md --template implement --root /tmp/relay-root --out .relay/prompt.md
-#   ./scripts/relay/compose-prompt.sh --header .relay/prompt-header.md --backend agent --out .relay/prompt.md
+#   ./scripts/relay/compose-prompt.sh --header .circuitry/prompt-header.md --skills swift-apps,rust --out .circuitry/prompt.md
+#   ./scripts/relay/compose-prompt.sh --header .circuitry/review-header.md --template review --out .circuitry/review-prompt.md
+#   ./scripts/relay/compose-prompt.sh --header .circuitry/prompt-header.md --template implement --root /tmp/relay-root --out .circuitry/prompt.md
+#   ./scripts/relay/compose-prompt.sh --header .circuitry/prompt-header.md --backend agent --out .circuitry/prompt.md
 #
 # Options:
 #   --header FILE    — Task-specific header (required)

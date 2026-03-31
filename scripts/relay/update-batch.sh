@@ -36,7 +36,7 @@
 #   --criteria TEXT    - Success criteria text (optional for add_slice)
 #   --validate         - Check batch.json consistency, exit 0 if clean, 1 if drift
 #   --rebuild          - Rebuild batch.json from <root>/plan.json + <root>/events.ndjson
-#   --root DIR         - Relay state root (default: .relay/); derives batch.json,
+#   --root DIR         - Relay state root (default: .circuitry/); derives batch.json,
 #                        events.ndjson, plan.json, and archive/
 #   --batch PATH       - Path to batch.json (default: <root>/batch.json). If used
 #                        with --root, this overrides only batch.json
@@ -55,7 +55,7 @@ root_path() {
   printf '%s/%s\n' "${root%/}" "$name"
 }
 
-ROOT_DIR=".relay"
+ROOT_DIR=".circuitry"
 BATCH_OVERRIDE=""
 SLICE=""
 EVENT=""
