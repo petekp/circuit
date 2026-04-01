@@ -60,7 +60,6 @@ has installed:
 |---------|---------------|------------------|
 | `develop` | Research skills, Platform skills | Testing skills |
 | `decide` | Architecture skills, Research skills | — |
-| `harden-spec` | Architecture skills | Research skills |
 | `repair-flow` | Testing skills | Platform skills |
 | `ratchet-quality` | Architecture skills, Code Quality skills | Testing skills |
 | `cleanup` | Code Quality skills | — |
@@ -98,8 +97,6 @@ circuits:
   develop:
     skills: [<matched-skills>]
   decide:
-    skills: [<matched-skills>]
-  harden-spec:
     skills: [<matched-skills>]
   repair-flow:
     skills: [<matched-skills>]

@@ -7,9 +7,8 @@ The Circuitry plugin provides structured, artifact-driven workflows for complex 
 | Circuit | Invoke | Best For |
 |---------|--------|----------|
 | Run | `/circuit:run <task>` | The default: any clear task that benefits from planning and review |
-| Develop | `/circuit:develop` | Taking a non-trivial feature from idea to shipped code |
+| Develop | `/circuit:develop` | Taking a non-trivial feature from idea to shipped code (`--spec-review` for existing specs) |
 | Decide | `/circuit:decide` | Making architecture or protocol decisions under real uncertainty |
-| Harden Spec | `/circuit:harden-spec` | Turning a rough RFC, spec, or PRD into something safe to build from |
 | Repair Flow | `/circuit:repair-flow` | Debugging and repairing broken end-to-end flows |
 | Ratchet Quality | `/circuit:ratchet-quality` | Overnight unattended quality improvement runs |
 | Cleanup | `/circuit:cleanup` | Systematic dead code, stale docs, and codebase detritus cleanup |
@@ -47,6 +46,7 @@ The default entry point for Circuitry. Start with `/circuit:run <task>` for any 
 **Artifact chain:** `intent-brief.md` -> `external-digest.md` + `internal-digest.md` -> `constraints.md` -> `options.md` -> `decision-packet.md` -> `adr.md` -> `execution-packet.md` -> `seam-proof.md` -> `implementation-handoff.md` -> `ship-review.md`
 **Example:** You need to add a recording and playback system that spans the Rust core and Swift app layers. The circuit researches external patterns and internal system surface in parallel, generates distinct architectural options, pressure-tests them, gets your tradeoff decision, proves the hardest seam with a thin slice, then delegates implementation to workers and runs a final ship review.
 **Light mode:** For tasks where the approach is clear, invoke `/circuit:develop --light` to run an abbreviated 4-step flow (intent -> contract -> implement -> review), skipping the evidence gathering and adversarial evaluation phases.
+**Spec-review mode:** For tasks where an existing RFC, spec, or PRD needs review before build, invoke `/circuit:develop --spec-review` to run multi-angle review (implementer, systems, comparative) followed by caveat resolution and amended draft, then continue through to code delivery.
 
 ---
 
@@ -56,15 +56,6 @@ The default entry point for Circuitry. Start with `/circuit:run <task>` for any 
 **Phases:** Framing, Reality Mapping, Option Exploration, Pressure, Publication (8 steps)
 **Artifact chain:** `decision-brief.md` -> `current-system-map.md` -> `decision-options.md` -> `decision-scorecard.md` -> `decision-steer.md` -> `pressure-report.md` -> `decision-choice.md` -> `decision-guide.md`
 **Example:** Your team is debating whether to use WebSockets, SSE, or polling for real-time updates. The circuit frames the decision, maps the current system, generates genuinely distinct options, scores them with explicit weights, lets you set priority order, adversarially attacks the front-runner, and publishes a durable decision guide that downstream implementers can follow without relitigating.
-
----
-
-### Harden Spec
-
-**Invoke:** `/circuit:harden-spec`
-**Phases:** Intake, Multi-Angle Review, Amendment, Contracting, Planning, Validation (10 steps)
-**Artifact chain:** `spec-brief.md` -> `draft-digest.md` -> `implementer-review.md` + `systems-review.md` + `comparative-review.md` -> `caveat-resolution.md` -> `amended-spec.md` -> `execution-packet.md` -> `implementation-plan.md` -> `plan-review.md`
-**Example:** A colleague wrote an RFC for a new permissions model. It reads well but nobody has checked whether it can actually be built, whether it fits the current system boundaries, or how it compares to prior art. Harden-spec runs three independent review passes (implementer, systems, comparative), you decide which caveats to accept or reject, and it produces both an amended spec and a sequenced implementation plan -- all before anyone writes code.
 
 ---
 
@@ -148,8 +139,8 @@ Some circuits look similar on the surface. Here's how to tell them apart:
 | Make the codebase better | `ratchet-quality` | `cleanup` | Ratchet-quality improves quality; cleanup removes dead weight |
 | Remove dead code and stale docs | `cleanup` | `ratchet-quality` | Cleanup removes; ratchet-quality refactors and improves |
 | Migrate a framework or dependency | `migrate` | `develop` | Migrate handles dual-system coexistence; develop builds greenfield |
-| Build a feature from an idea | `develop` | `harden-spec` | Develop handles the full lifecycle; harden-spec only reviews existing specs |
-| Review an existing RFC before building | `harden-spec` | `develop` | Harden-spec stress-tests a document without writing code |
+| Build a feature from an idea | `develop` | (none) | Develop handles the full lifecycle from idea to shipped code |
+| Review an existing RFC then build | `develop --spec-review` | `develop` (full) | Spec-review stress-tests the document and then builds; full develop starts from scratch |
 | Choose between approaches | `decide` | `develop` | Decide resolves which option; develop implements the chosen one |
 | Choose between approaches, then build | `decide` -> `develop` | (none) | Sequence them: decision first, then implementation |
 
@@ -161,11 +152,11 @@ The key question: *Is the deliverable a decision guide, or shipped code?*
 - Use `develop` when the deliverable is shipped code, even if the approach is uncertain. Develop has its own decision phase built in (Steps 4-6: generate candidates → adversarial evaluation → tradeoff decision).
 - Use `decide → develop` as a sequence only when the decision is so consequential that it deserves its own artifact chain before any implementation begins, e.g., choosing between fundamentally different system architectures that affect multiple teams.
 
-**harden-spec vs. develop**
+**develop --spec-review vs. develop (full)**
 The key question: *Does a written document already exist?*
-- Use `harden-spec` when an RFC, PRD, or design doc exists and needs stress-testing before anyone builds from it. The input is a document; the output is an amended document + implementation plan.
-- Use `develop` when the idea lives in someone's head, a Slack thread, or a brief description. Develop's alignment phase (Step 1: intent lock) extracts and structures the intent from scratch.
-- Rule of thumb: if you can point to a file or URL as the starting artifact, it's harden-spec. If the starting artifact needs to be created, it's develop.
+- Use `develop --spec-review` when an RFC, PRD, or design doc exists and needs stress-testing before anyone builds from it. The input is a document; the output is reviewed, amended, and then implemented through to shipped code.
+- Use `develop` (full) when the idea lives in someone's head, a Slack thread, or a brief description. Develop's alignment phase (Step 1: intent lock) extracts and structures the intent from scratch.
+- Rule of thumb: if you can point to a file or URL as the starting artifact, use `--spec-review`. If the starting artifact needs to be created, use full develop.
 
 **ratchet-quality vs. cleanup**
 The key question: *Are you improving living code or removing dead code?*
@@ -181,7 +172,7 @@ circuit automatically. If you want to choose manually:
 - **"I have a clear task that spans multiple files"** -> `/circuit:run <task>`
 - **"I have a broken flow or flaky behavior"** -> `repair-flow`
 - **"I need to choose between architectural approaches"** -> `decide`
-- **"I have a draft spec/RFC that needs hardening before build"** -> `harden-spec`
+- **"I have a draft spec/RFC that needs review before build"** -> `develop --spec-review`
 - **"I need to build a non-trivial feature end to end"** -> `develop`
 - **"I want overnight autonomous quality improvement"** -> `ratchet-quality`
 - **"I need to clean up dead code, stale docs, or codebase detritus"** -> `cleanup`
@@ -192,7 +183,7 @@ circuit automatically. If you want to choose manually:
 Common sequences:
 
 - **Unsettled decision then build:** `decide` -> `develop`
-- **Draft exists but is not build-ready:** `harden-spec` -> `develop`
+- **Draft exists but is not build-ready:** `develop --spec-review` (reviews and builds in one circuit)
 - **Broken flow before expansion:** `repair-flow` -> then whatever comes next
 - **New circuit authoring:** `create` -> `dry-run`
 

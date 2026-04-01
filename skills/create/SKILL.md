@@ -446,7 +446,7 @@ Short paragraph explaining the validator's core model and what a passing trace m
 - Keep runtime semantics in `SKILL.md`
 - Author both files, then cross-validate them field by field
 - Surface unsupported capabilities explicitly instead of implying hidden runtime behavior
-- Verify total SKILL.md line count is proportional to circuit complexity. Comparable circuits in the corpus: repair-flow (593), develop (646), harden-spec (628), decide (600). A circuit with similar topology should not exceed ~750 lines without justification. If it does, run the conciseness rules before shipping.
+- Verify total SKILL.md line count is proportional to circuit complexity. Comparable circuits in the corpus: repair-flow (593), develop (810+), decide (600). A circuit with similar topology should not exceed ~750 lines without justification. If it does, run the conciseness rules before shipping.
 
 ### Authoring Checklist
 

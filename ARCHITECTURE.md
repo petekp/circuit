@@ -1027,7 +1027,7 @@ circuit/
     decide/
       circuit.yaml
       SKILL.md
-    harden-spec/
+    harden-spec/          # deprecated — folded into develop --spec-review
       circuit.yaml
       SKILL.md
     repair-flow/

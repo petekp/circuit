@@ -19,8 +19,6 @@ circuits:
     skills: [tdd, deep-research]
   decide:
     skills: [architecture-exploration, solution-explorer]
-  harden-spec:
-    skills: [architecture-exploration]
   repair-flow:
     skills: [tdd]
   ratchet-quality:

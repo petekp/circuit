@@ -60,9 +60,8 @@ The router picks the right circuit for your task. Start there.
 |---------|--------|----------|
 | **Router** | `/circuit:router` | Unsure which circuit fits — start here |
 | **Run** | `/circuit:run` | Clear task that benefits from planning and review |
-| **Develop** | `/circuit:develop` | Feature delivery with unclear approach |
+| **Develop** | `/circuit:develop` | Feature delivery with unclear approach (`--spec-review` for existing specs) |
 | **Decide** | `/circuit:decide` | Architecture choices with real tradeoffs |
-| **Harden Spec** | `/circuit:harden-spec` | Turn a rough spec into a build-ready plan |
 | **Repair Flow** | `/circuit:repair-flow` | Fix a broken or flaky end-to-end flow |
 | **Ratchet Quality** | `/circuit:ratchet-quality` | Autonomous overnight quality improvement |
 | **Cleanup** | `/circuit:cleanup` | Dead code and stale docs sweep |

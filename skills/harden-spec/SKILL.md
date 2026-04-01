@@ -9,6 +9,9 @@ description: >
   from.
 ---
 
+> **Deprecated:** This circuit has been folded into `circuit:develop --spec-review`.
+> Use `/circuit:develop --spec-review` instead. This file is retained for reference only.
+
 # Harden Spec Circuit
 
 An artifact-centric workflow that chains draft -> digest -> critique -> amendment

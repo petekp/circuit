@@ -20,6 +20,16 @@ circuit:
       artifact_chain: [intent-brief.md, execution-packet.md, implementation-handoff.md, ship-review.md]
       skipped_phases: [evidence, decision]
       skipped_steps: [evidence-probes, constraints-synthesis, generate-candidates, adversarial-evaluation, tradeoff-decision, prove-seam]
+    spec-review:
+      description: >
+        Modified workflow for existing specs, RFCs, or PRDs that need multi-angle
+        review before implementation. Replaces alignment/evidence/decision phases
+        with spec intake, digest, parallel reviews, caveat resolution, and amended
+        draft, then continues through to code delivery.
+      steps: [spec-intake, draft-digest, parallel-reviews, caveat-resolution, amended-draft, implementation-contract, prove-seam, implement, ship-review]
+      artifact_chain: [spec-brief.md, draft-digest.md, implementer-review.md, systems-review.md, comparative-review.md, caveat-resolution.md, amended-spec.md, execution-packet.md, seam-proof.md, implementation-handoff.md, ship-review.md]
+      skipped_phases: [alignment, evidence, decision]
+      skipped_steps: [intent-lock, evidence-probes, constraints-synthesis, generate-candidates, adversarial-evaluation, tradeoff-decision]
 
   phases:
     - id: alignment

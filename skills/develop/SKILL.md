@@ -25,6 +25,9 @@ Do NOT use for bug fixes, config changes, or single-file wiring tasks.
 For tasks where the approach is already clear but the work still benefits from structured
 intent/contract/implement/review flow, use `--light` mode (see Mode Selection below).
 
+For tasks where a written spec, RFC, or PRD already exists and needs review before
+build, use `--spec-review` mode (see Mode Selection below).
+
 ## Glossary
 
 - **Artifact** -- A canonical circuit output file in `${RUN_ROOT}/artifacts/`. These are the
@@ -68,10 +71,12 @@ mkdir -p "${step_dir}/reports" "${step_dir}/last-messages"
 
 ## Mode Selection
 
-Parse the circuit invocation args for a `--light` flag.
+Parse the circuit invocation args for mode flags.
 
 - If `--light` is present → `MODE=light`. Log: "Running in light mode (4 steps)."
-- If absent → `MODE=full` (default). The full 10-step workflow runs unchanged.
+- If `--spec-review` is present → `MODE=spec-review`. Log: "Running in spec-review mode."
+- If `--spec <path>` is present → `MODE=spec-review`, set `SOURCE_SPEC=<path>`. Log: "Running in spec-review mode with spec: <path>."
+- If no mode flag is present → `MODE=full` (default). The full 10-step workflow runs unchanged.
 
 **Light mode** runs 4 of the 10 steps:
 
@@ -97,7 +102,55 @@ Tradeoff Decision, Prove the Hardest Seam.
 - The intent-brief MUST include a `## Mode` section (see Step 1 light mode note).
 - Gates still apply to every step -- no quality compromise.
 
-If `MODE=full`, ignore all light-mode variants below and follow the standard phases.
+### Spec-Review Mode
+
+**When to use:** An existing draft, spec, RFC, or PRD exists and needs multi-angle review
+before implementation. This mode replaces the standalone `harden-spec` circuit -- it runs
+the same review pipeline but continues through to code delivery instead of stopping before
+implementation.
+
+**Spec-review mode** runs a modified step sequence that replaces the Alignment/Evidence/Decision
+phases with a spec intake and multi-angle review pipeline, then merges back into the standard
+Preflight/Delivery phases:
+
+| Spec-review step | Action      | Produces                 |
+|------------------|-------------|--------------------------|
+| 1. Spec Intake          | interactive | spec-brief.md            |
+| 2. Draft Digest         | synthesis   | draft-digest.md          |
+| 3. Parallel Reviews     | dispatch    | implementer-review.md + systems-review.md + comparative-review.md |
+| 4. Caveat Resolution    | interactive | caveat-resolution.md     |
+| 5. Amended Draft        | synthesis   | amended-spec.md          |
+| 6. Implementation Contract | synthesis | execution-packet.md      |
+| 7. Prove the Hardest Seam | dispatch  | seam-proof.md            |
+| 8. Implement            | dispatch    | implementation-handoff.md |
+| 9. Ship Review          | dispatch    | ship-review.md           |
+
+**Spec-review mode artifact chain:**
+```
+spec-brief.md → draft-digest.md → implementer-review.md + systems-review.md + comparative-review.md → caveat-resolution.md → amended-spec.md → execution-packet.md → seam-proof.md → implementation-handoff.md → ship-review.md
+```
+
+Skipped phases: Evidence (external/internal probes), Decision (candidate generation,
+adversarial evaluation, tradeoff decision). These are replaced by the multi-angle
+review pipeline which provides equivalent scrutiny from an existing document rather
+than from scratch.
+
+**Key differences from full mode:**
+- Steps 1-5 come from the harden-spec pipeline (spec intake, digest, parallel reviews,
+  caveat resolution, amended draft) instead of develop's alignment/evidence/decision.
+- Step 6 (Implementation Contract) reads from `amended-spec.md` and `caveat-resolution.md`
+  instead of `adr.md` and `constraints.md`. See the Spec-Review Mode Variant under Step 7.
+- Steps 7-9 (Prove Seam, Implement, Ship Review) run identically to full mode.
+- Gates still apply to every step -- no quality compromise.
+
+**Key difference from standalone harden-spec:** This mode continues through to code
+delivery (Steps 7-9). Standalone harden-spec stopped after producing the execution
+packet and implementation plan without writing any code.
+
+If `MODE=spec-review`, follow the spec-review step descriptions below, then rejoin the
+standard phases at Step 7 (Implementation Contract) using the spec-review variant.
+
+If `MODE=full`, ignore all light-mode and spec-review-mode variants below and follow the standard phases.
 
 ---
 
@@ -253,6 +306,244 @@ Light mode -- evidence/decision phases skipped. Approach is clear because: <reas
 
 The `## Mode` section is required in light mode so that downstream steps (and future
 readers) understand why artifacts like `constraints.md` and `adr.md` do not exist.
+
+---
+
+## Spec-Review Mode Steps
+
+When `MODE=spec-review`, the following steps replace Phase 1 (Alignment), Phase 2
+(Evidence), and Phase 3 (Decision). After these steps complete, the circuit rejoins
+the standard flow at Step 7 (Implementation Contract) using the spec-review variant.
+
+### SR-1: Spec Intake -- `interactive`
+
+**Objective:** Establish what draft is in scope, who the document must serve, and
+what the build-vs-debate boundary is.
+
+If `SOURCE_SPEC` was set from `--spec <path>`, read that file. Otherwise, ask the
+user to provide the draft.
+
+Ask the user (via AskUserQuestion):
+
+> Share the draft you want hardened (or confirm the path above). Then answer:
+> 1. Who is the primary audience for this document?
+> 2. What intended outcome must the hardened spec enable?
+> 3. What is explicitly out of scope?
+> 4. What open questions still matter?
+> 5. Which decisions are required before build begins?
+
+Write their response to `${RUN_ROOT}/artifacts/spec-brief.md`:
+
+```markdown
+# Spec Brief
+## Source Document
+## Intended Outcome
+## Primary Audience
+## Non-Goals
+## Open Questions
+## Decisions Required Before Build
+```
+
+**Gate:** `spec-brief.md` exists with non-empty Source Document, Intended Outcome,
+and Non-Goals sections.
+
+### SR-2: Draft Digest -- `synthesis`
+
+**Objective:** Normalize the draft into a concise substrate so every review pass
+critiques the same thing.
+
+The orchestrator reads `SOURCE_SPEC` (or the source document referenced in
+`artifacts/spec-brief.md`) and `artifacts/spec-brief.md` and writes
+`${RUN_ROOT}/artifacts/draft-digest.md`:
+
+```markdown
+# Draft Digest
+## Core Claims
+## Proposed Mechanism
+## Dependencies
+## Assumptions
+## Ambiguities
+## Missing Artifacts
+```
+
+Do not invent new design decisions while writing the digest. Capture the current
+mechanism, assumptions, and ambiguities as they exist in the draft.
+
+**Gate:** `draft-digest.md` captures the mechanism, assumptions, and ambiguities
+without inventing new design decisions.
+
+### SR-3: Parallel Reviews -- `dispatch`
+
+**Objective:** Run three independent review lenses on the draft in parallel:
+implementer (buildability), systems (architecture/operations), and comparative
+(prior art).
+
+**Setup:**
+```bash
+mkdir -p "${RUN_ROOT}/phases/sr-3a/reports" "${RUN_ROOT}/phases/sr-3a/last-messages"
+mkdir -p "${RUN_ROOT}/phases/sr-3b/reports" "${RUN_ROOT}/phases/sr-3b/last-messages"
+mkdir -p "${RUN_ROOT}/phases/sr-3c/reports" "${RUN_ROOT}/phases/sr-3c/last-messages"
+```
+
+**Worker A -- Implementer Review** (`${RUN_ROOT}/phases/sr-3a/prompt-header.md`):
+- Mission: Evaluate the draft for buildability, missing seams, testability, and
+  sequencing hazards from an implementer point of view
+- Inputs: Full `draft-digest.md`
+- Output path: `${RUN_ROOT}/phases/sr-3a/implementer-review.md`
+- Output schema:
+  ```markdown
+  # Implementer Review
+  ## Buildability Risks
+  ## Missing Interfaces or Contracts
+  ## Testability Concerns
+  ## Sequencing Hazards
+  ## Required Clarifications
+  ```
+- Success criteria: Names concrete build seams or explicitly says why the draft
+  already looks buildable
+
+**Worker B -- Systems Review** (`${RUN_ROOT}/phases/sr-3b/prompt-header.md`):
+- Mission: Pressure the draft for architectural boundary issues, runtime risks,
+  failure handling gaps, concurrency concerns, and operational blind spots
+- Inputs: Full `draft-digest.md`
+- Output path: `${RUN_ROOT}/phases/sr-3b/systems-review.md`
+- Output schema:
+  ```markdown
+  # Systems Review
+  ## Boundary Risks
+  ## Operational Concerns
+  ## Failure Modes
+  ## State and Concurrency Concerns
+  ## Migration or Observability Gaps
+  ```
+- Success criteria: Covers both architecture and runtime or operational concerns
+
+**Worker C -- Comparative Review** (`${RUN_ROOT}/phases/sr-3c/prompt-header.md`):
+- Mission: Compare the draft to serious adjacent patterns or prior art and turn
+  those comparisons into adopt-or-avoid guidance
+- Inputs: Full `draft-digest.md`
+- Output path: `${RUN_ROOT}/phases/sr-3c/comparative-review.md`
+- Output schema:
+  ```markdown
+  # Comparative Review
+  ## Comparable Patterns
+  ## Tradeoffs vs Draft
+  ## Where the Draft is Stronger
+  ## Where the Draft is Weaker
+  ## Adopt or Avoid Recommendations
+  ```
+- Success criteria: Includes at least two meaningful comparisons or explicitly
+  records that relevant prior art was not found
+
+**Compose and dispatch all three (no --template):**
+```bash
+"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
+  --header ${RUN_ROOT}/phases/sr-3a/prompt-header.md \
+  --skills clean-architecture,<domain-skills> \
+  --root ${RUN_ROOT}/phases/sr-3a \
+  --out ${RUN_ROOT}/phases/sr-3a/prompt.md
+
+"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
+  --header ${RUN_ROOT}/phases/sr-3b/prompt-header.md \
+  --skills architecture-exploration,clean-architecture,<domain-skills> \
+  --root ${RUN_ROOT}/phases/sr-3b \
+  --out ${RUN_ROOT}/phases/sr-3b/prompt.md
+
+"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
+  --header ${RUN_ROOT}/phases/sr-3c/prompt-header.md \
+  --skills deep-research,architecture-exploration \
+  --root ${RUN_ROOT}/phases/sr-3c \
+  --out ${RUN_ROOT}/phases/sr-3c/prompt.md
+```
+
+Dispatch all three workers (parallel when backend supports it):
+```bash
+"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
+  --prompt ${RUN_ROOT}/phases/sr-3a/prompt.md \
+  --output ${RUN_ROOT}/phases/sr-3a/last-messages/last-message.txt
+
+"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
+  --prompt ${RUN_ROOT}/phases/sr-3b/prompt.md \
+  --output ${RUN_ROOT}/phases/sr-3b/last-messages/last-message.txt
+
+"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
+  --prompt ${RUN_ROOT}/phases/sr-3c/prompt.md \
+  --output ${RUN_ROOT}/phases/sr-3c/last-messages/last-message.txt
+```
+
+**Verify and promote:**
+```bash
+test -f ${RUN_ROOT}/phases/sr-3a/implementer-review.md
+test -f ${RUN_ROOT}/phases/sr-3b/systems-review.md
+test -f ${RUN_ROOT}/phases/sr-3c/comparative-review.md
+cp ${RUN_ROOT}/phases/sr-3a/implementer-review.md ${RUN_ROOT}/artifacts/implementer-review.md
+cp ${RUN_ROOT}/phases/sr-3b/systems-review.md ${RUN_ROOT}/artifacts/systems-review.md
+cp ${RUN_ROOT}/phases/sr-3c/comparative-review.md ${RUN_ROOT}/artifacts/comparative-review.md
+```
+
+If a worker only wrote `reports/report.md`, synthesize the review artifact manually
+using the required schema.
+
+**Gate:** All three review artifacts exist. Implementer review names build seams,
+systems review covers architecture and runtime concerns, comparative review includes
+at least two meaningful comparisons.
+
+### SR-4: Caveat Resolution -- `interactive`
+
+**Objective:** Turn three critique streams into explicit decisions about what to
+amend now, what to defer, and what to reject.
+
+Present the three review artifacts to the user. Ask (via AskUserQuestion):
+
+> Here are the implementer, systems, and comparative review caveats.
+>
+> 1. Which caveats should become amendments now?
+> 2. Which caveats are you explicitly rejecting?
+> 3. Which risks are real but deferred instead of fixed in this pass?
+> 4. What scope cuts, if any, should we make before rewriting the draft?
+
+Write their response to `${RUN_ROOT}/artifacts/caveat-resolution.md`:
+
+```markdown
+# Caveat Resolution
+## Accepted Caveats
+## Rejected Caveats
+## Deferred Risks
+## Priority Amendments
+## Scope Cuts
+```
+
+**Gate:** Accepted Caveats exist or an explicit no-change rationale is recorded,
+and Deferred Risks are named.
+
+### SR-5: Amended Draft -- `synthesis`
+
+**Objective:** Publish one canonical revised spec that incorporates accepted
+caveats and makes remaining risk explicit.
+
+The orchestrator reads `SOURCE_SPEC` (or the source document referenced in
+`spec-brief.md`), `artifacts/draft-digest.md`, and `artifacts/caveat-resolution.md`
+and writes `${RUN_ROOT}/artifacts/amended-spec.md`:
+
+```markdown
+# Amended Spec
+## Problem and Goal
+## Proposed Design
+## Interfaces and Boundaries
+## Invariants
+## Failure Handling
+## Open Risks
+## Non-Goals
+```
+
+Every accepted caveat must be reflected in the amended draft, and every deferred
+risk must remain visible.
+
+**Gate:** Every accepted caveat is reflected in the amended draft, and every
+deferred risk remains visible.
+
+After SR-5, the circuit continues at Step 7 (Implementation Contract) using the
+spec-review variant described below.
 
 ---
 
@@ -517,6 +808,29 @@ The orchestrator reads `adr.md`, `constraints.md`, AND `intent-brief.md` and wri
 
 **Gate:** `execution-packet.md` has non-empty Invariants, Slice Order, and Test Obligations.
 
+#### Spec-Review Mode Variant (Step 7)
+
+When `MODE=spec-review`, this step consumes `amended-spec.md`, `caveat-resolution.md`,
+and `spec-brief.md` instead of `adr.md`, `constraints.md`, and `intent-brief.md`.
+
+The orchestrator derives the execution packet sections as follows:
+
+- **Invariants:** Extract from the amended spec's Invariants section plus any hard
+  constraints surfaced in the systems review and caveat resolution.
+- **Interface Boundaries:** Derive from the amended spec's Interfaces and Boundaries.
+- **Slice Order:** Derive from the amended spec's Proposed Design, ordered by dependency.
+- **Test Obligations:** Derive from the amended spec's Invariants and the systems review
+  findings -- each invariant needs at least one verification method.
+- **Non-Goals:** Carried from the spec brief and amended spec.
+- **Rollback Triggers, Artifact Expectations, Verification Commands:** Derived from
+  the amended spec's Open Risks and Failure Handling sections.
+
+The execution-packet schema is identical across all modes. The gate is identical:
+`execution-packet.md` must have non-empty Invariants, Slice Order, and Test Obligations.
+
+After writing the execution-packet, spec-review mode continues to Step 8 (Prove the
+Hardest Seam), then Steps 9-10 (Implement, Ship Review) -- identical to full mode.
+
 #### Light Mode Variant (Step 7)
 
 When `MODE=light`, this step consumes **only** `intent-brief.md`. There is no `adr.md`
@@ -753,6 +1067,20 @@ intent-brief.md                              [user: intent lock]
   → ship-review.md
 ```
 
+### Spec-Review Mode Artifact Chain
+
+```
+spec-brief.md                                          [user: spec intake]
+  → draft-digest.md                                    [orchestrator: synthesis]
+  → implementer-review.md ∥ systems-review.md ∥ comparative-review.md
+  → caveat-resolution.md                               [user: caveat disposition]
+  → amended-spec.md                                    [orchestrator: synthesis]
+  → execution-packet.md                                [orchestrator: synthesis from amended spec]
+  → seam-proof.md                                      [user: reopen if invalidated]
+  → implementation-handoff.md                          [workers: identical to full mode]
+  → ship-review.md                                     [worker: identical to full mode]
+```
+
 ### Light Mode Artifact Chain
 
 ```
@@ -797,6 +1125,24 @@ consumed by the remaining light-mode steps."
 
 **Light-to-full switch:** Not supported. If a light-mode run needs the full workflow,
 start a new run.
+
+## Spec-Review Mode Resume Awareness
+
+When `MODE=spec-review`, resume uses the spec-review artifact chain:
+
+1. Check artifacts in spec-review chain order:
+   `spec-brief.md` → `draft-digest.md` → `implementer-review.md`, `systems-review.md`,
+   `comparative-review.md` → `caveat-resolution.md` → `amended-spec.md` →
+   `execution-packet.md` → `seam-proof.md` → `implementation-handoff.md` → `ship-review.md`
+2. Treat the parallel review step as complete only when all three review artifacts exist
+   and satisfy their gates.
+3. **Ignore** artifacts from skipped steps if present (`intent-brief.md`,
+   `external-digest.md`, `internal-digest.md`, `constraints.md`, `options.md`,
+   `decision-packet.md`, `adr.md`).
+4. Find the last complete spec-review artifact with a passing gate.
+5. For the Implement step: check `${RUN_ROOT}/phases/step-9/batch.json` for workers
+   resume state (identical to full mode).
+6. Continue from the next spec-review step.
 
 ## Circuit Breaker
 

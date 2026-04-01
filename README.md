@@ -36,9 +36,8 @@ claude plugin install petekp/circuitry
 | Circuit | Invoke | Best For |
 |---------|--------|----------|
 | Run | `/circuit:run <task>` | The default: any clear task that benefits from planning and review |
-| Develop | `/circuit:develop` | Taking a feature from idea to shipped code (`--light` for clear-approach tasks) |
+| Develop | `/circuit:develop` | Taking a feature from idea to shipped code (`--light` for clear-approach tasks, `--spec-review` for existing specs) |
 | Decide | `/circuit:decide` | Architecture decisions under real uncertainty |
-| Harden Spec | `/circuit:harden-spec` | Turning a rough RFC or PRD into something safe to build from |
 | Repair Flow | `/circuit:repair-flow` | Debugging and repairing broken end-to-end flows |
 | Ratchet Quality | `/circuit:ratchet-quality` | Overnight unattended quality improvement runs |
 | Cleanup | `/circuit:cleanup` | Systematic dead code, stale docs, and codebase cleanup |
