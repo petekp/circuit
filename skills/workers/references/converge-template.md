@@ -3,21 +3,12 @@
 Final quality gate. Do not modify source. Decide only `COMPLETE AND HARDENED` or
 `ISSUES REMAIN`.
 
-Original mission:
-{charter_or_task_description}
-
-Completed slices:
-{FOR each slice IN completed_slices}
-### {slice.id}: {slice.task}
-- Type: {slice.type}
-- Attempts: impl={slice.impl_attempts}, verify_fails={slice.verify_failures}, review_rejects={slice.review_rejections}
-- Verification: {slice.verification}
-- Review: {slice.review}
-- Files changed: {slice.files_changed}
-{ENDFOR}
+Use the original mission, completed-slice summaries, and verification union from the
+header above. If the header includes structured slice summaries, audit against them; if
+it does not, call out the missing evidence explicitly in the report.
 
 Independently:
-- review the full diff: `git diff {base_branch}...HEAD`
+- review the full diff against the baseline described in the header
 - rerun the union of verification commands listed in the header
 - confirm completeness, residue cleanup, consistent terms and patterns, adequate tests,
   and clean diff hygiene
@@ -34,7 +25,8 @@ If issues remain, list slice candidates in this format:
   **Suggested approach**: [how to address it]
 ```
 
-Write `{relay_root}/reports/report-converge.md` with:
+Write the convergence report to the exact path named in the header's `## Output`
+section, using:
 
 ### Files Changed
 None - assessment only.

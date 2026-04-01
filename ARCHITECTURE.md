@@ -564,12 +564,12 @@ The assembly pipeline:
    appends `relay-protocol.md` as a safety net. This prevents a common failure
    where workers produce reports without the required structure.
 
-5. **Substitute `{relay_root}` tokens.** If `--root` is provided, all literal
-   `{relay_root}` tokens in the assembled output are replaced with the actual
-   path. If tokens remain after substitution (or if no `--root` was provided
-   when tokens exist), the script fails with an error that names which source
-   file introduced the unresolved tokens. This prevents anti-pattern
-   `AP-04: Placeholder Leakage`.
+5. **Substitute known placeholders and reject unresolved ones.** If `--root`
+   is provided, all literal `{relay_root}` tokens in the assembled output are
+   replaced with the actual path. After that pass, the assembler scans for any
+   remaining `{...}` placeholders outside fenced code blocks. If any remain,
+   the script fails with an error that names which source file introduced them.
+   This prevents anti-pattern `AP-04: Placeholder Leakage`.
 
 The skill directory resolution follows a priority chain:
 1. `CIRCUIT_PLUGIN_SKILL_DIR` environment variable (for testing)
@@ -655,22 +655,26 @@ reliably parse.
 
 ### `{relay_root}` Token Substitution
 
-Templates and skill files reference paths using `{relay_root}` tokens:
+Templates and skill files may reference shared path roots using `{relay_root}`
+tokens:
 
 ```markdown
-Write `{relay_root}/reports/report-{slice_id}.md`.
+Write the report to the path named in the header's `## Output` section.
 ```
 
-The `compose-prompt.sh` script replaces these tokens with the actual path when
-`--root` is provided. This indirection is what makes templates reusable across
-different relay roots -- the same `implement-template.md` works whether the
-relay root is `.circuitry`, `.circuitry/circuit-runs/foo/phases/step-3/attempts/001`, or
-any other path.
+The `compose-prompt.sh` script replaces `{relay_root}` with the actual path
+when `--root` is provided. This indirection is what makes templates reusable
+across different relay roots -- the same skill guidance works whether the
+relay root is `.circuitry`, `.circuitry/circuit-runs/foo/phases/step-3/attempts/001`,
+or any other path. Other run-specific values such as slice ids, task labels,
+and report summaries should come from the header, not from unresolved template
+placeholders.
 
 If a source file introduces `{relay_root}` tokens but no `--root` flag is
-provided, `compose-prompt.sh` fails with a diagnostic error that names the
-source file responsible. This fail-fast behavior prevents workers from receiving
-prompts with unresolved placeholders.
+provided, or if any other placeholder survives assembly, `compose-prompt.sh`
+fails with a diagnostic error that names the source file responsible. This
+fail-fast behavior prevents workers from receiving prompts with unresolved
+placeholders.
 
 ---
 

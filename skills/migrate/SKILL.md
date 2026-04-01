@@ -131,8 +131,8 @@ Write your primary output to the path above. Also write a standard report to
 
 **Why these headings matter:** `compose-prompt.sh` checks for `### Files Changed`,
 `### Tests Run`, and `### Completion Claim` in the assembled prompt. If missing, it
-appends `relay-protocol.md` which contains unresolved `{slice_id}` placeholders.
-Including these headings in the header prevents that contamination.
+appends `relay-protocol.md` as a legacy report-format safety net. Including these
+headings in the header prevents that extra prompt contamination.
 
 ---
 

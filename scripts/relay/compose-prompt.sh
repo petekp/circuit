@@ -67,25 +67,33 @@ else
   WORKERS_DIR="$HOME/.claude/skills/workers/references"
 fi
 
-RELAY_ROOT_SOURCES=()
+PLACEHOLDER_SOURCES=()
 
-track_relay_root_source() {
+# Track which source files introduce placeholder tokens.
+# Generalizes the old relay_root-only tracking so diagnostics can report
+# which file introduced ANY unresolved placeholder.
+track_placeholder_source() {
   local source_file="$1"
   local existing_source
 
-  if [[ ! -f "$source_file" ]] || ! grep -Fq '{relay_root}' "$source_file"; then
+  if [[ ! -f "$source_file" ]]; then
     return 0
   fi
 
-  if (( ${#RELAY_ROOT_SOURCES[@]} > 0 )); then
-    for existing_source in "${RELAY_ROOT_SOURCES[@]}"; do
+  # Check if the file contains any {placeholder_name} tokens
+  if ! grep -Eq '\{[a-z_][a-z0-9_.]*\}' "$source_file"; then
+    return 0
+  fi
+
+  if (( ${#PLACEHOLDER_SOURCES[@]} > 0 )); then
+    for existing_source in "${PLACEHOLDER_SOURCES[@]}"; do
       if [[ "$existing_source" == "$source_file" ]]; then
         return 0
       fi
     done
   fi
 
-  RELAY_ROOT_SOURCES+=("$source_file")
+  PLACEHOLDER_SOURCES+=("$source_file")
 }
 
 apply_relay_root_substitution() {
@@ -101,19 +109,62 @@ apply_relay_root_substitution() {
   mv "$temp_file" "$out_file"
 }
 
-fail_if_unresolved_relay_root() {
+# Scan the assembled output for any remaining {placeholder} tokens that were
+# not substituted. Skips content inside fenced code blocks (``` ... ```)
+# because those may legitimately contain braces (JSON, YAML examples, etc.).
+fail_if_unresolved_placeholders() {
   local out_file="$1"
-  local source_file
-  local source_names=()
-  local source_summary
+  local in_fence=0
+  local unresolved=()
+  local line
 
-  if ! grep -Fq '{relay_root}' "$out_file"; then
+  while IFS= read -r line; do
+    # Toggle fence state on lines that start with ``` (with optional language tag)
+    if [[ "$line" =~ ^'```' ]]; then
+      if (( in_fence )); then
+        in_fence=0
+      else
+        in_fence=1
+      fi
+      continue
+    fi
+
+    # Skip lines inside fenced code blocks
+    if (( in_fence )); then
+      continue
+    fi
+
+    # Match {placeholder_name} tokens (lowercase, underscores, dots, digits)
+    # Uses grep -oE to extract all matches from the line
+    local matches
+    matches="$(echo "$line" | grep -oE '\{[a-z_][a-z0-9_.]*\}' 2>/dev/null || true)"
+    if [[ -n "$matches" ]]; then
+      while IFS= read -r token; do
+        # Deduplicate
+        local already_seen=0
+        local existing
+        for existing in "${unresolved[@]+"${unresolved[@]}"}"; do
+          if [[ "$existing" == "$token" ]]; then
+            already_seen=1
+            break
+          fi
+        done
+        if (( ! already_seen )); then
+          unresolved+=("$token")
+        fi
+      done <<< "$matches"
+    fi
+  done < "$out_file"
+
+  if (( ${#unresolved[@]} == 0 )); then
     return 0
   fi
 
-  if (( ${#RELAY_ROOT_SOURCES[@]} > 0 )); then
-    for source_file in "${RELAY_ROOT_SOURCES[@]}"; do
-      # Use parent/basename for skills (e.g., "demo/SKILL.md"), basename for others
+  # Build source summary for diagnostics
+  local source_file
+  local source_names=()
+  if (( ${#PLACEHOLDER_SOURCES[@]} > 0 )); then
+    for source_file in "${PLACEHOLDER_SOURCES[@]}"; do
       local parent_dir
       parent_dir="$(basename "$(dirname "$source_file")")"
       local base
@@ -126,6 +177,7 @@ fail_if_unresolved_relay_root() {
     done
   fi
 
+  local source_summary
   if [[ ${#source_names[@]} -gt 0 ]]; then
     local IFS=', '
     source_summary="${source_names[*]}"
@@ -133,7 +185,8 @@ fail_if_unresolved_relay_root() {
     source_summary="unknown source"
   fi
 
-  echo "ERROR: unresolved {relay_root} token(s) remain in $out_file; introduced by: $source_summary" >&2
+  local IFS=', '
+  echo "ERROR: unresolved placeholder(s) remain in $out_file: ${unresolved[*]}; introduced by: $source_summary" >&2
   exit 1
 }
 
@@ -142,7 +195,7 @@ append_section_file() {
   local section_file="$2"
 
   if [[ -f "$section_file" ]]; then
-    track_relay_root_source "$section_file"
+    track_placeholder_source "$section_file"
     printf '\n---\n' >> "$out_file"
     cat "$section_file" >> "$out_file"
   else
@@ -234,7 +287,7 @@ except Exception:
 fi
 
 # Start with header
-track_relay_root_source "$HEADER"
+track_placeholder_source "$HEADER"
 cp "$HEADER" "$OUT"
 
 # Append domain skills
@@ -242,7 +295,7 @@ if [[ -n "$SKILLS" ]]; then
   IFS=',' read -ra SKILL_ARRAY <<< "$SKILLS"
   for skill in "${SKILL_ARRAY[@]}"; do
     if skill_file="$(resolve_skill "$skill")"; then
-      track_relay_root_source "$skill_file"
+      track_placeholder_source "$skill_file"
       printf '\n---\n## Domain Guidance: %s\n\n' "$skill" >> "$OUT"
       cat "$skill_file" >> "$OUT"
     else
@@ -274,7 +327,7 @@ if [[ -n "$ROOT" ]]; then
   apply_relay_root_substitution "$OUT" "$ROOT"
 fi
 
-fail_if_unresolved_relay_root "$OUT"
+fail_if_unresolved_placeholders "$OUT"
 
 # Auto-detect backend if not specified
 if [[ -z "$BACKEND" ]]; then

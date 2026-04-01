@@ -3,10 +3,14 @@
 Canonical reference. Templates inline this now. `compose-prompt.sh` appends this file only
 for legacy templates that do not already contain report sections.
 
-Write report files here:
-- implement and review: `{relay_root}/reports/report-{slice_id}.md`
-- converge: `{relay_root}/reports/report-converge.md`
-- fallback: `{relay_root}/reports/report.md`
+Write report files to the exact path or paths named in the header's `## Output`
+section.
+
+Common patterns:
+- implement or review main report: `<relay-root>/reports/report-<slice-id>.md`
+- converge report: `<relay-root>/reports/report-converge.md`
+- fallback report: `<relay-root>/reports/report.md`
+- canonical review findings: `<relay-root>/review-findings/review-findings-<slice-id>.md`
 
 Required sections:
 - `### Files Changed`
@@ -21,5 +25,5 @@ Required sections:
 - `### Issues Found`
 - `### Next Steps` - required for `PARTIAL` or `BLOCKED`
 
-The canonical review verdict still lives in `{relay_root}/review-findings/review-findings-{slice_id}.md`. Echo it
-in the report so the orchestrator can cross-check artifacts.
+The canonical review verdict still lives in the review-findings artifact named in the
+header. Echo it in the report so the orchestrator can cross-check artifacts.

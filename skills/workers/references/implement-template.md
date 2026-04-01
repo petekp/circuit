@@ -14,8 +14,9 @@ Keep the change set clean:
 - update docs or comments that describe changed behavior
 - use project terms consistently
 
-Write `{relay_root}/reports/report-{slice_id}.md`. Convergence uses `{relay_root}/reports/report-converge.md`. If no
-slice id is given, use `{relay_root}/reports/report.md`.
+Write the implementation report to the exact path named in the header's `## Output`
+section. If the header names multiple outputs, write the main worker report to the
+report path and treat any other output paths as additional required artifacts.
 
 Required report sections:
 

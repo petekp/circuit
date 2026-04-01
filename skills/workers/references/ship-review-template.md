@@ -1,19 +1,16 @@
 # Ship Review
 
 Audit the current code in the stated scope. There is no worker diff.
-
-Review target:
-{slice.task}
-
-Success criteria: {slice.success_criteria}
+Use the review target and success criteria from the header above.
 
 Rerun every verification command from the header and judge the current state against the
-criteria above.
+stated criteria.
 
-Write `{relay_root}/review-findings/review-findings-{slice_id}.md`:
+Write every review artifact to the exact path or paths named in the header's `## Output`
+section. The canonical findings artifact should follow this shape:
 
 ```markdown
-## Ship Review: {slice.task}
+## Ship Review: <task label from header>
 
 ### ISSUES
 ### CONCERNS
@@ -22,7 +19,7 @@ Write `{relay_root}/review-findings/review-findings-{slice_id}.md`:
 CLEAN or ISSUES FOUND
 ```
 
-Write `{relay_root}/reports/report-{slice_id}.md` with:
+Write the worker report artifact named in the header with:
 
 ### Files Changed
 None - review only.

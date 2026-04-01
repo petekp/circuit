@@ -240,7 +240,7 @@ If the circuit uses `compose-prompt.sh`, simulate its real assembly order:
 5. Append `relay-protocol.md` if `### Files Changed`, `### Tests Run`, and
    `### Completion Claim` are missing from the assembled output
 6. Replace `{relay_root}` if `--root` supplied
-7. Fail if unresolved `{relay_root}` remains
+7. Fail if unresolved `{...}` placeholders remain outside fenced code blocks
 
 If the circuit uses a different assembler, trace that assembler's real behavior instead.
 

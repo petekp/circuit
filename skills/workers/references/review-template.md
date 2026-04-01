@@ -1,22 +1,18 @@
 # Adversarial Review
 
 Inspect the implementation diff with `git diff --stat` and `git diff`.
-
-Original task:
-{slice.task}
-
-Success criteria: {slice.success_criteria}
-
-Worker claim:
-{report_summary}
+Use the original task, success criteria, and worker claim from the header above.
+If the header is missing one of those inputs, call out the gap in the report instead
+of guessing.
 
 Rerun every verification command from the header. If a command the worker claimed passed
 does not pass for you, verdict = `ISSUES FOUND`.
 
-Write `{relay_root}/review-findings/review-findings-{slice_id}.md`:
+Write every review artifact to the exact path or paths named in the header's `## Output`
+section. The canonical findings artifact should follow this shape:
 
 ```markdown
-## Review: {slice.task}
+## Review: <task label from header>
 
 ### ISSUES
 ### CONCERNS
@@ -25,7 +21,7 @@ Write `{relay_root}/review-findings/review-findings-{slice_id}.md`:
 CLEAN or ISSUES FOUND
 ```
 
-Write `{relay_root}/reports/report-{slice_id}.md` with:
+Write the worker report artifact named in the header with:
 
 ### Files Changed
 None - review only.

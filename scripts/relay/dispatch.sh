@@ -26,12 +26,14 @@
 #       --backend "./my-agent.sh"
 #
 # Exit codes:
-#   0  — Dispatch succeeded (codex/custom) or instructions emitted (agent)
+#   0  — Dispatch succeeded; machine-readable JSON receipt on stdout
 #   1  — Error (missing args, command not found, etc.)
 #
-# When backend=agent, this script does NOT execute the Agent tool itself (it cannot —
-# that's a Claude Code tool). Instead it prints a structured instruction block that
-# the orchestrator should copy into an Agent tool call.
+# All backends emit a JSON receipt to stdout on success. The orchestrator
+# parses this receipt to determine next steps:
+#   - agent: receipt contains prompt content for an Agent tool call
+#   - codex: receipt confirms dispatch and includes PID
+#   - custom: receipt confirms dispatch with the command used
 
 set -euo pipefail
 
@@ -96,6 +98,32 @@ if [[ -z "$BACKEND" ]]; then
   fi
 fi
 
+# extract_description: pull a short task description from the prompt file.
+# Uses the first markdown heading (# ...) or falls back to the first non-empty line.
+extract_description() {
+  local file="$1"
+  local heading
+  heading="$(grep -m1 '^# ' "$file" 2>/dev/null | sed 's/^# //' || true)"
+  if [[ -n "$heading" ]]; then
+    echo "$heading"
+    return
+  fi
+  # Fallback: first non-empty line
+  grep -m1 '.' "$file" 2>/dev/null || echo "worker task"
+}
+
+# json_escape: escape a string for safe embedding in JSON.
+# Handles backslashes, double quotes, newlines, tabs, and carriage returns.
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\t'/\\t}"
+  s="${s//$'\r'/\\r}"
+  printf '%s' "$s"
+}
+
 case "$BACKEND" in
   codex)
     if ! command -v codex >/dev/null 2>&1; then
@@ -103,29 +131,59 @@ case "$BACKEND" in
       echo "Install with: npm install -g @openai/codex" >&2
       exit 1
     fi
-    cat "$PROMPT" | codex exec --full-auto -o "$OUTPUT" -
+    # Run codex in the background so we can capture its PID for the receipt.
+    # Temporarily disable errexit so a non-zero codex exit doesn't skip our
+    # error-reporting logic.
+    cat "$PROMPT" | codex exec --full-auto -o "$OUTPUT" - &
+    CODEX_PID=$!
+    wait "$CODEX_PID" && CODEX_EXIT=0 || CODEX_EXIT=$?
+
+    if (( CODEX_EXIT != 0 )); then
+      echo "ERROR: codex exec exited with status $CODEX_EXIT" >&2
+      exit 1
+    fi
+
+    ESCAPED_PROMPT="$(json_escape "$PROMPT")"
+    ESCAPED_OUTPUT="$(json_escape "$OUTPUT")"
+
+    cat <<EOF
+{
+  "backend": "codex",
+  "status": "dispatched",
+  "prompt_file": "${ESCAPED_PROMPT}",
+  "output_file": "${ESCAPED_OUTPUT}",
+  "pid": ${CODEX_PID}
+}
+EOF
     ;;
 
   agent)
-    # Emit structured instructions for the orchestrator to use the Agent tool.
-    # The orchestrator (Claude) reads this output and creates an Agent tool call.
-    PROMPT_CONTENT="$(cat "$PROMPT")"
-    cat <<AGENT_INSTRUCTIONS
-DISPATCH_BACKEND=agent
+    # Emit a structured JSON receipt the orchestrator can use directly to
+    # construct an Agent tool call. No prose -- just machine-readable data.
+    # Read prompt content preserving trailing newlines. Command substitution
+    # strips trailing newlines, so we append a sentinel char and remove it.
+    PROMPT_CONTENT="$(cat "$PROMPT"; printf x)"
+    PROMPT_CONTENT="${PROMPT_CONTENT%x}"
+    DESCRIPTION="$(extract_description "$PROMPT")"
 
-Use the Agent tool to execute this worker. Pass the prompt content below as the
-Agent tool's task parameter. Use isolation: "worktree" for safe execution.
+    ESCAPED_PROMPT_FILE="$(json_escape "$PROMPT")"
+    ESCAPED_OUTPUT_FILE="$(json_escape "$OUTPUT")"
+    ESCAPED_DESCRIPTION="$(json_escape "$DESCRIPTION")"
+    ESCAPED_PROMPT_CONTENT="$(json_escape "$PROMPT_CONTENT")"
 
-Agent tool parameters:
-  task: |
-    ${PROMPT_CONTENT}
-
-    ---
-    Write your last-message trace to: ${OUTPUT}
-  isolation: worktree
-
-After the Agent completes, verify its output artifacts exist at the expected paths.
-AGENT_INSTRUCTIONS
+    cat <<EOF
+{
+  "backend": "agent",
+  "status": "ready",
+  "prompt_file": "${ESCAPED_PROMPT_FILE}",
+  "output_file": "${ESCAPED_OUTPUT_FILE}",
+  "agent_params": {
+    "description": "${ESCAPED_DESCRIPTION}",
+    "prompt": "${ESCAPED_PROMPT_CONTENT}",
+    "isolation": "worktree"
+  }
+}
+EOF
     ;;
 
   *)
@@ -137,6 +195,25 @@ AGENT_INSTRUCTIONS
       echo "Ensure the command exists and is executable." >&2
       exit 1
     fi
-    $BACKEND "$PROMPT" "$OUTPUT"
+    $BACKEND "$PROMPT" "$OUTPUT" && CUSTOM_EXIT=0 || CUSTOM_EXIT=$?
+
+    if (( CUSTOM_EXIT != 0 )); then
+      echo "ERROR: custom backend '$BACKEND' exited with status $CUSTOM_EXIT" >&2
+      exit 1
+    fi
+
+    ESCAPED_PROMPT="$(json_escape "$PROMPT")"
+    ESCAPED_OUTPUT="$(json_escape "$OUTPUT")"
+    ESCAPED_BACKEND="$(json_escape "$BACKEND")"
+
+    cat <<EOF
+{
+  "backend": "custom",
+  "command": "${ESCAPED_BACKEND}",
+  "status": "dispatched",
+  "prompt_file": "${ESCAPED_PROMPT}",
+  "output_file": "${ESCAPED_OUTPUT}"
+}
+EOF
     ;;
 esac
