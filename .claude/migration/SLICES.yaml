@@ -367,7 +367,7 @@ slices:
     type: implementation
     name: "Convert remaining circuits"
     spec_step: 15
-    status: proposed
+    status: done
     dependencies: [slice-007, slice-009, slice-010, slice-011]
     touched_paths:
       - skills/decide/circuit.yaml
@@ -410,7 +410,7 @@ slices:
   - id: slice-014
     type: convergence
     name: "Migration closeout and ship gate"
-    status: proposed
+    status: done
     dependencies: [slice-009, slice-010, slice-011, slice-012, slice-013]
     touched_paths:
       - ARCHITECTURE.md
