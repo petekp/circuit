@@ -1,176 +1,205 @@
-schema_version: "1"
+schema_version: "2"
 circuit:
   id: repair-flow
-  version: "2026-03-29"
-  title: Repair Flow
-  description: >
-    Forensic debugging circuit for broken, flaky, or operationally unsafe end-to-end flows.
-    Chains observed failure → audit → causal model → regression contract → ordered repair
-    → live re-audit through 5 phases. Topology only — this file does not encode runtime
-    behavior or adapter contracts.
+  version: "2026-04-01"
+  purpose: Forensic debugging circuit for broken, flaky, or operationally unsafe end-to-end flows.
 
-  artifacts:
-    - id: failure-brief.md
-      type: interactive
-      produced_by: failure-brief
-      consumed_by: [live-flow-audit, layered-causal-map, regression-contract, flow-reaudit]
-    - id: audit-trace.md
-      type: dispatch
-      produced_by: live-flow-audit
-      consumed_by: [layered-causal-map, flow-reaudit]
-    - id: causal-map.md
-      type: synthesis
-      produced_by: layered-causal-map
-      consumed_by: [repair-focus-checkpoint, regression-contract, repair-packet]
-    - id: repair-steer.md
-      type: interactive
-      produced_by: repair-focus-checkpoint
-      consumed_by: [regression-contract, repair-packet]
-    - id: regression-contract.md
-      type: dispatch
-      produced_by: regression-contract
-      consumed_by: [repair-packet, layered-repair]
-    - id: repair-packet.md
-      type: synthesis
-      produced_by: repair-packet
-      consumed_by: [layered-repair]
-    - id: repair-handoff.md
-      type: dispatch
-      produced_by: layered-repair
-      consumed_by: [flow-reaudit]
-    - id: flow-verdict.md
-      type: dispatch
-      produced_by: flow-reaudit
-      consumed_by: []
+  entry:
+    command: /circuit:repair-flow
+    expert_command: /circuit:repair-flow
+    signals:
+      include: [broken_flow, flaky_behavior, operational_risk]
+      exclude: [known_bug, clear_repro, architecture_decision]
 
-  phases:
-    - id: failure-framing
-      title: Failure Framing
-      execution: serial
-      steps:
-        - id: failure-brief
-          title: Failure Brief
-          action: interactive
-          produces: failure-brief.md
-          gate:
-            type: outputs_present
-            required: [failure-brief.md]
-            checks:
-              - "Expected Behavior non-empty"
-              - "Actual Behavior non-empty"
-              - "Reproduction Path non-empty"
-              - "Done Signal non-empty"
+  entry_modes:
+    default:
+      start_at: failure-brief
+      description: Start with failure framing.
 
-    - id: forensics
-      title: Forensics
-      execution: serial
-      steps:
-        - id: live-flow-audit
-          title: Live Flow Audit
-          action: dispatch
-          skills: [exhaustive-systems-analysis] # plus domain-skills resolved at runtime
-          consumes: [failure-brief.md]
-          produces: audit-trace.md
-          gate:
-            type: outputs_present
-            required: [audit-trace.md]
-            checks:
-              - "reproduced failure or explicit non-reproduction result"
-              - "enough evidence to explain what was observed"
-        - id: layered-causal-map
-          title: Layered Causal Map
-          action: synthesis
-          consumes: [failure-brief.md, audit-trace.md]
-          produces: causal-map.md
-          gate:
-            type: outputs_present
-            required: [causal-map.md]
-            checks:
-              - "every major symptom mapped to at least one layer"
-              - "facts distinguished from hypotheses"
+  steps:
+    - id: failure-brief
+      title: Failure Brief
+      executor: orchestrator
+      kind: checkpoint
+      protocol: failure-brief@v1
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/failure-brief.md
+          schema: failure-brief@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: failure_brief
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: live-flow-audit
 
-    - id: repair-design
-      title: Repair Design
-      execution: serial
-      steps:
-        - id: repair-focus-checkpoint
-          title: Repair Focus Checkpoint
-          action: interactive
-          consumes: [causal-map.md]
-          produces: repair-steer.md
-          gate:
-            type: outputs_present
-            required: [repair-steer.md]
-            checks:
-              - "Priority Failure explicit"
-              - "Must-Keep Behaviors explicit"
-              - "scope cuts named when present"
-        - id: regression-contract
-          title: Regression Contract
-          action: dispatch
-          skills: [tdd] # plus domain-skills resolved at runtime
-          consumes: [failure-brief.md, causal-map.md, repair-steer.md]
-          produces: regression-contract.md
-          gate:
-            type: outputs_present
-            required: [regression-contract.md]
-            checks:
-              - "primary failure has failing test or probe"
-              - "or explicit instrumentation-based proof contract recorded"
-        - id: repair-packet
-          title: Repair Packet
-          action: synthesis
-          consumes: [causal-map.md, repair-steer.md, regression-contract.md]
-          produces: repair-packet.md
-          gate:
-            type: outputs_present
-            required: [repair-packet.md]
-            checks:
-              - "every slice has named layer owner"
-              - "every slice has at least one regression obligation"
-              - "slice order reflects dependency direction"
+    - id: live-flow-audit
+      title: Live Flow Audit
+      executor: worker
+      kind: dispatch
+      protocol: forensic-flow-audit@v1
+      reads: [artifacts/failure-brief.md]
+      writes:
+        artifact:
+          path: artifacts/audit-trace.md
+          schema: audit-trace@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [repo.analysis]
+        optional: [architecture.exploration]
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [audit_complete]
+      routes:
+        pass: layered-causal-map
+        fail: "@escalate"
+
+    - id: layered-causal-map
+      title: Layered Causal Map
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/failure-brief.md, artifacts/audit-trace.md]
+      writes:
+        artifact:
+          path: artifacts/causal-map.md
+          schema: causal-map@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/causal-map.md
+        required: [Symptom-to-Layer Mapping, Facts vs Hypotheses]
+      routes:
+        pass: repair-focus-checkpoint
+        fail: "@escalate"
+
+    - id: repair-focus-checkpoint
+      title: Repair Focus Checkpoint
+      executor: orchestrator
+      kind: checkpoint
+      protocol: repair-focus@v1
+      reads: [artifacts/causal-map.md]
+      writes:
+        artifact:
+          path: artifacts/repair-steer.md
+          schema: repair-steer@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: repair_focus
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: regression-contract
+
+    - id: regression-contract
+      title: Regression Contract
+      executor: worker
+      kind: dispatch
+      protocol: regression-contract@v1
+      reads: [artifacts/failure-brief.md, artifacts/causal-map.md, artifacts/repair-steer.md]
+      writes:
+        artifact:
+          path: artifacts/regression-contract.md
+          schema: regression-contract@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [testing.tdd]
+        optional: [repo.analysis]
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [contract_ready]
+      routes:
+        pass: repair-packet
+        fail: "@escalate"
+
+    - id: repair-packet
+      title: Repair Packet
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/causal-map.md, artifacts/repair-steer.md, artifacts/regression-contract.md]
+      writes:
+        artifact:
+          path: artifacts/repair-packet.md
+          schema: repair-packet@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/repair-packet.md
+        required: [Slice Order, Layer Owners, Regression Obligations]
+      routes:
+        pass: layered-repair
+        fail: "@escalate"
 
     - id: layered-repair
       title: Layered Repair
-      execution: serial
-      steps:
-        - id: layered-repair
-          title: Layered Repair
-          action: dispatch
-          adapter: workers
-          skills: [tdd] # plus one domain-skill resolved at runtime
-          consumes: [repair-packet.md, regression-contract.md]
-          produces: repair-handoff.md
-          max_attempts: 3
-          notes: >
-            Delegates to workers. Orchestrator creates CHARTER.md from
-            repair-packet.md + regression-contract.md and synthesizes repair-handoff.md
-            from convergence output.
-          gate:
-            type: outputs_present
-            required: [repair-handoff.md]
-            checks:
-              - "primary regression harness passes or explicit blocker recorded"
-              - "every repair slice completed or explicitly deferred"
-              - "Residual Risks named"
+      executor: worker
+      kind: dispatch
+      protocol: workers-execute@v1
+      reads: [artifacts/repair-packet.md, artifacts/regression-contract.md]
+      writes:
+        artifact:
+          path: artifacts/repair-handoff.md
+          schema: repair-handoff@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [code.change, review.independent]
+        optional: [testing.tdd]
+      budgets:
+        max_attempts: 3
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [complete_and_hardened]
+      routes:
+        pass: flow-reaudit
+        fail: "@escalate"
 
-    - id: reaudit
-      title: Reaudit
-      execution: serial
-      steps:
-        - id: flow-reaudit
-          title: Flow Reaudit
-          action: dispatch
-          skills: [exhaustive-systems-analysis] # plus domain-skills resolved at runtime
-          consumes: [failure-brief.md, audit-trace.md, repair-handoff.md]
-          produces: flow-verdict.md
-          gate:
-            type: verdict-consistency
-            required: [flow-verdict.md]
-            outcomes:
-              closed: "live flow and regression pack agree"
-              partial: "exact failing boundary named"
-              reopen: "exact failing boundary named"
-          notes: >
-            If verdict is PARTIAL or REOPEN, user chooses whether to narrow scope,
-            reopen from the causal map, or accept an explicit partial operational patch.
+    - id: flow-reaudit
+      title: Flow Reaudit
+      executor: worker
+      kind: dispatch
+      protocol: forensic-flow-audit@v1
+      reads: [artifacts/failure-brief.md, artifacts/audit-trace.md, artifacts/repair-handoff.md]
+      writes:
+        artifact:
+          path: artifacts/flow-verdict.md
+          schema: flow-verdict@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [repo.analysis]
+        optional: [architecture.exploration]
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [closed]
+        reroute:
+          partial: repair-focus-checkpoint
+          reopen: layered-causal-map
+      routes:
+        pass: "@complete"
+        fail: "@escalate"

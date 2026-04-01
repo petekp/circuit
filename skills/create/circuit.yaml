@@ -1,142 +1,147 @@
-schema_version: "1"
+schema_version: "2"
 circuit:
   id: create
-  version: "2026-03-26"
-  title: Circuit Create
-  description: >
-    Worker-powered compiler for turning a natural-language workflow description
-    into a circuit skill that matches the live corpus. Chains workflow brief ->
-    circuit analysis -> draft files -> validation report -> refined install across
-    5 phases. Topology only - this file does not encode runtime behavior or
-    authoring references.
+  version: "2026-04-01"
+  purpose: >
+    Codex-powered compiler for turning a natural-language workflow description
+    into a circuit skill that matches the live corpus.
 
-  artifacts:
-    - id: workflow-brief.md
-      type: interactive
-      produced_by: workflow-intake
-      consumed_by: [pattern-mapping, compile-circuit-files]
-    - id: circuit-analysis.md
-      type: dispatch
-      produced_by: pattern-mapping
-      consumed_by: [compile-circuit-files]
-    - id: draft-circuit.yaml
-      type: dispatch
-      produced_by: compile-circuit-files
-      consumed_by: [quality-gate, claude-code-refinement]
-    - id: draft-SKILL.md
-      type: dispatch
-      produced_by: compile-circuit-files
-      consumed_by: [quality-gate, claude-code-refinement]
-    - id: cross-validation.md
-      type: dispatch
-      produced_by: compile-circuit-files
-      consumed_by: [quality-gate, claude-code-refinement]
-    - id: validation-report.md
-      type: dispatch
-      produced_by: quality-gate
-      consumed_by: [claude-code-refinement]
-    - id: circuit.yaml
-      type: synthesis
-      produced_by: claude-code-refinement
-      consumed_by: []
-    - id: SKILL.md
-      type: synthesis
-      produced_by: claude-code-refinement
-      consumed_by: []
+  entry:
+    command: /circuit:create
+    expert_command: /circuit:create
+    signals:
+      include: [new_circuit, workflow_to_circuit, author_circuit]
+      exclude: [broken_flow, dead_code, migration]
 
-  phases:
-    - id: intake
-      title: Intake
-      execution: serial
-      steps:
-        - id: workflow-intake
-          title: Workflow Intake
-          action: interactive
-          produces: workflow-brief.md
-          gate:
-            type: outputs_present
-            required: [workflow-brief.md]
-            checks:
-              - "Circuit goal explicit"
-              - "Trigger surface and negative scope explicit"
-              - "Circuit family explicit or intentionally unresolved"
-              - "Output target explicit"
+  entry_modes:
+    default:
+      start_at: workflow-intake
+      description: Start from a natural-language workflow description.
 
-    - id: analysis
-      title: Analysis
-      execution: serial
-      steps:
-        - id: pattern-mapping
-          title: Pattern Mapping
-          action: dispatch
-          consumes: [workflow-brief.md]
-          produces: circuit-analysis.md
-          gate:
-            type: outputs_present
-            required: [circuit-analysis.md]
-            checks:
-              - "Phase topology explicit"
-              - "Action types, artifact chain, and external inputs explicit"
-              - "Gate, reopen, and resume plan explicit"
-          notes: >
-            Worker reads the workflow brief and maps it to the live circuit
-            patterns. Determines artifact-centric vs validator family.
+  steps:
+    # ── Phase 1: Intake ──────────────────────────────────────────────────
+    - id: workflow-intake
+      title: Workflow Intake
+      executor: orchestrator
+      kind: checkpoint
+      protocol: workflow-intake@v1
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/workflow-brief.md
+          schema: workflow-brief@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: workflow_intake
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: pattern-mapping
 
-    - id: authoring
-      title: Authoring
-      execution: serial
-      steps:
-        - id: compile-circuit-files
-          title: Compile Circuit Files
-          action: dispatch
-          consumes: [workflow-brief.md, circuit-analysis.md]
-          produces: [draft-circuit.yaml, draft-SKILL.md, cross-validation.md]
-          gate:
-            type: outputs_present
-            required: [draft-circuit.yaml, draft-SKILL.md, cross-validation.md]
-            checks:
-              - "Draft files agree on topology, triggers, and gate semantics"
-              - "Starter templates, decision table, quality gate, and anti-pattern catalog present"
-              - "Compiler-only scope, resume rules, and circuit breaker explicit"
-          notes: >
-            Worker generates draft circuit.yaml and SKILL.md to staging,
-            then cross-validates them field by field.
+    # ── Phase 2: Analysis ────────────────────────────────────────────────
+    - id: pattern-mapping
+      title: Pattern Mapping
+      executor: worker
+      kind: dispatch
+      protocol: pattern-mapping@v1
+      reads: [artifacts/workflow-brief.md]
+      writes:
+        artifact:
+          path: artifacts/circuit-analysis.md
+          schema: circuit-analysis@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [repo.analysis]
+        optional: [architecture.exploration]
+      budgets:
+        max_attempts: 1
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [analysis_ready]
+      routes:
+        pass: compile-circuit-files
+        fail: "@escalate"
 
-    - id: validation
-      title: Validation
-      execution: serial
-      steps:
-        - id: quality-gate
-          title: Quality Gate
-          action: dispatch
-          consumes: [draft-circuit.yaml, draft-SKILL.md, cross-validation.md]
-          produces: validation-report.md
-          gate:
-            type: outputs_present
-            required: [validation-report.md]
-            checks:
-              - "All six quality categories walked explicitly"
-              - "Anti-patterns named by ID"
-              - "Verdict is READY or REVISE with named issues"
-          notes: >
-            Review worker walks the six quality categories against the
-            draft files. Assessment only - does not modify the drafts.
+    # ── Phase 3: Authoring ───────────────────────────────────────────────
+    - id: compile-circuit-files
+      title: Compile Circuit Files
+      executor: worker
+      kind: dispatch
+      protocol: compile-circuit-files@v1
+      reads: [artifacts/workflow-brief.md, artifacts/circuit-analysis.md]
+      writes:
+        artifacts:
+          - path: artifacts/draft-circuit.yaml
+            schema: draft-circuit@v1
+          - path: artifacts/draft-SKILL.md
+            schema: draft-skill@v1
+          - path: artifacts/cross-validation.md
+            schema: cross-validation@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [code.change]
+        optional: [review.independent]
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [drafts_ready]
+      routes:
+        pass: quality-gate
+        fail: "@escalate"
 
-    - id: refinement
-      title: Refinement
-      execution: serial
-      steps:
-        - id: claude-code-refinement
-          title: Claude Code Refinement
-          action: synthesis
-          consumes: [draft-circuit.yaml, draft-SKILL.md, cross-validation.md, validation-report.md]
-          produces: [circuit.yaml, SKILL.md]
-          gate:
-            type: verdict-reopen
-            outcomes:
-              ready: continue
-              revise: interactive-reopen
-          notes: >
-            Orchestrator reads all upstream artifacts plus validation findings,
-            refines for Claude Code optimization, and installs to TARGET_CIRCUIT_ROOT.
-            This is the only step that writes to the final skill directory.
+    # ── Phase 4: Validation ──────────────────────────────────────────────
+    - id: quality-gate
+      title: Quality Gate
+      executor: worker
+      kind: dispatch
+      protocol: quality-gate@v1
+      reads: [artifacts/draft-circuit.yaml, artifacts/draft-SKILL.md, artifacts/cross-validation.md]
+      writes:
+        artifact:
+          path: artifacts/validation-report.md
+          schema: validation-report@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [review.independent]
+        optional: []
+      budgets:
+        max_attempts: 1
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [validation_complete]
+      routes:
+        pass: claude-code-refinement
+        fail: "@escalate"
+
+    # ── Phase 5: Refinement ──────────────────────────────────────────────
+    - id: claude-code-refinement
+      title: Claude Code Refinement
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/draft-circuit.yaml, artifacts/draft-SKILL.md, artifacts/cross-validation.md, artifacts/validation-report.md]
+      writes:
+        artifact:
+          path: artifacts/circuit.yaml
+          schema: circuit@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/circuit.yaml
+        required: [circuit, steps, entry, entry_modes]
+      routes:
+        pass: "@complete"
+        fail: "@escalate"

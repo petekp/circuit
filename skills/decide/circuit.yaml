@@ -1,175 +1,208 @@
-schema_version: "1"
+schema_version: "2"
 circuit:
   id: decide
-  version: "2026-03-29"
-  title: Decide
-  description: >
-    Architecture decision workflow for choosing between meaningful architectural
-    or protocol options under uncertainty before implementation begins. Chains
-    framing -> current-state reality -> serious options -> explicit weighting ->
-    pressure test -> published decision guide through 5 phases. Topology only —
-    this file does not encode runtime behavior or adapter contracts.
+  version: "2026-04-01"
+  purpose: Architecture decision workflow for choosing between meaningful options under uncertainty.
 
-  artifacts:
-    - id: decision-brief.md
-      type: interactive
-      produced_by: decision-frame
-      consumed_by: [current-system-map, generate-serious-options, score-and-compare, publish-adr-and-implementation-guide]
-    - id: current-system-map.md
-      type: dispatch
-      produced_by: current-system-map
-      consumed_by: [generate-serious-options, score-and-compare, pressure-test-leading-option, publish-adr-and-implementation-guide]
-    - id: decision-options.md
-      type: dispatch
-      produced_by: generate-serious-options
-      consumed_by: [score-and-compare, pressure-test-leading-option]
-    - id: decision-scorecard.md
-      type: synthesis
-      produced_by: score-and-compare
-      consumed_by: [tradeoff-weighting-checkpoint, pressure-test-leading-option, decision-commit]
-    - id: decision-steer.md
-      type: interactive
-      produced_by: tradeoff-weighting-checkpoint
-      consumed_by: [pressure-test-leading-option]
-    - id: pressure-report.md
-      type: dispatch
-      produced_by: pressure-test-leading-option
-      consumed_by: [decision-commit, publish-adr-and-implementation-guide]
-    - id: decision-choice.md
-      type: interactive
-      produced_by: decision-commit
-      consumed_by: [publish-adr-and-implementation-guide]
-    - id: decision-guide.md
-      type: synthesis
-      produced_by: publish-adr-and-implementation-guide
-      consumed_by: []
+  entry:
+    command: /circuit:decide
+    expert_command: /circuit:decide
+    signals:
+      include: [architecture_decision, protocol_choice, multiple_viable_options]
+      exclude: [clear_approach, broken_flow, dead_code_only]
 
-  phases:
-    - id: framing
-      title: Framing
-      execution: serial
-      steps:
-        - id: decision-frame
-          title: Decision Frame
-          action: interactive
-          produces: decision-brief.md
-          gate:
-            type: outputs_present
-            required: [decision-brief.md]
-            checks:
-              - "Decision Question non-empty"
-              - "Must-Protect Qualities non-empty"
-              - "Non-Decision Space non-empty"
+  entry_modes:
+    default:
+      start_at: decision-frame
+      description: Start with decision framing.
 
-    - id: reality-mapping
-      title: Reality Mapping
-      execution: serial
-      steps:
-        - id: current-system-map
-          title: Current System Map
-          action: dispatch
-          skills: [architecture-exploration] # plus domain-skills resolved at runtime
-          consumes: [decision-brief.md]
-          produces: current-system-map.md
-          max_attempts: 2
-          gate:
-            type: outputs_present
-            required: [current-system-map.md]
-            checks:
-              - "at least one invariant"
-              - "at least one operational constraint"
-              - "at least one pain point"
+  steps:
+    - id: decision-frame
+      title: Decision Frame
+      executor: orchestrator
+      kind: checkpoint
+      protocol: decision-frame@v1
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/decision-brief.md
+          schema: decision-brief@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: decision_frame
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: current-system-map
 
-    - id: option-exploration
-      title: Option Exploration
-      execution: serial
-      steps:
-        - id: generate-serious-options
-          title: Generate Serious Options
-          action: dispatch
-          skills: [solution-explorer, architecture-exploration] # plus domain-skills resolved at runtime
-          consumes: [decision-brief.md, current-system-map.md]
-          produces: decision-options.md
-          max_attempts: 2
-          gate:
-            type: outputs_present
-            required: [decision-options.md]
-            checks:
-              - "at least three options"
-              - "each option differs on at least two of architecture shape, ownership boundary, migration cost, or failure surface"
-        - id: score-and-compare
-          title: Score and Compare
-          action: synthesis
-          consumes: [decision-brief.md, current-system-map.md, decision-options.md]
-          produces: decision-scorecard.md
-          gate:
-            type: outputs_present
-            required: [decision-scorecard.md]
-            checks:
-              - "weighted dimensions present"
-              - "per-option reasoning present"
-              - "confidence labels present"
+    - id: current-system-map
+      title: Current System Map
+      executor: worker
+      kind: dispatch
+      protocol: system-map-exploration@v1
+      reads: [artifacts/decision-brief.md]
+      writes:
+        artifact:
+          path: artifacts/current-system-map.md
+          schema: current-system-map@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [architecture.exploration]
+        optional: [repo.analysis]
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [map_complete]
+      routes:
+        pass: generate-serious-options
+        fail: "@escalate"
 
-    - id: pressure
-      title: Pressure
-      execution: serial
-      steps:
-        - id: tradeoff-weighting-checkpoint
-          title: Tradeoff Weighting Checkpoint
-          action: interactive
-          consumes: [decision-scorecard.md]
-          produces: decision-steer.md
-          gate:
-            type: outputs_present
-            required: [decision-steer.md]
-            checks:
-              - "Chosen Priority Order explicit"
-              - "Risks Willingly Accepted explicit"
-              - "maps back to scorecard dimensions"
-        - id: pressure-test-leading-option
-          title: Pressure Test the Leading Option
-          action: dispatch
-          skills: [seam-ripper, clean-architecture] # plus domain-skills resolved at runtime
-          consumes:
-            - current-system-map.md
-            - decision-options.md
-            - decision-scorecard.md
-            - decision-steer.md
-          produces: pressure-report.md
-          max_attempts: 2
-          gate:
-            type: outputs_present
-            required: [pressure-report.md]
-            checks:
-              - "at least one plausible failure scenario"
-              - "at least one boundary-level objection"
-              - "explicit comparison to the strongest alternative"
-        - id: decision-commit
-          title: Decision Commit
-          action: interactive
-          consumes: [decision-scorecard.md, pressure-report.md]
-          produces: decision-choice.md
-          gate:
-            type: outputs_present
-            required: [decision-choice.md]
-            checks:
-              - "Chosen Option explicit"
-              - "Accepted Downsides explicit"
-              - "at least one Rejected Alternative"
+    - id: generate-serious-options
+      title: Generate Serious Options
+      executor: worker
+      kind: dispatch
+      protocol: option-generation@v1
+      reads: [artifacts/decision-brief.md, artifacts/current-system-map.md]
+      writes:
+        artifact:
+          path: artifacts/decision-options.md
+          schema: decision-options@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [architecture.exploration]
+        optional: [comparative.analysis]
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [options_ready]
+      routes:
+        pass: score-and-compare
+        fail: "@escalate"
 
-    - id: publication
-      title: Publication
-      execution: serial
-      steps:
-        - id: publish-adr-and-implementation-guide
-          title: Publish ADR and Implementation Guide
-          action: synthesis
-          consumes: [decision-brief.md, current-system-map.md, decision-choice.md, pressure-report.md]
-          produces: decision-guide.md
-          gate:
-            type: outputs_present
-            required: [decision-guide.md]
-            checks:
-              - "decision rationale present"
-              - "implementation-facing guardrails present"
-              - "reopen conditions preserved"
+    - id: score-and-compare
+      title: Score and Compare
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/decision-brief.md, artifacts/current-system-map.md, artifacts/decision-options.md]
+      writes:
+        artifact:
+          path: artifacts/decision-scorecard.md
+          schema: decision-scorecard@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/decision-scorecard.md
+        required: [Weighted Dimensions, Per-Option Reasoning, Confidence Labels]
+      routes:
+        pass: tradeoff-weighting-checkpoint
+        fail: "@escalate"
+
+    - id: tradeoff-weighting-checkpoint
+      title: Tradeoff Weighting Checkpoint
+      executor: orchestrator
+      kind: checkpoint
+      protocol: tradeoff-weighting@v1
+      reads: [artifacts/decision-scorecard.md]
+      writes:
+        artifact:
+          path: artifacts/decision-steer.md
+          schema: decision-steer@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: tradeoff_weighting
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: pressure-test-leading-option
+
+    - id: pressure-test-leading-option
+      title: Pressure Test the Leading Option
+      executor: worker
+      kind: dispatch
+      protocol: adversarial-pressure-test@v1
+      reads:
+        - artifacts/current-system-map.md
+        - artifacts/decision-options.md
+        - artifacts/decision-scorecard.md
+        - artifacts/decision-steer.md
+      writes:
+        artifact:
+          path: artifacts/pressure-report.md
+          schema: pressure-report@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [review.independent]
+        optional: [architecture.exploration]
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [pressure_complete]
+      routes:
+        pass: decision-commit
+        fail: "@escalate"
+
+    - id: decision-commit
+      title: Decision Commit
+      executor: orchestrator
+      kind: checkpoint
+      protocol: decision-commit@v1
+      reads: [artifacts/decision-scorecard.md, artifacts/pressure-report.md]
+      writes:
+        artifact:
+          path: artifacts/decision-choice.md
+          schema: decision-choice@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: decision_commit
+        options: [commit, revisit]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [commit, revisit]
+      routes:
+        commit: publish-adr-and-implementation-guide
+        revisit: tradeoff-weighting-checkpoint
+
+    - id: publish-adr-and-implementation-guide
+      title: Publish ADR and Implementation Guide
+      executor: orchestrator
+      kind: synthesis
+      reads:
+        - artifacts/decision-brief.md
+        - artifacts/current-system-map.md
+        - artifacts/decision-choice.md
+        - artifacts/pressure-report.md
+      writes:
+        artifact:
+          path: artifacts/decision-guide.md
+          schema: decision-guide@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/decision-guide.md
+        required: [Decision Rationale, Implementation Guardrails, Reopen Conditions]
+      routes:
+        pass: "@complete"
+        fail: "@escalate"

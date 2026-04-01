@@ -1,205 +1,200 @@
-schema_version: "1"
+schema_version: "2"
 circuit:
   id: harden-spec
-  version: "2026-03-29"
-  title: Harden Spec
+  version: "2026-04-01"
   deprecated: true
   replaced_by: "develop --spec-review"
-  description: >
+  purpose: >
+    DEPRECATED: Folded into develop --spec-review in slice-003.
     Artifact-driven circuit for turning a rough RFC, design spec, PRD, or circuit
     schema into a canonical amended spec, a build-ready execution packet, and a
-    reviewed implementation plan without crossing into code. Chains draft ->
-    digest -> critique -> amendment -> contract -> plan across 6 phases.
-    Topology only - this file does not encode runtime behavior or adapter contracts.
+    reviewed implementation plan without crossing into code.
 
-  artifacts:
-    - id: spec-brief.md
-      type: interactive
-      produced_by: spec-intake
-      consumed_by: [draft-digest]
-    - id: draft-digest.md
-      type: synthesis
-      produced_by: draft-digest
-      consumed_by: [parallel-review-passes, amended-draft]
-    - id: implementer-review.md
-      type: dispatch
-      produced_by: parallel-review-passes
-      consumed_by: [caveat-resolution]
-    - id: systems-review.md
-      type: dispatch
-      produced_by: parallel-review-passes
-      consumed_by: [caveat-resolution, execution-packet]
-    - id: comparative-review.md
-      type: dispatch
-      produced_by: parallel-review-passes
-      consumed_by: [caveat-resolution]
-    - id: caveat-resolution.md
-      type: interactive
-      produced_by: caveat-resolution
-      consumed_by: [amended-draft, execution-packet]
-    - id: amended-spec.md
-      type: synthesis
-      produced_by: amended-draft
-      consumed_by: [execution-packet, implementation-plan]
-    - id: execution-packet.md
-      type: synthesis
-      produced_by: execution-packet
-      consumed_by: [implementation-plan, plan-review]
-    - id: implementation-plan.md
-      type: synthesis
-      produced_by: implementation-plan
-      consumed_by: [plan-review]
-    - id: plan-review.md
-      type: dispatch
-      produced_by: plan-review
-      consumed_by: []
+  entry:
+    command: /circuit:harden-spec
+    expert_command: /circuit:harden-spec
+    signals:
+      include: []
+      exclude: []
 
-  phases:
-    - id: intake
-      title: Intake
-      execution: serial
-      steps:
-        - id: spec-intake
-          title: Spec Intake
-          action: interactive
-          produces: spec-brief.md
-          gate:
-            type: outputs_present
-            required: [spec-brief.md]
-            checks:
-              - "Source Document explicit"
-              - "Intended Outcome explicit"
-              - "Non-Goals explicit"
+  entry_modes:
+    default:
+      start_at: spec-intake
+      description: Start from an existing spec or RFC.
 
-    - id: multi-angle-review
-      title: Multi-Angle Review
-      execution: serial
-      steps:
-        - id: draft-digest
-          title: Draft Digest
-          action: synthesis
-          consumes: [spec-brief.md]
-          produces: draft-digest.md
-          notes: >
-            Also reads the external source draft referenced by spec-brief.md.
-          gate:
-            type: outputs_present
-            required: [draft-digest.md]
-            checks:
-              - "mechanism captured without new design decisions"
-              - "Assumptions section present"
-              - "Ambiguities section present"
-        - id: parallel-review-passes
-          title: Parallel Review Passes
-          action: dispatch
-          execution: parallel
-          workers:
-            - id: implementer
-              title: Implementer Review
-              skills: [clean-architecture]
-              produces: implementer-review.md
-              notes: "Add <domain-skills> at runtime."
-            - id: systems
-              title: Systems Review
-              skills: [architecture-exploration, clean-architecture]
-              produces: systems-review.md
-              notes: "Add <domain-skills> at runtime if skill budget allows."
-            - id: comparative
-              title: Comparative Review
-              skills: [deep-research, architecture-exploration]
-              produces: comparative-review.md
-          consumes: [draft-digest.md]
-          produces: [implementer-review.md, systems-review.md, comparative-review.md]
-          gate:
-            type: outputs_present
-            required: [implementer-review.md, systems-review.md, comparative-review.md]
-            checks:
-              - "implementer review names build seams or says draft is buildable"
-              - "systems review covers architecture and runtime concerns"
-              - "comparative review includes two meaningful comparisons or records no relevant prior art"
-          notes: >
-            Represents Steps 3, 4, and 5 in SKILL.md. These reviews are independent
-            and can be dispatched in parallel once draft-digest.md exists.
+  steps:
+    # ── Phase 1: Intake ──────────────────────────────────────────────────
+    - id: spec-intake
+      title: Spec Intake
+      executor: orchestrator
+      kind: checkpoint
+      protocol: spec-intake@v1
+      reads: [user.task, "referenced:spec"]
+      writes:
+        artifact:
+          path: artifacts/spec-brief.md
+          schema: spec-brief@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: spec_intake
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: draft-digest
 
-    - id: amendment
-      title: Amendment
-      execution: serial
-      steps:
-        - id: caveat-resolution
-          title: Caveat Resolution
-          action: interactive
-          consumes: [implementer-review.md, systems-review.md, comparative-review.md]
-          produces: caveat-resolution.md
-          gate:
-            type: outputs_present
-            required: [caveat-resolution.md]
-            checks:
-              - "Accepted Caveats or explicit no-change rationale present"
-              - "Deferred Risks section non-empty"
-        - id: amended-draft
-          title: Amended Draft
-          action: synthesis
-          consumes: [draft-digest.md, caveat-resolution.md]
-          produces: amended-spec.md
-          notes: >
-            Also reads the external source draft referenced by spec-brief.md.
-          gate:
-            type: outputs_present
-            required: [amended-spec.md]
-            checks:
-              - "accepted caveats reflected"
-              - "deferred risks still visible"
+    # ── Phase 2: Multi-Angle Review ──────────────────────────────────────
+    - id: draft-digest
+      title: Draft Digest
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/spec-brief.md]
+      writes:
+        artifact:
+          path: artifacts/draft-digest.md
+          schema: draft-digest@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/draft-digest.md
+        required: [Mechanism, Assumptions, Ambiguities]
+      routes:
+        pass: parallel-review-passes
+        fail: "@escalate"
 
-    - id: contracting
-      title: Contracting
-      execution: serial
-      steps:
-        - id: execution-packet
-          title: Execution Packet
-          action: synthesis
-          consumes: [amended-spec.md, systems-review.md, caveat-resolution.md]
-          produces: execution-packet.md
-          gate:
-            type: outputs_present
-            required: [execution-packet.md]
-            checks:
-              - "Invariants non-empty"
-              - "Verification Strategy non-empty"
-              - "Rollback or Reopen Triggers non-empty"
+    - id: parallel-review-passes
+      title: Parallel Review Passes
+      executor: worker
+      kind: dispatch
+      protocol: parallel-review-fanout@v1
+      reads: [artifacts/draft-digest.md]
+      writes:
+        artifacts:
+          - path: artifacts/implementer-review.md
+            schema: spec-review@v1
+          - path: artifacts/systems-review.md
+            schema: spec-review@v1
+          - path: artifacts/comparative-review.md
+            schema: spec-review@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [review.independent]
+        optional: [architecture.exploration]
+      budgets:
+        max_attempts: 1
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [reviews_complete]
+      routes:
+        pass: caveat-resolution
+        fail: "@escalate"
 
-    - id: planning
-      title: Planning
-      execution: serial
-      steps:
-        - id: implementation-plan
-          title: Implementation Plan
-          action: synthesis
-          consumes: [amended-spec.md, execution-packet.md]
-          produces: implementation-plan.md
-          gate:
-            type: outputs_present
-            required: [implementation-plan.md]
-            checks:
-              - "every slice references an execution-packet obligation"
-              - "every slice has an associated test or verification responsibility"
+    # ── Phase 3: Amendment ───────────────────────────────────────────────
+    - id: caveat-resolution
+      title: Caveat Resolution
+      executor: orchestrator
+      kind: checkpoint
+      protocol: caveat-resolution@v1
+      reads: [artifacts/implementer-review.md, artifacts/systems-review.md, artifacts/comparative-review.md]
+      writes:
+        artifact:
+          path: artifacts/caveat-resolution.md
+          schema: caveat-resolution@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: caveat_resolution
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: amended-draft
 
-    - id: validation
-      title: Validation
-      execution: serial
-      steps:
-        - id: plan-review
-          title: Plan Review
-          action: dispatch
-          skills: [seam-ripper, clean-architecture] # add <domain-skills> at runtime if skill budget allows
-          consumes: [execution-packet.md, implementation-plan.md]
-          produces: plan-review.md
-          gate:
-            type: verdict-reopen
-            outcomes:
-              ready: continue
-              revise: interactive-reopen
-          notes: >
-            READY is allowed only when Blocking Gaps are empty. REVISE must name
-            whether to reopen caveat-resolution.md, amended-spec.md, or
-            implementation-plan.md. The user may instead pause for a new upstream
-            decision loop.
+    - id: amended-draft
+      title: Amended Draft
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/draft-digest.md, artifacts/caveat-resolution.md]
+      writes:
+        artifact:
+          path: artifacts/amended-spec.md
+          schema: amended-spec@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/amended-spec.md
+        required: [Accepted Caveats, Deferred Risks]
+      routes:
+        pass: execution-packet
+        fail: "@escalate"
+
+    # ── Phase 4: Contracting ─────────────────────────────────────────────
+    - id: execution-packet
+      title: Execution Packet
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/amended-spec.md, artifacts/systems-review.md, artifacts/caveat-resolution.md]
+      writes:
+        artifact:
+          path: artifacts/execution-packet.md
+          schema: execution-packet@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/execution-packet.md
+        required: [Invariants, Verification Strategy, Rollback or Reopen Triggers]
+      routes:
+        pass: implementation-plan
+        fail: "@escalate"
+
+    # ── Phase 5: Planning ────────────────────────────────────────────────
+    - id: implementation-plan
+      title: Implementation Plan
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/amended-spec.md, artifacts/execution-packet.md]
+      writes:
+        artifact:
+          path: artifacts/implementation-plan.md
+          schema: implementation-plan@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/implementation-plan.md
+        required: [Slices, Test Obligations]
+      routes:
+        pass: plan-review
+        fail: "@escalate"
+
+    # ── Phase 6: Validation ──────────────────────────────────────────────
+    - id: plan-review
+      title: Plan Review
+      executor: worker
+      kind: dispatch
+      protocol: plan-review@v1
+      reads: [artifacts/execution-packet.md, artifacts/implementation-plan.md]
+      writes:
+        artifact:
+          path: artifacts/plan-review.md
+          schema: plan-review@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [review.independent]
+        optional: []
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [plan_ready]
+      routes:
+        pass: "@complete"
+        fail: "@escalate"

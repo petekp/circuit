@@ -1,95 +1,98 @@
-schema_version: "1"
+schema_version: "2"
 circuit:
   id: dry-run
-  version: "2026-03-22"
-  title: Circuit Dry Run
-  description: >
+  version: "2026-04-01"
+  purpose: >
     Interactive validation of a circuit skill by symbolically executing one concrete
-    feature through every step. Combines a fixed 10-dimension structural checklist
-    with step-by-step simulation of prompt assembly, worker output, and artifact
-    promotion. Topology only — this file describes the dry-run workflow, not the
-    target circuit being validated.
+    feature through every step. Single-session, orchestrator-only -- no worker dispatches.
 
-  artifacts:
-    - id: validation-scope.md
-      type: interactive
-      produced_by: collect-inputs
-      consumed_by: [resolve-constants, inventory-steps, simulate-and-trace]
-    - id: resolved-constants.md
-      type: synthesis
-      produced_by: resolve-constants
-      consumed_by: [inventory-steps, simulate-and-trace]
-    - id: step-inventory.md
-      type: synthesis
-      produced_by: inventory-steps
-      consumed_by: [simulate-and-trace]
-    - id: dry-run-trace.md
-      type: synthesis
-      produced_by: simulate-and-trace
-      consumed_by: []
+  entry:
+    command: /circuit:dry-run
+    expert_command: /circuit:dry-run
+    signals:
+      include: [validate_circuit, trace_circuit, check_soundness]
+      exclude: [broken_flow, new_circuit, author_circuit]
 
-  phases:
-    - id: validation
-      title: Validation
-      execution: serial
-      steps:
-        - id: collect-inputs
-          title: Collect Inputs and Source Files
-          action: interactive
-          produces: validation-scope.md
-          gate:
-            type: outputs_present
-            required: [validation-scope.md]
-            checks:
-              - "Target Method section present"
-              - "Concrete Test Feature section present"
-              - "Repo Root section present"
-              - "Source Files section present"
+  entry_modes:
+    default:
+      start_at: collect-inputs
+      description: Collect target circuit and test feature, then trace.
 
-        - id: resolve-constants
-          title: Resolve Constants
-          action: synthesis
-          consumes: [validation-scope.md]
-          produces: resolved-constants.md
-          gate:
-            type: outputs_present
-            required: [resolved-constants.md]
-            checks:
-              - "at least one symbol-to-value row"
-              - "Path Expansions section present"
-              - "Undefined Symbols section present"
-              - "Assumptions section present"
+  steps:
+    # ── Phase 1: Intake ──────────────────────────────────────────────────
+    - id: collect-inputs
+      title: Collect Inputs and Source Files
+      executor: orchestrator
+      kind: checkpoint
+      protocol: collect-inputs@v1
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/validation-scope.md
+          schema: validation-scope@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: collect_inputs
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: resolve-constants
 
-        - id: inventory-steps
-          title: Inventory Steps and Contracts
-          action: synthesis
-          consumes: [validation-scope.md, resolved-constants.md]
-          produces: step-inventory.md
-          gate:
-            type: outputs_present
-            required: [step-inventory.md]
-            checks:
-              - "Steps table covers every step from SKILL.md"
-              - "Worker Records section present"
-              - "Topology Mismatches section present"
+    # ── Phase 2: Resolution ──────────────────────────────────────────────
+    - id: resolve-constants
+      title: Resolve Constants
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/validation-scope.md]
+      writes:
+        artifact:
+          path: artifacts/resolved-constants.md
+          schema: resolved-constants@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/resolved-constants.md
+        required: [Path Expansions, Undefined Symbols, Assumptions]
+      routes:
+        pass: inventory-steps
+        fail: "@escalate"
 
-        - id: simulate-and-trace
-          title: Simulate and Trace
-          action: synthesis
-          consumes: [validation-scope.md, resolved-constants.md, step-inventory.md]
-          produces: dry-run-trace.md
-          notes: >
-            For each step: simulate setup, header, prompt assembly, worker output,
-            verify/promote, gate, and forward chain (steps 4a-4h in SKILL.md).
-            Then fill the 10-row checklist table. After all steps, run the targeted
-            closure pass and issue the binary verdict.
-          gate:
-            type: outputs_present
-            required: [dry-run-trace.md]
-            checks:
-              - "Resolved Constants section present"
-              - "every traced step includes 10-row checklist table"
-              - "every dispatch step includes simulated prompt assembly"
-              - "Artifact Chain section present"
-              - "Mechanical Failures Found section present"
-              - "VERDICT is MECHANICALLY SOUND or HAS FAILURES (N)"
+    # ── Phase 3: Inventory ───────────────────────────────────────────────
+    - id: inventory-steps
+      title: Inventory Steps and Contracts
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/validation-scope.md, artifacts/resolved-constants.md]
+      writes:
+        artifact:
+          path: artifacts/step-inventory.md
+          schema: step-inventory@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/step-inventory.md
+        required: [Steps, Worker Records, Topology Mismatches]
+      routes:
+        pass: simulate-and-trace
+        fail: "@escalate"
+
+    # ── Phase 4: Simulation ──────────────────────────────────────────────
+    - id: simulate-and-trace
+      title: Simulate and Trace
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/validation-scope.md, artifacts/resolved-constants.md, artifacts/step-inventory.md]
+      writes:
+        artifact:
+          path: artifacts/dry-run-trace.md
+          schema: dry-run-trace@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/dry-run-trace.md
+        required: [Resolved Constants, Artifact Chain, Mechanical Failures Found, VERDICT]
+      routes:
+        pass: "@complete"
+        fail: "@escalate"

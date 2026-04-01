@@ -1,237 +1,233 @@
-schema_version: "1"
+schema_version: "2"
 circuit:
   id: cleanup
-  version: "2026-03-29"
-  title: Cleanup
-  description: >
-    Artifact-centric circuit for systematic codebase cleanup: dead code, stale
-    docs, orphaned artifacts, vestigial comments, and redundant abstractions.
-    5 phases (Survey, Triage, Prove, Clean, Verify) across 8 steps. Dual-mode:
-    interactive (user checkpoints) or autonomous (evidence-gated, deferred
-    review). Topology only — runtime behavior, adapter contracts, and proof
-    heuristics live in SKILL.md.
+  version: "2026-04-01"
+  purpose: >
+    Systematic codebase cleanup: dead code, stale docs, orphaned artifacts,
+    vestigial comments, and redundant abstractions.
 
-  artifacts:
-    - id: cleanup-scope.md
-      type: interactive
-      produced_by: cleanup-scope
-      consumed_by: [category-survey-fanout, survey-consolidation, triage-classification, evidence-adjudication, cleanup-batch-execution, verification-audit]
-    - id: dead-code-findings.md
-      type: dispatch
-      produced_by: category-survey-fanout
-      consumed_by: [survey-consolidation]
-    - id: stale-docs-findings.md
-      type: dispatch
-      produced_by: category-survey-fanout
-      consumed_by: [survey-consolidation]
-    - id: orphaned-artifacts-findings.md
-      type: dispatch
-      produced_by: category-survey-fanout
-      consumed_by: [survey-consolidation]
-    - id: vestigial-comments-findings.md
-      type: dispatch
-      produced_by: category-survey-fanout
-      consumed_by: [survey-consolidation]
-    - id: redundant-abstractions-findings.md
-      type: dispatch
-      produced_by: category-survey-fanout
-      consumed_by: [survey-consolidation]
-    - id: survey-inventory.md
-      type: synthesis
-      produced_by: survey-consolidation
-      consumed_by: [triage-classification]
-    - id: triage-report.md
-      type: synthesis
-      produced_by: triage-classification
-      consumed_by: [evidence-adjudication, cleanup-batch-execution, verification-audit, verification-synthesis]
-    - id: evidence-log.md
-      type: dispatch
-      produced_by: evidence-adjudication
-      consumed_by: [cleanup-batch-execution, verification-audit, verification-synthesis]
-    - id: cleanup-batches.md
-      type: dispatch
-      produced_by: cleanup-batch-execution
-      consumed_by: [verification-audit, verification-synthesis]
-    - id: verification-audit.md
-      type: dispatch
-      produced_by: verification-audit
-      consumed_by: [verification-synthesis]
-    - id: verification-report.md
-      type: synthesis
-      produced_by: verification-synthesis
-      consumed_by: []
-    - id: deferred-review.md
-      type: synthesis
-      produced_by: verification-synthesis
-      consumed_by: []
+  entry:
+    command: /circuit
+    expert_command: /circuit:cleanup
+    signals:
+      include: [dead_code, stale_docs, orphaned_artifacts]
+      exclude: [clear_approach, architecture_decision, migration, overnight]
 
-  phases:
-    - id: survey
-      title: Survey
-      execution: serial
-      steps:
-        - id: cleanup-scope
-          title: Cleanup Scope
-          action: interactive
-          produces: cleanup-scope.md
-          gate:
-            type: outputs_present
-            required: [cleanup-scope.md]
-            checks:
-              - "Target root, MODE, build command, and test command non-empty"
-              - "At least one high-risk boundary named or explicit None"
+  entry_modes:
+    default:
+      start_at: cleanup-scope
+      description: Interactive cleanup with user checkpoints at triage and batch boundaries.
+    auto:
+      start_at: cleanup-scope
+      description: Autonomous evidence-gated cleanup with deferred review.
 
-        - id: category-survey-fanout
-          title: Category Survey Fanout
-          action: dispatch
-          execution: parallel
-          workers:
-            - id: dead-code
-              title: Dead Code Survey
-              skills: []
-              produces: dead-code-findings.md
-            - id: stale-docs
-              title: Stale Docs Survey
-              skills: []
-              produces: stale-docs-findings.md
-            - id: orphaned-artifacts
-              title: Orphaned Artifacts Survey
-              skills: []
-              produces: orphaned-artifacts-findings.md
-            - id: vestigial-comments
-              title: Vestigial Comments Survey
-              skills: []
-              produces: vestigial-comments-findings.md
-            - id: redundant-abstractions
-              title: Redundant Abstractions Survey
-              skills: []
-              produces: redundant-abstractions-findings.md
-          consumes: [cleanup-scope.md]
-          produces:
-            - dead-code-findings.md
-            - stale-docs-findings.md
-            - orphaned-artifacts-findings.md
-            - vestigial-comments-findings.md
-            - redundant-abstractions-findings.md
-          gate:
-            type: outputs_present
-            required:
-              - dead-code-findings.md
-              - stale-docs-findings.md
-              - orphaned-artifacts-findings.md
-              - vestigial-comments-findings.md
-              - redundant-abstractions-findings.md
-            checks:
-              - "Each category finding includes candidate paths and uncertainty notes"
+  steps:
+    # ── Phase 1: Survey ──────────────────────────────────────────────────
+    - id: cleanup-scope
+      title: Cleanup Scope
+      executor: orchestrator
+      kind: checkpoint
+      protocol: cleanup-scope@v1
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/cleanup-scope.md
+          schema: cleanup-scope@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: cleanup_scope
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: category-survey-fanout
 
-        - id: survey-consolidation
-          title: Survey Consolidation
-          action: synthesis
-          consumes:
-            - dead-code-findings.md
-            - stale-docs-findings.md
-            - orphaned-artifacts-findings.md
-            - vestigial-comments-findings.md
-            - redundant-abstractions-findings.md
-            - cleanup-scope.md
-          produces: survey-inventory.md
-          gate:
-            type: outputs_present
-            required: [survey-inventory.md]
-            checks:
-              - "Cross-category duplicates resolved"
-              - "Every candidate has category, path, rationale, and ambiguity flag"
+    - id: category-survey-fanout
+      title: Category Survey Fanout
+      executor: worker
+      kind: dispatch
+      protocol: category-survey-fanout@v1
+      reads: [artifacts/cleanup-scope.md]
+      writes:
+        artifacts:
+          - path: artifacts/dead-code-findings.md
+            schema: category-findings@v1
+          - path: artifacts/stale-docs-findings.md
+            schema: category-findings@v1
+          - path: artifacts/orphaned-artifacts-findings.md
+            schema: category-findings@v1
+          - path: artifacts/vestigial-comments-findings.md
+            schema: category-findings@v1
+          - path: artifacts/redundant-abstractions-findings.md
+            schema: category-findings@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [repo.analysis]
+        optional: []
+      budgets:
+        max_attempts: 1
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [outputs_ready]
+      routes:
+        pass: survey-consolidation
+        fail: "@escalate"
 
-    - id: triage
-      title: Triage
-      execution: serial
-      steps:
-        - id: triage-classification
-          title: Triage Classification
-          action: synthesis
-          consumes: [survey-inventory.md, cleanup-scope.md]
-          produces: triage-report.md
-          gate:
-            type: outputs_present
-            required: [triage-report.md]
-            checks:
-              - "Every survey item has confidence, risk, action, and rationale"
-              - "Interactive mode: approval recorded before gate passes"
-              - "Autonomous mode: auto-approval rule and deferred counts recorded"
+    - id: survey-consolidation
+      title: Survey Consolidation
+      executor: orchestrator
+      kind: synthesis
+      reads:
+        - artifacts/dead-code-findings.md
+        - artifacts/stale-docs-findings.md
+        - artifacts/orphaned-artifacts-findings.md
+        - artifacts/vestigial-comments-findings.md
+        - artifacts/redundant-abstractions-findings.md
+        - artifacts/cleanup-scope.md
+      writes:
+        artifact:
+          path: artifacts/survey-inventory.md
+          schema: survey-inventory@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/survey-inventory.md
+        required: [Candidates, Cross-Category Deduplication, Ambiguity Flags]
+      routes:
+        pass: triage-classification
+        fail: "@escalate"
 
-    - id: prove
-      title: Prove
-      execution: serial
-      steps:
-        - id: evidence-adjudication
-          title: Evidence Adjudication
-          action: dispatch
-          consumes: [triage-report.md, cleanup-scope.md]
-          produces: evidence-log.md
-          gate:
-            type: evidence-reopen
-            outcomes:
-              evidence_sufficient: continue
-              queue_adjustment_required: update-triage-report
-              risk_boundary_invalidated: interactive-reopen
-          notes: >
-            Worker proves or clears items marked PROVE. Can reopen triage if
-            evidence changes risk classification.
+    # ── Phase 2: Triage ──────────────────────────────────────────────────
+    - id: triage-classification
+      title: Triage Classification
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/survey-inventory.md, artifacts/cleanup-scope.md]
+      writes:
+        artifact:
+          path: artifacts/triage-report.md
+          schema: triage-report@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/triage-report.md
+        required: [Classification Table, Confidence Scores, Risk Assessment, Action Plan]
+      routes:
+        pass: evidence-adjudication
+        fail: "@escalate"
 
-    - id: clean
-      title: Clean
-      execution: serial
-      steps:
-        - id: cleanup-batch-execution
-          title: Cleanup Batch Execution
-          action: dispatch
-          adapter: workers
-          consumes: [triage-report.md, evidence-log.md, cleanup-scope.md]
-          produces: cleanup-batches.md
-          gate:
-            type: outputs_present
-            required: [cleanup-batches.md]
-            checks:
-              - "Every batch has ordered items, verification results, and terminal disposition"
-              - "Failed batches show explicit revert evidence"
-          notes: >
-            One topology step containing an ordered per-batch execution loop.
-            Delegates to workers for implement -> review -> converge per
-            batch. Retry contract (up to 3 attempts per batch) lives in
-            SKILL.md. Interactive mode pauses before each batch. Autonomous
-            mode auto-dispatches eligible batches with build/test gates.
+    # ── Phase 3: Prove ───────────────────────────────────────────────────
+    - id: evidence-adjudication
+      title: Evidence Adjudication
+      executor: worker
+      kind: dispatch
+      protocol: evidence-adjudication@v1
+      reads: [artifacts/triage-report.md, artifacts/cleanup-scope.md]
+      writes:
+        artifact:
+          path: artifacts/evidence-log.md
+          schema: evidence-log@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [repo.analysis]
+        optional: []
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [evidence_sufficient]
+        reroute:
+          queue_adjustment_required: triage-classification
+          risk_boundary_invalidated: cleanup-scope
+      routes:
+        pass: cleanup-batch-execution
+        fail: "@escalate"
 
-    - id: verify
-      title: Verify
-      execution: serial
-      steps:
-        - id: verification-audit
-          title: Verification Audit
-          action: dispatch
-          consumes: [cleanup-batches.md, triage-report.md, evidence-log.md, cleanup-scope.md]
-          produces: verification-audit.md
-          gate:
-            type: outputs_present
-            required: [verification-audit.md]
-            checks:
-              - "Build/test results, warning delta (or NOT MEASURABLE), diff sanity, and manifest cross-check present"
-              - "Candidate verdict present"
-          notes: >
-            Diagnose-only assessment. Worker does NOT modify source code.
+    # ── Phase 4: Clean ───────────────────────────────────────────────────
+    - id: cleanup-batch-execution
+      title: Cleanup Batch Execution
+      executor: worker
+      kind: dispatch
+      protocol: workers-execute@v1
+      reads: [artifacts/triage-report.md, artifacts/evidence-log.md, artifacts/cleanup-scope.md]
+      writes:
+        artifact:
+          path: artifacts/cleanup-batches.md
+          schema: cleanup-batches@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [code.change, review.independent]
+        optional: []
+      budgets:
+        max_attempts: 3
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [complete_and_hardened]
+      routes:
+        pass: verification-audit
+        fail: "@escalate"
 
-        - id: verification-synthesis
-          title: Verification Synthesis
-          action: synthesis
-          consumes: [cleanup-batches.md, verification-audit.md, triage-report.md, evidence-log.md]
-          produces: [verification-report.md, deferred-review.md]
-          gate:
-            type: verdict-consistency
-            outcomes:
-              clean: pass
-              partial: pass
-              reopen: interactive-reopen
-          notes: >
-            Terminal report and deferred-review publication. deferred-review.md
-            is produced only in autonomous mode. clean requires all checks to
-            agree. partial requires deferred items documented. reopen requires
-            a named failing boundary and reopen target.
+    # ── Phase 5: Verify ──────────────────────────────────────────────────
+    - id: verification-audit
+      title: Verification Audit
+      executor: worker
+      kind: dispatch
+      protocol: verification-audit@v1
+      reads:
+        - artifacts/cleanup-batches.md
+        - artifacts/triage-report.md
+        - artifacts/evidence-log.md
+        - artifacts/cleanup-scope.md
+      writes:
+        artifact:
+          path: artifacts/verification-audit.md
+          schema: verification-audit@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [review.independent]
+        optional: []
+      budgets:
+        max_attempts: 1
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [audit_complete]
+      routes:
+        pass: verification-synthesis
+        fail: "@escalate"
+
+    - id: verification-synthesis
+      title: Verification Synthesis
+      executor: orchestrator
+      kind: synthesis
+      reads:
+        - artifacts/cleanup-batches.md
+        - artifacts/verification-audit.md
+        - artifacts/triage-report.md
+        - artifacts/evidence-log.md
+      writes:
+        artifacts:
+          - path: artifacts/verification-report.md
+            schema: verification-report@v1
+          - path: artifacts/deferred-review.md
+            schema: deferred-review@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/verification-report.md
+        required: [Verdict, Check Results, Deferred Items]
+      routes:
+        pass: "@complete"
+        fail: "@escalate"

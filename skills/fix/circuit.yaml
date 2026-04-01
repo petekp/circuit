@@ -1,95 +1,113 @@
-schema_version: "1"
+schema_version: "2"
 circuit:
   id: fix
   version: "2026-04-01"
-  title: Fix
-  description: >
-    Bug fix circuit that enforces test-first discipline. 4 steps across 4 phases:
-    Bug Framing -> Regression Contract -> Fix Execution -> Ship Review. Stronger
-    than run (requires regression tests before code changes), lighter than
-    repair-flow (no forensic causal mapping). Use when you have a known bug
-    with a clear reproduction path.
+  purpose: Test-first bug fix circuit for known bugs with clear reproduction paths.
 
-  artifacts:
-    - id: bug-brief.md
-      type: interactive
-      produced_by: bug-brief
-      consumed_by: [regression-contract, implement, ship-review]
-    - id: regression-contract.md
-      type: synthesis
-      produced_by: regression-contract
-      consumed_by: [implement, ship-review]
-    - id: fix-handoff.md
-      type: dispatch
-      produced_by: implement
-      consumed_by: [ship-review]
-    - id: fix-review.md
-      type: dispatch
-      produced_by: ship-review
-      consumed_by: []
+  entry:
+    command: /circuit:fix
+    expert_command: /circuit:fix
+    signals:
+      include: [known_bug, clear_repro, regression_test_needed]
+      exclude: [broken_flow, flaky_behavior, approach_unclear]
 
-  phases:
-    - id: bug-framing
-      title: Bug Framing
-      execution: serial
-      steps:
-        - id: bug-brief
-          title: Bug Brief
-          action: interactive
-          produces: bug-brief.md
-          gate:
-            type: outputs_present
-            required: [bug-brief.md]
-            checks:
-              - "Expected Behavior non-empty"
-              - "Actual Behavior non-empty"
-              - "Scope non-empty"
-              - "Known Repro non-empty"
+  entry_modes:
+    default:
+      start_at: bug-brief
+      description: Start with bug framing.
 
-    - id: regression
+  steps:
+    - id: bug-brief
+      title: Bug Brief
+      executor: orchestrator
+      kind: checkpoint
+      protocol: bug-brief@v1
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/bug-brief.md
+          schema: bug-brief@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: bug_brief
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: regression-contract
+
+    - id: regression-contract
       title: Regression Contract
-      execution: serial
-      steps:
-        - id: regression-contract
-          title: Regression Contract
-          action: synthesis
-          consumes: [bug-brief.md]
-          produces: regression-contract.md
-          gate:
-            type: outputs_present
-            required: [regression-contract.md]
-            checks:
-              - "At least one failing regression test command OR manual_only exemption"
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/bug-brief.md]
+      writes:
+        artifact:
+          path: artifacts/regression-contract.md
+          schema: regression-contract@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/regression-contract.md
+        required: [Failing Regression Tests]
+      routes:
+        pass: implement
+        fail: "@escalate"
 
-    - id: execute
-      title: Fix Execution
-      execution: serial
-      steps:
-        - id: implement
-          title: Implement
-          action: dispatch
-          adapter: workers
-          consumes: [bug-brief.md, regression-contract.md]
-          produces: fix-handoff.md
-          max_attempts: 3
-          gate:
-            type: outputs_present
-            required: [fix-handoff.md]
-            checks:
-              - "Convergence verdict is COMPLETE AND HARDENED"
-              - "Regression tests pass"
+    - id: implement
+      title: Implement
+      executor: worker
+      kind: dispatch
+      protocol: workers-execute@v1
+      reads: [artifacts/bug-brief.md, artifacts/regression-contract.md]
+      writes:
+        artifact:
+          path: artifacts/fix-handoff.md
+          schema: fix-handoff@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [code.change, review.independent]
+        optional: [testing.tdd]
+      budgets:
+        max_attempts: 3
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [complete_and_hardened]
+      routes:
+        pass: ship-review
+        fail: "@escalate"
 
-    - id: review
+    - id: ship-review
       title: Ship Review
-      execution: serial
-      steps:
-        - id: ship-review
-          title: Ship Review
-          action: dispatch
-          consumes: [bug-brief.md, regression-contract.md, fix-handoff.md]
-          produces: fix-review.md
-          gate:
-            type: outputs_present
-            required: [fix-review.md]
-            checks:
-              - "Verdict is SHIP_READY or ISSUES_FOUND"
+      executor: worker
+      kind: dispatch
+      protocol: final-review@v1
+      reads:
+        - artifacts/bug-brief.md
+        - artifacts/regression-contract.md
+        - artifacts/fix-handoff.md
+      writes:
+        artifact:
+          path: artifacts/fix-review.md
+          schema: fix-review@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [review.independent]
+        optional: []
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [ship_ready]
+      routes:
+        pass: "@complete"
+        fail: "@escalate"
