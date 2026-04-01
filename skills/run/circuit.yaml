@@ -9,7 +9,33 @@ circuit:
     confirmation, then executes with implement/review/converge. 4 steps across
     3 phases: Scope -> Execute -> Summary.
 
+  modes:
+    default:
+      description: Standard 4-step workflow. Auto-scope, confirm, execute, summarize.
+      steps: [auto-scope, scope-confirmation, implement, done-summary]
+    intent:
+      description: >
+        5-step workflow with an interactive intent-lock before auto-scope.
+        Use when the user wants to explicitly set priorities, non-goals,
+        and kill criteria before scoping begins.
+      steps: [intent-lock, auto-scope, scope-confirmation, implement, done-summary]
+      artifact_chain: [intent-brief.md, scope.md, scope-confirmed.md, execution-handoff.md, done.md]
+
   phases:
+    - id: intent
+      title: Intent
+      execution: serial
+      notes: "Only runs in intent mode. Skipped in default mode."
+      steps:
+        - id: intent-lock
+          title: Intent Lock
+          action: interactive
+          produces: intent-brief.md
+          gate:
+            type: outputs_present
+            required: [intent-brief.md]
+            checks: ["Ranked Outcomes non-empty", "Non-Goals non-empty"]
+
     - id: scope
       title: Scope
       execution: serial

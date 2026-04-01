@@ -39,9 +39,8 @@ Do NOT use for:
 - Large migrations with dual-system coexistence (use `circuit:migrate`)
 - Truly trivial single-line changes, config edits, or typo fixes (skip circuits)
 
-If you want to explicitly set priorities, non-goals, and kill criteria before
-execution, use `circuit:develop --light` instead. It has an interactive
-intent-lock step that circuit:run skips.
+For tasks where you want to explicitly set priorities, non-goals, and kill criteria
+before auto-scope, use `--intent` mode.
 
 ## Glossary
 
@@ -62,6 +61,32 @@ intent-lock step that circuit:run skips.
   if the task is genuinely ambiguous. Not an interview.
 - **Scope creep kills.** The Out of Scope section is enforced. Workers that
   stray beyond it are caught in review.
+
+## Mode Selection
+
+Parse the circuit invocation args for a `--intent` flag.
+
+- If `--intent` is present -> `MODE=intent`. Log: "Running with intent lock (5 steps)."
+- If absent -> `MODE=default` (default). The standard 4-step workflow runs.
+
+**Intent mode** adds an interactive intent-lock step before auto-scope:
+
+| Intent step | Default step | Action      | Produces           |
+|-------------|--------------|-------------|--------------------|
+| Step 0      | (new)        | interactive | intent-brief.md    |
+| Step 1      | Step 1       | synthesis   | scope.md           |
+| Step 2      | Step 2       | interactive | scope-confirmed.md |
+| Step 3      | Step 3       | dispatch    | execution-handoff.md |
+| Step 4      | Step 4       | synthesis   | done.md            |
+
+**Intent mode artifact chain:**
+```
+intent-brief.md -> scope.md -> scope-confirmed.md -> execution-handoff.md -> done.md
+```
+
+The intent-brief feeds auto-scope. When `intent-brief.md` exists, auto-scope reads
+it and uses the ranked outcomes, non-goals, and kill criteria to constrain the scope.
+The user still confirms the scope at Step 2.
 
 ## Setup
 
@@ -105,11 +130,44 @@ Or use the dispatch helper:
 
 ---
 
+## Phase 0: Intent (intent mode only)
+
+### Step 0: Intent Lock -- `interactive`
+
+**Objective:** Define what success looks like before auto-scope runs.
+
+> This step only runs when `MODE=intent`. In default mode, skip to Phase 1.
+
+Ask the user (via AskUserQuestion):
+
+> Describe the task. Then answer:
+> 1. If we can only get two things right, what are they?
+> 2. What would make this change feel wrong even if it technically works?
+> 3. What is explicitly out of scope?
+
+Write their response to `${RUN_ROOT}/artifacts/intent-brief.md`:
+
+```markdown
+# Intent Brief: <task>
+## Ranked Outcomes
+## Non-Goals
+## Kill Criteria
+## Domain and File Scope
+```
+
+**Gate:** `intent-brief.md` exists with non-empty Ranked Outcomes and Non-Goals.
+
+---
+
 ## Phase 1: Scope
 
 ### Step 1: Auto-Scope — `synthesis`
 
 **Objective:** Read the task and codebase, produce a structured scope.
+
+If `intent-brief.md` exists (intent mode), read it and use Ranked Outcomes as the
+primary constraints for scope, Non-Goals as the Out of Scope seed, and Kill Criteria
+as quality boundaries.
 
 **Before writing scope, evaluate two things:**
 
@@ -347,18 +405,21 @@ verification commands).
 ## Artifact Chain Summary
 
 ```
-scope.md → scope-confirmed.md [user confirms] → execution-handoff.md → done.md
+Default: scope.md -> scope-confirmed.md [user confirms] -> execution-handoff.md -> done.md
+Intent:  intent-brief.md -> scope.md -> scope-confirmed.md -> execution-handoff.md -> done.md
 ```
 
-Four artifacts. The scope is the plan. scope-confirmed is the user-approved
-plan. execution-handoff is the convergence result. done is the receipt.
+In default mode, four artifacts. In intent mode, five. The scope is the plan.
+scope-confirmed is the user-approved plan. execution-handoff is the convergence
+result. done is the receipt.
 
 ## Resume Awareness
 
 If `${RUN_ROOT}/artifacts/` already has files, determine the resume point:
 
-1. Check artifacts in chain order: `scope.md` -> `scope-confirmed.md` ->
-   `execution-handoff.md` -> `done.md`
+1. Check artifacts in chain order. When `MODE=intent`, check `intent-brief.md`
+   first, then: `scope.md` -> `scope-confirmed.md` -> `execution-handoff.md`
+   -> `done.md`. In default mode, start from `scope.md`.
 2. **Check for switch sentinel.** If `scope-confirmed.md` contains
    "switch to circuit:", the user chose to leave circuit. Do NOT resume
    into the execute phase. Report that the circuit was stopped and the user

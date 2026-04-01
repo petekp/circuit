@@ -12,14 +12,6 @@ circuit:
     full:
       description: Default 10-step workflow. All phases execute.
       steps: all
-    light:
-      description: >
-        Abbreviated 4-step workflow for tasks where the approach is clear.
-        Skips evidence gathering, option generation, and adversarial evaluation.
-      steps: [intent-lock, implementation-contract, implement, ship-review]
-      artifact_chain: [intent-brief.md, execution-packet.md, implementation-handoff.md, ship-review.md]
-      skipped_phases: [evidence, decision]
-      skipped_steps: [evidence-probes, constraints-synthesis, generate-candidates, adversarial-evaluation, tradeoff-decision, prove-seam]
 
   phases:
     - id: alignment

@@ -22,12 +22,15 @@ The Circuitry plugin provides structured, artifact-driven workflows for complex 
 
 ### Run
 
-**Invoke:** `/circuit:run <task>`
-**Phases:** Scope, Execute, Summary (4 steps)
-**Artifact chain:** `scope.md` -> `scope-confirmed.md` -> `execution-handoff.md` -> `done.md`
+**Invoke:** `/circuit:run <task>` or `/circuit:run --intent <task>`
+**Phases:** Scope, Execute, Summary (4 steps default, 5 with `--intent`)
+**Artifact chain (default):** `scope.md` -> `scope-confirmed.md` -> `execution-handoff.md` -> `done.md`
+**Artifact chain (intent):** `intent-brief.md` -> `scope.md` -> `scope-confirmed.md` -> `execution-handoff.md` -> `done.md`
 **Example:** You need to add a dark mode toggle to the settings page that persists to localStorage. The circuit reads the codebase, writes a 2-slice scope (theme toggle component + persistence logic), shows you the plan for confirmation. After you confirm, workers implement each slice with independent review, convergence runs verification, and a summary tells you what changed.
 
 The default entry point for Circuitry. Start with `/circuit:run <task>` for any non-trivial work, or `/circuit:router <task>` to have the router pick the best circuit automatically. If your task needs a specialized circuit (research, architecture decisions, debugging), you get one automatically. Otherwise, circuit:run handles it with auto-scope, confirmation, and implement/review/converge.
+
+**Intent mode:** For tasks where you want to explicitly set priorities, non-goals, and kill criteria before auto-scope runs, invoke `/circuit:run --intent <task>`. This adds an interactive intent-lock step that produces `intent-brief.md`, which auto-scope then uses to constrain the plan.
 
 ---
 
@@ -46,7 +49,6 @@ The default entry point for Circuitry. Start with `/circuit:run <task>` for any 
 **Phases:** Alignment, Evidence, Decision, Preflight, Delivery (10 steps)
 **Artifact chain:** `intent-brief.md` -> `external-digest.md` + `internal-digest.md` -> `constraints.md` -> `options.md` -> `decision-packet.md` -> `adr.md` -> `execution-packet.md` -> `seam-proof.md` -> `implementation-handoff.md` -> `ship-review.md`
 **Example:** You need to add a recording and playback system that spans the Rust core and Swift app layers. The circuit researches external patterns and internal system surface in parallel, generates distinct architectural options, pressure-tests them, gets your tradeoff decision, proves the hardest seam with a thin slice, then delegates implementation to workers and runs a final ship review.
-**Light mode:** For tasks where the approach is clear, invoke `/circuit:develop --light` to run an abbreviated 4-step flow (intent -> contract -> implement -> review), skipping the evidence gathering and adversarial evaluation phases.
 
 ---
 
