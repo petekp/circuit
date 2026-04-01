@@ -207,6 +207,13 @@ need the original review package open beside the generated circuit.
 
 ### Canonical `circuit.yaml` Starter
 
+Every generated `circuit.yaml` must include an `artifacts:` section that declares
+every artifact in the circuit's chain. This section sits between the description
+(and modes, if present) and the `phases:` section. Each entry has `id` (bare
+filename), `type` (matching the producing step's action), `produced_by` (step id),
+and `consumed_by` (list of step ids). The `circuit:dry-run` validator checks this
+section for consistency with step-level `produces:`/`consumes:` fields.
+
 ```yaml
 schema_version: "1"
 circuit:
@@ -216,6 +223,32 @@ circuit:
   description: >
     One-sentence circuit thesis. Topology only - this file does not encode runtime
     behavior or adapter contracts.
+
+  artifacts:
+    - id: brief.md
+      type: interactive
+      produced_by: intake
+      consumed_by: [parallel-probes, synthesis]
+    - id: probe-a.md
+      type: dispatch
+      produced_by: parallel-probes
+      consumed_by: [synthesis]
+    - id: probe-b.md
+      type: dispatch
+      produced_by: parallel-probes
+      consumed_by: [synthesis]
+    - id: packet.md
+      type: synthesis
+      produced_by: synthesis
+      consumed_by: [implement, validate]
+    - id: implementation-handoff.md
+      type: dispatch
+      produced_by: implement
+      consumed_by: [validate]
+    - id: review.md
+      type: dispatch
+      produced_by: validate
+      consumed_by: []
 
   phases:
     - id: framing
@@ -411,6 +444,7 @@ Short paragraph explaining the validator's core model and what a passing trace m
 - Name the exact output path and schema for every dispatch step
 - Declare every external input and the first step that reads it
 - Normalize parallel fanout before downstream synthesis depends on one contract
+- Include an `artifacts:` section in `circuit.yaml` that declares every artifact with `id`, `type`, `produced_by`, and `consumed_by` -- consistent with step-level `produces:`/`consumes:` fields
 
 #### Gate Semantics
 
@@ -453,7 +487,7 @@ Short paragraph explaining the validator's core model and what a passing trace m
 1. Define the circuit family and trigger surface.
 2. Lock the topology and step granularity.
 3. Inventory the artifact chain and every external input.
-4. Draft `circuit.yaml` with the live topology schema.
+4. Draft `circuit.yaml` with the live topology schema, including the `artifacts:` section.
 5. Draft `SKILL.md` frontmatter and shared sections.
 6. Write every step contract with the right action pattern.
 7. Add gates, verdicts, and reopen choreography.

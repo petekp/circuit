@@ -12,6 +12,96 @@ circuit:
     greenfield feature delivery, architecture decisions, cleanup-only sweeps,
     one-off fixes, or repos without explicit build/test/verify commands.
 
+  artifacts:
+    - id: mission-brief.md
+      type: synthesis
+      produced_by: mission-freeze
+      consumed_by: [triage-probes, baseline-repair, stability-audit, stabilize-ratchet, exploration-fanout, proposal-synthesis, design-review, envision-ratchet, plan-synthesis, plan-review, execute-batches, execution-audit, final-review, closeout-packet]
+    - id: baseline-audit.md
+      type: dispatch
+      produced_by: triage-probes
+      consumed_by: [baseline-repair, stability-audit]
+    - id: quality-calibration.md
+      type: dispatch
+      produced_by: triage-probes
+      consumed_by: [baseline-repair, stability-audit, stabilize-ratchet, exploration-fanout, proposal-synthesis, design-review, envision-ratchet, plan-synthesis, plan-review, plan-ratchet, execute-batches, execution-audit, execution-ratchet, final-review, closeout-packet]
+    - id: improvement-backlog.md
+      type: dispatch
+      produced_by: triage-probes
+      consumed_by: [exploration-fanout]
+    - id: stabilization-report.md
+      type: dispatch
+      produced_by: baseline-repair
+      consumed_by: [stability-audit, stabilize-ratchet]
+    - id: stability-findings.md
+      type: dispatch
+      produced_by: stability-audit
+      consumed_by: [stabilize-ratchet]
+    - id: stability-gate.md
+      type: dispatch
+      produced_by: stabilize-ratchet
+      consumed_by: [exploration-fanout, design-review, plan-synthesis, execute-batches]
+    - id: inside-out-digest.md
+      type: dispatch
+      produced_by: exploration-fanout
+      consumed_by: [proposal-synthesis]
+    - id: outside-in-digest.md
+      type: dispatch
+      produced_by: exploration-fanout
+      consumed_by: [proposal-synthesis]
+    - id: improvement-proposal.md
+      type: synthesis
+      produced_by: proposal-synthesis
+      consumed_by: [design-review, envision-ratchet]
+    - id: design-review.md
+      type: dispatch
+      produced_by: design-review
+      consumed_by: [envision-ratchet]
+    - id: envisioned-packet.md
+      type: dispatch
+      produced_by: envision-ratchet
+      consumed_by: [plan-synthesis, plan-review, plan-ratchet]
+    - id: implementation-plan.md
+      type: synthesis
+      produced_by: plan-synthesis
+      consumed_by: [plan-review, plan-ratchet]
+    - id: plan-review.md
+      type: dispatch
+      produced_by: plan-review
+      consumed_by: [plan-ratchet]
+    - id: execution-charter.md
+      type: dispatch
+      produced_by: plan-ratchet
+      consumed_by: [execute-batches, execution-audit, final-review]
+    - id: execution-log.md
+      type: dispatch
+      produced_by: execute-batches
+      consumed_by: [execution-audit, execution-ratchet]
+    - id: execution-audit.md
+      type: dispatch
+      produced_by: execution-audit
+      consumed_by: [execution-ratchet]
+    - id: execution-report.md
+      type: dispatch
+      produced_by: execution-ratchet
+      consumed_by: [final-review, closeout-packet]
+    - id: final-review.md
+      type: dispatch
+      produced_by: final-review
+      consumed_by: [closeout-packet]
+    - id: overnight-handoff.md
+      type: synthesis
+      produced_by: closeout-packet
+      consumed_by: []
+    - id: pr-brief.md
+      type: synthesis
+      produced_by: closeout-packet
+      consumed_by: []
+    - id: deferred-work.md
+      type: synthesis
+      produced_by: closeout-packet
+      consumed_by: []
+
   phases:
     - id: triage
       title: Triage

@@ -10,6 +10,40 @@ circuit:
     batched execution → verification → cutover through 5 phases.
     Topology only — this file does not encode runtime behavior or adapter contracts.
 
+  artifacts:
+    - id: migration-brief.md
+      type: interactive
+      produced_by: migration-brief
+      consumed_by: [inventory-probes, coexistence-plan, full-verification]
+    - id: dependency-inventory.md
+      type: dispatch
+      produced_by: inventory-probes
+      consumed_by: [coexistence-plan, full-verification]
+    - id: risk-assessment.md
+      type: dispatch
+      produced_by: inventory-probes
+      consumed_by: [coexistence-plan, migration-steer, batch-migration]
+    - id: coexistence-plan.md
+      type: synthesis
+      produced_by: coexistence-plan
+      consumed_by: [migration-steer, batch-migration, cutover-review]
+    - id: migration-steer.md
+      type: interactive
+      produced_by: migration-steer
+      consumed_by: [batch-migration]
+    - id: batch-log.md
+      type: dispatch
+      produced_by: batch-migration
+      consumed_by: [full-verification, cutover-review]
+    - id: verification-report.md
+      type: dispatch
+      produced_by: full-verification
+      consumed_by: [cutover-review]
+    - id: cutover-report.md
+      type: dispatch
+      produced_by: cutover-review
+      consumed_by: []
+
   phases:
     - id: scope
       title: Scope

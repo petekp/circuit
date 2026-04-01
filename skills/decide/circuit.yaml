@@ -10,6 +10,40 @@ circuit:
     pressure test -> published decision guide through 5 phases. Topology only —
     this file does not encode runtime behavior or adapter contracts.
 
+  artifacts:
+    - id: decision-brief.md
+      type: interactive
+      produced_by: decision-frame
+      consumed_by: [current-system-map, generate-serious-options, score-and-compare, publish-adr-and-implementation-guide]
+    - id: current-system-map.md
+      type: dispatch
+      produced_by: current-system-map
+      consumed_by: [generate-serious-options, score-and-compare, pressure-test-leading-option, publish-adr-and-implementation-guide]
+    - id: decision-options.md
+      type: dispatch
+      produced_by: generate-serious-options
+      consumed_by: [score-and-compare, pressure-test-leading-option]
+    - id: decision-scorecard.md
+      type: synthesis
+      produced_by: score-and-compare
+      consumed_by: [tradeoff-weighting-checkpoint, pressure-test-leading-option, decision-commit]
+    - id: decision-steer.md
+      type: interactive
+      produced_by: tradeoff-weighting-checkpoint
+      consumed_by: [pressure-test-leading-option]
+    - id: pressure-report.md
+      type: dispatch
+      produced_by: pressure-test-leading-option
+      consumed_by: [decision-commit, publish-adr-and-implementation-guide]
+    - id: decision-choice.md
+      type: interactive
+      produced_by: decision-commit
+      consumed_by: [publish-adr-and-implementation-guide]
+    - id: decision-guide.md
+      type: synthesis
+      produced_by: publish-adr-and-implementation-guide
+      consumed_by: []
+
   phases:
     - id: framing
       title: Framing

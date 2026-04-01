@@ -9,6 +9,24 @@ circuit:
     confirmation, then executes with implement/review/converge. 4 steps across
     3 phases: Scope -> Execute -> Summary.
 
+  artifacts:
+    - id: scope.md
+      type: synthesis
+      produced_by: auto-scope
+      consumed_by: [scope-confirmation]
+    - id: scope-confirmed.md
+      type: interactive
+      produced_by: scope-confirmation
+      consumed_by: [implement, done-summary]
+    - id: execution-handoff.md
+      type: dispatch
+      produced_by: implement
+      consumed_by: [done-summary]
+    - id: done.md
+      type: synthesis
+      produced_by: done-summary
+      consumed_by: []
+
   phases:
     - id: scope
       title: Scope

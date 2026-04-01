@@ -10,6 +10,40 @@ circuit:
     5 phases. Topology only - this file does not encode runtime behavior or
     authoring references.
 
+  artifacts:
+    - id: workflow-brief.md
+      type: interactive
+      produced_by: workflow-intake
+      consumed_by: [pattern-mapping, compile-circuit-files]
+    - id: circuit-analysis.md
+      type: dispatch
+      produced_by: pattern-mapping
+      consumed_by: [compile-circuit-files]
+    - id: draft-circuit.yaml
+      type: dispatch
+      produced_by: compile-circuit-files
+      consumed_by: [quality-gate, claude-code-refinement]
+    - id: draft-SKILL.md
+      type: dispatch
+      produced_by: compile-circuit-files
+      consumed_by: [quality-gate, claude-code-refinement]
+    - id: cross-validation.md
+      type: dispatch
+      produced_by: compile-circuit-files
+      consumed_by: [quality-gate, claude-code-refinement]
+    - id: validation-report.md
+      type: dispatch
+      produced_by: quality-gate
+      consumed_by: [claude-code-refinement]
+    - id: circuit.yaml
+      type: synthesis
+      produced_by: claude-code-refinement
+      consumed_by: []
+    - id: SKILL.md
+      type: synthesis
+      produced_by: claude-code-refinement
+      consumed_by: []
+
   phases:
     - id: intake
       title: Intake

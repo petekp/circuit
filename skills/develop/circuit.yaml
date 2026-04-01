@@ -21,6 +21,52 @@ circuit:
       skipped_phases: [evidence, decision]
       skipped_steps: [evidence-probes, constraints-synthesis, generate-candidates, adversarial-evaluation, tradeoff-decision, prove-seam]
 
+  artifacts:
+    - id: intent-brief.md
+      type: interactive
+      produced_by: intent-lock
+      consumed_by: [evidence-probes, generate-candidates, implementation-contract, ship-review]
+    - id: external-digest.md
+      type: dispatch
+      produced_by: evidence-probes
+      consumed_by: [constraints-synthesis]
+    - id: internal-digest.md
+      type: dispatch
+      produced_by: evidence-probes
+      consumed_by: [constraints-synthesis]
+    - id: constraints.md
+      type: synthesis
+      produced_by: constraints-synthesis
+      consumed_by: [generate-candidates, adversarial-evaluation, implementation-contract]
+    - id: options.md
+      type: dispatch
+      produced_by: generate-candidates
+      consumed_by: [adversarial-evaluation]
+    - id: decision-packet.md
+      type: dispatch
+      produced_by: adversarial-evaluation
+      consumed_by: [tradeoff-decision]
+    - id: adr.md
+      type: interactive
+      produced_by: tradeoff-decision
+      consumed_by: [implementation-contract]
+    - id: execution-packet.md
+      type: synthesis
+      produced_by: implementation-contract
+      consumed_by: [prove-seam, implement, ship-review]
+    - id: seam-proof.md
+      type: dispatch
+      produced_by: prove-seam
+      consumed_by: []
+    - id: implementation-handoff.md
+      type: dispatch
+      produced_by: implement
+      consumed_by: [ship-review]
+    - id: ship-review.md
+      type: dispatch
+      produced_by: ship-review
+      consumed_by: []
+
   phases:
     - id: alignment
       title: Alignment

@@ -10,6 +10,24 @@ circuit:
     promotion. Topology only — this file describes the dry-run workflow, not the
     target circuit being validated.
 
+  artifacts:
+    - id: validation-scope.md
+      type: interactive
+      produced_by: collect-inputs
+      consumed_by: [resolve-constants, inventory-steps, simulate-and-trace]
+    - id: resolved-constants.md
+      type: synthesis
+      produced_by: resolve-constants
+      consumed_by: [inventory-steps, simulate-and-trace]
+    - id: step-inventory.md
+      type: synthesis
+      produced_by: inventory-steps
+      consumed_by: [simulate-and-trace]
+    - id: dry-run-trace.md
+      type: synthesis
+      produced_by: simulate-and-trace
+      consumed_by: []
+
   phases:
     - id: validation
       title: Validation

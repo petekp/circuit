@@ -11,6 +11,60 @@ circuit:
     review). Topology only — runtime behavior, adapter contracts, and proof
     heuristics live in SKILL.md.
 
+  artifacts:
+    - id: cleanup-scope.md
+      type: interactive
+      produced_by: cleanup-scope
+      consumed_by: [category-survey-fanout, survey-consolidation, triage-classification, evidence-adjudication, cleanup-batch-execution, verification-audit]
+    - id: dead-code-findings.md
+      type: dispatch
+      produced_by: category-survey-fanout
+      consumed_by: [survey-consolidation]
+    - id: stale-docs-findings.md
+      type: dispatch
+      produced_by: category-survey-fanout
+      consumed_by: [survey-consolidation]
+    - id: orphaned-artifacts-findings.md
+      type: dispatch
+      produced_by: category-survey-fanout
+      consumed_by: [survey-consolidation]
+    - id: vestigial-comments-findings.md
+      type: dispatch
+      produced_by: category-survey-fanout
+      consumed_by: [survey-consolidation]
+    - id: redundant-abstractions-findings.md
+      type: dispatch
+      produced_by: category-survey-fanout
+      consumed_by: [survey-consolidation]
+    - id: survey-inventory.md
+      type: synthesis
+      produced_by: survey-consolidation
+      consumed_by: [triage-classification]
+    - id: triage-report.md
+      type: synthesis
+      produced_by: triage-classification
+      consumed_by: [evidence-adjudication, cleanup-batch-execution, verification-audit, verification-synthesis]
+    - id: evidence-log.md
+      type: dispatch
+      produced_by: evidence-adjudication
+      consumed_by: [cleanup-batch-execution, verification-audit, verification-synthesis]
+    - id: cleanup-batches.md
+      type: dispatch
+      produced_by: cleanup-batch-execution
+      consumed_by: [verification-audit, verification-synthesis]
+    - id: verification-audit.md
+      type: dispatch
+      produced_by: verification-audit
+      consumed_by: [verification-synthesis]
+    - id: verification-report.md
+      type: synthesis
+      produced_by: verification-synthesis
+      consumed_by: []
+    - id: deferred-review.md
+      type: synthesis
+      produced_by: verification-synthesis
+      consumed_by: []
+
   phases:
     - id: survey
       title: Survey

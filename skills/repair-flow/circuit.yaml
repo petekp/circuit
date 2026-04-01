@@ -9,6 +9,40 @@ circuit:
     → live re-audit through 5 phases. Topology only — this file does not encode runtime
     behavior or adapter contracts.
 
+  artifacts:
+    - id: failure-brief.md
+      type: interactive
+      produced_by: failure-brief
+      consumed_by: [live-flow-audit, layered-causal-map, regression-contract, flow-reaudit]
+    - id: audit-trace.md
+      type: dispatch
+      produced_by: live-flow-audit
+      consumed_by: [layered-causal-map, flow-reaudit]
+    - id: causal-map.md
+      type: synthesis
+      produced_by: layered-causal-map
+      consumed_by: [repair-focus-checkpoint, regression-contract, repair-packet]
+    - id: repair-steer.md
+      type: interactive
+      produced_by: repair-focus-checkpoint
+      consumed_by: [regression-contract, repair-packet]
+    - id: regression-contract.md
+      type: dispatch
+      produced_by: regression-contract
+      consumed_by: [repair-packet, layered-repair]
+    - id: repair-packet.md
+      type: synthesis
+      produced_by: repair-packet
+      consumed_by: [layered-repair]
+    - id: repair-handoff.md
+      type: dispatch
+      produced_by: layered-repair
+      consumed_by: [flow-reaudit]
+    - id: flow-verdict.md
+      type: dispatch
+      produced_by: flow-reaudit
+      consumed_by: []
+
   phases:
     - id: failure-framing
       title: Failure Framing

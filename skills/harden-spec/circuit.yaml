@@ -10,6 +10,48 @@ circuit:
     digest -> critique -> amendment -> contract -> plan across 6 phases.
     Topology only - this file does not encode runtime behavior or adapter contracts.
 
+  artifacts:
+    - id: spec-brief.md
+      type: interactive
+      produced_by: spec-intake
+      consumed_by: [draft-digest]
+    - id: draft-digest.md
+      type: synthesis
+      produced_by: draft-digest
+      consumed_by: [parallel-review-passes, amended-draft]
+    - id: implementer-review.md
+      type: dispatch
+      produced_by: parallel-review-passes
+      consumed_by: [caveat-resolution]
+    - id: systems-review.md
+      type: dispatch
+      produced_by: parallel-review-passes
+      consumed_by: [caveat-resolution, execution-packet]
+    - id: comparative-review.md
+      type: dispatch
+      produced_by: parallel-review-passes
+      consumed_by: [caveat-resolution]
+    - id: caveat-resolution.md
+      type: interactive
+      produced_by: caveat-resolution
+      consumed_by: [amended-draft, execution-packet]
+    - id: amended-spec.md
+      type: synthesis
+      produced_by: amended-draft
+      consumed_by: [execution-packet, implementation-plan]
+    - id: execution-packet.md
+      type: synthesis
+      produced_by: execution-packet
+      consumed_by: [implementation-plan, plan-review]
+    - id: implementation-plan.md
+      type: synthesis
+      produced_by: implementation-plan
+      consumed_by: [plan-review]
+    - id: plan-review.md
+      type: dispatch
+      produced_by: plan-review
+      consumed_by: []
+
   phases:
     - id: intake
       title: Intake

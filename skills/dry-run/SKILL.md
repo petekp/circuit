@@ -317,6 +317,19 @@ After the end-to-end simulation, do one short sweep for issues that hide between
 2. Re-scan every mentally assembled prompt for unresolved `{...}` tokens
 3. Verify every consumed artifact has exactly one upstream producer
 4. If the circuit uses external templates or scripts, verify flags and output names match the real interface
+5. **Validate artifact declarations.** If the target `circuit.yaml` contains an
+   `artifacts:` section, check it for consistency with the step-level
+   `produces:` and `consumes:` fields:
+   - Every artifact in `artifacts:` must have a `produced_by` step whose
+     `produces:` field lists that artifact
+   - Every step's `consumes:` entries must appear in `artifacts:` with that
+     step listed in `consumed_by`
+   - Every step's `produces:` entries must appear in `artifacts:` with that
+     step listed in `produced_by`
+   - The artifact graph must be a DAG (no cycles in the produced_by/consumed_by
+     chain)
+   - If `artifacts:` is missing entirely, record that as a finding (not a
+     blocking failure for legacy circuits, but a required section for new ones)
 
 This is a safety net, not a second audit. Keep it brief.
 

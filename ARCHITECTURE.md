@@ -850,6 +850,49 @@ This validator symbolically executes every step with a concrete test feature:
 The dry run produces a trace file with pass/fail results for every dimension of
 every step, plus a terminal verdict of `PASS`, `PASS_WITH_NOTES`, or `FAIL`.
 
+### Artifact Declarations
+
+Every `circuit.yaml` includes a top-level `artifacts:` section that declares
+every artifact in the circuit's chain as structured data. This section sits
+between the circuit description (and modes, if present) and the `phases:`
+section.
+
+```yaml
+artifacts:
+  - id: scope.md
+    type: synthesis
+    produced_by: auto-scope
+    consumed_by: [scope-confirmation]
+  - id: scope-confirmed.md
+    type: interactive
+    produced_by: scope-confirmation
+    consumed_by: [implement, done-summary]
+```
+
+Each entry declares:
+
+- **`id`**: The artifact filename (bare name, no path prefix).
+- **`type`**: Matches the action type of the producing step (`synthesis`,
+  `interactive`, or `dispatch`).
+- **`produced_by`**: The step id that creates this artifact. Exactly one
+  producer per artifact.
+- **`consumed_by`**: The step ids that read this artifact. May be empty for
+  terminal artifacts.
+
+This creates a machine-checkable dependency graph with these invariants:
+
+1. Every artifact in `artifacts:` has exactly one `produced_by` step.
+2. Every step's `produces:` output appears in `artifacts:`.
+3. Every step's `consumes:` input appears in `artifacts:` and lists that step
+   in `consumed_by`.
+4. The graph is a DAG (no cycles).
+
+The `circuit:dry-run` validator uses the `artifacts:` section to mechanically
+verify artifact chain integrity without tracing step-by-step through the
+phases. When the structured declaration and the step-level `produces:`/`consumes:`
+fields disagree, that is a first-class defect -- the same kind of drift that
+`AP-15` (Prose/YAML Drift) catches between `SKILL.md` and `circuit.yaml`.
+
 ### The `circuit.yaml` Schema
 
 ```yaml
@@ -860,6 +903,12 @@ circuit:
   title: Human-Readable Title
   description: >
     One-sentence thesis. Topology only.
+
+  artifacts:                      # structured artifact manifest
+    - id: artifact-name.md
+      type: interactive | dispatch | synthesis
+      produced_by: step-id
+      consumed_by: [step-id, ...]
 
   phases:
     - id: phase-id               # kebab-case
