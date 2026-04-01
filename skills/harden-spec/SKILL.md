@@ -234,6 +234,8 @@ once Step 2 is complete.
 
 ### Step 3: Implementer Review - `dispatch`
 
+> **Protocol reference:** Steps 3-5 use the parallel evidence probes pattern. See `protocols/parallel-evidence-probes.md` for the canonical version.
+
 **Objective:** Evaluate whether the draft can actually be built, tested, and
 sequenced by implementers.
 
@@ -532,6 +534,8 @@ associated test or verification responsibility.
 ## Phase 6: Validation
 
 ### Step 10: Plan Review - `dispatch`
+
+> **Protocol reference:** See `protocols/final-review.md` for the canonical version of this pattern.
 
 **Objective:** Adversarially review the implementation plan before anyone starts
 coding from it.

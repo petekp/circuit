@@ -407,6 +407,8 @@ team cannot tell when to reopen the audit.
 
 ### Step 7: Layered Repair -- `dispatch` (via workers)
 
+> **Protocol reference:** See `protocols/workers-execute.md` for the canonical version of this pattern.
+
 **Objective:** Implement the repair slices in dependency order and converge on a coherent
 fix set.
 

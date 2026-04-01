@@ -148,6 +148,8 @@ Command, and Test Command. At least one high-risk boundary named or explicit
 
 ### Step 2: Category Survey Fanout — `dispatch`, parallel
 
+> **Protocol reference:** See `protocols/parallel-evidence-probes.md` for the canonical version of this pattern.
+
 **Objective:** Scan the target codebase for detritus candidates across 5
 independent categories.
 
@@ -417,6 +419,8 @@ Compose and dispatch using the standard recipe: `compose-prompt.sh --header .../
 
 ### Step 6: Cleanup Batch Execution — `dispatch` via `workers`
 
+> **Protocol reference:** See `protocols/workers-execute.md` for the canonical version of this pattern.
+
 **Objective:** Remove confirmed-dead items in ordered batches with build/test
 verification after each batch.
 
@@ -532,7 +536,9 @@ failed batches.
 
 ### Step 7: Verification Audit — `dispatch`
 
-**Objective:** Independent assessment of the cleanup (diagnose-only — see
+> **Protocol reference:** See `protocols/final-review.md` for the canonical version of this pattern.
+
+**Objective:** Independent assessment of the cleanup (diagnose-only -- see
 contract below).
 
 Write a prompt header to `${RUN_ROOT}/phases/step-7/prompt-header-audit.md`:

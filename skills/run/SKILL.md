@@ -221,6 +221,8 @@ the circuit stops here.
 
 ### Step 3: Implement — `dispatch` (via workers)
 
+> **Protocol reference:** See `protocols/workers-execute.md` for the canonical version of this pattern.
+
 **Objective:** Build against the confirmed scope with independent review.
 
 This step delegates to workers for the full implement -> review -> converge

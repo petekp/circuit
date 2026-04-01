@@ -156,6 +156,9 @@ File Scopes`; `Verification Command Sets`; `Quality Bar Translation`;
 - `Constraints` and `Success Definition` use stable `MB-*` ids.
 - `Quality Bar Translation` and `Non Goals` are falsifiable bullets, not vague wishes.
 ### Step 2: Triage Probes - `dispatch`, parallel
+
+> **Protocol reference:** See `protocols/parallel-evidence-probes.md` for the canonical version of this pattern.
+
 **Mission:** Capture the starting state from 3 independent angles: baseline,
 quality calibration, and improvement inventory.
 **Consumes:** `mission-brief.md`
@@ -185,6 +188,9 @@ add one only if the repo's domain would otherwise make the output generic.
   `IMPROVEMENT`, or `DEFER`, with at least one cited `BA-*` or `MB-*` id.
 ## Phase 2: Stabilize
 ### Step 3: Baseline Repair - `dispatch` via `workers`
+
+> **Protocol reference:** See `protocols/workers-execute.md` for the canonical version of this pattern.
+
 **Mission:** Restore trust in the baseline before broader improvement work
 starts. Fix only what belongs to the baseline-restoration boundary.
 **Consumes:** `mission-brief.md`, `baseline-audit.md`, `quality-calibration.md`
@@ -247,6 +253,9 @@ Checks:
 - Any reopen uses the shared reopen invalidation protocol and records archive details.
 ## Phase 3: Envision
 ### Step 6: Exploration Fanout - `dispatch`, parallel
+
+> **Protocol reference:** See `protocols/parallel-evidence-probes.md` for the canonical version of this pattern.
+
 **Mission:** Explore improvement directions from inside the codebase and from
 outside exemplars without yet committing to a solution packet.
 **Consumes:** `mission-brief.md`, `quality-calibration.md`, `stability-gate.md`, `improvement-backlog.md`
@@ -381,6 +390,9 @@ Checks:
 - `Verdict`, `Ready Means`, and `Reopen Decision` agree with `plan-review.md`.
 ## Phase 5: Execute
 ### Step 13: Execute Batches - `dispatch` via `workers`
+
+> **Protocol reference:** See `protocols/workers-execute.md` for the canonical version of this pattern.
+
 **Mission:** Execute the charter in deterministic batch order without
 improvising a new sequence or silently expanding scope.
 **Consumes:** `execution-charter.md`, `quality-calibration.md`, `stability-gate.md`, `mission-brief.md`
@@ -422,6 +434,9 @@ dispatch recipe.
 - `Verdict` is exactly one of `ready`, `partial`, `reopen_plan`.
 - `Reopen Recommendation` is explicit `NONE` or records a governing issue and target.
 ### Step 15: Execution Ratchet - `dispatch` via `workers`
+
+> **Protocol reference:** See `protocols/workers-execute.md` for the canonical version of this pattern.
+
 **Mission:** Consume execution findings, repair only what belongs to Execute,
 and publish the honest delivery packet for Finalize.
 **Consumes:** `execution-log.md`, `execution-audit.md`, `execution-charter.md`, `quality-calibration.md`
@@ -451,6 +466,9 @@ Checks:
 - Any reopen uses the shared reopen invalidation protocol and records archive details.
 ## Phase 6: Finalize
 ### Step 16: Final Review - `dispatch`
+
+> **Protocol reference:** See `protocols/final-review.md` for the canonical version of this pattern.
+
 **Mission:** Decide whether the run is ship-ready, honestly partial, or still
 blocked inside Execute. This step is diagnose-only and terminal.
 **Consumes:** `mission-brief.md`, `quality-calibration.md`, `execution-report.md`, `execution-charter.md`

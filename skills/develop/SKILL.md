@@ -551,6 +551,8 @@ spec-review variant described below.
 
 ### Step 2: Parallel Evidence Probes -- `dispatch`
 
+> **Protocol reference:** See `protocols/parallel-evidence-probes.md` for the canonical version of this pattern.
+
 **Objective:** Gather external patterns and internal system surface in parallel.
 
 Dispatch two workers. Each header is self-contained (no `--template`).
@@ -915,6 +917,8 @@ cp ${RUN_ROOT}/phases/step-8/seam-proof.md ${RUN_ROOT}/artifacts/seam-proof.md
 
 ### Step 9: Implement -- `dispatch` (via workers)
 
+> **Protocol reference:** See `protocols/workers-execute.md` for the canonical version of this pattern.
+
 **Objective:** Build against the execution packet with traceability.
 
 This step delegates to the workers skill for the full implement → review → converge
@@ -990,6 +994,8 @@ test -f ${RUN_ROOT}/artifacts/implementation-handoff.md
 ```
 
 ### Step 10: Final Ship Review -- `dispatch`
+
+> **Protocol reference:** See `protocols/final-review.md` for the canonical version of this pattern.
 
 **Objective:** Independent assessment of the shipped work against the execution packet.
 

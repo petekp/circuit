@@ -22,7 +22,8 @@ Circuits are the structural answer to all three failure modes.
 4. [The Gate System](#the-gate-system)
 5. [Relay Infrastructure](#relay-infrastructure)
 6. [Circuit Composition](#circuit-composition)
-7. [Extending the System](#extending-the-system)
+7. [Protocol Cards](#protocol-cards)
+8. [Extending the System](#extending-the-system)
 
 ---
 
@@ -779,6 +780,56 @@ mapping:
 
 ---
 
+## Protocol Cards
+
+Several execution mechanics repeat across multiple circuits: the workers
+delegation pattern, the final review dispatch, and the parallel evidence
+probe fanout. Rather than duplicating these patterns in every circuit's
+SKILL.md, they are documented once as **protocol cards** in the `protocols/`
+directory at the repo root.
+
+### What Protocol Cards Are
+
+A protocol card is a standalone reference document that describes one
+reusable execution mechanic at full detail -- workspace setup, prompt
+assembly, dispatch, post-dispatch synthesis, gates, and circuit breakers.
+Protocol cards are not tutorials. They are dense, precise, scannable
+reference docs designed to be read by the orchestrator during circuit
+execution.
+
+### Where They Live
+
+```
+protocols/
+  workers-execute.md          # Workers delegation (implement -> review -> converge)
+  final-review.md             # Assessment-only terminal review dispatch
+  parallel-evidence-probes.md # Parallel independent research workers
+```
+
+### How Circuits Reference Them
+
+Circuit SKILL.md files include a protocol reference note at the step where
+the pattern is used:
+
+```markdown
+> **Protocol reference:** See `protocols/workers-execute.md` for the canonical version of this pattern.
+```
+
+The existing step-level detail in each SKILL.md is preserved (not replaced)
+for now. The protocol cards serve as the canonical source of truth for the
+shared mechanics, while circuit-specific variations (charter schemas,
+artifact names, retry budgets) remain in the circuit's own SKILL.md.
+
+### Current Cards
+
+| Card | Pattern | Used by |
+|------|---------|---------|
+| `workers-execute.md` | Full workers delegation: workspace setup, CHARTER.md, compose, dispatch, readback, synthesis | develop (Step 9), run (Step 3), repair-flow (Step 7), ratchet-quality (Steps 3, 13, 15), cleanup (Step 6) |
+| `final-review.md` | Assessment-only review: diagnose but do not modify source, structured findings, verdict routing, re-run logic | develop (Step 10), ratchet-quality (Step 16), harden-spec (Step 10), cleanup (Step 7) |
+| `parallel-evidence-probes.md` | Parallel independent workers: per-worker directories, self-contained headers, evidence digest schema, parallel dispatch | develop (Step 2), harden-spec (Steps 3-5), ratchet-quality (Steps 2, 6), cleanup (Step 2) |
+
+---
+
 ## Extending the System
 
 ### Creating New Circuits via `circuit:create`
@@ -1001,6 +1052,10 @@ The system catalogs 25 named anti-patterns. The most important:
 
 ```
 circuit/
+  protocols/
+    workers-execute.md        # Workers delegation protocol card
+    final-review.md           # Assessment-only review protocol card
+    parallel-evidence-probes.md # Parallel evidence probes protocol card
   hooks/
     hooks.json              # SessionStart hook registration
     session-start.sh        # Prerequisite check + circuit catalog banner
