@@ -1,0 +1,39 @@
+# CI Ratchets: v1 to v2 Migration
+# Each pattern has a budget equal to its current count.
+# Budgets can only decrease. Reaching 0 = pattern fully eliminated.
+
+ratchets:
+  - id: resume-awareness
+    pattern: "Resume Awareness"
+    scope: "skills/"
+    budget: 0  # driven to zero by slices 008+010
+    problem: "Per-circuit resume prose; replaced by universal resume algorithm"
+    eliminated_by: [slice-008, slice-010, slice-013]
+
+  - id: compose-prompt-refs
+    pattern: "compose-prompt"
+    scope: "skills/"
+    budget: 54
+    problem: "Direct references to prompt assembly script; replaced by capability resolution"
+    eliminated_by: [slice-011, slice-013]
+
+  - id: dispatch-sh-refs
+    pattern: "dispatch\\.sh"
+    scope: "skills/"
+    budget: 45
+    problem: "Direct references to dispatch script; replaced by typed dispatch protocol"
+    eliminated_by: [slice-009, slice-011, slice-013]
+
+  - id: relay-root-tokens
+    pattern: "relay_root"
+    scope: "skills/"
+    budget: 33
+    problem: "Unresolved placeholder tokens; replaced by structured manifest paths"
+    eliminated_by: [slice-005, slice-007]
+
+  - id: batch-json-refs
+    pattern: "batch\\.json"
+    scope: "skills/"
+    budget: 6  # reduced from 42; remaining 6 are in skills/workers/ (legitimate)
+    problem: "Parent circuits depend on worker batch internals; sealed behind workers-execute@v1"
+    eliminated_by: [slice-009]

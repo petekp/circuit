@@ -260,7 +260,7 @@ slices:
     type: implementation
     name: "Seal the workers boundary"
     spec_step: 11
-    status: proposed
+    status: done
     dependencies: [slice-008]
     touched_paths:
       - skills/workers/SKILL.md
@@ -288,7 +288,7 @@ slices:
     type: implementation
     name: "Universal resume algorithm"
     spec_step: 12
-    status: proposed
+    status: done
     dependencies: [slice-008]
     touched_paths:
       - skills/*/SKILL.md  # remove runtime resume prose
@@ -343,7 +343,7 @@ slices:
     type: implementation
     name: "Single-entry-point router"
     spec_step: 14
-    status: proposed
+    status: done
     dependencies: [slice-008]
     touched_paths:
       - skills/router/SKILL.md
