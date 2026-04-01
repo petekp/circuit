@@ -45,12 +45,12 @@ cat <<'BANNER'
 # Circuitry
 
 ```
-/circuit:router <describe your task>
+/circuit <describe your task>
 ```
 
-Circuits are structured, multi-phase workflows where each step writes a durable file on disk that feeds the next. Heavy implementation is dispatched to isolated worker sessions automatically (via **Codex CLI** when installed, or **Claude Agent** as fallback). If a session crashes, a fresh one reads the files and resumes exactly where it stopped.
+The router picks the right circuit for your task automatically. Named circuits like `/circuit:run <task>` are available as expert shortcuts.
 
-The router picks the right circuit for your task. Start there.
+Circuits are structured, multi-phase workflows where each step writes a durable file on disk that feeds the next. Heavy implementation is dispatched to isolated worker sessions automatically (via **Codex CLI** when installed, or **Claude Agent** as fallback). If a session crashes, a fresh one reads the files and resumes exactly where it stopped.
 
 ---
 
@@ -58,10 +58,10 @@ The router picks the right circuit for your task. Start there.
 
 | Circuit | Invoke | Use When |
 |---------|--------|----------|
-| **Router** | `/circuit:router` | Unsure which circuit fits — start here |
 | **Run** | `/circuit:run` | Clear task that benefits from planning and review |
 | **Develop** | `/circuit:develop` | Feature delivery with unclear approach (`--spec-review` for existing specs) |
 | **Decide** | `/circuit:decide` | Architecture choices with real tradeoffs |
+| **Fix** | `/circuit:fix` | Known bug with test-first discipline |
 | **Repair Flow** | `/circuit:repair-flow` | Fix a broken or flaky end-to-end flow |
 | **Ratchet Quality** | `/circuit:ratchet-quality` | Autonomous overnight quality improvement |
 | **Cleanup** | `/circuit:cleanup` | Dead code and stale docs sweep |

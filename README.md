@@ -28,8 +28,11 @@ claude plugin install petekp/circuitry
 ```
 
 ```
-/circuit:run <describe your task>
+/circuit <describe your task>
 ```
+
+The router picks the right circuit automatically. You can also invoke a
+specific circuit directly as an expert shortcut, e.g. `/circuit:run <task>`.
 
 ## What's Inside
 
@@ -47,10 +50,13 @@ claude plugin install petekp/circuitry
 | Dry Run | `/circuit:dry-run` | Validating a circuit is mechanically sound before real use |
 | Setup | `/circuit:setup` | Discover installed skills and generate circuit.config.yaml |
 
+`/circuit <task>` auto-routes to the right circuit from this table. Named
+circuits like `/circuit:run` bypass routing and invoke directly.
+
 ## Quick Start
 
 ```
-/circuit:run add a dark mode toggle that persists to localStorage
+/circuit add a dark mode toggle that persists to localStorage
 ```
 
 Here's what happens:

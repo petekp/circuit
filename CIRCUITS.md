@@ -1,6 +1,6 @@
 # Circuit Catalog
 
-The Circuitry plugin provides structured, artifact-driven workflows for complex engineering tasks. Each circuit defines a fixed phase sequence, produces durable artifacts at every step, and includes gates, circuit breakers, and resume logic so work survives session interruptions. Circuits are invoked via `/circuit:<name>` in Claude Code.
+The Circuitry plugin provides structured, artifact-driven workflows for complex engineering tasks. Each circuit defines a fixed phase sequence, produces durable artifacts at every step, and includes gates, circuit breakers, and resume logic so work survives session interruptions. Use `/circuit <task>` to auto-route, or invoke a specific circuit via `/circuit:<name>` in Claude Code.
 
 ## Quick Reference Table
 
@@ -28,7 +28,7 @@ The Circuitry plugin provides structured, artifact-driven workflows for complex 
 **Artifact chain (intent):** `intent-brief.md` -> `scope.md` -> `scope-confirmed.md` -> `execution-handoff.md` -> `done.md`
 **Example:** You need to add a dark mode toggle to the settings page that persists to localStorage. The circuit reads the codebase, writes a 2-slice scope (theme toggle component + persistence logic), shows you the plan for confirmation. After you confirm, workers implement each slice with independent review, convergence runs verification, and a summary tells you what changed.
 
-The default entry point for Circuitry. Start with `/circuit:run <task>` for any non-trivial work, or `/circuit:router <task>` to have the router pick the best circuit automatically. If your task needs a specialized circuit (research, architecture decisions, debugging), you get one automatically. Otherwise, circuit:run handles it with auto-scope, confirmation, and implement/review/converge.
+The default entry point for Circuitry. Start with `/circuit <task>` and the router picks the best circuit automatically. If your task needs a specialized circuit (research, architecture decisions, debugging), you get one automatically. Otherwise, circuit:run handles it with auto-scope, confirmation, and implement/review/converge.
 
 **Intent mode:** For tasks where you want to explicitly set priorities, non-goals, and kill criteria before auto-scope runs, invoke `/circuit:run --intent <task>`. This adds an interactive intent-lock step that produces `intent-brief.md`, which auto-scope then uses to constrain the plan.
 
@@ -182,8 +182,10 @@ The key question: *Are you improving living code or removing dead code?*
 
 ## Choosing a Circuit
 
-Start with `/circuit:run <task>` for any non-trivial work. The router picks the right
-circuit automatically. If you want to choose manually:
+Start with `/circuit <task>`. The router picks the right circuit automatically.
+
+Named circuits are available as expert shortcuts if you already know which one
+you want:
 
 - **"I have a clear task that spans multiple files"** -> `/circuit:run <task>`
 - **"I have a broken flow or flaky behavior"** -> `repair-flow`
