@@ -1,0 +1,439 @@
+# Migration Slices: v1 to v2 Architecture
+# Maps spec Section 10 migration steps to implementation slices
+
+slices:
+  # --- Track A: Circuit Topology (independent of infrastructure) ---
+
+  - id: slice-001
+    type: implementation
+    name: "Split run into run and fix"
+    spec_step: 1
+    status: done
+    dependencies: []
+    touched_paths:
+      - skills/run/SKILL.md
+      - skills/run/circuit.yaml
+      - skills/router/SKILL.md
+      - README.md
+      - CIRCUITS.md
+    external_surfaces:
+      - "/circuit:run slash command"
+      - "Router recommendations"
+    deletion_targets:
+      - "develop --light references in docs"
+    temp_artifacts: []
+    docs_to_update: [README.md, CIRCUITS.md]
+    dependency_changes: []
+    residue_queries:
+      - pattern: "develop.*--light"
+        scope: "."
+    verification_commands:
+      - "grep -r 'develop.*--light' . | grep -v '.git' | wc -l"  # must be 0
+    exit_criteria:
+      - "no product docs mention develop --light"
+      - "run has default and intent entry modes"
+
+  - id: slice-002
+    type: implementation
+    name: "Add the new fix circuit"
+    spec_step: 2
+    status: done
+    dependencies: [slice-001]
+    touched_paths:
+      - skills/fix/SKILL.md
+      - skills/fix/circuit.yaml
+      - skills/router/SKILL.md
+      - README.md
+      - CIRCUITS.md
+      - skills/setup/SKILL.md
+      - circuit.config.example.yaml
+    external_surfaces:
+      - "/circuit:fix slash command"
+      - "Router recommendations"
+    deletion_targets: []
+    temp_artifacts: []
+    docs_to_update: [README.md, CIRCUITS.md, skills/setup/SKILL.md]
+    dependency_changes: []
+    residue_queries: []
+    verification_commands:
+      - "test -f skills/fix/SKILL.md && test -f skills/fix/circuit.yaml && echo 'fix exists'"
+    exit_criteria:
+      - "fix exists as a first-class circuit"
+      - "router distinguishes run, fix, and repair-flow"
+
+  - id: slice-003
+    type: implementation
+    name: "Fold harden-spec into develop"
+    spec_step: 3
+    status: done
+    dependencies: []
+    touched_paths:
+      - skills/develop/SKILL.md
+      - skills/develop/circuit.yaml
+      - skills/router/SKILL.md
+      - skills/setup/SKILL.md
+      - circuit.config.example.yaml
+      - README.md
+      - CIRCUITS.md
+      - ARCHITECTURE.md
+      - skills/harden-spec/SKILL.md
+      - skills/harden-spec/circuit.yaml
+    external_surfaces:
+      - "/circuit:develop slash command"
+      - "Router recommendations"
+    deletion_targets:
+      - skills/harden-spec/  # delete or deprecate
+    temp_artifacts: []
+    docs_to_update: [README.md, CIRCUITS.md, ARCHITECTURE.md]
+    dependency_changes: []
+    residue_queries:
+      - pattern: "harden-spec"
+        scope: "skills/router/ README.md CIRCUITS.md"
+    verification_commands:
+      - "grep -r 'harden-spec' skills/router/ README.md CIRCUITS.md | wc -l"  # must be 0 (unless in deprecation notice)
+    exit_criteria:
+      - "develop can start from a referenced spec"
+      - "router no longer recommends harden-spec"
+
+  # --- Track B: Infrastructure (independent of topology) ---
+
+  - id: slice-004
+    type: implementation
+    name: "Write shared execution-tail protocol cards"
+    spec_step: 4
+    status: done
+    dependencies: []
+    touched_paths:
+      - protocols/workers-execute.md
+      - protocols/final-review.md
+      - protocols/parallel-evidence-probes.md
+      - skills/*/SKILL.md  # update refs
+      - ARCHITECTURE.md
+    external_surfaces: []
+    deletion_targets:
+      - "Duplicated execution-tail prose in each SKILL.md"
+    temp_artifacts: []
+    docs_to_update: [ARCHITECTURE.md]
+    dependency_changes: []
+    residue_queries: []
+    verification_commands:
+      - "ls protocols/*.md | wc -l"  # at least 3
+    exit_criteria:
+      - "execution-tail mechanics documented once"
+      - "circuit docs link to protocol cards"
+
+  - id: slice-005
+    type: implementation
+    name: "Fix relay layer runtime holes"
+    spec_step: 5
+    status: done
+    dependencies: []
+    touched_paths:
+      - scripts/relay/dispatch.sh
+      - scripts/relay/compose-prompt.sh
+      - skills/workers/references/implement-template.md
+      - skills/workers/references/review-template.md
+      - skills/workers/references/converge-template.md
+      - skills/workers/references/ship-review-template.md
+      - skills/workers/references/relay-protocol.md
+      - skills/dry-run/SKILL.md
+    external_surfaces:
+      - "Worker dispatch via Codex and Agent"
+    deletion_targets: []
+    temp_artifacts: []
+    docs_to_update: []
+    dependency_changes: []
+    residue_queries:
+      - pattern: "relay_root"
+        scope: "skills/workers/references/"
+        note: "must be resolved by compose-prompt.sh, not left as placeholder"
+    verification_commands:
+      - "bash scripts/relay/compose-prompt.sh --help 2>&1 | head -1"
+    exit_criteria:
+      - "dispatch receipt is machine-usable for every supported backend"
+      - "prompt assembly fails on any unresolved runtime placeholder"
+
+  - id: slice-006
+    type: implementation
+    name: "Add structured artifact declarations to every circuit"
+    spec_step: 6
+    status: done
+    dependencies: [slice-004]
+    touched_paths:
+      - skills/*/circuit.yaml
+      - ARCHITECTURE.md
+      - skills/create/SKILL.md
+      - skills/dry-run/SKILL.md
+    external_surfaces: []
+    deletion_targets: []
+    temp_artifacts: []
+    docs_to_update: [ARCHITECTURE.md]
+    dependency_changes: []
+    residue_queries: []
+    verification_commands:
+      - "for d in skills/*/circuit.yaml; do grep -q 'artifacts' $d && echo OK || echo MISSING: $d; done"
+    exit_criteria:
+      - "every product circuit declares artifacts in structured data"
+      - "dry-run validates the graph mechanically"
+
+  # --- Convergence Point: Runtime Foundation ---
+
+  - id: slice-007
+    type: implementation
+    name: "Runtime Foundation: event log, typed schemas, promote circuit.yaml"
+    spec_step: "7-9"
+    status: done
+    dependencies: [slice-006]
+    touched_paths:
+      - scripts/runtime/append-event.py
+      - scripts/runtime/derive-state.py
+      - scripts/runtime/resume.py
+      - schemas/state.schema.json
+      - schemas/event.schema.json
+      - schemas/circuit-manifest.schema.json
+      - schemas/dispatch-request.schema.json
+      - schemas/dispatch-receipt.schema.json
+      - schemas/job-result.schema.json
+      - schemas/checkpoint-request.schema.json
+      - schemas/checkpoint-response.schema.json
+      - schemas/handoff-packet.schema.json
+      - schemas/entry.schema.json
+      - schemas/capability-resolution.schema.json
+      - scripts/relay/update-batch.sh
+      - skills/*/circuit.yaml
+      - skills/*/SKILL.md
+      - ARCHITECTURE.md
+      - skills/dry-run/SKILL.md
+      - skills/create/SKILL.md
+    external_surfaces:
+      - "Run directory layout (.circuitry/runs/)"
+    deletion_targets:
+      - "Runtime prose in SKILL.md files (replaced by circuit.yaml)"
+    temp_artifacts: []
+    docs_to_update: [ARCHITECTURE.md]
+    dependency_changes: []
+    residue_queries:
+      - pattern: "Resume Awareness"
+        scope: "skills/"
+        note: "must decrease but does not need to reach 0 until slice-010"
+    verification_commands:
+      - "ls schemas/*.schema.json | wc -l"  # must be 9+
+      - "python3 scripts/runtime/derive-state.py --help 2>&1 | head -1"
+    exit_criteria:
+      - "every new run has events.ndjson and state.json"
+      - "state can be rebuilt from events"
+      - "every seam contract has a schema"
+      - "dry-run fails on schema violations"
+      - "no circuit needs SKILL.md prose to execute or resume"
+
+  # --- Post-Foundation: Circuit Conversions ---
+
+  - id: slice-008
+    type: implementation
+    name: "Convert run and develop to v2 manifests"
+    spec_step: 10
+    status: proposed
+    dependencies: [slice-007]
+    touched_paths:
+      - skills/run/circuit.yaml
+      - skills/run/SKILL.md
+      - skills/develop/circuit.yaml
+      - skills/develop/SKILL.md
+    external_surfaces:
+      - "/circuit:run"
+      - "/circuit:develop"
+    deletion_targets:
+      - "Resume Awareness sections in run and develop SKILL.md"
+    temp_artifacts: []
+    docs_to_update: []
+    dependency_changes: []
+    residue_queries:
+      - pattern: "Resume Awareness"
+        scope: "skills/run/ skills/develop/"
+    verification_commands:
+      - "grep -r 'Resume Awareness' skills/run/ skills/develop/ | wc -l"  # must be 0
+    exit_criteria:
+      - "run and develop are fully manifest-driven"
+      - "their Resume Awareness prose is gone"
+
+  - id: slice-009
+    type: implementation
+    name: "Seal the workers boundary"
+    spec_step: 11
+    status: proposed
+    dependencies: [slice-008]
+    touched_paths:
+      - skills/workers/SKILL.md
+      - scripts/relay/dispatch.sh
+      - scripts/relay/update-batch.sh
+      - ARCHITECTURE.md
+      - protocols/workers-execute.md
+    external_surfaces:
+      - "Worker dispatch interface"
+    deletion_targets:
+      - "Direct batch.json, review-findings/ dependencies in parent circuits"
+    temp_artifacts: []
+    docs_to_update: [ARCHITECTURE.md]
+    dependency_changes: []
+    residue_queries:
+      - pattern: "batch\\.json|review-findings/"
+        scope: "skills/"
+        note: "parent circuits must not depend on these"
+    verification_commands:
+      - "grep -r 'batch\\.json\\|review-findings/' skills/ --include='*.md' --include='*.yaml' | grep -v workers/ | wc -l"  # must be 0
+    exit_criteria:
+      - "parent circuits stop depending on batch.json, review-findings/, or archive layout"
+
+  - id: slice-010
+    type: implementation
+    name: "Universal resume algorithm"
+    spec_step: 12
+    status: proposed
+    dependencies: [slice-008]
+    touched_paths:
+      - skills/*/SKILL.md  # remove runtime resume prose
+      - ARCHITECTURE.md
+      - skills/dry-run/SKILL.md
+      - scripts/runtime/resume.py
+    external_surfaces:
+      - "Resume behavior after session interruption"
+    deletion_targets:
+      - "Resume Awareness sections in all remaining SKILL.md files"
+    temp_artifacts: []
+    docs_to_update: [ARCHITECTURE.md]
+    dependency_changes: []
+    residue_queries:
+      - pattern: "Resume Awareness"
+        scope: "skills/"
+    verification_commands:
+      - "grep -r 'Resume Awareness' skills/ | wc -l"  # must be 0
+    exit_criteria:
+      - "runtime resume logic only exists in the engine"
+
+  - id: slice-011
+    type: implementation
+    name: "Capability resolution"
+    spec_step: 13
+    status: proposed
+    dependencies: [slice-007]
+    touched_paths:
+      - scripts/relay/compose-prompt.sh  # or runtime equivalent
+      - circuit.config.example.yaml
+      - skills/setup/SKILL.md
+      - ARCHITECTURE.md
+    external_surfaces:
+      - "circuit.config.yaml"
+      - "Worker prompt assembly"
+    deletion_targets:
+      - "Direct skill-name references in dispatch steps"
+    temp_artifacts: []
+    docs_to_update: [ARCHITECTURE.md, skills/setup/SKILL.md]
+    dependency_changes: []
+    residue_queries:
+      - pattern: "--skills"
+        scope: "skills/"
+        note: "dispatch steps should use capabilities, not direct skill names"
+    verification_commands:
+      - "grep -r 'capability-resolution' schemas/ | wc -l"  # must be >= 1
+    exit_criteria:
+      - "worker steps depend on capabilities, not direct skill names"
+      - "each dispatched job writes capability-resolution.json"
+
+  - id: slice-012
+    type: implementation
+    name: "Single-entry-point router"
+    spec_step: 14
+    status: proposed
+    dependencies: [slice-008]
+    touched_paths:
+      - skills/router/SKILL.md
+      - README.md
+      - CIRCUITS.md
+      - hooks/session-start.sh
+    external_surfaces:
+      - "/circuit <task> slash command"
+      - "Session start banner"
+    deletion_targets: []
+    temp_artifacts: []
+    docs_to_update: [README.md, CIRCUITS.md]
+    dependency_changes: []
+    residue_queries: []
+    verification_commands: []
+    exit_criteria:
+      - "docs present /circuit <task> first"
+      - "named circuits remain as expert shortcuts"
+
+  - id: slice-013
+    type: implementation
+    name: "Convert remaining circuits"
+    spec_step: 15
+    status: proposed
+    dependencies: [slice-007, slice-009, slice-010, slice-011]
+    touched_paths:
+      - skills/decide/circuit.yaml
+      - skills/decide/SKILL.md
+      - skills/fix/circuit.yaml
+      - skills/fix/SKILL.md
+      - skills/repair-flow/circuit.yaml
+      - skills/repair-flow/SKILL.md
+      - skills/cleanup/circuit.yaml
+      - skills/cleanup/SKILL.md
+      - skills/migrate/circuit.yaml
+      - skills/migrate/SKILL.md
+      - skills/ratchet-quality/circuit.yaml
+      - skills/ratchet-quality/SKILL.md
+      - skills/create/circuit.yaml
+      - skills/create/SKILL.md
+      - skills/dry-run/circuit.yaml
+      - skills/dry-run/SKILL.md
+      - skills/setup/circuit.yaml
+      - skills/setup/SKILL.md
+    external_surfaces:
+      - "All /circuit:* slash commands"
+    deletion_targets:
+      - "All remaining v1 runtime prose in SKILL.md files"
+    temp_artifacts: []
+    docs_to_update: []
+    dependency_changes: []
+    residue_queries:
+      - pattern: "Resume Awareness"
+        scope: "skills/"
+    verification_commands:
+      - "grep -r 'Resume Awareness' skills/ | wc -l"  # must be 0
+      - "for d in skills/*/circuit.yaml; do echo $d; done | wc -l"  # must match total circuits
+    exit_criteria:
+      - "all circuits use v2 manifests and typed seams"
+      - "v1 architecture is retired"
+
+  # --- Closeout ---
+
+  - id: slice-014
+    type: convergence
+    name: "Migration closeout and ship gate"
+    status: proposed
+    dependencies: [slice-009, slice-010, slice-011, slice-012, slice-013]
+    touched_paths:
+      - ARCHITECTURE.md
+      - README.md
+      - CIRCUITS.md
+      - CONTRIBUTING.md
+    external_surfaces:
+      - "All user-facing docs"
+    deletion_targets:
+      - "Any remaining v1 references in docs"
+      - "Temporary coexistence adapters"
+      - "Migration TODO markers"
+    temp_artifacts: []
+    docs_to_update: [ARCHITECTURE.md, README.md, CIRCUITS.md, CONTRIBUTING.md]
+    dependency_changes: []
+    residue_queries:
+      - pattern: "TODO.*migration"
+        scope: "."
+      - pattern: "v1"
+        scope: "ARCHITECTURE.md"
+        note: "v1 should only appear in historical context"
+    verification_commands:
+      - "Execute SHIP_CHECKLIST.md automated checks"
+    exit_criteria:
+      - "All ship gate items pass"
+      - "No migration residue remains"
