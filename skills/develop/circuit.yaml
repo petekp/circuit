@@ -1,191 +1,353 @@
-schema_version: "1"
+schema_version: "2"
 circuit:
   id: develop
-  version: "2026-03-29"
-  title: Develop
-  description: >
-    Artifact-driven circuit for taking a significant feature from idea to shipped code.
-    Chains intent → constraints → decision → contract → code through 5 phases.
-    Topology only — this file does not encode runtime behavior or adapter contracts.
+  version: "2026-04-01"
+  purpose: Research, decide, prove, and ship a significant change.
 
-  modes:
-    full:
-      description: Default 10-step workflow. All phases execute.
-      steps: all
+  entry:
+    command: /circuit
+    expert_command: /circuit:develop
+    signals:
+      include: [approach_unclear, research_needed]
+      exclude: [broken_flow, dead_code_only, migration_with_coexistence]
+
+  entry_modes:
+    default:
+      start_at: intent-lock
+      description: Idea-first feature development.
     spec-review:
-      description: >
-        Modified workflow for existing specs, RFCs, or PRDs that need multi-angle
-        review before implementation. Replaces alignment/evidence/decision phases
-        with spec intake, digest, parallel reviews, caveat resolution, and amended
-        draft, then continues through to code delivery.
-      steps: [spec-intake, draft-digest, parallel-reviews, caveat-resolution, amended-draft, implementation-contract, prove-seam, implement, ship-review]
-      artifact_chain: [spec-brief.md, draft-digest.md, implementer-review.md, systems-review.md, comparative-review.md, caveat-resolution.md, amended-spec.md, execution-packet.md, seam-proof.md, implementation-handoff.md, ship-review.md]
-      skipped_phases: [alignment, evidence, decision]
-      skipped_steps: [intent-lock, evidence-probes, constraints-synthesis, generate-candidates, adversarial-evaluation, tradeoff-decision]
+      start_at: spec-intake
+      description: Start from an existing RFC, PRD, or specification.
 
-  artifacts:
-    - id: intent-brief.md
-      type: interactive
-      produced_by: intent-lock
-      consumed_by: [evidence-probes, generate-candidates, implementation-contract, ship-review]
-    - id: external-digest.md
-      type: dispatch
-      produced_by: evidence-probes
-      consumed_by: [constraints-synthesis]
-    - id: internal-digest.md
-      type: dispatch
-      produced_by: evidence-probes
-      consumed_by: [constraints-synthesis]
-    - id: constraints.md
-      type: synthesis
-      produced_by: constraints-synthesis
-      consumed_by: [generate-candidates, adversarial-evaluation, implementation-contract]
-    - id: options.md
-      type: dispatch
-      produced_by: generate-candidates
-      consumed_by: [adversarial-evaluation]
-    - id: decision-packet.md
-      type: dispatch
-      produced_by: adversarial-evaluation
-      consumed_by: [tradeoff-decision]
-    - id: adr.md
-      type: interactive
-      produced_by: tradeoff-decision
-      consumed_by: [implementation-contract]
-    - id: execution-packet.md
-      type: synthesis
-      produced_by: implementation-contract
-      consumed_by: [prove-seam, implement, ship-review]
-    - id: seam-proof.md
-      type: dispatch
-      produced_by: prove-seam
-      consumed_by: []
-    - id: implementation-handoff.md
-      type: dispatch
-      produced_by: implement
-      consumed_by: [ship-review]
-    - id: ship-review.md
-      type: dispatch
-      produced_by: ship-review
-      consumed_by: []
+  steps:
+    - id: intent-lock
+      title: Intent Lock
+      executor: orchestrator
+      kind: checkpoint
+      protocol: intent-lock@v1
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/intent-brief.md
+          schema: intent-brief@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: intent_lock
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: evidence-probes
 
-  phases:
-    - id: alignment
-      title: Alignment
-      execution: serial
-      steps:
-        - id: intent-lock
-          title: Intent Lock
-          action: interactive
-          produces: intent-brief.md
-          gate:
-            type: outputs_present
-            required: [intent-brief.md]
-            checks: ["Ranked Outcomes non-empty", "Non-Goals non-empty"]
+    - id: spec-intake
+      title: Spec Intake
+      executor: orchestrator
+      kind: checkpoint
+      protocol: spec-intake@v1
+      reads: [user.task, "referenced:spec"]
+      writes:
+        artifact:
+          path: artifacts/spec-brief.md
+          schema: spec-brief@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: spec_intake
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: spec-reviews
 
-    - id: evidence
-      title: Evidence
-      execution: serial
-      steps:
-        - id: evidence-probes
-          title: Parallel Evidence Probes
-          action: dispatch
-          execution: parallel
-          workers:
-            - id: external
-              title: External Patterns
-              skills: [deep-research]
-              produces: external-digest.md
-            - id: internal
-              title: Internal System Surface
-              skills: [] # domain-skills resolved at runtime
-              produces: internal-digest.md
-          consumes: [intent-brief.md]
-          produces: [external-digest.md, internal-digest.md]
-        - id: constraints-synthesis
-          title: Constraints Synthesis
-          action: synthesis
-          consumes: [external-digest.md, internal-digest.md]
-          produces: constraints.md
-          gate:
-            type: outputs_present
-            required: [constraints.md]
-            checks: ["at least one hard invariant", "ranked open questions", "certainty labels"]
+    - id: spec-reviews
+      title: Multi-Angle Spec Review
+      executor: worker
+      kind: dispatch
+      protocol: parallel-review-fanout@v1
+      reads: [artifacts/spec-brief.md]
+      writes:
+        artifacts:
+          - path: artifacts/implementer-review.md
+            schema: spec-review@v1
+          - path: artifacts/systems-review.md
+            schema: spec-review@v1
+          - path: artifacts/comparative-review.md
+            schema: spec-review@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [review.independent]
+        optional: [architecture.exploration]
+      budgets:
+        max_attempts: 1
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [reviews_complete]
+      routes:
+        pass: caveat-resolution
+        fail: "@escalate"
 
-    - id: decision
-      title: Decision
-      execution: serial
-      steps:
-        - id: generate-candidates
-          title: Generate Distinct Candidates
-          action: dispatch
-          skills: [] # domain-skills resolved at runtime
-          consumes: [intent-brief.md, constraints.md]
-          produces: options.md
-        - id: adversarial-evaluation
-          title: Adversarial Evaluation + Decision Packet
-          action: dispatch
-          skills: [] # domain-skills resolved at runtime
-          consumes: [constraints.md, options.md]
-          produces: decision-packet.md
-        - id: tradeoff-decision
-          title: Tradeoff Decision
-          action: interactive
-          consumes: [decision-packet.md]
-          produces: adr.md
-          gate:
-            type: outputs_present
-            required: [adr.md]
-            checks: ["Decision non-empty", "Accepted Risks non-empty", "at least one Rejected Alternative"]
+    - id: caveat-resolution
+      title: Caveat Resolution
+      executor: orchestrator
+      kind: checkpoint
+      protocol: caveat-resolution@v1
+      reads:
+        any_of:
+          - [artifacts/implementer-review.md, artifacts/systems-review.md, artifacts/comparative-review.md, "optional:artifacts/seam-proof.md"]
+          - [artifacts/decision-packet.md, artifacts/seam-proof.md]
+      writes:
+        artifact:
+          path: artifacts/amended-spec.md
+          schema: amended-spec@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: caveat_resolution
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: execution-contract
 
-    - id: preflight
-      title: Preflight
-      execution: serial
-      steps:
-        - id: implementation-contract
-          title: Implementation Contract
-          action: synthesis
-          consumes: [adr.md, constraints.md, intent-brief.md]
-          produces: execution-packet.md
-          gate:
-            type: outputs_present
-            required: [execution-packet.md]
-            checks: ["Invariants non-empty", "Slice Order non-empty", "Test Obligations non-empty"]
-        - id: prove-seam
-          title: Prove the Hardest Seam
-          action: dispatch
-          skills: [] # domain-skills resolved at runtime
-          consumes: [execution-packet.md]
-          produces: seam-proof.md
-          gate:
-            type: evidence-reopen
-            outcomes:
-              design_holds: continue
-              needs_adjustment: update-execution-packet
-              design_invalidated: interactive-reopen
+    - id: evidence-probes
+      title: Parallel Evidence Probes
+      executor: worker
+      kind: dispatch
+      protocol: parallel-evidence-probes@v1
+      reads: [artifacts/intent-brief.md]
+      writes:
+        artifacts:
+          - path: artifacts/external-digest.md
+            schema: evidence-digest@v1
+          - path: artifacts/internal-digest.md
+            schema: evidence-digest@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [research.external]
+        optional: [repo.analysis]
+      budgets:
+        max_attempts: 1
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [outputs_ready]
+      routes:
+        pass: constraints
+        fail: "@escalate"
 
-    - id: delivery
-      title: Delivery
-      execution: serial
-      steps:
-        - id: implement
-          title: Implement
-          action: dispatch
-          adapter: workers
-          consumes: [execution-packet.md]
-          produces: implementation-handoff.md
-          max_attempts: 3
-          notes: >
-            Delegates to workers skill. Orchestrator creates CHARTER.md
-            from execution-packet.md and synthesizes implementation-handoff.md
-            from workers convergence output.
-        - id: ship-review
-          title: Final Ship Review
-          action: dispatch
-          skills: [] # domain-skills resolved at runtime
-          consumes: [execution-packet.md, implementation-handoff.md, intent-brief.md]
-          produces: ship-review.md
-          max_attempts: 2
-          notes: >
-            Assessment only — worker does not modify source code.
-            If ISSUES FOUND, orchestrator handles remediation before re-running.
+    - id: constraints
+      title: Constraints Synthesis
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/external-digest.md, artifacts/internal-digest.md]
+      writes:
+        artifact:
+          path: artifacts/constraints.md
+          schema: constraints@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/constraints.md
+        required: [Hard Invariants, Seams and Integration Points, Open Questions]
+      routes:
+        pass: options
+        fail: "@escalate"
+
+    - id: options
+      title: Generate Options
+      executor: worker
+      kind: dispatch
+      protocol: option-generation@v1
+      reads: [artifacts/intent-brief.md, artifacts/constraints.md]
+      writes:
+        artifact:
+          path: artifacts/options.md
+          schema: options@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [architecture.exploration]
+        optional: [comparative.analysis]
+      budgets:
+        max_attempts: 1
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [options_ready]
+      routes:
+        pass: decision-packet
+        fail: "@escalate"
+
+    - id: decision-packet
+      title: Adversarial Evaluation
+      executor: worker
+      kind: dispatch
+      protocol: adversarial-evaluation@v1
+      reads: [artifacts/constraints.md, artifacts/options.md]
+      writes:
+        artifact:
+          path: artifacts/decision-packet.md
+          schema: decision-packet@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [review.independent]
+        optional: [comparative.analysis]
+      budgets:
+        max_attempts: 1
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [decision_packet_ready]
+      routes:
+        pass: tradeoff-decision
+        fail: "@escalate"
+
+    - id: tradeoff-decision
+      title: Tradeoff Decision
+      executor: orchestrator
+      kind: checkpoint
+      protocol: tradeoff-decision@v1
+      reads: [artifacts/decision-packet.md]
+      writes:
+        artifact:
+          path: artifacts/adr.md
+          schema: adr@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: tradeoff_decision
+        options: [choose]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [choose]
+      routes:
+        choose: execution-contract
+
+    - id: execution-contract
+      title: Execution Contract
+      executor: orchestrator
+      kind: synthesis
+      reads:
+        any_of:
+          - [artifacts/adr.md, artifacts/constraints.md, artifacts/intent-brief.md, "optional:artifacts/seam-proof.md"]
+          - [artifacts/amended-spec.md, "optional:artifacts/seam-proof.md"]
+      writes:
+        artifact:
+          path: artifacts/execution-packet.md
+          schema: execution-packet@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/execution-packet.md
+        required:
+          - Invariants
+          - Interface Boundaries
+          - Slice Order
+          - Test Obligations
+          - Verification Commands
+      routes:
+        pass: prove-seam
+        fail: "@escalate"
+
+    - id: prove-seam
+      title: Prove the Hardest Seam
+      executor: worker
+      kind: dispatch
+      protocol: seam-proof@v1
+      reads: [artifacts/execution-packet.md]
+      writes:
+        artifact:
+          path: artifacts/seam-proof.md
+          schema: seam-proof@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [testing.tdd]
+        optional: [repo.analysis]
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [design_holds]
+        reroute:
+          needs_adjustment: execution-contract
+          design_invalidated: caveat-resolution
+      routes:
+        pass: implement
+        fail: "@escalate"
+
+    - id: implement
+      title: Implement
+      executor: worker
+      kind: dispatch
+      protocol: workers-execute@v1
+      reads: [artifacts/execution-packet.md]
+      writes:
+        artifact:
+          path: artifacts/implementation-handoff.md
+          schema: implementation-handoff@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [code.change, review.independent]
+        optional: [testing.tdd]
+      budgets:
+        max_attempts: 3
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [complete_and_hardened]
+      routes:
+        pass: ship-review
+        fail: "@escalate"
+
+    - id: ship-review
+      title: Final Ship Review
+      executor: worker
+      kind: dispatch
+      protocol: final-review@v1
+      reads:
+        - artifacts/execution-packet.md
+        - artifacts/implementation-handoff.md
+        - "optional:artifacts/intent-brief.md"
+        - "optional:artifacts/amended-spec.md"
+      writes:
+        artifact:
+          path: artifacts/ship-review.md
+          schema: ship-review@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [review.independent]
+        optional: []
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [ship_ready]
+      routes:
+        pass: "@complete"
+        fail: "@escalate"

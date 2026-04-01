@@ -415,26 +415,6 @@ In default mode, four artifacts. In intent mode, five. The scope is the plan.
 scope-confirmed is the user-approved plan. execution-handoff is the convergence
 result. done is the receipt.
 
-## Resume Awareness
-
-If `${RUN_ROOT}/artifacts/` already has files, determine the resume point:
-
-1. Check artifacts in chain order. When `MODE=intent`, check `intent-brief.md`
-   first, then: `scope.md` -> `scope-confirmed.md` -> `execution-handoff.md`
-   -> `done.md`. In default mode, start from `scope.md`.
-2. **Check for switch sentinel.** If `scope-confirmed.md` contains
-   "switch to circuit:", the user chose to leave circuit. Do NOT resume
-   into the execute phase. Report that the circuit was stopped and the user
-   switched to a different circuit.
-3. Find the last complete artifact with a passing gate
-4. For Step 3 (Implement): check `${RUN_ROOT}/phases/implement/batch.json`
-   for workers resume state. Run
-   `"$CLAUDE_PLUGIN_ROOT/scripts/relay/update-batch.sh" --root ${RUN_ROOT}/phases/implement --validate`
-   to confirm batch consistency before resuming.
-5. Compare `head_at_plan` in batch.json with `git rev-parse HEAD`. Match ->
-   resume from first pending slice. Mismatch -> warn the user.
-6. Continue from the next step after the last complete artifact
-
 ## Circuit Breaker
 
 Escalate to the user when:

@@ -1023,40 +1023,6 @@ spec-brief.md                                          [user: spec intake]
   → ship-review.md                                     [worker: identical to full mode]
 ```
 
-
-## Resume Awareness
-
-If `${RUN_ROOT}/artifacts/` already has files, determine the resume point:
-
-1. Check artifacts in chain order (intent-brief → external-digest → ... → ship-review)
-2. Find the last complete artifact with passing gate
-3. For Step 9 specifically: check `${RUN_ROOT}/phases/step-9/batch.json` for workers
-   resume state before restarting implementation
-4. Continue from the next step
-
-This is best-effort -- the circuit has no durable state beyond artifacts on disk and
-step-local relay directories. If a session dies mid-step, check the step's relay
-directory for worker output before concluding the step failed.
-
-## Spec-Review Mode Resume Awareness
-
-When `MODE=spec-review`, resume uses the spec-review artifact chain:
-
-1. Check artifacts in spec-review chain order:
-   `spec-brief.md` → `draft-digest.md` → `implementer-review.md`, `systems-review.md`,
-   `comparative-review.md` → `caveat-resolution.md` → `amended-spec.md` →
-   `execution-packet.md` → `seam-proof.md` → `implementation-handoff.md` → `ship-review.md`
-2. Treat the parallel review step as complete only when all three review artifacts exist
-   and satisfy their gates.
-3. **Ignore** artifacts from skipped steps if present (`intent-brief.md`,
-   `external-digest.md`, `internal-digest.md`, `constraints.md`, `options.md`,
-   `decision-packet.md`, `adr.md`).
-4. Find the last complete spec-review artifact with a passing gate.
-5. For the Implement step: check `${RUN_ROOT}/phases/step-9/batch.json` for workers
-   resume state (identical to full mode).
-6. Continue from the next spec-review step.
-
-
 ## Circuit Breaker
 
 Escalate to the user when:

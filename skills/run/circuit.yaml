@@ -1,140 +1,130 @@
-schema_version: "1"
+schema_version: "2"
 circuit:
   id: run
-  version: "2026-03-29"
-  title: Run
-  description: >
-    Default circuit for tasks that benefit from structured execution but don't
-    match a specialized circuit. Auto-scopes the work, shows the scope for
-    confirmation, then executes with implement/review/converge. 4 steps across
-    3 phases: Scope -> Execute -> Summary.
+  version: "2026-04-01"
+  purpose: Default ship-change circuit for clear, non-trivial work.
 
-  modes:
+  entry:
+    command: /circuit
+    expert_command: /circuit:run
+    signals:
+      include: [clear_approach, non_trivial]
+      exclude: [broken_flow, architecture_decision, dead_code, migration, overnight]
+
+  entry_modes:
     default:
-      description: Standard 4-step workflow. Auto-scope, confirm, execute, summarize.
-      steps: [auto-scope, scope-confirmation, implement, done-summary]
+      start_at: scope
+      description: Start directly at auto-scope.
     intent:
-      description: >
-        5-step workflow with an interactive intent-lock before auto-scope.
-        Use when the user wants to explicitly set priorities, non-goals,
-        and kill criteria before scoping begins.
-      steps: [intent-lock, auto-scope, scope-confirmation, implement, done-summary]
-      artifact_chain: [intent-brief.md, scope.md, scope-confirmed.md, execution-handoff.md, done.md]
+      start_at: intent-lock
+      description: Capture explicit priorities and non-goals before scoping.
 
-  artifacts:
-    - id: intent-brief.md
-      type: interactive
-      produced_by: intent-lock
-      consumed_by: [auto-scope]
-    - id: scope.md
-      type: synthesis
-      produced_by: auto-scope
-      consumed_by: [scope-confirmation]
-    - id: scope-confirmed.md
-      type: interactive
-      produced_by: scope-confirmation
-      consumed_by: [implement, done-summary]
-    - id: execution-handoff.md
-      type: dispatch
-      produced_by: implement
-      consumed_by: [done-summary]
-    - id: done.md
-      type: synthesis
-      produced_by: done-summary
-      consumed_by: []
-
-  phases:
-    - id: intent
-      title: Intent
-      execution: serial
-      notes: "Only runs in intent mode. Skipped in default mode."
-      steps:
-        - id: intent-lock
-          title: Intent Lock
-          action: interactive
-          produces: intent-brief.md
-          gate:
-            type: outputs_present
-            required: [intent-brief.md]
-            checks: ["Ranked Outcomes non-empty", "Non-Goals non-empty"]
+  steps:
+    - id: intent-lock
+      title: Intent Lock
+      executor: orchestrator
+      kind: checkpoint
+      protocol: intent-lock@v1
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/intent-brief.md
+          schema: intent-brief@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: intent_lock
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: scope
 
     - id: scope
-      title: Scope
-      execution: serial
-      steps:
-        - id: auto-scope
-          title: Auto-Scope
-          action: synthesis
-          # NOTE: This synthesis step may ask ONE clarifying question if the
-          # task is genuinely ambiguous. This is a bounded exception to the
-          # architecture rule that only interactive steps ask questions.
-          # The question is not an interview; it resolves a single ambiguity
-          # so the synthesis can proceed.
-          produces: scope.md
-          gate:
-            type: outputs_present
-            required: [scope.md]
-            checks:
-              - "Approach non-empty"
-              - "At least one Slice with files and verification"
-              - "Verification section non-empty"
-              - "Out of Scope non-empty"
-          notes: >
-            Claude reads the task and codebase, writes scope.md autonomously.
-            If the task is genuinely ambiguous (multiple plausible interpretations
-            that lead to different implementations), asks ONE clarifying question
-            first. If the task signals a specialized circuit, notes this in the
-            Escalation Notes section.
+      title: Auto-Scope
+      executor: orchestrator
+      kind: synthesis
+      reads: [user.task, repo.snapshot, "optional:artifacts/intent-brief.md", "optional:checkpoints/confirm-{attempt}.response.json"]
+      writes:
+        artifact:
+          path: artifacts/scope.md
+          schema: scope@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/scope.md
+        required: [Task, Approach, Slices, Verification, Out of Scope]
+      routes:
+        pass: confirm
+        fail: "@escalate"
 
-        - id: scope-confirmation
-          title: Scope Confirmation
-          action: interactive
-          consumes: [scope.md]
-          produces: scope-confirmed.md
-          gate:
-            type: outputs_present
-            required: [scope-confirmed.md]
-            checks:
-              - "User confirmed, amended, or switched circuits"
-          notes: >
-            Presents scope.md to the user. User can confirm (proceed),
-            amend (edit scope and proceed), or switch to a specialized circuit
-            (stop this circuit and invoke the recommended one).
+    - id: confirm
+      title: Scope Confirmation
+      executor: orchestrator
+      kind: checkpoint
+      protocol: scope-confirmation@v1
+      reads: [artifacts/scope.md]
+      writes:
+        artifact:
+          path: artifacts/scope-confirmed.md
+          schema: scope-confirmed@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+        handoff: handoffs/handoff-packet.json
+      checkpoint:
+        kind: scope_confirmation
+        options: [confirm, amend, switch]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [confirm, amend, switch]
+      routes:
+        confirm: implement
+        amend: scope
+        switch: "@handoff"
 
-    - id: execute
-      title: Execute
-      execution: serial
-      steps:
-        - id: implement
-          title: Implement
-          action: dispatch
-          adapter: workers
-          consumes: [scope-confirmed.md]
-          produces: execution-handoff.md
-          max_attempts: 3
-          gate:
-            type: outputs_present
-            required: [execution-handoff.md]
-            checks:
-              - "Convergence verdict is COMPLETE AND HARDENED"
-          notes: >
-            Orchestrator creates CHARTER.md from scope-confirmed.md.
-            Slices map to batch.json entries with file_scope and
-            verification_commands. Standard implement/review/converge loop.
-            Orchestrator synthesizes execution-handoff.md from convergence output.
+    - id: implement
+      title: Implement
+      executor: worker
+      kind: dispatch
+      protocol: workers-execute@v1
+      reads: [artifacts/scope-confirmed.md]
+      writes:
+        artifact:
+          path: artifacts/execution-handoff.md
+          schema: execution-handoff@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [code.change, review.independent]
+        optional: [testing.tdd]
+      budgets:
+        max_attempts: 3
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [complete_and_hardened]
+      routes:
+        pass: summarize
+        fail: "@escalate"
 
-    - id: summary
-      title: Summary
-      execution: serial
-      steps:
-        - id: done-summary
-          title: Done Summary
-          action: synthesis
-          consumes: [scope-confirmed.md, execution-handoff.md]
-          produces: done.md
-          gate:
-            type: outputs_present
-            required: [done.md]
-            checks:
-              - "Changes section non-empty"
-              - "Verification results present"
+    - id: summarize
+      title: Done Summary
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/scope-confirmed.md, artifacts/execution-handoff.md]
+      writes:
+        artifact:
+          path: artifacts/done.md
+          schema: done@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/done.md
+        required: [Changes, Verification, Notes]
+      routes:
+        pass: "@complete"
+        fail: "@escalate"
