@@ -6,8 +6,8 @@
 #
 # Checks:
 #   1. Codex CLI is installed
-#   2. Python 3 is available
-#   3. PyYAML is available for config-file skill resolution
+#   2. Node.js and engine CLIs
+#   3. Python 3 and PyYAML (relay scripts)
 #   4. Bash version (3.2+ works; 4+ recommended)
 #   5. All expected skill directories exist
 #   6. Both relay scripts exist and are executable
@@ -50,17 +50,50 @@ else
   warn "codex not found — dispatch will use Agent fallback (install for better parallelism: npm install -g @openai/codex)"
 fi
 
-# ── 2. Python 3 ──────────────────────────────────────────────────────
+# ── 2. Node.js (engine runtime) ────────────────────────────────────
+section "Node.js"
+
+if command -v node >/dev/null 2>&1; then
+  node_version="$(node --version 2>&1)"
+  pass "node found: $node_version (engine runtime)"
+else
+  fail "node not found — required by the engine (scripts/runtime/bin/)"
+fi
+
+# ── 2b. Engine CLIs (shipped bundles) ───────────────────────────────
+section "Engine CLIs"
+
+bin_dir="$PLUGIN_ROOT/scripts/runtime/bin"
+for cli_name in append-event derive-state resume; do
+  cli_path="$bin_dir/${cli_name}.js"
+  if [[ -f "$cli_path" ]]; then
+    pass "engine CLI: ${cli_name}"
+  else
+    fail "engine CLI missing: ${cli_name} — bundled CLIs should ship with the plugin at scripts/runtime/bin/"
+  fi
+done
+
+# ── 2c. Engine dev environment (contributors only) ─────────────────
+section "Engine dev environment"
+
+engine_dir="$PLUGIN_ROOT/scripts/runtime/engine"
+if [[ -d "$engine_dir/node_modules" ]]; then
+  pass "engine node_modules installed (contributor)"
+else
+  warn "engine node_modules missing — contributors run: cd $engine_dir && npm install"
+fi
+
+# ── 3. Python 3 (relay scripts) ─────────────────────────────────────
 section "Python 3"
 
 if command -v python3 >/dev/null 2>&1; then
   py_version="$(python3 --version 2>&1)"
-  pass "python3 found: $py_version"
+  pass "python3 found: $py_version (used by relay scripts)"
 else
-  fail "python3 not found — required by update-batch.sh"
+  fail "python3 not found — required by relay scripts (compose-prompt.sh, dispatch.sh, update-batch.sh)"
 fi
 
-# ── 3. PyYAML ────────────────────────────────────────────────────────
+# ── 3b. PyYAML ──────────────────────────────────────────────────────
 section "PyYAML"
 
 if command -v python3 >/dev/null 2>&1; then

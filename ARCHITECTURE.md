@@ -588,7 +588,7 @@ hand-edits `batch.json`**. All mutations go through this script.
 
 Why? LLMs are unreliable at precise JSON manipulation. They miscount array
 indices, forget to update correlated fields, and sometimes generate syntactically
-invalid JSON. By routing all mutations through a deterministic Python script
+invalid JSON. By routing all mutations through a deterministic script
 embedded in the shell wrapper, the system eliminates an entire class of
 state-corruption bugs.
 
@@ -742,7 +742,7 @@ files and must not depend on worker-internal state.
 
 This boundary exists because worker internals are an implementation detail
 that may change. `batch.json`, for example, is managed by a deterministic
-Python script and has a specific event-sourced recovery model that is
+script and has a specific event-sourced recovery model that is
 meaningless to parent circuits. The public contract files (`dispatch-request`,
 `dispatch-receipt`, `job-result`) expose the same information in a stable
 format designed for parent consumption.
@@ -1416,8 +1416,8 @@ SKILL.md (runtime truth)
    at runtime. Extra work is admitted through injection ledgers within ratchet
    steps, not by adding new topology nodes.
 
-5. **Deterministic state management.** LLMs do not hand-edit JSON. Shell scripts
-   with embedded Python handle all state mutations to `batch.json`.
+5. **Deterministic state management.** LLMs do not hand-edit JSON. Deterministic
+   scripts handle all state mutations to `batch.json`.
 
 6. **Fail fast and redirect.** Circuit breakers stop circuits that are not
    working. The router redirects to better-fitting circuits. Neither the

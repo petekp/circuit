@@ -16,6 +16,10 @@ Thumbs.db
 __pycache__/
 *.pyc
 
-# Node (if any tooling is added later)
+# Node
 node_modules/
+dist/
 .claude/
+
+# Ship bundled engine CLIs (self-contained, no node_modules needed)
+!scripts/runtime/bin/

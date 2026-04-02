@@ -83,7 +83,8 @@ Here's what happens:
 ### Prerequisites
 
 - **Claude Code** (the host environment)
-- **Python 3** (required by the batch state manager)
+- **Node.js** (runtime engine -- bundled CLIs ship with the plugin, no build step needed)
+- **Python 3** (required by relay scripts)
 - **Codex CLI** (optional, `npm install -g @openai/codex`) for better
   parallelism. When Codex is not installed, circuits fall back to Claude
   Code's Agent tool with worktree isolation. Everything works in both
