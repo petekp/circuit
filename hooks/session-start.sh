@@ -31,13 +31,34 @@ fi
 # ── Prerequisite check: Python 3 ────────────────────────────────────
 if ! command -v python3 >/dev/null 2>&1; then
   cat <<'NOTE'
-> **Python 3 not found** -- relay scripts require Python 3 for batch state
+> **Python 3 not found** -- Circuitry scripts require Python 3 for batch state
 > management. Install with: `brew install python3` (macOS) or
 > `apt install python3` (Linux).
 
 ---
 
 NOTE
+fi
+
+# ── Stale .relay/ detection ──────────────────────────────────────────
+# Projects that used Circuitry before the .relay -> .circuitry rename
+# may still have a .relay/ directory. If Claude sees it on disk, the LLM
+# can drift and write state there instead of .circuitry/. Warn loudly.
+if [[ -d ".relay" ]]; then
+  cat <<'STALE'
+> **Stale `.relay/` directory detected.** Circuitry now uses `.circuitry/` as
+> its state directory. The `.relay/` directory is from a previous version.
+>
+> **IMPORTANT:** Always use `.circuitry/` for circuit state. Never write to
+> `.relay/` even though it exists on disk. If you need old run data, read
+> from `.relay/` but write all new state to `.circuitry/`.
+>
+> To migrate: `mv .relay .circuitry` and update `.gitignore` to use
+> `.circuitry/` instead of `.relay/`.
+
+---
+
+STALE
 fi
 
 # ── Banner ────────────────────────────────────────────────────────────

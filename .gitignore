@@ -1,5 +1,6 @@
-# Relay state (generated at runtime)
+# Circuit state (generated at runtime)
 .circuitry/
+.relay/
 *.ndjson
 
 # OS
