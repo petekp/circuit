@@ -1,12 +1,12 @@
 ---
 name: circuit:migrate
 description: >
-  Artifact-driven circuit for large-scale migrations and refactors -- framework swaps,
-  dependency replacements, architecture transitions, and incremental rewrites.
-  8 steps across 5 phases: Scope -> Inventory -> Strategy -> Execution -> Verification.
-  Use when migrating between frameworks, replacing dependencies, transitioning
-  architectures, or doing incremental rewrites where old and new must coexist.
-  Not for greenfield features, bug fixes, or single-file refactors.
+  Companion circuit for large-scale migrations and refactors. Reached via
+  /circuit:migrate or triage redirect from circuit:run. 8 steps across 5 phases:
+  Scope -> Inventory -> Strategy -> Execution -> Verification. Use for framework
+  swaps, dependency replacements, architecture transitions, incremental rewrites.
+trigger: >
+  Use for /circuit:migrate, or when circuit:run triage redirects here.
 ---
 
 # Migrate Circuit

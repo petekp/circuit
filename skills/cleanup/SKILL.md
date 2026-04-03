@@ -1,14 +1,13 @@
 ---
 name: circuit:cleanup
 description: >
-  Artifact-centric circuit for systematic codebase cleanup — dead code, stale
-  docs, orphaned artifacts, vestigial comments, and redundant abstractions. 8
-  steps across 5 phases: Survey -> Triage -> Prove -> Clean -> Verify. Dual-mode:
-  interactive (user checkpoints) or autonomous (evidence-gated with deferred
-  review). Use when asked to clean up dead code, do a cleanup sweep, improve
-  context hygiene for agents, remove stale docs, or find and remove unused code.
-  Do not use for refactoring with behavior changes, architecture decisions,
-  feature work, one-off deletions, dependency upgrades, or formatting cleanup.
+  Companion circuit for systematic codebase cleanup. Reached via /circuit:cleanup
+  or triage redirect from circuit:run. 8 steps across 5 phases: Survey -> Triage
+  -> Prove -> Clean -> Verify. Dual-mode: interactive (user checkpoints) or
+  autonomous (evidence-gated with deferred review). Use for dead code, stale docs,
+  orphaned artifacts, vestigial comments, redundant abstractions.
+trigger: >
+  Use for /circuit:cleanup, or when circuit:run triage redirects here.
 ---
 
 # Cleanup Circuit

@@ -1,429 +1,212 @@
 ---
 name: circuit:run
 description: >
-  Default circuit for tasks that benefit from structured execution but don't
-  match a specialized circuit. 4 steps across 3 phases: Scope -> Execute ->
-  Summary. Auto-scopes the work, shows the plan for one user confirmation, then
-  runs implement/review/converge autonomously. Use when the approach is clear,
-  the work spans multiple files, and you want planning and review without full
-  develop overhead. Not for tasks needing research (develop), architecture
-  decisions (decide), debugging broken flows (repair-flow), dead code removal
-  (cleanup), or framework migrations (migrate).
+  Adaptive supergraph circuit. Triage classifies any task into the right
+  workflow shape, then the runtime engine walks the selected path. Six entry
+  modes (quick, researched, adversarial, spec-review, ratchet, crucible) share
+  one circuit.yaml. Steps on inactive paths are never visited.
+trigger: >
+  Use for /circuit, /circuit:run, or any task that needs structured execution.
+  This is the default entry point for all circuit work.
 ---
 
-# Run Circuit
+# Circuit: Run
 
-Auto-scope, confirm, execute. The default circuit for clear tasks that span
-multiple files and benefit from planning, independent review, and convergence.
+The primary Circuitry circuit. Routes any task to the right workflow shape via
+lightweight triage, then executes using the supergraph declared in `circuit.yaml`.
 
-The key difference from other circuits: no interview, no research phase, no
-decision phase. Claude reads the task and the codebase, writes a scope, shows
-it to you, and executes on confirmation. One checkpoint, then autonomous
-execution.
+## Invocation
 
-## When to Use
-
-- Multi-file changes where the approach is clear
-- Feature additions following existing patterns
-- Refactoring with a known target shape
-- Test additions and integration work
-- Any non-trivial task where you want planning and review without the overhead
-  of a full develop workflow
-
-Do NOT use for:
-
-- Tasks needing research before implementation (use `circuit:develop`)
-- Architecture or protocol decisions (use `circuit:decide`)
-- Debugging broken flows (use `circuit:repair-flow`)
-- Dead code and stale docs removal (use `circuit:cleanup`)
-- Large migrations with dual-system coexistence (use `circuit:migrate`)
-- Truly trivial single-line changes, config edits, or typo fixes (skip circuits)
-
-For tasks where you want to explicitly set priorities, non-goals, and kill criteria
-before auto-scope, use `--intent` mode.
-
-## Glossary
-
-- **Artifact** -- A canonical circuit output file in `${RUN_ROOT}/artifacts/`. These are the
-  durable chain. Each step produces exactly one artifact.
-- **Worker report** -- The raw output a worker writes to its relay `reports/` directory.
-  Worker reports are inputs to artifact synthesis, not artifacts themselves.
-- **Synthesis** -- When the orchestrator (Claude session) reads prior artifacts and writes a
-  new artifact directly, without dispatching a worker.
-
-## Principles
-
-- **Show the scope, then execute.** The user always sees the plan before any
-  code is written. This is not zero-interaction autonomy.
-- **Escalate, don't absorb.** If the task belongs in a specialized circuit,
-  say so during scope. Don't try to handle everything.
-- **One question max.** The scope step asks at most one clarifying question
-  if the task is genuinely ambiguous. Not an interview.
-- **Scope creep kills.** The Out of Scope section is enforced. Workers that
-  stray beyond it are caught in review.
-
-## Mode Selection
-
-Parse the circuit invocation args for a `--intent` flag.
-
-- If `--intent` is present -> `MODE=intent`. Log: "Running with intent lock (5 steps)."
-- If absent -> `MODE=default` (default). The standard 4-step workflow runs.
-
-**Intent mode** adds an interactive intent-lock step before auto-scope:
-
-| Intent step | Default step | Action      | Produces           |
-|-------------|--------------|-------------|--------------------|
-| Step 0      | (new)        | interactive | intent-brief.md    |
-| Step 1      | Step 1       | synthesis   | scope.md           |
-| Step 2      | Step 2       | interactive | scope-confirmed.md |
-| Step 3      | Step 3       | dispatch    | execution-handoff.md |
-| Step 4      | Step 4       | synthesis   | done.md            |
-
-**Intent mode artifact chain:**
 ```
-intent-brief.md -> scope.md -> scope-confirmed.md -> execution-handoff.md -> done.md
+/circuit <task>                  # Triage classifies
+/circuit fix: <task>             # Quick + bug augmentation
+/circuit decide: <task>          # Adversarial mode
+/circuit develop: <task>         # Researched mode
+/circuit repair: <task>          # Researched + bug augmentation
+/circuit migrate: <task>         # Redirect to circuit:migrate
+/circuit cleanup: <task>         # Redirect to circuit:cleanup
 ```
 
-The intent-brief feeds auto-scope. When `intent-brief.md` exists, auto-scope reads
-it and uses the ranked outcomes, non-goals, and kill criteria to constrain the scope.
-The user still confirms the scope at Step 2.
+## Intent Hint Resolution
 
-## Setup
+Before triage runs, check for intent hints in the task prefix.
 
-```bash
-RUN_SLUG="<task-slug>"
-RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
-mkdir -p "${RUN_ROOT}/artifacts"
+| Prefix | Action |
+|--------|--------|
+| `fix:` | Entry mode `quick`, add bug augmentation. Skip triage classification. |
+| `decide:` | Entry mode `adversarial`. Skip triage classification. |
+| `develop:` | Entry mode `researched`. Skip triage classification. |
+| `repair:` | Entry mode `researched`, add bug augmentation. Skip triage classification. |
+| `migrate:` | Redirect to `circuit:migrate`. Terminate this run. |
+| `cleanup:` | Redirect to `circuit:cleanup`. Terminate this run. |
+| (none) | Run triage classification. |
+
+**Companion circuit redirect:** When the prefix is `migrate:` or `cleanup:`, do NOT
+run triage. Write `triage-result.md` with `redirect: circuit:migrate` (or cleanup),
+emit a stop event, and tell the user:
+
+```
+This task needs the full [migrate|cleanup] workflow.
+
+  /circuit:migrate <task description>
+  /circuit:cleanup <task description>
+
+Copy and run the command above.
 ```
 
-Record `RUN_ROOT`. All paths below are relative to it.
+## Triage (Step: triage)
 
-## Domain Skill Selection
+Two-phase classification within a single step.
 
-When dispatching workers, pick 1-2 domain skills matching the affected code.
-Check `circuit.config.yaml` for a `run:` entry first. If no config exists,
-auto-detect from the file scope in the confirmed scope.
+**Phase 1 -- Classify.** Read the task, match signal patterns against the mode
+selection table below. Produce a candidate classification.
 
-Never exceed 3 total skills per dispatch.
+**Phase 2 -- Diagnostic probe.** Generate one targeted probe question that tests
+the assumption most likely to be wrong. Present the classification AND probe
+to the user for confirmation.
 
-## Dispatch Backend
+### Mode Selection Table
 
-Same as all circuits. Auto-detect: if `codex` is on PATH, use Codex CLI.
-Otherwise, use Claude Code's Agent tool with `isolation: "worktree"`.
+| Signal Pattern | Mode | Augmentations | Reference |
+|---------------|------|---------------|-----------|
+| Clear task, known approach, <6 files | quick | (check augmentation table) | `references/mode-quick.md` |
+| Multi-domain OR external research needed OR no obvious path | researched | (check augmentation table) | `references/mode-researched.md` |
+| Named alternatives OR "should we" OR architecture-level choice | adversarial | (check augmentation table) | `references/mode-adversarial.md` |
+| Existing RFC/PRD/spec provided for review | spec-review | none | `references/mode-spec-review.md` |
+| "Run overnight" OR "improve quality" OR "stability pass" | ratchet | autonomous | `references/workflow-ratchet.md` |
+| "Pressure-test" OR "adversarial tournament" OR "explore N approaches" | crucible | none | `references/workflow-crucible.md` |
+| Strong cleanup signals (>5 files dead code, multi-system scope) | redirect | n/a | Redirect to `circuit:cleanup` |
+| Strong migration signals (framework swap, coexistence needed) | redirect | n/a | Redirect to `circuit:migrate` |
 
-```bash
-if command -v codex >/dev/null 2>&1; then
-  # Codex backend
-  cat ${step_dir}/prompt.md | codex exec --full-auto -o ${step_dir}/last-messages/last-message.txt -
-else
-  # Agent backend — invoke the Agent tool with prompt content
-  # Agent(task=<prompt contents>, isolation="worktree")
-fi
+**Evaluation order:** autonomous signals > adversarial > researched > quick. Then check augmentations.
+
+### Augmentation Table
+
+| Augmentation | Trigger Signals | Effect on scope.md |
+|-------------|----------------|-------------------|
+| Bug | "broken", "not working", unexpected behavior, error codes | Add `## Regression Contract` section. Test-first discipline. |
+| Migration | Migration signals when scope < full migrate circuit | Add `## Coexistence Plan` section. |
+| Cleanup | Dead code signals when scope < full cleanup circuit | Add `## Removal Evidence` section. |
+| Autonomous | "overnight", "while I sleep", unattended | Auto-resolve checkpoints (except tradeoff-decision). Write `deferred-review.md`. See `references/autonomous-gates.md`. |
+
+**Stacking rules:**
+- Augmentations compose. Bug + migration is valid.
+- Maximum 2 augmentations per run. If 3+ signals detected, escalate to researched mode.
+- When bug + another augmentation, regression contract is always Slice 0.
+
+### Named Pattern Labels
+
+Present the classification using a human-readable label, not the technical mode name.
+
+| Label | Technical Mode |
+|-------|---------------|
+| Bug Fix (test-first) | quick + bug |
+| Feature Build | quick |
+| Investigation | researched |
+| Architecture Decision | adversarial |
+| Migration | researched + migration OR redirect |
+| Cleanup | quick + cleanup OR redirect |
+| Full Feature | researched |
+| Overnight Quality | ratchet + autonomous |
+| Spec Review | spec-review |
+| Pressure Test | crucible |
+
+### Triage Artifact
+
+Write `artifacts/triage-result.md`:
+
+```markdown
+## Pattern
+<named pattern label>
+
+## Mode
+<quick | researched | adversarial>
+
+## Augmentations
+<bug | migration | cleanup | autonomous | none>
+
+## Reasoning
+<why this classification>
+
+## Probe
+<one diagnostic question>
+
+## Secondary Signal
+<if mixed signals, note secondary concern and how it maps to scope>
+
+## Capabilities Available
+<auto-detected from installed skills>
 ```
 
-Or use the dispatch helper:
+Present the triage result and probe to the user. Wait for confirmation or override.
+If user overrides mode, update `triage-result.md` and record the override.
+
+### Mixed-Signal Tasks
+
+When the task has signals spanning two modes (e.g., "add pagination + fix offset bug"):
+1. Classify the dominant mode
+2. Flag the secondary signal in triage-result.md
+3. The scope step reads the secondary signal and creates a prerequisite slice (Slice 0)
+
+## After Triage
+
+Once mode is confirmed, load the corresponding reference file and follow its
+step-by-step instructions. The reference file contains:
+- Per-step artifact schemas
+- Gate criteria
+- Worker dispatch patterns
+- Augmentation injection points
+
+## Dispatch
+
+All worker dispatch uses `dispatch.sh` with the `--role` flag:
+
 ```bash
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
   --prompt ${step_dir}/prompt.md \
-  --output ${step_dir}/last-messages/last-message.txt
+  --output ${step_dir}/last-messages/last-message.txt \
+  --role <implementer|reviewer|researcher>
 ```
 
----
+Role resolution: `--role` flag > `circuit.config.yaml` roles > auto-detect.
 
-## Phase 0: Intent (intent mode only)
+When assembling prompt headers, include the canonical sections:
+`### Files Changed`, `### Tests Run`, `### Completion Claim` to prevent
+relay-protocol.md contamination.
 
-### Step 0: Intent Lock -- `interactive`
+## Domain Skill Selection
 
-**Objective:** Define what success looks like before auto-scope runs.
+When a step references `<domain-skills>`, pick 1-2 skills matching the affected code.
+Never exceed 3 total skills per dispatch.
 
-> This step only runs when `MODE=intent`. In default mode, skip to Phase 1.
+## Artifact Chains by Mode
 
-Ask the user (via AskUserQuestion):
+**Quick:** `triage-result.md` -> `scope.md` -> `scope-confirmed.md` -> `implementation-handoff.md` -> `done.md`
 
-> Describe the task. Then answer:
-> 1. If we can only get two things right, what are they?
-> 2. What would make this change feel wrong even if it technically works?
-> 3. What is explicitly out of scope?
+**Researched:** `triage-result.md` -> `external-digest.md` + `internal-digest.md` -> `constraints.md` -> `scope.md` -> `scope-confirmed.md` -> `implementation-handoff.md` -> `review-findings.md` -> `done.md`
 
-Write their response to `${RUN_ROOT}/artifacts/intent-brief.md`:
+**Adversarial:** `triage-result.md` -> digests -> `constraints.md` -> `options.md` -> `decision-packet.md` -> `adr.md` -> `execution-packet.md` -> `seam-proof.md` -> `implementation-handoff.md` -> `ship-review.md` -> `done.md`
 
-```markdown
-# Intent Brief: <task>
-## Ranked Outcomes
-## Non-Goals
-## Kill Criteria
-## Domain and File Scope
-```
+**Spec-review:** `spec-brief.md` -> `draft-digest.md` -> 3 reviews -> `caveat-resolution.md` -> `amended-spec.md` -> `execution-packet.md` -> `seam-proof.md` -> `implementation-handoff.md` -> `ship-review.md` -> `done.md`
 
-**Gate:** `intent-brief.md` exists with non-empty Ranked Outcomes and Non-Goals.
+**Ratchet:** See `references/workflow-ratchet.md`
 
----
+**Crucible:** See `references/workflow-crucible.md`
 
-## Phase 1: Scope
-
-### Step 1: Auto-Scope — `synthesis`
-
-**Objective:** Read the task and codebase, produce a structured scope.
-
-If `intent-brief.md` exists (intent mode), read it and use Ranked Outcomes as the
-primary constraints for scope, Non-Goals as the Out of Scope seed, and Kill Criteria
-as quality boundaries.
-
-**Before writing scope, evaluate two things:**
-
-1. **Ambiguity check.** Does the task have multiple plausible interpretations
-   that would lead to materially different implementations? "Add dark mode"
-   is clear. "Improve the auth flow" is ambiguous (could mean UX, security,
-   performance, or architecture). If ambiguous, ask ONE clarifying question
-   (not an interview), then proceed.
-
-2. **Escalation check.** Does the task signal a specialized circuit?
-   - Needs external research or the approach is genuinely unclear -> `circuit:develop`
-   - Involves choosing between architectural approaches -> `circuit:decide`
-   - Debugging a broken or flaky flow -> `circuit:repair-flow`
-   - Removing dead code, stale docs, orphaned artifacts -> `circuit:cleanup`
-   - Framework swap or migration with coexistence -> `circuit:migrate`
-
-   If escalation detected, still write scope.md but include an Escalation Notes
-   section. The user decides at the confirmation step whether to switch.
-
-3. **Slice count.** If auto-scope produces more than 6 slices, note in scope.md
-   that this task may benefit from `circuit:develop` for its full planning and
-   decision machinery. Not a hard gate; the user decides.
-
-**Write** `${RUN_ROOT}/artifacts/scope.md`:
-
-```markdown
-# Scope: <task summary>
-
-## Task
-<user's original request, verbatim>
-
-## Approach
-<1-3 sentences: what will change and how>
-
-## Slices
-
-### Slice 1: <description>
-- **files:** <file list>
-- **verification:** `<command>`
-- **success_criteria:** <what "done" looks like for this slice>
-
-### Slice 2: <description>
-- **files:** <file list>
-- **verification:** `<command>`
-- **success_criteria:** <what "done" looks like for this slice>
-
-## Verification
-<commands to run after all slices complete, newline-separated>
-
-## Out of Scope
-<what this task does NOT include, to prevent scope creep>
-
-## Escalation Notes
-<if detected: which specialized circuit and why. Omit section if no escalation.>
-```
-
-Each Slice heading becomes a workers dispatch-request entry. The structured
-fields (`files`, `verification`, `success_criteria`) map directly to
-`file_scope`, `verification_commands`, and `success_criteria` in the
-dispatch-request. This is not prose inference; each field is first-class data.
-
-**Gate:** `scope.md` exists with non-empty Approach, at least one Slice with
-`files:` and `verification:`, non-empty Verification, and non-empty Out of Scope.
-
----
-
-### Step 2: Scope Confirmation — `interactive`
-
-**Objective:** Show the scope to the user before any code is written.
-
-Present `scope.md`. Frame it as:
-
-> Here's the scope for your task. [N] slices touching [list key files].
->
-> 1. Confirm and proceed
-> 2. Amend the scope (tell me what to change)
-> 3. Switch to [recommended circuit] (if Escalation Notes present)
-
-**If user confirms:** Write `${RUN_ROOT}/artifacts/scope-confirmed.md` as a
-copy of `scope.md` with a `## Confirmation` section appended:
-
-```markdown
-## Confirmation
-Confirmed by user. Proceeding with execution.
-```
-
-**If user amends:** Rewrite the scope with their changes, then write
-`scope-confirmed.md` with the amended content and:
-
-```markdown
-## Confirmation
-Amended by user: <brief description of changes>. Proceeding with execution.
-```
-
-**If user switches:** Invoke the recommended circuit and stop this one. Write
-`scope-confirmed.md` with:
-
-```markdown
-## Confirmation
-User chose to switch to circuit:<name>. Stopping circuit.
-```
-
-**Gate:** `scope-confirmed.md` exists. If it contains "switch to circuit:",
-the circuit stops here.
-
----
-
-## Phase 2: Execute
-
-### Step 3: Implement — `dispatch` (via workers)
-
-> **Protocol reference:** See `protocols/workers-execute.md` for the canonical version of this pattern.
-
-**Objective:** Build against the confirmed scope with independent review.
-
-This step delegates to workers for the full implement -> review -> converge
-cycle. The orchestrator creates the workspace and translates scope-confirmed.md
-into a CHARTER.md.
-
-**Setup:**
-
-```bash
-IMPL_ROOT="${RUN_ROOT}/phases/implement"
-mkdir -p "${IMPL_ROOT}/archive" "${IMPL_ROOT}/reports" \
-  "${IMPL_ROOT}/last-messages"
-```
-
-**Create CHARTER.md from scope-confirmed.md:**
-
-Read `${RUN_ROOT}/artifacts/scope-confirmed.md` and write
-`${IMPL_ROOT}/CHARTER.md` with this mapping:
-
-| scope-confirmed.md | CHARTER.md |
-|---------------------|------------|
-| `## Task` | Mission preamble |
-| `## Approach` | Implementation approach |
-| `## Slices` | Slice definitions (each becomes a dispatch-request entry) |
-| `## Verification` | Verification commands (union for convergence) |
-| `## Out of Scope` | Non-goals (enforced during review) |
-
-Each Slice heading in scope-confirmed.md maps to a dispatch-request entry with:
-- `task`: the Slice heading description
-- `file_scope`: the `files:` field
-- `verification_commands`: the `verification:` field
-- `success_criteria`: the `success_criteria:` field (first-class, not inferred)
-- `domain_skills`: from circuit.config.yaml or auto-detected from file scope
-
-**Write the prompt header** at `${IMPL_ROOT}/prompt-header.md`:
-
-Use the canonical header schema with:
-- Mission: Implement the work described in CHARTER.md using the workers
-  implement -> review -> converge cycle
-- Inputs: Full text of CHARTER.md
-- Output path: `${IMPL_ROOT}/reports/report-converge.md`
-- Output schema: workers convergence report format
-- Success criteria: All slices converged with `COMPLETE AND HARDENED` verdict
-- Report: Standard relay report headings (`### Files Changed`,
-  `### Tests Run`, `### Completion Claim`) to prevent relay-protocol.md
-  contamination
-
-**Compose and dispatch:**
-
-```bash
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
-  --header ${IMPL_ROOT}/prompt-header.md \
-  --skills workers,<domain-skills> \
-  --root ${IMPL_ROOT} \
-  --out ${IMPL_ROOT}/prompt.md
-
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
-  --prompt ${IMPL_ROOT}/prompt.md \
-  --output ${IMPL_ROOT}/last-messages/last-message.txt
-```
-
-**After workers completes**, synthesize `execution-handoff.md`:
-
-Read (in this order):
-1. `${IMPL_ROOT}/reports/report-converge.md` (convergence verdict)
-2. `${IMPL_ROOT}/job-result.json` (execution status and slice metadata)
-3. The last implementation slice report (find slice id from job-result.json)
-
-Note: workers review workers may overwrite per-slice report files. If a
-slice report is missing or appears to be a review artifact, use job-result.json
-slice metadata and the convergence report to reconstruct what was built.
-
-Write `${RUN_ROOT}/artifacts/execution-handoff.md`:
-
-```markdown
-# Execution Handoff: <task summary>
-## What Was Built (from batch slices and convergence)
-## Tests Run and Verification Results
-## Convergence Verdict
-## Open Issues (from convergence findings, if any)
-```
-
-**Gate:** `execution-handoff.md` exists AND convergence verdict is
-`COMPLETE AND HARDENED`. If convergence says `ISSUES REMAIN`, the workers
-loop should have addressed them. Escalate to user if it didn't.
-
-**Verify:**
-```bash
-test -f ${IMPL_ROOT}/reports/report-converge.md
-test -f ${RUN_ROOT}/artifacts/execution-handoff.md
-```
-
----
-
-## Phase 3: Summary
-
-### Step 4: Done Summary — `synthesis`
-
-**Objective:** Summarize what was done for the user.
-
-Read `scope-confirmed.md` and `execution-handoff.md`. Write
-`${RUN_ROOT}/artifacts/done.md`:
-
-```markdown
-# Done: <task summary>
-
-## Changes
-- <file>: <what changed>
-- <file>: <what changed>
-
-## Verification
-<commands run and their results>
-
-## Notes
-<anything the user should know: edge cases, deferred work, follow-ups>
-```
-
-**Gate:** `done.md` exists with non-empty Changes (listing files from
-`execution-handoff.md`) and non-empty Verification results (from scope-confirmed
-verification commands).
-
----
-
-## Artifact Chain Summary
-
-```
-Default: scope.md -> scope-confirmed.md [user confirms] -> execution-handoff.md -> done.md
-Intent:  intent-brief.md -> scope.md -> scope-confirmed.md -> execution-handoff.md -> done.md
-```
-
-In default mode, four artifacts. In intent mode, five. The scope is the plan.
-scope-confirmed is the user-approved plan. execution-handoff is the convergence
-result. done is the receipt.
-
-## Circuit Breaker
+## Circuit Breakers
 
 Escalate to the user when:
-- Any workers slice hits `impl_attempts > 3` or
-  `impl_attempts + review_rejections > 5`
+- A dispatch step fails twice (no valid output after 2 attempts)
+- Seam proof returns `DESIGN INVALIDATED`
+- Workers slice hits `impl_attempts > 3` or `impl_attempts + review_rejections > 5`
 - Convergence fails after max attempts
-- A review reveals the task is more complex than the scope anticipated
-  (unexpected dependencies, architectural issues)
+- Ship review says `ISSUES FOUND` after 2 attempts
 
-Include in the escalation: counter values, failure output, the failure pattern,
-and options (adjust scope, skip the problematic slice, switch to
-`circuit:develop`, or abort).
+Include: counter values, failure output, options (adjust scope, skip slice, abort).
+
+## Single-User Assumptions
+
+- Named pattern labels assume familiarity with Circuitry vocabulary.
+- `expected_capabilities` assumes the same config across machines.
+- Capability auto-detection assumes one user manages skill installs.
+- These assumptions are intentional. Circuitry is a single-user power tool.

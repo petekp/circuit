@@ -7,11 +7,10 @@ circuit:
     vestigial comments, and redundant abstractions.
 
   entry:
-    command: /circuit
     expert_command: /circuit:cleanup
     signals:
       include: [dead_code, stale_docs, orphaned_artifacts]
-      exclude: [clear_approach, architecture_decision, migration, overnight]
+      exclude: [architecture_decision, migration, overnight]
 
   entry_modes:
     default:

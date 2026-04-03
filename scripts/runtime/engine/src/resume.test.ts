@@ -7,9 +7,9 @@ import {
   utimesSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { stringify as yamlStringify } from "yaml";
+import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 
 import {
   loadOrRebuildState,
@@ -808,5 +808,351 @@ describe("isStepComplete", () => {
       },
     });
     expect(isStepComplete("step-one", state)).toBe(false);
+  });
+});
+
+// ─── Supergraph seam proof ──────────────────────────────────────────
+// Proves the v3 supergraph circuit.yaml works with the runtime engine:
+// - 43 steps across 6 entry modes
+// - Conditional fork at constraints step
+// - Shared implement step with mode-dependent post-routing
+// - walkStepOrder follows recorded routes through correct path
+
+describe("Supergraph seam proof", () => {
+  let supergraphManifest: any;
+
+  beforeEach(() => {
+    // Load the actual v3 supergraph circuit.yaml
+    const manifestPath = resolve(
+      __dirname,
+      "../../../../skills/run/circuit.yaml",
+    );
+    const raw = readFileSync(manifestPath, "utf-8");
+    supergraphManifest = yamlParse(raw);
+  });
+
+  it("loads the supergraph manifest without errors", () => {
+    expect(supergraphManifest.schema_version).toBe("2");
+    expect(supergraphManifest.circuit.id).toBe("run");
+    const steps = supergraphManifest.circuit.steps;
+    expect(steps.length).toBeGreaterThanOrEqual(40);
+  });
+
+  it("has all 7 entry modes", () => {
+    const modes = Object.keys(supergraphManifest.circuit.entry_modes);
+    expect(modes).toContain("default");
+    expect(modes).toContain("quick");
+    expect(modes).toContain("researched");
+    expect(modes).toContain("adversarial");
+    expect(modes).toContain("spec-review");
+    expect(modes).toContain("ratchet");
+    expect(modes).toContain("crucible");
+  });
+
+  it("quick path: triage -> scope -> confirm -> implement -> summarize", () => {
+    const state = baseState({
+      selected_entry_mode: "quick",
+      routes: {
+        triage: "scope",
+        scope: "confirm",
+        confirm: "implement",
+        implement: "summarize",
+        summarize: "@complete",
+      },
+    });
+
+    const start = getEntryModeStart(supergraphManifest, "quick");
+    expect(start).toBe("triage");
+
+    const order = walkStepOrder(supergraphManifest, start, state);
+    expect(order).toEqual([
+      "triage",
+      "scope",
+      "confirm",
+      "implement",
+      "summarize",
+    ]);
+  });
+
+  it("researched path: triage -> evidence-probes -> constraints -> scope -> confirm -> implement -> review -> summarize", () => {
+    const state = baseState({
+      selected_entry_mode: "researched",
+      routes: {
+        triage: "evidence-probes",
+        "evidence-probes": "constraints",
+        constraints: "scope",
+        scope: "confirm",
+        confirm: "implement",
+        implement: "review",
+        review: "summarize",
+        summarize: "@complete",
+      },
+    });
+
+    const order = walkStepOrder(
+      supergraphManifest,
+      getEntryModeStart(supergraphManifest, "researched"),
+      state,
+    );
+    expect(order).toEqual([
+      "triage",
+      "evidence-probes",
+      "constraints",
+      "scope",
+      "confirm",
+      "implement",
+      "review",
+      "summarize",
+    ]);
+  });
+
+  it("adversarial path: constraints fork routes to options instead of scope", () => {
+    const state = baseState({
+      selected_entry_mode: "adversarial",
+      routes: {
+        triage: "evidence-probes",
+        "evidence-probes": "constraints",
+        constraints: "options",
+        options: "decision-packet",
+        "decision-packet": "tradeoff-decision",
+        "tradeoff-decision": "execution-contract",
+        "execution-contract": "prove-seam",
+        "prove-seam": "implement",
+        implement: "ship-review",
+        "ship-review": "summarize",
+        summarize: "@complete",
+      },
+    });
+
+    const order = walkStepOrder(
+      supergraphManifest,
+      getEntryModeStart(supergraphManifest, "adversarial"),
+      state,
+    );
+    expect(order).toEqual([
+      "triage",
+      "evidence-probes",
+      "constraints",
+      "options",
+      "decision-packet",
+      "tradeoff-decision",
+      "execution-contract",
+      "prove-seam",
+      "implement",
+      "ship-review",
+      "summarize",
+    ]);
+  });
+
+  it("spec-review path: starts at spec-intake, merges at execution-contract", () => {
+    const state = baseState({
+      selected_entry_mode: "spec-review",
+      routes: {
+        "spec-intake": "draft-digest",
+        "draft-digest": "parallel-reviews",
+        "parallel-reviews": "caveat-resolution",
+        "caveat-resolution": "amended-draft",
+        "amended-draft": "execution-contract",
+        "execution-contract": "prove-seam",
+        "prove-seam": "implement",
+        implement: "ship-review",
+        "ship-review": "summarize",
+        summarize: "@complete",
+      },
+    });
+
+    const start = getEntryModeStart(supergraphManifest, "spec-review");
+    expect(start).toBe("spec-intake");
+
+    const order = walkStepOrder(supergraphManifest, start, state);
+    expect(order).toEqual([
+      "spec-intake",
+      "draft-digest",
+      "parallel-reviews",
+      "caveat-resolution",
+      "amended-draft",
+      "execution-contract",
+      "prove-seam",
+      "implement",
+      "ship-review",
+      "summarize",
+    ]);
+  });
+
+  it("ratchet path: 17 steps from ratchet-survey to ratchet-closeout", () => {
+    const ratchetSteps = [
+      "ratchet-survey",
+      "ratchet-triage",
+      "ratchet-stabilize",
+      "ratchet-baseline",
+      "ratchet-envision",
+      "ratchet-plan",
+      "ratchet-confirm",
+      "ratchet-batch-1",
+      "ratchet-verify-1",
+      "ratchet-batch-2",
+      "ratchet-verify-2",
+      "ratchet-batch-3",
+      "ratchet-verify-3",
+      "ratchet-injection-check",
+      "ratchet-final-audit",
+      "ratchet-deferred",
+      "ratchet-closeout",
+    ];
+
+    const routes: Record<string, string> = {};
+    for (let i = 0; i < ratchetSteps.length - 1; i++) {
+      routes[ratchetSteps[i]] = ratchetSteps[i + 1];
+    }
+    routes["ratchet-closeout"] = "@complete";
+
+    const state = baseState({
+      selected_entry_mode: "ratchet",
+      routes,
+    });
+
+    const start = getEntryModeStart(supergraphManifest, "ratchet");
+    expect(start).toBe("ratchet-survey");
+
+    const order = walkStepOrder(supergraphManifest, start, state);
+    expect(order).toEqual(ratchetSteps);
+    expect(order).toHaveLength(17);
+  });
+
+  it("crucible path: 7 steps from crucible-frame to crucible-select", () => {
+    const crucibleSteps = [
+      "crucible-frame",
+      "crucible-diverge",
+      "crucible-explore",
+      "crucible-stress-test",
+      "crucible-converge",
+      "crucible-harden",
+      "crucible-select",
+    ];
+
+    const routes: Record<string, string> = {};
+    for (let i = 0; i < crucibleSteps.length - 1; i++) {
+      routes[crucibleSteps[i]] = crucibleSteps[i + 1];
+    }
+    routes["crucible-select"] = "@complete";
+
+    const state = baseState({
+      selected_entry_mode: "crucible",
+      routes,
+    });
+
+    const start = getEntryModeStart(supergraphManifest, "crucible");
+    expect(start).toBe("crucible-frame");
+
+    const order = walkStepOrder(supergraphManifest, start, state);
+    expect(order).toEqual(crucibleSteps);
+    expect(order).toHaveLength(7);
+  });
+
+  it("findResumePoint works with partial quick run", () => {
+    const state = baseState({
+      status: "in_progress",
+      selected_entry_mode: "quick",
+      current_step: "scope",
+      artifacts: {
+        "artifacts/triage-result.md": {
+          status: "complete",
+          gate: "pass",
+          produced_by: "triage",
+        },
+      },
+      routes: {
+        triage: "scope",
+      },
+    });
+
+    const result = findResumePoint(supergraphManifest, state);
+    expect(result.resumeStep).toBe("scope");
+  });
+
+  it("findResumePoint works with partial adversarial run at constraints fork", () => {
+    const state = baseState({
+      status: "in_progress",
+      selected_entry_mode: "adversarial",
+      current_step: "constraints",
+      artifacts: {
+        "artifacts/triage-result.md": {
+          status: "complete",
+          gate: "pass",
+          produced_by: "triage",
+        },
+        "artifacts/external-digest.md": {
+          status: "complete",
+          gate: "pass",
+          produced_by: "evidence-probes",
+        },
+        "artifacts/internal-digest.md": {
+          status: "complete",
+          gate: "pass",
+          produced_by: "evidence-probes",
+        },
+      },
+      routes: {
+        triage: "evidence-probes",
+        "evidence-probes": "constraints",
+      },
+    });
+
+    const result = findResumePoint(supergraphManifest, state);
+    expect(result.resumeStep).toBe("constraints");
+  });
+
+  it("triage redirect terminates at @ terminal", () => {
+    const state = baseState({
+      selected_entry_mode: "default",
+      routes: {
+        triage: "@stop",
+      },
+    });
+
+    const order = walkStepOrder(
+      supergraphManifest,
+      getEntryModeStart(supergraphManifest, "default"),
+      state,
+    );
+    // Should only contain triage -- @redirect is a terminal
+    expect(order).toEqual(["triage"]);
+  });
+
+  it("ship-review issues_found routes back to implement", () => {
+    const state = baseState({
+      selected_entry_mode: "adversarial",
+      routes: {
+        triage: "evidence-probes",
+        "evidence-probes": "constraints",
+        constraints: "options",
+        options: "decision-packet",
+        "decision-packet": "tradeoff-decision",
+        "tradeoff-decision": "execution-contract",
+        "execution-contract": "prove-seam",
+        "prove-seam": "implement",
+        implement: "ship-review",
+        "ship-review": "implement",  // issues found -- loop back
+      },
+    });
+
+    const order = walkStepOrder(
+      supergraphManifest,
+      getEntryModeStart(supergraphManifest, "adversarial"),
+      state,
+    );
+    // visited set prevents infinite loop -- stops at second visit to implement
+    expect(order).toEqual([
+      "triage",
+      "evidence-probes",
+      "constraints",
+      "options",
+      "decision-packet",
+      "tradeoff-decision",
+      "execution-contract",
+      "prove-seam",
+      "implement",
+      "ship-review",
+    ]);
   });
 });

@@ -37,10 +37,15 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+READ_CONFIG="$PLUGIN_ROOT/scripts/runtime/engine/src/cli/read-config.ts"
+
 PROMPT=""
 OUTPUT=""
 BACKEND=""
 CIRCUIT=""
+ROLE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -48,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     --output)  OUTPUT="$2"; shift 2 ;;
     --backend) BACKEND="$2"; shift 2 ;;
     --circuit) CIRCUIT="$2"; shift 2 ;;
+    --role)    ROLE="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -65,28 +71,20 @@ fi
 # Resolve dispatch engine: explicit flag > config per-circuit > config global > auto-detect
 if [[ -z "$BACKEND" ]]; then
   # Check circuit.config.yaml for dispatch.per_circuit.<id> or dispatch.engine
-  for config_path in ./circuit.config.yaml ~/.claude/circuit.config.yaml; do
-    if [[ -f "$config_path" ]]; then
-      if [[ -n "$CIRCUIT" ]]; then
-        per_circuit="$(python3 -c "
-import yaml, sys
-try:
-    cfg = yaml.safe_load(open('$config_path'))
-    print(cfg.get('dispatch',{}).get('per_circuit',{}).get('$CIRCUIT',''))
-except: pass
-" 2>/dev/null)"
-        [[ -n "$per_circuit" ]] && BACKEND="$per_circuit" && break
-      fi
-      global_engine="$(python3 -c "
-import yaml, sys
-try:
-    cfg = yaml.safe_load(open('$config_path'))
-    print(cfg.get('dispatch',{}).get('engine',''))
-except: pass
-" 2>/dev/null)"
-      [[ -n "$global_engine" && "$global_engine" != "auto" ]] && BACKEND="$global_engine" && break
-    fi
-  done
+  if [[ -n "$CIRCUIT" ]]; then
+    per_circuit="$(npx tsx "$READ_CONFIG" --key "dispatch.per_circuit.$CIRCUIT" --fallback "" 2>/dev/null || true)"
+    [[ -n "$per_circuit" ]] && BACKEND="$per_circuit"
+  fi
+  if [[ -z "$BACKEND" ]]; then
+    global_engine="$(npx tsx "$READ_CONFIG" --key "dispatch.engine" --fallback "" 2>/dev/null || true)"
+    [[ -n "$global_engine" && "$global_engine" != "auto" ]] && BACKEND="$global_engine"
+  fi
+
+  # Role-based backend resolution: --role flag > config roles > auto-detect
+  if [[ -z "$BACKEND" && -n "$ROLE" ]]; then
+    role_backend="$(npx tsx "$READ_CONFIG" --key "roles.$ROLE" --fallback "" 2>/dev/null || true)"
+    [[ -n "$role_backend" ]] && BACKEND="$role_backend"
+  fi
 fi
 
 # Fall back to auto-detection

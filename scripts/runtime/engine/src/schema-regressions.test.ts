@@ -285,7 +285,8 @@ describe("circuit.yaml manifest validation", () => {
       .filter((filePath) => existsSync(filePath));
     const errors: Array<{ filePath: string; errors: string[] }> = [];
 
-    expect(circuitFiles.length).toBeGreaterThanOrEqual(10);
+    // v3: 3 circuits (run, cleanup, migrate). Was 10+ in v2.
+    expect(circuitFiles.length).toBeGreaterThanOrEqual(3);
 
     for (const filePath of circuitFiles) {
       const relativePath = relative(REPO_ROOT, filePath);

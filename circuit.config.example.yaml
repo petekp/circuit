@@ -1,70 +1,50 @@
-# circuit.config.yaml -- Optional per-project configuration for Circuitry
+# circuit.config.yaml -- Per-project configuration for Circuitry v3
 #
 # Place this file at your project root (./circuit.config.yaml) or globally
 # at ~/.claude/circuit.config.yaml. Project-level config takes precedence.
 #
 # Generate this file automatically with: /circuit:setup
 
-# Map semantic capabilities to installed skills.
-# Resolution order: project config -> user config -> built-ins.
-# Required capabilities fail closed; optional degrade gracefully.
-
-capabilities:
-  # Code delivery capabilities
-  code.change: []  # auto-detected from file scope; override here if needed
-  review.independent: []  # auto-detected; override here for specific review skills
-
-  # Testing capabilities
-  testing.tdd: [tdd]  # maps to the tdd skill
-
-  # Research capabilities
-  research.external: [deep-research]  # maps to deep-research skill
-  repo.analysis: []  # auto-detected from codebase structure
-
-  # Architecture capabilities
-  architecture.exploration: [architecture-exploration, solution-explorer]
-  comparative.analysis: [solution-explorer]
-
-# Per-circuit capability overrides (optional).
-# Use when a circuit needs different capability providers than the global defaults.
-circuits:
-  run:
-    capabilities: {}
-  develop:
-    capabilities: {}
-    # v1 equivalent: skills: [tdd, deep-research]
-  decide:
-    capabilities:
-      architecture.exploration: [architecture-exploration, solution-explorer]
-    # v1 equivalent: skills: [architecture-exploration, solution-explorer]
-  repair-flow:
-    capabilities:
-      testing.tdd: [tdd]
-    # v1 equivalent: skills: [tdd]
-  fix:
-    capabilities:
-      testing.tdd: [tdd]
-    # v1 equivalent: skills: [tdd]
-  ratchet-quality:
-    capabilities:
-      testing.tdd: [tdd]
-      review.independent: [clean-architecture]
-    # v1 equivalent: skills: [clean-architecture, tdd]
-  cleanup:
-    capabilities:
-      repo.analysis: [dead-code-sweep]
-    # v1 equivalent: skills: [dead-code-sweep]
+# Role-based agent routing. Maps semantic roles to dispatch backends.
+# Supported backends: codex, agent, auto, or any custom shell command.
+roles:
+  implementer: codex    # code writing, seam proofs, batch execution
+  reviewer: agent       # independent review, audits, ship review
+  researcher: agent     # evidence probes, external research
 
 # Dispatch engine configuration (optional).
-# Controls what process runs dispatch steps. Default: auto-detect (codex if
-# installed, otherwise agent).
-#
-# Built-in engines: "codex", "agent"
-# Custom engines: any shell command that accepts (prompt_file, output_file)
-#   e.g. "gemini run", "claude -p", "./scripts/my-agent.sh"
+# Controls the default process for dispatch steps. The --role flag in
+# dispatch.sh takes precedence over this setting.
 #
 # dispatch:
 #   engine: auto               # global default (auto | codex | agent | <command>)
 #   per_circuit:               # override per circuit
-#     develop: codex
-#     decide: agent
+#     run: codex
+
+# Map semantic capabilities to installed skills (optional).
+# Resolution order: project config -> user config -> built-ins.
+capabilities:
+  code.change: []                    # auto-detected from file scope
+  review.independent: []             # auto-detected
+  testing.tdd: [tdd]                 # maps to the tdd skill
+  research.external: [deep-research] # maps to deep-research skill
+  repo.analysis: []                  # auto-detected from codebase structure
+  architecture.exploration: [architecture-exploration, solution-explorer]
+
+# Optional: declare expected capabilities for cross-machine consistency.
+# If present, the session-start hook warns when an expected capability
+# is not detected. Omit this section for fully automatic degradation.
+#
+# expected_capabilities:
+#   - tdd
+#   - deep-research
+
+# Per-circuit overrides (optional).
+circuits:
+  run:
+    capabilities: {}
+  cleanup:
+    capabilities:
+      repo.analysis: [dead-code-sweep]
+  migrate:
+    capabilities: {}

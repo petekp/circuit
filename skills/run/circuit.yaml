@@ -1,53 +1,74 @@
 schema_version: "2"
 circuit:
   id: run
-  version: "2026-04-01"
-  purpose: Default ship-change circuit for clear, non-trivial work.
+  version: "2026-04-03"
+  purpose: >
+    Adaptive supergraph circuit. Triage classifies task into one of six
+    workflow shapes; the runtime engine walks the selected path using
+    recorded routes. Steps on inactive paths are never visited.
 
   entry:
     command: /circuit
     expert_command: /circuit:run
     signals:
-      include: [clear_approach, non_trivial]
-      exclude: [broken_flow, architecture_decision, dead_code, migration, overnight]
+      include: [clear_approach, non_trivial, bug, architecture_decision, overnight, pressure_test]
+      exclude: []
 
   entry_modes:
     default:
-      start_at: scope
-      description: Start directly at auto-scope.
-    intent:
-      start_at: intent-lock
-      description: Capture explicit priorities and non-goals before scoping.
+      start_at: triage
+      description: Triage classifies to quick, researched, or adversarial.
+    quick:
+      start_at: triage
+      description: Intent hint -- triage pre-classifies as quick.
+    researched:
+      start_at: triage
+      description: Intent hint -- triage pre-classifies as researched.
+    adversarial:
+      start_at: triage
+      description: Intent hint -- triage pre-classifies as adversarial.
+    spec-review:
+      start_at: spec-intake
+      description: Existing RFC/PRD to review before build.
+    ratchet:
+      start_at: ratchet-survey
+      description: Overnight quality improvement pass.
+    crucible:
+      start_at: crucible-frame
+      description: Adversarial tournament for competing approaches.
 
   steps:
-    - id: intent-lock
-      title: Intent Lock
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # TRIAGE (shared entry for default/quick/researched/adversarial)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    - id: triage
+      title: Triage Classification
       executor: orchestrator
-      kind: checkpoint
-      protocol: intent-lock@v1
+      kind: synthesis
       reads: [user.task, repo.snapshot]
       writes:
         artifact:
-          path: artifacts/intent-brief.md
-          schema: intent-brief@v1
-        request: checkpoints/{step_id}-{attempt}.request.json
-        response: checkpoints/{step_id}-{attempt}.response.json
-      checkpoint:
-        kind: intent_lock
-        options: [continue]
-        materialize_artifact: true
+          path: artifacts/triage-result.md
+          schema: triage-result@v1
       gate:
-        kind: checkpoint_selection
-        source: checkpoints/{step_id}-{attempt}.response.json
-        allow: [continue]
+        kind: schema_sections
+        source: artifacts/triage-result.md
+        required: [Pattern, Mode, Reasoning, Probe]
       routes:
-        continue: scope
+        quick: scope
+        researched: evidence-probes
+        adversarial: evidence-probes
+        redirect_cleanup: "@stop"
+        redirect_migrate: "@stop"
 
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # QUICK + RESEARCHED SHARED PATH
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     - id: scope
       title: Auto-Scope
       executor: orchestrator
       kind: synthesis
-      reads: [user.task, repo.snapshot, "optional:artifacts/intent-brief.md", "optional:checkpoints/confirm-{attempt}.response.json"]
+      reads: [user.task, repo.snapshot, artifacts/triage-result.md, "optional:artifacts/constraints.md"]
       writes:
         artifact:
           path: artifacts/scope.md
@@ -72,30 +93,216 @@ circuit:
           schema: scope-confirmed@v1
         request: checkpoints/{step_id}-{attempt}.request.json
         response: checkpoints/{step_id}-{attempt}.response.json
-        handoff: handoffs/handoff-packet.json
       checkpoint:
         kind: scope_confirmation
-        options: [confirm, amend, switch]
+        options: [confirm, amend]
         materialize_artifact: true
       gate:
         kind: checkpoint_selection
         source: checkpoints/{step_id}-{attempt}.response.json
-        allow: [confirm, amend, switch]
+        allow: [confirm, amend]
       routes:
         confirm: implement
         amend: scope
-        switch: "@handoff"
 
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # RESEARCHED + ADVERSARIAL SHARED PATH (evidence gathering)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    - id: evidence-probes
+      title: Parallel Evidence Probes
+      executor: worker
+      kind: dispatch
+      protocol: parallel-evidence-probes@v1
+      reads: [artifacts/triage-result.md]
+      writes:
+        artifacts:
+          - path: artifacts/external-digest.md
+            schema: evidence-digest@v1
+          - path: artifacts/internal-digest.md
+            schema: evidence-digest@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [repo.analysis]
+        optional: [deep-research]
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [outputs_ready]
+      routes:
+        pass: constraints
+        fail: "@escalate"
+
+    - id: constraints
+      title: Constraints Synthesis
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/external-digest.md, artifacts/internal-digest.md, artifacts/triage-result.md]
+      writes:
+        artifact:
+          path: artifacts/constraints.md
+          schema: constraints@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/constraints.md
+        required: [Hard Invariants, Seams and Integration Points, Open Questions]
+      routes:
+        researched: scope
+        adversarial: options
+        fail: "@escalate"
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # ADVERSARIAL PATH (decision making)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    - id: options
+      title: Generate Distinct Candidates
+      executor: worker
+      kind: dispatch
+      protocol: options-generation@v1
+      reads: [artifacts/triage-result.md, artifacts/constraints.md]
+      writes:
+        artifact:
+          path: artifacts/options.md
+          schema: options@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [repo.analysis]
+        optional: []
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [outputs_ready]
+      routes:
+        pass: decision-packet
+        fail: "@escalate"
+
+    - id: decision-packet
+      title: Adversarial Evaluation + Decision Packet
+      executor: worker
+      kind: dispatch
+      protocol: adversarial-evaluation@v1
+      reads: [artifacts/constraints.md, artifacts/options.md]
+      writes:
+        artifact:
+          path: artifacts/decision-packet.md
+          schema: decision-packet@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [repo.analysis]
+        optional: []
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [outputs_ready]
+      routes:
+        pass: tradeoff-decision
+        fail: "@escalate"
+
+    - id: tradeoff-decision
+      title: Tradeoff Decision
+      executor: orchestrator
+      kind: checkpoint
+      protocol: tradeoff-decision@v1
+      reads: [artifacts/decision-packet.md]
+      writes:
+        artifact:
+          path: artifacts/adr.md
+          schema: adr@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: tradeoff_decision
+        options: [choose, defer]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [choose]
+      routes:
+        choose: execution-contract
+        defer: "@escalate"
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # ADVERSARIAL + SPEC-REVIEW SHARED PATH (preflight)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    - id: execution-contract
+      title: Implementation Contract
+      executor: orchestrator
+      kind: synthesis
+      reads:
+        - "optional:artifacts/adr.md"
+        - "optional:artifacts/constraints.md"
+        - "optional:artifacts/triage-result.md"
+        - "optional:artifacts/amended-spec.md"
+        - "optional:artifacts/caveat-resolution.md"
+        - "optional:artifacts/spec-brief.md"
+      writes:
+        artifact:
+          path: artifacts/execution-packet.md
+          schema: execution-packet@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/execution-packet.md
+        required: [Invariants, Slice Order, Test Obligations]
+      routes:
+        pass: prove-seam
+        fail: "@escalate"
+
+    - id: prove-seam
+      title: Prove the Hardest Seam
+      executor: worker
+      kind: dispatch
+      protocol: seam-proof@v1
+      reads: [artifacts/execution-packet.md]
+      writes:
+        artifact:
+          path: artifacts/seam-proof.md
+          schema: seam-proof@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [code.change]
+        optional: [testing.tdd]
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [design_holds, needs_adjustment]
+        reroute:
+          design_invalidated: "@escalate"
+      routes:
+        design_holds: implement
+        needs_adjustment: implement
+        design_invalidated: "@escalate"
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # SHARED DELIVERY (all modes converge here)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     - id: implement
       title: Implement
       executor: worker
       kind: dispatch
       protocol: workers-execute@v1
-      reads: [artifacts/scope-confirmed.md]
+      reads:
+        - "optional:artifacts/scope-confirmed.md"
+        - "optional:artifacts/execution-packet.md"
       writes:
         artifact:
-          path: artifacts/execution-handoff.md
-          schema: execution-handoff@v1
+          path: artifacts/implementation-handoff.md
+          schema: implementation-handoff@v1
         request: jobs/{step_id}-{attempt}/dispatch-request.json
         receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
         result: jobs/{step_id}-{attempt}/job-result.json
@@ -109,14 +316,77 @@ circuit:
         source: jobs/{step_id}-{attempt}/job-result.json
         pass: [complete_and_hardened]
       routes:
+        to_summary: summarize
+        to_review: review
+        to_ship_review: ship-review
+        fail: "@escalate"
+
+    - id: review
+      title: Post-Implementation Review
+      executor: worker
+      kind: dispatch
+      protocol: final-review@v1
+      reads: [artifacts/scope-confirmed.md, artifacts/implementation-handoff.md]
+      writes:
+        artifact:
+          path: artifacts/review-findings.md
+          schema: review-findings@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [review.independent]
+        optional: []
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [ship_ready]
+      routes:
         pass: summarize
+        fail: "@escalate"
+
+    - id: ship-review
+      title: Ship Review
+      executor: worker
+      kind: dispatch
+      protocol: final-review@v1
+      reads:
+        - artifacts/execution-packet.md
+        - artifacts/implementation-handoff.md
+        - "optional:artifacts/triage-result.md"
+      writes:
+        artifact:
+          path: artifacts/ship-review.md
+          schema: ship-review@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [review.independent]
+        optional: []
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [ship_ready]
+      routes:
+        ship_ready: summarize
+        issues_found: implement
         fail: "@escalate"
 
     - id: summarize
       title: Done Summary
       executor: orchestrator
       kind: synthesis
-      reads: [artifacts/scope-confirmed.md, artifacts/execution-handoff.md]
+      reads:
+        - "optional:artifacts/scope-confirmed.md"
+        - "optional:artifacts/execution-packet.md"
+        - "optional:artifacts/implementation-handoff.md"
+        - "optional:artifacts/ship-review.md"
+        - "optional:artifacts/review-findings.md"
       writes:
         artifact:
           path: artifacts/done.md
@@ -125,6 +395,607 @@ circuit:
         kind: schema_sections
         source: artifacts/done.md
         required: [Changes, Verification, Notes]
+      routes:
+        pass: "@complete"
+        fail: "@escalate"
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # SPEC-REVIEW PATH (entry: spec-intake, merges at execution-contract)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    - id: spec-intake
+      title: Spec Intake
+      executor: orchestrator
+      kind: checkpoint
+      protocol: spec-intake@v1
+      reads: [user.task, "optional:entry.spec_path"]
+      writes:
+        artifact:
+          path: artifacts/spec-brief.md
+          schema: spec-brief@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: spec_intake
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: draft-digest
+
+    - id: draft-digest
+      title: Draft Digest
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/spec-brief.md, "optional:entry.spec_path"]
+      writes:
+        artifact:
+          path: artifacts/draft-digest.md
+          schema: draft-digest@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/draft-digest.md
+        required: [Core Claims, Proposed Mechanism, Assumptions, Ambiguities]
+      routes:
+        pass: parallel-reviews
+
+    - id: parallel-reviews
+      title: Parallel Reviews
+      executor: worker
+      kind: dispatch
+      protocol: parallel-spec-reviews@v1
+      reads: [artifacts/draft-digest.md]
+      writes:
+        artifacts:
+          - path: artifacts/implementer-review.md
+            schema: spec-review@v1
+          - path: artifacts/systems-review.md
+            schema: spec-review@v1
+          - path: artifacts/comparative-review.md
+            schema: spec-review@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      capabilities:
+        required: [repo.analysis]
+        optional: [deep-research]
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [outputs_ready]
+      routes:
+        pass: caveat-resolution
+
+    - id: caveat-resolution
+      title: Caveat Resolution
+      executor: orchestrator
+      kind: checkpoint
+      protocol: caveat-resolution@v1
+      reads:
+        - artifacts/implementer-review.md
+        - artifacts/systems-review.md
+        - artifacts/comparative-review.md
+      writes:
+        artifact:
+          path: artifacts/caveat-resolution.md
+          schema: caveat-resolution@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: caveat_resolution
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: amended-draft
+
+    - id: amended-draft
+      title: Amended Draft
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/spec-brief.md, artifacts/draft-digest.md, artifacts/caveat-resolution.md]
+      writes:
+        artifact:
+          path: artifacts/amended-spec.md
+          schema: amended-spec@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/amended-spec.md
+        required: [Problem and Goal, Proposed Design, Invariants, Open Risks]
+      routes:
+        pass: execution-contract
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # RATCHET PATH (17 steps, entry: ratchet-survey)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    - id: ratchet-survey
+      title: Ratchet Survey
+      executor: orchestrator
+      kind: synthesis
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/ratchet-survey.md
+          schema: ratchet-survey@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/ratchet-survey.md
+        required: [Codebase Health, Priority Areas, Metrics Baseline]
+      routes:
+        pass: ratchet-triage
+        fail: "@escalate"
+
+    - id: ratchet-triage
+      title: Ratchet Triage
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/ratchet-survey.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-triage.md
+          schema: ratchet-triage@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/ratchet-triage.md
+        required: [Classified Issues, Priority Order, Batch Plan]
+      routes:
+        pass: ratchet-stabilize
+        fail: "@escalate"
+
+    - id: ratchet-stabilize
+      title: Ratchet Stabilize
+      executor: worker
+      kind: dispatch
+      protocol: ratchet-stabilize@v1
+      reads: [artifacts/ratchet-triage.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-stabilize.md
+          schema: ratchet-stabilize@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [stable]
+      routes:
+        pass: ratchet-baseline
+        fail: "@escalate"
+
+    - id: ratchet-baseline
+      title: Ratchet Baseline
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/ratchet-stabilize.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-baseline.md
+          schema: ratchet-baseline@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/ratchet-baseline.md
+        required: [Test Results, Coverage Metrics, Lint Results]
+      routes:
+        pass: ratchet-envision
+        fail: "@escalate"
+
+    - id: ratchet-envision
+      title: Ratchet Envision
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/ratchet-triage.md, artifacts/ratchet-baseline.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-envision.md
+          schema: ratchet-envision@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/ratchet-envision.md
+        required: [Target State, Improvement Areas, Success Criteria]
+      routes:
+        pass: ratchet-plan
+        fail: "@escalate"
+
+    - id: ratchet-plan
+      title: Ratchet Plan
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/ratchet-envision.md, artifacts/ratchet-baseline.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-plan.md
+          schema: ratchet-plan@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/ratchet-plan.md
+        required: [Batches, Per-Batch Verification, Rollback Triggers]
+      routes:
+        pass: ratchet-confirm
+        fail: "@escalate"
+
+    - id: ratchet-confirm
+      title: Ratchet Confirm
+      executor: orchestrator
+      kind: checkpoint
+      protocol: ratchet-confirm@v1
+      reads: [artifacts/ratchet-plan.md]
+      writes:
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: ratchet_confirm
+        options: [continue, adjust]
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue, adjust]
+      routes:
+        continue: ratchet-batch-1
+        adjust: ratchet-plan
+
+    - id: ratchet-batch-1
+      title: Ratchet Batch 1
+      executor: worker
+      kind: dispatch
+      protocol: workers-execute@v1
+      reads: [artifacts/ratchet-plan.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-batch-1.md
+          schema: ratchet-batch@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      budgets:
+        max_attempts: 3
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [complete_and_hardened]
+      routes:
+        pass: ratchet-verify-1
+        fail: "@escalate"
+
+    - id: ratchet-verify-1
+      title: Ratchet Verify 1
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/ratchet-batch-1.md, artifacts/ratchet-baseline.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-verify-1.md
+          schema: ratchet-verify@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/ratchet-verify-1.md
+        required: [Stability Check, Regression Check, Metrics Delta]
+      routes:
+        pass: ratchet-batch-2
+        fail: "@escalate"
+
+    - id: ratchet-batch-2
+      title: Ratchet Batch 2
+      executor: worker
+      kind: dispatch
+      protocol: workers-execute@v1
+      reads: [artifacts/ratchet-plan.md, artifacts/ratchet-verify-1.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-batch-2.md
+          schema: ratchet-batch@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      budgets:
+        max_attempts: 3
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [complete_and_hardened]
+      routes:
+        pass: ratchet-verify-2
+        fail: "@escalate"
+
+    - id: ratchet-verify-2
+      title: Ratchet Verify 2
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/ratchet-batch-2.md, artifacts/ratchet-baseline.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-verify-2.md
+          schema: ratchet-verify@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/ratchet-verify-2.md
+        required: [Stability Check, Regression Check, Metrics Delta]
+      routes:
+        pass: ratchet-batch-3
+        fail: "@escalate"
+
+    - id: ratchet-batch-3
+      title: Ratchet Batch 3
+      executor: worker
+      kind: dispatch
+      protocol: workers-execute@v1
+      reads: [artifacts/ratchet-plan.md, artifacts/ratchet-verify-2.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-batch-3.md
+          schema: ratchet-batch@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      budgets:
+        max_attempts: 3
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [complete_and_hardened]
+      routes:
+        pass: ratchet-verify-3
+        fail: "@escalate"
+
+    - id: ratchet-verify-3
+      title: Ratchet Verify 3
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/ratchet-batch-3.md, artifacts/ratchet-baseline.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-verify-3.md
+          schema: ratchet-verify@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/ratchet-verify-3.md
+        required: [Stability Check, Regression Check, Metrics Delta]
+      routes:
+        pass: ratchet-injection-check
+        fail: "@escalate"
+
+    - id: ratchet-injection-check
+      title: Ratchet Injection Check
+      executor: worker
+      kind: dispatch
+      protocol: ratchet-injection-check@v1
+      reads: [artifacts/ratchet-baseline.md, artifacts/ratchet-verify-3.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-injection-check.md
+          schema: ratchet-injection-check@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      budgets:
+        max_attempts: 1
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [clean]
+      routes:
+        pass: ratchet-final-audit
+        fail: "@escalate"
+
+    - id: ratchet-final-audit
+      title: Ratchet Final Audit
+      executor: worker
+      kind: dispatch
+      protocol: final-review@v1
+      reads: [artifacts/ratchet-plan.md, artifacts/ratchet-injection-check.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-final-audit.md
+          schema: ratchet-final-audit@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [ship_ready]
+      routes:
+        pass: ratchet-deferred
+        fail: "@escalate"
+
+    - id: ratchet-deferred
+      title: Ratchet Deferred Review
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/ratchet-final-audit.md, artifacts/ratchet-triage.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-deferred.md
+          schema: ratchet-deferred@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/ratchet-deferred.md
+        required: [Deferred Items, Rationale, Follow-up Actions]
+      routes:
+        pass: ratchet-closeout
+        fail: "@escalate"
+
+    - id: ratchet-closeout
+      title: Ratchet Closeout
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/ratchet-plan.md, artifacts/ratchet-final-audit.md, artifacts/ratchet-deferred.md]
+      writes:
+        artifact:
+          path: artifacts/ratchet-closeout.md
+          schema: ratchet-closeout@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/ratchet-closeout.md
+        required: [Summary, Metrics Before/After, Deferred Items]
+      routes:
+        pass: "@complete"
+        fail: "@escalate"
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # CRUCIBLE PATH (7 steps, entry: crucible-frame)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    - id: crucible-frame
+      title: Crucible Frame
+      executor: orchestrator
+      kind: checkpoint
+      protocol: crucible-frame@v1
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/problem-brief.md
+          schema: problem-brief@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: crucible_frame
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: crucible-diverge
+
+    - id: crucible-diverge
+      title: Crucible Diverge
+      executor: worker
+      kind: dispatch
+      protocol: crucible-diverge@v1
+      reads: [artifacts/problem-brief.md]
+      writes:
+        artifacts:
+          - path: artifacts/proposal-a.md
+            schema: proposal@v1
+          - path: artifacts/proposal-b.md
+            schema: proposal@v1
+          - path: artifacts/proposal-c.md
+            schema: proposal@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [outputs_ready]
+      routes:
+        pass: crucible-explore
+
+    - id: crucible-explore
+      title: Crucible Explore
+      executor: worker
+      kind: dispatch
+      protocol: crucible-explore@v1
+      reads: [artifacts/problem-brief.md, artifacts/proposal-a.md, artifacts/proposal-b.md, artifacts/proposal-c.md]
+      writes:
+        artifacts:
+          - path: artifacts/revised-a.md
+            schema: revised-proposal@v1
+          - path: artifacts/revised-b.md
+            schema: revised-proposal@v1
+          - path: artifacts/revised-c.md
+            schema: revised-proposal@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [outputs_ready]
+      routes:
+        pass: crucible-stress-test
+
+    - id: crucible-stress-test
+      title: Crucible Stress Test
+      executor: worker
+      kind: dispatch
+      protocol: crucible-stress-test@v1
+      reads: [artifacts/revised-a.md, artifacts/revised-b.md, artifacts/revised-c.md]
+      writes:
+        artifacts:
+          - path: artifacts/review-a.md
+            schema: stress-test-review@v1
+          - path: artifacts/review-b.md
+            schema: stress-test-review@v1
+          - path: artifacts/review-c.md
+            schema: stress-test-review@v1
+        request: jobs/{step_id}-{attempt}/dispatch-request.json
+        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
+        result: jobs/{step_id}-{attempt}/job-result.json
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}/job-result.json
+        pass: [outputs_ready]
+      routes:
+        pass: crucible-converge
+
+    - id: crucible-converge
+      title: Crucible Converge
+      executor: orchestrator
+      kind: synthesis
+      reads:
+        - artifacts/problem-brief.md
+        - artifacts/review-a.md
+        - artifacts/review-b.md
+        - artifacts/review-c.md
+      writes:
+        artifact:
+          path: artifacts/selection-synthesis.md
+          schema: selection-synthesis@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/selection-synthesis.md
+        required: [Selection, Rationale, Merged Elements]
+      routes:
+        pass: crucible-harden
+
+    - id: crucible-harden
+      title: Crucible Harden
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/selection-synthesis.md]
+      writes:
+        artifact:
+          path: artifacts/pre-mortem.md
+          schema: pre-mortem@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/pre-mortem.md
+        required: [Failure Scenarios, Edge Cases, Blind Spots]
+      routes:
+        pass: crucible-select
+
+    - id: crucible-select
+      title: Crucible Select
+      executor: orchestrator
+      kind: synthesis
+      reads: [artifacts/selection-synthesis.md, artifacts/pre-mortem.md]
+      writes:
+        artifact:
+          path: artifacts/final-proposal.md
+          schema: final-proposal@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/final-proposal.md
+        required: [Executive Summary, The System]
       routes:
         pass: "@complete"
         fail: "@escalate"

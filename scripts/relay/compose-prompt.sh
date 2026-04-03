@@ -34,6 +34,7 @@ OUT=""
 # so ~/.claude/skills is always included as a fallback.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+READ_CONFIG="$PLUGIN_ROOT/scripts/runtime/engine/src/cli/read-config.ts"
 SKILL_DIRS=()
 if [[ -n "${CIRCUIT_PLUGIN_SKILL_DIR:-}" ]]; then
   SKILL_DIRS+=("$CIRCUIT_PLUGIN_SKILL_DIR")
@@ -267,19 +268,7 @@ if [[ -z "$SKILLS" && -n "$CIRCUIT" ]]; then
     # Extract skills for the given circuit id using basic YAML parsing
     # Supports format: circuits.<id>.skills: [skill1, skill2]
     # or: circuits.<id>.skills:\n  - skill1\n  - skill2
-    CONFIG_SKILLS="$(python3 -c "
-import yaml, sys
-try:
-    with open('$CONFIG') as f:
-        cfg = yaml.safe_load(f)
-    circuits = cfg.get('circuits', {})
-    entry = circuits.get('$CIRCUIT', {})
-    skills = entry.get('skills', [])
-    if isinstance(skills, list):
-        print(','.join(str(s) for s in skills))
-except Exception:
-    pass
-" 2>/dev/null || true)"
+    CONFIG_SKILLS="$(npx tsx "$READ_CONFIG" --key "circuits.$CIRCUIT.skills" --fallback "" 2>/dev/null || true)"
     if [[ -n "$CONFIG_SKILLS" ]]; then
       SKILLS="$CONFIG_SKILLS"
     fi
