@@ -2,9 +2,9 @@
 name: circuit:run
 description: >
   Adaptive supergraph circuit. Triage classifies any task into the right
-  workflow shape, then the runtime engine walks the selected path. Six entry
-  modes (quick, researched, adversarial, spec-review, ratchet, crucible) share
-  one circuit.yaml. Steps on inactive paths are never visited.
+  workflow shape, then the runtime engine walks the selected path. Seven entry
+  modes (default, quick, researched, adversarial, spec-review, ratchet, crucible)
+  share one circuit.yaml. Steps on inactive paths are never visited.
 trigger: >
   Use for /circuit, /circuit:run, or any task that needs structured execution.
   This is the default entry point for all circuit work.

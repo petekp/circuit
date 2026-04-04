@@ -3,7 +3,7 @@
 # Place this file at your project root (./circuit.config.yaml) or globally
 # at ~/.claude/circuit.config.yaml. Project-level config takes precedence.
 #
-# Generate this file automatically with: /circuit:setup
+# Copy this file to your project root as circuit.config.yaml and customize.
 
 # Role-based agent routing. Maps semantic roles to dispatch backends.
 # Supported backends: codex, agent, auto, or any custom shell command.

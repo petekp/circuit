@@ -693,8 +693,8 @@ Stop and recommend a different path when:
   multi-phase circuit is not justified for a handful of known deletions
 - The target is a single file or a known specific item — use direct deletion
   instead
-- The cleanup requires behavior changes (refactoring, API migration) — use
-  `circuit:develop` instead
-- The user wants architecture simplification, not detritus removal — use
-  `circuit:decide` or `improve-codebase-architecture` instead
+- The cleanup requires behavior changes (refactoring, API migration) -- use
+  `circuit:run` in researched mode instead
+- The user wants architecture simplification, not detritus removal -- use
+  `circuit:run` in adversarial mode instead
 - Build/test infrastructure does not exist or is broken — fix that first

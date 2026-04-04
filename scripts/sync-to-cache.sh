@@ -30,8 +30,8 @@ sync_target() {
   cp "$PLUGIN_ROOT/hooks/session-start.sh" "$target/hooks/session-start.sh" || return 1
   chmod +x "$target/hooks/session-start.sh" || return 1
 
-  # Sync skills without deleting target-only directories.
-  rsync -a "$PLUGIN_ROOT/skills/" "$target/skills/" || return 1
+  # Sync skills and remove directories that no longer exist in source.
+  rsync -a --delete "$PLUGIN_ROOT/skills/" "$target/skills/" || return 1
 
   # Sync plugin manifest
   cp "$PLUGIN_ROOT/.claude-plugin/plugin.json" "$target/.claude-plugin/plugin.json" || return 1

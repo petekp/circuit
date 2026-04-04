@@ -7,7 +7,7 @@
 # Checks:
 #   1. Codex CLI is installed
 #   2. Node.js and engine CLIs
-#   3. Python 3 and PyYAML (relay scripts)
+#   3. Python 3 and PyYAML (optional, for update-batch.sh)
 #   4. Bash version (3.2+ works; 4+ recommended)
 #   5. All expected skill directories exist
 #   6. Both relay scripts exist and are executable
@@ -83,24 +83,24 @@ else
   warn "engine node_modules missing — contributors run: cd $engine_dir && npm install"
 fi
 
-# ── 3. Python 3 (relay scripts) ─────────────────────────────────────
-section "Python 3"
+# ── 3. Python 3 (optional, used by update-batch.sh only) ───────────
+section "Python 3 (optional)"
 
 if command -v python3 >/dev/null 2>&1; then
   py_version="$(python3 --version 2>&1)"
-  pass "python3 found: $py_version (used by relay scripts)"
+  pass "python3 found: $py_version (used by update-batch.sh)"
 else
-  fail "python3 not found — required by relay scripts (compose-prompt.sh, dispatch.sh, update-batch.sh)"
+  warn "python3 not found — update-batch.sh will not work. Core circuits do not require Python."
 fi
 
-# ── 3b. PyYAML ──────────────────────────────────────────────────────
-section "PyYAML"
+# ── 3b. PyYAML (optional) ──────────────────────────────────────────
+section "PyYAML (optional)"
 
 if command -v python3 >/dev/null 2>&1; then
   if python3 -c "import yaml" >/dev/null 2>&1; then
     pass "PyYAML available"
   else
-    warn "PyYAML not found — config-file skill resolution (--circuit flag) will not work. Install with: pip3 install pyyaml"
+    warn "PyYAML not found — update-batch.sh YAML parsing will not work. Install with: pip3 install pyyaml"
   fi
 fi
 

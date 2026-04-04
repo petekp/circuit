@@ -2,7 +2,7 @@
 name: circuit:migrate
 description: >
   Companion circuit for large-scale migrations and refactors. Reached via
-  /circuit:migrate or triage redirect from circuit:run. 8 steps across 5 phases:
+  /circuit:migrate or triage redirect from circuit:run. 7 steps across 5 phases:
   Scope -> Inventory -> Strategy -> Execution -> Verification. Use for framework
   swaps, dependency replacements, architecture transitions, incremental rewrites.
 trigger: >
@@ -13,7 +13,7 @@ trigger: >
 
 An artifact-centric workflow that chains migration brief -> dependency inventory +
 risk assessment -> coexistence plan -> batched execution -> verification -> cutover.
-The key differentiator from `circuit:develop` is dual-system coexistence: old and new
+The key differentiator from `circuit:run` (researched mode) is dual-system coexistence: old and new
 run simultaneously during the transition, each batch is independently verifiable, and
 rollback is a first-class concern at every stage.
 

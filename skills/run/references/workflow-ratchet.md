@@ -479,9 +479,7 @@ The injection ledger tracks issues introduced during the run:
 - Closeout aggregates all `RI-*` entries.
 
 The supergraph ratchet does not support mid-run injection of extra work
-steps. This is simpler than the standalone `circuit:ratchet-quality` which
-has multi-phase injection. Unattended runs should not attempt recursive
-scope expansion.
+steps. Unattended runs should not attempt recursive scope expansion.
 
 ## Reopen Protocol
 

@@ -31,27 +31,26 @@ claude plugin install petekp/circuitry
 /circuit <describe your task>
 ```
 
-The router picks the right circuit automatically. You can also invoke a
-specific circuit directly as an expert shortcut, e.g. `/circuit:run <task>`.
+Triage classifies your task and picks the right workflow shape
+automatically. You can also invoke a specific circuit directly, e.g.
+`/circuit:cleanup <task>`.
 
 ## What's Inside
 
 | Circuit | Invoke | Best For |
 |---------|--------|----------|
-| Run | `/circuit:run <task>` | The default: any clear task that benefits from planning and review (`--intent` for explicit intent lock) |
-| Fix | `/circuit:fix <bug>` | Known bugs with test-first discipline |
-| Develop | `/circuit:develop` | Taking a feature from idea to shipped code (`--spec-review` for existing specs) |
-| Decide | `/circuit:decide` | Architecture decisions under real uncertainty |
-| Repair Flow | `/circuit:repair-flow` | Debugging and repairing broken end-to-end flows |
-| Ratchet Quality | `/circuit:ratchet-quality` | Overnight unattended quality improvement runs |
-| Cleanup | `/circuit:cleanup` | Systematic dead code, stale docs, and codebase cleanup |
+| Run | `/circuit <task>` | The default: triage classifies, then executes via quick, researched, adversarial, spec-review, ratchet, or crucible paths |
+| Cleanup | `/circuit:cleanup` | Systematic dead code, stale docs, and codebase detritus cleanup |
 | Migrate | `/circuit:migrate` | Large-scale migrations: framework swaps, dependency replacements, architecture transitions |
-| Circuit Create | `/circuit:create` | Authoring a new circuit from a workflow description |
-| Dry Run | `/circuit:dry-run` | Validating a circuit is mechanically sound before real use |
-| Setup | `/circuit:setup` | Discover installed skills and generate circuit.config.yaml |
+| Workers | `/circuit:workers` | Autonomous batch orchestrator for dispatching parallel workers |
 
-`/circuit <task>` auto-routes to the right circuit from this table. Named
-circuits like `/circuit:run` bypass routing and invoke directly.
+`/circuit <task>` is the primary entry point. Triage analyzes your task,
+classifies it into one of seven workflow shapes, and runs the appropriate
+path through a 43-step supergraph. Use intent hints like `/circuit fix: <bug>`
+or `/circuit decide: <task>` to skip triage and lock a specific mode.
+
+Companion circuits (`cleanup`, `migrate`) are reached by triage redirect or
+direct invocation when the task needs a specialized topology.
 
 ## Quick Start
 
@@ -61,22 +60,22 @@ circuits like `/circuit:run` bypass routing and invoke directly.
 
 Here's what happens:
 
-1. **The circuit scopes your task.** It analyzes what needs to change,
-   shows you the plan, and waits for your confirmation before writing any
-   code.
+1. **Triage classifies your task.** It reads the task, matches signal
+   patterns against a mode selection table, and presents its classification
+   with a diagnostic probe for your confirmation.
 
 2. **Progress is saved to disk** in `.circuitry/` as a chain of markdown
-   files. For the default workflow: `scope.md` -> `scope-confirmed.md`
-   -> `execution-handoff.md` -> `done.md`. Specialized circuits have
-   longer chains.
+   files. Each step writes a durable artifact that feeds the next. If a
+   session crashes, a fresh one reads the files and resumes from the last
+   completed step.
 
 3. **Workers handle the heavy lifting.** Implementation, review, and
    convergence run in isolated worker sessions (via Codex CLI when
    installed, or Claude Code Agent as fallback).
 
-4. **If a session crashes, nothing is lost.** A fresh Claude Code session
-   reads the files on disk and resumes from the last completed step.
-   The files are the state, not the chat history.
+4. **You step in where it matters.** Interactive checkpoints pause for your
+   judgment on scope confirmation and tradeoff decisions. Everything else
+   runs autonomously.
 
 ## Installation
 
@@ -84,7 +83,7 @@ Here's what happens:
 
 - **Claude Code** (the host environment)
 - **Node.js** (runtime engine -- bundled CLIs ship with the plugin, no build step needed)
-- **Python 3** (required by relay scripts)
+- **Python 3** (optional, used by `update-batch.sh` only)
 - **Codex CLI** (optional, `npm install -g @openai/codex`) for better
   parallelism. When Codex is not installed, circuits fall back to Claude
   Code's Agent tool with worktree isolation. Everything works in both
@@ -126,27 +125,18 @@ Circuits can inject domain-specific skills into worker prompts. These are
 
 | Skill | Enhances |
 |-------|----------|
-| `tdd` | fix, repair-flow, ratchet-quality |
-| `deep-research` | develop, decide |
-| `clean-architecture` | ratchet-quality, decide |
+| `tdd` | Bug fix (test-first), ratchet batches |
+| `deep-research` | Evidence probes, external research |
+| `clean-architecture` | Ratchet envision, adversarial options |
+| `dead-code-sweep` | Cleanup category surveys |
 
-Map skills to circuits in `circuit.config.yaml` (generate one with
-`/circuit:setup`). See `circuit.config.example.yaml` for the full schema.
+Map skills to capabilities in `circuit.config.yaml`. See
+`circuit.config.example.yaml` for the full schema.
 
 ## Contributing
 
-Contributions are welcome. The plugin includes built-in tools for extending
-itself:
-
-- **`/circuit:create`** authors a new circuit from a natural-language workflow
-  description. It interviews you about the workflow shape, generates both
-  `circuit.yaml` and `SKILL.md`, cross-validates them, and installs the result.
-- **`/circuit:dry-run`** validates that a circuit is mechanically sound before
-  real use. Simulates every step, checks file chain closure, gate validity,
-  and template compliance.
-
-When submitting a new circuit, run `dry-run` against it and include the
-`dry-run-trace.md` output in your PR.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to extend Circuitry with
+new circuits or modify existing ones.
 
 ## License
 

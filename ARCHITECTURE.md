@@ -23,7 +23,7 @@ Circuits are the structural answer to all three failure modes.
 5. [Relay Infrastructure](#relay-infrastructure)
 6. [Circuit Composition](#circuit-composition)
 7. [Capability Resolution](#capability-resolution)
-8. [Protocol Cards](#protocol-cards)
+8. [The Supergraph Architecture](#the-supergraph-architecture)
 9. [Extending the System](#extending-the-system)
 
 ---
@@ -38,8 +38,8 @@ A circuit is a multi-phase workflow encoded as two files:
 | `SKILL.md` | Runtime truth | Implementation |
 
 Both files live in the same directory under `skills/<name>/`. The
-`circuit.yaml` declares the shape: phases, steps, actions, artifacts, gates, and
-parallel fanout. The `SKILL.md` contains everything the orchestrator actually
+`circuit.yaml` declares the shape: steps, artifacts, gates, routes, and
+entry modes. The `SKILL.md` contains everything the orchestrator actually
 needs to execute: commands, paths, output schemas, prompt headers, resume rules,
 adapter seams, and reopen choreography.
 
@@ -48,10 +48,9 @@ adapter seams, and reopen choreography.
 The split is deliberate and serves different consumers:
 
 **`circuit.yaml`** is machine-readable topology. It answers structural questions:
-How many phases? What does each step produce? What does it consume? Is this step
-parallel? What gate type guards it? The router, the dry-run validator, and the
-`circuit:create` compiler all read `circuit.yaml` to reason about circuit shape
-without parsing prose.
+How many steps? What does each step produce? What does it consume? What gate
+type guards it? The runtime engine reads `circuit.yaml` to derive state and
+determine the next step.
 
 **`SKILL.md`** is the execution contract. It answers operational questions: What
 shell commands does the orchestrator run? What sections must appear in the output
@@ -65,17 +64,15 @@ When the two files disagree, the circuit is mechanically broken. This is not a
 documentation nit -- it is the workflow equivalent of a type signature diverging
 from its implementation.
 
-Consider a concrete case: `circuit.yaml` says Step 5 produces `stability-gate.md`
-with a `verdict-consistency` gate, but `SKILL.md` describes a simpler
-`outputs_present` gate for the same step. A dry-run validator would trace
-`circuit.yaml` and expect verdict routing (`stable -> continue`, `repair_again ->
-reopen`), but the actual runtime behavior in `SKILL.md` would skip the reopen
-logic entirely. The circuit would silently continue past failures that should
-trigger upstream repair.
+Consider a concrete case: `circuit.yaml` says a step has a `result_verdict`
+gate with pass verdicts `[ship_ready]`, but `SKILL.md` describes a simpler
+gate that just checks file existence. The runtime engine would expect specific
+verdict routing, but the actual execution would skip the routing logic entirely.
+The circuit would silently continue past failures that should trigger upstream
+repair.
 
-The `circuit:dry-run` validator and the `circuit:create` compiler both treat
-prose/YAML drift as a first-class defect (anti-pattern `AP-15`). Cross-validation
-is not optional -- it is a required step in both authoring and validation.
+Cross-validation between the two files is not optional -- it is a required step
+in both authoring and validation.
 
 ### The `circuit:` Prefix Convention
 
@@ -83,23 +80,21 @@ All circuit skills use a `circuit:` prefix in their frontmatter `name` field:
 
 ```yaml
 # In SKILL.md frontmatter
-name: circuit:ratchet-quality
+name: circuit:run
 ```
 
-This prefix does three things:
+This prefix does two things:
 
 1. **Discovery.** Claude Code's skill matcher uses the frontmatter `name` and
    `description` to route slash commands. The prefix groups circuits visually
    and semantically.
-2. **Router integration.** The `circuit:router` skill knows to look for
-   `circuit:*` skills when routing requests.
-3. **Namespace separation.** Domain skills (`rust`, `swift-apps`, `tdd`) live
+2. **Namespace separation.** Domain skills (`rust`, `swift-apps`, `tdd`) live
    in a different namespace from circuit skills. A circuit can compose domain
    skills without naming collisions.
 
-The directory name matches the slug: `circuit:ratchet-quality` lives at
-`skills/ratchet-quality/`. The slug `ratchet-quality` is the
-canonical identifier used in `circuit.yaml`'s `id` field.
+The directory name matches the slug: `circuit:run` lives at
+`skills/run/`. The slug `run` is the canonical identifier used in
+`circuit.yaml`'s `id` field.
 
 ---
 
@@ -111,26 +106,27 @@ state, not the chat thread.**
 ### Every Step Produces a Named File
 
 Each step in a circuit exits by writing a specific file to a known path. The
-`develop` circuit makes this concrete:
+`run` circuit's adversarial path makes this concrete:
 
 ```text
-intent-brief.md           [Step 1, interactive]
-  -> external-digest.md   [Step 2a, dispatch worker]
-  -> internal-digest.md   [Step 2b, dispatch worker]
-  -> constraints.md       [Step 3, synthesis]
-  -> options.md           [Step 4, dispatch]
-  -> decision-packet.md   [Step 5, dispatch]
-  -> adr.md               [Step 6, interactive]
-  -> execution-packet.md  [Step 7, synthesis]
-  -> seam-proof.md        [Step 8, dispatch]
-  -> implementation-handoff.md [Step 9, dispatch via workers]
-  -> ship-review.md       [Step 10, dispatch]
+triage-result.md          [triage, synthesis]
+  -> external-digest.md   [evidence-probes, dispatch worker]
+  -> internal-digest.md   [evidence-probes, dispatch worker]
+  -> constraints.md       [constraints, synthesis]
+  -> options.md           [options, dispatch]
+  -> decision-packet.md   [decision-packet, dispatch]
+  -> adr.md               [tradeoff-decision, checkpoint]
+  -> execution-packet.md  [execution-contract, synthesis]
+  -> seam-proof.md        [prove-seam, dispatch]
+  -> implementation-handoff.md [implement, dispatch via workers]
+  -> ship-review.md       [ship-review, dispatch]
+  -> done.md              [summarize, synthesis]
 ```
 
-This is not a suggestion -- it is a contract. Step 7 cannot begin until Step 6
-has written `adr.md`. Step 9 reads `execution-packet.md` and nothing else from
-the decision phase. The artifact chain is the workflow's dependency graph made
-explicit.
+This is not a suggestion -- it is a contract. The `execution-contract` step
+cannot begin until `tradeoff-decision` has written `adr.md`. The `implement`
+step reads `execution-packet.md` and nothing else from the decision phase. The
+artifact chain is the workflow's dependency graph made explicit.
 
 ### Why Artifacts Instead of Chat
 
@@ -141,12 +137,11 @@ limits at any point. If progress lives only in the chat thread, a dead session
 means starting over. With artifacts on disk, a new session scans the artifact
 directory and resumes from the first missing file.
 
-**Context overflow.** A 17-step circuit like `ratchet-quality` generates far
-more content than fits in a single context window. The artifact chain means each
-step only needs to read its declared inputs, not the entire history. Step 14
-(Execution Audit) reads `execution-log.md`, `execution-charter.md`,
-`mission-brief.md`, and `quality-calibration.md` -- not the 600 lines of
-reports from Steps 3 through 13.
+**Context overflow.** A 43-step supergraph generates far more content than fits
+in a single context window. The artifact chain means each step only needs to
+read its declared inputs, not the entire history. The `ship-review` step reads
+`execution-packet.md` and `implementation-handoff.md` -- not the hundreds of
+lines from upstream evidence gathering.
 
 **Truthfulness.** Workers sometimes claim completion without actually finishing.
 Artifacts give the orchestrator (and the next session) something concrete to
@@ -154,26 +149,18 @@ verify. The gate system checks artifact contents, not worker claims.
 
 ### Resume Awareness
 
-Every circuit includes a `Resume Awareness` section that defines how a fresh
-session picks up where the last one left off. The algorithm is simple:
+Every circuit includes resume logic that defines how a fresh session picks up
+where the last one left off. The runtime engine algorithm:
 
-1. Check for a reopen marker (a file that says "start here, not where you'd
-   normally expect").
-2. Scan artifacts in canonical chain order.
-3. Resume from the first missing or gate-failing artifact.
-4. For `workers` steps, inspect child state (`batch.json`) before
+1. Read the circuit manifest and event log.
+2. Derive the current state from recorded events.
+3. Determine the next step based on the last completed step and its routes.
+4. For `workers` steps, inspect child state (`job-result.json`) before
    deciding to rerun.
-
-Here is the resume logic from `ratchet-quality` for the Stabilize phase:
-
-> Inspect `${RUN_ROOT}/phases/step-3/attempts/` before rerunning Step 3.
-> If `stability-findings.md` exists but `stability-gate.md` does not,
-> resume at Step 5 and reconcile any existing injections first.
 
 The key insight is **relay state takes precedence over artifact presence**. A
 step might have produced its artifact but left child workers in an inconsistent
-state. Resume must check the step-local state (like `batch.json` or injection
-ledgers) before blindly re-executing.
+state. Resume must check the step-local state before blindly re-executing.
 
 ### Artifact vs. Worker Report
 
@@ -185,10 +172,10 @@ The system distinguishes between two kinds of output:
   outputs. They follow the relay protocol format but are not the canonical
   chain.
 
-A common anti-pattern (`AP-02: Copy-The-Handoff`) is promoting a raw worker report
-directly into an artifact without synthesis. The correct pattern is for the
-orchestrator to read the report, extract the relevant information, and write
-the canonical artifact with the expected schema.
+A common anti-pattern is promoting a raw worker report directly into an artifact
+without synthesis. The correct pattern is for the orchestrator to read the
+report, extract the relevant information, and write the canonical artifact with
+the expected schema.
 
 ### Artifact Location
 
@@ -199,41 +186,60 @@ RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts"
 ```
 
-The `RUN_SLUG` incorporates both the topic and the circuit name. For example,
-a ratchet-quality run on a feature called "auth-refactor" would use:
+The `RUN_SLUG` incorporates the topic. For example, a run for "auth-refactor"
+would use:
 
 ```bash
-RUN_ROOT=".circuitry/circuit-runs/auth-refactor-ratchet-quality"
+RUN_ROOT=".circuitry/circuit-runs/auth-refactor"
 ```
 
 Step-specific relay state (reports, last messages, prompt headers) lives under
-`${RUN_ROOT}/phases/step-N/`. This separation keeps the canonical artifact
+`${RUN_ROOT}/phases/<step-name>/`. This separation keeps the canonical artifact
 chain clean while preserving the full execution trace for debugging.
 
 ---
 
 ## Execution Model
 
-Circuits use three action types, each with different execution semantics:
+Circuits use three executor/kind combinations, each with different execution
+semantics:
 
-### The Three Action Types
+### The Three Step Types
 
-#### 1. Interactive (`action: interactive`)
+#### 1. Orchestrator Synthesis (`executor: orchestrator, kind: synthesis`)
 
-The orchestrator (Claude session) works directly with the user. Interactive steps
-are conversations that produce an artifact. They exist at decision points where
+The orchestrator (Claude session) reads upstream artifacts and writes a new
+artifact directly, without dispatching a worker. Synthesis is for steps where
+the value is in combining and distilling information, not in generating new
+research or code.
+
+From `run`, the `constraints` step:
+
+> Read `external-digest.md`, `internal-digest.md`, and `triage-result.md`.
+> Synthesize `constraints.md` with Hard Invariants, Seams and Integration Points,
+> and Open Questions.
+
+Synthesis steps are lightweight and fast. The orchestrator has the full context
+from reading upstream artifacts and can make cross-cutting decisions that a
+single worker could not.
+
+#### 2. Orchestrator Checkpoint (`executor: orchestrator, kind: checkpoint`)
+
+The orchestrator works directly with the user at a decision point. Checkpoint
+steps produce an artifact that records the user's choice. They exist where
 human judgment is required -- choosing tradeoffs, confirming scope, setting
 quality bars.
 
-From `develop`, Step 1 (Intent Lock):
+From `run`, the `confirm` step:
 
-> Ask the user to describe the feature and rank their desired outcomes. Probe
-> for non-goals and constraints. Write `intent-brief.md`.
+> Present the scope to the user for confirmation. Options: confirm or amend.
+> If confirmed, write `scope-confirmed.md` and route to implement.
+> If amended, route back to scope.
 
-Interactive steps are the only steps that can ask questions and wait for
-answers. They are never dispatched to workers.
+Checkpoint steps are the only steps that pause for user interaction. They are
+never dispatched to workers.
 
-#### 2. Dispatch (`action: dispatch`)
+#### 3. Worker Dispatch (`executor: worker, kind: dispatch`)
 
 The orchestrator writes a prompt header, assembles the full prompt using
 `compose-prompt.sh`, and dispatches the work to a worker via `dispatch.sh`.
@@ -258,7 +264,8 @@ The dispatch pipeline:
 # 3. Dispatch to worker (auto-detects Codex or Agent backend)
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
   --prompt "${STEP_ROOT}/prompt.md" \
-  --output "${STEP_ROOT}/last-messages/last-message.txt"
+  --output "${STEP_ROOT}/last-messages/last-message.txt" \
+  --role implementer
 
 # 4. Orchestrator reads the report and verifies
 test -f "${STEP_ROOT}/reports/report.md"
@@ -268,28 +275,10 @@ Dispatch steps come in several flavors:
 
 - **Simple dispatch**: One worker, one output. Most common.
 - **Parallel dispatch**: Multiple workers run simultaneously, each producing
-  its own artifact. Used for independent probes (like the triage probes in
-  `ratchet-quality` Step 2, which fan out to baseline, quality, and backlog
-  workers).
+  its own artifact. Used for evidence probes and category surveys.
 - **Dispatch via `workers`**: The `workers` adapter handles a full
   implement-review-converge loop. This is for steps that involve real code
-  changes with quality gates. More on this below.
-
-#### 3. Synthesis (`action: synthesis`)
-
-The orchestrator reads upstream artifacts and writes a new artifact directly,
-without dispatching a worker. Synthesis is for steps where the value is in
-combining and distilling information, not in generating new research or code.
-
-From `ratchet-quality`, Step 7 (Proposal Synthesis):
-
-> Collapse the exploration fanout into a bounded improvement proposal that is
-> specific enough to review but not yet authoritative.
-
-Synthesis steps read `inside-out-digest.md` and `outside-in-digest.md` (from
-two parallel dispatch workers) and write `improvement-proposal.md`. The
-orchestrator has the full context from reading both digests and can make
-cross-cutting decisions that a single worker could not.
+  changes with quality gates.
 
 ### Why Implementation and Review Run in Separate Sessions
 
@@ -308,8 +297,7 @@ sunk-cost bias of having written it.
 
 ### The `workers` Loop
 
-When a dispatch step uses `adapter: workers`, it delegates to a
-multi-phase inner loop:
+When a dispatch step delegates to `workers`, it runs a multi-phase inner loop:
 
 ```text
 plan -> implement -> review -> converge
@@ -342,41 +330,6 @@ This is a critical design decision. LLMs are unreliable at maintaining JSON
 state. Making `batch.json` mutations go through a deterministic script eliminates
 an entire class of state-corruption bugs.
 
-### Circuits That Use `workers`
-
-Several circuits delegate their heavy-lifting steps to `workers`:
-
-- `develop` Step 9 (Implement): Turns the execution packet
-  into working code.
-- `repair` Step 6 (Layered Repair): Executes repair slices in
-  dependency order.
-- `ratchet-quality` Steps 3, 13, and 15: Baseline repair, batch execution,
-  and execution ratchet respectively.
-
-Each adapter step defines a child root layout and a CHARTER.md contract.
-For example, `ratchet-quality` Step 13:
-
-```
-${RUN_ROOT}/phases/step-13/batches/<batch-id>/
-  CHARTER.md
-  batch.json
-  reports/
-  last-messages/
-  review-findings/
-  archive/
-```
-
-The parent step owns the child root. After `workers` completes, the parent
-reads back through the public contract in a specific order:
-
-1. `reports/report-converge.md` (the convergence verdict)
-2. `job-result.json` (execution status and slice metadata)
-3. `reports/report-<last-slice-id>.md` (the last implementation report)
-
-Then the parent synthesizes the canonical circuit artifact from that evidence.
-See [The Sealed Workers Boundary](#the-sealed-workers-boundary) for the full
-public/private contract.
-
 ---
 
 ## The Gate System
@@ -384,142 +337,118 @@ public/private contract.
 Gates are the quality enforcement mechanism. Every non-trivial step has a gate
 that checks the step's output before the circuit advances.
 
-### The Four Gate Types
+### The Three Gate Kinds
 
-#### 1. `outputs_present`
+#### 1. `schema_sections`
 
-The simplest gate. Checks that the expected artifact exists and contains the
-required sections.
+Checks that the artifact contains required sections. Used for synthesis steps
+where the value is in the structure and completeness of the output.
 
-From `ratchet-quality` Step 1 (Mission Freeze):
-
-```yaml
-gate:
-  type: outputs_present
-  required: [mission-brief.md]
-  checks:
-    - "mission-brief.md contains the exact schema headings"
-    - "allowed file scopes and verification command sets are explicit"
-    - "quality bar, non-goals, constraints, and success definition are falsifiable"
-```
-
-This is stronger than just checking file existence (which would be anti-pattern
-`AP-10: Weak Gates`). The checks require specific content properties. But the
-gate does not route outcomes -- if the checks fail, the step simply re-runs.
-
-#### 2. `evidence-reopen`
-
-Used when a proof step can validate, adjust, or invalidate the plan. The key
-property is that the evidence might contradict what came before.
-
-From `develop` Step 8 (Prove the Hardest Seam):
+From `run`, the `triage` step:
 
 ```yaml
 gate:
-  type: evidence-reopen
-  outcomes:
-    design_holds: continue
-    needs_adjustment: update-execution-packet
-    design_invalidated: interactive-reopen
+  kind: schema_sections
+  source: artifacts/triage-result.md
+  required: [Pattern, Mode, Reasoning, Probe]
 ```
 
-Three possible outcomes:
-- The seam proof confirms the design -> continue to delivery.
-- The seam proof suggests adjustments -> update the execution packet and
-  re-prove.
-- The seam proof invalidates the design entirely -> reopen the decision with
-  the user.
+This is stronger than just checking file existence. The gate verifies that
+specific sections are present. If the triage result is missing the `Probe`
+section, the step fails.
 
-This gate type embodies a principle: **disconfirming evidence changes the
-workflow**. Without it, the circuit would blindly continue building on a
-foundation that just failed its proof step.
+#### 2. `checkpoint_selection`
 
-#### 3. `verdict-consistency`
+Used for interactive checkpoint steps where the user makes a choice. The gate
+validates that the user's response is one of the allowed options.
 
-Used when a terminal verdict must match named evidence boundaries. This is the
-gate type used by ratchet steps in `ratchet-quality`.
-
-From Step 5 (Stabilize Ratchet):
+From `run`, the `confirm` step:
 
 ```yaml
 gate:
-  type: verdict-consistency
-  outcomes:
-    stable: continue
-    repair_again: reopen-baseline-repair
-    retriage: reopen-triage-probes
+  kind: checkpoint_selection
+  source: checkpoints/{step_id}-{attempt}.response.json
+  allow: [confirm, amend]
 ```
 
-The verdict is only valid if it matches the evidence in the artifact. Saying
-`stable` requires that critical/high findings are closed, injections are
-resolved, and verification supports a trustworthy baseline. The gate enforces
-that the verdict vocabulary is bounded (exactly one of three values) and that
-each verdict maps to a specific next action.
+The gate ensures the checkpoint produced a valid response before routing. The
+`routes` field on the step then maps each option to a next step.
 
-#### 4. `verdict-reopen`
+#### 3. `result_verdict`
 
-Used when a review step decides between continue and upstream revision. Similar
-to `verdict-consistency` but specifically for diagnose-only review steps.
+Used for worker dispatch steps. Checks that the worker's job result contains
+a passing verdict.
 
-From `ratchet-quality` Step 16 (Final Review):
+From `run`, the `evidence-probes` step:
 
 ```yaml
 gate:
-  type: verdict-reopen
-  outcomes:
-    ship_ready: continue
-    partial: continue
-    reopen_execute: reopen-execution-ratchet
+  kind: result_verdict
+  source: jobs/{step_id}-{attempt}/job-result.json
+  pass: [outputs_ready]
 ```
 
-The critical property: the review worker that emits this verdict does NOT fix
-code. It only diagnoses. If the verdict is `reopen_execute`, the circuit routes
-back to the execution ratchet step, not to a "fix it" step inside the review.
-This separation prevents anti-pattern `AP-19: Review Step Mutates Source`.
+The `reroute` field (optional) maps specific non-passing verdicts to upstream
+steps for reopening:
+
+```yaml
+gate:
+  kind: result_verdict
+  source: jobs/{step_id}-{attempt}/job-result.json
+  pass: [evidence_sufficient]
+  reroute:
+    queue_adjustment_required: triage-classification
+    risk_boundary_invalidated: cleanup-scope
+```
 
 ### Gate Selection Guide
 
-| Gate type | Use when | Required contract |
+| Gate kind | Use when | Required contract |
 |-----------|----------|-------------------|
-| `outputs_present` | Quality can be checked from the file plus explicit content checks | Exact output schema, concrete gate checks |
-| `evidence-reopen` | A proof step can validate, adjust, or invalidate the plan | Bounded verdicts, explicit artifact to update, user checkpoint for invalidation |
-| `verdict-consistency` | A terminal verdict is valid only if it matches named evidence | Verdict meanings, exact evidence threshold, exact failing boundary requirement |
-| `verdict-reopen` | A review step decides between continue and upstream revision | Diagnose-only contract, ready threshold, named reopen targets |
+| `schema_sections` | Quality can be checked from artifact section presence | `source` path, `required` section list |
+| `checkpoint_selection` | User makes an interactive choice | `source` path, `allow` option list |
+| `result_verdict` | Worker dispatch produces a structured result | `source` path, `pass` verdict list, optional `reroute` |
 
-### How Gates Route Outcomes
+### How Routes Work
 
-Gates have three possible routing actions:
+Each step declares its routing table in the `routes` field. Routes map
+outcomes (gate verdicts, checkpoint selections, or logical labels) to next
+step IDs:
 
-- **continue**: Advance to the next step in the circuit.
-- **reopen**: Route back to a named upstream step. This triggers the reopen
-  invalidation protocol: downstream artifacts are archived, a reopen marker
-  is written, and the circuit resumes from the reopen target.
-- **escalate**: Stop and involve the user. Used when the circuit breaker fires
-  or when evidence invalidation requires human judgment.
+```yaml
+routes:
+  quick: scope
+  researched: evidence-probes
+  adversarial: evidence-probes
+  redirect_cleanup: "@stop"
+  redirect_migrate: "@stop"
+```
+
+Special route targets:
+- **`@complete`**: Circuit completed successfully.
+- **`@escalate`**: Stop and involve the user.
+- **`@stop`**: Terminate the run (used for companion circuit redirects).
+
+The runtime engine reads routes to determine the next step after a gate passes.
+This is the mechanism that enables the supergraph: different routes from the
+same step lead to entirely different paths through the graph.
 
 ### The Circuit Breaker Pattern
 
-Every circuit includes a `Circuit Breaker` section that defines when to stop and
+Every circuit includes a Circuit Breaker section that defines when to stop and
 redirect. This is the last line of defense against unbounded loops.
 
-From `ratchet-quality`:
+From `run`:
 
-> Stop and redirect when:
-> - The same governing issue reopens the same upstream target twice.
-> - A phase exhausts its injection ceiling and a critical issue still cannot close.
-> - Execute exhausts retry budgets for multiple charter-critical batches.
-> - Build, test, or verify commands cannot be made explicit enough for honest
->   verification.
+> Escalate to the user when:
+> - A dispatch step fails twice (no valid output after 2 attempts)
+> - Seam proof returns `DESIGN INVALIDATED`
+> - Workers slice hits `impl_attempts > 3` or `impl_attempts + review_rejections > 5`
+> - Ship review says `ISSUES FOUND` after 2 attempts
 
-The circuit breaker also handles circuit misrouting:
-
-> - Greenfield feature delivery -> `circuit:develop`
-> - Architecture or protocol choice -> `circuit:decide`
-> - Cleanup-only scope -> `circuit:cleanup`
-
-This creates a safety net: if the circuit discovers mid-execution that the work
-does not actually fit its contract, it stops and suggests the right circuit
-instead of forcing a bad fit.
+Circuit breakers also handle task misrouting. The `run` circuit's triage step
+can redirect tasks to companion circuits (`cleanup`, `migrate`) when the task
+signals don't fit the main supergraph.
 
 ---
 
@@ -565,32 +494,42 @@ The assembly pipeline:
 4. **Append relay protocol (legacy fallback).** The script checks whether the
    assembled output already contains the canonical relay headings
    (`### Files Changed`, `### Tests Run`, `### Completion Claim`). If not, it
-   appends `relay-protocol.md` as a safety net. This prevents a common failure
-   where workers produce reports without the required structure.
+   appends `relay-protocol.md` as a safety net.
 
 5. **Substitute known placeholders and reject unresolved ones.** If `--root`
-   is provided, all literal `{relay_root}` tokens in the assembled output are
-   replaced with the actual path. After that pass, the assembler scans for any
-   remaining `{...}` placeholders outside fenced code blocks. If any remain,
-   the script fails with an error that names which source file introduced them.
-   This prevents anti-pattern `AP-04: Placeholder Leakage`.
+   is provided, all `{relay_root}` tokens are replaced. After substitution, the
+   assembler scans for remaining `{...}` placeholders outside fenced code
+   blocks. If any remain, the script fails with a diagnostic error naming the
+   source file.
 
-The skill directory resolution follows a priority chain:
-1. `CIRCUIT_PLUGIN_SKILL_DIR` environment variable (for testing)
-2. Sibling `skills/` directory relative to the script (the plugin layout)
-3. `~/.claude/skills` (legacy layout)
+### `dispatch.sh`: Backend-Agnostic Dispatch
+
+This script dispatches assembled prompts to workers. It auto-detects the
+backend and supports role-based routing:
+
+```bash
+"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
+  --prompt "${STEP_ROOT}/prompt.md" \
+  --output "${STEP_ROOT}/last-messages/last-message.txt" \
+  --role implementer
+```
+
+Backends:
+- **codex**: Codex CLI (`codex exec --full-auto`). Preferred for parallelism.
+- **agent**: Claude Code Agent tool with worktree isolation. Fallback.
+- **custom**: Any shell command. The prompt file is `$1`, output path is `$2`.
+
+Role resolution: `--role` flag > `circuit.config.yaml` roles > auto-detect.
+
+All backends emit a JSON receipt to stdout. For the agent backend, the receipt
+contains the full prompt content ready for an Agent tool call. For codex, it
+confirms dispatch with a PID.
 
 ### `update-batch.sh`: Deterministic State Machine
 
 This script manages `batch.json` -- the state file that tracks every slice in a
 `workers` run. The key design principle: **the orchestrator never
 hand-edits `batch.json`**. All mutations go through this script.
-
-Why? LLMs are unreliable at precise JSON manipulation. They miscount array
-indices, forget to update correlated fields, and sometimes generate syntactically
-invalid JSON. By routing all mutations through a deterministic script
-embedded in the shell wrapper, the system eliminates an entire class of
-state-corruption bugs.
 
 The script supports these events:
 
@@ -602,26 +541,10 @@ The script supports these events:
 | `review_rejected` | Increment `review_rejections` |
 | `converge_complete` | Set all converge slices to `done`, phase to `complete` |
 | `converge_failed` | Increment `convergence_attempts` |
-| `analytically_resolved` | Close slice without code change |
-| `orchestrator_direct` | Close slice with orchestrator fix |
 | `add_slice` | Append a new slice to the batch |
 
-Every mutation is also appended to `events.ndjson` as an append-only event log.
-This enables two recovery modes:
-
-- `--validate`: Check `batch.json` for internal consistency (valid phases,
-  statuses, no done slices with zero attempts, no completed batches with
-  pending slices).
-- `--rebuild`: Reconstruct `batch.json` from `plan.json` + `events.ndjson`.
-  This is the nuclear recovery option when `batch.json` gets corrupted.
-
-The `--root` flag threads through all paths, keeping the batch state isolated
-to its relay root:
-
-```bash
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/update-batch.sh" --root "${CHILD_ROOT}" \
-  --slice slice-001 --event review_clean --summary "CLEAN"
-```
+Every mutation is appended to `events.ndjson` as an append-only event log,
+enabling rebuild-from-events recovery.
 
 ### The Worker Report Contract
 
@@ -629,63 +552,24 @@ Every worker writes a report file with these exact sections:
 
 ```markdown
 ### Files Changed
-[Every file changed, created, or deleted with a one-line reason]
-
 ### Tests Run
-[Exact command, pass/fail count, failures; SANDBOX_LIMITED for sandbox issues]
-
 ### Verification
-[Verifier result or "not run"]
-
 ### Verdict
-[Role-specific: "N/A" for implement, "CLEAN"/"ISSUES FOUND" for review,
- "COMPLETE AND HARDENED"/"ISSUES REMAIN" for converge]
-
 ### Completion Claim
-[COMPLETE, PARTIAL, or BLOCKED]
-
 ### Issues Found
-[Problems, concerns, or edge cases]
-
 ### Next Steps
-[Required for PARTIAL or BLOCKED]
 ```
 
 These headings are not cosmetic. `compose-prompt.sh` checks for their
-presence. If a template already contains them, the relay protocol file is not
-appended. If they are missing, the script appends the protocol as a fallback.
-Workers that omit these headings produce reports that the orchestrator cannot
-reliably parse.
-
-### `{relay_root}` Token Substitution
-
-Templates and skill files may reference shared path roots using `{relay_root}`
-tokens:
-
-```markdown
-Write the report to the path named in the header's `## Output` section.
-```
-
-The `compose-prompt.sh` script replaces `{relay_root}` with the actual path
-when `--root` is provided. This indirection is what makes templates reusable
-across different relay roots -- the same skill guidance works whether the
-relay root is `.circuitry`, `.circuitry/circuit-runs/foo/phases/step-3/attempts/001`,
-or any other path. Other run-specific values such as slice ids, task labels,
-and report summaries should come from the header, not from unresolved template
-placeholders.
-
-If a source file introduces `{relay_root}` tokens but no `--root` flag is
-provided, or if any other placeholder survives assembly, `compose-prompt.sh`
-fails with a diagnostic error that names the source file responsible. This
-fail-fast behavior prevents workers from receiving prompts with unresolved
-placeholders.
+presence. If missing, it appends `relay-protocol.md` as a fallback. Workers
+that omit these headings produce reports the orchestrator cannot reliably parse.
 
 ---
 
 ## Circuit Composition
 
-Circuits do not exist in isolation. They compose with each other and with
-non-circuit skills through well-defined interfaces.
+Circuits compose with each other and with non-circuit skills through
+well-defined interfaces.
 
 ### How Circuits Call `workers` as an Adapter
 
@@ -703,18 +587,6 @@ The composition contract:
 
 3. **The circuit synthesizes the result.** After `workers` completes, the
    circuit reads back the child state and writes its canonical artifact.
-
-This is a clean adapter boundary. The circuit does not reach into `workers`'s
-inner loop, and `workers` does not know about the circuit's artifact chain.
-
-The adapter seam contract requires explicit documentation of:
-- Child root creation and layout
-- `CHARTER.md` required sections
-- The `compose-prompt.sh` and `codex exec --full-auto` dispatch calls
-- Required child files and their locations
-- Readback order
-- Synthesis rules for the parent artifact
-- Escalation behavior on failure
 
 ### The Sealed Workers Boundary
 
@@ -738,56 +610,38 @@ files and must not depend on worker-internal state.
 - `plan.json` -- internal planning state
 - `events.ndjson` -- internal event log for recovery
 - `review-findings/` -- internal review worker output
-- Slice-level files in `archive/` -- internal versioning state
 
 This boundary exists because worker internals are an implementation detail
-that may change. `batch.json`, for example, is managed by a deterministic
-script and has a specific event-sourced recovery model that is
-meaningless to parent circuits. The public contract files (`dispatch-request`,
-`dispatch-receipt`, `job-result`) expose the same information in a stable
-format designed for parent consumption.
+that may change. The public contract files expose the same information in a
+stable format designed for parent consumption.
 
-**Why this matters for circuit authors:** When writing a new circuit's adapter
-seam contract, reference only the public contract files in readback order and
-synthesis rules. If you find yourself parsing `batch.json` or reading
-`review-findings/`, you are crossing the boundary.
+### How Triage Routes Tasks
 
-### How the Router Selects Circuits
+The `run` circuit's triage step classifies tasks and routes them to the
+appropriate workflow path. Triage replaces the standalone router that existed
+in earlier versions.
 
-The `circuit:router` skill matches requests to circuits using positive signals and
-exclusions:
+Triage classification:
 
-```text
-- circuit:develop
-  Match: multi-file or cross-domain feature delivery, unclear approach
-  Exclude: bug fixes, config changes, or already-clear tasks
+| Signal Pattern | Mode | Path |
+|---------------|------|------|
+| Clear task, known approach, <6 files | quick | scope -> confirm -> implement -> summarize |
+| Multi-domain, external research needed | researched | evidence -> constraints -> scope -> confirm -> implement -> review -> summarize |
+| Named alternatives, architecture choice | adversarial | evidence -> constraints -> options -> decision -> preflight -> implement -> ship-review -> summarize |
+| Existing RFC/PRD/spec | spec-review | spec-intake -> reviews -> caveat-resolution -> preflight -> implement -> ship-review -> summarize |
+| Overnight quality improvement | ratchet | 17-step autonomous path |
+| Adversarial tournament | crucible | 7-step diverge-explore-converge path |
+| Strong cleanup signals | redirect | Redirects to `circuit:cleanup` |
+| Strong migration signals | redirect | Redirects to `circuit:migrate` |
 
-- circuit:decide
-  Match: architecture or protocol choices with real downside
-  Exclude: code delivery, bug fixes, or settled decisions
-
-- circuit:ratchet-quality
-  Match: overnight autonomous quality improvement
-  Exclude: interactive work, greenfield features, architecture decisions
-```
-
-The router also defines sequencing rules:
-
-- Broken existing flow -> `repair` before any rebuild.
-- Unsettled architecture -> `decide` before `harden`
-  or `develop`.
-- Draft exists but is not build-ready -> `harden` before
-  `develop`.
-- New circuit authoring -> `circuit:create` before `circuit:dry-run`.
-
-If nothing fits, the router says so. It does not force a circuit onto trivial
-work.
+Companion circuit redirects use `@stop` routes. The triage step writes a
+redirect note and tells the user to invoke the companion circuit directly.
 
 ### Domain Skills as Optional Companions
 
-Domain skills (`rust`, `swift-apps`, `tdd`, `next-best-practices`) are not
-bundled into circuits. They are composed at dispatch time through capability
-resolution (see below) and injected via `--skills`:
+Domain skills (`rust`, `swift-apps`, `tdd`) are not bundled into circuits.
+They are composed at dispatch time through capability resolution and injected
+via `--skills`:
 
 ```bash
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
@@ -800,8 +654,8 @@ resolution (see below) and injected via `--skills`:
 
 This design has several advantages:
 
-- **Circuits stay domain-agnostic.** The same `develop`
-  circuit works for Rust, Swift, or React projects.
+- **Circuits stay domain-agnostic.** The same `run` circuit works for Rust,
+  Swift, or React projects.
 - **Skill budgets are enforceable.** Circuits declare maximum skill counts
   (typically 2 domain skills, 3 total), preventing prompt bloat.
 - **Domain knowledge stays current.** Updating a domain skill immediately
@@ -816,12 +670,6 @@ dispatch step declares the *capabilities* it needs -- semantic descriptors
 like `testing.tdd`, `code.change`, or `review.independent`. At dispatch time,
 the resolution layer maps those capabilities to concrete installed skills.
 
-This indirection is the v2 replacement for the v1 pattern where
-`circuit.config.yaml` mapped circuit names directly to skill names. The old
-model coupled circuit identity to skill identity; the new model couples
-circuit steps to *what they need done*, leaving the binding to runtime
-configuration.
-
 ### What Capabilities Are
 
 A capability is a dotted identifier that describes a semantic function:
@@ -833,15 +681,9 @@ A capability is a dotted identifier that describes a semantic function:
 | `review.independent` | Review code without having written it |
 | `research.external` | Conduct deep external research beyond the codebase |
 | `repo.analysis` | Analyze codebase structure, find dead code, audit patterns |
-| `architecture.exploration` | Explore and compare architectural approaches |
-| `comparative.analysis` | Compare concrete solution options with tradeoff analysis |
 
 Capabilities are not skills. A capability is *what needs to happen*; a skill
-is *who does it*. The mapping between them is many-to-many: one skill can
-provide multiple capabilities (`solution-explorer` provides both
-`architecture.exploration` and `comparative.analysis`), and one capability
-can be provided by multiple skills (`architecture.exploration` can be
-provided by `architecture-exploration` or `solution-explorer`).
+is *who does it*. The mapping between them is many-to-many.
 
 ### Resolution Order
 
@@ -849,358 +691,217 @@ When a dispatch step declares a required capability, the resolver checks
 three sources in order:
 
 1. **Project config** (`./circuit.config.yaml`). Per-circuit capability
-   overrides take precedence over global capability mappings. This is
-   where project-specific bindings live (e.g., this project uses `rust`
-   for `code.change`).
-
-2. **User config** (`~/.claude/circuit.config.yaml`). Global defaults
-   that apply across all projects. This is where personal skill
-   preferences live.
-
+   overrides take precedence.
+2. **User config** (`~/.claude/circuit.config.yaml`). Global defaults.
 3. **Engine built-ins**. Hardcoded fallback mappings for capabilities
-   that can be inferred without explicit configuration (e.g.,
-   `code.change` from file scope, `repo.analysis` from codebase
-   structure).
-
-The first source that provides a non-empty mapping wins. Resolution stops
-as soon as a capability is bound to at least one skill.
+   that can be inferred without explicit configuration.
 
 ### Required vs. Optional Capabilities
 
-Circuits declare capabilities in two categories:
-
 - **Required capabilities** must resolve to at least one skill before the
-  step can dispatch. If a required capability is unresolved, the step
-  fails closed -- it stops and reports the missing capability rather than
-  dispatching without the needed skill. This prevents workers from
-  attempting work they are not equipped for.
-
-- **Optional capabilities** degrade gracefully. If an optional capability
-  is unresolved, the step dispatches without it. The worker still runs
-  but without the domain guidance the capability would have provided.
-  This is appropriate for capabilities that improve quality but are not
-  essential (e.g., `research.external` on a step that can still produce
-  useful output from internal codebase analysis alone).
-
-### Resolution Status
-
-After resolution, a step's capability state is one of:
-
-| Status | Meaning |
-|--------|---------|
-| `complete` | All required and optional capabilities resolved |
-| `degraded` | All required capabilities resolved; one or more optional capabilities unresolved |
-| `failed` | One or more required capabilities unresolved; step cannot dispatch |
-
-The resolution outcome is recorded in a structured artifact conforming to
-`schemas/capability-resolution.schema.json`. This artifact captures the
-full resolution trace: what was declared, what resolved (and from which
-source), and what remains unresolved.
+  step can dispatch. Unresolved required capabilities fail closed.
+- **Optional capabilities** degrade gracefully. The step dispatches without
+  the domain guidance if unresolved.
 
 ### Configuration Format
 
-The `circuit.config.yaml` file maps capabilities to skills at two levels:
-
 ```yaml
-# Global capability mappings (apply to all circuits by default)
+# circuit.config.yaml
 capabilities:
   testing.tdd: [tdd]
   research.external: [deep-research]
-  architecture.exploration: [architecture-exploration, solution-explorer]
   code.change: []       # auto-detected
   review.independent: [] # auto-detected
 
-# Per-circuit overrides (only where the circuit needs something different)
 circuits:
-  ratchet-quality:
-    capabilities:
-      review.independent: [clean-architecture]
   cleanup:
     capabilities:
       repo.analysis: [dead-code-sweep]
 ```
 
 An empty list (`[]`) means the capability is auto-detected or provided by
-the engine built-ins. A non-empty list explicitly binds the capability to
-the named skills.
-
-### How `circuit:setup` Uses Capability Resolution
-
-The `circuit:setup` skill scans installed skills, maps them to capabilities
-using built-in pattern matching, and writes the resulting capability
-mappings to `circuit.config.yaml`. It reports which capabilities are
-resolved, which are auto-detected, and which are unresolved (with
-recommendations for skills to install).
+the engine built-ins.
 
 ---
 
-## Protocol Cards
+## The Supergraph Architecture
 
-Several execution mechanics repeat across multiple circuits: the workers
-delegation pattern, the final review dispatch, and the parallel evidence
-probe fanout. Rather than duplicating these patterns in every circuit's
-SKILL.md, they are documented once as **protocol cards** in the `protocols/`
-directory at the repo root.
+Circuitry v3 collapsed 14 circuits into 4 using a supergraph model. The
+primary `run` circuit contains 43 steps organized into 7 workflow paths that
+share common steps where their flows converge.
 
-### What Protocol Cards Are
+### Why a Supergraph
 
-A protocol card is a standalone reference document that describes one
-reusable execution mechanic at full detail -- workspace setup, prompt
-assembly, dispatch, post-dispatch synthesis, gates, and circuit breakers.
-Protocol cards are not tutorials. They are dense, precise, scannable
-reference docs designed to be read by the orchestrator during circuit
-execution.
+The pre-v3 system had 14 separate circuits, each with its own `circuit.yaml`
+and `SKILL.md`. This caused several problems:
 
-### Where They Live
+- **Redundancy.** The implement-review-converge pattern was duplicated across
+  6 circuits. A bug fix in the workers adapter needed updating in 6 places.
+- **Triage overhead.** A standalone router skill had to classify tasks and
+  redirect to the right circuit. Classification errors meant starting over.
+- **Shared path drift.** Circuits that should have shared steps (like evidence
+  probes) evolved independently, creating subtle behavioral differences.
+
+The supergraph solves these by encoding all paths in a single graph with shared
+nodes. The `implement` step, for example, is used by quick, researched,
+adversarial, and spec-review paths. It exists once, with routes that branch
+based on mode context.
+
+### How Paths Share Steps
+
+The supergraph uses entry modes and routes to create distinct paths through
+shared infrastructure:
 
 ```
-protocols/
-  workers-execute.md          # Workers delegation (implement -> review -> converge)
-  final-review.md             # Assessment-only terminal review dispatch
-  parallel-evidence-probes.md # Parallel independent research workers
+                                    ┌─ quick ──────> scope -> confirm ─┐
+triage ─> classification ──────────>├─ researched ─> evidence ──┐      │
+                                    ├─ adversarial -> evidence ─┤      │
+                                    ├─ redirect ──> @stop       │      │
+                                    └─ (spec-review, ratchet,   │      │
+                                        crucible enter at their │      │
+                                        own entry points)       │      │
+                                                                │      │
+                  constraints <────────────────────────────────>┘      │
+                       │                                               │
+            ┌──────────┴──────────┐                                    │
+            │                     │                                    │
+    researched: scope        adversarial: options                      │
+         │                        │                                    │
+         v                        v                                    │
+       confirm              decision-packet                            │
+         │                        │                                    │
+         │                  tradeoff-decision                          │
+         │                        │                                    │
+         │              execution-contract  <── (spec-review merges)   │
+         │                        │                                    │
+         │                    prove-seam                               │
+         │                        │                                    │
+         └──────────>  implement  <────────────────────────────────────┘
+                          │
+                    ┌─────┼─────┐
+                    │     │     │
+              to_summary  │  to_ship_review
+                    │     │     │
+                    │  to_review │
+                    │     │     │
+                    v     v     v
+                  summarize <- review / ship-review
+                      │
+                  @complete
 ```
 
-### How Circuits Reference Them
+Each step's `routes` field determines which branch is taken. The runtime
+engine records the chosen route in the event log, so resume logic knows
+exactly which path was active.
 
-Circuit SKILL.md files include a protocol reference note at the step where
-the pattern is used:
+### Entry Modes
 
-```markdown
-> **Protocol reference:** See `protocols/workers-execute.md` for the canonical version of this pattern.
+The `entry_modes` section in `circuit.yaml` defines where different workflow
+shapes enter the graph:
+
+```yaml
+entry_modes:
+  default:
+    start_at: triage
+  quick:
+    start_at: triage
+  ratchet:
+    start_at: ratchet-survey
+  crucible:
+    start_at: crucible-frame
 ```
 
-The existing step-level detail in each SKILL.md is preserved (not replaced)
-for now. The protocol cards serve as the canonical source of truth for the
-shared mechanics, while circuit-specific variations (charter schemas,
-artifact names, retry budgets) remain in the circuit's own SKILL.md.
+Entry modes that share a start point (default, quick, researched, adversarial
+all start at `triage`) are differentiated by triage classification. Entry modes
+with unique start points (spec-review, ratchet, crucible) enter at their own
+subgraph and may never touch the shared triage/scope/implement path.
 
-### Current Cards
+### The Four Circuits
 
-| Card | Pattern | Used by |
-|------|---------|---------|
-| `workers-execute.md` | Full workers delegation: workspace setup, CHARTER.md, compose, dispatch, readback, synthesis | develop (Step 9), run (Step 3), repair-flow (Step 7), ratchet-quality (Steps 3, 13, 15), cleanup (Step 6) |
-| `final-review.md` | Assessment-only review: diagnose but do not modify source, structured findings, verdict routing, re-run logic | develop (Step 10), ratchet-quality (Step 16), harden-spec (Step 10), cleanup (Step 7) |
-| `parallel-evidence-probes.md` | Parallel independent workers: per-worker directories, self-contained headers, evidence digest schema, parallel dispatch | develop (Step 2), harden-spec (Steps 3-5), ratchet-quality (Steps 2, 6), cleanup (Step 2) |
+| Circuit | Steps | Entry modes | Purpose |
+|---------|-------|-------------|---------|
+| `run` | 43 | 7 (default, quick, researched, adversarial, spec-review, ratchet, crucible) | Primary supergraph. Handles most tasks. |
+| `cleanup` | 8 | 2 (default, auto) | Systematic dead code and cruft removal with evidence gates. |
+| `migrate` | 7 | 1 (default) | Large-scale migrations with coexistence plans and rollback. |
+| `workers` | -- | -- | Utility skill: dispatch backbone, not a standalone circuit. |
+
+Companion circuits (`cleanup`, `migrate`) are reached by triage redirect or
+direct invocation. They have specialized topologies that don't fit the
+supergraph's structure (cleanup has a 5-category parallel survey; migrate has
+a coexistence plan artifact that the supergraph doesn't model).
+
+### The `circuit.yaml` v2 Schema
+
+```yaml
+schema_version: "2"
+circuit:
+  id: circuit-slug             # kebab-case, matches directory name
+  version: "YYYY-MM-DD"       # date of last topology change
+  purpose: >
+    One-sentence thesis.
+
+  entry:
+    command: /circuit           # optional: bare command trigger
+    expert_command: /circuit:run # explicit invocation
+    signals:
+      include: [signal_names]
+      exclude: [signal_names]
+
+  entry_modes:
+    default:
+      start_at: step-id
+      description: >
+        When and why this mode is used.
+
+  steps:
+    - id: step-id
+      title: Step Title
+      executor: orchestrator | worker
+      kind: synthesis | checkpoint | dispatch
+      protocol: protocol-name@v1     # optional
+      reads: [artifact-paths]        # optional: prefix with "optional:"
+      writes:
+        artifact:
+          path: artifacts/name.md
+          schema: schema-name@v1
+        # For checkpoints:
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      capabilities:                  # for dispatch steps
+        required: [capability.names]
+        optional: [capability.names]
+      budgets:
+        max_attempts: N
+      gate:
+        kind: schema_sections | checkpoint_selection | result_verdict
+        source: path/to/check
+        required: [Section Names]    # for schema_sections
+        allow: [options]             # for checkpoint_selection
+        pass: [verdicts]             # for result_verdict
+        reroute:                     # optional, for result_verdict
+          verdict_name: target-step-id
+      checkpoint:                    # for checkpoint steps
+        kind: checkpoint_type
+        options: [option_names]
+        materialize_artifact: true   # optional
+      routes:
+        outcome: next-step-id
+        fail: "@escalate"
+```
+
+Key differences from v1:
+- `steps:` is a flat list (was nested under `phases:`)
+- `executor` + `kind` (was `action`)
+- `reads:` / `writes:` (was `consumes:` / `produces:`)
+- `gate.kind:` (was `gate.type:`)
+- `routes:` on the step (was outcomes in the gate)
+- `capabilities:` / `budgets:` per step
+- `entry_modes:` for supergraph path selection
+- `reroute:` for conditional upstream routing
 
 ---
 
 ## Extending the System
-
-### Creating New Circuits via `circuit:create`
-
-The `circuit:create` skill is a compiler that turns a natural-language workflow
-description into a circuit skill pair. Its artifact chain:
-
-```text
-workflow-brief.md          [Step 1, interactive intake]
-  -> circuit-analysis.md   [Step 2, dispatch]
-  -> draft-circuit.yaml    [Step 3, dispatch, staging]
-  -> draft-SKILL.md        [Step 3, dispatch, staging]
-  -> cross-validation.md   [Step 3, dispatch]
-  -> validation-report.md  [Step 4, dispatch]
-  -> circuit.yaml + SKILL.md [Step 5, Claude refinement, installed]
-```
-
-The five phases:
-
-1. **Intake.** Interactive conversation to understand the workflow, its phases,
-   judgment checkpoints, artifact chain, and external dependencies.
-
-2. **Analysis.** A worker maps the workflow to existing circuit patterns
-   and determines whether it is an artifact-centric circuit or a validator.
-
-3. **Authoring.** A worker generates `circuit.yaml` and `SKILL.md` from
-   the analysis, then cross-validates them field by field.
-
-4. **Validation.** A separate worker walks six quality categories against
-   the drafts without modifying them. This is diagnose-only.
-
-5. **Refinement.** The orchestrator reads all upstream artifacts, addresses
-   validation findings, optimizes trigger metadata for Claude Code, and
-   installs the final files.
-
-The compiler distinguishes between two circuit families:
-
-- **Artifact-centric circuits** (the majority): Multi-phase workflows that chain
-  artifacts. Examples: `develop`, `ratchet-quality`,
-  `repair`.
-- **Validator circuits**: Circuits whose primary job is symbolic execution or
-  mechanical validation. Example: `circuit:dry-run`.
-
-Each family has a different `SKILL.md` starter template. The artifact-centric
-starter includes sections for Setup, Domain Skill Selection, Canonical Header
-Schema, phases, Artifact Chain Summary, Resume Awareness, and Circuit Breaker.
-The validator starter includes Core Model, Inputs, Fixed Checklist, Workflow,
-Failure Logging, and Finish Condition.
-
-### Validating Circuits via `circuit:dry-run`
-
-Before trusting a new circuit for real work, run it through `circuit:dry-run`.
-This validator symbolically executes every step with a concrete test feature:
-
-1. Read the target `SKILL.md`, `circuit.yaml`, and every referenced script,
-   template, and adapter.
-2. For each step, walk a 10-dimension checklist:
-   - Setup paths and directory creation
-   - Artifact chain (consumes/produces)
-   - Prompt assembly (header + skills + template)
-   - Worker output expectations
-   - Gate enforcement
-   - Resume behavior
-   - Parallel fanout correctness
-   - Adapter seam completeness
-   - Cross-file consistency
-   - Template/script compatibility
-3. For each dispatch step, simulate prompt assembly: what would
-   `compose-prompt.sh` produce with these arguments?
-4. For each gate, trace the verdict routing: what happens on each possible
-   outcome?
-
-The dry run produces a trace file with pass/fail results for every dimension of
-every step, plus a terminal verdict of `PASS`, `PASS_WITH_NOTES`, or `FAIL`.
-
-### Artifact Declarations
-
-Every `circuit.yaml` includes a top-level `artifacts:` section that declares
-every artifact in the circuit's chain as structured data. This section sits
-between the circuit description (and modes, if present) and the `phases:`
-section.
-
-```yaml
-artifacts:
-  - id: scope.md
-    type: synthesis
-    produced_by: auto-scope
-    consumed_by: [scope-confirmation]
-  - id: scope-confirmed.md
-    type: interactive
-    produced_by: scope-confirmation
-    consumed_by: [implement, done-summary]
-```
-
-Each entry declares:
-
-- **`id`**: The artifact filename (bare name, no path prefix).
-- **`type`**: Matches the action type of the producing step (`synthesis`,
-  `interactive`, or `dispatch`).
-- **`produced_by`**: The step id that creates this artifact. Exactly one
-  producer per artifact.
-- **`consumed_by`**: The step ids that read this artifact. May be empty for
-  terminal artifacts.
-
-This creates a machine-checkable dependency graph with these invariants:
-
-1. Every artifact in `artifacts:` has exactly one `produced_by` step.
-2. Every step's `produces:` output appears in `artifacts:`.
-3. Every step's `consumes:` input appears in `artifacts:` and lists that step
-   in `consumed_by`.
-4. The graph is a DAG (no cycles).
-
-The `circuit:dry-run` validator uses the `artifacts:` section to mechanically
-verify artifact chain integrity without tracing step-by-step through the
-phases. When the structured declaration and the step-level `produces:`/`consumes:`
-fields disagree, that is a first-class defect -- the same kind of drift that
-`AP-15` (Prose/YAML Drift) catches between `SKILL.md` and `circuit.yaml`.
-
-### The `circuit.yaml` Schema
-
-```yaml
-schema_version: "1"
-circuit:
-  id: your-circuit-slug          # kebab-case, matches directory name
-  version: "YYYY-MM-DD"          # date of last topology change
-  title: Human-Readable Title
-  description: >
-    One-sentence thesis. Topology only.
-
-  artifacts:                      # structured artifact manifest
-    - id: artifact-name.md
-      type: interactive | dispatch | synthesis
-      produced_by: step-id
-      consumed_by: [step-id, ...]
-
-  phases:
-    - id: phase-id               # kebab-case
-      title: Phase Title
-      execution: serial          # always serial at the phase level
-      steps:
-        - id: step-id
-          title: Step Title
-          action: interactive | dispatch | synthesis
-          produces: artifact.md   # or list for multi-output steps
-          consumes: [upstream.md] # optional
-          gate:
-            type: outputs_present | evidence-reopen | verdict-consistency | verdict-reopen
-            required: [artifact.md]
-            outcomes:             # only for non-outputs_present gates
-              verdict_value: action
-            checks:
-              - "Concrete check description"
-
-          # For dispatch steps:
-          adapter: workers   # optional, for implementation steps
-          max_attempts: 3         # optional retry budget
-          notes: >                # optional prose context
-            Additional context
-
-          # For parallel dispatch steps:
-          execution: parallel
-          workers:
-            - id: worker-id
-              title: Worker Title
-              skills: [domain-skill]  # or [] for runtime resolution
-              produces: worker-artifact.md
-```
-
-Key constraints:
-- Phases are always serial.
-- Parallelism is only intra-step (multiple workers within a single step).
-- Step count in `circuit.yaml` must match step count in `SKILL.md`.
-- Gate types, verdict vocabularies, and outcome routing must match between files.
-- The `description` field is used by Claude Code for skill discovery -- weak
-  descriptions mean the circuit will not be found.
-
-### The `SKILL.md` Structure
-
-An artifact-centric circuit `SKILL.md` follows this section order:
-
-```markdown
----
-name: circuit:your-circuit-slug
-description: >
-  Trigger-optimized description with phase count, use-when, and negative scope.
----
-
-# Circuit Title
-
-[1-2 paragraphs: artifact chain thesis and failure mode it prevents]
-
-## When to Use
-## Glossary
-## Principles
-## Setup
-## Domain Skill Selection
-## Canonical Header Schema
-
-## Phase 1: Name
-### Step 1: Title - `action_type`
-### Step 2: Title - `action_type`
-
-## Phase N: Name
-### Step N: Title - `action_type`
-
-## Artifact Chain Summary
-## Resume Awareness
-## Circuit Breaker
-```
-
-Each step contract includes:
-- **Mission**: What the worker must accomplish.
-- **Consumes**: Exact artifacts the worker reads.
-- **Writes**: Exact path and schema of the output artifact.
-- **Gate**: Type, required outputs, checks, and outcome routing.
-- **Dispatch details** (for dispatch steps): Prompt header path, skills,
-  template, and assembly command.
 
 ### The Quality Gate Checklist
 
@@ -1210,9 +911,8 @@ When authoring or reviewing a circuit, check these six categories:
    consumer knows where its input comes from. No dangling produces without a
    consumer.
 
-2. **Gate Semantics.** Every non-trivial step has a gate stronger than file
-   existence. Verdict vocabularies are bounded. Every negative outcome has a
-   concrete next action.
+2. **Gate Semantics.** Every non-trivial step has a gate. Verdict vocabularies
+   are bounded. Every negative outcome has a concrete next action.
 
 3. **Handoff Contract Compliance.** All dispatch steps use the canonical header
    schema. Relay headings are present. Diagnose-only review steps are marked
@@ -1226,12 +926,10 @@ When authoring or reviewing a circuit, check these six categories:
    used. Skill budgets stay within limits. No interactive skills in autonomous
    dispatches.
 
-6. **Prose/YAML Consistency.** Phase order, step count, consumes, produces,
-   parallelism, gates, and adapters match between `SKILL.md` and `circuit.yaml`.
+6. **Prose/YAML Consistency.** Step count, reads, writes, parallelism, gates,
+   and routes must match between `SKILL.md` and `circuit.yaml`.
 
 ### Anti-Patterns to Avoid
-
-The system catalogs 25 named anti-patterns. The most important:
 
 | ID | Name | What goes wrong |
 |----|------|----------------|
@@ -1244,8 +942,6 @@ The system catalogs 25 named anti-patterns. The most important:
 | `AP-11` | No Reopen Rule | Disconfirming evidence appears but the circuit only says "revise and continue" |
 | `AP-15` | Prose/YAML Drift | `SKILL.md` and `circuit.yaml` disagree |
 | `AP-19` | Review Step Mutates Source | A verdict step also changes code |
-| `AP-20` | Reopen Without Governing Issue | "Reopen" is triggered without recording what caused it |
-| `AP-22` | Repeated Dispatch Shell Blocks | The same compose+exec recipe shown in every step instead of once |
 
 ---
 
@@ -1254,21 +950,46 @@ The system catalogs 25 named anti-patterns. The most important:
 ### File Layout
 
 ```
-circuit/
-  protocols/
-    workers-execute.md        # Workers delegation protocol card
-    final-review.md           # Assessment-only review protocol card
-    parallel-evidence-probes.md # Parallel evidence probes protocol card
+circuitry/
+  .claude-plugin/
+    plugin.json               # Plugin manifest
   hooks/
-    hooks.json              # SessionStart hook registration
-    session-start.sh        # Prerequisite check + circuit catalog banner
+    hooks.json                # SessionStart hook registration
+    session-start.sh          # Handoff detection
   scripts/
     relay/
-      compose-prompt.sh     # Prompt assembly pipeline
-      update-batch.sh       # Deterministic batch.json state machine
+      compose-prompt.sh       # Prompt assembly pipeline
+      dispatch.sh             # Backend-agnostic worker dispatch
+      update-batch.sh         # Deterministic batch.json state machine
+    runtime/
+      engine/
+        src/
+          derive-state.ts     # State derivation from event log
+          resume.ts           # Resume logic
+          cli/
+            read-config.ts    # Config file reader
+    sync-to-cache.sh          # Plugin cache sync
+    verify-install.sh         # Installation verification
   skills/
+    run/
+      circuit.yaml            # 43-step supergraph
+      SKILL.md                # Execution contract
+      references/
+        mode-quick.md
+        mode-researched.md
+        mode-adversarial.md
+        mode-spec-review.md
+        workflow-ratchet.md
+        workflow-crucible.md
+        autonomous-gates.md
+    cleanup/
+      circuit.yaml            # 8-step cleanup circuit
+      SKILL.md
+    migrate/
+      circuit.yaml            # 7-step migration circuit
+      SKILL.md
     workers/
-      SKILL.md              # Batch worker orchestrator
+      SKILL.md                # Batch worker orchestrator (utility, no circuit.yaml)
       references/
         implement-template.md
         review-template.md
@@ -1277,43 +998,20 @@ circuit/
         review-preamble.md
         relay-protocol.md
         agents-md-template.md
-    router/
-      SKILL.md              # Routes requests to best-fit circuit
-    develop/
-      circuit.yaml
-      SKILL.md
-    decide/
-      circuit.yaml
-      SKILL.md
-    harden-spec/          # deprecated — folded into develop --spec-review
-      circuit.yaml
-      SKILL.md
-    repair-flow/
-      circuit.yaml
-      SKILL.md
-    ratchet-quality/
-      circuit.yaml
-      SKILL.md
-    cleanup/
-      circuit.yaml
-      SKILL.md
-    create/
-      circuit.yaml
-      SKILL.md
-    dry-run/
-      circuit.yaml
-      SKILL.md
+    handoff/
+      SKILL.md                # Session handoff (utility, no circuit.yaml)
+      scripts/
 ```
 
-### Runtime Relay Layout (Example)
+### Runtime Layout (Example)
 
-When `circuit:develop` executes for a feature called
+When `circuit:run` executes in adversarial mode for a task called
 "sync-engine":
 
 ```
 .circuitry/circuit-runs/sync-engine/
   artifacts/
-    intent-brief.md
+    triage-result.md
     external-digest.md
     internal-digest.md
     constraints.md
@@ -1324,93 +1022,71 @@ When `circuit:develop` executes for a feature called
     seam-proof.md
     implementation-handoff.md
     ship-review.md
+    done.md
   phases/
     evidence-probes/
-      external/
-        prompt-header.md
-        prompt.md
-        reports/
-          report.md
-        last-messages/
-          last-message.txt
-      internal/
-        prompt-header.md
-        prompt.md
-        reports/
-          report.md
-        last-messages/
-          last-message.txt
-    generate-candidates/
       prompt-header.md
       prompt.md
       reports/
-        report.md
       last-messages/
-        last-message.txt
     implement/
       CHARTER.md
       batch.json
       events.ndjson
       reports/
-        report-slice-001.md
-        report-converge.md
-      review-findings/
-        review-findings-slice-001.md
       last-messages/
-        last-message-slice-001.txt
       archive/
+  checkpoints/
+    confirm-1.request.json
+    confirm-1.response.json
+    tradeoff-decision-1.request.json
+    tradeoff-decision-1.response.json
+  jobs/
+    evidence-probes-1/
+      dispatch-request.json
+      dispatch-receipt.json
+      job-result.json
 ```
 
-### Coexistence: Workers Stack and v2 Manifests
-
-Circuit manifests declare `jobs/{step_id}-{attempt}/dispatch-request.json`,
-`dispatch-receipt.json`, and `job-result.json` paths per the v2 schema
-contracts. The workers stack (SKILL.md prose and `scripts/relay/` scripts)
-still operates on `batch.json` plus `reports/*` artifacts.
-
-This is expected. Per Decision 5 (retained dispatch prose), SKILL.md prose
-remains the active execution guide. The manifest job paths become active
-when a v2 engine reads `circuit.yaml` directly and drives
-dispatch/receipt/result lifecycle without SKILL.md prose.
-
-**Exit condition**: Remove this note when the v2 engine consumes manifests
-and the workers stack produces `job-result.json` files.
-
-### Data Flow Summary
+### Data Flow
 
 ```
 User Request
     |
     v
-circuit:router ──> selects circuit
+circuit:run triage ──> classifies task
+    |
+    ├── quick/researched/adversarial: route through supergraph
+    ├── spec-review/ratchet/crucible: route to subgraph entry
+    └── redirect: stop, suggest circuit:cleanup or circuit:migrate
     |
     v
 SKILL.md (runtime truth)
     |
-    ├── interactive steps: orchestrator + user -> artifact
-    |
     ├── synthesis steps: orchestrator reads upstream -> writes artifact
+    |
+    ├── checkpoint steps: orchestrator + user -> artifact
     |
     └── dispatch steps:
             |
             ├── compose-prompt.sh
             |     (header + skills + template + relay_root substitution)
             |
-            ├── codex exec --full-auto
-            |     (worker executes, writes report)
+            ├── dispatch.sh --role <role>
+            |     (auto-detects codex/agent/custom backend)
             |
-            ├── [if adapter: workers]
+            ├── [if workers delegation]
             |     update-batch.sh manages state
-            |     plan -> implement -> review -> converge loop
+            |     implement -> review -> converge loop
             |
             └── orchestrator reads report -> synthesizes artifact
                     |
                     v
               gate check
                     |
-                    ├── pass -> next step
-                    ├── reopen -> archive downstream, resume from target
-                    └── escalate -> stop, involve user
+                    ├── pass -> follow route to next step
+                    ├── reroute -> archive downstream, resume from target
+                    └── fail -> @escalate, involve user
 ```
 
 ---
@@ -1428,16 +1104,14 @@ SKILL.md (runtime truth)
    continue" instructions.
 
 4. **Topology is static, judgment is dynamic.** The step graph does not mutate
-   at runtime. Extra work is admitted through injection ledgers within ratchet
-   steps, not by adding new topology nodes.
+   at runtime. Routes select paths; they do not create new steps.
 
 5. **Deterministic state management.** LLMs do not hand-edit JSON. Deterministic
    scripts handle all state mutations to `batch.json`.
 
 6. **Fail fast and redirect.** Circuit breakers stop circuits that are not
-   working. The router redirects to better-fitting circuits. Neither the
-   orchestrator nor the worker should ever silently continue past a structural
-   failure.
+   working. Triage redirects to companion circuits. Neither the orchestrator nor
+   the worker should ever silently continue past a structural failure.
 
 7. **Compose, do not bundle.** Domain skills, adapter contracts, and templates
    are separate from circuits. Circuits declare what they need; the relay scripts
