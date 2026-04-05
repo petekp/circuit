@@ -1,0 +1,104 @@
+schema_version: "2"
+circuit:
+  id: explore
+  version: "2026-04-04"
+  purpose: >
+    Investigate, understand, choose among options, or shape an execution plan.
+
+  entry:
+    expert_command: /circuit:explore
+    signals:
+      include: [investigation, architecture_decision, spec_review, exploration]
+      exclude: [clear_approach, migration, cleanup]
+
+  entry_modes:
+    default:
+      start_at: frame
+      description: Standard exploration with evidence probes.
+    lite:
+      start_at: frame
+      description: Quick investigation, no dispatch.
+    deep:
+      start_at: frame
+      description: Standard plus seam proof.
+    tournament:
+      start_at: frame
+      description: Bounded adversarial evaluation.
+
+  steps:
+    - id: frame
+      title: Frame
+      executor: orchestrator
+      kind: checkpoint
+      protocol: explore-frame@v1
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/brief.md
+          schema: brief@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: explore_frame
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: analyze
+
+    - id: analyze
+      title: Analyze
+      executor: worker
+      kind: dispatch
+      protocol: explore-analyze@v1
+      reads: [artifacts/brief.md]
+      writes:
+        artifact:
+          path: artifacts/analysis.md
+          schema: analysis@v1
+        request: jobs/{step_id}-{attempt}.request.json
+        receipt: jobs/{step_id}-{attempt}.receipt.json
+        result: jobs/{step_id}-{attempt}.result.json
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}.result.json
+        pass: [analysis_ready]
+      routes:
+        pass: decide
+
+    - id: decide
+      title: Decide/Plan
+      executor: orchestrator
+      kind: synthesis
+      protocol: explore-decide@v1
+      reads: [artifacts/brief.md, artifacts/analysis.md]
+      writes:
+        artifact:
+          path: artifacts/plan.md
+          schema: plan@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/plan.md
+        required: [Approach]
+      routes:
+        pass: close
+
+    - id: close
+      title: Close
+      executor: orchestrator
+      kind: synthesis
+      protocol: explore-close@v1
+      reads: [artifacts/brief.md, artifacts/analysis.md, artifacts/plan.md]
+      writes:
+        artifact:
+          path: artifacts/result.md
+          schema: result@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/result.md
+        required: [Findings]
+      routes:
+        pass: "@complete"

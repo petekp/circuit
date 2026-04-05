@@ -1,15 +1,31 @@
 ---
 name: circuit:handoff
 description: >
-  Save session state to disk so a fresh session can resume automatically. Use when context is
-  getting heavy, the user asks for a handoff, or you need to preserve progress before a session
-  boundary. Also supports `/circuit:handoff done` to clear a pending handoff.
+  Core lifecycle primitive. Save session state to disk so a fresh session can resume
+  automatically. Use when context is getting heavy, the user asks for a handoff, or
+  you need to preserve progress before a session boundary. Also supports
+  `/circuit:handoff done` to clear a pending handoff. Works alongside active-run.md
+  (automatic continuity) as the intentional high-quality continuity path.
 ---
 
 # Handoff
 
-Write a handoff file to disk. On the next `/clear` or session start, the Circuitry hook
-auto-injects it so the fresh session picks up where this one left off. No clipboard, no paste.
+Core lifecycle primitive. Write a handoff file to disk. On the next `/clear` or
+session start, the Circuitry hook auto-injects it so the fresh session picks up
+where this one left off. No clipboard, no paste.
+
+## Relationship to active-run.md
+
+Circuitry provides two continuity mechanisms:
+
+- **active-run.md** -- Automatic. Every workflow updates it after each phase. The
+  SessionStart hook injects it. Gives basic continuity even when the user forgets
+  to hand off. Low-effort, lower-fidelity.
+- **handoff.md** -- Intentional. Written explicitly via `/circuit:handoff`. Distills
+  hard-to-rediscover facts that active-run.md cannot capture (eliminated approaches,
+  operating constraints, debug state). Higher-effort, higher-fidelity.
+
+Both mechanisms coexist. Handoff.md is the richer path. active-run.md is the safety net.
 
 ## Modes
 
@@ -164,6 +180,25 @@ After writing, confirm briefly:
 > Handoff saved. `/clear` when ready for a fresh session.
 
 Do not display the handoff contents. Do not copy to clipboard. The hook handles injection.
+
+## active-run.md Integration
+
+When writing a handoff during an active circuit run, also check for
+`${RUN_ROOT}/artifacts/active-run.md`. If it exists:
+
+1. Read it for current workflow, rigor, phase, and goal context.
+2. Include the active-run state as context in the handoff STATE section.
+3. Update active-run.md to reflect the pause:
+   ```markdown
+   ## Current Phase
+   pause
+   ## Next Step
+   Resume from handoff.md
+   ## Last Updated
+   <ISO 8601 timestamp>
+   ```
+
+This ensures both continuity mechanisms are synchronized.
 
 After updating this skill, verify the hook wrapper in the Circuitry plugin's
 `hooks/session-start.sh` is consistent with this format before closing.

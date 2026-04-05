@@ -4,17 +4,11 @@
 
 # Circuitry
 
-**One command. The right workflow. The right skills. No babysitting.**
+**One command. The right workflow. No babysitting.**
 
-You've got skills for TDD, architecture, research, debugging -- but you're still
-picking which ones to use, in what order, and hoping nothing falls apart mid-task.
-Sessions crash. Reviews get skipped. Quality depends on how much you babysit.
-
-Circuitry is a Claude Code plugin that turns one command into a structured,
-multi-phase workflow. You describe your task. Circuitry classifies it, picks the
-right workflow, and runs it -- research before decisions, decisions before code,
-independent review before shipping. If a session dies, the next one picks up
-where it stopped.
+You describe your task. Circuitry classifies it, picks the right workflow, and
+runs it. Research before decisions, decisions before code, independent review
+before shipping. If a session dies, the next one picks up where it stopped.
 
 ## Get Started
 
@@ -32,42 +26,44 @@ That's it. Circuitry classifies your task, picks the right workflow, and runs it
 
 ## How It Works
 
-You've made architecture decisions like this before. You read a few blog posts,
-sketch the tradeoffs in a doc, pick the approach that feels right, and move on.
-Maybe you get a second opinion. The research is shallow because thoroughness
-takes time nobody has. The decision sticks because nobody has bandwidth to
-revisit it.
+Circuitry owns the developer session lifecycle. Every task maps to a workflow
+(what kind of job) and a rigor profile (how much scrutiny).
 
-The task above triggers a **crucible**. Three independent workers develop
-competing proposals to full depth. Each one gets reviewed by an adversary who
-finds its weaknesses. The survivors get stress-tested against failure scenarios.
-The strongest survives, absorbing the best ideas from the rest:
+**Five workflows, named after your job:**
 
-```mermaid
-flowchart LR
-    F["**Frame**\nProblem brief\nyou confirm scope"]
-    D["**Diverge**\n3 workers develop\ncompeting approaches"]
-    E["**Explore**\nAdversarial review,\nrevise, stress-test"]
-    C["**Converge**\nSelect best, absorb\nideas, pre-mortem"]
-    F --> D --> E --> C
-```
+| Workflow | What it does |
+|----------|-------------|
+| **Explore** | Investigate, understand, choose among options, shape a plan |
+| **Build** | Features, refactors, docs, tests, mixed changes |
+| **Repair** | Bugs, regressions, flaky behavior, incidents |
+| **Migrate** | Framework swaps, dependency replacements, architecture transitions |
+| **Sweep** | Cleanup, quality passes, coverage improvements, docs-sync |
 
-Not every task triggers a tournament. A bug fix gets scoped, tested, and fixed.
-A feature build starts with research. An architecture decision gets adversarial
-evaluation. Circuitry picks the workflow that fits:
+**Five rigor profiles, orthogonal to workflow:**
 
-1. **Triage classifies your task.** Circuitry matches your task description to
-   one of seven workflows: quick fix, full feature, architecture decision, spec
-   review, overnight quality pass, and more.
+| Rigor | Budget |
+|-------|--------|
+| **Lite** | Plan and do. No independent review. |
+| **Standard** | Plan, do, independent review. One fix loop. |
+| **Deep** | Research phase, seam proof, independent review. |
+| **Tournament** | Competing proposals, adversarial evaluation, convergence. |
+| **Autonomous** | Unattended. Evidence-gated. Deferred review for ambiguous items. |
+
+Every workflow follows the same phase spine: **Frame, Analyze, Plan, Act, Verify,
+Review, Close, Pause**. Not every workflow uses every phase, but the semantics
+stay stable.
+
+1. **The router classifies your task.** Circuitry matches your task to a workflow
+   and rigor profile. Quiet by default: it routes and proceeds unless something
+   is genuinely ambiguous.
 
 2. **Steps run in the right order.** Research before decisions. Decisions before
    implementation. Implementation gets an independent review from a separate
    session. Every step saves progress to disk.
 
-3. **Progress survives crashes.** Run state (artifacts, event logs, checkpoint
-   data) lives in `.circuitry/`. Session handoff state lives in
-   `~/.claude/projects/` so fresh sessions can resume where the last one
-   stopped.
+3. **Progress survives crashes.** Active run state (`active-run.md`) is updated
+   after every phase. Session handoff state lives in `~/.claude/projects/` so
+   fresh sessions resume where the last one stopped.
 
 4. **You step in where it matters.** Circuitry pauses at checkpoints for your
    judgment (scope confirmation, tradeoff decisions). Everything else runs
@@ -76,47 +72,57 @@ evaluation. Circuitry picks the workflow that fits:
 ## What Circuitry Is Not
 
 - **Not a CI/CD tool.** Circuitry runs inside Claude Code sessions, not in
-  pipelines. It structures the work you do with Claude, not what happens after
-  you push.
-- **Not for trivial edits.** Renaming a variable or fixing a typo does not need
-  a multi-phase workflow. Just do it directly.
-- **Not a replacement for skills.** Circuitry orchestrates skills -- it does not
-  replace them. If you need TDD discipline, install the `tdd` skill. Circuitry
-  will use it at the right phase.
+  pipelines.
+- **Not for trivial edits.** The router can say "this is trivial, do it inline."
+  That restraint is part of the product.
+- **Not a replacement for skills.** Circuitry orchestrates skills. If you need
+  TDD discipline, install the `tdd` skill. Circuitry will use it at the right
+  phase.
 
 ## Commands
 
-**Entry modes** (modify the `/circuit` command):
+**Router (auto-classifies your task):**
 
 | You type | What happens |
 |----------|-------------|
-| `/circuit <task>` | Triage picks the best workflow automatically |
-| `/circuit fix: <bug>` | Quick bug fix with test-first discipline |
-| `/circuit decide: <choice>` | Architecture decision with adversarial evaluation |
-| `/circuit develop: <feature>` | Full feature build with a research phase |
-| `/circuit repair: <issue>` | Deep investigation with regression testing |
+| `/circuit <task>` | Router picks the best workflow and rigor |
+| `/circuit fix: <bug>` | Repair Lite -- test-first bug fix |
+| `/circuit repair: <issue>` | Repair Deep -- broad investigation |
+| `/circuit develop: <feature>` | Build Standard -- plan, implement, review |
+| `/circuit decide: <choice>` | Explore Tournament -- adversarial evaluation |
+| `/circuit cleanup: <target>` | Sweep Standard -- cleanup by confidence/risk |
+| `/circuit overnight: <scope>` | Sweep Autonomous -- unattended quality pass |
 
-**Standalone circuits:**
+**Direct circuits (skip the router):**
 
 | You type | What happens |
 |----------|-------------|
-| `/circuit:cleanup` | Systematic dead code and stale doc removal |
-| `/circuit:migrate` | Framework swap with coexistence planning |
-| `/circuit:handoff` | Manually save your progress before ending a long session |
+| `/circuit:explore` | Investigation, decisions, planning |
+| `/circuit:build` | Features, refactors, docs, tests |
+| `/circuit:repair` | Bug fixes with regression contracts |
+| `/circuit:migrate` | Migrations with coexistence planning |
+| `/circuit:sweep` | Cleanup and quality sweeps |
+| `/circuit:review` | Standalone fresh-context code review |
+| `/circuit:handoff` | Save session state for the next session |
 
 See [CIRCUITS.md](CIRCUITS.md) for the full catalog with phase breakdowns and
 usage examples.
 
 ## Key Features
 
-**Automatic workflow selection.** Describe your task. Circuitry picks from seven
-workflows so you don't have to.
+**Automatic workflow selection.** Describe your task. Circuitry picks the right
+workflow and rigor level.
 
 **Independent review.** Implementation and review always run in separate sessions.
 The reviewer starts fresh with no knowledge of the implementation choices.
 
-**Parallel workers.** Heavy lifting runs in isolated worker sessions. Research,
-implementation, and review don't compete for your main context window.
+**Canonical artifacts.** Every workflow produces the same artifact vocabulary:
+`brief.md`, `analysis.md`, `plan.md`, `review.md`, `result.md`. One mental model
+across all circuits.
+
+**Dual continuity.** `active-run.md` updates automatically after every phase.
+`/circuit:handoff` writes a richer snapshot when you need it. Both inject on
+session start.
 
 **Circuit breakers.** When something goes wrong, Circuitry escalates to you with
 the failure output and your options. No silent failures. No infinite loops.
@@ -165,10 +171,6 @@ npm install -g @openai/codex
 
 This checks Node.js, engine CLIs, skill directories, relay scripts, and runs a
 smoke test. Fix any failures it reports.
-
-**"engine CLI missing" during verify-install.** The bundled CLIs at
-`scripts/runtime/bin/` should ship with the plugin. If missing, reinstall:
-`claude plugin install petekp/circuitry`.
 
 **Changes not taking effect after editing plugin files.** Claude Code runs the
 cached copy, not your local repo. Run `./scripts/sync-to-cache.sh` after any

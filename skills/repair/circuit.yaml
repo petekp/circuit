@@ -1,0 +1,126 @@
+schema_version: "2"
+circuit:
+  id: repair
+  version: "2026-04-04"
+  purpose: >
+    Fix bugs, regressions, flaky behavior, and incidents. Test-first
+    discipline with regression contract.
+
+  entry:
+    expert_command: /circuit:repair
+    signals:
+      include: [bug, regression, broken, error, flaky, incident]
+      exclude: [feature, migration, cleanup, architecture_decision]
+
+  entry_modes:
+    default:
+      start_at: frame
+      description: Standard repair with independent review.
+    lite:
+      start_at: frame
+      description: Quick fix, test-first, no independent review.
+    deep:
+      start_at: frame
+      description: Broad investigation with evidence probes.
+
+  steps:
+    - id: frame
+      title: Frame
+      executor: orchestrator
+      kind: checkpoint
+      protocol: repair-frame@v1
+      reads: [user.task, repo.snapshot]
+      writes:
+        artifact:
+          path: artifacts/brief.md
+          schema: brief-repair@v1
+        request: checkpoints/{step_id}-{attempt}.request.json
+        response: checkpoints/{step_id}-{attempt}.response.json
+      checkpoint:
+        kind: repair_frame
+        options: [continue]
+        materialize_artifact: true
+      gate:
+        kind: checkpoint_selection
+        source: checkpoints/{step_id}-{attempt}.response.json
+        allow: [continue]
+      routes:
+        continue: analyze
+
+    - id: analyze
+      title: Reproduce and Isolate
+      executor: orchestrator
+      kind: synthesis
+      protocol: repair-analyze@v1
+      reads: [artifacts/brief.md]
+      writes:
+        artifact:
+          path: artifacts/analysis.md
+          schema: analysis-repair@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/analysis.md
+        required: [Repro Results]
+      routes:
+        pass: fix
+
+    - id: fix
+      title: Fix
+      executor: worker
+      kind: dispatch
+      protocol: repair-fix@v1
+      reads: [artifacts/brief.md, artifacts/analysis.md]
+      writes:
+        artifact:
+          path: artifacts/implementation-handoff.md
+          schema: implementation-handoff@v1
+        request: jobs/{step_id}-{attempt}.request.json
+        receipt: jobs/{step_id}-{attempt}.receipt.json
+        result: jobs/{step_id}-{attempt}.result.json
+      budgets:
+        max_attempts: 3
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}.result.json
+        pass: [complete_and_hardened]
+      routes:
+        pass: review
+
+    - id: review
+      title: Review
+      executor: worker
+      kind: dispatch
+      protocol: repair-review@v1
+      reads: [artifacts/brief.md, artifacts/analysis.md]
+      writes:
+        artifact:
+          path: artifacts/review.md
+          schema: review@v1
+        request: jobs/{step_id}-{attempt}.request.json
+        receipt: jobs/{step_id}-{attempt}.receipt.json
+        result: jobs/{step_id}-{attempt}.result.json
+      budgets:
+        max_attempts: 2
+      gate:
+        kind: result_verdict
+        source: jobs/{step_id}-{attempt}.result.json
+        pass: [ship_ready, clean]
+      routes:
+        pass: close
+
+    - id: close
+      title: Close
+      executor: orchestrator
+      kind: synthesis
+      protocol: repair-close@v1
+      reads: [artifacts/brief.md, artifacts/analysis.md, optional:artifacts/review.md]
+      writes:
+        artifact:
+          path: artifacts/result.md
+          schema: result@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/result.md
+        required: [Root Cause, Fix]
+      routes:
+        pass: "@complete"

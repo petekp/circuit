@@ -1,38 +1,37 @@
 schema_version: "2"
 circuit:
   id: migrate
-  version: "2026-04-01"
+  version: "2026-04-04"
   purpose: >
-    Large-scale migrations and refactors: framework swaps, dependency
-    replacements, architecture transitions, and incremental rewrites.
+    Large-scale migrations: framework swaps, dependency replacements,
+    architecture transitions, incremental rewrites.
 
   entry:
     expert_command: /circuit:migrate
     signals:
       include: [framework_swap, dependency_replacement, architecture_transition]
-      exclude: [dead_code, overnight]
+      exclude: [dead_code, overnight, feature]
 
   entry_modes:
     default:
-      start_at: migration-brief
-      description: Interactive migration with steering checkpoints.
+      start_at: frame
+      description: Deep migration with steering checkpoints.
 
   steps:
-    # ── Phase 1: Scope ───────────────────────────────────────────────────
-    - id: migration-brief
-      title: Migration Brief
+    - id: frame
+      title: Frame
       executor: orchestrator
       kind: checkpoint
-      protocol: migration-brief@v1
+      protocol: migrate-frame@v1
       reads: [user.task, repo.snapshot]
       writes:
         artifact:
-          path: artifacts/migration-brief.md
-          schema: migration-brief@v1
+          path: artifacts/brief.md
+          schema: brief-migrate@v1
         request: checkpoints/{step_id}-{attempt}.request.json
         response: checkpoints/{step_id}-{attempt}.response.json
       checkpoint:
-        kind: migration_brief
+        kind: migrate_frame
         options: [continue]
         materialize_artifact: true
       gate:
@@ -40,147 +39,132 @@ circuit:
         source: checkpoints/{step_id}-{attempt}.response.json
         allow: [continue]
       routes:
-        continue: inventory-probes
+        continue: inventory
 
-    # ── Phase 2: Inventory ───────────────────────────────────────────────
-    - id: inventory-probes
-      title: Dependency Scan + Risk Assessment
+    - id: inventory
+      title: Inventory
       executor: worker
       kind: dispatch
-      protocol: inventory-probes@v1
-      reads: [artifacts/migration-brief.md]
+      protocol: migrate-inventory@v1
+      reads: [artifacts/brief.md]
       writes:
-        artifacts:
-          - path: artifacts/dependency-inventory.md
-            schema: dependency-inventory@v1
-          - path: artifacts/risk-assessment.md
-            schema: risk-assessment@v1
-        request: jobs/{step_id}-{attempt}/dispatch-request.json
-        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
-        result: jobs/{step_id}-{attempt}/job-result.json
-      budgets:
-        max_attempts: 1
+        artifact:
+          path: artifacts/inventory.md
+          schema: inventory@v1
+        request: jobs/{step_id}-{attempt}.request.json
+        receipt: jobs/{step_id}-{attempt}.receipt.json
+        result: jobs/{step_id}-{attempt}.result.json
       gate:
         kind: result_verdict
-        source: jobs/{step_id}-{attempt}/job-result.json
-        pass: [outputs_ready]
+        source: jobs/{step_id}-{attempt}.result.json
+        pass: [map_complete]
       routes:
-        pass: coexistence-plan
-        fail: "@escalate"
+        pass: plan
 
-    # ── Phase 3: Strategy ────────────────────────────────────────────────
-    - id: coexistence-plan
+    - id: plan
       title: Coexistence Plan
       executor: orchestrator
-      kind: synthesis
-      reads: [artifacts/migration-brief.md, artifacts/dependency-inventory.md, artifacts/risk-assessment.md]
-      writes:
-        artifact:
-          path: artifacts/coexistence-plan.md
-          schema: coexistence-plan@v1
-      gate:
-        kind: schema_sections
-        source: artifacts/coexistence-plan.md
-        required: [Adapter Strategy, Rollback Procedure, Batch Order, Risk-First Ordering]
-      routes:
-        pass: migration-steer
-        fail: "@escalate"
-
-    - id: migration-steer
-      title: Migration Steer
-      executor: orchestrator
       kind: checkpoint
-      protocol: migration-steer@v1
-      reads: [artifacts/coexistence-plan.md, artifacts/risk-assessment.md]
+      protocol: migrate-plan@v1
+      reads: [artifacts/brief.md, artifacts/inventory.md]
       writes:
         artifact:
-          path: artifacts/migration-steer.md
-          schema: migration-steer@v1
+          path: artifacts/plan.md
+          schema: plan-migrate@v1
         request: checkpoints/{step_id}-{attempt}.request.json
         response: checkpoints/{step_id}-{attempt}.response.json
       checkpoint:
         kind: migration_steer
-        options: [approve, revise]
-        materialize_artifact: true
+        options: [continue, adjust]
       gate:
         kind: checkpoint_selection
         source: checkpoints/{step_id}-{attempt}.response.json
-        allow: [approve, revise]
+        allow: [continue, adjust]
       routes:
-        approve: batch-migration
-        revise: coexistence-plan
+        continue: execute
+        adjust: plan
 
-    # ── Phase 4: Execution ───────────────────────────────────────────────
-    - id: batch-migration
-      title: Batch Migration
+    - id: execute
+      title: Batch Execution
       executor: worker
       kind: dispatch
-      protocol: workers-execute@v1
-      reads: [artifacts/coexistence-plan.md, artifacts/migration-steer.md, artifacts/risk-assessment.md]
+      protocol: migrate-execute@v1
+      reads: [artifacts/plan.md, artifacts/inventory.md]
       writes:
         artifact:
           path: artifacts/batch-log.md
           schema: batch-log@v1
-        request: jobs/{step_id}-{attempt}/dispatch-request.json
-        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
-        result: jobs/{step_id}-{attempt}/job-result.json
+        request: jobs/{step_id}-{attempt}.request.json
+        receipt: jobs/{step_id}-{attempt}.receipt.json
+        result: jobs/{step_id}-{attempt}.result.json
       budgets:
         max_attempts: 3
       gate:
         kind: result_verdict
-        source: jobs/{step_id}-{attempt}/job-result.json
-        pass: [complete_and_hardened]
+        source: jobs/{step_id}-{attempt}.result.json
+        pass: [complete_and_hardened, partial]
         reroute:
-          coexistence_invalidated: coexistence-plan
+          coexistence_invalidated: plan
       routes:
-        pass: full-verification
-        fail: "@escalate"
+        pass: verify
 
-    # ── Phase 5: Verification ────────────────────────────────────────────
-    - id: full-verification
+    - id: verify
       title: Full Verification
       executor: worker
       kind: dispatch
-      protocol: full-verification@v1
-      reads: [artifacts/migration-brief.md, artifacts/dependency-inventory.md, artifacts/batch-log.md]
+      protocol: migrate-verify@v1
+      reads: [artifacts/plan.md, artifacts/batch-log.md]
       writes:
         artifact:
           path: artifacts/verification-report.md
           schema: verification-report@v1
-        request: jobs/{step_id}-{attempt}/dispatch-request.json
-        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
-        result: jobs/{step_id}-{attempt}/job-result.json
-      budgets:
-        max_attempts: 1
+        request: jobs/{step_id}-{attempt}.request.json
+        receipt: jobs/{step_id}-{attempt}.receipt.json
+        result: jobs/{step_id}-{attempt}.result.json
       gate:
         kind: result_verdict
-        source: jobs/{step_id}-{attempt}/job-result.json
-        pass: [verification_complete]
+        source: jobs/{step_id}-{attempt}.result.json
+        pass: [verification_complete, clean]
       routes:
-        pass: cutover-review
-        fail: "@escalate"
+        pass: review
 
-    - id: cutover-review
+    - id: review
       title: Cutover Review
       executor: worker
       kind: dispatch
-      protocol: cutover-review@v1
-      reads: [artifacts/coexistence-plan.md, artifacts/batch-log.md, artifacts/verification-report.md]
+      protocol: migrate-review@v1
+      reads: [artifacts/brief.md, artifacts/plan.md, artifacts/verification-report.md]
       writes:
         artifact:
-          path: artifacts/cutover-report.md
-          schema: cutover-report@v1
-        request: jobs/{step_id}-{attempt}/dispatch-request.json
-        receipt: jobs/{step_id}-{attempt}/dispatch-receipt.json
-        result: jobs/{step_id}-{attempt}/job-result.json
+          path: artifacts/review.md
+          schema: review@v1
+        request: jobs/{step_id}-{attempt}.request.json
+        receipt: jobs/{step_id}-{attempt}.receipt.json
+        result: jobs/{step_id}-{attempt}.result.json
       budgets:
-        max_attempts: 1
+        max_attempts: 2
       gate:
         kind: result_verdict
-        source: jobs/{step_id}-{attempt}/job-result.json
-        pass: [ready]
+        source: jobs/{step_id}-{attempt}.result.json
+        pass: [ready, ship_ready, clean]
         reroute:
-          revise: batch-migration
+          revise: execute
+      routes:
+        pass: close
+
+    - id: close
+      title: Close
+      executor: orchestrator
+      kind: synthesis
+      protocol: migrate-close@v1
+      reads: [artifacts/brief.md, artifacts/inventory.md, artifacts/plan.md, optional:artifacts/review.md]
+      writes:
+        artifact:
+          path: artifacts/result.md
+          schema: result@v1
+      gate:
+        kind: schema_sections
+        source: artifacts/result.md
+        required: [Changes, Verification]
       routes:
         pass: "@complete"
-        fail: "@escalate"

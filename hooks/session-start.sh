@@ -2,12 +2,20 @@
 set -euo pipefail
 
 if git rev-parse --show-toplevel >/dev/null 2>&1; then
-  handoff_dir="$(git rev-parse --show-toplevel)"
+  project_dir="$(git rev-parse --show-toplevel)"
 else
-  handoff_dir="$PWD"
+  project_dir="$PWD"
 fi
-handoff_slug=$(printf '%s' "$handoff_dir" | tr '/' '-')
-handoff_file="$HOME/.claude/projects/${handoff_slug}/handoff.md"
+project_slug=$(printf '%s' "$project_dir" | tr '/' '-')
+handoff_file="$HOME/.claude/projects/${project_slug}/handoff.md"
+
+# Check for active-run.md in the most recent circuit run
+active_run=""
+circuit_runs_dir="${project_dir}/.circuitry/circuit-runs"
+if [[ -d "$circuit_runs_dir" ]]; then
+  # Find the most recently modified active-run.md
+  active_run=$(find "$circuit_runs_dir" -name "active-run.md" -maxdepth 3 -type f -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1)
+fi
 
 if [[ -f "$handoff_file" ]] && head -1 "$handoff_file" | grep -q '^# Handoff'; then
   cat <<'HANDOFF_HEADER'
@@ -34,17 +42,31 @@ Resume from the handoff above.
 ---
 
 HANDOFF_FOOTER
+elif [[ -n "$active_run" ]] && [[ -f "$active_run" ]]; then
+  cat <<'ACTIVERUN_HEADER'
+> **Active circuit run detected.** Injecting current state.
+
+---
+
+ACTIVERUN_HEADER
+  cat "$active_run"
+  cat <<'ACTIVERUN_FOOTER'
+
+---
+
+Review the active run state above and resume from the current phase.
+
+ACTIVERUN_FOOTER
 else
-  # First run or no pending handoff -- show a brief welcome
   cat <<'WELCOME'
 Circuitry is active. Try one of these to get started:
 
   /circuit fix: login form rejects valid emails       Bug fix with test-first discipline
-  /circuit add dark mode support to the settings page  Triage picks the right workflow
+  /circuit add dark mode support to the settings page  Router picks the right workflow
   /circuit decide: REST vs GraphQL for the new API     Adversarial evaluation of options
 
-Circuitry classifies your task, picks the right workflow (quick fix, full feature,
-architecture decision, and more), and runs it. You step in at checkpoints. If a
-session crashes, the next one picks up where it stopped.
+Circuitry classifies your task into the right workflow (Explore, Build, Repair,
+Migrate, Sweep), selects a rigor level, and runs it. You step in at checkpoints.
+If a session crashes, the next one picks up where it stopped.
 WELCOME
 fi

@@ -1,177 +1,177 @@
 ---
 name: circuit:run
 description: >
-  Adaptive supergraph circuit. Triage classifies any task into the right
-  workflow shape, then the runtime engine walks the selected path. Seven entry
-  modes (default, quick, researched, adversarial, spec-review, ratchet, crucible)
-  share one circuit.yaml. Steps on inactive paths are never visited.
+  The primary Circuitry router. Classifies any task into one of five workflows
+  (Explore, Build, Repair, Migrate, Sweep), selects a rigor profile
+  (Lite, Standard, Deep, Tournament, Autonomous), and dispatches. Also accessible
+  as the bare /circuit command. Quiet by default: routes and proceeds unless
+  ambiguity or risk is material.
 trigger: >
-  Use for /circuit, /circuit:run, or any task that needs structured execution.
-  This is the default entry point for all circuit work.
+  Use for /circuit or /circuit:run, or when the user describes a coding task.
 ---
 
 # Circuit: Run
 
-The primary Circuitry circuit. Routes any task to the right workflow shape via
-lightweight triage, then executes using the supergraph declared in `circuit.yaml`.
+The Circuitry router. Classifies tasks, selects rigor, dispatches to the right workflow.
 
 ## Invocation
 
 ```
-/circuit <task>                  # Triage classifies
-/circuit fix: <task>             # Quick + bug augmentation
-/circuit decide: <task>          # Adversarial mode
-/circuit develop: <task>         # Researched mode
-/circuit repair: <task>          # Researched + bug augmentation
+/circuit <task>                  # Router classifies
+/circuit fix: <task>             # Repair Lite
+/circuit repair: <task>          # Repair Deep
+/circuit develop: <task>         # Build Standard
+/circuit decide: <task>          # Explore Tournament (decision mode)
 /circuit migrate: <task>         # Redirect to circuit:migrate
-/circuit cleanup: <task>         # Redirect to circuit:cleanup
+/circuit cleanup: <task>         # Sweep Standard (cleanup objective)
+/circuit overnight: <task>       # Sweep Autonomous
 ```
 
 ## Intent Hint Resolution
 
-Before triage runs, check for intent hints in the task prefix.
+Before routing, check for intent hints in the task prefix.
 
-| Prefix | Action |
-|--------|--------|
-| `fix:` | Entry mode `quick`, add bug augmentation. Skip triage classification. |
-| `decide:` | Entry mode `adversarial`. Skip triage classification. |
-| `develop:` | Entry mode `researched`. Skip triage classification. |
-| `repair:` | Entry mode `researched`, add bug augmentation. Skip triage classification. |
-| `migrate:` | Redirect to `circuit:migrate`. Terminate this run. |
-| `cleanup:` | Redirect to `circuit:cleanup`. Terminate this run. |
-| (none) | Run triage classification. |
+| Prefix | Workflow | Rigor | Action |
+|--------|----------|-------|--------|
+| `fix:` | Repair | Lite | Skip routing. Dispatch directly. |
+| `repair:` | Repair | Deep | Skip routing. Dispatch directly. |
+| `develop:` | Build | Standard | Skip routing. Dispatch directly. |
+| `decide:` | Explore | Tournament | Skip routing. Dispatch directly. |
+| `migrate:` | Migrate | Deep | Redirect to circuit:migrate. |
+| `cleanup:` | Sweep | Standard | Skip routing. Dispatch directly. |
+| `overnight:` | Sweep | Autonomous | Skip routing. Dispatch directly. |
+| (none) | (classify) | (auto) | Run routing classification. |
 
-**Companion circuit redirect:** When the prefix is `migrate:` or `cleanup:`, do NOT
-run triage. Write `triage-result.md` with `redirect: circuit:migrate` (or cleanup),
-emit a stop event, and tell the user:
+**Companion circuit redirect:** When the prefix is `migrate:`, do NOT run the
+router. Tell the user:
 
 ```
-This task needs the full [migrate|cleanup] workflow.
+This task needs the full migration workflow.
 
   /circuit:migrate <task description>
-  /circuit:cleanup <task description>
 
 Copy and run the command above.
 ```
 
-## Triage (Step: triage)
+**Spec detection:** If the task includes an RFC, PRD, or spec document (file path
+or inline), route to Explore Deep with spec input mode.
 
-Two-phase classification within a single step.
+## Routing Classification
 
-**Phase 1 -- Classify.** Read the task, match signal patterns against the mode
-selection table below. Produce a candidate classification.
+**Quiet by default.** Route and proceed unless ambiguity or risk is material.
 
-**Phase 2 -- Diagnostic probe.** Generate one targeted probe question that tests
-the assumption most likely to be wrong. Present the classification AND probe
-to the user for confirmation.
+### Step 1: Classify Task Kind
 
-### Mode Selection Table
+Match signal patterns to determine the workflow:
 
-| Signal Pattern | Mode | Augmentations | Reference |
-|---------------|------|---------------|-----------|
-| Clear task, known approach, <6 files | quick | (check augmentation table) | `references/mode-quick.md` |
-| Multi-domain OR external research needed OR no obvious path | researched | (check augmentation table) | `references/mode-researched.md` |
-| Named alternatives OR "should we" OR architecture-level choice | adversarial | (check augmentation table) | `references/mode-adversarial.md` |
-| Existing RFC/PRD/spec provided for review | spec-review | none | `references/mode-spec-review.md` |
-| "Run overnight" OR "improve quality" OR "stability pass" | ratchet | autonomous | `references/workflow-ratchet.md` |
-| "Pressure-test" OR "adversarial tournament" OR "explore N approaches" | crucible | none | `references/workflow-crucible.md` |
-| Strong cleanup signals (>5 files dead code, multi-system scope) | redirect | n/a | Redirect to `circuit:cleanup` |
-| Strong migration signals (framework swap, coexistence needed) | redirect | n/a | Redirect to `circuit:migrate` |
+| Signal Pattern | Workflow |
+|---------------|----------|
+| "broken", "not working", unexpected behavior, error codes, stack traces | Repair |
+| Named alternatives, "should we", architecture-level choice, tradeoff | Explore |
+| "understand", "investigate", "what does", "how does", exploration language | Explore |
+| RFC/PRD/spec provided for review | Explore (spec mode) |
+| Strong cleanup signals (dead code, stale docs, >5 files detritus) | Sweep |
+| "run overnight", "improve quality", "stability pass", coverage sweep | Sweep |
+| Strong migration signals (framework swap, coexistence needed) | Migrate |
+| Everything else (features, refactors, docs, tests, mixed changes) | Build |
 
-**Evaluation order:** autonomous signals > adversarial > researched > quick. Then check augmentations.
+**Evaluation order:** Migration signals > Repair signals > Sweep signals > Explore signals > Build (default).
 
-### Augmentation Table
+### Step 2: Select Rigor Profile
 
-| Augmentation | Trigger Signals | Effect on scope.md |
-|-------------|----------------|-------------------|
-| Bug | "broken", "not working", unexpected behavior, error codes | Add `## Regression Contract` section. Test-first discipline. |
-| Migration | Migration signals when scope < full migrate circuit | Add `## Coexistence Plan` section. |
-| Cleanup | Dead code signals when scope < full cleanup circuit | Add `## Removal Evidence` section. |
-| Autonomous | "overnight", "while I sleep", unattended | Auto-resolve checkpoints (except tradeoff-decision). Write `deferred-review.md`. See `references/autonomous-gates.md`. |
+| Signal | Rigor |
+|--------|-------|
+| Clear task, known approach, < 6 files | Lite |
+| Default (no special signals) | Standard |
+| Multi-domain, external research needed, no obvious path | Deep |
+| Named alternatives, "should we", architecture decision | Tournament |
+| "overnight", "while I sleep", unattended | Autonomous |
 
-**Stacking rules:**
-- Augmentations compose. Bug + migration is valid.
-- Maximum 2 augmentations per run. If 3+ signals detected, escalate to researched mode.
-- When bug + another augmentation, regression contract is always Slice 0.
+### Step 3: Trivial Path Check
 
-### Named Pattern Labels
+If the task is trivial (single file, obvious change, < 3 lines, no ambiguity),
+say so and do the work inline. No workflow overhead.
 
-Present the classification using a human-readable label, not the technical mode name.
+> This is straightforward. Doing it inline.
 
-| Label | Technical Mode |
-|-------|---------------|
-| Bug Fix (test-first) | quick + bug |
-| Feature Build | quick |
-| Investigation | researched |
-| Architecture Decision | adversarial |
-| Migration | researched + migration OR redirect |
-| Cleanup | quick + cleanup OR redirect |
-| Full Feature | researched |
-| Overnight Quality | ratchet + autonomous |
-| Spec Review | spec-review |
-| Pressure Test | crucible |
+### Step 4: Dispatch
 
-### Triage Artifact
+**If classification is confident** (>80% of tasks):
 
-Write `artifacts/triage-result.md`:
+1. Write `active-run.md` to the run root
+2. Show a one-line summary:
+   > **Build / Standard** -- I'll plan the change, implement with independent review, then close.
+3. Load the workflow skill and follow its instructions.
 
-```markdown
-## Pattern
-<named pattern label>
+**If genuinely ambiguous** (mixed signals spanning two workflows):
 
-## Mode
-<quick | researched | adversarial>
+1. Ask ONE sharp question that changes the workflow. Not a probe for the sake of it.
+2. After the answer, dispatch immediately.
 
-## Augmentations
-<bug | migration | cleanup | autonomous | none>
+### Workflow Previews (for the one-line summary)
 
-## Reasoning
-<why this classification>
+| Workflow | Rigor | Preview |
+|----------|-------|---------|
+| Explore | Lite | "Quick investigation. I'll read the code and write up findings." |
+| Explore | Standard | "I'll research externally and internally, then synthesize a plan or decision." |
+| Explore | Deep | "I'll research, prove the riskiest assumption, then hand off to Build." |
+| Explore | Tournament | "I'll generate competing proposals, pressure-test each, and converge the strongest." |
+| Build | Lite | "I'll plan and implement. Quick self-verify." |
+| Build | Standard | "I'll plan, implement, and run an independent review." |
+| Build | Deep | "I'll research first, prove the seam, then build with independent review." |
+| Repair | Lite | "I'll reproduce, fix, and verify the regression test passes." |
+| Repair | Standard | "I'll reproduce, isolate root cause, fix, and run independent review." |
+| Repair | Deep | "I'll investigate broadly, isolate, fix, and run contract audit." |
+| Migrate | Deep | "I'll inventory dependencies, plan coexistence, then migrate in batches." |
+| Sweep | Standard | "I'll survey, triage by confidence/risk, then clean in ordered batches." |
+| Sweep | Autonomous | "I'll run a full quality pass: survey, batch improvements, verify, defer ambiguous items." |
 
-## Probe
-<one diagnostic question>
+## Run Root Setup
 
-## Secondary Signal
-<if mixed signals, note secondary concern and how it maps to scope>
-
-## Capabilities Available
-<auto-detected from installed skills>
+```bash
+RUN_SLUG="<task-slug>"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
+mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
 ```
 
-Present the triage result and probe to the user. Include a brief plain-language
-preview of what the selected workflow does, so the user knows what to expect:
+Write initial `${RUN_ROOT}/artifacts/active-run.md`:
 
-| Pattern | Preview |
-|---------|---------|
-| Bug Fix (test-first) | "I'll scope the bug, write a failing test first, then fix and verify." |
-| Feature Build | "I'll scope the change, show you the plan, then run implementation with independent review." |
-| Investigation | "I'll research externally and audit the codebase in parallel, synthesize constraints, then scope and build." |
-| Architecture Decision | "I'll gather evidence, generate distinct options, pressure-test each, and present a decision packet for your call." |
-| Full Feature | "I'll research first, then scope, implement, and run a separate review session." |
-| Overnight Quality | "I'll survey the codebase, calibrate a quality bar, then run improvement batches autonomously." |
-| Spec Review | "I'll run three independent reviews from different angles, resolve caveats, then build." |
-| Pressure Test | "I'll develop three competing proposals, have each attacked by an adversary, stress-test all three, and converge the strongest." |
-| Cleanup | "I'll survey for dead code and stale artifacts, triage by confidence, then remove in risk-ordered batches." |
-| Migration | "I'll inventory dependencies, plan coexistence, then migrate in verifiable batches." |
+```markdown
+# Active Run
+## Workflow
+<workflow>
+## Rigor
+<rigor>
+## Current Phase
+frame
+## Goal
+<task objective>
+## Next Step
+Write brief.md
+## Verification Commands
+<TBD during Frame phase>
+## Active Worktrees
+none
+## Blockers
+none
+## Last Updated
+<ISO 8601 timestamp>
+```
 
-Wait for confirmation or override. If user overrides mode, update
-`triage-result.md` and record the override.
+## After Routing
 
-### Mixed-Signal Tasks
+Load the corresponding workflow skill:
 
-When the task has signals spanning two modes (e.g., "add pagination + fix offset bug"):
-1. Classify the dominant mode
-2. Flag the secondary signal in triage-result.md
-3. The scope step reads the secondary signal and creates a prerequisite slice (Slice 0)
+| Workflow | Skill |
+|----------|-------|
+| Explore | circuit:explore |
+| Build | circuit:build |
+| Repair | circuit:repair |
+| Migrate | circuit:migrate |
+| Sweep | circuit:sweep |
 
-## After Triage
-
-Once mode is confirmed, load the corresponding reference file and follow its
-step-by-step instructions. The reference file contains:
-- Per-step artifact schemas
-- Gate criteria
-- Worker dispatch patterns
-- Augmentation injection points
+Follow the workflow skill's instructions from the Frame phase. Pass the rigor
+profile as context.
 
 ## Dispatch
 
@@ -184,43 +184,24 @@ All worker dispatch uses `dispatch.sh` with the `--role` flag:
   --role <implementer|reviewer|researcher>
 ```
 
-Role resolution: `--role` flag > `circuit.config.yaml` roles > auto-detect.
-
-When assembling prompt headers, include the canonical sections:
-`### Files Changed`, `### Tests Run`, `### Completion Claim` to prevent
-relay-protocol.md contamination.
-
 ## Domain Skill Selection
 
-When a step references `<domain-skills>`, pick 1-2 skills matching the affected code.
-Never exceed 3 total skills per dispatch.
-
-## Artifact Chains by Mode
-
-**Quick:** `triage-result.md` -> `scope.md` -> `scope-confirmed.md` -> `implementation-handoff.md` -> `done.md`
-
-**Researched:** `triage-result.md` -> `external-digest.md` + `internal-digest.md` -> `constraints.md` -> `scope.md` -> `scope-confirmed.md` -> `implementation-handoff.md` -> `review-findings.md` -> `done.md`
-
-**Adversarial:** `triage-result.md` -> digests -> `constraints.md` -> `options.md` -> `decision-packet.md` -> `adr.md` -> `execution-packet.md` -> `seam-proof.md` -> `implementation-handoff.md` -> `ship-review.md` -> `done.md`
-
-**Spec-review:** `spec-brief.md` -> `draft-digest.md` -> 3 reviews -> `caveat-resolution.md` -> `amended-spec.md` -> `execution-packet.md` -> `seam-proof.md` -> `implementation-handoff.md` -> `ship-review.md` -> `done.md`
-
-**Ratchet:** See `references/workflow-ratchet.md`
-
-**Crucible:** See `references/workflow-crucible.md`
+When a step references `<domain-skills>`, pick 1-2 skills matching the affected
+code. Never exceed 3 total skills per dispatch.
 
 ## Circuit Breakers
 
 Escalate to the user when:
 - A dispatch step fails twice (no valid output after 2 attempts)
-- Seam proof returns `DESIGN INVALIDATED`
-- Workers slice hits `impl_attempts > 3` or `impl_attempts + review_rejections > 5`
-- Convergence fails after max attempts
-- Ship review says `ISSUES FOUND` after 2 attempts
+- Workers: impl_attempts > 3 or impl_attempts + review_rejections > 5
+- Architecture uncertainty during Build (bounce to Explore)
+- No reproducible signal during Repair after bounded search
+- Regression detected during Sweep batch (revert batch, continue next)
+- Batch failure during Migrate (halt, write partial result.md)
 
-Include: counter values, failure output, options (adjust scope, skip slice, abort).
+Include: counter values, failure output, options (adjust scope, skip, abort).
 
 ## Single-User Assumptions
 
-- Named pattern labels assume familiarity with Circuitry vocabulary.
-- These assumptions are intentional. Circuitry is a single-user power tool.
+Pattern labels assume familiarity with Circuitry vocabulary.
+This is intentional. Circuitry is a single-user power tool.
