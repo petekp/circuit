@@ -1,15 +1,14 @@
 /**
  * Tests for derive-state: the deterministic state projection f(events) -> state.
  *
- * Ported from tests/test_runtime_scripts.py class TestDeriveState.
- * Uses deriveState() directly with in-memory events (no subprocess needed).
+ * Tests deriveState() directly with in-memory events (no subprocess needed).
  */
 
 import { describe, it, expect } from "vitest";
 import { deriveState } from "./derive-state.js";
 
 // ---------------------------------------------------------------------------
-// Shared test manifest -- mirrors MINIMAL_MANIFEST from the Python tests
+// Shared test manifest -- minimal v2 circuit for state derivation tests
 // ---------------------------------------------------------------------------
 
 const MINIMAL_MANIFEST: Record<string, unknown> = {

@@ -22,27 +22,26 @@ where it stopped.
 claude plugin install petekp/circuitry
 ```
 
-Then verify your install:
-
-```bash
-./scripts/verify-install.sh
-```
-
-This checks Node.js, engine CLIs, skill directories, relay scripts, and runs a
-smoke test. Fix any failures before continuing.
-
-Then run it:
+Start a new Claude Code session and run:
 
 ```
-/circuit evaluate CRDTs vs OT vs polling for real-time document sync
+/circuit evaluate microservices vs modular monolith vs serverless for our growing backend
 ```
 
 That's it. Circuitry classifies your task, picks the right workflow, and runs it.
 
 ## How It Works
 
-The task above triggers a **crucible** -- three competing approaches developed,
-pressure-tested, and converged into one hardened proposal:
+You've made architecture decisions like this before. You read a few blog posts,
+sketch the tradeoffs in a doc, pick the approach that feels right, and move on.
+Maybe you get a second opinion. The research is shallow because thoroughness
+takes time nobody has. The decision sticks because nobody has bandwidth to
+revisit it.
+
+The task above triggers a **crucible**. Three independent workers develop
+competing proposals to full depth. Each one gets reviewed by an adversary who
+finds its weaknesses. The survivors get stress-tested against failure scenarios.
+The strongest survives, absorbing the best ideas from the rest:
 
 ```mermaid
 flowchart LR
@@ -156,6 +155,15 @@ npm install -g @openai/codex
 - **Node.js 18+** (no build step required)
 
 ## Troubleshooting
+
+**Verify your install.** If something isn't working, run the diagnostic script:
+
+```bash
+~/.claude/plugins/marketplaces/petekp/scripts/verify-install.sh
+```
+
+This checks Node.js, engine CLIs, skill directories, relay scripts, and runs a
+smoke test. Fix any failures it reports.
 
 **"engine CLI missing" during verify-install.** The bundled CLIs at
 `scripts/runtime/bin/` should ship with the plugin. If missing, reinstall:

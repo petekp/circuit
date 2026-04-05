@@ -13,11 +13,6 @@ Thumbs.db
 *.swp
 *.swo
 
-# Python
-__pycache__/
-.pytest_cache/
-*.pyc
-
 # Node
 node_modules/
 dist/

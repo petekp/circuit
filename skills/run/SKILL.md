@@ -138,8 +138,24 @@ Write `artifacts/triage-result.md`:
 <auto-detected from installed skills>
 ```
 
-Present the triage result and probe to the user. Wait for confirmation or override.
-If user overrides mode, update `triage-result.md` and record the override.
+Present the triage result and probe to the user. Include a brief plain-language
+preview of what the selected workflow does, so the user knows what to expect:
+
+| Pattern | Preview |
+|---------|---------|
+| Bug Fix (test-first) | "I'll scope the bug, write a failing test first, then fix and verify." |
+| Feature Build | "I'll scope the change, show you the plan, then run implementation with independent review." |
+| Investigation | "I'll research externally and audit the codebase in parallel, synthesize constraints, then scope and build." |
+| Architecture Decision | "I'll gather evidence, generate distinct options, pressure-test each, and present a decision packet for your call." |
+| Full Feature | "I'll research first, then scope, implement, and run a separate review session." |
+| Overnight Quality | "I'll survey the codebase, calibrate a quality bar, then run improvement batches autonomously." |
+| Spec Review | "I'll run three independent reviews from different angles, resolve caveats, then build." |
+| Pressure Test | "I'll develop three competing proposals, have each attacked by an adversary, stress-test all three, and converge the strongest." |
+| Cleanup | "I'll survey for dead code and stale artifacts, triage by confidence, then remove in risk-ordered batches." |
+| Migration | "I'll inventory dependencies, plan coexistence, then migrate in verifiable batches." |
+
+Wait for confirmation or override. If user overrides mode, update
+`triage-result.md` and record the override.
 
 ### Mixed-Signal Tasks
 

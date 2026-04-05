@@ -37,6 +37,14 @@ HANDOFF_FOOTER
 else
   # First run or no pending handoff -- show a brief welcome
   cat <<'WELCOME'
-Circuitry is active. Run `/circuit <task>` to start a structured workflow. See CIRCUITS.md for available commands.
+Circuitry is active. Try one of these to get started:
+
+  /circuit fix: login form rejects valid emails       Bug fix with test-first discipline
+  /circuit add dark mode support to the settings page  Triage picks the right workflow
+  /circuit decide: REST vs GraphQL for the new API     Adversarial evaluation of options
+
+Circuitry classifies your task, picks the right workflow (quick fix, full feature,
+architecture decision, and more), and runs it. You step in at checkpoints. If a
+session crashes, the next one picks up where it stopped.
 WELCOME
 fi

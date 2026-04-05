@@ -5,13 +5,14 @@
 #   ./scripts/verify-install.sh
 #
 # Checks:
-#   1. Codex CLI is installed
-#   2. Node.js and engine CLIs
-#   3. Python 3 and PyYAML (optional, for update-batch.sh)
-#   4. Bash version (3.2+ works; 4+ recommended)
-#   5. All expected skill directories exist
-#   6. Both relay scripts exist and are executable
-#   7. compose-prompt.sh can find its templates (smoke test)
+#   1. Node.js (required by the engine)
+#   2. Engine CLIs (bundled, no build step)
+#   3. Bash version
+#   4. Skill directories
+#   5. Relay scripts
+#   6. compose-prompt.sh smoke test
+#   7. Engine dev environment (contributors only)
+#   8. Codex CLI (optional, faster parallelism)
 
 set -uo pipefail
 
@@ -40,17 +41,7 @@ section() {
   printf '\n\033[1m%s\033[0m\n' "$1"
 }
 
-# ── 1. Codex CLI (optional -- Agent fallback available) ────────────────
-section "Codex CLI"
-
-if command -v codex >/dev/null 2>&1; then
-  codex_version="$(codex --version 2>/dev/null || echo 'unknown')"
-  pass "codex found: $codex_version (dispatch backend: codex)"
-else
-  warn "codex not found -- dispatch will use Agent fallback (install for better parallelism: npm install -g @openai/codex)"
-fi
-
-# ── 2. Node.js (engine runtime) ────────────────────────────────────
+# ── 1. Node.js (engine runtime) ────────────────────────────────────
 section "Node.js"
 
 if command -v node >/dev/null 2>&1; then
@@ -60,11 +51,11 @@ else
   fail "node not found -- required by the engine (scripts/runtime/bin/)"
 fi
 
-# ── 2b. Engine CLIs (shipped bundles) ───────────────────────────────
+# ── 2. Engine CLIs (shipped bundles) ───────────────────────────────
 section "Engine CLIs"
 
 bin_dir="$PLUGIN_ROOT/scripts/runtime/bin"
-for cli_name in append-event catalog-compiler derive-state resume; do
+for cli_name in append-event catalog-compiler derive-state resume update-batch; do
   cli_path="$bin_dir/${cli_name}.js"
   if [[ -f "$cli_path" ]]; then
     pass "engine CLI: ${cli_name}"
@@ -73,49 +64,17 @@ for cli_name in append-event catalog-compiler derive-state resume; do
   fi
 done
 
-# ── 2c. Engine dev environment (contributors only) ─────────────────
-section "Engine dev environment"
-
-engine_dir="$PLUGIN_ROOT/scripts/runtime/engine"
-if [[ -d "$engine_dir/node_modules" ]]; then
-  pass "engine node_modules installed (contributor)"
-else
-  warn "engine node_modules missing -- contributors run: cd $engine_dir && npm install"
-fi
-
-# ── 3. Python 3 (optional, used by update-batch.sh only) ───────────
-section "Python 3 (optional)"
-
-if command -v python3 >/dev/null 2>&1; then
-  py_version="$(python3 --version 2>&1)"
-  pass "python3 found: $py_version (used by update-batch.sh)"
-else
-  warn "python3 not found -- update-batch.sh will not work. Core circuits do not require Python."
-fi
-
-# ── 3b. PyYAML (optional) ──────────────────────────────────────────
-section "PyYAML (optional)"
-
-if command -v python3 >/dev/null 2>&1; then
-  if python3 -c "import yaml" >/dev/null 2>&1; then
-    pass "PyYAML available"
-  else
-    warn "PyYAML not found -- update-batch.sh YAML parsing will not work. Install with: pip3 install pyyaml"
-  fi
-fi
-
-# ── 4. Bash version ──────────────────────────────────────────────────
+# ── 3. Bash version ──────────────────────────────────────────────────
 section "Bash version"
 
 bash_version="${BASH_VERSINFO[0]:-0}"
 if [[ "$bash_version" -ge 4 ]]; then
   pass "bash ${BASH_VERSION}"
 else
-  # Relay scripts use Python for heavy lifting; bash 3.2 works fine
   pass "bash ${BASH_VERSION} (relay scripts are compatible with bash 3.2+)"
 fi
 
-# ── 5. Skill directories ─────────────────────────────────────────────
+# ── 4. Skill directories ─────────────────────────────────────────────
 section "Skill directories"
 
 skill_count=0
@@ -133,7 +92,7 @@ if [[ $skill_count -eq 0 ]]; then
   fail "no skill directories found in $PLUGIN_ROOT/skills"
 fi
 
-# ── 6. Relay scripts ─────────────────────────────────────────────────
+# ── 5. Relay scripts ─────────────────────────────────────────────────
 section "Relay scripts"
 
 for script in compose-prompt.sh dispatch.sh update-batch.sh; do
@@ -149,7 +108,7 @@ for script in compose-prompt.sh dispatch.sh update-batch.sh; do
   fi
 done
 
-# ── 7. compose-prompt.sh template smoke test ──────────────────────────
+# ── 6. compose-prompt.sh template smoke test ──────────────────────────
 section "Template smoke test"
 
 TEMPLATES_DIR="$PLUGIN_ROOT/skills/workers/references"
@@ -190,6 +149,26 @@ if $templates_ok; then
   rm -f "$smoke_header" "$smoke_out"
 else
   warn "skipping compose-prompt.sh smoke test (templates missing)"
+fi
+
+# ── 7. Engine dev environment (contributors only) ─────────────────
+section "Engine dev environment (contributors)"
+
+engine_dir="$PLUGIN_ROOT/scripts/runtime/engine"
+if [[ -d "$engine_dir/node_modules" ]]; then
+  pass "engine node_modules installed (contributor)"
+else
+  warn "engine node_modules missing -- contributors run: cd $engine_dir && npm install"
+fi
+
+# ── 8. Codex CLI (optional -- Agent fallback available) ────────────────
+section "Codex CLI (optional)"
+
+if command -v codex >/dev/null 2>&1; then
+  codex_version="$(codex --version 2>/dev/null || echo 'unknown')"
+  pass "codex found: $codex_version (dispatch backend: codex)"
+else
+  warn "codex not found -- dispatch will use Agent fallback (install for better parallelism: npm install -g @openai/codex)"
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────

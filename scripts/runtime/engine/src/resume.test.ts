@@ -22,7 +22,7 @@ import {
 
 // ─── Shared fixtures ─────────────────────────────────────────────────
 
-/** Minimal v2 manifest with 3 sequential steps (matches Python tests). */
+/** Minimal v2 manifest with 3 sequential steps. */
 const MINIMAL_MANIFEST = {
   schema_version: "2",
   circuit: {

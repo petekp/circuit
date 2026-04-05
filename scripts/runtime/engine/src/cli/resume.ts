@@ -95,7 +95,7 @@ function main(): number {
 
   const result = findResumePoint(manifest, state);
 
-  // Output with snake_case keys to match Python output exactly
+  // Output with snake_case keys for consistency with circuit.yaml conventions
   process.stdout.write(
     JSON.stringify(
       {

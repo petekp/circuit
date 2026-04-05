@@ -5,6 +5,7 @@ const ENTRY_POINTS = [
   "src/cli/catalog-compiler.ts",
   "src/cli/derive-state.ts",
   "src/cli/resume.ts",
+  "src/cli/update-batch.ts",
 ];
 
 const outdir = new URL("../bin", import.meta.url).pathname;
