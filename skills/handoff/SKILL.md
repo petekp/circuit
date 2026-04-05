@@ -34,11 +34,20 @@ Both mechanisms coexist. Handoff.md is the richer path. active-run.md is the saf
 
 ## Done Mode
 
+Clears both continuity mechanisms so the next session starts fresh.
+
 1. Compute the handoff path (see Storage below -- use git root if in a git repo, else $PWD)
 2. If the file exists, delete it. Confirm: "Handoff cleared. Fresh session will start clean."
 3. If the file does not exist, confirm: "No handoff found for this directory. Nothing to clear."
 4. If `.circuitry/current-run` exists, remove it so session-start.sh starts fresh.
 5. Stop here. Do not gather context or write a new handoff.
+
+**Why current-run is cleared:** "Handoff done" means the work is complete. If
+current-run remained, the next session would show "Active circuit run detected"
+for a finished run. Clearing it ensures the next session gets the welcome message
+instead of resuming something that is already done. To preserve the run's
+artifacts without the active pointer, the run directory under
+`.circuitry/circuit-runs/` is left intact for reference.
 
 ## Capture Mode
 

@@ -22,6 +22,9 @@ circuit:
     deep:
       start_at: frame
       description: Broad investigation with evidence probes.
+    autonomous:
+      start_at: frame
+      description: Standard with auto-resolved checkpoints. Escalates on no-repro.
 
   steps:
     - id: frame

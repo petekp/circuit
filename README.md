@@ -16,6 +16,8 @@ before shipping. If a session dies, the next one picks up where it stopped.
 claude plugin install petekp/circuitry
 ```
 
+After installing or updating, run `/clear` to load the plugin into your session.
+
 Start a new Claude Code session and run:
 
 ```

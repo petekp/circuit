@@ -21,6 +21,21 @@ Frame -> Plan -> Act -> Verify -> Review -> Close
 
 The router passes: task description, rigor profile (Lite, Standard, Deep, Autonomous).
 
+**Direct invocation:** When invoked directly via `/circuit:build` (not through the
+router), bootstrap the run root if one does not already exist:
+
+```bash
+RUN_SLUG="<task-slug>"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
+mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
+ln -sfn "circuit-runs/${RUN_SLUG}" .circuitry/current-run
+```
+
+Write initial `${RUN_ROOT}/artifacts/active-run.md` with Workflow=Build,
+Rigor=Standard (or as specified), Current Phase=frame. If the router already set
+up the run root (active-run.md exists at `${RUN_ROOT}/artifacts/active-run.md`),
+skip bootstrap and proceed to the current phase.
+
 ## Phase: Frame
 
 Write `artifacts/brief.md`:
@@ -94,10 +109,24 @@ Unchecked items are a gate failure.
 
 **Architecture uncertainty:** If during planning you discover the approach is
 unclear, involves multiple viable architectures, or touches unfamiliar territory,
-stop and say:
+transfer to Explore within the same run:
 
-> Architecture uncertainty detected. Bouncing to Explore.
-> Run `/circuit:explore <task>` to investigate before building.
+1. Update `active-run.md`:
+   ```markdown
+   ## Current Phase
+   transfer
+   ## Next Step
+   Explore: investigate architecture options
+   ## Transfer
+   from: Build
+   to: Explore
+   reason: architecture uncertainty detected during Plan
+   ```
+2. Load the `circuit:explore` skill and follow its Frame phase from here. The
+   existing run root, brief.md, and plan.md (if partial) carry forward as
+   context. Explore will produce analysis.md and a revised plan.md.
+3. When Explore completes its Close phase with a plan ready for Build, it will
+   transfer back. See Explore's close-to-Build transfer.
 
 **Gate:** plan.md exists with non-empty Approach, Slices, Verification Commands.
 All adjacent-output items addressed.

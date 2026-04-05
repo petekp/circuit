@@ -19,6 +19,9 @@ circuit:
     lite:
       start_at: frame
       description: Quick scan, high-confidence items only.
+    deep:
+      start_at: frame
+      description: Standard plus evidence adjudication with 9-point checklist.
     autonomous:
       start_at: frame
       description: Unattended sweep with evidence-gated auto-approval.

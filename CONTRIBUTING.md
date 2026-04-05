@@ -1,33 +1,105 @@
 # Contributing to Circuitry
 
-## Adding a New Circuit
+## Architecture Overview
 
-### Prerequisites
+Circuitry has **5 workflows** and **2 utilities**, all built on a shared phase
+spine (Frame, Analyze, Plan, Act, Verify, Review, Close, Pause).
 
-- Read [ARCHITECTURE.md](./ARCHITECTURE.md) to understand how circuits work
-- A workflow that fits the circuit model (multi-phase, artifact-producing)
+**Workflows** (have `circuit.yaml` + `SKILL.md`):
 
-### Authoring a Circuit
+| Workflow | Directory | What It Does |
+|----------|-----------|-------------|
+| Run | `skills/run/` | Router. Classifies tasks, selects rigor, dispatches to a workflow. |
+| Explore | `skills/explore/` | Investigate, understand, decide, plan. |
+| Build | `skills/build/` | Features, refactors, docs, tests, mixed changes. |
+| Repair | `skills/repair/` | Bug fixes with regression contracts. |
+| Migrate | `skills/migrate/` | Framework swaps, dependency replacements. |
+| Sweep | `skills/sweep/` | Cleanup, quality passes, coverage, docs-sync. |
 
-1. Create `skills/<circuit-name>/circuit.yaml` and `skills/<circuit-name>/SKILL.md`
-2. Follow the schemas documented in [ARCHITECTURE.md](./ARCHITECTURE.md)
-3. Validate that `circuit.yaml` and `SKILL.md` agree on topology
+**Utilities** (have `SKILL.md` only, no `circuit.yaml`):
 
-### Circuit Quality Checklist
+| Utility | Directory | What It Does |
+|---------|-----------|-------------|
+| Review | `skills/review/` | Standalone fresh-context code review. |
+| Handoff | `skills/handoff/` | Save session state for the next session. |
 
-- [ ] `circuit.yaml` and `SKILL.md` agree on topology
-- [ ] Every step has a gate stronger than "file exists"
-- [ ] Artifact chain is fully traced (no orphaned `produces`/`consumes`)
-- [ ] Frontmatter has effective trigger phrases and negative scope
-- [ ] Relay headings present in all dispatch headers
-- [ ] Resume awareness documented
-- [ ] Circuit breaker section present
+Workers (`skills/workers/`) is internal infrastructure, not a public workflow.
 
-### Testing
+## Rigor Profiles
 
-Run the circuit against a concrete task that exercises its hardest seam.
-Pick a real scenario, not a toy example. The test should stress the gates
-and artifact handoffs that are most likely to fail in practice.
+Each workflow declares which rigor profiles it supports in `circuit.yaml`
+under `entry_modes`. The authoritative profile availability matrix lives in
+`docs/workflow-matrix.md` section 2.
+
+| Profile | Available For |
+|---------|-------------|
+| Lite | Explore, Build, Repair, Sweep |
+| Standard | All workflows |
+| Deep | All workflows |
+| Tournament | Explore only |
+| Autonomous | All workflows |
+
+Migrate does not support Lite (migrations are inherently non-trivial).
+
+## Modifying a Workflow
+
+### What to Edit
+
+- **Runtime behavior changes:** Edit `SKILL.md`. This is what Claude reads and
+  follows during execution.
+- **Topology changes** (steps, gates, artifacts, entry modes): Edit `circuit.yaml`.
+  The engine validates manifests against `schemas/circuit-manifest.schema.json`.
+- **Always cross-validate both files** after editing either one.
+
+### Drift Checklist
+
+After any workflow change, verify all of these:
+
+- [ ] `SKILL.md` and `circuit.yaml` agree on topology (phases, gates, artifacts)
+- [ ] `circuit.yaml` `entry_modes` matches the rigor profiles described in `SKILL.md`
+- [ ] `docs/workflow-matrix.md` reflects any public behavior changes
+- [ ] `CIRCUITS.md` prose matches (rigor tables, phase lists, artifact lists)
+- [ ] Run `node scripts/runtime/bin/catalog-compiler.js generate` to regenerate
+      the auto-generated blocks in `CIRCUITS.md`
+- [ ] Run `cd scripts/runtime/engine && npx vitest run` to verify tests pass
+- [ ] Run `./scripts/verify-install.sh` for smoke tests + plugin validation
+
+### When to Use circuit.yaml vs. Utility-Only
+
+- **Workflow (circuit.yaml):** Multi-phase, artifact-producing, resumable. Has steps
+  with gates. Appears in the catalog. Gets an entry mode list.
+- **Utility (SKILL.md only):** Single-purpose. No multi-step topology. No entry modes.
+  Not in the auto-generated catalog.
+
+## Canonical Artifacts
+
+All workflows draw from this shared vocabulary. No workflow invents its own
+artifact names:
+
+| Artifact | Purpose |
+|----------|---------|
+| active-run.md | Dashboard: workflow, rigor, phase, goal |
+| brief.md | Contract: objective, scope, success criteria |
+| analysis.md | Evidence from Analyze phase |
+| plan.md | Slices, sequence, adjacent-output checklist |
+| review.md | CLEAN or ISSUES FOUND verdict |
+| result.md | Changes, verification, follow-ups, PR summary |
+| handoff.md | Distilled session state |
+| deferred.md | Ambiguous items (Autonomous/Sweep) |
+
+Specialized: decision.md (Explore Tournament), queue.md (Sweep), inventory.md (Migrate).
+
+## Modifying Relay Scripts
+
+`scripts/relay/compose-prompt.sh`, `dispatch.sh`, and `update-batch.sh` are shared
+infrastructure that all workflows depend on.
+
+- Changes affect **all workflows**. Test thoroughly.
+- Run `scripts/verify-install.sh` for the smoke test.
+- If you change argument parsing or output format, audit every workflow that
+  calls the script.
+
+## Testing
 
 Run the full verification suite:
 
@@ -36,43 +108,42 @@ Run the full verification suite:
 ./scripts/verify-install.sh && cd scripts/runtime/engine && npx vitest run
 ```
 
-Or run them separately:
+Or separately:
 
 ```bash
-# Installation and smoke tests
+# Installation smoke tests + official plugin validation
 ./scripts/verify-install.sh
 
-# Runtime engine unit tests (schema validation, state derivation)
+# Runtime engine unit tests
 cd scripts/runtime/engine && npx vitest run
+
+# Official plugin schema validation
+claude plugin validate .
 ```
 
-## Improving Existing Circuits
+### What the Tests Cover
 
-- Edit `SKILL.md` for runtime behavior changes
-- Edit `circuit.yaml` only for topology changes (steps, gates, artifacts)
-- Always cross-validate both files after editing
-
-## Improving Relay Scripts
-
-`scripts/relay/compose-prompt.sh` and `scripts/relay/dispatch.sh` are the
-shared infrastructure that all circuits depend on.
-
-- Changes here affect **all circuits**. Test thoroughly before committing
-- Run `scripts/verify-install.sh` for smoke tests
-- If you change argument parsing or output format, audit every circuit that
-  calls the script
+- **Schema regressions:** Verdict enums, protocol constraints, manifest validation
+- **Catalog identity:** Directory/ID match, SKILL.md name match, command match
+- **Generated block freshness:** CIRCUITS.md auto-generated sections stay current
+- **Structured reference lint:** No orphan `/circuit:<slug>` or `skills/<name>/`
+  references in tracked files
+- **Repo hygiene:** No Python artifacts (Circuitry is TypeScript-only)
+- **Relay scripts:** Template smoke tests, placeholder validation
+- **State machine:** Event append, state derivation, batch updates, resume logic
 
 ## Plugin Cache Sync
 
-After modifying any plugin file, run `./scripts/sync-to-cache.sh` before
-testing. Claude Code runs the cached copy, not the local repo.
+After modifying any plugin file, run `./scripts/sync-to-cache.sh` before testing.
+Claude Code runs the cached copy at `~/.claude/plugins/cache/`, not the local repo.
+Then `/clear` to reload.
 
 ## Submitting Changes
 
 1. Fork the repo
 2. Create a feature branch
-3. Make your changes
-4. Run the full verification suite: `./scripts/verify-install.sh && cd scripts/runtime/engine && npx vitest run`
+3. Make your changes following the drift checklist above
+4. Run the full verification suite
 5. Open a PR with a clear description of what changed and why
 
 ## Code of Conduct

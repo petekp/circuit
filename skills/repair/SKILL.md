@@ -21,6 +21,20 @@ Frame -> Reproduce -> Isolate -> Fix -> Verify -> Review -> Close
 
 The router passes: task description, rigor profile (Lite, Standard, Deep, Autonomous).
 
+**Direct invocation:** When invoked directly via `/circuit:repair` (not through
+the router), bootstrap the run root if one does not already exist:
+
+```bash
+RUN_SLUG="<task-slug>"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
+mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
+ln -sfn "circuit-runs/${RUN_SLUG}" .circuitry/current-run
+```
+
+Write initial `${RUN_ROOT}/artifacts/active-run.md` with Workflow=Repair,
+Rigor=Standard (or as specified), Current Phase=frame. If the router already set
+up the run root, skip bootstrap and proceed to the current phase.
+
 ## Phase: Frame
 
 Write `artifacts/brief.md`:

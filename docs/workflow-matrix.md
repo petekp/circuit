@@ -258,14 +258,50 @@ Router may say "this is trivial, do it inline" when:
 
 **No triage artifact tax.** The old triage-result.md + probe + wait-for-confirmation pattern is removed for the default path. The router writes active-run.md directly.
 
-## 8. Circuit Breakers (Universal)
+### Bootstrap Contract
+
+Both router dispatch and direct specialist invocation produce identical run state:
+
+1. Create run root: `.circuitry/circuit-runs/<slug>/artifacts/` and `phases/`
+2. Set current-run pointer: `ln -sfn "circuit-runs/<slug>" .circuitry/current-run`
+3. Write initial `active-run.md` with Workflow, Rigor, Current Phase, Goal
+
+Direct specialist commands (`/circuit:build`, `/circuit:explore`, etc.) check for
+an existing run root first. If the router already bootstrapped one, the specialist
+skips bootstrap and proceeds from the current phase. If no run root exists, the
+specialist creates one identically to how the router would.
+
+## 8. Workflow Transfer
+
+Workflows can transfer to another workflow within the same run. The run root,
+artifacts, and current-run pointer stay intact. Transfers are internal: the agent
+loads the target workflow skill and continues.
+
+| Transfer | Trigger | Mechanism |
+|----------|---------|-----------|
+| Build -> Explore | Architecture uncertainty during Plan | Build writes transfer record to active-run.md, loads Explore from Frame |
+| Explore -> Build | Plan ready for execution (plan.md with Slices) | Explore writes transfer record, loads Build from Plan (validates existing plan.md) |
+
+**Transfer record in active-run.md:**
+```markdown
+## Transfer
+from: <source workflow>
+to: <target workflow>
+reason: <why the transfer happened>
+```
+
+The transfer record is informational. SessionStart uses Workflow and Current Phase
+to determine where to resume. Direct specialist commands (`/circuit:build`,
+`/circuit:explore`) remain available for users who want to start a fresh run.
+
+## 9. Circuit Breakers (Universal)
 
 | Trigger | Action |
 |---------|--------|
 | Dispatch step fails twice | Escalate with failure output and options |
 | Review says ISSUES FOUND with critical findings after 2 fix loops | Escalate |
 | Workers: impl_attempts > 3 or impl_attempts + review_rejections > 5 | Escalate |
-| Architecture uncertainty during Build | Bounce to Explore |
+| Architecture uncertainty during Build | Transfer to Explore (see Workflow Transfer) |
 | No reproducible signal during Repair after bounded search | Escalate with hypotheses |
 | Regression detected during Sweep batch | Revert batch, continue next |
 | Batch failure during Migrate | Halt, write partial result.md |

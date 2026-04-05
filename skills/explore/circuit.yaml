@@ -24,6 +24,9 @@ circuit:
     tournament:
       start_at: frame
       description: Bounded adversarial evaluation.
+    autonomous:
+      start_at: frame
+      description: Standard with auto-resolved checkpoints and deferred findings.
 
   steps:
     - id: frame

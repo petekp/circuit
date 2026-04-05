@@ -63,10 +63,28 @@ Write prompt header at `${step_dir}/prompt-header.md`:
 
 ## Phase: Verification Rerun
 
-If verification commands are available (from brief.md, plan.md, or user-provided),
-re-run them and record results.
+Resolve verification commands in this order. Use the first source that provides
+concrete commands. Do not combine sources or invent commands.
 
-If no verification commands are available, run the project's default test suite.
+1. **User-supplied:** Explicit commands provided by the user in this session.
+2. **Artifact-declared:** Commands in brief.md `## Verification Commands` or
+   plan.md `## Verification Commands` from the current or prior circuit run.
+3. **Repo-declared:** Narrowly inferable commands from project configuration:
+   - `package.json` scripts: `test`, `check`, `lint`, `typecheck`
+   - `Makefile` / `justfile` / `Taskfile`: `test`, `check`, `lint` targets
+   - Python: `pytest` (if `pyproject.toml`/`setup.cfg` configures it), `tox`
+   - Rust: `cargo test`, `cargo clippy`
+   - Go: `go test ./...`
+   Only use commands the repo explicitly declares. Do not guess.
+4. **None available:** Record "No authoritative verification command available"
+   in review.md. This is a valid outcome, not a failure.
+
+**Do not** run an expansive or expensive test command that the repo does not
+clearly declare. Do not fall back to running "the project's default test suite"
+as a vague catch-all.
+
+Record in review.md exactly which source was used and which commands were run
+(or that none were available).
 
 ## Phase: Verdict
 

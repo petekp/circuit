@@ -23,6 +23,20 @@ Frame -> Survey -> Queue/Triage -> Batch execute -> Verify -> Deferred review ->
 The router passes: task description, rigor profile (Lite, Standard, Deep, Autonomous),
 and sweep objective (cleanup, quality improvement, coverage, docs-sync).
 
+**Direct invocation:** When invoked directly via `/circuit:sweep` (not through
+the router), bootstrap the run root if one does not already exist:
+
+```bash
+RUN_SLUG="<task-slug>"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
+mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
+ln -sfn "circuit-runs/${RUN_SLUG}" .circuitry/current-run
+```
+
+Write initial `${RUN_ROOT}/artifacts/active-run.md` with Workflow=Sweep,
+Rigor=Standard (or as specified), Current Phase=frame. If the router already set
+up the run root, skip bootstrap and proceed to the current phase.
+
 ## Phase: Frame
 
 Write `artifacts/brief.md`:
@@ -331,7 +345,7 @@ chore: <sweep description>
 - No regressions introduced
 ```
 
-**Gate:** result.md exists with Changes, Verification, PR Summary.
+**Gate:** result.md exists with non-empty Summary, Verification.
 
 Update `active-run.md`: phase=close.
 

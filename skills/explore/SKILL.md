@@ -5,7 +5,8 @@ description: >
   Covers codebase exploration, architectural investigation, RFC/PRD review,
   and decision-making. Absorbs the old researched, adversarial, spec-review,
   and crucible modes. Rigor profiles: Lite (quick look), Standard (evidence +
-  options), Deep (+ seam proof), Tournament (bounded adversarial evaluation).
+  options), Deep (+ seam proof), Tournament (bounded adversarial evaluation),
+  Autonomous (Standard with auto-resolved checkpoints).
 trigger: >
   Use for /circuit:explore, or when circuit:run routes here.
 ---
@@ -21,6 +22,20 @@ Frame -> Analyze -> Decide/Plan -> Close (or handoff to Build)
 ## Entry
 
 The router passes: task description, rigor profile, and optional spec input.
+
+**Direct invocation:** When invoked directly via `/circuit:explore` (not through
+the router), bootstrap the run root if one does not already exist:
+
+```bash
+RUN_SLUG="<task-slug>"
+RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
+mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
+ln -sfn "circuit-runs/${RUN_SLUG}" .circuitry/current-run
+```
+
+Write initial `${RUN_ROOT}/artifacts/active-run.md` with Workflow=Explore,
+Rigor=Standard (or as specified), Current Phase=frame. If the router already set
+up the run root, skip bootstrap and proceed to the current phase.
 
 ## Phase: Frame
 
@@ -138,6 +153,11 @@ a seam proof. The seam proof runs after Plan, before handing to Build.
 
 Same as Standard for evidence gathering. The tournament divergence happens in the
 Decide phase.
+
+### Autonomous
+
+Same as Standard. Checkpoints auto-resolve. Ambiguous findings go to deferred.md
+instead of blocking. Write `artifacts/deferred.md` for items that need human review.
 
 ### Spec Input Mode (any rigor)
 
@@ -314,9 +334,27 @@ Write `artifacts/result.md`:
 <PR body seed if applicable>
 ```
 
-If the result is a plan for Build, the Close phase should note:
+**Transfer to Build:** If the result is an execution plan (plan.md exists with
+Slices), transfer to Build within the same run instead of asking the user to
+run a separate command:
 
-> Ready for Build. Run `/circuit:build` with this plan, or `/circuit develop: <task>`.
+1. Update `active-run.md`:
+   ```markdown
+   ## Current Phase
+   transfer
+   ## Next Step
+   Build: execute the plan from Explore
+   ## Transfer
+   from: Explore
+   to: Build
+   reason: exploration complete, plan ready for execution
+   ```
+2. Load the `circuit:build` skill and resume from its Plan phase (plan.md
+   already exists). Build skips Frame (brief.md carries forward from Explore)
+   and validates the existing plan.md against its gate before proceeding to Act.
+
+If the result is a decision (decision.md, no plan.md with Slices), close
+normally. The user decides what to do next.
 
 **Gate:** result.md exists with non-empty Findings.
 

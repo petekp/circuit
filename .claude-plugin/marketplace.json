@@ -11,7 +11,7 @@
     {
       "name": "circuitry",
       "description": "Multi-phase workflows for Claude Code that survive session crashes, enforce review gates, and resume exactly where they stopped.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "source": "./",
       "author": {
         "name": "Pete Petrash",

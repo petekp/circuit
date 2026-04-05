@@ -215,6 +215,22 @@ else
   warn "codex not found -- dispatch will use Agent fallback (install for better parallelism: npm install -g @openai/codex)"
 fi
 
+# ── 9. Official plugin validation (requires claude CLI) ──────────────
+section "Plugin validation (optional)"
+
+if command -v claude >/dev/null 2>&1; then
+  validate_output="$(claude plugin validate "$PLUGIN_ROOT" 2>&1)" || true
+  if echo "$validate_output" | grep -q "Validation passed"; then
+    pass "claude plugin validate passed"
+  elif echo "$validate_output" | grep -q "warning"; then
+    warn "claude plugin validate passed with warnings"
+  else
+    fail "claude plugin validate failed -- run manually to debug"
+  fi
+else
+  warn "claude CLI not found -- skipping official plugin validation"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────
 printf '\n\033[1m── Summary ──\033[0m\n'
 printf '  \033[32m%d passed\033[0m' "$PASS"

@@ -105,14 +105,21 @@ say so and do the work inline. No workflow overhead.
 | Explore | Standard | "I'll research externally and internally, then synthesize a plan or decision." |
 | Explore | Deep | "I'll research, prove the riskiest assumption, then hand off to Build." |
 | Explore | Tournament | "I'll generate competing proposals, pressure-test each, and converge the strongest." |
+| Explore | Autonomous | "I'll research and synthesize a plan. Checkpoints auto-resolve. Ambiguous findings deferred." |
 | Build | Lite | "I'll plan and implement. Quick self-verify." |
 | Build | Standard | "I'll plan, implement, and run an independent review." |
 | Build | Deep | "I'll research first, prove the seam, then build with independent review." |
+| Build | Autonomous | "I'll plan, implement, and review. Checkpoints auto-resolve. Ambiguous items deferred." |
 | Repair | Lite | "I'll reproduce, fix, and verify the regression test passes." |
 | Repair | Standard | "I'll reproduce, isolate root cause, fix, and run independent review." |
 | Repair | Deep | "I'll investigate broadly, isolate, fix, and run contract audit." |
+| Repair | Autonomous | "I'll reproduce, isolate, fix, and review. Auto-resolve checkpoints. Escalate on no-repro." |
+| Migrate | Standard | "I'll inventory, plan coexistence, then migrate in batches with checkpoints." |
 | Migrate | Deep | "I'll inventory dependencies, plan coexistence, then migrate in batches." |
+| Migrate | Autonomous | "I'll inventory and migrate in batches. Auto-resolve except coexistence plan." |
+| Sweep | Lite | "Quick scan. High-confidence items only, 1 batch." |
 | Sweep | Standard | "I'll survey, triage by confidence/risk, then clean in ordered batches." |
+| Sweep | Deep | "I'll survey with 9-point evidence adjudication, then clean in ordered batches." |
 | Sweep | Autonomous | "I'll run a full quality pass: survey, batch improvements, verify, defer ambiguous items." |
 
 ## Run Root Setup
