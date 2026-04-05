@@ -141,6 +141,6 @@ circuit:
       gate:
         kind: schema_sections
         source: artifacts/result.md
-        required: [Root Cause, Fix]
+        required: [Root Cause, Fix, Regression Test]
       routes:
         pass: "@complete"

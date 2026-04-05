@@ -35,11 +35,64 @@ under `entry_modes`. The authoritative profile availability matrix lives in
 |---------|-------------|
 | Lite | Explore, Build, Repair, Sweep |
 | Standard | All workflows |
-| Deep | All workflows |
+| Deep | All workflows (default for Migrate) |
 | Tournament | Explore only |
 | Autonomous | All workflows |
 
 Migrate does not support Lite (migrations are inherently non-trivial).
+
+## Canonical Artifacts vs Internal Helpers
+
+All workflows draw from a shared **canonical artifact** vocabulary:
+
+| Artifact | Purpose |
+|----------|---------|
+| active-run.md | Dashboard: workflow, rigor, phase, goal |
+| brief.md | Contract: objective, scope, success criteria |
+| analysis.md | Evidence from Analyze phase |
+| plan.md | Slices, sequence, adjacent-output checklist |
+| review.md | CLEAN or ISSUES FOUND verdict |
+| result.md | Changes, verification, follow-ups, PR summary |
+| handoff.md | Distilled session state |
+| deferred.md | Ambiguous items (Autonomous/Sweep) |
+
+Specialized: decision.md (Explore Tournament), queue.md (Sweep), inventory.md (Migrate).
+
+**Internal helper artifacts** live under `artifacts/` for resumability but are not
+part of the public contract. They may change schema between versions:
+
+| Helper | Workflow | Role |
+|--------|----------|------|
+| implementation-handoff.md | Build, Repair | Workers output, consumed by Verify |
+| verification.md | Build, Repair | Verify output, consumed by Review |
+| verification-report.md | Migrate | Verification output, consumed by Cutover Review |
+| batch-log.md | Migrate | Batch execution trace |
+| batch-results.md | Sweep | Batch execution trace |
+
+## Bootstrap Contract
+
+Both router dispatch and direct specialist invocation produce identical run state:
+
+1. Create run root: `.circuitry/circuit-runs/<slug>/artifacts/` and `phases/`
+2. Set current-run pointer: `ln -sfn "circuit-runs/<slug>" .circuitry/current-run`
+3. Write initial `active-run.md` with Workflow, Rigor, Current Phase, Goal
+
+Direct specialist commands (`/circuit:build`, etc.) check for an existing run root
+first. If the router already bootstrapped one, the specialist skips bootstrap and
+proceeds from the current phase.
+
+## Workflow Transfer
+
+Workflows can transfer to another workflow within the same run. The run root,
+artifacts, and current-run pointer stay intact.
+
+| Transfer | Trigger |
+|----------|---------|
+| Build -> Explore | Architecture uncertainty during Plan |
+| Explore -> Build | Plan ready with Slices for execution |
+
+Transfers write a record to active-run.md and load the target workflow skill
+directly. No manual "Run /circuit:..." instructions.
 
 ## Modifying a Workflow
 
@@ -56,9 +109,14 @@ Migrate does not support Lite (migrations are inherently non-trivial).
 After any workflow change, verify all of these:
 
 - [ ] `SKILL.md` and `circuit.yaml` agree on topology (phases, gates, artifacts)
+- [ ] Gate `required` arrays in `circuit.yaml` are at least as strong as the
+      corresponding section requirements stated in `SKILL.md`
 - [ ] `circuit.yaml` `entry_modes` matches the rigor profiles described in `SKILL.md`
 - [ ] `docs/workflow-matrix.md` reflects any public behavior changes
 - [ ] `CIRCUITS.md` prose matches (rigor tables, phase lists, artifact lists)
+- [ ] Bootstrap section present in SKILL.md (Direct invocation, RUN_SLUG, etc.)
+- [ ] Transfer sections present where applicable (Build, Explore)
+- [ ] Internal helper artifacts documented if new ones are added
 - [ ] Run `node scripts/runtime/bin/catalog-compiler.js generate` to regenerate
       the auto-generated blocks in `CIRCUITS.md`
 - [ ] Run `cd scripts/runtime/engine && npx vitest run` to verify tests pass
@@ -70,24 +128,6 @@ After any workflow change, verify all of these:
   with gates. Appears in the catalog. Gets an entry mode list.
 - **Utility (SKILL.md only):** Single-purpose. No multi-step topology. No entry modes.
   Not in the auto-generated catalog.
-
-## Canonical Artifacts
-
-All workflows draw from this shared vocabulary. No workflow invents its own
-artifact names:
-
-| Artifact | Purpose |
-|----------|---------|
-| active-run.md | Dashboard: workflow, rigor, phase, goal |
-| brief.md | Contract: objective, scope, success criteria |
-| analysis.md | Evidence from Analyze phase |
-| plan.md | Slices, sequence, adjacent-output checklist |
-| review.md | CLEAN or ISSUES FOUND verdict |
-| result.md | Changes, verification, follow-ups, PR summary |
-| handoff.md | Distilled session state |
-| deferred.md | Ambiguous items (Autonomous/Sweep) |
-
-Specialized: decision.md (Explore Tournament), queue.md (Sweep), inventory.md (Migrate).
 
 ## Modifying Relay Scripts
 
@@ -128,6 +168,9 @@ claude plugin validate .
 - **Generated block freshness:** CIRCUITS.md auto-generated sections stay current
 - **Structured reference lint:** No orphan `/circuit:<slug>` or `skills/<name>/`
   references in tracked files
+- **Lifecycle regressions:** Profile availability, bootstrap parity, transfer docs,
+  gate/SKILL alignment, review verification, repair diagnostic path
+- **Release integrity:** Version sync, README syntax, section requirements
 - **Repo hygiene:** No Python artifacts (Circuitry is TypeScript-only)
 - **Relay scripts:** Template smoke tests, placeholder validation
 - **State machine:** Event append, state derivation, batch updates, resume logic
@@ -136,7 +179,8 @@ claude plugin validate .
 
 After modifying any plugin file, run `./scripts/sync-to-cache.sh` before testing.
 Claude Code runs the cached copy at `~/.claude/plugins/cache/`, not the local repo.
-Then `/clear` to reload.
+Then `/clear` to reload. Mid-session, `/reload-plugins` picks up cache changes
+without a full clear.
 
 ## Submitting Changes
 

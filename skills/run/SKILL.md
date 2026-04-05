@@ -193,7 +193,7 @@ code. Never exceed 3 total skills per dispatch.
 Escalate to the user when:
 - A dispatch step fails twice (no valid output after 2 attempts)
 - Workers: impl_attempts > 3 or impl_attempts + review_rejections > 5
-- Architecture uncertainty during Build (bounce to Explore)
+- Architecture uncertainty during Build (transfer to Explore)
 - No reproducible signal during Repair after bounded search
 - Regression detected during Sweep batch (revert batch, continue next)
 - Batch failure during Migrate (halt, write partial result.md)

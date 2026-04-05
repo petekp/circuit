@@ -363,7 +363,7 @@ Universal circuit breakers:
 - A dispatch step fails twice (no valid output after 2 attempts)
 - Workers: `impl_attempts > 3` or `impl_attempts + review_rejections > 5`
 - Review says ISSUES FOUND with critical findings after 2 fix loops
-- Architecture uncertainty during Build (bounces to Explore)
+- Architecture uncertainty during Build (transfers to Explore)
 - No reproducible signal during Repair after bounded search
 
 ---
@@ -657,6 +657,23 @@ All workflows draw from this vocabulary:
 
 Specialized extensions (max 1 per workflow): `decision.md` (Explore Tournament),
 `queue.md` (Sweep), `inventory.md` (Migrate).
+
+### Internal Helper Artifacts
+
+Some workflows produce intermediate artifacts that are consumed within a single phase
+and are not part of the canonical artifact chain. These exist under `artifacts/` for
+resumability but are not stable public contracts.
+
+| Artifact | Workflow | Purpose |
+|----------|----------|---------|
+| `implementation-handoff.md` | Build, Repair | Workers output from Act/Fix phase. Consumed by Verify. |
+| `verification.md` | Build, Repair | Verification results from Verify phase. Consumed by Review. |
+| `verification-report.md` | Migrate | Full verification results. Consumed by Cutover Review. |
+| `batch-log.md` | Migrate | Batch execution log. Consumed by Verify. |
+| `batch-results.md` | Sweep | Batch execution results. Consumed by Verify. |
+
+These files may change schema between versions. Parent circuits and external tools
+should rely only on canonical artifacts.
 
 ### The `circuit.yaml` Schema
 

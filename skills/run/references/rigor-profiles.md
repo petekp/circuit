@@ -122,6 +122,6 @@ User can override: `/circuit:build --rigor deep <task>`.
 Workflows can escalate rigor mid-run:
 
 - Build at Lite discovers complexity -> escalate to Standard (add Review phase).
-- Build at Standard discovers architecture uncertainty -> bounce to Explore.
+- Build at Standard discovers architecture uncertainty -> transfer to Explore.
 - Repair at Lite hits 3 hypotheses without repro -> escalate to Standard.
 - Any workflow at any rigor hits circuit breaker -> escalate to user.

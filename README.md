@@ -13,10 +13,10 @@ before shipping. If a session dies, the next one picks up where it stopped.
 ## Get Started
 
 ```bash
-claude plugin install petekp/circuitry
+claude install circuitry
 ```
 
-After installing or updating, run `/clear` to load the plugin into your session.
+After installing or updating, run `/clear` to reload the plugin. If you update mid-session, `/reload-plugins` picks up changes without a full clear.
 
 Start a new Claude Code session and run:
 
@@ -168,7 +168,11 @@ npm install -g @openai/codex
 **Verify your install.** If something isn't working, run the diagnostic script:
 
 ```bash
-~/.claude/plugins/marketplaces/petekp/scripts/verify-install.sh
+# From the repo checkout (contributors only)
+./scripts/verify-install.sh
+
+# Or from the installed plugin location
+~/.claude/plugins/cache/circuitry/scripts/verify-install.sh
 ```
 
 This checks Node.js, engine CLIs, skill directories, relay scripts, and runs a
@@ -177,6 +181,7 @@ smoke test. Fix any failures it reports.
 **Changes not taking effect after editing plugin files.** Claude Code runs the
 cached copy, not your local repo. Run `./scripts/sync-to-cache.sh` after any
 edit, then `/clear` to reload.
+Mid-session, `/reload-plugins` picks up cache changes without `/clear`.
 
 **"codex not found" warning.** Codex CLI is optional. Circuitry falls back to
 Claude Code's Agent tool for worker dispatch. Install Codex only if you want

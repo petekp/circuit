@@ -68,6 +68,18 @@ Every workflow draws from this vocabulary. No workflow invents its own artifact 
 | **queue.md** | Sweep | Triaged work items with confidence x risk classification |
 | **inventory.md** | Migrate | Dependency catalog with risk assessment |
 
+**Internal helper artifacts** (not part of the public contract):
+
+| Artifact | Workflow | Role |
+|----------|----------|------|
+| `implementation-handoff.md` | Build, Repair | Workers output, consumed by Verify |
+| `verification.md` | Build, Repair | Verify-phase output, consumed by Review |
+| `verification-report.md` | Migrate | Verification output, consumed by Cutover Review |
+| `batch-log.md` | Migrate | Batch execution trace, consumed by Verify |
+| `batch-results.md` | Sweep | Batch execution trace, consumed by Verify |
+
+Internal helpers live under `artifacts/` for resumability but are not stable across versions.
+
 ## 4. The Five Workflows
 
 ### Explore
@@ -306,7 +318,7 @@ to determine where to resume. Direct specialist commands (`/circuit:build`,
 | Regression detected during Sweep batch | Revert batch, continue next |
 | Batch failure during Migrate | Halt, write partial result.md |
 
-## 9. Adjacent-Output Checklist
+## 10. Adjacent-Output Checklist
 
 Every mutating workflow (Build, Repair, Migrate, Sweep) forces this checklist in plan.md:
 
@@ -319,7 +331,7 @@ Every mutating workflow (Build, Repair, Migrate, Sweep) forces this checklist in
 
 Items checked "not applicable" is fine. Items left unchecked is not.
 
-## 10. Mapping: Old -> New
+## 11. Mapping: Old -> New
 
 | Old Concept | New Home |
 |-------------|----------|

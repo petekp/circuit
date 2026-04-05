@@ -4,7 +4,7 @@ description: >
   Build features, scoped refactors, docs, tests, or mixed changes. The doing
   workflow. Phases: Frame -> Plan -> Act -> Verify -> Review -> Close. Docs and
   tests are first-class outputs, not afterthoughts. If architecture uncertainty
-  appears, bounces to Explore rather than muddling through.
+  appears, transfers to Explore rather than muddling through.
 trigger: >
   Use for /circuit:build, or when circuit:run routes here.
 ---
@@ -279,14 +279,14 @@ When rigor is Deep, add a seam proof step between Plan and Act:
 2. Dispatch a worker to prove it with code (failing test, spike, minimal integration).
 3. DESIGN HOLDS: continue to Act.
 4. NEEDS ADJUSTMENT: update plan.md, continue.
-5. DESIGN INVALIDATED: bounce to Explore.
+5. DESIGN INVALIDATED: transfer to Explore.
 
 ## Circuit Breakers
 
 Escalate when:
 - Workers: impl_attempts > 3 or impl_attempts + review_rejections > 5
 - Review says ISSUES FOUND with critical after 2 fix loops
-- Architecture uncertainty detected during Plan (bounce to Explore)
+- Architecture uncertainty detected during Plan (transfer to Explore)
 - Verification commands fail after implementation and fix attempts
 - Dispatch step fails twice
 

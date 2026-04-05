@@ -140,6 +140,6 @@ circuit:
       gate:
         kind: schema_sections
         source: artifacts/result.md
-        required: [Changes, Verification]
+        required: [Changes, Verification, PR Summary]
       routes:
         pass: "@complete"

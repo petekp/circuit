@@ -102,6 +102,6 @@ circuit:
       gate:
         kind: schema_sections
         source: artifacts/result.md
-        required: [Findings]
+        required: [Findings, Next Steps]
       routes:
         pass: "@complete"

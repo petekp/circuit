@@ -113,7 +113,7 @@ investigation, RFC/PRD review, and decision-making.
 **Phases:** Frame -> Plan -> Act -> Verify -> Review -> Close
 
 The doing workflow. Docs and tests are first-class outputs, not afterthoughts.
-If architecture uncertainty appears, bounces to Explore.
+If architecture uncertainty appears, transfers to Explore.
 
 | Rigor | Behavior |
 |-------|----------|
