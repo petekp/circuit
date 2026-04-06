@@ -24,7 +24,7 @@ function runSync(
     encoding: "utf-8",
     env: {
       ...process.env,
-      CIRCUITRY_PLUGIN_ROOT: pluginRoot,
+      CIRCUIT_PLUGIN_ROOT: pluginRoot,
       CLAUDE_PLUGIN_CACHE_DIR: cacheDir,
       CLAUDE_PLUGIN_MARKETPLACE_DIR: marketplaceDir,
     },

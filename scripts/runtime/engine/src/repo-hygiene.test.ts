@@ -13,7 +13,6 @@ const REPO_ROOT = resolve(THIS_DIR, "../../../..");
 const SKIP_DIRS = new Set([
   ".claude",
   ".circuit",
-  ".circuitry",
   ".git",
   ".pytest_cache",
   ".relay",

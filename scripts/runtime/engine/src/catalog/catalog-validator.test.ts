@@ -116,7 +116,7 @@ describe("generated block freshness", () => {
 
 // Directories that contain historical or ephemeral artifacts (migration plans,
 // circuit run outputs) rather than active source references.
-const LINT_SKIP_PREFIXES = [".claude/", ".circuit/", ".circuitry/"];
+const LINT_SKIP_PREFIXES = [".claude/", ".circuit/"];
 const LINT_SKIP_SUFFIXES = [".test.ts", ".test.js", ".spec.ts", ".spec.js"];
 
 function shouldLint(relPath: string): boolean {

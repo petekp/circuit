@@ -8,20 +8,15 @@
 
 set -euo pipefail
 
-PLUGIN_ROOT="${CIRCUITRY_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+PLUGIN_ROOT="${CIRCUIT_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 CACHE_BASE="${CLAUDE_PLUGIN_CACHE_DIR:-$HOME/.claude/plugins/cache/petekp}"
 MARKETPLACE_DIR="${CLAUDE_PLUGIN_MARKETPLACE_DIR:-$HOME/.claude/plugins/marketplaces/petekp}"
 RSYNC_ARGS=(-a --checksum --delete)
 
-# Collect every cache directory that exists under either the current name
-# ("circuit") or the pre-rename name ("circuitry").  This handles installs
-# that happened before the plugin was renamed.
 CACHE_DIRS=()
-for name in circuit circuitry; do
-  if [[ -d "${CACHE_BASE}/${name}" ]]; then
-    CACHE_DIRS+=("${CACHE_BASE}/${name}")
-  fi
-done
+if [[ -d "${CACHE_BASE}/circuit" ]]; then
+  CACHE_DIRS+=("${CACHE_BASE}/circuit")
+fi
 
 prune_cache_target() {
   local target="$1"
@@ -129,7 +124,7 @@ for cache_dir in "${CACHE_DIRS[@]}"; do
 done
 
 if [[ "$synced_cache" -eq 0 ]]; then
-  printf 'No cached versions found under %s/{circuit,circuitry}\n' "$CACHE_BASE"
+  printf 'No cached versions found under %s/circuit\n' "$CACHE_BASE"
 fi
 
 if [[ -d "$MARKETPLACE_DIR" ]]; then
