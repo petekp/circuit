@@ -636,9 +636,19 @@ entry_modes:
     description: Standard plus seam proof.
 ```
 
-All entry modes for a workflow share the same start point (`frame`). Rigor
-affects behavior within each phase (checkpoint budget, review depth, evidence
-breadth), not the graph topology.
+The `steps` array defines the maximum topology for the workflow. Circuitry keeps
+one graph per workflow, then uses the selected `entry_mode` to tell the
+orchestrator how to run that graph for a specific profile, including which
+steps to skip.
+
+The `entry_mode.description` is authoritative for profile behavior. For
+example, Build Lite says "Quick build, no independent review." The Build
+topology still includes a `review` step, but Lite means the orchestrator skips
+that review dispatch instead of requiring a separate Lite-only graph.
+
+This keeps manifests simple and avoids YAML route inflation: profile-specific
+behavior lives in the entry-mode description, while the manifest topology stays
+stable.
 
 ### Canonical Artifacts
 
@@ -653,7 +663,7 @@ All workflows draw from this vocabulary:
 | `review.md` | Verdict: CLEAN or ISSUES FOUND with findings by severity |
 | `result.md` | Changes, verification results, follow-ups, PR-summary seed |
 | `handoff.md` | Distilled hidden state per handoff skill format |
-| `deferred.md` | Ambiguous items, postponed issues, skipped work |
+| `deferred.md` | Deferred-review output for workflows that include that step (currently Sweep) |
 
 Specialized extensions (max 1 per workflow): `decision.md` (Explore Tournament),
 `queue.md` (Sweep), `inventory.md` (Migrate).
@@ -696,7 +706,8 @@ circuit:
     default:
       start_at: step-id
       description: >
-        When and why this mode is used.
+        Authoritative profile behavior for this mode; may instruct the
+        orchestrator to skip steps from the maximum topology.
 
   steps:
     - id: step-id

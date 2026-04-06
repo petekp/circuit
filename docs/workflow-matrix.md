@@ -45,6 +45,22 @@ are inherently non-trivial).
 
 "--" means the profile is not available for that workflow.
 
+### Step Graph = Maximum Topology
+
+Each workflow manifest defines one step graph: the maximum topology that
+workflow may use. Circuitry does not maintain separate YAML graphs per profile.
+Instead, the selected `entry_mode` tells the orchestrator how to run that one
+graph for a given rigor level, including which steps to skip.
+
+The `entry_mode.description` in `circuit.yaml` is therefore authoritative for
+profile behavior. For example, Build Lite says "no independent review." The
+Build manifest still contains a `review` step in its topology, but Lite means
+the orchestrator skips that review dispatch for the lighter path.
+
+This keeps manifests simple: one graph per workflow, profile-specific behavior
+lives in `entry_mode` descriptions, and we do not need extra YAML routing
+conditions just to express rigor differences.
+
 ## 3. Canonical Artifacts
 
 Every workflow draws from this vocabulary. No workflow invents its own artifact language.
@@ -58,7 +74,7 @@ Every workflow draws from this vocabulary. No workflow invents its own artifact 
 | **review.md** | Review phase runs | Verdict: CLEAN or ISSUES FOUND. Findings by severity (critical/high/low) |
 | **result.md** | Always, on completion | Changes, verification results, residual risks/debt, follow-ups, PR-summary seed |
 | **handoff.md** | Pause phase only | Distilled hidden state per existing handoff skill format |
-| **deferred.md** | Autonomous/survey runs | Ambiguous items, postponed issues, deliberately skipped work |
+| **deferred.md** | Workflows whose topology explicitly includes Deferred Review (currently Sweep) | Ambiguous items, postponed issues, deliberately skipped work |
 
 **Specialized extensions** (max 1 per workflow):
 
@@ -102,7 +118,7 @@ Understand, investigate, choose among options, shape an execution plan.
 | Standard | Internal + external evidence probes (parallel). Constraints synthesis. Plan or decision. |
 | Deep | Standard + seam proof on riskiest assumption before handing to Build. |
 | Tournament | 3 proposals, adversarial review, stress test, convergence, pre-mortem. Bounded: 3 proposals max, 1 adversarial round, 1 synthesis round. |
-| Autonomous | Standard behavior, checkpoints auto-resolve, deferred.md for ambiguous findings. |
+| Autonomous | Standard behavior, checkpoints auto-resolve, and carry ambiguous findings forward in the normal Explore outputs instead of blocking. |
 
 ### Build
 
@@ -125,7 +141,7 @@ Features, scoped refactors, docs, tests, mixed code+docs+tests changes.
 | Lite | Plan -> Act -> Verify -> Close. No independent review. Self-verify. |
 | Standard | Plan -> Act -> Verify -> Review (fresh context) -> Close. 1 fix/review loop. |
 | Deep | Same as Standard + seam proof before Act. Transfers to Explore if architecture uncertainty. |
-| Autonomous | Standard with auto-resolved checkpoints. Deferred.md for ambiguous items. |
+| Autonomous | Standard with auto-resolved checkpoints and any deferred handling described by the selected entry mode. |
 
 ### Repair
 
@@ -185,6 +201,10 @@ Cleanup, repo-wide quality passes, coverage sweeps, docs-sync sweeps.
 | **Absorbs** | circuit:cleanup (cleanup objective), workflow-ratchet (improvement objective) |
 
 **Key rule:** Scan broadly, triage by confidence x risk, batch by risk (lowest first), verify after each batch, defer ambiguous cases. Stale docs are worse than dead code because agents trust them.
+
+**Review note:** Sweep writes `review.md` during its Verify step. That
+independent audit is part of the verify -> deferred -> close flow, not a
+separate Review phase on the shared spine.
 
 **Rigor variations:**
 

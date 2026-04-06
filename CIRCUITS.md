@@ -86,6 +86,7 @@ Skip the router by using a prefix:
 | `/circuit repair: <issue>` | Repair | Deep | Broad investigation, root cause isolation, fix, review |
 | `/circuit develop: <feature>` | Build | Standard | Plan, implement, independent review |
 | `/circuit decide: <choice>` | Explore | Tournament | Competing proposals, adversarial evaluation, convergence |
+| `/circuit migrate: <target>` | Migrate | Deep | Inventory, coexistence plan, batch migration |
 | `/circuit cleanup: <target>` | Sweep | Standard | Survey, triage by confidence/risk, batch cleanup |
 | `/circuit overnight: <scope>` | Sweep | Autonomous | Unattended quality pass with deferred review |
 
@@ -104,7 +105,7 @@ investigation, RFC/PRD review, and decision-making.
 | Standard | External + internal evidence probes. Constraints synthesis. Plan or decision. |
 | Deep | Standard + seam proof on riskiest assumption before handing to Build. |
 | Tournament | 3 proposals, adversarial review, stress test, convergence, pre-mortem. |
-| Autonomous | Standard behavior, checkpoints auto-resolve, deferred.md for ambiguous findings. |
+| Autonomous | Standard behavior, checkpoints auto-resolve, and carry ambiguous findings forward in the normal Explore outputs. |
 
 **Artifacts:** brief.md, analysis.md, plan.md or decision.md, result.md
 
@@ -120,7 +121,7 @@ If architecture uncertainty appears, transfers to Explore.
 | Lite | Plan -> Act -> Verify -> Close. No independent review. |
 | Standard | Full chain with independent review and one fix loop. |
 | Deep | Standard + seam proof before Act. |
-| Autonomous | Standard with auto-resolved checkpoints. Deferred.md for ambiguous items. |
+| Autonomous | Standard with auto-resolved checkpoints and any deferred handling described by the selected entry mode. |
 
 **Artifacts:** brief.md, plan.md, review.md, result.md
 
@@ -170,6 +171,10 @@ agents trust them.
 
 **Artifacts:** brief.md, analysis.md, queue.md, review.md, deferred.md, result.md
 
+`review.md` for Sweep is written during the Verify step. It is the sweep's
+independent audit inside the verify -> deferred -> close flow, not a separate
+Review phase.
+
 ## Utilities
 
 ### Review
@@ -218,7 +223,7 @@ Every workflow is a preset over this spine:
 | review.md | Review phase. CLEAN or ISSUES FOUND. |
 | result.md | Always, on completion. PR-summary seed. |
 | handoff.md | Pause phase. Distilled hidden state. |
-| deferred.md | Autonomous/survey runs. Ambiguous items. |
+| deferred.md | Sweep deferred review phase. Ambiguous or borderline items kept out of executed batches. |
 
 ## Rigor Profiles
 

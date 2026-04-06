@@ -44,6 +44,17 @@ function getH3Section(
   return match[0];
 }
 
+function getH2Section(content: string, heading: string): string {
+  const pattern = new RegExp(
+    `## ${escapeRegExp(heading)}\\n[\\s\\S]*?(?=\\n## |$)`,
+  );
+  const match = content.match(pattern);
+  if (!match) {
+    throw new Error(`missing section: ${heading}`);
+  }
+  return match[0];
+}
+
 function getWrittenArtifactPaths(circuitYaml: any): string[] {
   return circuitYaml.circuit.steps.flatMap((step: any) => {
     const writes = step.writes ?? {};
@@ -483,6 +494,74 @@ describe("Lite review-skip parity", () => {
   }
 });
 
+describe("manifest to SKILL parity", () => {
+  it("Build and Repair Lite descriptions match SKILL review-skip behavior", () => {
+    for (const skill of ["build", "repair"]) {
+      const yaml = readCircuitYaml(skill);
+      const skillDoc = readFile(`skills/${skill}/SKILL.md`);
+      const reviewSection = getH2Section(skillDoc, "Phase: Review");
+
+      expect(yaml.circuit.entry_modes.lite.description).toMatch(
+        /no independent review/i,
+      );
+      expect(reviewSection).toMatch(/\*\*Skipped at Lite rigor\.\*\*/);
+      expect(reviewSection).toMatch(/Lite goes directly from Verify to Close\./);
+    }
+  });
+
+  it("Explore Lite description matches the no-dispatch Analyze guidance", () => {
+    const yaml = readCircuitYaml("explore");
+    const skillDoc = readFile("skills/explore/SKILL.md");
+    const analyzeSection = getH2Section(skillDoc, "Phase: Analyze");
+    const liteSection = getH3Section(analyzeSection, "Lite");
+
+    expect(yaml.circuit.entry_modes.lite.description).toMatch(
+      /quick investigation/i,
+    );
+    expect(yaml.circuit.entry_modes.lite.description).toMatch(/no dispatch/i);
+    expect(liteSection).toMatch(/Read the codebase directly\./);
+    expect(liteSection).toMatch(/No dispatch\./);
+  });
+
+  it("Explore does not formalize deferred.md as a manifest artifact or plan output", () => {
+    const yaml = readCircuitYaml("explore");
+    const skillDoc = readFile("skills/explore/SKILL.md");
+    const decideSection = getH2Section(skillDoc, "Phase: Decide/Plan");
+
+    expect(getWrittenArtifactPaths(yaml)).not.toContain("artifacts/deferred.md");
+    expect(decideSection).not.toContain("artifacts/deferred.md");
+    expect(() => getArtifactTemplate(skillDoc, "artifacts/deferred.md")).toThrow(
+      /missing artifact template/,
+    );
+  });
+
+  it("Sweep Lite description is documented in the Survey phase", () => {
+    const yaml = readCircuitYaml("sweep");
+    const skillDoc = readFile("skills/sweep/SKILL.md");
+    const surveySection = getH2Section(skillDoc, "Phase: Survey (Analyze)");
+    const liteSection = getH3Section(surveySection, "Lite");
+
+    expect(yaml.circuit.entry_modes.lite.description).toMatch(/quick scan/i);
+    expect(yaml.circuit.entry_modes.lite.description).toMatch(
+      /high-confidence items only/i,
+    );
+    expect(liteSection).toMatch(/Quick scan by the orchestrator\./);
+    expect(liteSection).toMatch(/No dispatch\./);
+  });
+
+  it("Sweep manifest and SKILL both define review.md in Verify", () => {
+    const yaml = readCircuitYaml("sweep");
+    const skillDoc = readFile("skills/sweep/SKILL.md");
+    const verifyStart = skillDoc.indexOf("## Phase: Verify");
+    const deferredStart = skillDoc.indexOf("## Phase: Deferred Review");
+    const verifySection = skillDoc.slice(verifyStart, deferredStart);
+
+    expect(getWrittenArtifactPaths(yaml)).toContain("artifacts/review.md");
+    expect(verifySection).toContain("Write `artifacts/review.md`");
+    expect(verifySection).toContain("**Gate:** review.md exists.");
+  });
+});
+
 // ── Migrate profile naming ──────────────────────────────────────────
 
 describe("migrate profile naming", () => {
@@ -514,6 +593,39 @@ describe("migrate profile naming", () => {
     );
     expect(circuitsSection).toContain("**Default rigor:** Deep");
   });
+});
+
+// ── Entry mode coverage ─────────────────────────────────────────────
+
+describe("entry mode documentation coverage", () => {
+  const WORKFLOW_SKILLS = ["build", "repair", "explore", "sweep", "migrate"];
+  const MODE_ALIASES: Record<string, string[]> = {
+    autonomous: ["Autonomous"],
+    deep: ["Deep"],
+    default: ["default", "Standard"],
+    lite: ["Lite"],
+    standard: ["standard", "Standard"],
+    tournament: ["Tournament"],
+  };
+
+  for (const skill of WORKFLOW_SKILLS) {
+    it(`${skill}/SKILL.md covers every manifest entry mode`, () => {
+      const yaml = readCircuitYaml(skill);
+      const skillDoc = readFile(`skills/${skill}/SKILL.md`);
+
+      for (const mode of Object.keys(yaml.circuit.entry_modes)) {
+        const aliases = MODE_ALIASES[mode] ?? [mode];
+        const hasMention = aliases.some((alias) =>
+          new RegExp(`\\b${escapeRegExp(alias)}\\b`, "i").test(skillDoc),
+        );
+
+        expect(
+          hasMention,
+          `${skill}/SKILL.md is missing documentation coverage for entry mode "${mode}"`,
+        ).toBe(true);
+      }
+    });
+  }
 });
 
 // ── Sweep artifact contract ─────────────────────────────────────────

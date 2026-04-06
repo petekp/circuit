@@ -94,6 +94,7 @@ stay stable.
 | `/circuit repair: <issue>` | Repair Deep -- broad investigation |
 | `/circuit develop: <feature>` | Build Standard -- plan, implement, review |
 | `/circuit decide: <choice>` | Explore Tournament -- adversarial evaluation |
+| `/circuit migrate: <target>` | Migrate Deep -- inventory, coexistence plan, batches |
 | `/circuit cleanup: <target>` | Sweep Standard -- cleanup by confidence/risk |
 | `/circuit overnight: <scope>` | Sweep Autonomous -- unattended quality pass |
 

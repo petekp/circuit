@@ -162,8 +162,9 @@ Decide phase.
 
 ### Autonomous
 
-Same as Standard. Checkpoints auto-resolve. Ambiguous findings go to deferred.md
-instead of blocking. Write `artifacts/deferred.md` for items that need human review.
+Same as Standard. Checkpoints auto-resolve. Ambiguous findings do not block the
+run; carry them forward as clearly labeled deferred findings in the normal
+Explore outputs instead of introducing a separate `deferred.md` artifact.
 
 ### Spec Input Mode (any rigor)
 

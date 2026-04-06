@@ -273,6 +273,10 @@ Update `active-run.md`: phase=execute, next step=Verify.
 
 ## Phase: Verify
 
+In Sweep, `review.md` is written here, during Verify. This is the workflow's
+independent audit inside the verify -> deferred -> close flow, not a separate
+Review phase on the shared spine.
+
 ### Independent Audit
 
 Dispatch an independent verification worker (diagnose only, no code changes):
