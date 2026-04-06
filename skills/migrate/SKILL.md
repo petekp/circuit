@@ -3,9 +3,9 @@ name: circuit:migrate
 description: >
   Large-scale migrations: framework swaps, dependency replacements, architecture
   transitions, incremental rewrites. Coexistence and rollback are first-class.
-  Phases: Frame -> Inventory -> Coexistence plan -> Batch execution -> Verify/cutover
-  -> Close. Uses Build as the inner executor for batches. A batch shell around Build
-  plus stronger safety rules.
+  Phases: Frame -> Inventory -> Coexistence plan -> Batch execution -> Verify
+  -> Cutover review -> Close. Uses Build as the inner executor for batches, with
+  plan/execute/review loops controlled by the circuit.
 trigger: >
   Use for /circuit:migrate, or when circuit:run routes here.
 ---
@@ -22,13 +22,18 @@ Frame -> Analyze (Inventory) -> Plan (Coexistence) -> Act (Batches) -> Verify ->
 ## Entry
 
 The router passes: task description, rigor profile (Standard, Deep, Autonomous).
-Default rigor: Deep.
+YAML entry modes are `standard`, `default`, and `autonomous`; `default` maps to
+Deep rigor. Default rigor: Deep.
 
 **Direct invocation:** When invoked directly via `/circuit:migrate` (not through
 the router), bootstrap the run root if one does not already exist:
 
+Derive `RUN_SLUG` from the task description: lowercase, replace spaces and
+special characters with hyphens, collapse consecutive hyphens, trim to 50
+characters. Example: "Migrate Auth to OAuth2" produces `migrate-auth-to-oauth2`.
+
 ```bash
-RUN_SLUG="<task-slug>"
+RUN_SLUG="migrate-auth-to-oauth2"  # derived from task description
 RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
 ln -sfn "circuit-runs/${RUN_SLUG}" .circuitry/current-run
@@ -100,10 +105,11 @@ mkdir -p "${RUN_ROOT}/phases/inventory-risk/reports" "${RUN_ROOT}/phases/invento
 Compose and dispatch both:
 
 ```bash
+# Pick 1-2 domain skills matching the migration target. Omit --skills if none apply.
 for w in scan risk; do
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
     --header "${RUN_ROOT}/phases/inventory-${w}/prompt-header.md" \
-    --skills <domain-skills> \
+    --skills "rust,tdd" \
     --root "${RUN_ROOT}/phases/inventory-${w}" \
     --out "${RUN_ROOT}/phases/inventory-${w}/prompt.md"
 
@@ -175,13 +181,17 @@ Read brief.md and inventory.md. Write `artifacts/plan.md`:
 - [ ] Compatibility: API versioning during transition?
 ```
 
-**Checkpoint:** Present plan to user for confirmation. Ask:
+**Checkpoint:** This is the main migration steering checkpoint. In interactive
+runs, present the plan and ask:
 
 > Here is the coexistence plan and batch order.
 > 1. Does the coexistence strategy match how your system works?
 > 2. Does the batch order feel right?
 > 3. Are the rollback procedures realistic?
 > 4. Any scope cuts or batches to defer?
+
+If the checkpoint response is `adjust`, revise `plan.md` and stay in Plan. Only
+move to Execute on `continue`. `autonomous` mode does not skip this checkpoint.
 
 **Gate:** plan.md exists with explicit coexistence strategy, batch definitions with risk-first ordering, per-batch rollback procedures, verification commands, cutover criteria.
 
@@ -193,8 +203,11 @@ Execute batches in order. Each batch uses workers (implement -> review -> conver
 
 **Per-batch setup:**
 
+For each batch defined in plan.md, create a numbered batch directory and dispatch:
+
 ```bash
-BATCH_ROOT="${RUN_ROOT}/phases/batch-<N>"
+# N is the 1-based batch index from plan.md (batch-1, batch-2, etc.)
+BATCH_ROOT="${RUN_ROOT}/phases/batch-1"
 mkdir -p "${BATCH_ROOT}/archive" "${BATCH_ROOT}/reports" "${BATCH_ROOT}/last-messages"
 ```
 
@@ -203,9 +216,11 @@ Write `${BATCH_ROOT}/CHARTER.md` with the batch definition from plan.md.
 Dispatch via workers:
 
 ```bash
+# Include workers skill + 1-2 domain skills for the migration target.
+# If no domain skills apply, use --skills "workers" alone.
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
   --header "${BATCH_ROOT}/prompt-header.md" \
-  --skills workers,<domain-skills> \
+  --skills "workers,rust,tdd" \
   --root "${BATCH_ROOT}" \
   --out "${BATCH_ROOT}/prompt.md"
 
@@ -217,10 +232,10 @@ Dispatch via workers:
 
 **After each batch:**
 1. Verify old+new both pass (run verification commands)
-2. If batch fails: check if coexistence plan is still valid
-   - Plan still valid: retry batch (max 3 attempts), then revert and continue
-   - Plan invalidated: halt, update plan.md, resume from failed batch
-3. Record batch result
+2. If a batch fails, follow the execute-step routes rather than inventing a new branch
+   - `coexistence_invalidated`: route back to Plan, revise `plan.md`, then resume Execute from the failed batch
+   - Any other non-pass result: retry within the execute-step budget (max 3 attempts), then escalate
+3. Record batch result. `partial` is acceptable only when the remaining work is explicitly deferred and the approved coexistence plan still holds.
 
 **Mandatory re-evaluation after each batch:** Before proceeding to the next batch,
 check: did this batch reveal anything that changes the plan for remaining batches?
@@ -277,9 +292,11 @@ Write `artifacts/review.md`:
 ## Verdict: CLEAN | ISSUES FOUND
 ```
 
-**Gate:** CLEAN, or ISSUES FOUND with no critical after fix loop (max 2).
+**Gate:** Close only when the review worker returns `ready`, `ship_ready`, or
+`clean`. If it returns `revise`, route back to Execute, then Verify, then Review
+again (max 2 review attempts).
 
-Update `active-run.md`: phase=review, next step=Close.
+Update `active-run.md`: phase=review, next step=Close on pass, Execute on revise.
 
 ## Phase: Close
 

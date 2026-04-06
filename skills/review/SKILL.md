@@ -49,15 +49,16 @@ Write prompt header at `${step_dir}/prompt-header.md`:
 - Output: `${step_dir}/reports/review-report.md`
 
 ```bash
+# Pick 1-2 domain skills matching the affected code. Omit --skills if none apply.
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
-  --header ${step_dir}/prompt-header.md \
-  --skills <domain-skills> \
+  --header "${step_dir}/prompt-header.md" \
+  --skills "rust,tdd" \
   --root "${step_dir}" \
-  --out ${step_dir}/prompt.md
+  --out "${step_dir}/prompt.md"
 
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
-  --prompt ${step_dir}/prompt.md \
-  --output ${step_dir}/last-messages/last-message.txt \
+  --prompt "${step_dir}/prompt.md" \
+  --output "${step_dir}/last-messages/last-message.txt" \
   --role reviewer
 ```
 

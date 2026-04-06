@@ -12,11 +12,13 @@ before shipping. If a session dies, the next one picks up where it stopped.
 
 ## Get Started
 
-```bash
-claude install circuitry
-```
+Install from the plugin marketplace:
 
-After installing or updating, run `/clear` to reload the plugin. If you update mid-session, `/reload-plugins` picks up changes without a full clear.
+```
+/plugin marketplace add petekp/circuitry
+/plugin install circuitry@petekp
+/reload-plugins
+```
 
 Start a new Claude Code session and run:
 
@@ -115,12 +117,14 @@ usage examples.
 **Automatic workflow selection.** Describe your task. Circuitry picks the right
 workflow and rigor level.
 
-**Independent review.** Implementation and review always run in separate sessions.
-The reviewer starts fresh with no knowledge of the implementation choices.
+**Independent review.** For Standard rigor and above, implementation and review
+run in separate sessions. The reviewer starts fresh with no knowledge of the
+implementation choices. Lite skips independent review where documented.
 
-**Canonical artifacts.** Every workflow produces the same artifact vocabulary:
-`brief.md`, `analysis.md`, `plan.md`, `review.md`, `result.md`. One mental model
-across all circuits.
+**Canonical artifacts.** All workflows draw from a shared artifact vocabulary:
+`brief.md`, `analysis.md`, `plan.md`, `review.md`, `result.md`, plus a few
+specialized artifacts per workflow (`decision.md`, `queue.md`, `inventory.md`).
+One mental model across all circuits.
 
 **Dual continuity.** `active-run.md` updates automatically after every phase.
 `/circuit:handoff` writes a richer snapshot when you need it. Both inject on
@@ -172,7 +176,7 @@ npm install -g @openai/codex
 ./scripts/verify-install.sh
 
 # Or from the installed plugin location
-~/.claude/plugins/cache/circuitry/scripts/verify-install.sh
+~/.claude/plugins/cache/petekp/circuitry/<version>/scripts/verify-install.sh
 ```
 
 This checks Node.js, engine CLIs, skill directories, relay scripts, and runs a

@@ -82,7 +82,7 @@ Skip the router by using a prefix:
 
 | You type | Workflow | Rigor | What happens |
 |----------|---------|-------|-------------|
-| `/circuit fix: <bug>` | Repair | Lite | Reproduce, fix, verify. Test-first. |
+| `/circuit fix: <bug>` | Repair | Lite | Analyze, fix, verify. Test-first. |
 | `/circuit repair: <issue>` | Repair | Deep | Broad investigation, root cause isolation, fix, review |
 | `/circuit develop: <feature>` | Build | Standard | Plan, implement, independent review |
 | `/circuit decide: <choice>` | Explore | Tournament | Competing proposals, adversarial evaluation, convergence |
@@ -126,18 +126,18 @@ If architecture uncertainty appears, transfers to Explore.
 
 ### Repair
 
-**Phases:** Frame -> Reproduce -> Isolate -> Fix -> Verify -> Review -> Close
+**Phases:** Frame -> Analyze (reproduce + isolate) -> Fix -> Verify -> Review -> Close
 
 Test-first discipline. Forces expected vs actual, repro recipe, regression
 contract. When reproducible, the regression test is Slice 0. For flaky or
 not-yet-reproducible bugs, a diagnostic path (contain, instrument, defer test)
-is available.
+is available within Analyze.
 
 | Rigor | Behavior |
 |-------|----------|
-| Lite | Reproduce, fix, verify. Cap: 3 hypotheses. |
-| Standard | Full chain with independent review. Cap: 3 hypotheses or 1 root-cause branch. |
-| Deep | Broad investigation with parallel evidence probes. |
+| Lite | Analyze, fix, verify. No independent review. Cap: 3 hypotheses. |
+| Standard | Full chain with independent review. Analyze covers reproduction and isolation. Cap: 3 hypotheses or 1 root-cause branch. |
+| Deep | Broad investigation with parallel evidence probes during Analyze. |
 | Autonomous | Standard, auto-resolve checkpoints, escalate on no-repro after bounded search. |
 
 **Artifacts:** brief.md (with regression contract), analysis.md, plan.md, review.md, result.md
@@ -168,7 +168,7 @@ agents trust them.
 | Deep | Standard + evidence adjudication with 9-point checklist, stronger false-positive aversion. |
 | Autonomous | 3 batches or time budget, then stop. Deferred review for borderline items. |
 
-**Artifacts:** brief.md, queue.md, deferred.md, result.md
+**Artifacts:** brief.md, analysis.md, queue.md, review.md, deferred.md, result.md
 
 ## Utilities
 

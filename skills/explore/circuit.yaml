@@ -79,13 +79,17 @@ circuit:
       protocol: explore-decide@v1
       reads: [artifacts/brief.md, artifacts/analysis.md]
       writes:
-        artifact:
-          path: artifacts/plan.md
-          schema: plan@v1
+        artifacts:
+          - path: artifacts/plan.md
+            schema: plan@v1
+          - path: artifacts/decision.md
+            schema: decision@v1
       gate:
         kind: schema_sections
         source: artifacts/plan.md
         required: [Approach]
+        alternate_source: artifacts/decision.md
+        alternate_required: [Decision, Rationale]
       routes:
         pass: close
 
@@ -94,7 +98,7 @@ circuit:
       executor: orchestrator
       kind: synthesis
       protocol: explore-close@v1
-      reads: [artifacts/brief.md, artifacts/analysis.md, artifacts/plan.md]
+      reads: [artifacts/brief.md, artifacts/analysis.md, optional:artifacts/plan.md, optional:artifacts/decision.md]
       writes:
         artifact:
           path: artifacts/result.md

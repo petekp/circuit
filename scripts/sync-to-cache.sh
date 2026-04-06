@@ -76,7 +76,7 @@ fi
 
 if [[ "$synced_any" -eq 0 ]]; then
   printf 'No Claude plugin targets were available.\n' >&2
-  printf 'Install circuitry with: claude plugin install petekp/circuitry\n' >&2
+  printf 'Install circuitry with: /plugin marketplace add petekp/circuitry\n' >&2
   exit 1
 fi
 

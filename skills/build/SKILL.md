@@ -24,8 +24,12 @@ The router passes: task description, rigor profile (Lite, Standard, Deep, Autono
 **Direct invocation:** When invoked directly via `/circuit:build` (not through the
 router), bootstrap the run root if one does not already exist:
 
+Derive `RUN_SLUG` from the task description: lowercase, replace spaces and
+special characters with hyphens, collapse consecutive hyphens, trim to 50
+characters. Example: "Add Dark Mode Support" produces `add-dark-mode-support`.
+
 ```bash
-RUN_SLUG="<task-slug>"
+RUN_SLUG="add-dark-mode-support"  # derived from task description
 RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
 ln -sfn "circuit-runs/${RUN_SLUG}" .circuitry/current-run
@@ -104,12 +108,14 @@ Write `artifacts/plan.md`:
 - [ ] Compatibility: any breaking changes to document?
 ```
 
-Each adjacent-output item must be checked (yes, with details) or marked N/A.
-Unchecked items are a gate failure.
+Address each adjacent-output item explicitly: mark it required (with details) or
+mark it N/A. Treat unchecked items as plan-quality gaps to fix before
+proceeding, not as a separate manifest gate.
 
 **Architecture uncertainty:** If during planning you discover the approach is
 unclear, involves multiple viable architectures, or touches unfamiliar territory,
-transfer to Explore within the same run:
+transfer to Explore within the same run. This is orchestrator behavior, not a
+dedicated route in `circuit.yaml`:
 
 1. Update `active-run.md`:
    ```markdown
@@ -125,11 +131,11 @@ transfer to Explore within the same run:
 2. Load the `circuit:explore` skill and follow its Frame phase from here. The
    existing run root, brief.md, and plan.md (if partial) carry forward as
    context. Explore will produce analysis.md and a revised plan.md.
-3. When Explore completes its Close phase with a plan ready for Build, it will
-   transfer back. See Explore's close-to-Build transfer.
+3. When Explore finishes with a plan ready for execution, reload
+   `circuit:build` in the same run and resume from Plan. See Explore's
+   close-to-Build transfer guidance.
 
 **Gate:** plan.md exists with non-empty Approach, Slices, Verification Commands.
-All adjacent-output items addressed.
 
 Update `active-run.md`: phase=plan, next step=Act.
 
@@ -155,15 +161,17 @@ Include canonical relay headings: `### Files Changed`, `### Tests Run`,
 Compose and dispatch:
 
 ```bash
+# Include workers skill + 1-2 domain skills for the affected code.
+# If no domain skills apply, use --skills "workers" alone.
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
-  --header ${IMPL_ROOT}/prompt-header.md \
-  --skills workers,<domain-skills> \
-  --root ${IMPL_ROOT} \
-  --out ${IMPL_ROOT}/prompt.md
+  --header "${IMPL_ROOT}/prompt-header.md" \
+  --skills "workers,rust,tdd" \
+  --root "${IMPL_ROOT}" \
+  --out "${IMPL_ROOT}/prompt.md"
 
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
-  --prompt ${IMPL_ROOT}/prompt.md \
-  --output ${IMPL_ROOT}/last-messages/last-message-workers.txt \
+  --prompt "${IMPL_ROOT}/prompt.md" \
+  --output "${IMPL_ROOT}/last-messages/last-message-workers.txt" \
   --role implementer
 ```
 

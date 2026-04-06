@@ -26,8 +26,12 @@ The router passes: task description, rigor profile, and optional spec input.
 **Direct invocation:** When invoked directly via `/circuit:explore` (not through
 the router), bootstrap the run root if one does not already exist:
 
+Derive `RUN_SLUG` from the task description: lowercase, replace spaces and
+special characters with hyphens, collapse consecutive hyphens, trim to 50
+characters. Example: "Evaluate Auth Strategies" produces `evaluate-auth-strategies`.
+
 ```bash
-RUN_SLUG="<task-slug>"
+RUN_SLUG="evaluate-auth-strategies"  # derived from task description
 RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
 ln -sfn "circuit-runs/${RUN_SLUG}" .circuitry/current-run
@@ -115,10 +119,12 @@ mkdir -p "${RUN_ROOT}/phases/analyze-int/reports" "${RUN_ROOT}/phases/analyze-in
 Compose and dispatch both:
 
 ```bash
+# Pick 1-2 domain skills matching the affected code (see Domain Skill Selection in run/SKILL.md).
+# Omit --skills entirely if no domain skills apply.
 for w in ext int; do
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
     --header "${RUN_ROOT}/phases/analyze-${w}/prompt-header.md" \
-    --skills <domain-skills> \
+    --skills "rust,tdd" \
     --root "${RUN_ROOT}/phases/analyze-${w}" \
     --out "${RUN_ROOT}/phases/analyze-${w}/prompt.md"
 
@@ -235,7 +241,9 @@ If the exploration produces a decision among alternatives:
 Budget: 2 meaningful options max, 1 critique pass, 1 user checkpoint if
 consequential.
 
-**Tournament:** Full adversarial evaluation.
+**Tournament:** Bounded adversarial evaluation inside the Decide phase. The
+manifest exposes Tournament as an entry mode; the sequence below is
+orchestrator behavior, not a set of separate YAML steps.
 
 #### Tournament Sequence
 
@@ -249,11 +257,12 @@ Default stances (override when the problem demands others):
 Each writes `proposal-{a,b,c}.md`. Do not mention other workers in prompts.
 
 ```bash
+# Pick 1-2 domain skills matching the affected code. Omit --skills if none apply.
 for w in a b c; do
   mkdir -p "${RUN_ROOT}/phases/diverge-${w}/reports" "${RUN_ROOT}/phases/diverge-${w}/last-messages"
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
     --header "${RUN_ROOT}/phases/diverge-${w}/prompt-header.md" \
-    --skills <domain-skills> \
+    --skills "rust,tdd" \
     --root "${RUN_ROOT}/phases/diverge-${w}" \
     --out "${RUN_ROOT}/phases/diverge-${w}/prompt.md"
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
@@ -292,8 +301,9 @@ Explain exactly why."
 
 Write pre-mortem findings into decision.md `## Mitigations` and `## Open Risks`.
 
-**Checkpoint:** Present decision to user for confirmation. This is the one
-mandatory checkpoint in Tournament rigor.
+**Checkpoint:** Present the converged decision to the user for confirmation.
+Treat this as the one user checkpoint this protocol should take in Tournament
+rigor, even though the manifest does not model it as a separate gate.
 
 **Gate:** decision.md or plan.md exists with required sections populated.
 
@@ -336,7 +346,8 @@ Write `artifacts/result.md`:
 
 **Transfer to Build:** If the result is an execution plan (plan.md exists with
 Slices), transfer to Build within the same run instead of asking the user to
-run a separate command:
+run a separate command. This is orchestrator behavior; `circuit.yaml` does not
+encode a dedicated transfer edge:
 
 1. Update `active-run.md`:
    ```markdown

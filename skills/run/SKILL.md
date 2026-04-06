@@ -124,8 +124,12 @@ say so and do the work inline. No workflow overhead.
 
 ## Run Root Setup
 
+Derive `RUN_SLUG` from the task description: lowercase, replace spaces and
+special characters with hyphens, collapse consecutive hyphens, trim to 50
+characters. Example: "Fix Auth Bug in Login" produces `fix-auth-bug-in-login`.
+
 ```bash
-RUN_SLUG="<task-slug>"
+RUN_SLUG="fix-auth-bug-in-login"  # derived from task description
 RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
 
@@ -177,16 +181,18 @@ profile as context.
 All worker dispatch uses `dispatch.sh` with the `--role` flag:
 
 ```bash
+# --role must be one of: implementer, reviewer, researcher
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
-  --prompt ${step_dir}/prompt.md \
-  --output ${step_dir}/last-messages/last-message.txt \
-  --role <implementer|reviewer|researcher>
+  --prompt "${step_dir}/prompt.md" \
+  --output "${step_dir}/last-messages/last-message.txt" \
+  --role implementer
 ```
 
 ## Domain Skill Selection
 
-When a step references `<domain-skills>`, pick 1-2 skills matching the affected
-code. Never exceed 3 total skills per dispatch.
+When composing a dispatch prompt, pick 1-2 domain skills matching the affected
+code and pass them via `--skills`. Never exceed 3 total skills per dispatch.
+If no domain skills apply, omit the `--skills` flag entirely.
 
 ## Circuit Breakers
 

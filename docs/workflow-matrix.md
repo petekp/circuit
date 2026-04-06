@@ -10,7 +10,7 @@ Every workflow is a preset over this spine. A workflow may skip phases but never
 |-------|-------------------|----------------|
 | **Frame** | What are we doing? What counts as done? What is in/out of scope? What rigor level? | brief.md exists with non-empty objective, scope, success criteria, verification |
 | **Analyze** | What did we learn that changes the approach? | analysis.md exists with evidence sections populated |
-| **Plan** | What exact slices or sequence? What adjacent work (tests, docs, config)? | plan.md exists with slices, verification commands, adjacent-output checklist |
+| **Plan** | What exact slices or sequence? What adjacent work (tests, docs, config)? | plan.md exists with slices and verification commands; plan quality should also cover adjacent work |
 | **Act** | (Workers execute) | Implementation complete, verification commands pass |
 | **Verify** | Objective proof, not narrative | Verification commands re-run independently, results recorded |
 | **Review** | Fresh-context critique (separate session) | review.md exists with CLEAN or ISSUES FOUND verdict |
@@ -64,7 +64,7 @@ Every workflow draws from this vocabulary. No workflow invents its own artifact 
 
 | Artifact | Workflow | Content |
 |----------|----------|---------|
-| **decision.md** | Explore (Tournament) | ADR: decision, rationale, accepted risks, rejected alternatives, reopen conditions |
+| **decision.md** | Explore (when the output is a decision) | ADR: decision, rationale, accepted risks, rejected alternatives, reopen conditions |
 | **queue.md** | Sweep | Triaged work items with confidence x risk classification |
 | **inventory.md** | Migrate | Dependency catalog with risk assessment |
 
@@ -124,7 +124,7 @@ Features, scoped refactors, docs, tests, mixed code+docs+tests changes.
 |-------|---------------|
 | Lite | Plan -> Act -> Verify -> Close. No independent review. Self-verify. |
 | Standard | Plan -> Act -> Verify -> Review (fresh context) -> Close. 1 fix/review loop. |
-| Deep | Same as Standard + seam proof before Act. Bounces to Explore if architecture uncertainty. |
+| Deep | Same as Standard + seam proof before Act. Transfers to Explore if architecture uncertainty. |
 | Autonomous | Standard with auto-resolved checkpoints. Deferred.md for ambiguous items. |
 
 ### Repair
@@ -133,21 +133,21 @@ Bugs, regressions, flaky behavior, incidents.
 
 | Aspect | Detail |
 |--------|--------|
-| **Phases** | Frame -> Reproduce -> Isolate -> Fix -> Verify regression -> Review -> Close |
+| **Phases** | Frame -> Analyze (reproduce + isolate) -> Fix -> Verify -> Review -> Close |
 | **Default rigor** | Standard |
-| **Artifacts** | brief.md (with regression contract), analysis.md (root cause + eliminated hypotheses), plan.md (optional), review.md, result.md |
+| **Artifacts** | brief.md (with regression contract), analysis.md (repro results; hypotheses/root cause when isolation succeeds), plan.md (optional), review.md, result.md |
 | **Stop conditions** | Regression test passes, review CLEAN, no new regressions |
 | **Absorbs** | quick+bug (Lite), researched+bug (Standard/Deep) |
 
-**Key rule:** brief.md requires: expected vs actual behavior, repro command/recipe. Regression test is Slice 0 when reproducible. For flaky or not-yet-reproducible bugs, the Diagnostic Path (contain, instrument, defer test) is a sanctioned alternative.
+**Key rule:** brief.md requires: expected vs actual behavior, repro command/recipe. Regression test is Slice 0 when reproducible. For flaky or not-yet-reproducible bugs, the Diagnostic Path (contain, instrument, defer test) is sanctioned guidance within Analyze, not a separate circuit branch.
 
 **Rigor variations:**
 
 | Rigor | Repair Behavior |
 |-------|----------------|
-| Lite | Frame -> Reproduce -> Fix -> Verify -> Close. Cap: 3 hypotheses before escalating. |
-| Standard | Full phase chain. Independent review. Cap: 3 hypotheses or 1 root-cause branch before asking user. |
-| Deep | Standard + parallel evidence probes (external patterns, internal trace). Broader hypothesis search. |
+| Lite | Frame -> Analyze -> Fix -> Verify -> Close. No independent review. Cap: 3 hypotheses before escalating. |
+| Standard | Full phase chain. Analyze covers reproduction and isolation. Independent review. Cap: 3 hypotheses or 1 root-cause branch before asking user. |
+| Deep | Standard + parallel evidence probes during Analyze (external patterns, internal trace). Broader hypothesis search. |
 | Autonomous | Standard, auto-resolve checkpoints, escalate on no-repro after bounded search. |
 
 ### Migrate
@@ -156,21 +156,21 @@ Framework swaps, dependency replacements, architecture transitions, incremental 
 
 | Aspect | Detail |
 |--------|--------|
-| **Phases** | Frame -> Inventory -> Coexistence plan -> Batch execution -> Verify/cutover -> Close |
+| **Phases** | Frame -> Inventory -> Coexistence plan -> Batch execution -> Verify -> Cutover review -> Close |
 | **Default rigor** | Deep |
 | **Artifacts** | brief.md, inventory.md, plan.md (with coexistence + rollback), review.md, result.md |
 | **Stop conditions** | All batches verified, cutover review CLEAN, old system removable |
 | **Absorbs** | circuit:migrate (current companion circuit) |
 
-**Key rule:** Coexistence and rollback are first-class. Uses Build as inner executor for batches. Explicit rollback boundary before code moves. Mandatory re-evaluation after each batch.
+**Key rule:** Coexistence and rollback are first-class. Uses Build as inner executor for batches. The plan checkpoint may loop on `adjust`, execute may reroute to plan on `coexistence_invalidated`, and cutover review may reroute back to execute on `revise`.
 
 **Rigor variations:**
 
 | Rigor | Migrate Behavior |
 |-------|-----------------|
-| Standard | Inventory -> plan -> bounded batches -> verify. |
-| Deep | Standard + risk assessment per dependency, parallel evidence probes on migration patterns. |
-| Autonomous | Deep with auto-resolved checkpoints (except batch-level rollback decisions). Bounded batches. |
+| Standard | Standard migration. Coexistence-plan checkpoint only. |
+| Deep | Default profile (`default` entry mode). Deep migration with steering checkpoints. |
+| Autonomous | Unattended migration. Auto-resolve checkpoints except the coexistence-plan checkpoint. |
 
 ### Sweep
 
@@ -180,7 +180,7 @@ Cleanup, repo-wide quality passes, coverage sweeps, docs-sync sweeps.
 |--------|--------|
 | **Phases** | Frame -> Survey -> Queue/Triage -> Batch execute -> Verify -> Deferred review -> Close |
 | **Default rigor** | Standard |
-| **Artifacts** | brief.md, analysis.md or queue.md, deferred.md, result.md |
+| **Artifacts** | brief.md, analysis.md, queue.md, review.md, deferred.md, result.md |
 | **Stop conditions** | All eligible batches executed and verified, deferred.md written |
 | **Absorbs** | circuit:cleanup (cleanup objective), workflow-ratchet (improvement objective) |
 
@@ -316,11 +316,12 @@ to determine where to resume. Direct specialist commands (`/circuit:build`,
 | Architecture uncertainty during Build | Transfer to Explore (see Workflow Transfer) |
 | No reproducible signal during Repair after bounded search | Escalate with hypotheses |
 | Regression detected during Sweep batch | Revert batch, continue next |
-| Batch failure during Migrate | Halt, write partial result.md |
+| Batch failure during Migrate | Retry within execute budget; reroute to Plan if coexistence is invalidated |
 
 ## 10. Adjacent-Output Checklist
 
-Every mutating workflow (Build, Repair, Migrate, Sweep) forces this checklist in plan.md:
+Every mutating workflow (Build, Repair, Migrate, Sweep) should address this
+checklist in plan.md:
 
 - [ ] Tests: new/updated tests for changed behavior?
 - [ ] Docs: do any docs reference changed code/APIs?
@@ -329,7 +330,8 @@ Every mutating workflow (Build, Repair, Migrate, Sweep) forces this checklist in
 - [ ] Observability: logging, metrics, alerts affected?
 - [ ] Compatibility: any breaking changes to document?
 
-Items checked "not applicable" is fine. Items left unchecked is not.
+Items checked "not applicable" is fine. Items left unchecked should be treated
+as plan gaps before execution, not as a separate manifest gate.
 
 ## 11. Mapping: Old -> New
 

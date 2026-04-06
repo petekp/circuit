@@ -26,8 +26,12 @@ and sweep objective (cleanup, quality improvement, coverage, docs-sync).
 **Direct invocation:** When invoked directly via `/circuit:sweep` (not through
 the router), bootstrap the run root if one does not already exist:
 
+Derive `RUN_SLUG` from the task description: lowercase, replace spaces and
+special characters with hyphens, collapse consecutive hyphens, trim to 50
+characters. Example: "Dead Code Cleanup Sprint" produces `dead-code-cleanup-sprint`.
+
 ```bash
-RUN_SLUG="<task-slug>"
+RUN_SLUG="dead-code-cleanup-sprint"  # derived from task description
 RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
 ln -sfn "circuit-runs/${RUN_SLUG}" .circuitry/current-run
@@ -93,15 +97,20 @@ Dispatch parallel survey workers across categories relevant to the sweep type.
 
 **Docs-sync categories:** stale-docs, missing-docs, broken-links, outdated-architecture
 
+Select the category set matching the sweep type from the lists above, then dispatch
+one worker per category:
+
 ```bash
-for category in <categories>; do
+# Example: cleanup sweep categories. Substitute the right set for your sweep type.
+for category in dead-code stale-docs orphaned-artifacts vestigial-comments redundant-abstractions; do
   step_dir="${RUN_ROOT}/phases/survey-${category}"
   mkdir -p "${step_dir}/reports" "${step_dir}/last-messages"
 
-  # Write prompt-header.md for each category worker
+  # Write prompt-header.md for each category worker.
+  # Pick 1-2 domain skills matching the affected code. Omit --skills if none apply.
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
     --header "${step_dir}/prompt-header.md" \
-    --skills <domain-skills> \
+    --skills "rust,tdd" \
     --root "${step_dir}" \
     --out "${step_dir}/prompt.md"
 
@@ -222,9 +231,11 @@ Write `${BATCH_ROOT}/CHARTER.md`:
 Dispatch via workers:
 
 ```bash
+# Include workers skill + 1-2 domain skills for the affected code.
+# If no domain skills apply, use --skills "workers" alone.
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
   --header "${BATCH_ROOT}/prompt-header.md" \
-  --skills workers,<domain-skills> \
+  --skills "workers,rust,tdd" \
   --root "${BATCH_ROOT}" \
   --out "${BATCH_ROOT}/prompt.md"
 
@@ -273,6 +284,24 @@ Dispatch an independent verification worker (diagnose only, no code changes):
 
 Write verification results.
 
+Write `artifacts/review.md` using the shared review schema:
+
+```markdown
+# Review: <sweep objective>
+## Contract Compliance
+<does execution match brief.md and queue.md?>
+## Findings
+### Critical (must fix before ship)
+<findings that block shipping>
+### High (should fix)
+<findings that should be addressed>
+### Low (acceptable debt)
+<minor issues or style concerns>
+## Verification Rerun
+<command outputs, pass/fail>
+## Verdict: CLEAN | ISSUES FOUND
+```
+
 ### Autonomous: Injection Check
 
 For Autonomous rigor, also check for issues introduced during the sweep:
@@ -283,7 +312,8 @@ For Autonomous rigor, also check for issues introduced during the sweep:
 
 Verdicts: clean | minor_injections (log to deferred) | critical_injections (halt)
 
-**Gate:** Verification complete. No critical injections. Build/test pass.
+**Gate:** review.md exists. Verification complete. No critical injections.
+Build/test pass.
 
 Update `active-run.md`: phase=verify, next step=Deferred review.
 
@@ -374,6 +404,7 @@ Check artifacts in chain order:
 2. analysis.md missing -> Survey
 3. queue.md missing -> Triage
 4. Check batch state -> Batch execute (resume from first incomplete batch)
-5. deferred.md missing -> Deferred review
-6. result.md missing -> Close
-7. All present -> complete
+5. review.md missing -> Verify
+6. deferred.md missing -> Deferred review
+7. result.md missing -> Close
+8. All present -> complete

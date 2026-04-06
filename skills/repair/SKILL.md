@@ -2,7 +2,8 @@
 name: circuit:repair
 description: >
   Fix bugs, regressions, flaky behavior, and incidents. Test-first discipline.
-  Phases: Frame -> Reproduce -> Isolate -> Fix -> Verify regression -> Review -> Close.
+  Phases: Frame -> Analyze -> Fix -> Verify -> Review -> Close.
+  The analyze phase covers both reproduction and root-cause isolation.
   Forces expected vs actual behavior, repro recipe, and regression-proof mindset.
   fix: routes here at Lite rigor. repair: routes here at Deep rigor.
 trigger: >
@@ -15,7 +16,7 @@ Bugs, regressions, flaky behavior, incidents. The fixing workflow.
 
 ## Phases
 
-Frame -> Reproduce -> Isolate -> Fix -> Verify -> Review -> Close
+Frame -> Analyze (reproduce + isolate) -> Fix -> Verify -> Review -> Close
 
 ## Entry
 
@@ -24,8 +25,12 @@ The router passes: task description, rigor profile (Lite, Standard, Deep, Autono
 **Direct invocation:** When invoked directly via `/circuit:repair` (not through
 the router), bootstrap the run root if one does not already exist:
 
+Derive `RUN_SLUG` from the task description: lowercase, replace spaces and
+special characters with hyphens, collapse consecutive hyphens, trim to 50
+characters. Example: "Fix Login Email Validation" produces `fix-login-email-validation`.
+
 ```bash
-RUN_SLUG="<task-slug>"
+RUN_SLUG="fix-login-email-validation"  # derived from task description
 RUN_ROOT=".circuitry/circuit-runs/${RUN_SLUG}"
 mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
 ln -sfn "circuit-runs/${RUN_SLUG}" .circuitry/current-run
@@ -76,13 +81,15 @@ When the Regression Test is present, it becomes Slice 0 in any plan.
 **Gate:** brief.md exists with non-empty Objective, Regression Contract (Expected
 Behavior, Actual Behavior, Repro Command), Verification Commands.
 
-Update `active-run.md`: phase=frame, next step=Reproduce.
+Update `active-run.md`: phase=frame, next step=Analyze.
 
-## Phase: Reproduce (Analyze - part 1)
+## Phase: Analyze
 
-Attempt to reproduce the bug using the Repro Command from brief.md.
+The YAML `analyze` step covers both reproduction and root-cause isolation.
+Start by attempting to reproduce the bug using the Repro Command from brief.md.
 
-**If reproducible:** Record the reproduction evidence. Continue to Isolate.
+**If reproducible:** Record the reproduction evidence, then continue within
+Analyze to isolate the root cause.
 
 **If not reproducible after bounded search:**
 - Lite: Try 3 variations of the repro. If still no repro, escalate with hypotheses.
@@ -99,10 +106,10 @@ Write reproduction results into `artifacts/analysis.md`:
 <reproducible | intermittent | not reproducible>
 ```
 
-### Diagnostic Path (when not reproducible)
+### Diagnostic Path (within Analyze, when not reproducible)
 
 When the bug cannot be reproduced but evidence suggests it is real (logs, user
-reports, monitoring data), enter the diagnostic path instead of stalling:
+reports, monitoring data), use this analyze-phase guidance instead of stalling:
 
 1. **Contain:** Apply a minimal containment measure (add logging, add a guard
    clause, enable a feature flag) that either prevents the failure or captures
@@ -112,19 +119,18 @@ reports, monitoring data), enter the diagnostic path instead of stalling:
 3. **Defer regression test:** Record the deferred test in analysis.md with the
    trigger condition that would make it writable. The test becomes a follow-up
    item in result.md, not a blocker.
-4. **Continue to Isolate:** The Isolate phase works from the containment and
-   instrumentation evidence rather than a clean repro.
+4. **Continue within Analyze:** Root-cause isolation now works from the
+   containment and instrumentation evidence rather than a clean repro.
 
 The diagnostic path is not a shortcut. It trades upfront test certainty for
 signal-gathering discipline. The containment must be code-reviewed. The deferred
 test is tracked.
 
-**Gate:** Repro attempted. Results recorded. If not reproducible: diagnostic path
-entered with containment plan, OR hypotheses listed for escalation.
+**Gate:** The circuit gate for `analyze` requires `analysis.md` with `Repro Results`.
+Use the rest of Analyze to add hypotheses and isolate the root cause before moving
+to Fix.
 
-Update `active-run.md`: phase=reproduce, next step=Isolate.
-
-## Phase: Isolate (Analyze - part 2)
+### Root-Cause Isolation (still within Analyze)
 
 Identify the root cause. Generate hypotheses, test them, eliminate.
 
@@ -161,9 +167,12 @@ Add to `artifacts/analysis.md`:
 >
 > Which direction should I pursue, or should I widen the search?
 
-**Gate:** analysis.md has Root Cause (confirmed) or escalation with ranked hypotheses.
+**Expectation within Analyze:** expand `analysis.md` with ranked hypotheses and
+`Root Cause` when isolation succeeds. If you exhaust the analyze budget without
+isolating the cause, escalate with ranked hypotheses rather than pretending the
+circuit guarantees a separate `isolate` branch.
 
-Update `active-run.md`: phase=isolate, next step=Fix.
+Update `active-run.md`: phase=analyze, next step=Fix.
 
 ## Phase: Fix (Act)
 
@@ -211,15 +220,17 @@ For Lite: single worker or inline implementation.
 For Standard+: dispatch via workers (implement -> review -> converge).
 
 ```bash
+# Include workers skill + 1-2 domain skills for the affected code.
+# If no domain skills apply, use --skills "workers" alone.
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
-  --header ${IMPL_ROOT}/prompt-header.md \
-  --skills workers,<domain-skills> \
-  --root ${IMPL_ROOT} \
-  --out ${IMPL_ROOT}/prompt.md
+  --header "${IMPL_ROOT}/prompt-header.md" \
+  --skills "workers,rust,tdd" \
+  --root "${IMPL_ROOT}" \
+  --out "${IMPL_ROOT}/prompt.md"
 
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
-  --prompt ${IMPL_ROOT}/prompt.md \
-  --output ${IMPL_ROOT}/last-messages/last-message-workers.txt \
+  --prompt "${IMPL_ROOT}/prompt.md" \
+  --output "${IMPL_ROOT}/last-messages/last-message-workers.txt" \
   --role implementer
 ```
 
@@ -331,8 +342,8 @@ Include: hypothesis ranking, evidence gathered, options (widen search, different
 
 Check artifacts in chain order:
 1. brief.md missing -> Frame
-2. analysis.md missing or no Repro Results -> Reproduce
-3. analysis.md missing Root Cause -> Isolate
+2. analysis.md missing or no Repro Results -> Analyze
+3. analysis.md shows Analyze is still in progress -> Analyze
 4. Check workers state -> Fix (resume if partial)
 5. review.md missing -> Review (skip for Lite)
 6. result.md missing -> Close

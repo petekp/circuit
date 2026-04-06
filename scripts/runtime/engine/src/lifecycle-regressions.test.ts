@@ -206,7 +206,7 @@ describe("repair diagnostic path", () => {
     expect(content).toContain("1. **Contain:**");
     expect(content).toContain("2. **Instrument:**");
     expect(content).toContain("3. **Defer regression test:**");
-    expect(content).toContain("4. **Continue to Isolate:**");
+    expect(content).toContain("4. **Continue within Analyze:**");
   });
 
   it("repair/SKILL.md treats deferred regression test as follow-up in result.md", () => {
