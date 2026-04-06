@@ -54,9 +54,9 @@ All workflows draw from a shared **canonical artifact** vocabulary:
 | review.md | CLEAN or ISSUES FOUND verdict |
 | result.md | Changes, verification, follow-ups, PR summary |
 | handoff.md | Distilled session state |
-| deferred.md | Ambiguous items (Autonomous/Sweep) |
+| deferred.md | Ambiguous items (Sweep only) |
 
-Specialized: decision.md (Explore Tournament), queue.md (Sweep), inventory.md (Migrate).
+Specialized: decision.md (Explore, when the output is a decision; any profile), queue.md (Sweep), inventory.md (Migrate).
 
 **Internal helper artifacts** live under `artifacts/` for resumability but are not
 part of the public contract. They may change schema between versions:

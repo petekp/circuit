@@ -51,7 +51,7 @@ Circuitry owns the developer session lifecycle. Every task maps to a workflow
 | **Standard** | Plan, do, independent review. One fix loop. |
 | **Deep** | Research phase, seam proof, independent review. |
 | **Tournament** | Competing proposals, adversarial evaluation, convergence. |
-| **Autonomous** | Unattended. Evidence-gated. Deferred review for ambiguous items. |
+| **Autonomous** | Unattended. Evidence-gated. Checkpoints auto-resolve; workflows that include independent review still run it. |
 
 Every workflow follows the same phase spine: **Frame, Analyze, Plan, Act, Verify,
 Review, Close, Pause**. Not every workflow uses every phase, but the semantics

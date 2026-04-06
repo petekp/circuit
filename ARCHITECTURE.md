@@ -665,7 +665,7 @@ All workflows draw from this vocabulary:
 | `handoff.md` | Distilled hidden state per handoff skill format |
 | `deferred.md` | Deferred-review output for workflows that include that step (currently Sweep) |
 
-Specialized extensions (max 1 per workflow): `decision.md` (Explore Tournament),
+Specialized extensions (max 1 per workflow): `decision.md` (Explore, when the output is a decision; any profile),
 `queue.md` (Sweep), `inventory.md` (Migrate).
 
 ### Internal Helper Artifacts

@@ -181,7 +181,7 @@ continuing.
 
 ### deferred.md
 
-Only for autonomous or survey-heavy runs.
+Sweep only. Written during the deferred review phase for ambiguous or borderline items.
 
 ```markdown
 # Deferred Items
@@ -199,7 +199,7 @@ Each workflow may introduce ONE specialized artifact if it genuinely helps.
 
 | Artifact | Workflow | When |
 |----------|----------|------|
-| **decision.md** | Explore (Tournament) | Architecture decision rendered |
+| **decision.md** | Explore (when the output is a decision; any profile) | Architecture decision rendered |
 | **queue.md** | Sweep | Triaged work items (replaces analysis.md when survey is primary) |
 | **inventory.md** | Migrate | Dependency catalog (replaces analysis.md when inventory is primary) |
 

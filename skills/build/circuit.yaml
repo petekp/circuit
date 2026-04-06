@@ -23,7 +23,7 @@ circuit:
       description: Standard plus seam proof.
     autonomous:
       start_at: frame
-      description: Standard with auto-resolved checkpoints and deferred review.
+      description: Standard with auto-resolved checkpoints.
 
   steps:
     - id: frame

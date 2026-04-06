@@ -109,7 +109,7 @@ say so and do the work inline. No workflow overhead.
 | Build | Lite | "I'll plan and implement. Quick self-verify." |
 | Build | Standard | "I'll plan, implement, and run an independent review." |
 | Build | Deep | "I'll research first, prove the seam, then build with independent review." |
-| Build | Autonomous | "I'll plan, implement, and review. Checkpoints auto-resolve. Ambiguous items deferred." |
+| Build | Autonomous | "I'll plan, implement, and run an independent review. Checkpoints auto-resolve." |
 | Repair | Lite | "I'll reproduce, fix, and verify the regression test passes." |
 | Repair | Standard | "I'll reproduce, isolate root cause, fix, and run independent review." |
 | Repair | Deep | "I'll investigate broadly, isolate, fix, and run contract audit." |

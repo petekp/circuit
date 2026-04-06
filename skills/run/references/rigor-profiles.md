@@ -88,11 +88,11 @@ tradeoff-decision.
 
 **Auto-resolve rules:**
 - Checkpoints with clear evidence: auto-continue.
-- Checkpoints requiring human judgment: log to deferred.md, continue.
+- Checkpoints requiring human judgment: log to deferred.md (Sweep) or note in result.md (other workflows), continue.
 - Tradeoff decisions: halt and write handoff.md.
 - Critical path failures: halt and write partial result.md.
 
-**Additional artifacts:** deferred.md (always present).
+**Additional artifacts:** deferred.md (Sweep only; always present when Sweep runs Autonomous).
 
 **When:** "Run overnight", "while I sleep", unattended quality passes.
 Composable with Standard or Deep as the base budget.

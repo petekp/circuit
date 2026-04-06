@@ -31,7 +31,7 @@ are inherently non-trivial).
 | **Standard** | 1 planning pass, 1 writer, 1 independent reviewer, 1 fix loop | 0-1 (pause on ambiguity, irreversibility, or unclear success criteria) | Fresh-context review | Default for most work |
 | **Deep** | Research phase, 1 writer, 1 reviewer, seam proof before build | 1-2 (scope + optional tradeoff) | Fresh-context review + contract audit | Multi-domain, external research needed |
 | **Tournament** | 3 proposals, 1 adversarial round, 1 synthesis, 1 pre-mortem | 1 (tradeoff decision) | Stress-test + convergence | Expensive/irreversible decisions |
-| **Autonomous** | Same as Standard/Deep but all checkpoints auto-resolve except tradeoff-decision | 0 (evidence-gated auto-approval) | Independent audit + deferred review | Unattended overnight runs |
+| **Autonomous** | Same as Standard/Deep but all checkpoints auto-resolve except tradeoff-decision | 0 (evidence-gated auto-approval) | Workflow-specific audit/follow-up | Unattended overnight runs |
 
 ### Profile Availability
 
@@ -71,10 +71,12 @@ Every workflow draws from this vocabulary. No workflow invents its own artifact 
 | **brief.md** | Always | Contract: objective, scope, success criteria, constraints, verification, expected output types (code/tests/docs/ADRs) |
 | **analysis.md** | Analyze phase runs | Evidence, repro, options, inventory, survey -- whatever the workflow learned |
 | **plan.md** | Plan phase runs | Slices, sequence, rollback/safety boundaries, adjacent-output checklist |
-| **review.md** | Review phase runs | Verdict: CLEAN or ISSUES FOUND. Findings by severity (critical/high/low) |
+| **review.md** | Review phase runs* | Verdict: CLEAN or ISSUES FOUND. Findings by severity (critical/high/low) |
 | **result.md** | Always, on completion | Changes, verification results, residual risks/debt, follow-ups, PR-summary seed |
 | **handoff.md** | Pause phase only | Distilled hidden state per existing handoff skill format |
 | **deferred.md** | Workflows whose topology explicitly includes Deferred Review (currently Sweep) | Ambiguous items, postponed issues, deliberately skipped work |
+
+* `review.md` is produced during the Review phase for Build, Repair, and Migrate. Sweep writes `review.md` during Verify as part of its verify-deferred flow.
 
 **Specialized extensions** (max 1 per workflow):
 
@@ -141,7 +143,7 @@ Features, scoped refactors, docs, tests, mixed code+docs+tests changes.
 | Lite | Plan -> Act -> Verify -> Close. No independent review. Self-verify. |
 | Standard | Plan -> Act -> Verify -> Review (fresh context) -> Close. 1 fix/review loop. |
 | Deep | Same as Standard + seam proof before Act. Transfers to Explore if architecture uncertainty. |
-| Autonomous | Standard with auto-resolved checkpoints and any deferred handling described by the selected entry mode. |
+| Autonomous | Standard with auto-resolved checkpoints. Independent review still runs. |
 
 ### Repair
 

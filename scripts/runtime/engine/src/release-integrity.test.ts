@@ -28,6 +28,10 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function titleCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 function getH3Section(
   content: string,
   heading: string,
@@ -84,6 +88,54 @@ function getArtifactTemplate(skillDoc: string, artifactPath: string): string {
     throw new Error(`unterminated markdown fence for: ${artifactPath}`);
   }
   return afterFence.slice(0, fenceEnd);
+}
+
+function getEntryModeDocLabels(mode: string, description: string): string[] {
+  const labels = new Set<string>([mode, titleCase(mode)]);
+
+  if (mode === "default") {
+    const mappedRigor = description.match(
+      /\b(Lite|Standard|Deep|Tournament|Autonomous)\b/i,
+    )?.[1];
+    if (mappedRigor) {
+      labels.add(mappedRigor);
+      labels.add(titleCase(mappedRigor.toLowerCase()));
+    }
+  }
+
+  return [...labels];
+}
+
+function getModeDocumentationBlocks(skillDoc: string): string[] {
+  const headingBlocks = [
+    ...skillDoc.matchAll(
+      /^(?:###|####) [^\n]+\n[\s\S]*?(?=\n(?:###|####|##) |$)/gm,
+    ),
+    ...skillDoc.matchAll(/^## [^\n]*Rigor[^\n]*\n[\s\S]*?(?=\n## |$)/gm),
+  ].map((match) => match[0].trim());
+
+  const bulletLines = [...skillDoc.matchAll(/^- [^\n]+$/gm)].map((match) =>
+    match[0].trim(),
+  );
+
+  const modeLines = [
+    ...skillDoc.matchAll(
+      /^[^\n]*(?:rigor profile|Default rigor|maps to|\bmode\b)[^\n]*$/gim,
+    ),
+  ].map((match) => match[0].trim());
+
+  return [...new Set([...headingBlocks, ...bulletLines, ...modeLines])];
+}
+
+function getContextualModeCoverage(
+  skillDoc: string,
+  labels: string[],
+): string[] {
+  return getModeDocumentationBlocks(skillDoc).filter((block) =>
+    labels.some((label) =>
+      new RegExp(`\\b${escapeRegExp(label)}\\b`, "i").test(block),
+    ),
+  );
 }
 
 // ── Version sync ──────────────────────────────────────────────────────
@@ -384,19 +436,44 @@ describe("explore decision path alignment", () => {
 // ── Install guidance consistency ────────────────────────────────────
 
 describe("install guidance consistency", () => {
-  it("sync-to-cache.sh install hint reuses the README marketplace source", () => {
+  it("sync-to-cache.sh install hint reuses the README install commands", () => {
     const readme = readFile("README.md");
     const script = readFile("scripts/sync-to-cache.sh");
     const marketplaceSource = readme.match(
       /\/plugin marketplace add\s+([^\s]+)/,
     );
+    const installTarget = readme.match(/\/plugin install\s+([^\s]+)/);
 
     expect(
       marketplaceSource,
       "README is missing the marketplace add command",
     ).toBeTruthy();
+    expect(installTarget, "README is missing the plugin install command").toBeTruthy();
     expect(script).toContain(
       `/plugin marketplace add ${marketplaceSource![1]}`,
+    );
+    expect(script).toContain(`/plugin install ${installTarget![1]}`);
+  });
+});
+
+// ── review.md phase attribution ──────────────────────────────────────
+
+describe("review.md phase attribution", () => {
+  it("workflow-matrix qualifies Sweep review.md as a Verify-step artifact", () => {
+    const matrix = readFile("docs/workflow-matrix.md");
+
+    expect(matrix).toMatch(/\| \*\*review\.md\*\* \| Review phase runs\* \|/);
+    expect(matrix).toContain(
+      "* `review.md` is produced during the Review phase for Build, Repair, and Migrate. Sweep writes `review.md` during Verify as part of its verify-deferred flow.",
+    );
+  });
+
+  it("CIRCUITS.md qualifies Sweep review.md as a Verify-step artifact", () => {
+    const circuits = readFile("CIRCUITS.md");
+
+    expect(circuits).toMatch(/\| review\.md \| Review phase\.\* CLEAN or ISSUES FOUND\. \|/);
+    expect(circuits).toContain(
+      "* `review.md` is produced during the Review phase for Build, Repair, and Migrate. Sweep writes `review.md` during Verify as part of its verify-deferred flow.",
     );
   });
 });
@@ -599,29 +676,31 @@ describe("migrate profile naming", () => {
 
 describe("entry mode documentation coverage", () => {
   const WORKFLOW_SKILLS = ["build", "repair", "explore", "sweep", "migrate"];
-  const MODE_ALIASES: Record<string, string[]> = {
-    autonomous: ["Autonomous"],
-    deep: ["Deep"],
-    default: ["default", "Standard"],
-    lite: ["Lite"],
-    standard: ["standard", "Standard"],
-    tournament: ["Tournament"],
-  };
 
   for (const skill of WORKFLOW_SKILLS) {
-    it(`${skill}/SKILL.md covers every manifest entry mode`, () => {
+    it(`${skill}/SKILL.md covers every manifest entry mode in a mode-documentation surface`, () => {
       const yaml = readCircuitYaml(skill);
       const skillDoc = readFile(`skills/${skill}/SKILL.md`);
 
-      for (const mode of Object.keys(yaml.circuit.entry_modes)) {
-        const aliases = MODE_ALIASES[mode] ?? [mode];
-        const hasMention = aliases.some((alias) =>
-          new RegExp(`\\b${escapeRegExp(alias)}\\b`, "i").test(skillDoc),
-        );
+      for (const [mode, config] of Object.entries<any>(yaml.circuit.entry_modes)) {
+        const labels = getEntryModeDocLabels(mode, config.description ?? "");
+        const contextualCoverage = getContextualModeCoverage(skillDoc, labels);
 
         expect(
-          hasMention,
-          `${skill}/SKILL.md is missing documentation coverage for entry mode "${mode}"`,
+          contextualCoverage.length,
+          `${skill}/SKILL.md is missing contextual documentation coverage for entry mode "${mode}" (accepted labels: ${labels.join(", ")})`,
+        ).toBeGreaterThan(0);
+        expect(
+          contextualCoverage.join("\n\n"),
+          `${skill}/SKILL.md only mentions entry mode "${mode}" outside headings, rigor bullets, or explicit mode/profile lines`,
+        ).not.toBe("");
+        expect(
+          contextualCoverage.some(
+            (block) =>
+              /^(?:###|####|- )/m.test(block) ||
+              /(rigor profile|Default rigor|maps to|\bmode\b)/i.test(block),
+          ),
+          `${skill}/SKILL.md lacks a structured documentation block for entry mode "${mode}"`,
         ).toBe(true);
       }
     });

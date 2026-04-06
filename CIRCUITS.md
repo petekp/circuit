@@ -220,10 +220,12 @@ Every workflow is a preset over this spine:
 | brief.md | Always. The contract. |
 | analysis.md | Analyze phase. Evidence. |
 | plan.md | Plan phase. Slices and sequence. |
-| review.md | Review phase. CLEAN or ISSUES FOUND. |
+| review.md | Review phase.* CLEAN or ISSUES FOUND. |
 | result.md | Always, on completion. PR-summary seed. |
 | handoff.md | Pause phase. Distilled hidden state. |
 | deferred.md | Sweep deferred review phase. Ambiguous or borderline items kept out of executed batches. |
+
+* `review.md` is produced during the Review phase for Build, Repair, and Migrate. Sweep writes `review.md` during Verify as part of its verify-deferred flow.
 
 ## Rigor Profiles
 
