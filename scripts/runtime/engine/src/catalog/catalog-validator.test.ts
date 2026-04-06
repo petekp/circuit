@@ -66,12 +66,12 @@ describe("catalog identity invariants", () => {
     expect(mismatches).toEqual([]);
   });
 
-  it("SKILL.md name matches circuit:<id> for every circuit", () => {
+  it("SKILL.md name matches directory id for every circuit", () => {
     const mismatches = circuits
-      .filter((c) => c.skillName !== `circuit:${c.id}`)
+      .filter((c) => c.skillName !== c.id)
       .map(
         (c) =>
-          `${c.dir}: SKILL.md name="${c.skillName}" but expected "circuit:${c.id}"`,
+          `${c.dir}: SKILL.md name="${c.skillName}" but expected "${c.id}"`,
       );
     expect(mismatches).toEqual([]);
   });

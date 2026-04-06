@@ -1,5 +1,5 @@
 ---
-name: circuit:review
+name: review
 description: >
   Standalone fresh-context code review. Use when code was changed manually or via
   plain Claude and you want an independent audit. Same schema and verdict language

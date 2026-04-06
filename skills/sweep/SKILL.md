@@ -1,5 +1,5 @@
 ---
-name: circuit:sweep
+name: sweep
 description: >
   Systematic codebase sweeps: cleanup, quality passes, coverage improvements,
   docs-sync. Absorbs the old cleanup circuit and ratchet workflow. Phases:

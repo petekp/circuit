@@ -1,5 +1,5 @@
 ---
-name: circuit:handoff
+name: handoff
 description: >
   Core lifecycle primitive. Save session state to disk so a fresh session can resume
   automatically. Use when context is getting heavy, the user asks for a handoff, or

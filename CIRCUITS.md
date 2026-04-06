@@ -1,6 +1,6 @@
 # Circuit Catalog
 
-Run `/circuit <task>` and Circuitry figures out the right workflow. Five
+Run `/circuit:run <task>` and Circuitry figures out the right workflow. Five
 workflows handle the work. Two utilities support them.
 
 For technical details on how circuits execute, see
@@ -16,7 +16,7 @@ For technical details on how circuits execute, see
 | Explore | `/circuit:explore` | Investigate, understand, choose among options, or shape an execution plan. |
 | Migrate | `/circuit:migrate` | Large-scale migrations: framework swaps, dependency replacements, architecture transitions, incremental rewrites. |
 | Repair | `/circuit:repair` | Fix bugs, regressions, flaky behavior, and incidents. Test-first discipline with regression contract. |
-| Run | `/circuit <task>` | Lightweight router. Classifies tasks into one of five workflows (Explore, Build, Repair, Migrate, Sweep), selects a rigor profile, and dispatches. |
+| Run | `/circuit:run <task>` | Lightweight router. Classifies tasks into one of five workflows (Explore, Build, Repair, Migrate, Sweep), selects a rigor profile, and dispatches. |
 | Sweep | `/circuit:sweep` | Systematic codebase sweeps: cleanup, quality passes, coverage improvements, docs-sync. |
 <!-- END CIRCUIT_TABLE -->
 
@@ -29,7 +29,7 @@ For technical details on how circuits execute, see
 
 ## The Router
 
-`/circuit <task>` classifies your task into a workflow and rigor profile, then
+`/circuit:run <task>` classifies your task into a workflow and rigor profile, then
 dispatches. Quiet by default: routes and proceeds unless genuinely ambiguous.
 
 ## Entry Modes
@@ -82,13 +82,13 @@ Skip the router by using a prefix:
 
 | You type | Workflow | Rigor | What happens |
 |----------|---------|-------|-------------|
-| `/circuit fix: <bug>` | Repair | Lite | Analyze, fix, verify. Test-first. |
-| `/circuit repair: <issue>` | Repair | Deep | Broad investigation, root cause isolation, fix, review |
-| `/circuit develop: <feature>` | Build | Standard | Plan, implement, independent review |
-| `/circuit decide: <choice>` | Explore | Tournament | Competing proposals, adversarial evaluation, convergence |
-| `/circuit migrate: <target>` | Migrate | Deep | Inventory, coexistence plan, batch migration |
-| `/circuit cleanup: <target>` | Sweep | Standard | Survey, triage by confidence/risk, batch cleanup |
-| `/circuit overnight: <scope>` | Sweep | Autonomous | Unattended quality pass with deferred review |
+| `/circuit:run fix: <bug>` | Repair | Lite | Analyze, fix, verify. Test-first. |
+| `/circuit:run repair: <issue>` | Repair | Deep | Broad investigation, root cause isolation, fix, review |
+| `/circuit:run develop: <feature>` | Build | Standard | Plan, implement, independent review |
+| `/circuit:run decide: <choice>` | Explore | Tournament | Competing proposals, adversarial evaluation, convergence |
+| `/circuit:run migrate: <target>` | Migrate | Deep | Inventory, coexistence plan, batch migration |
+| `/circuit:run cleanup: <target>` | Sweep | Standard | Survey, triage by confidence/risk, batch cleanup |
+| `/circuit:run overnight: <scope>` | Sweep | Autonomous | Unattended quality pass with deferred review |
 
 ## Workflows
 

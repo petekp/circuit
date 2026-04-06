@@ -8,7 +8,7 @@ circuit:
     and dispatches.
 
   entry:
-    command: /circuit
+    command: /circuit:run
     expert_command: /circuit:run
     signals:
       include: [any_task]

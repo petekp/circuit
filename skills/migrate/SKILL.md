@@ -1,5 +1,5 @@
 ---
-name: circuit:migrate
+name: migrate
 description: >
   Large-scale migrations: framework swaps, dependency replacements, architecture
   transitions, incremental rewrites. Coexistence and rollback are first-class.

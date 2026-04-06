@@ -38,9 +38,9 @@ The two files must agree. If the YAML says a step requires a structured verdict
 but the SKILL.md only checks for file existence, the circuit silently skips the
 quality check.
 
-Circuit skills use a `circuit:` prefix (e.g., `circuit:run`) to separate them
-from domain skills. The directory name matches the slug: `circuit:run` lives at
-`skills/run/`.
+The plugin is named `circuit`. Skills use bare directory names (`run`, `build`,
+`explore`, etc.). Claude Code namespaces them as `/circuit:<skill>` at runtime,
+so the `run` skill becomes `/circuit:run`.
 
 ---
 
@@ -594,9 +594,9 @@ Frame -> Analyze -> Plan -> Act -> Verify -> Review -> Close
 |----------|------------|---------------|---------|
 | **Explore** | Frame, Analyze, Decide/Plan, Close | Standard | Investigate, choose among options, shape a plan |
 | **Build** | Frame, Plan, Act, Verify, Review, Close | Standard | Features, scoped refactors, docs, tests |
-| **Repair** | Frame, Reproduce, Isolate, Fix, Verify, Review, Close | Standard | Bugs, regressions, flaky behavior, incidents |
-| **Migrate** | Frame, Inventory, Plan, Execute, Verify, Review, Close | Deep | Framework swaps, architecture transitions |
-| **Sweep** | Frame, Survey, Triage, Execute, Verify, Deferred, Close | Standard | Cleanup, quality passes, coverage, docs-sync |
+| **Repair** | Frame, Analyze, Fix, Verify, Review, Close | Standard | Bugs, regressions, flaky behavior, incidents |
+| **Migrate** | Frame, Inventory, Coexistence Plan, Batch Execution, Verify, Cutover Review, Close | Deep | Framework swaps, architecture transitions |
+| **Sweep** | Frame, Survey, Queue/Triage, Batch Execute, Verify, Deferred Review, Close | Standard | Cleanup, quality passes, coverage, docs-sync |
 
 ### Two Lifecycle Utilities
 
@@ -696,8 +696,7 @@ circuit:
     One-sentence thesis.
 
   entry:
-    command: /circuit           # optional: bare command trigger
-    expert_command: /circuit:run # explicit invocation
+    command: /circuit:run       # primary invocation
     signals:
       include: [signal_names]
       exclude: [signal_names]

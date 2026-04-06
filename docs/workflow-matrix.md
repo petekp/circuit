@@ -252,7 +252,7 @@ Public, core lifecycle primitive.
 
 | Command | Routes to |
 |---------|----------|
-| `/circuit <task>` | Router (auto-classify) |
+| `/circuit:run <task>` | Router (auto-classify) |
 | `/circuit:explore <task>` | Explore (Standard) |
 | `/circuit:build <task>` | Build (Standard) |
 | `/circuit:repair <task>` | Repair (Standard) |

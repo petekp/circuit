@@ -9,7 +9,7 @@
 set -euo pipefail
 
 PLUGIN_ROOT="${CIRCUITRY_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-CACHE_DIR="${CLAUDE_PLUGIN_CACHE_DIR:-$HOME/.claude/plugins/cache/petekp/circuitry}"
+CACHE_DIR="${CLAUDE_PLUGIN_CACHE_DIR:-$HOME/.claude/plugins/cache/petekp/circuit}"
 MARKETPLACE_DIR="${CLAUDE_PLUGIN_MARKETPLACE_DIR:-$HOME/.claude/plugins/marketplaces/petekp}"
 
 sync_target() {
@@ -76,9 +76,9 @@ fi
 
 if [[ "$synced_any" -eq 0 ]]; then
   printf 'No Claude plugin targets were available.\n' >&2
-  printf 'Install circuitry with:\n' >&2
+  printf 'Install circuit with:\n' >&2
   printf '/plugin marketplace add petekp/circuitry\n' >&2
-  printf '/plugin install circuitry@petekp\n' >&2
+  printf '/plugin install circuit@petekp\n' >&2
   exit 1
 fi
 

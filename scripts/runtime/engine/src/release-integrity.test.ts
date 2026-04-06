@@ -810,3 +810,97 @@ describe("README cache path consistency", () => {
     );
   });
 });
+
+describe("SKILL frontmatter name validity", () => {
+  const SKILL_DIRS = [
+    "run", "explore", "build", "repair", "migrate", "sweep", "review", "handoff", "workers",
+  ];
+
+  for (const skill of SKILL_DIRS) {
+    it(`${skill}/SKILL.md name contains only lowercase letters, numbers, and hyphens`, () => {
+      const content = readFile(`skills/${skill}/SKILL.md`);
+      const nameMatch = content.match(/^name:\s*(.+)$/m);
+      expect(nameMatch, `${skill}/SKILL.md is missing name field`).toBeTruthy();
+      const name = nameMatch![1].trim();
+      expect(name).toMatch(/^[a-z0-9-]+$/);
+    });
+  }
+});
+
+describe("plugin namespace consistency", () => {
+  it("plugin.json and marketplace.json agree on plugin name", () => {
+    const plugin = JSON.parse(readFile(".claude-plugin/plugin.json"));
+    const marketplace = JSON.parse(readFile(".claude-plugin/marketplace.json"));
+    expect(marketplace.plugins[0].name).toBe(plugin.name);
+  });
+
+  it("README install command uses the correct plugin name", () => {
+    const plugin = JSON.parse(readFile(".claude-plugin/plugin.json"));
+    const readme = readFile("README.md");
+    expect(readme).toContain(`/plugin install ${plugin.name}@`);
+  });
+
+  it("sync-to-cache.sh install hint uses the correct plugin name", () => {
+    const plugin = JSON.parse(readFile(".claude-plugin/plugin.json"));
+    const script = readFile("scripts/sync-to-cache.sh");
+    expect(script).toContain(`/plugin install ${plugin.name}@`);
+  });
+});
+
+describe("documented command surface matches plugin namespace", () => {
+  const plugin = JSON.parse(readFile(".claude-plugin/plugin.json"));
+  const pluginName = plugin.name;
+
+  it("CIRCUITS.md invoke commands use the plugin namespace", () => {
+    const circuits = readFile("CIRCUITS.md");
+    const invokeMatches = [...circuits.matchAll(/`\/([\w-]+):([\w-]+)`/g)];
+    expect(invokeMatches.length).toBeGreaterThan(0);
+    for (const match of invokeMatches) {
+      expect(match[1]).toBe(pluginName);
+    }
+  });
+
+  it("README direct circuit commands use the plugin namespace", () => {
+    const readme = readFile("README.md");
+    const commandMatches = [...readme.matchAll(/`\/([\w-]+):([\w-]+)`/g)];
+    expect(commandMatches.length).toBeGreaterThan(0);
+    for (const match of commandMatches) {
+      expect(match[1]).toBe(pluginName);
+    }
+  });
+
+  it("ARCHITECTURE.md dispatch references use the plugin namespace", () => {
+    const arch = readFile("ARCHITECTURE.md");
+    const dispatchMatches = [...arch.matchAll(/\/([\w-]+):([\w-]+)/g)];
+    const circuitInvocations = dispatchMatches.filter(
+      (m) => ["run", "explore", "build", "repair", "migrate", "sweep", "review", "handoff"].includes(m[2])
+    );
+    expect(circuitInvocations.length).toBeGreaterThan(0);
+    for (const match of circuitInvocations) {
+      expect(match[1]).toBe(pluginName);
+    }
+  });
+});
+
+// ── No bare /circuit commands in docs ────────────────────────────────
+
+describe("no bare /circuit commands in docs", () => {
+  const DOC_FILES = [
+    "README.md",
+    "CIRCUITS.md",
+    "docs/workflow-matrix.md",
+  ];
+
+  for (const file of DOC_FILES) {
+    it(`${file} does not use bare /circuit (should be /circuit:run)`, () => {
+      const content = readFile(file);
+      // Match backtick-wrapped /circuit followed by space (bare command)
+      // but not /circuit: (namespaced command)
+      const bareMatches = [...content.matchAll(/`\/circuit\s(?!:)/g)];
+      expect(
+        bareMatches.length,
+        `${file} contains bare /circuit commands — use /circuit:run instead`,
+      ).toBe(0);
+    });
+  }
+});

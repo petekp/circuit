@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "name": "circuitry",
+      "name": "circuit",
       "description": "Multi-phase workflows for Claude Code that survive session crashes, enforce review gates, and resume exactly where they stopped.",
       "version": "0.3.0",
       "source": "./",

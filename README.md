@@ -16,14 +16,14 @@ Install from the plugin marketplace:
 
 ```
 /plugin marketplace add petekp/circuitry
-/plugin install circuitry@petekp
+/plugin install circuit@petekp
 /reload-plugins
 ```
 
 Start a new Claude Code session and run:
 
 ```
-/circuit evaluate microservices vs modular monolith vs serverless for our growing backend
+/circuit:run evaluate microservices vs modular monolith vs serverless for our growing backend
 ```
 
 That's it. Circuitry classifies your task, picks the right workflow, and runs it.
@@ -89,14 +89,14 @@ stay stable.
 
 | You type | What happens |
 |----------|-------------|
-| `/circuit <task>` | Router picks the best workflow and rigor |
-| `/circuit fix: <bug>` | Repair Lite -- test-first bug fix |
-| `/circuit repair: <issue>` | Repair Deep -- broad investigation |
-| `/circuit develop: <feature>` | Build Standard -- plan, implement, review |
-| `/circuit decide: <choice>` | Explore Tournament -- adversarial evaluation |
-| `/circuit migrate: <target>` | Migrate Deep -- inventory, coexistence plan, batches |
-| `/circuit cleanup: <target>` | Sweep Standard -- cleanup by confidence/risk |
-| `/circuit overnight: <scope>` | Sweep Autonomous -- unattended quality pass |
+| `/circuit:run <task>` | Router picks the best workflow and rigor |
+| `/circuit:run fix: <bug>` | Repair Lite -- test-first bug fix |
+| `/circuit:run repair: <issue>` | Repair Deep -- broad investigation |
+| `/circuit:run develop: <feature>` | Build Standard -- plan, implement, review |
+| `/circuit:run decide: <choice>` | Explore Tournament -- adversarial evaluation |
+| `/circuit:run migrate: <target>` | Migrate Deep -- inventory, coexistence plan, batches |
+| `/circuit:run cleanup: <target>` | Sweep Standard -- cleanup by confidence/risk |
+| `/circuit:run overnight: <scope>` | Sweep Autonomous -- unattended quality pass |
 
 **Direct circuits (skip the router):**
 
@@ -178,7 +178,7 @@ npm install -g @openai/codex
 ./scripts/verify-install.sh
 
 # Or from the installed plugin location
-~/.claude/plugins/cache/petekp/circuitry/<version>/scripts/verify-install.sh
+~/.claude/plugins/cache/petekp/circuit/<version>/scripts/verify-install.sh
 ```
 
 This checks Node.js, engine CLIs, skill directories, relay scripts, and runs a

@@ -1,5 +1,5 @@
 ---
-name: circuit:repair
+name: repair
 description: >
   Fix bugs, regressions, flaky behavior, and incidents. Test-first discipline.
   Phases: Frame -> Analyze -> Fix -> Verify -> Review -> Close.

@@ -1,5 +1,5 @@
 ---
-name: circuit:build
+name: build
 description: >
   Build features, scoped refactors, docs, tests, or mixed changes. The doing
   workflow. Phases: Frame -> Plan -> Act -> Verify -> Review -> Close. Docs and

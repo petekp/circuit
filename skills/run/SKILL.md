@@ -1,13 +1,13 @@
 ---
-name: circuit:run
+name: run
 description: >
   The primary Circuitry router. Classifies any task into one of five workflows
   (Explore, Build, Repair, Migrate, Sweep), selects a rigor profile
   (Lite, Standard, Deep, Tournament, Autonomous), and dispatches. Also accessible
-  as the bare /circuit command. Quiet by default: routes and proceeds unless
+  as /circuit:run. Quiet by default: routes and proceeds unless
   ambiguity or risk is material.
 trigger: >
-  Use for /circuit or /circuit:run, or when the user describes a coding task.
+  Use for /circuit:run, or when the user describes a coding task.
 ---
 
 # Circuit: Run
@@ -17,14 +17,14 @@ The Circuitry router. Classifies tasks, selects rigor, dispatches to the right w
 ## Invocation
 
 ```
-/circuit <task>                  # Router classifies
-/circuit fix: <task>             # Repair Lite
-/circuit repair: <task>          # Repair Deep
-/circuit develop: <task>         # Build Standard
-/circuit decide: <task>          # Explore Tournament (decision mode)
-/circuit migrate: <task>         # Migrate Deep
-/circuit cleanup: <task>         # Sweep Standard (cleanup objective)
-/circuit overnight: <task>       # Sweep Autonomous
+/circuit:run <task>                  # Router classifies
+/circuit:run fix: <task>             # Repair Lite
+/circuit:run repair: <task>          # Repair Deep
+/circuit:run develop: <task>         # Build Standard
+/circuit:run decide: <task>          # Explore Tournament (decision mode)
+/circuit:run migrate: <task>         # Migrate Deep
+/circuit:run cleanup: <task>         # Sweep Standard (cleanup objective)
+/circuit:run overnight: <task>       # Sweep Autonomous
 ```
 
 ## Intent Hint Resolution

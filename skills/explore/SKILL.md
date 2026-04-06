@@ -1,5 +1,5 @@
 ---
-name: circuit:explore
+name: explore
 description: >
   Investigate, understand, choose among options, or shape an execution plan.
   Covers codebase exploration, architectural investigation, RFC/PRD review,
