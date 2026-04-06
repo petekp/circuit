@@ -266,6 +266,31 @@ describe("handoff done defeats fallback heuristic", () => {
     expect(content).toContain("rename");
   });
 
+  it("handoff SKILL.md archives all runs, not just the pointed one", () => {
+    const content = readSkillMd("handoff");
+    // Must find ALL active-run.md files, not just the one under current-run
+    expect(content).toContain("all `active-run.md` files");
+    // Must not gate archival solely on current-run pointer existing
+    const doneSection = content.slice(
+      content.indexOf("## Done Mode"),
+      content.indexOf("## Capture Mode"),
+    );
+    // Steps 2 (handoff), 3 (pointer), and 4 (archive all) should be independent
+    expect(doneSection).toMatch(/find all/i);
+  });
+
+  it("handoff SKILL.md reports accurately when nothing to clear", () => {
+    const content = readSkillMd("handoff");
+    // Confirmation must distinguish "cleared something" from "already clean"
+    expect(content).toContain("Already clean");
+    // Must NOT promise "Nothing to clear" before checking run state
+    const doneSection = content.slice(
+      content.indexOf("## Done Mode"),
+      content.indexOf("## Capture Mode"),
+    );
+    expect(doneSection).not.toContain("Nothing to clear");
+  });
+
   it("session-start.sh fallback searches only for active-run.md, not completed-run.md", () => {
     const hookPath = join(REPO_ROOT, "hooks/session-start.sh");
     const content = readFileSync(hookPath, "utf-8");
