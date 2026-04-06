@@ -9,8 +9,35 @@
 set -euo pipefail
 
 PLUGIN_ROOT="${CIRCUITRY_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-CACHE_DIR="${CLAUDE_PLUGIN_CACHE_DIR:-$HOME/.claude/plugins/cache/petekp/circuit}"
+CACHE_BASE="${CLAUDE_PLUGIN_CACHE_DIR:-$HOME/.claude/plugins/cache/petekp}"
 MARKETPLACE_DIR="${CLAUDE_PLUGIN_MARKETPLACE_DIR:-$HOME/.claude/plugins/marketplaces/petekp}"
+RSYNC_ARGS=(-a --checksum --delete)
+
+# Collect every cache directory that exists under either the current name
+# ("circuit") or the pre-rename name ("circuitry").  This handles installs
+# that happened before the plugin was renamed.
+CACHE_DIRS=()
+for name in circuit circuitry; do
+  if [[ -d "${CACHE_BASE}/${name}" ]]; then
+    CACHE_DIRS+=("${CACHE_BASE}/${name}")
+  fi
+done
+
+prune_cache_target() {
+  local target="$1"
+  local path
+  local name
+
+  while IFS= read -r -d '' path; do
+    name="${path##*/}"
+    case "$name" in
+      .claude-plugin|commands|hooks|schemas|scripts|skills) ;;
+      *)
+        rm -rf "$path" || return 1
+        ;;
+    esac
+  done < <(find "$target" -mindepth 1 -maxdepth 1 -print0)
+}
 
 sync_target() {
   local label="$1"
@@ -23,29 +50,67 @@ sync_target() {
 
   printf 'Syncing local -> %s (%s)\n' "$label" "$target"
 
-  mkdir -p "$target/hooks" "$target/skills" "$target/.claude-plugin"
+  if [[ "$label" == "cache" ]]; then
+    # Cache targets should only contain plugin-install artifacts. If a prior
+    # install or sync dumped the whole repo into cache, remove that cruft so
+    # Claude resolves only the plugin surface.
+    prune_cache_target "$target" || return 1
+  fi
+
+  mkdir -p "$target/hooks" "$target/skills" "$target/.claude-plugin" || return 1
 
   # Sync hooks
-  cp "$PLUGIN_ROOT/hooks/hooks.json" "$target/hooks/hooks.json" || return 1
-  cp "$PLUGIN_ROOT/hooks/session-start.sh" "$target/hooks/session-start.sh" || return 1
+  rsync "${RSYNC_ARGS[@]}" "$PLUGIN_ROOT/hooks/" "$target/hooks/" || return 1
   chmod +x "$target/hooks/session-start.sh" || return 1
 
   # Sync skills and remove directories that no longer exist in source.
-  rsync -a --delete "$PLUGIN_ROOT/skills/" "$target/skills/" || return 1
+  rsync "${RSYNC_ARGS[@]}" "$PLUGIN_ROOT/skills/" "$target/skills/" || return 1
 
-  # Sync plugin manifest
-  cp "$PLUGIN_ROOT/.claude-plugin/plugin.json" "$target/.claude-plugin/plugin.json" || return 1
+  # Sync command shims and remove files that no longer exist in source.
+  if [[ -d "$PLUGIN_ROOT/commands" ]]; then
+    mkdir -p "$target/commands" || return 1
+    rsync "${RSYNC_ARGS[@]}" "$PLUGIN_ROOT/commands/" "$target/commands/" || return 1
+  else
+    rm -rf "$target/commands" || return 1
+  fi
+
+  # Sync all plugin metadata (plugin.json + marketplace.json).
+  # marketplace.json controls plugin identity for namespacing; if it drifts
+  # from plugin.json, Claude Code can lose the /circuit: namespace prefix.
+  rsync "${RSYNC_ARGS[@]}" "$PLUGIN_ROOT/.claude-plugin/" "$target/.claude-plugin/" || return 1
 
   # Sync scripts if the plugin ships them locally.
   if [[ -d "$PLUGIN_ROOT/scripts" ]]; then
     mkdir -p "$target/scripts" || return 1
-    rsync -a "$PLUGIN_ROOT/scripts/" "$target/scripts/" || return 1
+    rsync "${RSYNC_ARGS[@]}" "$PLUGIN_ROOT/scripts/" "$target/scripts/" || return 1
+  else
+    rm -rf "$target/scripts" || return 1
   fi
 
   # Sync schemas (required by bundled engine CLIs for event/state validation).
   if [[ -d "$PLUGIN_ROOT/schemas" ]]; then
     mkdir -p "$target/schemas" || return 1
-    rsync -a "$PLUGIN_ROOT/schemas/" "$target/schemas/" || return 1
+    rsync "${RSYNC_ARGS[@]}" "$PLUGIN_ROOT/schemas/" "$target/schemas/" || return 1
+  else
+    rm -rf "$target/schemas" || return 1
+  fi
+
+  if [[ "$label" == "marketplace" && -d "$target/.git" ]]; then
+    # Claude Code resolves marketplace skills through the git index of this
+    # clone.  If the index is stale (e.g. stuck on an old commit after a major
+    # refactor), new/renamed skill directories appear as "untracked" and the
+    # slash-command picker silently drops them.
+    #
+    # Stage and commit the synced files so git status stays clean.  Do NOT
+    # git-reset to origin/main -- that pulls the entire repo (tests, .claude/,
+    # docs/) into the marketplace dir, which can confuse the plugin loader and
+    # break namespace resolution.
+    (
+      cd "$target"
+      if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+        git add -A && git commit -m "sync from local dev" --quiet 2>/dev/null || true
+      fi
+    )
   fi
 
   return 0
@@ -54,17 +119,17 @@ sync_target() {
 synced_any=0
 synced_cache=0
 
-# Sync to every cached version (avoids ghost-version misrouting)
-if [[ -d "$CACHE_DIR" ]]; then
+# Sync to every cached version under each name (avoids ghost-version misrouting)
+for cache_dir in "${CACHE_DIRS[@]}"; do
   while IFS= read -r -d '' version_dir; do
     sync_target cache "$version_dir"
     synced_any=1
     synced_cache=1
-  done < <(find "$CACHE_DIR" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-fi
+  done < <(find "$cache_dir" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+done
 
 if [[ "$synced_cache" -eq 0 ]]; then
-  printf 'No cached version found at %s\n' "$CACHE_DIR"
+  printf 'No cached versions found under %s/{circuit,circuitry}\n' "$CACHE_BASE"
 fi
 
 if [[ -d "$MARKETPLACE_DIR" ]]; then

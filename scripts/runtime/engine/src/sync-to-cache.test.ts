@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -31,11 +31,39 @@ function runSync(
   });
 }
 
+function runGit(cwd: string, args: string[]): ReturnType<typeof spawnSync> {
+  return spawnSync("git", args, {
+    cwd,
+    encoding: "utf-8",
+  });
+}
+
+async function initGitRepo(root: string): Promise<void> {
+  const commands = [
+    ["init", "-b", "main"],
+    ["config", "user.name", "Circuitry Test"],
+    ["config", "user.email", "circuitry-test@example.com"],
+    ["add", "-A"],
+    ["commit", "-m", "initial state"],
+  ] as const;
+
+  for (const args of commands) {
+    const result = runGit(root, [...args]);
+    if (result.status === 0) {
+      continue;
+    }
+
+    throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+  }
+}
+
 async function makePluginRoot(root: string): Promise<void> {
   await mkdir(resolve(root, "hooks"), { recursive: true });
   await mkdir(resolve(root, "skills/handoff/scripts"), { recursive: true });
+  await mkdir(resolve(root, "commands"), { recursive: true });
   await mkdir(resolve(root, ".claude-plugin"), { recursive: true });
   await mkdir(resolve(root, "scripts/relay"), { recursive: true });
+  await mkdir(resolve(root, "schemas"), { recursive: true });
 
   await writeFile(resolve(root, "hooks/hooks.json"), '{"hooks":{}}\n', "utf-8");
   const sessionScript = resolve(root, "hooks/session-start.sh");
@@ -48,14 +76,25 @@ async function makePluginRoot(root: string): Promise<void> {
     "#!/usr/bin/env bash\necho gather\n",
     "utf-8",
   );
+  await writeFile(resolve(root, "commands/run.md"), "# Run\n", "utf-8");
   await writeFile(
     resolve(root, ".claude-plugin/plugin.json"),
     '{"name":"circuitry"}\n',
     "utf-8",
   );
   await writeFile(
+    resolve(root, ".claude-plugin/marketplace.json"),
+    '{"slug":"circuit"}\n',
+    "utf-8",
+  );
+  await writeFile(
     resolve(root, "scripts/relay/dispatch.sh"),
     "#!/usr/bin/env bash\necho dispatch\n",
+    "utf-8",
+  );
+  await writeFile(
+    resolve(root, "schemas/event.schema.json"),
+    '{"type":"object"}\n',
     "utf-8",
   );
 }
@@ -65,10 +104,15 @@ async function makeTarget(root: string, version?: string): Promise<string> {
 
   await mkdir(resolve(target, "hooks"), { recursive: true });
   await mkdir(resolve(target, "skills/crucible"), { recursive: true });
+  await mkdir(resolve(target, "commands"), { recursive: true });
   await mkdir(resolve(target, ".claude-plugin"), { recursive: true });
   await mkdir(resolve(target, "scripts/relay"), { recursive: true });
+  await mkdir(resolve(target, "schemas"), { recursive: true });
+  await mkdir(resolve(target, "docs"), { recursive: true });
+  await mkdir(resolve(target, "assets"), { recursive: true });
 
   await writeFile(resolve(target, "skills/crucible/SKILL.md"), "# Legacy\n", "utf-8");
+  await writeFile(resolve(target, "commands/run.md"), "# Old Run\n", "utf-8");
   const sessionScript = resolve(target, "hooks/session-start.sh");
   await writeFile(sessionScript, "#!/usr/bin/env bash\necho old\n", "utf-8");
   await chmod(sessionScript, 0o644);
@@ -79,8 +123,26 @@ async function makeTarget(root: string, version?: string): Promise<string> {
     "utf-8",
   );
   await writeFile(
+    resolve(target, ".claude-plugin/marketplace.json"),
+    '{"slug":"old"}\n',
+    "utf-8",
+  );
+  await writeFile(
     resolve(target, "scripts/relay/dispatch.sh"),
     "#!/usr/bin/env bash\necho old-dispatch\n",
+    "utf-8",
+  );
+  await writeFile(
+    resolve(target, "schemas/event.schema.json"),
+    '{"type":"string"}\n',
+    "utf-8",
+  );
+  await writeFile(resolve(target, "README.md"), "# Legacy README\n", "utf-8");
+  await writeFile(resolve(target, "docs/workflow-matrix.md"), "legacy docs\n", "utf-8");
+  await writeFile(resolve(target, "assets/circuitry.svg"), "<svg />\n", "utf-8");
+  await writeFile(
+    resolve(target, "circuit.config.example.yaml"),
+    "legacy: true\n",
     "utf-8",
   );
 
@@ -104,23 +166,43 @@ async function expectSyncedTarget(target: string): Promise<void> {
   expect(
     await readFile(resolve(target, ".claude-plugin/plugin.json"), "utf-8"),
   ).toBe('{"name":"circuitry"}\n');
+  expect(
+    await readFile(resolve(target, ".claude-plugin/marketplace.json"), "utf-8"),
+  ).toBe('{"slug":"circuit"}\n');
+  expect(await readFile(resolve(target, "commands/run.md"), "utf-8")).toBe("# Run\n");
   expect(await readFile(resolve(target, "scripts/relay/dispatch.sh"), "utf-8")).toBe(
     "#!/usr/bin/env bash\necho dispatch\n",
+  );
+  expect(await readFile(resolve(target, "schemas/event.schema.json"), "utf-8")).toBe(
+    '{"type":"object"}\n',
   );
   const mode = (await stat(resolve(target, "hooks/session-start.sh"))).mode;
   expect(mode & 0o100).not.toBe(0);
 }
 
+async function expectCacheTargetLayout(target: string): Promise<void> {
+  expect((await readdir(target)).sort()).toEqual([
+    ".claude-plugin",
+    "commands",
+    "hooks",
+    "schemas",
+    "scripts",
+    "skills",
+  ]);
+}
+
 describe("sync-to-cache.sh", () => {
-  it("syncs cache versions and marketplace without deleting target-only directories", async () => {
+  it("syncs cache versions, prunes cache cruft, and leaves marketplace extras alone", async () => {
     const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-sync-test-"));
     const pluginRoot = resolve(tmpPath, "plugin-root");
     const cacheDir = resolve(tmpPath, "cache");
     const marketplaceDir = resolve(tmpPath, "marketplace");
+    const cachePluginDir = resolve(cacheDir, "circuit");
 
     await makePluginRoot(pluginRoot);
-    const cacheTarget = await makeTarget(cacheDir, "0.2.0");
+    const cacheTarget = await makeTarget(cachePluginDir, "0.2.0");
     const marketplaceTarget = await makeTarget(marketplaceDir);
+    await initGitRepo(marketplaceTarget);
 
     const result = runSync(pluginRoot, cacheDir, marketplaceDir);
 
@@ -131,6 +213,8 @@ describe("sync-to-cache.sh", () => {
     );
     await expectSyncedTarget(cacheTarget);
     await expectSyncedTarget(marketplaceTarget);
+    await expectCacheTargetLayout(cacheTarget);
+    expect((await readdir(marketplaceTarget)).sort()).toContain("README.md");
   });
 
   it("syncs marketplace even when cache versions are missing", async () => {
@@ -138,23 +222,51 @@ describe("sync-to-cache.sh", () => {
     const pluginRoot = resolve(tmpPath, "plugin-root");
     const cacheDir = resolve(tmpPath, "cache");
     const marketplaceDir = resolve(tmpPath, "marketplace");
+    const cachePluginDir = resolve(cacheDir, "circuit");
 
     await makePluginRoot(pluginRoot);
     const marketplaceTarget = await makeTarget(marketplaceDir);
-    await mkdir(cacheDir, { recursive: true });
+    await initGitRepo(marketplaceTarget);
+    await mkdir(cachePluginDir, { recursive: true });
 
     const result = runSync(pluginRoot, cacheDir, marketplaceDir);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("No cached version found");
+    expect(result.stdout).toContain("No cached versions found");
     await expectSyncedTarget(marketplaceTarget);
+  });
+
+  it("commits marketplace sync changes so git status stays clean", async () => {
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-sync-test-"));
+    const pluginRoot = resolve(tmpPath, "plugin-root");
+    const cacheDir = resolve(tmpPath, "cache");
+    const marketplaceDir = resolve(tmpPath, "marketplace");
+    const cachePluginDir = resolve(cacheDir, "circuit");
+
+    await makePluginRoot(pluginRoot);
+    const marketplaceTarget = await makeTarget(marketplaceDir);
+    await initGitRepo(marketplaceTarget);
+    await mkdir(cachePluginDir, { recursive: true });
+
+    const result = runSync(pluginRoot, cacheDir, marketplaceDir);
+
+    expect(result.status).toBe(0);
+    await expectSyncedTarget(marketplaceTarget);
+
+    const status = runGit(marketplaceTarget, ["status", "--short"]);
+    expect(status.status).toBe(0);
+    expect(status.stdout.trim()).toBe("");
+
+    const log = runGit(marketplaceTarget, ["log", "-1", "--pretty=%s"]);
+    expect(log.status).toBe(0);
+    expect(log.stdout.trim()).toBe("sync from local dev");
   });
 
   it("fails loudly when a target cannot be synced", async () => {
     const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-sync-test-"));
     const pluginRoot = resolve(tmpPath, "plugin-root");
     const cacheDir = resolve(tmpPath, "cache");
-    const brokenTarget = resolve(cacheDir, "0.2.0");
+    const brokenTarget = resolve(cacheDir, "circuit", "0.2.0");
 
     await makePluginRoot(pluginRoot);
     await mkdir(brokenTarget, { recursive: true });
