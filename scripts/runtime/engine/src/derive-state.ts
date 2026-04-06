@@ -1,5 +1,5 @@
 /**
- * Rebuild state.json from events.ndjson for a Circuitry run.
+ * Rebuild state.json from events.ndjson for a Circuit run.
  *
  * Library module -- exports pure functions, no CLI concerns.
  *

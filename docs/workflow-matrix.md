@@ -1,4 +1,4 @@
-# Circuitry Workflow Matrix
+# Circuit Workflow Matrix
 
 The core abstraction: **task kind x rigor profile**, with lifecycle utilities as first-class peers.
 
@@ -48,7 +48,7 @@ are inherently non-trivial).
 ### Step Graph = Maximum Topology
 
 Each workflow manifest defines one step graph: the maximum topology that
-workflow may use. Circuitry does not maintain separate YAML graphs per profile.
+workflow may use. Circuit does not maintain separate YAML graphs per profile.
 
 The engine reads only `entry_mode.start_at` to determine where execution
 begins. All current modes start at `frame`, so the engine walks the same graph

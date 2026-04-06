@@ -1,5 +1,5 @@
 ---
-description: "The primary Circuitry router."
+description: "The primary Circuit router."
 ---
 
 Use the circuit:run skill to handle this request.

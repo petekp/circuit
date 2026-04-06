@@ -214,7 +214,7 @@ const REROUTE_MANIFEST = {
 
 /** Create a fresh temp directory with the manifest written. */
 async function makeRunRoot(): Promise<string> {
-  const runRoot = await mkdtemp(join(tmpdir(), "circuitry-resume-test-"));
+  const runRoot = await mkdtemp(join(tmpdir(), "circuit-resume-test-"));
   await writeFile(
     join(runRoot, "circuit.manifest.yaml"),
     yamlStringify(MINIMAL_MANIFEST),

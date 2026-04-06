@@ -1,5 +1,5 @@
 /**
- * Find the resume point for a Circuitry run.
+ * Find the resume point for a Circuit run.
  *
  * Library module -- exports pure functions, no CLI concerns.
  * Loads the manifest and state, walks steps in graph order,

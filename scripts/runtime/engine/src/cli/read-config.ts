@@ -73,7 +73,7 @@ function main(): number {
   // When --config is provided, ONLY search that explicit path.
   if (configFlag) {
     if (!existsSync(configFlag)) {
-      console.error(`circuitry: config file not found: ${configFlag}`);
+      console.error(`circuit: config file not found: ${configFlag}`);
       return 1;
     }
     try {
@@ -86,7 +86,7 @@ function main(): number {
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`circuitry: failed to parse ${configFlag}: ${message}`);
+      console.error(`circuit: failed to parse ${configFlag}: ${message}`);
       return 1;
     }
     console.log(fallback);
@@ -113,7 +113,7 @@ function main(): number {
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`circuitry: failed to parse ${configPath}: ${message}`);
+      console.error(`circuit: failed to parse ${configPath}: ${message}`);
       return 1;
     }
   }

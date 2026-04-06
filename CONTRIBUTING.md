@@ -1,8 +1,8 @@
-# Contributing to Circuitry
+# Contributing to Circuit
 
 ## Architecture Overview
 
-Circuitry has **5 workflows** and **2 utilities**, all built on a shared phase
+Circuit has **5 workflows** and **2 utilities**, all built on a shared phase
 spine (Frame, Analyze, Plan, Act, Verify, Review, Close, Pause).
 
 **Workflows** (have `circuit.yaml` + `SKILL.md`):
@@ -176,7 +176,7 @@ claude plugin validate .
 - **Lifecycle regressions:** Profile availability, bootstrap parity, transfer docs,
   gate/SKILL alignment, review verification, repair diagnostic path
 - **Release integrity:** Version sync, README syntax, section requirements
-- **Repo hygiene:** No Python artifacts (Circuitry is TypeScript-only)
+- **Repo hygiene:** No Python artifacts (Circuit is TypeScript-only)
 - **Relay scripts:** Template smoke tests, placeholder validation
 - **State machine:** Event append, state derivation, batch updates, resume logic
 

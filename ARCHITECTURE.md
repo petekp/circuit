@@ -576,7 +576,7 @@ composed at dispatch time and injected via `--skills`:
 
 ## The Workflow Model
 
-Circuitry provides 5 workflows and 2 lifecycle utilities, all sharing a common
+Circuit provides 5 workflows and 2 lifecycle utilities, all sharing a common
 phase spine and artifact vocabulary.
 
 ### Shared Phase Spine
@@ -636,7 +636,7 @@ entry_modes:
     description: Standard plus seam proof.
 ```
 
-The `steps` array defines the maximum topology for the workflow. Circuitry keeps
+The `steps` array defines the maximum topology for the workflow. Circuit keeps
 one graph per workflow. The engine reads only `entry_mode.start_at` to determine
 the starting step. All current modes start at `frame`.
 

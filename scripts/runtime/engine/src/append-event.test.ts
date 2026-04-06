@@ -92,7 +92,7 @@ describe("append-event", () => {
   let schema: object;
 
   beforeEach(async () => {
-    runRoot = await mkdtemp(join(tmpdir(), "circuitry-test-"));
+    runRoot = await mkdtemp(join(tmpdir(), "circuit-test-"));
     await writeFile(
       join(runRoot, "circuit.manifest.yaml"),
       yamlStringify(MINIMAL_MANIFEST),

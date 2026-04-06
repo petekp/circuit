@@ -1,5 +1,5 @@
 /**
- * Lifecycle regression tests for Circuitry v0.3.
+ * Lifecycle regression tests for Circuit v0.3.
  *
  * Covers:
  * - Profile availability extraction / catalog output

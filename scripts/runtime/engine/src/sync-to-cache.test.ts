@@ -41,8 +41,8 @@ function runGit(cwd: string, args: string[]): ReturnType<typeof spawnSync> {
 async function initGitRepo(root: string): Promise<void> {
   const commands = [
     ["init", "-b", "main"],
-    ["config", "user.name", "Circuitry Test"],
-    ["config", "user.email", "circuitry-test@example.com"],
+    ["config", "user.name", "Circuit Test"],
+    ["config", "user.email", "circuit-test@example.com"],
     ["add", "-A"],
     ["commit", "-m", "initial state"],
   ] as const;
@@ -79,7 +79,7 @@ async function makePluginRoot(root: string): Promise<void> {
   await writeFile(resolve(root, "commands/run.md"), "# Run\n", "utf-8");
   await writeFile(
     resolve(root, ".claude-plugin/plugin.json"),
-    '{"name":"circuitry"}\n',
+    '{"name":"circuit"}\n',
     "utf-8",
   );
   await writeFile(
@@ -165,7 +165,7 @@ async function expectSyncedTarget(target: string): Promise<void> {
   );
   expect(
     await readFile(resolve(target, ".claude-plugin/plugin.json"), "utf-8"),
-  ).toBe('{"name":"circuitry"}\n');
+  ).toBe('{"name":"circuit"}\n');
   expect(
     await readFile(resolve(target, ".claude-plugin/marketplace.json"), "utf-8"),
   ).toBe('{"slug":"circuit"}\n');
@@ -193,7 +193,7 @@ async function expectCacheTargetLayout(target: string): Promise<void> {
 
 describe("sync-to-cache.sh", () => {
   it("syncs cache versions, prunes cache cruft, and leaves marketplace extras alone", async () => {
-    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-sync-test-"));
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-sync-test-"));
     const pluginRoot = resolve(tmpPath, "plugin-root");
     const cacheDir = resolve(tmpPath, "cache");
     const marketplaceDir = resolve(tmpPath, "marketplace");
@@ -218,7 +218,7 @@ describe("sync-to-cache.sh", () => {
   });
 
   it("syncs marketplace even when cache versions are missing", async () => {
-    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-sync-test-"));
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-sync-test-"));
     const pluginRoot = resolve(tmpPath, "plugin-root");
     const cacheDir = resolve(tmpPath, "cache");
     const marketplaceDir = resolve(tmpPath, "marketplace");
@@ -237,7 +237,7 @@ describe("sync-to-cache.sh", () => {
   });
 
   it("commits marketplace sync changes so git status stays clean", async () => {
-    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-sync-test-"));
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-sync-test-"));
     const pluginRoot = resolve(tmpPath, "plugin-root");
     const cacheDir = resolve(tmpPath, "cache");
     const marketplaceDir = resolve(tmpPath, "marketplace");
@@ -263,7 +263,7 @@ describe("sync-to-cache.sh", () => {
   });
 
   it("fails loudly when a target cannot be synced", async () => {
-    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-sync-test-"));
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-sync-test-"));
     const pluginRoot = resolve(tmpPath, "plugin-root");
     const cacheDir = resolve(tmpPath, "cache");
     const brokenTarget = resolve(cacheDir, "circuit", "0.2.0");

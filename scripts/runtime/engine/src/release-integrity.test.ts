@@ -1,5 +1,5 @@
 /**
- * Release-integrity tests for Circuitry.
+ * Release-integrity tests for Circuit.
  *
  * Guards against drift between docs, manifests, skills, and tests.
  * These tests should make the exact issues found in the v0.3 reconciliation
@@ -793,20 +793,20 @@ describe("README cache path consistency", () => {
   it("installed verify-install path shares the sync-to-cache cache root", () => {
     const readme = readFile("README.md");
     const script = readFile("scripts/sync-to-cache.sh");
-    const cacheDir = script.match(
-      /CACHE_DIR="\$\{CLAUDE_PLUGIN_CACHE_DIR:-\$HOME\/([^"]+)\}"/,
+    const cacheBase = script.match(
+      /CACHE_BASE="\$\{CLAUDE_PLUGIN_CACHE_DIR:-\$HOME\/([^"]+)\}"/,
     );
     const installedVerifyPath = readme.match(
       /(~\/\.claude\/plugins\/cache\/[^\s]+\/<version>\/scripts\/verify-install\.sh)/,
     );
 
-    expect(cacheDir, "sync-to-cache.sh is missing its default cache root").toBeTruthy();
+    expect(cacheBase, "sync-to-cache.sh is missing its default cache root").toBeTruthy();
     expect(
       installedVerifyPath,
       "README is missing the installed verify-install path",
     ).toBeTruthy();
     expect(installedVerifyPath![1]).toBe(
-      `~/${cacheDir![1]}/<version>/scripts/verify-install.sh`,
+      `~/${cacheBase![1]}/circuit/<version>/scripts/verify-install.sh`,
     );
   });
 });

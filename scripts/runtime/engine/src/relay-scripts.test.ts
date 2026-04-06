@@ -30,7 +30,7 @@ function runCommand(
 
 describe("relay scripts", () => {
   it("composes the implement template without leaking placeholders", async () => {
-    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-relay-test-"));
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-relay-test-"));
     const header = resolve(tmpPath, "header.md");
     const out = resolve(tmpPath, "prompt.md");
     const relayRoot = resolve(tmpPath, "relay-root");
@@ -54,7 +54,7 @@ describe("relay scripts", () => {
   });
 
   it("keeps built-in templates free of leaked placeholders", async () => {
-    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-relay-test-"));
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-relay-test-"));
     const header = resolve(tmpPath, "header.md");
     await writeFile(header, "# Worker Header\n", "utf-8");
 
@@ -79,7 +79,7 @@ describe("relay scripts", () => {
   });
 
   it("falls back to the relay protocol template without leaking placeholders", async () => {
-    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-relay-test-"));
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-relay-test-"));
     const header = resolve(tmpPath, "header.md");
     const out = resolve(tmpPath, "prompt.md");
     const relayRoot = resolve(tmpPath, "relay-root");
@@ -101,7 +101,7 @@ describe("relay scripts", () => {
   });
 
   it("fails when a header leaks an unresolved placeholder outside a code fence", async () => {
-    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-relay-test-"));
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-relay-test-"));
     const header = resolve(tmpPath, "header.md");
     const out = resolve(tmpPath, "prompt.md");
     await writeFile(header, "# Worker Header\nUse {mystery_token}.\n", "utf-8");
@@ -119,7 +119,7 @@ describe("relay scripts", () => {
   });
 
   it("ignores placeholders inside fenced code blocks", async () => {
-    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-relay-test-"));
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-relay-test-"));
     const header = resolve(tmpPath, "header.md");
     const out = resolve(tmpPath, "prompt.md");
     await writeFile(
@@ -155,7 +155,7 @@ describe("relay scripts", () => {
   });
 
   it("dispatches the agent backend with a JSON receipt", async () => {
-    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-relay-test-"));
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-relay-test-"));
     const prompt = resolve(tmpPath, "prompt.md");
     const output = resolve(tmpPath, "last-message.txt");
     await writeFile(prompt, '# Worker Task\nLine "two"\n', "utf-8");
@@ -181,7 +181,7 @@ describe("relay scripts", () => {
   });
 
   it("dispatches a custom backend and reports the command it ran", async () => {
-    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuitry-relay-test-"));
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-relay-test-"));
     const prompt = resolve(tmpPath, "prompt.md");
     const output = resolve(tmpPath, "last-message.txt");
     const backend = resolve(tmpPath, "custom-backend.sh");

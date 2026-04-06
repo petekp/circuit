@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="assets/circuitry.png" alt="Circuitry" width="100%" />
+  <img src="assets/circuitry.png" alt="Circuit" width="100%" />
 </p>
 
-# Circuitry
+# Circuit
 
 **One command. The right workflow. No babysitting.**
 
-You describe your task. Circuitry classifies it, picks the right workflow, and
+You describe your task. Circuit classifies it, picks the right workflow, and
 runs it. Research before decisions, decisions before code, independent review
 before shipping. If a session dies, the next one picks up where it stopped.
 
@@ -28,11 +28,11 @@ Start a new Claude Code session and run:
 /circuit:run evaluate microservices vs modular monolith vs serverless for our growing backend
 ```
 
-That's it. Circuitry classifies your task, picks the right workflow, and runs it.
+That's it. Circuit classifies your task, picks the right workflow, and runs it.
 
 ## How It Works
 
-Circuitry owns the developer session lifecycle. Every task maps to a workflow
+Circuit owns the developer session lifecycle. Every task maps to a workflow
 (what kind of job) and a rigor profile (how much scrutiny).
 
 **Five workflows, named after your job:**
@@ -59,7 +59,7 @@ Every workflow follows the same phase spine: **Frame, Analyze, Plan, Act, Verify
 Review, Close, Pause**. Not every workflow uses every phase, but the semantics
 stay stable.
 
-1. **The router classifies your task.** Circuitry matches your task to a workflow
+1. **The router classifies your task.** Circuit matches your task to a workflow
    and rigor profile. Quiet by default: it routes and proceeds unless something
    is genuinely ambiguous.
 
@@ -71,18 +71,18 @@ stay stable.
    after every phase. Session handoff state lives in `~/.claude/projects/` so
    fresh sessions resume where the last one stopped.
 
-4. **You step in where it matters.** Circuitry pauses at checkpoints for your
+4. **You step in where it matters.** Circuit pauses at checkpoints for your
    judgment (scope confirmation, tradeoff decisions). Everything else runs
    autonomously.
 
-## What Circuitry Is Not
+## What Circuit Is Not
 
-- **Not a CI/CD tool.** Circuitry runs inside Claude Code sessions, not in
+- **Not a CI/CD tool.** Circuit runs inside Claude Code sessions, not in
   pipelines.
 - **Not for trivial edits.** The router can say "this is trivial, do it inline."
   That restraint is part of the product.
-- **Not a replacement for skills.** Circuitry orchestrates skills. If you need
-  TDD discipline, install the `tdd` skill. Circuitry will use it at the right
+- **Not a replacement for skills.** Circuit orchestrates skills. If you need
+  TDD discipline, install the `tdd` skill. Circuit will use it at the right
   phase.
 
 ## Commands
@@ -117,7 +117,7 @@ usage examples.
 
 ## Key Features
 
-**Automatic workflow selection.** Describe your task. Circuitry picks the right
+**Automatic workflow selection.** Describe your task. Circuit picks the right
 workflow and rigor level.
 
 **Independent review.** For Standard rigor and above, implementation and review
@@ -134,12 +134,12 @@ One mental model across all circuits.
 `/circuit:handoff` writes a richer snapshot when you need it. Both inject on
 session start.
 
-**Circuit breakers.** When something goes wrong, Circuitry escalates to you with
+**Circuit breakers.** When something goes wrong, Circuit escalates to you with
 the failure output and your options. No silent failures. No infinite loops.
 
 ## Recommended Skills
 
-Circuitry works best with complementary Claude Code skills. When installed,
+Circuit works best with complementary Claude Code skills. When installed,
 they're used automatically at the right phase:
 
 | Skill | Used For |
@@ -150,7 +150,7 @@ they're used automatically at the right phase:
 | `dead-code-sweep` | Cleanup category surveys |
 | `architecture-exploration` | Evaluating competing design approaches |
 
-Install what's relevant to your stack. Circuitry works without any of them, but
+Install what's relevant to your stack. Circuit works without any of them, but
 each one adds depth to the phases where it applies.
 
 **Bring your own skills.** Map any installed skill to a circuit in
@@ -158,7 +158,7 @@ each one adds depth to the phases where it applies.
 
 ## Optional: Codex CLI
 
-Circuitry can run workers through Codex CLI for faster parallel execution, or
+Circuit can run workers through Codex CLI for faster parallel execution, or
 through Claude Code's built-in tools. Both work out of the box. Codex is optional
 but noticeably faster for large tasks.
 
@@ -191,7 +191,7 @@ cached copy, not your local repo. Run `./scripts/sync-to-cache.sh` after any
 edit, then `/clear` to reload.
 Mid-session, `/reload-plugins` picks up cache changes without `/clear`.
 
-**"codex not found" warning.** Codex CLI is optional. Circuitry falls back to
+**"codex not found" warning.** Codex CLI is optional. Circuit falls back to
 Claude Code's Agent tool for worker dispatch. Install Codex only if you want
 faster parallel execution.
 

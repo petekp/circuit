@@ -78,13 +78,13 @@ Review the active run state above and resume from the current phase.
 ACTIVERUN_FOOTER
 else
   cat <<'WELCOME'
-Circuitry is active. Try one of these to get started:
+Circuit is active. Try one of these to get started:
 
   /circuit:run fix: login form rejects valid emails       Bug fix with test-first discipline
   /circuit:run add dark mode support to the settings page  Router picks the right workflow
   /circuit:run decide: REST vs GraphQL for the new API     Adversarial evaluation of options
 
-Circuitry classifies your task into the right workflow (Explore, Build, Repair,
+Circuit classifies your task into the right workflow (Explore, Build, Repair,
 Migrate, Sweep), selects a rigor level, and runs it. You step in at checkpoints.
 If a session crashes, the next one picks up where it stopped.
 WELCOME

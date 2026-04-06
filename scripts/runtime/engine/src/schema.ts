@@ -1,5 +1,5 @@
 /**
- * Shared schema helpers for the Circuitry engine.
+ * Shared schema helpers for the Circuit engine.
  *
  * Provides JSON-Schema loading, Ajv validator creation, and validation
  * for any module that needs Draft 2020-12 schema support (derive-state,

@@ -1,4 +1,4 @@
-# Circuitry
+# Circuit
 
 ## Plugin Cache Sync
 

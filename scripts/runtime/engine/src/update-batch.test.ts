@@ -29,7 +29,7 @@ function runUpdateBatch(args: string[]): ReturnType<typeof spawnSync> {
 }
 
 async function makeRelayRoot(batch: Record<string, unknown>): Promise<string> {
-  const root = await mkdtemp(resolve(tmpdir(), "circuitry-batch-test-"));
+  const root = await mkdtemp(resolve(tmpdir(), "circuit-batch-test-"));
   await mkdir(resolve(root, "archive"), { recursive: true });
   await writeFile(resolve(root, "batch.json"), `${JSON.stringify(batch, null, 2)}\n`);
   return root;

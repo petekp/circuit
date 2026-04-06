@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "bin": {
-    "circuitry-append-event": "dist/cli/append-event.js",
-    "circuitry-catalog-compiler": "dist/cli/catalog-compiler.js",
-    "circuitry-derive-state": "dist/cli/derive-state.js",
-    "circuitry-resume": "dist/cli/resume.js"
+    "circuit-append-event": "dist/cli/append-event.js",
+    "circuit-catalog-compiler": "dist/cli/catalog-compiler.js",
+    "circuit-derive-state": "dist/cli/derive-state.js",
+    "circuit-resume": "dist/cli/resume.js"
   },
   "scripts": {
     "build": "tsc",

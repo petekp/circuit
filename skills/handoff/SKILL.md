@@ -11,12 +11,12 @@ description: >
 # Handoff
 
 Core lifecycle primitive. Write a handoff file to disk. On the next `/clear` or
-session start, the Circuitry hook auto-injects it so the fresh session picks up
+session start, the Circuit hook auto-injects it so the fresh session picks up
 where this one left off. No clipboard, no paste.
 
 ## Relationship to active-run.md
 
-Circuitry provides two continuity mechanisms:
+Circuit provides two continuity mechanisms:
 
 - **active-run.md** -- Automatic. Every workflow updates it after each phase. The
   SessionStart hook injects it. Gives basic continuity even when the user forgets
@@ -185,7 +185,7 @@ handoff goes to `~/.claude/projects/-Users-petepetrash-Code-circuitry/handoff.md
 
 Use the Write tool. Overwrite any existing handoff at that path.
 
-**Note:** Auto-resume on `/clear` requires the Circuitry session-start hook to be active.
+**Note:** Auto-resume on `/clear` requires the Circuit session-start hook to be active.
 Without it, the handoff file is written to disk but must be manually referenced in a new
 session. The hook handles detection, validation, and injection automatically.
 
@@ -216,5 +216,5 @@ When writing a handoff during an active circuit run, also check for
 
 This ensures both continuity mechanisms are synchronized.
 
-After updating this skill, verify the hook wrapper in the Circuitry plugin's
+After updating this skill, verify the hook wrapper in the Circuit plugin's
 `hooks/session-start.sh` is consistent with this format before closing.

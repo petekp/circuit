@@ -1,6 +1,6 @@
 # Circuit Catalog
 
-Run `/circuit:run <task>` and Circuitry figures out the right workflow. Five
+Run `/circuit:run <task>` and Circuit figures out the right workflow. Five
 workflows handle the work. Two utilities support them.
 
 For technical details on how circuits execute, see

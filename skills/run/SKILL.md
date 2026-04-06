@@ -1,7 +1,7 @@
 ---
 name: run
 description: >
-  The primary Circuitry router. Classifies any task into one of five workflows
+  The primary Circuit router. Classifies any task into one of five workflows
   (Explore, Build, Repair, Migrate, Sweep), selects a rigor profile
   (Lite, Standard, Deep, Tournament, Autonomous), and dispatches. Also accessible
   as /circuit:run. Quiet by default: routes and proceeds unless
@@ -12,7 +12,7 @@ trigger: >
 
 # Circuit: Run
 
-The Circuitry router. Classifies tasks, selects rigor, dispatches to the right workflow.
+The Circuit router. Classifies tasks, selects rigor, dispatches to the right workflow.
 
 ## Invocation
 
@@ -208,5 +208,5 @@ Include: counter values, failure output, options (adjust scope, skip, abort).
 
 ## Single-User Assumptions
 
-Pattern labels assume familiarity with Circuitry vocabulary.
-This is intentional. Circuitry is a single-user power tool.
+Pattern labels assume familiarity with Circuit vocabulary.
+This is intentional. Circuit is a single-user power tool.

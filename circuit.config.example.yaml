@@ -1,4 +1,4 @@
-# circuit.config.yaml -- Per-project configuration for Circuitry v3
+# circuit.config.yaml -- Per-project configuration for Circuit v3
 #
 # Place this file at your project root (./circuit.config.yaml) or globally
 # at ~/.claude/circuit.config.yaml. Project-level config takes precedence.

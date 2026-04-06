@@ -1,5 +1,5 @@
 /**
- * Append a typed event to events.ndjson for a Circuitry run.
+ * Append a typed event to events.ndjson for a Circuit run.
  *
  * Library module -- exports pure functions, no CLI concerns.
  */
