@@ -895,9 +895,9 @@ describe("no bare /circuit commands in docs", () => {
   for (const file of DOC_FILES) {
     it(`${file} does not use bare /circuit (should be /circuit:run)`, () => {
       const content = readFile(file);
-      // Match backtick-wrapped /circuit followed by space (bare command)
-      // but not /circuit: (namespaced command)
-      const bareMatches = [...content.matchAll(/`\/circuit\s(?!:)/g)];
+      // Match /circuit followed by whitespace (bare command), whether
+      // backtick-wrapped or plain text.  Excludes /circuit: (namespaced).
+      const bareMatches = [...content.matchAll(/\/circuit\s(?!:)/g)];
       expect(
         bareMatches.length,
         `${file} contains bare /circuit commands — use /circuit:run instead`,

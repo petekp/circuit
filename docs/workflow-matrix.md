@@ -302,16 +302,21 @@ Router may say "this is trivial, do it inline" when:
 
 ### Bootstrap Contract
 
-Both router dispatch and direct specialist invocation produce identical run state:
+Both router dispatch and direct specialist invocation produce the same minimum
+bootstrap state:
 
 1. Create run root: `.circuitry/circuit-runs/<slug>/artifacts/` and `phases/`
 2. Set current-run pointer: `ln -sfn "circuit-runs/<slug>" .circuitry/current-run`
 3. Write initial `active-run.md` with Workflow, Rigor, Current Phase, Goal
 
+The router may write additional dashboard fields (Next Step, Verification
+Commands, Active Worktrees, Blockers, Last Updated) during dispatch, but these
+are populated during the Frame phase, not required at bootstrap.
+
 Direct specialist commands (`/circuit:build`, `/circuit:explore`, etc.) check for
 an existing run root first. If the router already bootstrapped one, the specialist
 skips bootstrap and proceeds from the current phase. If no run root exists, the
-specialist creates one identically to how the router would.
+specialist creates one using the same minimum contract.
 
 ## 8. Workflow Transfer
 

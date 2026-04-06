@@ -9,6 +9,7 @@
  * - Review verification fallback behavior
  * - Repair diagnostic path when regression test is deferred
  * - SessionStart precedence
+ * - Handoff done clears fallback heuristic
  */
 
 import { describe, it, expect } from "vitest";
@@ -252,6 +253,27 @@ describe("session-start precedence", () => {
     expect(explicitPointer).toBeGreaterThan(-1);
     expect(fallbackHeuristic).toBeGreaterThan(-1);
     expect(explicitPointer).toBeLessThan(fallbackHeuristic);
+  });
+});
+
+// ── Handoff done clears fallback ────────────────────────────────────
+
+describe("handoff done defeats fallback heuristic", () => {
+  it("handoff SKILL.md instructs renaming active-run.md to completed-run.md", () => {
+    const content = readSkillMd("handoff");
+    // Must document archiving active-run.md so the fallback finds nothing
+    expect(content).toContain("completed-run.md");
+    expect(content).toContain("rename");
+  });
+
+  it("session-start.sh fallback searches only for active-run.md, not completed-run.md", () => {
+    const hookPath = join(REPO_ROOT, "hooks/session-start.sh");
+    const content = readFileSync(hookPath, "utf-8");
+
+    // The fallback heuristic must search for active-run.md specifically
+    expect(content).toContain('-name "active-run.md"');
+    // It must NOT match completed-run.md
+    expect(content).not.toContain("completed-run.md");
   });
 });
 
