@@ -75,14 +75,6 @@ Review, Close, Pause**. Not every workflow uses every phase, but the order remai
    judgment (scope confirmation, tradeoff decisions). Everything else runs
    autonomously.
 
-## What Circuit Is Not
-
-- **Not a CI/CD tool.** Circuit is run manually inside Claude Code sessions, not in
-  pipelines.
-- **Not for trivial edits.** The router will show restraint by handing off trivial tasks to Claude, unless asked not to.
-- **Not a replacement for skills.** Circuit orchestrates skills. If you need
-  TDD discipline, install the `tdd` skill. Circuit will use it at the right phase.
-
 ## Commands
 
 **Using the router:**
