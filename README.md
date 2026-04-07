@@ -5,7 +5,7 @@
 <p align="center"><strong>Automate your Claude Code workflows with a single command.</strong></p>
 <br />
 
-Just enter `/circuit` and describe your task. It'll pick the most suitable workflow from the core set -- or from ones you've created -- and
+Just enter `/circuit:run` and describe your task. It'll pick the most suitable workflow from the core set -- or from ones you've created -- and
 execute it, making sure each step's output is valid before moving onto the next.
  
 - **Orchestrate your skills.** You can pre-configure any skill(s) be applied at the phase or step level.
@@ -37,7 +37,7 @@ Circuit replaces ad-hoc skill invocation and having to copy-paste or re-type the
 
 **Core Workflows:**
 
-These workflows are included and ready to use. You can easily make your own with `/circuit:create`. 
+These workflows are included and ready to use. You can create your own by following the guide in `CUSTOM-CIRCUITS.md`.
 
 | Workflow | Purpose |
 |----------|-------------|

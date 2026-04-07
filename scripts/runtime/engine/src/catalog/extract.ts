@@ -14,7 +14,7 @@ interface ExtractOptions {
 }
 
 function parseFrontmatter(content: string, filePath: string): Record<string, string> {
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!match) {
     throw new Error(`catalog-compiler: ${filePath} -- no YAML frontmatter found`);
   }

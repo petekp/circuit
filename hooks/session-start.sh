@@ -35,16 +35,21 @@ if [[ -L "$current_run_pointer" ]] || [[ -f "$current_run_pointer" ]]; then
 fi
 
 # Fallback: most recently modified active-run.md (single-run heuristic)
-# NUL-safe pipeline: find | xargs | head.  We guard against empty find output
-# by counting matches with `head -1 | wc -l` first -- if find returns nothing,
-# we skip the second find|xargs|ls entirely (avoids GNU xargs invoking ls with
-# no arguments when -r is unavailable on macOS).
+# Fully null-safe: use find -print0 and compare mtimes in a while-read loop.
+# No ls parsing, no newline assumptions, works on macOS and Linux.
 if [[ -z "$active_run" ]] && [[ -d "$circuit_runs_dir" ]]; then
-  found_count=$(find "$circuit_runs_dir" -name "active-run.md" -maxdepth 3 -type f 2>/dev/null | head -1 | wc -l)
-  if [[ "$found_count" -gt 0 ]]; then
-    active_run=$(find "$circuit_runs_dir" -name "active-run.md" -maxdepth 3 -type f -print0 2>/dev/null \
-      | xargs -0 ls -t 2>/dev/null | head -1)
-  fi
+  newest_mtime=0
+  newest_file=""
+  while IFS= read -r -d '' candidate; do
+    # stat -f %m (macOS) or stat -c %Y (Linux) for mtime as epoch seconds
+    if mtime=$(stat -f %m "$candidate" 2>/dev/null) || mtime=$(stat -c %Y "$candidate" 2>/dev/null); then
+      if (( mtime > newest_mtime )); then
+        newest_mtime=$mtime
+        newest_file="$candidate"
+      fi
+    fi
+  done < <(find "$circuit_runs_dir" -name "active-run.md" -maxdepth 3 -type f -print0 2>/dev/null)
+  [[ -n "$newest_file" ]] && active_run="$newest_file"
 fi
 
 if [[ -f "$handoff_file" ]] && head -1 "$handoff_file" | grep -q '^# Handoff'; then

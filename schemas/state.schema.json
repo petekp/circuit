@@ -61,7 +61,7 @@
           "status": { "enum": ["pending", "in_progress", "complete", "stale", "failed"] },
           "gate": {
             "oneOf": [
-              { "enum": ["pass", "fail", "pending", "skipped"] },
+              { "enum": ["pass", "fail", "pending"] },
               { "type": "null" }
             ]
           },

@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { REPO_ROOT } from "./schema.js";
 import { parse as parseYaml } from "yaml";
@@ -882,6 +882,47 @@ describe("documented command surface matches plugin namespace", () => {
   });
 });
 
+// ── README command inventory matches shipped commands ────────────────
+
+describe("README command inventory matches shipped commands", () => {
+  it("every /circuit:<name> documented in README exists in commands/", () => {
+    const readme = readFile("README.md");
+    // Extract all /circuit:<name> patterns (deduplicated)
+    const documented = [
+      ...new Set(
+        [...readme.matchAll(/\/circuit:(\w+)/g)].map((m) => m[1]),
+      ),
+    ];
+    expect(documented.length).toBeGreaterThan(0);
+
+    for (const command of documented) {
+      const commandPath = resolve(REPO_ROOT, `commands/${command}.md`);
+      expect(
+        existsSync(commandPath),
+        `README documents /circuit:${command} but commands/${command}.md does not exist`,
+      ).toBe(true);
+    }
+  });
+
+  it("every /circuit:<name> in CIRCUITS.md exists in commands/", () => {
+    const circuits = readFile("CIRCUITS.md");
+    const documented = [
+      ...new Set(
+        [...circuits.matchAll(/\/circuit:(\w+)/g)].map((m) => m[1]),
+      ),
+    ];
+    expect(documented.length).toBeGreaterThan(0);
+
+    for (const command of documented) {
+      const commandPath = resolve(REPO_ROOT, `commands/${command}.md`);
+      expect(
+        existsSync(commandPath),
+        `CIRCUITS.md documents /circuit:${command} but commands/${command}.md does not exist`,
+      ).toBe(true);
+    }
+  });
+});
+
 // ── No bare /circuit commands in docs ────────────────────────────────
 
 describe("no bare /circuit commands in docs", () => {
@@ -895,10 +936,11 @@ describe("no bare /circuit commands in docs", () => {
   for (const file of DOC_FILES) {
     it(`${file} does not use bare /circuit (should be /circuit:run)`, () => {
       const content = readFile(file);
-      // Match /circuit followed by whitespace (bare command), whether
-      // backtick-wrapped or plain text.  Excludes /circuit: (namespaced)
-      // and path-context like petekp/circuit or cache/petekp/circuit.
-      const bareMatches = [...content.matchAll(/(?<![a-zA-Z0-9_-])\/circuit\s(?!:)/g)];
+      // Match /circuit NOT followed by a colon (bare command), whether
+      // backtick-wrapped or plain text.  Matches /circuit followed by
+      // whitespace, backtick, end-of-line, or other non-colon delimiter.
+      // Excludes /circuit: (namespaced) and path-context like petekp/circuit.
+      const bareMatches = [...content.matchAll(/(?<![a-zA-Z0-9_/-])\/circuit(?!:)(?=[`\s,.)}\]|]|$)/gm)];
       expect(
         bareMatches.length,
         `${file} contains bare /circuit commands — use /circuit:run instead`,

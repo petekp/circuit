@@ -261,13 +261,22 @@ export function deriveState(
       state.updated_at = occurredAt;
     }
 
-    // Rule 10: step_reopened resets step, marks artifacts stale
+    // Rule 10: step_reopened resets the reopened step and downstream descendants
     else if (eventType === "step_reopened") {
       const toStep = (payload.to_step ?? "") as string;
+      const downstreamSteps: string[] = [];
+      const visited = new Set<string>();
+      let cursor = routes[toStep];
+      while (cursor && !cursor.startsWith("@") && !visited.has(cursor)) {
+        visited.add(cursor);
+        downstreamSteps.push(cursor);
+        const next = routes[cursor];
+        if (!next || next === cursor) break;
+        cursor = next;
+      }
       if (toStep in routes) {
         delete routes[toStep];
       }
-      // Mark artifacts produced by the reopened step as stale
       for (const artInfo of Object.values(artifacts)) {
         if (artInfo.produced_by === toStep) {
           artInfo.status = "stale";
@@ -275,12 +284,29 @@ export function deriveState(
           artInfo.updated_at = occurredAt;
         }
       }
-      // Reset job/checkpoint records for that step
       if (toStep in jobs) {
         delete jobs[toStep];
       }
       if (toStep in checkpoints) {
         delete checkpoints[toStep];
+      }
+      for (const downstream of downstreamSteps) {
+        if (downstream in routes) {
+          delete routes[downstream];
+        }
+        for (const artInfo of Object.values(artifacts)) {
+          if (artInfo.produced_by === downstream) {
+            artInfo.status = "stale";
+            artInfo.gate = "pending";
+            artInfo.updated_at = occurredAt;
+          }
+        }
+        if (downstream in jobs) {
+          delete jobs[downstream];
+        }
+        if (downstream in checkpoints) {
+          delete checkpoints[downstream];
+        }
       }
       state.current_step = toStep;
       state.status = "in_progress";

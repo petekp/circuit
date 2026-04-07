@@ -370,6 +370,80 @@ describe("TestResume", () => {
     expect(result.resumeStep).toBe("step-one");
   });
 
+  it("resumes at downstream step after middle step reopened and re-completed", () => {
+    // This is the critical regression test for the reopen/resume bug:
+    // Complete A->B->C, reopen B, re-complete B only.
+    // Resume MUST return C (not "all steps complete").
+    const state = baseState({
+      status: "in_progress",
+      current_step: "step-two",
+      artifacts: {
+        // step-one: still complete (upstream of reopen)
+        "artifacts/step-one-output.md": {
+          status: "complete",
+          gate: "pass",
+          produced_by: "step-one",
+        },
+        // step-two: re-completed after reopen
+        "artifacts/step-two-output.md": {
+          status: "complete",
+          gate: "pass",
+          produced_by: "step-two",
+        },
+        // step-three: stale (downstream of reopened step-two, invalidated by reopen)
+        "artifacts/step-three-output.md": {
+          status: "stale",
+          gate: "pending",
+          produced_by: "step-three",
+        },
+      },
+      routes: {
+        "step-one": "step-two",
+        "step-two": "step-three",
+        // step-three route was cleared by reopen
+      },
+    });
+
+    const result = findResumePoint(MINIMAL_MANIFEST, state);
+    // Must resume at step-three, NOT report "all steps complete"
+    expect(result.resumeStep).toBe("step-three");
+    expect(result.status).toBe("in_progress");
+  });
+
+  it("resumes at reopened step when downstream routes are cleared", () => {
+    // Complete A->B->C, reopen B. All downstream state cleared.
+    // Resume MUST return B.
+    const state = baseState({
+      status: "in_progress",
+      current_step: "step-two",
+      artifacts: {
+        "artifacts/step-one-output.md": {
+          status: "complete",
+          gate: "pass",
+          produced_by: "step-one",
+        },
+        "artifacts/step-two-output.md": {
+          status: "stale",
+          gate: "pending",
+          produced_by: "step-two",
+        },
+        "artifacts/step-three-output.md": {
+          status: "stale",
+          gate: "pending",
+          produced_by: "step-three",
+        },
+      },
+      routes: {
+        "step-one": "step-two",
+        // step-two and step-three routes cleared by reopen
+      },
+    });
+
+    const result = findResumePoint(MINIMAL_MANIFEST, state);
+    expect(result.resumeStep).toBe("step-two");
+    expect(result.status).toBe("in_progress");
+  });
+
   it("follows recorded route skipping unreachable steps", () => {
     const state = baseState({
       status: "in_progress",

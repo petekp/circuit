@@ -118,10 +118,14 @@ describe("generated block freshness", () => {
 // circuit run outputs) rather than active source references.
 const LINT_SKIP_PREFIXES = [".claude/", ".circuit/"];
 const LINT_SKIP_SUFFIXES = [".test.ts", ".test.js", ".spec.ts", ".spec.js"];
+// CUSTOM-CIRCUITS.md is a tutorial that intentionally uses hypothetical circuit
+// names (research, my-workflow) as examples. Exclude it from orphan-ref lint.
+const LINT_SKIP_EXACT = ["CUSTOM-CIRCUITS.md"];
 
 function shouldLint(relPath: string): boolean {
   if (LINT_SKIP_PREFIXES.some((p) => relPath.startsWith(p))) return false;
   if (LINT_SKIP_SUFFIXES.some((s) => relPath.endsWith(s))) return false;
+  if (LINT_SKIP_EXACT.some((f) => relPath === f || relPath.endsWith(`/${f}`))) return false;
   return true;
 }
 

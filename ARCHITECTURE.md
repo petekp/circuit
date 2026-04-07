@@ -435,7 +435,7 @@ backend and supports role-based routing:
 Backends:
 - **codex**: Codex CLI (`codex exec --full-auto`). Preferred for parallelism.
 - **agent**: Claude Code Agent tool with worktree isolation. Fallback.
-- **custom**: Any shell command. The prompt file is `$1`, output path is `$2`.
+- **custom**: An argv-style command (word-split, no shell expansion). The prompt file and output path are appended as positional arguments.
 
 Role resolution: `--role` flag > `circuit.config.yaml` roles > auto-detect.
 
@@ -460,6 +460,8 @@ The script supports these events:
 | `converge_complete` | Set all converge slices to `done`, phase to `complete` |
 | `converge_failed` | Increment `convergence_attempts` |
 | `add_slice` | Append a new slice to the batch |
+| `analytically_resolved` | Slice resolved by analysis (no code change needed) |
+| `orchestrator_direct` | Orchestrator fixed directly (code changed, no worker dispatch) |
 
 Every mutation is appended to `events.ndjson` as an append-only event log,
 enabling rebuild-from-events recovery.
@@ -706,7 +708,7 @@ circuit:
     One-sentence thesis.
 
   entry:
-    command: /circuit:run       # primary invocation
+    expert_command: /circuit:build   # direct invocation (matches /circuit:<id>)
     signals:
       include: [signal_names]
       exclude: [signal_names]
@@ -723,7 +725,7 @@ circuit:
       title: Step Title
       executor: orchestrator | worker
       kind: synthesis | checkpoint | dispatch
-      protocol: protocol-name@v1     # optional
+      protocol: protocol-name@v1     # required for dispatch/checkpoint; optional for synthesis
       reads: [artifact-paths]        # optional: prefix with "optional:"
       writes:
         artifact:

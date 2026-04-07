@@ -21,8 +21,11 @@
 #     agent   -- Claude Code Agent tool (isolation: "worktree")
 #
 #   Custom engines:
-#     Any other value is treated as a shell command. The prompt file is passed
-#     as $1 and the expected output path as $2. Example:
+#     Any other value is treated as a custom command. Resolution order:
+#     (1) entire string is an executable path (even with spaces),
+#     (2) progressive prefix scan for spaced executable + trailing args,
+#     (3) plain word-split for simple multi-word commands.
+#     No shell expansion, quoting, pipes, or redirects. Example:
 #       --backend "gemini run"
 #       --backend "claude -p"
 #       --backend "./my-agent.sh"
@@ -193,12 +196,33 @@ EOF
     ;;
 
   *)
-    # Treat any other value as a custom command string.
-    # The command receives the prompt file as $1 and output path as $2.
-    # Split BACKEND into an argv array for safe execution (no eval).
-    # Note: word-splitting means commands with spaces in their path must
-    # be on $PATH or symlinked to a simple name.
-    read -ra BACKEND_ARGV <<< "$BACKEND"
+    # Treat any other value as a custom command.
+    #
+    # Resolution order (first match wins, no eval):
+    #   1. Entire string is an executable path (even with spaces)
+    #   2. Progressive prefix scan: try joining the first N words as a path
+    #      and treat the remainder as arguments. This handles cases like
+    #      "/path with spaces/runner --json" where the executable has spaces
+    #      AND there are trailing flags.
+    #   3. Plain word-split: simple multi-word commands like "gemini run"
+    if [[ -x "$BACKEND" ]] || command -v "$BACKEND" >/dev/null 2>&1; then
+      BACKEND_ARGV=("$BACKEND")
+    else
+      read -ra _WORDS <<< "$BACKEND"
+      _found=false
+      # Try progressively longer prefixes as executable path
+      for (( _i=${#_WORDS[@]}-1; _i>=1; _i-- )); do
+        _prefix="${_WORDS[*]:0:_i}"
+        if [[ -x "$_prefix" ]] || command -v "$_prefix" >/dev/null 2>&1; then
+          BACKEND_ARGV=("$_prefix" "${_WORDS[@]:_i}")
+          _found=true
+          break
+        fi
+      done
+      if [[ "$_found" != true ]]; then
+        BACKEND_ARGV=("${_WORDS[@]}")
+      fi
+    fi
     CMD_NAME="${BACKEND_ARGV[0]}"
     if ! command -v "$CMD_NAME" >/dev/null 2>&1 && [[ ! -x "$CMD_NAME" ]]; then
       echo "ERROR: custom dispatch engine not found: $CMD_NAME" >&2
