@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { deriveState } from "./derive-state.js";
+import { deriveState, loadStateSchema, validateState } from "./derive-state.js";
 
 // ---------------------------------------------------------------------------
 // Shared test manifest -- minimal v2 circuit for state derivation tests
@@ -111,6 +111,13 @@ function makeEvent(
 // Reset timestamp counter between describes
 function resetTs(): void {
   tsCounter = 0;
+}
+
+/** Validate derived state against state.schema.json; throws on failure. */
+function expectValidState(state: Record<string, unknown>): void {
+  const schema = loadStateSchema();
+  const errors = validateState(state, schema);
+  expect(errors).toEqual([]);
 }
 
 // ---------------------------------------------------------------------------
@@ -386,6 +393,7 @@ describe("deriveState", () => {
 
       expect(jobs["step-one"].status).toBe("failed");
       expect(jobs["step-one"].completion).toBe("partial");
+      expectValidState(state);
     });
 
     it("should preserve completion=blocked with status=failed", () => {
@@ -417,6 +425,7 @@ describe("deriveState", () => {
 
       expect(jobs["step-one"].status).toBe("failed");
       expect(jobs["step-one"].completion).toBe("blocked");
+      expectValidState(state);
     });
 
     it("should set completion=complete for successful jobs", () => {
@@ -448,6 +457,7 @@ describe("deriveState", () => {
 
       expect(jobs["step-one"].status).toBe("complete");
       expect(jobs["step-one"].completion).toBe("complete");
+      expectValidState(state);
     });
   });
 
@@ -544,6 +554,7 @@ describe("deriveState", () => {
       expect(job.status).toBe("complete");
       expect(job.attempt).toBe(1);
       expect(state.status).toBe("in_progress");
+      expectValidState(state);
     });
   });
 

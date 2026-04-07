@@ -79,6 +79,7 @@
         "properties": {
           "attempt": { "type": "integer", "minimum": 1 },
           "status": { "enum": ["requested", "running", "complete", "failed", "reconciling"] },
+          "completion": { "enum": ["complete", "partial", "blocked"] },
           "request": { "type": "string" },
           "receipt": { "type": "string" },
           "result": { "type": "string" }

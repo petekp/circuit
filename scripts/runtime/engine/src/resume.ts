@@ -292,7 +292,14 @@ export function findResumePoint(manifest: any, state: any): ResumeResult {
         stepId in (state.jobs ?? {}) &&
         state.jobs[stepId]?.status === "failed"
       ) {
-        reason = `step ${stepId} job failed, needs retry or reroute`;
+        const completion = state.jobs[stepId]?.completion;
+        if (completion === "blocked") {
+          reason = `step ${stepId} is blocked, needs dependency resolution or reroute`;
+        } else if (completion === "partial") {
+          reason = `step ${stepId} partially completed, needs retry to finish remaining work`;
+        } else {
+          reason = `step ${stepId} job failed, needs retry or reroute`;
+        }
       } else {
         reason = `step ${stepId} has not been completed`;
       }

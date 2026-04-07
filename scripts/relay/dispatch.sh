@@ -87,9 +87,13 @@ if [[ -z "$BACKEND" ]]; then
   # 3. Global dispatch.engine
   if [[ -z "$BACKEND" ]]; then
     global_engine="$(node "$READ_CONFIG" --key "dispatch.engine" --fallback "" || true)"
-    [[ -n "$global_engine" && "$global_engine" != "auto" ]] && BACKEND="$global_engine"
+    [[ -n "$global_engine" ]] && BACKEND="$global_engine"
   fi
 fi
+
+# Normalize "auto" from any source (--backend flag, per-circuit, role, global)
+# to empty so it falls through to auto-detection below.
+[[ "$BACKEND" == "auto" ]] && BACKEND=""
 
 # Fall back to auto-detection
 if [[ -z "$BACKEND" ]]; then
@@ -191,14 +195,15 @@ EOF
   *)
     # Treat any other value as a custom command string.
     # The command receives the prompt file as $1 and output path as $2.
-    # Use eval to handle quoted arguments and paths with spaces correctly.
-    CMD_NAME="${BACKEND%% *}"
+    # Split BACKEND into an argv array for safe execution (no eval).
+    read -ra BACKEND_ARGV <<< "$BACKEND"
+    CMD_NAME="${BACKEND_ARGV[0]}"
     if ! command -v "$CMD_NAME" >/dev/null 2>&1 && [[ ! -x "$CMD_NAME" ]]; then
       echo "ERROR: custom dispatch engine not found: $CMD_NAME" >&2
       echo "Ensure the command exists and is executable." >&2
       exit 1
     fi
-    eval "$BACKEND" '"$PROMPT"' '"$OUTPUT"' && CUSTOM_EXIT=0 || CUSTOM_EXIT=$?
+    "${BACKEND_ARGV[@]}" "$PROMPT" "$OUTPUT" && CUSTOM_EXIT=0 || CUSTOM_EXIT=$?
 
     if (( CUSTOM_EXIT != 0 )); then
       echo "ERROR: custom backend '$BACKEND' exited with status $CUSTOM_EXIT" >&2

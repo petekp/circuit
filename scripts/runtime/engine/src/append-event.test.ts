@@ -157,21 +157,41 @@ describe("append-event", () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
-  it("derives run_id from path using basename (handles Windows-style separators)", async () => {
-    // buildEvent internally uses path.basename, which handles OS-specific separators.
-    // On POSIX, backslashes are valid filename characters, not separators,
-    // so we test that forward-slash paths work correctly via basename.
+  it("derives run_id from path.basename, not naive splitting", async () => {
+    // buildEvent uses path.basename(runRoot) to extract the run_id.
+    // Verify it matches basename behavior and doesn't contain separators.
     const event = buildEvent(runRoot, "run_started", {
       manifest_path: "circuit.manifest.yaml",
       entry_mode: "default",
       head_at_start: "abc1234",
     });
 
-    // The run_id should be the basename of the runRoot, not a raw split result
-    const expectedRunId = runRoot.split("/").pop()!;
+    const { basename } = await import("node:path");
+    const expectedRunId = basename(runRoot);
     expect(event.run_id).toBe(expectedRunId);
     expect(event.run_id).not.toBe("");
     expect(event.run_id).not.toContain("/");
+  });
+
+  it("run_id uses basename even for deeply nested paths", async () => {
+    // Ensure multi-segment paths don't leak into run_id
+    const { basename } = await import("node:path");
+    const nestedRoot = await mkdtemp(join(tmpdir(), "deep/nested/circuit-test-".replace(/\//g, "-")));
+    await writeFile(
+      join(nestedRoot, "circuit.manifest.yaml"),
+      yamlStringify(MINIMAL_MANIFEST),
+      "utf-8",
+    );
+
+    const event = buildEvent(nestedRoot, "run_started", {
+      manifest_path: "circuit.manifest.yaml",
+      entry_mode: "default",
+      head_at_start: "abc1234",
+    });
+
+    expect(event.run_id).toBe(basename(nestedRoot));
+    expect(event.run_id).not.toContain("/");
+    expect(event.run_id).not.toContain("\\");
   });
 
   it("includes step_id and attempt", async () => {

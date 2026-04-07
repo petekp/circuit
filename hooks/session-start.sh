@@ -7,7 +7,9 @@ else
   project_dir="$PWD"
 fi
 # Sanitize project path to a slug: normalize separators and strip unsafe chars
-project_slug=$(printf '%s' "$project_dir" | tr '\\' '/' | tr '/' '-' | sed 's/^-//')
+# Converts backslashes and slashes to dashes, strips colons and other
+# characters unsafe in file paths (e.g. Windows drive letter "C:").
+project_slug=$(printf '%s' "$project_dir" | tr '\\' '/' | tr '/' '-' | sed 's/[:<>"|?*]//g; s/^-//')
 handoff_file="$HOME/.claude/projects/${project_slug}/handoff.md"
 
 # Check for active run via explicit pointer, fall back to most-recent heuristic
@@ -33,14 +35,15 @@ if [[ -L "$current_run_pointer" ]] || [[ -f "$current_run_pointer" ]]; then
 fi
 
 # Fallback: most recently modified active-run.md (single-run heuristic)
-# xargs -0 handles ARG_MAX chunking automatically. The guard below prevents
-# GNU xargs from running ls with no arguments when find returns nothing
-# (macOS xargs already skips empty input; GNU requires -r which macOS lacks).
+# NUL-safe pipeline: find | xargs | head.  We guard against empty find output
+# by piping through `grep -c` first -- if find returns nothing, we skip ls
+# entirely (macOS xargs skips empty input, but GNU xargs does not without -r).
 if [[ -z "$active_run" ]] && [[ -d "$circuit_runs_dir" ]]; then
-  # NUL-safe: pipe find directly to xargs without storing in a variable
-  # (shell variables truncate at NUL bytes, defeating -print0)
-  active_run=$(find "$circuit_runs_dir" -name "active-run.md" -maxdepth 3 -type f -print0 2>/dev/null \
-    | xargs -0 ls -t 2>/dev/null | head -1)
+  found_count=$(find "$circuit_runs_dir" -name "active-run.md" -maxdepth 3 -type f 2>/dev/null | head -1 | wc -l)
+  if [[ "$found_count" -gt 0 ]]; then
+    active_run=$(find "$circuit_runs_dir" -name "active-run.md" -maxdepth 3 -type f -print0 2>/dev/null \
+      | xargs -0 ls -t 2>/dev/null | head -1)
+  fi
 fi
 
 if [[ -f "$handoff_file" ]] && head -1 "$handoff_file" | grep -q '^# Handoff'; then

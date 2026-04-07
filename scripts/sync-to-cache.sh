@@ -104,7 +104,9 @@ sync_target() {
       cd "$target"
       if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
         git add -A && git commit -m "sync from local dev" --quiet 2>/dev/null || {
-          printf 'WARNING: marketplace git commit failed (git identity may not be configured)\n' >&2
+          printf 'ERROR: marketplace git commit failed (git identity may not be configured)\n' >&2
+          printf 'Fix: git -C "%s" config user.name "circuit" && git -C "%s" config user.email "circuit@local"\n' "$target" "$target" >&2
+          return 1
         }
       fi
     )
