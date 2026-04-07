@@ -5,12 +5,12 @@
 <p align="center"><strong>Automate your Claude Code workflows with a single command.</strong></p>
 <br />
 
-Just enter `/circuit` and describe your task. It will pick the most suitable workflow from the core set -- or ones you've created -- and
+Just enter `/circuit` and describe your task. It'll pick the most suitable workflow from the core set -- or from ones you've created -- and
 execute it, making sure each step's output is valid before moving onto the next.
  
-**Circuit orchestrates your favorite skills.** You can pre-configure any skill(s) be applied at any step in a workflow.
+**Circuit orchestrates your skills.** You can pre-configure any skill(s) be applied at the phase or step level.
 
-**Circuit is durable.** If a session dies, the next can pick up where you left off.
+**Circuit is durable.** If a session dies, you can still pick up where you left off.
 
 ## Get Started
 
