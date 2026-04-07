@@ -3,6 +3,7 @@
  * returns a sorted Catalog array. Throws on any parse error (no partial catalogs).
  */
 
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import type { Catalog, CatalogEntry, CircuitEntry, UtilityEntry } from "./types.js";
 
@@ -27,20 +28,13 @@ function parseFrontmatter(content: string, filePath: string): Record<string, str
 }
 
 export function extract(skillsDir: string, opts?: ExtractOptions): Catalog {
-  const readFile = opts?.readFile ?? ((p: string) => {
-    const { readFileSync } = require("node:fs");
-    return readFileSync(p, "utf-8");
-  });
-  const readDir = opts?.readDir ?? ((p: string) => {
-    const { readdirSync } = require("node:fs");
-    return readdirSync(p, { withFileTypes: true })
-      .filter((d: any) => d.isDirectory())
-      .map((d: any) => d.name);
-  });
-  const exists = opts?.exists ?? ((p: string) => {
-    const { existsSync } = require("node:fs");
-    return existsSync(p);
-  });
+  const readFile = opts?.readFile ?? ((p: string) => readFileSync(p, "utf-8"));
+  const readDir = opts?.readDir ?? ((p: string) =>
+    readdirSync(p, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name)
+  );
+  const exists = opts?.exists ?? ((p: string) => existsSync(p));
 
   const dirs = readDir(skillsDir).sort();
   const entries: CatalogEntry[] = [];

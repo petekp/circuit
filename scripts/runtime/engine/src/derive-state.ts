@@ -82,13 +82,6 @@ export function deriveState(
     routes: {} as Record<string, string>,
   };
 
-  // Internal tracking for step completion (not serialized to state.json).
-  // step_completion[step_id] = { gate_evaluated: boolean, route: string | null }
-  const stepCompletion: Record<
-    string,
-    { gate_evaluated: boolean; route: string | null }
-  > = {};
-
   const artifacts = state.artifacts as Record<
     string,
     Record<string, unknown>
@@ -99,6 +92,24 @@ export function deriveState(
     Record<string, unknown>
   >;
   const routes = state.routes as Record<string, string>;
+
+  /** Resolve step_id from event, payload, or current_step. Throws if empty. */
+  function resolveStepId(
+    event: Record<string, unknown>,
+    payload: Record<string, unknown>,
+    eventType: string,
+  ): string {
+    let stepId = (event.step_id ?? payload.step_id ?? "") as string;
+    if (!stepId) {
+      stepId = (state.current_step ?? "") as string;
+    }
+    if (!stepId) {
+      throw new Error(
+        `derive-state: ${eventType} event has no step_id and no current_step is set`,
+      );
+    }
+    return stepId;
+  }
 
   for (const event of events) {
     const eventType = (event.event_type ?? "") as string;
@@ -126,10 +137,7 @@ export function deriveState(
 
     // Rule 5: dispatch_requested upserts jobs
     else if (eventType === "dispatch_requested") {
-      let stepId = (event.step_id ?? payload.step_id ?? "") as string;
-      if (!stepId) {
-        stepId = (state.current_step ?? "") as string;
-      }
+      const stepId = resolveStepId(event, payload, eventType);
       const attempt = (payload.attempt ?? 1) as number;
       jobs[stepId] = {
         attempt,
@@ -142,10 +150,7 @@ export function deriveState(
 
     // Rule 5: dispatch_received upserts jobs
     else if (eventType === "dispatch_received") {
-      let stepId = (event.step_id ?? payload.step_id ?? "") as string;
-      if (!stepId) {
-        stepId = (state.current_step ?? "") as string;
-      }
+      const stepId = resolveStepId(event, payload, eventType);
       const attempt = (payload.attempt ?? 1) as number;
       const job: Record<string, unknown> = jobs[stepId] ?? {
         attempt,
@@ -161,17 +166,18 @@ export function deriveState(
 
     // Rule 5: job_completed upserts jobs
     else if (eventType === "job_completed") {
-      let stepId = (event.step_id ?? payload.step_id ?? "") as string;
-      if (!stepId) {
-        stepId = (state.current_step ?? "") as string;
-      }
+      const stepId = resolveStepId(event, payload, eventType);
       const attempt = (payload.attempt ?? 1) as number;
       const completion = (payload.completion ?? "complete") as string;
       const job: Record<string, unknown> = jobs[stepId] ?? {
         attempt,
         status: "requested",
       };
+      // Preserve exact completion semantics: "complete" -> complete,
+      // "partial" -> failed with completion=partial,
+      // "blocked" -> failed with completion=blocked
       job.status = completion === "complete" ? "complete" : "failed";
+      job.completion = completion;
       job.result = (payload.result_path ?? "") as string;
       job.attempt = attempt;
       jobs[stepId] = job;
@@ -181,10 +187,7 @@ export function deriveState(
 
     // Rule 7: checkpoint_requested upserts checkpoints
     else if (eventType === "checkpoint_requested") {
-      let stepId = (event.step_id ?? payload.step_id ?? "") as string;
-      if (!stepId) {
-        stepId = (state.current_step ?? "") as string;
-      }
+      const stepId = resolveStepId(event, payload, eventType);
       const attempt = (payload.attempt ?? 1) as number;
       checkpoints[stepId] = {
         attempt,
@@ -197,10 +200,7 @@ export function deriveState(
 
     // Rule 7: checkpoint_resolved upserts checkpoints
     else if (eventType === "checkpoint_resolved") {
-      let stepId = (event.step_id ?? payload.step_id ?? "") as string;
-      if (!stepId) {
-        stepId = (state.current_step ?? "") as string;
-      }
+      const stepId = resolveStepId(event, payload, eventType);
       const attempt = (payload.attempt ?? 1) as number;
       const cp: Record<string, unknown> = checkpoints[stepId] ?? {
         attempt,
@@ -218,14 +218,11 @@ export function deriveState(
     // Rule 8: artifact_written updates artifacts
     else if (eventType === "artifact_written") {
       const artifactPath = (payload.artifact_path ?? "") as string;
-      let stepId = (event.step_id ?? "") as string;
-      if (!stepId) {
-        stepId = (state.current_step ?? "") as string;
-      }
+      const stepId = resolveStepId(event, payload, eventType);
       artifacts[artifactPath] = {
         status: "complete",
         gate: "pending",
-        produced_by: stepId || "",
+        produced_by: stepId,
         updated_at: occurredAt,
       };
       state.updated_at = occurredAt;
@@ -242,8 +239,6 @@ export function deriveState(
           artInfo.updated_at = occurredAt;
         }
       }
-      // Track step completion
-      stepCompletion[gateStepId] = { gate_evaluated: true, route };
       if (route) {
         routes[gateStepId] = route;
       }
@@ -260,8 +255,6 @@ export function deriveState(
           artInfo.updated_at = occurredAt;
         }
       }
-      // A gate_failed with a terminal route still marks the step complete
-      stepCompletion[gateStepId] = { gate_evaluated: true, route };
       if (route) {
         routes[gateStepId] = route;
       }
@@ -271,10 +264,6 @@ export function deriveState(
     // Rule 10: step_reopened resets step, marks artifacts stale
     else if (eventType === "step_reopened") {
       const toStep = (payload.to_step ?? "") as string;
-      // Reset step completion
-      if (toStep in stepCompletion) {
-        delete stepCompletion[toStep];
-      }
       if (toStep in routes) {
         delete routes[toStep];
       }

@@ -7,7 +7,9 @@
     "circuit-append-event": "dist/cli/append-event.js",
     "circuit-catalog-compiler": "dist/cli/catalog-compiler.js",
     "circuit-derive-state": "dist/cli/derive-state.js",
-    "circuit-resume": "dist/cli/resume.js"
+    "circuit-read-config": "dist/cli/read-config.js",
+    "circuit-resume": "dist/cli/resume.js",
+    "circuit-update-batch": "dist/cli/update-batch.js"
   },
   "scripts": {
     "build": "tsc",

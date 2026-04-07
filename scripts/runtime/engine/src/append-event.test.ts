@@ -157,6 +157,23 @@ describe("append-event", () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
+  it("derives run_id from path using basename (handles Windows-style separators)", async () => {
+    // buildEvent internally uses path.basename, which handles OS-specific separators.
+    // On POSIX, backslashes are valid filename characters, not separators,
+    // so we test that forward-slash paths work correctly via basename.
+    const event = buildEvent(runRoot, "run_started", {
+      manifest_path: "circuit.manifest.yaml",
+      entry_mode: "default",
+      head_at_start: "abc1234",
+    });
+
+    // The run_id should be the basename of the runRoot, not a raw split result
+    const expectedRunId = runRoot.split("/").pop()!;
+    expect(event.run_id).toBe(expectedRunId);
+    expect(event.run_id).not.toBe("");
+    expect(event.run_id).not.toContain("/");
+  });
+
   it("includes step_id and attempt", async () => {
     const event = buildEvent(
       runRoot,

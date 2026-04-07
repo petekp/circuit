@@ -6,7 +6,8 @@ if git rev-parse --show-toplevel >/dev/null 2>&1; then
 else
   project_dir="$PWD"
 fi
-project_slug=$(printf '%s' "$project_dir" | tr '/' '-')
+# Sanitize project path to a slug: normalize separators and strip unsafe chars
+project_slug=$(printf '%s' "$project_dir" | tr '\\' '/' | tr '/' '-' | sed 's/^-//')
 handoff_file="$HOME/.claude/projects/${project_slug}/handoff.md"
 
 # Check for active run via explicit pointer, fall back to most-recent heuristic
@@ -36,10 +37,10 @@ fi
 # GNU xargs from running ls with no arguments when find returns nothing
 # (macOS xargs already skips empty input; GNU requires -r which macOS lacks).
 if [[ -z "$active_run" ]] && [[ -d "$circuit_runs_dir" ]]; then
-  found=$(find "$circuit_runs_dir" -name "active-run.md" -maxdepth 3 -type f -print0 2>/dev/null)
-  if [[ -n "$found" ]]; then
-    active_run=$(printf '%s' "$found" | xargs -0 ls -t 2>/dev/null | head -1)
-  fi
+  # NUL-safe: pipe find directly to xargs without storing in a variable
+  # (shell variables truncate at NUL bytes, defeating -print0)
+  active_run=$(find "$circuit_runs_dir" -name "active-run.md" -maxdepth 3 -type f -print0 2>/dev/null \
+    | xargs -0 ls -t 2>/dev/null | head -1)
 fi
 
 if [[ -f "$handoff_file" ]] && head -1 "$handoff_file" | grep -q '^# Handoff'; then

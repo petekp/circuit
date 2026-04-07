@@ -16,4 +16,17 @@ jobs:
           node-version: 20
       - run: npm ci --prefix scripts/runtime/engine
       - run: ./scripts/verify-install.sh
+
+      # Verify committed bundles are fresh -- rebuild and diff against committed artifacts
+      - name: Check bundle freshness
+        run: |
+          cd scripts/runtime/engine
+          node esbuild.config.mjs
+          cd ../../..
+          if ! git diff --quiet scripts/runtime/bin/; then
+            echo "::error::Committed runtime bundles are stale. Run 'cd scripts/runtime/engine && node esbuild.config.mjs' and commit the result."
+            git diff --stat scripts/runtime/bin/
+            exit 1
+          fi
+
       - run: cd scripts/runtime/engine && npx vitest run

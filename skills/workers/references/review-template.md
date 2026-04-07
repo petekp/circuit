@@ -1,3 +1,4 @@
+<!-- circuit:relay-protocol-inline -->
 # Adversarial Review
 
 Inspect the implementation diff with `git diff --stat` and `git diff`.

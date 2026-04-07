@@ -70,22 +70,24 @@ if [[ ! -f "$PROMPT" ]]; then
   exit 1
 fi
 
-# Resolve dispatch engine: explicit flag > config per-circuit > config global > auto-detect
+# Resolve dispatch engine: explicit flag > per-circuit > role > global engine > auto-detect
 if [[ -z "$BACKEND" ]]; then
-  # Check circuit.config.yaml for dispatch.per_circuit.<id> or dispatch.engine
+  # 1. Per-circuit override from config
   if [[ -n "$CIRCUIT" ]]; then
     per_circuit="$(node "$READ_CONFIG" --key "dispatch.per_circuit.$CIRCUIT" --fallback "" || true)"
     [[ -n "$per_circuit" ]] && BACKEND="$per_circuit"
   fi
-  if [[ -z "$BACKEND" ]]; then
-    global_engine="$(node "$READ_CONFIG" --key "dispatch.engine" --fallback "" || true)"
-    [[ -n "$global_engine" && "$global_engine" != "auto" ]] && BACKEND="$global_engine"
-  fi
 
-  # Role-based backend resolution: --role flag > config roles > auto-detect
+  # 2. Role-based backend (takes precedence over global engine)
   if [[ -z "$BACKEND" && -n "$ROLE" ]]; then
     role_backend="$(node "$READ_CONFIG" --key "roles.$ROLE" --fallback "" || true)"
     [[ -n "$role_backend" ]] && BACKEND="$role_backend"
+  fi
+
+  # 3. Global dispatch.engine
+  if [[ -z "$BACKEND" ]]; then
+    global_engine="$(node "$READ_CONFIG" --key "dispatch.engine" --fallback "" || true)"
+    [[ -n "$global_engine" && "$global_engine" != "auto" ]] && BACKEND="$global_engine"
   fi
 fi
 
@@ -187,15 +189,16 @@ EOF
     ;;
 
   *)
-    # Treat any other value as a custom command.
+    # Treat any other value as a custom command string.
     # The command receives the prompt file as $1 and output path as $2.
+    # Use eval to handle quoted arguments and paths with spaces correctly.
     CMD_NAME="${BACKEND%% *}"
     if ! command -v "$CMD_NAME" >/dev/null 2>&1 && [[ ! -x "$CMD_NAME" ]]; then
       echo "ERROR: custom dispatch engine not found: $CMD_NAME" >&2
       echo "Ensure the command exists and is executable." >&2
       exit 1
     fi
-    $BACKEND "$PROMPT" "$OUTPUT" && CUSTOM_EXIT=0 || CUSTOM_EXIT=$?
+    eval "$BACKEND" '"$PROMPT"' '"$OUTPUT"' && CUSTOM_EXIT=0 || CUSTOM_EXIT=$?
 
     if (( CUSTOM_EXIT != 0 )); then
       echo "ERROR: custom backend '$BACKEND' exited with status $CUSTOM_EXIT" >&2

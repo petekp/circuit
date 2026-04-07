@@ -108,6 +108,8 @@ const DONE_SLICE_EVENTS = new Set([
   "impl_dispatched",
   "review_clean",
   "review_rejected",
+  "analytically_resolved",
+  "orchestrator_direct",
 ]);
 
 // ── Utilities ───────────────────────────────────────────────────────
@@ -380,7 +382,8 @@ export function buildRecord(
     cliEvent === "analytically_resolved" ||
     cliEvent === "orchestrator_direct"
   ) {
-    findSlice(batch, args.slice);
+    const current = findSlice(batch, args.slice);
+    rejectDoneSliceEvent(current, cliEvent);
     return {
       ts,
       event: cliEvent,
@@ -513,6 +516,7 @@ export function applyRecord(batch: Batch, record: EventRecord): void {
 
   if (recordEvent === "analytically_resolved") {
     const current = findSlice(batch, recordSlice);
+    rejectDoneSliceEvent(current, recordEvent);
     clearAttemptFlag(current);
     current.status = "done";
     current.resolution = "analytically_resolved";
@@ -525,6 +529,7 @@ export function applyRecord(batch: Batch, record: EventRecord): void {
 
   if (recordEvent === "orchestrator_direct") {
     const current = findSlice(batch, recordSlice);
+    rejectDoneSliceEvent(current, recordEvent);
     clearAttemptFlag(current);
     current.status = "done";
     current.resolution = "orchestrator_direct";

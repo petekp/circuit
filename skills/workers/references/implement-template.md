@@ -1,3 +1,4 @@
+<!-- circuit:relay-protocol-inline -->
 # Implementation Worker
 
 Read `AGENTS.md` in the project root. Read `UBIQUITOUS_LANGUAGE.md` if it exists.

@@ -5,7 +5,7 @@
  */
 
 import { readFileSync, appendFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { randomUUID } from "node:crypto";
 import { parse as parseYaml } from "yaml";
 import { loadJsonSchema, validate as schemaValidate } from "./schema.js";
@@ -39,11 +39,11 @@ function readRunIdentity(runRoot: string): {
   if (existsSync(manifestPath)) {
     const manifest = parseYaml(readFileSync(manifestPath, "utf-8"));
     const circuitId = manifest?.circuit?.id ?? "";
-    const runId = runRoot.split("/").pop() ?? "";
+    const runId = basename(runRoot);
     return { circuitId, runId };
   }
 
-  return { circuitId: "", runId: runRoot.split("/").pop() ?? "" };
+  return { circuitId: "", runId: basename(runRoot) };
 }
 
 /**

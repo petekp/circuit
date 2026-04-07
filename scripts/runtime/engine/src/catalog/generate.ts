@@ -3,6 +3,7 @@
  * Throws on missing or malformed markers (never silently skips).
  */
 
+import { readFileSync, writeFileSync } from "node:fs";
 import type { Catalog, GenerateTarget, GenerateResult } from "./types.js";
 
 interface GenerateOptions {
@@ -15,14 +16,8 @@ export function generate(
   targets: GenerateTarget[],
   opts?: GenerateOptions,
 ): GenerateResult {
-  const readFile = opts?.readFile ?? ((p: string) => {
-    const { readFileSync } = require("node:fs");
-    return readFileSync(p, "utf-8");
-  });
-  const writeFile = opts?.writeFile ?? ((p: string, c: string) => {
-    const { writeFileSync } = require("node:fs");
-    writeFileSync(p, c, "utf-8");
-  });
+  const readFile = opts?.readFile ?? ((p: string) => readFileSync(p, "utf-8"));
+  const writeFile = opts?.writeFile ?? ((p: string, c: string) => writeFileSync(p, c, "utf-8"));
 
   const patchedFiles: string[] = [];
 

@@ -1,3 +1,4 @@
+<!-- circuit:relay-protocol-inline -->
 # Convergence Assessment
 
 Final quality gate. Do not modify source. Decide only `COMPLETE AND HARDENED` or

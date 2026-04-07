@@ -1,3 +1,4 @@
+<!-- circuit:relay-protocol-inline -->
 # Ship Review
 
 Audit the current code in the stated scope. There is no worker diff.

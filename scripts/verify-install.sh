@@ -251,7 +251,16 @@ else
   warn "engine node_modules missing -- contributors run: cd $engine_dir && npm install"
 fi
 
-# ── 8. Codex CLI (optional -- Agent fallback available) ────────────────
+# ── 8. rsync (required by sync-to-cache.sh) ────────────────────────────
+section "rsync"
+
+if command -v rsync >/dev/null 2>&1; then
+  pass "rsync found (required by sync-to-cache.sh)"
+else
+  warn "rsync not found -- sync-to-cache.sh will fail; install rsync for contributor workflow"
+fi
+
+# ── 9. Codex CLI (optional -- Agent fallback available) ────────────────
 section "Codex CLI (optional)"
 
 if command -v codex >/dev/null 2>&1; then

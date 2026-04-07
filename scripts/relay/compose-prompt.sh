@@ -29,18 +29,15 @@ BACKEND=""
 OUT=""
 
 # Resolve SKILL_DIRS: ordered search path for domain skills.
-# Domain skills (tdd, swift-apps, etc.) may live in any of these locations.
-# The plugin's own skills/ dir contains circuit definitions, not domain skills,
-# so ~/.claude/skills is always included as a fallback.
+# Domain skills (tdd, swift-apps, etc.) live in user skill directories.
+# The plugin's own skills/ dir contains circuit definitions, NOT domain skills,
+# and is intentionally excluded to prevent name collisions.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 READ_CONFIG="$PLUGIN_ROOT/scripts/runtime/bin/read-config.js"
 SKILL_DIRS=()
 if [[ -n "${CIRCUIT_PLUGIN_SKILL_DIR:-}" ]]; then
   SKILL_DIRS+=("$CIRCUIT_PLUGIN_SKILL_DIR")
-fi
-if [[ -d "$PLUGIN_ROOT/skills" ]]; then
-  SKILL_DIRS+=("$PLUGIN_ROOT/skills")
 fi
 SKILL_DIRS+=("$HOME/.claude/skills")
 
@@ -207,9 +204,15 @@ append_section_file() {
 output_has_inline_relay() {
   local out_file="$1"
 
-  grep -q '^### Files Changed$' "$out_file" &&
-    grep -q '^### Tests Run$' "$out_file" &&
-    grep -q '^### Completion Claim$' "$out_file"
+  # Primary check: explicit sentinel marker (preferred, stable)
+  if grep -q '<!-- circuit:relay-protocol-inline -->' "$out_file"; then
+    return 0
+  fi
+
+  # Fallback: heuristic heading check for templates not yet updated with sentinel
+  grep -qi '^### Files Changed' "$out_file" &&
+    grep -qi '^### Tests Run' "$out_file" &&
+    grep -qi '^### Completion Claim' "$out_file"
 }
 
 is_blank_arg() {
@@ -282,7 +285,11 @@ cp "$HEADER" "$OUT"
 # Append domain skills
 if [[ -n "$SKILLS" ]]; then
   IFS=',' read -ra SKILL_ARRAY <<< "$SKILLS"
-  for skill in "${SKILL_ARRAY[@]}"; do
+  for raw_skill in "${SKILL_ARRAY[@]}"; do
+    # Trim leading/trailing whitespace and skip empty entries
+    skill="${raw_skill#"${raw_skill%%[![:space:]]*}"}"
+    skill="${skill%"${skill##*[![:space:]]}"}"
+    [[ -z "$skill" ]] && continue
     if skill_file="$(resolve_skill "$skill")"; then
       track_placeholder_source "$skill_file"
       printf '\n---\n## Domain Guidance: %s\n\n' "$skill" >> "$OUT"
@@ -318,16 +325,11 @@ fi
 
 fail_if_unresolved_placeholders "$OUT"
 
-# Auto-detect backend if not specified
-if [[ -z "$BACKEND" ]]; then
-  if command -v codex >/dev/null 2>&1; then
-    BACKEND="codex"
-  else
-    BACKEND="agent"
-  fi
+# Emit backend hint only when explicitly passed via --backend flag.
+# When omitted, dispatch.sh determines the real backend using its own
+# config-aware precedence, so emitting a guess here would be misleading.
+if [[ -n "$BACKEND" ]]; then
+  printf '\n<!-- dispatch-backend: %s -->\n' "$BACKEND" >> "$OUT"
 fi
 
-# Emit backend hint as a metadata comment at the end of the composed prompt
-printf '\n<!-- dispatch-backend: %s -->\n' "$BACKEND" >> "$OUT"
-
-echo "Composed: $OUT ($(wc -l < "$OUT" | tr -d ' ') lines, backend=$BACKEND)"
+echo "Composed: $OUT ($(wc -l < "$OUT" | tr -d ' ') lines${BACKEND:+, backend=$BACKEND})"

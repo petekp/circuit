@@ -356,6 +356,141 @@ describe("deriveState", () => {
     });
   });
 
+  describe("test_job_completed_preserves_partial_and_blocked", () => {
+    it("should preserve completion=partial with status=failed", () => {
+      resetTs();
+      const events = [
+        makeEvent("run_started", {
+          manifest_path: "circuit.manifest.yaml",
+          entry_mode: "default",
+          head_at_start: "abc1234",
+        }),
+        makeEvent(
+          "step_started",
+          { step_id: "step-one" },
+          { step_id: "step-one" },
+        ),
+        makeEvent(
+          "job_completed",
+          {
+            result_path: "jobs/step-one/001/job-result.json",
+            completion: "partial",
+            attempt: 1,
+          },
+          { step_id: "step-one" },
+        ),
+      ];
+
+      const state = deriveState(MINIMAL_MANIFEST, events);
+      const jobs = state.jobs as Record<string, Record<string, unknown>>;
+
+      expect(jobs["step-one"].status).toBe("failed");
+      expect(jobs["step-one"].completion).toBe("partial");
+    });
+
+    it("should preserve completion=blocked with status=failed", () => {
+      resetTs();
+      const events = [
+        makeEvent("run_started", {
+          manifest_path: "circuit.manifest.yaml",
+          entry_mode: "default",
+          head_at_start: "abc1234",
+        }),
+        makeEvent(
+          "step_started",
+          { step_id: "step-one" },
+          { step_id: "step-one" },
+        ),
+        makeEvent(
+          "job_completed",
+          {
+            result_path: "jobs/step-one/001/job-result.json",
+            completion: "blocked",
+            attempt: 1,
+          },
+          { step_id: "step-one" },
+        ),
+      ];
+
+      const state = deriveState(MINIMAL_MANIFEST, events);
+      const jobs = state.jobs as Record<string, Record<string, unknown>>;
+
+      expect(jobs["step-one"].status).toBe("failed");
+      expect(jobs["step-one"].completion).toBe("blocked");
+    });
+
+    it("should set completion=complete for successful jobs", () => {
+      resetTs();
+      const events = [
+        makeEvent("run_started", {
+          manifest_path: "circuit.manifest.yaml",
+          entry_mode: "default",
+          head_at_start: "abc1234",
+        }),
+        makeEvent(
+          "step_started",
+          { step_id: "step-one" },
+          { step_id: "step-one" },
+        ),
+        makeEvent(
+          "job_completed",
+          {
+            result_path: "jobs/step-one/001/job-result.json",
+            completion: "complete",
+            attempt: 1,
+          },
+          { step_id: "step-one" },
+        ),
+      ];
+
+      const state = deriveState(MINIMAL_MANIFEST, events);
+      const jobs = state.jobs as Record<string, Record<string, unknown>>;
+
+      expect(jobs["step-one"].status).toBe("complete");
+      expect(jobs["step-one"].completion).toBe("complete");
+    });
+  });
+
+  describe("test_rejects_empty_step_id", () => {
+    it("should throw when dispatch_requested has no step_id and no current_step", () => {
+      resetTs();
+      const events = [
+        makeEvent("run_started", {
+          manifest_path: "circuit.manifest.yaml",
+          entry_mode: "default",
+          head_at_start: "abc1234",
+        }),
+        // No step_started, so current_step is null
+        makeEvent("dispatch_requested", {
+          request_path: "jobs/orphan/001/dispatch-request.json",
+          attempt: 1,
+        }),
+      ];
+
+      expect(() => deriveState(MINIMAL_MANIFEST, events)).toThrow(
+        /dispatch_requested event has no step_id/,
+      );
+    });
+
+    it("should throw when artifact_written has no step context", () => {
+      resetTs();
+      const events = [
+        makeEvent("run_started", {
+          manifest_path: "circuit.manifest.yaml",
+          entry_mode: "default",
+          head_at_start: "abc1234",
+        }),
+        makeEvent("artifact_written", {
+          artifact_path: "artifacts/orphan.md",
+        }),
+      ];
+
+      expect(() => deriveState(MINIMAL_MANIFEST, events)).toThrow(
+        /artifact_written event has no step_id/,
+      );
+    });
+  });
+
   describe("test_dispatch_job_lifecycle", () => {
     it("should track dispatch_requested -> received -> completed in jobs", () => {
       resetTs();

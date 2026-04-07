@@ -375,6 +375,93 @@ describe("update-batch.sh", () => {
     }
   });
 
+  it("rejects analytically_resolved on a done slice", async () => {
+    const root = await makeRelayRoot({
+      batch_id: "batch-001",
+      phase: "implement",
+      current_slice: "slice-002",
+      slices: [
+        {
+          id: "slice-001",
+          type: "implement",
+          task: "Already finished",
+          status: "done",
+          impl_attempts: 1,
+          review_rejections: 0,
+          review: "CLEAN",
+          resolution: "analytically_resolved",
+          created: NOW,
+        },
+        {
+          id: "slice-002",
+          type: "implement",
+          task: "Still pending",
+          status: "pending",
+          impl_attempts: 0,
+          review_rejections: 0,
+          created: NOW,
+        },
+      ],
+    });
+
+    const result = runUpdateBatch([
+      "--root",
+      root,
+      "--slice",
+      "slice-001",
+      "--event",
+      "analytically_resolved",
+      "--summary",
+      "duplicate resolution attempt",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("analytically_resolved rejected; slice slice-001 is already done");
+  });
+
+  it("rejects orchestrator_direct on a done slice", async () => {
+    const root = await makeRelayRoot({
+      batch_id: "batch-001",
+      phase: "implement",
+      current_slice: "slice-002",
+      slices: [
+        {
+          id: "slice-001",
+          type: "implement",
+          task: "Already finished",
+          status: "done",
+          impl_attempts: 1,
+          review_rejections: 0,
+          review: "CLEAN",
+          created: NOW,
+        },
+        {
+          id: "slice-002",
+          type: "implement",
+          task: "Still pending",
+          status: "pending",
+          impl_attempts: 0,
+          review_rejections: 0,
+          created: NOW,
+        },
+      ],
+    });
+
+    const result = runUpdateBatch([
+      "--root",
+      root,
+      "--slice",
+      "slice-001",
+      "--event",
+      "orchestrator_direct",
+      "--summary",
+      "duplicate resolution attempt",
+    ]);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("orchestrator_direct rejected; slice slice-001 is already done");
+  });
+
   it("adds slices with parsed scopes, skills, verification commands, and criteria", async () => {
     const root = await makeRelayRoot({
       batch_id: "batch-001",
