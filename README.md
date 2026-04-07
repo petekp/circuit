@@ -2,7 +2,7 @@
   <img src="assets/circuit.png" alt="Circuit" width="100%" />
 </p>
 <br />
-<p align="center"><strong>A Claude Code plugin for automating your workflow with multi-step skill orchestration.</strong></p>
+<p align="center"><strong>Automating your most common workflows with multi-step skill orchestration. A Claude Code plugin.</strong></p>
 <br />
 
 You enter `/circuit` and describe your task. Circuit picks the most suitable workflow from the core set -- or one you created -- and
