@@ -165,6 +165,18 @@ describe("README hygiene", () => {
     const readme = readFile("README.md");
     expect(readme).not.toContain("~/.claude/plugins/marketplaces/");
   });
+
+  it("does not label review and handoff under a direct-circuits heading", () => {
+    const readme = readFile("README.md");
+    expect(readme).not.toContain("**Direct circuits:**");
+  });
+
+  it("describes review and handoff as utilities", () => {
+    const readme = readFile("README.md");
+    expect(readme).toContain("**Utilities:**");
+    expect(readme).toContain("| `/circuit:review` | Standalone fresh-context code review |");
+    expect(readme).toContain("| `/circuit:handoff` | Save session state for the next session |");
+  });
 });
 
 // ── Bootstrap sections ────────────────────────────────────────────────
@@ -420,6 +432,19 @@ describe("executable-spec integrity", () => {
     const content = readFile("skills/migrate/SKILL.md");
     // batch-<N> is a placeholder
     expect(content).not.toMatch(/batch-<[^>]+>/);
+  });
+
+  it("workflow docs do not treat workers as a domain skill fallback", () => {
+    for (const file of [
+      "skills/build/SKILL.md",
+      "skills/repair/SKILL.md",
+      "skills/migrate/SKILL.md",
+      "skills/sweep/SKILL.md",
+    ]) {
+      const content = readFile(file);
+      expect(content).not.toContain('use --skills "workers" alone');
+      expect(content).not.toContain('--skills "workers,');
+    }
   });
 });
 
@@ -808,6 +833,54 @@ describe("README cache path consistency", () => {
     expect(installedVerifyPath![1]).toBe(
       `~/${cacheBase![1]}/circuit/<version>/scripts/verify-install.sh`,
     );
+  });
+});
+
+describe("utility taxonomy", () => {
+  it("review and handoff remain utility-only surfaces", () => {
+    expect(existsSync(resolve(REPO_ROOT, "skills/review/circuit.yaml"))).toBe(false);
+    expect(existsSync(resolve(REPO_ROOT, "skills/handoff/circuit.yaml"))).toBe(false);
+  });
+
+  it("CIRCUITS.md documents review and handoff under Utilities", () => {
+    const circuits = readFile("CIRCUITS.md");
+    expect(circuits).toContain("## Utilities");
+    expect(circuits).toContain("| Review | `/circuit:review` | Standalone fresh-context code review |");
+    expect(circuits).toContain("| Handoff | `/circuit:handoff` | Save session state for the next session |");
+  });
+});
+
+describe("verify-install contract coverage", () => {
+  it("verify-install and README no longer describe the ship gate as a smoke test", () => {
+    const script = readFile("scripts/verify-install.sh");
+    const readme = readFile("README.md");
+    expect(script).not.toContain("smoke test");
+    expect(readme).not.toContain("smoke test");
+  });
+
+  it("verify-install references config precedence and bundled CLI round trips", () => {
+    const script = readFile("scripts/verify-install.sh");
+    expect(script).toContain("Config precedence");
+    expect(script).toContain("append-event");
+    expect(script).toContain("derive-state");
+    expect(script).toContain("resume");
+  });
+});
+
+describe("workers example isolation", () => {
+  it("only workers and architecture docs keep executable template-assembly examples", () => {
+    for (const file of [
+      "skills/build/SKILL.md",
+      "skills/repair/SKILL.md",
+      "skills/migrate/SKILL.md",
+      "skills/sweep/SKILL.md",
+    ]) {
+      expect(readFile(file)).not.toContain("--template implement");
+      expect(readFile(file)).not.toContain("--template review");
+    }
+
+    expect(readFile("skills/workers/SKILL.md")).toContain("--template implement");
+    expect(readFile("ARCHITECTURE.md")).toContain("--template implement");
   });
 });
 

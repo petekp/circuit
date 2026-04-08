@@ -775,6 +775,84 @@ describe("loadOrRebuildState fail-loud", () => {
   });
 });
 
+// ─── Fresh-invalid state validation ──────────────────────────────────
+
+describe("loadOrRebuildState fresh-invalid", () => {
+  let runRoot: string;
+
+  beforeEach(async () => {
+    runRoot = await makeRunRoot();
+  });
+
+  it("throws RebuildError on malformed fresh state.json", () => {
+    // Write invalid JSON to state.json
+    writeFileSync(
+      join(runRoot, "state.json"),
+      '{"status": "in_progr',
+      "utf-8",
+    );
+
+    expect(() => loadOrRebuildState(runRoot)).toThrow(/Failed to parse/);
+  });
+
+  it("throws RebuildError on schema-invalid fresh state.json", () => {
+    // Write parseable JSON that violates the schema (invalid status enum)
+    writeFileSync(
+      join(runRoot, "state.json"),
+      JSON.stringify({
+        schema_version: "1",
+        run_id: "test-run-001",
+        circuit_id: "test-circuit",
+        manifest_version: "2026-04-01",
+        status: "banana",
+        current_step: null,
+        selected_entry_mode: "default",
+        git: { head_at_start: "abc1234" },
+        artifacts: {},
+        jobs: {},
+        checkpoints: {},
+      }) + "\n",
+      "utf-8",
+    );
+
+    expect(() => loadOrRebuildState(runRoot)).toThrow(
+      /schema validation/,
+    );
+  });
+
+  it("does not pass through nonsense status from fresh state", () => {
+    writeFileSync(
+      join(runRoot, "state.json"),
+      JSON.stringify({
+        schema_version: "1",
+        run_id: "test-run-001",
+        circuit_id: "test-circuit",
+        manifest_version: "2026-04-01",
+        status: "banana",
+        current_step: null,
+        selected_entry_mode: "default",
+        git: { head_at_start: "abc1234" },
+        artifacts: {},
+        jobs: {},
+        checkpoints: {},
+      }) + "\n",
+      "utf-8",
+    );
+
+    let returned: unknown;
+    let thrown: unknown;
+    try {
+      returned = loadOrRebuildState(runRoot);
+    } catch (error) {
+      thrown = error;
+    }
+
+    // Must throw, never return invalid state
+    expect(thrown).toBeDefined();
+    expect(returned).toBeUndefined();
+  });
+});
+
 // ─── Unit tests for helper functions ─────────────────────────────────
 
 describe("buildStepGraph", () => {

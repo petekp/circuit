@@ -28,6 +28,10 @@ The engine validates `circuit.yaml` against
 `schemas/circuit-manifest.schema.json`. If validation fails, the circuit
 won't run.
 
+Utilities are separate. Skills like `review`, `handoff`, and `workers` are
+useful plugin utilities, but they are not examples of custom circuits because
+they intentionally omit `circuit.yaml`.
+
 ## Step 1: Define the Topology (circuit.yaml)
 
 ### Minimal Example
@@ -445,4 +449,4 @@ After any change, verify:
 - [ ] `entry_modes` in circuit.yaml match the rigor profiles described in SKILL.md
 - [ ] Run `cd scripts/runtime/engine && npx vitest run` -- all tests pass
 - [ ] Run `./scripts/sync-to-cache.sh` and `/clear`
-- [ ] Run `./scripts/verify-install.sh` -- smoke tests pass
+- [ ] Run `./scripts/verify-install.sh` -- installed-surface checks pass

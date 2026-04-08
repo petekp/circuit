@@ -158,22 +158,27 @@ Write prompt header at `${IMPL_ROOT}/prompt-header.md`:
 Include canonical relay headings: `### Files Changed`, `### Tests Run`,
 `### Completion Claim`.
 
-Compose and dispatch:
+Prepare the adapter handoff:
 
 ```bash
-# Include workers skill + 1-2 domain skills for the affected code.
-# If no domain skills apply, use --skills "workers" alone.
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
-  --header "${IMPL_ROOT}/prompt-header.md" \
-  --skills "workers,rust,tdd" \
-  --root "${IMPL_ROOT}" \
-  --out "${IMPL_ROOT}/prompt.md"
-
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
-  --prompt "${IMPL_ROOT}/prompt.md" \
-  --output "${IMPL_ROOT}/last-messages/last-message-workers.txt" \
-  --role implementer
+# Keep the parent-owned workspace minimal and typed.
+touch "${IMPL_ROOT}/jobs/act-1.request.json"
 ```
+
+Then hand off to `circuit:workers` with:
+- 0-2 domain skills for the affected code (for example `rust`, `tdd`)
+- verification commands copied from `plan.md`
+- success criteria for the act step
+- the expectation that `workers` owns prompt assembly, dispatch, review, and convergence
+
+Do **not** pass `workers` via `--skills`. `workers` is the adapter utility, not
+a domain skill. The parent workflow owns the child root and reads back only the
+public contract files:
+- `jobs/{step_id}-{attempt}.request.json`
+- `jobs/{step_id}-{attempt}.receipt.json`
+- `jobs/{step_id}-{attempt}.result.json`
+- `reports/report-converge.md`
+- `reports/report-{slice_id}.md`
 
 **Rigor behavior:**
 - Lite: Dispatch single worker or do inline for very small changes.

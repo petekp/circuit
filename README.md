@@ -87,7 +87,7 @@ Review, Close, Pause**. Not every workflow goes through every phase, but the ord
 | `/circuit:run cleanup: <target>` | Sweep Standard -- cleanup by confidence/risk |
 | `/circuit:run overnight: <scope>` | Sweep Autonomous -- unattended quality pass |
 
-**Direct circuits:**
+**Direct workflows:**
 
 | You type | What happens |
 |----------|-------------|
@@ -96,6 +96,11 @@ Review, Close, Pause**. Not every workflow goes through every phase, but the ord
 | `/circuit:repair` | Bug fixes with regression contracts |
 | `/circuit:migrate` | Migrations with coexistence planning |
 | `/circuit:sweep` | Cleanup and quality sweeps |
+
+**Utilities:**
+
+| You type | What happens |
+|----------|-------------|
 | `/circuit:review` | Standalone fresh-context code review |
 | `/circuit:handoff` | Save session state for the next session |
 
@@ -144,9 +149,8 @@ each one adds depth to the phases where it applies.
 
 ## Optional: Codex CLI
 
-Circuit can run workers through Codex CLI for faster parallel execution, or
-through Claude Code's built-in tools. Both work out of the box. Codex is optional
-but noticeably faster for large tasks.
+Circuit can dispatch workers through Codex CLI or through Claude Code's built-in
+Agent tool. Both run synchronously and work out of the box. Codex is optional.
 
 ```bash
 npm install -g @openai/codex
@@ -169,8 +173,9 @@ npm install -g @openai/codex
 ~/.claude/plugins/cache/petekp/circuit/<version>/scripts/verify-install.sh
 ```
 
-This checks Node.js, engine CLIs, skill directories, relay scripts, and runs a
-smoke test. Fix any failures it reports.
+This checks the installed surface Circuit actually ships: Node.js, engine CLIs,
+skill directories, relay templates, config discovery behavior, and CLI
+round trips. Fix any failures it reports.
 
 **Changes not taking effect after editing plugin files.** Claude Code runs the
 cached copy, not your local repo. Run `./scripts/sync-to-cache.sh` after any

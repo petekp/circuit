@@ -80,7 +80,26 @@ export function loadOrRebuildState(runRoot: string): object {
     }
   }
 
-  return JSON.parse(readFileSync(statePath, "utf-8"));
+  // Fresh state exists and is not stale -- still validate against schema.
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(statePath, "utf-8"));
+  } catch (err) {
+    throw new RebuildError(
+      `Failed to parse ${statePath}: ${err instanceof Error ? err.message : String(err)}`,
+      err,
+    );
+  }
+
+  const stateSchema = loadStateSchema();
+  const errors = validate(stateSchema, parsed as object);
+  if (errors.length > 0) {
+    throw new RebuildError(
+      `Loaded state failed schema validation: ${errors.join("; ")}`,
+    );
+  }
+
+  return parsed as object;
 }
 
 // ─── Step graph helpers ──────────────────────────────────────────────

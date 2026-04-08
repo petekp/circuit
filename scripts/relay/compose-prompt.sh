@@ -204,15 +204,10 @@ append_section_file() {
 output_has_inline_relay() {
   local out_file="$1"
 
-  # Primary check: explicit sentinel marker (preferred, stable)
-  if grep -q '<!-- circuit:relay-protocol-inline -->' "$out_file"; then
-    return 0
-  fi
-
-  # Fallback: heuristic heading check for templates not yet updated with sentinel
-  grep -qi '^### Files Changed' "$out_file" &&
-    grep -qi '^### Tests Run' "$out_file" &&
-    grep -qi '^### Completion Claim' "$out_file"
+  # Only the explicit sentinel marker is accepted. Heading heuristics
+  # were retired because ordinary header prose could suppress the
+  # relay-protocol append even when it wasn't actually present.
+  grep -q '<!-- circuit:relay-protocol-inline -->' "$out_file"
 }
 
 is_blank_arg() {
@@ -257,24 +252,15 @@ fi
 
 # Resolve skills from config file when --skills is not provided but --circuit is
 if [[ -z "$SKILLS" && -n "$CIRCUIT" ]]; then
-  # Auto-discover config file if --config not specified
-  if [[ -z "$CONFIG" ]]; then
-    if [[ -f "./circuit.config.yaml" ]]; then
-      CONFIG="./circuit.config.yaml"
-    elif [[ -f "$HOME/.claude/circuit.config.yaml" ]]; then
-      CONFIG="$HOME/.claude/circuit.config.yaml"
-    fi
+  # When --config is explicit, pass it through. Otherwise let read-config
+  # discover the config via its upward-walk algorithm.
+  if [[ -n "$CONFIG" ]]; then
+    CONFIG_SKILLS="$(node "$READ_CONFIG" --config "$CONFIG" --key "circuits.$CIRCUIT.skills" --fallback "")"
+  else
+    CONFIG_SKILLS="$(node "$READ_CONFIG" --key "circuits.$CIRCUIT.skills" --fallback "")"
   fi
-
-  # Read skills from config if available
-  if [[ -n "$CONFIG" && -f "$CONFIG" ]]; then
-    # Extract skills for the given circuit id using basic YAML parsing
-    # Supports format: circuits.<id>.skills: [skill1, skill2]
-    # or: circuits.<id>.skills:\n  - skill1\n  - skill2
-    CONFIG_SKILLS="$(node "$READ_CONFIG" --config "$CONFIG" --key "circuits.$CIRCUIT.skills" --fallback "" || true)"
-    if [[ -n "$CONFIG_SKILLS" ]]; then
-      SKILLS="$CONFIG_SKILLS"
-    fi
+  if [[ -n "$CONFIG_SKILLS" ]]; then
+    SKILLS="$CONFIG_SKILLS"
   fi
 fi
 

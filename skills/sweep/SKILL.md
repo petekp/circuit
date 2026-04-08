@@ -228,22 +228,27 @@ Write `${BATCH_ROOT}/CHARTER.md`:
 - Verification commands (build/test/verify)
 - Revert rule: revert ALL on any verification failure
 
-Dispatch via workers:
+Prepare the adapter handoff:
 
 ```bash
-# Include workers skill + 1-2 domain skills for the affected code.
-# If no domain skills apply, use --skills "workers" alone.
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
-  --header "${BATCH_ROOT}/prompt-header.md" \
-  --skills "workers,rust,tdd" \
-  --root "${BATCH_ROOT}" \
-  --out "${BATCH_ROOT}/prompt.md"
-
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
-  --prompt "${BATCH_ROOT}/prompt.md" \
-  --output "${BATCH_ROOT}/last-messages/last-message-workers.txt" \
-  --role implementer
+# Keep the parent-owned workspace minimal and typed.
+touch "${BATCH_ROOT}/jobs/execute-1.request.json"
 ```
+
+Then hand off to `circuit:workers` with:
+- 0-2 domain skills for the affected code
+- the verification commands for the batch
+- the success criteria and revert rule for the batch
+- the expectation that `workers` owns prompt assembly and the implement ->
+  review -> converge loop
+
+Do **not** pass `workers` via `--skills`. `workers` is the adapter utility.
+Sweep reads back only the public worker contract files:
+- `jobs/{step_id}-{attempt}.request.json`
+- `jobs/{step_id}-{attempt}.receipt.json`
+- `jobs/{step_id}-{attempt}.result.json`
+- `reports/report-converge.md`
+- `reports/report-{slice_id}.md`
 
 After each batch, record results:
 

@@ -38,6 +38,10 @@ The two files must agree. If the YAML says a step requires a structured verdict
 but the SKILL.md only checks for file existence, the circuit silently skips the
 quality check.
 
+Utilities are intentionally different. `review`, `handoff`, and `workers` ship
+as utility skills without `circuit.yaml`; they are lifecycle or adapter helpers,
+not workflows the runtime engine classifies as circuits.
+
 The plugin is named `circuit`. Skills use bare directory names (`run`, `build`,
 `explore`, etc.). Claude Code namespaces them as `/circuit:<skill>` at runtime,
 so the `run` skill becomes `/circuit:run`.
@@ -407,12 +411,10 @@ The assembly pipeline:
    preamble is appended first with shared review instructions.
 
 4. **Append relay protocol (legacy fallback).** The script checks whether the
-   assembled output already contains the relay protocol. Detection uses two
-   methods: an explicit `<!-- circuit:relay-protocol-inline -->` HTML comment
-   (preferred), or a heuristic check for canonical headings (`### Files Changed`,
-   `### Tests Run`, `### Completion Claim`). All current templates use the
-   explicit marker. If neither is found, the script appends `relay-protocol.md`
-   as a safety net.
+   assembled output already contains the relay protocol via the explicit
+   `<!-- circuit:relay-protocol-inline -->` HTML comment sentinel. All current
+   templates use this marker. If the sentinel is absent, the script appends
+   `relay-protocol.md` as a safety net.
 
 5. **Substitute known placeholders and reject unresolved ones.** If `--root`
    is provided, all `{relay_root}` tokens are replaced. After substitution, the
@@ -433,15 +435,16 @@ backend and supports role-based routing:
 ```
 
 Backends:
-- **codex**: Codex CLI (`codex exec --full-auto`). Preferred for parallelism.
-- **agent**: Claude Code Agent tool with worktree isolation. Fallback.
+- **codex**: Codex CLI (`codex exec --full-auto`). Runs synchronously and waits for completion.
+- **agent**: Claude Code Agent tool with worktree isolation. Fallback when codex is not installed.
 - **custom**: An argv-style command (word-split, no shell expansion). The prompt file and output path are appended as positional arguments.
 
 Role resolution: `--role` flag > `circuit.config.yaml` roles > auto-detect.
 
-All backends emit a JSON receipt to stdout. For the agent backend, the receipt
-contains the full prompt content ready for an Agent tool call. For codex, it
-confirms dispatch with a PID.
+All backends run synchronously and emit a JSON receipt to stdout on completion.
+For the agent backend, the receipt contains the full prompt content ready for an
+Agent tool call (`"status": "ready"`). For codex and custom backends, the receipt
+confirms completion (`"status": "completed"`).
 
 ### `update-batch.sh`: Deterministic State Machine
 
@@ -481,9 +484,8 @@ Every worker writes a report file with these exact sections:
 ```
 
 `compose-prompt.sh` checks for the explicit `<!-- circuit:relay-protocol-inline -->`
-marker first, then falls back to heading detection. If neither is found, it appends
-`relay-protocol.md` as a fallback. Workers that omit them produce reports the
-orchestrator cannot parse.
+sentinel. If absent, it appends `relay-protocol.md` as a fallback. Workers that
+omit the required sections produce reports the orchestrator cannot parse.
 
 ---
 
@@ -577,6 +579,10 @@ composed at dispatch time and injected via `--skills`:
   (typically 2 domain skills, 3 total), preventing prompt bloat.
 - **Domain knowledge stays current.** Updating a domain skill immediately
   affects all circuits that compose it, without editing any circuit files.
+
+`workers` is not one of these companion skills. Parent workflows must not inject
+`workers` through `--skills`; they hand off to the `workers` adapter utility,
+which then owns prompt-template assembly and the inner worker loop.
 
 ---
 

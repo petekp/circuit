@@ -220,19 +220,24 @@ For Lite: single worker or inline implementation.
 For Standard+: dispatch via workers (implement -> review -> converge).
 
 ```bash
-# Include workers skill + 1-2 domain skills for the affected code.
-# If no domain skills apply, use --skills "workers" alone.
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
-  --header "${IMPL_ROOT}/prompt-header.md" \
-  --skills "workers,rust,tdd" \
-  --root "${IMPL_ROOT}" \
-  --out "${IMPL_ROOT}/prompt.md"
-
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
-  --prompt "${IMPL_ROOT}/prompt.md" \
-  --output "${IMPL_ROOT}/last-messages/last-message-workers.txt" \
-  --role implementer
+# Keep the parent-owned workspace minimal and typed.
+touch "${IMPL_ROOT}/jobs/fix-1.request.json"
 ```
+
+Then hand off to `circuit:workers` with:
+- 0-2 domain skills for the affected code (for example `rust`, `tdd`)
+- the regression test / verification commands
+- the success criteria for the fix step
+- the expectation that `workers` owns prompt assembly plus the implement ->
+  review -> converge loop
+
+Do **not** pass `workers` via `--skills`. `workers` is the adapter utility.
+The repair workflow reads back only the parent-readable contract files:
+- `jobs/{step_id}-{attempt}.request.json`
+- `jobs/{step_id}-{attempt}.receipt.json`
+- `jobs/{step_id}-{attempt}.result.json`
+- `reports/report-converge.md`
+- `reports/report-{slice_id}.md`
 
 **Gate:** Regression test passes. Verification commands pass. Workers convergence = COMPLETE AND HARDENED (for Standard+).
 

@@ -36,9 +36,9 @@
 #
 # All backends emit a JSON receipt to stdout on success. The orchestrator
 # parses this receipt to determine next steps:
-#   - agent: receipt contains prompt content for an Agent tool call
-#   - codex: receipt confirms dispatch and includes PID
-#   - custom: receipt confirms dispatch with the command used
+#   - agent: receipt contains prompt content for an Agent tool call (status: "ready")
+#   - codex: receipt confirms synchronous completion (status: "completed")
+#   - custom: receipt confirms synchronous completion with the command used (status: "completed")
 
 set -euo pipefail
 
@@ -76,20 +76,21 @@ fi
 # Resolve dispatch engine: explicit flag > per-circuit > role > global engine > auto-detect
 if [[ -z "$BACKEND" ]]; then
   # 1. Per-circuit override from config
+  # No `|| true` -- parse errors in circuit.config.yaml must fail the dispatch.
   if [[ -n "$CIRCUIT" ]]; then
-    per_circuit="$(node "$READ_CONFIG" --key "dispatch.per_circuit.$CIRCUIT" --fallback "" || true)"
+    per_circuit="$(node "$READ_CONFIG" --key "dispatch.per_circuit.$CIRCUIT" --fallback "")"
     [[ -n "$per_circuit" ]] && BACKEND="$per_circuit"
   fi
 
   # 2. Role-based backend (takes precedence over global engine)
   if [[ -z "$BACKEND" && -n "$ROLE" ]]; then
-    role_backend="$(node "$READ_CONFIG" --key "roles.$ROLE" --fallback "" || true)"
+    role_backend="$(node "$READ_CONFIG" --key "roles.$ROLE" --fallback "")"
     [[ -n "$role_backend" ]] && BACKEND="$role_backend"
   fi
 
   # 3. Global dispatch.engine
   if [[ -z "$BACKEND" ]]; then
-    global_engine="$(node "$READ_CONFIG" --key "dispatch.engine" --fallback "" || true)"
+    global_engine="$(node "$READ_CONFIG" --key "dispatch.engine" --fallback "")"
     [[ -n "$global_engine" ]] && BACKEND="$global_engine"
   fi
 fi
@@ -140,12 +141,8 @@ case "$BACKEND" in
       echo "Install with: npm install -g @openai/codex" >&2
       exit 1
     fi
-    # Run codex in the background so we can capture its PID for the receipt.
-    # Temporarily disable errexit so a non-zero codex exit doesn't skip our
-    # error-reporting logic.
-    cat "$PROMPT" | codex exec --full-auto -o "$OUTPUT" - &
-    CODEX_PID=$!
-    wait "$CODEX_PID" && CODEX_EXIT=0 || CODEX_EXIT=$?
+    # Run codex synchronously and wait for completion.
+    cat "$PROMPT" | codex exec --full-auto -o "$OUTPUT" - && CODEX_EXIT=0 || CODEX_EXIT=$?
 
     if (( CODEX_EXIT != 0 )); then
       echo "ERROR: codex exec exited with status $CODEX_EXIT" >&2
@@ -158,10 +155,9 @@ case "$BACKEND" in
     cat <<EOF
 {
   "backend": "codex",
-  "status": "dispatched",
+  "status": "completed",
   "prompt_file": "${ESCAPED_PROMPT}",
-  "output_file": "${ESCAPED_OUTPUT}",
-  "pid": ${CODEX_PID}
+  "output_file": "${ESCAPED_OUTPUT}"
 }
 EOF
     ;;
@@ -244,7 +240,7 @@ EOF
 {
   "backend": "custom",
   "command": "${ESCAPED_BACKEND}",
-  "status": "dispatched",
+  "status": "completed",
   "prompt_file": "${ESCAPED_PROMPT}",
   "output_file": "${ESCAPED_OUTPUT}"
 }

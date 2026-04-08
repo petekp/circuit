@@ -12,7 +12,6 @@ import { resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import {
-  RebuildError,
   loadOrRebuildState,
   findResumePoint,
 } from "../resume.js";
@@ -68,18 +67,16 @@ function main(): number {
   try {
     state = loadOrRebuildState(runRoot);
   } catch (error) {
-    if (error instanceof RebuildError) {
-      process.stdout.write(
-        JSON.stringify({
-          resume_step: null,
-          status: "error",
-          reason: `State rebuild failed: ${error.message}`,
-        }) + "\n",
-      );
-      return 1;
-    }
-
-    throw error;
+    const message =
+      error instanceof Error ? error.message : String(error);
+    process.stdout.write(
+      JSON.stringify({
+        resume_step: null,
+        status: "error",
+        reason: `State load failed: ${message}`,
+      }) + "\n",
+    );
+    return 1;
   }
 
   if (!state || Object.keys(state).length === 0) {

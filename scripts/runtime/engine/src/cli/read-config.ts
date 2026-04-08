@@ -9,7 +9,7 @@
  *
  * Searches for circuit.config.yaml in:
  *   1. Explicit --config path (if provided, only that path is tried)
- *   2. Current working directory
+ *   2. Upward walk from cwd to git root (or filesystem root if not in a repo)
  *   3. ~/.claude/circuit.config.yaml
  *
  * Exit behavior:
@@ -21,8 +21,9 @@
  */
 
 import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { execSync } from "node:child_process";
 import { parse as parseYaml } from "yaml";
 
 function resolvePath(obj: unknown, path: string): unknown {
@@ -47,6 +48,46 @@ function formatValue(value: unknown): string {
     return JSON.stringify(value);
   }
   return String(value);
+}
+
+/**
+ * Walk upward from cwd to find circuit.config.yaml, bounded by git root.
+ * Returns an ordered list of candidate paths: ancestors first, then ~/.claude fallback.
+ */
+function discoverConfigPaths(): string[] {
+  const paths: string[] = [];
+  const cwd = process.cwd();
+
+  // Determine the boundary: git root if available, otherwise filesystem root
+  let boundary: string | null = null;
+  try {
+    boundary = execSync("git rev-parse --show-toplevel", {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+  } catch {
+    // Not in a git repo -- walk all the way up
+  }
+
+  let dir = cwd;
+  while (true) {
+    paths.push(join(dir, "circuit.config.yaml"));
+
+    // Stop at boundary (git root) -- we already added it
+    if (boundary && dir === boundary) break;
+
+    const parent = dirname(dir);
+    if (parent === dir) break; // filesystem root
+    dir = parent;
+  }
+
+  // Home fallback last
+  const homeFallback = join(homedir(), ".claude", "circuit.config.yaml");
+  if (!paths.includes(homeFallback)) {
+    paths.push(homeFallback);
+  }
+
+  return paths;
 }
 
 function main(): number {
@@ -93,11 +134,8 @@ function main(): number {
     return 0;
   }
 
-  // Default discovery: CWD then home directory.
-  const configPaths = [
-    join(process.cwd(), "circuit.config.yaml"),
-    join(homedir(), ".claude", "circuit.config.yaml"),
-  ];
+  // Default discovery: walk upward from cwd (bounded by git root), then home.
+  const configPaths = discoverConfigPaths();
 
   for (const configPath of configPaths) {
     if (!existsSync(configPath)) continue;
