@@ -1,16 +1,18 @@
 ---
 name: handoff
 description: >
-  Core lifecycle primitive. Save session state to disk so a fresh session can resume
-  automatically. Use when context is getting heavy, the user asks for a handoff, or
-  you need to preserve progress before a session boundary. Also supports
-  `/circuit:handoff done` to clear a pending handoff. Works alongside active-run.md
-  (automatic continuity) as the intentional high-quality continuity path.
+  Save session state for the next session. A fresh session can resume
+  automatically. Use when context is getting heavy, the user asks for a handoff,
+  or you need to preserve progress before a session boundary. Also supports
+  `/circuit:handoff done` to clear a pending handoff. Works alongside
+  active-run.md (automatic continuity) as the intentional high-quality
+  continuity path.
+role: utility
 ---
 
 # Handoff
 
-Core lifecycle primitive. Write a handoff file to disk. On the next `/clear` or
+Save session state for the next session. On the next `/clear` or
 session start, the Circuit hook auto-injects it so the fresh session picks up
 where this one left off. No clipboard, no paste.
 

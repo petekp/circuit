@@ -38,9 +38,10 @@ The two files must agree. If the YAML says a step requires a structured verdict
 but the SKILL.md only checks for file existence, the circuit silently skips the
 quality check.
 
-Utilities are intentionally different. `review`, `handoff`, and `workers` ship
-as utility skills without `circuit.yaml`; they are lifecycle or adapter helpers,
-not workflows the runtime engine classifies as circuits.
+Non-workflow helpers are intentionally different. `review` and `handoff` ship
+as utility skills without `circuit.yaml`. `workers` also omits `circuit.yaml`,
+but it is an internal adapter utility rather than a public lifecycle utility.
+None of them are workflows the runtime engine classifies as circuits.
 
 The plugin is named `circuit`. Skills use bare directory names (`run`, `build`,
 `explore`, etc.). Claude Code namespaces them as `/circuit:<skill>` at runtime,
@@ -715,6 +716,7 @@ circuit:
 
   entry:
     expert_command: /circuit:build   # direct invocation (matches /circuit:<id>)
+    usage: <task>                    # optional single placeholder suffix rendered in public docs
     signals:
       include: [signal_names]
       exclude: [signal_names]
@@ -868,7 +870,7 @@ circuit/
       circuit.yaml            # 7-step sweep circuit
       SKILL.md
     workers/
-      SKILL.md                # Batch worker orchestrator (utility, no circuit.yaml)
+      SKILL.md                # Batch worker orchestrator (internal adapter, no circuit.yaml)
       references/
         implement-template.md
         review-template.md

@@ -10,11 +10,14 @@
  */
 
 import { resolve, dirname } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { extract } from "../catalog/extract.js";
 import { generate } from "../catalog/generate.js";
-import type { Catalog, CatalogEntry, CircuitEntry, GenerateTarget } from "../catalog/types.js";
+import {
+  getGenerateTargets,
+  pruneStaleCommandShims,
+} from "../catalog/surfaces.js";
 
 const MODULE_DIR =
   typeof __dirname !== "undefined"
@@ -30,48 +33,6 @@ function findRepoRoot(): string {
     dir = parent;
   }
   return resolve(MODULE_DIR, "..", "..", "..", "..");
-}
-
-function isCircuit(entry: CatalogEntry): entry is CircuitEntry {
-  return entry.kind === "circuit";
-}
-
-function renderCircuitTable(catalog: Catalog): string {
-  const circuits = catalog.filter(isCircuit);
-  const header = "| Circuit | Invoke | Best For |";
-  const sep = "|---------|--------|----------|";
-  const rows = circuits.map((c) => {
-    const invoke = c.entryCommand
-      ? `\`${c.entryCommand} <task>\``
-      : `\`${c.expertCommand}\``;
-    return `| ${c.id.charAt(0).toUpperCase() + c.id.slice(1)} | ${invoke} | ${c.purpose} |`;
-  });
-  return [header, sep, ...rows].join("\n");
-}
-
-function renderEntryModes(catalog: Catalog): string {
-  const circuits = catalog.filter(isCircuit);
-  const sections = circuits.map((c) => {
-    const heading = `### ${c.id.charAt(0).toUpperCase() + c.id.slice(1)}`;
-    const modes = c.entryModes.map((m) => `- ${m}`).join("\n");
-    return [heading, "", modes].join("\n");
-  });
-  return sections.join("\n\n");
-}
-
-function getTargets(repoRoot: string): GenerateTarget[] {
-  return [
-    {
-      filePath: resolve(repoRoot, "CIRCUITS.md"),
-      blockName: "CIRCUIT_TABLE",
-      render: renderCircuitTable,
-    },
-    {
-      filePath: resolve(repoRoot, "CIRCUITS.md"),
-      blockName: "ENTRY_MODES",
-      render: renderEntryModes,
-    },
-  ];
 }
 
 function main(): number {
@@ -99,14 +60,19 @@ function main(): number {
     }
 
     // generate
-    const targets = getTargets(repoRoot);
+    const targets = getGenerateTargets(repoRoot, catalog);
     const result = generate(catalog, targets);
+    const staleShimPaths = pruneStaleCommandShims(repoRoot, catalog);
+    for (const path of staleShimPaths) {
+      rmSync(path);
+      process.stdout.write(`removed: ${path}\n`);
+    }
 
     for (const file of result.patchedFiles) {
       process.stdout.write(`patched: ${file}\n`);
     }
 
-    if (result.patchedFiles.length === 0) {
+    if (result.patchedFiles.length === 0 && staleShimPaths.length === 0) {
       process.stdout.write("all blocks up to date\n");
     }
 

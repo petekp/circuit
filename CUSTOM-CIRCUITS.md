@@ -28,9 +28,9 @@ The engine validates `circuit.yaml` against
 `schemas/circuit-manifest.schema.json`. If validation fails, the circuit
 won't run.
 
-Utilities are separate. Skills like `review`, `handoff`, and `workers` are
-useful plugin utilities, but they are not examples of custom circuits because
-they intentionally omit `circuit.yaml`.
+Non-circuit helpers are separate. `review` and `handoff` are public utilities.
+`workers` is an internal adapter helper. None of them are examples of custom
+circuits because they intentionally omit `circuit.yaml`.
 
 ## Step 1: Define the Topology (circuit.yaml)
 
@@ -48,6 +48,8 @@ circuit:
 
   entry:
     expert_command: /circuit:research
+    # Optional single placeholder suffix for commands that take a direct task:
+    # usage: <task>
     signals:
       include: [research, literature_review, deep_dive]
       exclude: [bug, migration, cleanup]

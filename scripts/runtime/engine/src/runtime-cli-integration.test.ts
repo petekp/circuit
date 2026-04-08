@@ -78,6 +78,7 @@ function writeManifest(runRoot: string) {
 
 function copyInstallRoot(targetRoot: string) {
   const entries = [
+    ".claude-plugin",
     "commands",
     "hooks",
     "schemas",
@@ -267,6 +268,51 @@ describe("runtime CLI integration", () => {
     expect(result.status).not.toBe(0);
     expect(`${result.stdout}\n${result.stderr}`).toMatch(
       /(broken resume bundle|resume round trip)/,
+    );
+  });
+
+  it("verify-install fails when stale generated public surfaces still ship workers", () => {
+    const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));
+    const installRoot = resolve(tempRoot, "install-root");
+    mkdirSync(installRoot, { recursive: true });
+    copyInstallRoot(installRoot);
+
+    writeFileSync(
+      resolve(installRoot, ".claude-plugin/public-commands.txt"),
+      [
+        "build",
+        "explore",
+        "handoff",
+        "migrate",
+        "repair",
+        "review",
+        "run",
+        "sweep",
+        "workers",
+        "",
+      ].join("\n"),
+      "utf-8",
+    );
+    writeFileSync(
+      resolve(installRoot, "commands/workers.md"),
+      [
+        "---",
+        'description: "Stale workers shim."',
+        "---",
+        "",
+        "Use the circuit:workers skill to handle this request.",
+        "",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = run(resolve(installRoot, "scripts/verify-install.sh"), [], {
+      cwd: installRoot,
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toMatch(
+      /(workers|public command surface|authoritative)/i,
     );
   });
 });

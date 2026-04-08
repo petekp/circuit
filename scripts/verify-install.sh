@@ -209,20 +209,81 @@ fi
 section "Command shims"
 
 commands_dir="$PLUGIN_ROOT/commands"
+public_commands_file="$PLUGIN_ROOT/.claude-plugin/public-commands.txt"
+catalog_compiler="$PLUGIN_ROOT/scripts/runtime/bin/catalog-compiler.js"
 if [[ -d "$commands_dir" ]]; then
-  shim_count=0
-  shim_missing=0
-  while IFS= read -r -d '' skill_dir; do
-    skill="$(basename "$skill_dir")"
-    if [[ -f "$commands_dir/${skill}.md" ]]; then
-      shim_count=$((shim_count + 1))
+  if [[ ! -f "$public_commands_file" ]]; then
+    fail "public-commands.txt not found -- run catalog-compiler generate"
+  elif [[ ! -f "$catalog_compiler" ]]; then
+    fail "catalog-compiler.js not found -- cannot derive authoritative public command surface"
+  else
+    expected_surface_root="$(new_temp_dir)"
+    mkdir -p \
+      "$expected_surface_root/.claude-plugin" \
+      "$expected_surface_root/commands" \
+      "$expected_surface_root/skills" \
+      "$expected_surface_root/scripts/runtime/bin"
+    cp -R "$PLUGIN_ROOT/skills/." "$expected_surface_root/skills/"
+    cp "$catalog_compiler" "$expected_surface_root/scripts/runtime/bin/catalog-compiler.js"
+    cat > "$expected_surface_root/CIRCUITS.md" <<'EOF'
+# Surface Verification Fixture
+
+<!-- BEGIN CIRCUIT_TABLE -->
+<!-- END CIRCUIT_TABLE -->
+
+<!-- BEGIN UTILITY_TABLE -->
+<!-- END UTILITY_TABLE -->
+
+<!-- BEGIN ENTRY_MODES -->
+<!-- END ENTRY_MODES -->
+EOF
+
+    if (
+      cd "$expected_surface_root" && \
+      "$NODE_BIN" "$expected_surface_root/scripts/runtime/bin/catalog-compiler.js" generate
+    ) > /dev/null 2>&1; then
+      surface_failures=0
+      shim_count=0
+      expected_public_commands_file="$expected_surface_root/.claude-plugin/public-commands.txt"
+
+      if [[ ! -f "$expected_public_commands_file" ]]; then
+        fail "authoritative catalog generation did not emit public-commands.txt"
+        surface_failures=$((surface_failures + 1))
+      elif ! cmp -s "$expected_public_commands_file" "$public_commands_file"; then
+        fail "public-commands.txt does not match authoritative catalog output"
+        surface_failures=$((surface_failures + 1))
+      fi
+
+      while IFS= read -r command; do
+        [[ -z "$command" ]] && continue
+        expected_shim="$expected_surface_root/commands/${command}.md"
+        actual_shim="$commands_dir/${command}.md"
+        if [[ ! -f "$actual_shim" ]]; then
+          fail "public command $command has no shipped shim at commands/${command}.md"
+          surface_failures=$((surface_failures + 1))
+        elif ! cmp -s "$expected_shim" "$actual_shim"; then
+          fail "public command shim commands/${command}.md does not match authoritative catalog output"
+          surface_failures=$((surface_failures + 1))
+        else
+          shim_count=$((shim_count + 1))
+        fi
+      done < "$expected_public_commands_file"
+
+      for shim_file in "$commands_dir"/*.md; do
+        [[ -f "$shim_file" ]] || continue
+        shim_name="$(basename "$shim_file" .md)"
+        if [[ ! -f "$expected_surface_root/commands/${shim_name}.md" ]]; then
+          fail "stale command shim commands/${shim_name}.md is outside the authoritative public command surface"
+          surface_failures=$((surface_failures + 1))
+        fi
+      done
+
+      if [[ $surface_failures -eq 0 ]]; then
+        pass "commands/ and public-commands.txt match authoritative catalog output ($shim_count public commands)"
+      fi
     else
-      fail "skill $skill/ has no matching command shim at commands/${skill}.md"
-      shim_missing=$((shim_missing + 1))
+      fail "authoritative catalog generation failed -- verify-install cannot prove public command freshness"
     fi
-  done < <(find "$PLUGIN_ROOT/skills" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-  if [[ $shim_missing -eq 0 ]]; then
-    pass "commands/ complete ($shim_count shims match $shim_count skills)"
   fi
 else
   fail "commands/ directory not found -- slash-command picker will not show circuit commands"

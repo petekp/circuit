@@ -1,9 +1,11 @@
 /**
- * Catalog generator. Reads a Catalog and patches inline marker blocks in target files.
+ * Catalog generator. Reads a Catalog and updates generated surfaces.
+ * Block targets patch inline marker blocks. File targets write whole-file output.
  * Throws on missing or malformed markers (never silently skips).
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import type { Catalog, GenerateTarget, GenerateResult } from "./types.js";
 
 interface GenerateOptions {
@@ -22,11 +24,33 @@ export function generate(
   const patchedFiles: string[] = [];
 
   for (const target of targets) {
-    const content = readFile(target.filePath);
-    const patched = patchBlock(content, target.blockName, target.render(catalog), target.filePath);
+    if ("blockName" in target) {
+      const content = readFile(target.filePath);
+      const patched = patchBlock(content, target.blockName, target.render(catalog), target.filePath);
 
-    if (patched !== content) {
-      writeFile(target.filePath, patched);
+      if (patched !== content) {
+        writeFile(target.filePath, patched);
+        patchedFiles.push(target.filePath);
+      }
+      continue;
+    }
+
+    let content = "";
+    try {
+      content = readFile(target.filePath);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (code === "ENOENT") {
+        content = "";
+      } else {
+        throw error;
+      }
+    }
+    const rendered = target.render(catalog);
+
+    if (rendered !== content) {
+      mkdirSync(dirname(target.filePath), { recursive: true });
+      writeFile(target.filePath, rendered);
       patchedFiles.push(target.filePath);
     }
   }

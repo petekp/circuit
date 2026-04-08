@@ -276,6 +276,47 @@ describe("schema regressions", () => {
 });
 
 describe("circuit.yaml manifest validation", () => {
+  it("rejects legacy entry.command in favor of expert_command plus usage", () => {
+    const manifestSchema = loadJsonSchema("schemas/circuit-manifest.schema.json");
+    const manifest = makeManifest();
+
+    manifest.circuit.entry = {
+      command: "/circuit:test-circuit",
+      expert_command: "/circuit:test-circuit",
+      signals: {
+        include: ["quality_improvement"],
+      },
+    };
+
+    expect(validate(manifestSchema, manifest).length).toBeGreaterThan(0);
+  });
+
+  it("accepts a single placeholder entry.usage and rejects free-form usage strings", () => {
+    const manifestSchema = loadJsonSchema("schemas/circuit-manifest.schema.json");
+
+    const validManifest = makeManifest();
+    validManifest.circuit.entry = {
+      expert_command: "/circuit:test-circuit",
+      usage: "<task-name>",
+      signals: {
+        include: ["quality_improvement"],
+      },
+    };
+    expect(validate(manifestSchema, validManifest)).toEqual([]);
+
+    for (const usage of ["task", "<Task>", "<task> <scope>"]) {
+      const invalidManifest = makeManifest();
+      invalidManifest.circuit.entry = {
+        expert_command: "/circuit:test-circuit",
+        usage,
+        signals: {
+          include: ["quality_improvement"],
+        },
+      };
+      expect(validate(manifestSchema, invalidManifest).length).toBeGreaterThan(0);
+    }
+  });
+
   it("all circuit.yaml files validate against manifest schema", () => {
     const skillsRoot = join(REPO_ROOT, "skills");
     const manifestSchema = loadJsonSchema("schemas/circuit-manifest.schema.json");

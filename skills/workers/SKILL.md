@@ -1,9 +1,11 @@
 ---
 name: workers
 description: >
-  Autonomous batch orchestrator for dispatching workers. Use for "/circuit:workers",
-  "dispatch workers", "use workers", or long-running worker-dispatched work.
-  Workers run via Codex CLI when installed, or via Agent fallback.
+  Autonomous batch orchestrator for dispatching workers. Use when a workflow
+  needs the implement-review-converge loop or other long-running
+  worker-dispatched work. Workers run via Codex CLI when installed, or via
+  Agent fallback.
+role: adapter
 ---
 
 # Workers

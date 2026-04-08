@@ -1,0 +1,8 @@
+build
+explore
+handoff
+migrate
+repair
+review
+run
+sweep

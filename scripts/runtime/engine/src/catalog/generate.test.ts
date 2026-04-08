@@ -9,11 +9,11 @@ const SAMPLE_CATALOG: Catalog = [
     dir: "cleanup",
     version: "2026-04-01",
     purpose: "Systematic cleanup.",
-    entryCommand: undefined,
     expertCommand: "/circuit:cleanup",
     entryModes: ["auto", "default"],
     skillName: "circuit:cleanup",
     skillDescription: "Systematic cleanup.",
+    role: "workflow",
   },
   {
     kind: "circuit",
@@ -21,11 +21,12 @@ const SAMPLE_CATALOG: Catalog = [
     dir: "run",
     version: "2026-04-03",
     purpose: "Adaptive supergraph circuit.",
-    entryCommand: "/circuit",
     expertCommand: "/circuit:run",
+    entryUsage: "<task>",
     entryModes: ["adversarial", "default", "quick"],
     skillName: "circuit:run",
     skillDescription: "Adaptive supergraph circuit.",
+    role: "workflow",
   },
   {
     kind: "utility",
@@ -33,6 +34,7 @@ const SAMPLE_CATALOG: Catalog = [
     dir: "workers",
     skillName: "workers",
     skillDescription: "Autonomous batch orchestrator.",
+    role: "adapter",
   },
 ];
 
@@ -199,5 +201,19 @@ describe("generate", () => {
     expect(result.patchedFiles).toHaveLength(2);
     expect(fs.store["a.md"]).toContain("content-a");
     expect(fs.store["b.md"]).toContain("content-b");
+  });
+
+  it("writes whole-file targets", () => {
+    const fs = makeFs({
+      "commands/run.md": "old\n",
+    });
+
+    const targets: GenerateTarget[] = [
+      { filePath: "commands/run.md", render: () => "generated\n" },
+    ];
+
+    const result = generate(SAMPLE_CATALOG, targets, fs);
+    expect(result.patchedFiles).toEqual(["commands/run.md"]);
+    expect(fs.store["commands/run.md"]).toBe("generated\n");
   });
 });

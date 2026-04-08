@@ -1,53 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { execSync } from "node:child_process";
 import { REPO_ROOT } from "../schema.js";
 import { extract } from "./extract.js";
 import { generate } from "./generate.js";
-import type { Catalog, CatalogEntry, CircuitEntry, GenerateTarget } from "./types.js";
-
-function isCircuit(entry: CatalogEntry): entry is CircuitEntry {
-  return entry.kind === "circuit";
-}
-
-function renderCircuitTable(catalog: Catalog): string {
-  const circuits = catalog.filter(isCircuit);
-  const header = "| Circuit | Invoke | Best For |";
-  const sep = "|---------|--------|----------|";
-  const rows = circuits.map((c) => {
-    const invoke = c.entryCommand
-      ? `\`${c.entryCommand} <task>\``
-      : `\`${c.expertCommand}\``;
-    return `| ${c.id.charAt(0).toUpperCase() + c.id.slice(1)} | ${invoke} | ${c.purpose} |`;
-  });
-  return [header, sep, ...rows].join("\n");
-}
-
-function renderEntryModes(catalog: Catalog): string {
-  const circuits = catalog.filter(isCircuit);
-  const sections = circuits.map((c) => {
-    const heading = `### ${c.id.charAt(0).toUpperCase() + c.id.slice(1)}`;
-    const modes = c.entryModes.map((m) => `- ${m}`).join("\n");
-    return [heading, "", modes].join("\n");
-  });
-  return sections.join("\n\n");
-}
-
-function getTargets(repoRoot: string): GenerateTarget[] {
-  return [
-    {
-      filePath: resolve(repoRoot, "CIRCUITS.md"),
-      blockName: "CIRCUIT_TABLE",
-      render: renderCircuitTable,
-    },
-    {
-      filePath: resolve(repoRoot, "CIRCUITS.md"),
-      blockName: "ENTRY_MODES",
-      render: renderEntryModes,
-    },
-  ];
-}
+import { getGenerateTargets, getPublicCommandIds, isCircuit } from "./surfaces.js";
 
 const skillsDir = resolve(REPO_ROOT, "skills");
 
@@ -89,11 +47,19 @@ describe("catalog identity invariants", () => {
 
 describe("generated block freshness", () => {
   const catalog = extract(skillsDir);
-  const targets = getTargets(REPO_ROOT);
+  const targets = getGenerateTargets(REPO_ROOT, catalog);
 
   for (const target of targets) {
-    it(`${target.filePath}:${target.blockName} is up to date`, () => {
-      const currentContent = readFileSync(target.filePath, "utf-8");
+    const label = "blockName" in target
+      ? `${target.filePath}:${target.blockName}`
+      : target.filePath;
+    it(`${label} is up to date`, () => {
+      let currentContent = "";
+      try {
+        currentContent = readFileSync(target.filePath, "utf-8");
+      } catch {
+        currentContent = "";
+      }
 
       // Generate in memory (no write)
       let wouldWrite = "";
@@ -112,6 +78,24 @@ describe("generated block freshness", () => {
       }
     });
   }
+
+  it("commands/ contains exactly the generated public command shims", () => {
+    const expected = new Set(getPublicCommandIds(catalog));
+    const manifestCommands = new Set(
+      readFileSync(resolve(REPO_ROOT, ".claude-plugin", "public-commands.txt"), "utf-8")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    );
+    const actualShims = new Set(
+      readdirSync(resolve(REPO_ROOT, "commands"))
+        .filter((name) => name.endsWith(".md"))
+        .map((name) => name.replace(/\.md$/, "")),
+    );
+
+    expect(manifestCommands).toEqual(expected);
+    expect(actualShims).toEqual(expected);
+  });
 });
 
 // Directories that contain historical or ephemeral artifacts (migration plans,

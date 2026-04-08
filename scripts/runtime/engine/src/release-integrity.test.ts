@@ -138,6 +138,14 @@ function getContextualModeCoverage(
   );
 }
 
+function extractDocumentedCircuitCommands(content: string): string[] {
+  return [
+    ...new Set(
+      [...content.matchAll(/\/circuit:([a-z0-9-]+)/g)].map((match) => match[1]),
+    ),
+  ];
+}
+
 // ── Version sync ──────────────────────────────────────────────────────
 
 describe("version sync", () => {
@@ -842,11 +850,66 @@ describe("utility taxonomy", () => {
     expect(existsSync(resolve(REPO_ROOT, "skills/handoff/circuit.yaml"))).toBe(false);
   });
 
+  it("review and handoff declare utility role in frontmatter", () => {
+    expect(readFile("skills/review/SKILL.md")).toMatch(/^role:\s*utility$/m);
+    expect(readFile("skills/handoff/SKILL.md")).toMatch(/^role:\s*utility$/m);
+  });
+
   it("CIRCUITS.md documents review and handoff under Utilities", () => {
     const circuits = readFile("CIRCUITS.md");
     expect(circuits).toContain("## Utilities");
     expect(circuits).toContain("| Review | `/circuit:review` | Standalone fresh-context code review |");
     expect(circuits).toContain("| Handoff | `/circuit:handoff` | Save session state for the next session |");
+  });
+});
+
+describe("internal adapters stay off the public command surface", () => {
+  it("workers has adapter role in frontmatter", () => {
+    const workers = readFile("skills/workers/SKILL.md");
+    expect(workers).toMatch(/^role:\s*adapter$/m);
+  });
+
+  it("workers is not shipped as a public command shim", () => {
+    expect(existsSync(resolve(REPO_ROOT, "commands/workers.md"))).toBe(false);
+  });
+
+  it("public-commands.txt excludes workers", () => {
+    const publicCommands = readFile(".claude-plugin/public-commands.txt")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    expect(publicCommands).not.toContain("workers");
+  });
+
+  it("README and CIRCUITS do not advertise /circuit:workers", () => {
+    expect(readFile("README.md")).not.toContain("/circuit:workers");
+    expect(readFile("CIRCUITS.md")).not.toContain("/circuit:workers");
+  });
+
+  it("workers SKILL.md no longer advertises a public slash command", () => {
+    expect(readFile("skills/workers/SKILL.md")).not.toContain('Use for "/circuit:workers"');
+  });
+});
+
+describe("utility and adapter docs", () => {
+  it("ARCHITECTURE.md distinguishes workers from lifecycle utilities", () => {
+    const arch = readFile("ARCHITECTURE.md");
+    expect(arch).toMatch(/review[\s\S]*handoff[\s\S]*utility skills/i);
+    expect(arch).toMatch(/workers[\s\S]*adapter/i);
+    expect(arch).not.toContain("`review`, `handoff`, and `workers` ship as utility skills");
+  });
+
+  it("CUSTOM-CIRCUITS.md teaches workers as an adapter, not a utility example", () => {
+    const custom = readFile("CUSTOM-CIRCUITS.md");
+    expect(custom).toMatch(/review[\s\S]*handoff[\s\S]*utilities/i);
+    expect(custom).toMatch(/workers[\s\S]*adapter/i);
+    expect(custom).not.toContain("Skills like `review`, `handoff`, and `workers` are");
+  });
+
+  it("commands/handoff.md matches the public handoff description", () => {
+    expect(readFile("commands/handoff.md")).toContain(
+      'description: "Save session state for the next session."',
+    );
   });
 });
 
@@ -955,17 +1018,33 @@ describe("documented command surface matches plugin namespace", () => {
   });
 });
 
+describe("run command usage contract", () => {
+  it("run manifest declares task usage explicitly", () => {
+    const yaml = readCircuitYaml("run");
+    expect(yaml.circuit.entry.usage).toBe("<task>");
+  });
+
+  it("CIRCUITS.md renders run with its declared task usage", () => {
+    const circuits = readFile("CIRCUITS.md");
+    expect(circuits).toContain("| Run | `/circuit:run <task>` |");
+  });
+});
+
 // ── README command inventory matches shipped commands ────────────────
 
 describe("README command inventory matches shipped commands", () => {
+  it("hyphenated command ids are parsed intact from docs", () => {
+    const sample = "Use /circuit:deep-review, /circuit:run <task>, and /circuit:ship-ready.";
+    expect(extractDocumentedCircuitCommands(sample)).toEqual([
+      "deep-review",
+      "run",
+      "ship-ready",
+    ]);
+  });
+
   it("every /circuit:<name> documented in README exists in commands/", () => {
     const readme = readFile("README.md");
-    // Extract all /circuit:<name> patterns (deduplicated)
-    const documented = [
-      ...new Set(
-        [...readme.matchAll(/\/circuit:(\w+)/g)].map((m) => m[1]),
-      ),
-    ];
+    const documented = extractDocumentedCircuitCommands(readme);
     expect(documented.length).toBeGreaterThan(0);
 
     for (const command of documented) {
@@ -979,11 +1058,7 @@ describe("README command inventory matches shipped commands", () => {
 
   it("every /circuit:<name> in CIRCUITS.md exists in commands/", () => {
     const circuits = readFile("CIRCUITS.md");
-    const documented = [
-      ...new Set(
-        [...circuits.matchAll(/\/circuit:(\w+)/g)].map((m) => m[1]),
-      ),
-    ];
+    const documented = extractDocumentedCircuitCommands(circuits);
     expect(documented.length).toBeGreaterThan(0);
 
     for (const command of documented) {
@@ -992,6 +1067,21 @@ describe("README command inventory matches shipped commands", () => {
         existsSync(commandPath),
         `CIRCUITS.md documents /circuit:${command} but commands/${command}.md does not exist`,
       ).toBe(true);
+    }
+  });
+
+  it("README documents every generated public command", () => {
+    const readme = readFile("README.md");
+    const publicCommands = readFile(".claude-plugin/public-commands.txt")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    for (const command of publicCommands) {
+      expect(
+        readme,
+        `README is missing public command /circuit:${command}`,
+      ).toContain(`/circuit:${command}`);
     }
   });
 });

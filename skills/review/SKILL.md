@@ -4,6 +4,7 @@ description: >
   Standalone fresh-context code review. Use when code was changed manually or via
   plain Claude and you want an independent audit. Same schema and verdict language
   as review phases inside other workflows. One mental model across all circuits.
+role: utility
 trigger: >
   Use for /circuit:review, or when the user wants an independent code review.
 ---
