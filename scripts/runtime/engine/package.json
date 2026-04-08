@@ -6,6 +6,7 @@
   "bin": {
     "circuit-append-event": "dist/cli/append-event.js",
     "circuit-catalog-compiler": "dist/cli/catalog-compiler.js",
+    "circuit-dispatch": "dist/cli/dispatch.js",
     "circuit-derive-state": "dist/cli/derive-state.js",
     "circuit-read-config": "dist/cli/read-config.js",
     "circuit-resume": "dist/cli/resume.js",

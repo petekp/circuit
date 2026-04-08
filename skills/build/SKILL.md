@@ -242,7 +242,8 @@ Review schema:
 ## Verdict: CLEAN | ISSUES FOUND
 ```
 
-Compose and dispatch with `--role reviewer`.
+Compose and dispatch with `--circuit build --step review --role reviewer`.
+`--step review` is internal execution metadata for labeling/state only; adapter routing stays semantic.
 
 Promote to `artifacts/review.md`.
 

@@ -80,6 +80,7 @@ function copyInstallRoot(targetRoot: string) {
   const entries = [
     ".claude-plugin",
     "commands",
+    "docs/examples",
     "hooks",
     "schemas",
     "skills",
@@ -96,6 +97,7 @@ function copyInstallRoot(targetRoot: string) {
   }
 
   chmodSync(resolve(targetRoot, "scripts/verify-install.sh"), 0o755);
+  chmodSync(resolve(targetRoot, "docs/examples/gemini-dispatch.sh"), 0o755);
   chmodSync(resolve(targetRoot, "scripts/relay/compose-prompt.sh"), 0o755);
   chmodSync(resolve(targetRoot, "scripts/relay/dispatch.sh"), 0o755);
   chmodSync(resolve(targetRoot, "scripts/relay/update-batch.sh"), 0o755);
@@ -115,17 +117,17 @@ describe("runtime CLI integration", () => {
 
     writeFileSync(
       resolve(homeDir, ".claude/circuit.config.yaml"),
-      ["roles:", "  implementer: home-role", ""].join("\n"),
+      ["dispatch:", "  roles:", "    implementer: home-role", ""].join("\n"),
       "utf-8",
     );
     writeFileSync(
       resolve(repoDir, "circuit.config.yaml"),
-      ["roles:", "  implementer: project-role", ""].join("\n"),
+      ["dispatch:", "  roles:", "    implementer: project-role", ""].join("\n"),
       "utf-8",
     );
     writeFileSync(
       explicitConfig,
-      ["roles:", "  implementer: explicit-role", ""].join("\n"),
+      ["dispatch:", "  roles:", "    implementer: explicit-role", ""].join("\n"),
       "utf-8",
     );
 
@@ -133,7 +135,7 @@ describe("runtime CLI integration", () => {
 
     const result = run(
       "node",
-      [READ_CONFIG, "--config", explicitConfig, "--key", "roles.implementer", "--fallback", "auto"],
+      [READ_CONFIG, "--config", explicitConfig, "--key", "dispatch.roles.implementer", "--fallback", "auto"],
       { cwd: nestedDir, env: { HOME: homeDir } },
     );
 
@@ -152,12 +154,12 @@ describe("runtime CLI integration", () => {
 
     writeFileSync(
       resolve(homeDir, ".claude/circuit.config.yaml"),
-      ["roles:", "  implementer: home-role", ""].join("\n"),
+      ["dispatch:", "  roles:", "    implementer: home-role", ""].join("\n"),
       "utf-8",
     );
     writeFileSync(
       resolve(repoDir, "circuit.config.yaml"),
-      ["roles:", "  implementer: project-role", ""].join("\n"),
+      ["dispatch:", "  roles:", "    implementer: project-role", ""].join("\n"),
       "utf-8",
     );
 
@@ -165,7 +167,7 @@ describe("runtime CLI integration", () => {
 
     const result = run(
       "node",
-      [READ_CONFIG, "--key", "roles.implementer", "--fallback", "auto"],
+      [READ_CONFIG, "--key", "dispatch.roles.implementer", "--fallback", "auto"],
       { cwd: nestedDir, env: { HOME: homeDir } },
     );
 
@@ -215,6 +217,27 @@ describe("runtime CLI integration", () => {
     const payload = JSON.parse(resume.stdout);
     expect(payload.status).toBe("in_progress");
     expect(payload.resume_step).toBe("frame");
+  });
+
+  it("verify-install succeeds from a copied install root", () => {
+    const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));
+    const installRoot = resolve(tempRoot, "install-root");
+    const homeDir = resolve(tempRoot, "home");
+    mkdirSync(resolve(homeDir, ".claude"), { recursive: true });
+    mkdirSync(installRoot, { recursive: true });
+    copyInstallRoot(installRoot);
+
+    const result = run(
+      resolve(installRoot, "scripts/verify-install.sh"),
+      [],
+      {
+        cwd: installRoot,
+        env: { HOME: homeDir, NODE_BIN: process.execPath },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("All checks passed");
   });
 
   it("verify-install fails when discovered config is malformed", () => {

@@ -114,9 +114,12 @@ for category in dead-code stale-docs orphaned-artifacts vestigial-comments redun
     --root "${step_dir}" \
     --out "${step_dir}/prompt.md"
 
+  # --step survey is internal execution metadata only.
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
     --prompt "${step_dir}/prompt.md" \
     --output "${step_dir}/last-messages/last-message.txt" \
+    --circuit sweep \
+    --step survey \
     --role researcher
 done
 ```

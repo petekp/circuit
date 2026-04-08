@@ -60,6 +60,8 @@ Write prompt header at `${step_dir}/prompt-header.md`:
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
   --prompt "${step_dir}/prompt.md" \
   --output "${step_dir}/last-messages/last-message.txt" \
+  --circuit review \
+  --step review \
   --role reviewer
 ```
 

@@ -5,27 +5,35 @@
 #
 # Copy this file to your project root as circuit.config.yaml and customize.
 
-# Role-based agent routing. Maps semantic roles to dispatch backends.
-# Supported backends: codex, agent, auto, or any custom shell command.
+# Dispatch adapter configuration.
+# Resolution order:
+#   1. explicit --adapter
+#   2. dispatch.roles.<role>
+#   3. dispatch.circuits.<circuit>
+#   4. dispatch.default
+#   5. auto-detect (codex if installed, else agent)
 #
-# "codex" uses Codex CLI (faster for parallel workers, requires install).
-# "agent" uses Claude Code's built-in Agent tool with worktree isolation.
-# "auto" picks codex if installed, otherwise agent.
-# Any other value is treated as a shell command (e.g., "gemini run").
-roles:
-  implementer: codex    # code writing, seam proofs, batch execution
-  reviewer: agent       # independent review, audits, ship review
-  researcher: agent     # evidence probes, external research
-
-# Dispatch engine configuration (optional).
-# Controls the default backend for dispatch steps. The --role flag in
-# dispatch.sh takes precedence over this setting.
+# Built-ins:
+# - `agent` uses Claude Code's Agent tool with worktree isolation
+# - `codex` runs Codex CLI via Circuit's runtime process transport
 #
-# dispatch:
-#   engine: auto               # global default: auto | codex | agent | <command>
-#   per_circuit:               # override per circuit
-#     run: codex
-#     sweep: agent
+# Custom adapters are wrapper executables defined as argv arrays. Circuit
+# appends `PROMPT_FILE OUTPUT_FILE` as the final two positional args.
+dispatch:
+  default: auto
+  roles:
+    implementer: codex
+    reviewer: agent
+    researcher: agent
+  circuits:
+    migrate: codex
+    explore: gemini
+  adapters:
+    gemini:
+      command:
+        - ./docs/examples/gemini-dispatch.sh
+        - --model
+        - gemini-2.5-pro
 
 # Per-circuit skill overrides (optional).
 # Use this to assign specific skills to a circuit. Comma-separated skill

@@ -147,6 +147,24 @@ each one adds depth to the phases where it applies.
 **Bring your own skills.** Map any installed skill to a circuit in
 `circuit.config.yaml`. See `circuit.config.example.yaml` for details.
 
+## User-Space Configuration
+
+Circuit looks for configuration in two places:
+
+1. `~/.claude/circuit.config.yaml` for your personal defaults across projects
+2. `circuit.config.yaml` at a repo root for project-specific overrides
+
+The project file wins when both exist. A simple setup flow looks like this:
+
+1. Start from [circuit.config.example.yaml](circuit.config.example.yaml).
+2. Copy it to `~/.claude/circuit.config.yaml` to set your default adapters and skills.
+3. Set semantic routing under `dispatch.roles`, `dispatch.circuits`, and `dispatch.default`.
+4. Define custom wrapper executables under `dispatch.adapters.<name>.command`.
+5. Add a repo-root `circuit.config.yaml` only when that project needs different routing.
+
+Config is read at dispatch time, so editing either config file does not require
+plugin rebuilds or cache sync.
+
 ## Optional: Codex CLI
 
 Circuit can dispatch workers through Codex CLI or through Claude Code's built-in
@@ -155,6 +173,31 @@ Agent tool. Both run synchronously and work out of the box. Codex is optional.
 ```bash
 npm install -g @openai/codex
 ```
+
+## Adapter Routing
+
+Circuit keeps workflow manifests adapter-agnostic. Routing lives in
+`circuit.config.yaml`, so the same circuit can pick the right execution
+transport without encoding workflow internals into config.
+
+Dispatch resolves adapters in this order:
+
+1. explicit `--adapter`
+2. `dispatch.roles.<role>`
+3. `dispatch.circuits.<circuit>`
+4. `dispatch.default`
+5. auto-detect (`codex` if installed, else `agent`)
+
+Built-in adapter names are reserved:
+
+- `codex`: process transport implemented by Circuit runtime code
+- `agent`: structured Claude Code Agent transport with worktree isolation
+
+Custom adapters are wrapper executables only. Define them under
+`dispatch.adapters.<name>.command` as a YAML argv array. Circuit appends
+`PROMPT_FILE OUTPUT_FILE` as the final two args, which keeps wrapper contracts
+simple and avoids shell interpolation. See
+`circuit.config.example.yaml` and `docs/examples/gemini-dispatch.sh`.
 
 ## Prerequisites
 

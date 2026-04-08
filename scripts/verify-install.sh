@@ -27,7 +27,9 @@ READ_CONFIG="$PLUGIN_ROOT/scripts/runtime/bin/read-config.js"
 APPEND_EVENT="$PLUGIN_ROOT/scripts/runtime/bin/append-event.js"
 DERIVE_STATE="$PLUGIN_ROOT/scripts/runtime/bin/derive-state.js"
 RESUME="$PLUGIN_ROOT/scripts/runtime/bin/resume.js"
+DISPATCH_CLI="$PLUGIN_ROOT/scripts/runtime/bin/dispatch.js"
 COMPOSE_PROMPT="$PLUGIN_ROOT/scripts/relay/compose-prompt.sh"
+DISPATCH_SHIM="$PLUGIN_ROOT/scripts/relay/dispatch.sh"
 
 PASS=0
 FAIL=0
@@ -131,7 +133,7 @@ fi
 section "Engine CLIs"
 
 bin_dir="$PLUGIN_ROOT/scripts/runtime/bin"
-for cli_name in append-event catalog-compiler derive-state read-config resume update-batch; do
+for cli_name in append-event catalog-compiler derive-state dispatch read-config resume update-batch; do
   cli_path="$bin_dir/${cli_name}.js"
   if [[ -f "$cli_path" ]]; then
     pass "engine CLI: ${cli_name}"
@@ -205,7 +207,21 @@ if [[ $skill_count -eq 0 ]]; then
   fail "no skill directories found in $PLUGIN_ROOT/skills"
 fi
 
-# ── 7. Command shims ──────────────────────────────────────────────────
+# ── 7. Example wrappers ───────────────────────────────────────────────
+section "Example wrappers"
+
+gemini_wrapper="$PLUGIN_ROOT/docs/examples/gemini-dispatch.sh"
+if [[ -f "$gemini_wrapper" ]]; then
+  if [[ -x "$gemini_wrapper" ]]; then
+    pass "docs/examples/gemini-dispatch.sh (exists, executable)"
+  else
+    fail "docs/examples/gemini-dispatch.sh exists but is NOT executable"
+  fi
+else
+  fail "docs/examples/gemini-dispatch.sh missing -- docs and config example reference it as the canonical wrapper"
+fi
+
+# ── 8. Command shims ──────────────────────────────────────────────────
 section "Command shims"
 
 commands_dir="$PLUGIN_ROOT/commands"
@@ -289,7 +305,7 @@ else
   fail "commands/ directory not found -- slash-command picker will not show circuit commands"
 fi
 
-# ── 8. Config example ─────────────────────────────────────────────────
+# ── 9. Config example ─────────────────────────────────────────────────
 section "Config example"
 
 config_example="$PLUGIN_ROOT/circuit.config.example.yaml"
@@ -310,7 +326,7 @@ else
   warn "circuit.config.example.yaml not found"
 fi
 
-# ── 9. Relay scripts ──────────────────────────────────────────────────
+# ── 10. Relay scripts ─────────────────────────────────────────────────
 section "Relay scripts"
 
 for script in compose-prompt.sh dispatch.sh update-batch.sh; do
@@ -386,18 +402,21 @@ explicit_config="$config_root/explicit.yaml"
 mkdir -p "$config_home/.claude" "$config_nested" "$config_outside"
 
 cat > "$config_home/.claude/circuit.config.yaml" <<'EOF'
-roles:
-  implementer: home-role
+dispatch:
+  roles:
+    implementer: home-role
 EOF
 
 cat > "$config_repo/circuit.config.yaml" <<'EOF'
-roles:
-  implementer: project-role
+dispatch:
+  roles:
+    implementer: project-role
 EOF
 
 cat > "$explicit_config" <<'EOF'
-roles:
-  implementer: explicit-role
+dispatch:
+  roles:
+    implementer: explicit-role
 EOF
 
 if git init -q "$config_repo" > /dev/null 2>&1; then
@@ -411,7 +430,7 @@ if [[ -f "$current_home_config" ]]; then
     cd "$current_env_probe" && \
     HOME="${HOME:-}" \
     "$NODE_BIN" "$READ_CONFIG" \
-      --key roles.implementer \
+      --key dispatch.roles.implementer \
       --fallback auto 2>&1
   )"
   current_home_status=$?
@@ -428,7 +447,7 @@ explicit_output="$(
   HOME="$config_home" \
   "$NODE_BIN" "$READ_CONFIG" \
     --config "$explicit_config" \
-    --key roles.implementer \
+    --key dispatch.roles.implementer \
     --fallback auto 2>&1
 )"
 if [[ "$explicit_output" == "explicit-role" ]]; then
@@ -441,7 +460,7 @@ project_output="$(
   cd "$config_nested" && \
   HOME="$config_home" \
   "$NODE_BIN" "$READ_CONFIG" \
-    --key roles.implementer \
+    --key dispatch.roles.implementer \
     --fallback auto 2>&1
 )"
 if [[ "$project_output" == "project-role" ]]; then
@@ -454,7 +473,7 @@ home_output="$(
   cd "$config_outside" && \
   HOME="$config_home" \
   "$NODE_BIN" "$READ_CONFIG" \
-    --key roles.implementer \
+    --key dispatch.roles.implementer \
     --fallback auto 2>&1
 )"
 if [[ "$home_output" == "home-role" ]]; then
@@ -464,14 +483,14 @@ else
 fi
 
 cat > "$config_repo/circuit.config.yaml" <<'EOF'
-roles: [broken
+dispatch: [broken
 EOF
 
 malformed_output="$(
   cd "$config_nested" && \
   HOME="$config_home" \
   "$NODE_BIN" "$READ_CONFIG" \
-    --key roles.implementer \
+    --key dispatch.roles.implementer \
     --fallback auto 2>&1
 )"
 malformed_status=$?
@@ -481,7 +500,86 @@ else
   fail "malformed project config did not fail loudly"
 fi
 
-# ── 13. Bundled CLI round trips ──────────────────────────────────────
+# ── 13. Dispatch adapters ────────────────────────────────────────────
+section "Dispatch adapters"
+
+dispatch_root="$(new_temp_dir)"
+dispatch_prompt="$dispatch_root/prompt.md"
+dispatch_output="$dispatch_root/last-message.txt"
+dispatch_repo="$dispatch_root/repo"
+dispatch_nested="$dispatch_repo/nested/deeper"
+dispatch_wrapper="$dispatch_root/mirror-wrapper.sh"
+mkdir -p "$dispatch_nested"
+
+cat > "$dispatch_prompt" <<'EOF'
+# Dispatch adapter check
+Proof payload
+EOF
+
+cat > "$dispatch_wrapper" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == "--mode" ]]
+[[ "$2" == "mirror" ]]
+cp "$3" "$4"
+EOF
+chmod +x "$dispatch_wrapper"
+
+cat > "$dispatch_repo/circuit.config.yaml" <<EOF
+dispatch:
+  roles:
+    implementer: agent
+  circuits:
+    migrate: mirror
+  adapters:
+    mirror:
+      command:
+        - "$dispatch_wrapper"
+        - --mode
+        - mirror
+EOF
+
+if git init -q "$dispatch_repo" > /dev/null 2>&1; then
+  :
+fi
+
+agent_receipt="$(
+  cd "$dispatch_nested" && \
+  "$DISPATCH_SHIM" \
+    --prompt "$dispatch_prompt" \
+    --output "$dispatch_output" \
+    --role implementer 2>&1
+)"
+agent_status=$?
+if [[ $agent_status -eq 0 ]] && \
+   printf '%s' "$agent_receipt" | grep -q '"adapter": "agent"' && \
+   printf '%s' "$agent_receipt" | grep -q '"transport": "agent"' && \
+   printf '%s' "$agent_receipt" | grep -q '"resolved_from": "dispatch.roles.implementer"'; then
+  pass "dispatch resolves a built-in adapter from discovered config"
+else
+  fail "dispatch did not resolve the built-in adapter contract"
+fi
+
+custom_receipt="$(
+  cd "$dispatch_nested" && \
+  "$DISPATCH_SHIM" \
+    --prompt "$dispatch_prompt" \
+    --output "$dispatch_output" \
+    --circuit migrate \
+    --step inventory 2>&1
+)"
+custom_status=$?
+if [[ $custom_status -eq 0 ]] && \
+   printf '%s' "$custom_receipt" | grep -q '"adapter": "mirror"' && \
+   printf '%s' "$custom_receipt" | grep -q '"transport": "process"' && \
+   printf '%s' "$custom_receipt" | grep -q '"resolved_from": "dispatch.circuits.migrate"' && \
+   [[ -f "$dispatch_output" ]]; then
+  pass "dispatch runs a custom wrapper adapter from discovered config"
+else
+  fail "dispatch did not execute the custom wrapper adapter contract"
+fi
+
+# ── 14. Bundled CLI round trips ──────────────────────────────────────
 section "Bundled CLI round trips"
 
 run_root="$(new_temp_dir)"
@@ -540,7 +638,7 @@ else
   fail "resume did not fail loudly on corrupted state"
 fi
 
-# ── 14. Engine dev environment (contributors only) ───────────────────
+# ── 15. Engine dev environment (contributors only) ───────────────────
 section "Engine dev environment (contributors)"
 
 engine_dir="$PLUGIN_ROOT/scripts/runtime/engine"
@@ -550,7 +648,7 @@ else
   warn "engine node_modules missing -- contributors run: cd $engine_dir && npm install"
 fi
 
-# ── 15. rsync ─────────────────────────────────────────────────────────
+# ── 16. rsync ─────────────────────────────────────────────────────────
 section "rsync"
 
 if command -v rsync >/dev/null 2>&1; then
@@ -559,12 +657,12 @@ else
   warn "rsync not found -- sync-to-cache.sh will fail; install rsync for contributor workflow"
 fi
 
-# ── 16. Codex CLI (optional) ──────────────────────────────────────────
+# ── 17. Codex CLI (optional) ──────────────────────────────────────────
 section "Codex CLI (optional)"
 
 if command -v codex >/dev/null 2>&1; then
   codex_version="$(codex --version 2>/dev/null || echo 'unknown')"
-  pass "codex found: $codex_version (dispatch backend: codex)"
+  pass "codex found: $codex_version (dispatch adapter: codex)"
 else
   warn "codex not found -- dispatch will use Agent fallback (install for better parallelism: npm install -g @openai/codex)"
 fi

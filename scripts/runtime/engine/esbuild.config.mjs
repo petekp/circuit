@@ -3,6 +3,7 @@ import { build } from "esbuild";
 const ENTRY_POINTS = [
   "src/cli/append-event.ts",
   "src/cli/catalog-compiler.ts",
+  "src/cli/dispatch.ts",
   "src/cli/derive-state.ts",
   "src/cli/read-config.ts",
   "src/cli/resume.ts",

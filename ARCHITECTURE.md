@@ -186,9 +186,10 @@ rigor profile and the SKILL.md's rules.
 
 The orchestrator writes a prompt header, assembles the full prompt using
 `compose-prompt.sh`, and dispatches the work to a worker via `dispatch.sh`.
-The backend is auto-detected: Codex CLI when installed, Claude Code's Agent
-tool (with worktree isolation) otherwise. The orchestrator does not do the
-work itself. It composes the instructions and reads the result.
+The adapter is resolved from explicit flags and `circuit.config.yaml`, then
+falls through to auto-detect (`codex` when installed, otherwise `agent`). The
+orchestrator does not do the work itself. It composes the instructions and
+reads the result.
 
 The dispatch pipeline:
 
@@ -204,10 +205,12 @@ The dispatch pipeline:
   --root "${STEP_ROOT}" \
   --out "${STEP_ROOT}/prompt.md"
 
-# 3. Dispatch to worker (auto-detects Codex or Agent backend)
+# 3. Dispatch to worker (auto-detects Codex or Agent adapter)
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
   --prompt "${STEP_ROOT}/prompt.md" \
   --output "${STEP_ROOT}/last-messages/last-message.txt" \
+  --circuit build \
+  --step act \
   --role implementer
 
 # 4. Orchestrator reads the report and verifies
@@ -423,29 +426,46 @@ The assembly pipeline:
    blocks. If any remain, the script fails with a diagnostic error naming the
    source file.
 
-### `dispatch.sh`: Backend-Agnostic Dispatch
+### `dispatch.sh`: Adapter Dispatch Shim
 
-This script dispatches assembled prompts to workers. It auto-detects the
-backend and supports role-based routing:
+`dispatch.sh` is now a thin shim around the typed `circuit-dispatch` runtime
+CLI. The CLI resolves the adapter after applying config-driven routing:
 
 ```bash
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
   --prompt "${STEP_ROOT}/prompt.md" \
   --output "${STEP_ROOT}/last-messages/last-message.txt" \
+  --circuit build \
+  --step act \
   --role implementer
 ```
 
-Backends:
-- **codex**: Codex CLI (`codex exec --full-auto`). Runs synchronously and waits for completion.
-- **agent**: Claude Code Agent tool with worktree isolation. Fallback when codex is not installed.
-- **custom**: An argv-style command (word-split, no shell expansion). The prompt file and output path are appended as positional arguments.
+Adapters:
+- **codex**: reserved built-in adapter name. Circuit runtime executes
+  `codex exec --full-auto -o OUTPUT_FILE -` as a process transport.
+- **agent**: reserved built-in adapter name. Circuit emits a structured
+  Agent receipt with worktree isolation.
+- **custom wrappers**: define `dispatch.adapters.<name>.command` as a YAML argv
+  array. Circuit appends `PROMPT_FILE OUTPUT_FILE` as the final args and runs
+  the wrapper without shell interpolation.
 
-Role resolution: `--role` flag > `circuit.config.yaml` roles > auto-detect.
+Resolution order:
 
-All backends run synchronously and emit a JSON receipt to stdout on completion.
-For the agent backend, the receipt contains the full prompt content ready for an
-Agent tool call (`"status": "ready"`). For codex and custom backends, the receipt
-confirms completion (`"status": "completed"`).
+1. explicit `--adapter`
+2. `dispatch.roles.<role>`
+3. `dispatch.circuits.<circuit>`
+4. `dispatch.default`
+5. auto-detect (`codex` if installed, else `agent`)
+
+`--step` still threads through dispatch calls, but only as internal execution
+metadata for job labeling and state correlation. It does not participate in
+routing. Convergence still uses `--role converger` internally, but adapter
+selection resolves through the reviewer adapter.
+
+All adapters run synchronously and emit a JSON receipt to stdout on completion.
+Every receipt includes `adapter`, `transport`, and `resolved_from`.
+- Agent receipts use `transport: "agent"` and carry `agent_params`.
+- Process receipts use `transport: "process"` and carry `command_argv`.
 
 ### `update-batch.sh`: Deterministic State Machine
 
@@ -956,8 +976,8 @@ Workflow SKILL.md (runtime truth)
             ├── compose-prompt.sh
             |     (header + skills + template + relay_root substitution)
             |
-            ├── dispatch.sh --role implementer
-            |     (auto-detects codex/agent/custom backend)
+            ├── dispatch.sh --circuit build --step act --role implementer
+            |     (auto-detects codex/agent/custom adapter)
             |
             ├── [if workers delegation]
             |     update-batch.sh manages state

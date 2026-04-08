@@ -577,7 +577,18 @@ describe("deriveState", () => {
         // Step two with dispatch job
         makeEvent("step_started", { step_id: "step-two" }, { step_id: "step-two" }),
         makeEvent("dispatch_requested", { request_path: "jobs/step-two/001/dispatch-request.json", attempt: 1 }, { step_id: "step-two" }),
-        makeEvent("dispatch_received", { receipt_path: "jobs/step-two/001/receipt.json", attempt: 1 }, { step_id: "step-two" }),
+        makeEvent(
+          "dispatch_received",
+          {
+            receipt_path: "jobs/step-two/001/receipt.json",
+            adapter: "agent",
+            transport: "agent",
+            resolved_from: "dispatch.roles.reviewer",
+            job_id: "job-step-two-001",
+            attempt: 1,
+          },
+          { step_id: "step-two" },
+        ),
         makeEvent("job_completed", { result_path: "jobs/step-two/001/result.json", completion: "complete", attempt: 1 }, { step_id: "step-two" }),
         makeEvent("artifact_written", { artifact_path: "artifacts/step-two-output.md" }, { step_id: "step-two" }),
         makeEvent("gate_passed", { step_id: "step-two", gate_kind: "all_outputs_present", route: "step-three" }, { step_id: "step-two" }),
@@ -684,7 +695,9 @@ describe("deriveState", () => {
           "dispatch_received",
           {
             receipt_path: "jobs/step-one/001/dispatch-receipt.json",
-            backend: "codex",
+            adapter: "codex",
+            transport: "process",
+            resolved_from: "auto",
             job_id: "job-123",
             attempt: 1,
           },

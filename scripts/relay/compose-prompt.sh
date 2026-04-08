@@ -5,7 +5,7 @@
 #   $CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh --header .circuit/prompt-header.md --skills swift-apps,rust --out .circuit/prompt.md
 #   $CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh --header .circuit/review-header.md --template review --out .circuit/review-prompt.md
 #   $CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh --header .circuit/prompt-header.md --template implement --root /tmp/relay-root --out .circuit/prompt.md
-#   $CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh --header .circuit/prompt-header.md --backend agent --out .circuit/prompt.md
+#   $CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh --header .circuit/prompt-header.md --adapter agent --out .circuit/prompt.md
 #
 # Options:
 #   --header FILE    -- Task-specific header (required)
@@ -14,7 +14,7 @@
 #   --config FILE    -- Path to circuit.config.yaml (optional, auto-discovered from ./circuit.config.yaml or ~/.claude/circuit.config.yaml)
 #   --template NAME  -- Template to append: implement, review, ship-review, converge (optional)
 #   --root DIR       -- Substitute literal {relay_root} tokens after assembly (optional unless placeholders are used)
-#   --backend MODE   -- Dispatch backend hint: "codex" or "agent" (optional; auto-detected if omitted)
+#   --adapter MODE   -- Dispatch adapter hint: "codex" or "agent" (optional; auto-detected if omitted)
 #   --out FILE       -- Output path (required)
 
 set -euo pipefail
@@ -25,7 +25,7 @@ CIRCUIT=""
 CONFIG=""
 TEMPLATE=""
 ROOT=""
-BACKEND=""
+ADAPTER=""
 OUT=""
 
 # Resolve SKILL_DIRS: ordered search path for domain skills.
@@ -224,7 +224,7 @@ while [[ $# -gt 0 ]]; do
     --config)   CONFIG="$2"; shift 2 ;;
     --template) TEMPLATE="$2"; shift 2 ;;
     --root)     ROOT="$2"; shift 2 ;;
-    --backend)  BACKEND="$2"; shift 2 ;;
+    --adapter)  ADAPTER="$2"; shift 2 ;;
     --out)      OUT="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
@@ -311,11 +311,11 @@ fi
 
 fail_if_unresolved_placeholders "$OUT"
 
-# Emit backend hint only when explicitly passed via --backend flag.
-# When omitted, dispatch.sh determines the real backend using its own
+# Emit adapter hint only when explicitly passed via --adapter flag.
+# When omitted, dispatch.sh determines the real adapter using its own
 # config-aware precedence, so emitting a guess here would be misleading.
-if [[ -n "$BACKEND" ]]; then
-  printf '\n<!-- dispatch-backend: %s -->\n' "$BACKEND" >> "$OUT"
+if [[ -n "$ADAPTER" ]]; then
+  printf '\n<!-- dispatch-adapter: %s -->\n' "$ADAPTER" >> "$OUT"
 fi
 
-echo "Composed: $OUT ($(wc -l < "$OUT" | tr -d ' ') lines${BACKEND:+, backend=$BACKEND})"
+echo "Composed: $OUT ($(wc -l < "$OUT" | tr -d ' ') lines${ADAPTER:+, adapter=$ADAPTER})"

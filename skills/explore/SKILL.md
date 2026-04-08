@@ -128,9 +128,12 @@ for w in ext int; do
     --root "${RUN_ROOT}/phases/analyze-${w}" \
     --out "${RUN_ROOT}/phases/analyze-${w}/prompt.md"
 
+  # --step analyze is internal execution metadata only.
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
     --prompt "${RUN_ROOT}/phases/analyze-${w}/prompt.md" \
     --output "${RUN_ROOT}/phases/analyze-${w}/last-messages/last-message.txt" \
+    --circuit explore \
+    --step analyze \
     --role researcher
 done
 ```
@@ -259,6 +262,7 @@ Each writes `proposal-{a,b,c}.md`. Do not mention other workers in prompts.
 
 ```bash
 # Pick 1-2 domain skills matching the affected code. Omit --skills if none apply.
+# These workers run inside Explore's `decide` manifest step.
 for w in a b c; do
   mkdir -p "${RUN_ROOT}/phases/diverge-${w}/reports" "${RUN_ROOT}/phases/diverge-${w}/last-messages"
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
@@ -269,6 +273,8 @@ for w in a b c; do
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
     --prompt "${RUN_ROOT}/phases/diverge-${w}/prompt.md" \
     --output "${RUN_ROOT}/phases/diverge-${w}/last-messages/last-message.txt" \
+    --circuit explore \
+    --step decide \
     --role researcher
 done
 ```

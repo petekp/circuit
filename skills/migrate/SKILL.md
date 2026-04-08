@@ -113,9 +113,12 @@ for w in scan risk; do
     --root "${RUN_ROOT}/phases/inventory-${w}" \
     --out "${RUN_ROOT}/phases/inventory-${w}/prompt.md"
 
+  # --step inventory is internal execution metadata only.
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
     --prompt "${RUN_ROOT}/phases/inventory-${w}/prompt.md" \
     --output "${RUN_ROOT}/phases/inventory-${w}/last-messages/last-message.txt" \
+    --circuit migrate \
+    --step inventory \
     --role researcher
 done
 ```

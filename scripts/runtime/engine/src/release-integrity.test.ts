@@ -185,6 +185,13 @@ describe("README hygiene", () => {
     expect(readme).toContain("| `/circuit:review` | Standalone fresh-context code review |");
     expect(readme).toContain("| `/circuit:handoff` | Save session state for the next session |");
   });
+
+  it("documents global and project config locations for user-space setup", () => {
+    const readme = readFile("README.md");
+    expect(readme).toContain("~/.claude/circuit.config.yaml");
+    expect(readme).toContain("repo root");
+    expect(readme).toContain("circuit.config.yaml");
+  });
 });
 
 // ── Bootstrap sections ────────────────────────────────────────────────
@@ -944,6 +951,94 @@ describe("workers example isolation", () => {
 
     expect(readFile("skills/workers/SKILL.md")).toContain("--template implement");
     expect(readFile("ARCHITECTURE.md")).toContain("--template implement");
+  });
+});
+
+describe("dispatch routing contract docs", () => {
+  it("workflow dispatch examples thread circuit and step selectors", () => {
+    expect(readFile("skills/run/SKILL.md")).toContain("--circuit build");
+    expect(readFile("skills/run/SKILL.md")).toContain("--step act");
+
+    expect(readFile("skills/explore/SKILL.md")).toContain("--circuit explore");
+    expect(readFile("skills/explore/SKILL.md")).toContain("--step analyze");
+    expect(readFile("skills/explore/SKILL.md")).toContain("--step decide");
+
+    expect(readFile("skills/migrate/SKILL.md")).toContain("--circuit migrate");
+    expect(readFile("skills/migrate/SKILL.md")).toContain("--step inventory");
+
+    expect(readFile("skills/sweep/SKILL.md")).toContain("--circuit sweep");
+    expect(readFile("skills/sweep/SKILL.md")).toContain("--step survey");
+
+    expect(readFile("skills/review/SKILL.md")).toContain("--circuit review");
+    expect(readFile("skills/review/SKILL.md")).toContain("--step review");
+  });
+
+  it("workers docs treat step as internal metadata and route convergence through reviewer semantics", () => {
+    const workers = readFile("skills/workers/SKILL.md");
+    expect(workers).toContain("--circuit ${PARENT_CIRCUIT}");
+    expect(workers).toContain("--step ${PARENT_STEP}");
+    expect(workers).toContain("--role implementer");
+    expect(workers).toContain("--role reviewer");
+    expect(workers).toContain("--role converger");
+    expect(workers).toContain("internal execution metadata");
+    expect(workers).toContain("reviewer adapter");
+    expect(workers).not.toContain("roles.converger");
+  });
+
+  it("architecture docs explain adapter precedence and the custom wrapper contract", () => {
+    const arch = readFile("ARCHITECTURE.md");
+    expect(arch).toContain("dispatch.roles.<role>");
+    expect(arch).toContain("dispatch.circuits.<circuit>");
+    expect(arch).toContain("dispatch.default");
+    expect(arch).toContain("explicit `--adapter`");
+    expect(arch).toContain("PROMPT_FILE OUTPUT_FILE");
+    expect(arch).toContain("transport");
+    expect(arch).toContain("resolved_from");
+    expect(arch).not.toContain("dispatch.per_step");
+    expect(arch).not.toContain("dispatch.commands");
+    expect(arch).not.toContain("explicit `--backend`");
+  });
+
+  it("review-oriented docs no longer describe role-only dispatch", () => {
+    expect(readFile("skills/build/SKILL.md")).not.toContain(
+      "Compose and dispatch with `--role reviewer`.",
+    );
+    expect(readFile("skills/run/references/phase-spine.md")).not.toContain(
+      "dispatch with `--role reviewer`",
+    );
+    expect(readFile("skills/run/references/rigor-profiles.md")).not.toContain(
+      "dispatch with `--role reviewer`",
+    );
+  });
+});
+
+describe("adapter routing docs", () => {
+  it("README teaches the adapter model only", () => {
+    const readme = readFile("README.md");
+    expect(readme).toContain("dispatch.adapters");
+    expect(readme).toContain("explicit `--adapter`");
+    expect(readme).not.toContain("dispatch.per_step");
+    expect(readme).not.toContain("dispatch.commands");
+    expect(readme).not.toContain("explicit `--backend`");
+  });
+
+  it("config example uses adapters instead of command recipes or step routing", () => {
+    const example = readFile("circuit.config.example.yaml");
+    expect(example).toContain("dispatch:");
+    expect(example).toContain("default:");
+    expect(example).toContain("roles:");
+    expect(example).toContain("circuits:");
+    expect(example).toContain("adapters:");
+    expect(example).toContain("gemini:");
+    expect(example).not.toContain("commands:");
+    expect(example).not.toContain("per_step:");
+    expect(example).not.toContain("converger:");
+  });
+
+  it("ships the canonical gemini wrapper example referenced by docs", () => {
+    expect(existsSync(resolve(REPO_ROOT, "docs/examples/gemini-dispatch.sh"))).toBe(true);
+    const readme = readFile("README.md");
+    expect(readme).toContain("docs/examples/gemini-dispatch.sh");
   });
 });
 

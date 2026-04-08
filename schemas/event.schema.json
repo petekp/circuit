@@ -83,10 +83,12 @@
         "properties": {
           "payload": {
             "type": "object",
-            "required": ["receipt_path", "backend", "job_id", "attempt"],
+            "required": ["receipt_path", "adapter", "transport", "resolved_from", "job_id", "attempt"],
             "properties": {
               "receipt_path": { "type": "string", "pattern": "^jobs/[A-Za-z0-9._/-]+/dispatch-receipt\\.json$" },
-              "backend": { "enum": ["codex", "agent", "custom"] },
+              "adapter": { "type": "string", "minLength": 1 },
+              "transport": { "enum": ["agent", "process"] },
+              "resolved_from": { "type": "string", "minLength": 1 },
               "job_id": { "type": "string", "minLength": 1 },
               "attempt": { "type": "integer", "minimum": 1 }
             }
