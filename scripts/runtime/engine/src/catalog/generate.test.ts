@@ -1,4 +1,10 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
@@ -40,6 +46,8 @@ function writeRepoFixture(root: string): void {
   mkdirSync(resolve(root, "commands"), { recursive: true });
   mkdirSync(resolve(root, "hooks"), { recursive: true });
   mkdirSync(resolve(root, "schemas"), { recursive: true });
+  mkdirSync(resolve(root, "scripts/relay"), { recursive: true });
+  mkdirSync(resolve(root, "scripts/runtime/bin"), { recursive: true });
   mkdirSync(resolve(root, "scripts/runtime/generated"), { recursive: true });
   mkdirSync(resolve(root, "skills/build"), { recursive: true });
   mkdirSync(resolve(root, "skills/handoff"), { recursive: true });
@@ -52,6 +60,14 @@ function writeRepoFixture(root: string): void {
   );
   writeFileSync(resolve(root, "hooks/session-start.sh"), "#!/usr/bin/env bash\n", "utf-8");
   writeFileSync(resolve(root, "schemas/event.schema.json"), "{}\n", "utf-8");
+  writeFileSync(resolve(root, "scripts/relay/dispatch.sh"), "#!/usr/bin/env bash\n", "utf-8");
+  chmodSync(resolve(root, "scripts/relay/dispatch.sh"), 0o755);
+  writeFileSync(resolve(root, "scripts/runtime/bin/dispatch.js"), "#!/usr/bin/env node\n", "utf-8");
+  chmodSync(resolve(root, "scripts/runtime/bin/dispatch.js"), 0o755);
+  writeFileSync(resolve(root, "scripts/sync-to-cache.sh"), "#!/usr/bin/env bash\n", "utf-8");
+  chmodSync(resolve(root, "scripts/sync-to-cache.sh"), 0o755);
+  writeFileSync(resolve(root, "scripts/verify-install.sh"), "#!/usr/bin/env bash\n", "utf-8");
+  chmodSync(resolve(root, "scripts/verify-install.sh"), 0o755);
   writeFileSync(resolve(root, "circuit.config.example.yaml"), "dispatch: {}\n", "utf-8");
   writeFileSync(resolve(root, "skills/build/SKILL.md"), "# Build\n", "utf-8");
   writeFileSync(resolve(root, "skills/handoff/SKILL.md"), "# Handoff\n", "utf-8");

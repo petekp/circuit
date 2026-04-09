@@ -25,12 +25,27 @@ interface GeneratedInventoryProjection {
   executable: boolean;
 }
 
+function assertNoMissingRepoSeedPaths(missingSeedPaths: readonly string[]): void {
+  if (missingSeedPaths.length === 0) {
+    return;
+  }
+
+  throw new Error(
+    `catalog-compiler: missing repo installed-surface seed path(s): ${
+      [...missingSeedPaths].sort().join(", ")
+    }`,
+  );
+}
+
 function listInstalledFiles(repoRoot: string): string[] {
-  return collectSurfaceFiles({
+  const result = collectSurfaceFiles({
     ignoreRelativePath: shouldIgnoreInstalledPath,
     rootDir: repoRoot,
     seedPaths: listInstalledSurfaceSeedPaths("repo"),
-  }).files;
+  });
+
+  assertNoMissingRepoSeedPaths(result.missingSeedPaths);
+  return result.files;
 }
 
 function buildGeneratedInventoryProjections(
