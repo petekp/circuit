@@ -47,11 +47,10 @@
       "required": ["signals"],
       "additionalProperties": false,
       "properties": {
-        "expert_command": { "type": "string", "minLength": 1 },
         "usage": {
           "type": "string",
           "pattern": "^<[a-z][a-z0-9-]*>$",
-          "description": "Optional single placeholder suffix rendered after expert_command in public surfaces, for example <task>."
+          "description": "Optional single placeholder suffix rendered after the derived /circuit:<slug> slash command in public surfaces, for example <task>."
         },
         "signals": {
           "type": "object",

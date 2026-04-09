@@ -1,219 +1,94 @@
-import { describe, it, expect } from "vitest";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
-import { resolve, join } from "node:path";
-import { execSync } from "node:child_process";
-import { REPO_ROOT } from "../schema.js";
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+import { REPO_ROOT, loadJsonSchema, validate } from "../schema.js";
 import { extract } from "./extract.js";
-import { generate } from "./generate.js";
-import { getGenerateTargets, getPublicCommandIds, isCircuit } from "./surfaces.js";
+import { getGenerateTargets, pruneStaleCommandShims } from "./generate-targets.js";
+import { collectPendingWrites } from "./generate.js";
+import { isAdapter, isPublicEntry, isWorkflow, getPublicCommandIds } from "./public-surface.js";
+import { SURFACE_MANIFEST_PATH, getInstalledSurfacePathPattern } from "./surface-roots.js";
 
 const skillsDir = resolve(REPO_ROOT, "skills");
 
-describe("catalog identity invariants", () => {
+describe("catalog control-plane invariants", () => {
   const catalog = extract(skillsDir);
-  const circuits = catalog.filter(isCircuit);
 
-  it("has at least 3 circuits", () => {
-    expect(circuits.length).toBeGreaterThanOrEqual(3);
+  it("uses the exact workflow|utility|adapter taxonomy", () => {
+    expect(new Set(catalog.map((entry) => entry.kind))).toEqual(
+      new Set(["workflow", "utility", "adapter"]),
+    );
   });
 
-  it("directory name matches circuit.id for every circuit", () => {
-    const mismatches = circuits
-      .filter((c) => c.dir !== c.id)
-      .map((c) => `${c.dir}: dir="${c.dir}" but circuit.id="${c.id}"`);
-    expect(mismatches).toEqual([]);
+  it("classifies workers as a non-public adapter", () => {
+    const workers = catalog.find((entry) => entry.slug === "workers");
+    expect(workers).toBeDefined();
+    expect(workers && isAdapter(workers)).toBe(true);
+    expect(workers && isPublicEntry(workers)).toBe(false);
   });
 
-  it("SKILL.md name matches directory id for every circuit", () => {
-    const mismatches = circuits
-      .filter((c) => c.skillName !== c.id)
-      .map(
-        (c) =>
-          `${c.dir}: SKILL.md name="${c.skillName}" but expected "${c.id}"`,
-      );
-    expect(mismatches).toEqual([]);
-  });
-
-  it("expert_command matches /circuit:<id> for every circuit", () => {
-    const mismatches = circuits
-      .filter((c) => c.expertCommand !== `/circuit:${c.id}`)
-      .map(
-        (c) =>
-          `${c.dir}: expert_command="${c.expertCommand}" but expected "/circuit:${c.id}"`,
-      );
-    expect(mismatches).toEqual([]);
+  it("derives workflow slash identity from slug plus optional usage", () => {
+    const run = catalog.find((entry) => entry.slug === "run");
+    expect(run && isWorkflow(run)).toBe(true);
+    expect(run).toMatchObject({
+      entryUsage: "<task>",
+      slug: "run",
+    });
   });
 });
 
-describe("generated block freshness", () => {
+describe("generated public surface", () => {
   const catalog = extract(skillsDir);
-  const targets = getGenerateTargets(REPO_ROOT, catalog);
 
-  for (const target of targets) {
-    const label = "blockName" in target
-      ? `${target.filePath}:${target.blockName}`
-      : target.filePath;
-    it(`${label} is up to date`, () => {
-      let currentContent = "";
-      try {
-        currentContent = readFileSync(target.filePath, "utf-8");
-      } catch {
-        currentContent = "";
-      }
-
-      // Generate in memory (no write)
-      let wouldWrite = "";
-      generate(catalog, [target], {
-        readFile: () => currentContent,
-        writeFile: (_p, content) => {
-          wouldWrite = content;
-        },
-      });
-
-      if (wouldWrite && wouldWrite !== currentContent) {
-        const hint = `Run "node scripts/runtime/bin/catalog-compiler.js generate" to update`;
-        expect.fail(
-          `catalog-validator: ${target.filePath}:${target.blockName} is stale.\n  Fix: ${hint}`,
-        );
-      }
-    });
-  }
-
-  it("commands/ contains exactly the generated public command shims", () => {
+  it("commands/ exactly matches the generated public command surface", () => {
     const expected = new Set(getPublicCommandIds(catalog));
-    const manifestCommands = new Set(
-      readFileSync(resolve(REPO_ROOT, ".claude-plugin", "public-commands.txt"), "utf-8")
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean),
-    );
-    const actualShims = new Set(
+    const actualCommands = new Set(
       readdirSync(resolve(REPO_ROOT, "commands"))
         .filter((name) => name.endsWith(".md"))
         .map((name) => name.replace(/\.md$/, "")),
     );
+    const publicCommands = new Set(
+      readFileSync(resolve(REPO_ROOT, ".claude-plugin/public-commands.txt"), "utf-8")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    );
 
-    expect(manifestCommands).toEqual(expected);
-    expect(actualShims).toEqual(expected);
-  });
-});
-
-// Directories that contain historical or ephemeral artifacts (migration plans,
-// circuit run outputs) rather than active source references.
-const LINT_SKIP_PREFIXES = [".claude/", ".circuit/"];
-const LINT_SKIP_SUFFIXES = [".test.ts", ".test.js", ".spec.ts", ".spec.js"];
-// CUSTOM-CIRCUITS.md is a tutorial that intentionally uses hypothetical circuit
-// names (research, my-workflow) as examples. Exclude it from orphan-ref lint.
-const LINT_SKIP_EXACT = ["CUSTOM-CIRCUITS.md"];
-
-function shouldLint(relPath: string): boolean {
-  if (LINT_SKIP_PREFIXES.some((p) => relPath.startsWith(p))) return false;
-  if (LINT_SKIP_SUFFIXES.some((s) => relPath.endsWith(s))) return false;
-  if (LINT_SKIP_EXACT.some((f) => relPath === f || relPath.endsWith(`/${f}`))) return false;
-  return true;
-}
-
-describe("structured reference lint", () => {
-  const catalog = extract(skillsDir);
-  const validSlugs = new Set(catalog.map((e) => e.id));
-
-  it("no orphan /circuit:<slug> references in tracked files", () => {
-    let trackedFiles: string[];
-    try {
-      const output = execSync("git ls-files", {
-        cwd: REPO_ROOT,
-        encoding: "utf-8",
-      });
-      trackedFiles = output.trim().split("\n").filter(Boolean);
-    } catch {
-      // Not a git repo in test env; skip
-      return;
-    }
-
-    const circuitRefRe = /\/circuit:(\w[\w-]*)/g;
-    const orphans: string[] = [];
-
-    for (const relPath of trackedFiles) {
-      if (!shouldLint(relPath)) continue;
-      const fullPath = join(REPO_ROOT, relPath);
-      if (!existsSync(fullPath)) continue;
-      if (/\.(png|jpg|gif|ico|woff|ttf|eot)$/i.test(relPath)) continue;
-
-      let content: string;
-      try {
-        content = readFileSync(fullPath, "utf-8");
-      } catch {
-        continue;
-      }
-
-      const lines = content.split("\n");
-      for (let i = 0; i < lines.length; i++) {
-        let match: RegExpExecArray | null;
-        circuitRefRe.lastIndex = 0;
-        while ((match = circuitRefRe.exec(lines[i])) !== null) {
-          const slug = match[1];
-          if (!validSlugs.has(slug)) {
-            orphans.push(
-              `catalog-validator: ${relPath}:${i + 1} -- orphan reference /circuit:${slug}\n` +
-                `  Valid slugs: ${[...validSlugs].join(", ")}`,
-            );
-          }
-        }
-      }
-    }
-
-    if (orphans.length > 0) {
-      expect.fail(orphans.join("\n\n"));
-    }
+    expect(actualCommands).toEqual(expected);
+    expect(publicCommands).toEqual(expected);
   });
 
-  it("no orphan skills/<name>/ references in tracked files", () => {
-    let trackedFiles: string[];
-    try {
-      const output = execSync("git ls-files", {
-        cwd: REPO_ROOT,
-        encoding: "utf-8",
-      });
-      trackedFiles = output.trim().split("\n").filter(Boolean);
-    } catch {
-      return;
-    }
+  it("all generated targets are fresh and there are no stale public shims", () => {
+    expect(collectPendingWrites(catalog, getGenerateTargets(REPO_ROOT, catalog))).toEqual([]);
+    expect(pruneStaleCommandShims(REPO_ROOT, catalog)).toEqual([]);
+  });
 
-    const skillsRefRe = /skills\/([\w-]+)\//g;
-    const validDirs = new Set(catalog.map((e) => e.dir));
-    const orphans: string[] = [];
+  it("surface-manifest.json is checked in, schema-valid, and aligned to the catalog", () => {
+    const manifestPath = resolve(REPO_ROOT, SURFACE_MANIFEST_PATH);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+    const schema = loadJsonSchema("schemas/surface-manifest.schema.json");
 
-    for (const relPath of trackedFiles) {
-      if (!shouldLint(relPath)) continue;
-      const fullPath = join(REPO_ROOT, relPath);
-      if (!existsSync(fullPath)) continue;
-      if (/\.(png|jpg|gif|ico|woff|ttf|eot)$/i.test(relPath)) continue;
+    expect(validate(schema, manifest)).toEqual([]);
+    expect(manifest.public_commands).toEqual(getPublicCommandIds(catalog));
+    expect(manifest.entries.map((entry: { slug: string }) => entry.slug)).toEqual(
+      [...catalog].map((entry) => entry.slug),
+    );
+  });
 
-      let content: string;
-      try {
-        content = readFileSync(fullPath, "utf-8");
-      } catch {
-        continue;
-      }
+  it("derives the schema path allowlist from the surface-roots owner", () => {
+    const schema = loadJsonSchema("schemas/surface-manifest.schema.json") as {
+      $defs: {
+        file: {
+          properties: {
+            path: {
+              pattern: string;
+            };
+          };
+        };
+      };
+    };
 
-      const lines = content.split("\n");
-      for (let i = 0; i < lines.length; i++) {
-        let match: RegExpExecArray | null;
-        skillsRefRe.lastIndex = 0;
-        while ((match = skillsRefRe.exec(lines[i])) !== null) {
-          const dir = match[1];
-          if (!validDirs.has(dir)) {
-            orphans.push(
-              `catalog-validator: ${relPath}:${i + 1} -- orphan reference skills/${dir}/\n` +
-                `  Valid dirs: ${[...validDirs].join(", ")}`,
-            );
-          }
-        }
-      }
-    }
-
-    if (orphans.length > 0) {
-      expect.fail(orphans.join("\n\n"));
-    }
+    expect(schema.$defs.file.properties.path.pattern).toBe(getInstalledSurfacePathPattern());
   });
 });

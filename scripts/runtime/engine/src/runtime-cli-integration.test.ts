@@ -2,6 +2,7 @@ import {
   chmodSync,
   cpSync,
   mkdirSync,
+  readFileSync,
   writeFileSync,
 } from "node:fs";
 import { mkdtempSync } from "node:fs";
@@ -46,7 +47,6 @@ function writeManifest(runRoot: string) {
       '  version: "2026-04-07"',
       '  purpose: "Integration test manifest"',
       "  entry:",
-      "    expert_command: /circuit:build",
       "    signals:",
       "      include: [feature]",
       "      exclude: []",
@@ -77,27 +77,25 @@ function writeManifest(runRoot: string) {
 }
 
 function copyInstallRoot(targetRoot: string) {
-  const entries = [
+  for (const entry of [
     ".claude-plugin",
     "commands",
-    "docs/examples",
     "hooks",
     "schemas",
     "skills",
-    "scripts/relay",
-    "scripts/runtime/bin",
-    "scripts/verify-install.sh",
     "circuit.config.example.yaml",
-  ];
-
-  for (const entry of entries) {
-    const src = resolve(REPO_ROOT, entry);
-    const dest = resolve(targetRoot, entry);
-    cpSync(src, dest, { recursive: true });
+  ]) {
+    cpSync(resolve(REPO_ROOT, entry), resolve(targetRoot, entry), { recursive: true });
   }
 
+  mkdirSync(resolve(targetRoot, "scripts"), { recursive: true });
+  cpSync(resolve(REPO_ROOT, "scripts/relay"), resolve(targetRoot, "scripts/relay"), { recursive: true });
+  cpSync(resolve(REPO_ROOT, "scripts/runtime/bin"), resolve(targetRoot, "scripts/runtime/bin"), { recursive: true });
+  cpSync(resolve(REPO_ROOT, "scripts/runtime/generated"), resolve(targetRoot, "scripts/runtime/generated"), { recursive: true });
+  cpSync(resolve(REPO_ROOT, "scripts/verify-install.sh"), resolve(targetRoot, "scripts/verify-install.sh"));
+  cpSync(resolve(REPO_ROOT, "scripts/sync-to-cache.sh"), resolve(targetRoot, "scripts/sync-to-cache.sh"));
+
   chmodSync(resolve(targetRoot, "scripts/verify-install.sh"), 0o755);
-  chmodSync(resolve(targetRoot, "docs/examples/gemini-dispatch.sh"), 0o755);
   chmodSync(resolve(targetRoot, "scripts/relay/compose-prompt.sh"), 0o755);
   chmodSync(resolve(targetRoot, "scripts/relay/dispatch.sh"), 0o755);
   chmodSync(resolve(targetRoot, "scripts/relay/update-batch.sh"), 0o755);
@@ -105,6 +103,16 @@ function copyInstallRoot(targetRoot: string) {
 }
 
 describe("runtime CLI integration", () => {
+  it("keeps verify-install.sh as a thin wrapper around the bundled verifier", () => {
+    const script = readFileSync(VERIFY_INSTALL, "utf-8");
+
+    expect(script).toContain("verify-install.js");
+    expect(script).not.toContain("verify-installed-surface.js");
+    expect(script).not.toContain("<<'NODE'");
+    expect(script).not.toContain("const installedRoots");
+    expect(script).not.toMatch(/sha256\(|lstatSync\(|readdirSync\(/);
+  });
+
   it("read-config honors explicit config over project and home", () => {
     const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));
     const homeDir = resolve(tempRoot, "home");
@@ -219,7 +227,7 @@ describe("runtime CLI integration", () => {
     expect(payload.resume_step).toBe("frame");
   });
 
-  it("verify-install succeeds from a copied install root", () => {
+  it("verify-install succeeds from a copied install root in installed mode", () => {
     const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));
     const installRoot = resolve(tempRoot, "install-root");
     const homeDir = resolve(tempRoot, "home");
@@ -229,7 +237,7 @@ describe("runtime CLI integration", () => {
 
     const result = run(
       resolve(installRoot, "scripts/verify-install.sh"),
-      [],
+      ["--mode", "installed"],
       {
         cwd: installRoot,
         env: { HOME: homeDir, NODE_BIN: process.execPath },
@@ -237,7 +245,93 @@ describe("runtime CLI integration", () => {
     );
 
     expect(result.status).toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("Selected mode: installed");
     expect(`${result.stdout}\n${result.stderr}`).toContain("All checks passed");
+  });
+
+  it("verify-install succeeds from a copied repo root in repo mode", () => {
+    const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));
+    const repoRoot = resolve(tempRoot, "repo-root");
+    mkdirSync(repoRoot, { recursive: true });
+
+    for (const entry of [
+      ".claude-plugin",
+      "commands",
+      "hooks",
+      "schemas",
+      "scripts",
+      "skills",
+      "README.md",
+      "ARCHITECTURE.md",
+      "CIRCUITS.md",
+      "CUSTOM-CIRCUITS.md",
+      "docs",
+      "circuit.config.example.yaml",
+    ]) {
+      cpSync(resolve(REPO_ROOT, entry), resolve(repoRoot, entry), { recursive: true });
+    }
+
+    chmodSync(resolve(repoRoot, "scripts/verify-install.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "scripts/relay/compose-prompt.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "scripts/relay/dispatch.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "scripts/relay/update-batch.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "hooks/session-start.sh"), 0o755);
+
+    const result = run(resolve(repoRoot, "scripts/verify-install.sh"), ["--mode", "repo"], {
+      cwd: repoRoot,
+      env: { NODE_BIN: process.execPath },
+    });
+
+    expect(result.status).toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("Selected mode: repo");
+    expect(`${result.stdout}\n${result.stderr}`).toContain("All checks passed");
+  });
+
+  it("verify-install fails in repo mode when engine sources do not typecheck", () => {
+    const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));
+    const repoRoot = resolve(tempRoot, "repo-root");
+    mkdirSync(repoRoot, { recursive: true });
+
+    for (const entry of [
+      ".claude-plugin",
+      "commands",
+      "hooks",
+      "schemas",
+      "scripts",
+      "skills",
+      "README.md",
+      "ARCHITECTURE.md",
+      "CIRCUITS.md",
+      "CUSTOM-CIRCUITS.md",
+      "docs",
+      "circuit.config.example.yaml",
+    ]) {
+      cpSync(resolve(REPO_ROOT, entry), resolve(repoRoot, entry), { recursive: true });
+    }
+
+    const brokenFile = resolve(repoRoot, "scripts/runtime/engine/src/catalog/surface-fs.ts");
+    writeFileSync(
+      brokenFile,
+      `${readFileSync(brokenFile, "utf-8")}\nconst verifyInstallTypecheckFailure: string = 123;\n`,
+      "utf-8",
+    );
+
+    chmodSync(resolve(repoRoot, "scripts/verify-install.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "scripts/relay/compose-prompt.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "scripts/relay/dispatch.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "scripts/relay/update-batch.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "hooks/session-start.sh"), 0o755);
+
+    const result = run(resolve(repoRoot, "scripts/verify-install.sh"), ["--mode", "repo"], {
+      cwd: repoRoot,
+      env: { NODE_BIN: process.execPath },
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("Engine source typecheck");
+    expect(`${result.stdout}\n${result.stderr}`).toContain(
+      "runtime engine TypeScript sources failed to typecheck",
+    );
   });
 
   it("verify-install fails when discovered config is malformed", () => {
@@ -256,7 +350,7 @@ describe("runtime CLI integration", () => {
 
     const result = run(
       resolve(installRoot, "scripts/verify-install.sh"),
-      [],
+      ["--mode", "installed"],
       {
         cwd: installRoot,
         env: { HOME: homeDir },
@@ -284,7 +378,7 @@ describe("runtime CLI integration", () => {
       "utf-8",
     );
 
-    const result = run(resolve(installRoot, "scripts/verify-install.sh"), [], {
+    const result = run(resolve(installRoot, "scripts/verify-install.sh"), ["--mode", "installed"], {
       cwd: installRoot,
     });
 
@@ -329,13 +423,13 @@ describe("runtime CLI integration", () => {
       "utf-8",
     );
 
-    const result = run(resolve(installRoot, "scripts/verify-install.sh"), [], {
+    const result = run(resolve(installRoot, "scripts/verify-install.sh"), ["--mode", "installed"], {
       cwd: installRoot,
     });
 
     expect(result.status).not.toBe(0);
     expect(`${result.stdout}\n${result.stderr}`).toMatch(
-      /(workers|public command surface|authoritative)/i,
+      /(workers|surface|unexpected|hash)/i,
     );
   });
 });

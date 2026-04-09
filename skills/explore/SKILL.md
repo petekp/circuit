@@ -128,12 +128,10 @@ for w in ext int; do
     --root "${RUN_ROOT}/phases/analyze-${w}" \
     --out "${RUN_ROOT}/phases/analyze-${w}/prompt.md"
 
-  # --step analyze is internal execution metadata only.
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
     --prompt "${RUN_ROOT}/phases/analyze-${w}/prompt.md" \
     --output "${RUN_ROOT}/phases/analyze-${w}/last-messages/last-message.txt" \
     --circuit explore \
-    --step analyze \
     --role researcher
 done
 ```
@@ -274,7 +272,6 @@ for w in a b c; do
     --prompt "${RUN_ROOT}/phases/diverge-${w}/prompt.md" \
     --output "${RUN_ROOT}/phases/diverge-${w}/last-messages/last-message.txt" \
     --circuit explore \
-    --step decide \
     --role researcher
 done
 ```

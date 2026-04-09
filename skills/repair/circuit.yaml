@@ -7,7 +7,6 @@ circuit:
     discipline with regression contract.
 
   entry:
-    expert_command: /circuit:repair
     signals:
       include: [bug, regression, broken, error, flaky, incident]
       exclude: [feature, migration, cleanup, architecture_decision]

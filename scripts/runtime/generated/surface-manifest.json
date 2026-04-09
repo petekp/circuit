@@ -1,0 +1,414 @@
+{
+  "entries": [
+    {
+      "kind": "workflow",
+      "public": true,
+      "publicCommand": {
+        "description": "Build features, scoped refactors, docs, tests, or mixed changes.",
+        "invocation": "/circuit:build",
+        "shimPath": "commands/build.md",
+        "slash": "/circuit:build"
+      },
+      "slug": "build"
+    },
+    {
+      "kind": "workflow",
+      "public": true,
+      "publicCommand": {
+        "description": "Investigate, understand, choose among options, or shape an execution plan.",
+        "invocation": "/circuit:explore",
+        "shimPath": "commands/explore.md",
+        "slash": "/circuit:explore"
+      },
+      "slug": "explore"
+    },
+    {
+      "kind": "utility",
+      "public": true,
+      "publicCommand": {
+        "description": "Save session state for the next session.",
+        "invocation": "/circuit:handoff",
+        "shimPath": "commands/handoff.md",
+        "slash": "/circuit:handoff"
+      },
+      "slug": "handoff"
+    },
+    {
+      "kind": "workflow",
+      "public": true,
+      "publicCommand": {
+        "description": "Large-scale migrations: framework swaps, dependency replacements, architecture transitions, incremental rewrites.",
+        "invocation": "/circuit:migrate",
+        "shimPath": "commands/migrate.md",
+        "slash": "/circuit:migrate"
+      },
+      "slug": "migrate"
+    },
+    {
+      "kind": "workflow",
+      "public": true,
+      "publicCommand": {
+        "description": "Fix bugs, regressions, flaky behavior, and incidents.",
+        "invocation": "/circuit:repair",
+        "shimPath": "commands/repair.md",
+        "slash": "/circuit:repair"
+      },
+      "slug": "repair"
+    },
+    {
+      "kind": "utility",
+      "public": true,
+      "publicCommand": {
+        "description": "Standalone fresh-context code review.",
+        "invocation": "/circuit:review",
+        "shimPath": "commands/review.md",
+        "slash": "/circuit:review"
+      },
+      "slug": "review"
+    },
+    {
+      "kind": "workflow",
+      "public": true,
+      "publicCommand": {
+        "description": "The primary Circuit router.",
+        "invocation": "/circuit:run <task>",
+        "shimPath": "commands/run.md",
+        "slash": "/circuit:run"
+      },
+      "slug": "run"
+    },
+    {
+      "kind": "workflow",
+      "public": true,
+      "publicCommand": {
+        "description": "Systematic codebase sweeps: cleanup, quality passes, coverage improvements, docs-sync.",
+        "invocation": "/circuit:sweep",
+        "shimPath": "commands/sweep.md",
+        "slash": "/circuit:sweep"
+      },
+      "slug": "sweep"
+    },
+    {
+      "kind": "adapter",
+      "public": false,
+      "slug": "workers"
+    }
+  ],
+  "files": [
+    {
+      "executable": false,
+      "path": ".claude-plugin/marketplace.json",
+      "sha256": "dd39ba0485922220e9c43975b8e2402a0883c14f7062ab131fe4fe4e2d527597"
+    },
+    {
+      "executable": false,
+      "path": ".claude-plugin/plugin.json",
+      "sha256": "a1f47b5391a2a36eae8a96018114be3ca65ba7cd43f89c8de922a986b956e992"
+    },
+    {
+      "executable": false,
+      "path": ".claude-plugin/public-commands.txt",
+      "sha256": "76f7b559dcb33ab6fe0137b84793148de93336b80c3d7c3c3c02ae4f54d22f39"
+    },
+    {
+      "executable": false,
+      "path": "circuit.config.example.yaml",
+      "sha256": "d2581b4c893475225f4312dacb48fb9708f18006a4f40fc871c60886013385d7"
+    },
+    {
+      "executable": false,
+      "path": "commands/build.md",
+      "sha256": "2e391d964b40ad42778459e8c7b045a9bb7dc07927bd875d3fa46b81d34f7172"
+    },
+    {
+      "executable": false,
+      "path": "commands/explore.md",
+      "sha256": "02a6bcfbeea1e5cd2e34f6fda5faff8175545938795032ff76247687fd1fcf22"
+    },
+    {
+      "executable": false,
+      "path": "commands/handoff.md",
+      "sha256": "77d20d1534db713c2332e3a5b8e1c72ae0e60f10d2e0f18d4c2458a622103b66"
+    },
+    {
+      "executable": false,
+      "path": "commands/migrate.md",
+      "sha256": "7d469fe77cfdad17330e57568fc1757fed67efe82d46af8850311609391bf75e"
+    },
+    {
+      "executable": false,
+      "path": "commands/repair.md",
+      "sha256": "3b3466096ff45c4e2b856eb54a3c7282b3130d06dc97a7a84cc304c2dcbfb539"
+    },
+    {
+      "executable": false,
+      "path": "commands/review.md",
+      "sha256": "23ecb7dad86949a5104fb694d0ce623d910ae73630596b3a56471ad091f25a84"
+    },
+    {
+      "executable": false,
+      "path": "commands/run.md",
+      "sha256": "3f7a699f1f10ff25f89adafdb8c3cf33c123682914a7344e82d0f62bda7caf91"
+    },
+    {
+      "executable": false,
+      "path": "commands/sweep.md",
+      "sha256": "736e1436d763ce869566c16ec2b3f32a5ecf228cf1ac488831b1d27afd5611c1"
+    },
+    {
+      "executable": false,
+      "path": "hooks/hooks.json",
+      "sha256": "8422b78fd7d06a23d594948a37b2e141f458f268beb354a82be29337f7dfd9aa"
+    },
+    {
+      "executable": true,
+      "path": "hooks/session-start.sh",
+      "sha256": "c1c853ffe19737d13ddb8ba6d82e477ea0ff4916d752a9d9331604ac56fca0fa"
+    },
+    {
+      "executable": false,
+      "path": "schemas/circuit-manifest.schema.json",
+      "sha256": "08d9a7f309a8beb91e6fdf688d9dd499ea0f6b0e445702a0d428cb89aabcf517"
+    },
+    {
+      "executable": false,
+      "path": "schemas/event.schema.json",
+      "sha256": "733591936ff279f74e8ff7326e4833ea12e14771665c535eedfcab4fdb057538"
+    },
+    {
+      "executable": false,
+      "path": "schemas/job-result.schema.json",
+      "sha256": "c53dd8b741b3fe88641fddd8b035566b1da4c63928f2f72783fb0ac2ff821396"
+    },
+    {
+      "executable": false,
+      "path": "schemas/state.schema.json",
+      "sha256": "12cf982091cac30143044d82f1cc39203820518066bc4b315b4efa1177020ae8"
+    },
+    {
+      "executable": false,
+      "path": "schemas/surface-manifest.schema.json",
+      "sha256": "c8c2a04fd47dd32dfaeae25ecca3bee57539c51aa5f64b931dd7e247cff45b6c"
+    },
+    {
+      "executable": true,
+      "path": "scripts/relay/compose-prompt.sh",
+      "sha256": "13fc9e15cfadd43eb1ced526fbc3f8baa752d844130f819bdb4f5f84156fb534"
+    },
+    {
+      "executable": true,
+      "path": "scripts/relay/dispatch.sh",
+      "sha256": "54aac19eaefa333fc09816176942db1cf1e1cb1c0950f2819bf745009d1291da"
+    },
+    {
+      "executable": true,
+      "path": "scripts/relay/update-batch.sh",
+      "sha256": "49fcb68b2f1fc947e8d5df945f9c4e70c6e437dc4c07eb06c8c3c5804f938d69"
+    },
+    {
+      "executable": true,
+      "path": "scripts/runtime/bin/append-event.js",
+      "sha256": "2f78e891fc23c75a366f21945e07f4e5853bfec3015aae7e24f272fa13e6e253"
+    },
+    {
+      "executable": true,
+      "path": "scripts/runtime/bin/catalog-compiler.js",
+      "sha256": "7ef5dd155d3f8106b2b0319b7f19dd1d1d38d9c71740543b448848b8c64ca03a"
+    },
+    {
+      "executable": true,
+      "path": "scripts/runtime/bin/derive-state.js",
+      "sha256": "857ffcc75ab25ace6c18b61c93e5af12799f745c26b66cf6aa9053b0c3b0e219"
+    },
+    {
+      "executable": true,
+      "path": "scripts/runtime/bin/dispatch.js",
+      "sha256": "73bcb7c211ad82b34cadd5dfdfe5b7cbf6432fa277fb0da59015f71e6c19b05d"
+    },
+    {
+      "executable": true,
+      "path": "scripts/runtime/bin/list-installed-surface-roots.js",
+      "sha256": "6c1214f79429f6c299052f1df900fb17d82a1926f125a47c3da4d8f419bb10bb"
+    },
+    {
+      "executable": true,
+      "path": "scripts/runtime/bin/read-config.js",
+      "sha256": "6cf5c1a98389be327811b5fc90c96a90ee84bf77624cd6936d5424d72d2729dc"
+    },
+    {
+      "executable": true,
+      "path": "scripts/runtime/bin/resume.js",
+      "sha256": "4417dabbae3ef534ebb70a1a67b981492b2af4eb7e4d5213351c988cb3db1424"
+    },
+    {
+      "executable": true,
+      "path": "scripts/runtime/bin/update-batch.js",
+      "sha256": "8bd02d7ae7133c4c1694730102ddde0356e19e050718cb7b32196129739fe878"
+    },
+    {
+      "executable": true,
+      "path": "scripts/runtime/bin/update-surface-manifest-schema.js",
+      "sha256": "0dcf59af17e6ee7fd7a962df92e683771cb99d594f1354c4a9df49430888be88"
+    },
+    {
+      "executable": true,
+      "path": "scripts/runtime/bin/verify-install.js",
+      "sha256": "0e370638667b7fc77a11c9a4946e9b42a6dc4ba58f2236dd0f5fb9b303458d3b"
+    },
+    {
+      "executable": true,
+      "path": "scripts/sync-to-cache.sh",
+      "sha256": "965ec3d446dee44d66b6325907fbda209766a8741368e3763fb47c0b33a706e8"
+    },
+    {
+      "executable": true,
+      "path": "scripts/verify-install.sh",
+      "sha256": "f7ded52378216bff795d755fa058bb34afff470a391ea89554fe6457440f254f"
+    },
+    {
+      "executable": false,
+      "path": "skills/build/circuit.yaml",
+      "sha256": "dc28a40840f93f69026b9bde14afd3bfb5df957a9ffe1640c82f3093f9ea466a"
+    },
+    {
+      "executable": false,
+      "path": "skills/build/SKILL.md",
+      "sha256": "89e02b6929143a581a3e58e6f6d4dd356010ff07cd3e731dd31cfa94688ea61d"
+    },
+    {
+      "executable": false,
+      "path": "skills/explore/circuit.yaml",
+      "sha256": "1cffae56e99f83146bee3cd1c4de079ff5e50dac9fa91d798fcffb9ec11e25de"
+    },
+    {
+      "executable": false,
+      "path": "skills/explore/SKILL.md",
+      "sha256": "3d97c9d11b6b7339abea4b1685eb2097655b72cacb0a1354482ad449a059bc4b"
+    },
+    {
+      "executable": true,
+      "path": "skills/handoff/scripts/gather-git-state.sh",
+      "sha256": "2776a7ebefb0bbd8a9def1143029f499e46b24341cc3581ec613680156937d81"
+    },
+    {
+      "executable": false,
+      "path": "skills/handoff/SKILL.md",
+      "sha256": "d570987fbadd8a504d98f3668738ae6aa701da9bc0b5e29b85b3db383f26ca2d"
+    },
+    {
+      "executable": false,
+      "path": "skills/migrate/circuit.yaml",
+      "sha256": "900c4a3776ee396cdfd421420791c0d79d48899d525353ba42ca60248d8632c8"
+    },
+    {
+      "executable": false,
+      "path": "skills/migrate/SKILL.md",
+      "sha256": "9964213e5a66b5a10e8944894099621d4bd3bdf8d49a2a9e587913c7103ee83a"
+    },
+    {
+      "executable": false,
+      "path": "skills/repair/circuit.yaml",
+      "sha256": "0168f039eca717b472d869a8a300a3c141b6a283e2e3fdc02b9b8a281a640ad9"
+    },
+    {
+      "executable": false,
+      "path": "skills/repair/SKILL.md",
+      "sha256": "fcbd13820b512cf2c36cd7ffca193c146257891bd0ce9f4f1c3ab9b29c3f567a"
+    },
+    {
+      "executable": false,
+      "path": "skills/review/SKILL.md",
+      "sha256": "907e3b051af0fb2b9bb42ffc5a1aca632c3dcb88545007e850f45ebb15d1edde"
+    },
+    {
+      "executable": false,
+      "path": "skills/run/circuit.yaml",
+      "sha256": "68da63200285a5c4b9032e87596d8b27e3c0fad3fdd73b6327127fa38f81ce46"
+    },
+    {
+      "executable": false,
+      "path": "skills/run/references/canonical-artifacts.md",
+      "sha256": "3c9da3a98a0d90035495c9ac0f07304d276c80058837f36aaf0fcb8bff1ee218"
+    },
+    {
+      "executable": false,
+      "path": "skills/run/references/phase-spine.md",
+      "sha256": "d77c69cd8483f9d17420a4fa56c4355d4bb996fbcaf8ea2008a64ac52a28c9e7"
+    },
+    {
+      "executable": false,
+      "path": "skills/run/references/rigor-profiles.md",
+      "sha256": "2424bb5c595069694124d811fe7fb53e4d5d59e8e2bdf4dd19baef4ad99e7cc9"
+    },
+    {
+      "executable": false,
+      "path": "skills/run/SKILL.md",
+      "sha256": "321f54be3a6ea8b9db12d979e9fdd309a57cd8c75b137262e53e613e78f00b33"
+    },
+    {
+      "executable": false,
+      "path": "skills/sweep/circuit.yaml",
+      "sha256": "606efab0bc6aac2e57411a9dba2c3e06a2eb20b9364c6403bf00fbb2f101c15a"
+    },
+    {
+      "executable": false,
+      "path": "skills/sweep/SKILL.md",
+      "sha256": "73610be20a1ba641e084036ce670b28f7b061224d602e6c83e4f0886d6bf5a66"
+    },
+    {
+      "executable": false,
+      "path": "skills/workers/references/agents-md-template.md",
+      "sha256": "0dda9c3ab8b463715eebe590046743a6ed2677f028dcbda1e7fca0ed66d00251"
+    },
+    {
+      "executable": false,
+      "path": "skills/workers/references/converge-template.md",
+      "sha256": "68b355ec2fcb1cec7aff1c033b62cbc206ccd7053fb6baa767cd3be4bcf00076"
+    },
+    {
+      "executable": false,
+      "path": "skills/workers/references/implement-template.md",
+      "sha256": "d0ce2e6fee77fbf7f4e2b84a9d0446004b9cabf6467bcd9a85087c9efc4d9283"
+    },
+    {
+      "executable": false,
+      "path": "skills/workers/references/relay-protocol.md",
+      "sha256": "b823af63ce4f66d16ccebba49309749e03448ff46888f1c55a83e8ef81c5d6b8"
+    },
+    {
+      "executable": false,
+      "path": "skills/workers/references/review-preamble.md",
+      "sha256": "4fd560822b562ccf99ef56137cb95175f22e6b028d10c60af5c9439d4f26adb4"
+    },
+    {
+      "executable": false,
+      "path": "skills/workers/references/review-template.md",
+      "sha256": "a81247da700b29fc5ac7402da0f2051137e9afa3b9f069c7ba6ac23144605f8a"
+    },
+    {
+      "executable": false,
+      "path": "skills/workers/references/ship-review-template.md",
+      "sha256": "dde4a5682b4ede45b74421e4578fba96469dce8274e59c57c800b5ea8c1b5889"
+    },
+    {
+      "executable": false,
+      "path": "skills/workers/SKILL.md",
+      "sha256": "09cdb8c95390b7e0cb2ccbcd4ab10db4da7a9cc80f7dfac8c95c8c76bad0e9c6"
+    }
+  ],
+  "plugin": {
+    "name": "circuit",
+    "version": "0.3.0"
+  },
+  "public_commands": [
+    "build",
+    "explore",
+    "handoff",
+    "migrate",
+    "repair",
+    "review",
+    "run",
+    "sweep"
+  ],
+  "schema_version": "1"
+}

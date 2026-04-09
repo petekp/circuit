@@ -256,24 +256,10 @@ describe("dispatch adapter contract", () => {
     expect(receipt.resolved_from).toBe("auto");
   });
 
-  it("routes convergence through the reviewer adapter", () => {
+  it("fails loudly for unsupported explicit roles", () => {
     const root = mkdtempSync(resolve(tmpdir(), "circuit-dispatch-"));
-    const prompt = writePrompt(root, "# Convergence\n");
+    const prompt = writePrompt(root, "# Unsupported role\n");
     const output = outputPath(root);
-    const fakeBin = resolve(root, "bin");
-
-    writeFakeCodex(fakeBin, [
-      "#!/usr/bin/env bash",
-      'echo "codex should not run" >&2',
-      "exit 94",
-      "",
-    ]);
-    writeConfig(root, [
-      "dispatch:",
-      "  default: codex",
-      "  roles:",
-      "    reviewer: agent",
-    ]);
     initRepo(root);
 
     const result = runDispatch(
@@ -285,13 +271,11 @@ describe("dispatch adapter contract", () => {
         "--role",
         "converger",
       ],
-      { cwd: root, env: { PATH: `${fakeBin}:${process.env.PATH ?? ""}` } },
+      { cwd: root },
     );
 
-    expect(result.status).toBe(0);
-    const receipt = JSON.parse(result.stdout);
-    expect(receipt.adapter).toBe("agent");
-    expect(receipt.resolved_from).toBe("dispatch.roles.reviewer");
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain('unsupported dispatch role "converger"');
   });
 
   it("keeps the built-in agent receipt structured", () => {
@@ -534,9 +518,9 @@ describe("dispatch adapter contract", () => {
     expect(`${result.stdout}\n${result.stderr}`).toContain("empty");
   });
 
-  it("fails loudly when --step is missing its value", () => {
+  it("rejects --step end-to-end", () => {
     const root = mkdtempSync(resolve(tmpdir(), "circuit-dispatch-"));
-    const prompt = writePrompt(root, "# Missing step\n");
+    const prompt = writePrompt(root, "# Rejected step\n");
     const output = outputPath(root);
     initRepo(root);
 
@@ -547,14 +531,13 @@ describe("dispatch adapter contract", () => {
         "--output",
         output,
         "--step",
-        "--role",
-        "implementer",
+        "inventory",
       ],
       { cwd: root },
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout}\n${result.stderr}`).toContain("missing value for --step");
+    expect(`${result.stdout}\n${result.stderr}`).toContain("--step is no longer supported");
   });
 
   it("fails loudly on malformed yaml while discovering config", () => {

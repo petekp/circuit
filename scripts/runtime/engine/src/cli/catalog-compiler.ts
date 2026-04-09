@@ -3,21 +3,19 @@
  * CLI entry point for catalog-compiler.
  *
  * Usage:
- *   node catalog-compiler.js generate    # Patch marker blocks in target files
- *   node catalog-compiler.js catalog     # Emit catalog JSON to stdout
+ *   node catalog-compiler.js generate [--check]
+ *   node catalog-compiler.js catalog
  *
  * Exits 0 on success, 1 on error.
  */
 
-import { resolve, dirname } from "node:path";
 import { existsSync, rmSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { extract } from "../catalog/extract.js";
-import { generate } from "../catalog/generate.js";
-import {
-  getGenerateTargets,
-  pruneStaleCommandShims,
-} from "../catalog/surfaces.js";
+import { getGenerateTargets, pruneStaleCommandShims } from "../catalog/generate-targets.js";
+import { collectPendingWrites, generate } from "../catalog/generate.js";
 
 const MODULE_DIR =
   typeof __dirname !== "undefined"
@@ -26,26 +24,44 @@ const MODULE_DIR =
 
 function findRepoRoot(): string {
   let dir = MODULE_DIR;
-  for (let i = 0; i < 10; i++) {
-    if (existsSync(resolve(dir, "skills"))) return dir;
+  for (let index = 0; index < 10; index++) {
+    if (existsSync(resolve(dir, "skills"))) {
+      return dir;
+    }
+
     const parent = resolve(dir, "..");
-    if (parent === dir) break;
+    if (parent === dir) {
+      break;
+    }
     dir = parent;
   }
+
   return resolve(MODULE_DIR, "..", "..", "..", "..");
 }
 
 function main(): number {
   const subcommand = process.argv[2];
+  const extraArgs = process.argv.slice(3);
+  const checkMode = extraArgs.includes("--check");
 
   if (!subcommand || !["generate", "catalog"].includes(subcommand)) {
-    process.stderr.write("Usage: catalog-compiler <generate|catalog>\n");
+    process.stderr.write("Usage: catalog-compiler <generate|catalog> [--check]\n");
+    return 1;
+  }
+
+  if (subcommand === "catalog" && checkMode) {
+    process.stderr.write("catalog-compiler: --check is only supported for generate\n");
+    return 1;
+  }
+
+  const unknownArgs = extraArgs.filter((arg) => arg !== "--check");
+  if (unknownArgs.length > 0) {
+    process.stderr.write(`catalog-compiler: unknown option(s): ${unknownArgs.join(", ")}\n`);
     return 1;
   }
 
   const repoRoot = findRepoRoot();
   const skillsDir = resolve(repoRoot, "skills");
-
   if (!existsSync(skillsDir)) {
     process.stderr.write(`Error: skills directory not found at ${skillsDir}\n`);
     return 1;
@@ -53,32 +69,51 @@ function main(): number {
 
   try {
     const catalog = extract(skillsDir);
-
     if (subcommand === "catalog") {
-      process.stdout.write(JSON.stringify(catalog, null, 2) + "\n");
+      process.stdout.write(`${JSON.stringify(catalog, null, 2)}\n`);
       return 0;
     }
 
-    // generate
     const targets = getGenerateTargets(repoRoot, catalog);
-    const result = generate(catalog, targets);
     const staleShimPaths = pruneStaleCommandShims(repoRoot, catalog);
-    for (const path of staleShimPaths) {
-      rmSync(path);
-      process.stdout.write(`removed: ${path}\n`);
+
+    if (checkMode) {
+      const pendingWrites = collectPendingWrites(catalog, targets);
+
+      for (const filePath of staleShimPaths) {
+        process.stdout.write(`stale-remove: ${filePath}\n`);
+      }
+      for (const pendingWrite of pendingWrites) {
+        process.stdout.write(`stale-write: ${pendingWrite.filePath}\n`);
+      }
+
+      if (pendingWrites.length === 0 && staleShimPaths.length === 0) {
+        process.stdout.write("generated surfaces are up to date\n");
+        return 0;
+      }
+
+      process.stderr.write(
+        'catalog-compiler: generated surfaces are stale. Run "node scripts/runtime/bin/catalog-compiler.js generate"\n',
+      );
+      return 1;
     }
 
-    for (const file of result.patchedFiles) {
-      process.stdout.write(`patched: ${file}\n`);
+    const result = generate(catalog, targets);
+    for (const filePath of staleShimPaths) {
+      rmSync(filePath);
+      process.stdout.write(`removed: ${filePath}\n`);
+    }
+    for (const filePath of result.patchedFiles) {
+      process.stdout.write(`patched: ${filePath}\n`);
     }
 
     if (result.patchedFiles.length === 0 && staleShimPaths.length === 0) {
-      process.stdout.write("all blocks up to date\n");
+      process.stdout.write("all generated surfaces up to date\n");
     }
 
     return 0;
-  } catch (e) {
-    process.stderr.write(`${e instanceof Error ? e.message : String(e)}\n`);
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     return 1;
   }
 }

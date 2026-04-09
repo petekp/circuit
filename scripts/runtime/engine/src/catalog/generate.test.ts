@@ -1,219 +1,151 @@
-import { describe, it, expect } from "vitest";
-import { generate } from "./generate.js";
-import type { Catalog, GenerateTarget } from "./types.js";
+import {
+  chmodSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+import { collectPendingWrites, generate } from "./generate.js";
+import { getGenerateTargets } from "./generate-targets.js";
+import type { Catalog } from "./types.js";
 
 const SAMPLE_CATALOG: Catalog = [
   {
-    kind: "circuit",
-    id: "cleanup",
-    dir: "cleanup",
-    version: "2026-04-01",
-    purpose: "Systematic cleanup.",
-    expertCommand: "/circuit:cleanup",
-    entryModes: ["auto", "default"],
-    skillName: "circuit:cleanup",
-    skillDescription: "Systematic cleanup.",
-    role: "workflow",
+    dir: "build",
+    entryModes: ["default"],
+    kind: "workflow",
+    purpose: "Build things.",
+    skillDescription: "Build things. More detail.",
+    skillName: "build",
+    slug: "build",
+    version: "2026-04-08",
   },
   {
-    kind: "circuit",
-    id: "run",
-    dir: "run",
-    version: "2026-04-03",
-    purpose: "Adaptive supergraph circuit.",
-    expertCommand: "/circuit:run",
-    entryUsage: "<task>",
-    entryModes: ["adversarial", "default", "quick"],
-    skillName: "circuit:run",
-    skillDescription: "Adaptive supergraph circuit.",
-    role: "workflow",
-  },
-  {
+    dir: "handoff",
     kind: "utility",
-    id: "workers",
+    skillDescription: "Save session state.",
+    skillName: "handoff",
+    slug: "handoff",
+  },
+  {
     dir: "workers",
+    kind: "adapter",
+    skillDescription: "Internal adapter.",
     skillName: "workers",
-    skillDescription: "Autonomous batch orchestrator.",
-    role: "adapter",
+    slug: "workers",
   },
 ];
 
-function simpleRender(catalog: Catalog): string {
-  return catalog.map((e) => `- ${e.id}`).join("\n");
-}
+function writeRepoFixture(root: string): void {
+  mkdirSync(resolve(root, ".claude-plugin"), { recursive: true });
+  mkdirSync(resolve(root, "commands"), { recursive: true });
+  mkdirSync(resolve(root, "hooks"), { recursive: true });
+  mkdirSync(resolve(root, "schemas"), { recursive: true });
+  mkdirSync(resolve(root, "scripts/relay"), { recursive: true });
+  mkdirSync(resolve(root, "scripts/runtime/bin"), { recursive: true });
+  mkdirSync(resolve(root, "scripts/runtime/generated"), { recursive: true });
+  mkdirSync(resolve(root, "skills/build"), { recursive: true });
+  mkdirSync(resolve(root, "skills/handoff"), { recursive: true });
+  mkdirSync(resolve(root, "skills/workers"), { recursive: true });
 
-function makeFs(files: Record<string, string>) {
-  const store = { ...files };
-  return {
-    readFile: (p: string) => {
-      if (!(p in store)) throw new Error(`ENOENT: ${p}`);
-      return store[p];
-    },
-    writeFile: (p: string, c: string) => {
-      store[p] = c;
-    },
-    store,
-  };
+  writeFileSync(
+    resolve(root, ".claude-plugin/plugin.json"),
+    JSON.stringify({ name: "circuit", version: "0.3.0" }, null, 2),
+    "utf-8",
+  );
+  writeFileSync(resolve(root, "hooks/session-start.sh"), "#!/usr/bin/env bash\n", "utf-8");
+  writeFileSync(resolve(root, "schemas/event.schema.json"), "{}\n", "utf-8");
+  writeFileSync(resolve(root, "scripts/relay/dispatch.sh"), "#!/usr/bin/env bash\n", "utf-8");
+  chmodSync(resolve(root, "scripts/relay/dispatch.sh"), 0o755);
+  writeFileSync(resolve(root, "scripts/runtime/bin/dispatch.js"), "#!/usr/bin/env node\n", "utf-8");
+  chmodSync(resolve(root, "scripts/runtime/bin/dispatch.js"), 0o755);
+  writeFileSync(resolve(root, "scripts/sync-to-cache.sh"), "#!/usr/bin/env bash\n", "utf-8");
+  chmodSync(resolve(root, "scripts/sync-to-cache.sh"), 0o755);
+  writeFileSync(resolve(root, "scripts/verify-install.sh"), "#!/usr/bin/env bash\n", "utf-8");
+  chmodSync(resolve(root, "scripts/verify-install.sh"), 0o755);
+  writeFileSync(resolve(root, "circuit.config.example.yaml"), "dispatch: {}\n", "utf-8");
+  writeFileSync(resolve(root, "skills/build/SKILL.md"), "# Build\n", "utf-8");
+  writeFileSync(resolve(root, "skills/handoff/SKILL.md"), "# Handoff\n", "utf-8");
+  writeFileSync(resolve(root, "skills/workers/SKILL.md"), "# Workers\n", "utf-8");
+  writeFileSync(
+    resolve(root, "CIRCUITS.md"),
+    [
+      "# Fixture",
+      "",
+      "<!-- BEGIN CIRCUIT_TABLE -->",
+      "<!-- END CIRCUIT_TABLE -->",
+      "",
+      "<!-- BEGIN UTILITY_TABLE -->",
+      "<!-- END UTILITY_TABLE -->",
+      "",
+      "<!-- BEGIN ENTRY_MODES -->",
+      "<!-- END ENTRY_MODES -->",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
 }
 
 describe("generate", () => {
-  it("patches content between markers", () => {
-    const fs = makeFs({
-      "README.md": [
-        "# Title",
-        "<!-- BEGIN CIRCUIT_TABLE -->",
-        "old content",
-        "<!-- END CIRCUIT_TABLE -->",
-        "footer",
-      ].join("\n"),
-    });
+  it("patches generated blocks and writes public projections", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "circuit-generate-"));
+    writeRepoFixture(root);
 
-    const targets: GenerateTarget[] = [
-      { filePath: "README.md", blockName: "CIRCUIT_TABLE", render: simpleRender },
-    ];
+    const targets = getGenerateTargets(root, SAMPLE_CATALOG);
+    const result = generate(SAMPLE_CATALOG, targets);
 
-    const result = generate(SAMPLE_CATALOG, targets, fs);
-    expect(result.patchedFiles).toEqual(["README.md"]);
+    expect(result.patchedFiles).toContain(resolve(root, "CIRCUITS.md"));
+    expect(result.patchedFiles).toContain(resolve(root, "commands/build.md"));
+    expect(result.patchedFiles).toContain(resolve(root, "commands/handoff.md"));
+    expect(result.patchedFiles).toContain(resolve(root, ".claude-plugin/public-commands.txt"));
+    expect(result.patchedFiles).toContain(resolve(root, "scripts/runtime/generated/surface-manifest.json"));
 
-    const output = fs.store["README.md"];
-    expect(output).toContain("<!-- BEGIN CIRCUIT_TABLE -->");
-    expect(output).toContain("<!-- DO NOT EDIT -- generated by catalog-compiler -->");
-    expect(output).toContain("- cleanup");
-    expect(output).toContain("- run");
-    expect(output).toContain("- workers");
-    expect(output).toContain("<!-- END CIRCUIT_TABLE -->");
-    expect(output).not.toContain("old content");
-    expect(output).toContain("footer");
-  });
-
-  it("replaces existing DO NOT EDIT line on re-run", () => {
-    const fs = makeFs({
-      "README.md": [
-        "<!-- BEGIN BLOCK -->",
-        "<!-- DO NOT EDIT -- generated by catalog-compiler -->",
-        "stale content",
-        "<!-- END BLOCK -->",
-      ].join("\n"),
-    });
-
-    const targets: GenerateTarget[] = [
-      { filePath: "README.md", blockName: "BLOCK", render: () => "fresh" },
-    ];
-
-    generate(SAMPLE_CATALOG, targets, fs);
-    const lines = fs.store["README.md"].split("\n");
-    // Should have exactly one DO NOT EDIT line
-    const doNotEditCount = lines.filter((l: string) =>
-      l.includes("DO NOT EDIT"),
-    ).length;
-    expect(doNotEditCount).toBe(1);
-    expect(fs.store["README.md"]).toContain("fresh");
-    expect(fs.store["README.md"]).not.toContain("stale content");
-  });
-
-  it("throws on missing BEGIN marker", () => {
-    const fs = makeFs({
-      "README.md": "# Title\nno markers here\n",
-    });
-
-    const targets: GenerateTarget[] = [
-      { filePath: "README.md", blockName: "CIRCUIT_TABLE", render: simpleRender },
-    ];
-
-    expect(() => generate(SAMPLE_CATALOG, targets, fs)).toThrow(
-      "missing marker <!-- BEGIN CIRCUIT_TABLE -->",
+    expect(readFileSync(resolve(root, "commands/build.md"), "utf-8")).toContain(
+      'description: "Build things."',
     );
-  });
-
-  it("throws on orphaned BEGIN without END", () => {
-    const fs = makeFs({
-      "README.md": "# Title\n<!-- BEGIN CIRCUIT_TABLE -->\nstuff\n",
-    });
-
-    const targets: GenerateTarget[] = [
-      { filePath: "README.md", blockName: "CIRCUIT_TABLE", render: simpleRender },
-    ];
-
-    expect(() => generate(SAMPLE_CATALOG, targets, fs)).toThrow(
-      "found <!-- BEGIN CIRCUIT_TABLE --> but missing <!-- END CIRCUIT_TABLE -->",
+    expect(readFileSync(resolve(root, "commands/handoff.md"), "utf-8")).toContain(
+      'description: "Save session state."',
     );
-  });
+    expect(() => readFileSync(resolve(root, "commands/workers.md"), "utf-8")).toThrow();
 
-  it("produces deterministic output for identical input", () => {
-    const make = () =>
-      makeFs({
-        "README.md": [
-          "<!-- BEGIN T -->",
-          "old",
-          "<!-- END T -->",
-        ].join("\n"),
-      });
-
-    const targets: GenerateTarget[] = [
-      { filePath: "README.md", blockName: "T", render: simpleRender },
-    ];
-
-    const fs1 = make();
-    const fs2 = make();
-    generate(SAMPLE_CATALOG, targets, fs1);
-    generate(SAMPLE_CATALOG, targets, fs2);
-
-    expect(fs1.store["README.md"]).toBe(fs2.store["README.md"]);
-  });
-
-  it("does not write file when content is unchanged", () => {
-    // Generate once to get the expected output
-    const fs1 = makeFs({
-      "README.md": [
-        "<!-- BEGIN T -->",
-        "old",
-        "<!-- END T -->",
-      ].join("\n"),
-    });
-    const targets: GenerateTarget[] = [
-      { filePath: "README.md", blockName: "T", render: simpleRender },
-    ];
-    generate(SAMPLE_CATALOG, targets, fs1);
-
-    // Now run again with the already-patched content
-    let writeCount = 0;
-    const fs2 = {
-      readFile: () => fs1.store["README.md"],
-      writeFile: () => { writeCount++; },
+    const manifest = JSON.parse(
+      readFileSync(resolve(root, "scripts/runtime/generated/surface-manifest.json"), "utf-8"),
+    ) as {
+      entries: Array<{ kind: string; public: boolean; publicCommand?: { invocation: string } }>;
+      public_commands: string[];
     };
-    const result = generate(SAMPLE_CATALOG, targets, fs2);
-    expect(writeCount).toBe(0);
-    expect(result.patchedFiles).toEqual([]);
+
+    expect(manifest.public_commands).toEqual(["build", "handoff"]);
+    expect(manifest.entries).toEqual([
+      expect.objectContaining({
+        kind: "workflow",
+        public: true,
+        publicCommand: expect.objectContaining({ invocation: "/circuit:build" }),
+      }),
+      expect.objectContaining({
+        kind: "utility",
+        public: true,
+        publicCommand: expect.objectContaining({ invocation: "/circuit:handoff" }),
+      }),
+      expect.objectContaining({
+        kind: "adapter",
+        public: false,
+      }),
+    ]);
   });
 
-  it("handles multiple targets in one call", () => {
-    const fs = makeFs({
-      "a.md": "<!-- BEGIN X -->\nold\n<!-- END X -->",
-      "b.md": "<!-- BEGIN Y -->\nold\n<!-- END Y -->",
-    });
+  it("finds no pending writes when generated surfaces are current", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "circuit-generate-"));
+    writeRepoFixture(root);
 
-    const targets: GenerateTarget[] = [
-      { filePath: "a.md", blockName: "X", render: () => "content-a" },
-      { filePath: "b.md", blockName: "Y", render: () => "content-b" },
-    ];
+    const targets = getGenerateTargets(root, SAMPLE_CATALOG);
+    generate(SAMPLE_CATALOG, targets);
 
-    const result = generate(SAMPLE_CATALOG, targets, fs);
-    expect(result.patchedFiles).toHaveLength(2);
-    expect(fs.store["a.md"]).toContain("content-a");
-    expect(fs.store["b.md"]).toContain("content-b");
-  });
-
-  it("writes whole-file targets", () => {
-    const fs = makeFs({
-      "commands/run.md": "old\n",
-    });
-
-    const targets: GenerateTarget[] = [
-      { filePath: "commands/run.md", render: () => "generated\n" },
-    ];
-
-    const result = generate(SAMPLE_CATALOG, targets, fs);
-    expect(result.patchedFiles).toEqual(["commands/run.md"]);
-    expect(fs.store["commands/run.md"]).toBe("generated\n");
+    expect(collectPendingWrites(SAMPLE_CATALOG, targets)).toEqual([]);
   });
 });

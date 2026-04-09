@@ -6,7 +6,6 @@ circuit:
     Build features, scoped refactors, docs, tests, or mixed changes.
 
   entry:
-    expert_command: /circuit:build
     signals:
       include: [feature, refactor, docs, tests, mixed_changes]
       exclude: [bug, migration, cleanup, architecture_decision]

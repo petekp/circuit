@@ -6,7 +6,6 @@ circuit:
     Investigate, understand, choose among options, or shape an execution plan.
 
   entry:
-    expert_command: /circuit:explore
     signals:
       include: [investigation, architecture_decision, spec_review, exploration]
       exclude: [clear_approach, migration, cleanup]

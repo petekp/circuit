@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/surface-manifest.schema.json",
+  "title": "Surface Manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "plugin",
+    "entries",
+    "public_commands",
+    "files"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "plugin": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    },
+    "public_commands": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+$"
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/file"
+      }
+    }
+  },
+  "$defs": {
+    "publicCommand": {
+      "type": "object",
+      "required": [
+        "slash",
+        "invocation",
+        "description",
+        "shimPath"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "slash": {
+          "type": "string",
+          "pattern": "^/circuit:[a-z0-9-]+$"
+        },
+        "invocation": {
+          "type": "string",
+          "pattern": "^/circuit:[a-z0-9-]+(?: <[a-z][a-z0-9-]*>)?$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shimPath": {
+          "type": "string",
+          "pattern": "^commands/[a-z0-9-]+\\.md$"
+        }
+      }
+    },
+    "entry": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "slug",
+            "public",
+            "publicCommand"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "workflow"
+            },
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "public": {
+              "const": true
+            },
+            "publicCommand": {
+              "$ref": "#/$defs/publicCommand"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "slug",
+            "public",
+            "publicCommand"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "utility"
+            },
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "public": {
+              "const": true
+            },
+            "publicCommand": {
+              "$ref": "#/$defs/publicCommand"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "slug",
+            "public"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "adapter"
+            },
+            "slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "public": {
+              "const": false
+            }
+          }
+        }
+      ]
+    },
+    "file": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256",
+        "executable"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(\\.claude-plugin|commands|hooks|schemas|scripts|skills)(?:/[^/].*)?$|^circuit\\.config\\.example\\.yaml$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "executable": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

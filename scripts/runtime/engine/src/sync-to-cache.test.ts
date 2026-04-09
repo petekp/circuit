@@ -63,6 +63,8 @@ async function makePluginRoot(root: string): Promise<void> {
   await mkdir(resolve(root, "commands"), { recursive: true });
   await mkdir(resolve(root, ".claude-plugin"), { recursive: true });
   await mkdir(resolve(root, "scripts/relay"), { recursive: true });
+  await mkdir(resolve(root, "scripts/runtime/bin"), { recursive: true });
+  await mkdir(resolve(root, "scripts/runtime/generated"), { recursive: true });
   await mkdir(resolve(root, "schemas"), { recursive: true });
 
   await writeFile(resolve(root, "hooks/hooks.json"), '{"hooks":{}}\n', "utf-8");
@@ -93,6 +95,59 @@ async function makePluginRoot(root: string): Promise<void> {
     "utf-8",
   );
   await writeFile(
+    resolve(root, "scripts/runtime/bin/dispatch.js"),
+    "#!/usr/bin/env node\nconsole.log('dispatch');\n",
+    "utf-8",
+  );
+  await writeFile(
+    resolve(root, "scripts/runtime/bin/list-installed-surface-roots.js"),
+    [
+      "#!/usr/bin/env node",
+      "const args = process.argv.slice(2);",
+      "const lines = args.includes('--repo-paths')",
+      "  ? [",
+      "      '.claude-plugin',",
+      "      'commands',",
+      "      'hooks',",
+      "      'schemas',",
+      "      'skills',",
+      "      'circuit.config.example.yaml',",
+      "      'scripts/sync-to-cache.sh',",
+      "      'scripts/verify-install.sh',",
+      "      'scripts/relay',",
+      "      'scripts/runtime/bin',",
+      "      'scripts/runtime/generated',",
+      "    ]",
+      "  : [",
+      "      '.claude-plugin',",
+      "      'commands',",
+      "      'hooks',",
+      "      'schemas',",
+      "      'scripts',",
+      "      'skills',",
+      "      'circuit.config.example.yaml',",
+      "    ];",
+      "process.stdout.write(lines.join('\\n') + '\\n');",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  await writeFile(
+    resolve(root, "scripts/runtime/generated/surface-manifest.json"),
+    '{"schema_version":"1"}\n',
+    "utf-8",
+  );
+  await writeFile(
+    resolve(root, "scripts/verify-install.sh"),
+    "#!/usr/bin/env bash\necho verify\n",
+    "utf-8",
+  );
+  await writeFile(
+    resolve(root, "scripts/sync-to-cache.sh"),
+    "#!/usr/bin/env bash\necho sync\n",
+    "utf-8",
+  );
+  await writeFile(
     resolve(root, "schemas/event.schema.json"),
     '{"type":"object"}\n',
     "utf-8",
@@ -112,6 +167,9 @@ async function makeTarget(root: string, version?: string): Promise<string> {
   await mkdir(resolve(target, "commands"), { recursive: true });
   await mkdir(resolve(target, ".claude-plugin"), { recursive: true });
   await mkdir(resolve(target, "scripts/relay"), { recursive: true });
+  await mkdir(resolve(target, "scripts/runtime/bin"), { recursive: true });
+  await mkdir(resolve(target, "scripts/runtime/generated"), { recursive: true });
+  await mkdir(resolve(target, "scripts/runtime/engine/node_modules"), { recursive: true });
   await mkdir(resolve(target, "schemas"), { recursive: true });
   await mkdir(resolve(target, "docs"), { recursive: true });
   await mkdir(resolve(target, "assets"), { recursive: true });
@@ -137,6 +195,23 @@ async function makeTarget(root: string, version?: string): Promise<string> {
     "#!/usr/bin/env bash\necho old-dispatch\n",
     "utf-8",
   );
+  await writeFile(
+    resolve(target, "scripts/runtime/bin/dispatch.js"),
+    "#!/usr/bin/env node\nconsole.log('old dispatch');\n",
+    "utf-8",
+  );
+  await writeFile(
+    resolve(target, "scripts/runtime/generated/surface-manifest.json"),
+    '{"schema_version":"old"}\n',
+    "utf-8",
+  );
+  await writeFile(
+    resolve(target, "scripts/runtime/engine/node_modules/legacy.js"),
+    "module.exports = 'legacy';\n",
+    "utf-8",
+  );
+  await writeFile(resolve(target, "scripts/verify-install.sh"), "old verify\n", "utf-8");
+  await writeFile(resolve(target, "scripts/sync-to-cache.sh"), "old sync\n", "utf-8");
   await writeFile(
     resolve(target, "schemas/event.schema.json"),
     '{"type":"string"}\n',
@@ -178,9 +253,25 @@ async function expectSyncedTarget(target: string): Promise<void> {
   expect(await readFile(resolve(target, "scripts/relay/dispatch.sh"), "utf-8")).toBe(
     "#!/usr/bin/env bash\necho dispatch\n",
   );
+  expect(await readFile(resolve(target, "scripts/runtime/bin/dispatch.js"), "utf-8")).toBe(
+    "#!/usr/bin/env node\nconsole.log('dispatch');\n",
+  );
+  expect(
+    await readFile(resolve(target, "scripts/runtime/bin/list-installed-surface-roots.js"), "utf-8"),
+  ).toContain("repo-paths");
+  expect(
+    await readFile(resolve(target, "scripts/runtime/generated/surface-manifest.json"), "utf-8"),
+  ).toBe('{"schema_version":"1"}\n');
+  expect(await readFile(resolve(target, "scripts/verify-install.sh"), "utf-8")).toBe(
+    "#!/usr/bin/env bash\necho verify\n",
+  );
+  expect(await readFile(resolve(target, "scripts/sync-to-cache.sh"), "utf-8")).toBe(
+    "#!/usr/bin/env bash\necho sync\n",
+  );
   expect(await readFile(resolve(target, "schemas/event.schema.json"), "utf-8")).toBe(
     '{"type":"object"}\n',
   );
+  await expect(stat(resolve(target, "scripts/runtime/engine"))).rejects.toThrow();
   expect(await readFile(resolve(target, "circuit.config.example.yaml"), "utf-8")).toBe(
     "roles:\n  implementer: example-role\n",
   );
@@ -201,6 +292,15 @@ async function expectCacheTargetLayout(target: string): Promise<void> {
 }
 
 describe("sync-to-cache.sh", () => {
+  it("derives prune roots from the bundled surface-roots CLI instead of a shell keep-list", async () => {
+    const script = await readFile(SYNC_SCRIPT, "utf-8");
+
+    expect(script).toContain("list-installed-surface-roots.js");
+    expect(script).not.toMatch(
+      /\.claude-plugin\|commands\|hooks\|schemas\|scripts\|skills\|circuit\.config\.example\.yaml/,
+    );
+  });
+
   it("syncs cache versions, prunes cache cruft, and leaves marketplace extras alone", async () => {
     const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-sync-test-"));
     const pluginRoot = resolve(tmpPath, "plugin-root");

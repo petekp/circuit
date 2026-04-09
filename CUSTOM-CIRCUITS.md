@@ -47,7 +47,6 @@ circuit:
     Research a topic and produce a structured report.
 
   entry:
-    expert_command: /circuit:research
     # Optional single placeholder suffix for commands that take a direct task:
     # usage: <task>
     signals:

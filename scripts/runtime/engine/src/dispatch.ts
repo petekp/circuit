@@ -4,8 +4,9 @@ import { dirname, isAbsolute, resolve as resolvePath } from "node:path";
 
 import { loadCircuitConfig, type LoadCircuitConfigOptions } from "./config.js";
 
-type PublicDispatchRole = "implementer" | "reviewer" | "researcher";
-type DispatchRole = PublicDispatchRole | "converger" | string;
+const PUBLIC_DISPATCH_ROLES = ["implementer", "reviewer", "researcher"] as const;
+
+type PublicDispatchRole = typeof PUBLIC_DISPATCH_ROLES[number];
 type DispatchTransport = "agent" | "process";
 
 interface DispatchConfigShape {
@@ -45,38 +46,34 @@ export interface DispatchTaskOptions extends LoadCircuitConfigOptions {
   circuit?: string;
   outputFile: string;
   promptFile: string;
-  role?: DispatchRole;
+  role?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function assertString(
-  value: unknown,
-  message: string,
-): asserts value is string {
+function assertString(value: unknown, message: string): asserts value is string {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(message);
   }
 }
 
-function normalizeRole(role?: DispatchRole): PublicDispatchRole | undefined {
+function normalizeRole(role?: string): PublicDispatchRole | undefined {
   if (!role) {
     return undefined;
   }
-  if (role === "converger") {
-    return "reviewer";
+
+  if (PUBLIC_DISPATCH_ROLES.includes(role as PublicDispatchRole)) {
+    return role as PublicDispatchRole;
   }
-  if (role === "implementer" || role === "reviewer" || role === "researcher") {
-    return role;
-  }
-  return undefined;
+
+  throw new Error(
+    `circuit: unsupported dispatch role "${role}". Use implementer, reviewer, or researcher`,
+  );
 }
 
-function loadDispatchConfig(
-  config: Record<string, unknown>,
-): DispatchConfigShape {
+function loadDispatchConfig(config: Record<string, unknown>): DispatchConfigShape {
   if ("roles" in config) {
     throw new Error('circuit: legacy dispatch key "roles" was removed; use "dispatch.roles"');
   }
@@ -107,10 +104,7 @@ function loadDispatchConfig(
   };
 
   if ("default" in rawDispatch && rawDispatch.default !== undefined) {
-    assertString(
-      rawDispatch.default,
-      'circuit: "dispatch.default" must be a non-empty string',
-    );
+    assertString(rawDispatch.default, 'circuit: "dispatch.default" must be a non-empty string');
     parsed.defaultAdapter = rawDispatch.default;
   }
 
@@ -120,16 +114,14 @@ function loadDispatchConfig(
     }
 
     for (const [key, value] of Object.entries(rawDispatch.roles)) {
-      if (!["implementer", "reviewer", "researcher"].includes(key)) {
+      const normalizedRole = normalizeRole(key);
+      if (!normalizedRole) {
         throw new Error(
           `circuit: unsupported dispatch role "${key}". Use implementer, reviewer, or researcher`,
         );
       }
-      assertString(
-        value,
-        `circuit: "dispatch.roles.${key}" must be a non-empty string`,
-      );
-      parsed.roles[key as PublicDispatchRole] = value;
+      assertString(value, `circuit: "dispatch.roles.${key}" must be a non-empty string`);
+      parsed.roles[normalizedRole] = value;
     }
   }
 
@@ -139,10 +131,7 @@ function loadDispatchConfig(
     }
 
     for (const [key, value] of Object.entries(rawDispatch.circuits)) {
-      assertString(
-        value,
-        `circuit: "dispatch.circuits.${key}" must be a non-empty string`,
-      );
+      assertString(value, `circuit: "dispatch.circuits.${key}" must be a non-empty string`);
       parsed.circuits[key] = value;
     }
   }
@@ -172,15 +161,13 @@ function loadDispatchConfig(
         );
       }
 
-      const argv = command.map((entry, index) => {
+      parsed.adapters[adapterName] = command.map((entry, index) => {
         assertString(
           entry,
           `circuit: "dispatch.adapters.${adapterName}.command[${index}]" must be a non-empty string`,
         );
         return entry;
       });
-
-      parsed.adapters[adapterName] = argv;
     }
   }
 
@@ -201,13 +188,12 @@ function resolveDispatchAdapter(
   configPath?: string | null,
 ): DispatchResolution {
   const dispatch = loadDispatchConfig(config);
+  const role = normalizeRole(options.role);
 
   let selected = options.adapterOverride;
   let resolvedFrom = "override";
 
   if (!selected) {
-    const role = normalizeRole(options.role);
-
     if (role && dispatch.roles[role]) {
       selected = dispatch.roles[role];
       resolvedFrom = `dispatch.roles.${role}`;
@@ -251,14 +237,12 @@ function resolveDispatchAdapter(
     );
   }
 
-  const resolvedCommandArgv =
-    configPath && commandArgv.length > 0 && !isAbsolute(commandArgv[0])
-      ? [resolvePath(dirname(configPath), commandArgv[0]), ...commandArgv.slice(1)]
-      : commandArgv;
-
   return {
     adapter: selected,
-    commandArgv: resolvedCommandArgv,
+    commandArgv:
+      configPath && commandArgv.length > 0 && !isAbsolute(commandArgv[0])
+        ? [resolvePath(dirname(configPath), commandArgv[0]), ...commandArgv.slice(1)]
+        : commandArgv,
     resolvedFrom,
     transport: "process",
   };
@@ -299,19 +283,16 @@ function runProcessAdapter(
   });
 
   if (result.error) {
-    throw new Error(
-      `circuit: adapter "${resolution.adapter}" failed to start: ${result.error.message}`,
-    );
+    throw new Error(`circuit: adapter "${resolution.adapter}" failed to start: ${result.error.message}`);
   }
+
   if (result.status !== 0) {
     const detail = [result.stderr, result.stdout]
       .filter((value) => value && value.trim().length > 0)
       .join("\n")
       .trim();
     throw new Error(
-      `circuit: adapter "${resolution.adapter}" exited with status ${result.status}${
-        detail ? `\n${detail}` : ""
-      }`,
+      `circuit: adapter "${resolution.adapter}" exited with status ${result.status}${detail ? `\n${detail}` : ""}`,
     );
   }
 
@@ -320,9 +301,7 @@ function runProcessAdapter(
 
 export function dispatchTask(options: DispatchTaskOptions): DispatchReceipt {
   if (!options.promptFile || !options.outputFile) {
-    throw new Error(
-      "circuit: --prompt and --output are required. Run with --prompt <file> --output <file>.",
-    );
+    throw new Error("circuit: --prompt and --output are required. Run with --prompt <file> --output <file>.");
   }
   if (!existsSync(options.promptFile)) {
     throw new Error(
@@ -351,12 +330,7 @@ export function dispatchTask(options: DispatchTaskOptions): DispatchReceipt {
     };
   }
 
-  const commandArgv = runProcessAdapter(
-    resolution,
-    options.promptFile,
-    options.outputFile,
-  );
-
+  const commandArgv = runProcessAdapter(resolution, options.promptFile, options.outputFile);
   return {
     adapter: resolution.adapter,
     command_argv: commandArgv,

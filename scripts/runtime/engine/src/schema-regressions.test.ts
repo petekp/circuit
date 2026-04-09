@@ -276,12 +276,25 @@ describe("schema regressions", () => {
 });
 
 describe("circuit.yaml manifest validation", () => {
-  it("rejects legacy entry.command in favor of expert_command plus usage", () => {
+  it("rejects legacy entry.command", () => {
     const manifestSchema = loadJsonSchema("schemas/circuit-manifest.schema.json");
     const manifest = makeManifest();
 
     manifest.circuit.entry = {
       command: "/circuit:test-circuit",
+      signals: {
+        include: ["quality_improvement"],
+      },
+    };
+
+    expect(validate(manifestSchema, manifest).length).toBeGreaterThan(0);
+  });
+
+  it("rejects expert_command because slash identity is derived from the slug", () => {
+    const manifestSchema = loadJsonSchema("schemas/circuit-manifest.schema.json");
+    const manifest = makeManifest();
+
+    manifest.circuit.entry = {
       expert_command: "/circuit:test-circuit",
       signals: {
         include: ["quality_improvement"],
@@ -296,7 +309,6 @@ describe("circuit.yaml manifest validation", () => {
 
     const validManifest = makeManifest();
     validManifest.circuit.entry = {
-      expert_command: "/circuit:test-circuit",
       usage: "<task-name>",
       signals: {
         include: ["quality_improvement"],
@@ -307,7 +319,6 @@ describe("circuit.yaml manifest validation", () => {
     for (const usage of ["task", "<Task>", "<task> <scope>"]) {
       const invalidManifest = makeManifest();
       invalidManifest.circuit.entry = {
-        expert_command: "/circuit:test-circuit",
         usage,
         signals: {
           include: ["quality_improvement"],
@@ -348,5 +359,16 @@ describe("circuit.yaml manifest validation", () => {
     }
 
     expect(errors).toEqual([]);
+  });
+});
+
+describe("surface-manifest schema validation", () => {
+  it("accepts the checked-in generated surface manifest", () => {
+    const schema = loadJsonSchema("schemas/surface-manifest.schema.json");
+    const manifest = JSON.parse(
+      readFileSync(join(REPO_ROOT, "scripts/runtime/generated/surface-manifest.json"), "utf-8"),
+    ) as object;
+
+    expect(validate(schema, manifest)).toEqual([]);
   });
 });

@@ -7,7 +7,6 @@ circuit:
     architecture transitions, incremental rewrites.
 
   entry:
-    expert_command: /circuit:migrate
     signals:
       include: [framework_swap, dependency_replacement, architecture_transition]
       exclude: [dead_code, overnight, feature]

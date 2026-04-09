@@ -7,7 +7,6 @@ circuit:
     improvements, docs-sync.
 
   entry:
-    expert_command: /circuit:sweep
     signals:
       include: [dead_code, stale_docs, cleanup, quality, coverage, overnight]
       exclude: [feature, architecture_decision, migration]

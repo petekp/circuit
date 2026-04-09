@@ -165,13 +165,13 @@ Prepare the adapter handoff:
 touch "${IMPL_ROOT}/jobs/act-1.request.json"
 ```
 
-Then hand off to `circuit:workers` with:
+Then hand off to the `workers` internal adapter with:
 - 0-2 domain skills for the affected code (for example `rust`, `tdd`)
 - verification commands copied from `plan.md`
 - success criteria for the act step
 - the expectation that `workers` owns prompt assembly, dispatch, review, and convergence
 
-Do **not** pass `workers` via `--skills`. `workers` is the adapter utility, not
+Do **not** pass `workers` via `--skills`. `workers` is the internal adapter, not
 a domain skill. The parent workflow owns the child root and reads back only the
 public contract files:
 - `jobs/{step_id}-{attempt}.request.json`
@@ -242,8 +242,8 @@ Review schema:
 ## Verdict: CLEAN | ISSUES FOUND
 ```
 
-Compose and dispatch with `--circuit build --step review --role reviewer`.
-`--step review` is internal execution metadata for labeling/state only; adapter routing stays semantic.
+Compose and dispatch with `--circuit build --role reviewer`.
+Adapter routing stays semantic.
 
 Promote to `artifacts/review.md`.
 

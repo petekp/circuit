@@ -27,7 +27,7 @@ very small changes).
 
 **Checkpoints:** 1 (scope confirmation via brief.md).
 
-**Review:** Fresh-context dispatch with the workflow's `--circuit`, `--step review`, and `--role reviewer`. Reviewer does not
+**Review:** Fresh-context dispatch with the workflow's `--circuit` and `--role reviewer`. Reviewer does not
 modify source code.
 
 **Phases:** All applicable phases for the workflow.

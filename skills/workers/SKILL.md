@@ -1,17 +1,18 @@
 ---
 name: workers
 description: >
-  Autonomous batch orchestrator for dispatching workers. Use when a workflow
-  needs the implement-review-converge loop or other long-running
-  worker-dispatched work. Workers run via Codex CLI when installed, or via
-  Agent fallback.
+  Internal adapter for worker orchestration. Use when a workflow needs the
+  implement-review-converge loop or other long-running worker-dispatched work.
+  Dispatch routing stays semantic and is resolved by the parent workflow's
+  config plus the shared dispatch helper.
 role: adapter
 ---
 
 # Workers
 
-You are the orchestrator. Workers implement, review, and converge. Delegate the
-work unless a tiny orchestration-only fix is lower risk than dispatching a worker.
+You are the orchestrator for Circuit's internal adapter. Workers implement,
+review, and converge. Delegate the work unless a tiny orchestration-only fix is
+lower risk than dispatching a worker.
 
 Loop:
 - `plan -> implement -> review -> converge`
@@ -35,28 +36,19 @@ Done only when the convergence worker says `COMPLETE AND HARDENED`.
 Workers run via either **Codex CLI** or **Claude Code Agent**. The adapter is
 resolved semantically from config: explicit adapter override, role defaults,
 circuit defaults, dispatch default, then auto-detect. Parent workflows keep
-adapter routing adapter-agnostic by threading the parent
-context into every dispatch:
+adapter routing adapter-agnostic by threading only the parent circuit context
+into every dispatch:
 - `PARENT_CIRCUIT`: the calling circuit id (for example `build`, `migrate`)
-- `PARENT_STEP`: the calling manifest step id (for example `act`, `execute`, `review`) used as internal execution metadata only
 
-**Codex adapter:** `cat {relay_root}/prompt.md | codex exec --full-auto -o {relay_root}/last-messages/last-message-{slice_id}.txt -`
-
-**Agent adapter:** Use the Agent tool with the assembled prompt as the task and `isolation: "worktree"`:
-`Agent(task=<contents of {relay_root}/prompt.md>, isolation="worktree")`
-
-Or use the dispatch helper which auto-detects:
-`"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --step ${PARENT_STEP} --role implementer`
+Use the shared dispatch helper:
+`"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --role implementer`
 
 The implement/review/converge loop, artifact chain, gates, and report format are
-**identical** regardless of adapter. Convergence still dispatches with
-`--role converger` for bookkeeping, but adapter resolution flows through the
-reviewer adapter.
+**identical** regardless of adapter. Convergence uses reviewer routing semantics
+with converge-specific prompt and report content.
 
 ## Setup
 
-- Detect dispatch adapter: `command -v codex >/dev/null 2>&1` (codex if found, agent otherwise)
-- If codex is found: `codex --version`
 - Determine relay root: use `--root` from caller if provided, otherwise `.circuit`
 - `mkdir -p {relay_root}/archive {relay_root}/reports {relay_root}/last-messages {relay_root}/review-findings`
 - If `AGENTS.md` is missing, create it from `references/agents-md-template.md`
@@ -98,7 +90,7 @@ Templates own worker instructions and report format.
 Skip this phase for `review` slices.
 
 1. Compose the prompt and dispatch:
-   `"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --step ${PARENT_STEP} --role implementer`
+   `"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --role implementer`
 2. Verify output exists using explicit checks -- never zsh globs or `||` chains:
    `test -f {relay_root}/reports/report-{slice_id}.md && wc -l {relay_root}/reports/report-{slice_id}.md`
    If the file is missing, check the worker output trace for `file update` diffs before
@@ -113,7 +105,7 @@ Skip this phase for `review` slices.
 ## Review
 
 1. Compose the review prompt and dispatch:
-   `"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --step ${PARENT_STEP} --role reviewer`
+   `"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --role reviewer`
 2. Verify outputs exist using explicit checks:
    `test -f {relay_root}/review-findings/review-findings-{slice_id}.md && wc -l {relay_root}/review-findings/review-findings-{slice_id}.md`
    If missing, check the worker output trace for `file update` diffs before re-dispatching.
@@ -133,7 +125,7 @@ Enter only when all non-converge slices are done.
 1. Compose the convergence prompt with the mission, slice summaries, and union of
    verification commands
 2. Dispatch and read `{relay_root}/reports/report-converge.md`:
-   `"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-converge.txt --circuit ${PARENT_CIRCUIT} --step ${PARENT_STEP} --role converger`
+   `"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-converge.txt --circuit ${PARENT_CIRCUIT} --role reviewer`
 3. If verdict is `COMPLETE AND HARDENED`, record `converge_complete`
 4. If verdict is `ISSUES REMAIN`, record `converge_failed`, add fix slices with full
    metadata, and loop unless the convergence max is exceeded

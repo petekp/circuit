@@ -178,16 +178,15 @@ profile as context.
 
 ## Dispatch
 
-All worker dispatch uses `dispatch.sh` with the calling circuit + manifest step.
-`--step` is internal execution metadata for labeling/state correlation; adapter routing comes from `--adapter` or `circuit.config.yaml`.
+All worker dispatch uses `dispatch.sh` with the calling circuit. Adapter
+routing comes from `--adapter` or `circuit.config.yaml`.
 
 ```bash
-# --role must be one of: implementer, reviewer, converger, researcher
+# --role must be one of: implementer, reviewer, researcher
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
   --prompt "${step_dir}/prompt.md" \
   --output "${step_dir}/last-messages/last-message.txt" \
   --circuit build \
-  --step act \
   --role implementer
 ```
 

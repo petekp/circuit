@@ -114,12 +114,10 @@ for category in dead-code stale-docs orphaned-artifacts vestigial-comments redun
     --root "${step_dir}" \
     --out "${step_dir}/prompt.md"
 
-  # --step survey is internal execution metadata only.
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
     --prompt "${step_dir}/prompt.md" \
     --output "${step_dir}/last-messages/last-message.txt" \
     --circuit sweep \
-    --step survey \
     --role researcher
 done
 ```
@@ -238,14 +236,14 @@ Prepare the adapter handoff:
 touch "${BATCH_ROOT}/jobs/execute-1.request.json"
 ```
 
-Then hand off to `circuit:workers` with:
+Then hand off to the `workers` internal adapter with:
 - 0-2 domain skills for the affected code
 - the verification commands for the batch
 - the success criteria and revert rule for the batch
 - the expectation that `workers` owns prompt assembly and the implement ->
   review -> converge loop
 
-Do **not** pass `workers` via `--skills`. `workers` is the adapter utility.
+Do **not** pass `workers` via `--skills`. `workers` is the internal adapter.
 Sweep reads back only the public worker contract files:
 - `jobs/{step_id}-{attempt}.request.json`
 - `jobs/{step_id}-{attempt}.receipt.json`

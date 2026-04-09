@@ -105,7 +105,7 @@ Independent re-run of all verification commands. Not narrative confirmation.
 ## Verdict: CLEAN | ISSUES FOUND
 ```
 
-Review runs in a separate session (dispatch with the workflow's `--circuit`, `--step review`, and `--role reviewer`). Reviewer does NOT modify source code.
+Review runs in a separate session (dispatch with the workflow's `--circuit` and `--role reviewer`). Reviewer does NOT modify source code.
 
 **Gate:** review.md exists. Verdict is CLEAN, or ISSUES FOUND with no critical findings after fix loop (max 2 loops).
 

@@ -1,39 +1,70 @@
 /**
  * Shared catalog types. This is the single contract between extractor,
- * generator, and validator. No other module may define its own catalog shape.
+ * generator, validator, and surface-manifest projection.
  */
 
-export type CatalogRole = "workflow" | "utility" | "adapter";
+export type CircuitKind = "workflow" | "utility" | "adapter";
 
-export interface CircuitEntry {
-  kind: "circuit";
-  id: string;
+interface BaseEntry {
   dir: string;
-  version: string;
-  purpose: string;
-  expertCommand: string;
-  entryUsage?: string;
+  skillDescription: string;
+  skillName: string;
+  slug: string;
+}
+
+export interface WorkflowEntry extends BaseEntry {
+  kind: "workflow";
   entryModes: string[];
-  skillName: string;
-  skillDescription: string;
-  role: CatalogRole;
+  entryUsage?: string;
+  purpose: string;
+  version: string;
 }
 
-export interface UtilityEntry {
+export interface UtilityEntry extends BaseEntry {
   kind: "utility";
-  id: string;
-  dir: string;
-  skillName: string;
-  skillDescription: string;
-  role: CatalogRole;
 }
 
-export type CatalogEntry = CircuitEntry | UtilityEntry;
-export type Catalog = CatalogEntry[];
+export interface AdapterEntry extends BaseEntry {
+  kind: "adapter";
+}
+
+export type CircuitIR = WorkflowEntry | UtilityEntry | AdapterEntry;
+export type Catalog = CircuitIR[];
+
+export interface PublicCommandProjection {
+  description: string;
+  invocation: string;
+  shimPath: string;
+  slash: string;
+}
+
+export interface SurfaceManifestEntry {
+  kind: CircuitKind;
+  public: boolean;
+  publicCommand?: PublicCommandProjection;
+  slug: string;
+}
+
+export interface SurfaceManifestFile {
+  executable: boolean;
+  path: string;
+  sha256: string;
+}
+
+export interface SurfaceManifest {
+  entries: SurfaceManifestEntry[];
+  files: SurfaceManifestFile[];
+  plugin: {
+    name: string;
+    version: string;
+  };
+  public_commands: string[];
+  schema_version: "1";
+}
 
 export interface BlockGenerateTarget {
-  filePath: string;
   blockName: string;
+  filePath: string;
   render: (catalog: Catalog) => string;
 }
 

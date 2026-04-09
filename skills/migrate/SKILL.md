@@ -113,12 +113,10 @@ for w in scan risk; do
     --root "${RUN_ROOT}/phases/inventory-${w}" \
     --out "${RUN_ROOT}/phases/inventory-${w}/prompt.md"
 
-  # --step inventory is internal execution metadata only.
   "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
     --prompt "${RUN_ROOT}/phases/inventory-${w}/prompt.md" \
     --output "${RUN_ROOT}/phases/inventory-${w}/last-messages/last-message.txt" \
     --circuit migrate \
-    --step inventory \
     --role researcher
 done
 ```
@@ -223,14 +221,14 @@ Prepare the adapter handoff:
 touch "${BATCH_ROOT}/jobs/execute-1.request.json"
 ```
 
-Then hand off to `circuit:workers` with:
+Then hand off to the `workers` internal adapter with:
 - 0-2 domain skills for the migration target
 - per-batch verification commands and rollback triggers
 - the success criteria for the execute step
 - the expectation that `workers` owns prompt assembly, batch slicing, review,
   and convergence inside the child root
 
-Do **not** pass `workers` via `--skills`. `workers` is the adapter utility.
+Do **not** pass `workers` via `--skills`. `workers` is the internal adapter.
 Parent migration steps read only the public contract files:
 - `jobs/{step_id}-{attempt}.request.json`
 - `jobs/{step_id}-{attempt}.receipt.json`

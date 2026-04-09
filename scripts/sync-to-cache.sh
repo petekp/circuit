@@ -9,29 +9,116 @@
 set -euo pipefail
 
 PLUGIN_ROOT="${CIRCUIT_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+NODE_BIN="${NODE_BIN:-node}"
 CACHE_BASE="${CLAUDE_PLUGIN_CACHE_DIR:-$HOME/.claude/plugins/cache/petekp}"
 MARKETPLACE_DIR="${CLAUDE_PLUGIN_MARKETPLACE_DIR:-$HOME/.claude/plugins/marketplaces/petekp}"
-RSYNC_ARGS=(-a --checksum --delete)
+RSYNC_ARGS=(-a --checksum --delete --exclude '.vite/')
+LIST_SURFACE_ROOTS="$PLUGIN_ROOT/scripts/runtime/bin/list-installed-surface-roots.js"
 
 CACHE_DIRS=()
 if [[ -d "${CACHE_BASE}/circuit" ]]; then
   CACHE_DIRS+=("${CACHE_BASE}/circuit")
 fi
 
+installed_surface_roots_cache=()
+REPO_SURFACE_PATHS=()
+
+load_installed_surface_roots() {
+  if [[ "${#installed_surface_roots_cache[@]}" -gt 0 ]]; then
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    installed_surface_roots_cache+=("$line")
+  done < <("$NODE_BIN" "$LIST_SURFACE_ROOTS")
+
+  if [[ "${#installed_surface_roots_cache[@]}" -eq 0 ]]; then
+    printf 'ERROR: installed surface roots CLI returned no roots\n' >&2
+    return 1
+  fi
+}
+
+load_repo_surface_paths() {
+  if [[ "${#REPO_SURFACE_PATHS[@]}" -gt 0 ]]; then
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    REPO_SURFACE_PATHS+=("$line")
+  done < <("$NODE_BIN" "$LIST_SURFACE_ROOTS" --repo-paths)
+
+  if [[ "${#REPO_SURFACE_PATHS[@]}" -eq 0 ]]; then
+    printf 'ERROR: installed surface roots CLI returned no repo paths\n' >&2
+    return 1
+  fi
+}
+
+array_contains() {
+  local needle="$1"
+  shift
+
+  local item
+  for item in "$@"; do
+    if [[ "$item" == "$needle" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 prune_cache_target() {
   local target="$1"
   local path
   local name
 
+  load_installed_surface_roots || return 1
+
   while IFS= read -r -d '' path; do
     name="${path##*/}"
-    case "$name" in
-      .claude-plugin|commands|hooks|schemas|scripts|skills|circuit.config.example.yaml) ;;
-      *)
-        rm -rf "$path" || return 1
-        ;;
-    esac
+    if array_contains "$name" "${installed_surface_roots_cache[@]}"; then
+      continue
+    fi
+
+    rm -rf "$path" || return 1
   done < <(find "$target" -mindepth 1 -maxdepth 1 -print0)
+}
+
+sync_installed_script_surface() {
+  local target="$1"
+  local rel_path
+  local source_path
+  local target_path
+
+  load_repo_surface_paths || return 1
+
+  rm -rf "$target/scripts" || return 1
+  mkdir -p "$target/scripts" || return 1
+
+  for rel_path in "${REPO_SURFACE_PATHS[@]}"; do
+    if [[ "$rel_path" != scripts/* ]]; then
+      continue
+    fi
+
+    source_path="$PLUGIN_ROOT/$rel_path"
+    target_path="$target/$rel_path"
+
+    if [[ -d "$source_path" ]]; then
+      mkdir -p "$target_path" || return 1
+      rsync "${RSYNC_ARGS[@]}" "$source_path/" "$target_path/" || return 1
+      continue
+    fi
+
+    if [[ -f "$source_path" ]]; then
+      mkdir -p "$(dirname "$target_path")" || return 1
+      rsync "${RSYNC_ARGS[@]}" "$source_path" "$target_path" || return 1
+      continue
+    fi
+
+    rm -rf "$target_path" || return 1
+  done
 }
 
 sync_target() {
@@ -74,13 +161,7 @@ sync_target() {
   # from plugin.json, Claude Code can lose the /circuit: namespace prefix.
   rsync "${RSYNC_ARGS[@]}" "$PLUGIN_ROOT/.claude-plugin/" "$target/.claude-plugin/" || return 1
 
-  # Sync scripts if the plugin ships them locally.
-  if [[ -d "$PLUGIN_ROOT/scripts" ]]; then
-    mkdir -p "$target/scripts" || return 1
-    rsync "${RSYNC_ARGS[@]}" "$PLUGIN_ROOT/scripts/" "$target/scripts/" || return 1
-  else
-    rm -rf "$target/scripts" || return 1
-  fi
+  sync_installed_script_surface "$target" || return 1
 
   # Sync schemas (required by bundled engine CLIs for event/state validation).
   if [[ -d "$PLUGIN_ROOT/schemas" ]]; then

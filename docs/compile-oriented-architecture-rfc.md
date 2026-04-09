@@ -34,8 +34,8 @@ The pilot must do all of the following:
 - make public slash identity derived from the entry slug, with workflow
   invocation suffixes owned by `entry.usage`
 - give `run` an explicit `entry.usage: "<task>"` contract in v1
-- remove public reliance on `entry.command`; shipped workflows must not depend on
-  it after the pilot migration
+- forbid `entry.command` and `expert_command` in shipped workflow manifests;
+  slash identity must be derived from the slug
 - define `surface-manifest.json` as a typed shipped-surface inventory plus
   generation metadata, not proof that an install is valid by itself
 - require `scripts/verify-install.sh` to prove the exact installed plugin
@@ -45,6 +45,9 @@ The governing rule is one owner per fact, one validator per field, and one
 compiler path for generated surfaces. This RFC rejects any implementation that
 adds a new mirror or generated output without also specifying its owner,
 validator, and freshness enforcement.
+
+The current contributor-facing ownership map for that contract lives in
+`docs/control-plane-ownership.md`.
 
 Anti-goals:
 
@@ -157,8 +160,8 @@ ownership.
 | Workflow invocation suffix | `circuit.entry.usage` | generated public docs, surface manifest | Allowed only on workflows. In v1, only `run` uses it, and it must equal `"<task>"`. |
 | Public display description | first sentence of frontmatter `description` | `CircuitIR`, generated shims, surface manifest | Description is required. First-sentence extraction uses the normalization rule in Section 5. |
 | Workflow purpose | `circuit.purpose` in `circuit.yaml` | `CircuitIR.workflow`, generated Quick Reference block | Required for workflows. Utilities and adapters do not have a `purpose` field in v1. |
-| `entry.expert_command` | migration mirror only | validators only | Allowed only when absent or equal to derived `/circuit:<slug>`. Generators ignore it. |
-| `entry.command` | migration residue only | migration validator only | The pilot must migrate shipped workflows so they no longer rely on `entry.command`. Any non-empty shipped use after migration is a failure. |
+| `entry.expert_command` | forbidden | migration validator only | Any occurrence is a failure; slash identity is always derived `/circuit:<slug>`. |
+| `entry.command` | forbidden | migration validator only | Any occurrence is a failure; workflow manifests may only own optional `entry.usage`. |
 | Generated marker blocks and public command shims | catalog compiler outputs | docs readers, command picker, freshness validators | Manual edits are invalid. Freshness must be enforced by `generate --check`. |
 | Installed-surface inventory | `surface-manifest.json` | `verify-install.sh` | The verifier must validate the actual installed filesystem, not the manifest alone. |
 | Handwritten narrative and public guidance | `SKILL.md` body, `README.md`, `ARCHITECTURE.md`, manual-normative parts of `CIRCUITS.md` and `docs/workflow-matrix.md` | readers, retained doc-contract tests, reviewers | Compiler, verifier, scorecard, and scenario gates must ignore these for machine-owned facts. |
@@ -413,7 +416,7 @@ The implementation defined by this RFC must land these repo migrations:
 1. add `role: utility` to `skills/review/SKILL.md` and `skills/handoff/SKILL.md`
 2. add `role: adapter` to `skills/workers/SKILL.md`
 3. add `entry.usage: "<task>"` to `skills/run/circuit.yaml`
-4. remove shipped reliance on `entry.command`
+4. remove `entry.command` and `expert_command` from shipped workflow manifests
 5. stop generating and stop shipping `commands/workers.md`
 6. generate and check in `scripts/runtime/generated/surface-manifest.json`
 
@@ -485,7 +488,7 @@ Reject any implementation that:
 - reads advisory docs to derive machine facts
 - validates `surface-manifest.json` without statting the installed filesystem
 - allows unexpected extra top-level cache contents to pass verification
-- retains shipped dependence on `entry.command`
+- retains shipped dependence on `entry.command` or `expert_command`
 - introduces a compiler path other than the existing catalog compiler
 
 ## 9. Test Policy, Retain/Delete Matrix, and Scenario Gates
@@ -569,7 +572,7 @@ The pilot passes only if all of the following are true:
 - `workers` is internal-only in generated public surfaces
 - public slash identity is derived from slug
 - `run` invocation rendering is owned by `entry.usage`
-- shipped workflows no longer rely on `entry.command`
+- shipped workflows contain neither `entry.command` nor `expert_command`
 - `generate --check` covers every generated target named in this RFC
 - the verifier proves the exact installed plugin surface, including rejecting
   extra top-level cache contents
@@ -583,7 +586,7 @@ The pilot fails or stops if any of the following is true:
 
 - an adapter is exposed publicly through generation
 - `workers` still ships a public shim
-- `entry.command` remains part of shipped command ownership
+- `entry.command` or `expert_command` remains part of shipped command ownership
 - the verifier becomes manifest-only
 - polluted cache installs still pass verification
 - `generate --check` does not cover every generated target

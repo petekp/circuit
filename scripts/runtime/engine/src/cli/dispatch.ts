@@ -18,7 +18,6 @@ function main(): number {
   let outputFile = "";
   let promptFile = "";
   let role = "";
-  let step = "";
 
   try {
     for (let index = 0; index < args.length; index++) {
@@ -51,9 +50,7 @@ function main(): number {
           index++;
           break;
         case "--step":
-          step = requireFlagValue(value, next);
-          index++;
-          break;
+          throw new Error("circuit: --step is no longer supported");
         default:
           process.stderr.write(`Unknown option: ${value}\n`);
           return 1;
@@ -68,7 +65,6 @@ function main(): number {
       promptFile,
       role: role || undefined,
     });
-    void step;
 
     process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
     return 0;

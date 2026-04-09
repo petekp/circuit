@@ -224,14 +224,14 @@ For Standard+: dispatch via workers (implement -> review -> converge).
 touch "${IMPL_ROOT}/jobs/fix-1.request.json"
 ```
 
-Then hand off to `circuit:workers` with:
+Then hand off to the `workers` internal adapter with:
 - 0-2 domain skills for the affected code (for example `rust`, `tdd`)
 - the regression test / verification commands
 - the success criteria for the fix step
 - the expectation that `workers` owns prompt assembly plus the implement ->
   review -> converge loop
 
-Do **not** pass `workers` via `--skills`. `workers` is the adapter utility.
+Do **not** pass `workers` via `--skills`. `workers` is the internal adapter.
 The repair workflow reads back only the parent-readable contract files:
 - `jobs/{step_id}-{attempt}.request.json`
 - `jobs/{step_id}-{attempt}.receipt.json`
