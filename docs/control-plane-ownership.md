@@ -5,11 +5,12 @@ find the single owner for a fact before editing tests or generated surfaces.
 
 ## Runtime identity owner
 
-`skills/*/circuit.yaml` and `skills/*/SKILL.md` frontmatter own workflow
-identity.
+Runtime identity comes from authored skill definitions, not narrative docs:
+workflow identity comes from `skills/*/circuit.yaml`, while non-workflow
+identity comes from `skills/*/SKILL.md` frontmatter `role: utility|adapter`.
+`scripts/runtime/engine/src/catalog/extract.ts` normalizes those sources into
+catalog entries.
 
-- `scripts/runtime/engine/src/catalog/extract.ts` normalizes that source into
-  catalog entries.
 - Workflow identity comes from `circuit.yaml`.
 - Non-workflow identity comes from `role: utility|adapter` in frontmatter.
 - No handwritten doc owns runtime identity.
@@ -63,7 +64,7 @@ config, dispatch, and runtime checks).
 | Generate target registration and stale shim pruning | `generate-targets.ts` | catalog compiler write set | `catalog-validator.test.ts`, `generate.test.ts` |
 | Broad install verification CLI | `cli/verify-install.ts` | bundled `scripts/runtime/bin/verify-install.js` behavior | `runtime-cli-integration.test.ts` |
 
-## Which files a contributor edits for each kind of change
+## Which files to edit for each kind of change
 
 | If you are changing... | Edit here first | Then regenerate / verify |
 |---|---|---|

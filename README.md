@@ -209,7 +209,7 @@ simple and avoids shell interpolation. See
 **Verify your install.** If something isn't working, run the diagnostic script:
 
 ```bash
-# From the repo checkout (contributors only)
+# From the repo checkout
 ./scripts/verify-install.sh
 
 # Or from the installed plugin location
@@ -235,8 +235,7 @@ and start fresh.
 
 ## Further Reading
 
-- **[CIRCUITS.md](CIRCUITS.md):** Full catalog with phase breakdowns and usage examples.
-- **[ARCHITECTURE.md](ARCHITECTURE.md):** How circuits work internally (for contributors).
+- **[CIRCUITS.md](CIRCUITS.md):** Catalog/reference.
 - **[CUSTOM-CIRCUITS.md](CUSTOM-CIRCUITS.md):** How to create your own custom circuit workflows.
 
 ## License

@@ -1,10 +1,12 @@
 # Architecture
 
-Reference for circuit authors and contributors. For a user-facing overview of
-what each circuit does, see [CIRCUITS.md](CIRCUITS.md). For the full workflow
-matrix, see [docs/workflow-matrix.md](docs/workflow-matrix.md). For the
-control-plane ownership map, see
-[docs/control-plane-ownership.md](docs/control-plane-ownership.md).
+Internal architecture reference for circuit authors and maintainers. Read this
+file for the concise architecture reference,
+[docs/literate-guide.md](docs/literate-guide.md) for the narrative walkthrough,
+and [docs/control-plane-ownership.md](docs/control-plane-ownership.md) for the
+source-of-truth ownership map. For a user-facing overview of what each circuit
+does, see [CIRCUITS.md](CIRCUITS.md). For the full workflow matrix, see
+[docs/workflow-matrix.md](docs/workflow-matrix.md).
 
 ---
 
@@ -680,9 +682,8 @@ follows the SKILL instructions for the selected profile. The close step uses
 `optional:artifacts/review.md` in its reads list so the gate does not fail when
 Review is skipped.
 
-The `entry_mode.description` documents intended profile behavior and is used by
-release-integrity tests to validate SKILL parity. It is not read by the engine
-at runtime.
+The `entry_mode.description` documents intended profile behavior for human
+readers. It is not read by the engine at runtime.
 
 This keeps manifests simple: one graph per workflow, SKILL prose for profile
 variations, and `optional:` read annotations for artifacts that lighter profiles
@@ -743,8 +744,8 @@ circuit:
     default:
       start_at: step-id
       description: >
-        Documents profile behavior. Used by release-integrity tests
-        to validate SKILL parity. Not read by the engine at runtime.
+        Documents intended profile behavior for human readers. Not read
+        by the engine at runtime.
 
   steps:
     - id: step-id
