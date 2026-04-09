@@ -96,6 +96,18 @@ function runNodeCli(
   });
 }
 
+function runNpm(
+  args: string[],
+  options?: { cwd?: string; env?: NodeJS.ProcessEnv },
+): ReturnType<typeof spawnSync> {
+  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+  return spawnSync(npmCommand, args, {
+    cwd: options?.cwd,
+    encoding: "utf-8",
+    env: options?.env ? { ...process.env, ...options.env } : process.env,
+  });
+}
+
 function writeTestManifest(runRoot: string): void {
   writeFileSync(
     resolve(runRoot, "circuit.manifest.yaml"),
@@ -155,6 +167,27 @@ function verifyGeneratedFreshness(
   }
 
   reporter.fail("catalog-compiler generate --check failed", combinedOutput(result));
+}
+
+function verifyEngineSourceTypecheck(
+  reporter: Reporter,
+  pluginRoot: string,
+  mode: InstalledSurfaceMode,
+): void {
+  if (mode !== "repo") {
+    return;
+  }
+
+  reporter.section("Engine source typecheck");
+  const engineRoot = resolve(pluginRoot, "scripts/runtime/engine");
+  const result = runNpm(["run", "typecheck"], { cwd: engineRoot });
+
+  if (result.status === 0) {
+    reporter.pass("runtime engine TypeScript sources typecheck cleanly");
+    return;
+  }
+
+  reporter.fail("runtime engine TypeScript sources failed to typecheck", combinedOutput(result));
 }
 
 function verifySurface(
@@ -382,6 +415,7 @@ function main(): number {
   }
 
   const reporter = new Reporter();
+  verifyEngineSourceTypecheck(reporter, args.pluginRoot, args.mode);
   verifyGeneratedFreshness(reporter, args.pluginRoot, args.mode);
   verifySurface(reporter, args.pluginRoot, args.mode);
   verifyConfigBehavior(reporter, args.pluginRoot);

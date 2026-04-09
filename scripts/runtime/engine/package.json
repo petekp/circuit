@@ -18,6 +18,8 @@
   "scripts": {
     "build": "tsc",
     "bundle": "node esbuild.config.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test",
     "prepare": "tsc && node esbuild.config.mjs",
     "test": "vitest run",
     "test:watch": "vitest"

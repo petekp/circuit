@@ -28,7 +28,11 @@ export interface CollectSurfaceFilesResult {
 function sha256(value: Buffer | string, encoding?: BufferEncoding): string {
   const hash = createHash("sha256");
   if (typeof value === "string") {
-    hash.update(value, encoding);
+    if (encoding) {
+      hash.update(value, encoding);
+    } else {
+      hash.update(value);
+    }
   } else {
     hash.update(value);
   }

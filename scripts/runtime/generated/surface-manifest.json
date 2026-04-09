@@ -213,7 +213,7 @@
     {
       "executable": true,
       "path": "scripts/runtime/bin/catalog-compiler.js",
-      "sha256": "aa800e40539849356dc21fa6371f402d14b606f0ecb0baf6d9f527f8eff49c6d"
+      "sha256": "7ef5dd155d3f8106b2b0319b7f19dd1d1d38d9c71740543b448848b8c64ca03a"
     },
     {
       "executable": true,
@@ -253,7 +253,7 @@
     {
       "executable": true,
       "path": "scripts/runtime/bin/verify-install.js",
-      "sha256": "b35b61218a899bc9a6963da0ab264f61cdb93fd7ca78f380464c5e8b96c1b1e5"
+      "sha256": "0e370638667b7fc77a11c9a4946e9b42a6dc4ba58f2236dd0f5fb9b303458d3b"
     },
     {
       "executable": true,

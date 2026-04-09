@@ -287,6 +287,53 @@ describe("runtime CLI integration", () => {
     expect(`${result.stdout}\n${result.stderr}`).toContain("All checks passed");
   });
 
+  it("verify-install fails in repo mode when engine sources do not typecheck", () => {
+    const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));
+    const repoRoot = resolve(tempRoot, "repo-root");
+    mkdirSync(repoRoot, { recursive: true });
+
+    for (const entry of [
+      ".claude-plugin",
+      "commands",
+      "hooks",
+      "schemas",
+      "scripts",
+      "skills",
+      "README.md",
+      "ARCHITECTURE.md",
+      "CIRCUITS.md",
+      "CUSTOM-CIRCUITS.md",
+      "docs",
+      "circuit.config.example.yaml",
+    ]) {
+      cpSync(resolve(REPO_ROOT, entry), resolve(repoRoot, entry), { recursive: true });
+    }
+
+    const brokenFile = resolve(repoRoot, "scripts/runtime/engine/src/catalog/surface-fs.ts");
+    writeFileSync(
+      brokenFile,
+      `${readFileSync(brokenFile, "utf-8")}\nconst verifyInstallTypecheckFailure: string = 123;\n`,
+      "utf-8",
+    );
+
+    chmodSync(resolve(repoRoot, "scripts/verify-install.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "scripts/relay/compose-prompt.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "scripts/relay/dispatch.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "scripts/relay/update-batch.sh"), 0o755);
+    chmodSync(resolve(repoRoot, "hooks/session-start.sh"), 0o755);
+
+    const result = run(resolve(repoRoot, "scripts/verify-install.sh"), ["--mode", "repo"], {
+      cwd: repoRoot,
+      env: { NODE_BIN: process.execPath },
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("Engine source typecheck");
+    expect(`${result.stdout}\n${result.stderr}`).toContain(
+      "runtime engine TypeScript sources failed to typecheck",
+    );
+  });
+
   it("verify-install fails when discovered config is malformed", () => {
     const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));
     const installRoot = resolve(tempRoot, "install-root");
