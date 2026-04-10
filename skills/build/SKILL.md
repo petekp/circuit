@@ -167,11 +167,15 @@ Gate: `plan.md` exists with non-empty Approach, Slices, and Verification Command
 ## Phase: Act
 
 Act is always a dispatch step in this migration. No mode may bypass dispatch.
+`dispatch-step` records OUTER runtime state only. It does not dispatch the
+worker loop itself.
 
 Create the parent-owned implementation workspace:
 
 ```bash
 IMPL_ROOT="$RUN_ROOT/phases/implement"
+PARENT_CIRCUIT=build
+ACT_ATTEMPT=1  # replace with the active attempt on retries
 mkdir -p "${IMPL_ROOT}/archive" "${IMPL_ROOT}/reports" "${IMPL_ROOT}/last-messages" "${IMPL_ROOT}/jobs"
 cp "$RUN_ROOT/artifacts/plan.md" "${IMPL_ROOT}/CHARTER.md"
 ```
@@ -182,23 +186,58 @@ mission, verification commands, expected outputs, and relay headings:
 - `### Tests Run`
 - `### Completion Claim`
 
-Keep `workers` as the inner adapter. Do not duplicate its inner event system.
-Do not pass `workers` through `--skills`; it is the internal adapter.
-
-Before dispatch, materialize the outer request at:
-- `phases/implement/jobs/act-1.request.json` for the first attempt
-- `phases/implement/jobs/act-2.request.json` for the second attempt
-- `phases/implement/jobs/act-3.request.json` for the third attempt
-
-Then call the semantic dispatch command:
+Before dispatch, materialize a real non-empty outer request JSON for the active
+attempt:
 
 ```bash
+cat > "$RUN_ROOT/phases/implement/jobs/act-${ACT_ATTEMPT}.request.json" <<JSON
+{
+  "step": "act",
+  "attempt": ${ACT_ATTEMPT},
+  "adapter": "workers",
+  "relay_root": "${IMPL_ROOT}",
+  "parent_circuit": "${PARENT_CIRCUIT}",
+  "handoff_path": "artifacts/implementation-handoff.md",
+  "plan_path": "artifacts/plan.md",
+  "expected_result_path": "phases/implement/jobs/act-${ACT_ATTEMPT}.result.json"
+}
+JSON
+
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" dispatch-step \
   --run-root "$RUN_ROOT" \
   --step act
 ```
 
-When the worker result exists at the manifest path for the active attempt, call:
+After `dispatch-step`, Build hands off into the `workers` adapter. Thread
+`IMPL_ROOT` as the workers adapter relay root and `PARENT_CIRCUIT=build` as the
+explicit parent-circuit context. The `workers` adapter skill is the source of truth for the implement -> review -> converge loop under that relay root. Build
+must not inline that loop here.
+
+When the adapter converges, Build reads back the adapter's public outputs before
+it writes the outer result JSON:
+- the converge report
+- slice reports as needed
+- the batch state when counters or evidence matter
+
+Then Build writes the outer result JSON for the active attempt. Minimum keys are
+`completion` and `verdict`:
+
+```bash
+cat > "$RUN_ROOT/phases/implement/jobs/act-${ACT_ATTEMPT}.result.json" <<JSON
+{
+  "completion": "complete",
+  "verdict": "complete_and_hardened"
+}
+JSON
+```
+
+Map worker outcomes into that outer result JSON mechanically:
+- `COMPLETE AND HARDENED` -> `completion=complete`, `verdict=complete_and_hardened`
+- converged but more work remains -> `completion=partial`, `verdict=issues_remain`
+- blocked dependency or bounded escalation -> `completion=blocked`, `verdict=issues_remain`
+- do not invent a passing verdict outside the manifest pass list
+
+Call `reconcile-dispatch` only after that outer result JSON exists:
 
 ```bash
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" reconcile-dispatch \
@@ -206,12 +245,15 @@ When the worker result exists at the manifest path for the active attempt, call:
   --step act
 ```
 
-Public files owned by the outer Build workflow:
+Public workers outputs Build reads back from `${IMPL_ROOT}`:
+- `reports/report-converge.md`
+- `reports/report-{slice_id}.md`
+- batch state when counters or evidence matter
+
+Outer Build runtime files remain:
 - `phases/implement/jobs/{step_id}-{attempt}.request.json`
 - `phases/implement/jobs/{step_id}-{attempt}.receipt.json`
 - `phases/implement/jobs/{step_id}-{attempt}.result.json`
-- `reports/report-converge.md`
-- `reports/report-{slice_id}.md`
 
 If `reconcile-dispatch` reports `gate_passed=false`, the Act step stays
 incomplete. Interpret that mechanically:
@@ -249,33 +291,80 @@ Verify always routes to Review in this migration.
 ## Phase: Review
 
 Review is always present in this migration, including Lite.
+Review is dispatched directly in Build, not via the `workers` adapter.
 
 Create the review workspace:
 
 ```bash
 REVIEW_ROOT="$RUN_ROOT/phases/review"
+REVIEW_ATTEMPT=1  # replace with the active attempt on retries
 mkdir -p "${REVIEW_ROOT}/reports" "${REVIEW_ROOT}/last-messages" "${REVIEW_ROOT}/jobs"
 ```
 
-Dispatch an independent reviewer in a fresh context. The reviewer audits
-implementation against `brief.md` and `plan.md`, reruns verification where
-needed, and writes the public review result.
-
-Outer review contract paths:
-- `phases/review/jobs/review-1.request.json`
-- `phases/review/jobs/review-1.receipt.json`
-- `phases/review/jobs/review-1.result.json`
-
-Dispatch:
+Create a non-empty outer request JSON for the active review attempt:
 
 ```bash
+cat > "$RUN_ROOT/phases/review/jobs/review-${REVIEW_ATTEMPT}.request.json" <<JSON
+{
+  "step": "review",
+  "attempt": ${REVIEW_ATTEMPT},
+  "adapter": "direct-reviewer",
+  "brief_path": "artifacts/brief.md",
+  "plan_path": "artifacts/plan.md",
+  "expected_review_artifact_path": "artifacts/review.md",
+  "expected_result_path": "phases/review/jobs/review-${REVIEW_ATTEMPT}.result.json"
+}
+JSON
+
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" dispatch-step \
   --run-root "$RUN_ROOT" \
   --step review
 ```
 
-When the reviewer output exists, promote the human-facing review artifact to
-`artifacts/review.md`, then reconcile the dispatch:
+This is an independent review in a fresh context. Compose the review prompt and
+dispatch the reviewer directly from Build using reviewer semantics:
+
+```bash
+"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
+  --header "$REVIEW_ROOT/review-header.md" \
+  --template ship-review \
+  --root "$REVIEW_ROOT" \
+  --out "$REVIEW_ROOT/prompt.md"
+
+"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
+  --prompt "$REVIEW_ROOT/prompt.md" \
+  --output "$REVIEW_ROOT/last-messages/last-message-review.txt" \
+  --circuit build \
+  --role reviewer
+```
+
+Check for the generated reviewer output, then promote the public review artifact
+to `artifacts/review.md` before any reconcile step:
+
+```bash
+test -s "$REVIEW_ROOT/reports/report-review.md"
+cp "$REVIEW_ROOT/reports/report-review.md" "$RUN_ROOT/artifacts/review.md"
+```
+
+Write the outer review result JSON after promotion and before
+`reconcile-dispatch`. Minimum keys are `completion` and `verdict`:
+
+```bash
+cat > "$RUN_ROOT/phases/review/jobs/review-${REVIEW_ATTEMPT}.result.json" <<JSON
+{
+  "completion": "complete",
+  "verdict": "ship_ready"
+}
+JSON
+```
+
+Normalize review outcomes into that result JSON:
+- clean or clean-equivalent -> `completion=complete`, `verdict=clean`
+- ship-ready or ship_ready -> `completion=complete`, `verdict=ship_ready`
+- issues found -> `completion=complete`, `verdict=issues_found`
+- blocked review -> `completion=blocked`, `verdict=issues_found`
+
+`reconcile-dispatch` will reject a `completion=complete` result if the declared artifact is missing:
 
 ```bash
 "$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" reconcile-dispatch \

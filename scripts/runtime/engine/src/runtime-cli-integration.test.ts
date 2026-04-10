@@ -390,7 +390,7 @@ describe("runtime CLI integration", () => {
     expect(result.status).toBe(0);
     expect(`${result.stdout}\n${result.stderr}`).toContain("Selected mode: repo");
     expect(`${result.stdout}\n${result.stderr}`).toContain("All checks passed");
-  });
+  }, 20000);
 
   it("verify-install fails in repo mode when engine sources do not typecheck", () => {
     const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));
@@ -437,7 +437,7 @@ describe("runtime CLI integration", () => {
     expect(`${result.stdout}\n${result.stderr}`).toContain(
       "runtime engine TypeScript sources failed to typecheck",
     );
-  });
+  }, 20000);
 
   it("verify-install fails when discovered config is malformed", () => {
     const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));

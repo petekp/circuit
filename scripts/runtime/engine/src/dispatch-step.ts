@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import {
   appendValidatedEvents,
   assertNextStepExists,
+  assertCommandStepUsable,
   ensureRunRelativeFileExists,
   getRouteTarget,
   isTerminalRoute,
@@ -10,6 +11,7 @@ import {
   maybeAppendArtifactWrittenEvent,
   readDispatchReceiptEventPayload,
   recordEventsAndRender,
+  resolveStepArtifactPath,
   terminalStatusForRoute,
 } from "./command-support.js";
 import {
@@ -141,45 +143,45 @@ export function dispatchStep(
     throw new Error(`step ${stepId} is not a dispatch step`);
   }
 
-  if (context.state.routes?.[stepId]) {
+  const precondition = assertCommandStepUsable({
+    allowCompletedStepNoOp: true,
+    allowedStatuses: ["in_progress", "waiting_worker"],
+    commandName: "dispatch-step",
+    state: context.state,
+    stepId,
+  });
+
+  if (precondition.noOp) {
     const renderResult = recordEventsAndRender(context.runRoot, []);
     return {
       activeRunPath: renderResult.activeRunPath,
       attempt: context.state.jobs?.[stepId]?.attempt ?? 1,
       gatePassed: true,
       noOp: true,
-      route: context.state.routes[stepId],
+      route: precondition.route,
       status: renderResult.status,
       step: stepId,
     };
   }
 
-  const attempt = resolveDesiredAttempt(context.state, stepId);
-  const requestPath = resolveRequestPath(step, stepId, attempt);
-  const receiptPath = resolveReceiptPath(step, stepId, attempt);
-  const events: Array<{
-    attempt?: number;
-    eventType: string;
-    payload: Record<string, unknown>;
-    stepId?: string;
-  }> = [];
-  maybeAppendArtifactWrittenEvent(
-    context.runRoot,
-    context.state,
-    step,
-    stepId,
-    events,
-  );
-  if (events.length > 0) {
-    appendValidatedEvents(context.runRoot, events);
-    events.length = 0;
-  }
-
-  ensureRunRelativeFileExists(context.runRoot, requestPath, "dispatch request");
-
   const currentJob = context.state.jobs?.[stepId];
-  const receiptFullPath = resolveRunRelativePath(context.runRoot, receiptPath);
-  if (currentJob?.status === "requested" || currentJob?.status === "running") {
+  if (context.state.status === "waiting_worker") {
+    if (currentJob?.status !== "requested" && currentJob?.status !== "running") {
+      throw new Error(
+        `dispatch-step cannot recover receipt for step "${stepId}" without a requested or running job`,
+      );
+    }
+
+    const attempt = currentJob.attempt;
+    const receiptPath = resolveReceiptPath(step, stepId, attempt);
+    const receiptFullPath = resolveRunRelativePath(context.runRoot, receiptPath);
+    const events: Array<{
+      attempt?: number;
+      eventType: string;
+      payload: Record<string, unknown>;
+      stepId?: string;
+    }> = [];
+
     if (!currentJob.receipt && existsSync(receiptFullPath)) {
       events.push({
         attempt,
@@ -204,6 +206,31 @@ export function dispatchStep(
       step: stepId,
     };
   }
+
+  const attempt = resolveDesiredAttempt(context.state, stepId);
+  const requestPath = resolveRequestPath(step, stepId, attempt);
+  const receiptPath = resolveReceiptPath(step, stepId, attempt);
+  const receiptFullPath = resolveRunRelativePath(context.runRoot, receiptPath);
+  const events: Array<{
+    attempt?: number;
+    eventType: string;
+    payload: Record<string, unknown>;
+    stepId?: string;
+  }> = [];
+
+  maybeAppendArtifactWrittenEvent(
+    context.runRoot,
+    context.state,
+    step,
+    stepId,
+    events,
+  );
+  if (events.length > 0) {
+    appendValidatedEvents(context.runRoot, events);
+    events.length = 0;
+  }
+
+  ensureRunRelativeFileExists(context.runRoot, requestPath, "dispatch request");
 
   events.push({
     attempt,
@@ -252,20 +279,35 @@ export function reconcileDispatch(
     throw new Error(`step ${stepId} is not a dispatch step`);
   }
 
-  if (context.state.routes?.[stepId]) {
+  const precondition = assertCommandStepUsable({
+    allowCompletedStepNoOp: true,
+    allowedStatuses: ["waiting_worker"],
+    commandName: "reconcile-dispatch",
+    state: context.state,
+    stepId,
+  });
+
+  if (precondition.noOp) {
     const renderResult = recordEventsAndRender(context.runRoot, []);
     return {
       activeRunPath: renderResult.activeRunPath,
       attempt: context.state.jobs?.[stepId]?.attempt ?? 1,
       gatePassed: true,
       noOp: true,
-      route: context.state.routes[stepId],
+      route: precondition.route,
       status: renderResult.status,
       step: stepId,
     };
   }
 
-  const attempt = context.state.jobs?.[stepId]?.attempt ?? 1;
+  const currentJob = context.state.jobs?.[stepId];
+  if (currentJob?.status !== "requested" && currentJob?.status !== "running") {
+    throw new Error(
+      `reconcile-dispatch cannot run for step "${stepId}" without a requested or running job`,
+    );
+  }
+
+  const attempt = currentJob.attempt ?? 1;
   const receiptPath = resolveReceiptPath(step, stepId, attempt);
   const resultPath = resolveResultPath(step, stepId, attempt);
   const receiptFullPath = resolveRunRelativePath(context.runRoot, receiptPath);
@@ -330,6 +372,13 @@ export function reconcileDispatch(
     getNestedString(parsedResult, ["verdict"]) ??
     getNestedString(parsedResult, ["claim", "verdict"]) ??
     getNestedString(parsedResult, ["result", "verdict"]);
+  const assertedPassRoute =
+    options.route !== undefined
+      ? assertNextStepExists(
+          context.manifest,
+          getRouteTarget(step, "pass", options.route),
+        )
+      : undefined;
 
   if (
     canSkipReconcile(
@@ -351,6 +400,25 @@ export function reconcileDispatch(
       step: stepId,
     };
   }
+
+  const artifactPath = resolveStepArtifactPath(step);
+  if (completion === "complete" && artifactPath) {
+    const artifactFullPath = resolveRunRelativePath(context.runRoot, artifactPath);
+    if (!existsSync(artifactFullPath)) {
+      throw new Error(
+        `reconcile-dispatch cannot record completion=complete for step "${stepId}": missing declared artifact ${artifactPath}`,
+      );
+    }
+  }
+
+  const route =
+    completion === "complete" && verdict && passList.includes(verdict)
+      ? (assertedPassRoute ??
+        assertNextStepExists(
+          context.manifest,
+          getRouteTarget(step, "pass"),
+        ))
+      : undefined;
 
   const jobPayload: Record<string, unknown> = {
     attempt,
@@ -399,10 +467,10 @@ export function reconcileDispatch(
     };
   }
 
-  const route = assertNextStepExists(
-    context.manifest,
-    getRouteTarget(step, "pass", options.route),
-  );
+  if (!route) {
+    throw new Error(`reconcile-dispatch could not resolve pass route for ${stepId}`);
+  }
+
   events.push({
     eventType: "gate_passed",
     payload: {

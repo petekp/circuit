@@ -223,7 +223,7 @@
     {
       "executable": true,
       "path": "scripts/runtime/bin/circuit-engine.js",
-      "sha256": "f9c02120f72a748555e07c46f2bb23112d68164c2b7620d27f267e881fba3abe"
+      "sha256": "1f3b26c784d24216b2e3f54fb846d2f36385c0c2e0760c6bb611fcc97d5a4618"
     },
     {
       "executable": true,
@@ -283,7 +283,7 @@
     {
       "executable": false,
       "path": "skills/build/SKILL.md",
-      "sha256": "73fea6c24c06443b3841930398d00c1a5a14fd364cafa3ee809bc847dfa985fa"
+      "sha256": "2be55c4fdffe2ec5abffe51ee7411831837808148651f3d883926134cd33b03b"
     },
     {
       "executable": false,

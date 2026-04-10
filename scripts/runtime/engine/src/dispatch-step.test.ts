@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { bootstrapRun } from "./bootstrap.js";
+import {
+  advanceToAct,
+  createBuildRun,
+  finishAct,
+} from "./build-run-test-helpers.js";
+import { appendValidatedEvents, loadOrDeriveValidatedState } from "./command-support.js";
 import { dispatchStep, reconcileDispatch } from "./dispatch-step.js";
 import {
   makeTempProject,
@@ -106,6 +113,31 @@ function createDispatchRun() {
   };
 }
 
+function snapshotRuntime(runRoot: string) {
+  const state = loadOrDeriveValidatedState(runRoot);
+
+  return {
+    eventsBytes: readFileSync(join(runRoot, "events.ndjson"), "utf-8"),
+    routes: JSON.parse(JSON.stringify(state.routes ?? {})) as Record<string, unknown>,
+    state,
+  };
+}
+
+function expectFailureWithoutMutation(
+  runRoot: string,
+  action: () => unknown,
+  matcher: RegExp,
+): void {
+  const before = snapshotRuntime(runRoot);
+
+  expect(action).toThrow(matcher);
+
+  const after = snapshotRuntime(runRoot);
+  expect(after.eventsBytes).toBe(before.eventsBytes);
+  expect(after.state).toEqual(before.state);
+  expect(after.routes).toEqual(before.routes);
+}
+
 describe("dispatch-step", () => {
   it("records dispatch requested, optional receipt, and waiting_worker state", () => {
     const { runRoot } = createDispatchRun();
@@ -166,6 +198,46 @@ describe("dispatch-step", () => {
 
     expect(result.gatePassed).toBe(false);
     expect(readState(runRoot).jobs.act.completion).toBe("blocked");
+  });
+
+  it("rejects dispatch-step for a non-current step without mutating runtime state", () => {
+    const { runRoot } = createBuildRun();
+    advanceToAct(runRoot);
+    writeRunJson(runRoot, "phases/review/jobs/review-1.request.json", {
+      task: "review",
+    });
+
+    expectFailureWithoutMutation(
+      runRoot,
+      () => dispatchStep({ runRoot, step: "review" }),
+      /dispatch-step/i,
+    );
+  });
+
+  it("rejects dispatch-step outside allowed statuses without mutating runtime state", () => {
+    const { runRoot } = createBuildRun();
+    advanceToAct(runRoot);
+    writeRunJson(runRoot, "phases/implement/jobs/act-1.request.json", {
+      task: "implement",
+    });
+    appendValidatedEvents(runRoot, [
+      {
+        attempt: 1,
+        eventType: "checkpoint_requested",
+        payload: {
+          attempt: 1,
+          checkpoint_kind: "manual_hold",
+          request_path: "checkpoints/act-1.request.json",
+        },
+        stepId: "act",
+      },
+    ]);
+
+    expectFailureWithoutMutation(
+      runRoot,
+      () => dispatchStep({ runRoot, step: "act" }),
+      /dispatch-step/i,
+    );
   });
 
   it("advances on complete allowed verdicts", () => {
@@ -230,5 +302,119 @@ describe("dispatch-step", () => {
     expect(result.attempt).toBe(2);
     expect(state.jobs.act.attempt).toBe(2);
     expect(events.some((event) => event.event_type === "dispatch_requested" && event.payload.attempt === 2)).toBe(true);
+  });
+
+  it("rejects reconcile-dispatch for a non-current step without mutating runtime state", () => {
+    const { runRoot } = createBuildRun();
+    finishAct(runRoot);
+    writeRunJson(runRoot, "phases/review/jobs/review-1.result.json", {
+      completion: "partial",
+      verdict: "issues_found",
+    });
+
+    expectFailureWithoutMutation(
+      runRoot,
+      () => reconcileDispatch({ runRoot, step: "review" }),
+      /reconcile-dispatch/i,
+    );
+  });
+
+  it("rejects reconcile-dispatch outside waiting_worker without mutating runtime state", () => {
+    const { runRoot } = createBuildRun();
+    advanceToAct(runRoot);
+    writeRunJson(runRoot, "phases/implement/jobs/act-1.result.json", {
+      completion: "partial",
+      verdict: "issues_remain",
+    });
+
+    expectFailureWithoutMutation(
+      runRoot,
+      () => reconcileDispatch({ runRoot, step: "act" }),
+      /reconcile-dispatch/i,
+    );
+  });
+
+  it("rejects route overrides that do not match the manifest dispatch route without mutating runtime state", () => {
+    const { runRoot } = createDispatchRun();
+    writeRunJson(runRoot, "phases/implement/jobs/act-1.request.json", {
+      task: "implement",
+    });
+    dispatchStep({ runRoot, step: "act" });
+    writeRunJson(runRoot, "phases/implement/jobs/act-1.result.json", {
+      completion: "complete",
+      verdict: "complete_and_hardened",
+    });
+
+    expectFailureWithoutMutation(
+      runRoot,
+      () =>
+        reconcileDispatch({
+          runRoot,
+          route: "@complete",
+          step: "act",
+        }),
+      /route/i,
+    );
+  });
+
+  it("rejects complete passing dispatch results without the declared artifact and succeeds after the artifact appears", () => {
+    const { runRoot } = createDispatchRun();
+    rmSync(join(runRoot, "artifacts/implementation-handoff.md"), { force: true });
+    writeRunJson(runRoot, "phases/implement/jobs/act-1.request.json", {
+      task: "implement",
+    });
+    dispatchStep({ runRoot, step: "act" });
+    writeRunJson(runRoot, "phases/implement/jobs/act-1.result.json", {
+      completion: "complete",
+      verdict: "complete_and_hardened",
+    });
+
+    expectFailureWithoutMutation(
+      runRoot,
+      () => reconcileDispatch({ runRoot, step: "act" }),
+      /artifact/i,
+    );
+
+    writeRunFile(
+      runRoot,
+      "artifacts/implementation-handoff.md",
+      "# Implementation Handoff\n\nDo the work.\n",
+    );
+
+    const result = reconcileDispatch({ runRoot, step: "act" });
+    expect(result.gatePassed).toBe(true);
+    expect(result.route).toBe("close");
+  });
+
+  it("rejects complete non-passing dispatch results without the declared artifact and succeeds after the artifact appears", () => {
+    const { runRoot } = createDispatchRun();
+    rmSync(join(runRoot, "artifacts/implementation-handoff.md"), { force: true });
+    writeRunJson(runRoot, "phases/implement/jobs/act-1.request.json", {
+      task: "implement",
+    });
+    dispatchStep({ runRoot, step: "act" });
+    writeRunJson(runRoot, "phases/implement/jobs/act-1.result.json", {
+      completion: "complete",
+      verdict: "issues_found",
+    });
+
+    expectFailureWithoutMutation(
+      runRoot,
+      () => reconcileDispatch({ runRoot, step: "act" }),
+      /artifact/i,
+    );
+
+    writeRunFile(
+      runRoot,
+      "artifacts/implementation-handoff.md",
+      "# Implementation Handoff\n\nDo the work.\n",
+    );
+
+    const result = reconcileDispatch({ runRoot, step: "act" });
+    const state = readState(runRoot);
+
+    expect(result.gatePassed).toBe(false);
+    expect(state.jobs.act.status).toBe("complete");
+    expect(state.routes.act).toBeUndefined();
   });
 });

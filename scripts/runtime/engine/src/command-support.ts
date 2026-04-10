@@ -45,20 +45,9 @@ export interface LoadedRunContext {
   state: Record<string, any>;
 }
 
-export function loadRunContext(runRoot: string): LoadedRunContext {
-  const resolvedRunRoot = resolve(runRoot);
-  const manifest = loadManifest(resolvedRunRoot) as Record<string, unknown>;
-  const state = loadOrDeriveValidatedState(resolvedRunRoot);
-
-  return {
-    manifest,
-    runRoot: resolvedRunRoot,
-    state,
-  };
-}
-
-export function loadOrDeriveValidatedState(
+function deriveValidatedState(
   runRoot: string,
+  persist: boolean,
 ): Record<string, any> {
   const resolvedRunRoot = resolve(runRoot);
   const manifest = loadManifest(resolvedRunRoot) as Record<string, unknown>;
@@ -70,8 +59,29 @@ export function loadOrDeriveValidatedState(
     throw new Error(`state validation failed: ${errors.join("; ")}`);
   }
 
-  writeState(resolvedRunRoot, state);
+  if (persist) {
+    writeState(resolvedRunRoot, state);
+  }
+
   return state as Record<string, any>;
+}
+
+export function loadRunContext(runRoot: string): LoadedRunContext {
+  const resolvedRunRoot = resolve(runRoot);
+  const manifest = loadManifest(resolvedRunRoot) as Record<string, unknown>;
+  const state = deriveValidatedState(resolvedRunRoot, false);
+
+  return {
+    manifest,
+    runRoot: resolvedRunRoot,
+    state,
+  };
+}
+
+export function loadOrDeriveValidatedState(
+  runRoot: string,
+): Record<string, any> {
+  return deriveValidatedState(runRoot, true);
 }
 
 export function validateManifestDocument(
@@ -217,17 +227,67 @@ export function maybeAppendArtifactWrittenEvent(
   return artifactPath;
 }
 
+export interface StepCommandPreconditionOptions {
+  allowCompletedStepNoOp?: boolean;
+  allowedStatuses: string[];
+  commandName: string;
+  state: Record<string, any>;
+  stepId: string;
+}
+
+export interface StepCommandPreconditionResult {
+  noOp: boolean;
+  route?: string;
+}
+
+export function assertCommandStepUsable(
+  options: StepCommandPreconditionOptions,
+): StepCommandPreconditionResult {
+  const route = options.state.routes?.[options.stepId];
+  if (route && options.allowCompletedStepNoOp) {
+    return {
+      noOp: true,
+      route,
+    };
+  }
+
+  const actualStatus =
+    typeof options.state.status === "string"
+      ? options.state.status
+      : String(options.state.status ?? "unknown");
+  const actualCurrentStep =
+    typeof options.state.current_step === "string"
+      ? options.state.current_step
+      : String(options.state.current_step ?? "null");
+  const statusOk = options.allowedStatuses.includes(actualStatus);
+  const currentStepOk = options.state.current_step === options.stepId;
+
+  if (statusOk && currentStepOk) {
+    return { noOp: false };
+  }
+
+  throw new Error(
+    `${options.commandName} cannot run for target step "${options.stepId}"; expected current_step="${options.stepId}" and status in [` +
+      `${options.allowedStatuses.join(", ")}], actual status="${actualStatus}", actual current_step="${actualCurrentStep}"`,
+  );
+}
+
 export function getRouteTarget(
   step: CircuitManifestStep,
   routeKey: string,
   routeOverride?: string,
 ): string {
   const routes = (step.routes ?? {}) as Record<string, unknown>;
-  const route =
-    routeOverride ?? (typeof routes[routeKey] === "string" ? routes[routeKey] : "");
+  const route = typeof routes[routeKey] === "string" ? routes[routeKey] : "";
 
   if (!route) {
     throw new Error(`route "${routeKey}" is not defined for step ${step.id}`);
+  }
+
+  if (routeOverride && routeOverride !== route) {
+    throw new Error(
+      `route override "${routeOverride}" does not match manifest route "${route}" for step ${step.id}`,
+    );
   }
 
   return route;

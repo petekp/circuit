@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import {
   appendValidatedEvents,
   assertNextStepExists,
+  assertCommandStepUsable,
   getRouteTarget,
   isTerminalRoute,
   loadRunContext,
@@ -54,13 +55,21 @@ export function completeSynthesisStep(
     throw new Error(`step ${stepId} is not an orchestrator synthesis step`);
   }
 
-  if (context.state.routes?.[stepId]) {
+  const precondition = assertCommandStepUsable({
+    allowCompletedStepNoOp: true,
+    allowedStatuses: ["in_progress"],
+    commandName: "complete-synthesis",
+    state: context.state,
+    stepId,
+  });
+
+  if (precondition.noOp) {
     const renderResult = recordEventsAndRender(context.runRoot, []);
     return {
       activeRunPath: renderResult.activeRunPath,
       gatePassed: true,
       noOp: true,
-      route: context.state.routes[stepId],
+      route: precondition.route,
       status: renderResult.status,
       step: stepId,
     };
@@ -75,6 +84,11 @@ export function completeSynthesisStep(
   if (!existsSync(artifactFullPath)) {
     throw new Error(`artifact not found: ${artifactPath}`);
   }
+
+  const route = assertNextStepExists(
+    context.manifest,
+    getRouteTarget(step, "pass", options.route),
+  );
 
   const events: Array<{
     attempt?: number;
@@ -110,10 +124,6 @@ export function completeSynthesisStep(
   }
 
   const transitionEvents: typeof events = [];
-  const route = assertNextStepExists(
-    context.manifest,
-    getRouteTarget(step, "pass", options.route),
-  );
   transitionEvents.push({
     eventType: "gate_passed",
     payload: {

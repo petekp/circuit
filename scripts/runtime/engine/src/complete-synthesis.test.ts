@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { bootstrapRun } from "./bootstrap.js";
+import { appendValidatedEvents, loadOrDeriveValidatedState } from "./command-support.js";
 import { completeSynthesisStep } from "./complete-synthesis.js";
 import {
   makeTempProject,
@@ -97,6 +99,31 @@ function createSynthesisRun() {
   };
 }
 
+function snapshotRuntime(runRoot: string) {
+  const state = loadOrDeriveValidatedState(runRoot);
+
+  return {
+    eventsBytes: readFileSync(join(runRoot, "events.ndjson"), "utf-8"),
+    routes: JSON.parse(JSON.stringify(state.routes ?? {})) as Record<string, unknown>,
+    state,
+  };
+}
+
+function expectFailureWithoutMutation(
+  runRoot: string,
+  action: () => unknown,
+  matcher: RegExp,
+): void {
+  const before = snapshotRuntime(runRoot);
+
+  expect(action).toThrow(matcher);
+
+  const after = snapshotRuntime(runRoot);
+  expect(after.eventsBytes).toBe(before.eventsBytes);
+  expect(after.state).toEqual(before.state);
+  expect(after.routes).toEqual(before.routes);
+}
+
 describe("complete-synthesis", () => {
   it("passes required sections and advances", () => {
     const { runRoot } = createSynthesisRun();
@@ -151,6 +178,68 @@ describe("complete-synthesis", () => {
     expect(state.routes.plan).toBeUndefined();
     expect(state.current_step).toBe("plan");
     expect(state.artifacts["artifacts/plan.md"].status).toBe("complete");
+  });
+
+  it("rejects a non-current synthesis step without mutating runtime state", () => {
+    const { runRoot } = createSynthesisRun();
+    writeRunFile(
+      runRoot,
+      "artifacts/result.md",
+      "# Result\n## Changes\nDone.\n## Verification\nPassed.\n## PR Summary\nReady.\n",
+    );
+
+    expectFailureWithoutMutation(
+      runRoot,
+      () => completeSynthesisStep({ runRoot, step: "close" }),
+      /complete-synthesis/i,
+    );
+  });
+
+  it("rejects synthesis completion outside in_progress without mutating runtime state", () => {
+    const { runRoot } = createSynthesisRun();
+    writeRunFile(
+      runRoot,
+      "artifacts/plan.md",
+      "# Plan\n## Approach\nUse the semantic engine.\n## Verification Commands\nnpm test\n",
+    );
+    appendValidatedEvents(runRoot, [
+      {
+        attempt: 1,
+        eventType: "dispatch_requested",
+        payload: {
+          attempt: 1,
+          protocol: "plan@v1",
+          request_path: "jobs/plan-1.request.json",
+        },
+        stepId: "plan",
+      },
+    ]);
+
+    expectFailureWithoutMutation(
+      runRoot,
+      () => completeSynthesisStep({ runRoot, step: "plan" }),
+      /complete-synthesis/i,
+    );
+  });
+
+  it("rejects route overrides that do not match the manifest route without mutating runtime state", () => {
+    const { runRoot } = createSynthesisRun();
+    writeRunFile(
+      runRoot,
+      "artifacts/plan.md",
+      "# Plan\n## Approach\nUse the semantic engine.\n## Verification Commands\nnpm test\n",
+    );
+
+    expectFailureWithoutMutation(
+      runRoot,
+      () =>
+        completeSynthesisStep({
+          runRoot,
+          route: "@complete",
+          step: "plan",
+        }),
+      /route/i,
+    );
   });
 
   it("is idempotent after success", () => {

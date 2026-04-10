@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   appendValidatedEvents,
   assertNextStepExists,
+  assertCommandStepUsable,
   ensureRunRelativeFileExists,
   getRouteTarget,
   isTerminalRoute,
@@ -74,12 +75,36 @@ export function requestCheckpoint(
   }
 
   const checkpointState = context.state.checkpoints?.[stepId];
-  if (checkpointState) {
+  if (
+    checkpointState?.status === "waiting" &&
+    context.state.current_step === stepId &&
+    context.state.status === "waiting_checkpoint"
+  ) {
     const renderResult = recordEventsAndRender(context.runRoot, []);
     return {
       activeRunPath: renderResult.activeRunPath,
       gatePassed: false,
       noOp: true,
+      status: renderResult.status,
+      step: stepId,
+    };
+  }
+
+  const precondition = assertCommandStepUsable({
+    allowCompletedStepNoOp: true,
+    allowedStatuses: ["in_progress"],
+    commandName: "request-checkpoint",
+    state: context.state,
+    stepId,
+  });
+
+  if (precondition.noOp) {
+    const renderResult = recordEventsAndRender(context.runRoot, []);
+    return {
+      activeRunPath: renderResult.activeRunPath,
+      gatePassed: true,
+      noOp: true,
+      route: precondition.route,
       status: renderResult.status,
       step: stepId,
     };
@@ -139,13 +164,21 @@ export function resolveCheckpoint(
     throw new Error(`step ${stepId} is not a checkpoint step`);
   }
 
-  if (context.state.routes?.[stepId]) {
+  const precondition = assertCommandStepUsable({
+    allowCompletedStepNoOp: true,
+    allowedStatuses: ["waiting_checkpoint"],
+    commandName: "resolve-checkpoint",
+    state: context.state,
+    stepId,
+  });
+
+  if (precondition.noOp) {
     const renderResult = recordEventsAndRender(context.runRoot, []);
     return {
       activeRunPath: renderResult.activeRunPath,
       gatePassed: true,
       noOp: true,
-      route: context.state.routes[stepId],
+      route: precondition.route,
       selection: context.state.checkpoints?.[stepId]?.selection,
       status: renderResult.status,
       step: stepId,
@@ -166,7 +199,6 @@ export function resolveCheckpoint(
     : [];
 
   if (!allowList.includes(selection)) {
-    recordEventsAndRender(context.runRoot, []);
     throw new Error(
       `selection ${selection} does not satisfy checkpoint gate for ${stepId}`,
     );
