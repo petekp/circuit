@@ -38,7 +38,7 @@ describe("build/run wiring", () => {
   it("keeps Build on semantic wrapper commands and removes manual dashboard updates", () => {
     const buildSkill = read("skills/build/SKILL.md");
 
-    expect(buildSkill).toContain('scripts/relay/circuit-engine.sh" bootstrap');
+    expect(buildSkill).toContain(".circuit/bin/circuit-engine bootstrap");
     expect(buildSkill).toContain("request-checkpoint");
     expect(buildSkill).toContain("resolve-checkpoint");
     expect(buildSkill).toContain("complete-synthesis");
@@ -85,9 +85,9 @@ describe("build/run wiring", () => {
     const reviewSection = extractPhaseSection(read("skills/build/SKILL.md"), "Review");
     const reviewHeaderStart = reviewSection.indexOf('cat > "$REVIEW_ROOT/review-header.md"');
     const composeStart = reviewSection.indexOf(
-      '"$CIRCUIT_PLUGIN_ROOT/scripts/relay/compose-prompt.sh"',
+      ".circuit/bin/compose-prompt",
     );
-    const dispatchStart = reviewSection.indexOf('"$CIRCUIT_PLUGIN_ROOT/scripts/relay/dispatch.sh"');
+    const dispatchStart = reviewSection.indexOf(".circuit/bin/dispatch");
     const reviewOutputCheckStart = reviewSection.indexOf("Check for the generated reviewer output");
     const reviewHeaderBlock =
       reviewHeaderStart === -1 || composeStart === -1
@@ -109,8 +109,8 @@ describe("build/run wiring", () => {
     expect(reviewSection).toContain("dispatch-step");
     expect(reviewSection).toContain('cat > "$REVIEW_ROOT/review-header.md"');
     expect(reviewSection).toContain("review-header.md");
-    expect(reviewSection).toMatch(/compose-prompt\.sh/);
-    expect(reviewSection).toMatch(/dispatch\.sh/);
+    expect(reviewSection).toContain(".circuit/bin/compose-prompt");
+    expect(reviewSection).toContain(".circuit/bin/dispatch");
     expect(reviewHeaderBlock).not.toContain("<task>");
     expect(reviewHeaderBlock).toContain("artifacts/brief.md");
     expect(reviewHeaderBlock).toContain("artifacts/plan.md");
@@ -138,8 +138,8 @@ describe("build/run wiring", () => {
       'review-${REVIEW_ATTEMPT}.request.json',
       "dispatch-step",
       'cat > "$REVIEW_ROOT/review-header.md"',
-      "compose-prompt.sh",
-      "dispatch.sh",
+      ".circuit/bin/compose-prompt",
+      ".circuit/bin/dispatch",
       "artifacts/review.md",
       "result JSON",
       "reconcile-dispatch",
@@ -150,7 +150,7 @@ describe("build/run wiring", () => {
     const runSkill = read("skills/run/SKILL.md");
 
     expect(runSkill).toContain("For Build only, map rigor to the Build entry mode and call semantic bootstrap");
-    expect(runSkill).toContain('scripts/relay/circuit-engine.sh" bootstrap');
+    expect(runSkill).toContain(".circuit/bin/circuit-engine bootstrap");
     expect(runSkill).toContain("For non-Build workflows, keep the current legacy bootstrap path");
     expect(runSkill).toContain("stop and restart via Explore");
 

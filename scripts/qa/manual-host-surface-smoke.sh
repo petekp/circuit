@@ -8,6 +8,7 @@ NODE_BIN="${NODE_BIN:-node}"
 RSYNC_BIN="${RSYNC_BIN:-rsync}"
 RG_BIN="${RG_BIN:-rg}"
 CLAUDE_TIMEOUT_SEC="${CLAUDE_TIMEOUT_SEC:-90}"
+CONTINUITY_CLI="$REPO_ROOT/scripts/runtime/bin/continuity.js"
 
 SYNC_CACHE=1
 REQUESTED_CASES=()
@@ -69,14 +70,30 @@ PASS_COUNT=0
 FAIL_COUNT=0
 FAILED_CASES=()
 
-project_slug() {
-  printf '%s' "$1" | tr '\\' '/' | tr '/' '-' | sed 's/[:<>"|?*]//g; s/^-//'
-}
-
 handoff_path_for() {
   local home_dir="$1"
   local repo_root="$2"
-  printf '%s/.circuit-projects/%s/handoff.md\n' "$home_dir" "$(project_slug "$repo_root")"
+  "$NODE_BIN" "$CONTINUITY_CLI" \
+    --project-root "$repo_root" \
+    --handoff-home "$home_dir" \
+    --field handoff_path
+}
+
+continuity_field() {
+  local repo_root="$1"
+  local field_name="$2"
+  local home_dir="${3:-}"
+  local args=(
+    "$CONTINUITY_CLI"
+    --project-root "$repo_root"
+    --field "$field_name"
+  )
+
+  if [[ -n "$home_dir" ]]; then
+    args+=(--handoff-home "$home_dir")
+  fi
+
+  "$NODE_BIN" "${args[@]}"
 }
 
 assert_exists() {
@@ -123,25 +140,17 @@ assert_bootstrap_only_log() {
 
 assert_build_semantic_bootstrap_log() {
   local log_path="$1"
-  assert_log_contains "$log_path" "circuit-engine.sh"
-  assert_log_contains "$log_path" "bootstrap"
-  assert_log_not_contains "$log_path" "\"name\":\"Write\""
+  assert_log_contains "$log_path" ".circuit/bin/circuit-engine" || return 1
+  assert_log_contains "$log_path" "bootstrap" || return 1
+  assert_log_not_contains "$log_path" "\"name\":\"Write\"" || return 1
 }
 
 current_run_target() {
   local repo_root="$1"
-  local pointer="$repo_root/.circuit/current-run"
-  local target=""
-
-  if [[ -L "$pointer" ]]; then
-    target="$(readlink "$pointer")"
-    if [[ "$target" != /* ]]; then
-      target="$repo_root/.circuit/$target"
-    fi
-  elif [[ -f "$pointer" ]]; then
-    target="$repo_root/.circuit/circuit-runs/$(tr -d '\n' < "$pointer")"
-  else
-    printf 'no current-run pointer found at %s\n' "$pointer" >&2
+  local target
+  target="$(continuity_field "$repo_root" run_root)"
+  if [[ -z "$target" ]]; then
+    printf 'no current-run pointer found for %s\n' "$repo_root" >&2
     return 1
   fi
 

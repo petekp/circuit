@@ -10,9 +10,14 @@ import { getCatalogDocTargets } from "./catalog-doc-projections.js";
 import {
   getPublicCommandIds,
   getPublicEntries,
-  renderCommandShim,
   renderPublicCommandsFile,
 } from "./public-surface.js";
+import {
+  getPromptSurfaceBlockTargets,
+  PROMPT_CONTRACTS_PATH,
+  renderCommandShim,
+  renderPromptContractsJson,
+} from "./prompt-surface-contracts.js";
 import { renderSurfaceManifest } from "./surface-manifest.js";
 import { SURFACE_MANIFEST_PATH } from "./surface-roots.js";
 import type { Catalog, FileGenerateTarget, GenerateTarget } from "./types.js";
@@ -30,6 +35,10 @@ function getSurfaceFileTargets(repoRoot: string, catalog: Catalog): FileGenerate
     },
     ...commandTargets,
     {
+      filePath: resolve(repoRoot, PROMPT_CONTRACTS_PATH),
+      render: renderPromptContractsJson,
+    },
+    {
       filePath: resolve(repoRoot, SURFACE_MANIFEST_PATH),
       render: (entries) => renderSurfaceManifest(repoRoot, entries),
     },
@@ -37,7 +46,11 @@ function getSurfaceFileTargets(repoRoot: string, catalog: Catalog): FileGenerate
 }
 
 export function getGenerateTargets(repoRoot: string, catalog: Catalog): GenerateTarget[] {
-  return [...getCatalogDocTargets(repoRoot), ...getSurfaceFileTargets(repoRoot, catalog)];
+  return [
+    ...getCatalogDocTargets(repoRoot),
+    ...getPromptSurfaceBlockTargets(repoRoot, catalog),
+    ...getSurfaceFileTargets(repoRoot, catalog),
+  ];
 }
 
 export function pruneStaleCommandShims(repoRoot: string, catalog: Catalog): string[] {

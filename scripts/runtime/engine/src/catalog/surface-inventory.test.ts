@@ -51,7 +51,17 @@ function writeFixture(root: string): void {
   chmodSync(resolve(root, "scripts", "sync-to-cache.sh"), 0o755);
   writeFileSync(resolve(root, "scripts", "verify-install.sh"), "#!/usr/bin/env bash\n", "utf-8");
   chmodSync(resolve(root, "scripts", "verify-install.sh"), 0o755);
-  writeFileSync(resolve(root, "skills", "build", "SKILL.md"), "# Build\n", "utf-8");
+  writeFileSync(
+    resolve(root, "skills", "build", "SKILL.md"),
+    [
+      "# Build",
+      "",
+      "<!-- BEGIN BUILD_CONTRACT -->",
+      "<!-- END BUILD_CONTRACT -->",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
   writeFileSync(resolve(root, "circuit.config.example.yaml"), "dispatch: {}\n", "utf-8");
 }
 
@@ -71,6 +81,7 @@ describe("getInstalledFileInventory", () => {
     expect(paths).toEqual([...paths].sort());
     expect(paths).toContain(".claude-plugin/public-commands.txt");
     expect(paths).toContain("commands/build.md");
+    expect(paths).toContain("scripts/runtime/generated/prompt-contracts.json");
     expect(paths).toContain("scripts/verify-install.sh");
   });
 

@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createBuildRun } from "./build-run-test-helpers.js";
+import { resolveHandoffPath } from "./continuity.js";
 import { REPO_ROOT } from "./schema.js";
 
 const SESSION_START = resolve(REPO_ROOT, "hooks/session-start.sh");
@@ -29,18 +30,6 @@ function runSessionStart(
   });
 }
 
-function projectSlug(projectRoot: string): string {
-  return projectRoot
-    .replace(/\\/g, "/")
-    .replace(/\//g, "-")
-    .replace(/[:<>"|?*]/g, "")
-    .replace(/^-/, "");
-}
-
-function handoffPath(homeDir: string, projectRoot: string): string {
-  return join(homeDir, ".claude", "projects", projectSlug(projectRoot), "handoff.md");
-}
-
 describe("session-start integration", () => {
   it("announces pending handoff as passive context without injecting resume instructions", () => {
     const root = mkdtempSync(join(tmpdir(), "circuit-session-handoff-"));
@@ -53,7 +42,7 @@ describe("session-start integration", () => {
       cwd: projectRoot,
       encoding: "utf-8",
     }).stdout.trim();
-    const handoff = handoffPath(homeDir, gitRoot);
+    const handoff = resolveHandoffPath({ homeDir, projectRoot: gitRoot });
     mkdirSync(resolve(handoff, ".."), { recursive: true });
     writeFileSync(
       handoff,
@@ -96,12 +85,11 @@ describe("session-start integration", () => {
       cwd: projectRoot,
       encoding: "utf-8",
     }).stdout.trim();
-    const siblingHandoffPath = join(
-      siblingHome,
-      ".circuit-projects",
-      projectSlug(gitRoot),
-      "handoff.md",
-    );
+    const siblingHandoffPath = resolveHandoffPath({
+      handoffHome: siblingHome,
+      homeDir,
+      projectRoot: gitRoot,
+    });
     mkdirSync(resolve(siblingHandoffPath, ".."), { recursive: true });
     writeFileSync(
       siblingHandoffPath,

@@ -21,6 +21,7 @@ describe("manual host-surface smoke harness", () => {
     expect(script).toContain("--include-hook-events");
     expect(script).not.toContain("CLAUDE_PLUGIN_ROOT: pluginRoot");
     expect(script).toContain("CIRCUIT_HANDOFF_HOME: handoffHome");
+    expect(script).toContain("scripts/runtime/bin/continuity.js");
   });
 
   it("covers the required command matrix", () => {
@@ -48,7 +49,10 @@ describe("manual host-surface smoke harness", () => {
     expect(script).toContain("assert_bootstrap_only_log");
     expect(script).toContain("assert_build_semantic_bootstrap_log");
     expect(script).toContain("|| assert_status=1");
+    expect(script).toContain('assert_log_contains "$log_path" ".circuit/bin/circuit-engine" || return 1');
     expect(script).toContain('assert_log_not_contains "$log_path" "ls ~/.claude/plugins/cache"');
     expect(script).toContain('assert_log_not_contains "$log_path" "\\"name\\":\\"Write\\""');
+    expect(script).not.toContain('assert_log_contains "$log_path" "circuit-engine.sh"');
+    expect(script).not.toContain("project_slug()");
   });
 });

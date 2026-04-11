@@ -1,21 +1,23 @@
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { projectSlug, resolveHandoffPath } from "./continuity.js";
 import { REPO_ROOT } from "./schema.js";
 
 const USER_PROMPT_SUBMIT = resolve(REPO_ROOT, "hooks/user-prompt-submit.js");
-
-function projectSlug(projectRoot: string): string {
-  return projectRoot
-    .replace(/\\/g, "/")
-    .replace(/\//g, "-")
-    .replace(/[:<>"|?*]/g, "")
-    .replace(/^-/, "");
-}
 
 function runUserPromptSubmit(
   prompt: string,
@@ -40,37 +42,53 @@ function runUserPromptSubmitWithEnv(
   return runUserPromptSubmit(prompt, { env });
 }
 
+function readAdditionalContext(result: ReturnType<typeof spawnSync>): string {
+  const payload = JSON.parse(result.stdout);
+  expect(payload.suppressOutput).toBe(true);
+  expect(payload.hookSpecificOutput.hookEventName).toBe("UserPromptSubmit");
+  return payload.hookSpecificOutput.additionalContext as string;
+}
+
+function makeInstalledHookRoot(root: string): string {
+  const installRoot = resolve(root, "install");
+  mkdirSync(resolve(installRoot, "hooks"), { recursive: true });
+  mkdirSync(resolve(installRoot, "scripts/runtime/bin"), { recursive: true });
+  mkdirSync(resolve(installRoot, "scripts/runtime/generated"), { recursive: true });
+  mkdirSync(resolve(installRoot, "schemas"), { recursive: true });
+
+  copyFileSync(USER_PROMPT_SUBMIT, resolve(installRoot, "hooks/user-prompt-submit.js"));
+  chmodSync(resolve(installRoot, "hooks/user-prompt-submit.js"), 0o755);
+  copyFileSync(
+    resolve(REPO_ROOT, "scripts/runtime/bin/user-prompt-submit.js"),
+    resolve(installRoot, "scripts/runtime/bin/user-prompt-submit.js"),
+  );
+  copyFileSync(
+    resolve(REPO_ROOT, "scripts/runtime/generated/prompt-contracts.json"),
+    resolve(installRoot, "scripts/runtime/generated/prompt-contracts.json"),
+  );
+  copyFileSync(
+    resolve(REPO_ROOT, "schemas/event.schema.json"),
+    resolve(installRoot, "schemas/event.schema.json"),
+  );
+
+  return installRoot;
+}
+
 describe("user-prompt-submit integration", () => {
-  it("injects targeted Build smoke bootstrap context", () => {
+  it("injects targeted Build smoke bootstrap context from generated contracts", () => {
     const result = runUserPromptSubmit(
       "/circuit:run develop: smoke bootstrap the build path for host-surface verification",
     );
 
     expect(result.status).toBe(0);
-    const payload = JSON.parse(result.stdout);
-    expect(payload.suppressOutput).toBe(true);
-    expect(payload.hookSpecificOutput.hookEventName).toBe("UserPromptSubmit");
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "Build bootstrap smoke verification",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "CIRCUIT_PLUGIN_ROOT",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "Do not use `Write`, `Edit`, heredocs, or manual file creation",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      ".circuit/plugin-root",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "\"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh\" bootstrap --run-root",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "--manifest \"$CIRCUIT_PLUGIN_ROOT/skills/build/circuit.yaml\" --entry-mode \"lite\"",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "Do not continue into Frame, Plan, Act, Verify, Review, or Close",
-    );
+    const context = readAdditionalContext(result);
+    expect(context).toContain("Build bootstrap smoke verification");
+    expect(context).toContain(".circuit/bin/circuit-engine bootstrap");
+    expect(context).toContain('--manifest "@build"');
+    expect(context).toContain("Do not use `Write`, `Edit`, heredocs, or manual file creation");
+    expect(context).toContain("Do not continue into Frame, Plan, Act, Verify, Review, or Close");
+    expect(context).not.toContain("CIRCUIT_PLUGIN_ROOT");
+    expect(context).not.toContain(".circuit/plugin-root");
   });
 
   it("stays silent for unrelated prompts", () => {
@@ -83,7 +101,7 @@ describe("user-prompt-submit integration", () => {
     expect(existsSync(pluginRootPath)).toBe(false);
   });
 
-  it("persists the installed plugin root for circuit prompts even without extra context", () => {
+  it("persists the installed plugin root and authors local helper wrappers for circuit prompts", () => {
     const projectRoot = mkdtempSync(join(tmpdir(), "circuit-prompt-root-"));
     const pluginRootPath = resolve(projectRoot, ".circuit", "plugin-root");
 
@@ -92,6 +110,9 @@ describe("user-prompt-submit integration", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("");
     expect(readFileSync(pluginRootPath, "utf-8").trim()).toBe(REPO_ROOT);
+    expect(existsSync(resolve(projectRoot, ".circuit/bin/circuit-engine"))).toBe(true);
+    expect(existsSync(resolve(projectRoot, ".circuit/bin/compose-prompt"))).toBe(true);
+    expect(existsSync(resolve(projectRoot, ".circuit/bin/dispatch"))).toBe(true);
   });
 
   it("does not hijack ordinary Build work that mentions smoke tests", () => {
@@ -115,71 +136,70 @@ describe("user-prompt-submit integration", () => {
     expect(exploreResult.stdout).toBe("");
   });
 
-  it("injects exact legacy smoke scaffold context", () => {
+  it("injects exact legacy smoke scaffold context from generated fast modes", () => {
     const result = runUserPromptSubmit(
       "/circuit:explore smoke inspect the public-surface bootstrap path",
     );
 
     expect(result.status).toBe(0);
-    const payload = JSON.parse(result.stdout);
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "Circuit Explore Legacy Smoke Contract",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "Do not invent alternate layouts such as `.circuit/runs/`",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain("# Active Run");
-    expect(payload.hookSpecificOutput.additionalContext).toContain("## Workflow\nExplore");
+    const context = readAdditionalContext(result);
+    expect(context).toContain("Circuit Explore Legacy Smoke Contract");
+    expect(context).toContain("Do not invent alternate layouts such as `.circuit/runs/`");
+    expect(context).toContain('RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"');
+    expect(context).toContain("# Active Run");
+    expect(context).toContain("## Workflow\nExplore");
   });
 
   it("injects review current-changes fast mode context", () => {
     const result = runUserPromptSubmit("/circuit:review current changes");
 
     expect(result.status).toBe(0);
-    const payload = JSON.parse(result.stdout);
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "Circuit Review Current-Changes Contract",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain("Review verdict:");
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "review-scope-sentinel.ts",
-    );
+    const context = readAdditionalContext(result);
+    expect(context).toContain("Circuit Review Current-Changes Contract");
+    expect(context).toContain("Review verdict:");
+    expect(context).toContain("review-scope-sentinel.ts");
   });
 
-  it("injects handoff done fast mode context", () => {
-    const result = runUserPromptSubmit("/circuit:handoff done");
+  it("injects handoff done fast mode context with the resolved handoff path", () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), "circuit-prompt-handoff-done-"));
+    const explicitHome = resolve(projectRoot, "home");
+    mkdirSync(explicitHome, { recursive: true });
+
+    const result = runUserPromptSubmit("/circuit:handoff done", {
+      cwd: projectRoot,
+      env: { HOME: explicitHome },
+    });
 
     expect(result.status).toBe(0);
-    const payload = JSON.parse(result.stdout);
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "Circuit Handoff Done Contract",
+    const context = readAdditionalContext(result);
+    expect(context).toContain("Circuit Handoff Done Contract");
+    expect(context).toContain("artifacts/completed-run.md");
+    expect(context).toContain(
+      resolveHandoffPath({ homeDir: explicitHome, projectRoot: realpathSync(projectRoot) }),
     );
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "artifacts/completed-run.md",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "if [ -L .circuit/current-run ]; then RUN_ROOT=\".circuit/$(readlink .circuit/current-run)\"",
-    );
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
+    expect(context).toContain(
       "Delete `.circuit/current-run` after archiving the active-run dashboard.",
     );
   });
 
-  it("injects handoff resume fast mode context", () => {
-    const result = runUserPromptSubmit("/circuit:handoff resume");
+  it("injects handoff resume fast mode context with the resolved handoff path", () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), "circuit-prompt-handoff-resume-"));
+    const explicitHome = resolve(projectRoot, "home");
+    mkdirSync(explicitHome, { recursive: true });
+
+    const result = runUserPromptSubmit("/circuit:handoff resume", {
+      cwd: projectRoot,
+      env: { HOME: explicitHome },
+    });
 
     expect(result.status).toBe(0);
-    const payload = JSON.parse(result.stdout);
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "Circuit Handoff Resume Contract",
+    const context = readAdditionalContext(result);
+    expect(context).toContain("Circuit Handoff Resume Contract");
+    expect(context).toContain("# Circuit Resume");
+    expect(context).toContain(
+      resolveHandoffPath({ homeDir: explicitHome, projectRoot: realpathSync(projectRoot) }),
     );
-    expect(payload.hookSpecificOutput.additionalContext).toContain("# Circuit Resume");
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "Only fall back to `.circuit/current-run` when the handoff file is absent.",
-    );
+    expect(context).toContain("Only fall back to `.circuit/current-run` when the handoff file is absent.");
   });
 
   it("keeps the default handoff store even when a sibling home fixture exists", () => {
@@ -198,13 +218,9 @@ describe("user-prompt-submit integration", () => {
     });
 
     expect(result.status).toBe(0);
-    const payload = JSON.parse(result.stdout);
-    expect(payload.hookSpecificOutput.additionalContext).toContain(
-      resolve(explicitHome, ".claude", "projects"),
-    );
-    expect(payload.hookSpecificOutput.additionalContext).not.toContain(
-      resolve(siblingHome, ".circuit-projects"),
-    );
+    const context = readAdditionalContext(result);
+    expect(context).toContain(resolve(explicitHome, ".claude", "projects"));
+    expect(context).not.toContain(resolve(siblingHome, ".circuit-projects"));
   });
 
   it("uses the git-root slug for handoff fast modes when invoked from a subdirectory", () => {
@@ -227,21 +243,38 @@ describe("user-prompt-submit integration", () => {
     });
 
     expect(result.status).toBe(0);
-    const payload = JSON.parse(result.stdout);
-    const expectedPath = resolve(homeDir, ".claude", "projects", projectSlug(gitRoot), "handoff.md");
-    const subdirPath = resolve(homeDir, ".claude", "projects", projectSlug(subdir), "handoff.md");
-    expect(payload.hookSpecificOutput.additionalContext).toContain(expectedPath);
-    expect(payload.hookSpecificOutput.additionalContext).not.toContain(subdirPath);
+    const context = readAdditionalContext(result);
+    const expectedPath = resolveHandoffPath({ homeDir, projectRoot: gitRoot });
+    const subdirPath = resolve(homeDir, ".claude", "projects", projectSlug(realpathSync(subdir)), "handoff.md");
+    expect(context).toContain(expectedPath);
+    expect(context).not.toContain(subdirPath);
+  });
+
+  it("authors helper wrappers that fail clearly when .circuit/plugin-root is missing", () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), "circuit-local-wrappers-"));
+    const pluginRootPath = resolve(projectRoot, ".circuit", "plugin-root");
+
+    const result = runUserPromptSubmit("/circuit:build add dark mode support", { cwd: projectRoot });
+    expect(result.status).toBe(0);
+
+    rmSync(pluginRootPath);
+    const wrapperResult = spawnSync(resolve(projectRoot, ".circuit/bin/circuit-engine"), ["--help"], {
+      cwd: projectRoot,
+      encoding: "utf-8",
+    });
+
+    expect(wrapperResult.status).not.toBe(0);
+    expect(`${wrapperResult.stdout}\n${wrapperResult.stderr}`).toContain(
+      "installed plugin root not found",
+    );
   });
 
   it("is executable from an installed copy", () => {
     const copiedRoot = mkdtempSync(join(tmpdir(), "circuit-prompt-hook-"));
-    const copiedHook = resolve(copiedRoot, "user-prompt-submit.js");
+    const installRoot = makeInstalledHookRoot(copiedRoot);
+    const copiedHook = resolve(installRoot, "hooks/user-prompt-submit.js");
     const projectRoot = resolve(copiedRoot, "project");
     const pluginRootPath = resolve(projectRoot, ".circuit", "plugin-root");
-
-    copyFileSync(USER_PROMPT_SUBMIT, copiedHook);
-    chmodSync(copiedHook, 0o755);
     mkdirSync(projectRoot, { recursive: true });
 
     const result = spawnSync(copiedHook, {
@@ -250,12 +283,12 @@ describe("user-prompt-submit integration", () => {
       encoding: "utf-8",
       env: {
         ...process.env,
-        CLAUDE_PLUGIN_ROOT: REPO_ROOT,
+        CLAUDE_PLUGIN_ROOT: installRoot,
       },
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("circuit-engine.sh");
-    expect(readFileSync(pluginRootPath, "utf-8").trim()).toBe(REPO_ROOT);
+    expect(result.stdout).toContain(".circuit/bin/circuit-engine bootstrap");
+    expect(readFileSync(pluginRootPath, "utf-8").trim()).toBe(installRoot);
   });
 });

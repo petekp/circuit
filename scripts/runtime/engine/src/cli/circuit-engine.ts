@@ -106,6 +106,15 @@ function resolveBootstrapManifest(
   workflow: string | undefined,
 ): string | undefined {
   if (manifestFlag) {
+    if (manifestFlag.startsWith("@")) {
+      const workflowId = manifestFlag.slice(1);
+      if (!workflowId) {
+        throw new Error("circuit: manifest alias must include a workflow id");
+      }
+
+      return resolve(REPO_ROOT, "skills", workflowId, "circuit.yaml");
+    }
+
     return resolve(manifestFlag);
   }
 

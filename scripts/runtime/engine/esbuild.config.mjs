@@ -4,13 +4,16 @@ const ENTRY_POINTS = [
   "src/cli/append-event.ts",
   "src/cli/catalog-compiler.ts",
   "src/cli/circuit-engine.ts",
+  "src/cli/continuity.ts",
   "src/cli/dispatch.ts",
   "src/cli/derive-state.ts",
   "src/cli/list-installed-surface-roots.ts",
   "src/cli/read-config.ts",
   "src/cli/resume.ts",
+  "src/cli/session-start.ts",
   "src/cli/update-surface-manifest-schema.ts",
   "src/cli/update-batch.ts",
+  "src/cli/user-prompt-submit.ts",
   "src/cli/verify-install.ts",
 ];
 

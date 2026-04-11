@@ -133,6 +133,11 @@ async function makePluginRoot(root: string): Promise<void> {
     "utf-8",
   );
   await writeFile(
+    resolve(root, "scripts/runtime/generated/prompt-contracts.json"),
+    '{"schema_version":"1"}\n',
+    "utf-8",
+  );
+  await writeFile(
     resolve(root, "scripts/runtime/generated/surface-manifest.json"),
     '{"schema_version":"1"}\n',
     "utf-8",
@@ -201,6 +206,11 @@ async function makeTarget(root: string, version?: string): Promise<string> {
     "utf-8",
   );
   await writeFile(
+    resolve(target, "scripts/runtime/generated/prompt-contracts.json"),
+    '{"schema_version":"old"}\n',
+    "utf-8",
+  );
+  await writeFile(
     resolve(target, "scripts/runtime/generated/surface-manifest.json"),
     '{"schema_version":"old"}\n',
     "utf-8",
@@ -259,6 +269,9 @@ async function expectSyncedTarget(target: string): Promise<void> {
   expect(
     await readFile(resolve(target, "scripts/runtime/bin/list-installed-surface-roots.js"), "utf-8"),
   ).toContain("repo-paths");
+  expect(
+    await readFile(resolve(target, "scripts/runtime/generated/prompt-contracts.json"), "utf-8"),
+  ).toBe('{"schema_version":"1"}\n');
   expect(
     await readFile(resolve(target, "scripts/runtime/generated/surface-manifest.json"), "utf-8"),
   ).toBe('{"schema_version":"1"}\n');

@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { collectPendingWrites, generate } from "./generate.js";
 import { getGenerateTargets } from "./generate-targets.js";
+import { renderCommandShim } from "./prompt-surface-contracts.js";
 import type { Catalog } from "./types.js";
 
 const SAMPLE_CATALOG: Catalog = [
@@ -69,13 +70,46 @@ function writeRepoFixture(root: string): void {
   writeFileSync(resolve(root, "scripts/verify-install.sh"), "#!/usr/bin/env bash\n", "utf-8");
   chmodSync(resolve(root, "scripts/verify-install.sh"), 0o755);
   writeFileSync(resolve(root, "circuit.config.example.yaml"), "dispatch: {}\n", "utf-8");
-  writeFileSync(resolve(root, "skills/build/SKILL.md"), "# Build\n", "utf-8");
-  writeFileSync(resolve(root, "skills/handoff/SKILL.md"), "# Handoff\n", "utf-8");
-  writeFileSync(resolve(root, "skills/workers/SKILL.md"), "# Workers\n", "utf-8");
+  writeFileSync(
+    resolve(root, "skills/build/SKILL.md"),
+    [
+      "# Build",
+      "",
+      "<!-- BEGIN BUILD_CONTRACT -->",
+      "<!-- END BUILD_CONTRACT -->",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  writeFileSync(
+    resolve(root, "skills/handoff/SKILL.md"),
+    [
+      "# Handoff",
+      "",
+      "<!-- BEGIN HANDOFF_FAST_MODES -->",
+      "<!-- END HANDOFF_FAST_MODES -->",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  writeFileSync(
+    resolve(root, "skills/workers/SKILL.md"),
+    [
+      "# Workers",
+      "",
+      "<!-- BEGIN WORKERS_HELPERS -->",
+      "<!-- END WORKERS_HELPERS -->",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
   writeFileSync(
     resolve(root, "CIRCUITS.md"),
     [
       "# Fixture",
+      "",
+      "<!-- BEGIN SMOKE_BOOTSTRAP_VERIFICATION -->",
+      "<!-- END SMOKE_BOOTSTRAP_VERIFICATION -->",
       "",
       "<!-- BEGIN CIRCUIT_TABLE -->",
       "<!-- END CIRCUIT_TABLE -->",
@@ -103,6 +137,7 @@ describe("generate", () => {
     expect(result.patchedFiles).toContain(resolve(root, "commands/build.md"));
     expect(result.patchedFiles).toContain(resolve(root, "commands/handoff.md"));
     expect(result.patchedFiles).toContain(resolve(root, ".claude-plugin/public-commands.txt"));
+    expect(result.patchedFiles).toContain(resolve(root, "scripts/runtime/generated/prompt-contracts.json"));
     expect(result.patchedFiles).toContain(resolve(root, "scripts/runtime/generated/surface-manifest.json"));
 
     expect(readFileSync(resolve(root, "commands/build.md"), "utf-8")).toContain(
@@ -116,8 +151,8 @@ describe("generate", () => {
     );
     expect(buildShim).toContain("Direct slash-command invocation");
     expect(buildShim).toContain("Launch the `circuit:build` skill immediately.");
-    expect(buildShim).toContain("Resolve installed Circuit helpers through `.circuit/plugin-root`");
-    expect(buildShim).toContain("direct-invocation/bootstrap contract");
+    expect(buildShim).toContain("Use hook-authored helper wrappers from `.circuit/bin/`");
+    expect(buildShim).toContain("compiled contract block");
     expect(buildShim).toContain("Do not reinterpret this command as a generic repo-understanding request.");
     expect(handoffShim).toContain("Direct utility invocation");
     expect(handoffShim).toContain("Launch the `circuit:handoff` skill immediately.");

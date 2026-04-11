@@ -1,0 +1,404 @@
+{
+  "fast_modes": {
+    "build_smoke": {
+      "id": "build_smoke",
+      "lines": [
+        "# Circuit Build Smoke Contract",
+        "This prompt is an explicit Build bootstrap smoke verification.",
+        "If the prompt uses `/circuit:run develop:`, the route is already fixed to Build. Do not rediscover the workflow from repo docs.",
+        "Do not run `--help`, inspect cache layout, or search the repo to rediscover the bootstrap flags. Use the exact command shape below.",
+        "RUN_SLUG=\"smoke-bootstrap-build-workflow-host-surface\"  # or the same slug derived from the task",
+        "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
+        "test -x .circuit/bin/circuit-engine",
+        ".circuit/bin/circuit-engine bootstrap --run-root \"$RUN_ROOT\" --manifest \"@build\" --entry-mode \"lite\" --goal \"<smoke bootstrap objective>\" --project-root \"$PWD\"",
+        "Do not use `Write`, `Edit`, heredocs, or manual file creation to fabricate `.circuit/current-run`, `circuit.manifest.yaml`, `events.ndjson`, `state.json`, or `artifacts/active-run.md`.",
+        "After bootstrap, validate with `test -e .circuit/current-run` plus `test -f` checks for `circuit.manifest.yaml`, `events.ndjson`, `state.json`, and `artifacts/active-run.md` under `$RUN_ROOT`.",
+        "After bootstrap, validate those on-disk artifacts, report the selected run root briefly, and stop.",
+        "Do not continue into Frame, Plan, Act, Verify, Review, or Close for this smoke request."
+      ],
+      "placeholders": [],
+      "stop_condition": "Stop after validating Build bootstrap artifacts."
+    },
+    "handoff_done": {
+      "id": "handoff_done",
+      "lines": [
+        "# Circuit Handoff Done Contract",
+        "This prompt is the explicit handoff completion fast mode.",
+        "Handoff path: {handoff_path}",
+        "Resolve `.circuit/current-run` exactly like this before deciding whether an active run exists:",
+        "if [ -L .circuit/current-run ]; then RUN_ROOT=\".circuit/$(readlink .circuit/current-run)\"; elif [ -f .circuit/current-run ]; then RUN_ROOT=\".circuit/circuit-runs/$(tr -d '\\n' < .circuit/current-run)\"; fi",
+        "If `$RUN_ROOT/artifacts/active-run.md` exists, move it to `$RUN_ROOT/artifacts/completed-run.md`.",
+        "Delete the handoff file if it exists.",
+        "Delete `.circuit/current-run` after archiving the active-run dashboard.",
+        "Do not bootstrap new work or do broad repo exploration.",
+        "Stop after reporting completion."
+      ],
+      "placeholders": [
+        "handoff_path"
+      ],
+      "stop_condition": "Stop after clearing continuity."
+    },
+    "handoff_resume": {
+      "id": "handoff_resume",
+      "lines": [
+        "# Circuit Handoff Resume Contract",
+        "This prompt is the explicit continuity resume fast mode.",
+        "Read this handoff file first if it exists: {handoff_path}",
+        "Only fall back to `.circuit/current-run` when the handoff file is absent.",
+        "Start the response with `# Circuit Resume`.",
+        "When the handoff file exists, treat it as the source of truth and do not surface fallback-only active-run sentinel details.",
+        "Do not bootstrap new work or do broad repo exploration.",
+        "Stop after presenting the resume context."
+      ],
+      "placeholders": [
+        "handoff_path"
+      ],
+      "stop_condition": "Stop after presenting saved continuity."
+    },
+    "legacy_smoke_explore": {
+      "id": "legacy_smoke_explore",
+      "lines": [
+        "# Circuit Explore Legacy Smoke Contract",
+        "This prompt is an explicit Explore legacy bootstrap smoke verification.",
+        "Do not invent alternate layouts such as `.circuit/runs/`. Use the exact legacy scaffold below.",
+        "RUN_SLUG=\"explore-smoke-bootstrap\"  # or the same slug derived from the task",
+        "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
+        "mkdir -p \"$RUN_ROOT/artifacts\" \"$RUN_ROOT/phases\"",
+        "ln -sfn \"circuit-runs/${RUN_SLUG}\" .circuit/current-run",
+        "cat > \"$RUN_ROOT/artifacts/active-run.md\" <<'MD'",
+        "# Active Run",
+        "## Workflow",
+        "Explore",
+        "## Rigor",
+        "Standard",
+        "## Current Phase",
+        "frame",
+        "## Goal",
+        "<smoke bootstrap objective>",
+        "## Next Step",
+        "Write brief.md",
+        "## Verification Commands",
+        "Smoke bootstrap only",
+        "## Active Worktrees",
+        "none",
+        "## Blockers",
+        "none",
+        "## Last Updated",
+        "<ISO 8601 timestamp>",
+        "MD",
+        "Validate `.circuit/current-run`, `$RUN_ROOT/artifacts`, `$RUN_ROOT/phases`, and `$RUN_ROOT/artifacts/active-run.md`, report the selected run root briefly, and stop.",
+        "Do not continue into the normal workflow phases or broader repo exploration for this smoke request."
+      ],
+      "placeholders": [],
+      "stop_condition": "Stop after validating the legacy smoke scaffold."
+    },
+    "legacy_smoke_migrate": {
+      "id": "legacy_smoke_migrate",
+      "lines": [
+        "# Circuit Migrate Legacy Smoke Contract",
+        "This prompt is an explicit Migrate legacy bootstrap smoke verification.",
+        "Do not invent alternate layouts such as `.circuit/runs/`. Use the exact legacy scaffold below.",
+        "RUN_SLUG=\"migrate-smoke-bootstrap\"  # or the same slug derived from the task",
+        "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
+        "mkdir -p \"$RUN_ROOT/artifacts\" \"$RUN_ROOT/phases\"",
+        "ln -sfn \"circuit-runs/${RUN_SLUG}\" .circuit/current-run",
+        "cat > \"$RUN_ROOT/artifacts/active-run.md\" <<'MD'",
+        "# Active Run",
+        "## Workflow",
+        "Migrate",
+        "## Rigor",
+        "Standard",
+        "## Current Phase",
+        "frame",
+        "## Goal",
+        "<smoke bootstrap objective>",
+        "## Next Step",
+        "Write brief.md",
+        "## Verification Commands",
+        "Smoke bootstrap only",
+        "## Active Worktrees",
+        "none",
+        "## Blockers",
+        "none",
+        "## Last Updated",
+        "<ISO 8601 timestamp>",
+        "MD",
+        "Validate `.circuit/current-run`, `$RUN_ROOT/artifacts`, `$RUN_ROOT/phases`, and `$RUN_ROOT/artifacts/active-run.md`, report the selected run root briefly, and stop.",
+        "Do not continue into the normal workflow phases or broader repo exploration for this smoke request."
+      ],
+      "placeholders": [],
+      "stop_condition": "Stop after validating the legacy smoke scaffold."
+    },
+    "legacy_smoke_repair": {
+      "id": "legacy_smoke_repair",
+      "lines": [
+        "# Circuit Repair Legacy Smoke Contract",
+        "This prompt is an explicit Repair legacy bootstrap smoke verification.",
+        "Do not invent alternate layouts such as `.circuit/runs/`. Use the exact legacy scaffold below.",
+        "RUN_SLUG=\"repair-smoke-bootstrap\"  # or the same slug derived from the task",
+        "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
+        "mkdir -p \"$RUN_ROOT/artifacts\" \"$RUN_ROOT/phases\"",
+        "ln -sfn \"circuit-runs/${RUN_SLUG}\" .circuit/current-run",
+        "cat > \"$RUN_ROOT/artifacts/active-run.md\" <<'MD'",
+        "# Active Run",
+        "## Workflow",
+        "Repair",
+        "## Rigor",
+        "Standard",
+        "## Current Phase",
+        "frame",
+        "## Goal",
+        "<smoke bootstrap objective>",
+        "## Next Step",
+        "Write brief.md",
+        "## Verification Commands",
+        "Smoke bootstrap only",
+        "## Active Worktrees",
+        "none",
+        "## Blockers",
+        "none",
+        "## Last Updated",
+        "<ISO 8601 timestamp>",
+        "MD",
+        "Validate `.circuit/current-run`, `$RUN_ROOT/artifacts`, `$RUN_ROOT/phases`, and `$RUN_ROOT/artifacts/active-run.md`, report the selected run root briefly, and stop.",
+        "Do not continue into the normal workflow phases or broader repo exploration for this smoke request."
+      ],
+      "placeholders": [],
+      "stop_condition": "Stop after validating the legacy smoke scaffold."
+    },
+    "legacy_smoke_sweep": {
+      "id": "legacy_smoke_sweep",
+      "lines": [
+        "# Circuit Sweep Legacy Smoke Contract",
+        "This prompt is an explicit Sweep legacy bootstrap smoke verification.",
+        "Do not invent alternate layouts such as `.circuit/runs/`. Use the exact legacy scaffold below.",
+        "RUN_SLUG=\"sweep-smoke-bootstrap\"  # or the same slug derived from the task",
+        "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
+        "mkdir -p \"$RUN_ROOT/artifacts\" \"$RUN_ROOT/phases\"",
+        "ln -sfn \"circuit-runs/${RUN_SLUG}\" .circuit/current-run",
+        "cat > \"$RUN_ROOT/artifacts/active-run.md\" <<'MD'",
+        "# Active Run",
+        "## Workflow",
+        "Sweep",
+        "## Rigor",
+        "Standard",
+        "## Current Phase",
+        "frame",
+        "## Goal",
+        "<smoke bootstrap objective>",
+        "## Next Step",
+        "Write brief.md",
+        "## Verification Commands",
+        "Smoke bootstrap only",
+        "## Active Worktrees",
+        "none",
+        "## Blockers",
+        "none",
+        "## Last Updated",
+        "<ISO 8601 timestamp>",
+        "MD",
+        "Validate `.circuit/current-run`, `$RUN_ROOT/artifacts`, `$RUN_ROOT/phases`, and `$RUN_ROOT/artifacts/active-run.md`, report the selected run root briefly, and stop.",
+        "Do not continue into the normal workflow phases or broader repo exploration for this smoke request."
+      ],
+      "placeholders": [],
+      "stop_condition": "Stop after validating the legacy smoke scaffold."
+    },
+    "review_current_changes": {
+      "id": "review_current_changes",
+      "lines": [
+        "# Circuit Review Current-Changes Contract",
+        "This prompt is the explicit current-changes review fast mode.",
+        "Do not bootstrap `.circuit` state or do broad repo exploration.",
+        "Inspect only the current uncommitted diff in the working tree.",
+        "Mention the concrete paths you reviewed, including `review-scope-sentinel.ts` when it is part of the diff.",
+        "End the response with a line that begins `Review verdict:`.",
+        "Stop after the review result."
+      ],
+      "placeholders": [],
+      "stop_condition": "Stop after the review result."
+    }
+  },
+  "helper_wrappers": [
+    {
+      "name": "circuit-engine",
+      "path": ".circuit/bin/circuit-engine",
+      "target": "scripts/relay/circuit-engine.sh"
+    },
+    {
+      "name": "compose-prompt",
+      "path": ".circuit/bin/compose-prompt",
+      "target": "scripts/relay/compose-prompt.sh"
+    },
+    {
+      "name": "dispatch",
+      "path": ".circuit/bin/dispatch",
+      "target": "scripts/relay/dispatch.sh"
+    },
+    {
+      "name": "update-batch",
+      "path": ".circuit/bin/update-batch",
+      "target": "scripts/relay/update-batch.sh"
+    },
+    {
+      "name": "gather-git-state",
+      "path": ".circuit/bin/gather-git-state",
+      "target": "skills/handoff/scripts/gather-git-state.sh"
+    }
+  ],
+  "schema_version": "1",
+  "surfaces": {
+    "build": {
+      "bootstrap_style": "semantic-bootstrap",
+      "canonical_command": ".circuit/bin/circuit-engine bootstrap --manifest @build",
+      "helper_wrappers": [
+        "circuit-engine",
+        "compose-prompt",
+        "dispatch"
+      ],
+      "proof_artifacts": [
+        ".circuit/current-run",
+        "circuit.manifest.yaml",
+        "events.ndjson",
+        "state.json",
+        "artifacts/active-run.md"
+      ],
+      "stop_condition": "Stop after validation for smoke/bootstrap requests. Do not continue into Frame, Plan, Act, Verify, Review, or Close.",
+      "forbidden_manual_fabrication": [
+        ".circuit/current-run",
+        "circuit.manifest.yaml",
+        "events.ndjson",
+        "state.json",
+        "artifacts/active-run.md"
+      ],
+      "canonical_invocation": "/circuit:build",
+      "kind": "workflow"
+    },
+    "explore": {
+      "bootstrap_style": "legacy-bootstrap",
+      "helper_wrappers": [
+        "compose-prompt",
+        "dispatch"
+      ],
+      "proof_artifacts": [
+        ".circuit/current-run",
+        "artifacts/",
+        "phases/",
+        "artifacts/active-run.md"
+      ],
+      "stop_condition": "Stop after validation for smoke/bootstrap requests. Do not continue into Frame, Analyze, Decide/Plan, or Close.",
+      "canonical_invocation": "/circuit:explore",
+      "kind": "workflow"
+    },
+    "handoff": {
+      "bootstrap_style": "fast-mode-first",
+      "helper_wrappers": [
+        "circuit-engine",
+        "gather-git-state"
+      ],
+      "proof_artifacts": [
+        "handoff.md",
+        "artifacts/active-run.md"
+      ],
+      "stop_condition": "Resolve the selected fast mode before any broader repo exploration.",
+      "canonical_invocation": "/circuit:handoff",
+      "kind": "utility"
+    },
+    "migrate": {
+      "bootstrap_style": "legacy-bootstrap",
+      "helper_wrappers": [
+        "compose-prompt",
+        "dispatch"
+      ],
+      "proof_artifacts": [
+        ".circuit/current-run",
+        "artifacts/",
+        "phases/",
+        "artifacts/active-run.md"
+      ],
+      "stop_condition": "Stop after validation for smoke/bootstrap requests. Do not continue into Frame, Analyze, Plan, Act, Verify, Review, or Close.",
+      "canonical_invocation": "/circuit:migrate",
+      "kind": "workflow"
+    },
+    "repair": {
+      "bootstrap_style": "legacy-bootstrap",
+      "helper_wrappers": [],
+      "proof_artifacts": [
+        ".circuit/current-run",
+        "artifacts/",
+        "phases/",
+        "artifacts/active-run.md"
+      ],
+      "stop_condition": "Stop after validation for smoke/bootstrap requests. Do not continue into Frame, Analyze, Fix, Verify, Review, or Close.",
+      "canonical_invocation": "/circuit:repair",
+      "kind": "workflow"
+    },
+    "review": {
+      "bootstrap_style": "fast-mode-first",
+      "helper_wrappers": [
+        "compose-prompt",
+        "dispatch"
+      ],
+      "proof_artifacts": [
+        "review.md"
+      ],
+      "stop_condition": "Execute the selected review fast mode before broader context gathering.",
+      "canonical_invocation": "/circuit:review",
+      "kind": "utility"
+    },
+    "run": {
+      "bootstrap_style": "router-then-bootstrap",
+      "canonical_command": ".circuit/bin/circuit-engine bootstrap --manifest @build",
+      "helper_wrappers": [
+        "circuit-engine",
+        "dispatch"
+      ],
+      "proof_artifacts": [
+        ".circuit/current-run",
+        "circuit.manifest.yaml",
+        "events.ndjson",
+        "state.json",
+        "artifacts/active-run.md"
+      ],
+      "stop_condition": "If the task is an explicit smoke/bootstrap verification, stop after validating the selected workflow run state.",
+      "forbidden_manual_fabrication": [
+        ".circuit/current-run",
+        "circuit.manifest.yaml",
+        "events.ndjson",
+        "state.json",
+        "artifacts/active-run.md"
+      ],
+      "canonical_invocation": "/circuit:run <task>",
+      "kind": "workflow"
+    },
+    "sweep": {
+      "bootstrap_style": "legacy-bootstrap",
+      "helper_wrappers": [
+        "compose-prompt",
+        "dispatch"
+      ],
+      "proof_artifacts": [
+        ".circuit/current-run",
+        "artifacts/",
+        "phases/",
+        "artifacts/active-run.md"
+      ],
+      "stop_condition": "Stop after validation for smoke/bootstrap requests. Do not continue into Frame, Survey, Queue, Batch Execute, Verify, Deferred Review, or Close.",
+      "canonical_invocation": "/circuit:sweep",
+      "kind": "workflow"
+    },
+    "workers": {
+      "bootstrap_style": "adapter-orchestration",
+      "helper_wrappers": [
+        "compose-prompt",
+        "dispatch",
+        "update-batch"
+      ],
+      "proof_artifacts": [
+        "{relay_root}/batch.json"
+      ],
+      "stop_condition": "Use only the adapter-owned relay helpers and stop after the orchestration state is updated.",
+      "canonical_invocation": "circuit:workers (internal adapter)",
+      "kind": "adapter"
+    }
+  }
+}

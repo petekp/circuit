@@ -11,8 +11,8 @@ import { mkdtempSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { renderCommandShim, renderPublicCommandsFile } from "./public-surface.js";
-import { renderSurfaceManifest } from "./surface-manifest.js";
+import { generate } from "./generate.js";
+import { getGenerateTargets } from "./generate-targets.js";
 import type { Catalog } from "./types.js";
 import { verifyInstalledSurface } from "./verify-installed-surface.js";
 
@@ -65,15 +65,6 @@ function writeFixture(root: string): void {
     JSON.stringify({ slug: "circuit" }, null, 2),
     "utf-8",
   );
-  writeFileSync(
-    resolve(root, ".claude-plugin/public-commands.txt"),
-    renderPublicCommandsFile(SAMPLE_CATALOG),
-    "utf-8",
-  );
-
-  writeFileSync(resolve(root, "commands/build.md"), renderCommandShim(SAMPLE_CATALOG[0]), "utf-8");
-  writeFileSync(resolve(root, "commands/handoff.md"), renderCommandShim(SAMPLE_CATALOG[1]), "utf-8");
-
   writeFileSync(resolve(root, "hooks/hooks.json"), '{"hooks":{}}\n', "utf-8");
   writeFileSync(resolve(root, "hooks/session-start.sh"), "#!/usr/bin/env bash\necho start\n", "utf-8");
   chmodSync(resolve(root, "hooks/session-start.sh"), 0o755);
@@ -91,17 +82,63 @@ function writeFixture(root: string): void {
   writeFileSync(resolve(root, "scripts/verify-install.sh"), "#!/usr/bin/env bash\n", "utf-8");
   chmodSync(resolve(root, "scripts/verify-install.sh"), 0o755);
 
-  writeFileSync(resolve(root, "skills/build/SKILL.md"), "# Build\n", "utf-8");
-  writeFileSync(resolve(root, "skills/build/circuit.yaml"), "id: build\n", "utf-8");
-  writeFileSync(resolve(root, "skills/handoff/SKILL.md"), "# Handoff\n", "utf-8");
-  writeFileSync(resolve(root, "skills/workers/SKILL.md"), "# Workers\n", "utf-8");
-  writeFileSync(resolve(root, "circuit.config.example.yaml"), "dispatch: {}\n", "utf-8");
-
   writeFileSync(
-    resolve(root, "scripts/runtime/generated/surface-manifest.json"),
-    renderSurfaceManifest(root, SAMPLE_CATALOG),
+    resolve(root, "skills/build/SKILL.md"),
+    [
+      "# Build",
+      "",
+      "<!-- BEGIN BUILD_CONTRACT -->",
+      "<!-- END BUILD_CONTRACT -->",
+      "",
+    ].join("\n"),
     "utf-8",
   );
+  writeFileSync(resolve(root, "skills/build/circuit.yaml"), "id: build\n", "utf-8");
+  writeFileSync(
+    resolve(root, "skills/handoff/SKILL.md"),
+    [
+      "# Handoff",
+      "",
+      "<!-- BEGIN HANDOFF_FAST_MODES -->",
+      "<!-- END HANDOFF_FAST_MODES -->",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  writeFileSync(
+    resolve(root, "skills/workers/SKILL.md"),
+    [
+      "# Workers",
+      "",
+      "<!-- BEGIN WORKERS_HELPERS -->",
+      "<!-- END WORKERS_HELPERS -->",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  writeFileSync(resolve(root, "circuit.config.example.yaml"), "dispatch: {}\n", "utf-8");
+  writeFileSync(
+    resolve(root, "CIRCUITS.md"),
+    [
+      "# Fixture",
+      "",
+      "<!-- BEGIN SMOKE_BOOTSTRAP_VERIFICATION -->",
+      "<!-- END SMOKE_BOOTSTRAP_VERIFICATION -->",
+      "",
+      "<!-- BEGIN CIRCUIT_TABLE -->",
+      "<!-- END CIRCUIT_TABLE -->",
+      "",
+      "<!-- BEGIN UTILITY_TABLE -->",
+      "<!-- END UTILITY_TABLE -->",
+      "",
+      "<!-- BEGIN ENTRY_MODES -->",
+      "<!-- END ENTRY_MODES -->",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+
+  generate(SAMPLE_CATALOG, getGenerateTargets(root, SAMPLE_CATALOG));
 }
 
 function makeFixture(): string {
@@ -140,6 +177,7 @@ describe("verifyInstalledSurface", () => {
 
   it("passes in installed mode for an exact installed surface", () => {
     const root = makeFixture();
+    rmSync(resolve(root, "CIRCUITS.md"));
 
     expect(verifyInstalledSurface({ mode: "installed", pluginRoot: root })).toEqual({
       errors: [],
