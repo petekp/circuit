@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync, readFileSync, realpathSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -146,6 +146,48 @@ function writeTestManifest(runRoot: string): void {
     ].join("\n"),
     "utf-8",
   );
+}
+
+function writeAmbientCodexAuth(homeDir: string): void {
+  mkdirSync(resolve(homeDir, ".codex"), { recursive: true });
+  writeFileSync(resolve(homeDir, ".codex", "auth.json"), '{"token":"verify"}\n', "utf-8");
+}
+
+function writeContractCodexShim(binDir: string, contractPath: string): string {
+  mkdirSync(binDir, { recursive: true });
+  const codexPath = resolve(binDir, "codex");
+  writeFileSync(
+    codexPath,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'OUT=""',
+      'ARGS=()',
+      'while [[ $# -gt 0 ]]; do',
+      '  case "$1" in',
+      '    -o) OUT="$2"; ARGS+=("$1" "$2"); shift 2 ;;',
+      '    *) ARGS+=("$1"); shift ;;',
+      "  esac",
+      "done",
+      '{',
+      '  echo "cwd=$PWD"',
+      '  echo "codex_home=${CODEX_HOME:-}"',
+      '  echo "tmpdir=${TMPDIR:-}"',
+      '  echo "argv=${ARGS[*]}"',
+      '  echo "auth_present=$([[ -n \"${CODEX_HOME:-}\" && -f \"$CODEX_HOME/auth.json\" ]] && echo yes || echo no)"',
+      '  if [[ -n "${CODEX_HOME:-}" && -f "$CODEX_HOME/config.toml" ]]; then',
+      '    echo "config_begin"',
+      '    cat "$CODEX_HOME/config.toml"',
+      '    echo "config_end"',
+      "  fi",
+      `} > "${contractPath}"`,
+      'cat > "$OUT"',
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  chmodSync(codexPath, 0o755);
+  return codexPath;
 }
 
 function verifyGeneratedFreshness(
@@ -346,6 +388,85 @@ function verifyDispatchContract(reporter: Reporter, pluginRoot: string): void {
   }
 }
 
+function verifyIsolatedCodexContract(
+  reporter: Reporter,
+  pluginRoot: string,
+  mode: InstalledSurfaceMode,
+): void {
+  if (mode !== "repo") {
+    return;
+  }
+
+  reporter.section("Codex isolated launch contract");
+  const dispatchCli = resolve(pluginRoot, "scripts/runtime/bin/dispatch.js");
+    const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-verify-codex-"));
+
+  try {
+    const homeDir = resolve(tempRoot, "home");
+    const repoRoot = resolve(tempRoot, "repo");
+    const fakeBin = resolve(tempRoot, "bin");
+    const contractPath = resolve(tempRoot, "codex-contract.txt");
+    const prompt = resolve(repoRoot, "prompt.md");
+    const output = resolve(repoRoot, "last-message.txt");
+
+    mkdirSync(repoRoot, { recursive: true });
+    const workspaceRoot = realpathSync(repoRoot);
+    mkdirSync(resolve(repoRoot, ".codex"), { recursive: true });
+    writeAmbientCodexAuth(homeDir);
+    writeContractCodexShim(fakeBin, contractPath);
+    writeFileSync(prompt, "# Verify isolated Codex\n", "utf-8");
+    writeFileSync(
+      resolve(repoRoot, ".codex", "config.toml"),
+      "[mcp_servers.bad]\ncommand = \"ambient-should-not-leak\"\n",
+      "utf-8",
+    );
+    spawnSync("git", ["init", "-q", repoRoot], {
+      encoding: "utf-8",
+    });
+
+    const result = runNodeCli(dispatchCli, ["--prompt", prompt, "--output", output], {
+      cwd: repoRoot,
+      env: {
+        CIRCUIT_CODEX_GRACE_MS: "0",
+        HOME: homeDir,
+        PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      },
+    });
+
+    if (result.status !== 0) {
+      reporter.fail("repo-mode isolated Codex dispatch failed", combinedOutput(result));
+      return;
+    }
+
+    const receipt = JSON.parse(stdoutText(result)) as Record<string, unknown>;
+    const contract = readFileSync(contractPath, "utf-8");
+    const diagnosticsPath = typeof receipt.diagnostics_path === "string" ? receipt.diagnostics_path : "";
+    const contractLooksGood =
+      receipt.runtime_boundary === "codex-isolated"
+      && diagnosticsPath.length > 0
+      && contract.includes(`cwd=${workspaceRoot}`)
+      && contract.includes(`argv=exec --full-auto --ephemeral -C ${workspaceRoot} -o ${output} -`)
+      && contract.includes("auth_present=yes")
+      && contract.includes('trust_level = "untrusted"')
+      && !contract.includes("[mcp_servers.bad]");
+
+    if (contractLooksGood) {
+      reporter.pass("repo mode validates the isolated Codex launch contract");
+      return;
+    }
+
+    reporter.fail(
+      "repo mode did not validate the isolated Codex launch contract",
+      [
+        `receipt=${JSON.stringify(receipt, null, 2)}`,
+        contract,
+      ],
+    );
+  } finally {
+    rmSync(tempRoot, { force: true, recursive: true });
+  }
+}
+
 function verifyRuntimeRoundTrip(reporter: Reporter, pluginRoot: string): void {
   reporter.section("Bundled runtime CLIs");
   const appendEventCli = resolve(pluginRoot, "scripts/runtime/bin/append-event.js");
@@ -420,6 +541,7 @@ function main(): number {
   verifySurface(reporter, args.pluginRoot, args.mode);
   verifyConfigBehavior(reporter, args.pluginRoot);
   verifyDispatchContract(reporter, args.pluginRoot);
+  verifyIsolatedCodexContract(reporter, args.pluginRoot, args.mode);
   verifyRuntimeRoundTrip(reporter, args.pluginRoot);
   return reporter.exitCode();
 }

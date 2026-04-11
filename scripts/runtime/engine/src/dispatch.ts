@@ -2,6 +2,12 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve as resolvePath } from "node:path";
 
+import {
+  runAmbientCodexDispatch,
+  runIsolatedCodexDispatch,
+  type DispatchProcessResult,
+  type RuntimeBoundary,
+} from "./codex-runtime.js";
 import { loadCircuitConfig, type LoadCircuitConfigOptions } from "./config.js";
 
 const PUBLIC_DISPATCH_ROLES = ["implementer", "reviewer", "researcher"] as const;
@@ -20,6 +26,7 @@ interface DispatchResolution {
   adapter: string;
   commandArgv?: string[];
   resolvedFrom: string;
+  runtimeBoundary: RuntimeBoundary;
   transport: DispatchTransport;
 }
 
@@ -34,11 +41,14 @@ export interface DispatchReceipt {
   adapter: string;
   agent_params?: AgentParams;
   command_argv?: string[];
+  diagnostics_path?: string;
   output_file: string;
   prompt_file: string;
   resolved_from: string;
   status: "completed" | "ready";
+  runtime_boundary: RuntimeBoundary;
   transport: DispatchTransport;
+  warnings?: string[];
 }
 
 export interface DispatchTaskOptions extends LoadCircuitConfigOptions {
@@ -142,7 +152,12 @@ function loadDispatchConfig(config: Record<string, unknown>): DispatchConfigShap
     }
 
     for (const [adapterName, adapterValue] of Object.entries(rawDispatch.adapters)) {
-      if (adapterName === "agent" || adapterName === "codex") {
+      if (
+        adapterName === "agent"
+        || adapterName === "codex"
+        || adapterName === "codex-isolated"
+        || adapterName === "codex-ambient"
+      ) {
         throw new Error(`circuit: "${adapterName}" is a reserved built-in adapter name`);
       }
       if (!isRecord(adapterValue)) {
@@ -174,6 +189,10 @@ function loadDispatchConfig(config: Record<string, unknown>): DispatchConfigShap
   return parsed;
 }
 
+function isCodexIsolatedAdapter(adapter: string): boolean {
+  return adapter === "codex" || adapter === "codex-isolated";
+}
+
 function commandExists(command: string): boolean {
   const result = spawnSync("sh", ["-c", `command -v "${command}" >/dev/null 2>&1`], {
     encoding: "utf-8",
@@ -182,7 +201,7 @@ function commandExists(command: string): boolean {
   return result.status === 0;
 }
 
-function resolveDispatchAdapter(
+export function resolveDispatchAdapter(
   config: Record<string, unknown>,
   options: Pick<DispatchTaskOptions, "adapterOverride" | "circuit" | "role">,
   configPath?: string | null,
@@ -210,22 +229,32 @@ function resolveDispatchAdapter(
   }
 
   if (selected === "auto") {
-    selected = commandExists("codex") ? "codex" : "agent";
+    selected = commandExists("codex") ? "codex-isolated" : "agent";
   }
 
   if (selected === "agent") {
     return {
       adapter: "agent",
       resolvedFrom,
+      runtimeBoundary: "agent",
       transport: "agent",
     };
   }
 
-  if (selected === "codex") {
+  if (isCodexIsolatedAdapter(selected)) {
     return {
-      adapter: "codex",
-      commandArgv: ["codex", "exec", "--full-auto"],
+      adapter: selected,
       resolvedFrom,
+      runtimeBoundary: "codex-isolated",
+      transport: "process",
+    };
+  }
+
+  if (selected === "codex-ambient") {
+    return {
+      adapter: "codex-ambient",
+      resolvedFrom,
+      runtimeBoundary: "codex-ambient",
       transport: "process",
     };
   }
@@ -233,7 +262,7 @@ function resolveDispatchAdapter(
   const commandArgv = dispatch.adapters[selected];
   if (!commandArgv) {
     throw new Error(
-      `circuit: unknown adapter "${selected}". Use agent, codex, auto, or configure dispatch.adapters.${selected}.command`,
+      `circuit: unknown adapter "${selected}". Use agent, codex, codex-isolated, codex-ambient, auto, or configure dispatch.adapters.${selected}.command`,
     );
   }
 
@@ -244,6 +273,7 @@ function resolveDispatchAdapter(
         ? [resolvePath(dirname(configPath), commandArgv[0]), ...commandArgv.slice(1)]
         : commandArgv,
     resolvedFrom,
+    runtimeBoundary: "process",
     transport: "process",
   };
 }
@@ -261,25 +291,44 @@ function extractDescription(prompt: string): string {
 
 function runProcessAdapter(
   resolution: DispatchResolution,
+  options: Pick<DispatchTaskOptions, "cwd" | "homeDir" | "outputFile" | "promptFile">,
   promptFile: string,
   outputFile: string,
-): string[] {
+): DispatchProcessResult {
+  if (resolution.runtimeBoundary === "codex-isolated") {
+    if (!commandExists("codex")) {
+      throw new Error(`circuit: adapter "${resolution.adapter}" requires the codex CLI to be installed`);
+    }
+
+    return runIsolatedCodexDispatch({
+      baseEnv: process.env,
+      cwd: options.cwd ?? process.cwd(),
+      homeDir: options.homeDir,
+      outputFile,
+      promptFile,
+    });
+  }
+
+  if (resolution.runtimeBoundary === "codex-ambient") {
+    if (!commandExists("codex")) {
+      throw new Error('circuit: adapter "codex-ambient" requires the codex CLI to be installed');
+    }
+
+    return runAmbientCodexDispatch({
+      cwd: options.cwd ?? process.cwd(),
+      homeDir: options.homeDir,
+      outputFile,
+      promptFile,
+    });
+  }
+
   if (!resolution.commandArgv || resolution.commandArgv.length === 0) {
     throw new Error(`circuit: adapter "${resolution.adapter}" has no command argv`);
   }
 
-  const commandArgv =
-    resolution.adapter === "codex"
-      ? [...resolution.commandArgv, "-o", outputFile, "-"]
-      : [...resolution.commandArgv, promptFile, outputFile];
-
-  if (resolution.adapter === "codex" && !commandExists("codex")) {
-    throw new Error('circuit: adapter "codex" requires the codex CLI to be installed');
-  }
-
+  const commandArgv = [...resolution.commandArgv, promptFile, outputFile];
   const result = spawnSync(commandArgv[0], commandArgv.slice(1), {
     encoding: "utf-8",
-    input: resolution.adapter === "codex" ? readFileSync(promptFile, "utf-8") : undefined,
   });
 
   if (result.error) {
@@ -296,7 +345,11 @@ function runProcessAdapter(
     );
   }
 
-  return commandArgv;
+  return {
+    commandArgv,
+    runtimeBoundary: "process",
+    warnings: [],
+  };
 }
 
 export function dispatchTask(options: DispatchTaskOptions): DispatchReceipt {
@@ -326,18 +379,27 @@ export function dispatchTask(options: DispatchTaskOptions): DispatchReceipt {
       prompt_file: options.promptFile,
       resolved_from: resolution.resolvedFrom,
       status: "ready",
+      runtime_boundary: "agent",
       transport: "agent",
     };
   }
 
-  const commandArgv = runProcessAdapter(resolution, options.promptFile, options.outputFile);
+  const processResult = runProcessAdapter(
+    resolution,
+    options,
+    options.promptFile,
+    options.outputFile,
+  );
   return {
     adapter: resolution.adapter,
-    command_argv: commandArgv,
+    command_argv: processResult.commandArgv,
+    diagnostics_path: processResult.diagnosticsPath,
     output_file: options.outputFile,
     prompt_file: options.promptFile,
     resolved_from: resolution.resolvedFrom,
     status: "completed",
+    runtime_boundary: processResult.runtimeBoundary,
     transport: "process",
+    warnings: processResult.warnings.length > 0 ? processResult.warnings : undefined,
   };
 }

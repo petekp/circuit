@@ -169,6 +169,10 @@ plugin rebuilds or cache sync.
 
 Circuit can dispatch workers through Codex CLI or through Claude Code's built-in
 Agent tool. Both run synchronously and work out of the box. Codex is optional.
+When Circuit uses Codex, it now launches it inside a Circuit-owned isolated
+`CODEX_HOME` and `TMPDIR` by default. Circuit copies `~/.codex/auth.json` into
+that isolated home for each launch, but it does not inherit your ambient Codex
+MCP servers, plugins, skills, or project-local Codex config.
 
 ```bash
 npm install -g @openai/codex
@@ -186,12 +190,14 @@ Dispatch resolves adapters in this order:
 2. `dispatch.roles.<role>`
 3. `dispatch.circuits.<circuit>`
 4. `dispatch.default`
-5. auto-detect (`codex` if installed, else `agent`)
+5. auto-detect (`codex-isolated` if installed, else `agent`)
 
 Built-in adapter names are reserved:
 
-- `codex`: process transport implemented by Circuit runtime code
 - `agent`: structured Claude Code Agent transport with worktree isolation
+- `codex`: alias for `codex-isolated`
+- `codex-isolated`: Codex CLI launched inside Circuit's isolated runtime home
+- `codex-ambient`: compatibility mode that inherits user Codex state; less deterministic
 
 Custom adapters are wrapper executables only. Define them under
 `dispatch.adapters.<name>.command` as a YAML argv array. Circuit appends
@@ -225,9 +231,10 @@ cached copy, not your local repo. Run `./scripts/sync-to-cache.sh` after any
 edit, then `/clear` to reload.
 Mid-session, `/reload-plugins` picks up cache changes without `/clear`.
 
-**"codex not found" warning.** Codex CLI is optional. Circuit falls back to
+**"codex not found" warning.** Codex CLI is optional. `auto` falls back to
 Claude Code's Agent tool for worker dispatch. Install Codex only if you want
-faster parallel execution.
+faster parallel execution, or use `codex-ambient` explicitly if you need the
+old user-state behavior.
 
 **Circuit resumes from the wrong step.** State lives in `.circuit/`. If a run
 is corrupt, delete the run directory (`rm -rf .circuit/circuit-runs/<slug>`)

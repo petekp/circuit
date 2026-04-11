@@ -113,7 +113,7 @@
     {
       "executable": false,
       "path": "circuit.config.example.yaml",
-      "sha256": "1b9f450a8805a2849dd8cab0e732c8c3c8da13edeeab9fb8043120f9258f761e"
+      "sha256": "ddb8f3efb4443c1ac71804bb2579de8b99d3b5309204b4a320e6932d92e7bad3"
     },
     {
       "executable": false,
@@ -228,7 +228,7 @@
     {
       "executable": true,
       "path": "scripts/runtime/bin/circuit-engine.js",
-      "sha256": "b7634c9cb2ddcc2eae8e9db814497bc6aa5e59ea38717435d8623056c7e6b23e"
+      "sha256": "27fd82839e1883842d50302c174001a0d19013bed176a11b63fb66659c591913"
     },
     {
       "executable": true,
@@ -243,7 +243,7 @@
     {
       "executable": true,
       "path": "scripts/runtime/bin/dispatch.js",
-      "sha256": "73bcb7c211ad82b34cadd5dfdfe5b7cbf6432fa277fb0da59015f71e6c19b05d"
+      "sha256": "582b4f746e2842003104f0ae70d184b85e34a607464f97a077c72f0203bbcff0"
     },
     {
       "executable": true,
@@ -283,7 +283,7 @@
     {
       "executable": true,
       "path": "scripts/runtime/bin/verify-install.js",
-      "sha256": "0e370638667b7fc77a11c9a4946e9b42a6dc4ba58f2236dd0f5fb9b303458d3b"
+      "sha256": "52d72767ff42c1fa6dff1d4b46fff0c4f5488cbc8dc7b2da55eea9bf2e4bf56c"
     },
     {
       "executable": false,

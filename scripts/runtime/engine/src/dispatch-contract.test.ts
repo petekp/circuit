@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -61,6 +61,49 @@ function writeFakeCodex(binDir: string, body?: string[]) {
       'cat > "$OUT"',
       "",
     ]).join("\n"),
+    "utf-8",
+  );
+  chmodSync(codex, 0o755);
+  return codex;
+}
+
+function writeAmbientAuth(homeDir: string) {
+  mkdirSync(resolve(homeDir, ".codex"), { recursive: true });
+  writeFileSync(resolve(homeDir, ".codex", "auth.json"), '{"token":"test"}\n', "utf-8");
+}
+
+function writeContractCodex(binDir: string, contractPath: string) {
+  mkdirSync(binDir, { recursive: true });
+  const codex = resolve(binDir, "codex");
+  writeFileSync(
+    codex,
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'OUT=""',
+      'ARGS=()',
+      'while [[ $# -gt 0 ]]; do',
+      '  case "$1" in',
+      '    -o) OUT="$2"; ARGS+=("$1" "$2"); shift 2 ;;',
+      '    *) ARGS+=("$1"); shift ;;',
+      "  esac",
+      "done",
+      '{',
+      '  echo "cwd=$PWD"',
+      '  echo "codex_home=${CODEX_HOME:-}"',
+      '  echo "tmpdir=${TMPDIR:-}"',
+      '  echo "argv=${ARGS[*]}"',
+      '  echo "auth_present=$([[ -n \"${CODEX_HOME:-}\" && -f \"$CODEX_HOME/auth.json\" ]] && echo yes || echo no)"',
+      '  echo "config_path=${CODEX_HOME:-}/config.toml"',
+      '  if [[ -n "${CODEX_HOME:-}" && -f "$CODEX_HOME/config.toml" ]]; then',
+      '    echo "config_begin"',
+      '    cat "$CODEX_HOME/config.toml"',
+      '    echo "config_end"',
+      "  fi",
+      `} > "${contractPath}"`,
+      'cat > "$OUT"',
+      "",
+    ].join("\n"),
     "utf-8",
   );
   chmodSync(codex, 0o755);
@@ -209,33 +252,41 @@ describe("dispatch adapter contract", () => {
     expect(receipt.resolved_from).toBe("dispatch.circuits.build");
   });
 
-  it("auto-selects codex when the CLI is installed", () => {
+  it("auto-selects codex-isolated when the CLI is installed", () => {
     const root = mkdtempSync(resolve(tmpdir(), "circuit-dispatch-"));
+    const workspaceRoot = realpathSync(root);
     const prompt = writePrompt(root, "# Auto codex\n");
     const output = outputPath(root);
     const fakeBin = resolve(root, "bin");
+    const homeDir = resolve(root, "home");
 
     writeFakeCodex(fakeBin);
+    writeAmbientAuth(homeDir);
     initRepo(root);
 
     const result = runDispatch(
       ["--prompt", prompt, "--output", output],
-      { cwd: root, env: { PATH: `${fakeBin}:${process.env.PATH ?? ""}` } },
+      { cwd: root, env: { HOME: homeDir, PATH: `${fakeBin}:${process.env.PATH ?? ""}` } },
     );
 
     expect(result.status).toBe(0);
     const receipt = JSON.parse(result.stdout);
-    expect(receipt.adapter).toBe("codex");
+    expect(receipt.adapter).toBe("codex-isolated");
     expect(receipt.transport).toBe("process");
     expect(receipt.resolved_from).toBe("auto");
+    expect(receipt.runtime_boundary).toBe("codex-isolated");
     expect(receipt.command_argv).toEqual([
       "codex",
       "exec",
       "--full-auto",
+      "--ephemeral",
+      "-C",
+      workspaceRoot,
       "-o",
       output,
       "-",
     ]);
+    expect(typeof receipt.diagnostics_path).toBe("string");
   });
 
   it("auto-selects agent when codex is unavailable", () => {
@@ -252,6 +303,7 @@ describe("dispatch adapter contract", () => {
     expect(result.status).toBe(0);
     const receipt = JSON.parse(result.stdout);
     expect(receipt.adapter).toBe("agent");
+    expect(receipt.runtime_boundary).toBe("agent");
     expect(receipt.transport).toBe("agent");
     expect(receipt.resolved_from).toBe("auto");
   });
@@ -295,6 +347,7 @@ describe("dispatch adapter contract", () => {
     expect(result.status).toBe(0);
     const receipt = JSON.parse(result.stdout);
     expect(receipt.adapter).toBe("agent");
+    expect(receipt.runtime_boundary).toBe("agent");
     expect(receipt.transport).toBe("agent");
     expect(receipt.status).toBe("ready");
     expect(receipt.prompt_file).toBe(prompt);
@@ -305,13 +358,24 @@ describe("dispatch adapter contract", () => {
     expect(receipt.command_argv).toBeUndefined();
   });
 
-  it("runs the built-in codex adapter and records the process argv", () => {
+  it("runs the built-in codex adapter inside an isolated runtime boundary", () => {
     const root = mkdtempSync(resolve(tmpdir(), "circuit-dispatch-"));
+    const workspaceRoot = realpathSync(root);
     const prompt = writePrompt(root, "# Codex task\n");
     const output = outputPath(root);
     const fakeBin = resolve(root, "bin");
+    const homeDir = resolve(root, "home");
+    const contractPath = resolve(root, "codex-contract.txt");
 
-    writeFakeCodex(fakeBin);
+    writeContractCodex(fakeBin, contractPath);
+    writeAmbientAuth(homeDir);
+    mkdirSync(resolve(root, ".codex"), { recursive: true });
+    writeFileSync(
+      resolve(root, ".codex", "config.toml"),
+      "[mcp_servers.bad]\ncommand = \"should-not-leak\"\n",
+      "utf-8",
+    );
+    initRepo(root);
 
     const result = runDispatch(
       [
@@ -322,7 +386,7 @@ describe("dispatch adapter contract", () => {
         "--adapter",
         "codex",
       ],
-      { env: { PATH: `${fakeBin}:${process.env.PATH ?? ""}` } },
+      { cwd: root, env: { HOME: homeDir, PATH: `${fakeBin}:${process.env.PATH ?? ""}` } },
     );
 
     expect(result.status).toBe(0);
@@ -330,14 +394,59 @@ describe("dispatch adapter contract", () => {
     expect(receipt.adapter).toBe("codex");
     expect(receipt.transport).toBe("process");
     expect(receipt.status).toBe("completed");
+    expect(receipt.runtime_boundary).toBe("codex-isolated");
     expect(receipt.command_argv).toEqual([
       "codex",
       "exec",
       "--full-auto",
+      "--ephemeral",
+      "-C",
+      workspaceRoot,
       "-o",
       output,
       "-",
     ]);
+    expect(typeof receipt.diagnostics_path).toBe("string");
+
+    const contract = readFileSync(contractPath, "utf-8");
+    expect(contract).toContain(`cwd=${workspaceRoot}`);
+    expect(contract).toContain(`argv=exec --full-auto --ephemeral -C ${workspaceRoot} -o ${output} -`);
+    expect(contract).toContain("auth_present=yes");
+    expect(contract).toContain("config_begin");
+    expect(contract).toContain('[projects."');
+    expect(contract).toContain('trust_level = "untrusted"');
+    expect(contract).not.toContain("[mcp_servers.bad]");
+    expect(contract).toMatch(/codex_home=.*\.circuit\/runtime\/codex\/.+-[0-9a-f]{16}/);
+    expect(contract).toMatch(/tmpdir=.*\.circuit\/runtime\/codex\/.+-[0-9a-f]{16}\/tmp\/[0-9a-f-]+/);
+  });
+
+  it("keeps codex-ambient as an explicit compatibility adapter", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "circuit-dispatch-"));
+    const prompt = writePrompt(root, "# Ambient task\n");
+    const output = outputPath(root);
+    const fakeBin = resolve(root, "bin");
+
+    writeFakeCodex(fakeBin);
+    initRepo(root);
+
+    const result = runDispatch(
+      [
+        "--prompt",
+        prompt,
+        "--output",
+        output,
+        "--adapter",
+        "codex-ambient",
+      ],
+      { cwd: root, env: { PATH: `${fakeBin}:${process.env.PATH ?? ""}` } },
+    );
+
+    expect(result.status).toBe(0);
+    const receipt = JSON.parse(result.stdout);
+    expect(receipt.adapter).toBe("codex-ambient");
+    expect(receipt.runtime_boundary).toBe("codex-ambient");
+    expect(receipt.diagnostics_path).toBeUndefined();
+    expect(receipt.warnings).toContain("codex-ambient inherits user Codex state; less deterministic.");
   });
 
   it("passes PROMPT_FILE OUTPUT_FILE as final argv to custom wrapper adapters without shell interpolation", () => {
@@ -381,6 +490,7 @@ describe("dispatch adapter contract", () => {
     expect(result.status).toBe(0);
     const receipt = JSON.parse(result.stdout);
     expect(receipt.adapter).toBe("gemini");
+    expect(receipt.runtime_boundary).toBe("process");
     expect(receipt.transport).toBe("process");
     expect(receipt.command_argv).toEqual([
       wrapper,
@@ -430,6 +540,7 @@ describe("dispatch adapter contract", () => {
     expect(result.status).toBe(0);
     const receipt = JSON.parse(result.stdout);
     expect(receipt.adapter).toBe("relative");
+    expect(receipt.runtime_boundary).toBe("process");
     expect(receipt.command_argv).toEqual([
       realpathSync(wrapper),
       prompt,

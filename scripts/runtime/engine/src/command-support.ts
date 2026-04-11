@@ -441,12 +441,27 @@ export function readDispatchReceiptEventPayload(
     typeof parsed.resolved_from === "string" && parsed.resolved_from.length > 0
       ? parsed.resolved_from
       : null;
+  const runtimeBoundary =
+    parsed.runtime_boundary === "agent"
+    || parsed.runtime_boundary === "codex-isolated"
+    || parsed.runtime_boundary === "codex-ambient"
+    || parsed.runtime_boundary === "process"
+      ? parsed.runtime_boundary
+      : null;
+  const diagnosticsPath =
+    typeof parsed.diagnostics_path === "string" && parsed.diagnostics_path.length > 0
+      ? parsed.diagnostics_path
+      : null;
+  const warnings =
+    Array.isArray(parsed.warnings) && parsed.warnings.every((value) => typeof value === "string")
+      ? parsed.warnings
+      : null;
 
   if (!adapter || !transport || !resolvedFrom) {
     throw new Error(`receipt is missing required dispatch fields: ${receiptPath}`);
   }
 
-  return {
+  const payload: Record<string, unknown> = {
     receipt_path: stepId ? receiptPath : receiptPath,
     adapter,
     transport,
@@ -457,6 +472,18 @@ export function readDispatchReceiptEventPayload(
         : `${stepId}-${attempt}`,
     attempt,
   };
+
+  if (runtimeBoundary) {
+    payload.runtime_boundary = runtimeBoundary;
+  }
+  if (diagnosticsPath) {
+    payload.diagnostics_path = diagnosticsPath;
+  }
+  if (warnings) {
+    payload.warnings = warnings;
+  }
+
+  return payload;
 }
 
 export function recordEventsAndRender(

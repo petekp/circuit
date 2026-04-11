@@ -11,11 +11,13 @@
 #   2. dispatch.roles.<role>
 #   3. dispatch.circuits.<circuit>
 #   4. dispatch.default
-#   5. auto-detect (codex if installed, else agent)
+#   5. auto-detect (codex-isolated if installed, else agent)
 #
 # Built-ins:
 # - `agent` uses Claude Code's Agent tool with worktree isolation
-# - `codex` runs Codex CLI via Circuit's runtime process transport
+# - `codex` is an alias for `codex-isolated`
+# - `codex-isolated` runs Codex CLI inside Circuit's isolated runtime home
+# - `codex-ambient` preserves the old behavior and inherits user Codex state
 #
 # Custom adapters are wrapper executables defined as argv arrays. Circuit
 # appends `PROMPT_FILE OUTPUT_FILE` as the final two positional args.
@@ -26,7 +28,7 @@ dispatch:
     reviewer: agent
     researcher: agent
   circuits:
-    migrate: codex
+    migrate: codex-ambient
     explore: gemini
   adapters:
     gemini:
