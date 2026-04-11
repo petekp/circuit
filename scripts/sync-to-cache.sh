@@ -21,7 +21,37 @@ else
 fi
 
 CACHE_DIRS=()
-if [[ -d "${CACHE_BASE}/circuit" ]]; then
+
+recover_custom_cache_root() {
+  local cache_root="$CACHE_BASE/circuit"
+  local link_target=""
+  local recovered_version=""
+
+  [[ -z "$CACHE_ALIAS_ROOT" ]] || return 0
+
+  if [[ -L "$cache_root" ]]; then
+    link_target="$(readlink "$cache_root" 2>/dev/null || true)"
+    recovered_version="$(basename "${link_target%/}")"
+
+    rm -f "$cache_root" || return 1
+    mkdir -p "$cache_root" || return 1
+
+    if [[ -n "$recovered_version" ]] && [[ "$recovered_version" != "circuit" ]] && [[ "$recovered_version" != "." ]]; then
+      mkdir -p "$cache_root/$recovered_version" || return 1
+      printf 'Recovered custom cache root by replacing stale alias (%s -> %s)\n' "$cache_root" "$recovered_version"
+    else
+      printf 'Recovered custom cache root by replacing stale alias at %s\n' "$cache_root"
+    fi
+  fi
+
+  if [[ -d "$cache_root" ]]; then
+    CACHE_DIRS+=("$cache_root")
+  fi
+}
+
+recover_custom_cache_root
+
+if [[ -n "$CACHE_ALIAS_ROOT" ]] && [[ -d "${CACHE_BASE}/circuit" ]]; then
   CACHE_DIRS+=("${CACHE_BASE}/circuit")
 fi
 
@@ -229,14 +259,16 @@ synced_cache=0
 latest_cache_target=""
 
 # Sync to every cached version under each name (avoids ghost-version misrouting)
-for cache_dir in "${CACHE_DIRS[@]}"; do
-  while IFS= read -r -d '' version_dir; do
-    sync_target cache "$version_dir"
-    synced_any=1
-    synced_cache=1
-    latest_cache_target="$version_dir"
-  done < <(find "$cache_dir" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
-done
+if (( ${#CACHE_DIRS[@]} > 0 )); then
+  for cache_dir in "${CACHE_DIRS[@]}"; do
+    while IFS= read -r -d '' version_dir; do
+      sync_target cache "$version_dir"
+      synced_any=1
+      synced_cache=1
+      latest_cache_target="$version_dir"
+    done < <(find "$cache_dir" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+  done
+fi
 
 if [[ "$synced_cache" -eq 1 ]]; then
   refresh_cache_alias "$latest_cache_target"

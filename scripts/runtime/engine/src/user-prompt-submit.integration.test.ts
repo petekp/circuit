@@ -9,6 +9,14 @@ import { REPO_ROOT } from "./schema.js";
 
 const USER_PROMPT_SUBMIT = resolve(REPO_ROOT, "hooks/user-prompt-submit.js");
 
+function projectSlug(projectRoot: string): string {
+  return projectRoot
+    .replace(/\\/g, "/")
+    .replace(/\//g, "-")
+    .replace(/[:<>"|?*]/g, "")
+    .replace(/^-/, "");
+}
+
 function runUserPromptSubmit(prompt: string): ReturnType<typeof spawnSync> {
   return spawnSync(USER_PROMPT_SUBMIT, {
     input: JSON.stringify({ prompt }),
@@ -180,6 +188,33 @@ describe("user-prompt-submit integration", () => {
     expect(payload.hookSpecificOutput.additionalContext).not.toContain(
       resolve(siblingHome, ".circuit-projects"),
     );
+  });
+
+  it("uses the git-root slug for handoff fast modes when invoked from a subdirectory", () => {
+    const root = mkdtempSync(join(tmpdir(), "circuit-prompt-subdir-"));
+    const repoRoot = resolve(root, "repo");
+    const subdir = resolve(repoRoot, "nested", "work");
+    const homeDir = resolve(root, "home");
+
+    mkdirSync(subdir, { recursive: true });
+    mkdirSync(homeDir, { recursive: true });
+    spawnSync("git", ["init", "-q"], { cwd: repoRoot, encoding: "utf-8" });
+    const gitRoot = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd: subdir,
+      encoding: "utf-8",
+    }).stdout.trim();
+
+    const result = runUserPromptSubmitWithEnv("/circuit:handoff resume", {
+      CLAUDE_PROJECT_DIR: subdir,
+      HOME: homeDir,
+    });
+
+    expect(result.status).toBe(0);
+    const payload = JSON.parse(result.stdout);
+    const expectedPath = resolve(homeDir, ".claude", "projects", projectSlug(gitRoot), "handoff.md");
+    const subdirPath = resolve(homeDir, ".claude", "projects", projectSlug(subdir), "handoff.md");
+    expect(payload.hookSpecificOutput.additionalContext).toContain(expectedPath);
+    expect(payload.hookSpecificOutput.additionalContext).not.toContain(subdirPath);
   });
 
   it("is executable from an installed copy", () => {

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const { spawnSync } = require("node:child_process");
 const { readFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 
@@ -84,6 +85,23 @@ function currentProjectRoot() {
   return process.env.CLAUDE_PROJECT_DIR || process.cwd();
 }
 
+function handoffSlugSource() {
+  const projectRoot = currentProjectRoot();
+  const result = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+    cwd: projectRoot,
+    encoding: "utf-8",
+  });
+
+  if (result.status === 0) {
+    const gitRoot = result.stdout.trim();
+    if (gitRoot) {
+      return gitRoot;
+    }
+  }
+
+  return projectRoot;
+}
+
 function handoffHome() {
   if (process.env.CIRCUIT_HANDOFF_HOME) {
     return { base: process.env.CIRCUIT_HANDOFF_HOME, override: true };
@@ -95,7 +113,7 @@ function handoffHome() {
 function handoffPath() {
   const { base, override } = handoffHome();
   const rootDir = override ? ".circuit-projects" : ".claude/projects";
-  return resolve(base, rootDir, projectSlug(currentProjectRoot()), "handoff.md");
+  return resolve(base, rootDir, projectSlug(handoffSlugSource()), "handoff.md");
 }
 
 function emitContext(additionalContext) {

@@ -353,6 +353,40 @@ describe("sync-to-cache.sh", () => {
     expect((await readdir(cachePluginDir)).sort()).toContain("0.2.0");
   });
 
+  it("recovers a previously broken custom-cache alias and syncs the recovered version root", async () => {
+    const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-sync-test-"));
+    const pluginRoot = resolve(tmpPath, "plugin-root");
+    const cacheDir = resolve(tmpPath, "cache");
+    const cachePluginDir = resolve(cacheDir, "circuit");
+    const recoveredVersion = "0.3.0";
+    const marketplaceDir = resolve(tmpPath, "marketplace");
+    const marketplaceTarget = await makeTarget(marketplaceDir);
+
+    await makePluginRoot(pluginRoot);
+    await initGitRepo(marketplaceTarget);
+    await mkdir(cacheDir, { recursive: true });
+    await writeFile(
+      resolve(cacheDir, ".placeholder"),
+      "placeholder\n",
+      "utf-8",
+    );
+    const brokenAlias = resolve(cacheDir, "circuit");
+    spawnSync("ln", ["-s", resolve(cachePluginDir, recoveredVersion), brokenAlias], {
+      encoding: "utf-8",
+    });
+
+    const result = runSync(pluginRoot, cacheDir, marketplaceDir);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Recovered custom cache root by replacing stale alias");
+    expect(result.stdout).toContain(
+      `Syncing local -> cache (${resolve(cachePluginDir, recoveredVersion)})`,
+    );
+    expect((await lstat(cachePluginDir)).isDirectory()).toBe(true);
+    await expectSyncedTarget(resolve(cachePluginDir, recoveredVersion));
+    await expectSyncedTarget(marketplaceTarget);
+  });
+
   it("syncs marketplace even when cache versions are missing", async () => {
     const tmpPath = await mkdtemp(resolve(tmpdir(), "circuit-sync-test-"));
     const pluginRoot = resolve(tmpPath, "plugin-root");

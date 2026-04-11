@@ -168,7 +168,7 @@
     {
       "executable": true,
       "path": "hooks/user-prompt-submit.js",
-      "sha256": "687f0d2e8dd7e4506103e301ff51d7eccac43de26929f3a7ee975cfd2d7e1aa7"
+      "sha256": "91a96467efa3b71e593f736f8c12da7c9fc97c794943863663ca6422c05fab79"
     },
     {
       "executable": false,
@@ -273,7 +273,7 @@
     {
       "executable": true,
       "path": "scripts/sync-to-cache.sh",
-      "sha256": "e497a7964497f54eb273b8976e1fa71475814c86e8f8e20097e633290c1c35fc"
+      "sha256": "d5c273054d0b934f60c220721f0dce6a65f4e5885b942df1e7301c74a2ad54b8"
     },
     {
       "executable": true,
