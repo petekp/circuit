@@ -7,6 +7,10 @@ import { resolveHandoffPath } from "../continuity.js";
 import type { PromptContractsManifest } from "../catalog/prompt-surface-contracts.js";
 import { PROMPT_CONTRACTS_PATH } from "../catalog/prompt-surface-contracts.js";
 import { REPO_ROOT } from "../schema.js";
+import {
+  parseCircuitSlashCommand,
+  type ParsedSlashCommand,
+} from "./parse-slash-command.js";
 
 function readInput(): { prompt?: string } {
   const raw = readFileSync(0, "utf-8").trim();
@@ -26,55 +30,42 @@ function currentProjectRoot(): string {
 }
 
 function isCircuitPrompt(prompt: string): boolean {
-  return prompt.toLowerCase().includes("/circuit:");
+  return parseCircuitSlashCommand(prompt) !== null;
 }
 
-function isExplicitSmokeVerification(prompt: string): boolean {
-  const lower = prompt.toLowerCase();
-  const explicitPhrases = ["smoke bootstrap", "bootstrap smoke"];
-  const verificationMarkers = [
-    "host-surface",
-    "bootstrap path",
-    "workflow surface",
-    ".circuit/current-run",
-    "circuit.manifest.yaml",
-    "events.ndjson",
-    "state.json",
-    "artifacts/active-run.md",
-    "create and validate",
-    "validate `.circuit/current-run`",
-  ];
-
-  if (explicitPhrases.some((phrase) => lower.includes(phrase))) {
-    return true;
-  }
-
-  if (!lower.includes("smoke") && !lower.includes("bootstrap")) {
-    return false;
-  }
-
-  return verificationMarkers.some((marker) => lower.includes(marker));
+// Intent matchers require the intent token to be the FIRST action after the
+// slug, not a substring. This keeps ordinary work like
+// `/circuit:repair fix flaky smoke test` from accidentally tripping the
+// legacy-smoke fast mode.
+function isHandoffDone(command: ParsedSlashCommand): boolean {
+  return command.slug === "handoff" && /^done(\s|$)/.test(command.argsLower);
 }
 
-function isBuildSmokePrompt(prompt: string): boolean {
-  const lower = prompt.toLowerCase();
-  const targetsBuild = lower.includes("/circuit:build") || lower.includes("/circuit:run develop:");
-  return targetsBuild && isExplicitSmokeVerification(prompt);
+function isHandoffResume(command: ParsedSlashCommand): boolean {
+  return command.slug === "handoff" && /^resume(\s|$)/.test(command.argsLower);
 }
 
-function getLegacySmokeWorkflow(prompt: string): string | null {
-  const lower = prompt.toLowerCase();
-  if (!isExplicitSmokeVerification(prompt)) {
-    return null;
+function isReviewCurrentChanges(command: ParsedSlashCommand): boolean {
+  return command.slug === "review" && /^current\s+changes(\s|$)/.test(command.argsLower);
+}
+
+function isBuildSmoke(command: ParsedSlashCommand): boolean {
+  if (command.slug === "build") {
+    return /^smoke(\s|$)/.test(command.argsLower);
   }
 
-  for (const workflow of ["explore", "repair", "migrate", "sweep"]) {
-    if (lower.includes(`/circuit:${workflow}`)) {
-      return workflow;
-    }
+  if (command.slug === "run") {
+    return /^develop:\s+smoke(\s|$)/.test(command.argsLower);
   }
 
-  return null;
+  return false;
+}
+
+function isLegacySmoke(command: ParsedSlashCommand): boolean {
+  return (
+    ["explore", "migrate", "repair", "sweep"].includes(command.slug)
+    && /^smoke(\s|$)/.test(command.argsLower)
+  );
 }
 
 function loadPromptContracts(): PromptContractsManifest {
@@ -178,12 +169,16 @@ function main(): number {
     }
   }
 
-  const lower = prompt.toLowerCase();
-  if (lower.includes("/circuit:review current changes")) {
+  const command = parseCircuitSlashCommand(prompt);
+  if (!command) {
+    return 0;
+  }
+
+  if (isReviewCurrentChanges(command)) {
     emitContext(renderTemplate(manifest.fast_modes.review_current_changes.lines, {}));
   }
 
-  if (lower.includes("/circuit:handoff done")) {
+  if (isHandoffDone(command)) {
     emitContext(renderTemplate(manifest.fast_modes.handoff_done.lines, {
       handoff_path: resolveHandoffPath({
         handoffHome: process.env.CIRCUIT_HANDOFF_HOME,
@@ -193,7 +188,7 @@ function main(): number {
     }));
   }
 
-  if (lower.includes("/circuit:handoff resume")) {
+  if (isHandoffResume(command)) {
     emitContext(renderTemplate(manifest.fast_modes.handoff_resume.lines, {
       handoff_path: resolveHandoffPath({
         handoffHome: process.env.CIRCUIT_HANDOFF_HOME,
@@ -203,15 +198,14 @@ function main(): number {
     }));
   }
 
-  const legacyWorkflow = getLegacySmokeWorkflow(prompt);
-  if (legacyWorkflow) {
+  if (isLegacySmoke(command)) {
     emitContext(renderTemplate(
-      manifest.fast_modes[`legacy_smoke_${legacyWorkflow}`].lines,
+      manifest.fast_modes[`legacy_smoke_${command.slug}`].lines,
       {},
     ));
   }
 
-  if (isBuildSmokePrompt(prompt)) {
+  if (isBuildSmoke(command)) {
     emitContext(renderTemplate(manifest.fast_modes.build_smoke.lines, {}));
   }
 

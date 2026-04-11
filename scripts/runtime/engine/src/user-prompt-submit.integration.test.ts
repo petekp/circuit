@@ -89,6 +89,18 @@ describe("user-prompt-submit integration", () => {
     expect(context).toContain("Do not continue into Frame, Plan, Act, Verify, Review, or Close");
   });
 
+  it("routes /circuit:build smoke host-surface to build_smoke via parsed intent", () => {
+    const result = runUserPromptSubmit(
+      "/circuit:build smoke host-surface verification",
+    );
+
+    expect(result.status).toBe(0);
+    const context = readAdditionalContext(result);
+    expect(context).toContain("Build bootstrap smoke verification");
+    expect(context).toContain(".circuit/bin/circuit-engine bootstrap");
+    expect(context).toContain('--manifest "@build"');
+  });
+
   it("stays silent for unrelated prompts", () => {
     const projectRoot = mkdtempSync(join(tmpdir(), "circuit-prompt-unrelated-"));
     const pluginRootPath = resolve(projectRoot, ".circuit", "plugin-root");
@@ -122,6 +134,20 @@ describe("user-prompt-submit integration", () => {
     expect(result.stdout).toBe("");
   });
 
+  it("does not trigger any fast mode for prompts that mention smoke bootstrap without /circuit:", () => {
+    const result = runUserPromptSubmit("please smoke bootstrap the host surface");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("");
+  });
+
+  it("does not trigger any fast mode when /circuit:build is mentioned but no smoke intent", () => {
+    const result = runUserPromptSubmit("/circuit:build refactor the auth module");
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("");
+  });
+
   it("does not hijack ordinary legacy-workflow work that mentions smoke tests", () => {
     const repairResult = runUserPromptSubmit("/circuit:repair fix flaky smoke test on CI");
     const exploreResult = runUserPromptSubmit(
@@ -150,6 +176,15 @@ describe("user-prompt-submit integration", () => {
 
   it("injects review current-changes fast mode context", () => {
     const result = runUserPromptSubmit("/circuit:review current changes");
+
+    expect(result.status).toBe(0);
+    const context = readAdditionalContext(result);
+    expect(context).toContain("Circuit Review Current-Changes Contract");
+    expect(context).toContain("Review verdict:");
+  });
+
+  it("still routes /circuit:review current changes through the parsed-intent path", () => {
+    const result = runUserPromptSubmit("/circuit:review current changes please");
 
     expect(result.status).toBe(0);
     const context = readAdditionalContext(result);

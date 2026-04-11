@@ -1,9 +1,10 @@
 /**
  * Owns the public slash-command surface derived from catalog entries.
  * It does not own model-facing prompt contract rendering, CIRCUITS.md block rendering,
- * shipped-file inventory, or manifest assembly.
+ * shipped-file inventory, manifest assembly, or shared description normalization rules.
  */
 
+import { firstSentence } from "./surface-text.js";
 import type {
   Catalog,
   CircuitIR,
@@ -14,16 +15,6 @@ import type {
 
 function compareEntriesBySlug(left: CircuitIR, right: CircuitIR): number {
   return left.slug.localeCompare(right.slug);
-}
-
-function firstSentence(text: string): string {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (!normalized) {
-    return "";
-  }
-
-  const match = normalized.match(/^.*?[.!?](?=\s|$)/);
-  return (match?.[0] ?? normalized).trim();
 }
 
 export function isWorkflow(entry: CircuitIR): entry is WorkflowEntry {

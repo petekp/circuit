@@ -1,16 +1,15 @@
 import { readFileSync } from "node:fs";
 
 import {
+  appendStepTransitionEvents,
   appendValidatedEvents,
   assertNextStepExists,
   assertCommandStepUsable,
   ensureRunRelativeFileExists,
   getRouteTarget,
-  isTerminalRoute,
   loadRunContext,
   maybeAppendArtifactWrittenEvent,
   recordEventsAndRender,
-  terminalStatusForRoute,
 } from "./command-support.js";
 import {
   requireStepById,
@@ -224,35 +223,12 @@ export function resolveCheckpoint(
       },
       stepId,
     },
-    {
-      eventType: "gate_passed",
-      payload: {
-        gate_kind: gate.kind,
-        route,
-        step_id: stepId,
-      },
-      stepId,
-    },
   ];
-
-  if (isTerminalRoute(route)) {
-    events.push({
-      eventType: "run_completed",
-      payload: {
-        status: terminalStatusForRoute(route),
-        terminal_target: route,
-      },
-      stepId,
-    });
-  } else {
-    events.push({
-      eventType: "step_started",
-      payload: {
-        step_id: route,
-      },
-      stepId: route,
-    });
-  }
+  appendStepTransitionEvents(events, {
+    gateKind: gate.kind,
+    route,
+    stepId,
+  });
 
   const renderResult = recordEventsAndRender(context.runRoot, events);
   return {

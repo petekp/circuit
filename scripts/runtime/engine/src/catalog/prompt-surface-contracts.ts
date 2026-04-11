@@ -8,6 +8,7 @@
 import { resolve } from "node:path";
 
 import { getPublicCommandInvocation } from "./public-surface.js";
+import { firstSentence } from "./surface-text.js";
 import type {
   AdapterEntry,
   BlockGenerateTarget,
@@ -43,6 +44,21 @@ interface PromptFastModeContract {
   lines: string[];
   placeholders: string[];
   stop_condition: string;
+}
+
+interface LegacyWorkflowContract {
+  slug: "explore" | "migrate" | "repair" | "sweep";
+  label: string;
+  blockName: string;
+  routeLine: string;
+  stopLine: string;
+}
+
+interface SkillContractTargetSpec {
+  blockName: string;
+  filePath: string;
+  render: () => string;
+  slug: string;
 }
 
 export interface PromptContractsManifest {
@@ -93,6 +109,26 @@ const LEGACY_PROOF_ARTIFACTS = [
   "artifacts/",
   "phases/",
   "artifacts/active-run.md",
+];
+
+const BUILD_SMOKE_RUN_SLUG = 'RUN_SLUG="smoke-bootstrap-build-workflow-host-surface"';
+const BUILD_SMOKE_RUN_ROOT_LINE = 'RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"';
+const BUILD_SMOKE_ENGINE_CHECK_LINE = `test -x ${LOCAL_HELPER_DIR}/circuit-engine`;
+const BUILD_SMOKE_BOOTSTRAP_PREFIX_LINES = [
+  `${LOCAL_HELPER_DIR}/circuit-engine bootstrap \\`,
+  '  --run-root "$RUN_ROOT" \\',
+  `  --manifest "${BUILD_MANIFEST_ALIAS}" \\`,
+];
+const BUILD_SMOKE_BOOTSTRAP_SUFFIX_LINES = [
+  '  --goal "<smoke bootstrap objective>" \\',
+  '  --project-root "$PWD"',
+];
+const BUILD_SMOKE_VALIDATION_CHECK_LINES = [
+  "test -e .circuit/current-run",
+  'test -f "$RUN_ROOT/circuit.manifest.yaml"',
+  'test -f "$RUN_ROOT/events.ndjson"',
+  'test -f "$RUN_ROOT/state.json"',
+  'test -f "$RUN_ROOT/artifacts/active-run.md"',
 ];
 
 const SURFACE_SUMMARIES: Record<string, Omit<PromptSurfaceSummary, "canonical_invocation" | "kind">> = {
@@ -156,6 +192,41 @@ const SURFACE_SUMMARIES: Record<string, Omit<PromptSurfaceSummary, "canonical_in
   },
 };
 
+const LEGACY_WORKFLOW_CONTRACTS: readonly LegacyWorkflowContract[] = [
+  {
+    slug: "explore",
+    label: "Explore",
+    blockName: "EXPLORE_CONTRACT",
+    routeLine: "If a spec or direct explore request already determined the route, follow it immediately instead of reclassifying.",
+    stopLine: "Stop here. Do not continue into Frame/Analyze/Decide/Close or do unrelated repo exploration.",
+  },
+  {
+    slug: "migrate",
+    label: "Migrate",
+    blockName: "MIGRATE_CONTRACT",
+    routeLine: "When the slash command already selected Migrate, stay on that path immediately instead of reclassifying the task.",
+    stopLine: "Stop here. Do not continue into Frame/Analyze/Plan/Act/Verify/Review/Close or do unrelated repo exploration.",
+  },
+  {
+    slug: "repair",
+    label: "Repair",
+    blockName: "REPAIR_CONTRACT",
+    routeLine: "When Repair is already selected, stay on the repair path immediately instead of reclassifying the task.",
+    stopLine: "Stop here. Do not continue into Frame/Analyze/Fix/Verify/Review/Close or do unrelated repo exploration.",
+  },
+  {
+    slug: "sweep",
+    label: "Sweep",
+    blockName: "SWEEP_CONTRACT",
+    routeLine: "When Sweep is already selected, stay on that path immediately instead of reclassifying the task.",
+    stopLine: "Stop here. Do not continue into Frame/Survey/Queue/Batch/Verify/Review/Close or do unrelated repo exploration.",
+  },
+];
+
+const LEGACY_WORKFLOW_CONTRACTS_BY_SLUG = Object.fromEntries(
+  LEGACY_WORKFLOW_CONTRACTS.map((contract) => [contract.slug, contract]),
+) as Record<LegacyWorkflowContract["slug"], LegacyWorkflowContract>;
+
 const FAST_MODE_CONTRACTS: Record<string, PromptFastModeContract> = {
   build_smoke: {
     id: "build_smoke",
@@ -164,10 +235,10 @@ const FAST_MODE_CONTRACTS: Record<string, PromptFastModeContract> = {
       "This prompt is an explicit Build bootstrap smoke verification.",
       "If the prompt uses `/circuit:run develop:`, the route is already fixed to Build. Do not rediscover the workflow from repo docs.",
       "Do not run `--help`, inspect cache layout, or search the repo to rediscover the bootstrap flags. Use the exact command shape below.",
-      "RUN_SLUG=\"smoke-bootstrap-build-workflow-host-surface\"  # or the same slug derived from the task",
-      "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
-      `test -x ${LOCAL_HELPER_DIR}/circuit-engine`,
-      `${LOCAL_HELPER_DIR}/circuit-engine bootstrap --run-root \"$RUN_ROOT\" --manifest \"${BUILD_MANIFEST_ALIAS}\" --entry-mode \"lite\" --goal \"<smoke bootstrap objective>\" --project-root \"$PWD\"`,
+      renderBuildSmokeRunSlugLine("  # or the same slug derived from the task"),
+      BUILD_SMOKE_RUN_ROOT_LINE,
+      BUILD_SMOKE_ENGINE_CHECK_LINE,
+      renderBuildSmokeBootstrapInlineCommand('"lite"'),
       "Do not use `Write`, `Edit`, heredocs, or manual file creation to fabricate `.circuit/current-run`, `circuit.manifest.yaml`, `events.ndjson`, `state.json`, or `artifacts/active-run.md`.",
       "After bootstrap, validate with `test -e .circuit/current-run` plus `test -f` checks for `circuit.manifest.yaml`, `events.ndjson`, `state.json`, and `artifacts/active-run.md` under `$RUN_ROOT`.",
       "After bootstrap, validate those on-disk artifacts, report the selected run root briefly, and stop.",
@@ -279,6 +350,67 @@ function renderShellFence(lines: string[]): string {
   return ["```bash", ...lines, "```"].join("\n");
 }
 
+function renderBuildSmokeRunSlugLine(comment?: string): string {
+  return comment ? `${BUILD_SMOKE_RUN_SLUG}${comment}` : BUILD_SMOKE_RUN_SLUG;
+}
+
+function renderBuildSmokeBootstrapInlineCommand(entryMode: string): string {
+  return [
+    `${LOCAL_HELPER_DIR}/circuit-engine bootstrap`,
+    '--run-root "$RUN_ROOT"',
+    `--manifest "${BUILD_MANIFEST_ALIAS}"`,
+    `--entry-mode ${entryMode}`,
+    '--goal "<smoke bootstrap objective>"',
+    '--project-root "$PWD"',
+  ].join(" ");
+}
+
+function getBuildSmokeShellFenceLines({
+  entryModeAssignment,
+  entryModeArgument,
+  includeValidationChecks = false,
+  runSlugComment,
+}: {
+  entryModeArgument: string;
+  entryModeAssignment?: string;
+  includeValidationChecks?: boolean;
+  runSlugComment?: string;
+}): string[] {
+  const lines = [
+    renderBuildSmokeRunSlugLine(runSlugComment),
+    BUILD_SMOKE_RUN_ROOT_LINE,
+  ];
+
+  if (entryModeAssignment) {
+    lines.push(entryModeAssignment, "");
+  }
+
+  lines.push(
+    BUILD_SMOKE_ENGINE_CHECK_LINE,
+    "",
+    ...BUILD_SMOKE_BOOTSTRAP_PREFIX_LINES,
+    entryModeArgument,
+    ...BUILD_SMOKE_BOOTSTRAP_SUFFIX_LINES,
+  );
+
+  if (includeValidationChecks) {
+    lines.push("", ...BUILD_SMOKE_VALIDATION_CHECK_LINES);
+  }
+
+  return lines;
+}
+
+function getSurfaceContractDefinition(
+  slug: string,
+): Omit<PromptSurfaceSummary, "canonical_invocation" | "kind"> {
+  const summary = SURFACE_SUMMARIES[slug];
+  if (!summary) {
+    throw new Error(`catalog-compiler: missing prompt-surface contract for ${slug}`);
+  }
+
+  return summary;
+}
+
 function renderHelperWrapperSection(wrapperNames: string[]): string {
   const checks = wrapperNames.length > 0
     ? wrapperNames.map((name) => `test -x ${LOCAL_HELPER_DIR}/${name}`)
@@ -308,7 +440,7 @@ function renderBuildContractBlock(): string {
     "6. If bootstrap already happened, continue from the current phase instead of re-exploring.",
     "7. Never use `Write`, `Edit`, heredocs, or manual file creation to fabricate Build run state; `.circuit/bin/circuit-engine bootstrap` must materialize it.",
     "",
-    renderHelperWrapperSection(["circuit-engine", "compose-prompt", "dispatch"]),
+    renderHelperWrapperSection(getSurfaceContractDefinition("build").helper_wrappers),
     "",
     "## Smoke Bootstrap Mode",
     "",
@@ -328,35 +460,19 @@ function renderBuildContractBlock(): string {
     "",
     "Use the real bootstrap path, then prove it with the concrete files:",
     "",
-    renderShellFence([
-      "RUN_SLUG=\"smoke-bootstrap-build-workflow-host-surface\"  # derived from the task",
-      "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
-      "ENTRY_MODE=\"lite\"",
-      "",
-      `test -x ${LOCAL_HELPER_DIR}/circuit-engine`,
-      "",
-      `${LOCAL_HELPER_DIR}/circuit-engine bootstrap \\`,
-      "  --run-root \"$RUN_ROOT\" \\",
-      `  --manifest "${BUILD_MANIFEST_ALIAS}" \\`,
-      "  --entry-mode \"$ENTRY_MODE\" \\",
-      "  --goal \"<smoke bootstrap objective>\" \\",
-      "  --project-root \"$PWD\"",
-      "",
-      "test -e .circuit/current-run",
-      "test -f \"$RUN_ROOT/circuit.manifest.yaml\"",
-      "test -f \"$RUN_ROOT/events.ndjson\"",
-      "test -f \"$RUN_ROOT/state.json\"",
-      "test -f \"$RUN_ROOT/artifacts/active-run.md\"",
-    ]),
+    renderShellFence(getBuildSmokeShellFenceLines({
+      entryModeAssignment: 'ENTRY_MODE="lite"',
+      entryModeArgument: '  --entry-mode "$ENTRY_MODE" \\',
+      includeValidationChecks: true,
+      runSlugComment: "  # derived from the task",
+    })),
   ].join("\n");
 }
 
 function renderLegacyWorkflowContractBlock(
-  slug: "explore" | "migrate" | "repair" | "sweep",
-  label: string,
-  routeLine: string,
-  stopLine: string,
+  contract: LegacyWorkflowContract,
 ): string {
+  const { label, routeLine, slug, stopLine } = contract;
   return [
     "## Direct Invocation Contract",
     "",
@@ -369,9 +485,7 @@ function renderLegacyWorkflowContractBlock(
     `5. ${routeLine}`,
     "6. If bootstrap already happened, continue from the current phase instead of re-exploring.",
     "",
-    renderHelperWrapperSection(
-      slug === "repair" ? [] : ["compose-prompt", "dispatch"],
-    ),
+    renderHelperWrapperSection(getSurfaceContractDefinition(slug).helper_wrappers),
     "",
     "## Smoke Bootstrap Mode",
     "",
@@ -403,7 +517,7 @@ function renderRunContractBlock(): string {
     "8. Smoke validation is invalid unless `.circuit/current-run` and the selected workflow scaffold exist on disk. Branch status, repo cleanliness, and top-level directory listings are not run-state evidence.",
     "9. For Build smoke/bootstrap requests, never use `Write`, `Edit`, heredocs, or manual file creation to fabricate `.circuit` run state; semantic bootstrap must create it.",
     "",
-    renderHelperWrapperSection(["circuit-engine", "dispatch"]),
+    renderHelperWrapperSection(getSurfaceContractDefinition("run").helper_wrappers),
     "",
     "## Smoke Bootstrap Dispatch",
     "",
@@ -417,26 +531,12 @@ function renderRunContractBlock(): string {
     "",
     "For `/circuit:run develop: ...` smoke requests, use the real Build bootstrap path with Lite rigor:",
     "",
-    renderShellFence([
-      "RUN_SLUG=\"smoke-bootstrap-build-workflow-host-surface\"  # derived from the task",
-      "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
-      "BUILD_ENTRY_MODE=\"lite\"",
-      "",
-      `test -x ${LOCAL_HELPER_DIR}/circuit-engine`,
-      "",
-      `${LOCAL_HELPER_DIR}/circuit-engine bootstrap \\`,
-      "  --run-root \"$RUN_ROOT\" \\",
-      `  --manifest "${BUILD_MANIFEST_ALIAS}" \\`,
-      "  --entry-mode \"$BUILD_ENTRY_MODE\" \\",
-      "  --goal \"<smoke bootstrap objective>\" \\",
-      "  --project-root \"$PWD\"",
-      "",
-      "test -e .circuit/current-run",
-      "test -f \"$RUN_ROOT/circuit.manifest.yaml\"",
-      "test -f \"$RUN_ROOT/events.ndjson\"",
-      "test -f \"$RUN_ROOT/state.json\"",
-      "test -f \"$RUN_ROOT/artifacts/active-run.md\"",
-    ]),
+    renderShellFence(getBuildSmokeShellFenceLines({
+      entryModeAssignment: 'BUILD_ENTRY_MODE="lite"',
+      entryModeArgument: '  --entry-mode "$BUILD_ENTRY_MODE" \\',
+      includeValidationChecks: true,
+      runSlugComment: "  # derived from the task",
+    })),
   ].join("\n");
 }
 
@@ -447,7 +547,7 @@ function renderHandoffFastModesBlock(): string {
     "- `/circuit:handoff done` -- clear handoff + active-run continuity immediately and stop.",
     "- `/circuit:handoff resume` -- resolve continuity immediately (`handoff.md` first, active-run fallback) and present it before any unrelated repo exploration.",
     "",
-    renderHelperWrapperSection(["circuit-engine", "gather-git-state"]),
+    renderHelperWrapperSection(getSurfaceContractDefinition("handoff").helper_wrappers),
   ].join("\n");
 }
 
@@ -461,12 +561,12 @@ function renderReviewFastModesBlock(): string {
     "",
     "Do not start with broad repo exploration. Scope selection is mechanical and happens before context gathering.",
     "",
-    renderHelperWrapperSection(["compose-prompt", "dispatch"]),
+    renderHelperWrapperSection(getSurfaceContractDefinition("review").helper_wrappers),
   ].join("\n");
 }
 
 function renderWorkersHelperBlock(): string {
-  return renderHelperWrapperSection(["compose-prompt", "dispatch", "update-batch"]);
+  return renderHelperWrapperSection(getSurfaceContractDefinition("workers").helper_wrappers);
 }
 
 function renderCircuitsSmokeContract(): string {
@@ -478,18 +578,9 @@ function renderCircuitsSmokeContract(): string {
     "- Treat the request as Build bootstrap-only verification.",
     "- First action: run the real bootstrap command directly:",
     "",
-    renderShellFence([
-      "RUN_SLUG=\"smoke-bootstrap-build-workflow-host-surface\"",
-      "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
-      `test -x ${LOCAL_HELPER_DIR}/circuit-engine`,
-      "",
-      `${LOCAL_HELPER_DIR}/circuit-engine bootstrap \\`,
-      "  --run-root \"$RUN_ROOT\" \\",
-      `  --manifest "${BUILD_MANIFEST_ALIAS}" \\`,
-      "  --entry-mode \"lite\" \\",
-      "  --goal \"<smoke bootstrap objective>\" \\",
-      "  --project-root \"$PWD\"",
-    ]),
+    renderShellFence(getBuildSmokeShellFenceLines({
+      entryModeArgument: '  --entry-mode "lite" \\',
+    })),
     "- Valid proof is on-disk run state: `.circuit/current-run`, `circuit.manifest.yaml`, `events.ndjson`, `state.json`, and `artifacts/active-run.md`.",
     "- Never fabricate those files with `Write`, `Edit`, heredocs, or ad hoc shell writes.",
     "- Do not run `--help` or search the repo to rediscover the required bootstrap flags; use the exact command shape above.",
@@ -500,10 +591,7 @@ function renderCircuitsSmokeContract(): string {
 function getSurfaceSummary(
   entry: WorkflowEntry | UtilityEntry | AdapterEntry,
 ): PromptSurfaceSummary {
-  const summary = SURFACE_SUMMARIES[entry.slug];
-  if (!summary) {
-    throw new Error(`catalog-compiler: missing prompt-surface contract for ${entry.slug}`);
-  }
+  const summary = getSurfaceContractDefinition(entry.slug);
 
   return {
     ...summary,
@@ -571,16 +659,6 @@ function escapeYamlDoubleQuotedString(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-function firstSentence(text: string): string {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (!normalized) {
-    return "";
-  }
-
-  const match = normalized.match(/^.*?[.!?](?=\s|$)/);
-  return (match?.[0] ?? normalized).trim();
-}
-
 export function renderCommandShim(entry: WorkflowEntry | UtilityEntry): string {
   const description = firstSentence(entry.skillDescription);
   const body = entry.kind === "workflow"
@@ -602,83 +680,68 @@ interface SkillContractTarget {
   render: () => string;
 }
 
+const SKILL_CONTRACT_TARGET_SPECS: readonly SkillContractTargetSpec[] = [
+  {
+    slug: "build",
+    blockName: "BUILD_CONTRACT",
+    filePath: "skills/build/SKILL.md",
+    render: renderBuildContractBlock,
+  },
+  {
+    slug: "explore",
+    blockName: LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.explore.blockName,
+    filePath: "skills/explore/SKILL.md",
+    render: () => renderLegacyWorkflowContractBlock(LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.explore),
+  },
+  {
+    slug: "migrate",
+    blockName: LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.migrate.blockName,
+    filePath: "skills/migrate/SKILL.md",
+    render: () => renderLegacyWorkflowContractBlock(LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.migrate),
+  },
+  {
+    slug: "repair",
+    blockName: LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.repair.blockName,
+    filePath: "skills/repair/SKILL.md",
+    render: () => renderLegacyWorkflowContractBlock(LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.repair),
+  },
+  {
+    slug: "run",
+    blockName: "RUN_CONTRACT",
+    filePath: "skills/run/SKILL.md",
+    render: renderRunContractBlock,
+  },
+  {
+    slug: "sweep",
+    blockName: LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.sweep.blockName,
+    filePath: "skills/sweep/SKILL.md",
+    render: () => renderLegacyWorkflowContractBlock(LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.sweep),
+  },
+  {
+    slug: "handoff",
+    blockName: "HANDOFF_FAST_MODES",
+    filePath: "skills/handoff/SKILL.md",
+    render: renderHandoffFastModesBlock,
+  },
+  {
+    slug: "review",
+    blockName: "REVIEW_FAST_MODES",
+    filePath: "skills/review/SKILL.md",
+    render: renderReviewFastModesBlock,
+  },
+  {
+    slug: "workers",
+    blockName: "WORKERS_HELPERS",
+    filePath: "skills/workers/SKILL.md",
+    render: renderWorkersHelperBlock,
+  },
+];
+
 function getSkillContractTargets(repoRoot: string): SkillContractTarget[] {
-  return [
-    {
-      slug: "build",
-      blockName: "BUILD_CONTRACT",
-      filePath: resolve(repoRoot, "skills/build/SKILL.md"),
-      render: renderBuildContractBlock,
-    },
-    {
-      slug: "explore",
-      blockName: "EXPLORE_CONTRACT",
-      filePath: resolve(repoRoot, "skills/explore/SKILL.md"),
-      render: () => renderLegacyWorkflowContractBlock(
-        "explore",
-        "Explore",
-        "If a spec or direct explore request already determined the route, follow it immediately instead of reclassifying.",
-        "Stop here. Do not continue into Frame/Analyze/Decide/Close or do unrelated repo exploration.",
-      ),
-    },
-    {
-      slug: "migrate",
-      blockName: "MIGRATE_CONTRACT",
-      filePath: resolve(repoRoot, "skills/migrate/SKILL.md"),
-      render: () => renderLegacyWorkflowContractBlock(
-        "migrate",
-        "Migrate",
-        "When the slash command already selected Migrate, stay on that path immediately instead of reclassifying the task.",
-        "Stop here. Do not continue into Frame/Analyze/Plan/Act/Verify/Review/Close or do unrelated repo exploration.",
-      ),
-    },
-    {
-      slug: "repair",
-      blockName: "REPAIR_CONTRACT",
-      filePath: resolve(repoRoot, "skills/repair/SKILL.md"),
-      render: () => renderLegacyWorkflowContractBlock(
-        "repair",
-        "Repair",
-        "When Repair is already selected, stay on the repair path immediately instead of reclassifying the task.",
-        "Stop here. Do not continue into Frame/Analyze/Fix/Verify/Review/Close or do unrelated repo exploration.",
-      ),
-    },
-    {
-      slug: "run",
-      blockName: "RUN_CONTRACT",
-      filePath: resolve(repoRoot, "skills/run/SKILL.md"),
-      render: renderRunContractBlock,
-    },
-    {
-      slug: "sweep",
-      blockName: "SWEEP_CONTRACT",
-      filePath: resolve(repoRoot, "skills/sweep/SKILL.md"),
-      render: () => renderLegacyWorkflowContractBlock(
-        "sweep",
-        "Sweep",
-        "When Sweep is already selected, stay on that path immediately instead of reclassifying the task.",
-        "Stop here. Do not continue into Frame/Survey/Queue/Batch/Verify/Review/Close or do unrelated repo exploration.",
-      ),
-    },
-    {
-      slug: "handoff",
-      blockName: "HANDOFF_FAST_MODES",
-      filePath: resolve(repoRoot, "skills/handoff/SKILL.md"),
-      render: renderHandoffFastModesBlock,
-    },
-    {
-      slug: "review",
-      blockName: "REVIEW_FAST_MODES",
-      filePath: resolve(repoRoot, "skills/review/SKILL.md"),
-      render: renderReviewFastModesBlock,
-    },
-    {
-      slug: "workers",
-      blockName: "WORKERS_HELPERS",
-      filePath: resolve(repoRoot, "skills/workers/SKILL.md"),
-      render: renderWorkersHelperBlock,
-    },
-  ];
+  return SKILL_CONTRACT_TARGET_SPECS.map((target) => ({
+    ...target,
+    filePath: resolve(repoRoot, target.filePath),
+  }));
 }
 
 export function getPromptSurfaceBlockTargets(

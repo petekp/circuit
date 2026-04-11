@@ -1,18 +1,17 @@
 import { existsSync, readFileSync } from "node:fs";
 
 import {
+  appendStepTransitionEvents,
   appendValidatedEvents,
   assertNextStepExists,
   assertCommandStepUsable,
   ensureRunRelativeFileExists,
   getRouteTarget,
-  isTerminalRoute,
   loadRunContext,
   maybeAppendArtifactWrittenEvent,
   readDispatchReceiptEventPayload,
   recordEventsAndRender,
   resolveStepArtifactPath,
-  terminalStatusForRoute,
 } from "./command-support.js";
 import {
   requireStepById,
@@ -471,34 +470,11 @@ export function reconcileDispatch(
     throw new Error(`reconcile-dispatch could not resolve pass route for ${stepId}`);
   }
 
-  events.push({
-    eventType: "gate_passed",
-    payload: {
-      gate_kind: (step.gate as Record<string, any>).kind,
-      route,
-      step_id: stepId,
-    },
+  appendStepTransitionEvents(events, {
+    gateKind: (step.gate as Record<string, any>).kind,
+    route,
     stepId,
   });
-
-  if (isTerminalRoute(route)) {
-    events.push({
-      eventType: "run_completed",
-      payload: {
-        status: terminalStatusForRoute(route),
-        terminal_target: route,
-      },
-      stepId,
-    });
-  } else {
-    events.push({
-      eventType: "step_started",
-      payload: {
-        step_id: route,
-      },
-      stepId: route,
-    });
-  }
 
   const renderResult = recordEventsAndRender(context.runRoot, events);
   return {

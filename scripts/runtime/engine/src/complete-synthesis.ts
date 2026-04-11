@@ -1,16 +1,15 @@
 import { existsSync, readFileSync } from "node:fs";
 
 import {
+  appendStepTransitionEvents,
   appendValidatedEvents,
   assertNextStepExists,
   assertCommandStepUsable,
   getRouteTarget,
-  isTerminalRoute,
   loadRunContext,
   maybeAppendArtifactWrittenEvent,
   recordEventsAndRender,
   resolveStepArtifactPath,
-  terminalStatusForRoute,
 } from "./command-support.js";
 import { requireStepById } from "./manifest-utils.js";
 import { extractH2SectionBodies } from "./markdown-utils.js";
@@ -124,34 +123,11 @@ export function completeSynthesisStep(
   }
 
   const transitionEvents: typeof events = [];
-  transitionEvents.push({
-    eventType: "gate_passed",
-    payload: {
-      step_id: stepId,
-      gate_kind: gate.kind,
-      route,
-    },
+  appendStepTransitionEvents(transitionEvents, {
+    gateKind: gate.kind,
+    route,
     stepId,
   });
-
-  if (isTerminalRoute(route)) {
-    transitionEvents.push({
-      eventType: "run_completed",
-      payload: {
-        status: terminalStatusForRoute(route),
-        terminal_target: route,
-      },
-      stepId,
-    });
-  } else {
-    transitionEvents.push({
-      eventType: "step_started",
-      payload: {
-        step_id: route,
-      },
-      stepId: route,
-    });
-  }
 
   const renderResult = recordEventsAndRender(context.runRoot, transitionEvents);
   return {

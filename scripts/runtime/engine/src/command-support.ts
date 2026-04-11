@@ -29,7 +29,7 @@ import { resolveRunRelativePath, assertSafeRelativePath } from "./path-utils.js"
 import { renderActiveRun, type RenderActiveRunResult } from "./render-active-run.js";
 import { loadJsonSchema, validate } from "./schema.js";
 
-type EventSpec = {
+export type EventSpec = {
   attempt?: number;
   eventType: string;
   payload: Record<string, unknown>;
@@ -310,6 +310,48 @@ export function terminalStatusForRoute(route: string): string {
     default:
       throw new Error(`not a terminal route: ${route}`);
   }
+}
+
+export interface StepTransitionSpec {
+  attempt?: number;
+  gateKind: unknown;
+  route: string;
+  stepId: string;
+}
+
+export function appendStepTransitionEvents(
+  events: EventSpec[],
+  spec: StepTransitionSpec,
+): void {
+  events.push({
+    eventType: "gate_passed",
+    payload: {
+      gate_kind: spec.gateKind,
+      route: spec.route,
+      step_id: spec.stepId,
+    },
+    stepId: spec.stepId,
+  });
+
+  if (isTerminalRoute(spec.route)) {
+    events.push({
+      eventType: "run_completed",
+      payload: {
+        status: terminalStatusForRoute(spec.route),
+        terminal_target: spec.route,
+      },
+      stepId: spec.stepId,
+    });
+    return;
+  }
+
+  events.push({
+    eventType: "step_started",
+    payload: {
+      step_id: spec.route,
+    },
+    stepId: spec.route,
+  });
 }
 
 export function assertNextStepExists(

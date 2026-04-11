@@ -223,12 +223,12 @@
     {
       "executable": true,
       "path": "scripts/runtime/bin/catalog-compiler.js",
-      "sha256": "23289d8db5276238d5fcdf0de680bd38d7712e5144d8573459dca677eb45a5dc"
+      "sha256": "286396604c0a5552e8ed82899eebadceace77c930be41cd46a47e1231ed085c4"
     },
     {
       "executable": true,
       "path": "scripts/runtime/bin/circuit-engine.js",
-      "sha256": "8ba6f928ea36b30f3ebae78644404f72a4bf9dba0e4edfe163bd9e7abc62532d"
+      "sha256": "b7634c9cb2ddcc2eae8e9db814497bc6aa5e59ea38717435d8623056c7e6b23e"
     },
     {
       "executable": true,
@@ -278,7 +278,7 @@
     {
       "executable": true,
       "path": "scripts/runtime/bin/user-prompt-submit.js",
-      "sha256": "a00f1958eca766035100a533ca5b9908a082ad705fc952f6e8b0554ca629a584"
+      "sha256": "4b5d7cecc65c454457ca6f78cd82cb0a5abb99899d2ff98ec5ee93ec614c0480"
     },
     {
       "executable": true,
