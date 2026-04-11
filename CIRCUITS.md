@@ -44,10 +44,17 @@ or `/circuit:build smoke ...`:
   ```bash
   RUN_SLUG="smoke-bootstrap-build-workflow-host-surface"
   RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"
+  if [[ -f .circuit/plugin-root ]]; then
+    CIRCUIT_PLUGIN_ROOT="$(tr -d '\n' < .circuit/plugin-root)"
+  else
+    CIRCUIT_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+  fi
 
-  "$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" bootstrap \
+  test -n "$CIRCUIT_PLUGIN_ROOT"
+
+  "$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" bootstrap \
     --run-root "$RUN_ROOT" \
-    --manifest "$CLAUDE_PLUGIN_ROOT/skills/build/circuit.yaml" \
+    --manifest "$CIRCUIT_PLUGIN_ROOT/skills/build/circuit.yaml" \
     --entry-mode "lite" \
     --goal "<smoke bootstrap objective>" \
     --project-root "$PWD"

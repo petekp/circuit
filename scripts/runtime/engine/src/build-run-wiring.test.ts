@@ -85,9 +85,9 @@ describe("build/run wiring", () => {
     const reviewSection = extractPhaseSection(read("skills/build/SKILL.md"), "Review");
     const reviewHeaderStart = reviewSection.indexOf('cat > "$REVIEW_ROOT/review-header.md"');
     const composeStart = reviewSection.indexOf(
-      '"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh"',
+      '"$CIRCUIT_PLUGIN_ROOT/scripts/relay/compose-prompt.sh"',
     );
-    const dispatchStart = reviewSection.indexOf('"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh"');
+    const dispatchStart = reviewSection.indexOf('"$CIRCUIT_PLUGIN_ROOT/scripts/relay/dispatch.sh"');
     const reviewOutputCheckStart = reviewSection.indexOf("Check for the generated reviewer output");
     const reviewHeaderBlock =
       reviewHeaderStart === -1 || composeStart === -1

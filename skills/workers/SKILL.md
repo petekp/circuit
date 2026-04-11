@@ -20,13 +20,25 @@ Loop:
 
 Done only when the convergence worker says `COMPLETE AND HARDENED`.
 
+Resolve the helper root once before using Circuit shell helpers:
+
+```bash
+if [[ -f .circuit/plugin-root ]]; then
+  CIRCUIT_PLUGIN_ROOT="$(tr -d '\n' < .circuit/plugin-root)"
+else
+  CIRCUIT_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+fi
+
+test -n "$CIRCUIT_PLUGIN_ROOT"
+```
+
 ## Principles
 
 - Orchestrator owns planning, dispatch, artifact reads, and `{relay_root}/batch.json`
 - Workers never edit `batch.json`
 - Implementation and review always run in separate sessions
 - Review and convergence workers diagnose only; they do not fix code
-- Use `"$CLAUDE_PLUGIN_ROOT/scripts/relay/update-batch.sh" --root {relay_root}`; never hand-edit relay state
+- Use `"$CIRCUIT_PLUGIN_ROOT/scripts/relay/update-batch.sh" --root {relay_root}`; never hand-edit relay state
 - All relay paths thread through `--root`; standalone default is `--root .circuit`
 - Spot-check at least one claimed command before trusting a worker report
 - Preserve `--skills`, repeated `--verification`, and `--criteria` on follow-up slices
@@ -41,7 +53,7 @@ into every dispatch:
 - `PARENT_CIRCUIT`: the calling circuit id (for example `build`, `migrate`)
 
 Use the shared dispatch helper:
-`"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --role implementer`
+`"$CIRCUIT_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --role implementer`
 
 The implement/review/converge loop, artifact chain, gates, and report format are
 **identical** regardless of adapter. Convergence uses reviewer routing semantics
@@ -75,7 +87,7 @@ Write state to disk on every phase transition. The orchestrator is the only writ
 ## Prompt Assembly
 
 Write only the task-specific header. Use
-`"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" --header ... --skills ... --template ... --root {relay_root} --out ...`
+`"$CIRCUIT_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" --header ... --skills ... --template ... --root {relay_root} --out ...`
 to append domain skills, the selected template, and substitute relay root paths.
 
 - `implement` slices: `--template implement`
@@ -90,7 +102,7 @@ Templates own worker instructions and report format.
 Skip this phase for `review` slices.
 
 1. Compose the prompt and dispatch:
-   `"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --role implementer`
+   `"$CIRCUIT_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --role implementer`
 2. Verify output exists using explicit checks -- never zsh globs or `||` chains:
    `test -f {relay_root}/reports/report-{slice_id}.md && wc -l {relay_root}/reports/report-{slice_id}.md`
    If the file is missing, check the worker output trace for `file update` diffs before
@@ -105,7 +117,7 @@ Skip this phase for `review` slices.
 ## Review
 
 1. Compose the review prompt and dispatch:
-   `"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --role reviewer`
+   `"$CIRCUIT_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-{slice_id}.txt --circuit ${PARENT_CIRCUIT} --role reviewer`
 2. Verify outputs exist using explicit checks:
    `test -f {relay_root}/review-findings/review-findings-{slice_id}.md && wc -l {relay_root}/review-findings/review-findings-{slice_id}.md`
    If missing, check the worker output trace for `file update` diffs before re-dispatching.
@@ -125,7 +137,7 @@ Enter only when all non-converge slices are done.
 1. Compose the convergence prompt with the mission, slice summaries, and union of
    verification commands
 2. Dispatch and read `{relay_root}/reports/report-converge.md`:
-   `"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-converge.txt --circuit ${PARENT_CIRCUIT} --role reviewer`
+   `"$CIRCUIT_PLUGIN_ROOT/scripts/relay/dispatch.sh" --prompt {relay_root}/prompt.md --output {relay_root}/last-messages/last-message-converge.txt --circuit ${PARENT_CIRCUIT} --role reviewer`
 3. If verdict is `COMPLETE AND HARDENED`, record `converge_complete`
 4. If verdict is `ISSUES REMAIN`, record `converge_failed`, add fix slices with full
    metadata, and loop unless the convergence max is exceeded
@@ -141,7 +153,7 @@ Enter only when all non-converge slices are done.
 
 ## Direct Resolution Events
 
-Use only via `"$CLAUDE_PLUGIN_ROOT/scripts/relay/update-batch.sh"`.
+Use only via `"$CIRCUIT_PLUGIN_ROOT/scripts/relay/update-batch.sh"`.
 
 - `analytically_resolved`: closed by inspection; no code change needed. Put the evidence
   in `--summary`
@@ -160,7 +172,7 @@ failure pattern, and options (adjust scope, skip, raise limit, abort).
 
 If `{relay_root}/batch.json` exists, compare `head_at_plan` with `git rev-parse HEAD`.
 Match → resume from the first pending slice. Mismatch → warn the user.
-Run `"$CLAUDE_PLUGIN_ROOT/scripts/relay/update-batch.sh" --root {relay_root} --validate` after resuming.
+Run `"$CIRCUIT_PLUGIN_ROOT/scripts/relay/update-batch.sh" --root {relay_root} --validate` after resuming.
 Never restart completed slices.
 
 ## User Briefing

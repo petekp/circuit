@@ -25,6 +25,18 @@ Intake -> Independent Audit -> Verification Rerun -> Verdict
 
 Do not start with broad repo exploration. Scope selection is mechanical and happens before context gathering.
 
+Resolve the helper root once before using Circuit shell helpers:
+
+```bash
+if [[ -f .circuit/plugin-root ]]; then
+  CIRCUIT_PLUGIN_ROOT="$(tr -d '\n' < .circuit/plugin-root)"
+else
+  CIRCUIT_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+fi
+
+test -n "$CIRCUIT_PLUGIN_ROOT"
+```
+
 ## Phase: Intake
 
 Determine what to review:
@@ -61,13 +73,13 @@ Write prompt header at `${step_dir}/prompt-header.md`:
 
 ```bash
 # Pick 1-2 domain skills matching the affected code. Omit --skills if none apply.
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
   --header "${step_dir}/prompt-header.md" \
   --skills "rust,tdd" \
   --root "${step_dir}" \
   --out "${step_dir}/prompt.md"
 
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
   --prompt "${step_dir}/prompt.md" \
   --output "${step_dir}/last-messages/last-message.txt" \
   --circuit review \

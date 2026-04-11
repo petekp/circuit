@@ -24,11 +24,23 @@ Frame -> Analyze -> Decide/Plan -> Close (or handoff to Build)
 Action-first rules for `/circuit:explore`:
 
 1. First action is run-root bootstrap.
-2. Use Circuit helpers directly via `$CLAUDE_PLUGIN_ROOT`; do not inspect the plugin cache or repo structure to rediscover them.
+2. Resolve installed Circuit helpers through `.circuit/plugin-root` (written by the Circuit hook for `/circuit:*` prompts) or `$CLAUDE_PLUGIN_ROOT` when already present. Do not inspect the plugin cache or repo structure to rediscover them.
 3. Create or validate `.circuit/circuit-runs/<slug>/...` before unrelated repo reads.
 4. Do not start with "let me understand the current state first" before bootstrap completes.
 5. If a spec or direct explore request already determined the route, follow it immediately instead of reclassifying.
 6. If bootstrap already happened, continue from the current phase instead of re-exploring.
+
+Resolve the helper root once before using Circuit shell helpers:
+
+```bash
+if [[ -f .circuit/plugin-root ]]; then
+  CIRCUIT_PLUGIN_ROOT="$(tr -d '\n' < .circuit/plugin-root)"
+else
+  CIRCUIT_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+fi
+
+test -n "$CIRCUIT_PLUGIN_ROOT"
+```
 
 ## Smoke Bootstrap Mode
 
@@ -149,13 +161,13 @@ Compose and dispatch both:
 # Pick 1-2 domain skills matching the affected code (see Domain Skill Selection in run/SKILL.md).
 # Omit --skills entirely if no domain skills apply.
 for w in ext int; do
-  "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
+  "$CIRCUIT_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
     --header "${RUN_ROOT}/phases/analyze-${w}/prompt-header.md" \
     --skills "rust,tdd" \
     --root "${RUN_ROOT}/phases/analyze-${w}" \
     --out "${RUN_ROOT}/phases/analyze-${w}/prompt.md"
 
-  "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
+  "$CIRCUIT_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
     --prompt "${RUN_ROOT}/phases/analyze-${w}/prompt.md" \
     --output "${RUN_ROOT}/phases/analyze-${w}/last-messages/last-message.txt" \
     --circuit explore \
@@ -290,12 +302,12 @@ Each writes `proposal-{a,b,c}.md`. Do not mention other workers in prompts.
 # These workers run inside Explore's `decide` manifest step.
 for w in a b c; do
   mkdir -p "${RUN_ROOT}/phases/diverge-${w}/reports" "${RUN_ROOT}/phases/diverge-${w}/last-messages"
-  "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
+  "$CIRCUIT_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
     --header "${RUN_ROOT}/phases/diverge-${w}/prompt-header.md" \
     --skills "rust,tdd" \
     --root "${RUN_ROOT}/phases/diverge-${w}" \
     --out "${RUN_ROOT}/phases/diverge-${w}/prompt.md"
-  "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
+  "$CIRCUIT_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
     --prompt "${RUN_ROOT}/phases/diverge-${w}/prompt.md" \
     --output "${RUN_ROOT}/phases/diverge-${w}/last-messages/last-message.txt" \
     --circuit explore \

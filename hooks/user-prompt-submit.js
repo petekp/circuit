@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const { spawnSync } = require("node:child_process");
-const { readFileSync } = require("node:fs");
+const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 
 function readInput() {
@@ -85,6 +85,26 @@ function currentProjectRoot() {
   return process.env.CLAUDE_PROJECT_DIR || process.cwd();
 }
 
+function isCircuitPrompt(prompt) {
+  return prompt.toLowerCase().includes("/circuit:");
+}
+
+function persistPluginRoot() {
+  const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT;
+  if (!pluginRoot) {
+    return;
+  }
+
+  try {
+    const stateDir = resolve(currentProjectRoot(), ".circuit");
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(resolve(stateDir, "plugin-root"), `${pluginRoot}\n`, "utf-8");
+  } catch {
+    // Best-effort only. If the project is not writable, later commands still
+    // have the hook-authored contract text to fall back on.
+  }
+}
+
 function handoffSlugSource() {
   const projectRoot = currentProjectRoot();
   const result = spawnSync("git", ["rev-parse", "--show-toplevel"], {
@@ -129,6 +149,9 @@ function emitContext(additionalContext) {
 
 const input = readInput();
 const prompt = typeof input.prompt === "string" ? input.prompt : "";
+if (isCircuitPrompt(prompt)) {
+  persistPluginRoot();
+}
 if (prompt.toLowerCase().includes("/circuit:review current changes")) {
   emitContext([
     "# Circuit Review Current-Changes Contract",
@@ -217,7 +240,13 @@ emitContext([
   "Do not run `--help`, inspect cache layout, or search the repo to rediscover the bootstrap flags. Use the exact command shape below.",
   "RUN_SLUG=\"smoke-bootstrap-build-workflow-host-surface\"  # or the same slug derived from the task",
   "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
-  "\"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh\" bootstrap --run-root \"$RUN_ROOT\" --manifest \"$CLAUDE_PLUGIN_ROOT/skills/build/circuit.yaml\" --entry-mode \"lite\" --goal \"<smoke bootstrap objective>\" --project-root \"$PWD\"",
+  "if [ -f .circuit/plugin-root ]; then",
+  "  CIRCUIT_PLUGIN_ROOT=\"$(tr -d '\\n' < .circuit/plugin-root)\"",
+  "else",
+  "  CIRCUIT_PLUGIN_ROOT=\"${CLAUDE_PLUGIN_ROOT:-}\"",
+  "fi",
+  "test -n \"$CIRCUIT_PLUGIN_ROOT\"",
+  "\"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh\" bootstrap --run-root \"$RUN_ROOT\" --manifest \"$CIRCUIT_PLUGIN_ROOT/skills/build/circuit.yaml\" --entry-mode \"lite\" --goal \"<smoke bootstrap objective>\" --project-root \"$PWD\"",
   "Do not use `Write`, `Edit`, heredocs, or manual file creation to fabricate `.circuit/current-run`, `circuit.manifest.yaml`, `events.ndjson`, `state.json`, or `artifacts/active-run.md`.",
   "After bootstrap, validate with `test -e .circuit/current-run` plus `test -f` checks for `circuit.manifest.yaml`, `events.ndjson`, `state.json`, and `artifacts/active-run.md` under `$RUN_ROOT`.",
   "After bootstrap, validate those on-disk artifacts, report the selected run root briefly, and stop.",

@@ -22,12 +22,24 @@ Frame -> Plan -> Act -> Verify -> Review -> Close
 Action-first rules for `/circuit:build`:
 
 1. First action is semantic bootstrap through `circuit-engine.sh`.
-2. Use Circuit helpers directly via `$CLAUDE_PLUGIN_ROOT`; do not inspect the plugin cache or repo structure to rediscover them.
+2. Resolve installed Circuit helpers through `.circuit/plugin-root` (written by the Circuit hook for `/circuit:*` prompts) or `$CLAUDE_PLUGIN_ROOT` when already present. Do not inspect the plugin cache or repo structure to rediscover them.
 3. Create or validate `.circuit/circuit-runs/<slug>/...` before unrelated repo reads.
 4. Do not start with "let me understand the current state first" or broad repo exploration before bootstrap completes.
 5. If routing already selected Build, stay on that path immediately instead of reclassifying.
 6. If bootstrap already happened, continue from the current phase instead of re-exploring.
 7. Never use `Write`, `Edit`, heredocs, or manual file creation to fabricate Build run-state; `circuit-engine.sh bootstrap` must materialize it.
+
+Resolve the helper root once before using Circuit shell helpers:
+
+```bash
+if [[ -f .circuit/plugin-root ]]; then
+  CIRCUIT_PLUGIN_ROOT="$(tr -d '\n' < .circuit/plugin-root)"
+else
+  CIRCUIT_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+fi
+
+test -n "$CIRCUIT_PLUGIN_ROOT"
+```
 
 ## Smoke Bootstrap Mode
 
@@ -59,9 +71,9 @@ RUN_SLUG="smoke-bootstrap-build-workflow-host-surface"  # derived from the task
 RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"
 ENTRY_MODE="lite"
 
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" bootstrap \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" bootstrap \
   --run-root "$RUN_ROOT" \
-  --manifest "$CLAUDE_PLUGIN_ROOT/skills/build/circuit.yaml" \
+  --manifest "$CIRCUIT_PLUGIN_ROOT/skills/build/circuit.yaml" \
   --entry-mode "$ENTRY_MODE" \
   --goal "<smoke bootstrap objective>" \
   --project-root "$PWD"
@@ -97,9 +109,9 @@ RUN_SLUG="add-dark-mode-support"  # derived from task description
 RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"
 ENTRY_MODE="default"              # map from the selected rigor
 
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" bootstrap \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" bootstrap \
   --run-root "$RUN_ROOT" \
-  --manifest "$CLAUDE_PLUGIN_ROOT/skills/build/circuit.yaml" \
+  --manifest "$CIRCUIT_PLUGIN_ROOT/skills/build/circuit.yaml" \
   --entry-mode "$ENTRY_MODE" \
   --goal "<task description>" \
   --project-root "$PWD"
@@ -146,7 +158,7 @@ cat > "$RUN_ROOT/checkpoints/frame-1.request.json" <<'JSON'
 }
 JSON
 
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" request-checkpoint \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" request-checkpoint \
   --run-root "$RUN_ROOT" \
   --step frame
 ```
@@ -165,7 +177,7 @@ cat > "$RUN_ROOT/checkpoints/frame-1.response.json" <<'JSON'
 }
 JSON
 
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" resolve-checkpoint \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" resolve-checkpoint \
   --run-root "$RUN_ROOT" \
   --step frame
 ```
@@ -215,7 +227,7 @@ not supported in v1. Do not advance the runtime until `plan.md` is sound.
 When `plan.md` is ready, complete the synthesis step:
 
 ```bash
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" complete-synthesis \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" complete-synthesis \
   --run-root "$RUN_ROOT" \
   --step plan
 ```
@@ -261,7 +273,7 @@ cat > "$RUN_ROOT/phases/implement/jobs/act-${ACT_ATTEMPT}.request.json" <<JSON
 }
 JSON
 
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" dispatch-step \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" dispatch-step \
   --run-root "$RUN_ROOT" \
   --step act
 ```
@@ -298,7 +310,7 @@ Map worker outcomes into that outer result JSON mechanically:
 Call `reconcile-dispatch` only after that outer result JSON exists:
 
 ```bash
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" reconcile-dispatch \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" reconcile-dispatch \
   --run-root "$RUN_ROOT" \
   --step act
 ```
@@ -339,7 +351,7 @@ Independently re-run all verification commands from `plan.md`. Record results in
 Then complete the synthesis step:
 
 ```bash
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" complete-synthesis \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" complete-synthesis \
   --run-root "$RUN_ROOT" \
   --step verify
 ```
@@ -374,7 +386,7 @@ cat > "$RUN_ROOT/phases/review/jobs/review-${REVIEW_ATTEMPT}.request.json" <<JSO
 }
 JSON
 
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" dispatch-step \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" dispatch-step \
   --run-root "$RUN_ROOT" \
   --step review
 ```
@@ -390,14 +402,14 @@ Focus on correctness, regressions, missing tests, and ship readiness.
 Use artifacts/brief.md, artifacts/plan.md, artifacts/verification.md, and artifacts/implementation-handoff.md as the source of truth.
 MD
 
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
   --header "$REVIEW_ROOT/review-header.md" \
   --circuit build \
   --template ship-review \
   --root "$REVIEW_ROOT" \
   --out "$REVIEW_ROOT/prompt.md"
 
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
   --prompt "$REVIEW_ROOT/prompt.md" \
   --output "$REVIEW_ROOT/last-messages/last-message-review.txt" \
   --circuit build \
@@ -433,7 +445,7 @@ Normalize review outcomes into that result JSON:
 `reconcile-dispatch` will reject a `completion=complete` result if the declared artifact is missing:
 
 ```bash
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" reconcile-dispatch \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" reconcile-dispatch \
   --run-root "$RUN_ROOT" \
   --step review
 ```
@@ -471,7 +483,7 @@ Write `artifacts/result.md`:
 Complete the final synthesis step:
 
 ```bash
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" complete-synthesis \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" complete-synthesis \
   --run-root "$RUN_ROOT" \
   --step close
 ```
@@ -495,7 +507,7 @@ slice, abort, restart via Explore).
 Use the semantic resume command as the source of truth:
 
 ```bash
-"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" resume \
+"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh" resume \
   --run-root "$RUN_ROOT" \
   --json
 ```

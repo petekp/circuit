@@ -36,9 +36,6 @@ for command_name in "$CLAUDE_BIN" "$NODE_BIN" "$RSYNC_BIN" "$RG_BIN" git; do
   fi
 done
 
-PLUGIN_VERSION="$("$NODE_BIN" -e 'const fs = require("node:fs"); const path = require("node:path"); const root = process.argv[1]; const plugin = JSON.parse(fs.readFileSync(path.join(root, ".claude-plugin", "plugin.json"), "utf-8")); process.stdout.write(plugin.version);' "$REPO_ROOT")"
-INSTALLED_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/petekp/circuit/$PLUGIN_VERSION}"
-
 if (( SYNC_CACHE == 1 )); then
   "$REPO_ROOT/scripts/sync-to-cache.sh"
 fi
@@ -235,7 +232,6 @@ run_claude_case() {
   CLAUDE_CASE_BIN="$CLAUDE_BIN" \
   CLAUDE_CASE_LOG="$log_path" \
   CLAUDE_CASE_PROMPT="$prompt" \
-  CLAUDE_CASE_PLUGIN_ROOT="$INSTALLED_PLUGIN_ROOT" \
   CLAUDE_CASE_REPO_ROOT="$repo_root" \
   CLAUDE_CASE_HANDOFF_HOME="$home_dir" \
   CLAUDE_CASE_TIMEOUT_SEC="$CLAUDE_TIMEOUT_SEC" \
@@ -247,7 +243,6 @@ const logPath = process.env.CLAUDE_CASE_LOG;
 const repoRoot = process.env.CLAUDE_CASE_REPO_ROOT;
 const prompt = process.env.CLAUDE_CASE_PROMPT;
 const claudeBin = process.env.CLAUDE_CASE_BIN;
-const pluginRoot = process.env.CLAUDE_CASE_PLUGIN_ROOT;
 const handoffHome = process.env.CLAUDE_CASE_HANDOFF_HOME;
 const timeoutMs = Number(process.env.CLAUDE_CASE_TIMEOUT_SEC || "180") * 1000;
 
@@ -271,7 +266,6 @@ const result = spawnSync(
     timeout: timeoutMs,
     env: {
       ...process.env,
-      CLAUDE_PLUGIN_ROOT: pluginRoot,
       CIRCUIT_HANDOFF_HOME: handoffHome,
     },
   },

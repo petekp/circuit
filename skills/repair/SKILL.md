@@ -23,11 +23,23 @@ Frame -> Analyze (reproduce + isolate) -> Fix -> Verify -> Review -> Close
 Action-first rules for `/circuit:repair`:
 
 1. First action is run-root bootstrap.
-2. Use Circuit helpers directly via `$CLAUDE_PLUGIN_ROOT`; do not inspect the plugin cache or repo structure to rediscover them.
+2. Resolve installed Circuit helpers through `.circuit/plugin-root` (written by the Circuit hook for `/circuit:*` prompts) or `$CLAUDE_PLUGIN_ROOT` when already present. Do not inspect the plugin cache or repo structure to rediscover them.
 3. Create or validate `.circuit/circuit-runs/<slug>/...` before unrelated repo reads.
 4. Do not start with "let me understand the current state first" before bootstrap completes.
 5. When Repair is already selected, stay on the repair path immediately instead of reclassifying the task.
 6. If bootstrap already happened, continue from the current phase instead of re-exploring.
+
+Resolve the helper root once before using Circuit shell helpers:
+
+```bash
+if [[ -f .circuit/plugin-root ]]; then
+  CIRCUIT_PLUGIN_ROOT="$(tr -d '\n' < .circuit/plugin-root)"
+else
+  CIRCUIT_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+fi
+
+test -n "$CIRCUIT_PLUGIN_ROOT"
+```
 
 ## Smoke Bootstrap Mode
 

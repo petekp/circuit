@@ -116,7 +116,7 @@ describe("generate", () => {
     );
     expect(buildShim).toContain("Direct slash-command invocation");
     expect(buildShim).toContain("Launch the `circuit:build` skill immediately.");
-    expect(buildShim).toContain("Use installed Circuit helpers directly via `$CLAUDE_PLUGIN_ROOT`");
+    expect(buildShim).toContain("Resolve installed Circuit helpers through `.circuit/plugin-root`");
     expect(buildShim).toContain("direct-invocation/bootstrap contract");
     expect(buildShim).toContain("Do not reinterpret this command as a generic repo-understanding request.");
     expect(handoffShim).toContain("Direct utility invocation");

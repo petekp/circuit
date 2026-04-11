@@ -14,8 +14,9 @@ describe("public workflow contracts", () => {
     const catalog = read("CIRCUITS.md");
 
     expect(catalog).toContain("## Smoke Bootstrap Verification");
-    expect(catalog).toContain("\"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh\" bootstrap");
-    expect(catalog).toContain("--manifest \"$CLAUDE_PLUGIN_ROOT/skills/build/circuit.yaml\"");
+    expect(catalog).toContain(".circuit/plugin-root");
+    expect(catalog).toContain("\"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh\" bootstrap");
+    expect(catalog).toContain("--manifest \"$CIRCUIT_PLUGIN_ROOT/skills/build/circuit.yaml\"");
     expect(catalog).toContain("Never fabricate those files with `Write`, `Edit`, heredocs, or ad hoc shell");
     expect(catalog).toContain("writes.");
     expect(catalog).toContain("Do not run `--help` or search the repo to rediscover the required bootstrap");
@@ -28,7 +29,8 @@ describe("public workflow contracts", () => {
 
       expect(text).toContain("## Direct Invocation Contract");
       expect(text).toContain("## Smoke Bootstrap Mode");
-      expect(text).toContain("Use Circuit helpers directly via `$CLAUDE_PLUGIN_ROOT`");
+      expect(text).toContain("Resolve installed Circuit helpers through `.circuit/plugin-root`");
+      expect(text).toContain("CIRCUIT_PLUGIN_ROOT");
       expect(text).toContain("Create or validate `.circuit/circuit-runs/<slug>/...` before unrelated repo reads.");
       expect(text).toContain('Do not start with "let me understand the current state first"');
       expect(text).toContain("continue from the current phase instead of re-exploring");
@@ -43,7 +45,8 @@ describe("public workflow contracts", () => {
 
     expect(runSkill).toContain("## Direct Invocation Contract");
     expect(runSkill).toContain("/circuit:run develop: ...` resolves to Build");
-    expect(runSkill).toContain("Use Circuit helpers directly via `$CLAUDE_PLUGIN_ROOT`");
+    expect(runSkill).toContain("Resolve installed Circuit helpers through `.circuit/plugin-root`");
+    expect(runSkill).toContain("CIRCUIT_PLUGIN_ROOT");
     expect(runSkill).toContain("Do not use generic repo exploration or the trivial inline path before a predetermined route has created or validated workflow run state.");
     expect(runSkill).toContain("bootstrap-only smoke mode");
     expect(runSkill).toContain("not run-state evidence");
@@ -87,7 +90,7 @@ describe("generated command shims", () => {
 
       expect(shim).toContain("Direct slash-command invocation");
       expect(shim).toContain("Launch the `circuit:");
-      expect(shim).toContain("Use installed Circuit helpers directly via `$CLAUDE_PLUGIN_ROOT`");
+      expect(shim).toContain("Resolve installed Circuit helpers through `.circuit/plugin-root`");
       expect(shim).toContain("smoke/bootstrap verification");
       expect(shim).toContain("repo hygiene or branch status alone does not count");
       expect(shim).toContain("Do not inspect skill files, runtime directories, plugin cache layout, or CLI help output before bootstrap.");

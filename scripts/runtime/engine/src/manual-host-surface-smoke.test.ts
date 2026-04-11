@@ -19,7 +19,7 @@ describe("manual host-surface smoke harness", () => {
     expect(script).toContain('"stream-json"');
     expect(script).toContain('"--verbose"');
     expect(script).toContain("--include-hook-events");
-    expect(script).toContain("CLAUDE_PLUGIN_ROOT: pluginRoot");
+    expect(script).not.toContain("CLAUDE_PLUGIN_ROOT: pluginRoot");
     expect(script).toContain("CIRCUIT_HANDOFF_HOME: handoffHome");
   });
 

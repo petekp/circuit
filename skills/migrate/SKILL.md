@@ -24,11 +24,23 @@ Frame -> Analyze (Inventory) -> Plan (Coexistence) -> Act (Batches) -> Verify ->
 Action-first rules for `/circuit:migrate`:
 
 1. First action is run-root bootstrap.
-2. Use Circuit helpers directly via `$CLAUDE_PLUGIN_ROOT`; do not inspect the plugin cache or repo structure to rediscover them.
+2. Resolve installed Circuit helpers through `.circuit/plugin-root` (written by the Circuit hook for `/circuit:*` prompts) or `$CLAUDE_PLUGIN_ROOT` when already present. Do not inspect the plugin cache or repo structure to rediscover them.
 3. Create or validate `.circuit/circuit-runs/<slug>/...` before unrelated repo reads.
 4. Do not start with "let me understand the current state first" before bootstrap completes.
 5. When the slash command already selected Migrate, stay on that path immediately instead of reclassifying the task.
 6. If bootstrap already happened, continue from the current phase instead of re-exploring.
+
+Resolve the helper root once before using Circuit shell helpers:
+
+```bash
+if [[ -f .circuit/plugin-root ]]; then
+  CIRCUIT_PLUGIN_ROOT="$(tr -d '\n' < .circuit/plugin-root)"
+else
+  CIRCUIT_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+fi
+
+test -n "$CIRCUIT_PLUGIN_ROOT"
+```
 
 ## Smoke Bootstrap Mode
 
@@ -134,13 +146,13 @@ Compose and dispatch both:
 ```bash
 # Pick 1-2 domain skills matching the migration target. Omit --skills if none apply.
 for w in scan risk; do
-  "$CLAUDE_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
+  "$CIRCUIT_PLUGIN_ROOT/scripts/relay/compose-prompt.sh" \
     --header "${RUN_ROOT}/phases/inventory-${w}/prompt-header.md" \
     --skills "rust,tdd" \
     --root "${RUN_ROOT}/phases/inventory-${w}" \
     --out "${RUN_ROOT}/phases/inventory-${w}/prompt.md"
 
-  "$CLAUDE_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
+  "$CIRCUIT_PLUGIN_ROOT/scripts/relay/dispatch.sh" \
     --prompt "${RUN_ROOT}/phases/inventory-${w}/prompt.md" \
     --output "${RUN_ROOT}/phases/inventory-${w}/last-messages/last-message.txt" \
     --circuit migrate \

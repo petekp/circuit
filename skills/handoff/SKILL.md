@@ -21,6 +21,18 @@ saved state for you. No clipboard, no paste.
 - `/circuit:handoff done` -- clear handoff + active-run continuity immediately and stop.
 - `/circuit:handoff resume` -- resolve continuity immediately (`handoff.md` first, active-run fallback) and present it before any unrelated repo exploration.
 
+Resolve the helper root once before using Circuit shell helpers:
+
+```bash
+if [[ -f .circuit/plugin-root ]]; then
+  CIRCUIT_PLUGIN_ROOT="$(tr -d '\n' < .circuit/plugin-root)"
+else
+  CIRCUIT_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+fi
+
+test -n "$CIRCUIT_PLUGIN_ROOT"
+```
+
 ## Relationship to active-run.md
 
 Circuit provides two continuity mechanisms:
@@ -124,7 +136,7 @@ Collect details that are expensive to recover:
 - Blockers, risks, and open questions
 - Ruled-out approaches and the constraint that ruled them out
 
-If the work lives in a git repo, run `$CLAUDE_PLUGIN_ROOT/skills/handoff/scripts/gather-git-state.sh`
+If the work lives in a git repo, run `$CIRCUIT_PLUGIN_ROOT/skills/handoff/scripts/gather-git-state.sh`
 for reference, but do not encode anything in the handoff that `git status`, `git log`, or
 `git diff` would show.
 

@@ -1,4 +1,4 @@
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -17,13 +17,18 @@ function projectSlug(projectRoot: string): string {
     .replace(/^-/, "");
 }
 
-function runUserPromptSubmit(prompt: string): ReturnType<typeof spawnSync> {
+function runUserPromptSubmit(
+  prompt: string,
+  options?: { cwd?: string; env?: Record<string, string> },
+): ReturnType<typeof spawnSync> {
   return spawnSync(USER_PROMPT_SUBMIT, {
+    cwd: options?.cwd,
     input: JSON.stringify({ prompt }),
     encoding: "utf-8",
     env: {
       ...process.env,
       CLAUDE_PLUGIN_ROOT: REPO_ROOT,
+      ...options?.env,
     },
   });
 }
@@ -32,15 +37,7 @@ function runUserPromptSubmitWithEnv(
   prompt: string,
   env: Record<string, string>,
 ): ReturnType<typeof spawnSync> {
-  return spawnSync(USER_PROMPT_SUBMIT, {
-    input: JSON.stringify({ prompt }),
-    encoding: "utf-8",
-    env: {
-      ...process.env,
-      CLAUDE_PLUGIN_ROOT: REPO_ROOT,
-      ...env,
-    },
-  });
+  return runUserPromptSubmit(prompt, { env });
 }
 
 describe("user-prompt-submit integration", () => {
@@ -57,13 +54,19 @@ describe("user-prompt-submit integration", () => {
       "Build bootstrap smoke verification",
     );
     expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "\"$CLAUDE_PLUGIN_ROOT/scripts/relay/circuit-engine.sh\" bootstrap --run-root",
+      "CIRCUIT_PLUGIN_ROOT",
     );
     expect(payload.hookSpecificOutput.additionalContext).toContain(
       "Do not use `Write`, `Edit`, heredocs, or manual file creation",
     );
     expect(payload.hookSpecificOutput.additionalContext).toContain(
-      "--manifest \"$CLAUDE_PLUGIN_ROOT/skills/build/circuit.yaml\" --entry-mode \"lite\"",
+      ".circuit/plugin-root",
+    );
+    expect(payload.hookSpecificOutput.additionalContext).toContain(
+      "\"$CIRCUIT_PLUGIN_ROOT/scripts/relay/circuit-engine.sh\" bootstrap --run-root",
+    );
+    expect(payload.hookSpecificOutput.additionalContext).toContain(
+      "--manifest \"$CIRCUIT_PLUGIN_ROOT/skills/build/circuit.yaml\" --entry-mode \"lite\"",
     );
     expect(payload.hookSpecificOutput.additionalContext).toContain(
       "Do not continue into Frame, Plan, Act, Verify, Review, or Close",
@@ -71,10 +74,24 @@ describe("user-prompt-submit integration", () => {
   });
 
   it("stays silent for unrelated prompts", () => {
-    const result = runUserPromptSubmit("please summarize this file");
+    const projectRoot = mkdtempSync(join(tmpdir(), "circuit-prompt-unrelated-"));
+    const pluginRootPath = resolve(projectRoot, ".circuit", "plugin-root");
+    const result = runUserPromptSubmit("please summarize this file", { cwd: projectRoot });
 
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("");
+    expect(existsSync(pluginRootPath)).toBe(false);
+  });
+
+  it("persists the installed plugin root for circuit prompts even without extra context", () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), "circuit-prompt-root-"));
+    const pluginRootPath = resolve(projectRoot, ".circuit", "plugin-root");
+
+    const result = runUserPromptSubmit("/circuit:build add dark mode support", { cwd: projectRoot });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(readFileSync(pluginRootPath, "utf-8").trim()).toBe(REPO_ROOT);
   });
 
   it("does not hijack ordinary Build work that mentions smoke tests", () => {
@@ -220,16 +237,25 @@ describe("user-prompt-submit integration", () => {
   it("is executable from an installed copy", () => {
     const copiedRoot = mkdtempSync(join(tmpdir(), "circuit-prompt-hook-"));
     const copiedHook = resolve(copiedRoot, "user-prompt-submit.js");
+    const projectRoot = resolve(copiedRoot, "project");
+    const pluginRootPath = resolve(projectRoot, ".circuit", "plugin-root");
 
     copyFileSync(USER_PROMPT_SUBMIT, copiedHook);
     chmodSync(copiedHook, 0o755);
+    mkdirSync(projectRoot, { recursive: true });
 
     const result = spawnSync(copiedHook, {
+      cwd: projectRoot,
       input: JSON.stringify({ prompt: "/circuit:build smoke bootstrap" }),
       encoding: "utf-8",
+      env: {
+        ...process.env,
+        CLAUDE_PLUGIN_ROOT: REPO_ROOT,
+      },
     });
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("circuit-engine.sh");
+    expect(readFileSync(pluginRootPath, "utf-8").trim()).toBe(REPO_ROOT);
   });
 });
