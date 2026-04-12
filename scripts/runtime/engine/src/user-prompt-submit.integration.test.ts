@@ -161,18 +161,19 @@ describe("user-prompt-submit integration", () => {
     expect(exploreResult.stdout).toBe("");
   });
 
-  it("injects exact legacy smoke scaffold context from generated fast modes", () => {
+  it("injects semantic workflow smoke bootstrap context from generated fast modes", () => {
     const result = runUserPromptSubmit(
       "/circuit:explore smoke inspect the public-surface bootstrap path",
     );
 
     expect(result.status).toBe(0);
     const context = readAdditionalContext(result);
-    expect(context).toContain("Circuit Explore Legacy Smoke Contract");
-    expect(context).toContain("Do not invent alternate layouts such as `.circuit/runs/`");
+    expect(context).toContain("Circuit Explore Smoke Contract");
+    expect(context).toContain(".circuit/bin/circuit-engine bootstrap");
+    expect(context).toContain('--workflow "explore"');
     expect(context).toContain('RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"');
-    expect(context).toContain("# Active Run");
-    expect(context).toContain("## Workflow\nExplore");
+    expect(context).toContain('ENTRY_MODE="default"');
+    expect(context).toContain("After bootstrap, validate with `test -e .circuit/current-run`");
   });
 
   it("injects review current-changes fast mode context", () => {

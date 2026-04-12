@@ -118,12 +118,12 @@
     {
       "executable": false,
       "path": "commands/build.md",
-      "sha256": "0a8ff47ad9a1c514cf55513fb3e4bee58b5f44e514b91d3ffc54affecdaf71e1"
+      "sha256": "d9f16a190004a76e4961fd001892746e9b3fd3ad82fe8a666b048db60cbb37e7"
     },
     {
       "executable": false,
       "path": "commands/explore.md",
-      "sha256": "1bed8f6feb2b54597b418e5c955717586253bc921b3f60e5df8e016d821976ee"
+      "sha256": "e7f11ac3d834dcc585d488f95d9914945068341dc75be83e30bdb07382bd1430"
     },
     {
       "executable": false,
@@ -133,12 +133,12 @@
     {
       "executable": false,
       "path": "commands/migrate.md",
-      "sha256": "76a9309ebd28f76dfa4865416b0576d7ffbddefd7f8e25ec3182cb421de0adeb"
+      "sha256": "dde6cc62cb02af9131e39d6697c97204baf677329dd21bb0b9f881f31d8d1f2a"
     },
     {
       "executable": false,
       "path": "commands/repair.md",
-      "sha256": "6b75949be6e3710beefb8bfa76e81914dbd9b75eb099299a519306b12993fef9"
+      "sha256": "352b8abdb06e0641d4a122a4ca27f8d31c7c1cde777db59b405c8f3f6b6c1ead"
     },
     {
       "executable": false,
@@ -148,12 +148,12 @@
     {
       "executable": false,
       "path": "commands/run.md",
-      "sha256": "55b38e76d98df2edadc500078990e6713c8a1df0daec7e1dae0157ff3c0d985f"
+      "sha256": "ce7036f30af746ccc780e80c6461a2b491f303f3d35100828d3061c1538fe877"
     },
     {
       "executable": false,
       "path": "commands/sweep.md",
-      "sha256": "894ee5003ba78522665456c32ddf6f80c3d7e185cb8901fca52955072480762c"
+      "sha256": "f2fbb68994c791b2a10f63002aef25a5e3bcb9dabafe47c42787670702f1b15c"
     },
     {
       "executable": false,
@@ -223,12 +223,12 @@
     {
       "executable": true,
       "path": "scripts/runtime/bin/catalog-compiler.js",
-      "sha256": "1252a8bc85bb361ee57a032bf0a6ace5ddfaa8e426b807220def6ed2861c2cba"
+      "sha256": "0245d16e3a2a93b527cfa35977dec6642607ad7ef95796eef385f01157257e7e"
     },
     {
       "executable": true,
       "path": "scripts/runtime/bin/circuit-engine.js",
-      "sha256": "27fd82839e1883842d50302c174001a0d19013bed176a11b63fb66659c591913"
+      "sha256": "dc6450f4fc16a717acb890a8ebff9794f7925ddd20e7a1e1250ea39c70e585d5"
     },
     {
       "executable": true,
@@ -278,7 +278,7 @@
     {
       "executable": true,
       "path": "scripts/runtime/bin/user-prompt-submit.js",
-      "sha256": "2035428616ebfe6f9e1ee43ac7ebd49d1ac27f962acc537c9c0d637bcf994e55"
+      "sha256": "7289c84591a77f1fbb70c3390f99f1577547830bc5e9e69631fc6e73e17207d3"
     },
     {
       "executable": true,
@@ -288,7 +288,7 @@
     {
       "executable": false,
       "path": "scripts/runtime/generated/prompt-contracts.json",
-      "sha256": "09d50e6fe701e8ad999ee8487588740bf6357add2354c28a0005bac7e4e626f4"
+      "sha256": "81c8c513dcb3d1835b2a29d61c9962408261c20090aab1dca5499a02551fbf21"
     },
     {
       "executable": true,
@@ -318,7 +318,7 @@
     {
       "executable": false,
       "path": "skills/explore/SKILL.md",
-      "sha256": "0be48344d15d44eac30aab5a15591000577876dcc0fe8c7950c43b89efb459e6"
+      "sha256": "83d1dc47dd08cc668b1e8c596d1be702b4f9cbddd3650dae03c683e83a32ccab"
     },
     {
       "executable": true,
@@ -338,7 +338,7 @@
     {
       "executable": false,
       "path": "skills/migrate/SKILL.md",
-      "sha256": "1842f6e17de9ea9e6d9f92fee201d0366d0743b6127c5b3ebfec7e870c448c6a"
+      "sha256": "9b12da1cbdb8958e59a97c80af04cff5b1bf2d620d95437485a0d59696d7bea2"
     },
     {
       "executable": false,
@@ -348,7 +348,7 @@
     {
       "executable": false,
       "path": "skills/repair/SKILL.md",
-      "sha256": "c649ecc4a0834b7d1b5d89c14e2e728b0a2c1058ed34c129dee6dd38db28a342"
+      "sha256": "4ce5a1a6db8e77abd4ec4bd964dfa7707a77fdfa71479ae1f7d2b8f1ae1bf870"
     },
     {
       "executable": false,
@@ -378,7 +378,7 @@
     {
       "executable": false,
       "path": "skills/run/SKILL.md",
-      "sha256": "446e8464e5855ae4c0db953ba3c79b33b504de07067c14218f1c076ac4e7d927"
+      "sha256": "ab197ca8dcc9bef33699bdfd4a52be99968e95960769ff9eebad7e6321641821"
     },
     {
       "executable": false,
@@ -388,7 +388,7 @@
     {
       "executable": false,
       "path": "skills/sweep/SKILL.md",
-      "sha256": "d40c0f08706adc21132189c314b4246d09c6a08b487c3a8c8928d7c170acd7c0"
+      "sha256": "b254a496ba55562119af76f668220269efdb876d282c378b894bd6af23e79cac"
     },
     {
       "executable": false,

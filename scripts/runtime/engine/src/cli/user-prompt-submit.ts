@@ -39,7 +39,7 @@ function isCircuitPrompt(prompt: string): boolean {
 // Intent matchers require the intent token to be the FIRST action after the
 // slug, not a substring. This keeps ordinary work like
 // `/circuit:repair fix flaky smoke test` from accidentally tripping the
-// legacy-smoke fast mode.
+// bootstrap-smoke fast mode.
 function isHandoffDone(command: ParsedSlashCommand): boolean {
   return command.slug === "handoff" && /^done(\s|$)/.test(command.argsLower);
 }
@@ -64,7 +64,7 @@ function isBuildSmoke(command: ParsedSlashCommand): boolean {
   return false;
 }
 
-function isLegacySmoke(command: ParsedSlashCommand): boolean {
+function isWorkflowSmoke(command: ParsedSlashCommand): boolean {
   return (
     ["explore", "migrate", "repair", "sweep"].includes(command.slug)
     && /^smoke(\s|$)/.test(command.argsLower)
@@ -289,9 +289,9 @@ function main(): number {
     emitContext(renderHandoffResumeContext(manifest, continuity));
   }
 
-  if (isLegacySmoke(command)) {
+  if (isWorkflowSmoke(command)) {
     emitContext(renderTemplate(
-      manifest.fast_modes[`legacy_smoke_${command.slug}`].lines,
+      manifest.fast_modes[`smoke_${command.slug}`].lines,
       {},
     ));
   }

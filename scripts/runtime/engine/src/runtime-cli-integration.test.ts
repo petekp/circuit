@@ -399,6 +399,53 @@ describe("runtime CLI integration", () => {
     expect(existsSync(resolve(expectedRunRoot, "artifacts", "active-run.md"))).toBe(true);
   });
 
+  it("circuit-engine bootstrap supports agent-friendly positional shorthand with --rigor", () => {
+    const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));
+    const projectRoot = resolve(tempRoot, "project");
+    mkdirSync(projectRoot, { recursive: true });
+    run("git", ["init", "-q"], { cwd: projectRoot });
+
+    const bootstrap = run(
+      "node",
+      [
+        CIRCUIT_ENGINE,
+        "bootstrap",
+        "explore",
+        "Paddock architecture tournament",
+        "--rigor",
+        "tournament",
+        "--run-root",
+        resolve(projectRoot, ".circuit"),
+      ],
+      { cwd: projectRoot },
+    );
+
+    const expectedRunRoot = resolve(
+      projectRoot,
+      ".circuit",
+      "circuit-runs",
+      "paddock-architecture-tournament",
+    );
+
+    expect(bootstrap.status).toBe(0);
+    expect(bootstrap.stdout).toContain(`run_root=${expectedRunRoot}`);
+    expect(bootstrap.stdout).toContain("resume_step=frame");
+    expect(existsSync(resolve(projectRoot, ".circuit", "current-run"))).toBe(true);
+    expect(existsSync(resolve(expectedRunRoot, "circuit.manifest.yaml"))).toBe(true);
+    expect(existsSync(resolve(expectedRunRoot, "events.ndjson"))).toBe(true);
+    expect(existsSync(resolve(expectedRunRoot, "state.json"))).toBe(true);
+    expect(existsSync(resolve(expectedRunRoot, "artifacts", "active-run.md"))).toBe(true);
+  });
+
+  it("circuit-engine bootstrap --help prints bootstrap usage instead of treating --help as a valued flag", () => {
+    const result = run("node", [CIRCUIT_ENGINE, "bootstrap", "--help"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Usage: circuit-engine bootstrap --run-root <path>");
+    expect(result.stdout).toContain("Agent-friendly shorthand:");
+    expect(result.stderr).toBe("");
+  });
+
   it("circuit-engine wrapper resolves the bundled runtime bin from an installed copy", () => {
     const tempRoot = mkdtempSync(resolve(tmpdir(), "circuit-cli-int-"));
     const installRoot = resolve(tempRoot, "install-root");

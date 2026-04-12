@@ -146,13 +146,25 @@ describe("build/run wiring", () => {
     ]);
   });
 
-  it("uses Build-only semantic bootstrap in run while keeping legacy bootstrap for other workflows", () => {
+  it("uses semantic bootstrap in run and the non-Build workflow entry docs", () => {
     const runSkill = read("skills/run/SKILL.md");
+    const exploreSkill = read("skills/explore/SKILL.md");
+    const migrateSkill = read("skills/migrate/SKILL.md");
+    const repairSkill = read("skills/repair/SKILL.md");
+    const sweepSkill = read("skills/sweep/SKILL.md");
 
-    expect(runSkill).toContain("For Build only, map rigor to the Build entry mode and call semantic bootstrap");
+    expect(runSkill).toContain("Map the routed workflow and rigor to the workflow entry mode, then call semantic bootstrap");
     expect(runSkill).toContain(".circuit/bin/circuit-engine bootstrap");
-    expect(runSkill).toContain("For non-Build workflows, keep the current legacy bootstrap path");
+    expect(runSkill).toContain('--workflow "$WORKFLOW_ID"');
+    expect(runSkill).not.toContain("legacy dashboard bootstrap path");
+    expect(runSkill).not.toContain("For non-Build workflows, keep the current legacy bootstrap path");
     expect(runSkill).toContain("stop and restart via Explore");
+
+    for (const skill of [exploreSkill, migrateSkill, repairSkill, sweepSkill]) {
+      expect(skill).toContain(".circuit/bin/circuit-engine bootstrap");
+      expect(skill).not.toContain("mkdir -p \"${RUN_ROOT}/artifacts\" \"${RUN_ROOT}/phases\"");
+      expect(skill).not.toContain("ln -sfn \"circuit-runs/${RUN_SLUG}\" .circuit/current-run");
+    }
 
     expect(runSkill).not.toContain("I'll plan and implement. Quick self-verify.");
     expect(runSkill).not.toContain("I'll research first, prove the seam, then build with independent review.");

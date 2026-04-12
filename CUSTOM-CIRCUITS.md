@@ -363,8 +363,6 @@ consistency.
 ./scripts/sync-to-cache.sh
 ```
 
-Then `/clear` in Claude Code to reload.
-
 ### Verify the install
 
 ```bash

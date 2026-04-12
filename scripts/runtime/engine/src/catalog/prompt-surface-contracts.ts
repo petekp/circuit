@@ -46,10 +46,11 @@ interface PromptFastModeContract {
   stop_condition: string;
 }
 
-interface LegacyWorkflowContract {
+interface SemanticWorkflowContract {
   slug: "explore" | "migrate" | "repair" | "sweep";
   label: string;
   blockName: string;
+  defaultEntryMode: string;
   routeLine: string;
   stopLine: string;
 }
@@ -104,12 +105,7 @@ const BUILD_PROOF_ARTIFACTS = [
   "artifacts/active-run.md",
 ];
 
-const LEGACY_PROOF_ARTIFACTS = [
-  ".circuit/current-run",
-  "artifacts/",
-  "phases/",
-  "artifacts/active-run.md",
-];
+const SEMANTIC_PROOF_ARTIFACTS = BUILD_PROOF_ARTIFACTS;
 
 const BUILD_SMOKE_RUN_SLUG = 'RUN_SLUG="smoke-bootstrap-build-workflow-host-surface"';
 const BUILD_SMOKE_RUN_ROOT_LINE = 'RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"';
@@ -141,10 +137,12 @@ const SURFACE_SUMMARIES: Record<string, Omit<PromptSurfaceSummary, "canonical_in
     forbidden_manual_fabrication: BUILD_PROOF_ARTIFACTS,
   },
   explore: {
-    bootstrap_style: "legacy-bootstrap",
-    helper_wrappers: ["compose-prompt", "dispatch"],
-    proof_artifacts: LEGACY_PROOF_ARTIFACTS,
+    bootstrap_style: "semantic-bootstrap",
+    canonical_command: `${LOCAL_HELPER_DIR}/circuit-engine bootstrap --workflow explore`,
+    helper_wrappers: ["circuit-engine", "compose-prompt", "dispatch"],
+    proof_artifacts: SEMANTIC_PROOF_ARTIFACTS,
     stop_condition: "Stop after validation for smoke/bootstrap requests. Do not continue into Frame, Analyze, Decide/Plan, or Close.",
+    forbidden_manual_fabrication: SEMANTIC_PROOF_ARTIFACTS,
   },
   handoff: {
     bootstrap_style: "fast-mode-first",
@@ -153,16 +151,20 @@ const SURFACE_SUMMARIES: Record<string, Omit<PromptSurfaceSummary, "canonical_in
     stop_condition: "Resolve the selected fast mode before any broader repo exploration.",
   },
   migrate: {
-    bootstrap_style: "legacy-bootstrap",
-    helper_wrappers: ["compose-prompt", "dispatch"],
-    proof_artifacts: LEGACY_PROOF_ARTIFACTS,
+    bootstrap_style: "semantic-bootstrap",
+    canonical_command: `${LOCAL_HELPER_DIR}/circuit-engine bootstrap --workflow migrate`,
+    helper_wrappers: ["circuit-engine", "compose-prompt", "dispatch"],
+    proof_artifacts: SEMANTIC_PROOF_ARTIFACTS,
     stop_condition: "Stop after validation for smoke/bootstrap requests. Do not continue into Frame, Analyze, Plan, Act, Verify, Review, or Close.",
+    forbidden_manual_fabrication: SEMANTIC_PROOF_ARTIFACTS,
   },
   repair: {
-    bootstrap_style: "legacy-bootstrap",
-    helper_wrappers: [],
-    proof_artifacts: LEGACY_PROOF_ARTIFACTS,
+    bootstrap_style: "semantic-bootstrap",
+    canonical_command: `${LOCAL_HELPER_DIR}/circuit-engine bootstrap --workflow repair`,
+    helper_wrappers: ["circuit-engine"],
+    proof_artifacts: SEMANTIC_PROOF_ARTIFACTS,
     stop_condition: "Stop after validation for smoke/bootstrap requests. Do not continue into Frame, Analyze, Fix, Verify, Review, or Close.",
+    forbidden_manual_fabrication: SEMANTIC_PROOF_ARTIFACTS,
   },
   review: {
     bootstrap_style: "fast-mode-first",
@@ -179,10 +181,12 @@ const SURFACE_SUMMARIES: Record<string, Omit<PromptSurfaceSummary, "canonical_in
     forbidden_manual_fabrication: BUILD_PROOF_ARTIFACTS,
   },
   sweep: {
-    bootstrap_style: "legacy-bootstrap",
-    helper_wrappers: ["compose-prompt", "dispatch"],
-    proof_artifacts: LEGACY_PROOF_ARTIFACTS,
+    bootstrap_style: "semantic-bootstrap",
+    canonical_command: `${LOCAL_HELPER_DIR}/circuit-engine bootstrap --workflow sweep`,
+    helper_wrappers: ["circuit-engine", "compose-prompt", "dispatch"],
+    proof_artifacts: SEMANTIC_PROOF_ARTIFACTS,
     stop_condition: "Stop after validation for smoke/bootstrap requests. Do not continue into Frame, Survey, Queue, Batch Execute, Verify, Deferred Review, or Close.",
+    forbidden_manual_fabrication: SEMANTIC_PROOF_ARTIFACTS,
   },
   workers: {
     bootstrap_style: "adapter-orchestration",
@@ -192,11 +196,12 @@ const SURFACE_SUMMARIES: Record<string, Omit<PromptSurfaceSummary, "canonical_in
   },
 };
 
-const LEGACY_WORKFLOW_CONTRACTS: readonly LegacyWorkflowContract[] = [
+const SEMANTIC_WORKFLOW_CONTRACTS: readonly SemanticWorkflowContract[] = [
   {
     slug: "explore",
     label: "Explore",
     blockName: "EXPLORE_CONTRACT",
+    defaultEntryMode: "default",
     routeLine: "If a spec or direct explore request already determined the route, follow it immediately instead of reclassifying.",
     stopLine: "Stop here. Do not continue into Frame/Analyze/Decide/Close or do unrelated repo exploration.",
   },
@@ -204,6 +209,7 @@ const LEGACY_WORKFLOW_CONTRACTS: readonly LegacyWorkflowContract[] = [
     slug: "migrate",
     label: "Migrate",
     blockName: "MIGRATE_CONTRACT",
+    defaultEntryMode: "default",
     routeLine: "When the slash command already selected Migrate, stay on that path immediately instead of reclassifying the task.",
     stopLine: "Stop here. Do not continue into Frame/Analyze/Plan/Act/Verify/Review/Close or do unrelated repo exploration.",
   },
@@ -211,6 +217,7 @@ const LEGACY_WORKFLOW_CONTRACTS: readonly LegacyWorkflowContract[] = [
     slug: "repair",
     label: "Repair",
     blockName: "REPAIR_CONTRACT",
+    defaultEntryMode: "default",
     routeLine: "When Repair is already selected, stay on the repair path immediately instead of reclassifying the task.",
     stopLine: "Stop here. Do not continue into Frame/Analyze/Fix/Verify/Review/Close or do unrelated repo exploration.",
   },
@@ -218,14 +225,15 @@ const LEGACY_WORKFLOW_CONTRACTS: readonly LegacyWorkflowContract[] = [
     slug: "sweep",
     label: "Sweep",
     blockName: "SWEEP_CONTRACT",
+    defaultEntryMode: "default",
     routeLine: "When Sweep is already selected, stay on that path immediately instead of reclassifying the task.",
     stopLine: "Stop here. Do not continue into Frame/Survey/Queue/Batch/Verify/Review/Close or do unrelated repo exploration.",
   },
 ];
 
-const LEGACY_WORKFLOW_CONTRACTS_BY_SLUG = Object.fromEntries(
-  LEGACY_WORKFLOW_CONTRACTS.map((contract) => [contract.slug, contract]),
-) as Record<LegacyWorkflowContract["slug"], LegacyWorkflowContract>;
+const SEMANTIC_WORKFLOW_CONTRACTS_BY_SLUG = Object.fromEntries(
+  SEMANTIC_WORKFLOW_CONTRACTS.map((contract) => [contract.slug, contract]),
+) as Record<SemanticWorkflowContract["slug"], SemanticWorkflowContract>;
 
 const FAST_MODE_CONTRACTS: Record<string, PromptFastModeContract> = {
   build_smoke: {
@@ -280,10 +288,10 @@ const FAST_MODE_CONTRACTS: Record<string, PromptFastModeContract> = {
     placeholders: ["handoff_path"],
     stop_condition: "Stop after presenting saved continuity.",
   },
-  legacy_smoke_explore: createLegacySmokeFastMode("explore", "Explore"),
-  legacy_smoke_migrate: createLegacySmokeFastMode("migrate", "Migrate"),
-  legacy_smoke_repair: createLegacySmokeFastMode("repair", "Repair"),
-  legacy_smoke_sweep: createLegacySmokeFastMode("sweep", "Sweep"),
+  smoke_explore: createWorkflowSmokeFastMode("explore", "Explore", "default"),
+  smoke_migrate: createWorkflowSmokeFastMode("migrate", "Migrate", "default"),
+  smoke_repair: createWorkflowSmokeFastMode("repair", "Repair", "default"),
+  smoke_sweep: createWorkflowSmokeFastMode("sweep", "Sweep", "default"),
   review_current_changes: {
     id: "review_current_changes",
     lines: [
@@ -300,51 +308,30 @@ const FAST_MODE_CONTRACTS: Record<string, PromptFastModeContract> = {
   },
 };
 
-function createLegacySmokeFastMode(
+function createWorkflowSmokeFastMode(
   workflowSlug: string,
   workflowLabel: string,
+  defaultEntryMode: string,
 ): PromptFastModeContract {
   return {
-    id: `legacy_smoke_${workflowSlug}`,
+    id: `smoke_${workflowSlug}`,
     lines: [
-      `# Circuit ${workflowLabel} Legacy Smoke Contract`,
-      `This prompt is an explicit ${workflowLabel} legacy bootstrap smoke verification.`,
-      "Do not invent alternate layouts such as `.circuit/runs/`. Use the exact legacy scaffold below.",
+      `# Circuit ${workflowLabel} Smoke Contract`,
+      `This prompt is an explicit ${workflowLabel} bootstrap smoke verification.`,
+      "Do not run `--help`, inspect cache layout, or search the repo to rediscover the bootstrap flags. Use the exact command shape below.",
       `RUN_SLUG="${workflowSlug}-smoke-bootstrap"  # or the same slug derived from the task`,
       "RUN_ROOT=\".circuit/circuit-runs/${RUN_SLUG}\"",
-      "mkdir -p \"$RUN_ROOT/artifacts\" \"$RUN_ROOT/phases\"",
-      "ln -sfn \"circuit-runs/${RUN_SLUG}\" .circuit/current-run",
-      "cat > \"$RUN_ROOT/artifacts/active-run.md\" <<'MD'",
-      "# Active Run",
-      "## Workflow",
-      workflowLabel,
-      "## Rigor",
-      "Standard",
-      "## Current Phase",
-      "frame",
-      "## Goal",
-      "<smoke bootstrap objective>",
-      "## Next Step",
-      "Write brief.md",
-      "## Verification Commands",
-      "Smoke bootstrap only",
-      "## Active Worktrees",
-      "none",
-      "## Blockers",
-      "none",
-      "## Last Updated",
-      "<ISO 8601 timestamp>",
-      "MD",
-      "Validate `.circuit/current-run`, `$RUN_ROOT/artifacts`, `$RUN_ROOT/phases`, and `$RUN_ROOT/artifacts/active-run.md`, report the selected run root briefly, and stop.",
+      `ENTRY_MODE="${defaultEntryMode}"`,
+      BUILD_SMOKE_ENGINE_CHECK_LINE,
+      renderWorkflowSmokeBootstrapInlineCommand(workflowSlug, `"$ENTRY_MODE"`),
+      "After bootstrap, validate with `test -e .circuit/current-run` plus `test -f` checks for `circuit.manifest.yaml`, `events.ndjson`, `state.json`, and `artifacts/active-run.md` under `$RUN_ROOT`.",
+      "Do not use `Write`, `Edit`, heredocs, or manual file creation to fabricate `.circuit/current-run`, `circuit.manifest.yaml`, `events.ndjson`, `state.json`, or `artifacts/active-run.md`.",
+      "Validate those on-disk artifacts, report the selected run root briefly, and stop.",
       "Do not continue into the normal workflow phases or broader repo exploration for this smoke request.",
     ],
     placeholders: [],
-    stop_condition: "Stop after validating the legacy smoke scaffold.",
+    stop_condition: "Stop after validating bootstrap artifacts.",
   };
-}
-
-function titleCase(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function renderShellFence(lines: string[]): string {
@@ -360,6 +347,20 @@ function renderBuildSmokeBootstrapInlineCommand(entryMode: string): string {
     `${LOCAL_HELPER_DIR}/circuit-engine bootstrap`,
     '--run-root "$RUN_ROOT"',
     `--manifest "${BUILD_MANIFEST_ALIAS}"`,
+    `--entry-mode ${entryMode}`,
+    '--goal "<smoke bootstrap objective>"',
+    '--project-root "$PWD"',
+  ].join(" ");
+}
+
+function renderWorkflowSmokeBootstrapInlineCommand(
+  workflowSlug: string,
+  entryMode: string,
+): string {
+  return [
+    `${LOCAL_HELPER_DIR}/circuit-engine bootstrap`,
+    `--workflow "${workflowSlug}"`,
+    '--run-root "$RUN_ROOT"',
     `--entry-mode ${entryMode}`,
     '--goal "<smoke bootstrap objective>"',
     '--project-root "$PWD"',
@@ -471,22 +472,23 @@ function renderBuildContractBlock(): string {
   ].join("\n");
 }
 
-function renderLegacyWorkflowContractBlock(
-  contract: LegacyWorkflowContract,
+function renderSemanticWorkflowContractBlock(
+  contract: SemanticWorkflowContract,
 ): string {
-  const { label, routeLine, slug, stopLine } = contract;
+  const { defaultEntryMode, label, routeLine, slug, stopLine } = contract;
   return [
     "## Direct Invocation Contract",
     "",
     `Action-first rules for \`/circuit:${slug}\`:`,
     "",
-    "1. First action is run-root bootstrap.",
+    "1. First action is semantic bootstrap through `.circuit/bin/circuit-engine`.",
     "2. Use hook-authored helper wrappers from `.circuit/bin/`. Do not inspect the plugin cache or repo structure to rediscover Circuit helpers.",
     "3. Create or validate `.circuit/circuit-runs/<slug>/...` before unrelated repo reads.",
     "4. Do not start with \"let me understand the current state first\" before bootstrap completes.",
     `5. ${routeLine}`,
     "6. If bootstrap already happened, continue from the current phase instead of re-exploring.",
     "7. If the user explicitly says to continue or resume from a handoff, read only `~/.claude/projects/<git-root-slug>/handoff.md` before unrelated repo exploration.",
+    "8. Never use `Write`, `Edit`, heredocs, or manual file creation to fabricate workflow run state; `.circuit/bin/circuit-engine bootstrap` must materialize it.",
     "",
     renderHelperWrapperSection(getSurfaceContractDefinition(slug).helper_wrappers),
     "",
@@ -494,13 +496,32 @@ function renderLegacyWorkflowContractBlock(
     "",
     `If the request is explicitly a smoke/bootstrap verification of ${label} (for example it says \`smoke\`, asks to bootstrap, or mentions host-surface verification), bootstrap only.`,
     "",
-    `1. Create or validate the ${label} run root.`,
+    `1. Bootstrap the ${label} run root through \`.circuit/bin/circuit-engine\`.`,
     "2. Validate `.circuit/current-run` points at a real run directory.",
-    `3. Validate legacy ${label} scaffolding exists: \`artifacts/\`, \`phases/\`, and \`artifacts/active-run.md\`.`,
+    `3. Validate ${label} scaffolding exists: \`circuit.manifest.yaml\`, \`events.ndjson\`, \`state.json\`, and \`artifacts/active-run.md\`.`,
     "4. Report the validated run root and scaffold state briefly.",
     `5. ${stopLine}`,
     "",
     `Repo cleanliness, branch status, or directory listings are not valid smoke evidence. The proof must be the on-disk \`.circuit\` run root and ${label} scaffold.`,
+    "",
+    "Use the real bootstrap path, then prove it with the concrete files:",
+    "",
+    renderShellFence([
+      `RUN_SLUG="${slug}-smoke-bootstrap"  # or the same slug derived from the task`,
+      'RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"',
+      `ENTRY_MODE="${defaultEntryMode}"`,
+      "",
+      BUILD_SMOKE_ENGINE_CHECK_LINE,
+      "",
+      `${LOCAL_HELPER_DIR}/circuit-engine bootstrap \\`,
+      `  --workflow "${slug}" \\`,
+      '  --run-root "$RUN_ROOT" \\',
+      '  --entry-mode "$ENTRY_MODE" \\',
+      '  --goal "<smoke bootstrap objective>" \\',
+      '  --project-root "$PWD"',
+      "",
+      ...BUILD_SMOKE_VALIDATION_CHECK_LINES,
+    ]),
   ].join("\n");
 }
 
@@ -511,7 +532,7 @@ function renderRunContractBlock(): string {
     "Action-first rules for `/circuit:run`:",
     "",
     "1. If the task prefix already fixes the route (`fix:`, `develop:`, `decide:`, `migrate:`, `cleanup:`, `overnight:`), take that route immediately.",
-    "2. `/circuit:run develop: ...` resolves to Build. Bootstrap Build immediately or hand off into Build's bootstrap path immediately.",
+    "2. When a route is already selected, bootstrap that workflow immediately or hand off into its bootstrap path immediately.",
     "3. Use hook-authored helper wrappers from `.circuit/bin/`. Do not inspect the plugin cache or repo structure to rediscover Circuit helpers.",
     "4. Do not use generic repo exploration or the trivial inline path before a predetermined route has created or validated workflow run state.",
     "5. Once a workflow is selected, create or validate `.circuit/circuit-runs/<slug>/...` before unrelated repo reads.",
@@ -519,7 +540,7 @@ function renderRunContractBlock(): string {
     "7. If the user explicitly says to continue or resume from a handoff, read only `~/.claude/projects/<git-root-slug>/handoff.md` before unrelated repo exploration.",
     "8. If the request is an explicit smoke/bootstrap verification of the workflow, dispatch into that workflow's bootstrap-only smoke mode and stop after validating run state.",
     "9. Smoke validation is invalid unless `.circuit/current-run` and the selected workflow scaffold exist on disk. Branch status, repo cleanliness, and top-level directory listings are not run-state evidence.",
-    "10. For Build smoke/bootstrap requests, never use `Write`, `Edit`, heredocs, or manual file creation to fabricate `.circuit` run state; semantic bootstrap must create it.",
+    "10. Never use `Write`, `Edit`, heredocs, or manual file creation to fabricate `.circuit` run state; semantic bootstrap must create it.",
     "",
     renderHelperWrapperSection(getSurfaceContractDefinition("run").helper_wrappers),
     "",
@@ -531,7 +552,7 @@ function renderRunContractBlock(): string {
     "- Validate the resulting `.circuit` files on disk.",
     "- Stop after reporting those run-state facts.",
     "- Do not substitute git branch/status checks or repo inventory for bootstrap evidence.",
-    "- Do not hand-write Build smoke artifacts with `Write` or ad hoc shell file creation.",
+    "- Do not hand-write smoke artifacts with `Write` or ad hoc shell file creation.",
     "",
     "For `/circuit:run develop: ...` smoke requests, use the real Build bootstrap path with Lite rigor:",
     "",
@@ -640,7 +661,7 @@ function renderWorkflowCommandShim(entry: WorkflowEntry): string {
     lines.splice(
       6,
       0,
-      `For Build smoke/bootstrap requests, manual \`Write\`/\`Edit\` creation of ${summary.forbidden_manual_fabrication.map((artifact) => `\`${artifact}\``).join(", ")} is a failure; use \`${LOCAL_HELPER_DIR}/circuit-engine bootstrap\` instead.`,
+      `For smoke/bootstrap requests, manual \`Write\`/\`Edit\` creation of ${summary.forbidden_manual_fabrication.map((artifact) => `\`${artifact}\``).join(", ")} is a failure; use \`${LOCAL_HELPER_DIR}/circuit-engine bootstrap\` instead.`,
     );
   }
 
@@ -693,21 +714,21 @@ const SKILL_CONTRACT_TARGET_SPECS: readonly SkillContractTargetSpec[] = [
   },
   {
     slug: "explore",
-    blockName: LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.explore.blockName,
+    blockName: SEMANTIC_WORKFLOW_CONTRACTS_BY_SLUG.explore.blockName,
     filePath: "skills/explore/SKILL.md",
-    render: () => renderLegacyWorkflowContractBlock(LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.explore),
+    render: () => renderSemanticWorkflowContractBlock(SEMANTIC_WORKFLOW_CONTRACTS_BY_SLUG.explore),
   },
   {
     slug: "migrate",
-    blockName: LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.migrate.blockName,
+    blockName: SEMANTIC_WORKFLOW_CONTRACTS_BY_SLUG.migrate.blockName,
     filePath: "skills/migrate/SKILL.md",
-    render: () => renderLegacyWorkflowContractBlock(LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.migrate),
+    render: () => renderSemanticWorkflowContractBlock(SEMANTIC_WORKFLOW_CONTRACTS_BY_SLUG.migrate),
   },
   {
     slug: "repair",
-    blockName: LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.repair.blockName,
+    blockName: SEMANTIC_WORKFLOW_CONTRACTS_BY_SLUG.repair.blockName,
     filePath: "skills/repair/SKILL.md",
-    render: () => renderLegacyWorkflowContractBlock(LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.repair),
+    render: () => renderSemanticWorkflowContractBlock(SEMANTIC_WORKFLOW_CONTRACTS_BY_SLUG.repair),
   },
   {
     slug: "run",
@@ -717,9 +738,9 @@ const SKILL_CONTRACT_TARGET_SPECS: readonly SkillContractTargetSpec[] = [
   },
   {
     slug: "sweep",
-    blockName: LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.sweep.blockName,
+    blockName: SEMANTIC_WORKFLOW_CONTRACTS_BY_SLUG.sweep.blockName,
     filePath: "skills/sweep/SKILL.md",
-    render: () => renderLegacyWorkflowContractBlock(LEGACY_WORKFLOW_CONTRACTS_BY_SLUG.sweep),
+    render: () => renderSemanticWorkflowContractBlock(SEMANTIC_WORKFLOW_CONTRACTS_BY_SLUG.sweep),
   },
   {
     slug: "handoff",

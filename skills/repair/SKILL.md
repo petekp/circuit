@@ -24,13 +24,14 @@ Frame -> Analyze (reproduce + isolate) -> Fix -> Verify -> Review -> Close
 
 Action-first rules for `/circuit:repair`:
 
-1. First action is run-root bootstrap.
+1. First action is semantic bootstrap through `.circuit/bin/circuit-engine`.
 2. Use hook-authored helper wrappers from `.circuit/bin/`. Do not inspect the plugin cache or repo structure to rediscover Circuit helpers.
 3. Create or validate `.circuit/circuit-runs/<slug>/...` before unrelated repo reads.
 4. Do not start with "let me understand the current state first" before bootstrap completes.
 5. When Repair is already selected, stay on the repair path immediately instead of reclassifying the task.
 6. If bootstrap already happened, continue from the current phase instead of re-exploring.
 7. If the user explicitly says to continue or resume from a handoff, read only `~/.claude/projects/<git-root-slug>/handoff.md` before unrelated repo exploration.
+8. Never use `Write`, `Edit`, heredocs, or manual file creation to fabricate workflow run state; `.circuit/bin/circuit-engine bootstrap` must materialize it.
 
 ## Local Helper Wrappers
 
@@ -38,20 +39,43 @@ Circuit's `/circuit:*` hook writes local helper wrappers under `.circuit/bin/` b
 Use those wrappers directly. Do not inspect plugin cache layout, repo structure, or installed helper paths to rediscover Circuit helpers.
 
 ```bash
-test -d .circuit/bin
+test -x .circuit/bin/circuit-engine
 ```
 
 ## Smoke Bootstrap Mode
 
 If the request is explicitly a smoke/bootstrap verification of Repair (for example it says `smoke`, asks to bootstrap, or mentions host-surface verification), bootstrap only.
 
-1. Create or validate the Repair run root.
+1. Bootstrap the Repair run root through `.circuit/bin/circuit-engine`.
 2. Validate `.circuit/current-run` points at a real run directory.
-3. Validate legacy Repair scaffolding exists: `artifacts/`, `phases/`, and `artifacts/active-run.md`.
+3. Validate Repair scaffolding exists: `circuit.manifest.yaml`, `events.ndjson`, `state.json`, and `artifacts/active-run.md`.
 4. Report the validated run root and scaffold state briefly.
 5. Stop here. Do not continue into Frame/Analyze/Fix/Verify/Review/Close or do unrelated repo exploration.
 
 Repo cleanliness, branch status, or directory listings are not valid smoke evidence. The proof must be the on-disk `.circuit` run root and Repair scaffold.
+
+Use the real bootstrap path, then prove it with the concrete files:
+
+```bash
+RUN_SLUG="repair-smoke-bootstrap"  # or the same slug derived from the task
+RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"
+ENTRY_MODE="default"
+
+test -x .circuit/bin/circuit-engine
+
+.circuit/bin/circuit-engine bootstrap \
+  --workflow "repair" \
+  --run-root "$RUN_ROOT" \
+  --entry-mode "$ENTRY_MODE" \
+  --goal "<smoke bootstrap objective>" \
+  --project-root "$PWD"
+
+test -e .circuit/current-run
+test -f "$RUN_ROOT/circuit.manifest.yaml"
+test -f "$RUN_ROOT/events.ndjson"
+test -f "$RUN_ROOT/state.json"
+test -f "$RUN_ROOT/artifacts/active-run.md"
+```
 <!-- END REPAIR_CONTRACT -->
 
 ## Entry
@@ -69,13 +93,20 @@ characters. Example: "Fix Login Email Validation" produces `fix-login-email-vali
 ```bash
 RUN_SLUG="fix-login-email-validation"  # derived from task description
 RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"
-mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
-ln -sfn "circuit-runs/${RUN_SLUG}" .circuit/current-run
+ENTRY_MODE="default"  # Standard -> default, Lite -> lite, Deep -> deep, Autonomous -> autonomous
+
+test -x .circuit/bin/circuit-engine
+
+.circuit/bin/circuit-engine bootstrap \
+  --workflow "repair" \
+  --run-root "$RUN_ROOT" \
+  --entry-mode "$ENTRY_MODE" \
+  --goal "<repair objective>" \
+  --project-root "$PWD"
 ```
 
-Write initial `${RUN_ROOT}/artifacts/active-run.md` with Workflow=Repair,
-Rigor=Standard (or as specified), Current Phase=frame. If the router already set
-up the run root, skip bootstrap and proceed to the current phase.
+Bootstrap is idempotent. If the router already set up the run root, skip
+bootstrap and proceed to the current phase.
 
 ## Phase: Frame
 

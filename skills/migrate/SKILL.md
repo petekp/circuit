@@ -25,13 +25,14 @@ Frame -> Analyze (Inventory) -> Plan (Coexistence) -> Act (Batches) -> Verify ->
 
 Action-first rules for `/circuit:migrate`:
 
-1. First action is run-root bootstrap.
+1. First action is semantic bootstrap through `.circuit/bin/circuit-engine`.
 2. Use hook-authored helper wrappers from `.circuit/bin/`. Do not inspect the plugin cache or repo structure to rediscover Circuit helpers.
 3. Create or validate `.circuit/circuit-runs/<slug>/...` before unrelated repo reads.
 4. Do not start with "let me understand the current state first" before bootstrap completes.
 5. When the slash command already selected Migrate, stay on that path immediately instead of reclassifying the task.
 6. If bootstrap already happened, continue from the current phase instead of re-exploring.
 7. If the user explicitly says to continue or resume from a handoff, read only `~/.claude/projects/<git-root-slug>/handoff.md` before unrelated repo exploration.
+8. Never use `Write`, `Edit`, heredocs, or manual file creation to fabricate workflow run state; `.circuit/bin/circuit-engine bootstrap` must materialize it.
 
 ## Local Helper Wrappers
 
@@ -39,6 +40,7 @@ Circuit's `/circuit:*` hook writes local helper wrappers under `.circuit/bin/` b
 Use those wrappers directly. Do not inspect plugin cache layout, repo structure, or installed helper paths to rediscover Circuit helpers.
 
 ```bash
+test -x .circuit/bin/circuit-engine
 test -x .circuit/bin/compose-prompt
 test -x .circuit/bin/dispatch
 ```
@@ -47,13 +49,36 @@ test -x .circuit/bin/dispatch
 
 If the request is explicitly a smoke/bootstrap verification of Migrate (for example it says `smoke`, asks to bootstrap, or mentions host-surface verification), bootstrap only.
 
-1. Create or validate the Migrate run root.
+1. Bootstrap the Migrate run root through `.circuit/bin/circuit-engine`.
 2. Validate `.circuit/current-run` points at a real run directory.
-3. Validate legacy Migrate scaffolding exists: `artifacts/`, `phases/`, and `artifacts/active-run.md`.
+3. Validate Migrate scaffolding exists: `circuit.manifest.yaml`, `events.ndjson`, `state.json`, and `artifacts/active-run.md`.
 4. Report the validated run root and scaffold state briefly.
 5. Stop here. Do not continue into Frame/Analyze/Plan/Act/Verify/Review/Close or do unrelated repo exploration.
 
 Repo cleanliness, branch status, or directory listings are not valid smoke evidence. The proof must be the on-disk `.circuit` run root and Migrate scaffold.
+
+Use the real bootstrap path, then prove it with the concrete files:
+
+```bash
+RUN_SLUG="migrate-smoke-bootstrap"  # or the same slug derived from the task
+RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"
+ENTRY_MODE="default"
+
+test -x .circuit/bin/circuit-engine
+
+.circuit/bin/circuit-engine bootstrap \
+  --workflow "migrate" \
+  --run-root "$RUN_ROOT" \
+  --entry-mode "$ENTRY_MODE" \
+  --goal "<smoke bootstrap objective>" \
+  --project-root "$PWD"
+
+test -e .circuit/current-run
+test -f "$RUN_ROOT/circuit.manifest.yaml"
+test -f "$RUN_ROOT/events.ndjson"
+test -f "$RUN_ROOT/state.json"
+test -f "$RUN_ROOT/artifacts/active-run.md"
+```
 <!-- END MIGRATE_CONTRACT -->
 
 ## Entry
@@ -73,13 +98,20 @@ characters. Example: "Migrate Auth to OAuth2" produces `migrate-auth-to-oauth2`.
 ```bash
 RUN_SLUG="migrate-auth-to-oauth2"  # derived from task description
 RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"
-mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
-ln -sfn "circuit-runs/${RUN_SLUG}" .circuit/current-run
+ENTRY_MODE="default"  # Deep -> default, Standard -> standard, Autonomous -> autonomous
+
+test -x .circuit/bin/circuit-engine
+
+.circuit/bin/circuit-engine bootstrap \
+  --workflow "migrate" \
+  --run-root "$RUN_ROOT" \
+  --entry-mode "$ENTRY_MODE" \
+  --goal "<migration objective>" \
+  --project-root "$PWD"
 ```
 
-Write initial `${RUN_ROOT}/artifacts/active-run.md` with Workflow=Migrate,
-Rigor=Deep (or as specified), Current Phase=frame. If the router already set
-up the run root, skip bootstrap and proceed to the current phase.
+Bootstrap is idempotent. If the router already set up the run root, skip
+bootstrap and proceed to the current phase.
 
 ## Phase: Frame
 

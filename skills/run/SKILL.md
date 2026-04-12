@@ -34,7 +34,7 @@ The Circuit router. Classifies tasks, selects rigor, dispatches to the right wor
 Action-first rules for `/circuit:run`:
 
 1. If the task prefix already fixes the route (`fix:`, `develop:`, `decide:`, `migrate:`, `cleanup:`, `overnight:`), take that route immediately.
-2. `/circuit:run develop: ...` resolves to Build. Bootstrap Build immediately or hand off into Build's bootstrap path immediately.
+2. When a route is already selected, bootstrap that workflow immediately or hand off into its bootstrap path immediately.
 3. Use hook-authored helper wrappers from `.circuit/bin/`. Do not inspect the plugin cache or repo structure to rediscover Circuit helpers.
 4. Do not use generic repo exploration or the trivial inline path before a predetermined route has created or validated workflow run state.
 5. Once a workflow is selected, create or validate `.circuit/circuit-runs/<slug>/...` before unrelated repo reads.
@@ -42,7 +42,7 @@ Action-first rules for `/circuit:run`:
 7. If the user explicitly says to continue or resume from a handoff, read only `~/.claude/projects/<git-root-slug>/handoff.md` before unrelated repo exploration.
 8. If the request is an explicit smoke/bootstrap verification of the workflow, dispatch into that workflow's bootstrap-only smoke mode and stop after validating run state.
 9. Smoke validation is invalid unless `.circuit/current-run` and the selected workflow scaffold exist on disk. Branch status, repo cleanliness, and top-level directory listings are not run-state evidence.
-10. For Build smoke/bootstrap requests, never use `Write`, `Edit`, heredocs, or manual file creation to fabricate `.circuit` run state; semantic bootstrap must create it.
+10. Never use `Write`, `Edit`, heredocs, or manual file creation to fabricate `.circuit` run state; semantic bootstrap must create it.
 
 ## Local Helper Wrappers
 
@@ -62,7 +62,7 @@ When an intent hint already selects the workflow and the task is an explicit smo
 - Validate the resulting `.circuit` files on disk.
 - Stop after reporting those run-state facts.
 - Do not substitute git branch/status checks or repo inventory for bootstrap evidence.
-- Do not hand-write Build smoke artifacts with `Write` or ad hoc shell file creation.
+- Do not hand-write smoke artifacts with `Write` or ad hoc shell file creation.
 
 For `/circuit:run develop: ...` smoke requests, use the real Build bootstrap path with Lite rigor:
 
@@ -159,8 +159,8 @@ say so and do the work inline. No workflow overhead.
 
 1. Set up the run root.
    Do this before broader repo exploration.
-   Build uses semantic bootstrap through `.circuit/bin/circuit-engine`.
-   Explore, Repair, Migrate, and Sweep stay on the legacy dashboard bootstrap path in this change set.
+   All workflows bootstrap through `.circuit/bin/circuit-engine`.
+   Build continues to use the full event-backed lifecycle after bootstrap; the other workflow skills still own their downstream phase artifacts directly.
 2. Show a one-line summary:
    > **Build / Standard** -- I'll plan the change, implement with independent review, then close.
 3. Load the workflow skill and follow its instructions.
@@ -206,54 +206,30 @@ RUN_SLUG="fix-auth-bug-in-login"  # derived from task description
 RUN_ROOT=".circuit/circuit-runs/${RUN_SLUG}"
 ```
 
-For Build only, map rigor to the Build entry mode and call semantic bootstrap:
+Map the routed workflow and rigor to the workflow entry mode, then call semantic bootstrap:
+
+| Workflow | Rigor -> Entry Mode |
+|----------|---------------------|
+| Explore | Standard -> `default`, Lite -> `lite`, Deep -> `deep`, Tournament -> `tournament`, Autonomous -> `autonomous` |
+| Build | Standard -> `default`, Lite -> `lite`, Deep -> `deep`, Autonomous -> `autonomous` |
+| Repair | Standard -> `default`, Lite -> `lite`, Deep -> `deep`, Autonomous -> `autonomous` |
+| Migrate | Standard -> `standard`, Deep -> `default`, Autonomous -> `autonomous` |
+| Sweep | Standard -> `default`, Lite -> `lite`, Deep -> `deep`, Autonomous -> `autonomous` |
 
 ```bash
-BUILD_ENTRY_MODE="default"  # Standard -> default, Lite -> lite, Deep -> deep, Autonomous -> autonomous
+WORKFLOW_ID="explore"       # set from classification or intent hint
+ENTRY_MODE="tournament"     # mapped from routed rigor for the selected workflow
 
 .circuit/bin/circuit-engine bootstrap \
+  --workflow "$WORKFLOW_ID" \
   --run-root "$RUN_ROOT" \
-  --manifest "@build" \
-  --entry-mode "$BUILD_ENTRY_MODE" \
+  --entry-mode "$ENTRY_MODE" \
   --goal "<task objective>" \
   --project-root "$PWD"
 ```
 
-Bootstrap is idempotent, so the router may call it even when Build already
+Bootstrap is idempotent, so the router may call it even when the workflow already
 initialized the run.
-
-For non-Build workflows, keep the current legacy bootstrap path:
-
-```bash
-mkdir -p "${RUN_ROOT}/artifacts" "${RUN_ROOT}/phases"
-
-# Update the current-run pointer so session-start.sh picks up the right run
-ln -sfn "circuit-runs/${RUN_SLUG}" .circuit/current-run
-```
-
-Write initial `${RUN_ROOT}/artifacts/active-run.md` for non-Build workflows:
-
-```markdown
-# Active Run
-## Workflow
-<workflow>
-## Rigor
-<rigor>
-## Current Phase
-frame
-## Goal
-<task objective>
-## Next Step
-Write brief.md
-## Verification Commands
-<TBD during Frame phase>
-## Active Worktrees
-none
-## Blockers
-none
-## Last Updated
-<ISO 8601 timestamp>
-```
 
 ## After Routing
 

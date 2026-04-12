@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # sync-to-cache.sh -- Copy local plugin files to the Claude Code plugin cache
 #
-# Run this after making local changes to see them take effect immediately
-# across all projects (after /clear). No publish or version bump needed.
+# Run this after making local changes so the installed cache matches the repo.
+# Use /reload-plugins if you want the current session to pick up the updated cache.
+# No publish or version bump needed.
 #
 # Usage: ./scripts/sync-to-cache.sh
 
@@ -293,4 +294,4 @@ if [[ "$synced_any" -eq 0 ]]; then
   exit 1
 fi
 
-printf 'Done. /reload-plugins to pick up changes mid-session, or /clear for a fresh start.\n'
+printf 'Done. Use /reload-plugins if you want the current session to pick up the updated cache.\n'

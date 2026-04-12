@@ -228,8 +228,8 @@ round trips. Fix any failures it reports.
 
 **Changes not taking effect after editing plugin files.** Claude Code runs the
 cached copy, not your local repo. Run `./scripts/sync-to-cache.sh` after any
-edit, then `/clear` to reload.
-Mid-session, `/reload-plugins` picks up cache changes without `/clear`.
+edit.
+Use `/reload-plugins` if you want the current session to pick up cache changes.
 
 **"codex not found" warning.** Codex CLI is optional. `auto` falls back to
 Claude Code's Agent tool for worker dispatch. Install Codex only if you want
