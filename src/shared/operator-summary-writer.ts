@@ -248,7 +248,7 @@ function checkpointOptionDetails(runFolder: string, allowedChoices: readonly str
 }
 
 function renderMarkdown(summary: OperatorSummary): string {
-  const lines = ['Circuit', `⎿ ${summary.status_text ?? statusTextFromHeadline(summary.headline)}`];
+  const lines = ['CIRCUIT', `⎿ ${summary.status_text ?? statusTextFromHeadline(summary.headline)}`];
 
   if (summary.checkpoint !== undefined) {
     lines.push('', '## Checkpoint', '');

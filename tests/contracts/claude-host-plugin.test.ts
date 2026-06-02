@@ -529,7 +529,7 @@ describe('Claude Code host plugin package', () => {
       );
       writeFileSync(
         summaryPath,
-        'Circuit\n⎿ Review complete. Verdict: CLEAN. Findings: 0.\n\n- Full Markdown detail.\n',
+        'CIRCUIT\n⎿ Review complete. Verdict: CLEAN. Findings: 0.\n\n- Full Markdown detail.\n',
       );
       writeFileSync(
         fakeBin,

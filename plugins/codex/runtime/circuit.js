@@ -56416,7 +56416,7 @@ function renderSurfaceMarkdown(input) {
   ];
   const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
   const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join17(input.runFolder, ref.ref))).join(" \xB7 ");
-  return ["Circuit", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
+  return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
 }
 function processAttemptOutcome(outcome) {
   if (outcome === "aborted")
@@ -58156,7 +58156,7 @@ function checkpointOptionDetails(runFolder, allowedChoices) {
   });
 }
 function renderMarkdown(summary) {
-  const lines = ["Circuit", `\u23BF ${summary.status_text ?? statusTextFromHeadline(summary.headline)}`];
+  const lines = ["CIRCUIT", `\u23BF ${summary.status_text ?? statusTextFromHeadline(summary.headline)}`];
   if (summary.checkpoint !== void 0) {
     lines.push("", "## Checkpoint", "");
     lines.push(`- Step: \`${summary.checkpoint.step_id}\``);

@@ -32,6 +32,9 @@ only the layer you need, then go deeper when the change touches that layer.
 - [docs/architecture/runtime.md](architecture/runtime.md) and
   [docs/architecture/declarative-flow-architecture.md](architecture/declarative-flow-architecture.md)
   - current runtime and flow authoring architecture.
+- [docs/architecture/run-process.md](architecture/run-process.md) - current
+  Run decision timeline, including flow routing, axes, depth, relay selection,
+  runtime evidence, checkpoint resume, and autonomous continuation.
 - [docs/pivot/contract-guidance-proof-recovery/](pivot/contract-guidance-proof-recovery/)
   - consolidated reference point for the contract, guidance, proof, and
     recovery pivot.
@@ -72,6 +75,7 @@ locations:
 | Coding-agent setup prompt | [docs/agent-setup.md](agent-setup.md) |
 | First install proof | [docs/first-run.md](first-run.md) |
 | Operator commands and verification | [docs/operator-guide.md](operator-guide.md) |
+| Run decision timeline | [docs/architecture/run-process.md](architecture/run-process.md) |
 | Config and connector routing | [docs/configuration.md](configuration.md) |
 | Flow and block authoring | [docs/flows/authoring-model.md](flows/authoring-model.md) and [docs/flows/blocks.md](flows/blocks.md) |
 | Contract, guidance, proof, and recovery pivot | [docs/pivot/contract-guidance-proof-recovery/](pivot/contract-guidance-proof-recovery/) |

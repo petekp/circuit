@@ -464,7 +464,7 @@ describe('operator summary writer', () => {
       'review result',
     ]);
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('Circuit\n⎿ Review complete. Verdict: CLEAN. Findings: 0.');
+    expect(markdown).toContain('CIRCUIT\n⎿ Review complete. Verdict: CLEAN. Findings: 0.');
     expect(markdown).toContain('Untracked evidence: contents included for 1 file');
     expect(markdown).toContain('diff_truncated');
     expect(markdown).not.toContain('write-capable Claude Code worker');
@@ -1001,7 +1001,7 @@ describe('operator summary writer', () => {
       'Consider: Check the operator summary markdown, not only the JSON report.',
     ]);
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('Circuit\n⎿ Recommendation accepted, with required fold-ins');
+    expect(markdown).toContain('CIRCUIT\n⎿ Recommendation accepted, with required fold-ins');
     expect(markdown).toContain(
       'Recommendation: Build a private eval suite around product-specific failure modes',
     );

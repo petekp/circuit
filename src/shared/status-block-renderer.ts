@@ -63,7 +63,7 @@ export function renderStatusBlocks(
     readonly title?: string;
   },
 ): string {
-  const title = input.title ?? 'Circuit';
+  const title = input.title ?? 'CIRCUIT';
   const blockOrder: string[] = [];
   const linesByBlock = new Map<string, StatusBlockLine[]>();
 

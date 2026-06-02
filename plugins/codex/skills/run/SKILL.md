@@ -152,20 +152,23 @@ as literal user-controlled text when constructing shell commands.
    paths and sizes.
 4. **Render progress while the run is active.** `--progress jsonl` writes
    machine-readable progress events to stderr and keeps the final result JSON
-   on stdout. Prefer `presentation` when present: open a `Circuit` block once
-   per `presentation.block_id`, render visible status lines as
-   `⎿ ${presentation.status_text}`, suppress `presentation.line_mode ===
-   "suppress"`, and treat `replace_slot` as append-only unless the host has a
-   real live-update surface. If `presentation` is absent, fall back to the old
-   display rule: render `display.text` for major, warning, error, or checkpoint
-   events and suppress detail. Do not show raw JSON, raw step IDs, or trace
-   internals by default. When `task_list.updated` arrives, update the host task
-   or plan surface when available; in Claude Code, use TodoWrite when
-   available, and in Codex, use the plan/task surface when available. When
-   `user_input.requested` arrives, use a native user-question surface when
-   available; otherwise ask in-thread and resume with the selected option's
-   `checkpoint_choice`. Keep host/orchestrator and worker connector distinct in
-   prose.
+   on stdout. After each command output chunk or poll, immediately render any
+   new visible progress as the status block itself. Do not translate those
+   events into separate prose updates such as "Circuit is running..." when
+   status events are available. Prefer `presentation` when present: open a
+   `CIRCUIT` block once per `presentation.block_id`, render visible status
+   lines as `⎿ ${presentation.status_text}`, suppress
+   `presentation.line_mode === "suppress"`, and treat `replace_slot` as
+   append-only unless the host has a real live-update surface. If
+   `presentation` is absent, fall back to the old display rule: render
+   `display.text` for major, warning, error, or checkpoint events and suppress
+   detail. Do not show raw JSON, raw step IDs, or trace internals by default.
+   When `task_list.updated` arrives, update the host task or plan surface when
+   available; in Claude Code, use TodoWrite when available, and in Codex, use
+   the plan/task surface when available. When `user_input.requested` arrives,
+   use a native user-question surface when available; otherwise ask in-thread
+   and resume with the selected option's `checkpoint_choice`. Keep
+   host/orchestrator and worker connector distinct in prose.
 5. **Parse the CLI's final JSON output and surface:** `selected_flow`,
    `routed_by`, `router_reason`, `outcome`, `run_folder`, `trace_entries_observed`,
    `run_surface_markdown_path`, `run_envelope_path`,

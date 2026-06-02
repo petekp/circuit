@@ -60,7 +60,7 @@ describe('status block renderer', () => {
     ];
 
     expect(renderStatusBlocks(lines, { mode: 'append-transcript' })).toBe(
-      ['Circuit', '⎿ Chose review.', '⎿ Running review...', '⎿ Review completed.', ''].join('\n'),
+      ['CIRCUIT', '⎿ Chose review.', '⎿ Running review...', '⎿ Review completed.', ''].join('\n'),
     );
   });
 
@@ -84,7 +84,7 @@ describe('status block renderer', () => {
     ];
 
     expect(renderStatusBlocks(lines, { mode: 'live-snapshot' })).toBe(
-      ['Circuit', '⎿ Chose review.', '⎿ Review completed.', ''].join('\n'),
+      ['CIRCUIT', '⎿ Chose review.', '⎿ Review completed.', ''].join('\n'),
     );
   });
 
@@ -115,11 +115,11 @@ describe('status block renderer', () => {
 
     expect(renderStatusBlocks(lines, { mode: 'live-snapshot' })).toBe(
       [
-        'Circuit',
+        'CIRCUIT',
         '⎿ Chose build.',
         '⎿ Waiting for your choice...',
         '',
-        'Circuit',
+        'CIRCUIT',
         '⎿ Chose handoff save.',
         '⎿ Handoff saved.',
         '',
@@ -133,7 +133,7 @@ describe('status block renderer', () => {
       { mode: 'append-transcript' },
     );
 
-    expect(rendered.startsWith('Circuit\n⎿ Framing the work...')).toBe(true);
+    expect(rendered.startsWith('CIRCUIT\n⎿ Framing the work...')).toBe(true);
     expect(rendered.startsWith('⎿')).toBe(false);
   });
 

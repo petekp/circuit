@@ -132,7 +132,7 @@ function renderSurfaceMarkdown(input: {
   const artifactLine = uniqueArtifactRefs
     .map((ref) => markdownLink(artifactLabel(ref), join(input.runFolder, ref.ref)))
     .join(' · ');
-  return ['Circuit', `⎿ ${input.record.surface_output.status_text}`, '', artifactLine, ''].join(
+  return ['CIRCUIT', `⎿ ${input.record.surface_output.status_text}`, '', artifactLine, ''].join(
     '\n',
   );
 }
