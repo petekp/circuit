@@ -45,6 +45,7 @@ the note shipped.
 | `self-auditing-memory-slice-4-spec.md` | implemented | `history pull` and pull logs exist. |
 | `self-auditing-memory-slice-5-spec.md` | partially implemented | Operator-filed project memory and distillation substrate exist; full run-close write-back is deferred. |
 | `self-improving-circuit.md` | current idea | Self-improvement remains a product idea, not shipped behavior. |
+| `skill-moments-alternatives-v1.md` | current idea / exploration | Maps distinct implementations for "right expertise at the right time" against the scaffolded-but-undispatched Skill Moments spec. Recommends a report-only first slice, then a chosen actuator, with judge-frame as the strategic north star. Nothing built. |
 | `tracker-connector.md` | current idea | Tracker issue emission is not implemented. |
 
 ## Removed Notes
