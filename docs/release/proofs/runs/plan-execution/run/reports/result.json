@@ -5,8 +5,8 @@
   "goal": "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
   "outcome": "complete",
   "summary": "Run closed with outcome complete via @complete.",
-  "closed_at": "2026-04-29T22:00:35.000Z",
-  "trace_entries_observed": 34,
-  "manifest_hash": "7dff2f58206d6388f5a97c49b105df8087c18bc9315d736c03374916b4109c23",
+  "closed_at": "2026-04-29T22:00:45.000Z",
+  "trace_entries_observed": 44,
+  "manifest_hash": "b4befa8d142c692117c299238e74a82af65efef6eca0061dc3e3031bb2d596f7",
   "verdict": "accept"
 }

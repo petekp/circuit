@@ -16,6 +16,8 @@ import { fileURLToPath } from 'node:url';
 
 import type * as CliCircuitModule from '../../src/cli/circuit.js';
 import type * as ComposeModule from '../../src/runtime/executors/compose.js';
+import type * as IdSchemasModule from '../../src/schemas/ids.js';
+import type * as StepSchemasModule from '../../src/schemas/step.js';
 
 type CliMain = (typeof CliCircuitModule)['main'];
 type CliMainOptions = Parameters<CliMain>[1];
@@ -24,6 +26,9 @@ type RelayInput = Parameters<Relayer['relay']>[0];
 type RelayOutcome = Awaited<ReturnType<Relayer['relay']>>;
 type RuntimeExecutorsOption = NonNullable<NonNullable<CliMainOptions>['runtimeExecutors']>;
 type StepExecutor = NonNullable<RuntimeExecutorsOption[keyof RuntimeExecutorsOption]>;
+type RuntimeRouteTarget =
+  | { readonly kind: 'step'; readonly stepId: string }
+  | { readonly kind: 'terminal'; readonly target: string };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -36,6 +41,22 @@ const composeRuntime = (await import(
   resolve(projectRoot, 'dist/runtime/executors/compose.js')
 )) as typeof ComposeModule;
 const { executeCompose } = composeRuntime;
+const checkpointBoundaryRuntime = (await import(
+  resolve(projectRoot, 'dist/shared/checkpoint-boundary.js')
+)) as typeof import('../../src/shared/checkpoint-boundary.js');
+const idsRuntime = (await import(
+  resolve(projectRoot, 'dist/schemas/ids.js')
+)) as typeof IdSchemasModule;
+const stepSchemasRuntime = (await import(
+  resolve(projectRoot, 'dist/schemas/step.js')
+)) as typeof StepSchemasModule;
+const policyEnvelopeRuntime = (await import(
+  resolve(projectRoot, 'dist/policy/policy-envelope.js')
+)) as typeof import('../../src/policy/policy-envelope.js');
+const { projectCheckpointBoundaryV0 } = checkpointBoundaryRuntime;
+const { CompiledFlowId } = idsRuntime;
+const { CheckpointStep: SchemaCheckpointStep } = stepSchemasRuntime;
+const { policyRefsForRuntimeInputs } = policyEnvelopeRuntime;
 
 function sha256Hex(text: string): string {
   return createHash('sha256').update(text).digest('hex');
@@ -44,6 +65,18 @@ function sha256Hex(text: string): string {
 function deterministicNow(startMs: number): () => Date {
   let n = 0;
   return () => new Date(startMs + n++ * 1000);
+}
+
+function schemaRouteTarget(target: RuntimeRouteTarget): string {
+  return target.kind === 'terminal' ? target.target : target.stepId;
+}
+
+function schemaRoutes(
+  routes: Readonly<Record<string, RuntimeRouteTarget>>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(routes).map(([route, target]) => [route, schemaRouteTarget(target)]),
+  );
 }
 
 type StreamName = 'stdout' | 'stderr';
@@ -238,12 +271,23 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
     readonly safe_autonomous_choice?: string;
     readonly choices: readonly { readonly id: string; readonly label?: string }[];
   };
-  const effectiveDepth = context.depth ?? 'standard';
+  const effectiveDepth =
+    context.depth ??
+    (context.axes?.autonomous === true
+      ? 'autonomous'
+      : context.axes?.tournament === true
+        ? 'tournament'
+        : (context.axes?.rigor ?? 'standard'));
   const waitsForOperator = effectiveDepth === 'deep' || effectiveDepth === 'tournament';
   const autoSelection =
     effectiveDepth === 'autonomous'
       ? stepPolicy.safe_autonomous_choice
       : stepPolicy.safe_default_choice;
+  const executionContext: Record<string, unknown> = {
+    ...(context.projectRoot === undefined ? {} : { project_root: context.projectRoot }),
+    selection_config_layers: context.selectionConfigLayers ?? [],
+    checkpoint_report_sha256: reportHash,
+  };
   const requestBody = {
     schema_version: 1,
     step_id: step.id,
@@ -255,12 +299,35 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
     ...(stepPolicy.safe_autonomous_choice === undefined
       ? {}
       : { safe_autonomous_choice: stepPolicy.safe_autonomous_choice }),
-    execution_context: {
-      ...(context.projectRoot === undefined ? {} : { project_root: context.projectRoot }),
-      selection_config_layers: context.selectionConfigLayers ?? [],
-      checkpoint_report_sha256: reportHash,
-    },
+    execution_context: executionContext,
   };
+  const boundaryStep = SchemaCheckpointStep.parse({
+    id: step.id,
+    title: step.title ?? 'Checkpoint',
+    protocol: step.protocol ?? 'checkpoint@v1',
+    executor: 'orchestrator',
+    kind: 'checkpoint',
+    policy: step.policy,
+    writes: {
+      request: request.path,
+      response: response.path,
+      ...(report === undefined ? {} : { report }),
+    },
+    routes: schemaRoutes(step.routes),
+    check: step.check,
+  });
+  const boundary = projectCheckpointBoundaryV0({
+    step: boundaryStep,
+    flowId: CompiledFlowId.parse(context.flow.id),
+    declaredDefaultPolicyRefs: policyRefsForRuntimeInputs({
+      ...(context.selectionConfigLayers === undefined
+        ? {}
+        : { configLayers: context.selectionConfigLayers }),
+      ...(context.policyLayers === undefined ? {} : { policyLayers: context.policyLayers }),
+    }),
+  });
+  requestBody.execution_context.checkpoint_boundary_ref = boundary.request_trace.boundary_ref;
+  requestBody.execution_context.checkpoint_boundary_hash = boundary.request_trace.boundary_hash;
   await context.files.writeJson(request, requestBody);
   const requestHash = sha256Hex(await context.files.readText(request));
   await context.trace.append({
@@ -270,8 +337,10 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
     attempt,
     request_path: request.path,
     request_report_hash: requestHash,
+    boundary_ref: boundary.request_trace.boundary_ref,
+    boundary_hash: boundary.request_trace.boundary_hash,
     options: step.choices,
-    auto_resolved: !waitsForOperator,
+    ...(waitsForOperator ? { auto_resolved: false } : {}),
   });
 
   if (waitsForOperator) {
@@ -292,6 +361,7 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
     schema_version: 1,
     step_id: step.id,
     selection: autoSelection,
+    route_id: autoSelection,
     resolution_source: 'declared-default',
   });
   await context.trace.append({
@@ -300,6 +370,7 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
     step_id: step.id,
     attempt,
     selection: autoSelection,
+    route_id: autoSelection,
     auto_resolved: true,
     resolution_source: 'declared-default',
     response_path: response.path,
@@ -314,7 +385,7 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
   });
   return {
     route: Object.hasOwn(step.routes, autoSelection) ? autoSelection : 'pass',
-    details: { selection: autoSelection },
+    details: { selection: autoSelection, route_id: autoSelection },
   };
 };
 
@@ -1029,7 +1100,7 @@ async function captureCustomization(): Promise<void> {
 const scenarios: Scenario[] = [
   {
     slug: 'routed-build',
-    argv: ['run', '--goal', 'develop: add a small safe change'],
+    argv: ['run', 'build', '--goal', 'develop: add a small safe change'],
     relayer: buildRelayer(),
     runtimeExecutors: buildProofExecutors(),
     runId: '44444444-4444-4444-4444-444444444402',
@@ -1070,7 +1141,7 @@ const scenarios: Scenario[] = [
   },
   {
     slug: 'fix',
-    argv: ['run', '--goal', 'quick fix: restore the failing login test'],
+    argv: ['run', 'fix', '--goal', 'quick fix: restore the failing login test'],
     relayer: fixRelayer(),
     runtimeExecutors: fixProofExecutors(),
     runId: '44444444-4444-4444-4444-444444444407',
@@ -1078,7 +1149,15 @@ const scenarios: Scenario[] = [
   },
   {
     slug: 'explore-decision',
-    argv: ['run', '--goal', 'decide: React vs Vue'],
+    argv: [
+      'run',
+      'explore',
+      '--goal',
+      'decide: React vs Vue',
+      '--tournament',
+      '--tournament-n',
+      '3',
+    ],
     relayer: exploreDecisionRelayer(),
     resumeChoice: 'option-2',
     runId: '44444444-4444-4444-4444-444444444441',
@@ -1117,7 +1196,12 @@ const scenarios: Scenario[] = [
   },
   {
     slug: 'plan-execution',
-    argv: ['run', '--goal', 'Execute this plan: ./docs/specs/headless-engine-host-api-v1.md'],
+    argv: [
+      'run',
+      'build',
+      '--goal',
+      'Execute this plan: ./docs/specs/headless-engine-host-api-v1.md',
+    ],
     relayer: buildRelayer(),
     runtimeExecutors: buildProofExecutors(),
     runId: '44444444-4444-4444-4444-444444444410',

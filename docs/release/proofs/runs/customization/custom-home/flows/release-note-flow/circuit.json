@@ -192,6 +192,29 @@
       "executor": "worker",
       "kind": "relay",
       "role": "implementer",
+      "acceptance_criteria": {
+        "checks": [
+          {
+            "kind": "report_field",
+            "id": "changed-files-present",
+            "path": [
+              "changed_files"
+            ],
+            "predicate": "present"
+          },
+          {
+            "kind": "report_field",
+            "id": "evidence-non-empty",
+            "path": [
+              "evidence"
+            ],
+            "predicate": "non_empty"
+          }
+        ],
+        "on_failure": {
+          "mode": "retry-with-feedback"
+        }
+      },
       "writes": {
         "report": {
           "path": "reports/build/implementation.json",

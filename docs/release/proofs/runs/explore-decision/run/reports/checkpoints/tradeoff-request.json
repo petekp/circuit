@@ -16,6 +16,21 @@
       "autonomous": false
     },
     "project_root": "<repo>",
-    "selection_config_layers": []
+    "work_contract_ref": {
+      "kind": "work_contract",
+      "ref": "<repo>/generated/flows/explore/tournament.work-contract.v0.json",
+      "sha256": "a4d09d427691ea056b078c07d51719ac5448837b3634cae2ca5e24b0995c1d07",
+      "flow_id": "explore"
+    },
+    "checkpoint_boundary_ref": {
+      "kind": "work_contract",
+      "ref": "compiled-flow/steps/tradeoff-checkpoint-step/checkpoint-boundary.v0",
+      "sha256": "3071a900ff798ca6d816bc80cd2e7cd5dd344d81a6edf113e725def72cf0ec8b",
+      "flow_id": "explore",
+      "step_id": "tradeoff-checkpoint-step"
+    },
+    "checkpoint_boundary_hash": "3071a900ff798ca6d816bc80cd2e7cd5dd344d81a6edf113e725def72cf0ec8b",
+    "selection_config_layers": [],
+    "policy_layers": []
   }
 }

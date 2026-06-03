@@ -1,0 +1,46 @@
+{
+  "schema": "run.envelope-shadow@v0",
+  "mode": "shadow",
+  "shadow_reason": "source-owned-run-not-active",
+  "run_id": "44444444-4444-4444-4444-444444444403",
+  "operator_intent": "add a focused change",
+  "recorded_at": "2026-04-29T18:30:06.000Z",
+  "selected_process": {
+    "process_id": "build",
+    "routed_by": "explicit",
+    "router_reason": "explicit flow positional argument",
+    "entry_mode": "deep"
+  },
+  "child_run": {
+    "run_id": "44444444-4444-4444-4444-444444444403",
+    "run_folder": "<repo>/docs/release/proofs/runs/explicit-build/run",
+    "flow_id": "build",
+    "outcome": "checkpoint_waiting",
+    "trace_entries_observed": 5,
+    "manifest_hash": "b4befa8d142c692117c299238e74a82af65efef6eca0061dc3e3031bb2d596f7",
+    "checkpoint": {
+      "step_id": "frame-step",
+      "request_ref": {
+        "kind": "request",
+        "ref": "reports/checkpoints/frame-step-request.json",
+        "sha256": "a48f096757066c2ad525f5a6553a0648dd3cb15d9be40ee054679323a42a8a53",
+        "run_id": "44444444-4444-4444-4444-444444444403",
+        "flow_id": "build",
+        "step_id": "frame-step"
+      },
+      "allowed_choices": [
+        "continue"
+      ]
+    }
+  },
+  "artifact_links": [
+    {
+      "kind": "request",
+      "ref": "reports/checkpoints/frame-step-request.json",
+      "sha256": "a48f096757066c2ad525f5a6553a0648dd3cb15d9be40ee054679323a42a8a53",
+      "run_id": "44444444-4444-4444-4444-444444444403",
+      "flow_id": "build",
+      "step_id": "frame-step"
+    }
+  ]
+}

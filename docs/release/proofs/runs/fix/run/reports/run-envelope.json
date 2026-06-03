@@ -1,0 +1,211 @@
+{
+  "schema": "run.envelope@v0",
+  "run_id": "44444444-4444-4444-4444-444444444407",
+  "operator_intent": "quick fix: restore the failing login test",
+  "explicit_constraints": [],
+  "explicit_process_request": "fix",
+  "memory_context": {
+    "used": false,
+    "memory_input_ids": [],
+    "authority": "hint_only"
+  },
+  "goal_contract": {
+    "schema": "run.goal-contract@v0",
+    "objective": "quick fix: restore the failing login test",
+    "scope": {
+      "in": [
+        "quick fix: restore the failing login test"
+      ],
+      "out": [],
+      "assumptions": []
+    },
+    "constraints": [],
+    "done_when": [
+      {
+        "id": "process-evidence",
+        "claim": "The fix work is complete with the required proof for: quick fix: restore the failing login test",
+        "required_evidence": [
+          {
+            "kind": "command",
+            "description": "A passing verification command proving: quick fix: restore the failing login test",
+            "required": true
+          }
+        ]
+      }
+    ],
+    "recovery_policy": {
+      "max_process_attempts": 2,
+      "allowed_routes": [
+        "retry-process",
+        "run-review",
+        "checkpoint",
+        "handoff",
+        "blocked"
+      ]
+    },
+    "stop_conditions": [
+      "Stop instead of closing complete when required evidence is missing."
+    ],
+    "completion_gate": {
+      "required_passes": 2,
+      "blocking_severities": [
+        "critical",
+        "high",
+        "medium"
+      ],
+      "reset_on_blocking_finding": true
+    }
+  },
+  "process_plan": {
+    "schema": "run.process-plan@v0",
+    "selection_source": "explicit_operator_request",
+    "rationale": "explicit flow positional argument",
+    "planned_attempts": [
+      {
+        "attempt_id": "attempt-primary",
+        "process_id": "fix",
+        "goal": "quick fix: restore the failing login test",
+        "expected_evidence": [
+          "reports/process-evidence.json"
+        ],
+        "depends_on_attempt_ids": []
+      }
+    ]
+  },
+  "process_attempts": [
+    {
+      "schema": "run.process-attempt@v0",
+      "attempt_id": "attempt-primary",
+      "process_id": "fix",
+      "goal": "quick fix: restore the failing login test",
+      "started_at": "2026-04-29T20:31:14.000Z",
+      "completed_at": "2026-04-29T20:31:14.000Z",
+      "outcome": "complete",
+      "child_run": {
+        "run_id": "44444444-4444-4444-4444-444444444407",
+        "run_folder": "<repo>/docs/release/proofs/runs/fix/run",
+        "result_ref": {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "37e7e71f1bf4bd45b6231af2bc984e962032152c630c387768d25d6e813d8acb",
+            "run_id": "44444444-4444-4444-4444-444444444407",
+            "flow_id": "fix"
+          }
+        },
+        "trace_entries_observed": 72,
+        "manifest_hash": "f4e8514d4fd965dda324b8d80b9bafbe85375c8c5e30c2c65099d8da526ab19d"
+      },
+      "evidence_refs": [
+        {
+          "source": "process_evidence",
+          "ref": {
+            "kind": "evidence",
+            "ref": "reports/process-evidence.json",
+            "sha256": "7277277c8b9c402c364adcb19e048c1cd3cc21564bfe93f7fa216717c42f05f1",
+            "run_id": "44444444-4444-4444-4444-444444444407",
+            "flow_id": "fix"
+          }
+        },
+        {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "37e7e71f1bf4bd45b6231af2bc984e962032152c630c387768d25d6e813d8acb",
+            "run_id": "44444444-4444-4444-4444-444444444407",
+            "flow_id": "fix"
+          }
+        }
+      ],
+      "summary": "Run closed with outcome complete via @complete."
+    }
+  ],
+  "completion_gate": {
+    "schema": "run.completion-gate@v0",
+    "verdict": "complete",
+    "claim_results": [
+      {
+        "claim_id": "process-evidence",
+        "status": "proved",
+        "evidence": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "7277277c8b9c402c364adcb19e048c1cd3cc21564bfe93f7fa216717c42f05f1",
+              "run_id": "44444444-4444-4444-4444-444444444407",
+              "flow_id": "fix"
+            }
+          }
+        ]
+      }
+    ],
+    "gate_passes": [
+      {
+        "pass_id": "gate-process-evidence",
+        "attack_lens": "required-evidence-present",
+        "evidence_checked": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "7277277c8b9c402c364adcb19e048c1cd3cc21564bfe93f7fa216717c42f05f1",
+              "run_id": "44444444-4444-4444-4444-444444444407",
+              "flow_id": "fix"
+            }
+          }
+        ],
+        "verdict": "gate-pass"
+      },
+      {
+        "pass_id": "gate-child-outcome",
+        "attack_lens": "child-outcome-consistent",
+        "evidence_checked": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "7277277c8b9c402c364adcb19e048c1cd3cc21564bfe93f7fa216717c42f05f1",
+              "run_id": "44444444-4444-4444-4444-444444444407",
+              "flow_id": "fix"
+            }
+          }
+        ],
+        "verdict": "gate-pass"
+      }
+    ],
+    "clean_streak": 2,
+    "required_passes": 2,
+    "next_action": "close"
+  },
+  "decision_packets": [],
+  "memory_update_events": [],
+  "surface_output": {
+    "schema": "run.surface-output@v0",
+    "status_text": "Done: fix completed with required process evidence.",
+    "outcome": "complete",
+    "next_action": "close",
+    "artifact_links": [
+      {
+        "kind": "evidence",
+        "ref": "reports/process-evidence.json",
+        "sha256": "7277277c8b9c402c364adcb19e048c1cd3cc21564bfe93f7fa216717c42f05f1",
+        "run_id": "44444444-4444-4444-4444-444444444407",
+        "flow_id": "fix"
+      },
+      {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "37e7e71f1bf4bd45b6231af2bc984e962032152c630c387768d25d6e813d8acb",
+        "run_id": "44444444-4444-4444-4444-444444444407",
+        "flow_id": "fix"
+      }
+    ]
+  },
+  "outcome": "complete"
+}

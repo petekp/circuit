@@ -3,6 +3,12 @@ Title: Act - implementation relay
 Role: implementer
 Accepted verdicts: accept
 
+Operator Goal:
+deep change that asks for scope
+
+Prior-Run Memory (optional, hint-only):
+You may consult prior-run memory with `circuit history pull --run-folder <repo>/docs/release/proofs/runs/checkpoint/run --flow build --decision-point <label> <query>`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.
+
 Context (from reads):
 --- reports/build/brief.json ---
 {
@@ -64,5 +70,11 @@ Context (from reads):
   }
 }
 
+
+Acceptance Criteria:
+Before this step can advance, Circuit will check the relay result against these deterministic criteria.
+Failure policy: retry-with-feedback
+- changed-files-present: report field changed_files must be present.
+- evidence-non-empty: report field evidence must be non_empty.
 
 Respond with a single raw JSON object whose top-level shape is exactly: { "verdict": "accept", "summary": "<what changed>", "changed_files": ["<project-relative path>"], "evidence": ["<verification or implementation evidence>"] } Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass. Use an empty changed_files array only when no file changed. Evidence must contain at least one item. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.implementation@v1 before writing reports/build/implementation.json.

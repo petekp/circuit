@@ -9,6 +9,14 @@
   "execution_context": {
     "project_root": "<repo>",
     "selection_config_layers": [],
-    "checkpoint_report_sha256": "1b2184d79a9a8030df210874b02404caeb4e3155cf45617eaf5c96bc752ac78a"
+    "checkpoint_report_sha256": "1b2184d79a9a8030df210874b02404caeb4e3155cf45617eaf5c96bc752ac78a",
+    "checkpoint_boundary_ref": {
+      "kind": "work_contract",
+      "ref": "compiled-flow/steps/frame-step/checkpoint-boundary.v0",
+      "sha256": "c6fdc6032f33baecb6b9bd5f6e9652678742594205966f6bc8bd390a180610bb",
+      "flow_id": "build",
+      "step_id": "frame-step"
+    },
+    "checkpoint_boundary_hash": "c6fdc6032f33baecb6b9bd5f6e9652678742594205966f6bc8bd390a180610bb"
   }
 }

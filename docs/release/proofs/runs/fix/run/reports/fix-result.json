@@ -6,7 +6,7 @@
   "regression_rerun_status": "deferred",
   "change_set_status": "pass",
   "review_status": "skipped",
-  "review_skip_reason": "Lite mode skipped review per route_overrides.",
+  "review_skip_reason": "Reviewer connector failed after proof passed; Fix closed with regression, verification, and change-set evidence.",
   "residual_risks": [],
   "evidence_links": [
     {

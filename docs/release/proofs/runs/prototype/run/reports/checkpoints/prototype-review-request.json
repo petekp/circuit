@@ -16,6 +16,21 @@
       "autonomous": false
     },
     "project_root": "<repo>",
-    "selection_config_layers": []
+    "work_contract_ref": {
+      "kind": "work_contract",
+      "ref": "<repo>/generated/flows/prototype/circuit.work-contract.v0.json",
+      "sha256": "f7bfc3b7e5c50b3cc07fcf929dede2754a47531482b81355ccdb05b2d1a41d47",
+      "flow_id": "prototype"
+    },
+    "checkpoint_boundary_ref": {
+      "kind": "work_contract",
+      "ref": "compiled-flow/steps/prototype-checkpoint-step/checkpoint-boundary.v0",
+      "sha256": "713bd4e98ad9fcef845bb5c42d725a15d7543e0df30c594d9fa1f1fcfee37012",
+      "flow_id": "prototype",
+      "step_id": "prototype-checkpoint-step"
+    },
+    "checkpoint_boundary_hash": "713bd4e98ad9fcef845bb5c42d725a15d7543e0df30c594d9fa1f1fcfee37012",
+    "selection_config_layers": [],
+    "policy_layers": []
   }
 }

@@ -1,0 +1,40 @@
+{
+  "schema": "run.envelope-shadow@v0",
+  "mode": "shadow",
+  "shadow_reason": "source-owned-run-not-active",
+  "run_id": "44444444-4444-4444-4444-444444444407",
+  "operator_intent": "quick fix: restore the failing login test",
+  "recorded_at": "2026-04-29T20:31:14.000Z",
+  "selected_process": {
+    "process_id": "fix",
+    "routed_by": "explicit",
+    "router_reason": "explicit flow positional argument"
+  },
+  "child_run": {
+    "run_id": "44444444-4444-4444-4444-444444444407",
+    "run_folder": "<repo>/docs/release/proofs/runs/fix/run",
+    "flow_id": "fix",
+    "outcome": "complete",
+    "trace_entries_observed": 72,
+    "manifest_hash": "f4e8514d4fd965dda324b8d80b9bafbe85375c8c5e30c2c65099d8da526ab19d",
+    "result_ref": {
+      "source": "child_result",
+      "ref": {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "37e7e71f1bf4bd45b6231af2bc984e962032152c630c387768d25d6e813d8acb",
+        "run_id": "44444444-4444-4444-4444-444444444407",
+        "flow_id": "fix"
+      }
+    }
+  },
+  "artifact_links": [
+    {
+      "kind": "report",
+      "ref": "reports/result.json",
+      "sha256": "37e7e71f1bf4bd45b6231af2bc984e962032152c630c387768d25d6e813d8acb",
+      "run_id": "44444444-4444-4444-4444-444444444407",
+      "flow_id": "fix"
+    }
+  ]
+}

@@ -519,8 +519,15 @@ describe('Claude Code host plugin package', () => {
           flow_id: 'review',
           selected_flow: 'review',
           outcome: 'complete',
-          headline: 'Circuit: Review complete. Verdict: CLEAN. Findings: 0.',
-          status_text: 'Review complete. Verdict: CLEAN. Findings: 0.',
+          headline: 'Circuit · Review: Clean',
+          status_text: 'Review: Clean',
+          brief_slots: {
+            headline: 'Circuit · Review: Clean',
+            assessment: 'Reviewer found nothing actionable in scope.',
+            key_points: ['Checked the relayed review report'],
+            caveats: [],
+            next_action: 'nothing required.',
+          },
           details: [],
           evidence_warnings: [],
           run_folder: tempDir,
@@ -529,7 +536,16 @@ describe('Claude Code host plugin package', () => {
       );
       writeFileSync(
         summaryPath,
-        'CIRCUIT\n⎿ Review complete. Verdict: CLEAN. Findings: 0.\n\n- Full Markdown detail.\n',
+        [
+          'Circuit · Review: Clean',
+          '',
+          'Reviewer found nothing actionable in scope.',
+          '',
+          '- Checked the relayed review report',
+          '',
+          'Next: nothing required.',
+          '',
+        ].join('\n'),
       );
       writeFileSync(
         fakeBin,
@@ -548,7 +564,7 @@ describe('Claude Code host plugin package', () => {
               run_folder: tempDir,
               operator_summary_path: summaryJsonPath,
               operator_summary_markdown_path: summaryPath,
-              operator_summary_status_text: 'Review complete. Verdict: CLEAN. Findings: 0.',
+              operator_summary_status_text: 'Review: Clean',
             })}\n`,
           )});`,
           '',
@@ -584,15 +600,19 @@ describe('Claude Code host plugin package', () => {
           '⎿ Reviewing the result...',
           '⎿ Finished Review.',
           '',
-          'CIRCUIT',
-          '⎿ Review complete. Verdict: CLEAN. Findings: 0.',
+          'Circuit · Review: Clean',
           '',
-          '- Full Markdown detail.',
+          'Reviewer found nothing actionable in scope.',
+          '',
+          '- Checked the relayed review report',
+          '',
+          'Next: nothing required.',
           '',
         ].join('\n'),
       );
       expect(result.stdout.match(/^Circuit$/gm)).toHaveLength(1);
-      expect(result.stdout).toContain('Full Markdown detail');
+      expect(result.stdout).toContain('Reviewer found nothing actionable in scope.');
+      expect(result.stdout).not.toContain('\nCIRCUIT\n');
       expect(result.stdout).not.toContain('schema_version');
       expect(result.stdout).not.toContain('{"');
     } finally {

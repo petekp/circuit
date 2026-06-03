@@ -6,8 +6,20 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "complete",
-  "headline": "Circuit: Build complete. Change implemented, verification passed, review accepted.",
-  "status_text": "Build complete. Change implemented, verification passed, review accepted.",
+  "headline": "Circuit · Build: Implemented",
+  "status_text": "Build: Implemented",
+  "brief_slots": {
+    "headline": "Circuit · Build: Implemented",
+    "assessment": "add a small safe change: Implemented the requested synthetic change.",
+    "key_points": [
+      "Worker access: A worker can edit this checkout.",
+      "Result: add a small safe change: Implemented the requested synthetic change.",
+      "Verification: passed.",
+      "Review: accepted."
+    ],
+    "caveats": [],
+    "next_action": "nothing required."
+  },
   "details": [
     "Worker access: A worker can edit this checkout.",
     "Run note: Run closed with outcome complete via @complete.",

@@ -1,0 +1,211 @@
+{
+  "schema": "run.envelope@v0",
+  "run_id": "44444444-4444-4444-4444-444444444402",
+  "operator_intent": "develop: add a small safe change",
+  "explicit_constraints": [],
+  "explicit_process_request": "build",
+  "memory_context": {
+    "used": false,
+    "memory_input_ids": [],
+    "authority": "hint_only"
+  },
+  "goal_contract": {
+    "schema": "run.goal-contract@v0",
+    "objective": "develop: add a small safe change",
+    "scope": {
+      "in": [
+        "develop: add a small safe change"
+      ],
+      "out": [],
+      "assumptions": []
+    },
+    "constraints": [],
+    "done_when": [
+      {
+        "id": "process-evidence",
+        "claim": "The build work is complete with the required proof for: develop: add a small safe change",
+        "required_evidence": [
+          {
+            "kind": "command",
+            "description": "A passing verification command proving: develop: add a small safe change",
+            "required": true
+          }
+        ]
+      }
+    ],
+    "recovery_policy": {
+      "max_process_attempts": 2,
+      "allowed_routes": [
+        "retry-process",
+        "run-review",
+        "checkpoint",
+        "handoff",
+        "blocked"
+      ]
+    },
+    "stop_conditions": [
+      "Stop instead of closing complete when required evidence is missing."
+    ],
+    "completion_gate": {
+      "required_passes": 2,
+      "blocking_severities": [
+        "critical",
+        "high",
+        "medium"
+      ],
+      "reset_on_blocking_finding": true
+    }
+  },
+  "process_plan": {
+    "schema": "run.process-plan@v0",
+    "selection_source": "explicit_operator_request",
+    "rationale": "explicit flow positional argument",
+    "planned_attempts": [
+      {
+        "attempt_id": "attempt-primary",
+        "process_id": "build",
+        "goal": "develop: add a small safe change",
+        "expected_evidence": [
+          "reports/process-evidence.json"
+        ],
+        "depends_on_attempt_ids": []
+      }
+    ]
+  },
+  "process_attempts": [
+    {
+      "schema": "run.process-attempt@v0",
+      "attempt_id": "attempt-primary",
+      "process_id": "build",
+      "goal": "develop: add a small safe change",
+      "started_at": "2026-04-29T18:00:46.000Z",
+      "completed_at": "2026-04-29T18:00:46.000Z",
+      "outcome": "complete",
+      "child_run": {
+        "run_id": "44444444-4444-4444-4444-444444444402",
+        "run_folder": "<repo>/docs/release/proofs/runs/routed-build/run",
+        "result_ref": {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "0f759ab3fe8c3cb23a592617928e527429e3bf594bf406f6d02ee5f8ab74832d",
+            "run_id": "44444444-4444-4444-4444-444444444402",
+            "flow_id": "build"
+          }
+        },
+        "trace_entries_observed": 44,
+        "manifest_hash": "b4befa8d142c692117c299238e74a82af65efef6eca0061dc3e3031bb2d596f7"
+      },
+      "evidence_refs": [
+        {
+          "source": "process_evidence",
+          "ref": {
+            "kind": "evidence",
+            "ref": "reports/process-evidence.json",
+            "sha256": "25f3a6c6a91b97f30ba45053e872d4f537bbdc88cf5808da4db993cd6e4eec8d",
+            "run_id": "44444444-4444-4444-4444-444444444402",
+            "flow_id": "build"
+          }
+        },
+        {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "0f759ab3fe8c3cb23a592617928e527429e3bf594bf406f6d02ee5f8ab74832d",
+            "run_id": "44444444-4444-4444-4444-444444444402",
+            "flow_id": "build"
+          }
+        }
+      ],
+      "summary": "Run closed with outcome complete via @complete."
+    }
+  ],
+  "completion_gate": {
+    "schema": "run.completion-gate@v0",
+    "verdict": "complete",
+    "claim_results": [
+      {
+        "claim_id": "process-evidence",
+        "status": "proved",
+        "evidence": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "25f3a6c6a91b97f30ba45053e872d4f537bbdc88cf5808da4db993cd6e4eec8d",
+              "run_id": "44444444-4444-4444-4444-444444444402",
+              "flow_id": "build"
+            }
+          }
+        ]
+      }
+    ],
+    "gate_passes": [
+      {
+        "pass_id": "gate-process-evidence",
+        "attack_lens": "required-evidence-present",
+        "evidence_checked": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "25f3a6c6a91b97f30ba45053e872d4f537bbdc88cf5808da4db993cd6e4eec8d",
+              "run_id": "44444444-4444-4444-4444-444444444402",
+              "flow_id": "build"
+            }
+          }
+        ],
+        "verdict": "gate-pass"
+      },
+      {
+        "pass_id": "gate-child-outcome",
+        "attack_lens": "child-outcome-consistent",
+        "evidence_checked": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "25f3a6c6a91b97f30ba45053e872d4f537bbdc88cf5808da4db993cd6e4eec8d",
+              "run_id": "44444444-4444-4444-4444-444444444402",
+              "flow_id": "build"
+            }
+          }
+        ],
+        "verdict": "gate-pass"
+      }
+    ],
+    "clean_streak": 2,
+    "required_passes": 2,
+    "next_action": "close"
+  },
+  "decision_packets": [],
+  "memory_update_events": [],
+  "surface_output": {
+    "schema": "run.surface-output@v0",
+    "status_text": "Done: build completed with required process evidence.",
+    "outcome": "complete",
+    "next_action": "close",
+    "artifact_links": [
+      {
+        "kind": "evidence",
+        "ref": "reports/process-evidence.json",
+        "sha256": "25f3a6c6a91b97f30ba45053e872d4f537bbdc88cf5808da4db993cd6e4eec8d",
+        "run_id": "44444444-4444-4444-4444-444444444402",
+        "flow_id": "build"
+      },
+      {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "0f759ab3fe8c3cb23a592617928e527429e3bf594bf406f6d02ee5f8ab74832d",
+        "run_id": "44444444-4444-4444-4444-444444444402",
+        "flow_id": "build"
+      }
+    ]
+  },
+  "outcome": "complete"
+}

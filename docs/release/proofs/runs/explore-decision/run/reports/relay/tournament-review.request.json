@@ -2,6 +2,13 @@ Step: stress-proposals-step
 Title: Decision — stress proposals
 Role: reviewer
 Accepted verdicts: recommend, no-clear-winner, needs-operator
+Rigor: standard. Tune your thoroughness and effort to this level; it does not change which steps run.
+
+Operator Goal:
+decide: React vs Vue
+
+Prior-Run Memory (optional, hint-only):
+You may consult prior-run memory with `circuit history pull --run-folder <repo>/docs/release/proofs/runs/explore-decision/run --flow explore --decision-point <label> <query>`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.
 
 Context (from reads):
 --- reports/brief.json ---
@@ -68,12 +75,12 @@ Context (from reads):
   "branches": [
     {
       "branch_id": "option-1",
-      "child_run_id": "471438e1-eb2a-43b3-84a5-d696c395ebdc",
+      "child_run_id": "e22fea36-7da8-4913-8236-5b24599505cd",
       "child_outcome": "complete",
       "verdict": "accept",
       "admitted": true,
       "result_path": "reports/tournament-branches/option-1/report.json",
-      "duration_ms": 4,
+      "duration_ms": 3,
       "result_body": {
         "verdict": "accept",
         "option_id": "option-1",
@@ -178,12 +185,12 @@ Context (from reads):
     },
     {
       "branch_id": "option-2",
-      "child_run_id": "6bd5e0da-b4f6-4d50-980a-8eab050eb09b",
+      "child_run_id": "da2c9f67-d920-401b-af45-dd30051be421",
       "child_outcome": "complete",
       "verdict": "accept",
       "admitted": true,
       "result_path": "reports/tournament-branches/option-2/report.json",
-      "duration_ms": 4,
+      "duration_ms": 2,
       "result_body": {
         "verdict": "accept",
         "option_id": "option-2",
@@ -288,7 +295,7 @@ Context (from reads):
     },
     {
       "branch_id": "option-3",
-      "child_run_id": "bc2d47d8-b0ac-437e-b2ff-44860d2cb4fc",
+      "child_run_id": "096127db-1baa-40ac-9057-afe9e2d41880",
       "child_outcome": "complete",
       "verdict": "accept",
       "admitted": true,

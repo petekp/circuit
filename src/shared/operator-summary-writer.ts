@@ -8,6 +8,7 @@ import { findFlowRuntimeSurfaceById } from '../flows/catalog.js';
 import {
   OperatorAutoResolution,
   type OperatorAutoResolution as OperatorAutoResolutionValue,
+  type OperatorBriefSlots,
   OperatorSummary,
   type OperatorSummaryReportLink,
   type OperatorSummaryWarning,
@@ -20,11 +21,13 @@ import {
   evidenceReportById,
   friendlyRunNote,
   isObject,
+  numberField,
   projectSummary,
   readJsonIfPresent,
+  stringArrayField,
   stringField,
 } from './operator-summary/index.js';
-import { statusTextFromHeadline } from './progress-output.js';
+import { friendlyFixOutcome } from './operator-summary/text.js';
 import { RUN_RESULT_RELATIVE_PATH } from './result-path.js';
 import { resolveRunRelative } from './run-relative-path.js';
 import {
@@ -96,6 +99,8 @@ export type OperatorSummaryRunResult = RunResult | CheckpointWaitingOperatorSumm
 // for control flow — markdown rendering and CLI plumbing read summary.html_path
 // directly. Kept as a friendly label for the report list.
 const HTML_REPORT_LABEL = 'Operator summary (HTML)' as const;
+const MAX_KEY_POINTS = 4;
+const MAX_CAVEATS = 3;
 
 function jsonPath(runFolder: string): string {
   return join(runFolder, 'reports', 'operator-summary.json');
@@ -169,6 +174,361 @@ function warningRecords(report: JsonObject | undefined): OperatorSummaryWarning[
     const path = stringField(item, 'path');
     return [{ kind, message, ...(path === undefined ? {} : { path }) }];
   });
+}
+
+function flowDisplayName(flowId: string): string {
+  return flowId
+    .split('-')
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+}
+
+function digestStatusText(headline: string): string {
+  return headline.replace(/^Circuit\s*·\s*/i, '').trim();
+}
+
+function withoutDetailPrefix(detail: string, prefix: string): string {
+  return detail.slice(prefix.length).trim();
+}
+
+function sentence(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return trimmed;
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function splitSemicolonDetail(detail: string, prefix: string): string[] {
+  return withoutDetailPrefix(detail, prefix)
+    .split(/;\s*/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function detailWithPrefix(details: readonly string[], prefix: string): string | undefined {
+  return details.find((detail) => detail.startsWith(prefix));
+}
+
+function hasEvidenceWarningKind(report: JsonObject | undefined, kind: string): boolean {
+  return arrayField(report, 'evidence_warnings').some(
+    (item) => isObject(item) && stringField(item, 'kind') === kind,
+  );
+}
+
+function reviewOutcomeLabel(flowReport: JsonObject | undefined): string {
+  if (hasEvidenceWarningKind(flowReport, 'scope_empty')) return 'No scope';
+  const verdict = stringField(flowReport, 'verdict');
+  const findings = arrayField(flowReport, 'findings').length;
+  if (verdict === 'CLEAN') return 'Clean';
+  return `Issues (${findings})`;
+}
+
+function buildOutcomeLabel(flowReport: JsonObject | undefined, runOutcome: string): string {
+  const outcome = stringField(flowReport, 'outcome') ?? runOutcome;
+  const verification = stringField(flowReport, 'verification_status');
+  const review = stringField(flowReport, 'review_verdict');
+  if (outcome === 'complete' && verification === 'passed' && review === 'accept') {
+    return 'Implemented';
+  }
+  if (outcome === 'needs_attention') return 'Needs follow-up';
+  return `Finished (${outcome})`;
+}
+
+function fixOutcomeLabel(flowReport: JsonObject | undefined, runOutcome: string): string {
+  const outcome = stringField(flowReport, 'outcome') ?? runOutcome;
+  switch (outcome) {
+    case 'fixed':
+      return 'Fixed';
+    case 'partial':
+      return 'Applied with follow-ups';
+    case 'not-reproduced':
+      return 'Not reproduced';
+    case 'failed':
+      return 'Failed';
+    case 'stopped':
+      return 'Stopped';
+    case 'handoff':
+      return 'Handed off';
+    default:
+      return friendlyFixOutcome(outcome);
+  }
+}
+
+function exploreOutcomeLabel(input: {
+  readonly runFolder: string;
+  readonly flowReport: JsonObject | undefined;
+  readonly resultSummary: string;
+}): string {
+  const decisionReport =
+    evidenceReportById(input.runFolder, input.flowReport, 'explore.decision') ??
+    readJsonIfPresent(input.runFolder, 'reports/decision.json');
+  const selected = stringField(decisionReport, 'selected_option_label');
+  if (selected !== undefined) return `Decided: ${selected}`;
+  const snapshot = isObject(input.flowReport?.verdict_snapshot)
+    ? input.flowReport.verdict_snapshot
+    : undefined;
+  const review = stringField(snapshot, 'review_verdict');
+  if (review === 'accept-with-fold-ins') {
+    const foldIns = isObject(input.flowReport?.review_fold_ins)
+      ? input.flowReport.review_fold_ins
+      : undefined;
+    if (stringArrayField(foldIns, 'objections').length > 0) {
+      return 'Recommendation with required fold-ins';
+    }
+    if (stringArrayField(foldIns, 'missed_angles').length > 0) {
+      return 'Recommendation with optional considerations';
+    }
+    return 'Recommendation with reviewer notes';
+  }
+  return 'Recommendation ready';
+}
+
+function prototypeOutcomeLabel(flowReport: JsonObject | undefined, runOutcome: string): string {
+  const outcome = stringField(flowReport, 'outcome') ?? runOutcome;
+  if (outcome === 'kept') return 'Kept';
+  if (outcome === 'build_input_saved') return 'Saved as Build input';
+  if (outcome === 'discarded') return 'Discarded';
+  return `Finished (${outcome})`;
+}
+
+function pursueOutcomeLabel(flowReport: JsonObject | undefined): string {
+  const total = numberField(flowReport, 'total_pursuits');
+  const completed = numberField(flowReport, 'completed_count') ?? 0;
+  return total === undefined ? `${completed} completed` : `${completed}/${total} completed`;
+}
+
+function goalOutcomeLabel(flowReport: JsonObject | undefined, runOutcome: string): string {
+  const outcome = stringField(flowReport, 'outcome') ?? runOutcome;
+  return outcome === 'complete' ? 'Met' : 'Not met';
+}
+
+function outcomeLabelFor(input: {
+  readonly runFolder: string;
+  readonly flowId: string;
+  readonly flowReport: JsonObject | undefined;
+  readonly runOutcome: string;
+  readonly resultSummary: string;
+}): string {
+  switch (input.flowId) {
+    case 'review':
+      return reviewOutcomeLabel(input.flowReport);
+    case 'build':
+      return buildOutcomeLabel(input.flowReport, input.runOutcome);
+    case 'fix':
+      return fixOutcomeLabel(input.flowReport, input.runOutcome);
+    case 'explore':
+      return exploreOutcomeLabel(input);
+    case 'prototype':
+      return prototypeOutcomeLabel(input.flowReport, input.runOutcome);
+    case 'pursue':
+      return pursueOutcomeLabel(input.flowReport);
+    case 'goal':
+      return goalOutcomeLabel(input.flowReport, input.runOutcome);
+    default:
+      return input.runOutcome;
+  }
+}
+
+function normalizedAssessment(details: readonly string[], fallback: string): string {
+  const assessment = detailWithPrefix(details, 'Assessment: ');
+  if (assessment !== undefined) return withoutDetailPrefix(assessment, 'Assessment: ');
+  const recommendation = detailWithPrefix(details, 'Recommendation: ');
+  if (recommendation !== undefined) return withoutDetailPrefix(recommendation, 'Recommendation: ');
+  const result = detailWithPrefix(details, 'Result: ');
+  if (result !== undefined) return withoutDetailPrefix(result, 'Result: ');
+  return sentence(
+    fallback
+      .replace(/^Circuit:\s*/i, '')
+      .replace(/^Circuit\s*·\s*/i, '')
+      .trim(),
+  );
+}
+
+function keyPointsFromDetails(details: readonly string[]): string[] {
+  const points: string[] = [];
+  const add = (point: string) => {
+    const trimmed = point.trim();
+    if (trimmed.length === 0) return;
+    if (points.includes(trimmed)) return;
+    if (points.length >= MAX_KEY_POINTS) return;
+    points.push(trimmed);
+  };
+  for (const detail of details) {
+    if (detail.startsWith('Run note: ')) continue;
+    if (detail.startsWith('Assessment: ')) continue;
+    if (detail.startsWith('Recommendation: ')) continue;
+    if (detail.startsWith('Abort reason: ')) continue;
+    if (detail.startsWith('Escalation reason: ')) continue;
+    if (detail.startsWith('Handoff reason: ')) continue;
+    if (detail.startsWith('Stop reason: ')) continue;
+    if (detail.startsWith('Confidence limitations: ')) continue;
+    if (detail.startsWith('Residual risks: ')) continue;
+    if (detail.startsWith('Required fold-in: ')) continue;
+    if (detail.startsWith('Consider: ')) continue;
+    if (detail.startsWith('Next action: ') || detail.startsWith('Next step: ')) continue;
+    if (detail.startsWith('Reviewer steps: ')) {
+      for (const step of splitSemicolonDetail(detail, 'Reviewer steps: ')) add(step);
+      continue;
+    }
+    add(detail);
+  }
+  return points;
+}
+
+function caveatsFrom(input: {
+  readonly details: readonly string[];
+  readonly warnings: readonly OperatorSummaryWarning[];
+}): string[] {
+  const caveats: string[] = [];
+  const add = (caveat: string) => {
+    const trimmed = caveat.trim();
+    if (trimmed.length === 0) return;
+    if (caveats.includes(trimmed)) return;
+    if (caveats.length >= MAX_CAVEATS) return;
+    caveats.push(trimmed);
+  };
+  for (const detail of input.details) {
+    if (detail.startsWith('Confidence limitations: ')) {
+      for (const caveat of splitSemicolonDetail(detail, 'Confidence limitations: ')) {
+        add(sentence(caveat));
+      }
+      continue;
+    }
+    if (detail.startsWith('Residual risks: ')) {
+      for (const caveat of splitSemicolonDetail(detail, 'Residual risks: ')) add(sentence(caveat));
+      continue;
+    }
+    if (detail.startsWith('Required fold-in: '))
+      add(withoutDetailPrefix(detail, 'Required fold-in: '));
+    if (detail.startsWith('Consider: ')) add(withoutDetailPrefix(detail, 'Consider: '));
+  }
+  for (const warning of input.warnings) {
+    add(`${warning.kind}: ${warning.message}`);
+  }
+  return caveats;
+}
+
+function nextActionFrom(details: readonly string[], flowId: string, outcomeLabel: string): string {
+  const nextAction = detailWithPrefix(details, 'Next action: ');
+  if (nextAction !== undefined) return sentence(withoutDetailPrefix(nextAction, 'Next action: '));
+  const nextStep = detailWithPrefix(details, 'Next step: ');
+  if (nextStep !== undefined) return sentence(withoutDetailPrefix(nextStep, 'Next step: '));
+  if (flowId === 'review' && outcomeLabel.startsWith('Issues')) {
+    return 'address the findings, then rerun Review.';
+  }
+  if (outcomeLabel === 'Needs follow-up' || outcomeLabel === 'Applied with follow-ups') {
+    return 'address the follow-up, then rerun the relevant check.';
+  }
+  if (outcomeLabel === 'No scope') return 'rerun Review with source content in scope.';
+  if (outcomeLabel === 'Failed') return 'inspect the failed proof and rerun after correction.';
+  return 'nothing required.';
+}
+
+function runOutcomeOverrideBrief(input: {
+  readonly flowName: string;
+  readonly runResult: OperatorSummaryRunResult;
+  readonly details: readonly string[];
+}): OperatorBriefSlots | undefined {
+  const keyPoints = keyPointsFromDetails(input.details);
+  if (input.runResult.outcome === 'checkpoint_waiting') {
+    return {
+      headline: `Circuit · ${input.flowName}: Waiting`,
+      assessment: 'Circuit is waiting for a checkpoint choice before this flow can continue.',
+      key_points: [
+        `Checkpoint step: ${input.runResult.checkpoint.step_id}`,
+        `Choices: ${input.runResult.checkpoint.allowed_choices.join(', ')}`,
+        ...keyPoints,
+      ].slice(0, MAX_KEY_POINTS),
+      caveats: [],
+      next_action: 'choose a checkpoint option to continue.',
+    };
+  }
+  if (input.runResult.outcome === 'aborted') {
+    return {
+      headline: `Circuit · ${input.flowName}: Aborted`,
+      assessment: 'The run aborted before this flow could finish.',
+      key_points: [
+        ...(input.runResult.reason === undefined
+          ? []
+          : [`Abort reason: ${input.runResult.reason}`]),
+        ...keyPoints,
+      ].slice(0, MAX_KEY_POINTS),
+      caveats: [],
+      next_action: 'fix the abort cause, then rerun the flow.',
+    };
+  }
+  if (input.runResult.outcome === 'escalated') {
+    return {
+      headline: `Circuit · ${input.flowName}: Escalated`,
+      assessment: 'The run escalated because Circuit could not close the flow safely.',
+      key_points: [
+        ...(input.runResult.reason === undefined
+          ? []
+          : [`Escalation reason: ${input.runResult.reason}`]),
+        ...keyPoints,
+      ].slice(0, MAX_KEY_POINTS),
+      caveats: [],
+      next_action: 'inspect the escalation reason and choose the recovery path.',
+    };
+  }
+  if (input.runResult.outcome === 'handoff') {
+    return {
+      headline: `Circuit · ${input.flowName}: Handed off`,
+      assessment: 'The flow prepared a handoff instead of closing complete.',
+      key_points: [
+        ...(input.runResult.reason === undefined
+          ? []
+          : [`Handoff reason: ${input.runResult.reason}`]),
+        ...keyPoints,
+      ].slice(0, MAX_KEY_POINTS),
+      caveats: [],
+      next_action: 'resume from the handoff record.',
+    };
+  }
+  if (input.runResult.outcome === 'stopped') {
+    return {
+      headline: `Circuit · ${input.flowName}: Stopped`,
+      assessment: 'The flow stopped before complete evidence was produced.',
+      key_points: [
+        ...(input.runResult.reason === undefined ? [] : [`Stop reason: ${input.runResult.reason}`]),
+        ...keyPoints,
+      ].slice(0, MAX_KEY_POINTS),
+      caveats: [],
+      next_action: 'inspect the stopped run and choose whether to rerun or hand off.',
+    };
+  }
+  return undefined;
+}
+
+function buildBriefSlots(input: {
+  readonly runFolder: string;
+  readonly flowId: string;
+  readonly flowReport: JsonObject | undefined;
+  readonly runResult: OperatorSummaryRunResult;
+  readonly projectionHeadline: string;
+  readonly details: readonly string[];
+  readonly warnings: readonly OperatorSummaryWarning[];
+}): OperatorBriefSlots {
+  const flowName = flowDisplayName(input.flowId);
+  const override = runOutcomeOverrideBrief({
+    flowName,
+    runResult: input.runResult,
+    details: input.details,
+  });
+  if (override !== undefined) return override;
+  const outcomeLabel = outcomeLabelFor({
+    runFolder: input.runFolder,
+    flowId: input.flowId,
+    flowReport: input.flowReport,
+    runOutcome: input.runResult.outcome,
+    resultSummary: input.runResult.summary,
+  });
+  return {
+    headline: `Circuit · ${flowName}: ${outcomeLabel}`,
+    assessment: normalizedAssessment(input.details, input.projectionHeadline),
+    key_points: keyPointsFromDetails(input.details),
+    caveats: caveatsFrom({ details: input.details, warnings: input.warnings }),
+    next_action: nextActionFrom(input.details, input.flowId, outcomeLabel),
+  };
 }
 
 function evidenceLinks(
@@ -251,7 +611,24 @@ function checkpointOptionDetails(runFolder: string, allowedChoices: readonly str
 }
 
 function renderMarkdown(summary: OperatorSummary): string {
-  const lines = ['CIRCUIT', `⎿ ${summary.status_text ?? statusTextFromHeadline(summary.headline)}`];
+  if (summary.brief_slots !== undefined) {
+    const lines = [summary.brief_slots.headline, '', summary.brief_slots.assessment, ''];
+    for (const point of summary.brief_slots.key_points) lines.push(`- ${point}`);
+    for (const caveat of summary.brief_slots.caveats) lines.push(`- Caveat: ${caveat}`);
+    lines.push('', `Next: ${summary.brief_slots.next_action}`);
+    if (summary.auto_resolutions !== undefined && summary.auto_resolutions.length > 0) {
+      lines.push('', 'Auto-resolutions:');
+      for (const resolution of summary.auto_resolutions.slice(0, MAX_KEY_POINTS)) {
+        lines.push(`- ${autoResolutionSummaryLine(resolution)}`);
+      }
+    }
+    if (summary.html_path !== undefined) {
+      lines.push('', `Rich summary: ${summary.html_path}`);
+    }
+    return `${lines.join('\n')}\n`;
+  }
+
+  const lines = [summary.headline, '', summary.status_text ?? digestStatusText(summary.headline)];
 
   if (summary.checkpoint !== undefined) {
     lines.push('', '## Checkpoint', '');
@@ -427,14 +804,19 @@ export function writeOperatorSummary(input: {
     details.push(`Escalation reason: ${input.runResult.reason}`);
   }
 
-  const headline =
-    input.runResult.outcome === 'checkpoint_waiting'
-      ? 'Circuit: Waiting for a checkpoint choice.'
-      : input.runResult.outcome === 'aborted'
-        ? 'Circuit: Run aborted.'
-        : input.runResult.outcome === 'escalated'
-          ? 'Circuit: Run escalated.'
-          : projection.headline;
+  const warnings = [
+    ...warningRecords(flowReport),
+    ...(htmlEmitWarning === undefined ? [] : [htmlEmitWarning]),
+  ];
+  const briefSlots = buildBriefSlots({
+    runFolder: input.runFolder,
+    flowId,
+    flowReport,
+    runResult: input.runResult,
+    projectionHeadline: projection.headline,
+    details,
+    warnings,
+  });
 
   const candidate = OperatorSummary.parse({
     schema_version: 1,
@@ -444,13 +826,11 @@ export function writeOperatorSummary(input: {
     ...(input.route.routedBy === undefined ? {} : { routed_by: input.route.routedBy }),
     ...(input.route.routerReason === undefined ? {} : { router_reason: input.route.routerReason }),
     outcome: input.runResult.outcome,
-    headline,
-    status_text: statusTextFromHeadline(headline),
+    headline: briefSlots.headline,
+    status_text: digestStatusText(briefSlots.headline),
+    brief_slots: briefSlots,
     details,
-    evidence_warnings: [
-      ...warningRecords(flowReport),
-      ...(htmlEmitWarning === undefined ? [] : [htmlEmitWarning]),
-    ],
+    evidence_warnings: warnings,
     run_folder: input.runFolder,
     ...(resultPath === undefined ? {} : { result_path: resultPath }),
     ...(outHtmlPath === undefined ? {} : { html_path: outHtmlPath }),

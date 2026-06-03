@@ -1,0 +1,91 @@
+Step: fix-review
+Title: Review — independent audit of Fix change
+Role: reviewer
+Accepted verdicts: accept, accept-with-fixes
+Rigor: standard. Tune your thoroughness and effort to this level; it does not change which steps run.
+
+Operator Goal:
+quick fix: restore the failing login test
+
+Prior-Run Memory (optional, hint-only):
+You may consult prior-run memory with `circuit history pull --run-folder <repo>/docs/release/proofs/runs/fix/run --flow fix --decision-point <label> <query>`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.
+
+Context (from reads):
+--- reports/fix/brief.json ---
+{
+  "problem_statement": "quick fix: restore the failing login test",
+  "expected_behavior": "After fix: quick fix: restore the failing login test",
+  "observed_behavior": "Before fix: quick fix: restore the failing login test",
+  "scope": "Synthetic Fix proof fixture.",
+  "regression_contract": {
+    "expected_behavior": "After fix: quick fix: restore the failing login test",
+    "actual_behavior": "Before fix: quick fix: restore the failing login test",
+    "repro": {
+      "kind": "not-reproducible",
+      "deferred_reason": "Synthetic proof fixture; no live bug reproduction is required."
+    },
+    "regression_test": {
+      "status": "deferred",
+      "deferred_reason": "Synthetic proof fixture uses a deterministic verification command."
+    }
+  },
+  "success_criteria": [
+    "Deterministic Fix proof verification exits 0."
+  ],
+  "verification_command_candidates": [
+    {
+      "id": "proof-fix-verify",
+      "cwd": ".",
+      "argv": [
+        "node",
+        "-e",
+        "process.exit(0)"
+      ],
+      "timeout_ms": 30000,
+      "max_output_bytes": 200000,
+      "env": {}
+    }
+  ]
+}
+
+
+--- reports/fix/change.json ---
+{
+  "verdict": "accept",
+  "summary": "Added the fallback guard for the synthetic missing token path.",
+  "diagnosis_ref": "fix.diagnosis@v1",
+  "changed_files": [
+    "src/login.ts"
+  ],
+  "evidence": [
+    "Synthetic regression proof remained green."
+  ]
+}
+
+
+--- reports/fix/verification.json ---
+{
+  "overall_status": "passed",
+  "commands": [
+    {
+      "command_id": "proof-fix-verify",
+      "cwd": ".",
+      "argv": [
+        "node",
+        "-e",
+        "process.exit(0)"
+      ],
+      "timeout_ms": 30000,
+      "max_output_bytes": 200000,
+      "env": {},
+      "exit_code": 0,
+      "status": "passed",
+      "duration_ms": 50,
+      "stdout_summary": "",
+      "stderr_summary": ""
+    }
+  ]
+}
+
+
+Respond with a single raw JSON object whose top-level shape is exactly: { "verdict": "<accept|accept-with-fixes|reject>", "summary": "<review summary>", "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }] } Review the change against the diagnosed cause and the brief's success criteria, not just against passing verification. Look for missed edge cases, partially handled input variants, and changes that broaden semantics beyond the bug being fixed even when the regression test passes. Use an empty findings array only with verdict "accept". Verdicts "accept-with-fixes" and "reject" must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against fix.review@v1 before writing reports/fix/review.json.

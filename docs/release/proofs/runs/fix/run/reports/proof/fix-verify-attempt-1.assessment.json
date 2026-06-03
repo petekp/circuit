@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "assessment_id": "proof.verification:fix-verify:1",
+  "scope": {
+    "run_id": "44444444-4444-4444-4444-444444444407",
+    "flow_id": "fix",
+    "step_id": "fix-verify",
+    "attempt": 1
+  },
+  "proof_policy_decision_id": "gd-proof-fix-verify-1",
+  "claims": [
+    {
+      "schema_version": 1,
+      "id": "claim.verification:fix-verify:1",
+      "kind": "verification_passed",
+      "statement": "Verification step 'fix-verify' passed required runtime commands.",
+      "scope_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/fix/circuit.work-contract.v0.json",
+          "sha256": "5bebf9c92b2cebd1c3a9351f8aed2c71c1c14c4c546f5cbae8628e178cf749f1",
+          "flow_id": "fix"
+        }
+      ],
+      "risk": "medium",
+      "required": true,
+      "source": "work_contract"
+    }
+  ],
+  "evidence": [
+    {
+      "schema_version": 1,
+      "id": "evidence.verification:fix-verify:1:1:proof-fix-verify",
+      "kind": "command",
+      "producer": "runtime",
+      "independence": "runtime",
+      "ref": {
+        "kind": "command",
+        "ref": "verification/fix-verify/1/proof-fix-verify",
+        "sha256": "0c091c20fe5a4790759791ef53f00ff8e2099c480cbeb16e24d1a0cc8e417422",
+        "run_id": "44444444-4444-4444-4444-444444444407",
+        "flow_id": "fix",
+        "step_id": "fix-verify",
+        "attempt": 1
+      },
+      "input_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/fix/circuit.work-contract.v0.json",
+          "sha256": "5bebf9c92b2cebd1c3a9351f8aed2c71c1c14c4c546f5cbae8628e178cf749f1",
+          "flow_id": "fix"
+        }
+      ],
+      "covers_claims": [
+        "claim.verification:fix-verify:1"
+      ],
+      "result": "pass",
+      "summary": "verification command 'proof-fix-verify' passed"
+    }
+  ],
+  "results": [
+    {
+      "claim_id": "claim.verification:fix-verify:1",
+      "status": "proven",
+      "evidence_refs": [
+        "evidence.verification:fix-verify:1:1:proof-fix-verify"
+      ],
+      "missing": [],
+      "contradictions": []
+    }
+  ],
+  "overall_status": "proven",
+  "close_allowed": true
+}

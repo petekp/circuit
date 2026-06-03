@@ -2,6 +2,7 @@
   "schema_version": 1,
   "step_id": "tradeoff-checkpoint-step",
   "selection": "option-2",
+  "route_id": "pass",
   "resolution_source": "policy",
   "auto_resolution": {
     "checkpoint_id": "tradeoff-checkpoint-step",
@@ -178,6 +179,6 @@
     "margin": 0.125,
     "tie_break": "aggregate_score",
     "runtime_veto_effect": "option-1 evidence_rigor runtime_signal=missing forced final_score=fail and dim_score=0",
-    "resolved_at": "2026-04-29T17:30:42.000Z"
+    "resolved_at": "2026-04-29T17:30:46.000Z"
   }
 }

@@ -6,8 +6,19 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "complete",
-  "headline": "Circuit: Fix applied with follow-ups. Verification: passed. Review: skipped.",
-  "status_text": "Fix applied with follow-ups. Verification: passed. Review: skipped.",
+  "headline": "Circuit · Fix: Applied with follow-ups",
+  "status_text": "Fix: Applied with follow-ups",
+  "brief_slots": {
+    "headline": "Circuit · Fix: Applied with follow-ups",
+    "assessment": "Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.",
+    "key_points": [
+      "Worker access: A worker can edit this checkout.",
+      "Result: Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.",
+      "Verification: passed."
+    ],
+    "caveats": [],
+    "next_action": "address the follow-up, then rerun the relevant check."
+  },
   "details": [
     "Worker access: A worker can edit this checkout.",
     "Run note: Run closed with outcome complete via @complete.",

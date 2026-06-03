@@ -2,6 +2,13 @@ Step: stress-proposals-step
 Title: Decision — stress proposals
 Role: reviewer
 Accepted verdicts: recommend, no-clear-winner, needs-operator
+Rigor: standard. Tune your thoroughness and effort to this level; it does not change which steps run.
+
+Operator Goal:
+decide: React vs Vue
+
+Prior-Run Memory (optional, hint-only):
+You may consult prior-run memory with `circuit history pull --run-folder <repo>/docs/release/proofs/runs/explore-autonomous-decision/run --flow explore --decision-point <label> <query>`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.
 
 Context (from reads):
 --- reports/brief.json ---
@@ -55,12 +62,12 @@ Context (from reads):
   "branches": [
     {
       "branch_id": "option-1",
-      "child_run_id": "3801e4a2-f370-451e-afb5-f17092b3d8db",
+      "child_run_id": "47002243-cdaa-4482-8c73-0e59fcfb4bb2",
       "child_outcome": "complete",
       "verdict": "accept",
       "admitted": true,
       "result_path": "reports/tournament-branches/option-1/report.json",
-      "duration_ms": 4,
+      "duration_ms": 3,
       "result_body": {
         "verdict": "accept",
         "option_id": "option-1",
@@ -163,12 +170,12 @@ Context (from reads):
     },
     {
       "branch_id": "option-2",
-      "child_run_id": "09c8ba78-8816-4c95-bb71-e27d8ba708c1",
+      "child_run_id": "3dbe9fc7-7681-44fd-9f96-66f5629bf800",
       "child_outcome": "complete",
       "verdict": "accept",
       "admitted": true,
       "result_path": "reports/tournament-branches/option-2/report.json",
-      "duration_ms": 4,
+      "duration_ms": 3,
       "result_body": {
         "verdict": "accept",
         "option_id": "option-2",

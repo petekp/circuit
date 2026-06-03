@@ -902,52 +902,56 @@ describe('CLI router', () => {
     expect(output.runtime_reason).toMatch(/runtime supports fresh pursue/i);
   });
 
-  it('lets explicit --rigor standard set the Fix default depth', async () => {
-    const runFolder = join(runFolderBase, 'fix-explicit-default-mode');
+  it('lets explicit --rigor standard set the Build default depth', async () => {
+    const runFolder = join(runFolderBase, 'build-explicit-default-mode');
+    const projectRoot = createProofProject('build-explicit-default-mode-project');
 
     const output = await withStrictruntime(() =>
       runMainJson(
         [
           'run',
-          'fix',
+          'build',
           '--goal',
-          'fix: restore the missing token regression test',
+          'develop: add a small standard change',
           '--rigor',
           'standard',
           '--run-folder',
           runFolder,
         ],
         '{"verdict":"accept"}',
+        { configCwd: projectRoot },
       ),
     );
 
     const bootstrap = traceEntryLog(runFolder).find(
       (trace_entry) => trace_entry.kind === 'run.bootstrapped',
     );
-    expect(output.flow_id).toBe('fix');
+    expect(output.flow_id).toBe('build');
     expect(output.entry_mode).toBe('default');
     expect(output.entry_mode_source).toBe('explicit');
     expect(bootstrap).toMatchObject({ depth: 'standard' });
   }, 30_000);
 
   it('uses --rigor to select the matching axis depth', async () => {
-    const runFolder = join(runFolderBase, 'fix-depth-only');
+    const runFolder = join(runFolderBase, 'build-depth-only');
+    const projectRoot = createProofProject('build-depth-only-project');
 
     const output = await runMainJson(
       [
         'run',
-        'fix',
+        'build',
         '--goal',
-        'fix: restore the missing token regression test',
+        'develop: add a small deep change',
         '--rigor',
         'deep',
         '--run-folder',
         runFolder,
       ],
       '{"verdict":"accept"}',
+      { configCwd: projectRoot },
     );
 
-    expect(output.flow_id).toBe('fix');
+    expect(output.flow_id).toBe('build');
     expect(output.entry_mode).toBe('deep');
     expect(output.entry_mode_source).toBe('explicit');
     const bootstrap = traceEntryLog(runFolder).find(

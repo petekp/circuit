@@ -4,9 +4,13 @@
   "flow_id": "build",
   "run_folder": "<repo>/docs/release/proofs/runs/checkpoint/run",
   "outcome": "complete",
-  "trace_entries_observed": 34,
+  "trace_entries_observed": 45,
   "result_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/result.json",
   "operator_summary_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/operator-summary.md",
-  "operator_summary_status_text": "Build complete. Change implemented, verification passed, review accepted."
+  "operator_summary_status_text": "Build: Implemented",
+  "run_envelope_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/run-envelope.json",
+  "run_process_evidence_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/process-evidence.json",
+  "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/run-surface.md",
+  "run_surface_status_text": "Done: build completed with required process evidence."
 }

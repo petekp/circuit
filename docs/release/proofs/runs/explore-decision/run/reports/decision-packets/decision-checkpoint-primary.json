@@ -1,0 +1,53 @@
+{
+  "schema": "run.decision-packet@v0",
+  "decision_id": "decision-checkpoint-primary",
+  "reason": "process-checkpoint",
+  "prompt": "Choose how the selected process should continue.",
+  "choices": [
+    {
+      "id": "option-1",
+      "label": "option-1",
+      "effect": "Resume the checkpoint with 'option-1'."
+    },
+    {
+      "id": "option-2",
+      "label": "option-2",
+      "effect": "Resume the checkpoint with 'option-2'."
+    },
+    {
+      "id": "option-3",
+      "label": "option-3",
+      "effect": "Resume the checkpoint with 'option-3'."
+    }
+  ],
+  "resume_target": {
+    "kind": "process-checkpoint",
+    "run_id": "44444444-4444-4444-4444-444444444441",
+    "step_id": "tradeoff-checkpoint-step",
+    "request_ref": {
+      "kind": "request",
+      "ref": "reports/checkpoints/tradeoff-request.json",
+      "sha256": "69cc7d21d23ec9aee35115653bc5a53f24c49e2da14a43d219445edfda6d8480",
+      "run_id": "44444444-4444-4444-4444-444444444441",
+      "flow_id": "explore",
+      "step_id": "tradeoff-checkpoint-step"
+    }
+  },
+  "artifact_refs": [
+    {
+      "kind": "evidence",
+      "ref": "reports/process-evidence.json",
+      "sha256": "b3cec569d38d3a10380a322e4f2c0b6c2001ef643d0a8d793c0e67917146ba04",
+      "run_id": "44444444-4444-4444-4444-444444444441",
+      "flow_id": "explore"
+    },
+    {
+      "kind": "request",
+      "ref": "reports/checkpoints/tradeoff-request.json",
+      "sha256": "69cc7d21d23ec9aee35115653bc5a53f24c49e2da14a43d219445edfda6d8480",
+      "run_id": "44444444-4444-4444-4444-444444444441",
+      "flow_id": "explore",
+      "step_id": "tradeoff-checkpoint-step"
+    }
+  ]
+}

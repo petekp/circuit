@@ -19,6 +19,7 @@ import { prototypeFlowDefinition } from './prototype/flow.js';
 import { prototypeCheckpointProjector } from './prototype/writers/checkpoint-html.js';
 import { pursueFlowDefinition } from './pursue/flow.js';
 import { reviewFlowDefinition } from './review/flow.js';
+import { reviewResultProjector } from './review/writers/result-html.js';
 import { runtimeProofFlowDefinition } from './runtime-proof/flow.js';
 import type { CompiledFlowPackage, CompiledFlowRuntimeSurface } from './types.js';
 
@@ -61,6 +62,7 @@ const RUNTIME_SURFACES = buildRuntimeSurfaceRegistry(flowPackages);
 registerHtmlProjector('build', buildCheckpointProjector);
 registerHtmlProjector('explore', exploreTournamentProjector);
 registerHtmlProjector('prototype', prototypeCheckpointProjector);
+registerHtmlProjector('review', reviewResultProjector);
 
 // Look up a flow package by id. Used by engine layers that hold
 // only a CompiledFlow value and need package-level metadata (e.g. engine

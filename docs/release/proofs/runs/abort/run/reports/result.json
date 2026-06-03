@@ -5,8 +5,8 @@
   "goal": "simulate connector failure",
   "outcome": "aborted",
   "summary": "Run closed with outcome aborted.",
-  "closed_at": "2026-04-29T20:00:23.000Z",
-  "trace_entries_observed": 22,
-  "manifest_hash": "7dff2f58206d6388f5a97c49b105df8087c18bc9315d736c03374916b4109c23",
-  "reason": "route 'retry' for step 'act-step' exhausted max_attempts=2; last recovery reason: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)"
+  "closed_at": "2026-04-29T20:00:19.000Z",
+  "trace_entries_observed": 18,
+  "manifest_hash": "b4befa8d142c692117c299238e74a82af65efef6eca0061dc3e3031bb2d596f7",
+  "reason": "step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)"
 }

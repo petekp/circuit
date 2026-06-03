@@ -1,0 +1,49 @@
+{
+  "schema": "process.evidence@v0",
+  "flow_id": "build",
+  "attempt_id": "primary",
+  "outcome": "checkpoint_waiting",
+  "summary": "Selected process is waiting for an operator checkpoint choice.",
+  "child_run_ref": {
+    "kind": "trace",
+    "ref": "trace.ndjson#sequence=0",
+    "run_id": "44444444-4444-4444-4444-444444444403",
+    "sequence": 0
+  },
+  "evidence_refs": [
+    {
+      "kind": "request",
+      "ref": "reports/checkpoints/frame-step-request.json",
+      "sha256": "a48f096757066c2ad525f5a6553a0648dd3cb15d9be40ee054679323a42a8a53",
+      "run_id": "44444444-4444-4444-4444-444444444403",
+      "flow_id": "build",
+      "step_id": "frame-step"
+    }
+  ],
+  "declared_report_paths": [
+    "reports/build-result.json"
+  ],
+  "missing_evidence": [
+    {
+      "claim_id": "process-checkpoint",
+      "reason": "The process is waiting for an operator checkpoint choice.",
+      "next_action": "Resolve the checkpoint before evaluating process evidence."
+    }
+  ],
+  "trace_entries_observed": 5,
+  "manifest_hash": "b4befa8d142c692117c299238e74a82af65efef6eca0061dc3e3031bb2d596f7",
+  "checkpoint": {
+    "step_id": "frame-step",
+    "request_ref": {
+      "kind": "request",
+      "ref": "reports/checkpoints/frame-step-request.json",
+      "sha256": "a48f096757066c2ad525f5a6553a0648dd3cb15d9be40ee054679323a42a8a53",
+      "run_id": "44444444-4444-4444-4444-444444444403",
+      "flow_id": "build",
+      "step_id": "frame-step"
+    },
+    "allowed_choices": [
+      "continue"
+    ]
+  }
+}

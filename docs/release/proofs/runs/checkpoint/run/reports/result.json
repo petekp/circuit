@@ -5,8 +5,8 @@
   "goal": "deep change that asks for scope",
   "outcome": "complete",
   "summary": "Run closed with outcome complete via @complete.",
-  "closed_at": "2026-04-29T19:30:36.000Z",
-  "trace_entries_observed": 34,
-  "manifest_hash": "7dff2f58206d6388f5a97c49b105df8087c18bc9315d736c03374916b4109c23",
+  "closed_at": "2026-04-29T19:30:48.000Z",
+  "trace_entries_observed": 45,
+  "manifest_hash": "b4befa8d142c692117c299238e74a82af65efef6eca0061dc3e3031bb2d596f7",
   "verdict": "accept"
 }

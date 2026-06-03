@@ -504,9 +504,9 @@ describe('release truth infrastructure', () => {
       resolve(root, 'docs/release/proofs/runs/explore-decision/operator-summary.md'),
       'utf8',
     );
-    expect(summary).toContain('Selected: Vue');
-    expect(summary).toContain('Residual risks:');
-    expect(summary).toContain('Next action: Run a Build plan for a Vue prototype.');
+    expect(summary).toContain('Circuit · Explore: Decided: Vue');
+    expect(summary).toContain('Caveat: Team familiarity may be thinner.');
+    expect(summary).toContain('Next: Run a Build plan for a Vue prototype.');
     // Format-drift guards. The current renderMarkdown does not emit
     // legacy '## What Happened' / '## Run Files' / '## Reports' sections,
     // and tournament-shape proofs MUST carry the 'Rich summary:' link

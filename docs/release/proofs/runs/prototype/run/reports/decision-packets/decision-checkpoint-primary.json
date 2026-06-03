@@ -1,0 +1,53 @@
+{
+  "schema": "run.decision-packet@v0",
+  "decision_id": "decision-checkpoint-primary",
+  "reason": "process-checkpoint",
+  "prompt": "Choose how the selected process should continue.",
+  "choices": [
+    {
+      "id": "keep-prototype",
+      "label": "keep-prototype",
+      "effect": "Resume the checkpoint with 'keep-prototype'."
+    },
+    {
+      "id": "save-build-input",
+      "label": "save-build-input",
+      "effect": "Resume the checkpoint with 'save-build-input'."
+    },
+    {
+      "id": "discard-prototype",
+      "label": "discard-prototype",
+      "effect": "Resume the checkpoint with 'discard-prototype'."
+    }
+  ],
+  "resume_target": {
+    "kind": "process-checkpoint",
+    "run_id": "44444444-4444-4444-4444-444444444443",
+    "step_id": "prototype-checkpoint-step",
+    "request_ref": {
+      "kind": "request",
+      "ref": "reports/checkpoints/prototype-review-request.json",
+      "sha256": "8e55266bc06b6a0afab9f9e5631e89cdec307fe9812e83ca4613d0eb8611aabd",
+      "run_id": "44444444-4444-4444-4444-444444444443",
+      "flow_id": "prototype",
+      "step_id": "prototype-checkpoint-step"
+    }
+  },
+  "artifact_refs": [
+    {
+      "kind": "evidence",
+      "ref": "reports/process-evidence.json",
+      "sha256": "a84562f5ab2e3a1af2c30067643f587e7c16394ae38d51c7b5a1b96e0421c05d",
+      "run_id": "44444444-4444-4444-4444-444444444443",
+      "flow_id": "prototype"
+    },
+    {
+      "kind": "request",
+      "ref": "reports/checkpoints/prototype-review-request.json",
+      "sha256": "8e55266bc06b6a0afab9f9e5631e89cdec307fe9812e83ca4613d0eb8611aabd",
+      "run_id": "44444444-4444-4444-4444-444444444443",
+      "flow_id": "prototype",
+      "step_id": "prototype-checkpoint-step"
+    }
+  ]
+}

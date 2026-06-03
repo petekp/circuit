@@ -22,19 +22,17 @@ export const OperatorSummaryReportLink = z
   .strict();
 export type OperatorSummaryReportLink = z.infer<typeof OperatorSummaryReportLink>;
 
+// The digest contract mirrors the five-slot output model directly. The older
+// dormant seat used headline/primary/why/startWith/cautions/nextStep, but that
+// shape had no key-points array and would make JSON disagree with the markdown
+// operators actually read.
 export const OperatorBriefSlots = z
   .object({
     headline: z.string().min(1),
-    primary: z
-      .object({
-        label: z.string().min(1),
-        text: z.string().min(1),
-      })
-      .strict(),
-    why: z.string().min(1).optional(),
-    startWith: z.string().min(1).optional(),
-    cautions: z.array(z.string().min(1)),
-    nextStep: z.string().min(1).optional(),
+    assessment: z.string().min(1),
+    key_points: z.array(z.string().min(1)).max(4),
+    caveats: z.array(z.string().min(1)).max(3),
+    next_action: z.string().min(1),
   })
   .strict();
 export type OperatorBriefSlots = z.infer<typeof OperatorBriefSlots>;
