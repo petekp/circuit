@@ -1,4 +1,4 @@
-Circuit
+CIRCUIT
 ⎿ Waiting for a checkpoint choice.
 
 ## Checkpoint

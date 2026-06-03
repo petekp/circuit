@@ -1,4 +1,4 @@
-Circuit
+CIRCUIT
 ⎿ Review complete. Verdict: CLEAN. Findings: 0.
 
 - Assessment: Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.

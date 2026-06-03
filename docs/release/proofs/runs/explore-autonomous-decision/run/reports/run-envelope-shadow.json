@@ -1,0 +1,41 @@
+{
+  "schema": "run.envelope-shadow@v0",
+  "mode": "shadow",
+  "shadow_reason": "source-owned-run-not-active",
+  "run_id": "44444444-4444-4444-4444-444444444442",
+  "operator_intent": "decide: React vs Vue",
+  "recorded_at": "2026-04-29T17:31:00.000Z",
+  "selected_process": {
+    "process_id": "explore",
+    "routed_by": "explicit",
+    "router_reason": "explicit flow positional argument",
+    "entry_mode": "autonomous"
+  },
+  "child_run": {
+    "run_id": "44444444-4444-4444-4444-444444444442",
+    "run_folder": "<repo>/docs/release/proofs/runs/explore-autonomous-decision/run",
+    "flow_id": "explore",
+    "outcome": "complete",
+    "trace_entries_observed": 57,
+    "manifest_hash": "b14014e1f26f0249ac9b1cd78a780ba23ef5f1e05b8cb69b2dcdb49001f80114",
+    "result_ref": {
+      "source": "child_result",
+      "ref": {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "a387a89c6e7654cfe81357a70768c88a532d409edb3b2b42ba569f88030bd1ed",
+        "run_id": "44444444-4444-4444-4444-444444444442",
+        "flow_id": "explore"
+      }
+    }
+  },
+  "artifact_links": [
+    {
+      "kind": "report",
+      "ref": "reports/result.json",
+      "sha256": "a387a89c6e7654cfe81357a70768c88a532d409edb3b2b42ba569f88030bd1ed",
+      "run_id": "44444444-4444-4444-4444-444444444442",
+      "flow_id": "explore"
+    }
+  ]
+}

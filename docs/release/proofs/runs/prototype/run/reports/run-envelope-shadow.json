@@ -1,0 +1,40 @@
+{
+  "schema": "run.envelope-shadow@v0",
+  "mode": "shadow",
+  "shadow_reason": "source-owned-run-not-active",
+  "run_id": "44444444-4444-4444-4444-444444444443",
+  "operator_intent": "prototype: sketch a custom Circuit flow builder UI",
+  "recorded_at": "2026-04-29T21:30:38.000Z",
+  "selected_process": {
+    "process_id": "prototype",
+    "routed_by": "explicit",
+    "router_reason": "explicit flow positional argument"
+  },
+  "child_run": {
+    "run_id": "44444444-4444-4444-4444-444444444443",
+    "run_folder": "<repo>/docs/release/proofs/runs/prototype/run",
+    "flow_id": "prototype",
+    "outcome": "complete",
+    "trace_entries_observed": 34,
+    "manifest_hash": "41cbe1efa9ac494a4212014b25790d36aeaa283ef8035a1170d302362df43f60",
+    "result_ref": {
+      "source": "child_result",
+      "ref": {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "65e396f8bd51d89f2525b1007303f08086a08457128605ebaa3ef85839085c3a",
+        "run_id": "44444444-4444-4444-4444-444444444443",
+        "flow_id": "prototype"
+      }
+    }
+  },
+  "artifact_links": [
+    {
+      "kind": "report",
+      "ref": "reports/result.json",
+      "sha256": "65e396f8bd51d89f2525b1007303f08086a08457128605ebaa3ef85839085c3a",
+      "run_id": "44444444-4444-4444-4444-444444444443",
+      "flow_id": "prototype"
+    }
+  ]
+}

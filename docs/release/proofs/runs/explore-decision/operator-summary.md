@@ -1,4 +1,4 @@
-Circuit
+CIRCUIT
 ⎿ Decision made. Selected: Vue. Choose Vue for a smaller surface and faster product iteration.
 
 - Recommendation: Choose Vue for a smaller surface and faster product iteration.

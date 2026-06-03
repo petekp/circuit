@@ -1,0 +1,1 @@
+{"verdict":"accept","sources":[{"kind":"file","ref":"src/example.ts","summary":"Module the synthetic change targets."}],"observations":["The synthetic target module is small and self-contained."],"open_questions":[],"anticipated_file_extensions":[".ts"]}

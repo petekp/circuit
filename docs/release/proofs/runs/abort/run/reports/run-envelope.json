@@ -1,0 +1,177 @@
+{
+  "schema": "run.envelope@v0",
+  "run_id": "44444444-4444-4444-4444-444444444406",
+  "operator_intent": "simulate connector failure",
+  "explicit_constraints": [],
+  "explicit_process_request": "build",
+  "memory_context": {
+    "used": false,
+    "memory_input_ids": [],
+    "authority": "hint_only"
+  },
+  "goal_contract": {
+    "schema": "run.goal-contract@v0",
+    "objective": "simulate connector failure",
+    "scope": {
+      "in": [
+        "simulate connector failure"
+      ],
+      "out": [],
+      "assumptions": []
+    },
+    "constraints": [],
+    "done_when": [
+      {
+        "id": "process-evidence",
+        "claim": "The build work is complete with the required proof for: simulate connector failure",
+        "required_evidence": [
+          {
+            "kind": "command",
+            "description": "A passing verification command proving: simulate connector failure",
+            "required": true
+          }
+        ]
+      }
+    ],
+    "recovery_policy": {
+      "max_process_attempts": 2,
+      "allowed_routes": [
+        "retry-process",
+        "run-review",
+        "checkpoint",
+        "handoff",
+        "blocked"
+      ]
+    },
+    "stop_conditions": [
+      "Stop instead of closing complete when required evidence is missing."
+    ],
+    "completion_gate": {
+      "required_passes": 2,
+      "blocking_severities": [
+        "critical",
+        "high",
+        "medium"
+      ],
+      "reset_on_blocking_finding": true
+    }
+  },
+  "process_plan": {
+    "schema": "run.process-plan@v0",
+    "selection_source": "explicit_operator_request",
+    "rationale": "explicit flow positional argument",
+    "planned_attempts": [
+      {
+        "attempt_id": "attempt-primary",
+        "process_id": "build",
+        "goal": "simulate connector failure",
+        "expected_evidence": [
+          "reports/process-evidence.json"
+        ],
+        "depends_on_attempt_ids": []
+      }
+    ]
+  },
+  "process_attempts": [
+    {
+      "schema": "run.process-attempt@v0",
+      "attempt_id": "attempt-primary",
+      "process_id": "build",
+      "goal": "simulate connector failure",
+      "started_at": "2026-04-29T20:00:29.000Z",
+      "completed_at": "2026-04-29T20:00:29.000Z",
+      "outcome": "failed",
+      "child_run": {
+        "run_id": "44444444-4444-4444-4444-444444444406",
+        "run_folder": "<repo>/docs/release/proofs/runs/abort/run",
+        "result_ref": {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "faa3796fccb873dd7baf469e45a54a62493570e5641a1af1f5e01cd601e97327",
+            "run_id": "44444444-4444-4444-4444-444444444406",
+            "flow_id": "build"
+          }
+        },
+        "trace_entries_observed": 27,
+        "manifest_hash": "e543c1c65de5c5621472bd66ce92fce9eb16288c87ad04d500e7cf0195806f31"
+      },
+      "evidence_refs": [
+        {
+          "source": "process_evidence",
+          "ref": {
+            "kind": "evidence",
+            "ref": "reports/process-evidence.json",
+            "sha256": "d848649a85cf359ef776c4bc3e080ed55e0bec7bd8d55bbf529fb044b8541cbc",
+            "run_id": "44444444-4444-4444-4444-444444444406",
+            "flow_id": "build"
+          }
+        },
+        {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "faa3796fccb873dd7baf469e45a54a62493570e5641a1af1f5e01cd601e97327",
+            "run_id": "44444444-4444-4444-4444-444444444406",
+            "flow_id": "build"
+          }
+        }
+      ],
+      "summary": "Run closed with outcome aborted."
+    }
+  ],
+  "completion_gate": {
+    "schema": "run.completion-gate@v0",
+    "verdict": "failed",
+    "claim_results": [
+      {
+        "claim_id": "process-evidence",
+        "status": "contradicted",
+        "evidence": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "d848649a85cf359ef776c4bc3e080ed55e0bec7bd8d55bbf529fb044b8541cbc",
+              "run_id": "44444444-4444-4444-4444-444444444406",
+              "flow_id": "build"
+            }
+          }
+        ],
+        "gap": "step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)"
+      }
+    ],
+    "gate_passes": [],
+    "clean_streak": 0,
+    "required_passes": 2,
+    "next_action": "failed"
+  },
+  "decision_packets": [],
+  "memory_update_events": [],
+  "surface_output": {
+    "schema": "run.surface-output@v0",
+    "status_text": "Failed: build could not close with the required process evidence.",
+    "outcome": "failed",
+    "next_action": "Inspect the process evidence and rerun with a corrected goal.",
+    "artifact_links": [
+      {
+        "kind": "evidence",
+        "ref": "reports/process-evidence.json",
+        "sha256": "d848649a85cf359ef776c4bc3e080ed55e0bec7bd8d55bbf529fb044b8541cbc",
+        "run_id": "44444444-4444-4444-4444-444444444406",
+        "flow_id": "build"
+      },
+      {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "faa3796fccb873dd7baf469e45a54a62493570e5641a1af1f5e01cd601e97327",
+        "run_id": "44444444-4444-4444-4444-444444444406",
+        "flow_id": "build"
+      }
+    ]
+  },
+  "outcome": "failed"
+}

@@ -2,6 +2,13 @@ Step: fix-diagnose
 Title: Analyze — diagnose problem
 Role: researcher
 Accepted verdicts: accept
+Rigor: lite. Tune your thoroughness and effort to this level; it does not change which steps run.
+
+Operator Goal:
+quick fix: restore the failing login test
+
+Prior-Run Memory (optional, hint-only):
+You may consult prior-run memory with `circuit history pull --run-folder <repo>/docs/release/proofs/runs/fix/run --flow fix --decision-point <label> <query>`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.
 
 Context (from reads):
 --- reports/fix/brief.json ---

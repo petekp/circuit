@@ -2,6 +2,11 @@
   "schema_version": 1,
   "run_id": "44444444-4444-4444-4444-444444444442",
   "flow_id": "explore",
+  "resolved_axes": {
+    "rigor": "standard",
+    "tournament": true,
+    "autonomous": true
+  },
   "selected_flow": "explore",
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
@@ -9,10 +14,20 @@
   "entry_mode_source": "explicit",
   "run_folder": "<repo>/docs/release/proofs/runs/explore-autonomous-decision/run",
   "outcome": "complete",
-  "trace_entries_observed": 52,
+  "trace_entries_observed": 57,
   "result_path": "<repo>/docs/release/proofs/runs/explore-autonomous-decision/run/reports/result.json",
   "operator_summary_path": "<repo>/docs/release/proofs/runs/explore-autonomous-decision/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/explore-autonomous-decision/run/reports/operator-summary.md",
   "operator_summary_status_text": "Decision made. Selected: Vue. Choose Vue for a smaller surface and faster product iteration.",
-  "operator_summary_html_path": "<repo>/docs/release/proofs/runs/explore-autonomous-decision/run/reports/operator-summary.html"
+  "operator_summary_html_path": "<repo>/docs/release/proofs/runs/explore-autonomous-decision/run/reports/operator-summary.html",
+  "run_envelope_path": "<repo>/docs/release/proofs/runs/explore-autonomous-decision/run/reports/run-envelope.json",
+  "run_process_evidence_path": "<repo>/docs/release/proofs/runs/explore-autonomous-decision/run/reports/process-evidence.json",
+  "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/explore-autonomous-decision/run/reports/run-surface.md",
+  "run_surface_status_text": "Done: explore completed with required process evidence.",
+  "autonomous_loop": {
+    "outcome": "complete",
+    "attempts": 1,
+    "stop_reason": "required evidence satisfied",
+    "path": "<repo>/docs/release/proofs/runs/explore-autonomous-decision/run/reports/autonomous-loop.json"
+  }
 }

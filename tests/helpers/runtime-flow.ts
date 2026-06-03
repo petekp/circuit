@@ -2,6 +2,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   BuildBrief,
+  BuildContext,
   BuildImplementation,
   BuildPlan,
   BuildResult,
@@ -487,11 +488,20 @@ function reportBody(
           },
         },
       });
+    case 'build.context@v1':
+      return BuildContext.parse({
+        verdict: 'accept',
+        sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Module the change touches.' }],
+        observations: ['The target module is small and self-contained.'],
+        open_questions: [],
+        anticipated_file_extensions: ['.ts'],
+      });
     case 'build.plan@v1':
       return BuildPlan.parse({
         objective: goal,
         approach: 'Use the converted v1 manifest.',
         slices: ['Run the simple path.'],
+        anticipated_file_extensions: ['.ts'],
         verification: { commands: [commandSpec] },
       });
     case 'build.implementation@v1':

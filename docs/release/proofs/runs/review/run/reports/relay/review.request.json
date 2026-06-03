@@ -2,6 +2,13 @@ Step: audit-step
 Title: Independent Audit — reviewer relay
 Role: reviewer
 Accepted verdicts: NO_ISSUES_FOUND, ISSUES_FOUND
+Rigor: standard. Tune your thoroughness and effort to this level; it does not change which steps run.
+
+Operator Goal:
+review this change
+
+Prior-Run Memory (optional, hint-only):
+You may consult prior-run memory with `circuit history pull --run-folder <repo>/docs/release/proofs/runs/review/run --flow review --decision-point <label> <query>`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.
 
 Context (from reads):
 --- reports/review-intake.json ---

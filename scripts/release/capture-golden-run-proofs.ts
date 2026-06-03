@@ -15,6 +15,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type * as CliCircuitModule from '../../src/cli/circuit.js';
+import type * as CheckpointExecutorModule from '../../src/runtime/executors/checkpoint.js';
 import type * as ComposeModule from '../../src/runtime/executors/compose.js';
 
 type CliMain = (typeof CliCircuitModule)['main'];
@@ -135,6 +136,27 @@ function buildRelayer(): Relayer {
   return {
     connectorName: 'claude-code',
     relay: async (input: RelayInput): Promise<RelayOutcome> => {
+      if (input.prompt.includes('Step: analyze-step')) {
+        return {
+          request_payload: input.prompt,
+          receipt_id: 'proof-build-analyze',
+          result_body: JSON.stringify({
+            verdict: 'accept',
+            sources: [
+              {
+                kind: 'file',
+                ref: 'src/example.ts',
+                summary: 'Module the synthetic change targets.',
+              },
+            ],
+            observations: ['The synthetic target module is small and self-contained.'],
+            open_questions: [],
+            anticipated_file_extensions: ['.ts'],
+          }),
+          duration_ms: 9,
+          cli_version: 'proof-stub',
+        };
+      }
       if (input.prompt.includes('Step: act-step')) {
         return {
           request_payload: input.prompt,
@@ -244,6 +266,19 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
     effectiveDepth === 'autonomous'
       ? stepPolicy.safe_autonomous_choice
       : stepPolicy.safe_default_choice;
+  // Project the checkpoint authority boundary the same way the real executor
+  // does. The proof hand-rolls the frame-step checkpoint, but the
+  // checkpoint.requested trace entry and the request execution_context both
+  // require boundary_ref/boundary_hash, and resume re-projects the boundary
+  // from the saved flow and rejects a mismatch. Reusing the runtime projector
+  // keeps the proof byte-faithful to a real run instead of drifting.
+  const checkpointExecutor = (await import(
+    resolve(projectRoot, 'dist/runtime/executors/checkpoint.js')
+  )) as typeof CheckpointExecutorModule;
+  const boundary = await checkpointExecutor.projectRuntimeCheckpointBoundaryForStep(
+    step as Parameters<typeof checkpointExecutor.projectRuntimeCheckpointBoundaryForStep>[0],
+    context as Parameters<typeof checkpointExecutor.projectRuntimeCheckpointBoundaryForStep>[1],
+  );
   const requestBody = {
     schema_version: 1,
     step_id: step.id,
@@ -256,8 +291,19 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
       ? {}
       : { safe_autonomous_choice: stepPolicy.safe_autonomous_choice }),
     execution_context: {
+      // Mirror the real checkpointRequestBody field set and order so the proof
+      // request is byte-faithful to a live run: a real run always carries axes
+      // and work_contract_ref, and resume cross-validates work_contract_ref
+      // when present.
+      ...(context.axes === undefined ? {} : { axes: context.axes }),
       ...(context.projectRoot === undefined ? {} : { project_root: context.projectRoot }),
+      ...(context.workContractRef === undefined
+        ? {}
+        : { work_contract_ref: context.workContractRef }),
+      checkpoint_boundary_ref: boundary.request_trace.boundary_ref,
+      checkpoint_boundary_hash: boundary.request_trace.boundary_hash,
       selection_config_layers: context.selectionConfigLayers ?? [],
+      policy_layers: context.policyLayers ?? [],
       checkpoint_report_sha256: reportHash,
     },
   };
@@ -270,8 +316,13 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
     attempt,
     request_path: request.path,
     request_report_hash: requestHash,
+    boundary_ref: boundary.request_trace.boundary_ref,
+    boundary_hash: boundary.request_trace.boundary_hash,
     options: step.choices,
-    auto_resolved: !waitsForOperator,
+    // checkpoint.requested only carries auto_resolved when it is false (the
+    // request is waiting for an operator); the auto-resolve path omits it and
+    // records the resolution on checkpoint.resolved instead.
+    ...(waitsForOperator ? { auto_resolved: false } : {}),
   });
 
   if (waitsForOperator) {
@@ -288,10 +339,12 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
   if (autoSelection === undefined) {
     throw new Error(`Build proof checkpoint executor cannot resolve ${effectiveDepth} depth`);
   }
+  const routeId = Object.hasOwn(step.routes, autoSelection) ? autoSelection : 'pass';
   await context.files.writeJson(response, {
     schema_version: 1,
     step_id: step.id,
     selection: autoSelection,
+    route_id: routeId,
     resolution_source: 'declared-default',
   });
   await context.trace.append({
@@ -300,6 +353,7 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
     step_id: step.id,
     attempt,
     selection: autoSelection,
+    route_id: routeId,
     auto_resolved: true,
     resolution_source: 'declared-default',
     response_path: response.path,
@@ -313,7 +367,7 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
     outcome: 'pass',
   });
   return {
-    route: Object.hasOwn(step.routes, autoSelection) ? autoSelection : 'pass',
+    route: routeId,
     details: { selection: autoSelection },
   };
 };

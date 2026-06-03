@@ -157,8 +157,8 @@ describe('compileSchematicToCompiledFlow — failure modes', () => {
     if (compiled.kind !== 'single') return;
     const checkpoint = compiled.flow.steps.find((step) => step.id === 'frame-step');
     expect(checkpoint?.routes).toMatchObject({
-      pass: 'plan-step',
-      approve: 'plan-step',
+      pass: 'analyze-step',
+      approve: 'analyze-step',
     });
   });
 

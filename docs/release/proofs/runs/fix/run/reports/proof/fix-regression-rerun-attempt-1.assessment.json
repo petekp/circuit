@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "assessment_id": "proof.verification:fix-regression-rerun:1",
+  "scope": {
+    "run_id": "44444444-4444-4444-4444-444444444407",
+    "flow_id": "fix",
+    "step_id": "fix-regression-rerun",
+    "attempt": 1
+  },
+  "proof_policy_decision_id": "gd-proof-fix-regression-rerun-1",
+  "claims": [
+    {
+      "schema_version": 1,
+      "id": "claim.verification:fix-regression-rerun:1",
+      "kind": "verification_passed",
+      "statement": "Verification step 'fix-regression-rerun' passed required runtime commands.",
+      "scope_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/fix/lite.work-contract.v0.json",
+          "sha256": "701fcd2bb9ff9beab36d9601763e522d5fecece01674e9c52fc395ec78b8f5cf",
+          "flow_id": "fix"
+        }
+      ],
+      "risk": "medium",
+      "required": true,
+      "source": "work_contract"
+    }
+  ],
+  "evidence": [],
+  "results": [
+    {
+      "claim_id": "claim.verification:fix-regression-rerun:1",
+      "status": "unproved",
+      "evidence_refs": [],
+      "missing": [
+        "no runtime verification commands ran"
+      ],
+      "contradictions": []
+    }
+  ],
+  "overall_status": "unproved",
+  "close_allowed": false
+}

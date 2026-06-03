@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "assessment_id": "proof.verification:verify-step:1",
+  "scope": {
+    "run_id": "44444444-4444-4444-4444-444444444410",
+    "flow_id": "build",
+    "step_id": "verify-step",
+    "attempt": 1
+  },
+  "proof_policy_decision_id": "gd-proof-verify-step-1",
+  "claims": [
+    {
+      "schema_version": 1,
+      "id": "claim.verification:verify-step:1",
+      "kind": "verification_passed",
+      "statement": "Verification step 'verify-step' passed required runtime commands.",
+      "scope_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
+          "sha256": "20887b1d874f8d39df6ea4cbdd011d89d798a88bc3e884926a13d669a4e4f8f5",
+          "flow_id": "build"
+        }
+      ],
+      "risk": "medium",
+      "required": true,
+      "source": "work_contract"
+    }
+  ],
+  "evidence": [
+    {
+      "schema_version": 1,
+      "id": "evidence.verification:verify-step:1:1:npm-check",
+      "kind": "command",
+      "producer": "runtime",
+      "independence": "runtime",
+      "ref": {
+        "kind": "command",
+        "ref": "verification/verify-step/1/npm-check",
+        "sha256": "d25352b76fe228d164c361b4b70fff320b81dad5cc65aa781e2c5a78774453e4",
+        "run_id": "44444444-4444-4444-4444-444444444410",
+        "flow_id": "build",
+        "step_id": "verify-step",
+        "attempt": 1
+      },
+      "input_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
+          "sha256": "20887b1d874f8d39df6ea4cbdd011d89d798a88bc3e884926a13d669a4e4f8f5",
+          "flow_id": "build"
+        }
+      ],
+      "covers_claims": [
+        "claim.verification:verify-step:1"
+      ],
+      "result": "pass",
+      "summary": "verification command 'npm-check' passed"
+    }
+  ],
+  "results": [
+    {
+      "claim_id": "claim.verification:verify-step:1",
+      "status": "proven",
+      "evidence_refs": [
+        "evidence.verification:verify-step:1:1:npm-check"
+      ],
+      "missing": [],
+      "contradictions": []
+    }
+  ],
+  "overall_status": "proven",
+  "close_allowed": true
+}

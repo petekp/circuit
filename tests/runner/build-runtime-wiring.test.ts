@@ -33,6 +33,7 @@ function relayerWith(
   options: {
     implementationBody?: string;
     reviewBody?: string;
+    contextBody?: string;
   } = {},
 ): RelayFn {
   const implementationBody =
@@ -50,19 +51,34 @@ function relayerWith(
       summary: 'No blocking issue found',
       findings: [],
     });
+  const contextBody =
+    options.contextBody ??
+    JSON.stringify({
+      verdict: 'accept',
+      sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Module the change touches' }],
+      observations: ['The target module is small and self-contained'],
+      open_questions: [],
+    });
 
   return {
     connectorName: 'claude-code',
     relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
+      const isAnalyze = input.prompt.includes('Step: analyze-step');
       const isAct = input.prompt.includes('Step: act-step');
       const isReview = input.prompt.includes('Step: review-step');
-      expect(isAct || isReview).toBe(true);
+      expect(isAnalyze || isAct || isReview).toBe(true);
       expect(input.prompt).toContain('Context (from reads):');
       expect(input.prompt).toContain('Respond with a single raw JSON object');
+      const receipt_id = isAnalyze
+        ? 'stub-build-analyze'
+        : isAct
+          ? 'stub-build-act'
+          : 'stub-build-review';
+      const result_body = isAnalyze ? contextBody : isAct ? implementationBody : reviewBody;
       return {
         request_payload: input.prompt,
-        receipt_id: isAct ? 'stub-build-act' : 'stub-build-review',
-        result_body: isAct ? implementationBody : reviewBody,
+        receipt_id,
+        result_body,
         duration_ms: 1,
         cli_version: '0.0.0-stub',
       };
@@ -392,6 +408,7 @@ describe('Build runtime wiring', () => {
     }
     expect(visited).toEqual([
       'frame-step',
+      'analyze-step',
       'plan-step',
       'act-step',
       'verify-step',

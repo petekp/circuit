@@ -7,6 +7,7 @@ last_updated: 2026-04-28
 depends_on: [flow, stage, step, connector]
 report_ids:
   - build.brief
+  - build.context
   - build.plan
   - build.implementation
   - build.verification
@@ -19,26 +20,30 @@ property_ids: []
 # Build Flow Contract
 
 The **Build** flow is Circuit's standard implementation flow:
-frame, plan, act, verify, review, close. It produces a typed,
-structured JSON report and a chain of evidence at every step.
+frame, analyze, plan, act, verify, review, close. It produces a typed,
+structured JSON report and a chain of evidence at every step. The analyze
+stage runs a read-only `gather-context` relay between Frame and Plan, so the
+plan is grounded in a real read of the codebase rather than the brief alone.
 
 ## Canonical stage policy
 
-Build uses the canonical set `{frame, plan, act, verify, review, close}` and
-omits `{analyze}`. This is enforced by `src/shared/flow-kind-policy-core.ts`
-against the generated flow at `generated/flows/build/circuit.json`.
+Build uses the full canonical set
+`{frame, analyze, plan, act, verify, review, close}`. This is enforced by
+`src/shared/flow-kind-policy-core.ts` against the generated flow at
+`generated/flows/build/circuit.json`.
 
 ## Axis Support
 
 Build declares `axes.allowed_rigors = [lite, standard, deep]`. It supports
 autonomous runs and does not support tournament runs.
 
-This contract starts as the typed-output home for the six Build reports:
+This contract starts as the typed-output home for the seven Build reports:
 
 | Report | Role | Backing path |
 |---|---|---|
 | `build.brief` | Frame checkpoint brief | `<run-folder>/reports/build/brief.json` |
-| `build.plan` | Plan plus verification commands | `<run-folder>/reports/build/plan.json` |
+| `build.context` | Read-only codebase context gathered before planning | `<run-folder>/reports/build/context.json` |
+| `build.plan` | Plan plus verification commands, grounded by `build.context@v1` | `<run-folder>/reports/build/plan.json` |
 | `build.implementation` | Worker implementation result | `<run-folder>/reports/build/implementation.json` |
 | `build.verification` | Executed verification evidence | `<run-folder>/reports/build/verification.json` |
 | `build.review` | Independent review result | `<run-folder>/reports/build/review.json` |
@@ -60,3 +65,11 @@ execution.
 `build.plan@v1` carries direct-argv verification commands. It does not accept
 shell command strings, shell `-c` execution, project-root escaping `cwd`,
 missing timeouts, or unbounded output.
+
+Both `build.context@v1` and `build.plan@v1` carry
+`anticipated_file_extensions`: the file extensions the grounding read predicts
+the change will touch (for example `.ts`, `.test.ts`). The `gather-context`
+relay populates it on `build.context@v1`; the plan writer surfaces the same
+list onto `build.plan@v1`, where the implementer reads it as an advisory
+starting scope. It is not a hard limit and defaults to an empty array when the
+read makes no confident prediction.

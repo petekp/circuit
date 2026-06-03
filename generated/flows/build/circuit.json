@@ -30,6 +30,12 @@
       "steps": ["frame-step"]
     },
     {
+      "id": "analyze-stage",
+      "title": "Analyze",
+      "canonical": "analyze",
+      "steps": ["analyze-step"]
+    },
+    {
       "id": "plan-stage",
       "title": "Plan",
       "canonical": "plan",
@@ -61,9 +67,7 @@
     }
   ],
   "stage_path_policy": {
-    "mode": "partial",
-    "omits": ["analyze"],
-    "rationale": "Build follows Frame, Plan, Act, Verify, Review, Close. The Analyze stage is omitted because analysis is folded into Frame and Plan for this flow."
+    "mode": "strict"
   },
   "steps": [
     {
@@ -72,8 +76,8 @@
       "protocol": "build-frame@v1",
       "reads": [],
       "routes": {
-        "continue": "plan-step",
-        "pass": "plan-step",
+        "continue": "analyze-step",
+        "pass": "analyze-step",
         "stop": "@stop"
       },
       "executor": "orchestrator",
@@ -114,10 +118,43 @@
       }
     },
     {
+      "id": "analyze-step",
+      "title": "Analyze — read the code before planning",
+      "protocol": "build-analyze@v1",
+      "reads": ["reports/build/brief.json"],
+      "routes": {
+        "continue": "plan-step",
+        "pass": "plan-step",
+        "retry": "analyze-step",
+        "ask": "@stop",
+        "stop": "@stop"
+      },
+      "executor": "worker",
+      "kind": "relay",
+      "role": "researcher",
+      "writes": {
+        "report": {
+          "path": "reports/build/context.json",
+          "schema": "build.context@v1"
+        },
+        "request": "reports/relay/build-analyze.request.json",
+        "receipt": "reports/relay/build-analyze.receipt.txt",
+        "result": "reports/relay/build-analyze.result.json"
+      },
+      "check": {
+        "kind": "result_verdict",
+        "source": {
+          "kind": "relay_result",
+          "ref": "result"
+        },
+        "pass": ["accept"]
+      }
+    },
+    {
       "id": "plan-step",
       "title": "Plan - produce Build plan",
       "protocol": "build-plan@v1",
-      "reads": ["reports/build/brief.json"],
+      "reads": ["reports/build/brief.json", "reports/build/context.json"],
       "routes": {
         "continue": "act-step",
         "pass": "act-step",

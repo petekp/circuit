@@ -9,11 +9,18 @@
   "entry_mode_source": "explicit",
   "run_folder": "<repo>/docs/release/proofs/runs/prototype/run",
   "outcome": "checkpoint_waiting",
-  "trace_entries_observed": 21,
+  "trace_entries_observed": 26,
   "operator_summary_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/operator-summary.md",
   "operator_summary_status_text": "Waiting for a checkpoint choice.",
   "operator_summary_html_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/operator-summary.html",
+  "run_envelope_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/run-envelope.json",
+  "run_process_evidence_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/process-evidence.json",
+  "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/run-surface.md",
+  "run_surface_status_text": "Needs input: prototype is waiting at a checkpoint.",
+  "run_decision_packet_paths": [
+    "<repo>/docs/release/proofs/runs/prototype/run/reports/decision-packets/decision-checkpoint-primary.json"
+  ],
   "checkpoint": {
     "step_id": "prototype-checkpoint-step",
     "request_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/checkpoints/prototype-review-request.json",

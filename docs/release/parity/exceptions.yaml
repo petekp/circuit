@@ -12,3 +12,9 @@ exceptions:
     readiness_ref: REL-007
     rationale: Write-capable worker behavior is now disclosed in first-run docs, progress output, and final summaries.
     public_wording: Write-capable worker behavior is disclosed before use.
+  - id: EX-REL-011-BUILD-ANALYZE-GROUNDING
+    capability_id: flow:build
+    status: approved_exception
+    readiness_ref: REL-011
+    rationale: The original Build stage path was Frame, Plan, Act, Verify, Review, Close. Circuit adds a read-only Analyze stage (the gather-context grounding step) between Frame and Plan so the plan is grounded in a real read of the codebase before any edit. This is an intentional enhancement, not a regression - every original Build stage is preserved and the added stage only reads.
+    public_wording: Build reads the codebase in a read-only Analyze stage before planning, so the plan is grounded in the actual code.

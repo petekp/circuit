@@ -2,6 +2,13 @@ Step: act-step
 Title: Act - implementation relay
 Role: implementer
 Accepted verdicts: accept
+Rigor: standard. Tune your thoroughness and effort to this level; it does not change which steps run.
+
+Operator Goal:
+Execute this plan: ./docs/specs/headless-engine-host-api-v1.md
+
+Prior-Run Memory (optional, hint-only):
+You may consult prior-run memory with `circuit history pull --run-folder <repo>/docs/release/proofs/runs/plan-execution/run --flow build --decision-point <label> <query>`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.
 
 Context (from reads):
 --- reports/build/brief.json ---
@@ -40,11 +47,14 @@ Context (from reads):
 --- reports/build/plan.json ---
 {
   "objective": "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
-  "approach": "Make the smallest safe change inside scope: Make the smallest safe change that satisfies the requested goal.",
+  "approach": "Grounded in a codebase read (1 sources): The synthetic target module is small and self-contained. Then Make the smallest safe change inside scope: Make the smallest safe change that satisfies the requested goal.",
   "slices": [
     "Satisfy: The requested behavior is implemented",
     "Satisfy: Verification passes",
     "Satisfy: Review completes without a blocking issue"
+  ],
+  "anticipated_file_extensions": [
+    ".ts"
   ],
   "verification": {
     "commands": [
@@ -65,4 +75,10 @@ Context (from reads):
 }
 
 
-Respond with a single raw JSON object whose top-level shape is exactly: { "verdict": "accept", "summary": "<what changed>", "changed_files": ["<project-relative path>"], "evidence": ["<verification or implementation evidence>"] } Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass. Use an empty changed_files array only when no file changed. Evidence must contain at least one item. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.implementation@v1 before writing reports/build/implementation.json.
+Acceptance Criteria:
+Before this step can advance, Circuit will check the relay result against these deterministic criteria.
+Failure policy: retry-with-feedback
+- changed-files-present: report field changed_files must be present.
+- evidence-non-empty: report field evidence must be non_empty.
+
+Respond with a single raw JSON object whose top-level shape is exactly: { "verdict": "accept", "summary": "<what changed>", "changed_files": ["<project-relative path>"], "evidence": ["<verification or implementation evidence>"] } Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass. The plan's anticipated_file_extensions lists the file types the grounding read expects this change to touch. Treat it as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched. Use an empty changed_files array only when no file changed. Evidence must contain at least one item. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.implementation@v1 before writing reports/build/implementation.json.

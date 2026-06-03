@@ -28,6 +28,15 @@ const BUILD_REVIEW_BODY = JSON.stringify({
   summary: 'No blocking issue found',
   findings: [],
 });
+const BUILD_CONTEXT_BODY = JSON.stringify({
+  verdict: 'accept',
+  sources: [
+    { kind: 'file', ref: 'src/custom-flow-output.ts', summary: 'Module the change touches.' },
+  ],
+  observations: ['The target module is small and self-contained.'],
+  open_questions: [],
+  anticipated_file_extensions: ['.ts'],
+});
 
 function tempRoot(prefix: string): string {
   const root = mkdtempSync(join(tmpdir(), prefix));
@@ -94,8 +103,12 @@ function writeStartedTraceOnlyInvalidRunFolder(runFolder: string): void {
 
 function relayerWithBuildBodies(): RelayFn {
   return makeStubRelayer(
-    (input) =>
-      input.prompt.includes('Step: review-step') ? BUILD_REVIEW_BODY : BUILD_IMPLEMENTATION_BODY,
+    (input) => {
+      if (input.prompt.includes('Step: analyze-step')) return BUILD_CONTEXT_BODY;
+      return input.prompt.includes('Step: review-step')
+        ? BUILD_REVIEW_BODY
+        : BUILD_IMPLEMENTATION_BODY;
+    },
     { receipt_id: 'stub-custom-flow-runtime' },
   );
 }

@@ -28672,6 +28672,17 @@ function describeExpandBlockStepUseError(error51) {
 }
 
 // dist/flows/build/relay-hints.js
+var buildContextShapeHint = {
+  kind: "schema",
+  schema: "build.context@v1",
+  instruction: [
+    "Respond with a single raw JSON object whose top-level shape is exactly:",
+    '{ "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"] }',
+    "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated rigor (provided to you): on a quick or lite job read just the directly implicated files; on a deep job map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
+    "In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer.",
+    "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.context@v1 before writing reports/build/context.json."
+  ].join(" ")
+};
 var buildImplementationShapeHint = {
   kind: "schema",
   schema: "build.implementation@v1",
@@ -28679,6 +28690,7 @@ var buildImplementationShapeHint = {
     "Respond with a single raw JSON object whose top-level shape is exactly:",
     '{ "verdict": "accept", "summary": "<what changed>", "changed_files": ["<project-relative path>"], "evidence": ["<verification or implementation evidence>"] }',
     "Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass.",
+    "The plan's anticipated_file_extensions lists the file types the grounding read expects this change to touch. Treat it as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched.",
     "Use an empty changed_files array only when no file changed. Evidence must contain at least one item. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
     "The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.implementation@v1 before writing reports/build/implementation.json."
   ].join(" ")
@@ -28804,10 +28816,23 @@ var BuildBrief = external_exports.object({
   checkpoint: BuildCheckpointPointer,
   checkpoint_packet: BuildCheckpointPacket.optional()
 }).strict();
+var BuildContextSource = external_exports.object({
+  kind: external_exports.enum(["file", "command", "log", "operator-note", "reference"]),
+  ref: external_exports.string().min(1).describe("project-relative path, command id, log line, note id, or external reference"),
+  summary: external_exports.string().min(1).describe("one-line summary of what this source contributed")
+}).strict();
+var BuildContext = external_exports.object({
+  verdict: external_exports.literal("accept"),
+  sources: external_exports.array(BuildContextSource).min(1),
+  observations: external_exports.array(external_exports.string().min(1).describe("observation grounded in the sources")).min(1),
+  open_questions: external_exports.array(external_exports.string().min(1).describe("question still unresolved after gathering context")),
+  anticipated_file_extensions: external_exports.array(external_exports.string().min(1).describe('file extension the implementation is expected to touch, e.g. ".ts" or ".test.ts"')).default([]).describe("file extensions the implementation is predicted to touch, inferred from the codebase read; empty when no confident prediction")
+}).strict();
 var BuildPlan = external_exports.object({
   objective: external_exports.string().min(1),
   approach: external_exports.string().min(1),
   slices: NonEmptyStringArray,
+  anticipated_file_extensions: external_exports.array(external_exports.string().min(1)).default([]).describe("file extensions the implementation is predicted to touch, surfaced from build.context@v1; empty when grounding made no confident prediction"),
   verification: external_exports.object({
     commands: external_exports.array(VerificationCommand).min(1)
   }).strict()
@@ -29518,13 +29543,20 @@ var buildCloseBuilder = {
 // dist/flows/build/writers/plan.js
 var buildPlanComposeBuilder = {
   resultSchemaName: "build.plan@v1",
-  reads: [{ name: "brief", schema: "build.brief@v1", required: true }],
+  reads: [
+    { name: "brief", schema: "build.brief@v1", required: true },
+    { name: "context", schema: "build.context@v1", required: false }
+  ],
   build(context) {
     const brief = BuildBrief.parse(context.inputs.brief);
+    const grounding = context.inputs.context === void 0 ? void 0 : BuildContext.parse(context.inputs.context);
+    const baseApproach = `Make the smallest safe change inside scope: ${brief.scope}`;
+    const approach = grounding === void 0 ? baseApproach : `Grounded in a codebase read (${grounding.sources.length} sources): ${grounding.observations.join(" ")} Then ${baseApproach}`;
     return BuildPlan.parse({
       objective: brief.objective,
-      approach: `Make the smallest safe change inside scope: ${brief.scope}`,
+      approach,
       slices: brief.success_criteria.map((criterion) => `Satisfy: ${criterion}`),
+      anticipated_file_extensions: grounding?.anticipated_file_extensions ?? [],
       verification: {
         commands: brief.verification_command_candidates
       }
@@ -29621,11 +29653,20 @@ var buildFlowData = {
     status: "active",
     version: "0.1.0",
     starts_at: "frame-step",
-    initial_contracts: ["task.intake@v1", "route.decision@v1", "verification.plan@v1"],
+    initial_contracts: [
+      "task.intake@v1",
+      "route.decision@v1",
+      "context.request@v1",
+      "verification.plan@v1"
+    ],
     contract_aliases: [
       {
         generic: "flow.brief@v1",
         actual: "build.brief@v1"
+      },
+      {
+        generic: "context.packet@v1",
+        actual: "build.context@v1"
       },
       {
         generic: "plan.strategy@v1",
@@ -29667,15 +29708,18 @@ var buildFlowData = {
       }
     },
     stage_path_policy: {
-      mode: "partial",
-      omits: ["analyze"],
-      rationale: "Build follows Frame, Plan, Act, Verify, Review, Close. The Analyze stage is omitted because analysis is folded into Frame and Plan for this flow."
+      mode: "strict"
     },
     stages: [
       {
         id: "frame-stage",
         canonical: "frame",
         title: "Frame"
+      },
+      {
+        id: "analyze-stage",
+        canonical: "analyze",
+        title: "Analyze"
       },
       {
         id: "plan-stage",
@@ -29741,7 +29785,34 @@ var buildFlowData = {
           }
         },
         routes: {
+          continue: "analyze-step",
+          stop: "@stop"
+        }
+      }),
+      expandBlockStepUse({
+        id: "analyze-step",
+        title: "Analyze \u2014 read the code before planning",
+        stage: "analyze",
+        block: "gather-context",
+        input: {
+          brief: "build.brief@v1",
+          request: "context.request@v1"
+        },
+        output: "build.context@v1",
+        execution: {
+          kind: "relay",
+          role: "researcher"
+        },
+        protocol: "build-analyze@v1",
+        reportPath: "reports/build/context.json",
+        requestPath: "reports/relay/build-analyze.request.json",
+        receiptPath: "reports/relay/build-analyze.receipt.txt",
+        resultPath: "reports/relay/build-analyze.result.json",
+        pass: ["accept"],
+        routes: {
           continue: "plan-step",
+          retry: "analyze-step",
+          ask: "@stop",
           stop: "@stop"
         }
       }),
@@ -29751,7 +29822,8 @@ var buildFlowData = {
         stage: "plan",
         block: "plan",
         input: {
-          brief: "build.brief@v1"
+          brief: "build.brief@v1",
+          context: "build.context@v1"
         },
         output: "build.plan@v1",
         evidence_requirements: ["ordered steps", "risk notes", "proof strategy"],
@@ -29891,11 +29963,11 @@ var buildFlowData = {
   },
   canonicalStagePolicy: {
     kind: "enforce",
-    canonicals: ["frame", "plan", "act", "verify", "review", "close"],
-    omits: ["analyze"],
+    canonicals: ["frame", "analyze", "plan", "act", "verify", "review", "close"],
+    omits: [],
     optional_canonicals: [],
     variants: [],
-    title: "Frame \u2192 Plan \u2192 Act \u2192 Verify \u2192 Review \u2192 Close",
+    title: "Frame \u2192 Analyze \u2192 Plan \u2192 Act \u2192 Verify \u2192 Review \u2192 Close",
     authority: "src/flows/build/contract.md \xA7Build Flow Contract"
   },
   reports: [
@@ -29910,6 +29982,12 @@ var buildFlowData = {
       channel: "relay",
       schema: BuildReview,
       relayHint: buildReviewShapeHint.instruction
+    },
+    {
+      schemaName: "build.context@v1",
+      channel: "relay",
+      schema: BuildContext,
+      relayHint: buildContextShapeHint.instruction
     },
     {
       schemaName: "build.brief@v1",
@@ -29948,6 +30026,14 @@ var buildFlowData = {
           stepId: "frame-step",
           taskTitle: "Frame the work",
           activeText: "Framing the work"
+        },
+        {
+          stepId: "analyze-step",
+          taskTitle: "Read the code",
+          activeText: "Reading the code",
+          relayRole: "researcher",
+          relayStartedText: "Asking the specialist to read the code...",
+          relayCompletedText: "Finished reading the code."
         },
         {
           stepId: "plan-step",
@@ -45592,6 +45678,10 @@ function resolveComposeReadPaths(builder, flow, step) {
   if (builder.reads === void 0)
     return paths;
   for (const descriptor of builder.reads) {
+    if (!descriptor.required && !flowHasReportSchemaInRuntimeFlow(flow, descriptor.schema)) {
+      paths[descriptor.name] = void 0;
+      continue;
+    }
     const path = reportPathForSchemaInRuntimeFlow(flow, descriptor.schema);
     if (descriptor.required && !step.reads.includes(path)) {
       throw new Error(`${step.writes.report.schema} requires step '${step.id}' to read ${path}`);
@@ -57220,15 +57310,16 @@ function checkCanonicalStagePolicyVariant(id, fixture, variant, optionalCanonica
       detail: `${id}: stage_path_policy missing or not an object`
     };
   }
-  if (sp.mode !== "partial") {
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy.mode must be 'partial' for kind-canonical enforcement; got '${String(sp.mode)}'`
-    };
-  }
   const omits = Array.isArray(sp.omits) ? sp.omits.filter((s) => typeof s === "string") : [];
   const optionalOmitted = [...optional2].filter((c) => !declared.has(c));
   const expectedOmits = /* @__PURE__ */ new Set([...variant.omits, ...optionalOmitted]);
+  const expectedMode = expectedOmits.size === 0 ? "strict" : "partial";
+  if (sp.mode !== expectedMode) {
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy.mode must be '${expectedMode}' for kind-canonical enforcement; got '${String(sp.mode)}'`
+    };
+  }
   const missingOmits = [...expectedOmits].filter((o) => !omits.includes(o));
   const extraOmits = omits.filter((o) => !expectedOmits.has(o));
   if (missingOmits.length > 0 || extraOmits.length > 0) {

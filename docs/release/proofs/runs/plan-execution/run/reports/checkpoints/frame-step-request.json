@@ -7,8 +7,117 @@
   ],
   "safe_default_choice": "continue",
   "execution_context": {
+    "axes": {
+      "rigor": "standard",
+      "tournament": false,
+      "tournament_n": 3,
+      "autonomous": false
+    },
     "project_root": "<repo>",
-    "selection_config_layers": [],
+    "work_contract_ref": {
+      "kind": "work_contract",
+      "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
+      "sha256": "20887b1d874f8d39df6ea4cbdd011d89d798a88bc3e884926a13d669a4e4f8f5",
+      "flow_id": "build"
+    },
+    "checkpoint_boundary_ref": {
+      "kind": "work_contract",
+      "ref": "compiled-flow/steps/frame-step/checkpoint-boundary.v0",
+      "sha256": "413ff980771aed9355a1956335588ea8d09d950c6eec3cffd59f3659e3b785f9",
+      "flow_id": "build",
+      "step_id": "frame-step"
+    },
+    "checkpoint_boundary_hash": "413ff980771aed9355a1956335588ea8d09d950c6eec3cffd59f3659e3b785f9",
+    "selection_config_layers": [
+      {
+        "layer": "project",
+        "source_path": "<repo>/.circuit/config.yaml",
+        "config": {
+          "schema_version": 1,
+          "relay": {
+            "default": "auto",
+            "roles": {},
+            "circuits": {},
+            "connectors": {}
+          },
+          "skills": {
+            "bindings": {}
+          },
+          "skill_hooks": {
+            "policy": {},
+            "detection": {
+              "disabled_patterns": {}
+            }
+          },
+          "circuits": {
+            "prototype": {
+              "skill_bindings": {},
+              "variant_models": [
+                {
+                  "id": "codex-55-xhigh",
+                  "label": "Codex 5.5 xhigh",
+                  "connector": {
+                    "kind": "builtin",
+                    "name": "codex"
+                  },
+                  "selection": {
+                    "model": {
+                      "provider": "openai",
+                      "model": "gpt-5.5"
+                    },
+                    "effort": "xhigh",
+                    "skills": {
+                      "mode": "inherit"
+                    },
+                    "invocation_options": {}
+                  }
+                },
+                {
+                  "id": "opus-47-max",
+                  "label": "Claude Opus 4.7 max",
+                  "connector": {
+                    "kind": "builtin",
+                    "name": "claude-code"
+                  },
+                  "selection": {
+                    "model": {
+                      "provider": "anthropic",
+                      "model": "claude-opus-4-7"
+                    },
+                    "effort": "max",
+                    "skills": {
+                      "mode": "inherit"
+                    },
+                    "invocation_options": {}
+                  }
+                },
+                {
+                  "id": "gemini-35-flash-cursor",
+                  "label": "Gemini 3.5 Flash via Cursor",
+                  "connector": {
+                    "kind": "builtin",
+                    "name": "cursor-agent"
+                  },
+                  "selection": {
+                    "model": {
+                      "provider": "gemini",
+                      "model": "gemini-3.5-flash"
+                    },
+                    "effort": "none",
+                    "skills": {
+                      "mode": "inherit"
+                    },
+                    "invocation_options": {}
+                  }
+                }
+              ]
+            }
+          },
+          "defaults": {}
+        }
+      }
+    ],
+    "policy_layers": [],
     "checkpoint_report_sha256": "1b2184d79a9a8030df210874b02404caeb4e3155cf45617eaf5c96bc752ac78a"
   }
 }

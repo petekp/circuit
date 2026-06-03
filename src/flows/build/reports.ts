@@ -119,11 +119,54 @@ export const BuildBrief = z
   .strict();
 export type BuildBrief = z.infer<typeof BuildBrief>;
 
+export const BuildContextSource = z
+  .object({
+    kind: z.enum(['file', 'command', 'log', 'operator-note', 'reference']),
+    ref: z
+      .string()
+      .min(1)
+      .describe('project-relative path, command id, log line, note id, or external reference'),
+    summary: z.string().min(1).describe('one-line summary of what this source contributed'),
+  })
+  .strict();
+export type BuildContextSource = z.infer<typeof BuildContextSource>;
+
+export const BuildContext = z
+  .object({
+    verdict: z.literal('accept'),
+    sources: z.array(BuildContextSource).min(1),
+    observations: z.array(z.string().min(1).describe('observation grounded in the sources')).min(1),
+    open_questions: z.array(
+      z.string().min(1).describe('question still unresolved after gathering context'),
+    ),
+    anticipated_file_extensions: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .describe(
+            'file extension the implementation is expected to touch, e.g. ".ts" or ".test.ts"',
+          ),
+      )
+      .default([])
+      .describe(
+        'file extensions the implementation is predicted to touch, inferred from the codebase read; empty when no confident prediction',
+      ),
+  })
+  .strict();
+export type BuildContext = z.infer<typeof BuildContext>;
+
 export const BuildPlan = z
   .object({
     objective: z.string().min(1),
     approach: z.string().min(1),
     slices: NonEmptyStringArray,
+    anticipated_file_extensions: z
+      .array(z.string().min(1))
+      .default([])
+      .describe(
+        'file extensions the implementation is predicted to touch, surfaced from build.context@v1; empty when grounding made no confident prediction',
+      ),
     verification: z
       .object({
         commands: z.array(VerificationCommand).min(1),

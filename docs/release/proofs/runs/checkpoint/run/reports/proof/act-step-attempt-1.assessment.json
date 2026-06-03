@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "assessment_id": "proof.acceptance:act-step:1",
+  "scope": {
+    "run_id": "44444444-4444-4444-4444-444444444405",
+    "flow_id": "build",
+    "step_id": "act-step",
+    "attempt": 1
+  },
+  "proof_policy_decision_id": "gd-proof-act-step-1",
+  "claims": [
+    {
+      "schema_version": 1,
+      "id": "claim.acceptance:act-step:1",
+      "kind": "verification_passed",
+      "statement": "Acceptance criteria for relay step 'act-step' are backed by required runtime evidence.",
+      "scope_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
+          "sha256": "20887b1d874f8d39df6ea4cbdd011d89d798a88bc3e884926a13d669a4e4f8f5",
+          "flow_id": "build"
+        }
+      ],
+      "risk": "medium",
+      "required": true,
+      "source": "work_contract"
+    }
+  ],
+  "evidence": [
+    {
+      "schema_version": 1,
+      "id": "evidence.acceptance:act-step:1:changed-files-present",
+      "kind": "report_field",
+      "producer": "runtime",
+      "independence": "runtime",
+      "ref": {
+        "kind": "trace",
+        "ref": "trace.ndjson#sequence=29",
+        "run_id": "44444444-4444-4444-4444-444444444405",
+        "step_id": "act-step",
+        "attempt": 1,
+        "sequence": 29
+      },
+      "input_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
+          "sha256": "20887b1d874f8d39df6ea4cbdd011d89d798a88bc3e884926a13d669a4e4f8f5",
+          "flow_id": "build"
+        },
+        {
+          "kind": "trace",
+          "ref": "trace.ndjson#sequence=29",
+          "run_id": "44444444-4444-4444-4444-444444444405",
+          "step_id": "act-step",
+          "attempt": 1,
+          "sequence": 29
+        }
+      ],
+      "covers_claims": [
+        "claim.acceptance:act-step:1"
+      ],
+      "result": "pass"
+    },
+    {
+      "schema_version": 1,
+      "id": "evidence.acceptance:act-step:1:evidence-non-empty",
+      "kind": "report_field",
+      "producer": "runtime",
+      "independence": "runtime",
+      "ref": {
+        "kind": "trace",
+        "ref": "trace.ndjson#sequence=30",
+        "run_id": "44444444-4444-4444-4444-444444444405",
+        "step_id": "act-step",
+        "attempt": 1,
+        "sequence": 30
+      },
+      "input_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
+          "sha256": "20887b1d874f8d39df6ea4cbdd011d89d798a88bc3e884926a13d669a4e4f8f5",
+          "flow_id": "build"
+        },
+        {
+          "kind": "trace",
+          "ref": "trace.ndjson#sequence=30",
+          "run_id": "44444444-4444-4444-4444-444444444405",
+          "step_id": "act-step",
+          "attempt": 1,
+          "sequence": 30
+        }
+      ],
+      "covers_claims": [
+        "claim.acceptance:act-step:1"
+      ],
+      "result": "pass"
+    }
+  ],
+  "results": [
+    {
+      "claim_id": "claim.acceptance:act-step:1",
+      "status": "weak",
+      "evidence_refs": [
+        "evidence.acceptance:act-step:1:changed-files-present",
+        "evidence.acceptance:act-step:1:evidence-non-empty"
+      ],
+      "missing": [
+        "report-field evidence proves report shape only; runtime command or diff proof is missing",
+        "no declared recovery route covers this proof outcome"
+      ],
+      "contradictions": []
+    }
+  ],
+  "overall_status": "weak",
+  "close_allowed": false
+}
