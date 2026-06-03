@@ -34,8 +34,8 @@ public default, Goal de-emphasis, and closeout.
   [run-supervisor-contract-sketch-v1.md](run-supervisor-contract-sketch-v1.md),
   [run-supervisor-fixture-plan-v1.md](run-supervisor-fixture-plan-v1.md)
 - Skill Moment prep:
-  [skill-moment-vocabulary-v1.md](skill-moment-vocabulary-v1.md),
-  [skill-moment-policy-fixture-plan-v1.md](skill-moment-policy-fixture-plan-v1.md)
+  [skill-hook-vocabulary-v1.md](skill-hook-vocabulary-v1.md),
+  [skill-hook-policy-fixture-plan-v1.md](skill-hook-policy-fixture-plan-v1.md)
 - Final readiness control plane:
   [run-centered-v1-migration-ledger.md](run-centered-v1-migration-ledger.md),
   [run-centered-v1-preflight-contracts.md](run-centered-v1-preflight-contracts.md)

@@ -1,9 +1,9 @@
-// Skill-moment decision-packet builders — pre-wired alongside ./policy.ts.
+// Skill-hook decision-packet builders — pre-wired alongside ./policy.ts.
 //
-// Part of the deliberately forward-staged skill-moment policy layer (Phase 3.5
+// Part of the deliberately forward-staged skill-hook policy layer (Phase 3.5
 // of the run-centered migration). No live caller yet by design; the schema half
-// (Config.moments, Step.skill_moments, the 'skill-moment-ask' decision reason)
-// ships today. Oracle: tests/contracts/skill-moment-policy-schema.test.ts.
+// (Config.skill_hooks, Step.skill_hooks, the 'skill-hook-ask' decision reason)
+// ships today. Oracle: tests/contracts/skill-hook-policy-schema.test.ts.
 // See ./policy.ts for the full lifecycle note. Intentionally staged, not dead.
 
 import { RunId } from '../schemas/ids.js';
@@ -12,31 +12,31 @@ import {
   RunDecisionPacket,
   type RunDecisionPacket as RunDecisionPacketValue,
 } from '../schemas/run-envelope.js';
-import type { RunSkillMomentEvent } from '../schemas/skill-moment.js';
+import type { RunSkillHookEvent } from '../schemas/skill-hook.js';
 
-export interface BuildSkillMomentDecisionPacketInput {
+export interface BuildSkillHookDecisionPacketInput {
   readonly runId: string;
-  readonly event: RunSkillMomentEvent;
+  readonly event: RunSkillHookEvent;
   readonly artifactRefs?: readonly Ref[];
 }
 
-export function buildSkillMomentAskDecisionPacket(
-  input: BuildSkillMomentDecisionPacketInput,
+export function buildSkillHookAskDecisionPacket(
+  input: BuildSkillHookDecisionPacketInput,
 ): RunDecisionPacketValue {
   if (input.event.policy.mode !== 'ask' || input.event.decision_packet_id === undefined) {
-    throw new Error('skill-moment ask packets require an ask event with decision_packet_id');
+    throw new Error('skill-hook ask packets require an ask event with decision_packet_id');
   }
 
   return RunDecisionPacket.parse({
     schema: 'run.decision-packet@v0',
     decision_id: input.event.decision_packet_id,
-    reason: 'skill-moment-ask',
-    prompt: `Use configured skills for ${input.event.moment}?`,
+    reason: 'skill-hook-ask',
+    prompt: `Use configured skills for ${input.event.hook}?`,
     choices: [
       {
         id: 'use-skills',
         label: 'Use skills',
-        effect: 'Prepare the skills configured for this Skill Moment.',
+        effect: 'Prepare the skills configured for this Skill Hook.',
       },
       {
         id: 'skip-skills',
@@ -53,7 +53,7 @@ export function buildSkillMomentAskDecisionPacket(
 }
 
 export function buildStrictSkillUnavailableDecisionPacket(
-  input: BuildSkillMomentDecisionPacketInput,
+  input: BuildSkillHookDecisionPacketInput,
 ): RunDecisionPacketValue {
   if (
     input.event.policy.mode === 'none' ||
@@ -71,7 +71,7 @@ export function buildStrictSkillUnavailableDecisionPacket(
     schema: 'run.decision-packet@v0',
     decision_id: input.event.decision_packet_id,
     reason: 'strict-skill-unavailable',
-    prompt: `Configured skills are unavailable for ${input.event.moment}.`,
+    prompt: `Configured skills are unavailable for ${input.event.hook}.`,
     choices: [
       {
         id: 'continue-without-skill',

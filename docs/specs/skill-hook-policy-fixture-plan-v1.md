@@ -1,4 +1,4 @@
-# Skill Moment Policy Fixture Plan V1
+# Skill Hook Policy Fixture Plan V1
 
 Status: fixture-spec and test-plan target, not current behavior.
 
@@ -6,18 +6,18 @@ Date: 2026-05-28
 
 ## Purpose
 
-Define the smallest pure fixture suite that can make Skill Moments
+Define the smallest pure fixture suite that can make Skill Hooks
 implementable without changing runtime behavior first.
 
 This is the contract bridge between the vocabulary in
-[skill-moment-vocabulary-v1.md](skill-moment-vocabulary-v1.md) and a later
+[skill-hook-vocabulary-v1.md](skill-hook-vocabulary-v1.md) and a later
 source implementation. It pins the proposed policy config shape, flow-authored
-moment field, Run record event shape, and availability behavior before those
+hook field, Run record event shape, and availability behavior before those
 surfaces land in code.
 
 The first slice should answer one question:
 
-> Can Circuit represent moment-triggered skill policy deterministically, with
+> Can Circuit represent hook-triggered skill policy deterministically, with
 > honest skill availability and activation provenance, without reintroducing
 > flow-step skill binding matrices?
 
@@ -25,8 +25,8 @@ The first slice should answer one question:
 
 - Run-centered migration plan:
   [run-centered-migration-plan-v1.md](run-centered-migration-plan-v1.md)
-- Skill moment vocabulary:
-  [skill-moment-vocabulary-v1.md](skill-moment-vocabulary-v1.md)
+- Skill hook vocabulary:
+  [skill-hook-vocabulary-v1.md](skill-hook-vocabulary-v1.md)
 - Config and config loading:
   [docs/configuration.md](../configuration.md),
   [docs/contracts/config.md](../contracts/config.md),
@@ -62,7 +62,7 @@ Out of scope for the first slice:
 
 ## Target Config Shape
 
-Skill Moment policy should live inside the existing config layers:
+Skill Hook policy should live inside the existing config layers:
 
 - `~/.config/circuit/config.yaml` for user-global defaults;
 - `./.circuit/config.yaml` for project overrides.
@@ -74,7 +74,7 @@ Proposed config shape:
 ```yaml
 schema_version: 1
 
-moments:
+skill_hooks:
   policy:
     after:react-ui-change:
       mode: auto
@@ -101,72 +101,72 @@ moments:
 ```
 
 This is a future config surface. The current strict config schema should keep
-rejecting `moments` until the implementation slice deliberately adds it.
+rejecting `hooks` until the implementation slice deliberately adds it.
 
 Proposed typed shape:
 
 ```ts
-type SkillMomentName =
+type SkillHookName =
   | `${'before' | 'after'}:${string}`
   | `${string}/${'before' | 'after'}:${string}`;
 
-type SkillMomentPolicyMode = 'auto' | 'ask' | 'mute';
+type SkillHookPolicyMode = 'auto' | 'ask' | 'mute';
 
-interface SkillMomentPolicyRule {
-  mode: SkillMomentPolicyMode;
+interface SkillHookPolicyRule {
+  mode: SkillHookPolicyMode;
   skills?: SkillId[];
   strict?: boolean;
 }
 
-interface SkillMomentDetectionConfig {
+interface SkillHookDetectionConfig {
   react_surfaces?: string[];
   test_surfaces?: string[];
   schema_surfaces?: string[];
   api_surfaces?: string[];
-  disabled_patterns?: Record<SkillMomentName, string[]>;
+  disabled_patterns?: Record<SkillHookName, string[]>;
 }
 
-interface SkillMomentConfig {
-  policy?: Record<SkillMomentName, SkillMomentPolicyRule>;
-  detection?: SkillMomentDetectionConfig;
+interface SkillHookConfig {
+  policy?: Record<SkillHookName, SkillHookPolicyRule>;
+  detection?: SkillHookDetectionConfig;
 }
 ```
 
 Rules:
 
-- Shipped moment names must match `^(before|after):[a-z][a-z0-9-]*$`.
-- Custom moment names must match
+- Shipped hook names must match `^(before|after):[a-z][a-z0-9-]*$`.
+- Custom hook names must match
   `^[a-z][a-z0-9-]*/(before|after):[a-z][a-z0-9-]*$`.
 - `mode: auto` and `mode: ask` require a non-empty unique `skills` list.
 - `mode: mute` must not carry `skills`.
 - `strict` defaults to `false`.
 - Future first-party default mappings must behave as `strict: false`.
-- Policy keys may name shipped moments or custom namespaced moments.
-- Custom moments must include a namespace such as
+- Policy keys may name shipped hooks or custom namespaced hooks.
+- Custom hooks must include a namespace such as
   `my-project/after:storybook-change`.
-- Shipped moment names must not include a namespace.
+- Shipped hook names must not include a namespace.
 - Surplus keys are rejected at every declared object shape, matching the config
   contract's current strictness.
 
 Layering:
 
 - User-global and project policies use the same shape.
-- Project policy overrides user-global policy by moment key.
+- Project policy overrides user-global policy by hook key.
 - A project `mute` rule suppresses a user-global `auto` or `ask` rule for the
-  same moment.
+  same hook.
 - Policy rule composition is whole-entry replacement. Do not merge individual
   `skills` arrays across layers in V1.
 
-## Flow-Authored Moment Field
+## Flow-Authored Hook Field
 
-Flow-authored moments should be declared by the flow author, not by the
+Flow-authored hooks should be declared by the flow author, not by the
 operator.
 
 Proposed step field:
 
 ```ts
 interface StepBase {
-  skill_moments?: SkillMomentName[];
+  skill_hooks?: SkillHookName[];
 }
 ```
 
@@ -175,25 +175,25 @@ Example:
 ```yaml
 id: analyze-architecture
 title: Analyze architecture
-skill_moments:
+skill_hooks:
   - before:architecture-analysis
 ```
 
 Rules:
 
-- `skill_moments` names moments only.
+- `skill_hooks` names hooks only.
 - It must not carry concrete `SkillId`s.
 - It must not carry policy mode.
 - It must not carry host-specific invocation options.
 - It must not replace `skill_slots` or `SelectionOverride.skills`; those remain
   lower-level compatibility and power-user mechanisms.
-- Public built-in flows may declare shipped, non-namespaced moments only.
-- User-authored flows may declare namespaced custom moments.
+- Public built-in flows may declare shipped, non-namespaced hooks only.
+- User-authored flows may declare namespaced custom hooks.
 
 Rejected shape:
 
 ```yaml
-skill_moments:
+skill_hooks:
   after:react-ui-change:
     skills:
       - react-doctor
@@ -203,15 +203,15 @@ That shape recreates a flow-step skill binding matrix and should fail fast.
 
 ## Run Record Shape
 
-Each fired moment should produce a Run envelope event. The event records what
+Each fired hook should produce a Run envelope event. The event records what
 Circuit prepared, not what the worker definitely did.
 
 Proposed shape:
 
 ```ts
-type SkillMomentCardinality = 'per-run' | 'per-stage' | 'per-step';
+type SkillHookCardinality = 'per-run' | 'per-stage' | 'per-step';
 
-type SkillMomentSkillState =
+type SkillHookSkillState =
   | 'planned'
   | 'staged'
   | 'requested'
@@ -219,39 +219,39 @@ type SkillMomentSkillState =
   | 'unplanned'
   | 'unavailable';
 
-type SkillMomentPolicyResolution =
+type SkillHookPolicyResolution =
   | {
       mode: 'none';
       source: 'none';
     }
   | {
-      mode: SkillMomentPolicyMode;
+      mode: SkillHookPolicyMode;
       source: 'project-policy' | 'user-global-policy' | 'default-mapping';
       strict: boolean;
       policy_ref?: string;
     };
 
-interface SkillMomentSkillRef {
+interface SkillHookSkillRef {
   id: SkillId;
-  state: SkillMomentSkillState;
+  state: SkillHookSkillState;
   source: 'project-policy' | 'user-global-policy' | 'default-mapping' | 'host-observed';
   reason?: string;
 }
 
-interface SkillMomentEvent {
-  schema: 'run.skill-moment@v0';
+interface SkillHookEvent {
+  schema: 'run.skill-hook@v0';
   event_id: string;
-  moment: SkillMomentName;
+  hook: SkillHookName;
   detected_from: string[];
-  cardinality: SkillMomentCardinality;
-  policy: SkillMomentPolicyResolution;
+  cardinality: SkillHookCardinality;
+  policy: SkillHookPolicyResolution;
   flow_id?: CompiledFlowId;
   stage_id?: StageId;
   step_id?: StepId;
   attempt_id?: string;
   decision_packet_id?: string;
-  triggered_skills: SkillMomentSkillRef[];
-  unavailable_skills?: SkillMomentSkillRef[];
+  triggered_skills: SkillHookSkillRef[];
+  unavailable_skills?: SkillHookSkillRef[];
 }
 ```
 
@@ -260,7 +260,7 @@ State meanings:
 | State | Meaning |
 | --- | --- |
 | `planned` | Policy matched a skill before the step ran. |
-| `staged` | Circuit put the moment or skill request into step context. |
+| `staged` | Circuit put the hook or skill request into step context. |
 | `requested` | Circuit explicitly asked the host or connector to consider a skill. |
 | `observed` | Host or relay evidence proves the skill actually ran. |
 | `unplanned` | Host evidence suggests a skill ran without Circuit planning it. |
@@ -272,7 +272,7 @@ ran. `planned`, `staged`, and `requested` are preparation states.
 Unplanned skill activity is logged neutrally. Circuit may suggest a future
 policy mapping or mute, but it must not rewrite policy automatically.
 
-When no policy mapping exists for a fired moment, the event uses
+When no policy mapping exists for a fired hook, the event uses
 `policy: { mode: 'none', source: 'none' }`, keeps `triggered_skills` empty, and
 does not attempt availability checks.
 
@@ -286,12 +286,12 @@ roots before using them:
 
 Rules:
 
-- A fired moment is recorded even when no policy mapping exists.
+- A fired hook is recorded even when no policy mapping exists.
 - No policy mapping means no skill is prepared, requested, or checked for
   availability.
 - Missing skills are recorded as `unavailable`.
 - Missing skills do not fail the Run by default.
-- Missing skills do not block the moment itself from being recorded.
+- Missing skills do not block the hook itself from being recorded.
 - Missing skills produce no `staged`, `requested`, or `observed` claim.
 - If a policy rule has `strict: true`, Circuit must not silently continue as
   if the skill was available. It should produce a decision packet or
@@ -302,7 +302,7 @@ Rules:
   silently install or package it as part of the core Run path.
 
 Optional first-party skill packs can be explored later. They should be
-installable support material, not a hidden dependency of the shipped moment
+installable support material, not a hidden dependency of the shipped hook
 vocabulary.
 
 ## Fixture Suite
@@ -316,7 +316,7 @@ Positive cases:
 - `mute` with no skills.
 - user-global policy with project override.
 - project `mute` overriding user-global `auto`.
-- namespaced custom moment under project policy.
+- namespaced custom hook under project policy.
 
 Negative cases:
 
@@ -325,49 +325,49 @@ Negative cases:
 - `mute` with skills.
 - duplicate skills in one rule.
 - invalid skill id.
-- invalid moment name.
-- custom moment without namespace when it is not a shipped moment.
-- shipped moment with a namespace.
-- surplus keys under `moments`, `policy`, a policy rule, or `detection`.
+- invalid hook name.
+- custom hook without namespace when it is not a shipped hook.
+- shipped hook with a namespace.
+- surplus keys under `hooks`, `policy`, a policy rule, or `detection`.
 
 ### 2. Layering Fixtures
 
 Cases:
 
-- User-global policy applies when project has no matching moment key.
-- Project policy replaces the whole user-global entry for the same moment.
+- User-global policy applies when project has no matching hook key.
+- Project policy replaces the whole user-global entry for the same hook.
 - Project `mute` suppresses user-global skill preparation.
-- Two different moment keys do not affect each other.
-- No policy mapping records the moment and prepares no skill.
+- Two different hook keys do not affect each other.
+- No policy mapping records the hook and prepares no skill.
 
-### 3. Flow-Authored Moment Fixtures
+### 3. Flow-Authored Hook Fixtures
 
 Positive cases:
 
-- Step declares one shipped moment.
-- Step declares several shipped moments.
-- User-authored flow declares a namespaced custom moment.
+- Step declares one shipped hook.
+- Step declares several shipped hooks.
+- User-authored flow declares a namespaced custom hook.
 
 Negative cases:
 
-- Step declares a concrete skill id where a moment name is expected.
+- Step declares a concrete skill id where a hook name is expected.
 - Step declares a flow-step binding object such as `{skills: [...]}`.
-- Built-in public flow declares a custom namespaced moment.
-- Moment name depends on inference language such as `after:risky-code`.
+- Built-in public flow declares a custom namespaced hook.
+- Hook name depends on inference language such as `after:risky-code`.
 
 ### 4. Detection Fixtures
 
 Cases:
 
-- All fourteen shipped moments have at least one positive fixture.
+- All fourteen shipped hooks have at least one positive fixture.
 - Each positive fixture cites an observable source:
   file path, diff, goal contract field, evidence map state, selected process,
   step metadata, stage transition, or explicit operator input.
-- Natural-language goal prose alone never fires a moment.
-- Natural-language step output alone never fires a moment.
+- Natural-language goal prose alone never fires a hook.
+- Natural-language step output alone never fires a hook.
 - `after:dependency-change` fires on lockfile or dependency-section changes,
   not script-only or metadata-only manifest edits.
-- `after:api-surface-change` requires explicit `moments.detection.api_surfaces`
+- `after:api-surface-change` requires explicit `skill_hooks.detection.api_surfaces`
   config.
 
 ### 5. Cardinality Fixtures
@@ -386,9 +386,9 @@ Cases:
 
 - `auto` prepares or requests available skills without a decision packet.
 - `ask` produces a decision packet before preparing or requesting skills.
-- `mute` records the moment and prepares no skills.
+- `mute` records the hook and prepares no skills.
 - `ask` with a rejected decision produces no skill request.
-- `ask` with an accepted decision records the decision packet id on the moment
+- `ask` with an accepted decision records the decision packet id on the hook
   event.
 
 ### 7. Availability Fixtures
@@ -425,8 +425,8 @@ Cases:
 - Existing `skill_slots` fixtures still pass.
 - Existing `SelectionOverride.skills` fixtures still pass.
 - Existing config fixtures still reject surplus keys outside the new
-  `moments` surface.
-- Current config fixtures reject `moments` until the implementation slice adds
+  `hooks` surface.
+- Current config fixtures reject `hooks` until the implementation slice adds
   the new schema field.
 - `npm run check-flow-drift` remains clean because this slice has no generated
   host-surface changes.
@@ -435,17 +435,17 @@ Cases:
 
 The first implementation slice should add only pure schema and fixture tests:
 
-- `SkillMomentName`
-- `SkillMomentPolicyMode`
-- `SkillMomentPolicyRule`
-- `SkillMomentConfig`
-- `Step.skill_moments`
-- `RunSkillMomentEvent`
+- `SkillHookName`
+- `SkillHookPolicyMode`
+- `SkillHookPolicyRule`
+- `SkillHookConfig`
+- `Step.skill_hooks`
+- `RunSkillHookEvent`
 
 Expected focused tests:
 
-- `tests/contracts/skill-moment-policy-schema.test.ts`
-- `tests/contracts/skill-moment-vocabulary-fixtures.test.ts`
+- `tests/contracts/skill-hook-policy-schema.test.ts`
+- `tests/contracts/skill-hook-vocabulary-fixtures.test.ts`
 - existing config, selection, skill, and documentation-surface tests
 
 No runtime dispatcher, connector behavior, or generated host output should land
@@ -464,8 +464,8 @@ in this first slice.
 
 ## Decision
 
-Proceed with a pure fixture slice before runtime wiring. Moment policy should
-use existing config layers, flow-authored steps should publish moments instead
+Proceed with a pure fixture slice before runtime wiring. Hook policy should
+use existing config layers, flow-authored steps should publish hooks instead
 of skill ids, Run records should separate preparation from observed activation,
 and missing mapped skills should be availability-gated through host-native
 skill roots.

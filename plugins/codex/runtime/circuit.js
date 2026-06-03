@@ -26986,141 +26986,141 @@ var CheckpointChoiceSource = ReportItemsSource.extend({
   description_path: external_exports.string().min(1).optional()
 }).strict();
 
-// dist/schemas/skill-moment.js
-var SKILL_MOMENT_VOCABULARY = [
+// dist/schemas/skill-hook.js
+var SKILL_HOOK_VOCABULARY = [
   {
-    moment: "before:high-impact-alignment",
+    hook: "before:high-impact-alignment",
     detected_from: ["goal-contract:impact=high", "operator-flag:high-impact"],
     cardinality: "per-run",
     default_mode: "ask"
   },
   {
-    moment: "before:architecture-analysis",
+    hook: "before:architecture-analysis",
     detected_from: ["selected-process:explore-architecture", "step-metadata:architecture-analysis"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    moment: "before:plan-implementation",
+    hook: "before:plan-implementation",
     detected_from: ["stage-transition:Plan", "step-metadata:plan"],
     cardinality: "per-stage",
     default_mode: "auto"
   },
   {
-    moment: "before:implementation",
+    hook: "before:implementation",
     detected_from: ["stage-transition:Plan->Act", "stage-transition:Act"],
     cardinality: "per-stage",
     default_mode: "auto"
   },
   {
-    moment: "before:verification",
+    hook: "before:verification",
     detected_from: ["stage-transition:Verify", "step-metadata:verify"],
     cardinality: "per-stage",
     default_mode: "auto"
   },
   {
-    moment: "after:react-ui-change",
-    detected_from: ["diff:*.tsx", "diff:*.jsx", "config:moments.detection.react_surfaces"],
+    hook: "after:react-ui-change",
+    detected_from: ["diff:*.tsx", "diff:*.jsx", "config:skill_hooks.detection.react_surfaces"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    moment: "after:test-change",
+    hook: "after:test-change",
     detected_from: ["diff:*.test.*", "diff:*.spec.*", "diff:tests/**", "diff:__tests__/**"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    moment: "after:schema-change",
+    hook: "after:schema-change",
     detected_from: ["diff:*.prisma", "diff:*.sql", "diff:migrations/**", "diff:schemas/**"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    moment: "after:api-surface-change",
-    detected_from: ["config:moments.detection.api_surfaces"],
+    hook: "after:api-surface-change",
+    detected_from: ["config:skill_hooks.detection.api_surfaces"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    moment: "after:dependency-change",
+    hook: "after:dependency-change",
     detected_from: ["diff:lockfile", "diff:package-manifest-dependencies"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    moment: "after:verification-failed",
+    hook: "after:verification-failed",
     detected_from: ["evidence-map:required-check-failed"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    moment: "after:evidence-gap",
+    hook: "after:evidence-gap",
     detected_from: ["evidence-map:required-claim-missing-after-verify"],
     cardinality: "per-stage",
     default_mode: "auto"
   },
   {
-    moment: "before:close-run",
+    hook: "before:close-run",
     detected_from: ["run-envelope:close-decision", "stage-transition:Close"],
     cardinality: "per-run",
     default_mode: "auto"
   },
   {
-    moment: "before:handoff",
+    hook: "before:handoff",
     detected_from: ["command:handoff", "run-envelope:handoff-decision"],
     cardinality: "per-run",
     default_mode: "auto"
   }
 ];
-var SkillMomentCardinality = external_exports.enum(["per-run", "per-stage", "per-step"]);
-var SkillMomentPolicyMode = external_exports.enum(["auto", "ask", "mute"]);
-var SHIPPED_MOMENTS = new Set(SKILL_MOMENT_VOCABULARY.map((entry) => entry.moment));
-var CUSTOM_MOMENT_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
+var SkillHookCardinality = external_exports.enum(["per-run", "per-stage", "per-step"]);
+var SkillHookPolicyMode = external_exports.enum(["auto", "ask", "mute"]);
+var SHIPPED_HOOKS = new Set(SKILL_HOOK_VOCABULARY.map((entry) => entry.hook));
+var CUSTOM_HOOK_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
 var SHIPPED_SHAPE_RE = /^(before|after):[a-z][a-z0-9-]*$/;
-function momentBody(value) {
+function hookBody(value) {
   const slash = value.indexOf("/");
   return slash === -1 ? value : value.slice(slash + 1);
 }
-var SkillMomentName = external_exports.string().superRefine((value, ctx) => {
-  if (SHIPPED_MOMENTS.has(value))
+var SkillHookName = external_exports.string().superRefine((value, ctx) => {
+  if (SHIPPED_HOOKS.has(value))
     return;
   if (SHIPPED_SHAPE_RE.test(value)) {
     ctx.addIssue({
       code: "custom",
-      message: `unknown shipped Skill Moment '${value}'`
+      message: `unknown shipped Skill Hook '${value}'`
     });
     return;
   }
-  if (!CUSTOM_MOMENT_RE.test(value)) {
+  if (!CUSTOM_HOOK_RE.test(value)) {
     ctx.addIssue({
       code: "custom",
-      message: "custom Skill Moments must be namespaced as <namespace>/<before|after>:<name>"
+      message: "custom Skill Hooks must be namespaced as <namespace>/<before|after>:<name>"
     });
     return;
   }
-  if (SHIPPED_MOMENTS.has(momentBody(value))) {
+  if (SHIPPED_HOOKS.has(hookBody(value))) {
     ctx.addIssue({
       code: "custom",
-      message: "custom Skill Moments must not reuse shipped moment names"
+      message: "custom Skill Hooks must not reuse shipped hook names"
     });
   }
 });
-var SkillMomentNameArray = external_exports.array(SkillMomentName).superRefine((moments, ctx) => {
+var SkillHookNameArray = external_exports.array(SkillHookName).superRefine((hooks, ctx) => {
   const seen = /* @__PURE__ */ new Set();
-  for (const [index, moment] of moments.entries()) {
-    if (seen.has(moment)) {
+  for (const [index, hook] of hooks.entries()) {
+    if (seen.has(hook)) {
       ctx.addIssue({
         code: "custom",
         path: [index],
-        message: `duplicate Skill Moment '${moment}'`
+        message: `duplicate Skill Hook '${hook}'`
       });
     }
-    seen.add(moment);
+    seen.add(hook);
   }
 });
-var SkillMomentPolicyRule = external_exports.object({
-  mode: SkillMomentPolicyMode,
+var SkillHookPolicyRule = external_exports.object({
+  mode: SkillHookPolicyMode,
   skills: external_exports.array(SkillId).optional(),
   strict: external_exports.boolean().default(false)
 }).strict().superRefine((rule, ctx) => {
@@ -27129,7 +27129,7 @@ var SkillMomentPolicyRule = external_exports.object({
       ctx.addIssue({
         code: "custom",
         path: ["skills"],
-        message: "mute Skill Moment policy must not declare skills"
+        message: "mute Skill Hook policy must not declare skills"
       });
     }
     return;
@@ -27138,7 +27138,7 @@ var SkillMomentPolicyRule = external_exports.object({
     ctx.addIssue({
       code: "custom",
       path: ["skills"],
-      message: `${rule.mode} Skill Moment policy requires at least one skill`
+      message: `${rule.mode} Skill Hook policy requires at least one skill`
     });
     return;
   }
@@ -27149,24 +27149,24 @@ var SkillMomentPolicyRule = external_exports.object({
       ctx.addIssue({
         code: "custom",
         path: ["skills", index],
-        message: `duplicate Skill Moment skill '${key}'`
+        message: `duplicate Skill Hook skill '${key}'`
       });
     }
     seen.add(key);
   }
 });
-var SkillMomentDetectionConfig = external_exports.object({
+var SkillHookDetectionConfig = external_exports.object({
   react_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
   test_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
   schema_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
   api_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
-  disabled_patterns: external_exports.record(SkillMomentName, external_exports.array(external_exports.string().min(1))).default({})
+  disabled_patterns: external_exports.record(SkillHookName, external_exports.array(external_exports.string().min(1))).default({})
 }).strict();
-var SkillMomentConfig = external_exports.object({
-  policy: external_exports.record(SkillMomentName, SkillMomentPolicyRule).default({}),
-  detection: SkillMomentDetectionConfig.default({ disabled_patterns: {} })
+var SkillHookConfig = external_exports.object({
+  policy: external_exports.record(SkillHookName, SkillHookPolicyRule).default({}),
+  detection: SkillHookDetectionConfig.default({ disabled_patterns: {} })
 }).strict();
-var SkillMomentSkillState = external_exports.enum([
+var SkillHookSkillState = external_exports.enum([
   "planned",
   "staged",
   "requested",
@@ -27174,21 +27174,21 @@ var SkillMomentSkillState = external_exports.enum([
   "unplanned",
   "unavailable"
 ]);
-var SkillMomentPolicyResolution = external_exports.discriminatedUnion("source", [
+var SkillHookPolicyResolution = external_exports.discriminatedUnion("source", [
   external_exports.object({
     mode: external_exports.literal("none"),
     source: external_exports.literal("none")
   }).strict(),
   external_exports.object({
-    mode: SkillMomentPolicyMode,
+    mode: SkillHookPolicyMode,
     source: external_exports.enum(["project-policy", "user-global-policy", "default-mapping"]),
     strict: external_exports.boolean(),
     policy_ref: external_exports.string().min(1).optional()
   }).strict()
 ]);
-var SkillMomentSkillRef = external_exports.object({
+var SkillHookSkillRef = external_exports.object({
   id: SkillId,
-  state: SkillMomentSkillState,
+  state: SkillHookSkillState,
   source: external_exports.enum(["project-policy", "user-global-policy", "default-mapping", "host-observed"]),
   reason: external_exports.string().min(1).optional()
 }).strict().superRefine((skill, ctx) => {
@@ -27196,30 +27196,30 @@ var SkillMomentSkillRef = external_exports.object({
     ctx.addIssue({
       code: "custom",
       path: ["source"],
-      message: `${skill.state} Skill Moment activity requires host-observed source`
+      message: `${skill.state} Skill Hook activity requires host-observed source`
     });
   }
 });
-var RunSkillMomentEvent = external_exports.object({
-  schema: external_exports.literal("run.skill-moment@v0"),
+var RunSkillHookEvent = external_exports.object({
+  schema: external_exports.literal("run.skill-hook@v0"),
   event_id: external_exports.string().min(1),
-  moment: SkillMomentName,
+  hook: SkillHookName,
   detected_from: external_exports.array(external_exports.string().min(1)).min(1),
-  cardinality: SkillMomentCardinality,
-  policy: SkillMomentPolicyResolution,
+  cardinality: SkillHookCardinality,
+  policy: SkillHookPolicyResolution,
   flow_id: CompiledFlowId.optional(),
   stage_id: StageId.optional(),
   step_id: StepId.optional(),
   attempt_id: external_exports.string().min(1).optional(),
   decision_packet_id: external_exports.string().min(1).optional(),
-  triggered_skills: external_exports.array(SkillMomentSkillRef),
-  unavailable_skills: external_exports.array(SkillMomentSkillRef).optional()
+  triggered_skills: external_exports.array(SkillHookSkillRef),
+  unavailable_skills: external_exports.array(SkillHookSkillRef).optional()
 }).strict().superRefine((event, ctx) => {
   if ((event.policy.mode === "none" || event.policy.mode === "mute") && event.triggered_skills.length > 0) {
     ctx.addIssue({
       code: "custom",
       path: ["triggered_skills"],
-      message: `${event.policy.mode} Skill Moment policy must not trigger skills`
+      message: `${event.policy.mode} Skill Hook policy must not trigger skills`
     });
   }
   for (const [index, skill] of event.unavailable_skills?.entries() ?? []) {
@@ -27263,7 +27263,7 @@ var StepBase = external_exports.object({
     message: "Step must declare at least one route (including `@complete`)."
   }),
   selection: SelectionOverride.optional(),
-  skill_moments: SkillMomentNameArray.optional(),
+  skill_hooks: SkillHookNameArray.optional(),
   skill_slots: SkillSlotArray.optional(),
   route_from_report: RouteFromReport.optional(),
   budgets: external_exports.object({
@@ -37386,7 +37386,7 @@ var Config = external_exports.object({
     connectors: {}
   }),
   skills: SkillsConfig.default({ bindings: {} }),
-  moments: SkillMomentConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
+  skill_hooks: SkillHookConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
   circuits: external_exports.record(CompiledFlowId, CircuitOverride).default({}),
   defaults: external_exports.object({
     selection: SelectionOverride.optional()
@@ -48448,7 +48448,7 @@ var RunDecisionPacket = external_exports.object({
   decision_id: external_exports.string().min(1),
   reason: external_exports.enum([
     "process-checkpoint",
-    "skill-moment-ask",
+    "skill-hook-ask",
     "missing-evidence",
     "strict-skill-unavailable",
     "operator-judgment"

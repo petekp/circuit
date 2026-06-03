@@ -4,11 +4,11 @@ status: draft
 version: 0.5
 schema_source: src/schemas/step.ts
 last_updated: 2026-05-28
-depends_on: [ids, check, selection-policy, scalars, skill, skill-moment, acceptance-criteria]
+depends_on: [ids, check, selection-policy, scalars, skill, skill-hook, acceptance-criteria]
 report_ids:
   - step.definition
 invariant_ids: [STEP-I1, STEP-I2, STEP-I3, STEP-I4, STEP-I5, STEP-I6, STEP-I7, STEP-I8, STEP-I9, STEP-I10, STEP-I11, STEP-I12]
-property_ids: [step.prop.budget_bounds, step.prop.relay_role_presence, step.prop.check_kind_source_kind_pairing, step.prop.check_source_ref_closure, step.prop.run_relative_paths, step.prop.writes_shape_per_variant, step.prop.skill_slots_unique, step.prop.skill_moments_unique, step.prop.relay_acceptance_criteria_shape]
+property_ids: [step.prop.budget_bounds, step.prop.relay_role_presence, step.prop.check_kind_source_kind_pairing, step.prop.check_source_ref_closure, step.prop.run_relative_paths, step.prop.writes_shape_per_variant, step.prop.skill_slots_unique, step.prop.skill_hooks_unique, step.prop.relay_acceptance_criteria_shape]
 ---
 
 # Step Contract
@@ -150,11 +150,11 @@ enforced via `src/schemas/step.ts`, `src/schemas/check.ts`, and
   `RelayStep` in `src/schemas/step.ts`, and schematic execution-shape
   validation in `src/schemas/flow-schematic.ts`.
 
-- **STEP-I12 — Skill Moments are moment names only.** Every Step may carry
-  `skill_moments: SkillMomentName[]`; absence means the step publishes no
-  authored moments. The field names moments only. It cannot carry concrete
+- **STEP-I12 — Skill Hooks are hook names only.** Every Step may carry
+  `skill_hooks: SkillHookName[]`; absence means the step publishes no
+  authored hooks. The field names hooks only. It cannot carry concrete
   `SkillId`s, policy modes, host invocation options, or `{skills: [...]}` slot
-  matrices. Runtime policy may later map these moments to skills, but that
+  matrices. Runtime policy may later map these hooks to skills, but that
   mapping lives in config/policy, not in the flow step.
 
 - **STEP-I7 — Protocol required.** Every Step carries a `ProtocolId`
@@ -202,7 +202,7 @@ After a Step is accepted:
   run folder. Runtime writers still call the run-relative resolver as
   defense-in-depth when typed data is bypassed.
 - `skill_slots`, when present, is an array of typed optional slots.
-- `skill_moments`, when present, is an array of typed moment names.
+- `skill_hooks`, when present, is an array of typed hook names.
 - `acceptance_criteria`, when present, belongs to a relay step and is
   preserved into compiled and runtime flow projections.
 
@@ -246,8 +246,8 @@ Property-based tests will cover:
 - **skill** (`src/schemas/skill.ts`) — Step's `skill_slots` field uses
   `SkillSlot[]`. Slot binding and local skill resolution are relay-time
   concerns owned by config and the user skill registry.
-- **skill-moment** (`src/schemas/skill-moment.ts`) — Step's
-  `skill_moments` field uses `SkillMomentName[]`. Policy resolution and
+- **skill-hook** (`src/schemas/skill-hook.ts`) — Step's
+  `skill_hooks` field uses `SkillHookName[]`. Policy resolution and
   availability checks are Run/config concerns, not Step concerns.
 - **acceptance-criteria** (`src/schemas/acceptance-criteria.ts`) — Relay
   steps may embed deterministic advancement gates; the relay executor records
@@ -303,8 +303,8 @@ Property-based tests will cover:
   if a new relay step emerges that writes multiple result-like
   slots (current `relay_result.ref = 'result'` is the v0.1 answer);
   absorb any future Codex challenger findings.
-- **v0.5 (Run-centered Skill Moment policy slice, this version)** — adds
-  STEP-I12 and the typed `skill_moments` field. This is a moment-only
+- **v0.5 (Run-centered Skill Hook policy slice, this version)** — adds
+  STEP-I12 and the typed `skill_hooks` field. This is a hook-only
   authoring field; it deliberately rejects concrete skill binding matrices.
 - **v1.0 (Stage 2)** — ratified invariants + property tests + mutation
   score floor + operator-facing error-message catalog.

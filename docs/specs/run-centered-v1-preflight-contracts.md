@@ -19,7 +19,7 @@ implementation-ready slices without adding runtime behavior.
 - Run envelope fixture prep:
   [run-supervisor-fixture-plan-v1.md](run-supervisor-fixture-plan-v1.md)
 - Skill Moment prep:
-  [skill-moment-policy-fixture-plan-v1.md](skill-moment-policy-fixture-plan-v1.md)
+  [skill-hook-policy-fixture-plan-v1.md](skill-hook-policy-fixture-plan-v1.md)
 - Current contracts and source:
   [docs/contracts/run.md](../contracts/run.md),
   [docs/contracts/config.md](../contracts/config.md),
