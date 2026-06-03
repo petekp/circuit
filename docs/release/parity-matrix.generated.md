@@ -20,12 +20,12 @@ Compares the checked-in original Circuit snapshot with the current capability sn
 | customization | Create | utility:create | implemented | /circuit:create |  | current: Publishing requires an explicit --yes confirmation after draft validation.; expected: Waits for publish confirmation before promotion. |  | current: The generated compiled flow parses and passes flow-kind policy validation.; expected: Validates the draft through engine bootstrap. |  | current: Published custom flows are written to the user-global custom flow root.; expected: Publishes into user-global custom circuit root after confirmation. | Create or custom-connector proof scenario. |  |
 | continuity | Handoff | utility:handoff | implemented | /circuit:handoff save, resume, done |  |  |  |  |  | current: Fresh sessions resume from an explicit continuity record or get a clear not-found result.; expected: Fresh sessions can resume only through explicit handoff. | Handoff/resume golden run. |  |
 | router_intent | fix: intent | router:intent:fix | approved_exception | /circuit:run fix: <bug> | expected: lite |  |  |  |  |  |  | REL-004 |
-| router_intent | develop: intent | router:intent:develop | implemented | /circuit:run develop: <feature> | default |  |  |  |  |  |  |  |
-| router_intent | decide: intent | router:intent:decide | implemented | /circuit:run decide: <choice> | tournament |  |  |  |  |  |  |  |
+| router_intent | develop: intent | router:intent:develop | approved_exception | /circuit:run develop: <feature> | expected: default |  |  |  |  |  |  | REL-004 |
+| router_intent | decide: intent | router:intent:decide | approved_exception | /circuit:run decide: <choice> | expected: tournament |  |  |  |  |  |  | REL-004 |
 | connector | Custom connectors | connector:custom | implemented | User config adapter command. |  |  |  |  | Wrapper receives a prompt and returns structured output. |  | Working custom connector example. |  |
 | checkpoint | Checkpoints | feature:checkpoints | implemented |  |  | current: Compiled checkpoints can pause, auto-resolve safe defaults, or resume from operator input.; expected: Scope, tradeoff, and publish choices pause by policy. |  |  |  |  | Checkpoint/resume golden run. |  |
 | continuity | Continuity | feature:continuity | implemented |  |  |  |  |  |  | current: Resume is explicit and auditable through continuity record and index files.; expected: Resume is explicit and auditable. | Handoff/resume golden run. |  |
-| plan_execution | Plan execution | feature:plan-execution | implemented | /circuit:run Execute this plan:<path> |  |  |  |  | current: Plan-execution requests route into the first executable flow slice instead of ending as analysis-only Explore.; expected: Selects the first executable flow slice from plan content. |  | Plan-execution campaign-start proof. |  |
+| plan_execution | Plan execution | feature:plan-execution | approved_exception | /circuit:run Execute this plan:<path> |  |  |  |  | expected: Selects the first executable flow slice from plan content. |  | expected: Plan-execution campaign-start proof. | REL-016 |
 
 ## Current Route And Axis Inventory
 

@@ -85,7 +85,7 @@ function baseRecord(overrides: Record<string, unknown> = {}) {
     },
     process_plan: {
       schema: 'run.process-plan@v0',
-      selection_source: 'router',
+      selection_source: 'explicit_operator_request',
       rationale: 'Matched implementation request.',
       planned_attempts: [
         {
@@ -183,7 +183,7 @@ function baseShadowRecord(overrides: Record<string, unknown> = {}) {
     recorded_at: '2026-05-28T05:05:00.000Z',
     selected_process: {
       process_id: 'build',
-      routed_by: 'classifier',
+      routed_by: 'explicit',
       router_reason: 'Matched implementation request.',
     },
     child_run: {

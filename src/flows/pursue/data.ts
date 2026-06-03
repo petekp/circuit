@@ -1,7 +1,6 @@
 import { expandBlockStepUse } from '../block-step-expansion.js';
 import type { FlowData } from '../flow-definition.js';
 import { defineEnforcedStagePolicy } from '../stage-policy.js';
-import type { CompiledFlowSignal } from '../types.js';
 import { pursuitBatchShapeHint, pursuitReviewShapeHint } from './relay-hints.js';
 import {
   PursuitBatch,
@@ -17,20 +16,6 @@ import { pursuitContractComposeBuilder } from './writers/contract.js';
 import { pursuitGraphComposeBuilder } from './writers/graph.js';
 import { pursuitVerificationWriter } from './writers/verification.js';
 import { pursuitWavePlanComposeBuilder } from './writers/wave-plan.js';
-
-const PURSUE_SIGNALS: readonly CompiledFlowSignal[] = [
-  { label: 'pursue prefix', pattern: /^\s*pursue\s*:/i },
-  {
-    label: 'pursuit request',
-    pattern:
-      /^\s*(?:please\s+)?(?:pursue|coordinate|handle)\b.*\b(?:pursuit|pursuits|ideas|goals|tracks)\b/i,
-  },
-  {
-    label: 'multiple autonomous goals',
-    pattern:
-      /^\s*(?:please\s+)?(?:run|execute|coordinate)\b.*\b(?:multiple|several|parallel)\b.*\b(?:goals|ideas|changes|tracks)\b/i,
-  },
-];
 
 const PURSUE_STAGE_POLICY = defineEnforcedStagePolicy({
   canonicals: ['frame', 'plan', 'act', 'verify', 'review', 'close'],
@@ -48,13 +33,6 @@ export const pursueFlowData = {
   visibility: 'public',
   paths: {
     schematic: 'src/flows/pursue/schematic.json',
-  },
-  routing: {
-    order: 25,
-    signals: PURSUE_SIGNALS,
-    reasonForMatch(signal) {
-      return `matched ${signal.label}; routed to Pursue flow`;
-    },
   },
   schematic: {
     schema_version: '1',

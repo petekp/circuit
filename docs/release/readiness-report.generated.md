@@ -9,9 +9,9 @@ Infra checks may pass while release blockers remain. `npm run check-release-read
 | Measure | Value |
 | --- | --- |
 | Original capabilities | 13 |
-| Current capabilities | 83 |
-| Tracked exceptions | 2 |
-| Public claims | 10 |
+| Current capabilities | 78 |
+| Tracked exceptions | 5 |
+| Public claims | 9 |
 | Proof scenarios | 13 |
 | Release blockers | 0 |
 | Infra issues | 0 |
@@ -22,7 +22,10 @@ Infra checks may pass while release blockers remain. `npm run check-release-read
 
 ## Tracked Warnings
 
-- tracked behavioral gap: router:intent:fix behavioral axes differ: modes missing lite
+- tracked gap: router:intent:fix is absent from current capabilities
+- tracked gap: router:intent:develop is absent from current capabilities
+- tracked gap: router:intent:decide is absent from current capabilities
+- tracked gap: feature:plan-execution is absent from current capabilities
 
 ## Release Blockers
 

@@ -346,10 +346,11 @@ afterEach(() => {
 });
 
 describe('CLI router', () => {
-  it('omitted flow positional routes review-like goals through the classifier', async () => {
+  it('explicit review flow dispatches and completes', async () => {
     const output = await runMainJson(
       [
         'run',
+        'review',
         '--goal',
         'review this patch for safety problems',
         '--run-folder',
@@ -360,9 +361,8 @@ describe('CLI router', () => {
 
     expect(output.flow_id).toBe('review');
     expect(output.selected_flow).toBe('review');
-    expect(output.routed_by).toBe('classifier');
-    expect(output.router_reason).toMatch(/review/i);
-    expect(output.router_signal).toBeDefined();
+    expect(output.routed_by).toBe('explicit');
+    expect(output.router_reason).toMatch(/explicit flow/i);
     expect(output.outcome).toBe('complete');
   });
 
@@ -371,6 +371,7 @@ describe('CLI router', () => {
     const { output, progress } = await runMainJsonWithProgress(
       [
         'run',
+        'review',
         '--goal',
         'review this patch for safety problems',
         '--progress',
@@ -539,10 +540,18 @@ describe('CLI router', () => {
     expect(completedTexts).toContain('Finished wrapping up.');
   });
 
-  it('routes decide: through the public CLI to the Explore tournament fixture', async () => {
+  it('runs an explicit Explore tournament through the public CLI', async () => {
     const runFolder = join(runFolderBase, 'explore-tournament-cli');
     const output = await runMainJsonWithRelayer(
-      ['run', '--goal', 'decide: React vs Vue', '--run-folder', runFolder],
+      [
+        'run',
+        'explore',
+        '--goal',
+        'decide: React vs Vue',
+        '--tournament',
+        '--run-folder',
+        runFolder,
+      ],
       tournamentRelayer(),
     );
 
@@ -555,7 +564,7 @@ describe('CLI router', () => {
     expect(output.flow_id).toBe('explore');
     expect(output.selected_flow).toBe('explore');
     expect(output.entry_mode).toBe('tournament');
-    expect(output.entry_mode_source).toBe('classifier');
+    expect(output.entry_mode_source).toBe('explicit');
     expect(output.outcome).toBe('checkpoint_waiting');
     expect(output.checkpoint).toMatchObject({
       step_id: 'tradeoff-checkpoint-step',
@@ -568,7 +577,17 @@ describe('CLI router', () => {
   it('surfaces actual tournament option labels in checkpoint user input', async () => {
     const runFolder = join(runFolderBase, 'explore-tournament-progress');
     const { output, progress } = await runMainJsonWithRelayerAndProgress(
-      ['run', '--goal', 'decide: React vs Vue', '--run-folder', runFolder, '--progress', 'jsonl'],
+      [
+        'run',
+        'explore',
+        '--goal',
+        'decide: React vs Vue',
+        '--tournament',
+        '--run-folder',
+        runFolder,
+        '--progress',
+        'jsonl',
+      ],
       tournamentRelayer(),
     );
 
@@ -687,30 +706,12 @@ describe('CLI router', () => {
     expect(lastTaskList?.tasks.some((task) => task.status === 'failed')).toBe(true);
   });
 
-  it('omitted flow positional keeps exploratory goals on explore', async () => {
-    const output = await runMainJson(
-      [
-        'run',
-        '--goal',
-        'map the current project state',
-        '--run-folder',
-        join(runFolderBase, 'explore'),
-      ],
-      '{"verdict":"accept"}',
-    );
-
-    expect(output.flow_id).toBe('explore');
-    expect(output.selected_flow).toBe('explore');
-    expect(output.routed_by).toBe('classifier');
-    expect(output.router_signal).toBeUndefined();
-    expect(output.outcome).toBe('complete');
-  });
-
-  it('omitted flow positional routes build-like goals through the classifier', async () => {
+  it('explicit build flow dispatches and completes', async () => {
     const projectRoot = createProofProject('build-router-project');
     const output = await runMainJson(
       [
         'run',
+        'build',
         '--goal',
         'develop: add a focused feature',
         '--run-folder',
@@ -722,18 +723,18 @@ describe('CLI router', () => {
 
     expect(output.flow_id).toBe('build');
     expect(output.selected_flow).toBe('build');
-    expect(output.routed_by).toBe('classifier');
-    expect(output.router_reason).toMatch(/implementation Build flow/i);
-    expect(output.router_signal).toBeDefined();
+    expect(output.routed_by).toBe('explicit');
+    expect(output.router_reason).toMatch(/explicit flow/i);
     expect(output.outcome).toBe('complete');
   }, 60_000);
 
-  it('omitted flow positional preserves router metadata on Build checkpoint_waiting output', async () => {
+  it('preserves route metadata on Build checkpoint_waiting output', async () => {
     const runFolder = join(runFolderBase, 'build-router-checkpoint-waiting');
     const projectRoot = createProofProject('build-router-checkpoint-waiting-project');
     const output = await runMainJson(
       [
         'run',
+        'build',
         '--goal',
         'develop: add a focused feature that waits for framing',
         '--rigor',
@@ -748,9 +749,8 @@ describe('CLI router', () => {
     expect(output.schema_version).toBe(1);
     expect(output.flow_id).toBe('build');
     expect(output.selected_flow).toBe('build');
-    expect(output.routed_by).toBe('classifier');
-    expect(output.router_reason).toMatch(/implementation Build flow/i);
-    expect(output.router_signal).toBeDefined();
+    expect(output.routed_by).toBe('explicit');
+    expect(output.router_reason).toMatch(/explicit flow/i);
     expect(output.outcome).toBe('checkpoint_waiting');
     expect(output).not.toHaveProperty('result_path');
     expect(output.checkpoint).toMatchObject({
@@ -766,6 +766,7 @@ describe('CLI router', () => {
     const { output, progress } = await runMainJsonWithProgress(
       [
         'run',
+        'build',
         '--goal',
         'develop: add a focused feature that waits for framing',
         '--rigor',
@@ -834,50 +835,7 @@ describe('CLI router', () => {
     );
   });
 
-  it('omitted flow positional keeps develop-prefixed planning goals on explore', async () => {
-    const output = await runMainJson(
-      [
-        'run',
-        '--goal',
-        'develop: create a new endpoint RFC',
-        '--run-folder',
-        join(runFolderBase, 'develop-planning'),
-      ],
-      '{"verdict":"accept"}',
-    );
-
-    expect(output.flow_id).toBe('explore');
-    expect(output.selected_flow).toBe('explore');
-    expect(output.routed_by).toBe('classifier');
-    expect(output.router_signal).toBeUndefined();
-    expect(output.outcome).toBe('complete');
-  });
-
-  it('omitted flow positional starts a flow for plan-execution requests', async () => {
-    const projectRoot = createProofProject('plan-execution-project');
-    const output = await runMainJson(
-      [
-        'run',
-        '--goal',
-        'Execute this plan: ./docs/specs/headless-engine-host-api-v1.md',
-        '--run-folder',
-        join(runFolderBase, 'plan-execution'),
-      ],
-      '{"verdict":"accept"}',
-      { configCwd: projectRoot },
-    );
-
-    expect(output.flow_id).toBe('build');
-    expect(output.selected_flow).toBe('build');
-    expect(output.routed_by).toBe('classifier');
-    expect(output.router_signal).toBe('plan-execution');
-    expect(output.entry_mode).toBe('default');
-    expect(output.entry_mode_source).toBe('classifier');
-    expect(output.router_reason).toMatch(/first executable slice/i);
-    expect(output.outcome).toBe('complete');
-  }, 60_000);
-
-  it('explicit flow positional bypasses the classifier', async () => {
+  it('explicit flow positional names the flow', async () => {
     const output = await runMainJson(
       [
         'run',
@@ -894,27 +852,24 @@ describe('CLI router', () => {
     expect(output.selected_flow).toBe('explore');
     expect(output.routed_by).toBe('explicit');
     expect(output.router_reason).toMatch(/explicit flow/i);
-    expect(output.router_signal).toBeUndefined();
   });
 
-  it('run --goal routes through the classifier', async () => {
-    const output = await runMainJson(
-      [
-        'run',
-        '--goal',
-        'review this patch for safety problems',
-        '--run-folder',
-        join(runFolderBase, 'run-routed-review'),
-      ],
-      REVIEW_RELAY_BODY,
-    );
+  it('rejects a run without an explicit flow (routing is model-only)', async () => {
+    const runFolder = join(runFolderBase, 'run-no-flow-reject');
+    const result = await runMainExit([
+      'run',
+      '--goal',
+      'review this patch for safety problems',
+      '--run-folder',
+      runFolder,
+    ]);
 
-    expect(output.flow_id).toBe('review');
-    expect(output.routed_by).toBe('classifier');
-    expect(output.outcome).toBe('complete');
+    expect(result.exit).toBe(2);
+    expect(result.stderr).toContain('a flow name is required');
+    expect(existsSync(runFolder)).toBe(false);
   });
 
-  it('run <flow> --goal bypasses the classifier', async () => {
+  it('run <flow> --goal dispatches the explicit flow', async () => {
     const output = await runMainJson(
       [
         'run',
@@ -947,100 +902,14 @@ describe('CLI router', () => {
     expect(output.runtime_reason).toMatch(/runtime supports fresh pursue/i);
   });
 
-  it('run --goal can classify Pursue through the runtime support matrix', async () => {
-    const runFolder = join(runFolderBase, 'run-classified-pursue');
-    const output = await withStrictruntime(() =>
-      runMainJsonWithRelayer(
-        [
-          'run',
-          '--goal',
-          'pursue: update README.md and verification notes without collisions',
-          '--run-folder',
-          runFolder,
-        ],
-        pursueCliRelayer(),
-        { configCwd: createProofProject('pursue-classified-proof-project') },
-      ),
-    );
-
-    expect(output.flow_id).toBe('pursue');
-    expect(output.routed_by).toBe('classifier');
-    expect(output.router_signal).toBeDefined();
-    expect(output.outcome).toBe('complete');
-    expect(output.runtime_reason).toMatch(/runtime supports fresh pursue/i);
-  });
-
-  it('uses classifier-inferred Fix lite mode only for explicit quick Fix intent', async () => {
-    const runFolder = join(runFolderBase, 'fix-lite-inferred');
-
-    const { output, progress } = await withStrictruntime(() =>
-      runMainJsonWithProgress(
-        [
-          'run',
-          '--goal',
-          'quick fix: restore the missing token edge case',
-          '--progress',
-          'jsonl',
-          '--run-folder',
-          runFolder,
-        ],
-        '{"verdict":"accept"}',
-      ),
-    );
-
-    const bootstrap = traceEntryLog(runFolder).find(
-      (trace_entry) => trace_entry.kind === 'run.bootstrapped',
-    );
-    expect(output.flow_id).toBe('fix');
-    expect(output.routed_by).toBe('classifier');
-    expect(output.entry_mode).toBe('lite');
-    expect(output.entry_mode_source).toBe('classifier');
-    expect(bootstrap).toMatchObject({ depth: 'lite' });
-    expect(progress.find((event) => event.type === 'route.selected')).toMatchObject({
-      entry_mode: 'lite',
-      entry_mode_source: 'classifier',
-    });
-  }, 60_000);
-
-  it('uses classifier-inferred Fix deep mode for bare serious Fix intent', async () => {
-    const runFolder = join(runFolderBase, 'fix-deep-inferred');
-
-    const { output, progress } = await withStrictruntime(() =>
-      runMainJsonWithProgress(
-        [
-          'run',
-          '--goal',
-          'fix: restore the missing token regression test',
-          '--progress',
-          'jsonl',
-          '--run-folder',
-          runFolder,
-        ],
-        '{"verdict":"accept"}',
-      ),
-    );
-
-    const bootstrap = traceEntryLog(runFolder).find(
-      (trace_entry) => trace_entry.kind === 'run.bootstrapped',
-    );
-    expect(output.flow_id).toBe('fix');
-    expect(output.routed_by).toBe('classifier');
-    expect(output.entry_mode).toBe('deep');
-    expect(output.entry_mode_source).toBe('classifier');
-    expect(bootstrap).toMatchObject({ depth: 'deep' });
-    expect(progress.find((event) => event.type === 'route.selected')).toMatchObject({
-      entry_mode: 'deep',
-      entry_mode_source: 'classifier',
-    });
-  }, 60_000);
-
-  it('lets explicit --rigor override classifier-inferred Fix mode', async () => {
+  it('lets explicit --rigor standard set the Fix default depth', async () => {
     const runFolder = join(runFolderBase, 'fix-explicit-default-mode');
 
     const output = await withStrictruntime(() =>
       runMainJson(
         [
           'run',
+          'fix',
           '--goal',
           'fix: restore the missing token regression test',
           '--rigor',
@@ -1067,6 +936,7 @@ describe('CLI router', () => {
     const output = await runMainJson(
       [
         'run',
+        'fix',
         '--goal',
         'fix: restore the missing token regression test',
         '--rigor',
@@ -1595,6 +1465,7 @@ describe('CLI router', () => {
       main(
         [
           'run',
+          'review',
           '--goal',
           'review this patch for safety problems',
           '--fixture',

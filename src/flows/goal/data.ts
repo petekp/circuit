@@ -1,6 +1,5 @@
 import { RunResult } from '../../schemas/result.js';
 import type { FlowData } from '../flow-definition.js';
-import type { CompiledFlowSignal } from '../types.js';
 import {
   goalClarifiedTaskShapeHint,
   goalGatePassShapeHint,
@@ -20,11 +19,6 @@ import { goalCloseBuilder } from './writers/close.js';
 import { goalContractBuilder } from './writers/contract.js';
 import { goalEvidenceEvaluationBuilder } from './writers/evidence-evaluation.js';
 import { goalRecoveryBuilder } from './writers/recovery.js';
-
-const GOAL_SIGNALS: readonly CompiledFlowSignal[] = [
-  { label: 'goal prefix', pattern: /^\s*(?:goal|supervise)\s*:/i },
-  { label: 'goal flow request', pattern: /\b(?:goal flow|long-running goal)\b/i },
-];
 
 const CHILD_PASS_VERDICTS = [
   'accept',
@@ -86,13 +80,6 @@ export const goalFlowData = {
   visibility: 'internal',
   paths: {
     schematic: 'src/flows/goal/schematic.json',
-  },
-  routing: {
-    order: 5,
-    signals: GOAL_SIGNALS,
-    reasonForMatch(signal) {
-      return `matched ${signal.label}; routed to Goal flow`;
-    },
   },
   schematic: {
     schema_version: '1',

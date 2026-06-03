@@ -72,7 +72,7 @@ export const OperatorSummary = z
     run_id: RunId,
     flow_id: CompiledFlowId,
     selected_flow: CompiledFlowId,
-    routed_by: z.enum(['explicit', 'classifier']).optional(),
+    routed_by: z.literal('explicit').optional(),
     router_reason: z.string().min(1).optional(),
     outcome: z.union([RunClosedOutcome, z.literal('checkpoint_waiting')]),
     headline: z.string().min(1),

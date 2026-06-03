@@ -502,7 +502,7 @@ describe('Claude Code host plugin package', () => {
     }
   });
 
-  it('present mode renders presentation status blocks and a summary continuation', () => {
+  it('present mode renders presentation status blocks then the readable digest', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'circuit-claude-host-status-block-'));
     try {
       const binDir = join(tempDir, 'bin');
@@ -574,18 +574,25 @@ describe('Claude Code host plugin package', () => {
       );
 
       expect(result.status, result.stderr).toBe(0);
+      // The live status block records progress (channel B), then the readable
+      // digest (the operator summary Markdown) prints at completion so the
+      // operator actually sees the result, not just a one-line status.
       expect(result.stdout).toBe(
         [
           'Circuit',
           '⎿ Chose review.',
           '⎿ Reviewing the result...',
           '⎿ Finished Review.',
+          '',
+          'CIRCUIT',
           '⎿ Review complete. Verdict: CLEAN. Findings: 0.',
+          '',
+          '- Full Markdown detail.',
           '',
         ].join('\n'),
       );
       expect(result.stdout.match(/^Circuit$/gm)).toHaveLength(1);
-      expect(result.stdout).not.toContain('Full Markdown detail');
+      expect(result.stdout).toContain('Full Markdown detail');
       expect(result.stdout).not.toContain('schema_version');
       expect(result.stdout).not.toContain('{"');
     } finally {
@@ -642,8 +649,8 @@ describe('Claude Code host plugin package', () => {
     }
   });
 
-  it('present mode prefers the run-surface Markdown over the operator summary (F-M-3)', () => {
-    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-claude-host-present-run-surface-'));
+  it('present mode prefers the operator summary (readable digest) over the run surface', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-claude-host-present-digest-wins-'));
     try {
       const binDir = join(tempDir, 'bin');
       const runSurfacePath = join(tempDir, 'run-surface.md');
@@ -678,27 +685,27 @@ describe('Claude Code host plugin package', () => {
           'run',
           'explore',
           '--goal',
-          'prefer run surface',
+          'prefer digest',
         ],
         { cwd: tempDir, encoding: 'utf8', env: envWithOverride(fakeBin) },
       );
 
       expect(result.status, result.stderr).toBe(0);
-      expect(result.stdout).toContain('# Run Surface');
-      expect(result.stdout).not.toContain('# Operator Summary');
+      expect(result.stdout).toContain('# Operator Summary');
+      expect(result.stdout).not.toContain('# Run Surface');
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
 
-  it('present mode falls back to the operator summary when the run-surface file is missing (F-M-3)', () => {
-    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-claude-host-present-run-surface-miss-'));
+  it('present mode falls back to the run surface when the operator summary file is missing', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'circuit-claude-host-present-digest-miss-'));
     try {
       const binDir = join(tempDir, 'bin');
-      const operatorSummaryPath = join(tempDir, 'operator-summary.md');
+      const runSurfacePath = join(tempDir, 'run-surface.md');
       const fakeBin = join(binDir, 'circuit');
       mkdirSync(binDir, { recursive: true });
-      writeFileSync(operatorSummaryPath, '# Operator Summary\n\n- verbose brief.\n');
+      writeFileSync(runSurfacePath, '# Run Surface\n\n- compact answer.\n');
       writeFileSync(
         fakeBin,
         [
@@ -708,9 +715,9 @@ describe('Claude Code host plugin package', () => {
               schema_version: 1,
               outcome: 'complete',
               run_folder: tempDir,
-              // The run-surface path is advertised but never written to disk.
-              run_surface_markdown_path: join(tempDir, 'absent-run-surface.md'),
-              operator_summary_markdown_path: operatorSummaryPath,
+              run_surface_markdown_path: runSurfacePath,
+              // The operator summary path is advertised but never written to disk.
+              operator_summary_markdown_path: join(tempDir, 'absent-operator-summary.md'),
             })}\n`,
           )});`,
           '',
@@ -726,13 +733,13 @@ describe('Claude Code host plugin package', () => {
           'run',
           'explore',
           '--goal',
-          'run surface missing',
+          'operator summary missing',
         ],
         { cwd: tempDir, encoding: 'utf8', env: envWithOverride(fakeBin) },
       );
 
       expect(result.status, result.stderr).toBe(0);
-      expect(result.stdout).toContain('# Operator Summary');
+      expect(result.stdout).toContain('# Run Surface');
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

@@ -5,7 +5,6 @@ import { resolve } from 'node:path';
 import { Command } from 'commander';
 
 import type * as CatalogModule from '../../src/flows/catalog.js';
-import type * as RouterModule from '../../src/flows/router.js';
 import type * as ReleaseSchemasModule from '../../src/release/schemas.js';
 import type * as ConnectorSchemasModule from '../../src/schemas/connector.js';
 
@@ -21,7 +20,6 @@ import {
 } from './shared.ts';
 
 type FlowPackage = CatalogModule.CompiledFlowPackage;
-type RouterClassify = (typeof RouterModule)['classifyCompiledFlowTask'];
 type ProofScenarios = ReturnType<(typeof ReleaseSchemasModule)['ProofScenarioIndex']['parse']>;
 type ConnectorSchemas = typeof ConnectorSchemasModule;
 type ConnectorRecord = {
@@ -72,13 +70,6 @@ type FlowRecord = {
   source: string;
   command_path?: string;
   contract_path?: string;
-  routing: {
-    routable: boolean;
-    is_default: boolean;
-    order?: number;
-    signal_labels: string[];
-    default_reason?: string;
-  };
   axis_support: FlowAxisSupport;
   stages: string[];
   reports: string[];
@@ -90,16 +81,6 @@ type FlowRecord = {
   };
   route_outcomes: string[];
   unsupported_route_outcomes: string[];
-};
-type RouterIntent = {
-  id: string;
-  input: string;
-  expected_flow: string;
-  actual_flow: string;
-  expected_entry_mode?: string;
-  actual_entry_mode?: string;
-  status: 'implemented' | 'partial';
-  readiness_refs: string[];
 };
 
 const program = new Command('emit-current-capabilities').option('--check');
@@ -321,20 +302,12 @@ function flowBehaviorAxes(pkg: FlowRecord): Record<string, string> {
 }
 
 function flowRecord(pkg: FlowPackage): FlowRecord {
-  const routing = pkg.routing;
   const routeOutcomes = routeOutcomesFor(pkg);
   return {
     id: pkg.id,
     source: pkg.paths.schematic,
     ...(pkg.paths.command === undefined ? {} : { command_path: pkg.paths.command }),
     ...(pkg.paths.contract === undefined ? {} : { contract_path: pkg.paths.contract }),
-    routing: {
-      routable: routing !== undefined,
-      is_default: routing?.isDefault === true,
-      ...(routing?.order === undefined ? {} : { order: routing.order }),
-      signal_labels: routing?.signals.map((signal) => signal.label).sort() ?? [],
-      ...(routing?.defaultReason === undefined ? {} : { default_reason: routing.defaultReason }),
-    },
     axis_support: axisSupportFor(pkg.id),
     stages: stagesFor(pkg.id),
     reports: reportsFor(pkg),
@@ -366,18 +339,6 @@ function commandCapability(id: string, host: string, present: boolean) {
     evidence: present ? commandEvidence(id, host) : [],
     readiness_refs: present ? [] : ['REL-004'],
   };
-}
-
-function implementedIntentHintsByFlow(routerIntents: RouterIntent[]): Map<string, string[]> {
-  const byFlow = new Map<string, string[]>();
-  for (const intent of routerIntents) {
-    if (intent.status !== 'implemented') continue;
-    if (intent.id === 'plan-execution') continue;
-    const hints = byFlow.get(intent.actual_flow) ?? [];
-    hints.push(`${intent.id}:`);
-    byFlow.set(intent.actual_flow, hints);
-  }
-  return byFlow;
 }
 
 const PROOF_AXIS_BY_SCENARIO = new Map([
@@ -478,11 +439,9 @@ function verifiedProofAxesByCapability(proofs: ProofScenarios): Map<string, { pr
 
 function capabilityFromFlow(
   record: FlowRecord,
-  intentHintsByFlow: Map<string, string[]>,
   proofAxesByCapability: Map<string, { proof: string }>,
 ) {
   const isRuntimeOnly = record.id === 'runtime-proof';
-  const intentHints = intentHintsByFlow.get(record.id)?.sort() ?? [];
   const proofAxes = proofAxesByCapability.get(`flow:${record.id}`) ?? {};
   const behaviorAxes = flowBehaviorAxes(record);
   const semanticOutputs = semanticOutputsFor(record);
@@ -496,7 +455,6 @@ function capabilityFromFlow(
       : `Flow ${record.id} is registered in the catalog.`,
     evidence: [record.source, `generated/flows/${record.id}/circuit.json`],
     axes: {
-      intent_hints: intentHints,
       modes: axisSelectionsFor(record.axis_support),
       stage_path: record.stages,
       outputs: semanticOutputs.length > 0 ? semanticOutputs : record.reports,
@@ -532,84 +490,6 @@ function routeCapabilities(record: FlowRecord) {
       readiness_refs: supported ? [] : ['REL-003'],
     };
   });
-}
-
-function routerIntentCases(classifyCompiledFlowTask: RouterClassify): RouterIntent[] {
-  const cases: Array<{
-    id: string;
-    input: string;
-    expected_flow: string;
-    expected_entry_mode?: string;
-    readiness_refs: string[];
-  }> = [
-    {
-      id: 'fix',
-      input: 'fix: handle the missing token edge case',
-      expected_flow: 'fix',
-      readiness_refs: [],
-    },
-    {
-      id: 'develop',
-      input: 'develop: add SSO flow',
-      expected_flow: 'build',
-      expected_entry_mode: 'default',
-      readiness_refs: [],
-    },
-    {
-      id: 'decide',
-      input: 'decide: choose the queue architecture',
-      expected_flow: 'explore',
-      expected_entry_mode: 'tournament',
-      readiness_refs: [],
-    },
-    {
-      id: 'plan-execution',
-      input: 'Execute this plan: ./docs/specs/headless-engine-host-api-v1.md',
-      expected_flow: 'build',
-      expected_entry_mode: 'default',
-      readiness_refs: [],
-    },
-  ];
-  return cases.map((item) => {
-    const decision = classifyCompiledFlowTask(item.input);
-    const flowOk = decision.flowName === item.expected_flow;
-    const entryModeOk =
-      item.expected_entry_mode === undefined ||
-      decision.inferredEntryModeName === item.expected_entry_mode;
-    return {
-      id: item.id,
-      input: item.input,
-      expected_flow: item.expected_flow,
-      actual_flow: decision.flowName,
-      ...(item.expected_entry_mode === undefined
-        ? {}
-        : { expected_entry_mode: item.expected_entry_mode }),
-      ...(decision.inferredEntryModeName === undefined
-        ? {}
-        : { actual_entry_mode: decision.inferredEntryModeName }),
-      status: flowOk && entryModeOk && item.readiness_refs.length === 0 ? 'implemented' : 'partial',
-      readiness_refs: item.readiness_refs,
-    };
-  });
-}
-
-function routerCapabilities(routerIntents: RouterIntent[]) {
-  return routerIntents.map((intent) => ({
-    id: `router:intent:${intent.id}`,
-    kind: intent.id === 'plan-execution' ? 'plan_execution' : 'router_intent',
-    title: `${intent.id} routing`,
-    status: intent.status,
-    summary:
-      intent.actual_entry_mode === undefined
-        ? `${intent.input} routed to ${intent.actual_flow}; expected ${intent.expected_flow}.`
-        : `${intent.input} routed to ${intent.actual_flow} with ${intent.actual_entry_mode} mode; expected ${intent.expected_flow}.`,
-    evidence: ['src/flows/router.ts'],
-    readiness_refs: intent.readiness_refs,
-    axes: {
-      intent_hints: [`${intent.id}:`],
-      modes: intent.actual_entry_mode === undefined ? [] : [intent.actual_entry_mode],
-    },
-  }));
 }
 
 function connectorRecords(connectorSchemas: ConnectorSchemas): ConnectorRecord[] {
@@ -722,16 +602,9 @@ function supportCapabilities(
   hostCommands: string[],
   proofAxesByCapability: Map<string, { proof: string }>,
   proofs: ProofScenarios,
-  routerIntents: RouterIntent[],
 ) {
   const commandSet = new Set(hostCommands);
   const proofCompletion = proofCompletionSummary(proofs);
-  const planExecutionRouterImplemented = routerIntents.some(
-    (intent) => intent.id === 'plan-execution' && intent.status === 'implemented',
-  );
-  const planExecutionProofAxes = proofAxesByCapability.get('feature:plan-execution');
-  const planExecutionImplemented =
-    planExecutionRouterImplemented && typeof planExecutionProofAxes?.proof === 'string';
   const createProofAxes = proofAxesByCapability.get('utility:create');
   const createImplemented =
     existsSync(resolve(projectRoot, 'src/cli/create.ts')) &&
@@ -841,22 +714,6 @@ function supportCapabilities(
       },
     },
     {
-      id: 'feature:plan-execution',
-      kind: 'plan_execution',
-      title: 'Plan execution',
-      status: planExecutionImplemented ? 'implemented' : 'partial',
-      summary: planExecutionImplemented
-        ? 'Plan-execution requests start the first executable flow slice instead of ending as analysis-only Explore.'
-        : 'Plan-execution requests can still finish as analysis-only Explore runs.',
-      evidence: ['src/flows/router.ts', 'tests/contracts/flow-router.test.ts'],
-      readiness_refs: planExecutionImplemented ? [] : ['REL-016'],
-      axes: {
-        worker_handoff:
-          'Plan-execution requests route into the first executable flow slice instead of ending as analysis-only Explore.',
-        ...planExecutionProofAxes,
-      },
-    },
-    {
       id: 'safety:review-untracked-evidence',
       kind: 'safety',
       title: 'Review untracked evidence policy',
@@ -933,10 +790,9 @@ function supportCapabilities(
 }
 
 async function main(): Promise<void> {
-  const [releaseSchemas, catalog, router, connectorSchemas] = await Promise.all([
+  const [releaseSchemas, catalog, connectorSchemas] = await Promise.all([
     import(resolve(projectRoot, 'dist/release/schemas.js')) as Promise<typeof ReleaseSchemasModule>,
     import(resolve(projectRoot, 'dist/flows/catalog.js')) as Promise<typeof CatalogModule>,
-    import(resolve(projectRoot, 'dist/flows/router.js')) as Promise<typeof RouterModule>,
     import(resolve(projectRoot, 'dist/schemas/connector.js')) as Promise<
       typeof ConnectorSchemasModule
     >,
@@ -946,8 +802,6 @@ async function main(): Promise<void> {
 
   const publicFlowPackages = flowPackages.filter((pkg) => pkg.visibility !== 'internal');
   const flows = publicFlowPackages.map(flowRecord);
-  const routerIntents = routerIntentCases(router.classifyCompiledFlowTask);
-  const intentHintsByFlow = implementedIntentHintsByFlow(routerIntents);
   const proofs = loadYamlWithSchema('docs/release/proofs/index.yaml', ProofScenarioIndex);
   const proofAxesByCapability = verifiedProofAxesByCapability(proofs);
   const sourceCommands = listMarkdownBasenames('src/commands').filter((id) => id !== 'README');
@@ -962,24 +816,22 @@ async function main(): Promise<void> {
   const hosts = hostRecords();
 
   const capabilities = [
-    ...flows.map((record) => capabilityFromFlow(record, intentHintsByFlow, proofAxesByCapability)),
+    ...flows.map((record) => capabilityFromFlow(record, proofAxesByCapability)),
     ...flows.flatMap(modeCapabilities),
     ...flows.flatMap(routeCapabilities),
-    ...routerCapabilities(routerIntents),
     ...claudeCommands.map((id) => commandCapability(id, 'claude-code', true)),
     ...['handoff']
       .filter((id: string) => !claudeCommands.includes(id))
       .map((id: string) => commandCapability(id, 'claude-code', false)),
     ...connectorCapabilities(connectors),
     ...hostCapabilities(hosts),
-    ...supportCapabilities(claudeCommands, proofAxesByCapability, proofs, routerIntents),
+    ...supportCapabilities(claudeCommands, proofAxesByCapability, proofs),
   ].sort((a, b) => a.id.localeCompare(b.id));
 
   const snapshot = CurrentCapabilitySnapshot.parse({
     schema_version: 1,
     generated_by: 'scripts/release/emit-current-capabilities.ts',
     flows,
-    router_intents: routerIntents,
     commands: {
       source: sourceCommands,
       claude_plugin: claudeCommands,

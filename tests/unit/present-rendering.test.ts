@@ -5,27 +5,27 @@ import {
   presentAbortReason,
 } from '../../plugins/claude/scripts/present-rendering.ts';
 
-describe('finalAnswerMarkdownPath (F-M-3)', () => {
-  it('prefers run_surface_markdown_path when it exists', () => {
+describe('finalAnswerMarkdownPath (readable digest wins)', () => {
+  it('prefers operator_summary_markdown_path (the readable digest) when it exists', () => {
     const result = {
       run_surface_markdown_path: '/runs/r/reports/run-surface.md',
       operator_summary_markdown_path: '/runs/r/reports/operator-summary.md',
     };
-    expect(finalAnswerMarkdownPath(result, () => true)).toBe('/runs/r/reports/run-surface.md');
-  });
-
-  it('falls back to operator_summary_markdown_path when the run surface path is absent', () => {
-    const result = { operator_summary_markdown_path: '/runs/r/reports/operator-summary.md' };
     expect(finalAnswerMarkdownPath(result, () => true)).toBe('/runs/r/reports/operator-summary.md');
   });
 
-  it('falls back to the operator summary when the run surface path is set but missing on disk', () => {
+  it('falls back to run_surface_markdown_path when the operator summary path is absent', () => {
+    const result = { run_surface_markdown_path: '/runs/r/reports/run-surface.md' };
+    expect(finalAnswerMarkdownPath(result, () => true)).toBe('/runs/r/reports/run-surface.md');
+  });
+
+  it('falls back to the run surface when the operator summary path is set but missing on disk', () => {
     const result = {
-      run_surface_markdown_path: '/missing/run-surface.md',
-      operator_summary_markdown_path: '/present/operator-summary.md',
+      operator_summary_markdown_path: '/missing/operator-summary.md',
+      run_surface_markdown_path: '/present/run-surface.md',
     };
-    const exists = (path: string) => path === '/present/operator-summary.md';
-    expect(finalAnswerMarkdownPath(result, exists)).toBe('/present/operator-summary.md');
+    const exists = (path: string) => path === '/present/run-surface.md';
+    expect(finalAnswerMarkdownPath(result, exists)).toBe('/present/run-surface.md');
   });
 
   it('returns undefined when neither markdown path exists', () => {

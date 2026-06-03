@@ -312,6 +312,7 @@ function runDoctor(): number {
         resolved.runtime.command,
         runtimeArgs(resolved.runtime, [
           'run',
+          'review',
           '--goal',
           'review this patch',
           '--flow-root',

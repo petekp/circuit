@@ -10,11 +10,7 @@ import type { ComposeBuilder } from './registries/compose-writers/types.js';
 import type { CrossReportValidator } from './registries/cross-report-validators.js';
 import type { StructuralShapeHint } from './registries/shape-hints/types.js';
 import type { VerificationBuilder } from './registries/verification-writers/types.js';
-import type {
-  CompiledFlowPackage,
-  CompiledFlowRoutingMetadata,
-  CompiledFlowRuntimeSurface,
-} from './types.js';
+import type { CompiledFlowPackage, CompiledFlowRuntimeSurface } from './types.js';
 
 // Collect a Map keyed by builder.resultSchemaName from one writer slot
 // across all packages. Throws on duplicate keys with a message that
@@ -151,42 +147,4 @@ export function buildRuntimeSurfaceRegistry(
     map.set(pkg.id, pkg.runtimeSurface);
   }
   return map;
-}
-
-export interface RoutablePackage {
-  readonly pkg: CompiledFlowPackage;
-  readonly routing: CompiledFlowRoutingMetadata;
-}
-
-// Walk packages, keep the routable ones (those with a routing block),
-// and sort by routing.order ascending. Stable sort: input order breaks
-// ties.
-export function buildRoutablePackages(
-  packages: readonly CompiledFlowPackage[],
-): readonly RoutablePackage[] {
-  const out: RoutablePackage[] = [];
-  for (const pkg of packages) {
-    if (pkg.routing === undefined) continue;
-    // S9: internal flows (e.g. the frozen goal flow) stay reachable explicitly
-    // but must never be auto-selected by the classifier. Run owns the goal loop.
-    if (pkg.visibility === 'internal') continue;
-    out.push({ pkg, routing: pkg.routing });
-  }
-  return out.sort((a, b) => a.routing.order - b.routing.order);
-}
-
-// Find the unique default package across the routable set. Throws if
-// no package or more than one package is marked isDefault.
-export function findDefaultRoutablePackage(routables: readonly RoutablePackage[]): RoutablePackage {
-  const defaults = routables.filter((entry) => entry.routing.isDefault === true);
-  const [first, ...rest] = defaults;
-  if (first === undefined) {
-    throw new Error('no flow package marked isDefault — router has no fallback');
-  }
-  if (rest.length > 0) {
-    throw new Error(
-      `more than one default flow package: ${defaults.map((entry) => entry.pkg.id).join(', ')}`,
-    );
-  }
-  return first;
 }

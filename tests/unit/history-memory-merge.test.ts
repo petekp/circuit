@@ -88,7 +88,7 @@ function completeEnvelope(input: {
     },
     process_plan: {
       schema: 'run.process-plan@v0',
-      selection_source: 'router',
+      selection_source: 'explicit_operator_request',
       rationale: 'Matched implementation request.',
       planned_attempts: [
         {
@@ -188,7 +188,7 @@ function blockedEnvelope(runId: string) {
     },
     process_plan: {
       schema: 'run.process-plan@v0',
-      selection_source: 'router',
+      selection_source: 'explicit_operator_request',
       rationale: 'Matched implementation request.',
       planned_attempts: [
         {

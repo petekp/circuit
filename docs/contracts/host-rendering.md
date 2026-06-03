@@ -2,7 +2,7 @@
 contract: host-rendering
 status: draft-v0.1
 version: 0.1
-last_updated: 2026-04-28
+last_updated: 2026-06-02
 depends_on: [host-adapter, run]
 ---
 
@@ -64,24 +64,26 @@ guess which prose lines belong together.
 
 ## Final Rendering
 
-After stdout JSON is parsed, hosts MUST read `run_surface_markdown_path` when
-present and render that Markdown verbatim as the final user-facing answer. That
+After stdout JSON is parsed, hosts MUST read `operator_summary_markdown_path`
+when present and render that Markdown verbatim as the final user-facing answer.
+That Markdown is the readable digest: the flow, its outcome, and the result in
+plain language. If `operator_summary_markdown_path` is absent, hosts MUST read
+`run_surface_markdown_path` when present and render that Markdown verbatim. That
 Markdown is the compact Run surface: a status line plus links to the Run
-artifacts. If `run_surface_markdown_path` is absent, hosts MUST read
-`operator_summary_markdown_path` when present and render that Markdown
-verbatim as the fallback operator brief.
+artifacts.
 
-Transcript wrappers that have already rendered a status block MAY instead
-render `run_surface_status_text`, `operator_summary_status_text`, or
-`status_text` from `operator_summary_path`, as one final `⎿` continuation
-line. They should keep `run_surface_markdown_path` and
-`operator_summary_markdown_path` as standalone fallbacks rather than rewriting
-that Markdown.
+A transcript wrapper that has already rendered a status block MUST still render
+the digest Markdown at completion, so the operator sees the result and not just
+a status line. It MAY first emit `run_surface_status_text`,
+`operator_summary_status_text`, or `status_text` from `operator_summary_path` as
+one `⎿` continuation line, but that line is in addition to the digest, never a
+replacement for it. Hosts render `operator_summary_markdown_path` and
+`run_surface_markdown_path` verbatim rather than rewriting that Markdown.
 
-Hosts MUST NOT invent a separate final summary when `run_surface_markdown_path`
-or `operator_summary_markdown_path` is present. If both files are missing or
-cannot be read, hosts MAY fall back to `operator_summary_path`, then
-`result_path`, then the selected flow's final report.
+Hosts MUST NOT invent a separate final summary when `operator_summary_markdown_path`
+or `run_surface_markdown_path` is present. If both files are missing or cannot
+be read, hosts MAY fall back to `operator_summary_path`, then `result_path`,
+then the selected flow's final report.
 
 ## Summary Files
 

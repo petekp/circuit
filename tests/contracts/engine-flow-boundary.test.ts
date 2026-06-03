@@ -23,7 +23,6 @@ const ALLOWED_ENGINE_WORKFLOW_IMPORT_SUFFIXES = [
   '/flows/catalog.js',
   '/flows/catalog-derivations.js',
   '/flows/compile-schematic-to-flow.js',
-  '/flows/router.js',
   '/flows/types.js',
 ];
 

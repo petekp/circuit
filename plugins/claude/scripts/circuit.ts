@@ -138,10 +138,6 @@ function renderLine(text = ''): void {
   process.stdout.write(`${text}\n`);
 }
 
-function stripCircuitPrefix(text: string): string {
-  return text.replace(/^Circuit:\s*/i, '').trim();
-}
-
 function renderStatusText(
   state: StatusBlockState,
   blockId: string | undefined,
@@ -174,22 +170,6 @@ function renderPresentationEvent(state: StatusBlockState, event: unknown): Prese
     statusText,
   );
   return { handled: true, rendered: true };
-}
-
-function summaryStatusTextFromResult(result: unknown): string | undefined {
-  const direct = stringField(result, 'operator_summary_status_text');
-  if (direct !== undefined) return direct;
-  const summaryPath = stringField(result, 'operator_summary_path');
-  if (summaryPath === undefined || !existsSync(summaryPath)) return undefined;
-  try {
-    const summary = readJson(summaryPath);
-    return (
-      stringField(summary, 'status_text') ??
-      stripCircuitPrefix(stringField(summary, 'headline') ?? '')
-    );
-  } catch {
-    return undefined;
-  }
 }
 
 function renderUserInputEvent(event: JsonRecord): void {
@@ -324,17 +304,14 @@ function renderFinalResult(
 
   const outcome = stringField(result, 'outcome');
   if (outcome === 'complete') {
-    if (statusBlocks.renderedAnyBlock) {
-      const statusText = summaryStatusTextFromResult(result);
-      if (statusText !== undefined && statusText.length > 0) {
-        renderStatusText(statusBlocks, stringField(result, 'run_id'), statusText);
-      }
-      const htmlPath = stringField(result, 'operator_summary_html_path');
-      if (htmlPath !== undefined && existsSync(htmlPath)) tryOpenInBrowser(htmlPath);
-      return 0;
-    }
-    // Prefer the compact Run surface over the verbose operator summary per
-    // docs/contracts/host-rendering.md "Final Rendering" (F-M-3).
+    // The streamed status block (channel B) already recorded progress live.
+    // Separate it from the digest with a blank line so the readable summary
+    // reads as its own block. On a quiet run there is no block to separate.
+    if (statusBlocks.renderedAnyBlock) renderLine('');
+    // Print the readable digest at completion regardless of whether the stream
+    // rendered, so the operator sees the result and not just a one-line status
+    // (docs/contracts/host-rendering.md "Final Rendering"). The digest wins
+    // precedence over the terse Run surface.
     const finalAnswerPath = finalAnswerMarkdownPath(result, existsSync);
     if (finalAnswerPath !== undefined) {
       const markdown = readFileSync(finalAnswerPath, 'utf8');
@@ -564,6 +541,7 @@ function runDoctor(): number {
         resolved.runtime.command,
         runtimeArgs(resolved.runtime, [
           'run',
+          'review',
           '--goal',
           'review this patch',
           '--flow-root',

@@ -28,11 +28,10 @@ describe('progress event schema', () => {
           status_text: 'Chose review.',
         },
         selected_flow: 'review',
-        routed_by: 'classifier',
+        routed_by: 'explicit',
         router_reason: 'matched review',
-        router_signal: 'change review request',
         entry_mode: 'default',
-        entry_mode_source: 'classifier',
+        entry_mode_source: 'explicit',
       },
       {
         ...BASE,

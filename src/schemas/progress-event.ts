@@ -84,11 +84,12 @@ export const RunStartedProgressEvent = ProgressEventBase.extend({
 export const RouteSelectedProgressEvent = ProgressEventBase.extend({
   type: z.literal('route.selected'),
   selected_flow: CompiledFlowId,
-  routed_by: z.enum(['explicit', 'classifier']),
+  // Routing is model-only: the host or operator names the flow, so the route
+  // source is always the explicit positional flow argument.
+  routed_by: z.literal('explicit'),
   router_reason: z.string().min(1),
-  router_signal: z.string().min(1).optional(),
   entry_mode: z.string().min(1).optional(),
-  entry_mode_source: z.enum(['explicit', 'classifier']).optional(),
+  entry_mode_source: z.literal('explicit').optional(),
 }).strict();
 
 export const StepStartedProgressEvent = ProgressEventBase.extend({

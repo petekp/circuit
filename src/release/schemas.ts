@@ -178,15 +178,6 @@ export const FlowCapabilityRecord = z
     source: z.string().min(1),
     command_path: z.string().optional(),
     contract_path: z.string().optional(),
-    routing: z
-      .object({
-        routable: z.boolean(),
-        is_default: z.boolean().default(false),
-        order: z.number().optional(),
-        signal_labels: z.array(z.string().min(1)).default([]),
-        default_reason: z.string().optional(),
-      })
-      .strict(),
     axis_support: FlowAxisSupportRecord,
     stages: z.array(z.string().min(1)).default([]),
     reports: z.array(z.string().min(1)).default([]),
@@ -203,20 +194,6 @@ export const FlowCapabilityRecord = z
   })
   .strict();
 export type FlowCapabilityRecord = z.infer<typeof FlowCapabilityRecord>;
-
-export const RouterIntentRecord = z
-  .object({
-    id: z.string().min(1),
-    input: z.string().min(1),
-    expected_flow: z.string().min(1),
-    actual_flow: z.string().min(1),
-    expected_entry_mode: z.string().min(1).optional(),
-    actual_entry_mode: z.string().min(1).optional(),
-    status: ReleaseCapabilityStatus,
-    readiness_refs: z.array(z.string().regex(/^REL-[0-9]+$/)).default([]),
-  })
-  .strict();
-export type RouterIntentRecord = z.infer<typeof RouterIntentRecord>;
 
 export const ConnectorCapabilityRecord = z
   .object({
@@ -247,7 +224,6 @@ export const CurrentCapabilitySnapshot = z
     schema_version: z.literal(1),
     generated_by: z.string().min(1),
     flows: z.array(FlowCapabilityRecord),
-    router_intents: z.array(RouterIntentRecord),
     commands: z
       .object({
         source: z.array(z.string().min(1)),

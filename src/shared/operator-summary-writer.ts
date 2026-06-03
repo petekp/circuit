@@ -34,7 +34,7 @@ import {
 
 type RouteSummary = {
   readonly selectedFlow: string;
-  readonly routedBy?: 'explicit' | 'classifier';
+  readonly routedBy?: 'explicit';
   readonly routerReason?: string;
 };
 
@@ -51,7 +51,7 @@ export type OperatorSummaryWriteResult = {
 // summary so a resume rewrite does not strip routing metadata that the
 // initial close site captured.
 export function readPriorRoute(runFolder: string): {
-  readonly routedBy?: 'explicit' | 'classifier';
+  readonly routedBy?: 'explicit';
   readonly routerReason?: string;
 } {
   const path = join(runFolder, 'reports', 'operator-summary.json');
@@ -61,8 +61,11 @@ export function readPriorRoute(runFolder: string): {
     if (!isObject(raw)) return {};
     const routedBy = raw.routed_by;
     const routerReason = raw.router_reason;
+    // Routing is model-only now, so the only recognized source is 'explicit'.
+    // A stale 'classifier' value from an older run folder is ignored, which
+    // degrades gracefully to recovery provenance on resume.
     return {
-      ...(routedBy === 'explicit' || routedBy === 'classifier' ? { routedBy } : {}),
+      ...(routedBy === 'explicit' ? { routedBy } : {}),
       ...(typeof routerReason === 'string' && routerReason.length > 0 ? { routerReason } : {}),
     };
   } catch {

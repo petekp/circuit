@@ -443,7 +443,7 @@ describe('operator summary writer', () => {
       runResult: baseResult('review'),
       route: {
         selectedFlow: 'review',
-        routedBy: 'classifier',
+        routedBy: 'explicit',
         routerReason: 'matched review',
       },
     });
@@ -2140,13 +2140,13 @@ describe('operator summary writer', () => {
       runResult: baseResult('explore'),
       route: {
         selectedFlow: 'explore',
-        routedBy: 'classifier',
+        routedBy: 'explicit',
         routerReason: 'matched explore goal',
       },
     });
 
     const recovered = readPriorRoute(runFolder);
-    expect(recovered.routedBy).toBe('classifier');
+    expect(recovered.routedBy).toBe('explicit');
     expect(recovered.routerReason).toBe('matched explore goal');
   });
 

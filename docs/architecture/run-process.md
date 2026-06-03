@@ -13,8 +13,8 @@ Primary sources:
 - `src/cli/circuit.ts` - CLI argument parsing, routing, axis selection,
   runtime setup, final output, checkpoint resume routing, and autonomous loop
   handoff.
-- `src/flows/router.ts` and `src/flows/catalog-derivations.ts` - deterministic
-  automatic flow routing.
+- `src/flows/catalog-derivations.ts` - pure derivations turning flow packages
+  into engine registries.
 - `src/runtime/run/compiled-flow-runner.ts` and
   `src/runtime/run/graph-runner.ts` - compiled-flow execution and graph
   advancement.
@@ -40,12 +40,9 @@ connector, and connector-specific options are resolved later, once each relay
 step is about to run. That per-relay decision is recorded in the trace as
 `relay.started` plus guidance entries.
 
-Run has two front-door layers:
-
-1. The host command may recommend a flow before it invokes the CLI. If the host
-   is confident, it calls `./bin/circuit run <flow> --goal ...`.
-2. The CLI selects a flow only when no explicit flow argument is supplied. In
-   that path, `./bin/circuit run --goal ...` uses the deterministic router.
+Run has one front-door layer: the host command recommends a flow and invokes
+the CLI with an explicit flow name. Routing is model-only — the CLI does not
+classify goal text, so a flow name is always required.
 
 ## Decision Timeline
 
@@ -58,16 +55,16 @@ The host command decides how to call the CLI:
 
 - If one flow is clear, the host states the recommendation and invokes the CLI
   with an explicit positional flow name.
-- If the host cannot confidently recommend a flow, or the user wants the engine
-  to choose mechanically, the host invokes the CLI without a flow name and lets
-  the router classify the goal.
+- If the host cannot confidently recommend a flow, it asks the operator which
+  flow to use rather than invoking the CLI without one (a no-flow run is
+  rejected).
 - The host must shell-quote the raw task text safely.
 - The host decides whether to add `--include-untracked-content` for Review only
   when the operator explicitly asked to include untracked file contents.
 - The host should render JSONL progress events when `--progress jsonl` is used.
 
-Evidence: the CLI records the final selected flow regardless of whether the
-host recommended it or the CLI router classified it.
+Evidence: the CLI records the final selected flow from the explicit positional
+flow argument.
 
 ### 2. CLI Command Shape
 
@@ -110,32 +107,18 @@ When the positional flow is present, the route is:
 - `routed_by`: `explicit`.
 - `router_reason`: `explicit flow positional argument`.
 
-When the positional flow is absent, `src/flows/router.ts` classifies the goal.
-The router derives its routable set from the flow catalog and excludes internal
-flows.
+When the positional flow is absent, the CLI rejects the run with a clear error
+(`a flow name is required: pass one of build|fix|review|explore|prototype|pursue`).
+Routing is model-only: the host or operator names the flow, and the CLI never
+classifies goal text.
 
-Automatic routing order:
-
-1. Plan-execution requests are handled first. Requests like "execute the plan"
-   are routed by a special classifier path:
-   - decision or tradeoff language routes to Explore tournament.
-   - bug or failure language routes to Fix deep.
-   - otherwise it routes to Build default.
-2. The router walks public routable flow packages by `routing.order`.
-3. Each flow's routing signals may match the task text.
-4. A signal can be suppressed when the request also looks like a planning
-   artifact and the flow metadata says to skip planning reports.
-5. If no signal matches, the router selects the unique default routable flow.
-   Today that default is Explore.
-
-Routable public flows are Build, Explore, Fix, Prototype, Pursue, and Review.
-Goal and runtime-proof are internal and are not auto-selected.
+Public flows are Build, Explore, Fix, Prototype, Pursue, and Review. Goal and
+runtime-proof are internal and are not offered as selectable flows.
 
 Evidence:
 
 - `route.selected` progress event when JSONL progress is enabled.
-- Final stdout fields: `selected_flow`, `routed_by`, `router_reason`, and
-  optional `router_signal`.
+- Final stdout fields: `selected_flow`, `routed_by`, and `router_reason`.
 - Run envelope selected-process fields.
 
 ### 4. Axes, Entry Mode, and Runtime Depth

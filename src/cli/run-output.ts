@@ -3,23 +3,22 @@ import type { OperatorSummaryWriteResult } from '../shared/operator-summary-writ
 
 export interface RouteOutputFieldsInput {
   readonly selectedFlow: string;
-  readonly routedBy: 'explicit' | 'classifier';
+  readonly routedBy: 'explicit';
   readonly routerReason: string;
-  readonly routerSignal?: string;
   readonly entryMode?: string;
-  readonly entryModeSource?: 'explicit' | 'classifier';
+  readonly entryModeSource?: 'explicit';
 }
 
 export interface SelectedProcessFieldsInput {
   readonly processId: string;
-  readonly routedBy?: 'explicit' | 'classifier';
+  readonly routedBy?: 'explicit';
   readonly routerReason: string;
   readonly entryMode?: string;
 }
 
 export interface SelectedProcessFields {
   readonly process_id: string;
-  readonly routed_by?: 'explicit' | 'classifier';
+  readonly routed_by?: 'explicit';
   readonly router_reason: string;
   readonly entry_mode?: string;
 }
@@ -37,7 +36,6 @@ export function routeOutputFields(input: RouteOutputFieldsInput): Record<string,
     selected_flow: input.selectedFlow,
     routed_by: input.routedBy,
     router_reason: input.routerReason,
-    ...(input.routerSignal === undefined ? {} : { router_signal: input.routerSignal }),
     ...(input.entryMode === undefined ? {} : { entry_mode: input.entryMode }),
     ...(input.entryModeSource === undefined ? {} : { entry_mode_source: input.entryModeSource }),
   };

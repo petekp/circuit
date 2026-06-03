@@ -1,7 +1,6 @@
 import { THREE_AXIS_RUBRIC_TIE_BREAK_ORDER } from '../../policy/rubric.js';
 import { expandBlockStepUse } from '../block-step-expansion.js';
 import type { FlowData } from '../flow-definition.js';
-import type { CompiledFlowSignal } from '../types.js';
 import {
   prototypeArtifactShapeHint,
   prototypeVariantArtifactShapeHint,
@@ -30,34 +29,12 @@ import { prototypeVariantProviderEvidenceComposeBuilder } from './writers/varian
 import { prototypeVariantVerificationWriter } from './writers/variant-verification.js';
 import { prototypeVerificationWriter } from './writers/verification.js';
 
-const PROTOTYPE_SIGNALS: readonly CompiledFlowSignal[] = [
-  { label: 'prototype prefix', pattern: /^\s*prototype\s*:/i },
-  {
-    label: 'create prototype request',
-    pattern:
-      /^\s*(?:please\s+)?(?:use\s+(?:this\s+new\s+flow|(?:the\s+)?prototype(?:\s+flow)?)\s+to\s+)?(?:create|make|build|draft)\s+(?:a\s+|an\s+|the\s+)?(?:[\w-]+\s+){0,5}prototype\b/i,
-  },
-  {
-    label: 'prototype request',
-    pattern:
-      /^\s*(?:please\s+)?(?:prototype|mock\s+up|sketch)\s+(?:a\s+|an\s+|the\s+|this\s+|that\s+)?(?:small\s+|simple\s+|intuitive\s+|disposable\s+|throwaway\s+)?(?:prototype|artifact|screen|flow|interaction|experience)\b/i,
-  },
-];
-
 export const prototypeFlowData = {
   id: 'prototype',
   visibility: 'public',
   paths: {
     schematic: 'src/flows/prototype/schematic.json',
     contract: 'src/flows/prototype/contract.md',
-  },
-  routing: {
-    order: 25,
-    signals: PROTOTYPE_SIGNALS,
-    skipOnPlanningReport: true,
-    reasonForMatch(signal) {
-      return `matched ${signal.label}; routed to disposable Prototype flow`;
-    },
   },
   schematic: {
     schema_version: '1',

@@ -47,15 +47,17 @@ metacharacters:
      work, several tracks, or a bundle of pursuits that need ordering and
      serial execution.
 
-   If one flow is clear, briefly state the recommended flow and run the
-   explicit CLI flow. Circuit records the selected flow in the run trace. Ask
-   one short question only when the answer changes safety or mutation behavior,
-   especially Review vs Build/Fix, Explore vs Build.
+   If one flow is clear, state the recommended flow and your one-line reason
+   for it before you invoke the CLI, so the operator can redirect in-thread
+   before anything runs. State only a reason you actually hold: you chose the
+   flow, so the why is yours to give. Then run the explicit CLI flow. Circuit
+   records the selected flow in the run trace. Ask one short question only when
+   the answer changes safety or mutation behavior, especially Review vs
+   Build/Fix, Explore vs Build.
 
-   Use the deterministic CLI router (`node '<plugin root>/scripts/circuit.ts' run --goal ...`) when the
-   user explicitly asks Circuit/the engine to choose mechanically, the host
-   cannot confidently recommend a flow, or the task is intentionally exercising
-   the automatic router path.
+   A flow name is required. Circuit does not guess one from the task text, so
+   always pass an explicit flow. If you genuinely cannot tell which flow fits,
+   ask the operator rather than running without one.
 2. **Build a shell-safe invocation.** Single-quote the raw task text; double
    quotes expand `$VAR`,
    `` `cmd` ``, `$(cmd)`, and `\` sequences — a malicious or accidental
@@ -112,12 +114,6 @@ metacharacters:
    node '<plugin root>/scripts/circuit.ts' run pursue --goal 'coordinate these cleanup goals' --progress jsonl
    ```
 
-   Example for the deterministic fallback router:
-
-   ```bash
-   node '<plugin root>/scripts/circuit.ts' run --goal 'choose the right Circuit flow for this task' --progress jsonl
-   ```
-
    Example for a Build task using Deep mode:
 
    ```bash
@@ -167,13 +163,15 @@ metacharacters:
    `routed_by`, `router_reason`, `outcome`, `run_folder`, `trace_entries_observed`,
    `run_surface_markdown_path`, `run_envelope_path`,
    `run_decision_packet_paths`,
-   `operator_summary_markdown_path`, and `result_path` when present. If
-   present, also surface `router_signal`.
-6. **Render Circuit's final summary.** Prefer `run_surface_markdown_path` when
-   present. It is the compact Run surface and should be rendered verbatim as
+   `operator_summary_markdown_path`, and `result_path` when present.
+   `routed_by` is always `explicit` and `router_reason` is a fixed placeholder:
+   routing is model-only, so the operator-facing reason is the one you stated
+   before the call, not a CLI-derived rationale.
+6. **Render Circuit's final summary.** Prefer `operator_summary_markdown_path`
+   when present. It is the readable digest and should be rendered verbatim as
    the final user-facing answer. If it is missing, read
-   `operator_summary_markdown_path` and render that Markdown verbatim. Do not
-   invent a separate summary. If the operator summary is also missing, fall
+   `run_surface_markdown_path` and render that Markdown verbatim. Do not
+   invent a separate summary. If neither is present, fall
    back to the selected flow's final report:
    For `selected_flow === "explore"`, read the run-folder-relative
    `reports/explore-result.json` close-step report. For
@@ -201,7 +199,7 @@ metacharacters:
    result, residual risks, and evidence links.
 7. **If `outcome === "checkpoint_waiting"`, do not read or claim
    `result_path`.** Surface the routed metadata (`selected_flow`,
-   `routed_by`, `router_reason`, and optional `router_signal`), then surface
+   `routed_by`, `router_reason`), then surface
    the waiting checkpoint details from `checkpoint.waiting` and
    `user_input.requested`: `checkpoint.step_id`, `checkpoint.request_path`,
    `checkpoint.allowed_choices`, the question/options, and the exact resume
@@ -216,13 +214,12 @@ metacharacters:
 
 ## Routed Flows
 
-Run is the only normal host command for coding work. It may call the CLI with an
-explicit flow name after recommending the right flow, or it may use the
-deterministic router path when the choice is unclear. The underlying flows stay
-public and packaged so the runtime can route to them, but they do not own
-separate host command files.
+Run is the only normal host command for coding work. It calls the CLI with an
+explicit flow name after recommending the right flow; routing is model-only, so
+a flow name is always required. The underlying flows stay public and packaged so
+the runtime can run them, but they do not own separate host command files.
 
 ## Authority
 
-- `src/flows/router.ts` (current deterministic classifier)
-- `tests/contracts/flow-router.test.ts` (classifier behavior)
+- `src/cli/circuit.ts` `resolveCompiledFlowRoute` (explicit-flow requirement; routing is model-only)
+- `tests/runner/cli-router.test.ts` (explicit dispatch and the no-flow rejection)

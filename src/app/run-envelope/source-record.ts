@@ -24,7 +24,7 @@ export const RUN_DECISION_PACKET_RELATIVE_DIR = 'reports/decision-packets';
 
 type SelectedProcess = {
   readonly process_id: string;
-  readonly routed_by?: 'explicit' | 'classifier';
+  readonly routed_by?: 'explicit';
   readonly router_reason: string;
   readonly entry_mode?: string;
 };
@@ -172,7 +172,6 @@ function selectionSourceFor(
   routedBy: SelectedProcess['routed_by'],
 ): RunEnvelopeRecordValue['process_plan']['selection_source'] {
   if (routedBy === 'explicit') return 'explicit_operator_request';
-  if (routedBy === 'classifier') return 'router';
   return 'recovery';
 }
 

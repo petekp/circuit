@@ -53,10 +53,9 @@ normal coding command rather than a root `/circuit` alias. Flow-specific host
 commands and Codex flow skills are not published by default; the flow package
 JSON remains available for routed runtime execution.
 
-The deterministic router remains the CLI authority when a host calls
-`circuit run --goal "<task>"` without an explicit flow. Public docs must
-keep these two paths separate: host-orchestrated flow selection is not the
-same thing as deterministic CLI routing.
+Routing is model-only: the host (or operator) always names the flow. A
+`circuit run --goal "<task>"` call without an explicit flow is rejected; the
+CLI does not classify the goal text.
 
 ## Packaged Flow Lookup
 
@@ -231,8 +230,8 @@ Host result JSON should retain `selected_flow`, `routed_by`, `router_reason`,
 `outcome`, `run_folder`, `trace_entries_observed`, `run_envelope_path`,
 `run_decision_packet_paths`, `run_surface_markdown_path`, `result_path`, and
 `post_run_artifact_warnings` when present for tooling and debug views. The
-final user-facing answer should render `run_surface_markdown_path` verbatim
-when present, then fall back to `operator_summary_markdown_path`.
+final user-facing answer should render `operator_summary_markdown_path` verbatim
+when present, then fall back to `run_surface_markdown_path`.
 Checkpoint results should surface the allowed choices, `user_input.requested`
 question, and exact resume shape.
 

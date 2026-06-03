@@ -18,8 +18,7 @@ capabilities:
     title: Explore
     summary: Investigate, decide among options, and shape execution plans.
     axes:
-      invocation: "/circuit:explore and /circuit:run decide:"
-      intent_hints: ["decide:"]
+      invocation: "/circuit:explore"
       modes: [lite, default, deep, tournament, autonomous]
       stage_path: [Frame, Analyze, Plan or Decision, Close]
       outputs: [brief.md, analysis.md, plan.md, decision.md, result.md]
@@ -35,8 +34,7 @@ capabilities:
     title: Build
     summary: Build features, scoped refactors, docs, tests, and mixed changes.
     axes:
-      invocation: "/circuit:build and /circuit:run develop:"
-      intent_hints: ["develop:"]
+      invocation: "/circuit:build"
       modes: [lite, default, deep, autonomous]
       stage_path: [Frame, Plan, Act, Verify, Review, Close]
       outputs: [brief.md, plan.md, review.md, result.md]
@@ -52,8 +50,7 @@ capabilities:
     title: Fix
     summary: Fix bugs, regressions, flaky behavior, and incidents with regression discipline.
     axes:
-      invocation: "/circuit:fix and /circuit:run fix:"
-      intent_hints: ["fix:"]
+      invocation: "/circuit:fix"
       modes: [lite, default, deep, autonomous]
       stage_path: [Frame, Analyze, Fix, Verify, Review, Close]
       outputs: [brief.md, analysis.md, review.md, result.md]
