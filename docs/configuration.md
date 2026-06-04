@@ -79,6 +79,14 @@ host-native roots in order:
 flows do not require local skills. A built-in flow may expose an optional skill
 slot, and you can bind that slot to one of your skills in config.
 
+Circuit discovers only flat skill folders directly under these two roots, each
+named with a plain id (`my-skill`). Skills installed by a plugin or marketplace
+live nested under a plugin cache and use namespaced ids (`vendor:skill`); Circuit
+does not discover those. So a `selection.skills` entry, a slot binding, or a
+`skill_hooks` rule can only name a skill that exists as `<root>/<id>/SKILL.md`.
+`~/.agents/skills` is host-neutral and is searched under both Claude Code and
+Codex, so keep skills you want on both hosts there.
+
 ```yaml
 schema_version: 1
 
@@ -107,8 +115,8 @@ The skill contract is [`docs/contracts/skill.md`](contracts/skill.md).
 
 ## Skill Hook Policy
 
-The `skill_hooks` config surface declares which skills a run loads at named
-moments. Each hook resolves to one of two modes:
+The `skill_hooks` config surface declares which skills a run loads when Circuit
+detects a specific moment in the run. Each hook resolves to one of two modes:
 
 - **`auto`** (the default): inject the listed skills into the worker that makes
   the change. This is what fires when you omit `mode`, so listing skills under a
@@ -120,7 +128,18 @@ moments. Each hook resolves to one of two modes:
 Injection is role-scoped: an `auto` hook loads its skills only into the
 implementer worker, never the researcher or reviewer.
 
-File-edit hooks are parameterized by an extension suffix in the key:
+### Hooks that fire today
+
+Circuit fires these hooks when it detects the matching moment:
+
+| Hook | Fires when | Where today |
+| --- | --- | --- |
+| `after:edit-files[:.ext]` | a step records the files it touched | Fix |
+| `before:edit-files[:.ext]` | a plan predicts the file types it will touch | Build |
+| `after:verification-failed` | a verification check fails | any flow with a verification step (Build, Fix, Prototype, Pursue) |
+| `after:evidence-gap` | verification ran but left a required claim unproven | any flow with a verification step (Build, Fix, Prototype, Pursue) |
+
+The two edit-files hooks are parameterized by an extension suffix in the key:
 `after:edit-files:.tsx` fires after a step touches a `.tsx` file,
 `before:edit-files:.ts` fires when a step is predicted to touch `.ts`. The engine
 matches the literal extension suffix; the meaning (`.tsx` means React, so load a
@@ -133,16 +152,29 @@ schema_version: 1
 skill_hooks:
   policy:
     # mode omitted -> auto: list skills and they load.
+    # Fires on Fix after a step touches a .tsx file.
     after:edit-files:.tsx:
       skills:
         - react-doctor
     # observe-only: records the hook, injects nothing.
-    before:architecture-analysis:
+    after:verification-failed:
       mode: mute
 ```
 
 An `auto` rule needs at least one concrete skill id. A `mute` rule names no
-skills. Project config replaces user-global policy by hook key.
+skills. Project config replaces user-global policy by hook key. Skills resolve
+from your local skill roots only (see [Local Skills](#local-skills)); a hook
+that names a skill Circuit cannot find there records it as unavailable and
+injects nothing.
+
+### Reserved hooks (not firing yet)
+
+The schema also accepts a family of lifecycle hooks —
+`before:high-impact-alignment`, `before:architecture-analysis`,
+`before:plan-implementation`, `before:implementation`, `before:verification`,
+`before:close-run`, and `before:handoff`. These pass config validation, but no
+moment triggers them yet, so a rule under one of them is inert. They are
+reserved for a later slice; do not rely on them firing.
 
 ## Codex Host And Codex Worker
 

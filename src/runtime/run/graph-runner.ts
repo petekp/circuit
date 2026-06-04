@@ -20,7 +20,10 @@ import { resolveDottedPath } from '../../shared/fanout-branch-template.js';
 import { isProofPlanBlockedError } from '../../shared/proof-plan.js';
 import { createUserSkillRegistry } from '../../shared/user-skill-registry.js';
 import { dispatchSkillHooks } from '../../skill-hooks/dispatch.js';
-import { createSkillHookInjectionChannel } from '../../skill-hooks/injection.js';
+import {
+  type SkillHookInjectionChannel,
+  createSkillHookInjectionChannel,
+} from '../../skill-hooks/injection.js';
 import { isAcceptanceRetryFeedback } from '../acceptance-criteria.js';
 import type { RouteTarget, TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
@@ -387,6 +390,33 @@ function bootstrapChangeKind(input: {
   return standardChangeKindDeclaration(defaultKind);
 }
 
+// On checkpoint resume the injection channel is recreated empty, but `auto`
+// hooks that fired in the PRIOR process recorded their injections durably as
+// run.skill-hook events. Re-seed the channel from those events so a later
+// implementer step in the resumed process sees the same injected skill set a
+// single-process run would. Without this, an injection from a step that is not
+// re-executed on resume is silently lost and the resumed run can feed a later
+// step a different skill set (and different check outcomes) than a single-process
+// run. Mirrors the live actuator gate exactly: auto policy, no pending decision
+// packet, at least one resolved skill.
+function seedSkillHookInjectionsFromTrace(
+  entries: readonly TraceEntry[],
+  channel: SkillHookInjectionChannel | undefined,
+): void {
+  if (channel === undefined) return;
+  for (const entry of entries) {
+    if (entry.kind !== 'run.skill-hook') continue;
+    const event = entry.event;
+    if (
+      event.policy.mode === 'auto' &&
+      event.decision_packet_id === undefined &&
+      event.triggered_skills.length > 0
+    ) {
+      channel.add(event.triggered_skills.map((skill) => skill.id));
+    }
+  }
+}
+
 function completedStepCountsFromTrace(
   entries: readonly TraceEntry[],
   corridor: SliceCorridor,
@@ -641,6 +671,12 @@ async function executeExecutableFlowOutcomeUnsafe(
   const completedStepCounts = isResume
     ? completedStepCountsFromTrace(existingTrace, sliceCorridor)
     : new Map<string, number>();
+  // Re-seed skill-hook injections that the prior process recorded, so a resumed
+  // implementer step does not silently run without skills an earlier (and now
+  // un-re-executed) step injected. No-op on a fresh run (empty existingTrace).
+  if (isResume) {
+    seedSkillHookInjectionsFromTrace(existingTrace, context.skillHookInjections);
+  }
   const defaultMaxSteps = Math.max(flow.steps.length * 4, 8);
   // A slice loop runs the body once per slice, each with its own retry budget,
   // so the flat step counter needs headroom the single-pass default lacks.
@@ -1016,14 +1052,15 @@ async function executeExecutableFlowOutcomeUnsafe(
         await trace.append({ run_id: runId, kind: 'run.skill-hook', event });
         // Actuate: an `auto` policy injects its resolved skills into the next
         // implementer relay. Three guards, all required:
-        //  - mode === 'auto': `ask`/`mute`/`none` never auto-inject.
-        //  - decision_packet_id === undefined: a pending operator decision blocks
-        //    injection. A strict `auto` policy with an unavailable skill carries a
-        //    `strict-skill-unavailable` packet (and a pending `ask` carries an
-        //    `ask` packet); in both cases the hook awaits an operator choice, so we
-        //    inject NOTHING — not even the skills that did resolve — until that
-        //    decision is made (the conservative reading of strict mode; the
-        //    interactive resolution is a later slice).
+        //  - mode === 'auto': `mute`/`none` never inject (there is no `ask` mode).
+        //  - decision_packet_id === undefined: a recorded decision packet blocks
+        //    injection. A strict `auto` policy whose configured skill is
+        //    unavailable carries a `strict-skill-unavailable` packet; when one is
+        //    present we inject NOTHING — not even the skills that did resolve — and
+        //    the run still proceeds (the conservative reading of strict mode). The
+        //    packet is recorded onto the event for the trace; nothing interactive
+        //    consumes it yet, so the run does NOT pause or await an operator choice
+        //    (interactive resolution is a later slice).
         //  - triggered_skills non-empty: nothing to inject otherwise.
         if (
           event.policy.mode === 'auto' &&
@@ -1033,8 +1070,23 @@ async function executeExecutableFlowOutcomeUnsafe(
           context.skillHookInjections?.add(event.triggered_skills.map((skill) => skill.id));
         }
       }
-    } catch {
-      // Skill-hook dispatch is non-critical; swallow so it cannot break a run.
+    } catch (err) {
+      // Skill-hook dispatch is non-critical: a failure must never break a run.
+      // But it must not be silent either (the operator otherwise cannot tell
+      // "no hook matched" from "dispatch crashed"). Record a marker the operator
+      // summary surfaces as a `skill_hook_dispatch_failed` warning, mirroring how
+      // an HTML render failure surfaces. If recording the marker itself fails,
+      // stay silent rather than break the run.
+      try {
+        await trace.append({
+          run_id: runId,
+          kind: 'run.skill-hook-error',
+          step_id: step.id,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      } catch {
+        // Last-resort: never let observability break the run.
+      }
     }
 
     if (target.kind === 'terminal') {

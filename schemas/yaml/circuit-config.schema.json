@@ -913,9 +913,6 @@
                         "type": "string",
                         "pattern": "^[a-z][a-z0-9-]*$"
                       }
-                    },
-                    "require_known": {
-                      "type": "boolean"
                     }
                   },
                   "additionalProperties": false

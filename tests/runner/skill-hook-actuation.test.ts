@@ -1,11 +1,16 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
 
 import type { ClaudeCodeRelayInput } from '../../src/connectors/claude-code.js';
-import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
+import { fromCompiledFlow } from '../../src/runtime/manifest/from-compiled-flow.js';
+import {
+  parseCompiledFlowBytes,
+  runCompiledFlow,
+} from '../../src/runtime/run/compiled-flow-runner.js';
+import { executeExecutableFlowOutcome } from '../../src/runtime/run/graph-runner.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { Config } from '../../src/schemas/config.js';
 import type { LayeredConfig } from '../../src/schemas/config.js';
@@ -13,7 +18,9 @@ import {
   PolicyLayer,
   type PolicyLayer as PolicyLayerValue,
 } from '../../src/schemas/policy-envelope.js';
+import { RunResult } from '../../src/schemas/result.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
+import { writeOperatorSummary } from '../../src/shared/operator-summary-writer.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
 // Slice 3 (the actuator): an `auto` skill-hook policy injects its resolved
@@ -567,6 +574,127 @@ describe('Skill-hook actuation (role separation — no cross-role leak)', () => 
           );
       expect(loadedFor('act-step')).toContain('tdd');
       expect(loadedFor('review-step')).not.toContain('tdd');
+    },
+    TIMEOUT_MS,
+  );
+});
+
+describe('Skill-hook actuation (operator summary disclosure)', () => {
+  it(
+    'discloses the injected skill, its hook, and provenance in the operator summary',
+    async () => {
+      // End-to-end: a real Build run injects tdd via before:edit-files:.ts, then
+      // the operator-summary writer must surface that the hook fired, what it
+      // injected, and which policy authorized it — not leave it buried in the trace.
+      writeSkill('tdd', TDD_BODY);
+      const runFolder = join(runFolderBase, 'summary-disclosure');
+      const captured = { analyze: [] as string[], act: [] as string[], review: [] as string[] };
+      await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: fixtureBytes(),
+        runId: 'b1000000-0000-0000-0000-000000000009',
+        goal: 'Add a tiny Build feature',
+        depth: 'standard',
+        now: deterministicNow(Date.UTC(2026, 5, 4, 4, 0, 0)),
+        relayer: roleCapturingRelayer(captured),
+        projectRoot: passingProjectRoot(),
+        selectionConfigLayers: [
+          projectPolicyLayer({ 'before:edit-files:.ts': { mode: 'auto', skills: ['tdd'] } }),
+        ],
+      });
+
+      const runResult = RunResult.parse(
+        JSON.parse(readFileSync(join(runFolder, 'reports', 'result.json'), 'utf8')),
+      );
+      const written = writeOperatorSummary({
+        runFolder,
+        runResult,
+        route: { selectedFlow: 'build' },
+      });
+
+      const activations = written.summary.skill_hook_activations ?? [];
+      const before = activations.find((entry) => entry.hook === 'before:edit-files:.ts');
+      expect(before).toBeDefined();
+      expect(before?.injected_skills).toContain('tdd');
+      expect(before?.source).toBe('project-policy');
+      expect(before?.policy_ref).toBe('.circuit/config.yaml');
+
+      const markdown = readFileSync(written.markdownPath, 'utf8');
+      expect(markdown).toContain('Skill hooks:');
+      expect(markdown).toContain('`before:edit-files:.ts` injected tdd');
+    },
+    TIMEOUT_MS,
+  );
+});
+
+describe('Skill-hook actuation (checkpoint resume re-seeds injections, D5)', () => {
+  it(
+    're-seeds an injected skill from the trace so a resumed implementer step still loads it',
+    async () => {
+      // D5 sub-bug: on resume the injection channel is recreated EMPTY. An `auto`
+      // hook that fired before the resume point recorded its injection durably in
+      // the trace, but without re-seeding, the resumed implementer step would run
+      // WITHOUT that skill — a silent divergence from a single-process run. This
+      // reproduces it: process 1 injects tdd via before:edit-files:.ts; we then
+      // truncate the trace to just after the injection (dropping the act/verify/
+      // review/close tail) and resume at act-step. With the fix the channel is
+      // re-seeded from the recorded run.skill-hook event, so the resumed act prompt
+      // still carries tdd. Without the fix this assertion fails (channel empty,
+      // plan-step is not re-executed, so nothing re-injects).
+      writeSkill('tdd', TDD_BODY);
+      const folderA = join(runFolderBase, 'resume-seed-process1');
+      await runCompiledFlow({
+        runDir: folderA,
+        flowBytes: fixtureBytes(),
+        runId: 'b1000000-0000-0000-0000-000000000010',
+        goal: 'Add a tiny Build feature',
+        depth: 'standard',
+        now: deterministicNow(Date.UTC(2026, 5, 4, 5, 0, 0)),
+        relayer: surfaceRelayer({ extensions: ['.ts'], onActPrompt: () => {} }),
+        projectRoot: passingProjectRoot(),
+        selectionConfigLayers: [
+          projectPolicyLayer({ 'before:edit-files:.ts': { mode: 'auto', skills: ['tdd'] } }),
+        ],
+      });
+
+      // Copy to a fresh folder and truncate the trace to just after the recorded
+      // before:edit-files injection (so act-step has not yet completed and resumes
+      // cleanly). The reports the act relay reads stay intact in the copy.
+      const folderB = join(runFolderBase, 'resume-seed-process2');
+      cpSync(folderA, folderB, { recursive: true });
+      const tracePath = join(folderB, 'trace.ndjson');
+      const lines = readFileSync(tracePath, 'utf8')
+        .split(/\r?\n/)
+        .filter((line) => line.length > 0);
+      const cut = lines.findIndex((line) => {
+        const parsed = JSON.parse(line) as { kind?: string; event?: { hook?: string } };
+        return parsed.kind === 'run.skill-hook' && parsed.event?.hook === 'before:edit-files:.ts';
+      });
+      expect(cut).toBeGreaterThan(-1);
+      writeFileSync(tracePath, `${lines.slice(0, cut + 1).join('\n')}\n`, 'utf8');
+
+      // Resume at act-step via the resume-capable graph entry (runCompiledFlow is
+      // the fresh-run baseline and rejects a non-empty dir; resume re-enters the
+      // executable directly, the same path the checkpoint-resume API uses).
+      const actPrompts: string[] = [];
+      const executable = fromCompiledFlow(parseCompiledFlowBytes(fixtureBytes()));
+      const outcome = await executeExecutableFlowOutcome(executable, {
+        runDir: folderB,
+        runId: 'b1000000-0000-0000-0000-000000000010',
+        goal: 'Add a tiny Build feature',
+        depth: 'standard',
+        now: deterministicNow(Date.UTC(2026, 5, 4, 5, 5, 0)),
+        relayer: surfaceRelayer({ extensions: ['.ts'], onActPrompt: (p) => actPrompts.push(p) }),
+        projectRoot: passingProjectRoot(),
+        selectionConfigLayers: [
+          projectPolicyLayer({ 'before:edit-files:.ts': { mode: 'auto', skills: ['tdd'] } }),
+        ],
+        resumeCheckpoint: { stepId: 'act-step', attempt: 1, selection: 'continue' },
+      });
+
+      expect(outcome.kind).not.toBe('rejected');
+      expect(actPrompts.length).toBeGreaterThan(0);
+      expect(actPrompts.some((prompt) => prompt.includes(TDD_BODY))).toBe(true);
     },
     TIMEOUT_MS,
   );

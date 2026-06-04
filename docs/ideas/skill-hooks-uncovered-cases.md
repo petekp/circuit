@@ -69,6 +69,64 @@ refuted list, item R1.)
 
 ---
 
+## Dispositions (2026-06-04 implementation slice)
+
+A focused slice resolved the legibility/correctness cluster. Each finding's
+disposition below; detailed `**Resolution**` notes are inline on the resolved
+findings.
+
+**Resolved (with evidence):**
+
+- **A1, A2, A3** — The operator summary now carries `skill_hook_activations`:
+  every fired hook, the skill it injected, that skill's provenance (hook +
+  `policy_ref`/source), and any configured-but-unavailable skill. Proven in
+  `tests/runner/operator-summary-writer.test.ts` and an end-to-end actuation run.
+- **A4** — Docs reconciled: `docs/configuration.md` shows only fireable hooks and
+  marks the lifecycle family reserved; the stale `moments:` key is gone from
+  `docs/yaml-validation.md`; the false "awaits an operator choice" comment at
+  `graph-runner.ts` is corrected.
+- **A8** — A dispatch crash is recorded as a `run.skill-hook-error` trace entry
+  and surfaced as a `skill_hook_dispatch_failed` evidence warning (mirrors
+  `html_render_failed`), no longer swallowed silently.
+- **C1, C2, C5** — Flat-home-dir-only reach boundary documented + unavailable
+  signal (A3) + registry boundary tests.
+- **D5** — Live sub-bug fixed: the injection channel is re-seeded from recorded
+  `run.skill-hook` events on resume.
+- **E1** — Dead `require_known` removed.
+
+**Accepted as recorded limitations (no change this slice, outside the deferred set):**
+
+- **A7** — Persistent-injection legibility is improved by the new disclosure (the
+  operator now sees what is injected); a cumulative "still active N steps later"
+  view is a low-value follow-up.
+- **C4** — Fanout-branch detection blindness is structural: dispatch runs only at
+  the top-level step loop and branch checks/gaps live in branch-local files.
+  Branch-trace propagation is a larger change.
+- **D2** — `before:edit-files` injecting on an advisory prediction without a
+  planned-vs-actual reconciliation is accepted v1 behavior; a reconciliation
+  guard is a follow-up.
+- **D3** — Slice-scope over-injection is low impact (advisory body; Build relay
+  hints already scope work to the current slice).
+- **D4** — The `after:verification-failed` loop is bounded by the recovery
+  `max_attempts` budget; a hook-level circuit breaker is a follow-up.
+- **E4** — `detection.disabled_patterns` has no runtime readers, but it is not
+  advertised in any operator doc and has a working equivalent (`mode: mute`).
+  Left in place because removing it is a *subtractive* change to the shipped
+  `skill_hooks` config surface (unlike `require_known`, a PolicyEnvelope field);
+  recorded as a known no-op rather than churned this slice.
+- **F1** — Claude's native description-trigger lives in the orchestrator session
+  outside Circuit's connector subprocess; Circuit cannot suppress it. Host-level
+  limitation.
+- **F2** — Forward-looking: a third host inherits injection only via the existing
+  subprocess connectors; no host-package extension point is needed until then.
+
+**Deferred (out of this slice's scope per the work Goal; each remains a named
+future arm above):** B1-B5 (inject-is-not-run), A5/A6 (discovery & dry-run CLI),
+C3/C6 (lifecycle family + recovery after-arm), D1 (cardinality enforcement), D6
+(per-flow/stage policy scoping), E2/E3 (skill sha/version pinning).
+
+---
+
 ## Confirmed uncovered cases
 
 ### Group A — Observability and discoverability
@@ -96,6 +154,11 @@ same problem: the operator has no window into the feature.
 - **Fix direction:** Add an injected-skills disclosure line to the operator
   summary, mirroring the existing `Worker access:` line. Smallest high-leverage
   change in this note.
+- **Resolution (2026-06-04):** Done as a structured field, `skill_hook_activations`
+  on the operator summary (mirroring `auto_resolutions` rather than a single
+  details line, so it carries full per-hook provenance and renders as its own
+  "Skill hooks" section). Read from the `run.skill-hook` trace events by
+  `readSkillHookSummary` in `src/shared/operator-summary-writer.ts`.
 
 #### A2. `skills.loaded` cannot distinguish an injected skill from a declared one
 - **Severity:** medium. **Status:** new.
@@ -116,6 +179,12 @@ same problem: the operator has no window into the feature.
   `src/runtime/executors/relay.ts:525-533` (emits id/slot/path/sha256/bytes
   only), `src/shared/skill-loading.ts:93-99` (injected appended slot-less),
   `src/runtime/run/relay-guidance.ts:388-389`.
+- **Resolution (2026-06-04):** The operator can now distinguish injected skills
+  from declared ones at the run-summary level: each `skill_hook_activations` entry
+  names the hook, the injected skill id, and the authorizing `policy_ref`/source.
+  This resolves the operator-facing legibility gap. The lower-level
+  `LoadedSkillEvidence` per-step join (adding an origin field to `skills.loaded`)
+  is not needed for that and is left unchanged.
 
 #### A3. A mistyped or unavailable skill fails silently by default
 - **Severity:** medium. **Status:** new.
@@ -132,6 +201,11 @@ same problem: the operator has no window into the feature.
 - **Evidence:** `src/skill-hooks/policy.ts:129-132`, `:118-126`,
   `src/schemas/skill-hook.ts:155` (strict defaults false), `:276`
   (`unavailable_skills` optional on the event).
+- **Resolution (2026-06-04):** A non-strict hook whose skill is unavailable is no
+  longer silent: the operator summary lists it under
+  `skill_hook_activations[].unavailable_skills` (id + first-line reason), so a
+  dead hook is visible without reading the trace. Proven by the A3 case in
+  `tests/runner/operator-summary-writer.test.ts`.
 
 #### A4. Both worked config examples point at hooks or flows that never fire
 - **Severity:** medium. **Status:** new (the inert state of the lifecycle family
@@ -156,6 +230,14 @@ same problem: the operator has no window into the feature.
   (stale repeat).
 - **Fix direction:** Reconcile the docs. Lowest-cost, highest-embarrassment-
   avoidance item in this note.
+- **Resolution (2026-06-04):** `docs/configuration.md` now has a "Hooks that fire
+  today" table (edit-files on Fix `after` / Build `before`; verification hooks on
+  Build/Fix) and a "Reserved hooks (not firing yet)" subsection naming the inert
+  lifecycle family. The flagship example uses a fireable `after:edit-files:.tsx`
+  rule annotated as Fix-only, and the `mute` example uses the fireable
+  `after:verification-failed`. The stale `moments:` key in
+  `docs/yaml-validation.md` is now `skill_hooks:`, and the false
+  "awaits an operator choice" comment at `graph-runner.ts` is corrected.
 
 #### A5. No CLI surface to discover skill ids or hook names
 - **Severity:** medium. **Status:** new.
@@ -216,6 +298,11 @@ same problem: the operator has no window into the feature.
 - **Evidence:** `src/runtime/run/graph-runner.ts:998-1038` (empty catch),
   contrast `src/shared/operator-summary-writer.ts:341-345,447-450`,
   `src/skill-hooks/dispatch.ts:182-186` (inner per-report swallow).
+- **Resolution (2026-06-04):** The empty catch now records a
+  `run.skill-hook-error` trace entry (best-effort, never breaks the run); the
+  operator-summary writer reads it and emits a `skill_hook_dispatch_failed`
+  evidence warning, exactly the `html_render_failed` pattern this finding cites.
+  Proven by the A8 case in `tests/runner/operator-summary-writer.test.ts`.
 
 ### Group B — Injecting a skill is not running a skill
 
@@ -329,6 +416,17 @@ and nothing today expresses or enforces that distinction.
   `src/runtime/run/graph-runner.ts:588`. Live subset note: flat-named plugin
   skills (skill-creator, vercel-firewall) pass the slug regex but still cannot
   resolve; `plugin:skill`-form ids are rejected even earlier at config-parse.
+- **Resolution (2026-06-04):** Kept the flat-home-dir-only boundary; did **not**
+  widen discovery this slice. Widening would require relaxing the flat `SkillId`
+  to admit namespaced ids and walking host-specific plugin caches — a large,
+  hard-to-revert change to the trust model. Instead: (a) the boundary is
+  documented in `docs/configuration.md` (Local Skills) — Circuit discovers only
+  flat `<root>/<id>/SKILL.md`, plugin/marketplace/namespaced skills are not
+  discoverable; (b) a policy naming an unresolvable skill now produces a surfaced
+  signal — the operator summary discloses it under
+  `skill_hook_activations[].unavailable_skills` (see A3). Boundary locked by two
+  new tests in `tests/runner/user-skill-registry.test.ts` (nested and namespaced
+  directories are not discovered).
 
 #### C2. Codex's own home (`~/.codex/skills`) is never searched
 - **Severity:** low. **Status:** new (documented intended limitation with a
@@ -346,6 +444,11 @@ and nothing today expresses or enforces that distinction.
   `plugins/codex/runtime/circuit.js:44782-44783`. Documented answer: contract
   SKILL-I8 (`docs/contracts/skill.md:148-154`) makes `~/.agents/skills` the
   host-neutral primary, so "put skills there" works on both hosts.
+- **Resolution (2026-06-04):** Documented, no code change. `docs/configuration.md`
+  (Local Skills) now states `~/.agents/skills` is host-neutral and searched under
+  both Claude Code and Codex, so an operator running under Codex keeps shared
+  skills there. This is the documented intended limitation, consistent with
+  SKILL-I8.
 
 #### C3. Seven of eleven hooks can never fire (the `before:*` lifecycle family)
 - **Severity:** low. **Status:** named deferral.
@@ -400,6 +503,14 @@ and nothing today expresses or enforces that distinction.
 - **Evidence:** `src/skill-hooks/dispatch.ts:132,149-152,178-179`,
   `src/skill-hooks/surface-sources.ts:17-25,54-73`, `src/schemas/skill-hook.ts:98`,
   `src/flows/pursue/schematic.json:155-156`, `src/flows/prototype/schematic.json:139-140,224-225`.
+- **Resolution (2026-06-04):** Boundary documented; no behavior change this slice.
+  `docs/configuration.md` now shows a "Hooks that fire today" table (edit-files
+  fires on Fix `after` / Build `before`; verification hooks on Build/Fix) so the
+  reachable flow/timing surface is explicit. The operation-kind blindness
+  (delete vs edit, rename, generated output) and extensionless-file targeting
+  stay an accepted v1 limitation: the predicate is a lexical extension suffix by
+  design. The flow-coverage half (relay self-report arm for Pursue/Prototype/
+  goal/review/runtime-proof) remains a named deferral.
 
 #### C6. `after:edit-files` is structurally blind to Build recovery-retry edits
 - **Severity:** low. **Status:** named deferral (with a recovery-specific framing
@@ -522,6 +633,17 @@ and nothing today expresses or enforces that distinction.
 - **Evidence:** `src/runtime/executors/relay.ts:291-339`,
   `src/runtime/run/relay-guidance.ts:388-403`,
   `src/runtime/run/graph-runner.ts:584-588,431-440`, `src/schemas/manifest.ts:64`.
+- **Resolution (2026-06-04, live sub-bug fixed):** The graph-runner now re-seeds
+  the injection channel from the recorded `run.skill-hook` events on resume
+  (`seedSkillHookInjectionsFromTrace`, applied when `isResume`), mirroring the
+  live actuator gate (auto + no decision packet + non-empty). A resumed
+  implementer step now loads the same injected skills a single-process run would.
+  Reproduced by `tests/runner/skill-hook-actuation.test.ts` ("re-seeds an
+  injected skill from the trace ...") — the test fails without the seed and
+  passes with it. The broader (manifest, goal) replay-purity concern stays a
+  recorded deferral: `manifest_hash` still does not cover the `skill_hooks`
+  config or installed-skills set, which is a larger replay-model change out of
+  this slice's scope.
 
 #### D6. Policy cannot be scoped per flow or per stage
 - **Severity:** medium. **Status:** new.
@@ -558,6 +680,14 @@ The deny path works (see refuted R10). These are the allow and verify paths.
   there is no allowlist field anywhere to check against.
 - **Evidence:** `src/policy/policy-envelope.ts:138,167,194`,
   `src/runtime/run/relay-guidance.ts:215-220`, `src/schemas/policy-envelope.ts:113,392`.
+- **Resolution (2026-06-04, removed):** Fully removed. `require_known` had no
+  allowlist to check against, so "enforcement" would have meant inventing a new
+  known-skills allowlist feature — out of scope, and a knob that silently does
+  nothing is the betrayal the finding names. Dropped the field from both
+  `SkillRules` and `ComposedPolicyHardConstraints` and deleted `composeRequireKnown`
+  and its fold in `src/policy/policy-envelope.ts`. The protective control stays
+  the working `skills.deny` path (R10). Host bundles and the generated YAML
+  config schema were re-emitted so the field is gone everywhere.
 
 #### E2. Skill-body `sha256` is recorded but never pinned or verified
 - **Severity:** medium. **Status:** new.

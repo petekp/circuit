@@ -64,6 +64,33 @@ export const OperatorAutoResolution = z
   .strict();
 export type OperatorAutoResolution = z.infer<typeof OperatorAutoResolution>;
 
+// A digest of one skill-hook activation for the operator summary. Derived from
+// the run's `run.skill-hook` trace events so the operator can see, without
+// reading the raw trace, which hook fired, what it injected, where the rule that
+// authorized it lives (provenance), and any configured skill that could not be
+// found. `injected_skills` are the ids actually merged into the implementer
+// worker; `withheld_skills` resolved but were held back by a pending strict-mode
+// decision; `unavailable_skills` were named by the policy but did not resolve.
+export const OperatorSkillHookActivation = z
+  .object({
+    hook: z.string().min(1),
+    mode: z.enum(['auto', 'mute']),
+    source: z.enum(['project-policy', 'user-global-policy', 'default-mapping']),
+    policy_ref: z.string().min(1).optional(),
+    injected_skills: z.array(z.string().min(1)),
+    withheld_skills: z.array(z.string().min(1)),
+    unavailable_skills: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          reason: z.string().min(1).optional(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type OperatorSkillHookActivation = z.infer<typeof OperatorSkillHookActivation>;
+
 export const OperatorSummary = z
   .object({
     schema_version: z.literal(1),
@@ -83,6 +110,7 @@ export const OperatorSummary = z
     html_path: z.string().min(1).optional(),
     report_paths: z.array(OperatorSummaryReportLink),
     auto_resolutions: z.array(OperatorAutoResolution).optional(),
+    skill_hook_activations: z.array(OperatorSkillHookActivation).optional(),
     checkpoint: z
       .object({
         step_id: z.string().min(1),

@@ -110,7 +110,6 @@ export type WriteRules = z.infer<typeof WriteRules>;
 const SkillRules = z
   .object({
     deny: z.array(SkillId).default([]),
-    require_known: z.boolean().optional(),
   })
   .strict();
 export type SkillRules = z.infer<typeof SkillRules>;
@@ -389,7 +388,6 @@ export const ComposedPolicyHardConstraints = z
     skills: z
       .object({
         deny: z.array(SkillId),
-        require_known: z.boolean().optional(),
       })
       .strict(),
     proof: z

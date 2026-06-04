@@ -35572,6 +35572,11 @@ var RunSkillHookTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("run.skill-hook"),
   event: RunSkillHookEvent
 }).strict();
+var RunSkillHookErrorTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.skill-hook-error"),
+  step_id: StepId.optional(),
+  message: external_exports.string().min(1)
+}).strict();
 var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunBootstrappedTraceEntry,
   StepEnteredTraceEntry,
@@ -35599,6 +35604,7 @@ var TraceEntry = external_exports.discriminatedUnion("kind", [
   StepAbortedTraceEntry,
   RunClosedTraceEntry,
   RunSkillHookTraceEntry,
+  RunSkillHookErrorTraceEntry,
   GuidanceDecisionTraceEntryBody
 ]).superRefine((ev, ctx) => {
   if (ev.kind === "guidance.decision") {
@@ -42354,8 +42360,7 @@ var WriteRules = external_exports.object({
   require_checkpoint_globs: external_exports.array(external_exports.string().min(1)).default([])
 }).strict();
 var SkillRules = external_exports.object({
-  deny: external_exports.array(SkillId).default([]),
-  require_known: external_exports.boolean().optional()
+  deny: external_exports.array(SkillId).default([])
 }).strict();
 var ProofRules = external_exports.object({
   require_independent_review_for: external_exports.array(external_exports.string().min(1)).default([])
@@ -42522,8 +42527,7 @@ var ComposedPolicyHardConstraints = external_exports.object({
     require_checkpoint_globs: external_exports.array(external_exports.string().min(1))
   }).strict(),
   skills: external_exports.object({
-    deny: external_exports.array(SkillId),
-    require_known: external_exports.boolean().optional()
+    deny: external_exports.array(SkillId)
   }).strict(),
   proof: external_exports.object({
     require_independent_review_for: external_exports.array(external_exports.string().min(1))
@@ -42589,11 +42593,6 @@ function composeAutoApply(current, next) {
     return false;
   return true;
 }
-function composeRequireKnown(current, next) {
-  if (next === void 0)
-    return current;
-  return current === true || next === true;
-}
 function connectorRefFromDefault(value) {
   if (value === "auto")
     return "auto";
@@ -42625,7 +42624,6 @@ function composePolicyHardConstraints(envelopes) {
   let autoApply;
   const checkpointGlobs = /* @__PURE__ */ new Set();
   const deniedSkills = /* @__PURE__ */ new Set();
-  let requireKnown;
   const independentReviewFor = /* @__PURE__ */ new Set();
   let maxAttempts;
   let maxWallClockMs;
@@ -42648,7 +42646,6 @@ function composePolicyHardConstraints(envelopes) {
     autoApply = composeAutoApply(autoApply, rules.writes.auto_apply);
     unionInto(checkpointGlobs, rules.writes.require_checkpoint_globs);
     unionInto(deniedSkills, rules.skills.deny);
-    requireKnown = composeRequireKnown(requireKnown, rules.skills.require_known);
     unionInto(independentReviewFor, rules.proof.require_independent_review_for);
     maxAttempts = minNumber(maxAttempts, limits.max_attempts_per_step);
     maxWallClockMs = minNumber(maxWallClockMs, limits.max_wall_clock_ms);
@@ -42670,8 +42667,7 @@ function composePolicyHardConstraints(envelopes) {
       require_checkpoint_globs: uniqueSorted(checkpointGlobs)
     },
     skills: {
-      deny: uniqueSorted(deniedSkills),
-      ...requireKnown !== void 0 ? { require_known: requireKnown } : {}
+      deny: uniqueSorted(deniedSkills)
     },
     proof: {
       require_independent_review_for: uniqueSorted(independentReviewFor)
@@ -47956,6 +47952,18 @@ var OperatorAutoResolution = external_exports.object({
   runtime_veto_effect: external_exports.string().min(1),
   resolved_at: external_exports.string().min(1)
 }).strict();
+var OperatorSkillHookActivation = external_exports.object({
+  hook: external_exports.string().min(1),
+  mode: external_exports.enum(["auto", "mute"]),
+  source: external_exports.enum(["project-policy", "user-global-policy", "default-mapping"]),
+  policy_ref: external_exports.string().min(1).optional(),
+  injected_skills: external_exports.array(external_exports.string().min(1)),
+  withheld_skills: external_exports.array(external_exports.string().min(1)),
+  unavailable_skills: external_exports.array(external_exports.object({
+    id: external_exports.string().min(1),
+    reason: external_exports.string().min(1).optional()
+  }).strict())
+}).strict();
 var OperatorSummary = external_exports.object({
   schema_version: external_exports.literal(1),
   run_id: RunId,
@@ -47974,6 +47982,7 @@ var OperatorSummary = external_exports.object({
   html_path: external_exports.string().min(1).optional(),
   report_paths: external_exports.array(OperatorSummaryReportLink),
   auto_resolutions: external_exports.array(OperatorAutoResolution).optional(),
+  skill_hook_activations: external_exports.array(OperatorSkillHookActivation).optional(),
   checkpoint: external_exports.object({
     step_id: external_exports.string().min(1),
     request_path: external_exports.string().min(1),
@@ -53907,6 +53916,18 @@ function bootstrapChangeKind(input) {
   }
   return standardChangeKindDeclaration(defaultKind);
 }
+function seedSkillHookInjectionsFromTrace(entries, channel) {
+  if (channel === void 0)
+    return;
+  for (const entry of entries) {
+    if (entry.kind !== "run.skill-hook")
+      continue;
+    const event = entry.event;
+    if (event.policy.mode === "auto" && event.decision_packet_id === void 0 && event.triggered_skills.length > 0) {
+      channel.add(event.triggered_skills.map((skill) => skill.id));
+    }
+  }
+}
 function completedStepCountsFromTrace(entries, corridor) {
   const counts = /* @__PURE__ */ new Map();
   for (const entry of entries) {
@@ -54106,6 +54127,9 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     }
   });
   const completedStepCounts = isResume ? completedStepCountsFromTrace(existingTrace, sliceCorridor) : /* @__PURE__ */ new Map();
+  if (isResume) {
+    seedSkillHookInjectionsFromTrace(existingTrace, context.skillHookInjections);
+  }
   const defaultMaxSteps = Math.max(flow.steps.length * 4, 8);
   const maxSteps = options.maxSteps ?? (sliceFlag !== void 0 && sliceCorridor.isActive() ? defaultMaxSteps + sliceFlag.maxSlices * 6 : defaultMaxSteps);
   const bootstrapRecordedAt = context.now().toISOString();
@@ -54386,7 +54410,16 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
           context.skillHookInjections?.add(event.triggered_skills.map((skill) => skill.id));
         }
       }
-    } catch {
+    } catch (err) {
+      try {
+        await trace.append({
+          run_id: runId,
+          kind: "run.skill-hook-error",
+          step_id: step.id,
+          message: err instanceof Error ? err.message : String(err)
+        });
+      } catch {
+      }
     }
     if (target.kind === "terminal") {
       return await closeRun(context, outcomeForTerminal(target.target), target.target);
@@ -58127,12 +58160,12 @@ function flowSummaryDetail(flowReport) {
   return summary === void 0 ? void 0 : `Result: ${friendlyResultSummary(summary)}`;
 }
 function firstLineSummary(text, max) {
-  const firstLine = (text.split(/\r?\n/, 1)[0] ?? "").replace(/^[\s>#*\-`|]+/, "").trim();
-  if (firstLine.length === 0)
+  const firstLine2 = (text.split(/\r?\n/, 1)[0] ?? "").replace(/^[\s>#*\-`|]+/, "").trim();
+  if (firstLine2.length === 0)
     return "(no text)";
-  if (firstLine.length <= max)
-    return firstLine;
-  return `${firstLine.slice(0, Math.max(1, max - 1))}\u2026`;
+  if (firstLine2.length <= max)
+    return firstLine2;
+  return `${firstLine2.slice(0, Math.max(1, max - 1))}\u2026`;
 }
 function reviewFindingDetails(report) {
   const findings = arrayField(report, "findings");
@@ -58856,6 +58889,94 @@ function readAutoResolutions(runFolder) {
   }
   return records;
 }
+function firstLine(text) {
+  const head = text.split(/\r?\n/)[0]?.trim() ?? "";
+  return head.length > 0 ? head : text.trim();
+}
+function skillHookSourceLabel(source) {
+  switch (source) {
+    case "project-policy":
+      return "project policy";
+    case "user-global-policy":
+      return "user-global policy";
+    case "default-mapping":
+      return "default mapping";
+  }
+}
+function readSkillHookSummary(runFolder) {
+  const tracePath = join19(runFolder, "trace.ndjson");
+  if (!existsSync22(tracePath))
+    return { activations: [], warnings: [] };
+  const seen = /* @__PURE__ */ new Set();
+  const activations = [];
+  const warnings = [];
+  for (const line of readFileSync33(tracePath, "utf8").split(/\r?\n/)) {
+    if (line.trim().length === 0)
+      continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObject4(entry))
+      continue;
+    if (entry.kind === "run.skill-hook-error") {
+      const message = stringField2(entry, "message");
+      if (message !== void 0) {
+        warnings.push({ kind: "skill_hook_dispatch_failed", message: firstLine(message) });
+      }
+      continue;
+    }
+    if (entry.kind !== "run.skill-hook")
+      continue;
+    const parsed = RunSkillHookEvent.safeParse(entry.event);
+    if (!parsed.success)
+      continue;
+    const event = parsed.data;
+    if (event.policy.mode === "none")
+      continue;
+    const blocked = event.decision_packet_id !== void 0;
+    const triggered = event.triggered_skills.map((skill) => skill.id);
+    const activation = OperatorSkillHookActivation.parse({
+      hook: event.hook,
+      mode: event.policy.mode,
+      source: event.policy.source,
+      ...event.policy.policy_ref === void 0 ? {} : { policy_ref: event.policy.policy_ref },
+      injected_skills: event.policy.mode === "auto" && !blocked ? triggered : [],
+      withheld_skills: event.policy.mode === "auto" && blocked ? triggered : [],
+      unavailable_skills: (event.unavailable_skills ?? []).map((skill) => ({
+        id: skill.id,
+        ...skill.reason === void 0 ? {} : { reason: firstLine(skill.reason) }
+      }))
+    });
+    const key = JSON.stringify(activation);
+    if (seen.has(key))
+      continue;
+    seen.add(key);
+    activations.push(activation);
+  }
+  return { activations, warnings };
+}
+function skillHookActivationLine(activation) {
+  const provenance = activation.policy_ref ?? skillHookSourceLabel(activation.source);
+  if (activation.mode === "mute") {
+    return `\`${activation.hook}\` fired (muted; nothing injected) \u2014 ${provenance}`;
+  }
+  const parts = [];
+  if (activation.injected_skills.length > 0) {
+    parts.push(`injected ${activation.injected_skills.join(", ")}`);
+  }
+  if (activation.withheld_skills.length > 0) {
+    parts.push(`withheld ${activation.withheld_skills.join(", ")} pending a strict-mode decision`);
+  }
+  for (const unavailable of activation.unavailable_skills) {
+    parts.push(unavailable.reason === void 0 ? `could not load ${unavailable.id}` : `could not load ${unavailable.id} (${unavailable.reason})`);
+  }
+  if (parts.length === 0)
+    parts.push("matched but injected nothing");
+  return `\`${activation.hook}\` ${parts.join("; ")} \u2014 ${provenance}`;
+}
 function formatScore2(value) {
   if (value === null || value === void 0)
     return "n/a";
@@ -58903,6 +59024,12 @@ function renderMarkdown(summary) {
         lines2.push(`- ${autoResolutionSummaryLine(resolution)}`);
       }
     }
+    if (summary.skill_hook_activations !== void 0 && summary.skill_hook_activations.length > 0) {
+      lines2.push("", "Skill hooks:");
+      for (const activation of summary.skill_hook_activations) {
+        lines2.push(`- ${skillHookActivationLine(activation)}`);
+      }
+    }
     if (summary.html_path !== void 0) {
       lines2.push("", `Rich summary: ${summary.html_path}`);
     }
@@ -58920,6 +59047,12 @@ function renderMarkdown(summary) {
     lines.push("", "## Auto-resolutions", "");
     for (const resolution of summary.auto_resolutions) {
       lines.push(`- ${autoResolutionSummaryLine(resolution)}`);
+    }
+  }
+  if (summary.skill_hook_activations !== void 0 && summary.skill_hook_activations.length > 0) {
+    lines.push("", "## Skill hooks", "");
+    for (const activation of summary.skill_hook_activations) {
+      lines.push(`- ${skillHookActivationLine(activation)}`);
     }
   }
   const visibleDetails = summary.details.filter((detail) => !detail.startsWith("Run note:"));
@@ -58948,6 +59081,7 @@ function writeOperatorSummary(input) {
   const resultRelPath = RUN_RESULT_RELATIVE_PATH;
   const resultPath2 = input.runResult.outcome === "checkpoint_waiting" ? void 0 : resolveRunRelative(input.runFolder, resultRelPath);
   const autoResolutions = readAutoResolutions(input.runFolder);
+  const skillHookSummary = readSkillHookSummary(input.runFolder);
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
   mkdirSync5(dirname7(outJsonPath), { recursive: true });
@@ -59040,7 +59174,8 @@ function writeOperatorSummary(input) {
   }
   const warnings = [
     ...warningRecords(flowReport),
-    ...htmlEmitWarning === void 0 ? [] : [htmlEmitWarning]
+    ...htmlEmitWarning === void 0 ? [] : [htmlEmitWarning],
+    ...skillHookSummary.warnings
   ];
   const briefSlots = buildBriefSlots({
     runFolder: input.runFolder,
@@ -59069,6 +59204,7 @@ function writeOperatorSummary(input) {
     ...outHtmlPath === void 0 ? {} : { html_path: outHtmlPath },
     report_paths: reportPaths,
     ...autoResolutions.length === 0 ? {} : { auto_resolutions: autoResolutions },
+    ...skillHookSummary.activations.length === 0 ? {} : { skill_hook_activations: skillHookSummary.activations },
     ...input.runResult.outcome === "checkpoint_waiting" ? { checkpoint: input.runResult.checkpoint } : {}
   });
   writeFileSync5(outJsonPath, `${JSON.stringify(candidate, null, 2)}

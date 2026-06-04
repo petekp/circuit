@@ -534,6 +534,18 @@ export const RunSkillHookTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type RunSkillHookTraceEntry = z.infer<typeof RunSkillHookTraceEntry>;
 
+// Skill-hook dispatch is best-effort: a crash in the post-step dispatcher must
+// never break a run, but it must not be invisible either. When the dispatcher
+// throws, the graph-runner records this marker so the operator summary can
+// surface a `skill_hook_dispatch_failed` warning instead of swallowing the
+// failure whole (mirrors how an HTML render failure surfaces as a warning).
+export const RunSkillHookErrorTraceEntry = TraceEntryBase.extend({
+  kind: z.literal('run.skill-hook-error'),
+  step_id: StepId.optional(),
+  message: z.string().min(1),
+}).strict();
+export type RunSkillHookErrorTraceEntry = z.infer<typeof RunSkillHookErrorTraceEntry>;
+
 // Cross-variant superRefine enforces the
 // `RelayStartedTraceEntry.role === resolved_from.role` binding when
 // `resolved_from.source === 'role'`. Mirrors the Step pattern: keep each
@@ -567,6 +579,7 @@ export const TraceEntry = z
     StepAbortedTraceEntry,
     RunClosedTraceEntry,
     RunSkillHookTraceEntry,
+    RunSkillHookErrorTraceEntry,
     GuidanceDecisionTraceEntryBody,
   ])
   .superRefine((ev, ctx) => {

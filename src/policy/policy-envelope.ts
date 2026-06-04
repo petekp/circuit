@@ -89,14 +89,6 @@ function composeAutoApply(
   return true;
 }
 
-function composeRequireKnown(
-  current: boolean | undefined,
-  next: boolean | undefined,
-): boolean | undefined {
-  if (next === undefined) return current;
-  return current === true || next === true;
-}
-
 function connectorRefFromDefault(
   value: Config['relay']['default'],
 ): PolicyConnectorReference | 'auto' {
@@ -135,7 +127,6 @@ export function composePolicyHardConstraints(
   let autoApply: boolean | undefined;
   const checkpointGlobs = new Set<string>();
   const deniedSkills = new Set<string>();
-  let requireKnown: boolean | undefined;
   const independentReviewFor = new Set<string>();
   let maxAttempts: number | undefined;
   let maxWallClockMs: number | undefined;
@@ -164,7 +155,6 @@ export function composePolicyHardConstraints(
     autoApply = composeAutoApply(autoApply, rules.writes.auto_apply);
     unionInto(checkpointGlobs, rules.writes.require_checkpoint_globs);
     unionInto(deniedSkills, rules.skills.deny);
-    requireKnown = composeRequireKnown(requireKnown, rules.skills.require_known);
     unionInto(independentReviewFor, rules.proof.require_independent_review_for);
 
     maxAttempts = minNumber(maxAttempts, limits.max_attempts_per_step);
@@ -191,7 +181,6 @@ export function composePolicyHardConstraints(
     },
     skills: {
       deny: uniqueSorted(deniedSkills),
-      ...(requireKnown !== undefined ? { require_known: requireKnown } : {}),
     },
     proof: {
       require_independent_review_for: uniqueSorted(independentReviewFor),
