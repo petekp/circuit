@@ -1,0 +1,488 @@
+{
+  "schema_version": 1,
+  "last_swept": "2026-06-04",
+  "note": "Idea docs are context, not canonical behavior. Check current code, contracts, tests, generated surfaces, and canonical docs before treating any entry as implementation truth.",
+  "status_values": [
+    "archived",
+    "current-comparison",
+    "current-gap-analysis",
+    "current-idea",
+    "current-proposal",
+    "current-strategy-context",
+    "design-evaluation",
+    "implemented",
+    "implemented-closed",
+    "implementation-spec",
+    "independent-review",
+    "partially-implemented",
+    "partially-implemented-research",
+    "pre-implementation",
+    "superseded"
+  ],
+  "categories": [
+    "flows-and-blocks",
+    "verification-and-evals",
+    "memory-and-ratchet",
+    "run-inspection-and-output",
+    "hosts-connectors-and-hitl",
+    "skill-hooks-and-expertise",
+    "strategy-and-comparisons",
+    "archived-or-superseded"
+  ],
+  "entries": [
+    {
+      "path": "docs/ideas/adversarial-verification-gates.md",
+      "title": "Adversarial verification gates and verify-then-escalate",
+      "status": "current-idea",
+      "category": "verification-and-evals",
+      "tags": ["verification", "adversarial-review", "fanout", "retries"],
+      "current_reading": "Independent refutation gate for model-judged claims plus verify-then-escalate retries. Companion to per-step validation.",
+      "related": ["docs/ideas/per-step-validation-check.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/align-flow.md",
+      "title": "Align flow - operator/model intent alignment",
+      "status": "current-idea",
+      "category": "flows-and-blocks",
+      "tags": ["align", "flow", "operator-intent"],
+      "current_reading": "Future flow sketch for establishing shared understanding between operator and model. No Align flow is registered today.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/architecture-hardening-plan-v2.md",
+      "title": "Circuit Architecture Hardening - Authoritative Plan (v2)",
+      "status": "implemented-closed",
+      "category": "strategy-and-comparisons",
+      "tags": ["architecture", "hardening", "roadmap", "closed-out"],
+      "current_reading": "Authoritative architecture-hardening plan with 2026-05-30 closeout. Use as historical implementation context, not an open idea queue.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/build-flow-evaluation.md",
+      "title": "Build flow: a best-practice evaluation",
+      "status": "design-evaluation",
+      "category": "verification-and-evals",
+      "tags": ["build", "evaluation", "best-practices"],
+      "current_reading": "Design evaluation of Build behavior and proposed changes. Its own status says nothing there is shipped.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/build-slice-decomposition.md",
+      "title": "Build slice decomposition + per-slice verify",
+      "status": "pre-implementation",
+      "category": "flows-and-blocks",
+      "tags": ["build", "slicing", "verification", "runtime-loop"],
+      "current_reading": "Pre-implementation design for sequential Build slices and per-slice verification. Check current Build runtime before using it as implementation truth.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/circuit-vs-compound-engineering.md",
+      "title": "Circuit vs. Compound Engineering - capability and synergy",
+      "status": "current-strategy-context",
+      "category": "strategy-and-comparisons",
+      "tags": ["compound-engineering", "strategy", "comparison"],
+      "current_reading": "Positioning context comparing Circuit with Every's Compound Engineering plugin. Useful for strategy, not implementation truth.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/doc-checkpoint-block.md",
+      "title": "Doc checkpoint block - let the operator mark up the agent's markdown",
+      "status": "current-idea",
+      "category": "flows-and-blocks",
+      "tags": ["checkpoint", "docs", "markdown", "operator-feedback"],
+      "current_reading": "Markdown-specific checkpoint block idea. Checkpoints exist, but this doc-review block is not a shipped flow block.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/dynamic-flow-ratchet.md",
+      "title": "Dynamic flow composition as a ratchet for coding agents",
+      "status": "current-idea",
+      "category": "flows-and-blocks",
+      "tags": ["dynamic-flows", "ratchet", "flow-composition"],
+      "current_reading": "Future-facing idea for runtime-generated flows and eventual crystallization into reusable structures. Dynamic composition is not shipped.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/dynamic-workflows-vs-circuit.md",
+      "title": "Circuit and host dynamic workflows",
+      "status": "current-comparison",
+      "category": "strategy-and-comparisons",
+      "tags": ["dynamic-workflows", "claude-code", "comparison", "host-backend"],
+      "current_reading": "Comparison with Claude Code's Workflow tool. Net-new path is a compile-to-host-Workflow backend; not current behavior.",
+      "related": ["docs/ideas/dynamic-flow-ratchet.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/effective-memory-program-review-codex.md",
+      "title": "Effective Memory Program Review",
+      "status": "independent-review",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "review", "soundness"],
+      "current_reading": "Independent review of the memory program. Use as critique and risk context, not as a separate implementation plan.",
+      "related": ["docs/ideas/effective-memory-program.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/effective-memory-program.md",
+      "title": "The Effective Memory Program",
+      "status": "partially-implemented",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "ratchet", "history", "project-facts"],
+      "current_reading": "Memory substrate, pull surface, recall precision, failure legibility, and local project facts exist; automatic lesson capture and measured value claims remain open.",
+      "related": [
+        "docs/ideas/self-auditing-memory.md",
+        "docs/ideas/effective-memory-program-review-codex.md"
+      ],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/flow-eval-suites-implementation.md",
+      "title": "Flow Eval Suites: Implementation Exploration",
+      "status": "current-proposal",
+      "category": "verification-and-evals",
+      "tags": ["evals", "flow-suites", "verification", "fix"],
+      "current_reading": "Proposal for suite manifests, adapter runners, and a standard result envelope around existing evals. Not current behavior.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/future-proofing-circuit.md",
+      "title": "Future-proofing Circuit",
+      "status": "current-strategy-context",
+      "category": "strategy-and-comparisons",
+      "tags": ["strategy", "model-improvement", "orchestration"],
+      "current_reading": "Strategy note on which Circuit bets compound as models improve and which erode. No direct implementation status.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/long-horizon-supervision.md",
+      "title": "Long-horizon supervision - heartbeat course-correction and crow's-nest views",
+      "status": "current-idea",
+      "category": "run-inspection-and-output",
+      "tags": ["long-horizon", "supervision", "heartbeat", "status-view"],
+      "current_reading": "Idea for executor/supervisor heartbeat and overview surfaces. Future work, not current behavior.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/longitudinal-evidence-memory.md",
+      "title": "Longitudinal Evidence Memory",
+      "status": "archived",
+      "category": "archived-or-superseded",
+      "tags": ["memory", "historical-lineage"],
+      "current_reading": "Archived in place. Its useful direction was absorbed into self-auditing memory specs, the effective-memory program, and current history memory implementation.",
+      "related": ["docs/ideas/self-auditing-memory.md", "docs/ideas/effective-memory-program.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/memory-phase0-failure-legibility-spec.md",
+      "title": "Implementation spec: failure-outcome reconciliation + Phase 0 legibility",
+      "status": "implemented",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "failure-legibility", "history", "implementation-spec"],
+      "current_reading": "Implemented failure outcome reconciliation and failure-query ranking slice. Current code lives in history, run-envelope, outcome, and related tests.",
+      "related": ["docs/ideas/effective-memory-program.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/modern-engineering-practices-proposals.md",
+      "title": "Modern Engineering Practices: Circuit Proposals",
+      "status": "current-proposal",
+      "category": "strategy-and-comparisons",
+      "tags": ["modern-engineering", "practice-comparison", "proposals"],
+      "current_reading": "Proposal set from comparing Circuit with Christoph Nakazawa's Modern Engineering Values workflow. Not shipped unless a section says otherwise.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/multi-channel-hitl-proposal.md",
+      "title": "Multi-Channel HITL Proposal",
+      "status": "current-proposal",
+      "category": "hosts-connectors-and-hitl",
+      "tags": ["hitl", "checkpoint", "email", "sms", "mcp"],
+      "current_reading": "Architecture proposal for multi-channel HITL as a delivery gateway around existing Human Decision and Checkpoint semantics. Not current runtime behavior.",
+      "related": ["docs/ideas/multi-channel-hitl-unlocks.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/multi-channel-hitl-unlocks.md",
+      "title": "Multi-Channel HITL: Unlocks And Combinations",
+      "status": "current-proposal",
+      "category": "hosts-connectors-and-hitl",
+      "tags": ["hitl", "checkpoint", "run-inspection", "mcp", "supervision"],
+      "current_reading": "Opportunity exploration for what multi-channel HITL unlocks alone and with adjacent features. Not current behavior or roadmap commitment.",
+      "related": ["docs/ideas/multi-channel-hitl-proposal.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/opencode-as-host.md",
+      "title": "OpenCode as a third host",
+      "status": "current-idea",
+      "category": "hosts-connectors-and-hitl",
+      "tags": ["opencode", "host", "local-models"],
+      "current_reading": "Idea for evaluating OpenCode as a third host alongside Claude Code and Codex. OpenCode is not a supported host today.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/output-model.md",
+      "title": "Output Model: Flow Status Indicator and Final Digest",
+      "status": "current-proposal",
+      "category": "run-inspection-and-output",
+      "tags": ["output", "host-rendering", "status", "digest"],
+      "current_reading": "Proposal for a three-channel output model, flow status indicator, routing checkpoint, and final digest. Revised after adversarial review; not yet built.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/per-step-validation-check.md",
+      "title": "Per-step validation check - stop and fix before the next step",
+      "status": "partially-implemented",
+      "category": "verification-and-evals",
+      "tags": ["validation", "verification", "step-contracts"],
+      "current_reading": "Runtime steps validate typed reports, but the specific per-step validation-check product idea is not a separate shipped block.",
+      "related": ["docs/ideas/adversarial-verification-gates.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/portable-run-captures.md",
+      "title": "Portable Run captures",
+      "status": "current-idea",
+      "category": "run-inspection-and-output",
+      "tags": ["run-captures", "portability", "sharing"],
+      "current_reading": "Idea for exporting successful Runs as reusable team or personal process patterns. Future behavior.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/project-execution-memory.md",
+      "title": "Project Execution Memory",
+      "status": "partially-implemented",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "project-facts", "distillation"],
+      "current_reading": "Project memory note/list/forget, local project facts, identity, injection, and distiller exist; automatic run-close write-back remains future work.",
+      "related": ["docs/ideas/self-auditing-memory-slice-5-spec.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/pull-query-memory-engineering-proposal.md",
+      "title": "Pull Query Memory Engineering Proposal",
+      "status": "partially-implemented",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "history-pull", "host-surface"],
+      "current_reading": "The bounded history pull substrate exists; the broader host-facing History Ask wrapper remains proposal material.",
+      "related": ["docs/ideas/pull-query-memory.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/pull-query-memory.md",
+      "title": "Pull Query Memory",
+      "status": "superseded",
+      "category": "archived-or-superseded",
+      "tags": ["memory", "history-pull", "superseded"],
+      "current_reading": "Superseded by the engineering proposal and implemented circuit history pull surface. Keep only for lineage.",
+      "related": ["docs/ideas/pull-query-memory-engineering-proposal.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/ratchet-data-requirements.md",
+      "title": "Ratchet Data Requirements",
+      "status": "partially-implemented-research",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "ratchet", "data-requirements", "research"],
+      "current_reading": "Research report plus selected prototype. Several data requirements now have code homes; use newer slice specs for exact current status.",
+      "related": ["docs/ideas/self-auditing-memory.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/recall-to-lesson-gap.md",
+      "title": "Closing the Recall-to-Lesson Gap",
+      "status": "partially-implemented",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "recall", "lessons", "project-facts"],
+      "current_reading": "Failure legibility, memory reports, recall precision, pull, and project facts exist; automatic lesson write-back remains open.",
+      "related": ["docs/ideas/effective-memory-program.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/run-inspection-implementation.md",
+      "title": "Run Inspection: Implementation Exploration",
+      "status": "current-proposal",
+      "category": "run-inspection-and-output",
+      "tags": ["run-inspection", "runs-list", "runs-events", "runs-why"],
+      "current_reading": "Proposal for read-only run inspection over existing run folders. Adds list/events/why concepts and defers liveness claims.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/sandboxed-parallel-pursuits.md",
+      "title": "Sandboxed parallel Pursue",
+      "status": "current-idea",
+      "category": "flows-and-blocks",
+      "tags": ["pursue", "parallelism", "sandbox", "change-packets"],
+      "current_reading": "Idea for safe parallel code-changing Pursuits through isolated worktrees and verified change packets. Not shipped.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/self-auditing-memory-review.md",
+      "title": "Self-Auditing Memory: Soundness and Durability Review",
+      "status": "archived",
+      "category": "archived-or-superseded",
+      "tags": ["memory", "review", "historical"],
+      "current_reading": "Archived in place. Useful historical critique, but prefer parent memory docs, slice specs, and current code for active guidance.",
+      "related": ["docs/ideas/self-auditing-memory.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/self-auditing-memory-slice-1-spec.md",
+      "title": "Slice 1 Spec: The Report-Only Memory-Merge Artifact",
+      "status": "implemented",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "memory-merge", "history", "slice-spec"],
+      "current_reading": "Implemented memory-merge artifact and CLI slice. Some path references inside use older source locations.",
+      "related": ["docs/ideas/self-auditing-memory.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/self-auditing-memory-slice-2-spec.md",
+      "title": "Slice 2 Spec: Cross-Run Effect Aggregation (report-only)",
+      "status": "implemented",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "memory-effect", "history", "slice-spec"],
+      "current_reading": "Implemented cross-run memory-effect aggregation slice. Some path references inside use older source locations.",
+      "related": ["docs/ideas/self-auditing-memory.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/self-auditing-memory-slice-3-spec.md",
+      "title": "Slice 3 Spec: Earned-Precision Injection (first behavior change)",
+      "status": "implemented",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "recall-precision", "injection", "slice-spec"],
+      "current_reading": "Implemented flow-scoped earned-precision run-start recall. Some path references inside use older source locations.",
+      "related": ["docs/ideas/self-auditing-memory.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/self-auditing-memory-slice-4-spec.md",
+      "title": "Slice 4 Spec: The Gated Pull Surface (cited, hint-only, logged)",
+      "status": "implemented",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "history-pull", "pull-log", "slice-spec"],
+      "current_reading": "Implemented history pull, pull-log schema, suppression path, and relay affordance. Some path references inside use older source locations.",
+      "related": ["docs/ideas/self-auditing-memory.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/self-auditing-memory-slice-5-spec.md",
+      "title": "Slice 5 Spec: The Cited-Fact Producer",
+      "status": "partially-implemented",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "project-facts", "distillation", "slice-spec"],
+      "current_reading": "Operator-filed project memory and distillation substrate exist; full run-close write-back remains deferred.",
+      "related": ["docs/ideas/self-auditing-memory.md", "docs/ideas/project-execution-memory.md"],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/self-auditing-memory.md",
+      "title": "Self-Auditing Memory: Circuit's Effectiveness Ratchet",
+      "status": "partially-implemented",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "ratchet", "history", "effectiveness"],
+      "current_reading": "Design thesis with slices 1-4 implemented and slice 5 partial; lifecycle promotion/retirement and automatic run-close fact write-back remain future work.",
+      "related": [
+        "docs/ideas/self-auditing-memory-slice-1-spec.md",
+        "docs/ideas/self-auditing-memory-slice-2-spec.md",
+        "docs/ideas/self-auditing-memory-slice-3-spec.md",
+        "docs/ideas/self-auditing-memory-slice-4-spec.md",
+        "docs/ideas/self-auditing-memory-slice-5-spec.md"
+      ],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/self-improving-circuit.md",
+      "title": "Self-improving Circuit",
+      "status": "current-idea",
+      "category": "memory-and-ratchet",
+      "tags": ["self-improvement", "learning-loop", "ratchet"],
+      "current_reading": "Idea seed for a learning loop in Circuit flows. Product idea only, not shipped behavior.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/skill-hooks-alternatives-v1.md",
+      "title": "Skill Hooks: Alternative Implementations (V1 exploration)",
+      "status": "archived",
+      "category": "skill-hooks-and-expertise",
+      "tags": ["skill-hooks", "alternatives", "historical"],
+      "current_reading": "Option-by-option archive. Its early file-surface-hook framing is historical; prefer first-principles, dispatch, vocabulary, and current code for shipped behavior.",
+      "related": [
+        "docs/ideas/skill-hooks-first-principles.md",
+        "docs/ideas/skill-hooks-dispatch-spec.md"
+      ],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/skill-hooks-dispatch-spec.md",
+      "title": "Skill Hooks: dispatch implementation spec",
+      "status": "implementation-spec",
+      "category": "skill-hooks-and-expertise",
+      "tags": ["skill-hooks", "dispatch", "auto", "runtime"],
+      "current_reading": "Implementation spec for Skill Hooks dispatch slices. Use as build lineage; verify exact mode names and hook names against current code and vocabulary docs.",
+      "related": [
+        "docs/ideas/skill-hooks-first-principles.md",
+        "docs/ideas/skill-hooks-uncovered-cases.md",
+        "docs/specs/skill-hook-vocabulary-v1.md"
+      ],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/skill-hooks-first-principles.md",
+      "title": "Skill Hooks: A First-Principles Pass",
+      "status": "archived",
+      "category": "skill-hooks-and-expertise",
+      "tags": ["skill-hooks", "expertise-routing", "historical"],
+      "current_reading": "Historical design exploration from before runtime dispatch shipped. Useful for framing, but stale names and behavior claims need current-code checks.",
+      "related": [
+        "docs/ideas/skill-hooks-dispatch-spec.md",
+        "docs/ideas/skill-hooks-uncovered-cases.md"
+      ],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/skill-hooks-uncovered-cases.md",
+      "title": "Skill Hooks: uncovered cases",
+      "status": "current-gap-analysis",
+      "category": "skill-hooks-and-expertise",
+      "tags": ["skill-hooks", "gap-analysis", "observability", "deferred-slices"],
+      "current_reading": "Adversarially verified catalog of Skill Hooks cases the shipped design does not handle. Recommends docs reconcile plus an observability slice first.",
+      "related": [
+        "docs/ideas/skill-hooks-dispatch-spec.md",
+        "docs/ideas/skill-hooks-first-principles.md",
+        "docs/specs/skill-hook-vocabulary-v1.md"
+      ],
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/smithers-circuit-comparison.md",
+      "title": "Smithers And Circuit: Comparison And Takeaways",
+      "status": "current-comparison",
+      "category": "strategy-and-comparisons",
+      "tags": ["smithers", "comparison", "workflow-runtime", "takeaways"],
+      "current_reading": "Source-backed comparison and recommendation. Smithers overlaps with Circuit on structured work but is a durable TSX workflow runtime.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/tracker-connector.md",
+      "title": "Tracker connector - emit flow output as tracked issues",
+      "status": "current-idea",
+      "category": "hosts-connectors-and-hitl",
+      "tags": ["tracker", "connectors", "issues", "linear", "github-issues"],
+      "current_reading": "Idea for reading task intent from trackers and writing structured flow output back at boundaries. Tracker issue emission is not implemented.",
+      "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/typed-coordination-alignment-proposal.md",
+      "title": "Typed Coordination Alignment Proposal",
+      "status": "current-proposal",
+      "category": "strategy-and-comparisons",
+      "tags": ["typed-coordination", "positioning", "skill-hooks", "runtime-signals"],
+      "current_reading": "Proposal for product framing around typed coordination. Separates shipped behavior from proposed direction where that distinction matters.",
+      "related": ["docs/ideas/skill-hooks-uncovered-cases.md"],
+      "last_checked": "2026-06-04"
+    }
+  ]
+}

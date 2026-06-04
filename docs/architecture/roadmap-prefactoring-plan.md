@@ -12,15 +12,15 @@ The roadmap target is [docs/architecture/architecture-improvement-roadmap.md](ar
 
 Current checkout reality matters:
 
-- There is active Skill Hooks work in the tree. The roadmap already warns that the Skill Hooks sections should be refreshed if that work rebases.
-- Full `npm run verify` passed once after this pass cleaned two baseline hazards: a retired-flow-id word in the roadmap doc and stale generated `never-a-mode` siblings. A later rerun exposed full-suite instability in generated-surface and Build runtime tests, so keep the baseline repeatably green before starting architecture movement.
+- Skill Hooks are stable shipped ground now. The shipped surface uses `auto` and `mute`, defaults omitted mode to `auto`, and uses `edit-files` hook names.
+- Full `npm run verify` is green after the Skill Hooks stabilization and the later roadmap-doc checks. Keep using it as the canonical baseline before source-moving architecture work.
 - There are unrelated dirty and untracked files. Prefactoring must stay scoped and must not normalize unrelated work.
 
 ## Ranked Prefactoring Sequence
 
 | Rank | Prefactor | Makes These Roadmap Items Easier | Leverage | Risk |
 | --- | --- | --- | --- | --- |
-| 0 | Restore clean verification baseline | all | very high | low-medium |
+| 0 | Confirm clean verification baseline | all | very high | low |
 | 1 | Extract shared architecture-test helpers | architecture fitness tests, every later move | very high | low |
 | 2 | Add current import graph snapshot as an allow-listed ratchet | architecture fitness tests, shared split, policy cycle, memory cycle | very high | low |
 | 3 | Characterize Skill Hook trace and actuation order | Skill Hooks, report surfaces, run transitions | high | medium |
@@ -35,23 +35,23 @@ Current checkout reality matters:
 
 Ranks 0 through 7 should happen before the first major source-tree reshaping. Ranks 8 through 11 can happen in parallel with the relevant roadmap slice.
 
-## Rank 0: Restore Clean Verification Baseline
+## Rank 0: Confirm Clean Verification Baseline
 
 ### Evidence
 
 - The project guide says `npm run verify` is the canonical check before claiming a change is done.
-- The active checkout currently has modified Skill Hooks/runtime files plus untracked architecture and idea docs.
-- This pass restored one clean canonical verification run by removing stale generated `never-a-mode` siblings through `node scripts/flows/emit.ts` and replacing a retired-flow-id word in `docs/architecture/architecture-improvement-roadmap.md`.
-- A later full-suite rerun failed in `tests/runner/build-runtime-wiring.test.ts` on a 15s timeout and in `tests/unit/emit-flows-drift.test.ts` after stale generated fixtures masked the internal-host-mirror check. Both files passed when rerun in isolation, which makes this a baseline stability risk rather than a doc failure.
+- Skill Hooks/runtime work is no longer a baseline blocker.
+- Full `npm run verify` has passed after the Skill Hooks stabilization. Treat that as the baseline gate for the next architecture branch.
+- The checkout may still carry unrelated untracked architecture and idea docs. Keep future prefactoring patches scoped so verification failures can be attributed.
 
 ### Prep Change
 
-Before architecture work starts, land or clean the active Skill Hooks work until:
+Before source-moving architecture work starts, confirm:
 
-- `git status --short` has no unrelated WIP mixed with architecture work;
-- `npm run verify` passes repeatably on the baseline branch, or the flaky full-suite cases are quarantined with clear ownership;
-- generated outputs are either intentionally checked in or removed.
-- repo-mutating generated-surface tests are isolated to a temp fixture tree or forced to run serially.
+- `npm run verify` passes on the baseline branch;
+- `git status --short` makes the architecture branch's scope obvious;
+- generated outputs are either intentionally checked in or absent;
+- any repo-mutating generated-surface tests are isolated to a temp fixture tree or forced to run serially.
 
 ### What This Makes Easy
 
@@ -142,9 +142,9 @@ npm run check
 
 ### Evidence
 
-- `src/runtime/run/graph-runner.ts:987-1019` dispatches Skill Hooks after `step.completed`, records `run.skill-hook`, and injects skills for `auto` events.
+- `src/runtime/run/graph-runner.ts:992-1018` dispatches Skill Hooks after `step.completed`, records `run.skill-hook`, and actuates `auto` events.
 - `src/runtime/run/relay-guidance.ts:377-403` gates injected skills to implementer relays and passes the run skill registry into skill loading.
-- `tests/runner/skill-hook-actuation.test.ts` already proves auto injection, mute behavior, verification-failure retry injection, and no reviewer/researcher leak.
+- `tests/runner/skill-hook-actuation.test.ts` already proves `before:edit-files` auto injection, omitted-mode default to `auto`, mute behavior, verification-failure retry injection, and no reviewer/researcher leak.
 
 ### Prep Change
 
@@ -179,7 +179,7 @@ npm run check
 
 ### Evidence
 
-- `src/skill-hooks/surface-sources.ts:1-13` says edit-file surfaces are per-flow-declared self-report fields, but the current table lives in Skill Hooks.
+- `src/skill-hooks/surface-sources.ts:1-13` says `before:edit-files` and `after:edit-files` surfaces are per-flow-declared self-report fields, but the current table lives in Skill Hooks.
 - `src/skill-hooks/surface-sources.ts:54-72` maps `fix.change-set@v1` and `build.plan@v1` to extractors.
 - `src/flows/report-declarations.ts:13-20` already carries report schema, channel, relay hint, cross-report validation, and writers.
 - `src/flows/report-declarations.ts:28-71` already projects declarations into runtime registries.
@@ -477,13 +477,13 @@ If this is docs-only, also run the reference/range checker used for architecture
 
 ### Window 0: Baseline
 
-Land or clean active Skill Hooks WIP. Get `npm run verify` green.
+Confirm `npm run verify` is green and keep the branch scope obvious.
 
 ### Window 1: Guardrails
 
 Implement ranks 1 and 2. This is the best first architecture branch because it gives every later branch a safety net.
 
-### Window 2: Active Runtime Seam
+### Window 2: Stable Runtime Seam
 
 Implement rank 3, then rank 4. This freezes Skill Hook timing before moving report surface ownership.
 

@@ -2,13 +2,13 @@
 
 Status: source-backed addendum, current as of 2026-06-04.
 
-Purpose: capture recovery, restore, baseline, StepKind, and Fix test-fixture architecture opportunities before folding them into the canonical architecture improvement roadmap. This document does not implement the changes. It records what the current code says, where the seams are awkward, and how to improve them without disturbing active Skill Hooks work.
+Purpose: capture recovery, restore, baseline, StepKind, and Fix test-fixture architecture opportunities before folding them into the canonical architecture improvement roadmap. This document does not implement the changes. It records what the current code says, where the seams are awkward, and how to improve them while preserving the stable Skill Hooks runtime seam.
 
 Current-state caution: this checkout does not currently contain a live `restore` StepKind or a `revert_applied_change` recovery kind. Those ideas came from adjacent restore/revert work and are treated here as roadmap candidates, not current facts.
 
 ## Recommended Roadmap Slot
 
-Add a new mini-cluster named **Recovery And Restore Contract Ownership** around the existing run-transition and schema-family work. This cluster should not jump ahead of the active Skill Hooks work. Fold it in after the earlier roadmap items are landed or refreshed, especially the Skill Hooks contract hardening.
+Add a new mini-cluster named **Recovery And Restore Contract Ownership** around the existing run-transition and schema-family work. Skill Hooks are now stable, so this cluster no longer needs to wait for hook implementation churn. It should still preserve the shipped hook contract and fold in after the earlier roadmap guardrails.
 
 Best slot:
 
@@ -485,7 +485,7 @@ Recovery bindings describe why a route is allowed. They should not restore files
 
 ## Fold-In Recommendation
 
-When folding into `docs/architecture/architecture-improvement-roadmap.md`, treat this as an adjacent extension of **Make Run Transitions Explicit**, not as an unrelated later cleanup. Do this only after the earlier roadmap items, including Skill Hooks contract hardening, have landed or been refreshed. Put recovery policy and reachability before the transition classifier extraction; put shared restore/baseline ownership after that transition seam is named and before **Add Schema Family Barrels**:
+When folding into `docs/architecture/architecture-improvement-roadmap.md`, treat this as an adjacent extension of **Make Run Transitions Explicit**, not as an unrelated later cleanup. Do this after the earlier roadmap guardrails and stable Skill Hooks contract documentation are in place. Put recovery policy and reachability before the transition classifier extraction; put shared restore/baseline ownership after that transition seam is named and before **Add Schema Family Barrels**:
 
 **Recovery And Restore Contract Ownership**
 

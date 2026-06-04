@@ -1,7 +1,8 @@
 # Typed Coordination Alignment Proposal
 
-Status: proposal, 2026-06-04. This is not shipped behavior. It is a direction
-for product framing, docs, and near-term architecture choices.
+Status: proposal, 2026-06-04. This is a direction for product framing, docs,
+and near-term architecture choices. It separates shipped behavior from proposed
+direction where that distinction matters.
 
 ## Summary
 
@@ -73,9 +74,8 @@ Concrete example:
 4. Circuit can route the failure through declared paths, such as retry, review,
    handoff, or close behavior when the flow declares them, because the failure is
    a typed signal, not just prose in a transcript.
-5. Once actuation is live, Skill Hooks can route additional expertise from
-   operator policy because the hook fires on a real runtime signal, not a
-   model's hidden interpretation.
+5. Skill Hooks can route additional expertise from operator policy because the
+   hook fires on a real runtime signal, not a model's hidden interpretation.
 
 That is coordination. The flow supplies the shape, but the typed signal supplies
 the next safe move.
@@ -95,7 +95,7 @@ the next safe move.
 | Config and selection | Layered operator, project, flow, stage, step, and invocation choices. | Route connector, model, effort, and skills at the point of work. |
 | History recall | Hint-only prior-run context. | Bring prior evidence forward without making memory authoritative. |
 | Checkpoint | Pause for operator input or safe default. | Keep high-cost judgment with the operator. |
-| Skill Hooks | Policy-named moments that may prepare skills. | Route expertise from deterministic signals, without embedding concrete skill ids in public flows. |
+| Skill Hooks | Policy-named moments that can load skills. | Route expertise from deterministic signals, without embedding concrete skill ids in public flows. |
 
 ## Design direction
 
@@ -133,15 +133,18 @@ Skill Hooks should be framed as routing, not as "add skill X to step Y."
 The contracts already draw the right line. Step-owned `skill_hooks` are hook
 names only; they cannot carry concrete skill ids, policy modes, host invocation
 options, or skill matrices (`docs/contracts/step.md`). Config-owned
-`skill_hooks.policy` maps hook names to `auto | ask | mute` policy while staying
-separate from flow-step skill slots (`docs/contracts/config.md`).
+`skill_hooks.policy` maps hook names to `auto | mute` policy while staying
+separate from flow-step skill slots (`docs/contracts/config.md`). `auto` injects
+configured skills and is the default when `mode` is omitted; `mute` records the
+hook without injecting.
 
 That split should remain load-bearing:
 
 - Flows and steps publish typed moments.
 - Project config decides what those moments mean locally.
 - Runtime dispatch fires only from real signals already in the run.
-- The actuator routes to either guidance, verification, or an operator pause.
+- The shipped actuator routes guidance by injecting resolved skills into the
+  implementer worker, while `mute` keeps the event observe-only.
 
 This prevents the feature from becoming a hidden per-step skill matrix.
 
@@ -156,8 +159,8 @@ anchor should be the thing that happened:
 
 - `after:verification-failed` from a failed check
 - `after:evidence-gap` from proof assessment
-- `before:edit-file:.tsx` from a typed prediction
-- `after:edit-file:.tsx` from a typed observation
+- `before:edit-files:.tsx` from a typed prediction
+- `after:edit-files:.tsx` from a typed observation
 
 That is the practical difference between coordination and workflow slots.
 
@@ -173,7 +176,7 @@ produce deterministically:
 - history query and pull results
 - project config
 - operator choices at checkpoints
-- accepted and rejected hook actions
+- observed hook events, injected skills, and strict-unavailable decisions
 
 Do not make memory authoritative. The Run process doc already states that
 history recall is hint-only and does not alter flow routing, checkpoints, proof
@@ -190,7 +193,7 @@ Examples:
 - A hook wants a before-edit prediction, but the flow does not produce a typed
   predicted surface.
 - A verification failure needs a richer recovery route than the flow declares.
-- A checkpoint asks for operator judgment because `auto` would be unsafe.
+- A strict unavailable-skill decision is recorded because `auto` would be unsafe.
 
 These are not just implementation TODOs. They are the cleanest roadmap signals
 because they come from places where coordination could not safely act.
@@ -200,12 +203,12 @@ because they come from places where coordination could not safely act.
 1. Update internal positioning around a two-layer story: "flows are the handle;
    typed coordination is the system."
 2. In Skill Hooks docs, define hooks as deterministic routing from typed runtime
-   signals to one of three actuator classes: inject guidance, run/check
-   verification, or ask the operator.
+   signals to the shipped guidance-injection actuator, with `mute` as the
+   observe-only path.
 3. Keep the Step contract's no-skill-matrix rule. Skill ids stay in config and
    selection, not public flow steps.
-4. Treat `after:verification-failed`, `after:evidence-gap`, `before:edit-file`,
-   and `after:edit-file` as the first proof set because they tie to concrete
+4. Treat `after:verification-failed`, `after:evidence-gap`, `before:edit-files`,
+   and `after:edit-files` as the first proof set because they tie to concrete
    runtime signals.
 5. Add a small "coordination responsibilities" section to future architecture or
    strategy docs before making any public copy change.
@@ -232,7 +235,7 @@ because they come from places where coordination could not safely act.
 | Run resolves connector, model, effort, and skills per relay rather than once at startup. | Current behavior. |
 | History recall can surface prior-run hints. | Current behavior, bounded and non-authoritative. |
 | Skill Hook policy is typed and deterministic. | Current behavior at the config/contract level. |
-| Skill Hook actuation should route expertise from typed signals. | Active implementation direction; not stable public behavior until the shipped docs, code, and generated host surfaces agree. |
+| Skill Hook actuation routes expertise from typed signals. | Current behavior for shipped `auto` Skill Hooks: matching hooks record `run.skill-hook` events and inject resolved skills into implementer relays; `mute` records without injecting. |
 | Circuit should infer and propose personalized flow variants from real project signal. | Proposed direction. |
 | Circuit should maintain a full project model that can safely route work by itself. | Future direction; only safe if built from auditable records and operator-visible policy. |
 
@@ -252,6 +255,10 @@ because they come from places where coordination could not safely act.
 - `docs/configuration.md` describes current local skill loading and the
   operator/project config surfaces that make deterministic local routing
   possible.
+- `src/skill-hooks/injection.ts` documents the shipped run-scoped injection
+  channel for `auto` Skill Hooks and the implementer-only role gate.
+- `tests/runner/skill-hook-actuation.test.ts` proves `auto` injection into
+  implementer prompts and `skills.loaded`, plus `mute` observe-only behavior.
 - `docs/positioning-and-strategy.md` already identifies structured reports and
   evidence as an underused differentiator that should be elevated.
 

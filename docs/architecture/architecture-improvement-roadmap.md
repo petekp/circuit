@@ -4,7 +4,7 @@ Status: source-backed roadmap, current as of 2026-06-04.
 
 This document turns the recent system analysis into an improvement roadmap. It is not a rewrite plan. It is a sequence of small changes that make the current design easier to understand, easier to extend, and harder to accidentally complect.
 
-Skill Hooks note: the Skill Hooks sections reflect active implementation files in this checkout. If that work rebases before this roadmap is published or executed, refresh sections 2 and 3 against the new hook source.
+Skill Hooks note: the Skill Hooks runtime seam is stable in this checkout. The current shipped surface has `auto` and `mute` modes, defaults omitted mode to `auto`, and uses `edit-files` hook names. Refresh the Skill Hooks sections only when adding deferred hook arms or lifecycle producers.
 
 The north star is simple:
 
@@ -26,7 +26,7 @@ The remaining problems are mostly boundary problems:
 - The CLI has become the front door plus the application service.
 - The schema root barrel is intentionally complete, but too broad for internal readers.
 - `src/flows` and `src/policy` depend on each other.
-- Skill Hooks are now an active runtime seam and need a stable actuation contract.
+- Skill Hooks are now a stable runtime seam whose contract needs to stay documented and guarded.
 - Some architectural rules exist only as intent, not executable ratchets.
 - Prototype flow code reaches into connector resolution.
 - App history and memory services import each other.
@@ -65,7 +65,7 @@ Treat this as a smoke alarm, not a complete dependency proof. The existing tests
 
 ```mermaid
 flowchart TD
-  A["Add architecture fitness tests"] --> B["Freeze active Skill Hook actuation contract"]
+  A["Add architecture fitness tests"] --> B["Document stable Skill Hook actuation contract"]
   B --> C["Move report surface metadata into flow declarations"]
   C --> D["Move Prototype connector planning out of flow writer"]
   D --> E["Resolve flows/policy cycle"]
@@ -81,7 +81,7 @@ flowchart TD
   M["No behavior changes without tests"] --> A
 ```
 
-The order matters. Guardrails first, active Skill Hooks next, then cycle-breaking and tree-shaping. The higher-churn changes come after the code has tests that will catch accidental behavior changes.
+The order matters. Guardrails first, the stable Skill Hooks contract next, then cycle-breaking and tree-shaping. The higher-churn changes come after the code has tests that will catch accidental behavior changes.
 
 ## 1. Add Architecture Fitness Tests
 
@@ -119,44 +119,50 @@ The current positive pattern is good: contract tests walk files with simple impo
 
 ### Watch-outs
 
-Do not make the first fitness test demand the final architecture immediately. A ratchet is better than a purity test that blocks every branch while active work is still landing.
+Do not make the first fitness test demand the final architecture immediately. A ratchet is better than a purity test that blocks every branch while roadmap work is landing.
 
-## 2. Harden Skill Hooks As An Active Seam
+## 2. Document And Guard Skill Hooks As A Stable Seam
 
 Severity: high. This is live runtime behavior, not a future sketch.
 
 ### Evidence
 
-- `src/runtime/run/graph-runner.ts:579-583` creates a run-scoped Skill Hook injection channel.
-- `src/runtime/run/graph-runner.ts:987-1019` dispatches Skill Hooks after `step.completed`, records `run.skill-hook`, and injects skills for `auto` events.
+- `src/schemas/skill-hook.ts:85-89` defines the shipped policy modes: `auto` injects, `mute` records only, and there is no `ask` mode.
+- `src/schemas/skill-hook.ts:94-98` defines the parameterized `before:edit-files` and `after:edit-files` hook-name form.
+- `src/runtime/run/graph-runner.ts:580-588` creates one run-scoped Skill Hook injection channel and one run-scoped skill registry.
+- `src/runtime/run/graph-runner.ts:992-1018` dispatches Skill Hooks after `step.completed`, records `run.skill-hook`, and starts actuation for `auto` events.
 - `src/skill-hooks/injection.ts:1-37` documents the current actuation contract: persistent run-scoped accumulator, implementer-only injection, deduped, pure, non-draining.
-- `src/runtime/run/relay-guidance.ts:377-399` gates injected Skill Hook skills to implementer relays and passes them into skill loading.
+- `src/runtime/run/relay-guidance.ts:377-403` gates injected Skill Hook skills to implementer relays and passes them into skill loading.
 - `src/shared/skill-loading.ts:51-101` merges selected skills, slot bindings, and injected skills, with injected skills last and deduped.
-- `tests/runner/skill-hook-actuation.test.ts:142-229` proves Build `before:edit-file` auto injection and mute behavior.
-- `tests/runner/skill-hook-actuation.test.ts:231-274` proves `after:verification-failed` injects into a retry, not into the already-completed relay.
-- `tests/runner/skill-hook-actuation.test.ts:333-384` proves injected edit skills do not leak into researcher or reviewer relays.
+- `tests/contracts/skill-hook-policy-schema.test.ts:162-170` proves omitted mode resolves as `auto`.
+- `tests/contracts/skill-hook-policy-schema.test.ts:293-319` proves the vocabulary carries `before:edit-files` and `after:edit-files` anchors and extension-suffix forms.
+- `tests/runner/skill-hook-actuation.test.ts:158-210` proves Build `before:edit-files` auto injection.
+- `tests/runner/skill-hook-actuation.test.ts:381-411` proves `mute` records an event but injects nothing.
+- `tests/runner/skill-hook-actuation.test.ts:417-460` proves `after:verification-failed` injects into a retry, not into the already-completed relay.
+- `tests/runner/skill-hook-actuation.test.ts:522-560` proves injected edit skills do not leak into researcher or reviewer relays.
 - `tests/unit/skill-hook-injection.test.ts:16-50` proves channel ordering, dedupe, and non-draining reads.
 
 ### Problem
 
-Skill Hooks have crossed from policy/reporting into actuation. That is the right moment to freeze the contract. If the behavior remains implicit in comments and scattered tests, future hook families can quietly change run order, role separation, or retry behavior.
+Skill Hooks have crossed from policy/reporting into stable actuation. The current behavior is tested, but the architecture contract still needs to be named in one place. If the contract remains implicit in comments and scattered tests, future hook families can quietly change run order, role separation, or retry behavior.
 
 The current design is conservative and should stay that way:
 
 - dispatch is post-step;
 - dispatch is best-effort;
-- only `auto` actuates today;
+- `auto` actuates and is the default when mode is omitted;
+- `mute` records an observe-only event;
 - injection reaches later implementer relays only;
 - injection is run-scoped, persistent, and deduped;
-- `ask` is not a live pause mechanism yet.
+- `ask` is not a shipped policy mode.
 
 ### Rectification
 
-1. Write a short contract doc under `docs/contracts/` or `docs/architecture/` that names the actuation contract above.
+1. Write a short contract doc under `docs/contracts/` or `docs/architecture/` that names the shipped actuation contract above.
 2. Keep `createSkillHookInjectionChannel` pure. It should not resolve skills, read config, or know relay roles.
 3. Keep role gating at the relay guidance seam. That is where the runtime knows which role is about to receive loaded skills.
 4. Keep dispatch after `step.completed` unless a future hook family explicitly needs a pre-step producer.
-5. If `ask` becomes live later, model it as a checkpoint or run transition, not as a hidden prompt-side effect.
+5. If interactive operator approval returns later, model it as a checkpoint or run transition, not as a hidden prompt-side effect.
 6. Add one architecture test that prevents `src/skill-hooks` from importing runtime executors or flow packages directly.
 
 ### Verification
@@ -174,7 +180,7 @@ Severity: high.
 
 ### Evidence
 
-- `src/skill-hooks/surface-sources.ts:1-13` says edit-file surfaces are "per-flow-declared self-report fields", but the declaration currently lives in a Skill Hooks table.
+- `src/skill-hooks/surface-sources.ts:1-13` says `before:edit-files` and `after:edit-files` surfaces are "per-flow-declared self-report fields", but the declaration currently lives in a Skill Hooks table.
 - `src/skill-hooks/surface-sources.ts:54-72` maps `fix.change-set@v1` and `build.plan@v1` to extractors.
 - `src/flows/report-declarations.ts:13-20` already defines `FlowReportDeclaration` with schema name, channel, schema, relay hint, cross-report validator, and writers.
 - `src/flows/report-declarations.ts:28-71` already projects report declarations into relay report registries, report schema registries, and writer registries.
@@ -197,13 +203,13 @@ This is feature envy. The field exists because a flow report owns it. The metada
    ```ts
    type FlowReportSurfaceDeclaration =
      | {
-         readonly kind: 'edit-file';
+        readonly kind: 'edit-files';
          readonly timing: 'before' | 'after';
          readonly extractor: 'string-array-field';
          readonly path: readonly string[];
        }
      | {
-         readonly kind: 'edit-file';
+        readonly kind: 'edit-files';
          readonly timing: 'before' | 'after';
          readonly extractor: 'build-plan-and-slices-anticipated-file-extensions';
        };
@@ -213,8 +219,8 @@ This is feature envy. The field exists because a flow report owns it. The metada
 3. Extend `projectFlowReportDeclarations` to produce a `reportSurfaces` registry keyed by schema name.
 4. Teach Skill Hooks to consume the projected registry instead of `EDIT_FILE_SURFACE_SOURCES`.
 5. Move the two current sources first:
-   - `fix.change-set@v1` after edit-file surface from `observed`;
-   - `build.plan@v1` before edit-file surface from plan-level and slice-level `anticipated_file_extensions`.
+   - `fix.change-set@v1` after edit-files surface from `observed`;
+   - `build.plan@v1` before edit-files surface from plan-level and slice-level `anticipated_file_extensions`.
 6. Keep `src/skill-hooks/surface-sources.ts` as a compatibility adapter for one slice if needed, then delete it once the registry is the only reader.
 
 ### Verification
@@ -549,7 +555,7 @@ Do not remove the root barrel as part of this roadmap. That would fight current 
 The roadmap should land in this order:
 
 1. **Architecture fitness tests.** Add ratchets with current-cycle allow-lists.
-2. **Skill Hooks contract doc and tests.** Freeze the active actuation behavior before broadening hooks.
+2. **Skill Hooks contract doc and tests.** Document and guard the stable actuation behavior before broadening hooks.
 3. **Flow report surface metadata.** Move file-surface sources into flow report declarations.
 4. **Prototype connector planning.** Move connector resolution/compatibility below both runtime guidance and Prototype writer.
 5. **Flow/policy cycle.** Split policy data from pure policy evaluation.
