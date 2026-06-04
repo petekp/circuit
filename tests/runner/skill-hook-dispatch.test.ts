@@ -64,7 +64,7 @@ function relayer(onActPrompt?: (prompt: string) => void): RelayFn {
 }
 
 // A Build relayer whose analyze (context) output predicts a file surface, so
-// the compiled plan carries `anticipated_file_extensions` (the before:edit-file
+// the compiled plan carries `anticipated_file_extensions` (the before:edit-files
 // detection signal). Mirrors relayer() but threads the predicted extensions
 // through the context and its single slice.
 function surfaceRelayer(opts: {
@@ -274,9 +274,9 @@ describe('Skill-hook report-only dispatch', () => {
   );
 });
 
-describe('Skill-hook edit-file dispatch (Build, end-to-end)', () => {
+describe('Skill-hook edit-files dispatch (Build, end-to-end)', () => {
   it(
-    'records before:edit-file:.ts when the plan predicts the surface; mute injects nothing',
+    'records before:edit-files:.ts when the plan predicts the surface; mute injects nothing',
     async () => {
       const runFolder = join(runFolderBase, 'build-before');
       const actPrompts: string[] = [];
@@ -291,8 +291,8 @@ describe('Skill-hook edit-file dispatch (Build, end-to-end)', () => {
         projectRoot: failingProjectRoot(),
         selectionConfigLayers: [
           projectPolicyLayer({
-            'before:edit-file:.ts': { mode: 'mute', strict: false },
-            'before:edit-file:.py': { mode: 'mute', strict: false },
+            'before:edit-files:.ts': { mode: 'mute', strict: false },
+            'before:edit-files:.py': { mode: 'mute', strict: false },
           }),
         ],
       });
@@ -300,12 +300,12 @@ describe('Skill-hook edit-file dispatch (Build, end-to-end)', () => {
       const hooks = skillHookEntries(await readTrace(runFolder));
       const hookNames = hooks.map((entry) => entry.event.hook);
       // The plan predicted .ts, so the .ts rule fires on the plan step ...
-      expect(hookNames).toContain('before:edit-file:.ts');
-      const before = hooks.find((entry) => entry.event.hook === 'before:edit-file:.ts');
+      expect(hookNames).toContain('before:edit-files:.ts');
+      const before = hooks.find((entry) => entry.event.hook === 'before:edit-files:.ts');
       expect(before?.event.step_id).toBe('plan-step');
       expect(before?.event.policy).toMatchObject({ mode: 'mute', source: 'project-policy' });
       // ... but the unpredicted .py rule does not.
-      expect(hookNames).not.toContain('before:edit-file:.py');
+      expect(hookNames).not.toContain('before:edit-files:.py');
       // Mute injects nothing: no "Selected Skills:" section is composed (Build
       // declares no skill slots). Auto injection is proven hermetically in
       // tests/runner/skill-hook-actuation.test.ts.
@@ -440,7 +440,7 @@ describe('Skill-hook detection (unit)', () => {
   });
 });
 
-describe('Skill-hook edit-file detection (unit, Fix change-set)', () => {
+describe('Skill-hook edit-files detection (unit, Fix change-set)', () => {
   // A synthetic step.report_written pointing at a fix.change-set@v1 report.
   function reportWritten(schema: string): TraceEntry {
     return entry({
@@ -468,14 +468,14 @@ describe('Skill-hook edit-file detection (unit, Fix change-set)', () => {
     return events.map((event) => event.hook).sort();
   }
 
-  it('fires after:edit-file:.ts when an observed path matches the extension suffix', async () => {
+  it('fires after:edit-files:.ts when an observed path matches the extension suffix', async () => {
     expect(
       await editHooksFor(
         'fix.change-set@v1',
         { observed: ['src/foo.ts', 'src/bar.tsx'] },
-        { 'after:edit-file:.ts': { mode: 'auto', skills: ['tdd'] } },
+        { 'after:edit-files:.ts': { mode: 'auto', skills: ['tdd'] } },
       ),
-    ).toEqual(['after:edit-file:.ts']);
+    ).toEqual(['after:edit-files:.ts']);
   });
 
   it('matches multi-dot extensions and the bare any-edit anchor; skips non-matching suffixes', async () => {
@@ -484,42 +484,42 @@ describe('Skill-hook edit-file detection (unit, Fix change-set)', () => {
         'fix.change-set@v1',
         { observed: ['src/bar.tsx', 'src/foo.test.ts'] },
         {
-          'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
-          'after:edit-file:.test.ts': { mode: 'auto', skills: ['tdd'] },
-          'after:edit-file:.py': { mode: 'auto', skills: ['python-doctor'] },
-          'after:edit-file': { mode: 'auto', skills: ['any-edit'] },
+          'after:edit-files:.tsx': { mode: 'auto', skills: ['react-doctor'] },
+          'after:edit-files:.test.ts': { mode: 'auto', skills: ['tdd'] },
+          'after:edit-files:.py': { mode: 'auto', skills: ['python-doctor'] },
+          'after:edit-files': { mode: 'auto', skills: ['any-edit'] },
         },
       ),
-    ).toEqual(['after:edit-file', 'after:edit-file:.tsx', 'after:edit-file:.test.ts'].sort());
+    ).toEqual(['after:edit-files', 'after:edit-files:.tsx', 'after:edit-files:.test.ts'].sort());
   });
 
   it('records the resolved policy and the parameterized hook name on the event', async () => {
     const events = await dispatchEditFileHooksForEntries({
       entries: [reportWritten('fix.change-set@v1')],
       configLayers: [
-        projectPolicyLayer({ 'after:edit-file:.tsx': { mode: 'mute', strict: false } }),
+        projectPolicyLayer({ 'after:edit-files:.tsx': { mode: 'mute', strict: false } }),
       ],
       scope: { flowId: 'fix', stepId: 'fix-change-set', attemptId: '1' },
       eventIdBase: 'e',
       readJson: async () => ({ observed: ['src/bar.tsx'] }),
     });
     expect(events).toHaveLength(1);
-    expect(events[0]?.hook).toBe('after:edit-file:.tsx');
+    expect(events[0]?.hook).toBe('after:edit-files:.tsx');
     expect(events[0]?.policy).toMatchObject({ mode: 'mute', source: 'project-policy' });
     expect(events[0]?.triggered_skills).toEqual([]);
   });
 
-  it('does not fire a before:edit-file key on an after-timed (change-set) report', async () => {
+  it('does not fire a before:edit-files key on an after-timed (change-set) report', async () => {
     expect(
       await editHooksFor(
         'fix.change-set@v1',
         { observed: ['src/bar.tsx'] },
-        { 'before:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] } },
+        { 'before:edit-files:.tsx': { mode: 'auto', skills: ['react-doctor'] } },
       ),
     ).toEqual([]);
   });
 
-  it('records nothing without a configured edit-file policy, or for an unknown report schema', async () => {
+  it('records nothing without a configured edit-files policy, or for an unknown report schema', async () => {
     expect(
       await editHooksFor(
         'fix.change-set@v1',
@@ -531,13 +531,13 @@ describe('Skill-hook edit-file detection (unit, Fix change-set)', () => {
       await editHooksFor(
         'something.unmapped@v1',
         { observed: ['src/bar.tsx'] },
-        { 'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] } },
+        { 'after:edit-files:.tsx': { mode: 'auto', skills: ['react-doctor'] } },
       ),
     ).toEqual([]);
   });
 });
 
-describe('Skill-hook edit-file detection (unit, coverage)', () => {
+describe('Skill-hook edit-files detection (unit, coverage)', () => {
   function reportWritten(schema: string): TraceEntry {
     return entry({
       kind: 'step.report_written',
@@ -560,7 +560,7 @@ describe('Skill-hook edit-file detection (unit, coverage)', () => {
     const events = await dispatchEditFileHooksForEntries({
       entries: [reportWritten('fix.change-set@v1')],
       configLayers: [
-        projectPolicyLayer({ 'after:edit-file:.ts': { mode: 'auto', skills: ['tdd'] } }),
+        projectPolicyLayer({ 'after:edit-files:.ts': { mode: 'auto', skills: ['tdd'] } }),
       ],
       scope: { flowId: 'fix', stepId: 's', attemptId: '1' },
       eventIdBase: 'e',
@@ -577,9 +577,9 @@ describe('Skill-hook edit-file detection (unit, coverage)', () => {
       entries: [reportWritten('build.plan@v1')],
       configLayers: [
         projectPolicyLayer({
-          'before:edit-file:.ts': { mode: 'auto', skills: ['tdd'] },
-          'before:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
-          'before:edit-file:.py': { mode: 'auto', skills: ['python-doctor'] },
+          'before:edit-files:.ts': { mode: 'auto', skills: ['tdd'] },
+          'before:edit-files:.tsx': { mode: 'auto', skills: ['react-doctor'] },
+          'before:edit-files:.py': { mode: 'auto', skills: ['python-doctor'] },
         }),
       ],
       scope: { flowId: 'build', stepId: 'plan-step', attemptId: '1' },
@@ -590,20 +590,20 @@ describe('Skill-hook edit-file detection (unit, coverage)', () => {
       }),
     });
     expect(events.map((event) => event.hook).sort()).toEqual(
-      ['before:edit-file:.ts', 'before:edit-file:.tsx'].sort(),
+      ['before:edit-files:.ts', 'before:edit-files:.tsx'].sort(),
     );
   });
 
-  it('collects edit-file keys across config layers, honoring project-over-user precedence', async () => {
+  it('collects edit-files keys across config layers, honoring project-over-user precedence', async () => {
     // user-global declares .ts (auto); project overrides .ts to mute and adds .tsx
     // (mute). Both keys are surfaced; resolution applies the project layer per key.
     const events = await dispatchEditFileHooksForEntries({
       entries: [reportWritten('fix.change-set@v1')],
       configLayers: [
-        userGlobalPolicyLayer({ 'after:edit-file:.ts': { mode: 'auto', skills: ['tdd'] } }),
+        userGlobalPolicyLayer({ 'after:edit-files:.ts': { mode: 'auto', skills: ['tdd'] } }),
         projectPolicyLayer({
-          'after:edit-file:.ts': { mode: 'mute', strict: false },
-          'after:edit-file:.tsx': { mode: 'mute', strict: false },
+          'after:edit-files:.ts': { mode: 'mute', strict: false },
+          'after:edit-files:.tsx': { mode: 'mute', strict: false },
         }),
       ],
       scope: { flowId: 'fix', stepId: 's', attemptId: '1' },
@@ -612,12 +612,12 @@ describe('Skill-hook edit-file detection (unit, coverage)', () => {
     });
     const byHook = new Map(events.map((event) => [event.hook, event]));
     // .ts is surfaced from user-global but the project layer overrides it to mute.
-    expect(byHook.get('after:edit-file:.ts')?.policy).toMatchObject({
+    expect(byHook.get('after:edit-files:.ts')?.policy).toMatchObject({
       mode: 'mute',
       source: 'project-policy',
     });
     // .tsx comes only from the project layer.
-    expect(byHook.get('after:edit-file:.tsx')?.policy).toMatchObject({
+    expect(byHook.get('after:edit-files:.tsx')?.policy).toMatchObject({
       mode: 'mute',
       source: 'project-policy',
     });

@@ -13,10 +13,7 @@ import {
   SkillHookName,
 } from '../../src/index.js';
 import { createUserSkillRegistry } from '../../src/shared/user-skill-registry.js';
-import {
-  buildSkillHookAskDecisionPacket,
-  buildStrictSkillUnavailableDecisionPacket,
-} from '../../src/skill-hooks/decision-packet.js';
+import { buildStrictSkillUnavailableDecisionPacket } from '../../src/skill-hooks/decision-packet.js';
 import { buildRunSkillHookEvent, resolveSkillHookPolicy } from '../../src/skill-hooks/policy.js';
 
 let tempDir: string;
@@ -74,31 +71,34 @@ function baseRelayStep(extra: Record<string, unknown> = {}): Record<string, unkn
 }
 
 describe('Skill Hook policy schema', () => {
-  it('accepts policy modes and applies Config defaults', () => {
+  it('accepts policy modes and defaults an omitted mode to auto', () => {
     const parsed = Config.parse({
       schema_version: 1,
       skill_hooks: {
         policy: {
-          'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
-          'before:high-impact-alignment': { mode: 'ask', skills: ['grill-with-docs'] },
+          'after:edit-files:.tsx': { mode: 'auto', skills: ['react-doctor'] },
+          'before:high-impact-alignment': { skills: ['grill-with-docs'] },
           'before:architecture-analysis': { mode: 'mute' },
         },
       },
     });
 
-    expect(parsed.skill_hooks.policy['after:edit-file:.tsx']?.strict).toBe(false);
+    // Omitting mode resolves to auto; strict still defaults to false.
+    expect(parsed.skill_hooks.policy['before:high-impact-alignment']?.mode).toBe('auto');
+    expect(parsed.skill_hooks.policy['after:edit-files:.tsx']?.strict).toBe(false);
     expect(parsed.skill_hooks.detection.disabled_patterns).toEqual({});
   });
 
   it('rejects slot-shaped and fuzzy policy shapes', () => {
     expect(
       SkillHookConfig.safeParse({
-        policy: { 'after:edit-file:.tsx': { mode: 'auto' } },
+        policy: { 'after:edit-files:.tsx': { mode: 'auto' } },
       }).success,
     ).toBe(false);
     expect(
+      // mode omitted -> auto, and auto requires at least one skill.
       SkillHookConfig.safeParse({
-        policy: { 'before:high-impact-alignment': { mode: 'ask' } },
+        policy: { 'before:high-impact-alignment': {} },
       }).success,
     ).toBe(false);
     expect(
@@ -109,7 +109,7 @@ describe('Skill Hook policy schema', () => {
     expect(
       SkillHookConfig.safeParse({
         policy: {
-          'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor', 'react-doctor'] },
+          'after:edit-files:.tsx': { mode: 'auto', skills: ['react-doctor', 'react-doctor'] },
         },
       }).success,
     ).toBe(false);
@@ -121,7 +121,7 @@ describe('Skill Hook policy schema', () => {
     expect(
       SkillHookConfig.safeParse({
         policy: {
-          'team/after:edit-file': { mode: 'auto', skills: ['react-doctor'] },
+          'team/after:edit-files': { mode: 'auto', skills: ['react-doctor'] },
         },
       }).success,
     ).toBe(false);
@@ -137,7 +137,7 @@ describe('Skill Hook policy schema', () => {
   it('layers project policy as whole-entry replacement over user-global policy', () => {
     const user = configLayer('user-global', {
       'before:architecture-analysis': { mode: 'auto', skills: ['seam-ripper'] },
-      'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
+      'after:edit-files:.tsx': { mode: 'auto', skills: ['react-doctor'] },
     });
     const project = configLayer('project', {
       'before:architecture-analysis': { mode: 'mute' },
@@ -148,7 +148,7 @@ describe('Skill Hook policy schema', () => {
       source: 'project-policy',
       skills: [],
     });
-    expect(resolveSkillHookPolicy([user, project], 'after:edit-file:.tsx')).toMatchObject({
+    expect(resolveSkillHookPolicy([user, project], 'after:edit-files:.tsx')).toMatchObject({
       mode: 'auto',
       source: 'user-global-policy',
       skills: ['react-doctor'],
@@ -159,12 +159,23 @@ describe('Skill Hook policy schema', () => {
     });
   });
 
+  it('resolves an omitted mode as auto through policy resolution', () => {
+    const layer = configLayer('project', {
+      'after:edit-files:.tsx': { skills: ['react-doctor'] },
+    });
+    expect(resolveSkillHookPolicy([layer], 'after:edit-files:.tsx')).toMatchObject({
+      mode: 'auto',
+      source: 'project-policy',
+      skills: ['react-doctor'],
+    });
+  });
+
   it('records availability without claiming the worker actually ran a skill', () => {
     const agentsRoot = join(tempDir, 'agents');
     writeSkill(agentsRoot, 'react-doctor');
     const registry = createUserSkillRegistry({ roots: [agentsRoot] });
     const layer = configLayer('project', {
-      'after:edit-file:.tsx': {
+      'after:edit-files:.tsx': {
         mode: 'auto',
         skills: ['react-doctor', 'missing-skill'],
       },
@@ -172,7 +183,7 @@ describe('Skill Hook policy schema', () => {
 
     const event = buildRunSkillHookEvent({
       eventId: 'hook-1',
-      hook: SkillHookName.parse('after:edit-file:.tsx'),
+      hook: SkillHookName.parse('after:edit-files:.tsx'),
       detectedFrom: ['diff:src/component.tsx'],
       cardinality: 'per-step',
       configLayers: [layer],
@@ -191,79 +202,12 @@ describe('Skill Hook policy schema', () => {
     });
   });
 
-  it('ask mode records a decision packet before preparing skills', () => {
-    const agentsRoot = join(tempDir, 'agents-ask');
-    writeSkill(agentsRoot, 'grill-with-docs');
-    const registry = createUserSkillRegistry({ roots: [agentsRoot] });
-    const layer = configLayer('project', {
-      'before:high-impact-alignment': {
-        mode: 'ask',
-        skills: ['grill-with-docs'],
-      },
-    });
-
-    const pending = buildRunSkillHookEvent({
-      eventId: 'hook-ask',
-      hook: SkillHookName.parse('before:high-impact-alignment'),
-      detectedFrom: ['operator-flag:high-impact'],
-      cardinality: 'per-run',
-      configLayers: [layer],
-      registry,
-    });
-    expect(pending.decision_packet_id).toBe('hook-ask:ask');
-    expect(pending.triggered_skills).toEqual([]);
-
-    const accepted = buildRunSkillHookEvent({
-      eventId: 'hook-ask',
-      hook: SkillHookName.parse('before:high-impact-alignment'),
-      detectedFrom: ['operator-flag:high-impact'],
-      cardinality: 'per-run',
-      configLayers: [layer],
-      registry,
-      askDecision: 'accepted',
-      decisionPacketId: 'decision-1',
-    });
-    expect(accepted.decision_packet_id).toBe('decision-1');
-    expect(accepted.triggered_skills).toEqual([
-      { id: 'grill-with-docs', state: 'planned', source: 'project-policy' },
-    ]);
-  });
-
-  it('builds shared decision packets for Skill Hook ask and strict unavailable cases', () => {
+  it('builds a shared decision packet for the strict unavailable case', () => {
     const agentsRoot = join(tempDir, 'agents-decision');
     writeSkill(agentsRoot, 'grill-with-docs');
     const registry = createUserSkillRegistry({ roots: [agentsRoot] });
-    const askLayer = configLayer('project', {
-      'before:high-impact-alignment': {
-        mode: 'ask',
-        skills: ['grill-with-docs'],
-      },
-    });
-    const askEvent = buildRunSkillHookEvent({
-      eventId: 'hook-ask',
-      hook: SkillHookName.parse('before:high-impact-alignment'),
-      detectedFrom: ['operator-flag:high-impact'],
-      cardinality: 'per-run',
-      configLayers: [askLayer],
-      registry,
-    });
-
-    expect(
-      buildSkillHookAskDecisionPacket({
-        runId: '00000000-0000-4000-8000-00000000d001',
-        event: askEvent,
-      }),
-    ).toMatchObject({
-      reason: 'skill-hook-ask',
-      decision_id: 'hook-ask:ask',
-      choices: [
-        { id: 'use-skills', label: 'Use skills' },
-        { id: 'skip-skills', label: 'Skip skills' },
-      ],
-    });
-
     const strictLayer = configLayer('project', {
-      'after:edit-file:.tsx': {
+      'after:edit-files:.tsx': {
         mode: 'auto',
         strict: true,
         skills: ['missing-skill'],
@@ -271,7 +215,7 @@ describe('Skill Hook policy schema', () => {
     });
     const strictEvent = buildRunSkillHookEvent({
       eventId: 'hook-strict',
-      hook: SkillHookName.parse('after:edit-file:.tsx'),
+      hook: SkillHookName.parse('after:edit-files:.tsx'),
       detectedFrom: ['diff:src/component.tsx'],
       cardinality: 'per-step',
       configLayers: [strictLayer],
@@ -298,7 +242,7 @@ describe('Skill Hook policy schema', () => {
       RunSkillHookEvent.safeParse({
         schema: 'run.skill-hook@v0',
         event_id: 'hook-observed',
-        hook: 'after:edit-file:.tsx',
+        hook: 'after:edit-files:.tsx',
         detected_from: ['host:skills.loaded'],
         cardinality: 'per-step',
         policy: { mode: 'none', source: 'none' },
@@ -310,7 +254,7 @@ describe('Skill Hook policy schema', () => {
       RunSkillHookEvent.safeParse({
         schema: 'run.skill-hook@v0',
         event_id: 'hook-unplanned',
-        hook: 'after:edit-file:.tsx',
+        hook: 'after:edit-files:.tsx',
         detected_from: ['host:skills.loaded'],
         cardinality: 'per-step',
         policy: { mode: 'auto', source: 'project-policy', strict: false },
@@ -321,7 +265,7 @@ describe('Skill Hook policy schema', () => {
 
   it('adds a hook-only step field without reviving skill binding matrices', () => {
     expect(
-      RelayStep.safeParse(baseRelayStep({ skill_hooks: ['after:edit-file:.tsx'] })).success,
+      RelayStep.safeParse(baseRelayStep({ skill_hooks: ['after:edit-files:.tsx'] })).success,
     ).toBe(true);
     expect(
       RelayStep.safeParse(baseRelayStep({ skill_hooks: [{ skills: ['react-doctor'] }] })).success,
@@ -335,21 +279,21 @@ describe('Skill Hook policy schema', () => {
 describe('Skill Hook vocabulary fixtures', () => {
   it('pins the shipped vocabulary to observable detection sources', () => {
     // 14 named hooks minus the 5 collapsed file-surface hooks plus the 2
-    // parameterized edit-file anchors = 11.
+    // parameterized edit-files anchors = 11.
     expect(SKILL_HOOK_VOCABULARY).toHaveLength(11);
     for (const entry of SKILL_HOOK_VOCABULARY) {
       expect(SkillHookName.safeParse(entry.hook).success).toBe(true);
       expect(entry.detected_from.length).toBeGreaterThan(0);
       expect(entry.detected_from.join('\n')).not.toMatch(/natural-language/i);
-      expect(['auto', 'ask', 'mute']).toContain(entry.default_mode);
+      expect(['auto', 'mute']).toContain(entry.default_mode);
       expect(['per-run', 'per-stage', 'per-step']).toContain(entry.cardinality);
     }
   });
 
-  it('carries the parameterized edit-file anchors and drops the named file-surface hooks', () => {
+  it('carries the parameterized edit-files anchors and drops the named file-surface hooks', () => {
     const hooks = SKILL_HOOK_VOCABULARY.map((entry) => entry.hook);
-    expect(hooks).toContain('before:edit-file');
-    expect(hooks).toContain('after:edit-file');
+    expect(hooks).toContain('before:edit-files');
+    expect(hooks).toContain('after:edit-files');
     for (const dropped of [
       'after:react-ui-change',
       'after:test-change',
@@ -362,15 +306,15 @@ describe('Skill Hook vocabulary fixtures', () => {
   });
 });
 
-describe('Skill Hook parameterized edit-file names', () => {
+describe('Skill Hook parameterized edit-files names', () => {
   it('accepts the bare anchors and extension-suffix forms', () => {
     for (const name of [
-      'before:edit-file',
-      'after:edit-file',
-      'after:edit-file:.tsx',
-      'before:edit-file:.ts',
-      'after:edit-file:.test.ts',
-      'after:edit-file:.d.ts',
+      'before:edit-files',
+      'after:edit-files',
+      'after:edit-files:.tsx',
+      'before:edit-files:.ts',
+      'after:edit-files:.test.ts',
+      'after:edit-files:.d.ts',
     ]) {
       expect(SkillHookName.safeParse(name).success).toBe(true);
     }
@@ -378,12 +322,12 @@ describe('Skill Hook parameterized edit-file names', () => {
 
   it('rejects malformed extension suffixes', () => {
     for (const name of [
-      'after:edit-file:', // empty suffix
-      'after:edit-file:tsx', // missing leading dot
-      'after:edit-file:.', // dot with no extension
-      'after:edit-file:.tsx.', // trailing dot
-      'after:edit-file:*.tsx', // glob char is not an extension suffix in v1
-      'after:other-thing:.tsx', // only edit-file is parameterized
+      'after:edit-files:', // empty suffix
+      'after:edit-files:tsx', // missing leading dot
+      'after:edit-files:.', // dot with no extension
+      'after:edit-files:.tsx.', // trailing dot
+      'after:edit-files:*.tsx', // glob char is not an extension suffix in v1
+      'after:other-thing:.tsx', // only edit-files is parameterized
     ]) {
       expect(SkillHookName.safeParse(name).success).toBe(false);
     }
@@ -394,12 +338,12 @@ describe('Skill Hook parameterized edit-file names', () => {
       schema_version: 1,
       skill_hooks: {
         policy: {
-          'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
-          'after:edit-file:.py': { mode: 'auto', skills: ['python-doctor'] },
+          'after:edit-files:.tsx': { mode: 'auto', skills: ['react-doctor'] },
+          'after:edit-files:.py': { mode: 'auto', skills: ['python-doctor'] },
         },
       },
     });
-    expect(parsed.skill_hooks.policy['after:edit-file:.tsx']?.skills).toEqual(['react-doctor']);
-    expect(parsed.skill_hooks.policy['after:edit-file:.py']?.skills).toEqual(['python-doctor']);
+    expect(parsed.skill_hooks.policy['after:edit-files:.tsx']?.skills).toEqual(['react-doctor']);
+    expect(parsed.skill_hooks.policy['after:edit-files:.py']?.skills).toEqual(['python-doctor']);
   });
 });

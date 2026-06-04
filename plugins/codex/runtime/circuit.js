@@ -26996,7 +26996,9 @@ var SKILL_HOOK_VOCABULARY = [
     hook: "before:high-impact-alignment",
     detected_from: ["goal-contract:impact=high", "operator-flag:high-impact"],
     cardinality: "per-run",
-    default_mode: "ask"
+    // High-impact alignment defaults to observe-only (record, do not inject) so a
+    // high-impact step is never auto-augmented without the operator opting in.
+    default_mode: "mute"
   },
   {
     hook: "before:architecture-analysis",
@@ -27026,17 +27028,17 @@ var SKILL_HOOK_VOCABULARY = [
   // file-surface hooks (after:react-ui-change/test-change/schema-change/
   // api-surface-change/dependency-change) and the four *_surfaces config
   // buckets. The operator writes the predicate as a key suffix
-  // (`after:edit-file:.tsx`); the engine matches a literal extension suffix and
+  // (`after:edit-files:.tsx`); the engine matches a literal extension suffix and
   // never interprets the meaning. See docs/ideas/skill-hooks-first-principles.md
   // (the reframe) and docs/ideas/skill-hooks-dispatch-spec.md (D1).
   {
-    hook: "before:edit-file",
+    hook: "before:edit-files",
     detected_from: ["plan-report:anticipated-file-extensions", "plan-report:likely-touched"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    hook: "after:edit-file",
+    hook: "after:edit-files",
     detected_from: ["change-report:touched-files", "change-set:observed"],
     cardinality: "per-step",
     default_mode: "auto"
@@ -27067,11 +27069,11 @@ var SKILL_HOOK_VOCABULARY = [
   }
 ];
 var SkillHookCardinality = external_exports.enum(["per-run", "per-stage", "per-step"]);
-var SkillHookPolicyMode = external_exports.enum(["auto", "ask", "mute"]);
+var SkillHookPolicyMode = external_exports.enum(["auto", "mute"]);
 var SHIPPED_HOOKS = new Set(SKILL_HOOK_VOCABULARY.map((entry) => entry.hook));
 var CUSTOM_HOOK_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
 var SHIPPED_SHAPE_RE = /^(before|after):[a-z][a-z0-9-]*$/;
-var PARAMETERIZED_EDIT_FILE_RE = /^(before|after):edit-file:(\.[A-Za-z0-9]+)+$/;
+var PARAMETERIZED_EDIT_FILE_RE = /^(before|after):edit-files:(\.[A-Za-z0-9]+)+$/;
 function hookBody(value) {
   const slash = value.indexOf("/");
   return slash === -1 ? value : value.slice(slash + 1);
@@ -27116,7 +27118,8 @@ var SkillHookNameArray = external_exports.array(SkillHookName).superRefine((hook
   }
 });
 var SkillHookPolicyRule = external_exports.object({
-  mode: SkillHookPolicyMode,
+  // Omitting mode means auto: listing skills under a hook is enough to load them.
+  mode: SkillHookPolicyMode.default("auto"),
   skills: external_exports.array(SkillId).optional(),
   strict: external_exports.boolean().default(false)
 }).strict().superRefine((rule, ctx) => {
@@ -44932,8 +44935,7 @@ function buildRunSkillHookEvent(input) {
   const registry2 = input.registry ?? createUserSkillRegistry();
   const triggeredSkills = [];
   const unavailableSkills = [];
-  const askDecision = input.askDecision ?? "pending";
-  const shouldPrepare = policy2.mode === "auto" || policy2.mode === "ask" && askDecision === "accepted";
+  const shouldPrepare = policy2.mode === "auto";
   if (shouldPrepare) {
     for (const skill of policy2.skills) {
       try {
@@ -44953,7 +44955,7 @@ function buildRunSkillHookEvent(input) {
       }
     }
   }
-  const decisionPacketId = policy2.mode === "ask" && askDecision !== "accepted" ? input.decisionPacketId ?? `${input.eventId}:ask` : policy2.mode !== "none" && policy2.strict && unavailableSkills.length > 0 ? input.decisionPacketId ?? `${input.eventId}:strict-skill-unavailable` : input.decisionPacketId;
+  const decisionPacketId = policy2.mode !== "none" && policy2.strict && unavailableSkills.length > 0 ? input.decisionPacketId ?? `${input.eventId}:strict-skill-unavailable` : input.decisionPacketId;
   return RunSkillHookEvent.parse({
     schema: "run.skill-hook@v0",
     event_id: input.eventId,
@@ -44986,13 +44988,13 @@ function planAndSliceExtensions(report) {
 var EDIT_FILE_SURFACE_SOURCES = {
   // Fix: the runtime-computed change-set. `observed` is the ground-truth set of
   // actual touched paths (already computed against the baseline snapshot), so
-  // it is the strongest `after:edit-file` surface in the codebase.
+  // it is the strongest `after:edit-files` surface in the codebase.
   "fix.change-set@v1": {
     timing: "after",
     extract: (report) => stringArrayField(report, "observed")
   },
   // Build: the plan's predicted surface (a `compose` step, so it crosses the
-  // trace as step.report_written). This is the `before:edit-file` prediction
+  // trace as step.report_written). This is the `before:edit-files` prediction
   // arm — the advisory extensions the repo-grounded plan expects to touch, at
   // plan- and per-slice level. Build's actual touched-files self-report
   // (`build.implementation@v1` `changed_files`) is a relay report, not a
@@ -45042,12 +45044,12 @@ function dispatchSkillHooksForEntries(input) {
   }
   return events;
 }
-var EDIT_FILE_KEY_RE = /^(before|after):edit-file(:(\.[A-Za-z0-9]+)+)?$/;
+var EDIT_FILE_KEY_RE = /^(before|after):edit-files(:(\.[A-Za-z0-9]+)+)?$/;
 function editFileTiming(key) {
   return key.startsWith("before:") ? "before" : "after";
 }
 function baseEditFileHook(key) {
-  return key.startsWith("before:") ? "before:edit-file" : "after:edit-file";
+  return key.startsWith("before:") ? "before:edit-files" : "after:edit-files";
 }
 function editFileSuffix(key) {
   const rest = key.slice(baseEditFileHook(key).length);
@@ -48945,7 +48947,6 @@ var RunDecisionPacket = external_exports.object({
   decision_id: external_exports.string().min(1),
   reason: external_exports.enum([
     "process-checkpoint",
-    "skill-hook-ask",
     "missing-evidence",
     "strict-skill-unavailable",
     "operator-judgment"

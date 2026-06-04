@@ -1,6 +1,6 @@
 // Edit-file surface sources — the per-flow declaration the dispatcher reads.
 //
-// The `after:edit-file` / `before:edit-file` hooks key on a file surface that a
+// The `after:edit-files` / `before:edit-files` hooks key on a file surface that a
 // step wrote into a typed report, but the field that carries it is named per
 // flow (the first-principles doc's "per-flow-declared self-report field"). This
 // table maps a report schema id to (a) whether its surface is a PREDICTED
@@ -54,13 +54,13 @@ function planAndSliceExtensions(report: unknown): readonly string[] {
 export const EDIT_FILE_SURFACE_SOURCES: Readonly<Record<string, EditFileSurfaceSource>> = {
   // Fix: the runtime-computed change-set. `observed` is the ground-truth set of
   // actual touched paths (already computed against the baseline snapshot), so
-  // it is the strongest `after:edit-file` surface in the codebase.
+  // it is the strongest `after:edit-files` surface in the codebase.
   'fix.change-set@v1': {
     timing: 'after',
     extract: (report) => stringArrayField(report, 'observed'),
   },
   // Build: the plan's predicted surface (a `compose` step, so it crosses the
-  // trace as step.report_written). This is the `before:edit-file` prediction
+  // trace as step.report_written). This is the `before:edit-files` prediction
   // arm — the advisory extensions the repo-grounded plan expects to touch, at
   // plan- and per-slice level. Build's actual touched-files self-report
   // (`build.implementation@v1` `changed_files`) is a relay report, not a

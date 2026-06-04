@@ -106,7 +106,7 @@ export function dispatchSkillHooksForEntries(
 }
 
 // ---------------------------------------------------------------------------
-// File-edit hooks (before:edit-file / after:edit-file)
+// File-edit hooks (before:edit-files / after:edit-files)
 // ---------------------------------------------------------------------------
 //
 // Unlike the check-outcome hooks (which read a literal trace signal), the
@@ -114,9 +114,9 @@ export function dispatchSkillHooksForEntries(
 // the actual touched paths (after) or a predicted surface (before). The
 // dispatcher reads the report via a `readJson` accessor, pulls the surface out
 // via the per-flow EDIT_FILE_SURFACE_SOURCES table, and tests it against the
-// operator's configured edit-file policy keys. The predicate is the key suffix
-// (extension-suffix in v1): `after:edit-file:.tsx` matches a surface entry that
-// `endsWith('.tsx')`; the bare `after:edit-file` matches any non-empty surface.
+// operator's configured edit-files policy keys. The predicate is the key suffix
+// (extension-suffix in v1): `after:edit-files:.tsx` matches a surface entry that
+// `endsWith('.tsx')`; the bare `after:edit-files` matches any non-empty surface.
 // See docs/ideas/skill-hooks-dispatch-spec.md (slice 2, D1/D2).
 
 export type DispatchReadJson = (ref: string) => Promise<unknown>;
@@ -129,18 +129,18 @@ export interface DispatchEditFileHooksInput extends DispatchSkillHooksInput {
 
 // Matches the bare anchors and the v1 extension-suffix form, and nothing else
 // (a namespaced custom hook starts with `<ns>/`, so it never matches).
-const EDIT_FILE_KEY_RE = /^(before|after):edit-file(:(\.[A-Za-z0-9]+)+)?$/;
+const EDIT_FILE_KEY_RE = /^(before|after):edit-files(:(\.[A-Za-z0-9]+)+)?$/;
 
 function editFileTiming(key: string): EditFileTiming {
   return key.startsWith('before:') ? 'before' : 'after';
 }
 
-function baseEditFileHook(key: string): 'before:edit-file' | 'after:edit-file' {
-  return key.startsWith('before:') ? 'before:edit-file' : 'after:edit-file';
+function baseEditFileHook(key: string): 'before:edit-files' | 'after:edit-files' {
+  return key.startsWith('before:') ? 'before:edit-files' : 'after:edit-files';
 }
 
 // The literal predicate carried in the key suffix: '.tsx' for
-// `after:edit-file:.tsx`, '' (match-any) for a bare `after:edit-file`.
+// `after:edit-files:.tsx`, '' (match-any) for a bare `after:edit-files`.
 function editFileSuffix(key: string): string {
   const rest = key.slice(baseEditFileHook(key).length);
   return rest.startsWith(':') ? rest.slice(1) : '';
@@ -151,7 +151,7 @@ function surfaceMatches(surface: readonly string[], suffix: string): boolean {
   return surface.some((item) => item.endsWith(suffix));
 }
 
-// The distinct edit-file policy keys configured across the run's config layers.
+// The distinct edit-files policy keys configured across the run's config layers.
 function editFilePolicyKeys(configLayers: readonly LayeredConfig[]): readonly string[] {
   const keys = new Set<string>();
   for (const layer of configLayers) {
@@ -162,7 +162,7 @@ function editFilePolicyKeys(configLayers: readonly LayeredConfig[]): readonly st
   return [...keys];
 }
 
-// Build the edit-file skill-hook events a step's report surfaces trigger under
+// Build the edit-files skill-hook events a step's report surfaces trigger under
 // the run's config. Returns only events whose policy resolved to something the
 // operator opted into (mode !== 'none'). Best-effort: an unreadable report or a
 // report schema with no surface source is skipped, never thrown.

@@ -6,7 +6,9 @@ export const SKILL_HOOK_VOCABULARY = [
     hook: 'before:high-impact-alignment',
     detected_from: ['goal-contract:impact=high', 'operator-flag:high-impact'],
     cardinality: 'per-run',
-    default_mode: 'ask',
+    // High-impact alignment defaults to observe-only (record, do not inject) so a
+    // high-impact step is never auto-augmented without the operator opting in.
+    default_mode: 'mute',
   },
   {
     hook: 'before:architecture-analysis',
@@ -36,17 +38,17 @@ export const SKILL_HOOK_VOCABULARY = [
   // file-surface hooks (after:react-ui-change/test-change/schema-change/
   // api-surface-change/dependency-change) and the four *_surfaces config
   // buckets. The operator writes the predicate as a key suffix
-  // (`after:edit-file:.tsx`); the engine matches a literal extension suffix and
+  // (`after:edit-files:.tsx`); the engine matches a literal extension suffix and
   // never interprets the meaning. See docs/ideas/skill-hooks-first-principles.md
   // (the reframe) and docs/ideas/skill-hooks-dispatch-spec.md (D1).
   {
-    hook: 'before:edit-file',
+    hook: 'before:edit-files',
     detected_from: ['plan-report:anticipated-file-extensions', 'plan-report:likely-touched'],
     cardinality: 'per-step',
     default_mode: 'auto',
   },
   {
-    hook: 'after:edit-file',
+    hook: 'after:edit-files',
     detected_from: ['change-report:touched-files', 'change-set:observed'],
     cardinality: 'per-step',
     default_mode: 'auto',
@@ -80,17 +82,20 @@ export const SKILL_HOOK_VOCABULARY = [
 export const SkillHookCardinality = z.enum(['per-run', 'per-stage', 'per-step']);
 export type SkillHookCardinality = z.infer<typeof SkillHookCardinality>;
 
-export const SkillHookPolicyMode = z.enum(['auto', 'ask', 'mute']);
+// Two modes: `auto` injects the configured skills; `mute` records the event but
+// injects nothing (observe-only). There is no `ask` mode — an operator who wants
+// a skill to load says so by listing it under `auto` (the default).
+export const SkillHookPolicyMode = z.enum(['auto', 'mute']);
 export type SkillHookPolicyMode = z.infer<typeof SkillHookPolicyMode>;
 
 const SHIPPED_HOOKS = new Set<string>(SKILL_HOOK_VOCABULARY.map((entry) => entry.hook));
 const CUSTOM_HOOK_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
 const SHIPPED_SHAPE_RE = /^(before|after):[a-z][a-z0-9-]*$/;
-// Parameterized edit-file hook: the predicate is the key suffix. v1 predicate is
+// Parameterized edit-files hook: the predicate is the key suffix. v1 predicate is
 // an extension suffix — one or more dot-segments (`.tsx`, `.test.ts`, `.d.ts`).
-// The bare `before:edit-file`/`after:edit-file` anchors validate via SHIPPED_HOOKS
+// The bare `before:edit-files`/`after:edit-files` anchors validate via SHIPPED_HOOKS
 // above (they mean "any file edit"); this matches only the suffixed form.
-const PARAMETERIZED_EDIT_FILE_RE = /^(before|after):edit-file:(\.[A-Za-z0-9]+)+$/;
+const PARAMETERIZED_EDIT_FILE_RE = /^(before|after):edit-files:(\.[A-Za-z0-9]+)+$/;
 
 function hookBody(value: string): string {
   const slash = value.indexOf('/');
@@ -144,7 +149,8 @@ export type SkillHookNameArray = z.infer<typeof SkillHookNameArray>;
 
 export const SkillHookPolicyRule = z
   .object({
-    mode: SkillHookPolicyMode,
+    // Omitting mode means auto: listing skills under a hook is enough to load them.
+    mode: SkillHookPolicyMode.default('auto'),
     skills: z.array(SkillId).optional(),
     strict: z.boolean().default(false),
   })
@@ -187,8 +193,8 @@ export type SkillHookPolicyRule = z.infer<typeof SkillHookPolicyRule>;
 
 // The four per-surface glob buckets (react_surfaces/test_surfaces/
 // schema_surfaces/api_surfaces) that fed the named file-surface hooks are gone:
-// the glob predicate now lives in the parameterized edit-file hook key, so the
-// operator writes one `after:edit-file:.tsx` policy rule instead of a surface
+// the glob predicate now lives in the parameterized edit-files hook key, so the
+// operator writes one `after:edit-files:.tsx` policy rule instead of a surface
 // bucket plus a named hook. `disabled_patterns` is an unrelated per-hook mute
 // list and stays.
 export const SkillHookDetectionConfig = z

@@ -20,7 +20,7 @@ import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 // skills into subsequent IMPLEMENTER relay prompts and the skills.loaded trace,
 // while `mute` records the event but injects nothing. Injection is role-scoped —
 // a researcher or reviewer relay never receives an injected (edit-oriented)
-// skill. Proven end-to-end on Build's before:edit-file arm (the plan predicts a
+// skill. Proven end-to-end on Build's before:edit-files arm (the plan predicts a
 // file surface, the matching auto rule injects, a non-matching rule does not),
 // the after:verification-failed retry arm, and the no-cross-role-leak case.
 // Hermetic: HOME points at a temp skills root, so only the skills this test
@@ -64,7 +64,7 @@ function fixtureBytes(): Buffer {
 
 // A Build relayer whose analyze (context) output predicts a `.ts` file surface,
 // so the compiled plan carries `anticipated_file_extensions` (the
-// before:edit-file detection signal), and which captures the act-step prompts.
+// before:edit-files detection signal), and which captures the act-step prompts.
 function surfaceRelayer(opts: {
   readonly extensions: readonly string[];
   readonly onActPrompt: (prompt: string) => void;
@@ -155,7 +155,7 @@ function actStepSkillsLoaded(entries: Awaited<ReturnType<typeof readTrace>>) {
   );
 }
 
-describe('Skill-hook actuation (auto injection, Build before:edit-file)', () => {
+describe('Skill-hook actuation (auto injection, Build before:edit-files)', () => {
   it(
     'injects an auto-matched skill into the next relay prompt and skills.loaded',
     async () => {
@@ -174,8 +174,8 @@ describe('Skill-hook actuation (auto injection, Build before:edit-file)', () => 
         projectRoot: failingProjectRoot(),
         selectionConfigLayers: [
           projectPolicyLayer({
-            'before:edit-file:.ts': { mode: 'auto', skills: ['tdd'] },
-            'before:edit-file:.py': { mode: 'auto', skills: ['python-doctor'] },
+            'before:edit-files:.ts': { mode: 'auto', skills: ['tdd'] },
+            'before:edit-files:.py': { mode: 'auto', skills: ['python-doctor'] },
           }),
         ],
       });
@@ -183,7 +183,7 @@ describe('Skill-hook actuation (auto injection, Build before:edit-file)', () => 
       // The plan predicted .ts, so the .ts auto rule resolved tdd and injected it.
       const entries = await readTrace(runFolder);
       const before = skillHookEntries(entries).find(
-        (entry) => entry.event.hook === 'before:edit-file:.ts',
+        (entry) => entry.event.hook === 'before:edit-files:.ts',
       );
       expect(before?.event.policy).toMatchObject({ mode: 'auto', source: 'project-policy' });
       expect(before?.event.triggered_skills.map((skill) => skill.id as string)).toContain('tdd');
@@ -233,7 +233,7 @@ describe('Skill-hook actuation (auto injection, Build before:edit-file)', () => 
         projectRoot: failingProjectRoot(),
         selectionConfigLayers: [
           projectPolicyLayer({
-            'before:edit-file:.ts': {
+            'before:edit-files:.ts': {
               mode: 'auto',
               strict: true,
               skills: ['tdd', 'missing-skill'],
@@ -248,7 +248,7 @@ describe('Skill-hook actuation (auto injection, Build before:edit-file)', () => 
           (entry): entry is Extract<(typeof entries)[number], { kind: 'run.skill-hook' }> =>
             entry.kind === 'run.skill-hook',
         )
-        .find((entry) => entry.event.hook === 'before:edit-file:.ts');
+        .find((entry) => entry.event.hook === 'before:edit-files:.ts');
       // The event records the split and a pending strict-unavailable decision ...
       expect(before?.event.policy).toMatchObject({ mode: 'auto', strict: true });
       expect(before?.event.triggered_skills.map((skill) => skill.id as string)).toContain('tdd');
@@ -283,14 +283,14 @@ describe('Skill-hook actuation (auto injection, Build before:edit-file)', () => 
         projectRoot: failingProjectRoot(),
         selectionConfigLayers: [
           projectPolicyLayer({
-            'before:edit-file:.ts': { mode: 'auto', skills: ['tdd', 'missing-skill'] },
+            'before:edit-files:.ts': { mode: 'auto', skills: ['tdd', 'missing-skill'] },
           }),
         ],
       });
 
       const entries = await readTrace(runFolder);
       const before = skillHookEntries(entries).find(
-        (entry) => entry.event.hook === 'before:edit-file:.ts',
+        (entry) => entry.event.hook === 'before:edit-files:.ts',
       );
       expect(before?.event.triggered_skills.map((skill) => skill.id as string)).toContain('tdd');
       expect((before?.event.unavailable_skills ?? []).map((skill) => skill.id as string)).toContain(
@@ -304,13 +304,12 @@ describe('Skill-hook actuation (auto injection, Build before:edit-file)', () => 
   );
 
   it(
-    'an ask policy records a pending decision and injects nothing',
+    'defaults an omitted mode to auto and injects',
     async () => {
-      // ask carries no triggered_skills by construction (the policy layer only
-      // prepares skills for auto / an accepted ask), so it injects nothing while
-      // recording the decision packet for a future interactive prompt.
+      // No `mode` key on the rule: it resolves to auto, so tdd injects exactly as
+      // an explicit `mode: auto` rule would. This is the terse common case.
       writeSkill('tdd', TDD_BODY);
-      const runFolder = join(runFolderBase, 'ask-no-inject');
+      const runFolder = join(runFolderBase, 'default-auto-inject');
       const actPrompts: string[] = [];
       await runCompiledFlow({
         runDir: runFolder,
@@ -322,21 +321,25 @@ describe('Skill-hook actuation (auto injection, Build before:edit-file)', () => 
         relayer: surfaceRelayer({ extensions: ['.ts'], onActPrompt: (p) => actPrompts.push(p) }),
         projectRoot: failingProjectRoot(),
         selectionConfigLayers: [
-          projectPolicyLayer({ 'before:edit-file:.ts': { mode: 'ask', skills: ['tdd'] } }),
+          projectPolicyLayer({ 'before:edit-files:.ts': { skills: ['tdd'] } }),
         ],
       });
 
       const entries = await readTrace(runFolder);
       const before = skillHookEntries(entries).find(
-        (entry) => entry.event.hook === 'before:edit-file:.ts',
+        (entry) => entry.event.hook === 'before:edit-files:.ts',
       );
-      expect(before?.event.policy.mode).toBe('ask');
-      expect(before?.event.triggered_skills).toEqual([]);
-      expect(before?.event.decision_packet_id).toBeDefined();
-      // ask never injects: no skill body in the act prompt, no skills.loaded.
-      expect(actPrompts.length).toBeGreaterThan(0);
-      expect(actPrompts.every((prompt) => !prompt.includes(TDD_BODY))).toBe(true);
-      expect(actStepSkillsLoaded(entries)).toHaveLength(0);
+      // The omitted mode resolved to auto, so it triggered and injected tdd.
+      expect(before?.event.policy.mode).toBe('auto');
+      expect(before?.event.triggered_skills.map((skill) => skill.id as string)).toContain('tdd');
+      expect(actPrompts.some((prompt) => prompt.includes(TDD_BODY))).toBe(true);
+      expect(
+        actStepSkillsLoaded(entries).some((entry) =>
+          (entry.skills as ReadonlyArray<{ readonly id: string }>).some(
+            (skill) => skill.id === 'tdd',
+          ),
+        ),
+      ).toBe(true);
     },
     TIMEOUT_MS,
   );
@@ -360,7 +363,7 @@ describe('Skill-hook actuation (auto injection, Build before:edit-file)', () => 
         relayer: surfaceRelayer({ extensions: ['.ts'], onActPrompt: (p) => actPrompts.push(p) }),
         projectRoot: failingProjectRoot(),
         selectionConfigLayers: [
-          projectPolicyLayer({ 'before:edit-file:.ts': { mode: 'auto', skills: ['tdd'] } }),
+          projectPolicyLayer({ 'before:edit-files:.ts': { mode: 'auto', skills: ['tdd'] } }),
         ],
         policyLayers: [denySkillsPolicyLayer(['tdd'])],
       });
@@ -391,13 +394,13 @@ describe('Skill-hook actuation (auto injection, Build before:edit-file)', () => 
         relayer: surfaceRelayer({ extensions: ['.ts'], onActPrompt: (p) => actPrompts.push(p) }),
         projectRoot: failingProjectRoot(),
         selectionConfigLayers: [
-          projectPolicyLayer({ 'before:edit-file:.ts': { mode: 'mute', strict: false } }),
+          projectPolicyLayer({ 'before:edit-files:.ts': { mode: 'mute', strict: false } }),
         ],
       });
 
       const entries = await readTrace(runFolder);
       const before = skillHookEntries(entries).find(
-        (entry) => entry.event.hook === 'before:edit-file:.ts',
+        (entry) => entry.event.hook === 'before:edit-files:.ts',
       );
       // The event is still recorded ...
       expect(before?.event.policy.mode).toBe('mute');
@@ -415,7 +418,7 @@ describe('Skill-hook actuation (auto injection, check-outcome after:verification
   it(
     'injects an auto-matched skill into the retry relay after a failed verification',
     async () => {
-      // No predicted surface (extensions: []), so before:edit-file never fires;
+      // No predicted surface (extensions: []), so before:edit-files never fires;
       // the only signal is the failing verification. after:verification-failed
       // fires AFTER the verify step, so the first act runs un-injected and the
       // recovery (retry) act picks up the injected skill — proving the after /
@@ -472,7 +475,7 @@ function passingProjectRoot(): string {
 }
 
 // Captures every relay prompt keyed by its step role, predicting `.ts` so
-// before:edit-file:.ts fires after plan-step. Returns passing bodies so the run
+// before:edit-files:.ts fires after plan-step. Returns passing bodies so the run
 // reaches the reviewer relay (review-step) and close.
 function roleCapturingRelayer(captured: {
   analyze: string[];
@@ -520,7 +523,7 @@ describe('Skill-hook actuation (role separation — no cross-role leak)', () => 
   it(
     'injects only into the implementer relay, never the researcher or reviewer relay',
     async () => {
-      // before:edit-file:.ts fires after plan-step and injects tdd. The act-step
+      // before:edit-files:.ts fires after plan-step and injects tdd. The act-step
       // (implementer) must receive it, but the run-scoped channel must NOT leak it
       // into the review-step (reviewer) — a reviewer judges the work independently.
       writeSkill('tdd', TDD_BODY);
@@ -536,7 +539,7 @@ describe('Skill-hook actuation (role separation — no cross-role leak)', () => 
         relayer: roleCapturingRelayer(captured),
         projectRoot: passingProjectRoot(),
         selectionConfigLayers: [
-          projectPolicyLayer({ 'before:edit-file:.ts': { mode: 'auto', skills: ['tdd'] } }),
+          projectPolicyLayer({ 'before:edit-files:.ts': { mode: 'auto', skills: ['tdd'] } }),
         ],
       });
 

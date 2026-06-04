@@ -249,8 +249,9 @@
                 "type": "object",
                 "properties": {
                   "mode": {
+                    "default": "auto",
                     "type": "string",
-                    "enum": ["auto", "ask", "mute"]
+                    "enum": ["auto", "mute"]
                   },
                   "skills": {
                     "type": "array",
@@ -264,7 +265,6 @@
                     "type": "boolean"
                   }
                 },
-                "required": ["mode"],
                 "additionalProperties": false
               }
             },

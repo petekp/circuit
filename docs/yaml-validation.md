@@ -70,7 +70,7 @@ moments:
       mode:
 ```
 
-At `mode:`, the editor should suggest `auto`, `ask`, and `mute`. At the top
+At `mode:`, the editor should suggest `auto` and `mute`. At the top
 level, it should suggest keys such as `schema_version`, `defaults`, `relay`,
 `skills`, `moments`, and `circuits`.
 

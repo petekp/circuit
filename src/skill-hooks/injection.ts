@@ -8,7 +8,7 @@
 // step's loaded skills, so the worker prompt, the recorded relay guidance, and
 // the assertRelayGuidanceMatchesPlan check all see one consistent skill set.
 //
-// Scope: every injecting hook today (before/after:edit-file,
+// Scope: every injecting hook today (before/after:edit-files,
 // after:verification-failed) concerns a code edit, so injection applies ONLY to
 // write-capable (implementer-role) relays. planRelayGuidanceDecision gates on the
 // role; a researcher or reviewer relay never receives an injected skill (role
