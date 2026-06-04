@@ -73,9 +73,15 @@ and this is the decision it made." Report-only writes this entry and nothing els
 ### Slice 1 — report-only dispatch on the check-outcome family
 - Add the `run.skill-hook` trace entry kind.
 - In the graph-runner loop, after a step completes, inspect the trace entries the
-  step just appended. On a `check.evaluated{outcome:fail}` emit
-  `after:verification-failed`; on a `proof.assessed` that is not proven emit
-  `after:evidence-gap`. For each, call `buildRunSkillHookEvent` with the run's
+  step just appended. On a failed verification check
+  (`check.evaluated{check_kind:'schema_sections', outcome:'fail'}`) emit
+  `after:verification-failed`. On a **verification** proof assessment
+  (`assessment_id` `proof.verification:*`) that is `unproved` — not `proven`
+  (no gap) and not `contradicted` (a hard failure already covered by
+  `after:verification-failed`) — emit `after:evidence-gap`. The
+  `proof.verification:*` scoping is load-bearing: every ordinary implementer
+  relay emits a non-proven `proof.acceptance:*` proof, which is NOT an evidence
+  gap and must not fire. For each, call `buildRunSkillHookEvent` with the run's
   config layers + scope ids; if `policy.mode !== 'none'`, append the
   `run.skill-hook` trace entry. **Inject nothing.**
 - The dispatcher lives in one place (a small `dispatchSkillHooks` helper the loop

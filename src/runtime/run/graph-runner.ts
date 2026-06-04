@@ -18,6 +18,7 @@ import type { Ref } from '../../schemas/ref.js';
 import type { ProofAssessedTraceEntry } from '../../schemas/trace-entry.js';
 import { resolveDottedPath } from '../../shared/fanout-branch-template.js';
 import { isProofPlanBlockedError } from '../../shared/proof-plan.js';
+import { dispatchSkillHooksForEntries } from '../../skill-hooks/dispatch.js';
 import { isAcceptanceRetryFeedback } from '../acceptance-criteria.js';
 import type { RouteTarget, TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
@@ -751,6 +752,9 @@ async function executeExecutableFlowOutcomeUnsafe(
       });
     }
 
+    // Mark where this step's trace begins, so skill-hook dispatch can scan only
+    // the entries this step appends (its check.evaluated / proof.assessed signals).
+    const traceLengthBeforeStep = trace.getAll().length;
     let route: string;
     let details: Record<string, unknown>;
     try {
@@ -973,6 +977,30 @@ async function executeExecutableFlowOutcomeUnsafe(
     // that just advanced still records its own slice's completion, not the
     // next slice's.
     completedStepCounts.set(stepCountKey, completedCount + 1);
+
+    // Skill-hook dispatch (report-only): record any hook events this step's
+    // signals trigger under the run's config, and inject nothing. Best-effort
+    // and fully isolated — a dispatch failure must never affect the run, and a
+    // run with no skill_hooks config records nothing.
+    try {
+      const hookEvents = dispatchSkillHooksForEntries({
+        entries: trace.getAll().slice(traceLengthBeforeStep),
+        ...(context.selectionConfigLayers === undefined
+          ? {}
+          : { configLayers: context.selectionConfigLayers }),
+        scope: {
+          flowId: flow.id,
+          stepId: step.id,
+          attemptId: String(attempt),
+        },
+        eventIdBase: `${runId}:${step.id}:${attempt}`,
+      });
+      for (const event of hookEvents) {
+        await trace.append({ run_id: runId, kind: 'run.skill-hook', event });
+      }
+    } catch {
+      // Report-only dispatch is non-critical; swallow so it cannot break a run.
+    }
 
     if (target.kind === 'terminal') {
       return await closeRun(context, outcomeForTerminal(target.target), target.target);

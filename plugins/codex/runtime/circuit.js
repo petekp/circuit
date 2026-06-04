@@ -35698,6 +35698,10 @@ var RunClosedTraceEntry = TraceEntryBase.extend({
   outcome: RunClosedOutcome,
   reason: external_exports.string().optional()
 }).strict();
+var RunSkillHookTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.skill-hook"),
+  event: RunSkillHookEvent
+}).strict();
 var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunBootstrappedTraceEntry,
   StepEnteredTraceEntry,
@@ -35724,6 +35728,7 @@ var TraceEntry = external_exports.discriminatedUnion("kind", [
   StepCompletedTraceEntry,
   StepAbortedTraceEntry,
   RunClosedTraceEntry,
+  RunSkillHookTraceEntry,
   GuidanceDecisionTraceEntryBody
 ]).superRefine((ev, ctx) => {
   if (ev.kind === "guidance.decision") {
@@ -44772,6 +44777,242 @@ function expandTemplate(template, item) {
   return out;
 }
 
+// dist/shared/user-skill-registry.js
+var import_yaml = __toESM(require_dist(), 1);
+import { existsSync as existsSync10, readFileSync as readFileSync21, readdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join as join5, resolve as resolve6 } from "node:path";
+var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
+var UserSkillFrontmatter = UserSkillEntry.pick({
+  name: true,
+  description: true,
+  trigger: true
+}).passthrough();
+function defaultUserSkillRoots(homeDir = homedir()) {
+  return [join5(homeDir, ".agents", "skills"), join5(homeDir, ".claude", "skills")];
+}
+function parseSkillMarkdown(text, skillPath) {
+  if (!text.startsWith("---"))
+    return { metadata: {}, body: text };
+  const match = FRONTMATTER_RE.exec(text);
+  if (match === null) {
+    throw new Error(`skill frontmatter parse failed at ${skillPath}: missing closing ---`);
+  }
+  let rawFrontmatter;
+  try {
+    rawFrontmatter = (0, import_yaml.parse)(match[1] ?? "");
+  } catch (err) {
+    throw new Error(`skill frontmatter parse failed at ${skillPath}: ${err.message}`);
+  }
+  const parsed = UserSkillFrontmatter.safeParse(rawFrontmatter ?? {});
+  if (!parsed.success) {
+    throw new Error(`skill frontmatter validation failed at ${skillPath}: ${parsed.error.message}`);
+  }
+  return {
+    metadata: {
+      ...parsed.data.name === void 0 ? {} : { name: parsed.data.name },
+      ...parsed.data.description === void 0 ? {} : { description: parsed.data.description },
+      ...parsed.data.trigger === void 0 ? {} : { trigger: parsed.data.trigger }
+    },
+    body: match[2] ?? ""
+  };
+}
+function discoverCandidates(roots) {
+  const candidates = /* @__PURE__ */ new Map();
+  for (const root of roots) {
+    const rootAbs = resolve6(root);
+    if (!existsSync10(rootAbs))
+      continue;
+    for (const entry of readdirSync(rootAbs, { withFileTypes: true })) {
+      if (!entry.isDirectory())
+        continue;
+      const id = SkillId.safeParse(entry.name);
+      if (!id.success)
+        continue;
+      const key = id.data;
+      if (candidates.has(key))
+        continue;
+      const skillPath = join5(rootAbs, entry.name, "SKILL.md");
+      if (!existsSync10(skillPath))
+        continue;
+      candidates.set(key, {
+        id: id.data,
+        root: rootAbs,
+        path: skillPath
+      });
+    }
+  }
+  return candidates;
+}
+function loadCandidate(candidate) {
+  let text;
+  try {
+    text = readFileSync21(candidate.path, "utf8");
+  } catch (err) {
+    throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
+  }
+  const parsed = parseSkillMarkdown(text, candidate.path);
+  const entry = UserSkillEntry.parse({
+    id: candidate.id,
+    ...parsed.metadata,
+    root: candidate.root,
+    path: candidate.path,
+    sha256: sha256OfString(text),
+    bytes: Buffer.byteLength(text, "utf8")
+  });
+  return { entry, body: parsed.body };
+}
+function createUserSkillRegistry(options = {}) {
+  const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
+  const candidates = discoverCandidates(roots);
+  const searchedRoots = roots.map((root) => resolve6(root));
+  return {
+    roots: searchedRoots,
+    list() {
+      return [...candidates.values()].map((candidate) => loadCandidate(candidate).entry);
+    },
+    resolve(id) {
+      const key = id;
+      const candidate = candidates.get(key);
+      if (candidate === void 0) {
+        throw new Error([
+          `Circuit could not find skill '${key}'.`,
+          "Searched:",
+          ...searchedRoots.map((root) => `- ${join5(root, key, "SKILL.md")}`)
+        ].join("\n"));
+      }
+      return loadCandidate(candidate);
+    }
+  };
+}
+
+// dist/skill-hooks/policy.js
+function sourceForLayer(layer) {
+  if (layer === "project")
+    return "project-policy";
+  if (layer === "user-global")
+    return "user-global-policy";
+  return void 0;
+}
+function policyResolution(policy2) {
+  if (policy2.mode === "none")
+    return { mode: "none", source: "none" };
+  return {
+    mode: policy2.mode,
+    source: policy2.source,
+    strict: policy2.strict,
+    ...policy2.policyRef === void 0 ? {} : { policy_ref: policy2.policyRef }
+  };
+}
+function resolveSkillHookPolicy(configLayers, hookInput) {
+  const hook = SkillHookName.parse(hookInput);
+  let resolved = { mode: "none", source: "none" };
+  for (const layer of configLayers) {
+    const source = sourceForLayer(layer.layer);
+    if (source === void 0)
+      continue;
+    const rule = layer.config.skill_hooks.policy[hook];
+    if (rule === void 0)
+      continue;
+    resolved = rule.mode === "mute" ? {
+      mode: "mute",
+      source,
+      strict: rule.strict,
+      skills: [],
+      ...layer.source_path === void 0 ? {} : { policyRef: layer.source_path }
+    } : {
+      mode: rule.mode,
+      source,
+      strict: rule.strict,
+      skills: rule.skills ?? [],
+      ...layer.source_path === void 0 ? {} : { policyRef: layer.source_path }
+    };
+  }
+  return resolved;
+}
+function buildRunSkillHookEvent(input) {
+  const policy2 = resolveSkillHookPolicy(input.configLayers ?? [], input.hook);
+  const registry2 = input.registry ?? createUserSkillRegistry();
+  const triggeredSkills = [];
+  const unavailableSkills = [];
+  const askDecision = input.askDecision ?? "pending";
+  const shouldPrepare = policy2.mode === "auto" || policy2.mode === "ask" && askDecision === "accepted";
+  if (shouldPrepare) {
+    for (const skill of policy2.skills) {
+      try {
+        registry2.resolve(skill);
+        triggeredSkills.push({
+          id: SkillId.parse(skill),
+          state: "planned",
+          source: policy2.source
+        });
+      } catch (err) {
+        unavailableSkills.push({
+          id: SkillId.parse(skill),
+          state: "unavailable",
+          source: policy2.source,
+          reason: err.message
+        });
+      }
+    }
+  }
+  const decisionPacketId = policy2.mode === "ask" && askDecision !== "accepted" ? input.decisionPacketId ?? `${input.eventId}:ask` : policy2.mode !== "none" && policy2.strict && unavailableSkills.length > 0 ? input.decisionPacketId ?? `${input.eventId}:strict-skill-unavailable` : input.decisionPacketId;
+  return RunSkillHookEvent.parse({
+    schema: "run.skill-hook@v0",
+    event_id: input.eventId,
+    hook: input.hook,
+    detected_from: [...input.detectedFrom],
+    cardinality: input.cardinality,
+    policy: policyResolution(policy2),
+    ...input.flowId === void 0 ? {} : { flow_id: input.flowId },
+    ...input.stageId === void 0 ? {} : { stage_id: input.stageId },
+    ...input.stepId === void 0 ? {} : { step_id: input.stepId },
+    ...input.attemptId === void 0 ? {} : { attempt_id: input.attemptId },
+    ...decisionPacketId === void 0 ? {} : { decision_packet_id: decisionPacketId },
+    triggered_skills: triggeredSkills,
+    ...unavailableSkills.length === 0 ? {} : { unavailable_skills: unavailableSkills }
+  });
+}
+
+// dist/skill-hooks/dispatch.js
+var VOCABULARY_BY_HOOK = new Map(SKILL_HOOK_VOCABULARY.map((entry) => [entry.hook, entry]));
+function hookForEntry(entry) {
+  if (entry.kind === "check.evaluated" && entry.check_kind === "schema_sections" && entry.outcome === "fail") {
+    return "after:verification-failed";
+  }
+  if (entry.kind === "proof.assessed" && entry.assessment_id.startsWith("proof.verification:") && entry.overall_status !== "proven" && entry.overall_status !== "contradicted") {
+    return "after:evidence-gap";
+  }
+  return void 0;
+}
+function dispatchSkillHooksForEntries(input) {
+  const events = [];
+  for (const entry of input.entries) {
+    const hook = hookForEntry(entry);
+    if (hook === void 0)
+      continue;
+    const vocabulary = VOCABULARY_BY_HOOK.get(hook);
+    if (vocabulary === void 0)
+      continue;
+    const event = buildRunSkillHookEvent({
+      eventId: `${input.eventIdBase}:${hook}:${entry.sequence}`,
+      hook,
+      detectedFrom: [...vocabulary.detected_from],
+      cardinality: vocabulary.cardinality,
+      ...input.configLayers === void 0 ? {} : { configLayers: input.configLayers },
+      ...input.registry === void 0 ? {} : { registry: input.registry },
+      ...input.scope.flowId === void 0 ? {} : { flowId: input.scope.flowId },
+      ...input.scope.stageId === void 0 ? {} : { stageId: input.scope.stageId },
+      ...input.scope.stepId === void 0 ? {} : { stepId: input.scope.stepId },
+      ...input.scope.attemptId === void 0 ? {} : { attemptId: input.scope.attemptId }
+    });
+    if (event.policy.mode === "none")
+      continue;
+    events.push(event);
+  }
+  return events;
+}
+
 // dist/runtime/acceptance-criteria.js
 function isAcceptanceRetryFeedback(value) {
   if (value === null || typeof value !== "object" || Array.isArray(value))
@@ -47030,7 +47271,7 @@ async function relayCursorAgent(input) {
 // dist/connectors/custom.js
 import { mkdtemp as mkdtemp2, readFile as readFile2, rm as rm2, stat, writeFile as writeFile2 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join5 } from "node:path";
+import { join as join6 } from "node:path";
 var DEFAULT_TIMEOUT_MS4 = 12e4;
 var SIGTERM_TO_SIGKILL_GRACE_MS4 = 2e3;
 var OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
@@ -47059,9 +47300,9 @@ async function relayCustom(input) {
   if (executable === void 0) {
     throw new Error(`custom connector '${descriptor.name}' command is empty`);
   }
-  const tempDir = await mkdtemp2(join5(tmpdir2(), "circuit-custom-connector-"));
-  const promptFile = join5(tempDir, "prompt.txt");
-  const outputFile = join5(tempDir, "output.txt");
+  const tempDir = await mkdtemp2(join6(tmpdir2(), "circuit-custom-connector-"));
+  const promptFile = join6(tempDir, "prompt.txt");
+  const outputFile = join6(tempDir, "output.txt");
   await writeFile2(promptFile, input.prompt, "utf8");
   const args = [...baseArgs, promptFile, outputFile];
   const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS4;
@@ -47175,7 +47416,7 @@ function evidenceFromAcceptanceCriteriaTrace(input) {
 }
 
 // dist/shared/relay-support.js
-import { existsSync as existsSync10, readFileSync as readFileSync21 } from "node:fs";
+import { existsSync as existsSync11, readFileSync as readFileSync22 } from "node:fs";
 
 // dist/flows/registries/shape-hints/registry.js
 var SCHEMA_HINTS = buildSchemaHintMap(flowPackages);
@@ -49614,10 +49855,10 @@ function currentSliceSection(activeSlice) {
 function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, rigor, activeSlice) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
-    if (!existsSync10(abs))
+    if (!existsSync11(abs))
       return `[reads unavailable: ${path}]`;
     return `--- ${path} ---
-${readFileSync21(abs, "utf8")}`;
+${readFileSync22(abs, "utf8")}`;
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
   const sliceSection = currentSliceSection(activeSlice);
@@ -49939,115 +50180,6 @@ function deriveResolvedSelection(inv, flow, step, depth) {
     step,
     configLayers: selectionConfigLayersForGuidanceInput(inv, flow, depth)
   }).resolved;
-}
-
-// dist/shared/user-skill-registry.js
-var import_yaml = __toESM(require_dist(), 1);
-import { existsSync as existsSync11, readFileSync as readFileSync22, readdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { join as join6, resolve as resolve6 } from "node:path";
-var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
-var UserSkillFrontmatter = UserSkillEntry.pick({
-  name: true,
-  description: true,
-  trigger: true
-}).passthrough();
-function defaultUserSkillRoots(homeDir = homedir()) {
-  return [join6(homeDir, ".agents", "skills"), join6(homeDir, ".claude", "skills")];
-}
-function parseSkillMarkdown(text, skillPath) {
-  if (!text.startsWith("---"))
-    return { metadata: {}, body: text };
-  const match = FRONTMATTER_RE.exec(text);
-  if (match === null) {
-    throw new Error(`skill frontmatter parse failed at ${skillPath}: missing closing ---`);
-  }
-  let rawFrontmatter;
-  try {
-    rawFrontmatter = (0, import_yaml.parse)(match[1] ?? "");
-  } catch (err) {
-    throw new Error(`skill frontmatter parse failed at ${skillPath}: ${err.message}`);
-  }
-  const parsed = UserSkillFrontmatter.safeParse(rawFrontmatter ?? {});
-  if (!parsed.success) {
-    throw new Error(`skill frontmatter validation failed at ${skillPath}: ${parsed.error.message}`);
-  }
-  return {
-    metadata: {
-      ...parsed.data.name === void 0 ? {} : { name: parsed.data.name },
-      ...parsed.data.description === void 0 ? {} : { description: parsed.data.description },
-      ...parsed.data.trigger === void 0 ? {} : { trigger: parsed.data.trigger }
-    },
-    body: match[2] ?? ""
-  };
-}
-function discoverCandidates(roots) {
-  const candidates = /* @__PURE__ */ new Map();
-  for (const root of roots) {
-    const rootAbs = resolve6(root);
-    if (!existsSync11(rootAbs))
-      continue;
-    for (const entry of readdirSync(rootAbs, { withFileTypes: true })) {
-      if (!entry.isDirectory())
-        continue;
-      const id = SkillId.safeParse(entry.name);
-      if (!id.success)
-        continue;
-      const key = id.data;
-      if (candidates.has(key))
-        continue;
-      const skillPath = join6(rootAbs, entry.name, "SKILL.md");
-      if (!existsSync11(skillPath))
-        continue;
-      candidates.set(key, {
-        id: id.data,
-        root: rootAbs,
-        path: skillPath
-      });
-    }
-  }
-  return candidates;
-}
-function loadCandidate(candidate) {
-  let text;
-  try {
-    text = readFileSync22(candidate.path, "utf8");
-  } catch (err) {
-    throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
-  }
-  const parsed = parseSkillMarkdown(text, candidate.path);
-  const entry = UserSkillEntry.parse({
-    id: candidate.id,
-    ...parsed.metadata,
-    root: candidate.root,
-    path: candidate.path,
-    sha256: sha256OfString(text),
-    bytes: Buffer.byteLength(text, "utf8")
-  });
-  return { entry, body: parsed.body };
-}
-function createUserSkillRegistry(options = {}) {
-  const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
-  const candidates = discoverCandidates(roots);
-  const searchedRoots = roots.map((root) => resolve6(root));
-  return {
-    roots: searchedRoots,
-    list() {
-      return [...candidates.values()].map((candidate) => loadCandidate(candidate).entry);
-    },
-    resolve(id) {
-      const key = id;
-      const candidate = candidates.get(key);
-      if (candidate === void 0) {
-        throw new Error([
-          `Circuit could not find skill '${key}'.`,
-          "Searched:",
-          ...searchedRoots.map((root) => `- ${join6(root, key, "SKILL.md")}`)
-        ].join("\n"));
-      }
-      return loadCandidate(candidate);
-    }
-  };
 }
 
 // dist/shared/skill-loading.js
@@ -54020,6 +54152,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         ...isLoopBodyStep ? { slice_index: stepSliceIndex } : {}
       });
     }
+    const traceLengthBeforeStep = trace.getAll().length;
     let route;
     let details;
     try {
@@ -54194,6 +54327,22 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       ...isLoopBodyStep ? { slice_index: stepSliceIndex } : {}
     });
     completedStepCounts.set(stepCountKey, completedCount + 1);
+    try {
+      const hookEvents = dispatchSkillHooksForEntries({
+        entries: trace.getAll().slice(traceLengthBeforeStep),
+        ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers },
+        scope: {
+          flowId: flow.id,
+          stepId: step.id,
+          attemptId: String(attempt)
+        },
+        eventIdBase: `${runId}:${step.id}:${attempt}`
+      });
+      for (const event of hookEvents) {
+        await trace.append({ run_id: runId, kind: "run.skill-hook", event });
+      }
+    } catch {
+    }
     if (target.kind === "terminal") {
       return await closeRun(context, outcomeForTerminal(target.target), target.target);
     }
