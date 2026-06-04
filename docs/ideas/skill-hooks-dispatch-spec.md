@@ -182,19 +182,84 @@ smallest-defensible answer is recorded here before building.
   after (`changed_files`). The dispatch call becomes async (the runner already
   awaits it).
 
-### Slice 3 — actuation (the router actuator)
-- Flip report-only to **act** per policy mode: `auto` injects the
-  `triggered_skills` into the relay's skill slots for the relevant step; `ask`
-  pauses with the decision packet (`buildSkillHookAskDecisionPacket`,
-  reusing the existing `skill-hook-ask` decision reason); `mute`/`none` still do
-  nothing. Injection reuses the existing selection/skill-slot channel
-  (`skill-loading.ts`, `relay-support.ts`) — the seam `composeRelayPrompt` already
-  exposes.
-- **Verification:** an `auto` policy actually injects the skill into the next
-  relay prompt; an `ask` policy produces the decision packet and pauses; the
-  binding-matrix safety ratchet stays green; `npm run verify`; both hosts.
-  Adversarial review gate applies here in force (this is the first slice that
-  changes worker behavior).
+### Slice 3 — actuation (the router actuator) — SHIPPED
+Flip report-only to **act**: an `auto` policy injects its resolved
+`triggered_skills` into subsequent relays; `ask`/`mute`/`none` inject nothing.
+Injection reuses the existing skill-loading channel (`skill-loading.ts`,
+`relay-support.ts`) at the `planRelayGuidanceDecision` seam, so
+`composeRelayPrompt`, the recorded relay guidance, and `assertRelayGuidanceMatchesPlan`
+all see one consistent skill set.
+
+#### What slice 3 shipped (and the decisions taken)
+
+- **`auto` injects; that is the whole behavior change.** A run-scoped
+  `SkillHookInjectionChannel` (`src/skill-hooks/injection.ts`) lives on the shared
+  base `RunContext` (a mutable container on the otherwise-readonly context,
+  threaded by reference into every per-step `stepContext`). The post-step
+  dispatcher adds an event's `triggered_skills` to it only when
+  `policy.mode === 'auto'`. `planRelayGuidanceDecision` reads the channel and
+  merges the ids into `resolveLoadedRelaySkills` (slot-less, deduped vs selection
+  and slot bindings). Injected skills still pass `assertPolicyAllowsRelayPlan`, so
+  a PolicyEnvelope skill-deny still bounds them.
+- **`ask` was DROPPED from this slice (deliberate, maybe-never).** A faithful
+  `ask` pause-and-resume would need brand-new post-step re-entry semantics plus
+  CLI selection plumbing and decision-packet persistence — a hard-to-revert
+  contract that wants its own slice. It is also unnecessary for correctness: the
+  injector keys on `auto`, and `buildRunSkillHookEvent` only fills
+  `triggered_skills` for `auto` (or an already-accepted `ask`), so an `ask` event
+  carries no skills and injects nothing **by construction** — which is exactly the
+  conservative "do not inject without confirmation" behavior `ask` should have.
+  `ask` events are still recorded as `run.skill-hook` entries carrying their
+  `decision_packet_id`, so an interactive prompt can be built later with zero
+  rework. Until then, `ask` behaves as a safe no-inject.
+- **The channel is persistent (run-scoped), not one-shot.** `ids()` is a pure,
+  non-draining read. Two reasons: (1) `planRelayGuidanceDecision` is called more
+  than once per step (production, injected-connector, each fanout branch) and the
+  request-payload hash + `assertRelayGuidanceMatchesPlan` require every call for a
+  step to return the same set; (2) recovery loops re-run the implementer after a
+  verification failure, and an `after:verification-failed`-injected skill must
+  reach that retry. The channel is mutated **only** at the post-step dispatch seam
+  (between steps), so it is stable within any one step.
+- **Injection is ROLE-GATED to implementer relays (adversarial-review fix).** The
+  first review found that a persistent channel leaks an edit-oriented skill into
+  every later relay, including the **reviewer** relay — a trust-boundary problem (a
+  reviewer must judge the work independently). Fix: `planRelayGuidanceDecision`
+  applies the injected skills only when `relayExecution.role === 'implementer'`.
+  Every injecting hook today (before/after:edit-file, after:verification-failed)
+  concerns a code edit, so a researcher or reviewer relay never receives one.
+  Persistence **across implementer steps** is an accepted, documented
+  over-injection cost; it does not cross roles.
+- **A pending operator decision blocks injection (adversarial-review fix).** The
+  actuator gate is `mode === 'auto' && decision_packet_id === undefined &&
+  triggered_skills.length > 0`. A strict `auto` policy with an unavailable skill
+  carries a `strict-skill-unavailable` decision packet; while that decision is
+  pending the hook injects **nothing** — not even the skills that did resolve — the
+  conservative reading of strict mode (interactive resolution is a later slice). A
+  normal resolved `auto` event has no `decision_packet_id`, so it injects.
+- **One shared, memoized skill registry per run (adversarial-review fix).** The
+  dispatcher (resolving an event's triggered/unavailable split) and the relay
+  loader (loading the injected skill) share a single `UserSkillRegistry` created at
+  run start (`RunContext.skillRegistry`). `resolve()` is memoized per instance, so
+  a skill body is read at most once and the relay gets the exact body the
+  dispatcher resolved — the recorded `run.skill-hook` event cannot disagree with
+  what the relay loads, even if the file changes mid-run (a true per-run filesystem
+  snapshot, no dispatch-vs-relay TOCTOU).
+- **Fanout: injection applies on the production path.** Production fanout branches
+  reuse `executeProductionRelayAttempt`, which composes the prompt with the
+  resolved (injection-merged, role-gated) skills. The injected-connector fanout
+  *compatibility* path (a host/test provides its own branch-local relay) composes
+  no Circuit prompt at all — no skills of any kind — by design and pre-existing, so
+  injection is a no-op there too. Documented at `branch-execution.ts`.
+
+- **Verification (met):** `auto` injects the skill into the next implementer relay
+  prompt + `skills.loaded` (Build `before:edit-file:.ts`; the retry after
+  `after:verification-failed`); a non-matching rule and `mute` inject nothing; a
+  researcher/reviewer relay never receives an injected skill (the no-cross-role-leak
+  test); the `run-centered-v1-safety` ratchet stays green; `npm run verify` green;
+  both host bundles re-emitted and in sync. Tests:
+  `tests/runner/skill-hook-actuation.test.ts`,
+  `tests/unit/skill-hook-injection.test.ts`, plus the `mute`-converted recording
+  tests in `tests/runner/skill-hook-dispatch.test.ts`.
 
 ### Parallel, separable — ambient slot binding (engine-zero floor)
 The plan's "ship now" floor: a non-empty, kind-anchored `skill_slot` plus an
@@ -226,3 +291,13 @@ is green, and the work is committed — with the slice plan above recorded so
 slices 2–3 are unambiguous. Advance through slices 2–3 as evidence allows,
 stopping at clean verified boundaries. Two consecutive clean adversarial reviews
 before marking complete.
+
+**Status: slices 1–3 implemented.** Slice 3 (the `auto` actuator, role-gated to
+implementer relays; `ask` dropped) ships behind the same opt-in, `npm run verify`
+green, both host bundles in sync. The first adversarial review found one
+high-severity cross-role injection leak (an edit skill reaching the reviewer
+relay); it was fixed by role-gating and a no-cross-role-leak test was added.
+Remaining for a future slice if wanted: an interactive `ask` prompt, the two
+deferred edit-file arms (relay self-report `after:edit-file`; Fix-diagnosis
+`before:edit-file`), and the lifecycle family (needs a `stage-transition`
+producer).

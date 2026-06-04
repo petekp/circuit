@@ -329,6 +329,14 @@ export async function executeRelayFanoutBranch(
       };
     }
 
+    // Injected-connector compatibility path (tests / host-provided branch-local
+    // relays): the connector receives the branch goal directly and Circuit does
+    // NOT compose the relay prompt here, so no skills are rendered into it —
+    // selection, slot, and skill-hook-injected skills alike. Skill-hook injection
+    // applies on the production fanout path above (executeProductionRelayAttempt,
+    // which composes the prompt with the resolved loadedSkills). This is an
+    // intentional, pre-existing property of the compatibility path, not a gap in
+    // injection.
     await context.files.writeJson(`${branchDirRel}/request.json`, {
       branch_id: branch.branch_id,
       goal: branch.goal,

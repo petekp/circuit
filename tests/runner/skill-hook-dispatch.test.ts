@@ -199,9 +199,13 @@ describe('Skill-hook report-only dispatch', () => {
   );
 
   it(
-    'is report-only: an auto policy records the would-trigger skill but injects nothing into the relay',
+    'records a mute check-outcome hook without injecting into any relay',
     async () => {
-      const runFolder = join(runFolderBase, 'report-only');
+      // A mute policy is recorded (the signal crossed) but never prepares or
+      // injects skills. Deterministic regardless of the local skill registry,
+      // since mute resolves no skills. (Auto injection is proven, hermetically,
+      // in tests/runner/skill-hook-actuation.test.ts.)
+      const runFolder = join(runFolderBase, 'mute-no-inject');
       const actPrompts: string[] = [];
       await runCompiledFlow({
         runDir: runFolder,
@@ -214,11 +218,7 @@ describe('Skill-hook report-only dispatch', () => {
         projectRoot: failingProjectRoot(),
         selectionConfigLayers: [
           projectPolicyLayer({
-            'after:verification-failed': {
-              mode: 'auto',
-              skills: ['react-doctor'],
-              strict: false,
-            },
+            'after:verification-failed': { mode: 'mute', strict: false },
           }),
         ],
       });
@@ -226,17 +226,15 @@ describe('Skill-hook report-only dispatch', () => {
       const entries = await readTrace(runFolder);
       const hooks = skillHookEntries(entries);
       expect(hooks.length).toBeGreaterThan(0);
-      // The configured skill is recorded as what WOULD be triggered (it lands in
-      // triggered or unavailable depending on the local registry) ...
-      const named = hooks.flatMap((entry) => [
-        ...entry.event.triggered_skills.map((skill) => skill.id as string),
-        ...(entry.event.unavailable_skills ?? []).map((skill) => skill.id as string),
-      ]);
-      expect(named).toContain('react-doctor');
-      // ... but report-only must not inject it into any relay prompt.
+      for (const entry of hooks) {
+        expect(entry.event.policy.mode).toBe('mute');
+        expect(entry.event.triggered_skills).toEqual([]);
+      }
+      // Build declares no skill slots, so an empty injection set means no
+      // "Selected Skills:" section is ever composed into a relay prompt.
       expect(actPrompts.length).toBeGreaterThan(0);
       for (const prompt of actPrompts) {
-        expect(prompt).not.toContain('react-doctor');
+        expect(prompt).not.toContain('Selected Skills:');
       }
     },
     TIMEOUT_MS,
@@ -278,7 +276,7 @@ describe('Skill-hook report-only dispatch', () => {
 
 describe('Skill-hook edit-file dispatch (Build, end-to-end)', () => {
   it(
-    'records before:edit-file:.ts when the plan predicts the surface, and injects nothing',
+    'records before:edit-file:.ts when the plan predicts the surface; mute injects nothing',
     async () => {
       const runFolder = join(runFolderBase, 'build-before');
       const actPrompts: string[] = [];
@@ -293,8 +291,8 @@ describe('Skill-hook edit-file dispatch (Build, end-to-end)', () => {
         projectRoot: failingProjectRoot(),
         selectionConfigLayers: [
           projectPolicyLayer({
-            'before:edit-file:.ts': { mode: 'auto', skills: ['tdd'] },
-            'before:edit-file:.py': { mode: 'auto', skills: ['python-doctor'] },
+            'before:edit-file:.ts': { mode: 'mute', strict: false },
+            'before:edit-file:.py': { mode: 'mute', strict: false },
           }),
         ],
       });
@@ -305,13 +303,15 @@ describe('Skill-hook edit-file dispatch (Build, end-to-end)', () => {
       expect(hookNames).toContain('before:edit-file:.ts');
       const before = hooks.find((entry) => entry.event.hook === 'before:edit-file:.ts');
       expect(before?.event.step_id).toBe('plan-step');
-      expect(before?.event.policy).toMatchObject({ mode: 'auto', source: 'project-policy' });
+      expect(before?.event.policy).toMatchObject({ mode: 'mute', source: 'project-policy' });
       // ... but the unpredicted .py rule does not.
       expect(hookNames).not.toContain('before:edit-file:.py');
-      // Report-only: the predicted skill is never injected into the act relay.
+      // Mute injects nothing: no "Selected Skills:" section is composed (Build
+      // declares no skill slots). Auto injection is proven hermetically in
+      // tests/runner/skill-hook-actuation.test.ts.
       expect(actPrompts.length).toBeGreaterThan(0);
       for (const prompt of actPrompts) {
-        expect(prompt).not.toContain('tdd');
+        expect(prompt).not.toContain('Selected Skills:');
       }
     },
     TIMEOUT_MS,

@@ -44854,10 +44854,19 @@ function createUserSkillRegistry(options = {}) {
   const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
   const candidates = discoverCandidates(roots);
   const searchedRoots = roots.map((root) => resolve6(root));
+  const cache = /* @__PURE__ */ new Map();
+  const loadCached = (key, candidate) => {
+    const cached2 = cache.get(key);
+    if (cached2 !== void 0)
+      return cached2;
+    const loaded = loadCandidate(candidate);
+    cache.set(key, loaded);
+    return loaded;
+  };
   return {
     roots: searchedRoots,
     list() {
-      return [...candidates.values()].map((candidate) => loadCandidate(candidate).entry);
+      return [...candidates.entries()].map(([key, candidate]) => loadCached(key, candidate).entry);
     },
     resolve(id) {
       const key = id;
@@ -44869,7 +44878,7 @@ function createUserSkillRegistry(options = {}) {
           ...searchedRoots.map((root) => `- ${join5(root, key, "SKILL.md")}`)
         ].join("\n"));
       }
-      return loadCandidate(candidate);
+      return loadCached(key, candidate);
     }
   };
 }
@@ -45110,6 +45119,20 @@ async function dispatchSkillHooks(input) {
   const checkOutcome = dispatchSkillHooksForEntries(input);
   const editFile = await dispatchEditFileHooksForEntries(input);
   return [...checkOutcome, ...editFile];
+}
+
+// dist/skill-hooks/injection.js
+function createSkillHookInjectionChannel() {
+  const set2 = /* @__PURE__ */ new Set();
+  return {
+    add(ids) {
+      for (const id of ids)
+        set2.add(id);
+    },
+    ids() {
+      return [...set2];
+    }
+  };
 }
 
 // dist/runtime/acceptance-criteria.js
@@ -50339,6 +50362,9 @@ ${err.message}`);
       continue;
     addSkill(skill, slot.id);
   }
+  for (const id of input.injectedSkillIds ?? []) {
+    addSkill(id);
+  }
   return loaded;
 }
 
@@ -50552,12 +50578,18 @@ function planRelayGuidanceDecision(input) {
     ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers }
   }, flow, compiledStep, input.depth);
   assertConnectorSelectionCompatible(relayExecution.connectorName, resolvedSelection);
+  const injectedSkillIds = relayExecution.role === "implementer" ? context.skillHookInjections?.ids() ?? [] : [];
   const loadedSkills = resolveLoadedRelaySkills({
     flowId: flow.id,
     stepId: step.id,
     skillSlots: compiledStep.skill_slots ?? [],
     resolvedSelection,
-    ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers }
+    ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers },
+    ...injectedSkillIds.length === 0 ? {} : { injectedSkillIds },
+    // Share the run's single registry (the same one the skill-hook dispatcher
+    // resolved against), so an injected skill recorded as triggered resolves here
+    // identically — no dispatch-vs-relay divergence, one filesystem snapshot.
+    ...context.skillRegistry === void 0 ? {} : { registry: context.skillRegistry }
   });
   assertPolicyAllowsRelayPlan({
     context,
@@ -54123,6 +54155,15 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     files,
     trace,
     externalFiles: options.externalFiles ?? boundary.externalFiles,
+    // Created once for the whole run and shared by every per-step stepContext
+    // spread below, so the post-step skill-hook actuator can record an `auto`
+    // event's skills and the next relay step picks them up. Empty on runs with
+    // no skill_hooks config, so it has no observable effect there.
+    skillHookInjections: createSkillHookInjectionChannel(),
+    // One filesystem snapshot of the user skill registry for the whole run,
+    // shared by the skill-hook dispatcher and the relay skill loader so they
+    // never disagree about which skills resolve (see RunContext.skillRegistry).
+    skillRegistry: createUserSkillRegistry(),
     ...options.childCompiledFlowResolver === void 0 ? {} : { childCompiledFlowResolver: options.childCompiledFlowResolver },
     ...options.childRunner === void 0 ? {} : { childRunner: options.childRunner },
     ...options.childExecutors === void 0 ? {} : { childExecutors: options.childExecutors },
@@ -54436,10 +54477,16 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
           attemptId: String(attempt)
         },
         eventIdBase: `${runId}:${step.id}:${attempt}`,
-        readJson: (ref) => context.files.readJson(ref)
+        readJson: (ref) => context.files.readJson(ref),
+        // Share the run's single registry so the recorded triggered/unavailable
+        // split matches what the relay loader will actually resolve.
+        ...context.skillRegistry === void 0 ? {} : { registry: context.skillRegistry }
       });
       for (const event of hookEvents) {
         await trace.append({ run_id: runId, kind: "run.skill-hook", event });
+        if (event.policy.mode === "auto" && event.decision_packet_id === void 0 && event.triggered_skills.length > 0) {
+          context.skillHookInjections?.add(event.triggered_skills.map((skill) => skill.id));
+        }
       }
     } catch {
     }
