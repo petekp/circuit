@@ -536,3 +536,90 @@ describe('Skill-hook edit-file detection (unit, Fix change-set)', () => {
     ).toEqual([]);
   });
 });
+
+describe('Skill-hook edit-file detection (unit, coverage)', () => {
+  function reportWritten(schema: string): TraceEntry {
+    return entry({
+      kind: 'step.report_written',
+      step_id: 's',
+      report_path: 'reports/x.json',
+      report_schema: schema,
+      sequence: 1,
+    });
+  }
+
+  function userGlobalPolicyLayer(policy: Record<string, unknown>): LayeredConfig {
+    return {
+      layer: 'user-global',
+      source_path: '~/.config/circuit/config.yaml',
+      config: Config.parse({ schema_version: 1, skill_hooks: { policy } }),
+    };
+  }
+
+  it('never throws and records nothing when the report read fails (best-effort isolation)', async () => {
+    const events = await dispatchEditFileHooksForEntries({
+      entries: [reportWritten('fix.change-set@v1')],
+      configLayers: [
+        projectPolicyLayer({ 'after:edit-file:.ts': { mode: 'auto', skills: ['tdd'] } }),
+      ],
+      scope: { flowId: 'fix', stepId: 's', attemptId: '1' },
+      eventIdBase: 'e',
+      readJson: async () => {
+        throw new Error('ENOENT: report missing');
+      },
+    });
+    expect(events).toEqual([]);
+  });
+
+  it('unions plan-level and slice-level anticipated extensions when they differ (build.plan@v1)', async () => {
+    // Plan-level predicts .ts; the slice predicts a different .tsx. Both must fire.
+    const events = await dispatchEditFileHooksForEntries({
+      entries: [reportWritten('build.plan@v1')],
+      configLayers: [
+        projectPolicyLayer({
+          'before:edit-file:.ts': { mode: 'auto', skills: ['tdd'] },
+          'before:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
+          'before:edit-file:.py': { mode: 'auto', skills: ['python-doctor'] },
+        }),
+      ],
+      scope: { flowId: 'build', stepId: 'plan-step', attemptId: '1' },
+      eventIdBase: 'e',
+      readJson: async () => ({
+        anticipated_file_extensions: ['.ts'],
+        slices: [{ id: 'slice-1', intent: 'x', anticipated_file_extensions: ['.tsx'] }],
+      }),
+    });
+    expect(events.map((event) => event.hook).sort()).toEqual(
+      ['before:edit-file:.ts', 'before:edit-file:.tsx'].sort(),
+    );
+  });
+
+  it('collects edit-file keys across config layers, honoring project-over-user precedence', async () => {
+    // user-global declares .ts (auto); project overrides .ts to mute and adds .tsx
+    // (mute). Both keys are surfaced; resolution applies the project layer per key.
+    const events = await dispatchEditFileHooksForEntries({
+      entries: [reportWritten('fix.change-set@v1')],
+      configLayers: [
+        userGlobalPolicyLayer({ 'after:edit-file:.ts': { mode: 'auto', skills: ['tdd'] } }),
+        projectPolicyLayer({
+          'after:edit-file:.ts': { mode: 'mute', strict: false },
+          'after:edit-file:.tsx': { mode: 'mute', strict: false },
+        }),
+      ],
+      scope: { flowId: 'fix', stepId: 's', attemptId: '1' },
+      eventIdBase: 'e',
+      readJson: async () => ({ observed: ['src/a.ts', 'src/b.tsx'] }),
+    });
+    const byHook = new Map(events.map((event) => [event.hook, event]));
+    // .ts is surfaced from user-global but the project layer overrides it to mute.
+    expect(byHook.get('after:edit-file:.ts')?.policy).toMatchObject({
+      mode: 'mute',
+      source: 'project-policy',
+    });
+    // .tsx comes only from the project layer.
+    expect(byHook.get('after:edit-file:.tsx')?.policy).toMatchObject({
+      mode: 'mute',
+      source: 'project-policy',
+    });
+  });
+});
