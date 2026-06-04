@@ -2303,3 +2303,237 @@ describe('operator summary writer', () => {
     );
   });
 });
+
+describe('operator summary writer — skill hook activations', () => {
+  const RUN = '87000000-0000-0000-0000-000000000001';
+
+  function hookEntry(sequence: number, event: Record<string, unknown>): Record<string, unknown> {
+    return {
+      schema_version: 1,
+      sequence,
+      recorded_at: '2026-06-04T12:00:00.000Z',
+      run_id: RUN,
+      kind: 'run.skill-hook',
+      event,
+    };
+  }
+
+  function autoEvent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      schema: 'run.skill-hook@v0',
+      event_id: `${RUN}:apply-step:1:after:edit-files:.tsx:5`,
+      hook: 'after:edit-files:.tsx',
+      detected_from: ['change-set:observed'],
+      cardinality: 'per-step',
+      policy: {
+        mode: 'auto',
+        source: 'project-policy',
+        strict: false,
+        policy_ref: './.circuit/config.yaml',
+      },
+      flow_id: 'fix',
+      step_id: 'apply-step',
+      attempt_id: '1',
+      triggered_skills: [{ id: 'react-doctor', state: 'planned', source: 'project-policy' }],
+      ...overrides,
+    };
+  }
+
+  it('discloses the fired hook, the injected skill, and its provenance (A1/A2)', () => {
+    writeTrace([hookEntry(5, autoEvent())]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const activations = written.summary.skill_hook_activations ?? [];
+    expect(activations).toHaveLength(1);
+    expect(activations[0]).toMatchObject({
+      hook: 'after:edit-files:.tsx',
+      mode: 'auto',
+      source: 'project-policy',
+      policy_ref: './.circuit/config.yaml',
+      injected_skills: ['react-doctor'],
+      withheld_skills: [],
+      unavailable_skills: [],
+    });
+
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('Skill hooks:');
+    expect(markdown).toContain(
+      '`after:edit-files:.tsx` injected react-doctor — ./.circuit/config.yaml',
+    );
+  });
+
+  it('discloses a configured-but-unavailable skill with its reason (A3)', () => {
+    writeTrace([
+      hookEntry(
+        5,
+        autoEvent({
+          triggered_skills: [],
+          unavailable_skills: [
+            {
+              id: 'react-doctor',
+              state: 'unavailable',
+              source: 'project-policy',
+              reason: "Circuit could not find skill 'react-doctor'.\nSearched:\n- /home/x",
+            },
+          ],
+        }),
+      ),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const activations = written.summary.skill_hook_activations ?? [];
+    expect(activations).toHaveLength(1);
+    expect(activations[0]?.injected_skills).toEqual([]);
+    expect(activations[0]?.unavailable_skills).toEqual([
+      { id: 'react-doctor', reason: "Circuit could not find skill 'react-doctor'." },
+    ]);
+
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain(
+      "`after:edit-files:.tsx` could not load react-doctor (Circuit could not find skill 'react-doctor'.) — ./.circuit/config.yaml",
+    );
+    // The multi-line "Searched:" tail must not bleed into the digest.
+    expect(markdown).not.toContain('Searched:');
+  });
+
+  it('shows a muted hook as observe-only', () => {
+    writeTrace([
+      hookEntry(
+        5,
+        autoEvent({
+          hook: 'after:verification-failed',
+          detected_from: ['evidence-map:required-check-failed'],
+          cardinality: 'per-step',
+          policy: { mode: 'mute', source: 'user-global-policy', strict: false },
+          triggered_skills: [],
+        }),
+      ),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.skill_hook_activations?.[0]).toMatchObject({
+      hook: 'after:verification-failed',
+      mode: 'mute',
+      injected_skills: [],
+    });
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      '`after:verification-failed` fired (muted; nothing injected) — user-global policy',
+    );
+  });
+
+  it('marks a resolved skill as withheld when a strict decision packet blocks injection', () => {
+    writeTrace([
+      hookEntry(
+        5,
+        autoEvent({
+          decision_packet_id: 'decision-1:strict-skill-unavailable',
+          policy: {
+            mode: 'auto',
+            source: 'project-policy',
+            strict: true,
+            policy_ref: './.circuit/config.yaml',
+          },
+          triggered_skills: [{ id: 'react-doctor', state: 'planned', source: 'project-policy' }],
+          unavailable_skills: [
+            { id: 'tdd', state: 'unavailable', source: 'project-policy', reason: 'missing' },
+          ],
+        }),
+      ),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const activation = written.summary.skill_hook_activations?.[0];
+    expect(activation?.injected_skills).toEqual([]);
+    expect(activation?.withheld_skills).toEqual(['react-doctor']);
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      'withheld react-doctor pending a strict-mode decision',
+    );
+  });
+
+  it('dedups a hook that re-fires across steps with the same outcome', () => {
+    writeTrace([
+      hookEntry(5, autoEvent({ event_id: `${RUN}:a:1:after:edit-files:.tsx:5`, step_id: 'a' })),
+      hookEntry(9, autoEvent({ event_id: `${RUN}:b:1:after:edit-files:.tsx:9`, step_id: 'b' })),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    // Same hook + same injected set on two steps collapses to one digest line.
+    expect(written.summary.skill_hook_activations).toHaveLength(1);
+  });
+
+  it('surfaces a swallowed dispatch failure as a warning (A8)', () => {
+    writeTrace([
+      {
+        schema_version: 1,
+        sequence: 5,
+        recorded_at: '2026-06-04T12:00:00.000Z',
+        run_id: RUN,
+        kind: 'run.skill-hook-error',
+        step_id: 'apply-step',
+        message: 'report surface extractor threw: Unexpected end of JSON input\nstack trace line',
+      },
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.evidence_warnings).toContainEqual({
+      kind: 'skill_hook_dispatch_failed',
+      message: 'report surface extractor threw: Unexpected end of JSON input',
+    });
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      'report surface extractor threw: Unexpected end of JSON input',
+    );
+  });
+
+  it('omits the skill-hooks surface entirely on a run with no skill-hook records', () => {
+    writeTrace([
+      {
+        schema_version: 1,
+        sequence: 1,
+        recorded_at: '2026-06-04T12:00:00.000Z',
+        run_id: RUN,
+        kind: 'step.completed',
+        step_id: 'apply-step',
+        attempt: 1,
+      },
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.skill_hook_activations).toBeUndefined();
+    expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('Skill hooks:');
+  });
+});

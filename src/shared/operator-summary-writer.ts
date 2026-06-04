@@ -9,11 +9,14 @@ import {
   OperatorAutoResolution,
   type OperatorAutoResolution as OperatorAutoResolutionValue,
   type OperatorBriefSlots,
+  OperatorSkillHookActivation,
+  type OperatorSkillHookActivation as OperatorSkillHookActivationValue,
   OperatorSummary,
   type OperatorSummaryReportLink,
   type OperatorSummaryWarning,
 } from '../schemas/operator-summary.js';
 import type { RunResult } from '../schemas/result.js';
+import { RunSkillHookEvent } from '../schemas/skill-hook.js';
 import { type HtmlProjectorContext, getHtmlProjector } from './html/index.js';
 import {
   type JsonObject,
@@ -580,6 +583,105 @@ function readAutoResolutions(runFolder: string): OperatorAutoResolutionValue[] {
   return records;
 }
 
+// The registry's "could not find skill" error is multi-line (it lists every
+// searched path). The digest wants the headline only.
+function firstLine(text: string): string {
+  const head = text.split(/\r?\n/)[0]?.trim() ?? '';
+  return head.length > 0 ? head : text.trim();
+}
+
+function skillHookSourceLabel(source: OperatorSkillHookActivationValue['source']): string {
+  switch (source) {
+    case 'project-policy':
+      return 'project policy';
+    case 'user-global-policy':
+      return 'user-global policy';
+    case 'default-mapping':
+      return 'default mapping';
+  }
+}
+
+// Read the run's skill-hook records out of the trace and project them into the
+// operator surface: a deduped list of activations (which hook fired, what it
+// injected, its provenance, any unavailable skill) plus warnings for any
+// swallowed dispatch failure. One pass over trace.ndjson; both kinds live there.
+function readSkillHookSummary(runFolder: string): {
+  readonly activations: OperatorSkillHookActivationValue[];
+  readonly warnings: OperatorSummaryWarning[];
+} {
+  const tracePath = join(runFolder, 'trace.ndjson');
+  if (!existsSync(tracePath)) return { activations: [], warnings: [] };
+  const seen = new Set<string>();
+  const activations: OperatorSkillHookActivationValue[] = [];
+  const warnings: OperatorSummaryWarning[] = [];
+  for (const line of readFileSync(tracePath, 'utf8').split(/\r?\n/)) {
+    if (line.trim().length === 0) continue;
+    let entry: unknown;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObject(entry)) continue;
+    if (entry.kind === 'run.skill-hook-error') {
+      const message = stringField(entry, 'message');
+      if (message !== undefined) {
+        warnings.push({ kind: 'skill_hook_dispatch_failed', message: firstLine(message) });
+      }
+      continue;
+    }
+    if (entry.kind !== 'run.skill-hook') continue;
+    const parsed = RunSkillHookEvent.safeParse(entry.event);
+    if (!parsed.success) continue;
+    const event = parsed.data;
+    if (event.policy.mode === 'none') continue;
+    const blocked = event.decision_packet_id !== undefined;
+    const triggered = event.triggered_skills.map((skill) => skill.id as unknown as string);
+    const activation = OperatorSkillHookActivation.parse({
+      hook: event.hook,
+      mode: event.policy.mode,
+      source: event.policy.source,
+      ...(event.policy.policy_ref === undefined ? {} : { policy_ref: event.policy.policy_ref }),
+      injected_skills: event.policy.mode === 'auto' && !blocked ? triggered : [],
+      withheld_skills: event.policy.mode === 'auto' && blocked ? triggered : [],
+      unavailable_skills: (event.unavailable_skills ?? []).map((skill) => ({
+        id: skill.id as unknown as string,
+        ...(skill.reason === undefined ? {} : { reason: firstLine(skill.reason) }),
+      })),
+    });
+    // Dedup identical activations: a hook that re-fires across retries or slices
+    // with the same outcome is one line in the digest, not N.
+    const key = JSON.stringify(activation);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    activations.push(activation);
+  }
+  return { activations, warnings };
+}
+
+function skillHookActivationLine(activation: OperatorSkillHookActivationValue): string {
+  const provenance = activation.policy_ref ?? skillHookSourceLabel(activation.source);
+  if (activation.mode === 'mute') {
+    return `\`${activation.hook}\` fired (muted; nothing injected) — ${provenance}`;
+  }
+  const parts: string[] = [];
+  if (activation.injected_skills.length > 0) {
+    parts.push(`injected ${activation.injected_skills.join(', ')}`);
+  }
+  if (activation.withheld_skills.length > 0) {
+    parts.push(`withheld ${activation.withheld_skills.join(', ')} pending a strict-mode decision`);
+  }
+  for (const unavailable of activation.unavailable_skills) {
+    parts.push(
+      unavailable.reason === undefined
+        ? `could not load ${unavailable.id}`
+        : `could not load ${unavailable.id} (${unavailable.reason})`,
+    );
+  }
+  if (parts.length === 0) parts.push('matched but injected nothing');
+  return `\`${activation.hook}\` ${parts.join('; ')} — ${provenance}`;
+}
+
 function formatScore(value: number | null | undefined): string {
   if (value === null || value === undefined) return 'n/a';
   return value.toFixed(3).replace(/\.?0+$/, '');
@@ -626,6 +728,12 @@ function renderMarkdown(summary: OperatorSummary): string {
         lines.push(`- ${autoResolutionSummaryLine(resolution)}`);
       }
     }
+    if (summary.skill_hook_activations !== undefined && summary.skill_hook_activations.length > 0) {
+      lines.push('', 'Skill hooks:');
+      for (const activation of summary.skill_hook_activations) {
+        lines.push(`- ${skillHookActivationLine(activation)}`);
+      }
+    }
     if (summary.html_path !== undefined) {
       lines.push('', `Rich summary: ${summary.html_path}`);
     }
@@ -645,6 +753,13 @@ function renderMarkdown(summary: OperatorSummary): string {
     lines.push('', '## Auto-resolutions', '');
     for (const resolution of summary.auto_resolutions) {
       lines.push(`- ${autoResolutionSummaryLine(resolution)}`);
+    }
+  }
+
+  if (summary.skill_hook_activations !== undefined && summary.skill_hook_activations.length > 0) {
+    lines.push('', '## Skill hooks', '');
+    for (const activation of summary.skill_hook_activations) {
+      lines.push(`- ${skillHookActivationLine(activation)}`);
     }
   }
 
@@ -686,6 +801,7 @@ export function writeOperatorSummary(input: {
       ? undefined
       : resolveRunRelative(input.runFolder, resultRelPath);
   const autoResolutions = readAutoResolutions(input.runFolder);
+  const skillHookSummary = readSkillHookSummary(input.runFolder);
 
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
@@ -811,6 +927,7 @@ export function writeOperatorSummary(input: {
   const warnings = [
     ...warningRecords(flowReport),
     ...(htmlEmitWarning === undefined ? [] : [htmlEmitWarning]),
+    ...skillHookSummary.warnings,
   ];
   const briefSlots = buildBriefSlots({
     runFolder: input.runFolder,
@@ -840,6 +957,9 @@ export function writeOperatorSummary(input: {
     ...(outHtmlPath === undefined ? {} : { html_path: outHtmlPath }),
     report_paths: reportPaths,
     ...(autoResolutions.length === 0 ? {} : { auto_resolutions: autoResolutions }),
+    ...(skillHookSummary.activations.length === 0
+      ? {}
+      : { skill_hook_activations: skillHookSummary.activations }),
     ...(input.runResult.outcome === 'checkpoint_waiting'
       ? { checkpoint: input.runResult.checkpoint }
       : {}),

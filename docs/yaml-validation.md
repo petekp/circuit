@@ -64,15 +64,15 @@ Type this:
 
 ```yaml
 schema_version: 1
-moments:
+skill_hooks:
   policy:
-    before:architecture-analysis:
+    after:verification-failed:
       mode:
 ```
 
 At `mode:`, the editor should suggest `auto` and `mute`. At the top
 level, it should suggest keys such as `schema_version`, `defaults`, `relay`,
-`skills`, `moments`, and `circuits`.
+`skills`, `skill_hooks`, and `circuits`.
 
 Also test an invalid key:
 

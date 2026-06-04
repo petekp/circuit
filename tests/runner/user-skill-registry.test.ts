@@ -112,4 +112,32 @@ describe('user skill registry', () => {
       /skill frontmatter validation failed/,
     );
   });
+
+  // Reach boundary (C1/C2/C5): the registry is intentionally flat-home-dir-only.
+  // Plugin and marketplace skills live nested under a plugin cache and use
+  // namespaced ids; neither is discoverable. The recorded decision keeps this
+  // boundary and relies on the operator-summary unavailable-skill disclosure as
+  // the surfaced signal, rather than widening discovery (which would require
+  // relaxing the flat SkillId and walking host-specific plugin caches).
+  it('does not discover skills nested below an immediate root subdirectory', () => {
+    // A plugin/marketplace layout: plugins/cache/<pkg>/skills/<id>/SKILL.md.
+    // Discovery walks only the immediate <root>/<id> level, so this is unreachable.
+    const nested = join(agentsRoot, 'plugins', 'cache', 'pkg', 'skills', 'deploy');
+    mkdirSync(nested, { recursive: true });
+    writeFileSync(join(nested, 'SKILL.md'), 'Nested plugin skill.', 'utf8');
+
+    const registry = createUserSkillRegistry({ roots: [agentsRoot] });
+    expect(registry.list()).toEqual([]);
+  });
+
+  it('skips a namespaced directory name that is not a valid flat skill id', () => {
+    // A plugin-style namespaced id (`vendor:skill`) is not a valid flat SkillId,
+    // so even a directory by that name carrying a SKILL.md is skipped at discovery.
+    const dir = join(agentsRoot, 'vendor:skill');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'SKILL.md'), 'Namespaced plugin skill.', 'utf8');
+
+    const registry = createUserSkillRegistry({ roots: [agentsRoot] });
+    expect(registry.list()).toEqual([]);
+  });
 });
