@@ -14,7 +14,7 @@
     {
       "kind": "request",
       "ref": "reports/checkpoints/frame-step-request.json",
-      "sha256": "a48f096757066c2ad525f5a6553a0648dd3cb15d9be40ee054679323a42a8a53",
+      "sha256": "fd2cd5cad80aa1516f850a12dc53d26b03cac12f52b97df819850e688b630241",
       "run_id": "44444444-4444-4444-4444-444444444403",
       "flow_id": "build",
       "step_id": "frame-step"
@@ -31,13 +31,13 @@
     }
   ],
   "trace_entries_observed": 5,
-  "manifest_hash": "b4befa8d142c692117c299238e74a82af65efef6eca0061dc3e3031bb2d596f7",
+  "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2",
   "checkpoint": {
     "step_id": "frame-step",
     "request_ref": {
       "kind": "request",
       "ref": "reports/checkpoints/frame-step-request.json",
-      "sha256": "a48f096757066c2ad525f5a6553a0648dd3cb15d9be40ee054679323a42a8a53",
+      "sha256": "fd2cd5cad80aa1516f850a12dc53d26b03cac12f52b97df819850e688b630241",
       "run_id": "44444444-4444-4444-4444-444444444403",
       "flow_id": "build",
       "step_id": "frame-step"

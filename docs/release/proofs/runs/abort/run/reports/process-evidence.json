@@ -13,7 +13,7 @@
   "result_ref": {
     "kind": "report",
     "ref": "reports/result.json",
-    "sha256": "2e6d11db3a22b9a0188af0c9873a39b94f9ebfb2372b604f53001cb49a92d0ab",
+    "sha256": "b015fe6c0eb288bb71afc6832432fb85d99fcf6336ade796f7e13fd447b19791",
     "run_id": "44444444-4444-4444-4444-444444444406",
     "flow_id": "build"
   },
@@ -21,7 +21,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "2e6d11db3a22b9a0188af0c9873a39b94f9ebfb2372b604f53001cb49a92d0ab",
+      "sha256": "b015fe6c0eb288bb71afc6832432fb85d99fcf6336ade796f7e13fd447b19791",
       "run_id": "44444444-4444-4444-4444-444444444406",
       "flow_id": "build"
     }
@@ -36,6 +36,6 @@
       "next_action": "Inspect the child process result before closing Run."
     }
   ],
-  "trace_entries_observed": 18,
-  "manifest_hash": "b4befa8d142c692117c299238e74a82af65efef6eca0061dc3e3031bb2d596f7"
+  "trace_entries_observed": 27,
+  "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2"
 }

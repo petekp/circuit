@@ -71,6 +71,35 @@ export interface CompiledFlowPaths {
 
 export type CompiledFlowVisibility = 'public' | 'internal';
 
+// Describes a per-slice implement+verify loop. The engine, when this is
+// set, iterates the [headStep..tailStep] sub-sequence once per slice read
+// from a report array. Keyed on step roles, not a flow name: any flow can
+// opt in. See docs/ideas/build-slice-decomposition.md.
+export interface SliceLoopEngineFlag {
+  // The step the loop re-enters for each slice (Build: 'act-step').
+  readonly headStep: string;
+  // The step whose forward route triggers a slice advance (Build:
+  // 'verify-step'). On its forward route, if more slices remain, the
+  // engine selects `advanceRoute` instead.
+  readonly tailStep: string;
+  // The declared route on tailStep that targets headStep, selected by the
+  // engine on a slice advance (Build: 'advance'). Must be a normal,
+  // non-recovery route.
+  readonly advanceRoute: string;
+  // Where the ordered slice array lives: a run-file report path and the
+  // dotted path to the array within it (Build: reports/build/plan.json,
+  // 'slices'). Read lazily on first headStep entry.
+  readonly slicesFrom: {
+    readonly report: string;
+    readonly itemsPath: string;
+  };
+  // Hard cap on the number of slices the loop will iterate.
+  readonly maxSlices: number;
+  // The loop only activates when the run's depth is at least this label
+  // (Build: 'deep'). Lower depths run a single pass, unchanged.
+  readonly activateWhenDepthAtLeast: 'deep';
+}
+
 // Engine-visible flags a flow can opt into. Kept narrow on purpose:
 // only flags that the engine currently branches on belong here. New
 // flags should describe a behavior, not a flow name.
@@ -85,6 +114,9 @@ export interface CompiledFlowEngineFlags {
   // a non-complete semantic outcome. This keeps host-visible run status
   // honest for flows whose close writer can finish with follow-up needed.
   readonly bindsTerminalOutcomeToPrimaryResult?: boolean;
+  // When set, the engine iterates a per-slice implement+verify loop over
+  // the slices a prior step produced. Absent = single pass.
+  readonly iteratesSliceLoop?: SliceLoopEngineFlag;
 }
 
 export interface CompiledFlowPrimaryResult {

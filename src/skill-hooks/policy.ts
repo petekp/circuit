@@ -1,33 +1,33 @@
-// Skill-moment policy layer — deliberately PRE-WIRED; no live caller yet.
+// Skill-hook policy layer — deliberately PRE-WIRED; no live caller yet.
 //
-// The schema half of this domain ships and runs today: Config.moments
-// (SkillMomentConfig), Step.skill_moments (SkillMomentNameArray), and the
-// 'skill-moment-ask' run-decision reason all flow through the runtime. This
+// The schema half of this domain ships and runs today: Config.skill_hooks
+// (SkillHookConfig), Step.skill_hooks (SkillHookNameArray), and the
+// 'skill-hook-ask' run-decision reason all flow through the runtime. This
 // module is the policy/dispatch half, staged for Phase 3.5 of the run-centered
 // migration ("future config surface; no dispatch yet"). By design nothing in
-// the runtime, CLI, or flows invokes resolveSkillMomentPolicy /
-// buildRunSkillMomentEvent yet, so esbuild tree-shakes it out of the shipped
+// the runtime, CLI, or flows invokes resolveSkillHookPolicy /
+// buildRunSkillHookEvent yet, so esbuild tree-shakes it out of the shipped
 // plugin bundle.
 //
-// Behavioral oracle: tests/contracts/skill-moment-policy-schema.test.ts.
+// Behavioral oracle: tests/contracts/skill-hook-policy-schema.test.ts.
 // This is intentionally-staged code, not dead code: deleting it would discard
 // contract-tested policy logic the live schema is already shaped to drive. When
-// skill-moment dispatch is wired, this is the layer that activates.
+// skill-hook dispatch is wired, this is the layer that activates.
 
 import type { LayeredConfig } from '../schemas/config.js';
 import { SkillId } from '../schemas/ids.js';
 import {
-  RunSkillMomentEvent,
-  type RunSkillMomentEvent as RunSkillMomentEventValue,
-  type SkillMomentCardinality,
-  SkillMomentName,
-  type SkillMomentName as SkillMomentNameValue,
-  type SkillMomentPolicyResolution,
-  type SkillMomentPolicyRule,
-} from '../schemas/skill-moment.js';
+  RunSkillHookEvent,
+  type RunSkillHookEvent as RunSkillHookEventValue,
+  type SkillHookCardinality,
+  SkillHookName,
+  type SkillHookName as SkillHookNameValue,
+  type SkillHookPolicyResolution,
+  type SkillHookPolicyRule,
+} from '../schemas/skill-hook.js';
 import { type UserSkillRegistry, createUserSkillRegistry } from '../shared/user-skill-registry.js';
 
-type PolicySource = Exclude<SkillMomentPolicyResolution['source'], 'none'>;
+type PolicySource = Exclude<SkillHookPolicyResolution['source'], 'none'>;
 
 type ResolvedPolicy =
   | {
@@ -35,18 +35,18 @@ type ResolvedPolicy =
       readonly source: 'none';
     }
   | {
-      readonly mode: SkillMomentPolicyRule['mode'];
+      readonly mode: SkillHookPolicyRule['mode'];
       readonly source: PolicySource;
       readonly strict: boolean;
       readonly skills: readonly SkillId[];
       readonly policyRef?: string;
     };
 
-export interface BuildRunSkillMomentEventInput {
+export interface BuildRunSkillHookEventInput {
   readonly eventId: string;
-  readonly moment: SkillMomentNameValue;
+  readonly hook: SkillHookNameValue;
   readonly detectedFrom: readonly string[];
-  readonly cardinality: SkillMomentCardinality;
+  readonly cardinality: SkillHookCardinality;
   readonly configLayers?: readonly LayeredConfig[];
   readonly registry?: UserSkillRegistry;
   readonly askDecision?: 'pending' | 'accepted' | 'rejected';
@@ -63,7 +63,7 @@ function sourceForLayer(layer: LayeredConfig['layer']): PolicySource | undefined
   return undefined;
 }
 
-function policyResolution(policy: ResolvedPolicy): SkillMomentPolicyResolution {
+function policyResolution(policy: ResolvedPolicy): SkillHookPolicyResolution {
   if (policy.mode === 'none') return { mode: 'none', source: 'none' };
   return {
     mode: policy.mode,
@@ -73,17 +73,17 @@ function policyResolution(policy: ResolvedPolicy): SkillMomentPolicyResolution {
   };
 }
 
-export function resolveSkillMomentPolicy(
+export function resolveSkillHookPolicy(
   configLayers: readonly LayeredConfig[],
-  momentInput: SkillMomentNameValue,
+  hookInput: SkillHookNameValue,
 ): ResolvedPolicy {
-  const moment = SkillMomentName.parse(momentInput);
+  const hook = SkillHookName.parse(hookInput);
   let resolved: ResolvedPolicy = { mode: 'none', source: 'none' };
 
   for (const layer of configLayers) {
     const source = sourceForLayer(layer.layer);
     if (source === undefined) continue;
-    const rule = layer.config.moments.policy[moment];
+    const rule = layer.config.skill_hooks.policy[hook];
     if (rule === undefined) continue;
     resolved =
       rule.mode === 'mute'
@@ -106,13 +106,11 @@ export function resolveSkillMomentPolicy(
   return resolved;
 }
 
-export function buildRunSkillMomentEvent(
-  input: BuildRunSkillMomentEventInput,
-): RunSkillMomentEventValue {
-  const policy = resolveSkillMomentPolicy(input.configLayers ?? [], input.moment);
+export function buildRunSkillHookEvent(input: BuildRunSkillHookEventInput): RunSkillHookEventValue {
+  const policy = resolveSkillHookPolicy(input.configLayers ?? [], input.hook);
   const registry = input.registry ?? createUserSkillRegistry();
-  const triggeredSkills: RunSkillMomentEventValue['triggered_skills'] = [];
-  const unavailableSkills: RunSkillMomentEventValue['unavailable_skills'] = [];
+  const triggeredSkills: RunSkillHookEventValue['triggered_skills'] = [];
+  const unavailableSkills: RunSkillHookEventValue['unavailable_skills'] = [];
   const askDecision = input.askDecision ?? 'pending';
   const shouldPrepare =
     policy.mode === 'auto' || (policy.mode === 'ask' && askDecision === 'accepted');
@@ -144,10 +142,10 @@ export function buildRunSkillMomentEvent(
         ? (input.decisionPacketId ?? `${input.eventId}:strict-skill-unavailable`)
         : input.decisionPacketId;
 
-  return RunSkillMomentEvent.parse({
-    schema: 'run.skill-moment@v0',
+  return RunSkillHookEvent.parse({
+    schema: 'run.skill-hook@v0',
     event_id: input.eventId,
-    moment: input.moment,
+    hook: input.hook,
     detected_from: [...input.detectedFrom],
     cardinality: input.cardinality,
     policy: policyResolution(policy),

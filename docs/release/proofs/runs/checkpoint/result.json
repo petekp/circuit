@@ -4,7 +4,7 @@
   "flow_id": "build",
   "run_folder": "<repo>/docs/release/proofs/runs/checkpoint/run",
   "outcome": "complete",
-  "trace_entries_observed": 45,
+  "trace_entries_observed": 54,
   "result_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/result.json",
   "operator_summary_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/checkpoint/run/reports/operator-summary.md",

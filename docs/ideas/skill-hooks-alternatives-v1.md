@@ -1,7 +1,13 @@
-# Skill Moments: Alternative Implementations (V1 exploration)
+# Skill Hooks: Alternative Implementations (V1 exploration)
 
+> **Historical (2026-06-04):** the five named semantic file-surface hooks framed
+> here are superseded by the single parameterized `before:edit-file` / `after:edit-file`
+> glob pair in [`skill-hooks-first-principles.md`](./skill-hooks-first-principles.md).
+> This remains the option-by-option archive; treat its file-surface-hook framing as
+> historical and defer to the first-principles doc for the current direction.
+>
 > Status: exploration / idea doc, written 2026-06-02. This describes options under
-> consideration, not current behavior. The incumbent Skill Moments design is
+> consideration, not current behavior. The incumbent Skill Hooks design is
 > scaffolded but undispatched (see below). Nothing here is decided. File paths and
 > line numbers were verified against `main` on 2026-06-02. Where a citation is a
 > region rather than an exact line it is marked "approximate, verify at
@@ -9,7 +15,7 @@
 
 ## Why this doc exists
 
-The incumbent Skill Moments spec is half-built. Its schema ships and parses today.
+The incumbent Skill Hooks spec is half-built. Its schema ships and parses today.
 Its policy and decision-packet logic is contract-tested but tree-shaken out of the
 shipped bundle (dead-code-eliminated, because nothing calls it). It has zero live
 callers. Before we spend the effort to wire the remaining five pieces (detector,
@@ -28,15 +34,15 @@ seventh architecture; the prose below says the same). Each option's one-sentence
 
 | # | Option | The trade in one sentence |
 |---|---|---|
-| 0 | **Incumbent** (publish-only moments to policy to skill) | Keeps authorship out of the engine, but half the vocabulary has no live signal and it sits on the production side of the judge bet. |
-| 1 | **Subscription** (skills declare their own moments) | Cheapest authorship delta and works out of the box, but inverts trust from operator to skill author and rides an unbuilt base. |
-| 2 | **Model-selector** (a model picks from the installed-skill set) | Catches moments a signal-list misses, but trades away the spec's no-NL-inference guarantee and is non-deterministic. |
-| 3 | **Judge-frame** (run the skill as an independent verifier) | The one option that survives Circuit-as-judge and leaves provable evidence, but serves only the verifiable subset of moments, and its strongest form needs the deferred per-step diff (the slice shippable now only classifies failures). |
+| 0 | **Incumbent** (publish-only hooks to policy to skill) | Keeps authorship out of the engine, but half the vocabulary has no live signal and it sits on the production side of the judge bet. |
+| 1 | **Subscription** (skills declare their own hooks) | Cheapest authorship delta and works out of the box, but inverts trust from operator to skill author and rides an unbuilt base. |
+| 2 | **Model-selector** (a model picks from the installed-skill set) | Catches hooks a signal-list misses, but trades away the spec's no-NL-inference guarantee and is non-deterministic. |
+| 3 | **Judge-frame** (run the skill as an independent verifier) | The one option that survives Circuit-as-judge and leaves provable evidence, but serves only the verifiable subset of hooks, and its strongest form needs the deferred per-step diff (the slice shippable now only classifies failures). |
 | 4 | **Learned-mapping** (mine the mapping from run history) | The one option that compounds and measures whether any of this helps, but delivers nothing until the corpus warms. |
 | 5 | **Reactive-remediation** (the incumbent, reactive-only) | Lowest-effort thing that ships against real signal and is judge-aligned, but misses all proactive value. |
 | 6 | **Null-hypothesis** (populate the already-live selection channel) | Ships with zero engine change and is the baseline every option must beat, but cannot express "right time, automatically." |
 
-The recommendation lands on a report-only first slice (detect the moment, resolve policy,
+The recommendation lands on a report-only first slice (detect the hook, resolve policy,
 record it, with no actuation) as the cheapest proof, then a chosen actuator
 (inject the skill, or run it as a verifier) as the contested follow-on. Skip to
 [Recommendation](#recommendation) if that is what you came for.
@@ -63,7 +69,7 @@ Three properties matter, and they are separable from how we achieve them:
    claim happened is what the run actually observed.
 
 The incumbent answers all three with one specific shape: a fixed alphabet of 14
-named *moments* detected from observable state, mapped to skills by an
+named *hooks* detected from observable state, mapped to skills by an
 operator-authored *policy*, actuated by splicing the whole skill body into the
 relay worker's prompt. (A "relay worker" is the subprocess Circuit spawns to do a
 step's actual work.) That is one answer. Holding the problem separate from that
@@ -75,7 +81,7 @@ A strategic lens runs through every evaluation: Circuit's durable value may be
 Anything that improves the *doing* agent's inputs is a production-side feature that
 "sits upstream of the user's actual pain (evaluation)" and "races the model's
 capability curve" (`docs/ideas/future-proofing-circuit.md`, approximate region
-:68-137). Skill Moments, as specified, is a production-side feature. Every option
+:68-137). Skill Hooks, as specified, is a production-side feature. Every option
 below is tested against one question: does this survive Circuit-as-judge, or at
 least leave a judge-useful artifact behind?
 
@@ -86,10 +92,10 @@ different region of the design space. This is the map the alternatives navigate.
 
 | # | Baked-in assumption (incumbent) | What relaxing it unlocks |
 |---|---|---|
-| A1 | A fixed, closed alphabet of 14 named moments is the right vocabulary of run conditions (`src/schemas/skill-moment.ts:4-89`). | Make the alphabet the *installed-skill set* chosen at runtime, giving the model-selector. Drop the vocabulary entirely and let the model read live context, giving host-native (worker form: Option 2; orchestrator form: F2). Ship only the moments with real signal producers, giving reactive-remediation. (Verified: roughly half the vocabulary cannot fire today without new signal infrastructure, and no detector is wired for any moment yet, so even the signal-ready moments are detector-ready, not live. See "Confidence" below.) |
-| A2 | Publish-only decoupling: the run names a moment, never a skill; a separate policy owns the mapping (`docs/specs/skill-moment-vocabulary-v1.md:51`). | Keep the spine, move *who owns the mapping*: skill author declares it in frontmatter (subscription); run history derives it (learned-mapping). Collapse the decoupling so the host fuses detection and mapping (host-native; worker form: Option 2; orchestrator form: F2). |
-| A3 | The mapping is operator-authored as a static policy table (`SkillMomentPolicyRule`, `src/schemas/skill-moment.ts`, approximate :149-190). | Most-relaxed assumption in the slate (four options perturb it): author-declared (subscription), model-chosen (host-native, model-selector), history-derived (learned-mapping). |
-| A4 | Detection is rule-based over observable state only; NL inference over goal/step prose is forbidden (`docs/specs/skill-moment-vocabulary-v1.md:165-166`). | Relax the NL-inference ban and a model reads goal plus diff to choose, giving host-native (worker form: Option 2; orchestrator form: F2) and model-selector. This is the slate's most contested relaxation. It trades auditability and replayability for recall. |
+| A1 | A fixed, closed alphabet of 14 named hooks is the right vocabulary of run conditions (`src/schemas/skill-hook.ts:4-89`). | Make the alphabet the *installed-skill set* chosen at runtime, giving the model-selector. Drop the vocabulary entirely and let the model read live context, giving host-native (worker form: Option 2; orchestrator form: F2). Ship only the hooks with real signal producers, giving reactive-remediation. (Verified: roughly half the vocabulary cannot fire today without new signal infrastructure, and no detector is wired for any hook yet, so even the signal-ready hooks are detector-ready, not live. See "Confidence" below.) |
+| A2 | Publish-only decoupling: the run names a hook, never a skill; a separate policy owns the mapping (`docs/specs/skill-hook-vocabulary-v1.md:51`). | Keep the spine, move *who owns the mapping*: skill author declares it in frontmatter (subscription); run history derives it (learned-mapping). Collapse the decoupling so the host fuses detection and mapping (host-native; worker form: Option 2; orchestrator form: F2). |
+| A3 | The mapping is operator-authored as a static policy table (`SkillHookPolicyRule`, `src/schemas/skill-hook.ts`, approximate :149-190). | Most-relaxed assumption in the slate (four options perturb it): author-declared (subscription), model-chosen (host-native, model-selector), history-derived (learned-mapping). |
+| A4 | Detection is rule-based over observable state only; NL inference over goal/step prose is forbidden (`docs/specs/skill-hook-vocabulary-v1.md:165-166`). | Relax the NL-inference ban and a model reads goal plus diff to choose, giving host-native (worker form: Option 2; orchestrator form: F2) and model-selector. This is the slate's most contested relaxation. It trades auditability and replayability for recall. |
 | A5 | Actuation is context injection into the doing worker: splice the body so the doer reads it (`src/shared/relay-support.ts:75-91`). | Run the skill as an independent verifier against the doer's finished output; the skill never enters the doer's context, giving judge-frame. The one option that moves the skill from production to verification. |
 | A6 | Scope is proactive plus reactive (`before:*` and `after:*` both ship). | Reactive-only (fire on a provably-failing check), giving reactive-remediation. Zero automatic firing; populate the live deterministic channel, giving null-hypothesis. |
 
@@ -112,7 +118,7 @@ enum (`src/schemas/skill.ts:47-48`, verified), and `selectedSkillsSection` today
 (`src/shared/relay-support.ts:75-91`, verified at :87). Five of the options
 independently flag prompt-bloat / context-dilution as a weakness, and none of them
 solve it, because they all inject the whole file. Breaking this assumption looks
-like fragment-level injection: detect the moment as usual, then inject only the
+like fragment-level injection: detect the hook as usual, then inject only the
 relevant capability-tagged fragment. It is orthogonal to every detection axis and
 composes with any of them.
 
@@ -125,7 +131,7 @@ all verified), so the prompt is the only channel into the worker. But the host
 orchestrator session, the interactive Claude/Codex session where the operator
 actually sits, where host-native skill triggering *does* work, and which is *not*
 subprocess-bounded, is never an injection target. Breaking this assumption looks
-like orchestrator-targeted steering: when a moment fires, surface it to the
+like orchestrator-targeted steering: when a hook fires, surface it to the
 orchestrator/operator and let the host's own native triggering plus the human
 handle delivery. It is the one shape that turns the disabled-worker constraint
 from an obstacle into a non-issue, and the one aligned with the
@@ -168,7 +174,7 @@ count.
 
 ---
 
-### Option 0: Incumbent (publish-only moments to operator policy to skill)
+### Option 0: Incumbent (publish-only hooks to operator policy to skill)
 
 **Axis it holds (vs every alternative breaking it):** the publish-only decoupling
 boundary. A fixed, closed alphabet of run conditions published from observable
@@ -179,23 +185,23 @@ right time" is not detection cleverness but keeping authorship of *what to injec
 out of the flow and out of the engine.
 
 **How it works end to end:** A detector reads only observable run state and emits
-the moment's `detected_from` array (goal-contract fields, selected-process / step
+the hook's `detected_from` array (goal-contract fields, selected-process / step
 metadata, evidence-map state, file diffs, operator flags). No NL inference over
-prose. The run publishes the moment. `resolveSkillMomentPolicy` walks config layers
-(project to user-global) to map moment to skills plus mode. `buildRunSkillMomentEvent`
-(`src/skill-moments/policy.ts:109`) probes the `UserSkillRegistry` and marks each mapped
+prose. The run publishes the hook. `resolveSkillHookPolicy` walks config layers
+(project to user-global) to map hook to skills plus mode. `buildRunSkillHookEvent`
+(`src/skill-hooks/policy.ts:109`) probes the `UserSkillRegistry` and marks each mapped
 skill `planned` (:124) or `unavailable` (:132), deliberately never `observed`. The file
 header confirms the module is pre-wired with no live caller and is tree-shaken out. The actuator routes `planned` skill bodies into the existing
-`selectedSkillsSection` of `composeRelayPrompt`. Ask-mode moments build a
-`RunDecisionPacket` (reason `skill-moment-ask`, `src/schemas/run-envelope.ts:312`,
+`selectedSkillsSection` of `composeRelayPrompt`. Ask-mode hooks build a
+`RunDecisionPacket` (reason `skill-hook-ask`, `src/schemas/run-envelope.ts:312`,
 verified) that pauses the run resumably. Strict-plus-unavailable builds
 `strict-skill-unavailable` (:314, verified).
 
 **Reuses vs builds:** Reuses the entire pre-wired policy/decision-packet layer,
 the `selectedSkillsSection` injection channel, the registry availability probe, and
 both decision reasons. Builds five new pieces: a detector, a run-loop caller, a
-`run.skill-moment` trace kind (none exists. The trace-kind enum runs from
-`run.bootstrapped` to `run.closed` with no skill-moment member, verified across
+`run.skill-hook` trace kind (none exists. The trace-kind enum runs from
+`run.bootstrapped` to `run.closed` with no skill-hook member, verified across
 `src/schemas/trace-entry.ts`), the actuator hop, and the ask-pause path.
 
 **Dual-host:** Strong on contract, moderate on actuation. Detection / policy /
@@ -203,12 +209,12 @@ persistence / ask are host-agnostic schema. Only the actuator's last hop (prompt
 splice) is host-specific, and it is isolated to one seam.
 
 **Guard interactions:** Respects all guards by construction. It *is* the
-no-binding-matrix design (`Step.skill_moments` stays moment-names-only; the ratchet
+no-binding-matrix design (`Step.skill_hooks` stays hook-names-only; the ratchet
 grep budget stays 0, `tests/contracts/run-centered-v1-safety.test.ts`, verified at
-the `skill_moments.*skills` pattern). Provenance stays honest (`planned`, never
+the `skill_hooks.*skills` pattern). Provenance stays honest (`planned`, never
 `observed` without `source: 'host-observed'`). Detection is observable-only. The
 one live tension is the engine boundary: producing signals for the stage and diff
-moments means adding a stage-transition event and a per-step diff snapshot to the
+hooks means adding a stage-transition event and a per-step diff snapshot to the
 engine. That is new flow-agnostic engine surface, defensible as generic
 infrastructure but real, and a genuine engine commitment even though it is
 guard-4-compatible.
@@ -217,7 +223,7 @@ guard-4-compatible.
 below. Shipping the policy without producers lets operators author mappings that
 silently never fire, which *looks* supported. (2) It races the model. Pure
 production-side. (3) Operator burden is the price of decoupling, and V1 ships
-zero default mappings (`docs/specs/skill-moment-vocabulary-v1.md:67`, verified), so
+zero default mappings (`docs/specs/skill-hook-vocabulary-v1.md:67`, verified), so
 the feature is inert until the operator authors a table. (4) No compounding.
 Static lookup table; the moat is only "we built it." (5) Prompt-bloat.
 Multiple whole bodies compete for the worker's attention with no relevance ranking.
@@ -231,32 +237,32 @@ surface. That is the kind of decision AGENTS.md rule 6 routes through `/codex`.
 
 **First provable slice:** Pick `after:verification-failed` (its signal,
 `evidence-map:required-check-failed`, maps to a live failing check). Red: a runtime
-test that runs a flow whose relay check fails, with policy mapping that moment to
-`auto` to one installed skill, asserting (a) a `run.skill-moment` trace entry with
+test that runs a flow whose relay check fails, with policy mapping that hook to
+`auto` to one installed skill, asserting (a) a `run.skill-hook` trace entry with
 `triggered_skills[0].state = 'planned'`, and (b) the next worker prompt contains
 that skill's body. Green: add the trace kind, one caller at the relay
-`check.evaluated` seam, invoke the already-tested `buildRunSkillMomentEvent`, thread
+`check.evaluated` seam, invoke the already-tested `buildRunSkillHookEvent`, thread
 its planned skills into `composeRelayPrompt`. Touches zero new engine producers.
 
 ---
 
-### Option 1: Skill-metadata subscription (skills declare their own moments)
+### Option 1: Skill-metadata subscription (skills declare their own hooks)
 
 **Axis it changes:** *who owns the mapping* (A3). The skill author declares in
-`SKILL.md` frontmatter which moments the skill subscribes to (e.g.
+`SKILL.md` frontmatter which hooks the skill subscribes to (e.g.
 `fires_on: [after:react-ui-change]`); Circuit derives the default mapping by reading
 installed skills; operator policy becomes a thin override/veto layer. This is the
 spec's own deferred design. The vocabulary doc names it as an open question
-("skill metadata that advertises moment subscriptions ... metadata adds a default
-mapping that policy can override", `docs/specs/skill-moment-vocabulary-v1.md`,
+("skill metadata that advertises hook subscriptions ... metadata adds a default
+mapping that policy can override", `docs/specs/skill-hook-vocabulary-v1.md`,
 approximate :232, verified that the doc discusses default mappings there). It is not
 a new invention. The publish-only spine (A2) is preserved; only authorship moves.
 
 **How it works:** Detection unchanged. At run start Circuit walks the
 `UserSkillRegistry` and reads a new additive `fires_on` frontmatter key. Each
-subscription is validated against `SkillMomentName` so a skill can only subscribe to
-a real moment. The result is a derived `moment to {subscribed skill ids}` map, the
-`default-mapping` source the schema already reserves. When a moment fires, candidate
+subscription is validated against `SkillHookName` so a skill can only subscribe to
+a real hook. The result is a derived `hook to {subscribed skill ids}` map, the
+`default-mapping` source the schema already reserves. When a hook fires, candidate
 skills are the union of subscription defaults and operator policy, with policy acting
 as override/veto. Actuation and provenance are identical to the incumbent.
 
@@ -289,7 +295,7 @@ already-`.passthrough()` frontmatter trust surface
 key influence runtime behavior. Argued acceptable because the registry already trusts
 skill *bodies* (injected verbatim today), and trusting a constrained `fires_on` list
 is strictly less surface than trusting the body. The new behavior is gated by
-`SkillMomentName` validation and vetoable by policy.
+`SkillHookName` validation and vetoable by policy.
 
 **Honest weaknesses:** (1) Trust inversion is real, not cosmetic. Removing
 operator-as-curator lets a noisy or adversarial installed skill inject itself by
@@ -307,8 +313,8 @@ convention itself: once authors adopt it, deprecating it strands their declarati
 
 **First provable slice:** A pure registry-only test (no runtime pieces): a fixture
 skill with `fires_on: [after:react-ui-change]`; assert `registry.subscriptions()`
-returns the expected map and that `SkillMomentName` rejects a bogus moment; extend
-`resolveSkillMomentPolicy` so a subscription yields `source: 'default-mapping'` /
+returns the expected map and that `SkillHookName` rejects a bogus hook; extend
+`resolveSkillHookPolicy` so a subscription yields `source: 'default-mapping'` /
 `state: 'planned'` and a config `mute` vetoes it. Proves the authorship inversion in
 the policy layer without touching `src/runtime/`.
 
@@ -316,13 +322,13 @@ the policy layer without touching `src/runtime/`.
 
 ### Option 2: Model-selector over the installed-skill set (absorbs host-native worker form)
 
-**Axis it changes:** detection (A1, A4). Replace the fixed 14-moment rule table with
+**Axis it changes:** detection (A1, A4). Replace the fixed 14-hook rule table with
 a bounded model choice over a closed alphabet, the literal set of installed
 skills. At each step boundary a cheap selector relay is handed the installed-skill
 catalog (each skill's `name`/`description`/`trigger` from registry frontmatter) plus
 observable state (step role/kind, operator goal, reads, and the step diff if a
 producer exists), and returns a subset of skill *ids* drawn strictly from the
-supplied allowlist. There is no moment, no policy table, no `detected_from`.
+supplied allowlist. There is no hook, no policy table, no `detected_from`.
 Host-native's worker form is folded in here: the relay worker has no native skill surface
 (verified above), so "let the host's description-matcher fire" degrades to exactly
 this. Circuit injects the descriptions, a model self-selects. Model-selector is the
@@ -355,7 +361,7 @@ runs the selector.
 **Guard interactions:** The no-NL-inference ban (assumption A4, the observable-state-only guard) is traded away, deliberately.
 This is the load-bearing trade of the option. A model reading goal plus diff to pick
 skills *is* NL inference; the vocabulary spec explicitly bans it
-(`docs/specs/skill-moment-vocabulary-v1.md:165-166`, verified). The defense is that
+(`docs/specs/skill-hook-vocabulary-v1.md:165-166`, verified). The defense is that
 the *output* is bounded to a closed allowlist (the model cannot invent a skill) and
 every choice is recorded, but the *input reasoning* is still inference, and a
 reviewer will fairly say this reintroduces what the spec forbade. Guards 1, 2, 5 are
@@ -387,7 +393,7 @@ fabricated id not in the registry is rejected by the allowlist. The rejection te
 
 ### Option 3: Judge-frame, expertise attaches to verification, not production
 
-**Axis it changes:** actuation (A5), the only option that does. A moment does not
+**Axis it changes:** actuation (A5), the only option that does. A hook does not
 inject a skill into the doer; it runs the skill as an independent verifier against
 the doer's finished output and emits a verdict that becomes proof-grade evidence. The
 skill never enters the doer's context. This is the future-proofing "flow runner to
@@ -443,8 +449,8 @@ win. A verifier either produced a real verdict (recorded `observed` /
 `independent_worker`) or it didn't (`unavailable`). There is no "planned skill that
 maybe ran" ambiguity, because the verdict is an artifact the runtime captured.
 Respects guards 1, 3, 4, 5. Trade flagged: the `auto` mode's meaning shifts. For
-verifier moments, `auto` means "silently *run* a verifier subprocess", which costs a
-connector invocation per fired moment. Not a guard violation, but a real cost change
+verifier hooks, `auto` means "silently *run* a verifier subprocess", which costs a
+connector invocation per fired hook. Not a guard violation, but a real cost change
 operators must understand.
 
 **Honest weaknesses:** (1) Many skills are guidance, not checks.
@@ -452,9 +458,9 @@ operators must understand.
 verdict; forcing it into a verifier shape produces an LLM-judged yes/no that just
 moves the rot down a level. Judge-frame cleanly serves only the verifiable subset
 (roughly the `after:*-change`, `after:verification-failed`, `after:evidence-gap`
-moments, maybe 6 of 14); the `before:*` guidance moments are a poor fit. It likely
+hooks, maybe 6 of 14); the `before:*` guidance hooks are a poor fit. It likely
 cannot be the whole answer. (2) Cost asymmetry. Running a verifier per fired
-moment costs tokens/latency; injection is close to free. (3) Verifier honesty. A
+hook costs tokens/latency; injection is close to free. (3) Verifier honesty. A
 rubber-stamping verifier produces independent-*looking* evidence that is hollow; it
 needs the review flow's assessment/confidence discipline. (4) Command-running verifiers
 are constrained on Codex. (5) The diff-snapshot producer (to scope a verifier to "what
@@ -463,14 +469,14 @@ just changed") still must be built, shared with the incumbent.
 **Effort / reversibility:** Moderate effort, high reversibility. It is additive (new
 `check_kind` member, new `engineFlag`, new actuator, first non-runtime producer).
 Nothing in the shipped publish-only contract is rewritten; the incumbent injection
-actuator could *coexist* (verifiable moments to verifier; guidance moments to
+actuator could *coexist* (verifiable hooks to verifier; guidance hooks to
 injection). The one semi-permanent commitment, filling the `independent_worker` seat,
 is a capability Circuit wants for the judge pivot regardless, so it is low-regret. It is
 also sticky and one-way: once flows depend on `independent_worker` Evidence it is
 load-bearing provenance.
 
 **First provable slice:** `after:verification-failed` (live signal, no diff producer
-needed). A fixture flow opts in via `engineFlag` and maps the moment to a one-line
+needed). A fixture flow opts in via `engineFlag` and maps the hook to a one-line
 "verifier" skill whose rubric reads the failing check's captured `stderr_summary` /
 `stdout_summary` and classifies the failure category (compile / assertion / lint /
 missing-dependency) so the recovery step starts targeted. Wire the relay
@@ -497,7 +503,7 @@ already emits `skills.loaded` trace entries recording, per step plus attempt, wh
 skills loaded with id/path/sha256/bytes; the body is stripped
 (`src/runtime/executors/relay.ts:525,528`, verified, `skills.map(({ body: _body,
 ...skill }) => skill)`), so the trace records *which* skill loaded, honestly. (2)
-**Condition key.** `(flow_id [, moment])`, both closed-alphabet and observable. (3)
+**Condition key.** `(flow_id [, hook])`, both closed-alphabet and observable. (3)
 **Measurement.** The exact machinery that scores cited memory items scores skill
 loadings with *zero new statistics*: `classifyEffect` / `aggregateMemoryEffect` build a
 used-arm vs comparable-arm (an "arm" here is the set of runs that did vs did not load
@@ -523,7 +529,7 @@ prompt-splice delivery). Better than host-native framings, which put the intelli
 in one host's model.
 
 **Guard interactions:** Strengthens guards 1 and 2. The mapping lives in the
-corpus and the project-fact store, never in `Step.skill_moments`; and the learning is
+corpus and the project-fact store, never in `Step.skill_hooks`; and the learning is
 driven by `observed` (`skills.loaded`), never by `planned`, so it cannot lie about
 what ran. Respects guards 3, 4, 5, 6, 7.
 
@@ -569,14 +575,14 @@ scope of the incumbent, not a separate mechanism (it reuses the incumbent's enti
 policy plus injection plus provenance stack verbatim). Fire skills *only* when a check
 or proof assessment is provably failing, "when something is wrong, bring the
 specialist", and drop every proactive `before:*` and diff-driven `after:*-change`
-moment. The bet: the highest-value, lowest-noise, cheapest-to-build subset is
+hook. The bet: the highest-value, lowest-noise, cheapest-to-build subset is
 "right expertise right after Circuit caught something provably wrong."
 
-**Why it is cheap:** the two reactive moments (`after:verification-failed`,
+**Why it is cheap:** the two reactive hooks (`after:verification-failed`,
 `after:evidence-gap`) are the only two of the 14 whose `detected_from` maps to data
 that already crosses the trace today. The runtime already writes `check.evaluated`
 with a fail outcome and `proof.assessed` with an `overall_status`
-(`src/schemas/trace-entry.ts:62,144`, verified the kinds exist). Every other moment
+(`src/schemas/trace-entry.ts:62,144`, verified the kinds exist). Every other hook
 needs a stage machine or a per-step diff snapshot the runtime does not have.
 
 **How it works:** When a `check.evaluated` fail lands, derive
@@ -588,18 +594,18 @@ skill text.
 
 **Reuses vs builds:** Reuses the policy resolver, the injection channel, the failure /
 recovery routing, and the decision-packet path. Builds the least of any
-ships-something option: one `run.skill-moment` trace kind, one caller at the two
+ships-something option: one `run.skill-hook` trace kind, one caller at the two
 verification failure exits, one bridge feeding a planned skill into
 `composeRelayPrompt`. No diff snapshotter, no stage machine.
 
 **Dual-host:** Excellent. The injection channel is connector-agnostic; the detection
-signals come from host-neutral runtime executors; narrowing to two moments removes the
-diff/stage moments that would otherwise hide host-specific plumbing.
+signals come from host-neutral runtime executors; narrowing to two hooks removes the
+diff/stage hooks that would otherwise hide host-specific plumbing.
 
 **Guard interactions:** Respects all guards. Strengthens guard 2 (the skill lands
 in a recovery relay whose result is itself checked, so provenance is cleaner than a
 proactive `before:*` skill that may never be exercised) and maxes detection-trust
-(every fired moment traces to a concrete failing `check.evaluated` / `proof.assessed`,
+(every fired hook traces to a concrete failing `check.evaluated` / `proof.assessed`,
 no inference, no guesswork). The one wrinkle: the caller physically lives in
 `src/runtime/executors/verification.ts`, engine code, but it is *flow-agnostic*
 engine code (it fires for any flow's verification step), which is the permitted shape.
@@ -612,26 +618,26 @@ coarse. A fail says *that* a check failed, not *why* in a way that picks a skill
 the operator's single mapping is blunt. (3) Depends on flows having
 verification/proof steps. A pure Explore flow emits no failure verdict, so coverage
 is uneven. (4) Recovery-relay coupling. On a hard terminal failure with no
-recovery route, the skill has nowhere to land and the moment is recorded but inert.
+recovery route, the skill has nowhere to land and the hook is recorded but inert.
 `recoveryRouteForFailure` returns undefined when no fallback route exists
 (`src/runtime/executors/verification.ts:326-335`,
 `src/runtime/run/recovery-selection.ts:72-81`), so on a terminal failure the planned
 skill is recorded but never reaches an agent. The asymmetry matters: the verify
 actuator (Option 3) spawns its own reviewer relay and does not depend on a retry step
-existing, so it is more robust on this exact reactive moment. (5)
+existing, so it is more robust on this exact reactive hook. (5)
 Does not compound on its own.
 
 **Effort / reversibility:** Lowest build effort of the ships-something options; highly
 reversible (the policy layer is tree-shaken out when unwired; a green run with no
 policy entry behaves exactly as today). The one schema commitment, shaping the
-`run.skill-moment` trace kind, is migration-sensitive and worth a `/codex` pass.
+`run.skill-hook` trace kind, is migration-sensitive and worth a `/codex` pass.
 
 **First provable slice:** A pure, runtime-free unit test of the trigger predicate: feed
 a synthetic trace with one `check.evaluated{outcome:'fail'}` to a new
-`deriveReactiveMoments(traceEntries)` and assert exactly one `after:verification-failed`
-moment grounded back to that entry; a `pass` entry yields `[]`; a
+`deriveReactiveHooks(traceEntries)` and assert exactly one `after:verification-failed`
+hook grounded back to that entry; a `pass` entry yields `[]`; a
 `proof.assessed{overall_status:'contradicted'}` after a verify step yields
-`after:evidence-gap`. Reuse `buildRunSkillMomentEvent` to confirm the event validates.
+`after:evidence-gap`. Reuse `buildRunSkillHookEvent` to confirm the event validates.
 De-risks the whole scope before any caller is written.
 
 ---
@@ -644,7 +650,7 @@ skill set per flow/stage/step through a 7-layer selection resolver (default,
 user-global, project, flow, stage, step, invocation) and splices skill
 bodies into the worker prompt today. The move is to ship *that* well: populate
 flow `default_selection.skills`, polish authoring/discovery/diagnostics, and decline
-to build moments at all until the populated baseline demonstrably fails. This is the
+to build hooks at all until the populated baseline demonstrably fails. This is the
 baseline-of-not-building every option must beat. (The "do literally nothing" null
 is its degenerate setting; this is the load-bearing, shippable version.)
 
@@ -678,9 +684,9 @@ host-native trigger to replicate on Codex.
 detection guards (there is *nothing to detect*). Two tensions worth flagging: (1) The
 matrix-smell escape hatch is in the schema now. `step.selection.skills` and
 `skill_slots` let an author pin a distinct skill per step, and the ratchet only guards
-`step.skill_moments`, not `step.selection.skills` (verified, the grep pattern is
-`skill_moments.*skills`, `tests/contracts/run-centered-v1-safety.test.ts:109`). So
-publish-only holds the no-binding-matrix guard for the *moments* channel by
+`step.skill_hooks`, not `step.selection.skills` (verified, the grep pattern is
+`skill_hooks.*skills`, `tests/contracts/run-centered-v1-safety.test.ts:109`). So
+publish-only holds the no-binding-matrix guard for the *hooks* channel by
 construction, but the *selection* channel is guarded only by authoring discipline, not
 the schema. Any parallel channel-population work must adopt the same ratchet norm. (2)
 Hard-fail on unresolved declared skill. Today an unresolvable declared
@@ -721,7 +727,7 @@ routing pattern over them.
 **F1. Fragment-level injection (capabilities, not whole bodies).** Verified-grounded:
 `SkillDescriptor` carries an optional `capabilities?: string[]` (non-empty when present)
 and a `domain` enum (`src/schemas/skill.ts:47-48`), and `selectedSkillsSection` splices the
-*whole* body (`:87`). Detect the moment as usual, but inject only the relevant
+*whole* body (`:87`). Detect the hook as usual, but inject only the relevant
 capability-tagged fragment (degrading to the whole body when a skill declares no
 capabilities). This is the only direct structural fix for the prompt-dilution weakness five
 of the options share, and it is orthogonal: it changes the *unit* of injection, an
@@ -731,7 +737,7 @@ without good fragmentation it degrades gracefully to whole-body injection.
 
 **F2. Orchestrator-targeted steering.** Verified-grounded: the only non-relay host-side
 path today is `cli/handoff.ts`; there is no orchestrator-session context injection. When
-a moment fires, surface it to the host orchestrator session (where the operator sits
+a hook fires, surface it to the host orchestrator session (where the operator sits
 and host-native triggering *does* work) rather than the bounded worker. It is the one
 shape that turns the disabled-worker constraint into a non-issue, and the one
 aligned with the copilot-not-autopilot positioning the bounded-autonomy research
@@ -758,10 +764,10 @@ control.
 
 **F4. Hybrid judge+production router (a routing pattern, not a fourth escape).** F4 is
 not an escape from a shared assumption; it composes F1-F3 and the option actuators.
-Route by moment kind through the *same* detection+policy front end: a verifiable moment
-actuates as a judge-frame verifier (provable evidence); a guidance moment actuates as
+Route by hook kind through the *same* detection+policy front end: a verifiable hook
+actuates as a judge-frame verifier (provable evidence); a guidance hook actuates as
 injection. This fills the coverage gap each pure option leaves: judge-frame serves only
-roughly 6 of 14 moments well; the incumbent races the model curve on the verifiable
+roughly 6 of 14 hooks well; the incumbent races the model curve on the verifiable
 ones. Judge-frame's own analysis notes the two actuators "could coexist"; F4 elevates
 that coexistence to a routing principle.
 
@@ -771,11 +777,11 @@ These are distinct axes the exploration did *not* develop. Naming them turns
 silent omissions into auditable scoping decisions.
 
 - **(a) Skill composition / chaining.** Skill A's output feeding skill B; an ordered
-  skill pipeline at a moment. Excluded because the run loop does not model multi-skill
+  skill pipeline at a hook. Excluded because the run loop does not model multi-skill
   orchestration yet.
 - **(b) Packaging / marketplace as an architecture.** First-party skill packs and shared
   default mappings as a distribution mechanism. Excluded here, but it reconnects to the
-  spec's own open question (`docs/specs/skill-moment-vocabulary-v1.md`, the
+  spec's own open question (`docs/specs/skill-hook-vocabulary-v1.md`, the
   default-mappings / skill-packs discussion) and is worth its own pass.
 - **(c) Per-operator personalization.** Mapping tuned per operator, not per project.
   Excluded because every option above scopes the mapping to project or flow, not to a
@@ -796,7 +802,7 @@ matters. "Effort/rev" reads as *low-effort-and-reversible* equals `++`.
 | **2. Model-selector (+ host-native worker form)** | `0` mechanism transplants to judge | `+` engineFlag opt-in | `++` prompt-splice, host-uniform | `+` closed-alphabet picks are countable | `+` no policy to author; new trust burden | `-` trades the NL-inference ban; non-deterministic | `+` medium; diff producer unbuilt |
 | **3. Judge-frame** | `++` for the deferred diff-bearing verifier form; only `+` for the shippable-now reactive-classify form (no doer output judged yet) | `+` first non-runtime producer is generic, but a sticky one-way provenance commitment once flows depend on it | `+` reviewer subprocess; Codex command-verifiers limited | `+` typed verdicts cluster | `0` `auto` now spends a connector call | `+` unchanged detection; verdict is provable | `+` additive; can coexist with injection |
 | **4. Learned-mapping** | `++` measurement asset; judge-of-self | `++` zero engine edits | `+` shared learning, forked delivery | `++` only option that compounds | `+` curate, don't author, after corpus warms | `++` falsifiable against outcomes | `+` code moderate; time-to-value highest |
-| **5. Reactive-remediation** | `++` fires on Circuit's own verdict | `+` floor of the band: one flow-agnostic caller, no new signal producer (unlike Option 0's `+`, which carries a deferred stage/diff producer) | `++` total parity (2 moments only) | `0` static, but emits clean signal for #4 | `++` two moments, default auto, low noise | `++` traces to a concrete failure | `++` lowest build of ships-something options |
+| **5. Reactive-remediation** | `++` fires on Circuit's own verdict | `+` floor of the band: one flow-agnostic caller, no new signal producer (unlike Option 0's `+`, which carries a deferred stage/diff producer) | `++` total parity (2 hooks only) | `0` static, but emits clean signal for #4 | `++` two hooks, default auto, low noise | `++` traces to a concrete failure | `++` lowest build of ships-something options |
 | **6. Null-hypothesis** | `-` production-side; thin survival | `++` zero engine edits | `++` host-agnostic by construction | `-` stateless, hand-authored | `0` low to use, front-loaded on authoring | n/a, nothing to mis-detect | `++` lowest effort, fully reversible |
 
 Delivery framings F1-F4 are intentionally omitted from the matrix. They are
@@ -806,11 +812,11 @@ under-developed and compose with the rows above rather than competing as peers.
 
 **CONFIRMED (verified against code on `main`, 2026-06-02):**
 
-- The 14 moments, their `detected_from`, cardinality, and default_mode
-  (`src/schemas/skill-moment.ts:4-89`).
+- The 14 hooks, their `detected_from`, cardinality, and default_mode
+  (`src/schemas/skill-hook.ts:4-89`).
 - The policy/decision-packet layer is pre-wired and tree-shaken out, with no live
-  caller. The file header states this explicitly, and `resolveSkillMomentPolicy` /
-  `buildRunSkillMomentEvent` (declared at `src/skill-moments/policy.ts:76` and `:109`) exist
+  caller. The file header states this explicitly, and `resolveSkillHookPolicy` /
+  `buildRunSkillHookEvent` (declared at `src/skill-hooks/policy.ts:76` and `:109`) exist
   and mark `planned` (`:126`) / `unavailable` (`:130-132`), never `observed`.
 - The injection channel: `selectedSkillsSection` splices `skill.body` whole;
   `composeRelayPrompt` renders it (`src/shared/relay-support.ts:75-91,207,237`).
@@ -818,13 +824,13 @@ under-developed and compose with the rows above rather than competing as peers.
   `--disable-slash-commands` plus parse-time re-assertion
   (`src/connectors/claude-code.ts:76,293`); Codex `--ignore-user-config`/`--ignore-rules`
   module-load invariants (`src/connectors/codex.ts:31-32,107-108`).
-- No `run.skill-moment` trace kind exists. The enum runs `run.bootstrapped` to
-  `run.closed` with no skill-moment member; `check.evaluated` (`:62`), `proof.assessed`
+- No `run.skill-hook` trace kind exists. The enum runs `run.bootstrapped` to
+  `run.closed` with no skill-hook member; `check.evaluated` (`:62`), `proof.assessed`
   (`:144`), and `skills.loaded` (`:273`) all exist; the enum closes at `run.closed` (`:511`)
   (`src/schemas/trace-entry.ts`).
 - `skills.loaded` strips the body (`skills.map(({ body: _body, ...skill }) => skill)`,
   `src/runtime/executors/relay.ts:525,528`).
-- The decision reasons `skill-moment-ask` and `strict-skill-unavailable` parse today
+- The decision reasons `skill-hook-ask` and `strict-skill-unavailable` parse today
   (`src/schemas/run-envelope.ts:312,314`).
 - The evidence model defines `independent_worker` and `independent`, and the only
   runtime producer assigned anywhere is `'runtime'`, so the `independent_worker` seat is
@@ -863,28 +869,28 @@ under-developed and compose with the rows above rather than competing as peers.
 - The live channel is empty: every `skill_slots` in shipped schematics is `[]`, and no
   flow populates `default_selection.skills` (grep across `src/flows/`).
 - Roughly half the vocabulary cannot fire today without new signal infrastructure.
-  Verified against `src/schemas/skill-moment.ts:4-89`: the two reactive moments
+  Verified against `src/schemas/skill-hook.ts:4-89`: the two reactive hooks
   (`after:verification-failed`, `after:evidence-gap`) are the only ones whose detection
   signal already crosses the trace (`check.evaluated`, `proof.assessed` both exist).
-  Diff-driven moments need a per-step diff snapshot that does not exist (the only runtime
+  Diff-driven hooks need a per-step diff snapshot that does not exist (the only runtime
   git diff is worktree-level, `src/runtime/fanout/worktree.ts`): `after:test-change`,
   `after:schema-change`, `after:dependency-change` are diff-only, and
   `after:react-ui-change` and `after:api-surface-change` depend on diff or on
-  `moments.detection.*` config patterns that are also not wired. Stage-driven moments need
+  `skill_hooks.detection.*` config patterns that are also not wired. Stage-driven hooks need
   a stage-transition event (none exists, empty grep for `stage-transition` emitters in
   `src/runtime/`) or to be re-expressed on step metadata: `before:implementation` is the
-  only moment with no non-stage fallback (its `detected_from` is purely stage-transition),
+  only hook with no non-stage fallback (its `detected_from` is purely stage-transition),
   while `before:plan-implementation`, `before:verification`, and `before:close-run` each
   carry a non-stage fallback (`step-metadata:*` or `run-envelope:*`) a detector could read.
   Avoid the precise "exactly 7 equals 3+4" claim. And no detector is wired for any
-  moment yet, so even the signal-ready moments are detector-ready, not live.
-- The ratchet guards `skill_moments.*skills` / `skills.*skill_moments` co-occurrence in
+  hook yet, so even the signal-ready hooks are detector-ready, not live.
+- The ratchet guards `skill_hooks.*skills` / `skills.*skill_hooks` co-occurrence in
   `src/flows` and `tests` with budget 0; it does not guard `step.selection.skills`
-  (`tests/contracts/run-centered-v1-safety.test.ts:109`, the "keeps Skill Moment policy
+  (`tests/contracts/run-centered-v1-safety.test.ts:109`, the "keeps Skill Hook policy
   from becoming flow-step skill slots" test).
 - The vocabulary spec: publish-only at `:51`, no default mappings at `:67`, NL-inference
   ban at `:165-166`, and it explicitly names "fuzzy description matching across every
-  installed skill" as the contrast (`:15`), `docs/specs/skill-moment-vocabulary-v1.md`.
+  installed skill" as the contrast (`:15`), `docs/specs/skill-hook-vocabulary-v1.md`.
 
 **SUPPORTED (reasoned from the above, not line-verified):**
 
@@ -906,7 +912,7 @@ under-developed and compose with the rows above rather than competing as peers.
   the real `.circuit/runs` corpus and read the verdict distribution.
 - **Codex orchestrator session shape** for F2: whether Codex exposes an
   orchestrator-context injection analogous to the interactive host. *Not investigated.*
-- The exact line ranges marked "approximate" throughout (`SkillMomentPolicyRule` :149-190;
+- The exact line ranges marked "approximate" throughout (`SkillHookPolicyRule` :149-190;
   vocabulary `:232`; future-proofing `:68-137`), directionally correct, re-verify at
   implementation time.
 
@@ -915,7 +921,7 @@ under-developed and compose with the rows above rather than competing as peers.
 These are proposed first moves to de-risk, not committed design. The specific
 `check_kind` value and seam wiring are illustrative; nothing here is decided.
 
-**Endorse the incumbent's *contract* (publish-only moments to policy to skill) but
+**Endorse the incumbent's *contract* (publish-only hooks to policy to skill) but
 reject shipping it whole. Ship a report-only first slice, then a chosen
 actuator, with judge-frame as the strategic north star. The north star's demonstrable form
 needs a per-step diff that this plan defers, so it is a bet on deferred engine surface, not
@@ -928,12 +934,12 @@ The reasoning, weighing the judge tension:
    Nothing in the alternatives argues for abandoning the decoupling; they argue about
    *who authors the mapping* and *what actuation does*, both of which fit inside the spine.
 
-2. **Do not ship 14 moments. Ship the 2 that have live signal first.** The recommendation
+2. **Do not ship 14 hooks. Ship the 2 that have live signal first.** The recommendation
    endorses the publish-only *contract* (shared by Option 0 and Option 5) but ships at
-   Option 5's *scope*, the 2 reactive moments. The favorable detection-trust and
+   Option 5's *scope*, the 2 reactive hooks. The favorable detection-trust and
    operator-burden positions come from that scope cut, not from the contract itself.
    Roughly half the vocabulary cannot fire today (no stage events, no per-step diff), and
-   no detector is wired for any moment yet. Shipping the full vocabulary lets operators
+   no detector is wired for any hook yet. Shipping the full vocabulary lets operators
    author mappings that silently never fire, worse than not shipping, because it looks
    supported. Reactive-remediation is the lowest-effort thing that ships against real
    signal, maxes detection-trust, and is maximally judge-aligned (it fires on Circuit's
@@ -945,29 +951,29 @@ The reasoning, weighing the judge tension:
 
    - **Slice 1 (the truly minimal proof): report-only detection.** The smallest provable
      thing is not injection at all. It is: at the verification-failure seam, detect
-     `after:verification-failed`, resolve operator policy, and write a `run.skill-moment`
+     `after:verification-failed`, resolve operator policy, and write a `run.skill-hook`
      trace event whose `triggered_skills` are marked `planned` (or `unavailable`). That is
-     exactly what `buildRunSkillMomentEvent` already does (`src/skill-moments/policy.ts:109`;
+     exactly what `buildRunSkillHookEvent` already does (`src/skill-hooks/policy.ts:109`;
      it marks `planned` at :124 and `unavailable` at :132, never `observed`); the slice gives
      it a live caller and a place to land. Detection note, and a decision to make before
-     building, not at implementation time: the moment's declared signal is
-     `evidence-map:required-check-failed` (`src/schemas/skill-moment.ts:67`) and there is no
+     building, not at implementation time: the hook's declared signal is
+     `evidence-map:required-check-failed` (`src/schemas/skill-hook.ts:67`) and there is no
      evidence-map producer in the runtime, so Slice 1 must re-express detection on the failure
      signal that *does* cross the trace, a `check.evaluated{outcome:'fail'}`
      (`src/runtime/executors/verification.ts` approximately :313) or the relay `result_verdict`
-     fail (`relay.ts` approximately :701). Because the recorded moment is the whole point of
+     fail (`relay.ts` approximately :701). Because the recorded hook is the whole point of
      going report-only, the recorded `detected_from` must name the signal that actually fired
      (`check.evaluated:fail`), not the declared `evidence-map` signal the runtime never
      produced. Otherwise the trustworthy seam ships a provenance gap on day one. Make that an
      acceptance criterion of Slice 1, or ship an evidence-map producer first. It builds two
-     things: one `run.skill-moment` trace kind (none exists today) and one flow-agnostic caller
+     things: one `run.skill-hook` trace kind (none exists today) and one flow-agnostic caller
      at the failure seam. No selection merge, no verifier, no proof-assessment path, no prompt
      change. It mutates no runtime state and does not touch the plan or selection path. Its one
-     schema commitment, the new `run.skill-moment` trace kind, is a 26th member added to a
+     schema commitment, the new `run.skill-hook` trace kind, is a 26th member added to a
      strict, contract-tested discriminated union, so it is migration-sensitive and worth a
      `/codex` pass in its own right (the same call Option 5's effort note makes); "mutates no
      runtime state" holds, but this is not a free schema edit. The acceptance test asserts a
-     `run.skill-moment` entry with `triggered_skills[0].state='planned'` and a `detected_from`
+     `run.skill-hook` entry with `triggered_skills[0].state='planned'` and a `detected_from`
      of `check.evaluated:fail`, and with the flag off, no such entry. This is the part that
      carries forward to *either* actuator below, report-only in the spirit the doc praises for
      learned-mapping.
@@ -982,7 +988,7 @@ The reasoning, weighing the judge tension:
        (`src/shared/relay-support.ts:75-91`). This is not cheap wiring:
        `deriveResolvedSelection` derives skills only from config layers
        (`src/shared/relay-selection.ts:78`, `src/shared/selection-resolver.ts:30-60`) and
-       `RunContext` has no carrier for a fired moment's skills (`src/runtime/run/run-context.ts:13-36`,
+       `RunContext` has no carrier for a fired hook's skills (`src/runtime/run/run-context.ts:13-36`,
        which holds `acceptanceRetryFeedback` but nothing analogous for skills). So injection
        needs (a) a new cross-step carrier (a `RunContext` field analogous to
        `acceptanceRetryFeedback`) and (b) a merge that mutates the freshly derived
@@ -1028,14 +1034,14 @@ The reasoning, weighing the judge tension:
        so the verifier sees only a truncated tail and its failure-classification recall is
        bounded. That fills the empty `independent_worker` producer seat (real infrastructure for
        the judge pivot) but it proves the *plumbing*, not the judging thesis. A genuine
-       independent-verification demonstration needs an `after:*-change` moment judging the
+       independent-verification demonstration needs an `after:*-change` hook judging the
        doer's output, which needs the deferred per-step diff. This is Option 3's own weakness
        (1) applied to this exact slice.
 
    The read: the cheap, reversible, invariant-clean first move is report-only Slice 1.
-   Both actuators are real follow-on decisions, not free upgrades, and the diff-bearing moment
+   Both actuators are real follow-on decisions, not free upgrades, and the diff-bearing hook
    that would let judge-frame actually demonstrate independent judging is itself gated on the
-   deferred engine surface. Keep injection as the actuator for *guidance* moments with no
+   deferred engine surface. Keep injection as the actuator for *guidance* hooks with no
    machine-checkable verdict; prefer verify where a real claim can be independently checked
    (Option F4's routing principle).
 
@@ -1050,11 +1056,11 @@ The reasoning, weighing the judge tension:
 
    On the judge-frame north star: picking the verify actuator on `after:verification-failed`
    proves infrastructure (it fills the empty `independent_worker` producer seat) but cannot
-   validate the judging thesis, because on this reactive moment the verifier classifies an
+   validate the judging thesis, because on this reactive hook the verifier classifies an
    already-proven failure rather than judging the doer's output. Validating the thesis needs
    the deferred per-step diff producer that step 4 routes to `/codex`. So "judge-frame as
    north star" is a bet on a deferred engine surface gated two deferrals deep (the judging
-   demonstration depends on a diff-bearing moment, which depends on the diff producer step 4
+   demonstration depends on a diff-bearing hook, which depends on the diff producer step 4
    defers), and it could be orphaned if that `/codex` decision is never scheduled. Slice 1
    does not de-risk it.
 
@@ -1099,17 +1105,17 @@ curve, and a stronger model needs hand-held expertise less. The recommendation l
 that tension rather than ignoring it. The cheap first move is report-only detection,
 which is actuator-agnostic and survives either answer. Beyond it, the recommendation prefers
 the *actuation* (verify) and the *measurement* (learned-mapping) that survive the judge
-reframe, and treats pure injection as the guidance-moment fallback. If Circuit's future is
-judging, recording moments and verdicts leaves judge-grade artifacts behind; if it is doing,
+reframe, and treats pure injection as the guidance-hook fallback. If Circuit's future is
+judging, recording hooks and verdicts leaves judge-grade artifacts behind; if it is doing,
 the same records still feed the injection path.
 
 **The plan, concretely.** Slice 1 is report-only: at the verification-failure seam, detect
 `after:verification-failed` (re-expressed on the live `check.evaluated{fail}` signal, since
-the declared evidence-map signal has no producer), call `buildRunSkillMomentEvent`, and append
-a new `run.skill-moment` trace entry, with no prompt change and no selection mutation, exactly
+the declared evidence-map signal has no producer), call `buildRunSkillHookEvent`, and append
+a new `run.skill-hook` trace entry, with no prompt change and no selection mutation, exactly
 as derived in step 3. Slice 2 is one of the two actuators above, chosen per open question 1
 (injection, which is Option 2's plumbing and doer-only, or verify, which fills the producer
-seat and proves plumbing not judging on this reactive moment). In parallel, ship Option 4's
+seat and proves plumbing not judging on this reactive hook). In parallel, ship Option 4's
 report-only aggregator to answer the corpus question, and optionally populate Option 6's
 static channel. All of these are reversible and additive.
 
@@ -1130,7 +1136,7 @@ re-trap us in the local maximum this doc worked to escape.
 
 2. **Auditability vs recall: is the NL-inference ban a hill to die on?** Options 2 and the
    host-native idea trade the spec's closed-alphabet, replayable detection for a model that
-   reads live context and catches moments a signal-list misses. That is a real product
+   reads live context and catches hooks a signal-list misses. That is a real product
    value call about whether Circuit's promise is *deterministic, reviewable* skill activity
    or *better recall*. Today the spec says deterministic; relaxing it is a positioning
    decision only you should make.
@@ -1153,5 +1159,5 @@ re-trap us in the local maximum this doc worked to escape.
 
 6. **Do we want to commit new engine surface (stage events, per-step diff) at all?** Roughly
    half the vocabulary depends on it. The recommendation defers it; if you want the
-   proactive/diff moments sooner, that is a deliberate `/codex`-grade architecture decision
+   proactive/diff hooks sooner, that is a deliberate `/codex`-grade architecture decision
    to schedule, not skip.

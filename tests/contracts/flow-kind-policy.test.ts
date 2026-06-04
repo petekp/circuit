@@ -217,8 +217,11 @@ function buildPolicyOnlyPayload(overrides: Record<string, unknown> = {}): Record
     schema_version: '2',
     id: 'build',
     // Policy fixture only; the real Build fixture waits for checkpoint and relay slices.
+    // Build now uses every canonical stage (analyze re-opened for the grounding relay)
+    // and omits none, so the SpinePolicy schema requires `strict`.
     stages: [
       { title: 'Frame', canonical: 'frame', steps: ['frame-step'] },
+      { title: 'Analyze', canonical: 'analyze', steps: ['analyze-step'] },
       { title: 'Plan', canonical: 'plan', steps: ['plan-step'] },
       { title: 'Act', canonical: 'act', steps: ['act-step'] },
       { title: 'Verify', canonical: 'verify', steps: ['verify-step'] },
@@ -226,13 +229,11 @@ function buildPolicyOnlyPayload(overrides: Record<string, unknown> = {}): Record
       { title: 'Close', canonical: 'close', steps: ['close-step'] },
     ],
     stage_path_policy: {
-      mode: 'partial',
-      omits: ['analyze'],
-      rationale:
-        'policy-only build payload: Build omits analyze but keeps plan, act, verify, and review.',
+      mode: 'strict',
     },
     steps: [
       { id: 'frame-step', kind: 'checkpoint', writes: { report: {} } },
+      { id: 'analyze-step', kind: 'relay', role: 'researcher' },
       { id: 'plan-step', kind: 'compose', writes: { report: {} } },
       { id: 'act-step', kind: 'relay', role: 'implementer' },
       { id: 'verify-step', kind: 'verification', writes: { report: {} } },
@@ -303,11 +304,19 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
       if (policy === undefined || policy.kind !== 'enforce') continue;
 
       const stagePathPolicy = definition.schematic.stage_path_policy;
-      expect(stagePathPolicy?.mode, definition.id).toBe('partial');
-      if (stagePathPolicy?.mode !== 'partial') {
-        throw new Error(`unreachable: ${definition.id} must use a partial stage path policy`);
+      // A flow that omits no canonical stage uses the full spine, which the
+      // SpinePolicy schema expresses as `strict` (partial requires >=1 omit). A
+      // flow that omits at least one canonical stage uses `partial` with a
+      // matching omit-set.
+      if (policy.omits.length === 0) {
+        expect(stagePathPolicy?.mode, definition.id).toBe('strict');
+      } else {
+        expect(stagePathPolicy?.mode, definition.id).toBe('partial');
+        if (stagePathPolicy?.mode !== 'partial') {
+          throw new Error(`unreachable: ${definition.id} must use a partial stage path policy`);
+        }
+        expect(policy.omits, definition.id).toEqual(stagePathPolicy.omits);
       }
-      expect(policy.omits, definition.id).toEqual(stagePathPolicy.omits);
       expect(policy.canonicals, definition.id).toEqual(
         (definition.schematic.stages ?? []).flatMap((stage) =>
           stage.canonical === undefined ? [] : [stage.canonical],
@@ -340,8 +349,8 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
     const result = checkCompiledFlowKindCanonicalPolicy(buildPolicyOnlyPayload());
     expect(result.kind).toBe('green');
     expect(result.detail).toMatch(/build: canonical set/);
-    expect(result.detail).toMatch(/frame, plan, act, verify, review, close/);
-    expect(result.detail).toMatch(/omits \{analyze\}/);
+    expect(result.detail).toMatch(/frame, analyze, plan, act, verify, review, close/);
+    expect(result.detail).toMatch(/omits \{\}/);
   });
 
   it('returns green on a policy-only fix payload with the Fix canonical stage set', () => {
@@ -411,13 +420,16 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
     expect(result.detail).toMatch(/unexpected canonical\(s\): review/);
   });
 
-  it('returns red when build declares the omitted analyze canonical', () => {
-    const fixture = buildPolicyOnlyPayload();
-    const stages = fixture.stages as Array<Record<string, unknown>>;
-    fixture.stages = [...stages, { title: 'Analyze', canonical: 'analyze' }];
+  it('returns red when a full-canonical build fixture uses partial instead of strict', () => {
+    // Build omits no canonical stage, so it must declare `strict`. A `partial`
+    // stage_path_policy (even one naming a bogus omit) is rejected. This locks the
+    // full-canonical branch of the kind policy.
+    const fixture = buildPolicyOnlyPayload({
+      stage_path_policy: { mode: 'partial', omits: ['analyze'] },
+    });
     const result = checkCompiledFlowKindCanonicalPolicy(fixture);
     expect(result.kind).toBe('red');
-    expect(result.detail).toMatch(/unexpected canonical\(s\): analyze/);
+    expect(result.detail).toMatch(/stage_path_policy\.mode must be 'strict'/);
   });
 
   it('returns red when build omits verify from the canonical set', () => {
@@ -565,10 +577,18 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
     const build = FLOW_KIND_CANONICAL_SETS.build;
     expect(build).toBeDefined();
     if (build === undefined) throw new Error('unreachable');
-    expect(build.canonicals).toEqual(['frame', 'plan', 'act', 'verify', 'review', 'close']);
-    expect(build.omits).toEqual(['analyze']);
+    expect(build.canonicals).toEqual([
+      'frame',
+      'analyze',
+      'plan',
+      'act',
+      'verify',
+      'review',
+      'close',
+    ]);
+    expect(build.omits).toEqual([]);
     expect(build.optional_canonicals).toEqual([]);
-    expect(build.title).toBe('Frame → Plan → Act → Verify → Review → Close');
+    expect(build.title).toBe('Frame → Analyze → Plan → Act → Verify → Review → Close');
     expect(build.authority).toBe('src/flows/build/contract.md §Build Flow Contract');
     const fix = FLOW_KIND_CANONICAL_SETS.fix;
     expect(fix).toBeDefined();

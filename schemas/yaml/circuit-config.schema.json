@@ -230,7 +230,7 @@
           },
           "additionalProperties": false
         },
-        "moments": {
+        "skill_hooks": {
           "default": {
             "policy": {},
             "detection": {
@@ -274,34 +274,6 @@
               },
               "type": "object",
               "properties": {
-                "react_surfaces": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "test_surfaces": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "schema_surfaces": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "api_surfaces": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
                 "disabled_patterns": {
                   "default": {},
                   "type": "object",

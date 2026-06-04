@@ -90,7 +90,7 @@ describe('YAML editor schemas', () => {
     const serialized = JSON.stringify(config);
 
     expect(serialized).toContain('"schema_version"');
-    expect(serialized).toContain('"moments"');
+    expect(serialized).toContain('"skill_hooks"');
     expect(serialized).toContain('"policy"');
     expect(serialized).toContain('"auto"');
     expect(serialized).toContain('"ask"');

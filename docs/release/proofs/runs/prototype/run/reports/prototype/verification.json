@@ -12,7 +12,7 @@
       "cwd": ".",
       "exit_code": 0,
       "status": "passed",
-      "duration_ms": 26,
+      "duration_ms": 30,
       "stdout_summary": "Prototype artifact integrity passed for docs/release/proofs/runs/prototype/run/prototype-files\n",
       "stderr_summary": ""
     }

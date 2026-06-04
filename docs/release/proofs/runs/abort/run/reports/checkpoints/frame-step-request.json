@@ -7,16 +7,29 @@
   ],
   "safe_default_choice": "continue",
   "execution_context": {
+    "axes": {
+      "rigor": "standard",
+      "tournament": false,
+      "tournament_n": 3,
+      "autonomous": false
+    },
     "project_root": "<repo>",
-    "selection_config_layers": [],
-    "checkpoint_report_sha256": "51e501997e6c8f46fabea77dffb633012cbfaafa65310326bb73719b6dff26ae",
+    "work_contract_ref": {
+      "kind": "work_contract",
+      "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
+      "sha256": "46f08ad095595347f4d28529bfdfd717f8fc78cd412c34cd8d3e5f5172dbe3c5",
+      "flow_id": "build"
+    },
     "checkpoint_boundary_ref": {
       "kind": "work_contract",
       "ref": "compiled-flow/steps/frame-step/checkpoint-boundary.v0",
-      "sha256": "c6fdc6032f33baecb6b9bd5f6e9652678742594205966f6bc8bd390a180610bb",
+      "sha256": "5f3d553d82df8a3d5a4402d8c0a0a1a1b5d14050990289307a07aad70eb68783",
       "flow_id": "build",
       "step_id": "frame-step"
     },
-    "checkpoint_boundary_hash": "c6fdc6032f33baecb6b9bd5f6e9652678742594205966f6bc8bd390a180610bb"
+    "checkpoint_boundary_hash": "5f3d553d82df8a3d5a4402d8c0a0a1a1b5d14050990289307a07aad70eb68783",
+    "selection_config_layers": [],
+    "policy_layers": [],
+    "checkpoint_report_sha256": "51e501997e6c8f46fabea77dffb633012cbfaafa65310326bb73719b6dff26ae"
   }
 }

@@ -7,25 +7,22 @@ import {
   Config,
   LayeredConfig,
   RelayStep,
-  RunSkillMomentEvent,
-  SKILL_MOMENT_VOCABULARY,
-  SkillMomentConfig,
-  SkillMomentName,
+  RunSkillHookEvent,
+  SKILL_HOOK_VOCABULARY,
+  SkillHookConfig,
+  SkillHookName,
 } from '../../src/index.js';
 import { createUserSkillRegistry } from '../../src/shared/user-skill-registry.js';
 import {
-  buildSkillMomentAskDecisionPacket,
+  buildSkillHookAskDecisionPacket,
   buildStrictSkillUnavailableDecisionPacket,
-} from '../../src/skill-moments/decision-packet.js';
-import {
-  buildRunSkillMomentEvent,
-  resolveSkillMomentPolicy,
-} from '../../src/skill-moments/policy.js';
+} from '../../src/skill-hooks/decision-packet.js';
+import { buildRunSkillHookEvent, resolveSkillHookPolicy } from '../../src/skill-hooks/policy.js';
 
 let tempDir: string;
 
 beforeEach(() => {
-  tempDir = mkdtempSync(join(tmpdir(), 'circuit-skill-moment-policy-'));
+  tempDir = mkdtempSync(join(tmpdir(), 'circuit-skill-hook-policy-'));
 });
 
 afterEach(() => {
@@ -47,7 +44,7 @@ function configLayer(
     source_path: join(tempDir, `${layer}.yaml`),
     config: {
       schema_version: 1,
-      moments: { policy },
+      skill_hooks: { policy },
     },
   });
 }
@@ -76,60 +73,60 @@ function baseRelayStep(extra: Record<string, unknown> = {}): Record<string, unkn
   };
 }
 
-describe('Skill Moment policy schema', () => {
+describe('Skill Hook policy schema', () => {
   it('accepts policy modes and applies Config defaults', () => {
     const parsed = Config.parse({
       schema_version: 1,
-      moments: {
+      skill_hooks: {
         policy: {
-          'after:react-ui-change': { mode: 'auto', skills: ['react-doctor'] },
+          'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
           'before:high-impact-alignment': { mode: 'ask', skills: ['grill-with-docs'] },
           'before:architecture-analysis': { mode: 'mute' },
         },
       },
     });
 
-    expect(parsed.moments.policy['after:react-ui-change']?.strict).toBe(false);
-    expect(parsed.moments.detection.disabled_patterns).toEqual({});
+    expect(parsed.skill_hooks.policy['after:edit-file:.tsx']?.strict).toBe(false);
+    expect(parsed.skill_hooks.detection.disabled_patterns).toEqual({});
   });
 
   it('rejects slot-shaped and fuzzy policy shapes', () => {
     expect(
-      SkillMomentConfig.safeParse({
-        policy: { 'after:react-ui-change': { mode: 'auto' } },
+      SkillHookConfig.safeParse({
+        policy: { 'after:edit-file:.tsx': { mode: 'auto' } },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: { 'before:high-impact-alignment': { mode: 'ask' } },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: { 'before:architecture-analysis': { mode: 'mute', skills: ['seam-ripper'] } },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: {
-          'after:react-ui-change': { mode: 'auto', skills: ['react-doctor', 'react-doctor'] },
+          'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor', 'react-doctor'] },
         },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: { 'after:risky-code': { mode: 'auto', skills: ['seam-ripper'] } },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: {
-          'team/after:react-ui-change': { mode: 'auto', skills: ['react-doctor'] },
+          'team/after:edit-file': { mode: 'auto', skills: ['react-doctor'] },
         },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: {
           'team/after:storybook-change': { mode: 'auto', skills: ['react-doctor'], extra: true },
         },
@@ -140,25 +137,23 @@ describe('Skill Moment policy schema', () => {
   it('layers project policy as whole-entry replacement over user-global policy', () => {
     const user = configLayer('user-global', {
       'before:architecture-analysis': { mode: 'auto', skills: ['seam-ripper'] },
-      'after:react-ui-change': { mode: 'auto', skills: ['react-doctor'] },
+      'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
     });
     const project = configLayer('project', {
       'before:architecture-analysis': { mode: 'mute' },
     });
 
-    expect(resolveSkillMomentPolicy([user, project], 'before:architecture-analysis')).toMatchObject(
-      {
-        mode: 'mute',
-        source: 'project-policy',
-        skills: [],
-      },
-    );
-    expect(resolveSkillMomentPolicy([user, project], 'after:react-ui-change')).toMatchObject({
+    expect(resolveSkillHookPolicy([user, project], 'before:architecture-analysis')).toMatchObject({
+      mode: 'mute',
+      source: 'project-policy',
+      skills: [],
+    });
+    expect(resolveSkillHookPolicy([user, project], 'after:edit-file:.tsx')).toMatchObject({
       mode: 'auto',
       source: 'user-global-policy',
       skills: ['react-doctor'],
     });
-    expect(resolveSkillMomentPolicy([user, project], 'before:handoff')).toEqual({
+    expect(resolveSkillHookPolicy([user, project], 'before:handoff')).toEqual({
       mode: 'none',
       source: 'none',
     });
@@ -169,15 +164,15 @@ describe('Skill Moment policy schema', () => {
     writeSkill(agentsRoot, 'react-doctor');
     const registry = createUserSkillRegistry({ roots: [agentsRoot] });
     const layer = configLayer('project', {
-      'after:react-ui-change': {
+      'after:edit-file:.tsx': {
         mode: 'auto',
         skills: ['react-doctor', 'missing-skill'],
       },
     });
 
-    const event = buildRunSkillMomentEvent({
-      eventId: 'moment-1',
-      moment: SkillMomentName.parse('after:react-ui-change'),
+    const event = buildRunSkillHookEvent({
+      eventId: 'hook-1',
+      hook: SkillHookName.parse('after:edit-file:.tsx'),
       detectedFrom: ['diff:src/component.tsx'],
       cardinality: 'per-step',
       configLayers: [layer],
@@ -207,20 +202,20 @@ describe('Skill Moment policy schema', () => {
       },
     });
 
-    const pending = buildRunSkillMomentEvent({
-      eventId: 'moment-ask',
-      moment: SkillMomentName.parse('before:high-impact-alignment'),
+    const pending = buildRunSkillHookEvent({
+      eventId: 'hook-ask',
+      hook: SkillHookName.parse('before:high-impact-alignment'),
       detectedFrom: ['operator-flag:high-impact'],
       cardinality: 'per-run',
       configLayers: [layer],
       registry,
     });
-    expect(pending.decision_packet_id).toBe('moment-ask:ask');
+    expect(pending.decision_packet_id).toBe('hook-ask:ask');
     expect(pending.triggered_skills).toEqual([]);
 
-    const accepted = buildRunSkillMomentEvent({
-      eventId: 'moment-ask',
-      moment: SkillMomentName.parse('before:high-impact-alignment'),
+    const accepted = buildRunSkillHookEvent({
+      eventId: 'hook-ask',
+      hook: SkillHookName.parse('before:high-impact-alignment'),
       detectedFrom: ['operator-flag:high-impact'],
       cardinality: 'per-run',
       configLayers: [layer],
@@ -234,7 +229,7 @@ describe('Skill Moment policy schema', () => {
     ]);
   });
 
-  it('builds shared decision packets for Skill Moment ask and strict unavailable cases', () => {
+  it('builds shared decision packets for Skill Hook ask and strict unavailable cases', () => {
     const agentsRoot = join(tempDir, 'agents-decision');
     writeSkill(agentsRoot, 'grill-with-docs');
     const registry = createUserSkillRegistry({ roots: [agentsRoot] });
@@ -244,9 +239,9 @@ describe('Skill Moment policy schema', () => {
         skills: ['grill-with-docs'],
       },
     });
-    const askEvent = buildRunSkillMomentEvent({
-      eventId: 'moment-ask',
-      moment: SkillMomentName.parse('before:high-impact-alignment'),
+    const askEvent = buildRunSkillHookEvent({
+      eventId: 'hook-ask',
+      hook: SkillHookName.parse('before:high-impact-alignment'),
       detectedFrom: ['operator-flag:high-impact'],
       cardinality: 'per-run',
       configLayers: [askLayer],
@@ -254,13 +249,13 @@ describe('Skill Moment policy schema', () => {
     });
 
     expect(
-      buildSkillMomentAskDecisionPacket({
+      buildSkillHookAskDecisionPacket({
         runId: '00000000-0000-4000-8000-00000000d001',
         event: askEvent,
       }),
     ).toMatchObject({
-      reason: 'skill-moment-ask',
-      decision_id: 'moment-ask:ask',
+      reason: 'skill-hook-ask',
+      decision_id: 'hook-ask:ask',
       choices: [
         { id: 'use-skills', label: 'Use skills' },
         { id: 'skip-skills', label: 'Skip skills' },
@@ -268,15 +263,15 @@ describe('Skill Moment policy schema', () => {
     });
 
     const strictLayer = configLayer('project', {
-      'after:react-ui-change': {
+      'after:edit-file:.tsx': {
         mode: 'auto',
         strict: true,
         skills: ['missing-skill'],
       },
     });
-    const strictEvent = buildRunSkillMomentEvent({
-      eventId: 'moment-strict',
-      moment: SkillMomentName.parse('after:react-ui-change'),
+    const strictEvent = buildRunSkillHookEvent({
+      eventId: 'hook-strict',
+      hook: SkillHookName.parse('after:edit-file:.tsx'),
       detectedFrom: ['diff:src/component.tsx'],
       cardinality: 'per-step',
       configLayers: [strictLayer],
@@ -290,7 +285,7 @@ describe('Skill Moment policy schema', () => {
       }),
     ).toMatchObject({
       reason: 'strict-skill-unavailable',
-      decision_id: 'moment-strict:strict-skill-unavailable',
+      decision_id: 'hook-strict:strict-skill-unavailable',
       choices: [
         { id: 'continue-without-skill', label: 'Continue' },
         { id: 'stop', label: 'Stop' },
@@ -300,10 +295,10 @@ describe('Skill Moment policy schema', () => {
 
   it('keeps observed and unplanned skill activity separate from preparation states', () => {
     expect(
-      RunSkillMomentEvent.safeParse({
-        schema: 'run.skill-moment@v0',
-        event_id: 'moment-observed',
-        moment: 'after:react-ui-change',
+      RunSkillHookEvent.safeParse({
+        schema: 'run.skill-hook@v0',
+        event_id: 'hook-observed',
+        hook: 'after:edit-file:.tsx',
         detected_from: ['host:skills.loaded'],
         cardinality: 'per-step',
         policy: { mode: 'none', source: 'none' },
@@ -312,10 +307,10 @@ describe('Skill Moment policy schema', () => {
     ).toBe(false);
 
     expect(
-      RunSkillMomentEvent.safeParse({
-        schema: 'run.skill-moment@v0',
-        event_id: 'moment-unplanned',
-        moment: 'after:react-ui-change',
+      RunSkillHookEvent.safeParse({
+        schema: 'run.skill-hook@v0',
+        event_id: 'hook-unplanned',
+        hook: 'after:edit-file:.tsx',
         detected_from: ['host:skills.loaded'],
         cardinality: 'per-step',
         policy: { mode: 'auto', source: 'project-policy', strict: false },
@@ -324,28 +319,87 @@ describe('Skill Moment policy schema', () => {
     ).toBe(true);
   });
 
-  it('adds a moment-only step field without reviving skill binding matrices', () => {
+  it('adds a hook-only step field without reviving skill binding matrices', () => {
     expect(
-      RelayStep.safeParse(baseRelayStep({ skill_moments: ['after:react-ui-change'] })).success,
+      RelayStep.safeParse(baseRelayStep({ skill_hooks: ['after:edit-file:.tsx'] })).success,
     ).toBe(true);
     expect(
-      RelayStep.safeParse(baseRelayStep({ skill_moments: [{ skills: ['react-doctor'] }] })).success,
+      RelayStep.safeParse(baseRelayStep({ skill_hooks: [{ skills: ['react-doctor'] }] })).success,
     ).toBe(false);
-    expect(RelayStep.safeParse(baseRelayStep({ skill_moments: ['react-doctor'] })).success).toBe(
+    expect(RelayStep.safeParse(baseRelayStep({ skill_hooks: ['react-doctor'] })).success).toBe(
       false,
     );
   });
 });
 
-describe('Skill Moment vocabulary fixtures', () => {
-  it('pins the shipped V1 vocabulary to observable detection sources', () => {
-    expect(SKILL_MOMENT_VOCABULARY).toHaveLength(14);
-    for (const entry of SKILL_MOMENT_VOCABULARY) {
-      expect(SkillMomentName.safeParse(entry.moment).success).toBe(true);
+describe('Skill Hook vocabulary fixtures', () => {
+  it('pins the shipped vocabulary to observable detection sources', () => {
+    // 14 named hooks minus the 5 collapsed file-surface hooks plus the 2
+    // parameterized edit-file anchors = 11.
+    expect(SKILL_HOOK_VOCABULARY).toHaveLength(11);
+    for (const entry of SKILL_HOOK_VOCABULARY) {
+      expect(SkillHookName.safeParse(entry.hook).success).toBe(true);
       expect(entry.detected_from.length).toBeGreaterThan(0);
       expect(entry.detected_from.join('\n')).not.toMatch(/natural-language/i);
       expect(['auto', 'ask', 'mute']).toContain(entry.default_mode);
       expect(['per-run', 'per-stage', 'per-step']).toContain(entry.cardinality);
     }
+  });
+
+  it('carries the parameterized edit-file anchors and drops the named file-surface hooks', () => {
+    const hooks = SKILL_HOOK_VOCABULARY.map((entry) => entry.hook);
+    expect(hooks).toContain('before:edit-file');
+    expect(hooks).toContain('after:edit-file');
+    for (const dropped of [
+      'after:react-ui-change',
+      'after:test-change',
+      'after:schema-change',
+      'after:api-surface-change',
+      'after:dependency-change',
+    ]) {
+      expect(hooks).not.toContain(dropped);
+    }
+  });
+});
+
+describe('Skill Hook parameterized edit-file names', () => {
+  it('accepts the bare anchors and extension-suffix forms', () => {
+    for (const name of [
+      'before:edit-file',
+      'after:edit-file',
+      'after:edit-file:.tsx',
+      'before:edit-file:.ts',
+      'after:edit-file:.test.ts',
+      'after:edit-file:.d.ts',
+    ]) {
+      expect(SkillHookName.safeParse(name).success).toBe(true);
+    }
+  });
+
+  it('rejects malformed extension suffixes', () => {
+    for (const name of [
+      'after:edit-file:', // empty suffix
+      'after:edit-file:tsx', // missing leading dot
+      'after:edit-file:.', // dot with no extension
+      'after:edit-file:.tsx.', // trailing dot
+      'after:edit-file:*.tsx', // glob char is not an extension suffix in v1
+      'after:other-thing:.tsx', // only edit-file is parameterized
+    ]) {
+      expect(SkillHookName.safeParse(name).success).toBe(false);
+    }
+  });
+
+  it('round-trips a parameterized policy key through Config and resolution', () => {
+    const parsed = Config.parse({
+      schema_version: 1,
+      skill_hooks: {
+        policy: {
+          'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
+          'after:edit-file:.py': { mode: 'auto', skills: ['python-doctor'] },
+        },
+      },
+    });
+    expect(parsed.skill_hooks.policy['after:edit-file:.tsx']?.skills).toEqual(['react-doctor']);
+    expect(parsed.skill_hooks.policy['after:edit-file:.py']?.skills).toEqual(['python-doctor']);
   });
 });

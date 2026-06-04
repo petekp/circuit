@@ -47,11 +47,18 @@ Context (from reads):
 --- reports/build/plan.json ---
 {
   "objective": "develop: add a small safe change",
-  "approach": "Make the smallest safe change inside scope: Make the smallest safe change that satisfies the requested goal.",
+  "approach": "Grounded in a codebase read (1 sources): The synthetic target module is small and self-contained. Then Make the smallest safe change inside scope: Make the smallest safe change that satisfies the requested goal.",
   "slices": [
-    "Satisfy: The requested behavior is implemented",
-    "Satisfy: Verification passes",
-    "Satisfy: Review completes without a blocking issue"
+    {
+      "id": "slice-1",
+      "intent": "develop: add a small safe change",
+      "anticipated_file_extensions": [
+        ".ts"
+      ]
+    }
+  ],
+  "anticipated_file_extensions": [
+    ".ts"
   ],
   "verification": {
     "commands": [
@@ -78,4 +85,4 @@ Failure policy: retry-with-feedback
 - changed-files-present: report field changed_files must be present.
 - evidence-non-empty: report field evidence must be non_empty.
 
-Respond with a single raw JSON object whose top-level shape is exactly: { "verdict": "accept", "summary": "<what changed>", "changed_files": ["<project-relative path>"], "evidence": ["<verification or implementation evidence>"] } Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass. Use an empty changed_files array only when no file changed. Evidence must contain at least one item. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.implementation@v1 before writing reports/build/implementation.json.
+Respond with a single raw JSON object whose top-level shape is exactly: { "verdict": "accept", "summary": "<what changed>", "changed_files": ["<project-relative path>"], "evidence": ["<verification or implementation evidence>"] } Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass. When the request names a current slice (its id and intent), implement ONLY that slice's unit of work - the smallest change that satisfies that slice's intent - and leave later slices for their own turn. When no current slice is named, implement the whole plan in one pass. Report changed_files cumulatively: every file changed so far across all slices, not only this slice's files. The plan's anticipated_file_extensions (and the current slice's, when named) list the file types the grounding read expects to touch. Treat them as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched. Use an empty changed_files array only when no file changed. Evidence must contain at least one item. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.implementation@v1 before writing reports/build/implementation.json.

@@ -17,13 +17,13 @@
     "flow_id": "build",
     "outcome": "checkpoint_waiting",
     "trace_entries_observed": 5,
-    "manifest_hash": "b4befa8d142c692117c299238e74a82af65efef6eca0061dc3e3031bb2d596f7",
+    "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2",
     "checkpoint": {
       "step_id": "frame-step",
       "request_ref": {
         "kind": "request",
         "ref": "reports/checkpoints/frame-step-request.json",
-        "sha256": "500ec98e945ec8bff4508cbe1f5ba01cff05324252aef33daba3c678478953eb",
+        "sha256": "4b6d6ae21fe2f5299fd907a458a2207a8c1d32678a684fb302330ae8b484b64b",
         "run_id": "44444444-4444-4444-4444-444444444411",
         "flow_id": "build",
         "step_id": "frame-step"
@@ -37,7 +37,7 @@
     {
       "kind": "request",
       "ref": "reports/checkpoints/frame-step-request.json",
-      "sha256": "500ec98e945ec8bff4508cbe1f5ba01cff05324252aef33daba3c678478953eb",
+      "sha256": "4b6d6ae21fe2f5299fd907a458a2207a8c1d32678a684fb302330ae8b484b64b",
       "run_id": "44444444-4444-4444-4444-444444444411",
       "flow_id": "build",
       "step_id": "frame-step"

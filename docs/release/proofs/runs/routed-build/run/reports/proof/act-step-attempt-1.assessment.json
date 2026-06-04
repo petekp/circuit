@@ -18,7 +18,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
-          "sha256": "96ca5fa07286a1bd4efdcdcff3d7bc38b6721f20795e80c9f16980ade25ef5de",
+          "sha256": "46f08ad095595347f4d28529bfdfd717f8fc78cd412c34cd8d3e5f5172dbe3c5",
           "flow_id": "build"
         }
       ],
@@ -36,26 +36,26 @@
       "independence": "runtime",
       "ref": {
         "kind": "trace",
-        "ref": "trace.ndjson#sequence=19",
+        "ref": "trace.ndjson#sequence=28",
         "run_id": "44444444-4444-4444-4444-444444444402",
         "step_id": "act-step",
         "attempt": 1,
-        "sequence": 19
+        "sequence": 28
       },
       "input_refs": [
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
-          "sha256": "96ca5fa07286a1bd4efdcdcff3d7bc38b6721f20795e80c9f16980ade25ef5de",
+          "sha256": "46f08ad095595347f4d28529bfdfd717f8fc78cd412c34cd8d3e5f5172dbe3c5",
           "flow_id": "build"
         },
         {
           "kind": "trace",
-          "ref": "trace.ndjson#sequence=19",
+          "ref": "trace.ndjson#sequence=28",
           "run_id": "44444444-4444-4444-4444-444444444402",
           "step_id": "act-step",
           "attempt": 1,
-          "sequence": 19
+          "sequence": 28
         }
       ],
       "covers_claims": [
@@ -71,26 +71,26 @@
       "independence": "runtime",
       "ref": {
         "kind": "trace",
-        "ref": "trace.ndjson#sequence=20",
+        "ref": "trace.ndjson#sequence=29",
         "run_id": "44444444-4444-4444-4444-444444444402",
         "step_id": "act-step",
         "attempt": 1,
-        "sequence": 20
+        "sequence": 29
       },
       "input_refs": [
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
-          "sha256": "96ca5fa07286a1bd4efdcdcff3d7bc38b6721f20795e80c9f16980ade25ef5de",
+          "sha256": "46f08ad095595347f4d28529bfdfd717f8fc78cd412c34cd8d3e5f5172dbe3c5",
           "flow_id": "build"
         },
         {
           "kind": "trace",
-          "ref": "trace.ndjson#sequence=20",
+          "ref": "trace.ndjson#sequence=29",
           "run_id": "44444444-4444-4444-4444-444444444402",
           "step_id": "act-step",
           "attempt": 1,
-          "sequence": 20
+          "sequence": 29
         }
       ],
       "covers_claims": [

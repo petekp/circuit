@@ -17,8 +17,8 @@
       "scope_refs": [
         {
           "kind": "work_contract",
-          "ref": "runtime/work-contract/build/96ca5fa07286a1bd4efdcdcff3d7bc38b6721f20795e80c9f16980ade25ef5de.json",
-          "sha256": "96ca5fa07286a1bd4efdcdcff3d7bc38b6721f20795e80c9f16980ade25ef5de",
+          "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
+          "sha256": "46f08ad095595347f4d28529bfdfd717f8fc78cd412c34cd8d3e5f5172dbe3c5",
           "flow_id": "build"
         }
       ],
@@ -46,8 +46,8 @@
       "input_refs": [
         {
           "kind": "work_contract",
-          "ref": "runtime/work-contract/build/96ca5fa07286a1bd4efdcdcff3d7bc38b6721f20795e80c9f16980ade25ef5de.json",
-          "sha256": "96ca5fa07286a1bd4efdcdcff3d7bc38b6721f20795e80c9f16980ade25ef5de",
+          "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
+          "sha256": "46f08ad095595347f4d28529bfdfd717f8fc78cd412c34cd8d3e5f5172dbe3c5",
           "flow_id": "build"
         }
       ],

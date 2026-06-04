@@ -105,18 +105,25 @@ slot, path, SHA-256, and byte count.
 
 The skill contract is [`docs/contracts/skill.md`](contracts/skill.md).
 
-## Skill Moment Policy
+## Skill Hook Policy
 
-Run-centered V1 adds a typed `moments` config surface for future automatic
-skill preparation. This only records deterministic policy today; it does not
-dispatch skills by itself.
+The `skill_hooks` config surface declares which skills a run would prepare at
+named moments. Dispatch is **report-only** today: it records which hooks fire
+under your policy (in the run trace), but injects no skill into any worker yet.
+
+File-edit hooks are parameterized by an extension suffix in the key:
+`after:edit-file:.tsx` fires after a step touches a `.tsx` file,
+`before:edit-file:.ts` fires when a step is predicted to touch `.ts`. The engine
+matches the literal extension suffix; the meaning (`.tsx` means React, so load a
+React skill) lives entirely in your policy. A bare `after:edit-file` matches any
+file edit.
 
 ```yaml
 schema_version: 1
 
-moments:
+skill_hooks:
   policy:
-    after:react-ui-change:
+    after:edit-file:.tsx:
       mode: auto
       skills:
         - react-doctor
@@ -129,7 +136,7 @@ moments:
 ```
 
 `auto` and `ask` need at least one concrete skill id. `mute` names no skills.
-Project config replaces user-global policy by moment key.
+Project config replaces user-global policy by hook key.
 
 ## Codex Host And Codex Worker
 

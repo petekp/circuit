@@ -84,14 +84,14 @@
         "run_id": "44444444-4444-4444-4444-444444444403",
         "run_folder": "<repo>/docs/release/proofs/runs/explicit-build/run",
         "trace_entries_observed": 5,
-        "manifest_hash": "b4befa8d142c692117c299238e74a82af65efef6eca0061dc3e3031bb2d596f7"
+        "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2"
       },
       "checkpoint": {
         "step_id": "frame-step",
         "request_ref": {
           "kind": "request",
           "ref": "reports/checkpoints/frame-step-request.json",
-          "sha256": "a48f096757066c2ad525f5a6553a0648dd3cb15d9be40ee054679323a42a8a53",
+          "sha256": "fd2cd5cad80aa1516f850a12dc53d26b03cac12f52b97df819850e688b630241",
           "run_id": "44444444-4444-4444-4444-444444444403",
           "flow_id": "build",
           "step_id": "frame-step"
@@ -106,7 +106,7 @@
           "ref": {
             "kind": "evidence",
             "ref": "reports/process-evidence.json",
-            "sha256": "82a68455fda2fbe67a7e6420d41ef00b1aad97643bbc9b9df0281d4755f20642",
+            "sha256": "f39ee9185327986d4df994304bd9d92702b7df73133e5567dc306f5d7cd72bb5",
             "run_id": "44444444-4444-4444-4444-444444444403",
             "flow_id": "build"
           }
@@ -128,7 +128,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "82a68455fda2fbe67a7e6420d41ef00b1aad97643bbc9b9df0281d4755f20642",
+              "sha256": "f39ee9185327986d4df994304bd9d92702b7df73133e5567dc306f5d7cd72bb5",
               "run_id": "44444444-4444-4444-4444-444444444403",
               "flow_id": "build"
             }
@@ -162,7 +162,7 @@
         "request_ref": {
           "kind": "request",
           "ref": "reports/checkpoints/frame-step-request.json",
-          "sha256": "a48f096757066c2ad525f5a6553a0648dd3cb15d9be40ee054679323a42a8a53",
+          "sha256": "fd2cd5cad80aa1516f850a12dc53d26b03cac12f52b97df819850e688b630241",
           "run_id": "44444444-4444-4444-4444-444444444403",
           "flow_id": "build",
           "step_id": "frame-step"
@@ -172,14 +172,14 @@
         {
           "kind": "evidence",
           "ref": "reports/process-evidence.json",
-          "sha256": "82a68455fda2fbe67a7e6420d41ef00b1aad97643bbc9b9df0281d4755f20642",
+          "sha256": "f39ee9185327986d4df994304bd9d92702b7df73133e5567dc306f5d7cd72bb5",
           "run_id": "44444444-4444-4444-4444-444444444403",
           "flow_id": "build"
         },
         {
           "kind": "request",
           "ref": "reports/checkpoints/frame-step-request.json",
-          "sha256": "a48f096757066c2ad525f5a6553a0648dd3cb15d9be40ee054679323a42a8a53",
+          "sha256": "fd2cd5cad80aa1516f850a12dc53d26b03cac12f52b97df819850e688b630241",
           "run_id": "44444444-4444-4444-4444-444444444403",
           "flow_id": "build",
           "step_id": "frame-step"
@@ -197,20 +197,20 @@
       {
         "kind": "evidence",
         "ref": "reports/process-evidence.json",
-        "sha256": "82a68455fda2fbe67a7e6420d41ef00b1aad97643bbc9b9df0281d4755f20642",
+        "sha256": "f39ee9185327986d4df994304bd9d92702b7df73133e5567dc306f5d7cd72bb5",
         "run_id": "44444444-4444-4444-4444-444444444403",
         "flow_id": "build"
       },
       {
         "kind": "report",
         "ref": "reports/decision-packets/decision-checkpoint-primary.json",
-        "sha256": "9586f43d30bf28027f1c7650e807eaa1873a6858f4d1b0aab065f0938b095759",
+        "sha256": "a72ca3679f46e7a7652103f4a32c88b654b1fe1e69976163df51d49ff5299f32",
         "run_id": "44444444-4444-4444-4444-444444444403"
       },
       {
         "kind": "request",
         "ref": "reports/checkpoints/frame-step-request.json",
-        "sha256": "a48f096757066c2ad525f5a6553a0648dd3cb15d9be40ee054679323a42a8a53",
+        "sha256": "fd2cd5cad80aa1516f850a12dc53d26b03cac12f52b97df819850e688b630241",
         "run_id": "44444444-4444-4444-4444-444444444403",
         "flow_id": "build",
         "step_id": "frame-step"
@@ -219,7 +219,7 @@
     "decision_packet_ref": {
       "kind": "report",
       "ref": "reports/decision-packets/decision-checkpoint-primary.json",
-      "sha256": "9586f43d30bf28027f1c7650e807eaa1873a6858f4d1b0aab065f0938b095759",
+      "sha256": "a72ca3679f46e7a7652103f4a32c88b654b1fe1e69976163df51d49ff5299f32",
       "run_id": "44444444-4444-4444-4444-444444444403"
     }
   },

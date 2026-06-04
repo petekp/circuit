@@ -1,0 +1,1157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Circuit System Analysis</title>
+  <style>
+    :root {
+      --ink: #1f2933;
+      --muted: #475569;
+      --line: #d8dee8;
+      --paper: #ffffff;
+      --soft: #f6f8fb;
+      --green: #0f766e;
+      --green-soft: #e6f4f1;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --amber: #b45309;
+      --amber-soft: #fff4dd;
+      --rose: #be123c;
+      --rose-soft: #fff0f3;
+      --violet: #6d28d9;
+      --violet-soft: #f4efff;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      letter-spacing: 0;
+    }
+
+    a { color: var(--blue); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 0 0.28em;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: minmax(190px, 250px) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      padding: 28px 20px;
+      border-right: 1px solid var(--line);
+      background: var(--soft);
+      overflow: auto;
+    }
+
+    .brand {
+      font-weight: 800;
+      font-size: 1.05rem;
+      margin: 0 0 4px;
+    }
+
+    .nav-note {
+      color: var(--muted);
+      font-size: 0.84rem;
+      margin: 0 0 18px;
+    }
+
+    .nav-links {
+      display: grid;
+      gap: 4px;
+    }
+
+    .nav-links a {
+      color: var(--ink);
+      text-decoration: none;
+      border-radius: 6px;
+      padding: 7px 8px;
+      font-size: 0.9rem;
+    }
+
+    .nav-links a:hover { background: #e9edf5; }
+
+    main {
+      width: 100%;
+      max-width: 1180px;
+      padding: 42px 32px 80px;
+    }
+
+    .eyebrow {
+      color: var(--green);
+      font-weight: 800;
+      font-size: 0.8rem;
+      margin: 0 0 8px;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      line-height: 1.12;
+      margin: 0 0 12px;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 78ch;
+      color: var(--muted);
+      margin: 0 0 18px;
+      font-size: 1.03rem;
+    }
+
+    .summary-grid,
+    .metric-grid,
+    .finding-grid,
+    .source-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 24px 0 0; }
+    .metric-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .finding-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .source-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .panel,
+    .finding,
+    .metric,
+    .source {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      padding: 14px 16px;
+    }
+
+    .panel.good { background: var(--green-soft); border-color: #bdded8; }
+    .panel.warn { background: var(--amber-soft); border-color: #f5d394; }
+    .panel.focus { background: var(--blue-soft); border-color: #c8d9ff; }
+
+    .panel h3,
+    .finding h3,
+    .source h3 {
+      margin: 0 0 6px;
+      font-size: 1rem;
+      line-height: 1.25;
+    }
+
+    .panel p,
+    .finding p,
+    .source p {
+      color: var(--muted);
+      margin: 0;
+      font-size: 0.93rem;
+    }
+
+    section {
+      margin-top: 54px;
+      padding-top: 6px;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 1.34rem;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .section-note {
+      color: var(--muted);
+      max-width: 84ch;
+      margin: 0 0 16px;
+    }
+
+    figure {
+      margin: 18px 0 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+      padding: 16px;
+      max-width: 100%;
+      overflow: auto;
+    }
+
+    figcaption {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin: 0 0 10px;
+    }
+
+    .mermaid {
+      width: 100%;
+      min-width: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .mermaid svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 1.45rem;
+      line-height: 1.1;
+      margin-bottom: 2px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .tagline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0 0;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.84rem;
+      background: var(--paper);
+    }
+
+    .tag.good { color: var(--green); border-color: #98d4cc; background: var(--green-soft); }
+    .tag.warn { color: var(--amber); border-color: #efd092; background: var(--amber-soft); }
+    .tag.bad { color: var(--rose); border-color: #f5b8c5; background: var(--rose-soft); }
+
+    table {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      border-collapse: collapse;
+      margin-top: 14px;
+      font-size: 0.92rem;
+    }
+
+    th, td {
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+      padding: 9px 8px;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 700;
+      background: var(--soft);
+    }
+
+    .severity {
+      display: inline-block;
+      font-weight: 800;
+      border-radius: 5px;
+      padding: 1px 6px;
+      font-size: 0.78rem;
+    }
+
+    .severity.high { color: var(--rose); background: var(--rose-soft); }
+    .severity.medium { color: var(--amber); background: var(--amber-soft); }
+    .severity.low { color: var(--blue); background: var(--blue-soft); }
+
+    .finding {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .finding .pattern {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .finding ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 0.93rem;
+    }
+
+    .source ul {
+      margin: 6px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    footer {
+      margin-top: 64px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 920px) {
+      .shell { display: block; }
+      nav {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      main { padding: 28px 20px 64px; }
+      .summary-grid,
+      .metric-grid,
+      .finding-grid,
+      .source-grid {
+        grid-template-columns: 1fr;
+      }
+      .mermaid { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav>
+      <p class="brand">Circuit System Analysis</p>
+      <p class="nav-note">Source-backed seam map.</p>
+      <div class="nav-links">
+        <a href="#overview">Overview</a>
+        <a href="#whole-system">Whole System</a>
+        <a href="#source-map">Source Map</a>
+        <a href="#flow-system">Flow System</a>
+        <a href="#host-packages">Host Packages</a>
+        <a href="#runtime-system">Runtime System</a>
+        <a href="#run-front-door">Run Front Door</a>
+        <a href="#contracts">Contracts</a>
+        <a href="#connectors">Connectors</a>
+        <a href="#evidence">Evidence</a>
+        <a href="#memory">Memory</a>
+        <a href="#skill-hooks">Skill Hooks</a>
+        <a href="#release-tests">Release And Tests</a>
+        <a href="#findings">Findings</a>
+        <a href="#sequence">Sequence</a>
+        <a href="#sources">Sources</a>
+      </div>
+    </nav>
+
+    <main>
+      <header id="overview">
+        <p class="eyebrow">Architecture audit</p>
+        <h1>Circuit is a flow compiler, runtime engine, worker router, and evidence recorder.</h1>
+        <p class="lead">
+          The clean center is strong: flows are authored as data, compiled into generated surfaces,
+          executed by a flow-agnostic runtime, and recorded as typed evidence. The main drag on
+          beauty and simplicity is not the core idea. It is a few crossings where authoring,
+          runtime routing, presentation, and shared helpers know too much about each other.
+        </p>
+        <div class="summary-grid">
+          <div class="panel good">
+            <h3>What is already beautiful</h3>
+            <p>Catalog-derived flows, generated-surface drift checks, typed run evidence, and boundary tests keep the product understandable.</p>
+          </div>
+          <div class="panel warn">
+            <h3>What is currently complected</h3>
+            <p><code>shared</code> and <code>flows</code> cycle; one flow writer reaches into connector routing; app and memory form a service cycle.</p>
+          </div>
+          <div class="panel focus">
+            <h3>Best next simplification</h3>
+            <p>Break presentation and routing decisions out of generic helpers and flow writers. Let flows declare; let app/runtime services decide.</p>
+          </div>
+        </div>
+
+        <div class="tagline">
+          <span class="tag good">catalog as source of truth</span>
+          <span class="tag good">runtime is mostly flow-agnostic</span>
+          <span class="tag warn">wide schema barrel</span>
+          <span class="tag bad">top-level import cycles</span>
+          <span class="tag warn">CLI orchestration hotspot</span>
+        </div>
+      </header>
+
+      <section id="whole-system">
+        <h2>Whole System</h2>
+        <p class="section-note">
+          Circuit turns an operator intent into a chosen flow, executes that flow through worker
+          relays and local executors, then writes trace and report evidence that can be summarized,
+          resumed, recalled, tested, and shipped through host plugin packages.
+        </p>
+        <figure>
+          <figcaption>Overall architecture: intent moves right; evidence moves back into run folders and generated surfaces.</figcaption>
+          <pre class="mermaid">
+flowchart LR
+  Operator["Operator intent"] --> Host["Host command - Claude Code or Codex"]
+  Host --> CLI["bin/circuit - src/cli"]
+  CLI --> App["App services - history, run envelope, status"]
+  CLI --> Catalog["Flow catalog - src/flows/catalog.ts"]
+  Catalog --> Generated["Generated flow packages - generated/ and plugins/"]
+  Catalog --> RuntimeSurface["Runtime registries - writers, schemas, projectors"]
+  CLI --> Runtime["Runtime engine - src/runtime"]
+  RuntimeSurface --> Runtime
+  Runtime --> Executors["Step executors - compose, relay, verify, checkpoint, fanout, sub-run"]
+  Executors --> Connectors["Connector resolver - src/connectors"]
+  Connectors --> Workers["Workers - Claude Code, Codex, Cursor, custom"]
+  Executors --> RunFolder["Run folder - manifest, trace, reports"]
+  RunFolder --> Summary["Operator summary - status and HTML"]
+  RunFolder --> History["History and memory index"]
+  RunFolder --> Release["Release proofs and checks"]
+  Config["Config and policy - user + project"] --> CLI
+  Config --> Connectors
+  Config --> SkillHooks["Skill-hook policy"]
+  Runtime --> SkillHooks
+  History --> App
+  Tests["Tests and drift checks"] --> Catalog
+  Tests --> Runtime
+  Tests --> Generated
+
+  classDef host fill:#eaf1ff,stroke:#86a8ff,color:#1f2933
+  classDef core fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef evidence fill:#f4efff,stroke:#bfa7ff,color:#1f2933
+  classDef warning fill:#fff4dd,stroke:#e6b96c,color:#1f2933
+  class Host,CLI,App,Config host
+  class Catalog,RuntimeSurface,Runtime,Executors,Connectors,Workers core
+  class RunFolder,Summary,History,Release evidence
+  class Tests,Generated,SkillHooks warning
+          </pre>
+        </figure>
+      </section>
+
+      <section id="source-map">
+        <h2>Source Map</h2>
+        <p class="section-note">
+          The import graph says the contracts are central, which is expected. The unexpected part is
+          the number of cycles around <code>shared</code>, <code>flows</code>, <code>connectors</code>, and <code>memory</code>.
+        </p>
+        <div class="metric-grid">
+          <div class="metric"><strong>325</strong><span>TypeScript files under <code>src</code></span></div>
+          <div class="metric"><strong>858</strong><span>exports in <code>src/schemas</code></span></div>
+          <div class="metric"><strong>121</strong><span>files in <code>src/flows</code></span></div>
+          <div class="metric"><strong>6</strong><span>top-level import cycles found</span></div>
+        </div>
+        <figure>
+          <figcaption>Top-level source dependencies. Red nodes are the seams that most deserve simplification.</figcaption>
+          <pre class="mermaid">
+flowchart LR
+  CLI["cli - 12 files"] --> App["app - 24 files"]
+  CLI --> Runtime["runtime - 49 files"]
+  CLI --> Flows["flows - 121 files"]
+  CLI --> Shared["shared - 42 files"]
+  CLI --> Policy["policy - 6 files"]
+  CLI --> Memory["memory - 4 files"]
+  App --> Schemas["schemas - 51 files"]
+  App --> Shared
+  App --> Runtime
+  App --> Memory
+  App --> Flows
+  Runtime --> Schemas
+  Runtime --> Shared
+  Runtime --> Flows
+  Runtime --> Connectors["connectors - 8 files"]
+  Runtime --> Policy
+  Runtime --> SkillHooks["skill-hooks - 5 files"]
+  Flows --> Schemas
+  Flows --> Shared
+  Flows --> Policy
+  Flows --> Connectors
+  Shared --> Schemas
+  Shared --> Flows
+  Shared --> Policy
+  Memory --> Schemas
+  Memory --> Shared
+  Memory --> App
+  Connectors --> Schemas
+  Connectors --> Shared
+  SkillHooks --> Schemas
+  SkillHooks --> Shared
+  Policy --> Schemas
+  Policy --> Flows
+
+  classDef base fill:#f6f8fb,stroke:#c7d0df,color:#1f2933
+  classDef contract fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef cycle fill:#fff0f3,stroke:#e77d96,color:#1f2933
+  class Schemas contract
+  class Shared,Flows,Connectors,Memory,App,Policy cycle
+  class CLI,Runtime,SkillHooks base
+          </pre>
+        </figure>
+        <table>
+          <thead>
+            <tr><th>Module</th><th>Files</th><th>Exports</th><th>Fan-in</th><th>Fan-out</th><th>Plain reading</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>flows</code></td><td>121</td><td>577</td><td>5</td><td>4</td><td>Product behavior lives here. Good, but it still reaches into shared, policy, schemas, and one connector seam.</td></tr>
+            <tr><td><code>schemas</code></td><td>51</td><td>858</td><td>10</td><td>0</td><td>Correct direction: contracts are used everywhere and depend on no source layer.</td></tr>
+            <tr><td><code>runtime</code></td><td>49</td><td>207</td><td>2</td><td>6</td><td>Engine mechanics. The catalog/registry imports are intentional but keep runtime tied to flow infrastructure.</td></tr>
+            <tr><td><code>shared</code></td><td>42</td><td>167</td><td>7</td><td>3</td><td>Too broad. It contains pure helpers and higher-level presentation orchestration.</td></tr>
+            <tr><td><code>app</code></td><td>24</td><td>117</td><td>2</td><td>5</td><td>Application services compose runtime, memory, status, and process evidence.</td></tr>
+            <tr><td><code>cli</code></td><td>12</td><td>47</td><td>0</td><td>7</td><td>The front door is a large coordinator and should stay thin.</td></tr>
+            <tr><td><code>skill-hooks</code></td><td>5</td><td>18</td><td>1</td><td>2</td><td>Active implementation area: detects hook signals, records events, and now actuates auto skill injection.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="flow-system">
+        <h2>Flow System</h2>
+        <p class="section-note">
+          The flow system is the clearest architectural win. Flow packages author typed data.
+          The catalog compiles that data into runtime registries, generated schematic JSON, compiled
+          flow manifests, and host mirrors.
+        </p>
+        <figure>
+          <figcaption>Flow authoring and generated-surface pipeline.</figcaption>
+          <pre class="mermaid">
+flowchart LR
+  Data["src/flows/id/data.ts - FlowData"] --> Adapter["flow.ts - defineFlowData"]
+  Adapter --> Catalog["catalog.ts - flowDefinitions"]
+  Catalog --> Compiler["compileFlowDefinitions"]
+  Compiler --> Packages["CompiledFlowPackage"]
+  Packages --> Registries["Runtime registries - reports, writers, shape hints"]
+  Packages --> Schematics["src/flows/id/schematic.json"]
+  Packages --> Generated["generated/flows/id/circuit.json"]
+  Generated --> Claude["plugins/claude - commands and skills"]
+  Generated --> Codex["plugins/codex - commands, flows, skills"]
+  Blocks["flow-block-definitions.ts"] --> CatalogDoc["docs/flows/block-catalog.json"]
+  Commands["src/commands and flow command.md"] --> Claude
+  Commands --> Codex
+  Emit["scripts/flows/emit.ts --check"] --> Schematics
+  Emit --> Generated
+  Emit --> Claude
+  Emit --> Codex
+  Emit --> CatalogDoc
+
+  classDef source fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef generated fill:#fff4dd,stroke:#e6b96c,color:#1f2933
+  classDef host fill:#eaf1ff,stroke:#86a8ff,color:#1f2933
+  class Data,Adapter,Catalog,Compiler,Packages,Blocks,Commands source
+  class Schematics,Generated,CatalogDoc,Emit generated
+  class Claude,Codex,Registries host
+          </pre>
+        </figure>
+        <table>
+          <thead>
+            <tr><th>Flow</th><th>Steps</th><th>Stages</th><th>Execution mix</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>build</code></td><td>7</td><td>frame, analyze, plan, act, verify, review, close</td><td>checkpoint 1, relay 3, compose 2, verification 1</td></tr>
+            <tr><td><code>explore</code></td><td>11</td><td>frame, analyze, plan, close</td><td>compose 6, relay 3, fanout 1, checkpoint 1</td></tr>
+            <tr><td><code>fix</code></td><td>14</td><td>frame, analyze, verify, act, review, close</td><td>compose 4, relay 4, checkpoint 1, verification 5</td></tr>
+            <tr><td><code>goal</code></td><td>14</td><td>frame, act, verify, review, close</td><td>relay 3, compose 5, sub-run 5, checkpoint 1</td></tr>
+            <tr><td><code>prototype</code></td><td>14</td><td>frame, plan, act, verify, review, close</td><td>compose 7, relay 2, fanout 1, verification 2, checkpoint 2</td></tr>
+            <tr><td><code>pursue</code></td><td>7</td><td>frame, plan, act, verify, review, close</td><td>compose 4, relay 2, verification 1</td></tr>
+            <tr><td><code>review</code></td><td>3</td><td>frame, analyze, close</td><td>compose 2, relay 1</td></tr>
+            <tr><td><code>runtime-proof</code></td><td>2</td><td>plan, act</td><td>compose 1, relay 1</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="host-packages">
+        <h2>Host Packages</h2>
+        <p class="section-note">
+          Host packages are not just generated mirrors. Each host package mixes hand-authored
+          manifest and hook behavior with generated command, skill, flow, runtime, and launcher
+          outputs. This layer is where the source checkout becomes a self-contained Claude Code
+          or Codex plugin.
+        </p>
+        <figure>
+          <figcaption>Host package seam: hand-authored host behavior and generated mirrors meet here.</figcaption>
+          <pre class="mermaid">
+flowchart LR
+  Source["src commands and flows"] --> Emit["scripts/flows/emit.ts"]
+  Build["dist CLI"] --> Bundle["scripts/plugins/runtime-bundle.ts"]
+  SharedLauncher["plugins/shared/launcher-core.ts"] --> Bundle
+  Emit --> ClaudeGenerated["plugins/claude generated command and skill files"]
+  Emit --> CodexGenerated["plugins/codex generated command, flow, and skill files"]
+  Bundle --> ClaudeRuntime["plugins/claude/runtime/circuit.js"]
+  Bundle --> CodexRuntime["plugins/codex/runtime/circuit.js"]
+  Bundle --> LauncherMirrors["host launcher-core mirrors"]
+  ClaudeManifest["Claude hand-authored manifest and hooks"] --> ClaudePackage["Claude plugin package"]
+  CodexManifest["Codex hand-authored manifest and hooks"] --> CodexPackage["Codex plugin package"]
+  ClaudeGenerated --> ClaudePackage
+  CodexGenerated --> CodexPackage
+  ClaudeRuntime --> ClaudePackage
+  CodexRuntime --> CodexPackage
+  LauncherMirrors --> ClaudePackage
+  LauncherMirrors --> CodexPackage
+  HookInput["host hook stdin JSON"] --> Hooks["session-start hooks use cwd as project root"]
+  Hooks --> ClaudePackage
+  Hooks --> CodexPackage
+  ClaudePackage --> Host["Claude Code host"]
+  CodexPackage --> Host2["Codex host"]
+
+  classDef source fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef generated fill:#fff4dd,stroke:#e6b96c,color:#1f2933
+  classDef host fill:#eaf1ff,stroke:#86a8ff,color:#1f2933
+  class Source,Build,SharedLauncher source
+  class Emit,Bundle,ClaudeGenerated,CodexGenerated,ClaudeRuntime,CodexRuntime,LauncherMirrors generated
+  class ClaudeManifest,CodexManifest,HookInput,Hooks,ClaudePackage,CodexPackage,Host,Host2 host
+          </pre>
+        </figure>
+        <table>
+          <thead>
+            <tr><th>Surface</th><th>Source of truth</th><th>Risk to watch</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Commands and skill mirrors</td><td><code>src/commands</code>, flow command sources, <code>scripts/flows/emit.ts</code></td><td>Generated drift or host wording that no longer matches source intent.</td></tr>
+            <tr><td>Runtime bundle</td><td><code>dist/cli/circuit.js</code> through <code>scripts/plugins/runtime-bundle.ts</code></td><td>Bundled runtime can drift from source or miss required sidecar assets.</td></tr>
+            <tr><td>Launcher mirrors</td><td><code>plugins/shared/launcher-core.ts</code></td><td>Both host wrappers need the same relative launcher behavior.</td></tr>
+            <tr><td>Hooks</td><td>Hand-authored host hook files under <code>plugins/*/hooks</code></td><td>Hooks must use stdin JSON for project identity, not process cwd as authority.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="runtime-system">
+        <h2>Runtime System</h2>
+        <p class="section-note">
+          Runtime reads a compiled graph, runs one step at a time, gates the result, follows the
+          route, and records durable trace entries. It should continue to know execution mechanics,
+          not product-specific flow behavior.
+        </p>
+        <figure>
+          <figcaption>Runtime execution loop and executor families.</figcaption>
+          <pre class="mermaid">
+flowchart TD
+  Start["runCompiledFlowWithWaiting"] --> Validate["Validate executable flow - manifest snapshot"]
+  Validate --> Context["Open run context - files, trace, config, policy"]
+  Context --> Enter["Enter step"]
+  Enter --> Dispatch{"execution.kind"}
+  Dispatch --> Compose["compose executor"]
+  Dispatch --> Relay["relay executor"]
+  Dispatch --> Verify["verification executor"]
+  Dispatch --> Checkpoint["checkpoint executor"]
+  Dispatch --> Fanout["fanout executor"]
+  Dispatch --> SubRun["sub-run executor"]
+  Compose --> Report["Write typed report"]
+  Relay --> Report
+  Verify --> Report
+  Checkpoint --> Report
+  Fanout --> Report
+  SubRun --> Report
+  Report --> Gate["Evaluate check - required, pass, allow"]
+  Gate --> Route{"Route result"}
+  Route --> StepComplete["Record step.completed"]
+  StepComplete --> SkillHook["Dispatch skill-hook events and auto injections"]
+  SkillHook -->|continue| Enter
+  SkillHook -->|retry or recovery| Enter
+  SkillHook -->|terminal| Close["Write result and summary"]
+  Close --> Trace["trace.ndjson + reports"]
+
+  classDef core fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef worker fill:#eaf1ff,stroke:#86a8ff,color:#1f2933
+  classDef evidence fill:#f4efff,stroke:#bfa7ff,color:#1f2933
+  class Start,Validate,Context,Enter,Gate,Route,StepComplete,Close core
+  class Compose,Relay,Verify,Checkpoint,Fanout,SubRun worker
+  class Report,SkillHook,Trace evidence
+          </pre>
+        </figure>
+        <table>
+          <thead>
+            <tr><th>Runtime area</th><th>Role</th><th>Seam note</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>run/</code></td><td>Graph advancement, checkpoints, child runs, close behavior.</td><td>Central and import-heavy; keep policy decisions injectable.</td></tr>
+            <tr><td><code>executors/</code></td><td>Step execution for compose, relay, verify, checkpoint, fanout, sub-run.</td><td>Relay is the busiest executor and owns connector dispatch plus report parsing.</td></tr>
+            <tr><td><code>manifest/</code></td><td>Executable flow loading and validation.</td><td>Good boundary: compiled graphs enter here.</td></tr>
+            <tr><td><code>run-files/</code></td><td>Run-folder paths and report validation.</td><td>Good boundary: file persistence has one home.</td></tr>
+            <tr><td><code>trace/</code></td><td>Append-only trace storage.</td><td>Good boundary: domain trace types derive from schemas.</td></tr>
+            <tr><td><code>fanout/</code></td><td>Parallel branch mechanics and worktrees.</td><td>Touches run, executors, manifest, domain, run-files. It is naturally cross-cutting.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="run-front-door">
+        <h2>Run Front Door</h2>
+        <p class="section-note">
+          Run is a decision timeline, not one decision. It chooses the flow early, but connector,
+          model, effort, skills, and connector options are resolved later per relay step.
+        </p>
+        <figure>
+          <figcaption>Fresh run decision path.</figcaption>
+          <pre class="mermaid">
+flowchart LR
+  Intent["/circuit:run goal"] --> HostChoice["Host may recommend flow"]
+  HostChoice --> CLIParse["CLI parses run or resume"]
+  CLIParse --> Route["Explicit flow or deterministic router"]
+  Route --> Axes["Normalize axes - rigor, tournament, autonomous"]
+  Axes --> Support["Validate flow support"]
+  Support --> Fixture["Load compiled fixture"]
+  Fixture --> Config["Load user + project config"]
+  Config --> Recall["Optional history recall - hint only"]
+  Recall --> Runtime["Execute graph"]
+  Runtime --> PostRun["Process evidence - summary, status, continuation"]
+  PostRun --> Output["stdout fields and run folder"]
+
+  classDef front fill:#eaf1ff,stroke:#86a8ff,color:#1f2933
+  classDef runtime fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef evidence fill:#f4efff,stroke:#bfa7ff,color:#1f2933
+  class Intent,HostChoice,CLIParse,Route,Axes,Support,Fixture,Config front
+  class Runtime runtime
+  class Recall,PostRun,Output evidence
+          </pre>
+        </figure>
+      </section>
+
+      <section id="contracts">
+        <h2>Contracts</h2>
+        <p class="section-note">
+          Schemas are the system's contract layer. This is the right dependency direction: almost
+          everything imports schemas, and schemas import no source layer. The cost is surface area:
+          the root schema barrel re-exports 50 files and the schema package has 858 exports.
+        </p>
+        <figure>
+          <figcaption>Contract families and their consumers.</figcaption>
+          <pre class="mermaid">
+flowchart LR
+  Schemas["src/schemas - Zod contracts"] --> FlowContracts["Flow contracts - compiled-flow, schematic, blocks, steps"]
+  Schemas --> RunContracts["Run contracts - run, trace, result, status"]
+  Schemas --> HostContracts["Host contracts - host, progress, manifest"]
+  Schemas --> PolicyContracts["Policy contracts - config, selection, connector, skill hooks"]
+  Schemas --> EvidenceContracts["Evidence contracts - proof, process evidence, work contract"]
+  FlowContracts --> Flows["flow compiler and catalog"]
+  FlowContracts --> Runtime["runtime manifest and graph"]
+  RunContracts --> Runtime
+  RunContracts --> App["app services"]
+  HostContracts --> Plugins["host plugins"]
+  PolicyContracts --> CLI["CLI and connector resolver"]
+  PolicyContracts --> SkillHooks["skill hook dispatch"]
+  EvidenceContracts --> Reports["reports and summaries"]
+  Tests["contract tests"] --> Schemas
+  Tests --> Runtime
+  Tests --> Plugins
+
+  classDef schema fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef consumer fill:#eaf1ff,stroke:#86a8ff,color:#1f2933
+  classDef test fill:#fff4dd,stroke:#e6b96c,color:#1f2933
+  class Schemas,FlowContracts,RunContracts,HostContracts,PolicyContracts,EvidenceContracts schema
+  class Flows,Runtime,App,Plugins,CLI,SkillHooks,Reports consumer
+  class Tests test
+          </pre>
+        </figure>
+      </section>
+
+      <section id="connectors">
+        <h2>Connectors And Selection</h2>
+        <p class="section-note">
+          Connectors are chosen per relay. The order is explicit step input, policy envelope preference,
+          selection config, then host-aware auto fallback. Policy hard constraints then validate the
+          connector, provider, effort, and skill plan before relay execution.
+        </p>
+        <figure>
+          <figcaption>Connector and relay selection seam.</figcaption>
+          <pre class="mermaid">
+flowchart LR
+  Layers["Layered config - user + project"] --> Resolver["connector resolver"]
+  Explicit["Explicit connector"] --> Resolver
+  PolicyPrefs["PolicyEnvelope preferences - role, flow, default"] --> Resolver
+  PolicyRules["PolicyEnvelope hard constraints"] --> Guard["policy validation"]
+  HostKind["Host kind"] --> Resolver
+  Resolver --> Builtins["Built-in connectors - claude-code, codex, cursor-agent"]
+  Resolver --> Custom["Custom connectors - prompt-file protocol"]
+  Selection["selection resolver - model, effort, depth, skills"] --> Relay["relay executor"]
+  Resolver --> Relay
+  Selection --> Guard
+  Resolver --> Guard
+  Guard --> Relay
+  Relay --> Prompt["compose relay prompt"]
+  Prompt --> Worker["worker process"]
+  Worker --> Result["typed relay result"]
+  Result --> ReportSchema["report schema parser"]
+  ReportSchema --> Check["check gate"]
+
+  classDef config fill:#eaf1ff,stroke:#86a8ff,color:#1f2933
+  classDef worker fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef warn fill:#fff4dd,stroke:#e6b96c,color:#1f2933
+  class Layers,Explicit,HostKind,Selection,PolicyPrefs,PolicyRules config
+  class Resolver,Builtins,Custom,Relay,Prompt,Worker,Guard worker
+  class Result,ReportSchema,Check warn
+          </pre>
+        </figure>
+      </section>
+
+      <section id="evidence">
+        <h2>Evidence System</h2>
+        <p class="section-note">
+          Run evidence is the product's strongest audit primitive. The runtime writes manifest,
+          trace, reports, and results. App and shared services project those files into summaries,
+          run status, process evidence, history input, release proof, and operator-facing HTML.
+        </p>
+        <figure>
+          <figcaption>Run-folder evidence and downstream projections.</figcaption>
+          <pre class="mermaid">
+flowchart LR
+  Runtime["runtime engine"] --> Manifest["manifest.snapshot.json"]
+  Runtime --> Trace["trace.ndjson"]
+  Runtime --> Reports["reports/*.json"]
+  Runtime --> Result["reports/result.json"]
+  Manifest --> RunFolder["run folder contract"]
+  Trace --> RunFolder
+  Reports --> RunFolder
+  Result --> RunFolder
+  RunFolder --> Status["run status projection"]
+  RunFolder --> Summary["operator summary - json, md, html"]
+  RunFolder --> ProcessEvidence["process evidence projection"]
+  RunFolder --> HistoryIndex["history index"]
+  RunFolder --> ReleaseProofs["checked-in proof runs"]
+  Summary --> Operator["operator output"]
+  ProcessEvidence --> Autonomous["autonomous continuation"]
+  HistoryIndex --> Recall["run-start recall"]
+
+  classDef store fill:#f4efff,stroke:#bfa7ff,color:#1f2933
+  classDef projection fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef output fill:#eaf1ff,stroke:#86a8ff,color:#1f2933
+  class Manifest,Trace,Reports,Result,RunFolder store
+  class Status,Summary,ProcessEvidence,HistoryIndex,ReleaseProofs projection
+  class Operator,Autonomous,Recall output
+          </pre>
+        </figure>
+      </section>
+
+      <section id="memory">
+        <h2>Memory And History</h2>
+        <p class="section-note">
+          History recall is deliberately hint-only. It narrows candidates to the selected flow,
+          applies earned precision, writes recall reports, and injects memory inputs into runtime
+          relay composition without changing routing, checkpoint choices, or proof authority.
+        </p>
+        <figure>
+          <figcaption>Run-start recall pipeline.</figcaption>
+          <pre class="mermaid">
+flowchart LR
+  Runs[".circuit/runs"] --> Indexer["history indexer"]
+  ProjectFacts["project fact store"] --> Candidates["fact candidates"]
+  Indexer --> Query["queryHistory"]
+  Query --> Preview["memory input preview"]
+  Effect["memory effect report"] --> Precision["earned precision gate"]
+  Preview --> Precision
+  Candidates --> Precision
+  Precision --> RecallReport["reports/history/recall.json"]
+  Precision --> PrecisionReport["recall-precision.json"]
+  RecallReport --> Runtime["runtime memory inputs"]
+  Runtime --> RelayPrompt["relay prompt context"]
+
+  classDef source fill:#f4efff,stroke:#bfa7ff,color:#1f2933
+  classDef gate fill:#fff4dd,stroke:#e6b96c,color:#1f2933
+  classDef output fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  class Runs,ProjectFacts,Effect source
+  class Indexer,Query,Preview,Precision gate
+  class RecallReport,PrecisionReport,Runtime,RelayPrompt output
+          </pre>
+        </figure>
+      </section>
+
+      <section id="skill-hooks">
+        <h2>Skill Hooks</h2>
+        <p class="section-note">
+          Skill Hooks are actively being implemented. Current workspace source records
+          <code>run.skill-hook</code> events and, for <code>auto</code> policies, injects the
+          resolved skill ids into a run-scoped channel that later <code>implementer</code> relay
+          guidance loads into the worker prompt. Reviewer and researcher relays stay uninjected.
+          <code>ask</code> remains a decision-packet shape, not a pause in the live loop.
+        </p>
+        <figure>
+          <figcaption>Current skill-hook dispatch path.</figcaption>
+          <pre class="mermaid">
+flowchart LR
+  StepTrace["step trace entries"] --> DetectCheck["check-outcome detection"]
+  StepReports["step.report_written"] --> SurfaceSources["edit-file surface sources"]
+  SurfaceSources --> DetectFile["before/after edit-file suffix match"]
+  DetectCheck --> Dispatch["dispatchSkillHooks"]
+  DetectFile --> Dispatch
+  Config["skill_hooks.policy"] --> Policy["resolveSkillHookPolicy"]
+  Registry["user skill registry"] --> EventBuilder["buildRunSkillHookEvent"]
+  Policy --> EventBuilder
+  Dispatch --> EventBuilder
+  EventBuilder --> Trace["trace: run.skill-hook"]
+  EventBuilder --> Auto{"policy.mode auto and skills resolved"}
+  Auto --> Injection["run-scoped injection channel"]
+  Injection --> RelayGuidance["planRelayGuidanceDecision"]
+  RelayGuidance --> RoleGate{"relay role implementer"}
+  RoleGate -->|yes| SkillLoading["resolveLoadedRelaySkills"]
+  RoleGate -->|no| NoLeak["reviewer and researcher relays stay uninjected"]
+  SkillLoading --> RelayPrompt["later implementer prompt with injected skill bodies"]
+  EventBuilder -. ask .-> DecisionPacket["decision-packet shape, no live pause yet"]
+
+  classDef live fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef policy fill:#eaf1ff,stroke:#86a8ff,color:#1f2933
+  classDef future fill:#fff4dd,stroke:#e6b96c,color:#1f2933
+  class StepTrace,StepReports,SurfaceSources,DetectCheck,DetectFile,Dispatch,Trace,Auto,Injection,RelayGuidance,RoleGate,SkillLoading,RelayPrompt,NoLeak live
+  class Config,Policy,Registry,EventBuilder policy
+  class DecisionPacket future
+          </pre>
+        </figure>
+      </section>
+
+      <section id="release-tests">
+        <h2>Release, Evals, And Tests</h2>
+        <p class="section-note">
+          The verification surface is broad and useful. Contract tests protect boundaries, drift
+          checks protect generated surfaces, eval checks keep evaluation plumbing honest, and release
+          checks validate public claims and proof coverage.
+        </p>
+        <figure>
+          <figcaption>Verification system.</figcaption>
+          <pre class="mermaid">
+flowchart LR
+  Source["source changes"] --> Check["npm run check"]
+  Source --> Lint["npm run lint"]
+  Source --> Build["npm run build"]
+  Source --> Tests["vitest suites"]
+  Source --> Evals["check-evals"]
+  Source --> Schemas["check-yaml-schemas"]
+  Source --> FlowDrift["emit.ts --check"]
+  Source --> PluginRuntime["check-plugin-runtime"]
+  Source --> ReleaseInfra["check-release-infra"]
+  FlowDrift --> Generated["generated flows and host mirrors"]
+  ReleaseInfra --> Claims["public claims"]
+  ReleaseInfra --> Proofs["release proof coverage"]
+  Tests --> Boundaries["architecture boundary tests"]
+  Tests --> Runtime["runtime and runner tests"]
+  Tests --> Contracts["schema and contract tests"]
+  Check --> Verify["npm run verify"]
+  Lint --> Verify
+  Build --> Verify
+  Tests --> Verify
+  Evals --> Verify
+  Schemas --> Verify
+  FlowDrift --> Verify
+  PluginRuntime --> Verify
+  ReleaseInfra --> Verify
+
+  classDef command fill:#eaf1ff,stroke:#86a8ff,color:#1f2933
+  classDef proof fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef generated fill:#fff4dd,stroke:#e6b96c,color:#1f2933
+  class Source,Check,Lint,Build,Tests,Evals,Schemas,FlowDrift,PluginRuntime,ReleaseInfra,Verify command
+  class Boundaries,Runtime,Contracts,Claims,Proofs proof
+  class Generated generated
+          </pre>
+        </figure>
+      </section>
+
+      <section id="findings">
+        <h2>Seam Findings</h2>
+        <p class="section-note">
+          These are architecture findings, not immediate bug reports. The point is to identify where
+          future change will feel heavier than it should, then name the simpler shape.
+        </p>
+        <div class="finding-grid">
+          <article class="finding">
+            <h3><span class="severity high">High</span> <code>shared</code> is not purely shared</h3>
+            <p class="pattern">Pattern: inappropriate intimacy, middle-man pressure, cycle.</p>
+            <p>Evidence: <code>flows -> shared</code> has 32 edges, while <code>shared -> flows</code> has 6 edges. The cycle runs through operator summary and flow catalog/projector wiring.</p>
+            <ul>
+              <li><strong>Indictment:</strong> shared helpers and flow-aware presentation orchestration live under the same label.</li>
+              <li><strong>Correct shape:</strong> keep <code>shared</code> as pure utility; move flow-aware summary orchestration to an app or runtime close service.</li>
+              <li><strong>Benefit:</strong> breaks the most central cycle and makes "shared" mean one thing.</li>
+            </ul>
+          </article>
+
+          <article class="finding">
+            <h3><span class="severity high">High</span> Prototype flow writer reaches into connector routing</h3>
+            <p class="pattern">Pattern: feature envy, dependency direction leak.</p>
+            <p>Evidence: <code>src/flows/prototype/writers/variant-options.ts</code> imports <code>src/connectors/resolver.ts</code> to validate variant connector/model compatibility.</p>
+            <ul>
+              <li><strong>Indictment:</strong> a flow report writer is deciding worker-routing compatibility.</li>
+              <li><strong>Correct shape:</strong> flow writer declares requested variant selections; a selection planning service resolves and validates connectors.</li>
+              <li><strong>Benefit:</strong> flow packages stay declarative and connector policy stays in one place.</li>
+            </ul>
+          </article>
+
+          <article class="finding">
+            <h3><span class="severity medium">Medium</span> Schema root barrel is too wide</h3>
+            <p class="pattern">Pattern: god module risk.</p>
+            <p>Evidence: <code>src/schemas/index.ts</code> re-exports 50 files; <code>src/schemas</code> has 858 public exports and 10 top-level fan-in.</p>
+            <ul>
+              <li><strong>Indictment:</strong> consumers can import the whole contract warehouse when they need one family.</li>
+              <li><strong>Correct shape:</strong> introduce family entrypoints such as flow, run, host, policy, and evidence.</li>
+              <li><strong>Benefit:</strong> smaller import surfaces and clearer contract ownership.</li>
+            </ul>
+          </article>
+
+          <article class="finding">
+            <h3><span class="severity medium">Medium</span> CLI is a front-door hotspot</h3>
+            <p class="pattern">Pattern: shotgun-surgery risk.</p>
+            <p>Evidence: <code>src/cli/circuit.ts</code> has 33 local imports and coordinates routing, axes, fixture loading, config, history recall, runtime invocation, resume, and post-run output.</p>
+            <ul>
+              <li><strong>Indictment:</strong> user command parsing and run orchestration are too close.</li>
+              <li><strong>Correct shape:</strong> move fresh-run and resume use cases into app services; keep CLI as parse and print.</li>
+              <li><strong>Benefit:</strong> less CLI churn when runtime behavior changes.</li>
+            </ul>
+          </article>
+
+          <article class="finding">
+            <h3><span class="severity medium">Medium</span> App and memory form a service cycle</h3>
+            <p class="pattern">Pattern: misplaced ownership.</p>
+            <p>Evidence: <code>app -> memory</code> and <code>memory -> app</code>. Memory uses the app history indexer while app history recall loads memory project facts.</p>
+            <ul>
+              <li><strong>Indictment:</strong> memory and history share storage mechanics but import each other through service layers.</li>
+              <li><strong>Correct shape:</strong> split a history-store core below both app history and memory injection.</li>
+              <li><strong>Benefit:</strong> memory can evolve without becoming an app subservice or vice versa.</li>
+            </ul>
+          </article>
+
+          <article class="finding">
+            <h3><span class="severity medium">Medium</span> Flow policy authority points both ways</h3>
+            <p class="pattern">Pattern: ownership ambiguity, cycle.</p>
+            <p>Evidence: <code>policy -> flows</code> imports canonical stage policy, while flow packages import policy rubric state for Explore and Prototype decisions.</p>
+            <ul>
+              <li><strong>Indictment:</strong> policy is described as a separate layer, but some policy authority lives in flows and some flow scoring input lives in policy.</li>
+              <li><strong>Correct shape:</strong> either make flow-domain policy part of the flow system, or move canonical stage and rubric authority below both flows and runtime consumers.</li>
+              <li><strong>Benefit:</strong> one owner for flow-kind and rubric rules, with fewer surprise imports.</li>
+            </ul>
+          </article>
+
+          <article class="finding">
+            <h3><span class="severity medium">Medium</span> File-surface metadata is centralized in skill hooks</h3>
+            <p class="pattern">Pattern: parallel hierarchy risk.</p>
+            <p>Evidence: <code>src/skill-hooks/surface-sources.ts</code> maps report schema strings to extractors for Fix and Build edit-file hooks.</p>
+            <ul>
+              <li><strong>Indictment:</strong> as more reports expose file surfaces, skill hooks may need a matching central edit for each flow report.</li>
+              <li><strong>Correct shape:</strong> put surface metadata in flow report declarations and compile it into runtime surface registries.</li>
+              <li><strong>Benefit:</strong> adding a flow report does not require knowing the skill-hook dispatcher.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section id="sequence">
+        <h2>Transformation Sequence</h2>
+        <p class="section-note">
+          This is the smallest order that improves simplicity without fighting the current strengths.
+        </p>
+        <figure>
+          <figcaption>Recommended simplification order.</figcaption>
+          <pre class="mermaid">
+flowchart TD
+  A["1. Preserve the catalog and generated-surface model"] --> B["2. Split schema entrypoints by contract family"]
+  B --> C["3. Move fresh-run and resume orchestration from CLI into app services"]
+  C --> D["4. Decide where flow-domain policy lives, then break the policy cycle"]
+  D --> E["5. Break shared-to-flows by moving operator summary orchestration out of shared"]
+  E --> F["6. Move Prototype connector validation into selection planning"]
+  F --> G["7. Let flow report declarations own file-surface metadata"]
+  G --> H["8. Keep runtime flow-agnostic and grow through explicit engine flags only"]
+
+  classDef keep fill:#e6f4f1,stroke:#78beb5,color:#1f2933
+  classDef move fill:#eaf1ff,stroke:#86a8ff,color:#1f2933
+  classDef clean fill:#fff4dd,stroke:#e6b96c,color:#1f2933
+  class A,H keep
+  class B,C,D,E move
+  class F,G clean
+          </pre>
+        </figure>
+      </section>
+
+      <section id="sources">
+        <h2>Sources Checked</h2>
+        <p class="section-note">
+          Claims in this page were grounded in current files and local probes from this checkout.
+        </p>
+        <div class="source-grid">
+          <article class="source">
+            <h3>Docs and maps</h3>
+            <ul>
+              <li><code>README.md</code></li>
+              <li><code>docs/README.md</code></li>
+              <li><code>docs/repository-map.md</code></li>
+              <li><code>docs/architecture/runtime.md</code></li>
+              <li><code>docs/architecture/declarative-flow-architecture.md</code></li>
+              <li><code>docs/architecture/run-process.md</code></li>
+              <li><code>docs/generated-surfaces.md</code></li>
+              <li><code>plugins/README.md</code></li>
+            </ul>
+          </article>
+          <article class="source">
+            <h3>Source seams</h3>
+            <ul>
+              <li><code>src/README.md</code> and layer READMEs</li>
+              <li><code>src/cli/circuit.ts</code></li>
+              <li><code>src/flows/catalog.ts</code></li>
+              <li><code>src/runtime/run/graph-runner.ts</code></li>
+              <li><code>src/runtime/run/relay-guidance.ts</code></li>
+              <li><code>src/runtime/run/run-context.ts</code></li>
+              <li><code>src/runtime/executors/relay.ts</code></li>
+              <li><code>src/shared/skill-loading.ts</code></li>
+              <li><code>src/connectors/resolver.ts</code></li>
+              <li><code>src/skill-hooks/*</code></li>
+              <li><code>src/skill-hooks/injection.ts</code></li>
+              <li><code>plugins/*/hooks/session-start.ts</code></li>
+              <li><code>scripts/plugins/runtime-bundle.ts</code></li>
+            </ul>
+          </article>
+          <article class="source">
+            <h3>Boundary tests</h3>
+            <ul>
+              <li><code>tests/contracts/architecture-boundaries.test.ts</code></li>
+              <li><code>tests/contracts/engine-flow-boundary.test.ts</code></li>
+              <li><code>tests/runner/flow-facts.test.ts</code></li>
+              <li><code>tests/runner/skill-hook-dispatch.test.ts</code></li>
+              <li><code>tests/runner/skill-hook-actuation.test.ts</code></li>
+            </ul>
+          </article>
+          <article class="source">
+            <h3>Local probes</h3>
+            <ul>
+              <li>TypeScript import graph by top-level source module.</li>
+              <li>Runtime, flow, and app submodule import graph.</li>
+              <li>Flow schematic summary across all eight active flows.</li>
+              <li>Export-count scan for schema and report surface size.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <footer>
+        This page is an analysis artifact for the current checkout. If code, generated surfaces,
+        or tests disagree with it, update the page from those sources.
+      </footer>
+    </main>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      securityLevel: 'loose',
+      flowchart: { curve: 'basis', padding: 12 },
+      themeVariables: {
+        fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        primaryColor: '#e6f4f1',
+        primaryBorderColor: '#78beb5',
+        primaryTextColor: '#1f2933',
+        lineColor: '#8796aa',
+        secondaryColor: '#eaf1ff',
+        tertiaryColor: '#fff4dd',
+        background: '#ffffff',
+        mainBkg: '#ffffff'
+      }
+    });
+
+    const diagrams = Array.from(document.querySelectorAll('pre.mermaid'));
+    for (const [index, diagram] of diagrams.entries()) {
+      const source = diagram.textContent.trim();
+      try {
+        const rendered = await mermaid.render(`system-analysis-${index}`, source);
+        diagram.innerHTML = rendered.svg;
+        diagram.dataset.rendered = 'true';
+      } catch (error) {
+        diagram.dataset.rendered = 'error';
+        diagram.textContent = `Mermaid render failed for diagram ${index}: ${
+          error instanceof Error ? error.message : String(error)
+        }\n\n${source}`;
+      }
+    }
+  </script>
+</body>
+</html>

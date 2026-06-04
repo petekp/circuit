@@ -11,7 +11,7 @@ describe('Config strict surface (CONFIG-I1)', () => {
       expect(ok.data.host).toBeUndefined();
       expect(ok.data.relay.default).toBe('auto');
       expect(ok.data.skills).toEqual({ bindings: {} });
-      expect(ok.data.moments).toEqual({ policy: {}, detection: { disabled_patterns: {} } });
+      expect(ok.data.skill_hooks).toEqual({ policy: {}, detection: { disabled_patterns: {} } });
       expect(ok.data.circuits).toEqual({});
       expect(ok.data.defaults).toEqual({});
     }
@@ -389,7 +389,10 @@ describe('LayeredConfig default-layer ergonomic (CONFIG-I7 + CONFIG-I2 compositi
       expect(ok.data.config.relay.roles).toEqual({});
       expect(ok.data.config.relay.circuits).toEqual({});
       expect(ok.data.config.relay.connectors).toEqual({});
-      expect(ok.data.config.moments).toEqual({ policy: {}, detection: { disabled_patterns: {} } });
+      expect(ok.data.config.skill_hooks).toEqual({
+        policy: {},
+        detection: { disabled_patterns: {} },
+      });
       expect(ok.data.config.circuits).toEqual({});
       expect(ok.data.config.defaults).toEqual({});
     }

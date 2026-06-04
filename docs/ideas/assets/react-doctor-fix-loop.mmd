@@ -1,0 +1,20 @@
+---
+title: react-doctor — inspect, fix, re-inspect until clean
+---
+flowchart TD
+    A([Build step writes React code]) --> B["react-doctor inspects<br/><i>after moment — leaves findings</i>"]
+    B --> C{"Any findings?"}
+    C -->|"No — clean"| E([Continue to whatever's next])
+    C -->|"Yes"| D["Fixer fixes them<br/><i>before moment — findings are its cheat-sheet</i>"]
+    D --> B
+
+    F["Safety cap: stop after N tries<br/>so it can't loop forever"] -.watches.-> C
+
+    classDef inspect fill:#ecfdf5,stroke:#059669,color:#065f46,stroke-width:2px;
+    classDef fix fill:#eff6ff,stroke:#2563eb,color:#1e3a8a,stroke-width:2px;
+    classDef plain fill:#f1f5f9,stroke:#94a3b8,color:#0f172a;
+    classDef cap fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-dasharray:4 3;
+    class B inspect;
+    class D fix;
+    class A,E plain;
+    class F cap;

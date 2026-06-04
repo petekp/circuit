@@ -25784,7 +25784,11 @@ var FlowRoute = external_exports.enum([
   "blocked",
   "recover",
   "run-next-gate-pass",
-  "close"
+  "close",
+  // Slice-loop forward edge: a passed slice verify re-enters the loop head
+  // for the next slice (deep-rigor Build). See
+  // docs/ideas/build-slice-decomposition.md.
+  "advance"
 ]);
 var FlowBlockActionSurface = external_exports.enum(["orchestrator", "worker", "host", "mixed"]);
 var FlowBlockCheckKind = external_exports.enum([
@@ -26964,141 +26968,133 @@ var CheckpointChoiceSource = ReportItemsSource.extend({
   description_path: external_exports.string().min(1).optional()
 }).strict();
 
-// dist/schemas/skill-moment.js
-var SKILL_MOMENT_VOCABULARY = [
+// dist/schemas/skill-hook.js
+var SKILL_HOOK_VOCABULARY = [
   {
-    moment: "before:high-impact-alignment",
+    hook: "before:high-impact-alignment",
     detected_from: ["goal-contract:impact=high", "operator-flag:high-impact"],
     cardinality: "per-run",
     default_mode: "ask"
   },
   {
-    moment: "before:architecture-analysis",
+    hook: "before:architecture-analysis",
     detected_from: ["selected-process:explore-architecture", "step-metadata:architecture-analysis"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    moment: "before:plan-implementation",
+    hook: "before:plan-implementation",
     detected_from: ["stage-transition:Plan", "step-metadata:plan"],
     cardinality: "per-stage",
     default_mode: "auto"
   },
   {
-    moment: "before:implementation",
+    hook: "before:implementation",
     detected_from: ["stage-transition:Plan->Act", "stage-transition:Act"],
     cardinality: "per-stage",
     default_mode: "auto"
   },
   {
-    moment: "before:verification",
+    hook: "before:verification",
     detected_from: ["stage-transition:Verify", "step-metadata:verify"],
     cardinality: "per-stage",
     default_mode: "auto"
   },
+  // Parameterized file-edit anchors. One pair replaces the five named
+  // file-surface hooks (after:react-ui-change/test-change/schema-change/
+  // api-surface-change/dependency-change) and the four *_surfaces config
+  // buckets. The operator writes the predicate as a key suffix
+  // (`after:edit-file:.tsx`); the engine matches a literal extension suffix and
+  // never interprets the meaning. See docs/ideas/skill-hooks-first-principles.md
+  // (the reframe) and docs/ideas/skill-hooks-dispatch-spec.md (D1).
   {
-    moment: "after:react-ui-change",
-    detected_from: ["diff:*.tsx", "diff:*.jsx", "config:moments.detection.react_surfaces"],
+    hook: "before:edit-file",
+    detected_from: ["plan-report:anticipated-file-extensions", "plan-report:likely-touched"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    moment: "after:test-change",
-    detected_from: ["diff:*.test.*", "diff:*.spec.*", "diff:tests/**", "diff:__tests__/**"],
+    hook: "after:edit-file",
+    detected_from: ["change-report:touched-files", "change-set:observed"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    moment: "after:schema-change",
-    detected_from: ["diff:*.prisma", "diff:*.sql", "diff:migrations/**", "diff:schemas/**"],
-    cardinality: "per-step",
-    default_mode: "auto"
-  },
-  {
-    moment: "after:api-surface-change",
-    detected_from: ["config:moments.detection.api_surfaces"],
-    cardinality: "per-step",
-    default_mode: "auto"
-  },
-  {
-    moment: "after:dependency-change",
-    detected_from: ["diff:lockfile", "diff:package-manifest-dependencies"],
-    cardinality: "per-step",
-    default_mode: "auto"
-  },
-  {
-    moment: "after:verification-failed",
+    hook: "after:verification-failed",
     detected_from: ["evidence-map:required-check-failed"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    moment: "after:evidence-gap",
+    hook: "after:evidence-gap",
     detected_from: ["evidence-map:required-claim-missing-after-verify"],
     cardinality: "per-stage",
     default_mode: "auto"
   },
   {
-    moment: "before:close-run",
+    hook: "before:close-run",
     detected_from: ["run-envelope:close-decision", "stage-transition:Close"],
     cardinality: "per-run",
     default_mode: "auto"
   },
   {
-    moment: "before:handoff",
+    hook: "before:handoff",
     detected_from: ["command:handoff", "run-envelope:handoff-decision"],
     cardinality: "per-run",
     default_mode: "auto"
   }
 ];
-var SkillMomentCardinality = external_exports.enum(["per-run", "per-stage", "per-step"]);
-var SkillMomentPolicyMode = external_exports.enum(["auto", "ask", "mute"]);
-var SHIPPED_MOMENTS = new Set(SKILL_MOMENT_VOCABULARY.map((entry) => entry.moment));
-var CUSTOM_MOMENT_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
+var SkillHookCardinality = external_exports.enum(["per-run", "per-stage", "per-step"]);
+var SkillHookPolicyMode = external_exports.enum(["auto", "ask", "mute"]);
+var SHIPPED_HOOKS = new Set(SKILL_HOOK_VOCABULARY.map((entry) => entry.hook));
+var CUSTOM_HOOK_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
 var SHIPPED_SHAPE_RE = /^(before|after):[a-z][a-z0-9-]*$/;
-function momentBody(value) {
+var PARAMETERIZED_EDIT_FILE_RE = /^(before|after):edit-file:(\.[A-Za-z0-9]+)+$/;
+function hookBody(value) {
   const slash = value.indexOf("/");
   return slash === -1 ? value : value.slice(slash + 1);
 }
-var SkillMomentName = external_exports.string().superRefine((value, ctx) => {
-  if (SHIPPED_MOMENTS.has(value))
+var SkillHookName = external_exports.string().superRefine((value, ctx) => {
+  if (SHIPPED_HOOKS.has(value))
+    return;
+  if (PARAMETERIZED_EDIT_FILE_RE.test(value))
     return;
   if (SHIPPED_SHAPE_RE.test(value)) {
     ctx.addIssue({
       code: "custom",
-      message: `unknown shipped Skill Moment '${value}'`
+      message: `unknown shipped Skill Hook '${value}'`
     });
     return;
   }
-  if (!CUSTOM_MOMENT_RE.test(value)) {
+  if (!CUSTOM_HOOK_RE.test(value)) {
     ctx.addIssue({
       code: "custom",
-      message: "custom Skill Moments must be namespaced as <namespace>/<before|after>:<name>"
+      message: "custom Skill Hooks must be namespaced as <namespace>/<before|after>:<name>"
     });
     return;
   }
-  if (SHIPPED_MOMENTS.has(momentBody(value))) {
+  if (SHIPPED_HOOKS.has(hookBody(value))) {
     ctx.addIssue({
       code: "custom",
-      message: "custom Skill Moments must not reuse shipped moment names"
+      message: "custom Skill Hooks must not reuse shipped hook names"
     });
   }
 });
-var SkillMomentNameArray = external_exports.array(SkillMomentName).superRefine((moments, ctx) => {
+var SkillHookNameArray = external_exports.array(SkillHookName).superRefine((hooks, ctx) => {
   const seen = /* @__PURE__ */ new Set();
-  for (const [index, moment] of moments.entries()) {
-    if (seen.has(moment)) {
+  for (const [index, hook] of hooks.entries()) {
+    if (seen.has(hook)) {
       ctx.addIssue({
         code: "custom",
         path: [index],
-        message: `duplicate Skill Moment '${moment}'`
+        message: `duplicate Skill Hook '${hook}'`
       });
     }
-    seen.add(moment);
+    seen.add(hook);
   }
 });
-var SkillMomentPolicyRule = external_exports.object({
-  mode: SkillMomentPolicyMode,
+var SkillHookPolicyRule = external_exports.object({
+  mode: SkillHookPolicyMode,
   skills: external_exports.array(SkillId).optional(),
   strict: external_exports.boolean().default(false)
 }).strict().superRefine((rule, ctx) => {
@@ -27107,7 +27103,7 @@ var SkillMomentPolicyRule = external_exports.object({
       ctx.addIssue({
         code: "custom",
         path: ["skills"],
-        message: "mute Skill Moment policy must not declare skills"
+        message: "mute Skill Hook policy must not declare skills"
       });
     }
     return;
@@ -27116,7 +27112,7 @@ var SkillMomentPolicyRule = external_exports.object({
     ctx.addIssue({
       code: "custom",
       path: ["skills"],
-      message: `${rule.mode} Skill Moment policy requires at least one skill`
+      message: `${rule.mode} Skill Hook policy requires at least one skill`
     });
     return;
   }
@@ -27127,24 +27123,20 @@ var SkillMomentPolicyRule = external_exports.object({
       ctx.addIssue({
         code: "custom",
         path: ["skills", index],
-        message: `duplicate Skill Moment skill '${key}'`
+        message: `duplicate Skill Hook skill '${key}'`
       });
     }
     seen.add(key);
   }
 });
-var SkillMomentDetectionConfig = external_exports.object({
-  react_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
-  test_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
-  schema_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
-  api_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
-  disabled_patterns: external_exports.record(SkillMomentName, external_exports.array(external_exports.string().min(1))).default({})
+var SkillHookDetectionConfig = external_exports.object({
+  disabled_patterns: external_exports.record(SkillHookName, external_exports.array(external_exports.string().min(1))).default({})
 }).strict();
-var SkillMomentConfig = external_exports.object({
-  policy: external_exports.record(SkillMomentName, SkillMomentPolicyRule).default({}),
-  detection: SkillMomentDetectionConfig.default({ disabled_patterns: {} })
+var SkillHookConfig = external_exports.object({
+  policy: external_exports.record(SkillHookName, SkillHookPolicyRule).default({}),
+  detection: SkillHookDetectionConfig.default({ disabled_patterns: {} })
 }).strict();
-var SkillMomentSkillState = external_exports.enum([
+var SkillHookSkillState = external_exports.enum([
   "planned",
   "staged",
   "requested",
@@ -27152,21 +27144,21 @@ var SkillMomentSkillState = external_exports.enum([
   "unplanned",
   "unavailable"
 ]);
-var SkillMomentPolicyResolution = external_exports.discriminatedUnion("source", [
+var SkillHookPolicyResolution = external_exports.discriminatedUnion("source", [
   external_exports.object({
     mode: external_exports.literal("none"),
     source: external_exports.literal("none")
   }).strict(),
   external_exports.object({
-    mode: SkillMomentPolicyMode,
+    mode: SkillHookPolicyMode,
     source: external_exports.enum(["project-policy", "user-global-policy", "default-mapping"]),
     strict: external_exports.boolean(),
     policy_ref: external_exports.string().min(1).optional()
   }).strict()
 ]);
-var SkillMomentSkillRef = external_exports.object({
+var SkillHookSkillRef = external_exports.object({
   id: SkillId,
-  state: SkillMomentSkillState,
+  state: SkillHookSkillState,
   source: external_exports.enum(["project-policy", "user-global-policy", "default-mapping", "host-observed"]),
   reason: external_exports.string().min(1).optional()
 }).strict().superRefine((skill, ctx) => {
@@ -27174,30 +27166,30 @@ var SkillMomentSkillRef = external_exports.object({
     ctx.addIssue({
       code: "custom",
       path: ["source"],
-      message: `${skill.state} Skill Moment activity requires host-observed source`
+      message: `${skill.state} Skill Hook activity requires host-observed source`
     });
   }
 });
-var RunSkillMomentEvent = external_exports.object({
-  schema: external_exports.literal("run.skill-moment@v0"),
+var RunSkillHookEvent = external_exports.object({
+  schema: external_exports.literal("run.skill-hook@v0"),
   event_id: external_exports.string().min(1),
-  moment: SkillMomentName,
+  hook: SkillHookName,
   detected_from: external_exports.array(external_exports.string().min(1)).min(1),
-  cardinality: SkillMomentCardinality,
-  policy: SkillMomentPolicyResolution,
+  cardinality: SkillHookCardinality,
+  policy: SkillHookPolicyResolution,
   flow_id: CompiledFlowId.optional(),
   stage_id: StageId.optional(),
   step_id: StepId.optional(),
   attempt_id: external_exports.string().min(1).optional(),
   decision_packet_id: external_exports.string().min(1).optional(),
-  triggered_skills: external_exports.array(SkillMomentSkillRef),
-  unavailable_skills: external_exports.array(SkillMomentSkillRef).optional()
+  triggered_skills: external_exports.array(SkillHookSkillRef),
+  unavailable_skills: external_exports.array(SkillHookSkillRef).optional()
 }).strict().superRefine((event, ctx) => {
   if ((event.policy.mode === "none" || event.policy.mode === "mute") && event.triggered_skills.length > 0) {
     ctx.addIssue({
       code: "custom",
       path: ["triggered_skills"],
-      message: `${event.policy.mode} Skill Moment policy must not trigger skills`
+      message: `${event.policy.mode} Skill Hook policy must not trigger skills`
     });
   }
   for (const [index, skill] of event.unavailable_skills?.entries() ?? []) {
@@ -27241,7 +27233,7 @@ var StepBase = external_exports.object({
     message: "Step must declare at least one route (including `@complete`)."
   }),
   selection: SelectionOverride.optional(),
-  skill_moments: SkillMomentNameArray.optional(),
+  skill_hooks: SkillHookNameArray.optional(),
   skill_slots: SkillSlotArray.optional(),
   route_from_report: RouteFromReport.optional(),
   budgets: external_exports.object({
@@ -28649,6 +28641,18 @@ function describeExpandBlockStepUseError(error51) {
 }
 
 // dist/flows/build/relay-hints.js
+var buildContextShapeHint = {
+  kind: "schema",
+  schema: "build.context@v1",
+  instruction: [
+    "Respond with a single raw JSON object whose top-level shape is exactly:",
+    '{ "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"], "slices": [{ "id": "slice-1", "intent": "<one concrete, independently-verifiable unit of implementation work>", "anticipated_file_extensions": ["<extension this slice will touch>"] }] }',
+    "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated rigor (provided to you): on a quick or lite job read just the directly implicated files; on a deep job map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
+    "In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer.",
+    'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. Under deep rigor the engine implements and verifies these one at a time; under lighter rigor the change runs in a single pass regardless.',
+    "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.context@v1 before writing reports/build/context.json."
+  ].join(" ")
+};
 var buildImplementationShapeHint = {
   kind: "schema",
   schema: "build.implementation@v1",
@@ -28656,6 +28660,8 @@ var buildImplementationShapeHint = {
     "Respond with a single raw JSON object whose top-level shape is exactly:",
     '{ "verdict": "accept", "summary": "<what changed>", "changed_files": ["<project-relative path>"], "evidence": ["<verification or implementation evidence>"] }',
     "Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass.",
+    "When the request names a current slice (its id and intent), implement ONLY that slice's unit of work - the smallest change that satisfies that slice's intent - and leave later slices for their own turn. When no current slice is named, implement the whole plan in one pass. Report changed_files cumulatively: every file changed so far across all slices, not only this slice's files.",
+    "The plan's anticipated_file_extensions (and the current slice's, when named) list the file types the grounding read expects to touch. Treat them as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched.",
     "Use an empty changed_files array only when no file changed. Evidence must contain at least one item. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
     "The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.implementation@v1 before writing reports/build/implementation.json."
   ].join(" ")
@@ -28710,6 +28716,11 @@ var BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID = {
   "build.review": "build.review@v1"
 };
 var NonEmptyStringArray = external_exports.array(external_exports.string().min(1)).min(1);
+var BuildSlice = external_exports.object({
+  id: external_exports.string().min(1).describe('stable slice id, e.g. "slice-1"'),
+  intent: external_exports.string().min(1).describe("one concrete, independently-verifiable unit of implementation work"),
+  anticipated_file_extensions: external_exports.array(external_exports.string().min(1)).default([]).describe('file extensions this slice is predicted to touch, e.g. ".ts"; empty when no confident prediction')
+}).strict();
 var BuildCheckpointPacketChoice = external_exports.object({
   id: external_exports.string().min(1),
   label: external_exports.string().min(1),
@@ -28781,10 +28792,24 @@ var BuildBrief = external_exports.object({
   checkpoint: BuildCheckpointPointer,
   checkpoint_packet: BuildCheckpointPacket.optional()
 }).strict();
+var BuildContextSource = external_exports.object({
+  kind: external_exports.enum(["file", "command", "log", "operator-note", "reference"]),
+  ref: external_exports.string().min(1).describe("project-relative path, command id, log line, note id, or external reference"),
+  summary: external_exports.string().min(1).describe("one-line summary of what this source contributed")
+}).strict();
+var BuildContext = external_exports.object({
+  verdict: external_exports.literal("accept"),
+  sources: external_exports.array(BuildContextSource).min(1),
+  observations: external_exports.array(external_exports.string().min(1).describe("observation grounded in the sources")).min(1),
+  open_questions: external_exports.array(external_exports.string().min(1).describe("question still unresolved after gathering context")),
+  anticipated_file_extensions: external_exports.array(external_exports.string().min(1).describe('file extension the implementation is expected to touch, e.g. ".ts" or ".test.ts"')).default([]).describe("file extensions the implementation is predicted to touch, inferred from the codebase read; empty when no confident prediction"),
+  slices: external_exports.array(BuildSlice).default([]).describe("ordered units of implementation work the change decomposes into, inferred from the codebase read; empty when the change is a single indivisible unit (the plan then runs one pass)")
+}).strict();
 var BuildPlan = external_exports.object({
   objective: external_exports.string().min(1),
   approach: external_exports.string().min(1),
-  slices: NonEmptyStringArray,
+  slices: external_exports.array(BuildSlice).min(1).describe("ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). Under deep rigor the engine implements and verifies these one at a time"),
+  anticipated_file_extensions: external_exports.array(external_exports.string().min(1)).default([]).describe("file extensions the implementation is predicted to touch, surfaced from build.context@v1; empty when grounding made no confident prediction"),
   verification: external_exports.object({
     commands: external_exports.array(VerificationCommand).min(1)
   }).strict()
@@ -29495,13 +29520,27 @@ var buildCloseBuilder = {
 // dist/flows/build/writers/plan.js
 var buildPlanComposeBuilder = {
   resultSchemaName: "build.plan@v1",
-  reads: [{ name: "brief", schema: "build.brief@v1", required: true }],
+  reads: [
+    { name: "brief", schema: "build.brief@v1", required: true },
+    { name: "context", schema: "build.context@v1", required: false }
+  ],
   build(context) {
     const brief = BuildBrief.parse(context.inputs.brief);
+    const grounding = context.inputs.context === void 0 ? void 0 : BuildContext.parse(context.inputs.context);
+    const baseApproach = `Make the smallest safe change inside scope: ${brief.scope}`;
+    const approach = grounding === void 0 ? baseApproach : `Grounded in a codebase read (${grounding.sources.length} sources): ${grounding.observations.join(" ")} Then ${baseApproach}`;
+    const slices = grounding !== void 0 && grounding.slices.length > 0 ? grounding.slices : [
+      {
+        id: "slice-1",
+        intent: brief.objective,
+        anticipated_file_extensions: grounding?.anticipated_file_extensions ?? []
+      }
+    ];
     return BuildPlan.parse({
       objective: brief.objective,
-      approach: `Make the smallest safe change inside scope: ${brief.scope}`,
-      slices: brief.success_criteria.map((criterion) => `Satisfy: ${criterion}`),
+      approach,
+      slices,
+      anticipated_file_extensions: grounding?.anticipated_file_extensions ?? [],
       verification: {
         commands: brief.verification_command_candidates
       }
@@ -29562,11 +29601,20 @@ var buildFlowData = {
     status: "active",
     version: "0.1.0",
     starts_at: "frame-step",
-    initial_contracts: ["task.intake@v1", "route.decision@v1", "verification.plan@v1"],
+    initial_contracts: [
+      "task.intake@v1",
+      "route.decision@v1",
+      "context.request@v1",
+      "verification.plan@v1"
+    ],
     contract_aliases: [
       {
         generic: "flow.brief@v1",
         actual: "build.brief@v1"
+      },
+      {
+        generic: "context.packet@v1",
+        actual: "build.context@v1"
       },
       {
         generic: "plan.strategy@v1",
@@ -29608,15 +29656,18 @@ var buildFlowData = {
       }
     },
     stage_path_policy: {
-      mode: "partial",
-      omits: ["analyze"],
-      rationale: "Build follows Frame, Plan, Act, Verify, Review, Close. The Analyze stage is omitted because analysis is folded into Frame and Plan for this flow."
+      mode: "strict"
     },
     stages: [
       {
         id: "frame-stage",
         canonical: "frame",
         title: "Frame"
+      },
+      {
+        id: "analyze-stage",
+        canonical: "analyze",
+        title: "Analyze"
       },
       {
         id: "plan-stage",
@@ -29682,7 +29733,34 @@ var buildFlowData = {
           }
         },
         routes: {
+          continue: "analyze-step",
+          stop: "@stop"
+        }
+      }),
+      expandBlockStepUse({
+        id: "analyze-step",
+        title: "Analyze \u2014 read the code before planning",
+        stage: "analyze",
+        block: "gather-context",
+        input: {
+          brief: "build.brief@v1",
+          request: "context.request@v1"
+        },
+        output: "build.context@v1",
+        execution: {
+          kind: "relay",
+          role: "researcher"
+        },
+        protocol: "build-analyze@v1",
+        reportPath: "reports/build/context.json",
+        requestPath: "reports/relay/build-analyze.request.json",
+        receiptPath: "reports/relay/build-analyze.receipt.txt",
+        resultPath: "reports/relay/build-analyze.result.json",
+        pass: ["accept"],
+        routes: {
           continue: "plan-step",
+          retry: "analyze-step",
+          ask: "@stop",
           stop: "@stop"
         }
       }),
@@ -29692,7 +29770,8 @@ var buildFlowData = {
         stage: "plan",
         block: "plan",
         input: {
-          brief: "build.brief@v1"
+          brief: "build.brief@v1",
+          context: "build.context@v1"
         },
         output: "build.plan@v1",
         evidence_requirements: ["ordered steps", "risk notes", "proof strategy"],
@@ -29771,6 +29850,11 @@ var buildFlowData = {
         required: ["overall_status", "commands"],
         routes: {
           continue: "review-step",
+          // Slice loop (deep rigor): when this slice's verify passes and
+          // more slices remain, the engine selects 'advance' instead of
+          // 'continue', re-entering act-step for the next slice. A normal,
+          // non-recovery route; see docs/ideas/build-slice-decomposition.md.
+          advance: "act-step",
           retry: "act-step",
           stop: "@stop"
         }
@@ -29832,11 +29916,11 @@ var buildFlowData = {
   },
   canonicalStagePolicy: {
     kind: "enforce",
-    canonicals: ["frame", "plan", "act", "verify", "review", "close"],
-    omits: ["analyze"],
+    canonicals: ["frame", "analyze", "plan", "act", "verify", "review", "close"],
+    omits: [],
     optional_canonicals: [],
     variants: [],
-    title: "Frame \u2192 Plan \u2192 Act \u2192 Verify \u2192 Review \u2192 Close",
+    title: "Frame \u2192 Analyze \u2192 Plan \u2192 Act \u2192 Verify \u2192 Review \u2192 Close",
     authority: "src/flows/build/contract.md \xA7Build Flow Contract"
   },
   reports: [
@@ -29851,6 +29935,12 @@ var buildFlowData = {
       channel: "relay",
       schema: BuildReview,
       relayHint: buildReviewShapeHint.instruction
+    },
+    {
+      schemaName: "build.context@v1",
+      channel: "relay",
+      schema: BuildContext,
+      relayHint: buildContextShapeHint.instruction
     },
     {
       schemaName: "build.brief@v1",
@@ -29891,6 +29981,14 @@ var buildFlowData = {
           activeText: "Framing the work"
         },
         {
+          stepId: "analyze-step",
+          taskTitle: "Read the code",
+          activeText: "Reading the code",
+          relayRole: "researcher",
+          relayStartedText: "Asking the specialist to read the code...",
+          relayCompletedText: "Finished reading the code."
+        },
+        {
           stepId: "plan-step",
           taskTitle: "Plan the work",
           activeText: "Planning the work"
@@ -29925,7 +30023,22 @@ var buildFlowData = {
     }
   },
   engineFlags: {
-    bindsExecutionDepthToRelaySelection: true
+    bindsExecutionDepthToRelaySelection: true,
+    // Deep rigor implements and verifies the plan's slices one at a time:
+    // the engine re-enters act-step for each slice and only advances to
+    // review once every slice's verify passes. Lighter rigor runs a single
+    // pass. See docs/ideas/build-slice-decomposition.md.
+    iteratesSliceLoop: {
+      headStep: "act-step",
+      tailStep: "verify-step",
+      advanceRoute: "advance",
+      slicesFrom: {
+        report: "reports/build/plan.json",
+        itemsPath: "slices"
+      },
+      maxSlices: 8,
+      activateWhenDepthAtLeast: "deep"
+    }
   }
 };
 
@@ -35119,10 +35232,12 @@ var RunBootstrappedTraceEntry = TraceEntryBase.extend({
   change_kind: ChangeKindDeclaration,
   manifest_hash: external_exports.string().min(1)
 }).strict();
+var SliceIndex = external_exports.number().int().nonnegative();
 var StepEnteredTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("step.entered"),
   step_id: StepId,
-  attempt: external_exports.number().int().positive()
+  attempt: external_exports.number().int().positive(),
+  slice_index: SliceIndex.optional()
 }).strict();
 var StepReportWrittenTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("step.report_written"),
@@ -35150,7 +35265,8 @@ var CheckEvaluatedTraceEntry = TraceEntryBase.extend({
   stdout_summary: external_exports.string().optional(),
   stderr_summary: external_exports.string().optional(),
   missing_sections: external_exports.array(external_exports.string()).optional(),
-  reason: external_exports.string().optional()
+  reason: external_exports.string().optional(),
+  slice_index: SliceIndex.optional()
 }).strict();
 var VerificationCommandEvaluatedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("verification.command_evaluated"),
@@ -35163,7 +35279,8 @@ var VerificationCommandEvaluatedTraceEntry = TraceEntryBase.extend({
   status: external_exports.enum(["passed", "failed"]),
   duration_ms: external_exports.number().int().nonnegative(),
   stdout_summary: external_exports.string(),
-  stderr_summary: external_exports.string()
+  stderr_summary: external_exports.string(),
+  slice_index: SliceIndex.optional()
 }).strict();
 var ProofAssessmentRef = Ref.refine((ref) => ref.kind === "evidence" || ref.kind === "report", {
   message: "proof assessment refs must use evidence or report refs"
@@ -35342,7 +35459,8 @@ var StepCompletedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("step.completed"),
   step_id: StepId,
   attempt: external_exports.number().int().positive(),
-  route_taken: external_exports.string().min(1)
+  route_taken: external_exports.string().min(1),
+  slice_index: SliceIndex.optional()
 }).strict();
 var StepAbortedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("step.aborted"),
@@ -35447,6 +35565,10 @@ var RunClosedTraceEntry = TraceEntryBase.extend({
   outcome: RunClosedOutcome,
   reason: external_exports.string().optional()
 }).strict();
+var RunSkillHookTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.skill-hook"),
+  event: RunSkillHookEvent
+}).strict();
 var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunBootstrappedTraceEntry,
   StepEnteredTraceEntry,
@@ -35473,6 +35595,7 @@ var TraceEntry = external_exports.discriminatedUnion("kind", [
   StepCompletedTraceEntry,
   StepAbortedTraceEntry,
   RunClosedTraceEntry,
+  RunSkillHookTraceEntry,
   GuidanceDecisionTraceEntryBody
 ]).superRefine((ev, ctx) => {
   if (ev.kind === "guidance.decision") {
@@ -37254,7 +37377,7 @@ var Config = external_exports.object({
     connectors: {}
   }),
   skills: SkillsConfig.default({ bindings: {} }),
-  moments: SkillMomentConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
+  skill_hooks: SkillHookConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
   circuits: external_exports.record(CompiledFlowId, CircuitOverride).default({}),
   defaults: external_exports.object({
     selection: SelectionOverride.optional()
@@ -43353,7 +43476,7 @@ var STEP_KEYS = {
     "check"
   ])
 };
-var NORMAL_ROUTE_IDS = /* @__PURE__ */ new Set(["pass", "continue", "complete", "close"]);
+var NORMAL_ROUTE_IDS = /* @__PURE__ */ new Set(["pass", "continue", "complete", "close", "advance"]);
 var RECOVERY_BY_ROUTE = {
   revise: "narrow_scope",
   "run-review": "run_independent_review",
@@ -44492,6 +44615,432 @@ function computeManifestHash(bytes) {
 // dist/runtime/run/graph-runner.js
 import { randomUUID as randomUUID3 } from "node:crypto";
 
+// dist/shared/fanout-branch-template.js
+function resolveDottedPath(root, path) {
+  let cursor = root;
+  for (const segment of path.split(".")) {
+    if (cursor === null || typeof cursor !== "object" || Array.isArray(cursor)) {
+      throw new Error(`items_path '${path}' descended into a non-object at segment '${segment}'`);
+    }
+    cursor = cursor[segment];
+    if (cursor === void 0) {
+      throw new Error(`items_path '${path}' is missing at segment '${segment}'`);
+    }
+  }
+  return cursor;
+}
+function substituteItemPlaceholders(template, item) {
+  if (template === "$item")
+    return typeof item === "string" ? item : JSON.stringify(item);
+  const exactMatch = /^\$item\.([a-z_][a-z0-9_]*)$/i.exec(template);
+  if (exactMatch !== null) {
+    const key = exactMatch[1];
+    if (item === null || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error(`'$item.${key}' substitution requires an object item`);
+    }
+    const value = item[key];
+    if (value === void 0) {
+      throw new Error(`'$item.${key}' substitution is missing the '${key}' field on the item`);
+    }
+    return typeof value === "string" ? value : String(value);
+  }
+  return template.replace(/\$item\.([a-z_][a-z0-9_]*)/gi, (_match, key) => {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error(`'$item.${key}' substitution requires an object item`);
+    }
+    const value = item[key];
+    if (value === void 0) {
+      throw new Error(`'$item.${key}' substitution is missing the '${key}' field on the item`);
+    }
+    return typeof value === "string" ? value : String(value);
+  });
+}
+function expandTemplate(template, item) {
+  if (typeof template === "string") {
+    return substituteItemPlaceholders(template, item);
+  }
+  if (template === null || typeof template !== "object")
+    return template;
+  if (Array.isArray(template)) {
+    return template.map((entry) => expandTemplate(entry, item));
+  }
+  const out = {};
+  for (const [key, value] of Object.entries(template)) {
+    out[key] = expandTemplate(value, item);
+  }
+  return out;
+}
+
+// dist/shared/user-skill-registry.js
+var import_yaml = __toESM(require_dist(), 1);
+import { existsSync as existsSync10, readFileSync as readFileSync21, readdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join as join5, resolve as resolve6 } from "node:path";
+var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
+var UserSkillFrontmatter = UserSkillEntry.pick({
+  name: true,
+  description: true,
+  trigger: true
+}).passthrough();
+function defaultUserSkillRoots(homeDir = homedir()) {
+  return [join5(homeDir, ".agents", "skills"), join5(homeDir, ".claude", "skills")];
+}
+function parseSkillMarkdown(text, skillPath) {
+  if (!text.startsWith("---"))
+    return { metadata: {}, body: text };
+  const match = FRONTMATTER_RE.exec(text);
+  if (match === null) {
+    throw new Error(`skill frontmatter parse failed at ${skillPath}: missing closing ---`);
+  }
+  let rawFrontmatter;
+  try {
+    rawFrontmatter = (0, import_yaml.parse)(match[1] ?? "");
+  } catch (err) {
+    throw new Error(`skill frontmatter parse failed at ${skillPath}: ${err.message}`);
+  }
+  const parsed = UserSkillFrontmatter.safeParse(rawFrontmatter ?? {});
+  if (!parsed.success) {
+    throw new Error(`skill frontmatter validation failed at ${skillPath}: ${parsed.error.message}`);
+  }
+  return {
+    metadata: {
+      ...parsed.data.name === void 0 ? {} : { name: parsed.data.name },
+      ...parsed.data.description === void 0 ? {} : { description: parsed.data.description },
+      ...parsed.data.trigger === void 0 ? {} : { trigger: parsed.data.trigger }
+    },
+    body: match[2] ?? ""
+  };
+}
+function discoverCandidates(roots) {
+  const candidates = /* @__PURE__ */ new Map();
+  for (const root of roots) {
+    const rootAbs = resolve6(root);
+    if (!existsSync10(rootAbs))
+      continue;
+    for (const entry of readdirSync(rootAbs, { withFileTypes: true })) {
+      if (!entry.isDirectory())
+        continue;
+      const id = SkillId.safeParse(entry.name);
+      if (!id.success)
+        continue;
+      const key = id.data;
+      if (candidates.has(key))
+        continue;
+      const skillPath = join5(rootAbs, entry.name, "SKILL.md");
+      if (!existsSync10(skillPath))
+        continue;
+      candidates.set(key, {
+        id: id.data,
+        root: rootAbs,
+        path: skillPath
+      });
+    }
+  }
+  return candidates;
+}
+function loadCandidate(candidate) {
+  let text;
+  try {
+    text = readFileSync21(candidate.path, "utf8");
+  } catch (err) {
+    throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
+  }
+  const parsed = parseSkillMarkdown(text, candidate.path);
+  const entry = UserSkillEntry.parse({
+    id: candidate.id,
+    ...parsed.metadata,
+    root: candidate.root,
+    path: candidate.path,
+    sha256: sha256OfString(text),
+    bytes: Buffer.byteLength(text, "utf8")
+  });
+  return { entry, body: parsed.body };
+}
+function createUserSkillRegistry(options = {}) {
+  const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
+  const candidates = discoverCandidates(roots);
+  const searchedRoots = roots.map((root) => resolve6(root));
+  const cache = /* @__PURE__ */ new Map();
+  const loadCached = (key, candidate) => {
+    const cached2 = cache.get(key);
+    if (cached2 !== void 0)
+      return cached2;
+    const loaded = loadCandidate(candidate);
+    cache.set(key, loaded);
+    return loaded;
+  };
+  return {
+    roots: searchedRoots,
+    list() {
+      return [...candidates.entries()].map(([key, candidate]) => loadCached(key, candidate).entry);
+    },
+    resolve(id) {
+      const key = id;
+      const candidate = candidates.get(key);
+      if (candidate === void 0) {
+        throw new Error([
+          `Circuit could not find skill '${key}'.`,
+          "Searched:",
+          ...searchedRoots.map((root) => `- ${join5(root, key, "SKILL.md")}`)
+        ].join("\n"));
+      }
+      return loadCached(key, candidate);
+    }
+  };
+}
+
+// dist/skill-hooks/policy.js
+function sourceForLayer(layer) {
+  if (layer === "project")
+    return "project-policy";
+  if (layer === "user-global")
+    return "user-global-policy";
+  return void 0;
+}
+function policyResolution(policy2) {
+  if (policy2.mode === "none")
+    return { mode: "none", source: "none" };
+  return {
+    mode: policy2.mode,
+    source: policy2.source,
+    strict: policy2.strict,
+    ...policy2.policyRef === void 0 ? {} : { policy_ref: policy2.policyRef }
+  };
+}
+function resolveSkillHookPolicy(configLayers, hookInput) {
+  const hook = SkillHookName.parse(hookInput);
+  let resolved = { mode: "none", source: "none" };
+  for (const layer of configLayers) {
+    const source = sourceForLayer(layer.layer);
+    if (source === void 0)
+      continue;
+    const rule = layer.config.skill_hooks.policy[hook];
+    if (rule === void 0)
+      continue;
+    resolved = rule.mode === "mute" ? {
+      mode: "mute",
+      source,
+      strict: rule.strict,
+      skills: [],
+      ...layer.source_path === void 0 ? {} : { policyRef: layer.source_path }
+    } : {
+      mode: rule.mode,
+      source,
+      strict: rule.strict,
+      skills: rule.skills ?? [],
+      ...layer.source_path === void 0 ? {} : { policyRef: layer.source_path }
+    };
+  }
+  return resolved;
+}
+function buildRunSkillHookEvent(input) {
+  const policy2 = resolveSkillHookPolicy(input.configLayers ?? [], input.hook);
+  const registry2 = input.registry ?? createUserSkillRegistry();
+  const triggeredSkills = [];
+  const unavailableSkills = [];
+  const askDecision = input.askDecision ?? "pending";
+  const shouldPrepare = policy2.mode === "auto" || policy2.mode === "ask" && askDecision === "accepted";
+  if (shouldPrepare) {
+    for (const skill of policy2.skills) {
+      try {
+        registry2.resolve(skill);
+        triggeredSkills.push({
+          id: SkillId.parse(skill),
+          state: "planned",
+          source: policy2.source
+        });
+      } catch (err) {
+        unavailableSkills.push({
+          id: SkillId.parse(skill),
+          state: "unavailable",
+          source: policy2.source,
+          reason: err.message
+        });
+      }
+    }
+  }
+  const decisionPacketId = policy2.mode === "ask" && askDecision !== "accepted" ? input.decisionPacketId ?? `${input.eventId}:ask` : policy2.mode !== "none" && policy2.strict && unavailableSkills.length > 0 ? input.decisionPacketId ?? `${input.eventId}:strict-skill-unavailable` : input.decisionPacketId;
+  return RunSkillHookEvent.parse({
+    schema: "run.skill-hook@v0",
+    event_id: input.eventId,
+    hook: input.hook,
+    detected_from: [...input.detectedFrom],
+    cardinality: input.cardinality,
+    policy: policyResolution(policy2),
+    ...input.flowId === void 0 ? {} : { flow_id: input.flowId },
+    ...input.stageId === void 0 ? {} : { stage_id: input.stageId },
+    ...input.stepId === void 0 ? {} : { step_id: input.stepId },
+    ...input.attemptId === void 0 ? {} : { attempt_id: input.attemptId },
+    ...decisionPacketId === void 0 ? {} : { decision_packet_id: decisionPacketId },
+    triggered_skills: triggeredSkills,
+    ...unavailableSkills.length === 0 ? {} : { unavailable_skills: unavailableSkills }
+  });
+}
+
+// dist/skill-hooks/surface-sources.js
+function stringArrayField(report, field) {
+  if (report === null || typeof report !== "object")
+    return [];
+  const value = report[field];
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+}
+function planAndSliceExtensions(report) {
+  const top = stringArrayField(report, "anticipated_file_extensions");
+  const slices = report !== null && typeof report === "object" && Array.isArray(report.slices) ? report.slices.flatMap((slice) => stringArrayField(slice, "anticipated_file_extensions")) : [];
+  return [.../* @__PURE__ */ new Set([...top, ...slices])];
+}
+var EDIT_FILE_SURFACE_SOURCES = {
+  // Fix: the runtime-computed change-set. `observed` is the ground-truth set of
+  // actual touched paths (already computed against the baseline snapshot), so
+  // it is the strongest `after:edit-file` surface in the codebase.
+  "fix.change-set@v1": {
+    timing: "after",
+    extract: (report) => stringArrayField(report, "observed")
+  },
+  // Build: the plan's predicted surface (a `compose` step, so it crosses the
+  // trace as step.report_written). This is the `before:edit-file` prediction
+  // arm — the advisory extensions the repo-grounded plan expects to touch, at
+  // plan- and per-slice level. Build's actual touched-files self-report
+  // (`build.implementation@v1` `changed_files`) is a relay report, not a
+  // step.report_written, so the `after` arm on Build is a later follow-up
+  // (Fix's change-set already proves the `after` arm).
+  "build.plan@v1": {
+    timing: "before",
+    extract: planAndSliceExtensions
+  }
+};
+
+// dist/skill-hooks/dispatch.js
+var VOCABULARY_BY_HOOK = new Map(SKILL_HOOK_VOCABULARY.map((entry) => [entry.hook, entry]));
+function hookForEntry(entry) {
+  if (entry.kind === "check.evaluated" && entry.check_kind === "schema_sections" && entry.outcome === "fail") {
+    return "after:verification-failed";
+  }
+  if (entry.kind === "proof.assessed" && entry.assessment_id.startsWith("proof.verification:") && entry.overall_status !== "proven" && entry.overall_status !== "contradicted") {
+    return "after:evidence-gap";
+  }
+  return void 0;
+}
+function dispatchSkillHooksForEntries(input) {
+  const events = [];
+  for (const entry of input.entries) {
+    const hook = hookForEntry(entry);
+    if (hook === void 0)
+      continue;
+    const vocabulary = VOCABULARY_BY_HOOK.get(hook);
+    if (vocabulary === void 0)
+      continue;
+    const event = buildRunSkillHookEvent({
+      eventId: `${input.eventIdBase}:${hook}:${entry.sequence}`,
+      hook,
+      detectedFrom: [...vocabulary.detected_from],
+      cardinality: vocabulary.cardinality,
+      ...input.configLayers === void 0 ? {} : { configLayers: input.configLayers },
+      ...input.registry === void 0 ? {} : { registry: input.registry },
+      ...input.scope.flowId === void 0 ? {} : { flowId: input.scope.flowId },
+      ...input.scope.stageId === void 0 ? {} : { stageId: input.scope.stageId },
+      ...input.scope.stepId === void 0 ? {} : { stepId: input.scope.stepId },
+      ...input.scope.attemptId === void 0 ? {} : { attemptId: input.scope.attemptId }
+    });
+    if (event.policy.mode === "none")
+      continue;
+    events.push(event);
+  }
+  return events;
+}
+var EDIT_FILE_KEY_RE = /^(before|after):edit-file(:(\.[A-Za-z0-9]+)+)?$/;
+function editFileTiming(key) {
+  return key.startsWith("before:") ? "before" : "after";
+}
+function baseEditFileHook(key) {
+  return key.startsWith("before:") ? "before:edit-file" : "after:edit-file";
+}
+function editFileSuffix(key) {
+  const rest = key.slice(baseEditFileHook(key).length);
+  return rest.startsWith(":") ? rest.slice(1) : "";
+}
+function surfaceMatches(surface, suffix) {
+  if (suffix === "")
+    return surface.length > 0;
+  return surface.some((item) => item.endsWith(suffix));
+}
+function editFilePolicyKeys(configLayers) {
+  const keys = /* @__PURE__ */ new Set();
+  for (const layer of configLayers) {
+    for (const key of Object.keys(layer.config.skill_hooks.policy)) {
+      if (EDIT_FILE_KEY_RE.test(key))
+        keys.add(key);
+    }
+  }
+  return [...keys];
+}
+async function dispatchEditFileHooksForEntries(input) {
+  const keys = editFilePolicyKeys(input.configLayers ?? []);
+  if (keys.length === 0)
+    return [];
+  const events = [];
+  for (const entry of input.entries) {
+    if (entry.kind !== "step.report_written")
+      continue;
+    const source = EDIT_FILE_SURFACE_SOURCES[entry.report_schema];
+    if (source === void 0)
+      continue;
+    let report;
+    try {
+      report = await input.readJson(entry.report_path);
+    } catch {
+      continue;
+    }
+    const surface = source.extract(report);
+    if (surface.length === 0)
+      continue;
+    for (const key of keys) {
+      if (editFileTiming(key) !== source.timing)
+        continue;
+      if (!surfaceMatches(surface, editFileSuffix(key)))
+        continue;
+      const vocabulary = VOCABULARY_BY_HOOK.get(baseEditFileHook(key));
+      if (vocabulary === void 0)
+        continue;
+      const event = buildRunSkillHookEvent({
+        eventId: `${input.eventIdBase}:${key}:${entry.sequence}`,
+        hook: key,
+        detectedFrom: [...vocabulary.detected_from],
+        cardinality: vocabulary.cardinality,
+        ...input.configLayers === void 0 ? {} : { configLayers: input.configLayers },
+        ...input.registry === void 0 ? {} : { registry: input.registry },
+        ...input.scope.flowId === void 0 ? {} : { flowId: input.scope.flowId },
+        ...input.scope.stageId === void 0 ? {} : { stageId: input.scope.stageId },
+        ...input.scope.stepId === void 0 ? {} : { stepId: input.scope.stepId },
+        ...input.scope.attemptId === void 0 ? {} : { attemptId: input.scope.attemptId }
+      });
+      if (event.policy.mode === "none")
+        continue;
+      events.push(event);
+    }
+  }
+  return events;
+}
+async function dispatchSkillHooks(input) {
+  const checkOutcome = dispatchSkillHooksForEntries(input);
+  const editFile = await dispatchEditFileHooksForEntries(input);
+  return [...checkOutcome, ...editFile];
+}
+
+// dist/skill-hooks/injection.js
+function createSkillHookInjectionChannel() {
+  const set2 = /* @__PURE__ */ new Set();
+  return {
+    add(ids) {
+      for (const id of ids)
+        set2.add(id);
+    },
+    ids() {
+      return [...set2];
+    }
+  };
+}
+
 // dist/runtime/acceptance-criteria.js
 function isAcceptanceRetryFeedback(value) {
   if (value === null || typeof value !== "object" || Array.isArray(value))
@@ -44672,62 +45221,6 @@ function evaluateAcceptanceCriteria(input) {
 // dist/runtime/domain/step.js
 function isWaitingCheckpointStepOutcome(outcome) {
   return "kind" in outcome && outcome.kind === "waiting_checkpoint";
-}
-
-// dist/shared/fanout-branch-template.js
-function resolveDottedPath(root, path) {
-  let cursor = root;
-  for (const segment of path.split(".")) {
-    if (cursor === null || typeof cursor !== "object" || Array.isArray(cursor)) {
-      throw new Error(`items_path '${path}' descended into a non-object at segment '${segment}'`);
-    }
-    cursor = cursor[segment];
-    if (cursor === void 0) {
-      throw new Error(`items_path '${path}' is missing at segment '${segment}'`);
-    }
-  }
-  return cursor;
-}
-function substituteItemPlaceholders(template, item) {
-  if (template === "$item")
-    return typeof item === "string" ? item : JSON.stringify(item);
-  const exactMatch = /^\$item\.([a-z_][a-z0-9_]*)$/i.exec(template);
-  if (exactMatch !== null) {
-    const key = exactMatch[1];
-    if (item === null || typeof item !== "object" || Array.isArray(item)) {
-      throw new Error(`'$item.${key}' substitution requires an object item`);
-    }
-    const value = item[key];
-    if (value === void 0) {
-      throw new Error(`'$item.${key}' substitution is missing the '${key}' field on the item`);
-    }
-    return typeof value === "string" ? value : String(value);
-  }
-  return template.replace(/\$item\.([a-z_][a-z0-9_]*)/gi, (_match, key) => {
-    if (item === null || typeof item !== "object" || Array.isArray(item)) {
-      throw new Error(`'$item.${key}' substitution requires an object item`);
-    }
-    const value = item[key];
-    if (value === void 0) {
-      throw new Error(`'$item.${key}' substitution is missing the '${key}' field on the item`);
-    }
-    return typeof value === "string" ? value : String(value);
-  });
-}
-function expandTemplate(template, item) {
-  if (typeof template === "string") {
-    return substituteItemPlaceholders(template, item);
-  }
-  if (template === null || typeof template !== "object")
-    return template;
-  if (Array.isArray(template)) {
-    return template.map((entry) => expandTemplate(entry, item));
-  }
-  const out = {};
-  for (const [key, value] of Object.entries(template)) {
-    out[key] = expandTemplate(value, item);
-  }
-  return out;
 }
 
 // dist/shared/checkpoint-auto-resolution.js
@@ -45498,6 +45991,10 @@ function resolveComposeReadPaths(builder, flow, step) {
   if (builder.reads === void 0)
     return paths;
   for (const descriptor of builder.reads) {
+    if (!descriptor.required && !flowHasReportSchemaInRuntimeFlow(flow, descriptor.schema)) {
+      paths[descriptor.name] = void 0;
+      continue;
+    }
     const path = reportPathForSchemaInRuntimeFlow(flow, descriptor.schema);
     if (descriptor.required && !step.reads.includes(path)) {
       throw new Error(`${step.writes.report.schema} requires step '${step.id}' to read ${path}`);
@@ -46802,7 +47299,7 @@ async function relayCursorAgent(input) {
 // dist/connectors/custom.js
 import { mkdtemp as mkdtemp2, readFile as readFile2, rm as rm2, stat, writeFile as writeFile2 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join5 } from "node:path";
+import { join as join6 } from "node:path";
 var DEFAULT_TIMEOUT_MS4 = 12e4;
 var SIGTERM_TO_SIGKILL_GRACE_MS4 = 2e3;
 var OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
@@ -46831,9 +47328,9 @@ async function relayCustom(input) {
   if (executable === void 0) {
     throw new Error(`custom connector '${descriptor.name}' command is empty`);
   }
-  const tempDir = await mkdtemp2(join5(tmpdir2(), "circuit-custom-connector-"));
-  const promptFile = join5(tempDir, "prompt.txt");
-  const outputFile = join5(tempDir, "output.txt");
+  const tempDir = await mkdtemp2(join6(tmpdir2(), "circuit-custom-connector-"));
+  const promptFile = join6(tempDir, "prompt.txt");
+  const outputFile = join6(tempDir, "output.txt");
   await writeFile2(promptFile, input.prompt, "utf8");
   const args = [...baseArgs, promptFile, outputFile];
   const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS4;
@@ -46947,7 +47444,7 @@ function evidenceFromAcceptanceCriteriaTrace(input) {
 }
 
 // dist/shared/relay-support.js
-import { existsSync as existsSync10, readFileSync as readFileSync21 } from "node:fs";
+import { existsSync as existsSync11, readFileSync as readFileSync22 } from "node:fs";
 
 // dist/flows/registries/shape-hints/registry.js
 var SCHEMA_HINTS = buildSchemaHintMap(flowPackages);
@@ -48350,7 +48847,7 @@ var RunDecisionPacket = external_exports.object({
   decision_id: external_exports.string().min(1),
   reason: external_exports.enum([
     "process-checkpoint",
-    "skill-moment-ask",
+    "skill-hook-ask",
     "missing-evidence",
     "strict-skill-unavailable",
     "operator-judgment"
@@ -49365,15 +49862,30 @@ function pullAffordanceSection(runFolder, flowId) {
     `You may consult prior-run memory with \`circuit history pull --run-folder ${runFolder} --flow ${flow} --decision-point <label> <query>\`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.`
   ].join("\n");
 }
-function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, rigor) {
+function currentSliceSection(activeSlice) {
+  if (activeSlice === null || typeof activeSlice !== "object")
+    return void 0;
+  const slice = activeSlice;
+  if (typeof slice.intent !== "string" || slice.intent.length === 0)
+    return void 0;
+  const exts = Array.isArray(slice.anticipated_file_extensions) ? slice.anticipated_file_extensions.filter((ext) => typeof ext === "string") : [];
+  return [
+    "Current slice (implement ONLY this unit of work; leave later slices for their own turn):",
+    `- id: ${typeof slice.id === "string" ? slice.id : "(unnamed)"}`,
+    `- intent: ${slice.intent}`,
+    ...exts.length === 0 ? [] : [`- anticipated file extensions: ${exts.join(", ")}`]
+  ].join("\n");
+}
+function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, rigor, activeSlice) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
-    if (!existsSync10(abs))
+    if (!existsSync11(abs))
       return `[reads unavailable: ${path}]`;
     return `--- ${path} ---
-${readFileSync21(abs, "utf8")}`;
+${readFileSync22(abs, "utf8")}`;
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
+  const sliceSection = currentSliceSection(activeSlice);
   const criteriaSection = acceptanceCriteriaSection(step);
   const feedbackSection = acceptanceRetryFeedbackSection(acceptanceRetryFeedback);
   const memorySection = memoryInputsSection(memoryInputs);
@@ -49392,6 +49904,7 @@ ${readFileSync21(abs, "utf8")}`;
     "",
     ...operatorGoal === void 0 || operatorGoal.length === 0 ? [] : ["Operator Goal:", operatorGoal, ""],
     ...memorySection === void 0 ? [] : [memorySection, ""],
+    ...sliceSection === void 0 ? [] : [sliceSection, ""],
     pullSection,
     "",
     "Context (from reads):",
@@ -49693,115 +50206,6 @@ function deriveResolvedSelection(inv, flow, step, depth) {
   }).resolved;
 }
 
-// dist/shared/user-skill-registry.js
-var import_yaml = __toESM(require_dist(), 1);
-import { existsSync as existsSync11, readFileSync as readFileSync22, readdirSync } from "node:fs";
-import { homedir } from "node:os";
-import { join as join6, resolve as resolve6 } from "node:path";
-var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
-var UserSkillFrontmatter = UserSkillEntry.pick({
-  name: true,
-  description: true,
-  trigger: true
-}).passthrough();
-function defaultUserSkillRoots(homeDir = homedir()) {
-  return [join6(homeDir, ".agents", "skills"), join6(homeDir, ".claude", "skills")];
-}
-function parseSkillMarkdown(text, skillPath) {
-  if (!text.startsWith("---"))
-    return { metadata: {}, body: text };
-  const match = FRONTMATTER_RE.exec(text);
-  if (match === null) {
-    throw new Error(`skill frontmatter parse failed at ${skillPath}: missing closing ---`);
-  }
-  let rawFrontmatter;
-  try {
-    rawFrontmatter = (0, import_yaml.parse)(match[1] ?? "");
-  } catch (err) {
-    throw new Error(`skill frontmatter parse failed at ${skillPath}: ${err.message}`);
-  }
-  const parsed = UserSkillFrontmatter.safeParse(rawFrontmatter ?? {});
-  if (!parsed.success) {
-    throw new Error(`skill frontmatter validation failed at ${skillPath}: ${parsed.error.message}`);
-  }
-  return {
-    metadata: {
-      ...parsed.data.name === void 0 ? {} : { name: parsed.data.name },
-      ...parsed.data.description === void 0 ? {} : { description: parsed.data.description },
-      ...parsed.data.trigger === void 0 ? {} : { trigger: parsed.data.trigger }
-    },
-    body: match[2] ?? ""
-  };
-}
-function discoverCandidates(roots) {
-  const candidates = /* @__PURE__ */ new Map();
-  for (const root of roots) {
-    const rootAbs = resolve6(root);
-    if (!existsSync11(rootAbs))
-      continue;
-    for (const entry of readdirSync(rootAbs, { withFileTypes: true })) {
-      if (!entry.isDirectory())
-        continue;
-      const id = SkillId.safeParse(entry.name);
-      if (!id.success)
-        continue;
-      const key = id.data;
-      if (candidates.has(key))
-        continue;
-      const skillPath = join6(rootAbs, entry.name, "SKILL.md");
-      if (!existsSync11(skillPath))
-        continue;
-      candidates.set(key, {
-        id: id.data,
-        root: rootAbs,
-        path: skillPath
-      });
-    }
-  }
-  return candidates;
-}
-function loadCandidate(candidate) {
-  let text;
-  try {
-    text = readFileSync22(candidate.path, "utf8");
-  } catch (err) {
-    throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
-  }
-  const parsed = parseSkillMarkdown(text, candidate.path);
-  const entry = UserSkillEntry.parse({
-    id: candidate.id,
-    ...parsed.metadata,
-    root: candidate.root,
-    path: candidate.path,
-    sha256: sha256OfString(text),
-    bytes: Buffer.byteLength(text, "utf8")
-  });
-  return { entry, body: parsed.body };
-}
-function createUserSkillRegistry(options = {}) {
-  const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
-  const candidates = discoverCandidates(roots);
-  const searchedRoots = roots.map((root) => resolve6(root));
-  return {
-    roots: searchedRoots,
-    list() {
-      return [...candidates.values()].map((candidate) => loadCandidate(candidate).entry);
-    },
-    resolve(id) {
-      const key = id;
-      const candidate = candidates.get(key);
-      if (candidate === void 0) {
-        throw new Error([
-          `Circuit could not find skill '${key}'.`,
-          "Searched:",
-          ...searchedRoots.map((root) => `- ${join6(root, key, "SKILL.md")}`)
-        ].join("\n"));
-      }
-      return loadCandidate(candidate);
-    }
-  };
-}
-
 // dist/shared/skill-loading.js
 function resolveSkillBindingsForFlow(flowId, configLayers = []) {
   const globalBindings = /* @__PURE__ */ new Map();
@@ -49859,6 +50263,9 @@ ${err.message}`);
     if (skill === void 0)
       continue;
     addSkill(skill, slot.id);
+  }
+  for (const id of input.injectedSkillIds ?? []) {
+    addSkill(id);
   }
   return loaded;
 }
@@ -50073,12 +50480,18 @@ function planRelayGuidanceDecision(input) {
     ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers }
   }, flow, compiledStep, input.depth);
   assertConnectorSelectionCompatible(relayExecution.connectorName, resolvedSelection);
+  const injectedSkillIds = relayExecution.role === "implementer" ? context.skillHookInjections?.ids() ?? [] : [];
   const loadedSkills = resolveLoadedRelaySkills({
     flowId: flow.id,
     stepId: step.id,
     skillSlots: compiledStep.skill_slots ?? [],
     resolvedSelection,
-    ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers }
+    ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers },
+    ...injectedSkillIds.length === 0 ? {} : { injectedSkillIds },
+    // Share the run's single registry (the same one the skill-hook dispatcher
+    // resolved against), so an injected skill recorded as triggered resolves here
+    // identically — no dispatch-vs-relay divergence, one filesystem snapshot.
+    ...context.skillRegistry === void 0 ? {} : { registry: context.skillRegistry }
   });
   assertPolicyAllowsRelayPlan({
     context,
@@ -50377,7 +50790,10 @@ async function executeProductionRelayAttempt(input) {
     // agent's copyable command already targets the correct flow for suppression.
     context.flow.id,
     // F-M-1: thread the run's resolved rigor as a worker-effort signal.
-    context.axes?.rigor
+    context.axes?.rigor,
+    // Slice loop: when this relay runs one slice of a slice loop, scope the
+    // worker to that slice's unit of work. Undefined on single-pass runs.
+    context.activeSlice
   );
   const request = step.writes?.request;
   const receipt = step.writes?.receipt;
@@ -50555,6 +50971,7 @@ async function executeProductionRelayAttempt(input) {
     receipt_path: receipt.path
   });
   const resultVerdictEvaluation = failureKind === "acceptance" ? checkEvaluation : evaluation;
+  const sliceTag = context.activeSliceIndex === void 0 ? {} : { slice_index: context.activeSliceIndex };
   await context.trace.append({
     run_id: context.runId,
     kind: "check.evaluated",
@@ -50562,7 +50979,8 @@ async function executeProductionRelayAttempt(input) {
     attempt,
     check_kind: "result_verdict",
     outcome: resultVerdictEvaluation.kind === "pass" ? "pass" : "fail",
-    ...resultVerdictEvaluation.kind === "pass" ? {} : { reason: resultVerdictEvaluation.reason }
+    ...resultVerdictEvaluation.kind === "pass" ? {} : { reason: resultVerdictEvaluation.reason },
+    ...sliceTag
   });
   const acceptanceCheckEntries = [];
   for (const check2 of acceptance?.checks ?? []) {
@@ -50579,7 +50997,8 @@ async function executeProductionRelayAttempt(input) {
       ...check2.exit_code === void 0 ? {} : { exit_code: check2.exit_code },
       ...check2.status === void 0 ? {} : { status: check2.status },
       ...check2.stdout_summary === void 0 ? {} : { stdout_summary: check2.stdout_summary },
-      ...check2.stderr_summary === void 0 ? {} : { stderr_summary: check2.stderr_summary }
+      ...check2.stderr_summary === void 0 ? {} : { stderr_summary: check2.stderr_summary },
+      ...sliceTag
     });
     acceptanceCheckEntries.push(CheckEvaluatedTraceEntry.parse(entry));
   }
@@ -51808,6 +52227,7 @@ async function writeVerificationProofAssessment(input) {
 }
 async function executeVerificationResult(step, context) {
   const attempt = context.activeStepAttempt ?? 1;
+  const sliceTag = context.activeSliceIndex === void 0 ? {} : { slice_index: context.activeSliceIndex };
   let report;
   let reportSchema;
   let body;
@@ -51851,7 +52271,8 @@ async function executeVerificationResult(step, context) {
         status: observation.status,
         duration_ms: observation.duration_ms,
         stdout_summary: observation.stdout_summary,
-        stderr_summary: observation.stderr_summary
+        stderr_summary: observation.stderr_summary,
+        ...sliceTag
       });
     }
     body = builder.buildResult(observations, builderContext);
@@ -51866,7 +52287,8 @@ async function executeVerificationResult(step, context) {
       attempt,
       check_kind: "schema_sections",
       outcome: "fail",
-      reason: reason2
+      reason: reason2,
+      ...sliceTag
     });
     return stepExecutionFailed(reason2, blocked ? error51 : new Error(reason2));
   }
@@ -51885,7 +52307,8 @@ async function executeVerificationResult(step, context) {
       step_id: step.id,
       attempt,
       check_kind: "schema_sections",
-      outcome: "pass"
+      outcome: "pass",
+      ...sliceTag
     });
     await writeVerificationProofAssessment({
       context,
@@ -51904,7 +52327,8 @@ async function executeVerificationResult(step, context) {
     attempt,
     check_kind: "schema_sections",
     outcome: "fail",
-    reason
+    reason,
+    ...sliceTag
   });
   await writeVerificationProofAssessment({
     context,
@@ -52604,6 +53028,7 @@ function createProgressProjector(input) {
         activeAttempts.set(stepId, entry.attempt);
         taskStatuses.set(stepId, "in_progress");
         const display = stepDisplay({ flow: input.flow, stepDisplayById, stepId });
+        const activeText = typeof entry.slice_index === "number" ? `${display.activeText} (slice ${entry.slice_index + 1})` : display.activeText;
         reportProgress(input.progress, {
           schema_version: 1,
           type: "step.started",
@@ -52611,8 +53036,8 @@ function createProgressProjector(input) {
           flow_id: flowId,
           recorded_at: recordedAt,
           label: display.title,
-          display: progressDisplay(`Circuit: ${display.activeText}...`, "major", "info"),
-          presentation: appendStatus(runId, `${display.activeText}...`),
+          display: progressDisplay(`Circuit: ${activeText}...`, "major", "info"),
+          presentation: appendStatus(runId, `${activeText}...`),
           step_id: stepId,
           step_title: display.title,
           attempt: entry.attempt
@@ -53195,6 +53620,87 @@ async function openRunBoundary(options) {
   };
 }
 
+// dist/runtime/run/slice-corridor.js
+var DEPTH_ORDER = ["lite", "standard", "deep", "tournament", "autonomous"];
+function depthAtLeast(depth, floor) {
+  const current = DEPTH_ORDER.indexOf(depth ?? "standard");
+  const minimum = DEPTH_ORDER.indexOf(floor);
+  if (current < 0 || minimum < 0)
+    return false;
+  return current >= minimum;
+}
+var SliceCorridor = class {
+  deps;
+  flag;
+  activeForDepth;
+  slices;
+  index = 0;
+  constructor(deps) {
+    this.deps = deps;
+    this.flag = deps.flag;
+    this.activeForDepth = deps.flag !== void 0 && depthAtLeast(deps.depth, deps.flag.activateWhenDepthAtLeast);
+  }
+  // True when this flow has a slice loop AND the run's depth activates it.
+  // Every method below is inert (single-pass behavior) when this is false.
+  isActive() {
+    return this.activeForDepth;
+  }
+  // True when stepId is the loop body's head or tail step.
+  isLoopBodyStep(stepId) {
+    if (!this.activeForDepth || this.flag === void 0)
+      return false;
+    return stepId === this.flag.headStep || stepId === this.flag.tailStep;
+  }
+  // Lazily load the ordered slice list (idempotent), capped at maxSlices.
+  async ensureInitialized() {
+    if (!this.activeForDepth || this.flag === void 0 || this.slices !== void 0)
+      return;
+    const raw = await this.deps.readSlices();
+    this.slices = raw.slice(0, this.flag.maxSlices);
+  }
+  sliceCount() {
+    return this.slices?.length ?? 0;
+  }
+  currentSliceIndex() {
+    return this.index;
+  }
+  currentSlice() {
+    return this.slices?.[this.index];
+  }
+  // The completedStepCounts key for a step at a given slice index:
+  // slice-scoped for loop-body steps when active, else the bare stepId. The
+  // caller passes the index that applies to the entry being keyed (the live
+  // index for the incoming guard / target guard; a captured snapshot for the
+  // step's own trace + completion count, taken before any advance).
+  countKey(stepId, sliceIndex) {
+    if (!this.activeForDepth || !this.isLoopBodyStep(stepId))
+      return stepId;
+    return `${stepId}#s${sliceIndex}`;
+  }
+  // True when the just-completed tail step took its forward route (to a step
+  // that is not the loop head) and more slices remain. The caller resolves
+  // the route's target step id (undefined for a terminal route).
+  shouldAdvance(input) {
+    if (!this.activeForDepth || this.flag === void 0)
+      return false;
+    if (input.stepId !== this.flag.tailStep)
+      return false;
+    if (input.targetStepId === void 0)
+      return false;
+    if (input.targetStepId === this.flag.headStep)
+      return false;
+    return this.index + 1 < this.sliceCount();
+  }
+  // Advance to the next slice; returns the head step id to re-enter.
+  advance() {
+    if (this.flag === void 0) {
+      throw new Error("SliceCorridor.advance called without a slice-loop flag");
+    }
+    this.index += 1;
+    return this.flag.headStep;
+  }
+};
+
 // dist/runtime/run/graph-runner.js
 function isGraphCheckpointWaitingResult(result) {
   return "kind" in result && result.kind === "checkpoint_waiting";
@@ -53318,6 +53824,9 @@ function latestRecoveryFailureEvidence(input) {
       continue;
     if (entry.step_id !== input.stepId || entry.attempt !== input.attempt)
       continue;
+    if (input.sliceIndex !== void 0 && "slice_index" in entry && entry.slice_index !== input.sliceIndex) {
+      continue;
+    }
     if (entry.kind === "check.evaluated") {
       if (entry.outcome !== "fail")
         continue;
@@ -53397,14 +53906,34 @@ function bootstrapChangeKind(input) {
   }
   return standardChangeKindDeclaration(defaultKind);
 }
-function completedStepCountsFromTrace(entries) {
+function completedStepCountsFromTrace(entries, corridor) {
   const counts = /* @__PURE__ */ new Map();
   for (const entry of entries) {
     if (entry.kind !== "step.completed" || entry.step_id === void 0)
       continue;
-    counts.set(entry.step_id, (counts.get(entry.step_id) ?? 0) + 1);
+    const sliceIndex = typeof entry.slice_index === "number" ? entry.slice_index : 0;
+    const key = corridor.countKey(entry.step_id, sliceIndex);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
+}
+function assertNoCheckpointInSliceLoop(flow, flag) {
+  const steps = new Map(flow.steps.map((step) => [step.id, step]));
+  const visited = /* @__PURE__ */ new Set();
+  let cursor = flag.headStep;
+  while (cursor !== void 0 && !visited.has(cursor)) {
+    visited.add(cursor);
+    const step = steps.get(cursor);
+    if (step === void 0)
+      break;
+    if (step.kind === "checkpoint") {
+      throw new Error(`slice loop body contains checkpoint step '${cursor}'; a checkpoint inside [${flag.headStep}..${flag.tailStep}] is not supported`);
+    }
+    if (cursor === flag.tailStep)
+      break;
+    const forward = step.routes.continue ?? step.routes.pass;
+    cursor = forward?.kind === "step" ? forward.stepId : void 0;
+  }
 }
 function resolveManifestHash(flow, options) {
   if (options.manifestBytes === void 0) {
@@ -53523,6 +54052,15 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     files,
     trace,
     externalFiles: options.externalFiles ?? boundary.externalFiles,
+    // Created once for the whole run and shared by every per-step stepContext
+    // spread below, so the post-step skill-hook actuator can record an `auto`
+    // event's skills and the next relay step picks them up. Empty on runs with
+    // no skill_hooks config, so it has no observable effect there.
+    skillHookInjections: createSkillHookInjectionChannel(),
+    // One filesystem snapshot of the user skill registry for the whole run,
+    // shared by the skill-hook dispatcher and the relay skill loader so they
+    // never disagree about which skills resolve (see RunContext.skillRegistry).
+    skillRegistry: createUserSkillRegistry(),
     ...options.childCompiledFlowResolver === void 0 ? {} : { childCompiledFlowResolver: options.childCompiledFlowResolver },
     ...options.childRunner === void 0 ? {} : { childRunner: options.childRunner },
     ...options.childExecutors === void 0 ? {} : { childExecutors: options.childExecutors },
@@ -53547,8 +54085,28 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.executors
   };
   const steps = new Map(flow.steps.map((step) => [step.id, step]));
-  const completedStepCounts = isResume ? completedStepCountsFromTrace(existingTrace) : /* @__PURE__ */ new Map();
-  const maxSteps = options.maxSteps ?? Math.max(flow.steps.length * 4, 8);
+  const sliceFlag = findCompiledFlowPackageById(flow.id)?.engineFlags?.iteratesSliceLoop;
+  if (sliceFlag !== void 0) {
+    assertNoCheckpointInSliceLoop(flow, sliceFlag);
+  }
+  const sliceCorridor = new SliceCorridor({
+    flag: sliceFlag,
+    depth: context.depth,
+    readSlices: async () => {
+      if (sliceFlag === void 0)
+        return [];
+      try {
+        const raw = await files.readJson(sliceFlag.slicesFrom.report);
+        const items = resolveDottedPath(raw, sliceFlag.slicesFrom.itemsPath);
+        return Array.isArray(items) ? items : [];
+      } catch {
+        return [];
+      }
+    }
+  });
+  const completedStepCounts = isResume ? completedStepCountsFromTrace(existingTrace, sliceCorridor) : /* @__PURE__ */ new Map();
+  const defaultMaxSteps = Math.max(flow.steps.length * 4, 8);
+  const maxSteps = options.maxSteps ?? (sliceFlag !== void 0 && sliceCorridor.isActive() ? defaultMaxSteps + sliceFlag.maxSlices * 6 : defaultMaxSteps);
   const bootstrapRecordedAt = context.now().toISOString();
   if (!isResume && options.manifestBytes !== void 0) {
     await writeRuntimeManifestSnapshot({
@@ -53595,8 +54153,14 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     if (step === void 0) {
       return await closeRun(context, "aborted", void 0, `route target '${currentStepId}' is not a known step id`);
     }
+    if (sliceCorridor.isActive() && sliceFlag !== void 0 && step.id === sliceFlag.headStep) {
+      await sliceCorridor.ensureInitialized();
+    }
+    const isLoopBodyStep = sliceCorridor.isLoopBodyStep(step.id);
+    const stepSliceIndex = sliceCorridor.currentSliceIndex();
+    const stepCountKey = sliceCorridor.countKey(step.id, stepSliceIndex);
     const isResumedCheckpoint = options.resumeCheckpoint?.stepId === currentStepId;
-    const completedCount = completedStepCounts.get(step.id) ?? 0;
+    const completedCount = completedStepCounts.get(stepCountKey) ?? 0;
     const incomingIsActiveRecovery = corridor.isActiveRoute(incomingRouteTaken);
     const maxAttempts = maxAttemptsForRoute(step, incomingIsActiveRecovery);
     const isRecoveryOriginReentry = corridor.isReturnToOrigin({
@@ -53617,8 +54181,15 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       return await closeRun(context, "aborted", void 0, reason);
     }
     if (!isResumedCheckpoint) {
-      await trace.append({ run_id: runId, kind: "step.entered", step_id: step.id, attempt });
+      await trace.append({
+        run_id: runId,
+        kind: "step.entered",
+        step_id: step.id,
+        attempt,
+        ...isLoopBodyStep ? { slice_index: stepSliceIndex } : {}
+      });
     }
+    const traceLengthBeforeStep = trace.getAll().length;
     let route;
     let details;
     try {
@@ -53626,10 +54197,13 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         stepId: step.id,
         incomingRoute: incomingRouteTaken
       });
+      const activeSlice = isLoopBodyStep ? sliceCorridor.currentSlice() : void 0;
       const stepContext = {
         ...context,
         activeStepAttempt: attempt,
         ...acceptanceRetryFeedback === void 0 ? {} : { acceptanceRetryFeedback },
+        ...isLoopBodyStep ? { activeSliceIndex: stepSliceIndex } : {},
+        ...activeSlice === void 0 ? {} : { activeSlice },
         ...isResumedCheckpoint && options.resumeCheckpoint !== void 0 ? { resumeCheckpoint: options.resumeCheckpoint } : {}
       };
       const outcome = await executors[step.kind](step, stepContext);
@@ -53658,6 +54232,14 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       });
       return await closeRun(context, "aborted", void 0, reason);
     }
+    if (sliceCorridor.isActive() && sliceFlag !== void 0 && step.id === sliceFlag.tailStep) {
+      const forwardTarget = step.routes[route];
+      const forwardStepId = forwardTarget?.kind === "step" ? forwardTarget.stepId : void 0;
+      if (sliceCorridor.shouldAdvance({ stepId: step.id, targetStepId: forwardStepId })) {
+        route = sliceFlag.advanceRoute;
+        sliceCorridor.advance();
+      }
+    }
     const target = step.routes[route];
     if (target === void 0) {
       const reason = `step '${step.id}' selected undeclared route '${route}'`;
@@ -53685,7 +54267,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       context,
       stepId: step.id,
       attempt,
-      details
+      details,
+      ...isLoopBodyStep ? { sliceIndex: stepSliceIndex } : {}
     }) ?? reportSelectedCheckpointBoundaryEvidence({
       context,
       stepId: step.id,
@@ -53729,7 +54312,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       return await closeRun(context, "aborted", void 0, reason);
     }
     if (target.kind === "step") {
-      const targetCompletedCount = completedStepCounts.get(target.stepId) ?? 0;
+      const targetCompletedCount = completedStepCounts.get(sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex())) ?? 0;
       const targetStep = steps.get(target.stepId);
       const isRecoveryReturnToOrigin = corridor.isReturnToOrigin({
         stepId: target.stepId,
@@ -53777,9 +54360,33 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       kind: "step.completed",
       step_id: step.id,
       attempt,
-      route_taken: route
+      route_taken: route,
+      ...isLoopBodyStep ? { slice_index: stepSliceIndex } : {}
     });
-    completedStepCounts.set(step.id, completedCount + 1);
+    completedStepCounts.set(stepCountKey, completedCount + 1);
+    try {
+      const hookEvents = await dispatchSkillHooks({
+        entries: trace.getAll().slice(traceLengthBeforeStep),
+        ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers },
+        scope: {
+          flowId: flow.id,
+          stepId: step.id,
+          attemptId: String(attempt)
+        },
+        eventIdBase: `${runId}:${step.id}:${attempt}`,
+        readJson: (ref) => context.files.readJson(ref),
+        // Share the run's single registry so the recorded triggered/unavailable
+        // split matches what the relay loader will actually resolve.
+        ...context.skillRegistry === void 0 ? {} : { registry: context.skillRegistry }
+      });
+      for (const event of hookEvents) {
+        await trace.append({ run_id: runId, kind: "run.skill-hook", event });
+        if (event.policy.mode === "auto" && event.decision_packet_id === void 0 && event.triggered_skills.length > 0) {
+          context.skillHookInjections?.add(event.triggered_skills.map((skill) => skill.id));
+        }
+      }
+    } catch {
+    }
     if (target.kind === "terminal") {
       return await closeRun(context, outcomeForTerminal(target.target), target.target);
     }
@@ -57019,15 +57626,16 @@ function checkCanonicalStagePolicyVariant(id, fixture, variant, optionalCanonica
       detail: `${id}: stage_path_policy missing or not an object`
     };
   }
-  if (sp.mode !== "partial") {
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy.mode must be 'partial' for kind-canonical enforcement; got '${String(sp.mode)}'`
-    };
-  }
   const omits = Array.isArray(sp.omits) ? sp.omits.filter((s) => typeof s === "string") : [];
   const optionalOmitted = [...optional2].filter((c) => !declared.has(c));
   const expectedOmits = /* @__PURE__ */ new Set([...variant.omits, ...optionalOmitted]);
+  const expectedMode = expectedOmits.size === 0 ? "strict" : "partial";
+  if (sp.mode !== expectedMode) {
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy.mode must be '${expectedMode}' for kind-canonical enforcement; got '${String(sp.mode)}'`
+    };
+  }
   const missingOmits = [...expectedOmits].filter((o) => !omits.includes(o));
   const extraOmits = omits.filter((o) => !expectedOmits.has(o));
   if (missingOmits.length > 0 || extraOmits.length > 0) {
@@ -57281,7 +57889,7 @@ function arrayField(report, key) {
   const value = report?.[key];
   return Array.isArray(value) ? value : [];
 }
-function stringArrayField(report, key) {
+function stringArrayField2(report, key) {
   return arrayField(report, key).filter((item) => typeof item === "string");
 }
 function objectField(report, key) {
@@ -57432,8 +58040,8 @@ function exploreReviewFoldInDetails(flowReport) {
   const foldIns = objectField(flowReport, "review_fold_ins");
   if (foldIns === void 0)
     return [];
-  const objections = stringArrayField(foldIns, "objections");
-  const missedAngles = stringArrayField(foldIns, "missed_angles");
+  const objections = stringArrayField2(foldIns, "objections");
+  const missedAngles = stringArrayField2(foldIns, "missed_angles");
   const details = [];
   if (objections.length > 0) {
     details.push("Reviewer: Accepted the direction, with required fold-ins.");
@@ -57452,9 +58060,9 @@ function reviewFoldInWeight(flowReport) {
   const foldIns = objectField(flowReport, "review_fold_ins");
   if (foldIns === void 0)
     return "none";
-  if (stringArrayField(foldIns, "objections").length > 0)
+  if (stringArrayField2(foldIns, "objections").length > 0)
     return "required";
-  if (stringArrayField(foldIns, "missed_angles").length > 0)
+  if (stringArrayField2(foldIns, "missed_angles").length > 0)
     return "optional";
   return "none";
 }
@@ -57498,7 +58106,7 @@ var exploreSummaryProjector = ({ runFolder, flowReport, resultSummary: resultSum
     const decisionReport = exploreDecisionReport(runFolder, flowReport);
     const question = stringField2(decisionReport, "decision_question");
     const rationale = stringField2(decisionReport, "rationale");
-    const risks = stringArrayField(decisionReport, "residual_risks");
+    const risks = stringArrayField2(decisionReport, "residual_risks");
     const nextAction = stringField2(decisionReport, "next_action");
     if (question !== void 0)
       details.push(`Decision question: ${question}`);
@@ -57536,7 +58144,7 @@ function reviewFindingDetails(report) {
       continue;
     const severity = (stringField2(finding, "severity") ?? "unknown").toUpperCase();
     const text = stringField2(finding, "text") ?? "(no text)";
-    const fileRefs = stringArrayField(finding, "file_refs");
+    const fileRefs = stringArrayField2(finding, "file_refs");
     const summary = firstLineSummary(text, 140);
     const fileSuffix = fileRefs.length === 0 ? "" : ` \u2014 at ${fileRefs.join(", ")}`;
     lines.push(`[${severity}] ${summary}${fileSuffix}`);
@@ -57549,11 +58157,11 @@ function reviewAssessmentDetails(report) {
   if (assessment !== void 0 && assessment.trim().length > 0) {
     lines.push(`Assessment: ${assessment.trim()}`);
   }
-  const verification = stringArrayField(report, "verification").map((step) => step.trim()).filter((step) => step.length > 0);
+  const verification = stringArrayField2(report, "verification").map((step) => step.trim()).filter((step) => step.length > 0);
   if (verification.length > 0) {
     lines.push(`Reviewer steps: ${verification.join("; ")}`);
   }
-  const limitations = stringArrayField(report, "confidence_limitations").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+  const limitations = stringArrayField2(report, "confidence_limitations").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
   if (limitations.length > 0) {
     lines.push(`Confidence limitations: ${limitations.join("; ")}`);
   }
@@ -57653,7 +58261,7 @@ function prototypeDetails(flowReport) {
   const root = stringField2(flowReport, "prototype_root");
   if (root !== void 0)
     details.push(`Prototype root: ${root}.`);
-  const entryPoints = stringArrayField(flowReport, "entry_points");
+  const entryPoints = stringArrayField2(flowReport, "entry_points");
   if (entryPoints.length > 0)
     details.push(`Entry points: ${entryPoints.join(", ")}.`);
   const nextStep = stringField2(flowReport, "next_step");
@@ -57662,7 +58270,7 @@ function prototypeDetails(flowReport) {
   return details;
 }
 function goalArrayDetail(flowReport, field, label) {
-  const values = stringArrayField(flowReport, field);
+  const values = stringArrayField2(flowReport, field);
   return `${label}: ${values.length === 0 ? "none" : values.join("; ")}.`;
 }
 function goalEvidenceDetails(flowReport) {
@@ -57954,10 +58562,10 @@ function exploreOutcomeLabel(input) {
   const review = stringField2(snapshot, "review_verdict");
   if (review === "accept-with-fold-ins") {
     const foldIns = isObject4(input.flowReport?.review_fold_ins) ? input.flowReport.review_fold_ins : void 0;
-    if (stringArrayField(foldIns, "objections").length > 0) {
+    if (stringArrayField2(foldIns, "objections").length > 0) {
       return "Recommendation with required fold-ins";
     }
-    if (stringArrayField(foldIns, "missed_angles").length > 0) {
+    if (stringArrayField2(foldIns, "missed_angles").length > 0) {
       return "Recommendation with optional considerations";
     }
     return "Recommendation with reviewer notes";

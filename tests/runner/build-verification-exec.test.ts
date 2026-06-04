@@ -59,7 +59,7 @@ function commandsPlan(
   return BuildPlan.parse({
     objective: 'Verify a Build run',
     approach: 'Run the planned command directly',
-    slices: ['Execute verification'],
+    slices: [{ id: 'slice-1', intent: 'Execute verification', anticipated_file_extensions: [] }],
     verification: {
       commands: commands.map((command) => ({
         id: command.id,
@@ -515,7 +515,7 @@ describe('Build verification command execution', () => {
       executors: planWriter({
         objective: 'Unsafe',
         approach: 'Do not run',
-        slices: ['Reject'],
+        slices: [{ id: 'slice-1', intent: 'Reject', anticipated_file_extensions: [] }],
         verification: {
           commands: [
             {
@@ -557,7 +557,7 @@ describe('Build verification command execution', () => {
       executors: planWriter({
         objective: 'Unsafe cwd',
         approach: 'Do not run',
-        slices: ['Reject'],
+        slices: [{ id: 'slice-1', intent: 'Reject', anticipated_file_extensions: [] }],
         verification: {
           commands: [
             {

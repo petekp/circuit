@@ -5,11 +5,20 @@
   "purpose": "Build flow. Circuit frames a requested change, plans it, relays implementation to a worker, runs verification, relays review to a separate worker, and closes with a Build result file plus evidence.",
   "status": "active",
   "starts_at": "frame-step",
-  "initial_contracts": ["task.intake@v1", "route.decision@v1", "verification.plan@v1"],
+  "initial_contracts": [
+    "task.intake@v1",
+    "route.decision@v1",
+    "context.request@v1",
+    "verification.plan@v1"
+  ],
   "contract_aliases": [
     {
       "generic": "flow.brief@v1",
       "actual": "build.brief@v1"
+    },
+    {
+      "generic": "context.packet@v1",
+      "actual": "build.context@v1"
     },
     {
       "generic": "plan.strategy@v1",
@@ -49,7 +58,7 @@
       },
       "skill_slots": [],
       "routes": {
-        "continue": "plan-step",
+        "continue": "analyze-step",
         "stop": "@stop"
       },
       "route_overrides": {},
@@ -82,12 +91,47 @@
       }
     },
     {
+      "id": "analyze-step",
+      "block": "gather-context",
+      "title": "Analyze — read the code before planning",
+      "stage": "analyze",
+      "input": {
+        "brief": "build.brief@v1",
+        "request": "context.request@v1"
+      },
+      "output": "build.context@v1",
+      "evidence_requirements": ["source list", "observations", "confidence notes"],
+      "execution": {
+        "kind": "relay",
+        "role": "researcher"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "plan-step",
+        "retry": "analyze-step",
+        "ask": "@stop",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "build-analyze@v1",
+      "writes": {
+        "report_path": "reports/build/context.json",
+        "request_path": "reports/relay/build-analyze.request.json",
+        "receipt_path": "reports/relay/build-analyze.receipt.txt",
+        "result_path": "reports/relay/build-analyze.result.json"
+      },
+      "check": {
+        "pass": ["accept"]
+      }
+    },
+    {
       "id": "plan-step",
       "block": "plan",
       "title": "Plan - produce Build plan",
       "stage": "plan",
       "input": {
-        "brief": "build.brief@v1"
+        "brief": "build.brief@v1",
+        "context": "build.context@v1"
       },
       "output": "build.plan@v1",
       "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
@@ -179,6 +223,7 @@
       "skill_slots": [],
       "routes": {
         "continue": "review-step",
+        "advance": "act-step",
         "retry": "act-step",
         "stop": "@stop"
       },
@@ -279,15 +324,18 @@
     }
   },
   "stage_path_policy": {
-    "mode": "partial",
-    "omits": ["analyze"],
-    "rationale": "Build follows Frame, Plan, Act, Verify, Review, Close. The Analyze stage is omitted because analysis is folded into Frame and Plan for this flow."
+    "mode": "strict"
   },
   "stages": [
     {
       "canonical": "frame",
       "id": "frame-stage",
       "title": "Frame"
+    },
+    {
+      "canonical": "analyze",
+      "id": "analyze-stage",
+      "title": "Analyze"
     },
     {
       "canonical": "plan",

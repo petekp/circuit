@@ -374,6 +374,19 @@ export function planRelayGuidanceDecision(input: {
     input.depth,
   );
   assertConnectorSelectionCompatible(relayExecution.connectorName, resolvedSelection);
+  // Skill-hook actuation: any skills an `auto` hook injected so far, applied
+  // ONLY to write-capable (implementer) relays. Every injecting hook today
+  // (before/after:edit-file, after:verification-failed) concerns a code edit, so
+  // a researcher or reviewer relay must never receive these skills — a reviewer
+  // judges the work independently and an implementer skill would contaminate that
+  // role. (Without this gate the run-scoped channel would leak the skill into
+  // every later relay, including review and close.) Read idempotently (the
+  // channel never drains), so every planRelayGuidanceDecision call for this step —
+  // production, injected-connector, and each fanout branch — sees the same set and
+  // assertRelayGuidanceMatchesPlan + the request-payload hash stay consistent. The
+  // channel is mutated only between steps.
+  const injectedSkillIds =
+    relayExecution.role === 'implementer' ? (context.skillHookInjections?.ids() ?? []) : [];
   const loadedSkills = resolveLoadedRelaySkills({
     flowId: flow.id as CompiledFlowId,
     stepId: step.id,
@@ -382,6 +395,11 @@ export function planRelayGuidanceDecision(input: {
     ...(context.selectionConfigLayers === undefined
       ? {}
       : { configLayers: context.selectionConfigLayers }),
+    ...(injectedSkillIds.length === 0 ? {} : { injectedSkillIds }),
+    // Share the run's single registry (the same one the skill-hook dispatcher
+    // resolved against), so an injected skill recorded as triggered resolves here
+    // identically — no dispatch-vs-relay divergence, one filesystem snapshot.
+    ...(context.skillRegistry === undefined ? {} : { registry: context.skillRegistry }),
   });
   assertPolicyAllowsRelayPlan({
     context,

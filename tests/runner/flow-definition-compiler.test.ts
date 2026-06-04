@@ -369,7 +369,17 @@ describe('FlowDefinition compiler', () => {
     expect(pkg.writers.checkpoint.map((writer) => writer.resultSchemaName)).toEqual([
       'build.brief@v1',
     ]);
-    expect(pkg.engineFlags).toEqual({ bindsExecutionDepthToRelaySelection: true });
+    expect(pkg.engineFlags).toEqual({
+      bindsExecutionDepthToRelaySelection: true,
+      iteratesSliceLoop: {
+        headStep: 'act-step',
+        tailStep: 'verify-step',
+        advanceRoute: 'advance',
+        slicesFrom: { report: 'reports/build/plan.json', itemsPath: 'slices' },
+        maxSlices: 8,
+        activateWhenDepthAtLeast: 'deep',
+      },
+    });
     expect(frameStep?.execution.kind).toBe('checkpoint');
     expect(frameStep?.writes).toMatchObject({
       report_path: 'reports/build/brief.json',
@@ -513,6 +523,14 @@ describe('FlowDefinition compiler', () => {
     expect(packageFor('fix').runtimeSurface?.progress?.steps).toHaveLength(14);
     expect(packageFor('build').engineFlags).toEqual({
       bindsExecutionDepthToRelaySelection: true,
+      iteratesSliceLoop: {
+        headStep: 'act-step',
+        tailStep: 'verify-step',
+        advanceRoute: 'advance',
+        slicesFrom: { report: 'reports/build/plan.json', itemsPath: 'slices' },
+        maxSlices: 8,
+        activateWhenDepthAtLeast: 'deep',
+      },
     });
     expect(packageFor('prototype').engineFlags).toEqual({
       bindsExecutionDepthToRelaySelection: true,

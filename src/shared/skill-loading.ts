@@ -16,6 +16,11 @@ interface ResolveLoadedRelaySkillsInput {
   readonly resolvedSelection: ResolvedSelection;
   readonly configLayers?: readonly LayeredConfig[];
   readonly registry?: UserSkillRegistry;
+  // Skill ids a skill-hook `auto` policy injected into this step (the actuator).
+  // Loaded after flow selection and slot bindings, slot-less and deduped against
+  // both, so a skill already present via selection or a binding is not loaded
+  // twice. See src/skill-hooks/injection.ts.
+  readonly injectedSkillIds?: readonly SkillId[];
 }
 
 export function resolveSkillBindingsForFlow(
@@ -83,6 +88,14 @@ export function resolveLoadedRelaySkills(
     const skill = bindings.get(slot.id as unknown as string);
     if (skill === undefined) continue;
     addSkill(skill, slot.id);
+  }
+
+  // Skill-hook injected skills come last and carry no slot: they are run-time
+  // actuation, not a declared selection or slot binding. `seen` dedup means an
+  // injected skill that the step already loads (via selection or a binding) is
+  // not added again.
+  for (const id of input.injectedSkillIds ?? []) {
+    addSkill(id);
   }
 
   return loaded;

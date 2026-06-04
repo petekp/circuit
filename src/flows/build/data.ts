@@ -1,8 +1,13 @@
 import { expandBlockStepUse } from '../block-step-expansion.js';
 import type { FlowData } from '../flow-definition.js';
-import { buildImplementationShapeHint, buildReviewShapeHint } from './relay-hints.js';
+import {
+  buildContextShapeHint,
+  buildImplementationShapeHint,
+  buildReviewShapeHint,
+} from './relay-hints.js';
 import {
   BuildBrief,
+  BuildContext,
   BuildImplementation,
   BuildPlan,
   BuildResult,
@@ -30,11 +35,20 @@ export const buildFlowData = {
     status: 'active',
     version: '0.1.0',
     starts_at: 'frame-step',
-    initial_contracts: ['task.intake@v1', 'route.decision@v1', 'verification.plan@v1'],
+    initial_contracts: [
+      'task.intake@v1',
+      'route.decision@v1',
+      'context.request@v1',
+      'verification.plan@v1',
+    ],
     contract_aliases: [
       {
         generic: 'flow.brief@v1',
         actual: 'build.brief@v1',
+      },
+      {
+        generic: 'context.packet@v1',
+        actual: 'build.context@v1',
       },
       {
         generic: 'plan.strategy@v1',
@@ -76,16 +90,18 @@ export const buildFlowData = {
       },
     },
     stage_path_policy: {
-      mode: 'partial',
-      omits: ['analyze'],
-      rationale:
-        'Build follows Frame, Plan, Act, Verify, Review, Close. The Analyze stage is omitted because analysis is folded into Frame and Plan for this flow.',
+      mode: 'strict',
     },
     stages: [
       {
         id: 'frame-stage',
         canonical: 'frame',
         title: 'Frame',
+      },
+      {
+        id: 'analyze-stage',
+        canonical: 'analyze',
+        title: 'Analyze',
       },
       {
         id: 'plan-stage',
@@ -151,7 +167,34 @@ export const buildFlowData = {
           },
         },
         routes: {
+          continue: 'analyze-step',
+          stop: '@stop',
+        },
+      }),
+      expandBlockStepUse({
+        id: 'analyze-step',
+        title: 'Analyze — read the code before planning',
+        stage: 'analyze',
+        block: 'gather-context',
+        input: {
+          brief: 'build.brief@v1',
+          request: 'context.request@v1',
+        },
+        output: 'build.context@v1',
+        execution: {
+          kind: 'relay',
+          role: 'researcher',
+        },
+        protocol: 'build-analyze@v1',
+        reportPath: 'reports/build/context.json',
+        requestPath: 'reports/relay/build-analyze.request.json',
+        receiptPath: 'reports/relay/build-analyze.receipt.txt',
+        resultPath: 'reports/relay/build-analyze.result.json',
+        pass: ['accept'],
+        routes: {
           continue: 'plan-step',
+          retry: 'analyze-step',
+          ask: '@stop',
           stop: '@stop',
         },
       }),
@@ -162,6 +205,7 @@ export const buildFlowData = {
         block: 'plan',
         input: {
           brief: 'build.brief@v1',
+          context: 'build.context@v1',
         },
         output: 'build.plan@v1',
         evidence_requirements: ['ordered steps', 'risk notes', 'proof strategy'],
@@ -240,6 +284,11 @@ export const buildFlowData = {
         required: ['overall_status', 'commands'],
         routes: {
           continue: 'review-step',
+          // Slice loop (deep rigor): when this slice's verify passes and
+          // more slices remain, the engine selects 'advance' instead of
+          // 'continue', re-entering act-step for the next slice. A normal,
+          // non-recovery route; see docs/ideas/build-slice-decomposition.md.
+          advance: 'act-step',
           retry: 'act-step',
           stop: '@stop',
         },
@@ -301,11 +350,11 @@ export const buildFlowData = {
   },
   canonicalStagePolicy: {
     kind: 'enforce',
-    canonicals: ['frame', 'plan', 'act', 'verify', 'review', 'close'],
-    omits: ['analyze'],
+    canonicals: ['frame', 'analyze', 'plan', 'act', 'verify', 'review', 'close'],
+    omits: [],
     optional_canonicals: [],
     variants: [],
-    title: 'Frame → Plan → Act → Verify → Review → Close',
+    title: 'Frame → Analyze → Plan → Act → Verify → Review → Close',
     authority: 'src/flows/build/contract.md §Build Flow Contract',
   },
   reports: [
@@ -320,6 +369,12 @@ export const buildFlowData = {
       channel: 'relay',
       schema: BuildReview,
       relayHint: buildReviewShapeHint.instruction,
+    },
+    {
+      schemaName: 'build.context@v1',
+      channel: 'relay',
+      schema: BuildContext,
+      relayHint: buildContextShapeHint.instruction,
     },
     {
       schemaName: 'build.brief@v1',
@@ -360,6 +415,14 @@ export const buildFlowData = {
           activeText: 'Framing the work',
         },
         {
+          stepId: 'analyze-step',
+          taskTitle: 'Read the code',
+          activeText: 'Reading the code',
+          relayRole: 'researcher',
+          relayStartedText: 'Asking the specialist to read the code...',
+          relayCompletedText: 'Finished reading the code.',
+        },
+        {
           stepId: 'plan-step',
           taskTitle: 'Plan the work',
           activeText: 'Planning the work',
@@ -395,5 +458,20 @@ export const buildFlowData = {
   },
   engineFlags: {
     bindsExecutionDepthToRelaySelection: true,
+    // Deep rigor implements and verifies the plan's slices one at a time:
+    // the engine re-enters act-step for each slice and only advances to
+    // review once every slice's verify passes. Lighter rigor runs a single
+    // pass. See docs/ideas/build-slice-decomposition.md.
+    iteratesSliceLoop: {
+      headStep: 'act-step',
+      tailStep: 'verify-step',
+      advanceRoute: 'advance',
+      slicesFrom: {
+        report: 'reports/build/plan.json',
+        itemsPath: 'slices',
+      },
+      maxSlices: 8,
+      activateWhenDepthAtLeast: 'deep',
+    },
   },
 } satisfies FlowData;

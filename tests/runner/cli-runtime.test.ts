@@ -27,6 +27,13 @@ function relayerWithBody(body: string): RelayFn {
 }
 
 function buildRelayer(): RelayFn {
+  const buildContextBody = JSON.stringify({
+    verdict: 'accept',
+    sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Module the change touches.' }],
+    observations: ['The target module is small and self-contained.'],
+    open_questions: [],
+    anticipated_file_extensions: ['.ts'],
+  });
   const buildImplementationBody = JSON.stringify({
     verdict: 'accept',
     summary: 'Build relay completed',
@@ -39,8 +46,10 @@ function buildRelayer(): RelayFn {
     findings: [],
   });
   return makeStubRelayer(
-    (input) =>
-      input.prompt.includes('Step: review-step') ? buildReviewBody : buildImplementationBody,
+    (input) => {
+      if (input.prompt.includes('Step: analyze-step')) return buildContextBody;
+      return input.prompt.includes('Step: review-step') ? buildReviewBody : buildImplementationBody;
+    },
     { receipt_id: 'stub-receipt-cli-runtime-build' },
   );
 }

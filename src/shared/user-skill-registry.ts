@@ -128,11 +128,27 @@ export function createUserSkillRegistry(options: UserSkillRegistryOptions = {}):
   const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
   const candidates = discoverCandidates(roots);
   const searchedRoots = roots.map((root) => resolve(root));
+  // Per-instance body cache shared by resolve() and list(): a skill file is read
+  // at most once and the same LoadedUserSkill is returned for every later call on
+  // either method. Combined with one shared registry per run
+  // (RunContext.skillRegistry), this gives a true single filesystem snapshot — the
+  // skill-hook dispatcher resolves a skill, caches its body, and a later relay
+  // step gets that exact body, so the recorded triggered/unavailable split cannot
+  // diverge from what the relay loads even if the file is changed or removed
+  // mid-run.
+  const cache = new Map<string, LoadedUserSkill>();
+  const loadCached = (key: string, candidate: SkillCandidate): LoadedUserSkill => {
+    const cached = cache.get(key);
+    if (cached !== undefined) return cached;
+    const loaded = loadCandidate(candidate);
+    cache.set(key, loaded);
+    return loaded;
+  };
 
   return {
     roots: searchedRoots,
     list() {
-      return [...candidates.values()].map((candidate) => loadCandidate(candidate).entry);
+      return [...candidates.entries()].map(([key, candidate]) => loadCached(key, candidate).entry);
     },
     resolve(id: SkillIdValue) {
       const key = id as unknown as string;
@@ -146,7 +162,7 @@ export function createUserSkillRegistry(options: UserSkillRegistryOptions = {}):
           ].join('\n'),
         );
       }
-      return loadCandidate(candidate);
+      return loadCached(key, candidate);
     },
   };
 }

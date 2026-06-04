@@ -13,7 +13,7 @@ import { RubricRuntimeSignal } from './rubric.js';
 import { CheckpointChoiceSource, RuntimeNumberSource } from './runtime-source.js';
 import { RunRelativePath } from './scalars.js';
 import { SelectionOverride } from './selection-policy.js';
-import { SkillMomentNameArray } from './skill-moment.js';
+import { SkillHookNameArray } from './skill-hook.js';
 import { SkillSlotArray } from './skill.js';
 
 export const RelayRole = z.enum(['researcher', 'implementer', 'reviewer']);
@@ -45,7 +45,7 @@ const StepBase = z.object({
     message: 'Step must declare at least one route (including `@complete`).',
   }),
   selection: SelectionOverride.optional(),
-  skill_moments: SkillMomentNameArray.optional(),
+  skill_hooks: SkillHookNameArray.optional(),
   skill_slots: SkillSlotArray.optional(),
   route_from_report: RouteFromReport.optional(),
   budgets: z
