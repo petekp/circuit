@@ -17,6 +17,7 @@ import { CompiledFlowId, InvocationId, RunId, SkillId, SkillSlotId, StepId } fro
 import { ProofAssessmentId, ProofStatus } from './proof-assessment.js';
 import { Ref, Sha256 } from './ref.js';
 import { ResolvedSelection } from './selection-policy.js';
+import { RunSkillHookEvent } from './skill-hook.js';
 import { FanoutFailurePolicy, RelayRole } from './step.js';
 
 const TraceEntryBase = z.object({
@@ -522,6 +523,17 @@ export const RunClosedTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type RunClosedTraceEntry = z.infer<typeof RunClosedTraceEntry>;
 
+// Report-only-and-up skill-hook dispatch record: the durable trace of "a hook
+// fired here and this is the decision it made." Wraps the validated
+// RunSkillHookEvent (which carries hook, detected_from, policy resolution,
+// scope, and the skills it would trigger). Present only when a configured
+// skill-hook policy matched; absent entirely on runs with no skill_hooks config.
+export const RunSkillHookTraceEntry = TraceEntryBase.extend({
+  kind: z.literal('run.skill-hook'),
+  event: RunSkillHookEvent,
+}).strict();
+export type RunSkillHookTraceEntry = z.infer<typeof RunSkillHookTraceEntry>;
+
 // Cross-variant superRefine enforces the
 // `RelayStartedTraceEntry.role === resolved_from.role` binding when
 // `resolved_from.source === 'role'`. Mirrors the Step pattern: keep each
@@ -554,6 +566,7 @@ export const TraceEntry = z
     StepCompletedTraceEntry,
     StepAbortedTraceEntry,
     RunClosedTraceEntry,
+    RunSkillHookTraceEntry,
     GuidanceDecisionTraceEntryBody,
   ])
   .superRefine((ev, ctx) => {

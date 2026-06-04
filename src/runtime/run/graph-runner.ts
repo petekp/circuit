@@ -18,6 +18,9 @@ import type { Ref } from '../../schemas/ref.js';
 import type { ProofAssessedTraceEntry } from '../../schemas/trace-entry.js';
 import { resolveDottedPath } from '../../shared/fanout-branch-template.js';
 import { isProofPlanBlockedError } from '../../shared/proof-plan.js';
+import { createUserSkillRegistry } from '../../shared/user-skill-registry.js';
+import { dispatchSkillHooks } from '../../skill-hooks/dispatch.js';
+import { createSkillHookInjectionChannel } from '../../skill-hooks/injection.js';
 import { isAcceptanceRetryFeedback } from '../acceptance-criteria.js';
 import type { RouteTarget, TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
@@ -574,6 +577,15 @@ async function executeExecutableFlowOutcomeUnsafe(
     files,
     trace,
     externalFiles: options.externalFiles ?? boundary.externalFiles,
+    // Created once for the whole run and shared by every per-step stepContext
+    // spread below, so the post-step skill-hook actuator can record an `auto`
+    // event's skills and the next relay step picks them up. Empty on runs with
+    // no skill_hooks config, so it has no observable effect there.
+    skillHookInjections: createSkillHookInjectionChannel(),
+    // One filesystem snapshot of the user skill registry for the whole run,
+    // shared by the skill-hook dispatcher and the relay skill loader so they
+    // never disagree about which skills resolve (see RunContext.skillRegistry).
+    skillRegistry: createUserSkillRegistry(),
     ...(options.childCompiledFlowResolver === undefined
       ? {}
       : { childCompiledFlowResolver: options.childCompiledFlowResolver }),
@@ -751,6 +763,9 @@ async function executeExecutableFlowOutcomeUnsafe(
       });
     }
 
+    // Mark where this step's trace begins, so skill-hook dispatch can scan only
+    // the entries this step appends (its check.evaluated / proof.assessed signals).
+    const traceLengthBeforeStep = trace.getAll().length;
     let route: string;
     let details: Record<string, unknown>;
     try {
@@ -973,6 +988,54 @@ async function executeExecutableFlowOutcomeUnsafe(
     // that just advanced still records its own slice's completion, not the
     // next slice's.
     completedStepCounts.set(stepCountKey, completedCount + 1);
+
+    // Skill-hook dispatch: record any hook events this step's signals trigger
+    // under the run's config, then actuate the `auto` ones. Best-effort and
+    // fully isolated — a dispatch failure must never affect the run, and a run
+    // with no skill_hooks config records nothing and injects nothing. File-edit
+    // hooks read the step's reports via the run file store; check-outcome hooks
+    // read the trace.
+    try {
+      const hookEvents = await dispatchSkillHooks({
+        entries: trace.getAll().slice(traceLengthBeforeStep),
+        ...(context.selectionConfigLayers === undefined
+          ? {}
+          : { configLayers: context.selectionConfigLayers }),
+        scope: {
+          flowId: flow.id,
+          stepId: step.id,
+          attemptId: String(attempt),
+        },
+        eventIdBase: `${runId}:${step.id}:${attempt}`,
+        readJson: (ref) => context.files.readJson(ref),
+        // Share the run's single registry so the recorded triggered/unavailable
+        // split matches what the relay loader will actually resolve.
+        ...(context.skillRegistry === undefined ? {} : { registry: context.skillRegistry }),
+      });
+      for (const event of hookEvents) {
+        await trace.append({ run_id: runId, kind: 'run.skill-hook', event });
+        // Actuate: an `auto` policy injects its resolved skills into the next
+        // implementer relay. Three guards, all required:
+        //  - mode === 'auto': `ask`/`mute`/`none` never auto-inject.
+        //  - decision_packet_id === undefined: a pending operator decision blocks
+        //    injection. A strict `auto` policy with an unavailable skill carries a
+        //    `strict-skill-unavailable` packet (and a pending `ask` carries an
+        //    `ask` packet); in both cases the hook awaits an operator choice, so we
+        //    inject NOTHING — not even the skills that did resolve — until that
+        //    decision is made (the conservative reading of strict mode; the
+        //    interactive resolution is a later slice).
+        //  - triggered_skills non-empty: nothing to inject otherwise.
+        if (
+          event.policy.mode === 'auto' &&
+          event.decision_packet_id === undefined &&
+          event.triggered_skills.length > 0
+        ) {
+          context.skillHookInjections?.add(event.triggered_skills.map((skill) => skill.id));
+        }
+      }
+    } catch {
+      // Skill-hook dispatch is non-critical; swallow so it cannot break a run.
+    }
 
     if (target.kind === 'terminal') {
       return await closeRun(context, outcomeForTerminal(target.target), target.target);

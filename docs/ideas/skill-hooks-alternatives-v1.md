@@ -1,5 +1,11 @@
 # Skill Hooks: Alternative Implementations (V1 exploration)
 
+> **Historical (2026-06-04):** the five named semantic file-surface hooks framed
+> here are superseded by the single parameterized `before:edit-file` / `after:edit-file`
+> glob pair in [`skill-hooks-first-principles.md`](./skill-hooks-first-principles.md).
+> This remains the option-by-option archive; treat its file-surface-hook framing as
+> historical and defer to the first-principles doc for the current direction.
+>
 > Status: exploration / idea doc, written 2026-06-02. This describes options under
 > consideration, not current behavior. The incumbent Skill Hooks design is
 > scaffolded but undispatched (see below). Nothing here is decided. File paths and

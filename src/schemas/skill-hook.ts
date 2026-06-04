@@ -32,33 +32,22 @@ export const SKILL_HOOK_VOCABULARY = [
     cardinality: 'per-stage',
     default_mode: 'auto',
   },
+  // Parameterized file-edit anchors. One pair replaces the five named
+  // file-surface hooks (after:react-ui-change/test-change/schema-change/
+  // api-surface-change/dependency-change) and the four *_surfaces config
+  // buckets. The operator writes the predicate as a key suffix
+  // (`after:edit-file:.tsx`); the engine matches a literal extension suffix and
+  // never interprets the meaning. See docs/ideas/skill-hooks-first-principles.md
+  // (the reframe) and docs/ideas/skill-hooks-dispatch-spec.md (D1).
   {
-    hook: 'after:react-ui-change',
-    detected_from: ['diff:*.tsx', 'diff:*.jsx', 'config:skill_hooks.detection.react_surfaces'],
+    hook: 'before:edit-file',
+    detected_from: ['plan-report:anticipated-file-extensions', 'plan-report:likely-touched'],
     cardinality: 'per-step',
     default_mode: 'auto',
   },
   {
-    hook: 'after:test-change',
-    detected_from: ['diff:*.test.*', 'diff:*.spec.*', 'diff:tests/**', 'diff:__tests__/**'],
-    cardinality: 'per-step',
-    default_mode: 'auto',
-  },
-  {
-    hook: 'after:schema-change',
-    detected_from: ['diff:*.prisma', 'diff:*.sql', 'diff:migrations/**', 'diff:schemas/**'],
-    cardinality: 'per-step',
-    default_mode: 'auto',
-  },
-  {
-    hook: 'after:api-surface-change',
-    detected_from: ['config:skill_hooks.detection.api_surfaces'],
-    cardinality: 'per-step',
-    default_mode: 'auto',
-  },
-  {
-    hook: 'after:dependency-change',
-    detected_from: ['diff:lockfile', 'diff:package-manifest-dependencies'],
+    hook: 'after:edit-file',
+    detected_from: ['change-report:touched-files', 'change-set:observed'],
     cardinality: 'per-step',
     default_mode: 'auto',
   },
@@ -97,6 +86,11 @@ export type SkillHookPolicyMode = z.infer<typeof SkillHookPolicyMode>;
 const SHIPPED_HOOKS = new Set<string>(SKILL_HOOK_VOCABULARY.map((entry) => entry.hook));
 const CUSTOM_HOOK_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
 const SHIPPED_SHAPE_RE = /^(before|after):[a-z][a-z0-9-]*$/;
+// Parameterized edit-file hook: the predicate is the key suffix. v1 predicate is
+// an extension suffix — one or more dot-segments (`.tsx`, `.test.ts`, `.d.ts`).
+// The bare `before:edit-file`/`after:edit-file` anchors validate via SHIPPED_HOOKS
+// above (they mean "any file edit"); this matches only the suffixed form.
+const PARAMETERIZED_EDIT_FILE_RE = /^(before|after):edit-file:(\.[A-Za-z0-9]+)+$/;
 
 function hookBody(value: string): string {
   const slash = value.indexOf('/');
@@ -105,6 +99,8 @@ function hookBody(value: string): string {
 
 export const SkillHookName = z.string().superRefine((value, ctx) => {
   if (SHIPPED_HOOKS.has(value)) return;
+
+  if (PARAMETERIZED_EDIT_FILE_RE.test(value)) return;
 
   if (SHIPPED_SHAPE_RE.test(value)) {
     ctx.addIssue({
@@ -189,12 +185,14 @@ export const SkillHookPolicyRule = z
   });
 export type SkillHookPolicyRule = z.infer<typeof SkillHookPolicyRule>;
 
+// The four per-surface glob buckets (react_surfaces/test_surfaces/
+// schema_surfaces/api_surfaces) that fed the named file-surface hooks are gone:
+// the glob predicate now lives in the parameterized edit-file hook key, so the
+// operator writes one `after:edit-file:.tsx` policy rule instead of a surface
+// bucket plus a named hook. `disabled_patterns` is an unrelated per-hook mute
+// list and stays.
 export const SkillHookDetectionConfig = z
   .object({
-    react_surfaces: z.array(z.string().min(1)).optional(),
-    test_surfaces: z.array(z.string().min(1)).optional(),
-    schema_surfaces: z.array(z.string().min(1)).optional(),
-    api_surfaces: z.array(z.string().min(1)).optional(),
     disabled_patterns: z.record(SkillHookName, z.array(z.string().min(1))).default({}),
   })
   .strict();
