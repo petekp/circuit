@@ -9,10 +9,17 @@
   "entry_mode_source": "classifier",
   "run_folder": "<repo>/docs/release/proofs/runs/explore-decision/run",
   "outcome": "checkpoint_waiting",
-  "trace_entries_observed": 50,
+  "trace_entries_observed": 55,
   "operator_summary_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/operator-summary.md",
   "operator_summary_status_text": "Waiting for a checkpoint choice.",
+  "run_envelope_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/run-envelope.json",
+  "run_process_evidence_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/process-evidence.json",
+  "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/run-surface.md",
+  "run_surface_status_text": "Needs input: explore is waiting at a checkpoint.",
+  "run_decision_packet_paths": [
+    "<repo>/docs/release/proofs/runs/explore-decision/run/reports/decision-packets/decision-checkpoint-primary.json"
+  ],
   "checkpoint": {
     "step_id": "tradeoff-checkpoint-step",
     "request_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/checkpoints/tradeoff-request.json",

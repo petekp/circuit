@@ -40,7 +40,7 @@ Current Circuit source evidence:
   implemented migration state and residual risks.
 - [docs/specs/circuit-history-run-start-recall-v1.md](circuit-history-run-start-recall-v1.md):
   hint-only run-start history recall.
-- [docs/specs/skill-moment-vocabulary-v1.md](skill-moment-vocabulary-v1.md):
+- [docs/specs/skill-hook-vocabulary-v1.md](skill-hook-vocabulary-v1.md):
   moment vocabulary and policy rules.
 
 Local observed Claude workflow example:

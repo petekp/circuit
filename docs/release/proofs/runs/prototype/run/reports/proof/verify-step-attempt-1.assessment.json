@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "assessment_id": "proof.verification:verify-step:1",
+  "scope": {
+    "run_id": "44444444-4444-4444-4444-444444444443",
+    "flow_id": "prototype",
+    "step_id": "verify-step",
+    "attempt": 1
+  },
+  "proof_policy_decision_id": "gd-proof-verify-step-1",
+  "claims": [
+    {
+      "schema_version": 1,
+      "id": "claim.verification:verify-step:1",
+      "kind": "verification_passed",
+      "statement": "Verification step 'verify-step' passed required runtime commands.",
+      "scope_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/prototype/circuit.work-contract.v0.json",
+          "sha256": "f7bfc3b7e5c50b3cc07fcf929dede2754a47531482b81355ccdb05b2d1a41d47",
+          "flow_id": "prototype"
+        }
+      ],
+      "risk": "medium",
+      "required": true,
+      "source": "work_contract"
+    }
+  ],
+  "evidence": [
+    {
+      "schema_version": 1,
+      "id": "evidence.verification:verify-step:1:1:prototype-artifact-integrity",
+      "kind": "command",
+      "producer": "runtime",
+      "independence": "runtime",
+      "ref": {
+        "kind": "command",
+        "ref": "verification/verify-step/1/prototype-artifact-integrity",
+        "sha256": "68db7919b34153246b0fee2e333f8b439d1cfcc761b269ee0310fb9204c13031",
+        "run_id": "44444444-4444-4444-4444-444444444443",
+        "flow_id": "prototype",
+        "step_id": "verify-step",
+        "attempt": 1
+      },
+      "input_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/prototype/circuit.work-contract.v0.json",
+          "sha256": "f7bfc3b7e5c50b3cc07fcf929dede2754a47531482b81355ccdb05b2d1a41d47",
+          "flow_id": "prototype"
+        }
+      ],
+      "covers_claims": [
+        "claim.verification:verify-step:1"
+      ],
+      "result": "pass",
+      "summary": "verification command 'prototype-artifact-integrity' passed"
+    }
+  ],
+  "results": [
+    {
+      "claim_id": "claim.verification:verify-step:1",
+      "status": "proven",
+      "evidence_refs": [
+        "evidence.verification:verify-step:1:1:prototype-artifact-integrity"
+      ],
+      "missing": [],
+      "contradictions": []
+    }
+  ],
+  "overall_status": "proven",
+  "close_allowed": true
+}

@@ -1,0 +1,11 @@
+{
+  "outcome": "complete",
+  "attempts": [
+    {
+      "process_id": "explore",
+      "outcome": "complete",
+      "unmetEvidence": []
+    }
+  ],
+  "stopReason": "required evidence satisfied"
+}

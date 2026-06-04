@@ -309,7 +309,7 @@ export const RunDecisionPacket = z
     decision_id: z.string().min(1),
     reason: z.enum([
       'process-checkpoint',
-      'skill-moment-ask',
+      'skill-hook-ask',
       'missing-evidence',
       'strict-skill-unavailable',
       'operator-judgment',

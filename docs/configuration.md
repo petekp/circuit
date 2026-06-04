@@ -105,16 +105,16 @@ slot, path, SHA-256, and byte count.
 
 The skill contract is [`docs/contracts/skill.md`](contracts/skill.md).
 
-## Skill Moment Policy
+## Skill Hook Policy
 
-Run-centered V1 adds a typed `moments` config surface for future automatic
+Run-centered V1 adds a typed `hooks` config surface for future automatic
 skill preparation. This only records deterministic policy today; it does not
 dispatch skills by itself.
 
 ```yaml
 schema_version: 1
 
-moments:
+skill_hooks:
   policy:
     after:react-ui-change:
       mode: auto
@@ -129,7 +129,7 @@ moments:
 ```
 
 `auto` and `ask` need at least one concrete skill id. `mute` names no skills.
-Project config replaces user-global policy by moment key.
+Project config replaces user-global policy by hook key.
 
 ## Codex Host And Codex Worker
 

@@ -52,6 +52,10 @@ export const FlowRoute = z.enum([
   'recover',
   'run-next-gate-pass',
   'close',
+  // Slice-loop forward edge: a passed slice verify re-enters the loop head
+  // for the next slice (deep-rigor Build). See
+  // docs/ideas/build-slice-decomposition.md.
+  'advance',
 ]);
 export type FlowRoute = z.infer<typeof FlowRoute>;
 

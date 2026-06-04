@@ -16,6 +16,26 @@ const BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID = {
 
 const NonEmptyStringArray = z.array(z.string().min(1)).min(1);
 
+// One ordered unit of implementation work. The researcher decomposes the
+// change into these during analyze; under deep rigor the engine implements
+// and verifies them one at a time. See docs/ideas/build-slice-decomposition.md.
+export const BuildSlice = z
+  .object({
+    id: z.string().min(1).describe('stable slice id, e.g. "slice-1"'),
+    intent: z
+      .string()
+      .min(1)
+      .describe('one concrete, independently-verifiable unit of implementation work'),
+    anticipated_file_extensions: z
+      .array(z.string().min(1))
+      .default([])
+      .describe(
+        'file extensions this slice is predicted to touch, e.g. ".ts"; empty when no confident prediction',
+      ),
+  })
+  .strict();
+export type BuildSlice = z.infer<typeof BuildSlice>;
+
 export const BuildCheckpointPacketChoice = z
   .object({
     id: z.string().min(1),
@@ -119,11 +139,65 @@ export const BuildBrief = z
   .strict();
 export type BuildBrief = z.infer<typeof BuildBrief>;
 
+export const BuildContextSource = z
+  .object({
+    kind: z.enum(['file', 'command', 'log', 'operator-note', 'reference']),
+    ref: z
+      .string()
+      .min(1)
+      .describe('project-relative path, command id, log line, note id, or external reference'),
+    summary: z.string().min(1).describe('one-line summary of what this source contributed'),
+  })
+  .strict();
+export type BuildContextSource = z.infer<typeof BuildContextSource>;
+
+export const BuildContext = z
+  .object({
+    verdict: z.literal('accept'),
+    sources: z.array(BuildContextSource).min(1),
+    observations: z.array(z.string().min(1).describe('observation grounded in the sources')).min(1),
+    open_questions: z.array(
+      z.string().min(1).describe('question still unresolved after gathering context'),
+    ),
+    anticipated_file_extensions: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .describe(
+            'file extension the implementation is expected to touch, e.g. ".ts" or ".test.ts"',
+          ),
+      )
+      .default([])
+      .describe(
+        'file extensions the implementation is predicted to touch, inferred from the codebase read; empty when no confident prediction',
+      ),
+    slices: z
+      .array(BuildSlice)
+      .default([])
+      .describe(
+        'ordered units of implementation work the change decomposes into, inferred from the codebase read; empty when the change is a single indivisible unit (the plan then runs one pass)',
+      ),
+  })
+  .strict();
+export type BuildContext = z.infer<typeof BuildContext>;
+
 export const BuildPlan = z
   .object({
     objective: z.string().min(1),
     approach: z.string().min(1),
-    slices: NonEmptyStringArray,
+    slices: z
+      .array(BuildSlice)
+      .min(1)
+      .describe(
+        'ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). Under deep rigor the engine implements and verifies these one at a time',
+      ),
+    anticipated_file_extensions: z
+      .array(z.string().min(1))
+      .default([])
+      .describe(
+        'file extensions the implementation is predicted to touch, surfaced from build.context@v1; empty when grounding made no confident prediction',
+      ),
     verification: z
       .object({
         commands: z.array(VerificationCommand).min(1),

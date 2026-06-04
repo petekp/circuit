@@ -42,10 +42,15 @@ export const RunBootstrappedTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type RunBootstrappedTraceEntry = z.infer<typeof RunBootstrappedTraceEntry>;
 
+// Present only on loop-body steps during an active slice loop (deep-rigor
+// Build). Absent on single-pass runs. See docs/ideas/build-slice-decomposition.md.
+const SliceIndex = z.number().int().nonnegative();
+
 export const StepEnteredTraceEntry = TraceEntryBase.extend({
   kind: z.literal('step.entered'),
   step_id: StepId,
   attempt: z.number().int().positive(),
+  slice_index: SliceIndex.optional(),
 }).strict();
 export type StepEnteredTraceEntry = z.infer<typeof StepEnteredTraceEntry>;
 
@@ -78,6 +83,7 @@ export const CheckEvaluatedTraceEntry = TraceEntryBase.extend({
   stderr_summary: z.string().optional(),
   missing_sections: z.array(z.string()).optional(),
   reason: z.string().optional(),
+  slice_index: SliceIndex.optional(),
 }).strict();
 export type CheckEvaluatedTraceEntry = z.infer<typeof CheckEvaluatedTraceEntry>;
 
@@ -93,6 +99,7 @@ export const VerificationCommandEvaluatedTraceEntry = TraceEntryBase.extend({
   duration_ms: z.number().int().nonnegative(),
   stdout_summary: z.string(),
   stderr_summary: z.string(),
+  slice_index: SliceIndex.optional(),
 }).strict();
 export type VerificationCommandEvaluatedTraceEntry = z.infer<
   typeof VerificationCommandEvaluatedTraceEntry
@@ -373,6 +380,7 @@ export const StepCompletedTraceEntry = TraceEntryBase.extend({
   step_id: StepId,
   attempt: z.number().int().positive(),
   route_taken: z.string().min(1),
+  slice_index: SliceIndex.optional(),
 }).strict();
 export type StepCompletedTraceEntry = z.infer<typeof StepCompletedTraceEntry>;
 

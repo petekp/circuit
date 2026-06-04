@@ -7,25 +7,22 @@ import {
   Config,
   LayeredConfig,
   RelayStep,
-  RunSkillMomentEvent,
-  SKILL_MOMENT_VOCABULARY,
-  SkillMomentConfig,
-  SkillMomentName,
+  RunSkillHookEvent,
+  SKILL_HOOK_VOCABULARY,
+  SkillHookConfig,
+  SkillHookName,
 } from '../../src/index.js';
 import { createUserSkillRegistry } from '../../src/shared/user-skill-registry.js';
 import {
-  buildSkillMomentAskDecisionPacket,
+  buildSkillHookAskDecisionPacket,
   buildStrictSkillUnavailableDecisionPacket,
-} from '../../src/skill-moments/decision-packet.js';
-import {
-  buildRunSkillMomentEvent,
-  resolveSkillMomentPolicy,
-} from '../../src/skill-moments/policy.js';
+} from '../../src/skill-hooks/decision-packet.js';
+import { buildRunSkillHookEvent, resolveSkillHookPolicy } from '../../src/skill-hooks/policy.js';
 
 let tempDir: string;
 
 beforeEach(() => {
-  tempDir = mkdtempSync(join(tmpdir(), 'circuit-skill-moment-policy-'));
+  tempDir = mkdtempSync(join(tmpdir(), 'circuit-skill-hook-policy-'));
 });
 
 afterEach(() => {
@@ -47,7 +44,7 @@ function configLayer(
     source_path: join(tempDir, `${layer}.yaml`),
     config: {
       schema_version: 1,
-      moments: { policy },
+      skill_hooks: { policy },
     },
   });
 }
@@ -76,11 +73,11 @@ function baseRelayStep(extra: Record<string, unknown> = {}): Record<string, unkn
   };
 }
 
-describe('Skill Moment policy schema', () => {
+describe('Skill Hook policy schema', () => {
   it('accepts policy modes and applies Config defaults', () => {
     const parsed = Config.parse({
       schema_version: 1,
-      moments: {
+      skill_hooks: {
         policy: {
           'after:react-ui-change': { mode: 'auto', skills: ['react-doctor'] },
           'before:high-impact-alignment': { mode: 'ask', skills: ['grill-with-docs'] },
@@ -89,47 +86,47 @@ describe('Skill Moment policy schema', () => {
       },
     });
 
-    expect(parsed.moments.policy['after:react-ui-change']?.strict).toBe(false);
-    expect(parsed.moments.detection.disabled_patterns).toEqual({});
+    expect(parsed.skill_hooks.policy['after:react-ui-change']?.strict).toBe(false);
+    expect(parsed.skill_hooks.detection.disabled_patterns).toEqual({});
   });
 
   it('rejects slot-shaped and fuzzy policy shapes', () => {
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: { 'after:react-ui-change': { mode: 'auto' } },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: { 'before:high-impact-alignment': { mode: 'ask' } },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: { 'before:architecture-analysis': { mode: 'mute', skills: ['seam-ripper'] } },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: {
           'after:react-ui-change': { mode: 'auto', skills: ['react-doctor', 'react-doctor'] },
         },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: { 'after:risky-code': { mode: 'auto', skills: ['seam-ripper'] } },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: {
           'team/after:react-ui-change': { mode: 'auto', skills: ['react-doctor'] },
         },
       }).success,
     ).toBe(false);
     expect(
-      SkillMomentConfig.safeParse({
+      SkillHookConfig.safeParse({
         policy: {
           'team/after:storybook-change': { mode: 'auto', skills: ['react-doctor'], extra: true },
         },
@@ -146,19 +143,17 @@ describe('Skill Moment policy schema', () => {
       'before:architecture-analysis': { mode: 'mute' },
     });
 
-    expect(resolveSkillMomentPolicy([user, project], 'before:architecture-analysis')).toMatchObject(
-      {
-        mode: 'mute',
-        source: 'project-policy',
-        skills: [],
-      },
-    );
-    expect(resolveSkillMomentPolicy([user, project], 'after:react-ui-change')).toMatchObject({
+    expect(resolveSkillHookPolicy([user, project], 'before:architecture-analysis')).toMatchObject({
+      mode: 'mute',
+      source: 'project-policy',
+      skills: [],
+    });
+    expect(resolveSkillHookPolicy([user, project], 'after:react-ui-change')).toMatchObject({
       mode: 'auto',
       source: 'user-global-policy',
       skills: ['react-doctor'],
     });
-    expect(resolveSkillMomentPolicy([user, project], 'before:handoff')).toEqual({
+    expect(resolveSkillHookPolicy([user, project], 'before:handoff')).toEqual({
       mode: 'none',
       source: 'none',
     });
@@ -175,9 +170,9 @@ describe('Skill Moment policy schema', () => {
       },
     });
 
-    const event = buildRunSkillMomentEvent({
-      eventId: 'moment-1',
-      moment: SkillMomentName.parse('after:react-ui-change'),
+    const event = buildRunSkillHookEvent({
+      eventId: 'hook-1',
+      hook: SkillHookName.parse('after:react-ui-change'),
       detectedFrom: ['diff:src/component.tsx'],
       cardinality: 'per-step',
       configLayers: [layer],
@@ -207,20 +202,20 @@ describe('Skill Moment policy schema', () => {
       },
     });
 
-    const pending = buildRunSkillMomentEvent({
-      eventId: 'moment-ask',
-      moment: SkillMomentName.parse('before:high-impact-alignment'),
+    const pending = buildRunSkillHookEvent({
+      eventId: 'hook-ask',
+      hook: SkillHookName.parse('before:high-impact-alignment'),
       detectedFrom: ['operator-flag:high-impact'],
       cardinality: 'per-run',
       configLayers: [layer],
       registry,
     });
-    expect(pending.decision_packet_id).toBe('moment-ask:ask');
+    expect(pending.decision_packet_id).toBe('hook-ask:ask');
     expect(pending.triggered_skills).toEqual([]);
 
-    const accepted = buildRunSkillMomentEvent({
-      eventId: 'moment-ask',
-      moment: SkillMomentName.parse('before:high-impact-alignment'),
+    const accepted = buildRunSkillHookEvent({
+      eventId: 'hook-ask',
+      hook: SkillHookName.parse('before:high-impact-alignment'),
       detectedFrom: ['operator-flag:high-impact'],
       cardinality: 'per-run',
       configLayers: [layer],
@@ -234,7 +229,7 @@ describe('Skill Moment policy schema', () => {
     ]);
   });
 
-  it('builds shared decision packets for Skill Moment ask and strict unavailable cases', () => {
+  it('builds shared decision packets for Skill Hook ask and strict unavailable cases', () => {
     const agentsRoot = join(tempDir, 'agents-decision');
     writeSkill(agentsRoot, 'grill-with-docs');
     const registry = createUserSkillRegistry({ roots: [agentsRoot] });
@@ -244,9 +239,9 @@ describe('Skill Moment policy schema', () => {
         skills: ['grill-with-docs'],
       },
     });
-    const askEvent = buildRunSkillMomentEvent({
-      eventId: 'moment-ask',
-      moment: SkillMomentName.parse('before:high-impact-alignment'),
+    const askEvent = buildRunSkillHookEvent({
+      eventId: 'hook-ask',
+      hook: SkillHookName.parse('before:high-impact-alignment'),
       detectedFrom: ['operator-flag:high-impact'],
       cardinality: 'per-run',
       configLayers: [askLayer],
@@ -254,13 +249,13 @@ describe('Skill Moment policy schema', () => {
     });
 
     expect(
-      buildSkillMomentAskDecisionPacket({
+      buildSkillHookAskDecisionPacket({
         runId: '00000000-0000-4000-8000-00000000d001',
         event: askEvent,
       }),
     ).toMatchObject({
-      reason: 'skill-moment-ask',
-      decision_id: 'moment-ask:ask',
+      reason: 'skill-hook-ask',
+      decision_id: 'hook-ask:ask',
       choices: [
         { id: 'use-skills', label: 'Use skills' },
         { id: 'skip-skills', label: 'Skip skills' },
@@ -274,9 +269,9 @@ describe('Skill Moment policy schema', () => {
         skills: ['missing-skill'],
       },
     });
-    const strictEvent = buildRunSkillMomentEvent({
-      eventId: 'moment-strict',
-      moment: SkillMomentName.parse('after:react-ui-change'),
+    const strictEvent = buildRunSkillHookEvent({
+      eventId: 'hook-strict',
+      hook: SkillHookName.parse('after:react-ui-change'),
       detectedFrom: ['diff:src/component.tsx'],
       cardinality: 'per-step',
       configLayers: [strictLayer],
@@ -290,7 +285,7 @@ describe('Skill Moment policy schema', () => {
       }),
     ).toMatchObject({
       reason: 'strict-skill-unavailable',
-      decision_id: 'moment-strict:strict-skill-unavailable',
+      decision_id: 'hook-strict:strict-skill-unavailable',
       choices: [
         { id: 'continue-without-skill', label: 'Continue' },
         { id: 'stop', label: 'Stop' },
@@ -300,10 +295,10 @@ describe('Skill Moment policy schema', () => {
 
   it('keeps observed and unplanned skill activity separate from preparation states', () => {
     expect(
-      RunSkillMomentEvent.safeParse({
-        schema: 'run.skill-moment@v0',
-        event_id: 'moment-observed',
-        moment: 'after:react-ui-change',
+      RunSkillHookEvent.safeParse({
+        schema: 'run.skill-hook@v0',
+        event_id: 'hook-observed',
+        hook: 'after:react-ui-change',
         detected_from: ['host:skills.loaded'],
         cardinality: 'per-step',
         policy: { mode: 'none', source: 'none' },
@@ -312,10 +307,10 @@ describe('Skill Moment policy schema', () => {
     ).toBe(false);
 
     expect(
-      RunSkillMomentEvent.safeParse({
-        schema: 'run.skill-moment@v0',
-        event_id: 'moment-unplanned',
-        moment: 'after:react-ui-change',
+      RunSkillHookEvent.safeParse({
+        schema: 'run.skill-hook@v0',
+        event_id: 'hook-unplanned',
+        hook: 'after:react-ui-change',
         detected_from: ['host:skills.loaded'],
         cardinality: 'per-step',
         policy: { mode: 'auto', source: 'project-policy', strict: false },
@@ -324,24 +319,24 @@ describe('Skill Moment policy schema', () => {
     ).toBe(true);
   });
 
-  it('adds a moment-only step field without reviving skill binding matrices', () => {
+  it('adds a hook-only step field without reviving skill binding matrices', () => {
     expect(
-      RelayStep.safeParse(baseRelayStep({ skill_moments: ['after:react-ui-change'] })).success,
+      RelayStep.safeParse(baseRelayStep({ skill_hooks: ['after:react-ui-change'] })).success,
     ).toBe(true);
     expect(
-      RelayStep.safeParse(baseRelayStep({ skill_moments: [{ skills: ['react-doctor'] }] })).success,
+      RelayStep.safeParse(baseRelayStep({ skill_hooks: [{ skills: ['react-doctor'] }] })).success,
     ).toBe(false);
-    expect(RelayStep.safeParse(baseRelayStep({ skill_moments: ['react-doctor'] })).success).toBe(
+    expect(RelayStep.safeParse(baseRelayStep({ skill_hooks: ['react-doctor'] })).success).toBe(
       false,
     );
   });
 });
 
-describe('Skill Moment vocabulary fixtures', () => {
+describe('Skill Hook vocabulary fixtures', () => {
   it('pins the shipped V1 vocabulary to observable detection sources', () => {
-    expect(SKILL_MOMENT_VOCABULARY).toHaveLength(14);
-    for (const entry of SKILL_MOMENT_VOCABULARY) {
-      expect(SkillMomentName.safeParse(entry.moment).success).toBe(true);
+    expect(SKILL_HOOK_VOCABULARY).toHaveLength(14);
+    for (const entry of SKILL_HOOK_VOCABULARY) {
+      expect(SkillHookName.safeParse(entry.hook).success).toBe(true);
       expect(entry.detected_from.length).toBeGreaterThan(0);
       expect(entry.detected_from.join('\n')).not.toMatch(/natural-language/i);
       expect(['auto', 'ask', 'mute']).toContain(entry.default_mode);

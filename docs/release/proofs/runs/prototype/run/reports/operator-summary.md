@@ -1,4 +1,4 @@
-Circuit
+CIRCUIT
 ⎿ Prototype verified and saved as Build input.
 
 - Worker access: A worker can edit this checkout.

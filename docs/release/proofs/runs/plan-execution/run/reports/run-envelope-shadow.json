@@ -1,0 +1,41 @@
+{
+  "schema": "run.envelope-shadow@v0",
+  "mode": "shadow",
+  "shadow_reason": "source-owned-run-not-active",
+  "run_id": "44444444-4444-4444-4444-444444444410",
+  "operator_intent": "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
+  "recorded_at": "2026-04-29T22:00:55.000Z",
+  "selected_process": {
+    "process_id": "build",
+    "routed_by": "classifier",
+    "router_reason": "matched plan-execution request; selected Build to start the first executable slice",
+    "entry_mode": "default"
+  },
+  "child_run": {
+    "run_id": "44444444-4444-4444-4444-444444444410",
+    "run_folder": "<repo>/docs/release/proofs/runs/plan-execution/run",
+    "flow_id": "build",
+    "outcome": "complete",
+    "trace_entries_observed": 53,
+    "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2",
+    "result_ref": {
+      "source": "child_result",
+      "ref": {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "a7d8457c389a88434d0ef6737c1cfd84f23c164d1f2d41b3ed4c7224ee84e9e9",
+        "run_id": "44444444-4444-4444-4444-444444444410",
+        "flow_id": "build"
+      }
+    }
+  },
+  "artifact_links": [
+    {
+      "kind": "report",
+      "ref": "reports/result.json",
+      "sha256": "a7d8457c389a88434d0ef6737c1cfd84f23c164d1f2d41b3ed4c7224ee84e9e9",
+      "run_id": "44444444-4444-4444-4444-444444444410",
+      "flow_id": "build"
+    }
+  ]
+}

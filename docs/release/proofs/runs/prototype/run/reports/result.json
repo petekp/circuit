@@ -5,8 +5,8 @@
   "goal": "prototype: sketch a custom Circuit flow builder UI",
   "outcome": "complete",
   "summary": "Run closed with outcome complete via @complete.",
-  "closed_at": "2026-04-29T21:30:30.000Z",
-  "trace_entries_observed": 28,
-  "manifest_hash": "cfbf623982c0cf2fd3509fe6ef7c556a00255bc77adb0fad7f001115232969b6",
+  "closed_at": "2026-04-29T21:30:37.000Z",
+  "trace_entries_observed": 34,
+  "manifest_hash": "41cbe1efa9ac494a4212014b25790d36aeaa283ef8035a1170d302362df43f60",
   "verdict": "accept"
 }

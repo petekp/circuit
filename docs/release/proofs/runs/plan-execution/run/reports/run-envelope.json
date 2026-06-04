@@ -1,0 +1,210 @@
+{
+  "schema": "run.envelope@v0",
+  "run_id": "44444444-4444-4444-4444-444444444410",
+  "operator_intent": "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
+  "explicit_constraints": [],
+  "memory_context": {
+    "used": false,
+    "memory_input_ids": [],
+    "authority": "hint_only"
+  },
+  "goal_contract": {
+    "schema": "run.goal-contract@v0",
+    "objective": "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
+    "scope": {
+      "in": [
+        "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md"
+      ],
+      "out": [],
+      "assumptions": []
+    },
+    "constraints": [],
+    "done_when": [
+      {
+        "id": "process-evidence",
+        "claim": "The build work is complete with the required proof for: Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
+        "required_evidence": [
+          {
+            "kind": "command",
+            "description": "A passing verification command proving: Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
+            "required": true
+          }
+        ]
+      }
+    ],
+    "recovery_policy": {
+      "max_process_attempts": 2,
+      "allowed_routes": [
+        "retry-process",
+        "run-review",
+        "checkpoint",
+        "handoff",
+        "blocked"
+      ]
+    },
+    "stop_conditions": [
+      "Stop instead of closing complete when required evidence is missing."
+    ],
+    "completion_gate": {
+      "required_passes": 2,
+      "blocking_severities": [
+        "critical",
+        "high",
+        "medium"
+      ],
+      "reset_on_blocking_finding": true
+    }
+  },
+  "process_plan": {
+    "schema": "run.process-plan@v0",
+    "selection_source": "router",
+    "rationale": "matched plan-execution request; selected Build to start the first executable slice",
+    "planned_attempts": [
+      {
+        "attempt_id": "attempt-primary",
+        "process_id": "build",
+        "goal": "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
+        "expected_evidence": [
+          "reports/process-evidence.json"
+        ],
+        "depends_on_attempt_ids": []
+      }
+    ]
+  },
+  "process_attempts": [
+    {
+      "schema": "run.process-attempt@v0",
+      "attempt_id": "attempt-primary",
+      "process_id": "build",
+      "goal": "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
+      "started_at": "2026-04-29T22:00:55.000Z",
+      "completed_at": "2026-04-29T22:00:55.000Z",
+      "outcome": "complete",
+      "child_run": {
+        "run_id": "44444444-4444-4444-4444-444444444410",
+        "run_folder": "<repo>/docs/release/proofs/runs/plan-execution/run",
+        "result_ref": {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "a7d8457c389a88434d0ef6737c1cfd84f23c164d1f2d41b3ed4c7224ee84e9e9",
+            "run_id": "44444444-4444-4444-4444-444444444410",
+            "flow_id": "build"
+          }
+        },
+        "trace_entries_observed": 53,
+        "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2"
+      },
+      "evidence_refs": [
+        {
+          "source": "process_evidence",
+          "ref": {
+            "kind": "evidence",
+            "ref": "reports/process-evidence.json",
+            "sha256": "eeef8895fe3ada6cde53540e3874e0e1a4ebb9949c3ebf2cd0ccdac6fa269b18",
+            "run_id": "44444444-4444-4444-4444-444444444410",
+            "flow_id": "build"
+          }
+        },
+        {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "a7d8457c389a88434d0ef6737c1cfd84f23c164d1f2d41b3ed4c7224ee84e9e9",
+            "run_id": "44444444-4444-4444-4444-444444444410",
+            "flow_id": "build"
+          }
+        }
+      ],
+      "summary": "Run closed with outcome complete via @complete."
+    }
+  ],
+  "completion_gate": {
+    "schema": "run.completion-gate@v0",
+    "verdict": "complete",
+    "claim_results": [
+      {
+        "claim_id": "process-evidence",
+        "status": "proved",
+        "evidence": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "eeef8895fe3ada6cde53540e3874e0e1a4ebb9949c3ebf2cd0ccdac6fa269b18",
+              "run_id": "44444444-4444-4444-4444-444444444410",
+              "flow_id": "build"
+            }
+          }
+        ]
+      }
+    ],
+    "gate_passes": [
+      {
+        "pass_id": "gate-process-evidence",
+        "attack_lens": "required-evidence-present",
+        "evidence_checked": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "eeef8895fe3ada6cde53540e3874e0e1a4ebb9949c3ebf2cd0ccdac6fa269b18",
+              "run_id": "44444444-4444-4444-4444-444444444410",
+              "flow_id": "build"
+            }
+          }
+        ],
+        "verdict": "gate-pass"
+      },
+      {
+        "pass_id": "gate-child-outcome",
+        "attack_lens": "child-outcome-consistent",
+        "evidence_checked": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "eeef8895fe3ada6cde53540e3874e0e1a4ebb9949c3ebf2cd0ccdac6fa269b18",
+              "run_id": "44444444-4444-4444-4444-444444444410",
+              "flow_id": "build"
+            }
+          }
+        ],
+        "verdict": "gate-pass"
+      }
+    ],
+    "clean_streak": 2,
+    "required_passes": 2,
+    "next_action": "close"
+  },
+  "decision_packets": [],
+  "memory_update_events": [],
+  "surface_output": {
+    "schema": "run.surface-output@v0",
+    "status_text": "Done: build completed with required process evidence.",
+    "outcome": "complete",
+    "next_action": "close",
+    "artifact_links": [
+      {
+        "kind": "evidence",
+        "ref": "reports/process-evidence.json",
+        "sha256": "eeef8895fe3ada6cde53540e3874e0e1a4ebb9949c3ebf2cd0ccdac6fa269b18",
+        "run_id": "44444444-4444-4444-4444-444444444410",
+        "flow_id": "build"
+      },
+      {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "a7d8457c389a88434d0ef6737c1cfd84f23c164d1f2d41b3ed4c7224ee84e9e9",
+        "run_id": "44444444-4444-4444-4444-444444444410",
+        "flow_id": "build"
+      }
+    ]
+  },
+  "outcome": "complete"
+}

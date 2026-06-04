@@ -1,0 +1,41 @@
+{
+  "schema": "run.envelope-shadow@v0",
+  "mode": "shadow",
+  "shadow_reason": "source-owned-run-not-active",
+  "run_id": "44444444-4444-4444-4444-444444444402",
+  "operator_intent": "develop: add a small safe change",
+  "recorded_at": "2026-04-29T18:00:55.000Z",
+  "selected_process": {
+    "process_id": "build",
+    "routed_by": "classifier",
+    "router_reason": "matched develop prefix; routed to implementation Build flow",
+    "entry_mode": "default"
+  },
+  "child_run": {
+    "run_id": "44444444-4444-4444-4444-444444444402",
+    "run_folder": "<repo>/docs/release/proofs/runs/routed-build/run",
+    "flow_id": "build",
+    "outcome": "complete",
+    "trace_entries_observed": 53,
+    "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2",
+    "result_ref": {
+      "source": "child_result",
+      "ref": {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "e39ee2bf24a5f2be7763bf3e180c874b1842b588e9b580bdcd30c6f9b16bd212",
+        "run_id": "44444444-4444-4444-4444-444444444402",
+        "flow_id": "build"
+      }
+    }
+  },
+  "artifact_links": [
+    {
+      "kind": "report",
+      "ref": "reports/result.json",
+      "sha256": "e39ee2bf24a5f2be7763bf3e180c874b1842b588e9b580bdcd30c6f9b16bd212",
+      "run_id": "44444444-4444-4444-4444-444444444402",
+      "flow_id": "build"
+    }
+  ]
+}

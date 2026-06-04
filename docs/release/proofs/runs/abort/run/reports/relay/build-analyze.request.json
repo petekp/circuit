@@ -1,0 +1,47 @@
+Step: analyze-step
+Title: Analyze — read the code before planning
+Role: researcher
+Accepted verdicts: accept
+Rigor: standard. Tune your thoroughness and effort to this level; it does not change which steps run.
+
+Operator Goal:
+simulate connector failure
+
+Prior-Run Memory (optional, hint-only):
+You may consult prior-run memory with `circuit history pull --run-folder <repo>/docs/release/proofs/runs/abort/run --flow build --decision-point <label> <query>`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.
+
+Context (from reads):
+--- reports/build/brief.json ---
+{
+  "objective": "simulate connector failure",
+  "scope": "Make the smallest safe change that satisfies the requested goal.",
+  "success_criteria": [
+    "The requested behavior is implemented",
+    "Verification passes",
+    "Review completes without a blocking issue"
+  ],
+  "verification_command_candidates": [
+    {
+      "id": "npm-check",
+      "cwd": ".",
+      "argv": [
+        "npm",
+        "run",
+        "check"
+      ],
+      "timeout_ms": 120000,
+      "max_output_bytes": 200000,
+      "env": {}
+    }
+  ],
+  "checkpoint": {
+    "request_path": "reports/checkpoints/frame-step-request.json",
+    "response_path": "reports/checkpoints/frame-step-response.json",
+    "allowed_choices": [
+      "continue"
+    ]
+  }
+}
+
+
+Respond with a single raw JSON object whose top-level shape is exactly: { "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"], "slices": [{ "id": "slice-1", "intent": "<one concrete, independently-verifiable unit of implementation work>", "anticipated_file_extensions": ["<extension this slice will touch>"] }] } Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated rigor (provided to you): on a quick or lite job read just the directly implicated files; on a deep job map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support. In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer. In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. Under deep rigor the engine implements and verifies these one at a time; under lighter rigor the change runs in a single pass regardless. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.context@v1 before writing reports/build/context.json.

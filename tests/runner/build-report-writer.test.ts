@@ -7,12 +7,15 @@ import { deterministicNow } from '../helpers/runtime-fixtures.js';
 
 import {
   BuildBrief,
+  BuildContext,
   BuildImplementation,
   BuildPlan,
   BuildResult,
   BuildReview,
   BuildVerification,
 } from '../../src/flows/build/reports.js';
+import { findComposeBuilder } from '../../src/flows/registries/compose-writers/registry.js';
+import type { ComposeBuildContext } from '../../src/flows/registries/compose-writers/types.js';
 import { executeCompose } from '../../src/runtime/executors/compose.js';
 import type { ExecutorRegistry } from '../../src/runtime/executors/index.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
@@ -48,7 +51,7 @@ function planCompiledFlow(options: { omitBriefRead?: boolean } = {}): {
         id: 'plan-stage',
         title: 'Plan',
         canonical: 'plan',
-        steps: ['seed-brief-step', 'plan-step'],
+        steps: ['seed-brief-step', 'seed-context-step', 'plan-step'],
       },
     ],
     stage_path_policy: {
@@ -62,7 +65,7 @@ function planCompiledFlow(options: { omitBriefRead?: boolean } = {}): {
         title: 'Seed brief',
         protocol: 'test-seed-build-brief@v1',
         reads: [],
-        routes: { pass: 'plan-step' },
+        routes: { pass: 'seed-context-step' },
         executor: 'orchestrator',
         kind: 'compose',
         writes: { report: { path: 'reports/build/brief.json', schema: 'build.brief@v1' } },
@@ -73,10 +76,28 @@ function planCompiledFlow(options: { omitBriefRead?: boolean } = {}): {
         },
       },
       {
+        id: 'seed-context-step',
+        title: 'Seed context',
+        protocol: 'test-seed-build-context@v1',
+        reads: [],
+        routes: { pass: 'plan-step' },
+        executor: 'orchestrator',
+        kind: 'compose',
+        writes: { report: { path: 'reports/build/context.json', schema: 'build.context@v1' } },
+        check: {
+          kind: 'schema_sections',
+          source: { kind: 'report', ref: 'report' },
+          required: ['verdict', 'sources', 'observations'],
+        },
+      },
+      {
         id: 'plan-step',
         title: 'Plan',
         protocol: 'build-plan@v1',
-        reads: options.omitBriefRead === true ? [] : ['reports/build/brief.json'],
+        reads:
+          options.omitBriefRead === true
+            ? ['reports/build/context.json']
+            : ['reports/build/brief.json', 'reports/build/context.json'],
         routes: { pass: '@complete' },
         executor: 'orchestrator',
         kind: 'compose',
@@ -334,6 +355,25 @@ function seedBuildRoleReport(runFolder: string, schema: string): void {
     );
     return;
   }
+  if (schema === 'build.context@v1') {
+    writeJson(
+      runFolder,
+      'reports/build/context.json',
+      BuildContext.parse({
+        verdict: 'accept',
+        sources: [
+          {
+            kind: 'file',
+            ref: 'src/runtime/runner.ts',
+            summary: 'Module the change touches.',
+          },
+        ],
+        observations: ['The target module is small and self-contained.'],
+        open_questions: [],
+      }),
+    );
+    return;
+  }
   if (schema === 'build.plan@v1') {
     writeJson(
       runFolder,
@@ -341,7 +381,7 @@ function seedBuildRoleReport(runFolder: string, schema: string): void {
       BuildPlan.parse({
         objective: 'Add a small feature',
         approach: 'Implement and verify',
-        slices: ['Runtime writer test'],
+        slices: [{ id: 'slice-1', intent: 'Runtime writer test', anticipated_file_extensions: [] }],
         verification: {
           commands: [
             {
@@ -487,7 +527,11 @@ describe('Build compose writers', () => {
       },
     ]);
     expect(plan.objective).toBe('Add a small feature');
-    expect(plan.slices).toEqual(['Satisfy: Build result parses']);
+    // No build.context@v1 in this reduced fixture, so the plan writer falls
+    // back to a single slice covering the whole objective (single pass).
+    expect(plan.slices).toEqual([
+      { id: 'slice-1', intent: 'Add a small feature', anticipated_file_extensions: [] },
+    ]);
   });
 
   it('aborts Build plan when the brief is not an explicit read', async () => {
@@ -631,5 +675,64 @@ describe('Build compose writers', () => {
     expect(outcome.outcome).toBe('aborted');
     expect(existsSync(join(runFolder, 'reports/build-result.json'))).toBe(false);
     expect(outcome.reason).toMatch(/build\.plan@v1|exactly one flow step/);
+  });
+});
+
+describe('Build plan writer surfaces grounding from build.context@v1', () => {
+  const brief = BuildBrief.parse({
+    objective: 'Add a focused change',
+    scope: 'Make the smallest safe change that satisfies the requested goal.',
+    success_criteria: ['The requested behavior is implemented'],
+    verification_command_candidates: [
+      {
+        id: 'npm-check',
+        cwd: '.',
+        argv: ['npm', 'run', 'check'],
+        timeout_ms: 120_000,
+        max_output_bytes: 200_000,
+        env: {},
+      },
+    ],
+    checkpoint: {
+      request_path: 'reports/checkpoints/frame-step-request.json',
+      allowed_choices: ['continue'],
+    },
+  });
+
+  function buildPlan(inputs: Record<string, unknown>) {
+    const builder = findComposeBuilder('build.plan@v1');
+    if (builder === undefined) throw new Error('build.plan@v1 compose builder is not registered');
+    // The plan builder reads only its declared inputs (brief, context); the
+    // runFolder/flow/step fields are unused for this writer, so a minimal
+    // ComposeBuildContext is enough to exercise the surfacing logic in isolation.
+    return BuildPlan.parse(
+      builder.build({
+        runFolder: '.',
+        goal: brief.objective,
+        inputs,
+      } as unknown as ComposeBuildContext),
+    );
+  }
+
+  it('copies anticipated_file_extensions from the grounding context onto the plan', () => {
+    const context = BuildContext.parse({
+      verdict: 'accept',
+      sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Touched module.' }],
+      observations: ['The target module is small and self-contained.'],
+      open_questions: [],
+      anticipated_file_extensions: ['.tsx', '.test.ts'],
+    });
+    const plan = buildPlan({ brief, context });
+    // Surfaced from the context, not hardcoded: a writer that dropped the field
+    // (e.g. always []) would fail here.
+    expect(plan.anticipated_file_extensions).toEqual(['.tsx', '.test.ts']);
+    expect(plan.approach).toContain('Grounded in a codebase read');
+  });
+
+  it('falls back to a brief-only plan with no anticipated extensions when context is absent', () => {
+    const plan = buildPlan({ brief });
+    expect(plan.anticipated_file_extensions).toEqual([]);
+    expect(plan.approach).toContain('Make the smallest safe change inside scope');
+    expect(plan.approach).not.toContain('Grounded in a codebase read');
   });
 });

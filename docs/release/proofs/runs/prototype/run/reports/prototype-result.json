@@ -4,13 +4,11 @@
   "artifact_status": "accepted",
   "verification_status": "passed",
   "checkpoint_status": "operator_selected",
-  "checkpoint_selection": "save-build-input",
   "prototype_root": "docs/release/proofs/runs/prototype/run/prototype-files",
   "entry_points": [
     "docs/release/proofs/runs/prototype/run/prototype-files/index.html"
   ],
   "preview_instructions": "Open docs/release/proofs/runs/prototype/run/prototype-files/index.html locally.",
-  "build_followup_prompt": "Build from the Prototype artifact in docs/release/proofs/runs/prototype/run/prototype-files. Preserve the useful interaction from docs/release/proofs/runs/prototype/run/prototype-files/index.html, but implement it as production code only after reviewing the Prototype result and limitations.",
   "residual_risks": [
     "Prototype is not wired to live Circuit flow-saving behavior.",
     "Core-flow inspection uses static fixture content."
@@ -52,5 +50,8 @@
       "path": "reports/checkpoints/prototype-review-response.json",
       "schema": "checkpoint.response@v1"
     }
-  ]
+  ],
+  "mode": "single-artifact",
+  "checkpoint_selection": "save-build-input",
+  "build_followup_prompt": "Build from the Prototype artifact in docs/release/proofs/runs/prototype/run/prototype-files. Preserve the useful interaction from docs/release/proofs/runs/prototype/run/prototype-files/index.html, but implement it as production code only after reviewing the Prototype result and limitations."
 }

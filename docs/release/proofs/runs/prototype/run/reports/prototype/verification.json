@@ -4,7 +4,7 @@
     {
       "command_id": "prototype-artifact-integrity",
       "argv": [
-        "<home>/.vite-plus/js_runtime/node/24.15.0/bin/node",
+        "<home>/.vite-plus/js_runtime/node/24.16.0/bin/node",
         "-e",
         "const fs = require('node:fs'); const path = require('node:path'); const payload = JSON.parse(process.argv[1] || '{}'); const projectRoot = process.cwd(); const root = String(payload.prototype_root || ''); const planned = Array.isArray(payload.planned_files) ? payload.planned_files : []; const created = Array.isArray(payload.created_files) ? payload.created_files : []; const entry = Array.isArray(payload.entry_points) ? payload.entry_points : []; const errors = []; function inside(base, target) { const rel = path.relative(base, target); return rel === \"\" || (!rel.startsWith(\"..\") && !path.isAbsolute(rel)); }; const rootAbs = path.resolve(projectRoot, root); if (!inside(projectRoot, rootAbs)) errors.push(`prototype_root escapes project root: ${root}`); if (!fs.existsSync(rootAbs)) errors.push(`prototype_root does not exist: ${root}`); else if (!fs.lstatSync(rootAbs).isDirectory()) errors.push(`prototype_root is not a directory: ${root}`); else if (fs.lstatSync(rootAbs).isSymbolicLink()) errors.push(`prototype_root is a symlink: ${root}`); const rootReal = fs.existsSync(rootAbs) ? fs.realpathSync.native(rootAbs) : rootAbs; const createdSet = new Set(created); for (const rel of planned) { if (!createdSet.has(rel)) errors.push(`planned file missing from created_files: ${rel}`); }; for (const rel of Array.from(new Set([...planned, ...created, ...entry]))) {;   if (typeof rel !== \"string\" || rel.length === 0) { errors.push(\"reported path must be a non-empty string\"); continue; };   if (!rel.startsWith(`${root}/`)) errors.push(`prototype path is outside prototype_root: ${rel}`);   const abs = path.resolve(projectRoot, rel);   if (!inside(rootAbs, abs)) errors.push(`prototype path escapes prototype_root: ${rel}`);   if (!fs.existsSync(abs)) { errors.push(`prototype path does not exist: ${rel}`); continue; };   if (fs.lstatSync(abs).isSymbolicLink()) errors.push(`prototype path is a symlink: ${rel}`);   const real = fs.realpathSync.native(abs);   if (!inside(rootReal, real)) errors.push(`prototype path escapes real prototype_root: ${rel}`); }; if (errors.length > 0) { console.error(errors.join(\"\\n\")); process.exit(1); }; console.log(`Prototype artifact integrity passed for ${root}`)",
         "{\"prototype_root\":\"docs/release/proofs/runs/prototype/run/prototype-files\",\"planned_files\":[\"docs/release/proofs/runs/prototype/run/prototype-files/index.html\",\"docs/release/proofs/runs/prototype/run/prototype-files/README.md\"],\"created_files\":[\"docs/release/proofs/runs/prototype/run/prototype-files/index.html\",\"docs/release/proofs/runs/prototype/run/prototype-files/README.md\"],\"entry_points\":[\"docs/release/proofs/runs/prototype/run/prototype-files/index.html\"]}"
@@ -12,7 +12,7 @@
       "cwd": ".",
       "exit_code": 0,
       "status": "passed",
-      "duration_ms": 23,
+      "duration_ms": 30,
       "stdout_summary": "Prototype artifact integrity passed for docs/release/proofs/runs/prototype/run/prototype-files\n",
       "stderr_summary": ""
     }

@@ -127,17 +127,24 @@ function checkCanonicalStagePolicyVariant(
       detail: `${id}: stage_path_policy missing or not an object`,
     };
   }
-  if (sp.mode !== 'partial') {
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy.mode must be 'partial' for kind-canonical enforcement; got '${String(sp.mode)}'`,
-    };
-  }
   const omits = Array.isArray(sp.omits)
     ? sp.omits.filter((s): s is string => typeof s === 'string')
     : [];
   const optionalOmitted = [...optional].filter((c) => !declared.has(c));
   const expectedOmits = new Set([...variant.omits, ...optionalOmitted]);
+  // A flow that omits no canonical stage uses the full spine. The SpinePolicy
+  // schema forbids `partial` with an empty omit-set (partial requires >=1 omit),
+  // so a full-canonical flow must declare `strict`. Require `strict` only when the
+  // expected omit-set is empty, and `partial` otherwise. The omit cross-check below
+  // still runs and is trivially satisfied in the empty (strict) case. Flows that omit
+  // at least one stage are unaffected: they still require `partial`.
+  const expectedMode = expectedOmits.size === 0 ? 'strict' : 'partial';
+  if (sp.mode !== expectedMode) {
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy.mode must be '${expectedMode}' for kind-canonical enforcement; got '${String(sp.mode)}'`,
+    };
+  }
   const missingOmits = [...expectedOmits].filter((o) => !omits.includes(o));
   const extraOmits = omits.filter((o) => !expectedOmits.has(o));
   if (missingOmits.length > 0 || extraOmits.length > 0) {

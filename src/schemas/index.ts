@@ -36,7 +36,7 @@ export * from './run-envelope.js';
 export * from './run-status.js';
 export * from './selection-policy.js';
 export * from './skill.js';
-export * from './skill-moment.js';
+export * from './skill-hook.js';
 export * from './snapshot.js';
 export * from './step.js';
 export * from './verification.js';

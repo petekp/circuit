@@ -96,17 +96,17 @@ describe('Run-centered V1 safety ratchets', () => {
     expect(matchingLines(futureEnvelopeFiles, /reports\/[^'"\s]+\/[^'"\s]+\.json/)).toEqual([]);
   });
 
-  it('keeps Skill Moment policy from becoming flow-step skill slots again', () => {
+  it('keeps Skill Hook policy from becoming flow-step skill slots again', () => {
     const schematicAndTestFiles = [...walk('src/flows'), ...walk('tests')].filter(
       (path) =>
         ![
           'tests/contracts/run-centered-v1-safety.test.ts',
-          'tests/contracts/skill-moment-policy-schema.test.ts',
+          'tests/contracts/skill-hook-policy-schema.test.ts',
         ].includes(path),
     );
 
-    expect(
-      matchingLines(schematicAndTestFiles, /skill_moments.*skills|skills.*skill_moments/),
-    ).toEqual([]);
+    expect(matchingLines(schematicAndTestFiles, /skill_hooks.*skills|skills.*skill_hooks/)).toEqual(
+      [],
+    );
   });
 });

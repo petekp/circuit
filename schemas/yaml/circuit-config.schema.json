@@ -230,7 +230,7 @@
           },
           "additionalProperties": false
         },
-        "moments": {
+        "skill_hooks": {
           "default": {
             "policy": {},
             "detection": {

@@ -1,0 +1,41 @@
+{
+  "schema": "process.evidence@v0",
+  "flow_id": "build",
+  "attempt_id": "primary",
+  "outcome": "aborted",
+  "summary": "Run closed with outcome aborted.",
+  "child_run_ref": {
+    "kind": "trace",
+    "ref": "trace.ndjson#sequence=0",
+    "run_id": "44444444-4444-4444-4444-444444444406",
+    "sequence": 0
+  },
+  "result_ref": {
+    "kind": "report",
+    "ref": "reports/result.json",
+    "sha256": "b015fe6c0eb288bb71afc6832432fb85d99fcf6336ade796f7e13fd447b19791",
+    "run_id": "44444444-4444-4444-4444-444444444406",
+    "flow_id": "build"
+  },
+  "evidence_refs": [
+    {
+      "kind": "report",
+      "ref": "reports/result.json",
+      "sha256": "b015fe6c0eb288bb71afc6832432fb85d99fcf6336ade796f7e13fd447b19791",
+      "run_id": "44444444-4444-4444-4444-444444444406",
+      "flow_id": "build"
+    }
+  ],
+  "declared_report_paths": [
+    "reports/build-result.json"
+  ],
+  "missing_evidence": [
+    {
+      "claim_id": "process-completion",
+      "reason": "step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)",
+      "next_action": "Inspect the child process result before closing Run."
+    }
+  ],
+  "trace_entries_observed": 27,
+  "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2"
+}

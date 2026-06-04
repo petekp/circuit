@@ -1,4 +1,4 @@
-Circuit
+CIRCUIT
 ⎿ Fix applied with follow-ups. Verification: passed. Review: skipped.
 
 - Worker access: A worker can edit this checkout.

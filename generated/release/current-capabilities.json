@@ -210,9 +210,10 @@
           "autonomous": false
         }
       },
-      "stages": ["Frame", "Plan", "Act", "Verify", "Review", "Close"],
+      "stages": ["Frame", "Analyze", "Plan", "Act", "Verify", "Review", "Close"],
       "reports": [
         "build.brief@v1",
+        "build.context@v1",
         "build.implementation@v1",
         "build.plan@v1",
         "build.result@v1",
@@ -225,8 +226,8 @@
         "verification": 1,
         "checkpoint": 1
       },
-      "route_outcomes": ["complete", "continue", "retry", "revise", "stop"],
-      "unsupported_route_outcomes": []
+      "route_outcomes": ["advance", "ask", "complete", "continue", "retry", "revise", "stop"],
+      "unsupported_route_outcomes": ["advance"]
     },
     {
       "id": "explore",
@@ -567,7 +568,7 @@
       "axes": {
         "intent_hints": ["develop:"],
         "modes": ["autonomous", "deep", "default", "lite"],
-        "stage_path": ["Frame", "Plan", "Act", "Verify", "Review", "Close"],
+        "stage_path": ["Frame", "Analyze", "Plan", "Act", "Verify", "Review", "Close"],
         "outputs": ["brief.md", "plan.md", "result.md", "review.md"],
         "checkpoint": "Compiled checkpoints can pause, auto-resolve safe defaults, or resume from operator input.",
         "review": "Compiled review stages or reviewer relays are present.",
@@ -1069,6 +1070,36 @@
       "status": "implemented",
       "summary": "All defined golden example runs are captured.",
       "evidence": ["docs/release/proofs/index.yaml"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "route-outcome:build:advance",
+      "kind": "route_outcome",
+      "title": "build route advance",
+      "status": "partial",
+      "summary": "advance is declared in the schematic but not executable in compiled routes.",
+      "evidence": ["src/flows/build/schematic.json"],
+      "readiness_refs": ["REL-003"],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "route-outcome:build:ask",
+      "kind": "route_outcome",
+      "title": "build route ask",
+      "status": "implemented",
+      "summary": "ask maps to an executable compiled route.",
+      "evidence": ["src/flows/build/schematic.json"],
       "readiness_refs": [],
       "axes": {
         "intent_hints": [],

@@ -183,6 +183,21 @@ function projectRuntimeCheckpointBoundary(input: {
   }
 }
 
+/**
+ * Project the checkpoint authority boundary for a runtime step, materializing
+ * its policy first. Exported for the release-proof capture harness, which
+ * hand-rolls the frame-step checkpoint yet must emit the same
+ * boundary_ref/boundary_hash the real executor does, so resume validation
+ * (which re-projects the boundary from the saved flow) accepts the proof run.
+ */
+export async function projectRuntimeCheckpointBoundaryForStep(
+  step: CheckpointStep,
+  context: RunContext,
+): Promise<CheckpointBoundaryProjection> {
+  const stepPolicy = await materializePolicy(step, context);
+  return projectRuntimeCheckpointBoundary({ step, stepPolicy, context });
+}
+
 async function resolveCheckpoint(
   step: CheckpointStep,
   context: RunContext,

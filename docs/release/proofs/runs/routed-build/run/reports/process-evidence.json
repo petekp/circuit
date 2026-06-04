@@ -1,0 +1,42 @@
+{
+  "schema": "process.evidence@v0",
+  "flow_id": "build",
+  "attempt_id": "primary",
+  "outcome": "complete",
+  "summary": "Run closed with outcome complete via @complete.",
+  "child_run_ref": {
+    "kind": "trace",
+    "ref": "trace.ndjson#sequence=0",
+    "run_id": "44444444-4444-4444-4444-444444444402",
+    "sequence": 0
+  },
+  "result_ref": {
+    "kind": "report",
+    "ref": "reports/result.json",
+    "sha256": "e39ee2bf24a5f2be7763bf3e180c874b1842b588e9b580bdcd30c6f9b16bd212",
+    "run_id": "44444444-4444-4444-4444-444444444402",
+    "flow_id": "build"
+  },
+  "evidence_refs": [
+    {
+      "kind": "report",
+      "ref": "reports/result.json",
+      "sha256": "e39ee2bf24a5f2be7763bf3e180c874b1842b588e9b580bdcd30c6f9b16bd212",
+      "run_id": "44444444-4444-4444-4444-444444444402",
+      "flow_id": "build"
+    },
+    {
+      "kind": "report",
+      "ref": "reports/build-result.json",
+      "sha256": "c4176aa7836a68450b80894f5deb5fe79e19501603921fa1475dfaac8b9ae0be",
+      "run_id": "44444444-4444-4444-4444-444444444402",
+      "flow_id": "build"
+    }
+  ],
+  "declared_report_paths": [
+    "reports/build-result.json"
+  ],
+  "missing_evidence": [],
+  "trace_entries_observed": 53,
+  "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2"
+}

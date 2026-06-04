@@ -33,6 +33,7 @@ function relayerWith(
   options: {
     implementationBody?: string;
     reviewBody?: string;
+    contextBody?: string;
   } = {},
 ): RelayFn {
   const implementationBody =
@@ -50,19 +51,34 @@ function relayerWith(
       summary: 'No blocking issue found',
       findings: [],
     });
+  const contextBody =
+    options.contextBody ??
+    JSON.stringify({
+      verdict: 'accept',
+      sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Module the change touches' }],
+      observations: ['The target module is small and self-contained'],
+      open_questions: [],
+    });
 
   return {
     connectorName: 'claude-code',
     relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
+      const isAnalyze = input.prompt.includes('Step: analyze-step');
       const isAct = input.prompt.includes('Step: act-step');
       const isReview = input.prompt.includes('Step: review-step');
-      expect(isAct || isReview).toBe(true);
+      expect(isAnalyze || isAct || isReview).toBe(true);
       expect(input.prompt).toContain('Context (from reads):');
       expect(input.prompt).toContain('Respond with a single raw JSON object');
+      const receipt_id = isAnalyze
+        ? 'stub-build-analyze'
+        : isAct
+          ? 'stub-build-act'
+          : 'stub-build-review';
+      const result_body = isAnalyze ? contextBody : isAct ? implementationBody : reviewBody;
       return {
         request_payload: input.prompt,
-        receipt_id: isAct ? 'stub-build-act' : 'stub-build-review',
-        result_body: isAct ? implementationBody : reviewBody,
+        receipt_id,
+        result_body,
         duration_ms: 1,
         cli_version: '0.0.0-stub',
       };
@@ -232,6 +248,232 @@ describe('Build runtime wiring', () => {
   );
 
   it(
+    'implements and verifies each plan slice in turn under deep-rigor (autonomous) slicing',
+    async () => {
+      const { bytes } = loadFixture();
+      const runFolder = join(runFolderBase, 'sliced');
+
+      const sliceContextBody = JSON.stringify({
+        verdict: 'accept',
+        sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Module the change touches' }],
+        observations: ['The change decomposes into three ordered units'],
+        open_questions: [],
+        anticipated_file_extensions: ['.ts'],
+        slices: [
+          { id: 'slice-1', intent: 'scaffold the module', anticipated_file_extensions: ['.ts'] },
+          {
+            id: 'slice-2',
+            intent: 'wire it into the router',
+            anticipated_file_extensions: ['.ts'],
+          },
+          {
+            id: 'slice-3',
+            intent: 'add tests for the module',
+            anticipated_file_extensions: ['.test.ts'],
+          },
+        ],
+      });
+
+      const actPrompts: string[] = [];
+      const baseRelayer = relayerWith({ contextBody: sliceContextBody });
+      const relayer: RelayFn = {
+        connectorName: baseRelayer.connectorName,
+        relay: async (input) => {
+          if (input.prompt.includes('Step: act-step')) actPrompts.push(input.prompt);
+          return baseRelayer.relay(input);
+        },
+      };
+
+      const outcome = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: bytes,
+        runId: 'b2000000-0000-0000-0000-00000000005c',
+        goal: 'Add a feature that decomposes into slices',
+        depth: 'autonomous',
+        now: deterministicNow(Date.UTC(2026, 3, 25, 8, 7, 0)),
+        relayer,
+        projectRoot: makeVerificationProjectRoot(),
+      });
+
+      expect(outcome.outcome).toBe('complete');
+      const trace_entries = await readTraceEntries(runFolder);
+
+      const actCompletions = trace_entries.filter(
+        (entry): entry is Extract<(typeof trace_entries)[number], { kind: 'step.completed' }> =>
+          entry.kind === 'step.completed' && entry.step_id === 'act-step',
+      );
+      const verifyCompletions = trace_entries.filter(
+        (entry): entry is Extract<(typeof trace_entries)[number], { kind: 'step.completed' }> =>
+          entry.kind === 'step.completed' && entry.step_id === 'verify-step',
+      );
+
+      // Three slices => three implement+verify passes on the shared tree.
+      expect(actCompletions).toHaveLength(3);
+      expect(verifyCompletions).toHaveLength(3);
+      // Each slice gets a fresh per-slice attempt budget (no retries here).
+      expect(actCompletions.map((entry) => entry.attempt)).toEqual([1, 1, 1]);
+      expect(verifyCompletions.map((entry) => entry.attempt)).toEqual([1, 1, 1]);
+      // Loop-body entries are slice-tagged in order.
+      expect(actCompletions.map((entry) => entry.slice_index)).toEqual([0, 1, 2]);
+      expect(verifyCompletions.map((entry) => entry.slice_index)).toEqual([0, 1, 2]);
+      // The first two slices advance; the last proceeds to review.
+      expect(verifyCompletions.map((entry) => entry.route_taken)).toEqual([
+        'advance',
+        'advance',
+        'pass',
+      ]);
+
+      // Review and close run once, after the loop.
+      const reviewCompletions = trace_entries.filter(
+        (entry) => entry.kind === 'step.completed' && entry.step_id === 'review-step',
+      );
+      expect(reviewCompletions).toHaveLength(1);
+
+      // The implementer is told which slice it is on, in order.
+      expect(actPrompts).toHaveLength(3);
+      expect(actPrompts[0]).toContain('scaffold the module');
+      expect(actPrompts[1]).toContain('wire it into the router');
+      expect(actPrompts[2]).toContain('add tests for the module');
+    },
+    BUILD_RUNTIME_TIMEOUT_MS,
+  );
+
+  const threeSliceContextBody = JSON.stringify({
+    verdict: 'accept',
+    sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Module the change touches' }],
+    observations: ['The change decomposes into three ordered units'],
+    open_questions: [],
+    anticipated_file_extensions: ['.ts'],
+    slices: [
+      { id: 'slice-1', intent: 'first unit', anticipated_file_extensions: ['.ts'] },
+      { id: 'slice-2', intent: 'second unit', anticipated_file_extensions: ['.ts'] },
+      { id: 'slice-3', intent: 'third unit', anticipated_file_extensions: ['.ts'] },
+    ],
+  });
+
+  it(
+    'stops at the first slice that cannot pass verification instead of advancing to later slices',
+    async () => {
+      const { bytes } = loadFixture();
+      const runFolder = join(runFolderBase, 'slice-unfixable');
+      // A check that always fails: the first slice can never reach a passing
+      // verify, so the run must exhaust the slice's retry budget and abort
+      // WITHOUT advancing to slice 2 or reaching review.
+      const failingCheck = 'node -e "process.exit(1)"';
+
+      const outcome = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: bytes,
+        runId: 'b2000000-0000-0000-0000-00000000005d',
+        goal: 'A change whose first slice never verifies',
+        depth: 'autonomous',
+        now: deterministicNow(Date.UTC(2026, 3, 25, 8, 8, 0)),
+        relayer: relayerWith({ contextBody: threeSliceContextBody }),
+        projectRoot: makeVerificationProjectRoot(failingCheck),
+      });
+
+      // The run does not close complete: a failing slice cannot advance.
+      expect(outcome.outcome).not.toBe('complete');
+      const trace_entries = await readTraceEntries(runFolder);
+      const completions = trace_entries.filter((entry) => entry.kind === 'step.completed');
+      // Every loop-body completion stayed on slice 0; none advanced.
+      const loopBody = completions.filter(
+        (entry) => entry.step_id === 'act-step' || entry.step_id === 'verify-step',
+      );
+      for (const entry of loopBody) {
+        expect((entry as { slice_index?: number }).slice_index).toBe(0);
+      }
+      // No verify ever took the advance route, and review never ran.
+      expect(
+        completions.some(
+          (entry) => entry.step_id === 'verify-step' && entry.route_taken === 'advance',
+        ),
+      ).toBe(false);
+      expect(completions.some((entry) => entry.step_id === 'review-step')).toBe(false);
+    },
+    BUILD_RUNTIME_TIMEOUT_MS,
+  );
+
+  it(
+    'retries a failing slice in place under its own budget, then advances once it passes',
+    async () => {
+      const { bytes } = loadFixture();
+      const runFolder = join(runFolderBase, 'slice-retry-then-advance');
+      // Fail the very first verify once, then pass every subsequent run. Only
+      // slice 0 should retry; slices 1 and 2 pass on their first attempt.
+      const checkScript = [
+        'node',
+        '-e',
+        [
+          "const fs = require('node:fs')",
+          "const p = 'slice-check-count.txt'",
+          "const n = fs.existsSync(p) ? Number(fs.readFileSync(p, 'utf8')) : 0",
+          'fs.writeFileSync(p, String(n + 1))',
+          'process.exit(n === 0 ? 1 : 0)',
+        ].join('; '),
+      ]
+        .map((part) => JSON.stringify(part))
+        .join(' ');
+
+      const outcome = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: bytes,
+        runId: 'b2000000-0000-0000-0000-00000000005e',
+        goal: 'A change whose first slice needs one retry',
+        depth: 'autonomous',
+        now: deterministicNow(Date.UTC(2026, 3, 25, 8, 9, 0)),
+        relayer: relayerWith({ contextBody: threeSliceContextBody }),
+        projectRoot: makeVerificationProjectRoot(checkScript),
+      });
+
+      expect(outcome.outcome).toBe('complete');
+      const trace_entries = await readTraceEntries(runFolder);
+      const actCompletions = trace_entries.filter(
+        (entry): entry is Extract<(typeof trace_entries)[number], { kind: 'step.completed' }> =>
+          entry.kind === 'step.completed' && entry.step_id === 'act-step',
+      );
+      // slice 0 ran twice (retry after the failed verify); slices 1 and 2 once.
+      expect(actCompletions.map((entry) => entry.slice_index)).toEqual([0, 0, 1, 2]);
+      // Per-slice attempt budgets: slice 0 reaches attempt 2; later slices reset to 1.
+      expect(actCompletions.map((entry) => entry.attempt)).toEqual([1, 2, 1, 1]);
+    },
+    BUILD_RUNTIME_TIMEOUT_MS,
+  );
+
+  it(
+    'emits no slice_index on a standard (non-deep) single-pass run',
+    async () => {
+      const { bytes } = loadFixture();
+      const runFolder = join(runFolderBase, 'no-slice-tag');
+
+      const outcome = await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: bytes,
+        runId: 'b2000000-0000-0000-0000-00000000005f',
+        goal: 'Add a tiny Build feature',
+        depth: 'standard',
+        now: deterministicNow(Date.UTC(2026, 3, 25, 8, 10, 0)),
+        relayer: relayerWith({ contextBody: threeSliceContextBody }),
+        projectRoot: makeVerificationProjectRoot(),
+      });
+
+      expect(outcome.outcome).toBe('complete');
+      const trace_entries = await readTraceEntries(runFolder);
+      // The corridor is inert below deep rigor: even though the researcher
+      // emitted slices, the run is single-pass and no entry carries slice_index.
+      // Guards against an executor regression that always-emits the field
+      // (which would fail RunTrace's .strict() parse for standard runs).
+      const tagged = trace_entries.filter((entry) => 'slice_index' in entry);
+      expect(tagged).toHaveLength(0);
+      const actCompletions = trace_entries.filter(
+        (entry) => entry.kind === 'step.completed' && entry.step_id === 'act-step',
+      );
+      expect(actCompletions).toHaveLength(1);
+    },
+    BUILD_RUNTIME_TIMEOUT_MS,
+  );
+
+  it(
     'aborts when implementation relay passes the verdict check but fails build.implementation@v1 parsing',
     async () => {
       const { bytes } = loadFixture();
@@ -392,6 +634,7 @@ describe('Build runtime wiring', () => {
     }
     expect(visited).toEqual([
       'frame-step',
+      'analyze-step',
       'plan-step',
       'act-step',
       'verify-step',

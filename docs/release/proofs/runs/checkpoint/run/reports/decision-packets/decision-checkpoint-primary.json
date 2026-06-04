@@ -1,0 +1,43 @@
+{
+  "schema": "run.decision-packet@v0",
+  "decision_id": "decision-checkpoint-primary",
+  "reason": "process-checkpoint",
+  "prompt": "Choose how the selected process should continue.",
+  "choices": [
+    {
+      "id": "continue",
+      "label": "continue",
+      "effect": "Resume the checkpoint with 'continue'."
+    }
+  ],
+  "resume_target": {
+    "kind": "process-checkpoint",
+    "run_id": "44444444-4444-4444-4444-444444444405",
+    "step_id": "frame-step",
+    "request_ref": {
+      "kind": "request",
+      "ref": "reports/checkpoints/frame-step-request.json",
+      "sha256": "9d19c6f24d0d94100e7bc57822868b5ecb5071c388dfcd32639615efcf2239df",
+      "run_id": "44444444-4444-4444-4444-444444444405",
+      "flow_id": "build",
+      "step_id": "frame-step"
+    }
+  },
+  "artifact_refs": [
+    {
+      "kind": "evidence",
+      "ref": "reports/process-evidence.json",
+      "sha256": "98aa951e056f9dc40e73aa421cc6ac2d2426ef5fb896f7eacf24ac3a3808b21a",
+      "run_id": "44444444-4444-4444-4444-444444444405",
+      "flow_id": "build"
+    },
+    {
+      "kind": "request",
+      "ref": "reports/checkpoints/frame-step-request.json",
+      "sha256": "9d19c6f24d0d94100e7bc57822868b5ecb5071c388dfcd32639615efcf2239df",
+      "run_id": "44444444-4444-4444-4444-444444444405",
+      "flow_id": "build",
+      "step_id": "frame-step"
+    }
+  ]
+}

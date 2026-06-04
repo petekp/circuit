@@ -1,154 +1,154 @@
 import { z } from 'zod';
 import { CompiledFlowId, SkillId, StageId, StepId } from './ids.js';
 
-export const SKILL_MOMENT_VOCABULARY = [
+export const SKILL_HOOK_VOCABULARY = [
   {
-    moment: 'before:high-impact-alignment',
+    hook: 'before:high-impact-alignment',
     detected_from: ['goal-contract:impact=high', 'operator-flag:high-impact'],
     cardinality: 'per-run',
     default_mode: 'ask',
   },
   {
-    moment: 'before:architecture-analysis',
+    hook: 'before:architecture-analysis',
     detected_from: ['selected-process:explore-architecture', 'step-metadata:architecture-analysis'],
     cardinality: 'per-step',
     default_mode: 'auto',
   },
   {
-    moment: 'before:plan-implementation',
+    hook: 'before:plan-implementation',
     detected_from: ['stage-transition:Plan', 'step-metadata:plan'],
     cardinality: 'per-stage',
     default_mode: 'auto',
   },
   {
-    moment: 'before:implementation',
+    hook: 'before:implementation',
     detected_from: ['stage-transition:Plan->Act', 'stage-transition:Act'],
     cardinality: 'per-stage',
     default_mode: 'auto',
   },
   {
-    moment: 'before:verification',
+    hook: 'before:verification',
     detected_from: ['stage-transition:Verify', 'step-metadata:verify'],
     cardinality: 'per-stage',
     default_mode: 'auto',
   },
   {
-    moment: 'after:react-ui-change',
-    detected_from: ['diff:*.tsx', 'diff:*.jsx', 'config:moments.detection.react_surfaces'],
+    hook: 'after:react-ui-change',
+    detected_from: ['diff:*.tsx', 'diff:*.jsx', 'config:skill_hooks.detection.react_surfaces'],
     cardinality: 'per-step',
     default_mode: 'auto',
   },
   {
-    moment: 'after:test-change',
+    hook: 'after:test-change',
     detected_from: ['diff:*.test.*', 'diff:*.spec.*', 'diff:tests/**', 'diff:__tests__/**'],
     cardinality: 'per-step',
     default_mode: 'auto',
   },
   {
-    moment: 'after:schema-change',
+    hook: 'after:schema-change',
     detected_from: ['diff:*.prisma', 'diff:*.sql', 'diff:migrations/**', 'diff:schemas/**'],
     cardinality: 'per-step',
     default_mode: 'auto',
   },
   {
-    moment: 'after:api-surface-change',
-    detected_from: ['config:moments.detection.api_surfaces'],
+    hook: 'after:api-surface-change',
+    detected_from: ['config:skill_hooks.detection.api_surfaces'],
     cardinality: 'per-step',
     default_mode: 'auto',
   },
   {
-    moment: 'after:dependency-change',
+    hook: 'after:dependency-change',
     detected_from: ['diff:lockfile', 'diff:package-manifest-dependencies'],
     cardinality: 'per-step',
     default_mode: 'auto',
   },
   {
-    moment: 'after:verification-failed',
+    hook: 'after:verification-failed',
     detected_from: ['evidence-map:required-check-failed'],
     cardinality: 'per-step',
     default_mode: 'auto',
   },
   {
-    moment: 'after:evidence-gap',
+    hook: 'after:evidence-gap',
     detected_from: ['evidence-map:required-claim-missing-after-verify'],
     cardinality: 'per-stage',
     default_mode: 'auto',
   },
   {
-    moment: 'before:close-run',
+    hook: 'before:close-run',
     detected_from: ['run-envelope:close-decision', 'stage-transition:Close'],
     cardinality: 'per-run',
     default_mode: 'auto',
   },
   {
-    moment: 'before:handoff',
+    hook: 'before:handoff',
     detected_from: ['command:handoff', 'run-envelope:handoff-decision'],
     cardinality: 'per-run',
     default_mode: 'auto',
   },
 ] as const;
 
-export const SkillMomentCardinality = z.enum(['per-run', 'per-stage', 'per-step']);
-export type SkillMomentCardinality = z.infer<typeof SkillMomentCardinality>;
+export const SkillHookCardinality = z.enum(['per-run', 'per-stage', 'per-step']);
+export type SkillHookCardinality = z.infer<typeof SkillHookCardinality>;
 
-export const SkillMomentPolicyMode = z.enum(['auto', 'ask', 'mute']);
-export type SkillMomentPolicyMode = z.infer<typeof SkillMomentPolicyMode>;
+export const SkillHookPolicyMode = z.enum(['auto', 'ask', 'mute']);
+export type SkillHookPolicyMode = z.infer<typeof SkillHookPolicyMode>;
 
-const SHIPPED_MOMENTS = new Set<string>(SKILL_MOMENT_VOCABULARY.map((entry) => entry.moment));
-const CUSTOM_MOMENT_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
+const SHIPPED_HOOKS = new Set<string>(SKILL_HOOK_VOCABULARY.map((entry) => entry.hook));
+const CUSTOM_HOOK_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
 const SHIPPED_SHAPE_RE = /^(before|after):[a-z][a-z0-9-]*$/;
 
-function momentBody(value: string): string {
+function hookBody(value: string): string {
   const slash = value.indexOf('/');
   return slash === -1 ? value : value.slice(slash + 1);
 }
 
-export const SkillMomentName = z.string().superRefine((value, ctx) => {
-  if (SHIPPED_MOMENTS.has(value)) return;
+export const SkillHookName = z.string().superRefine((value, ctx) => {
+  if (SHIPPED_HOOKS.has(value)) return;
 
   if (SHIPPED_SHAPE_RE.test(value)) {
     ctx.addIssue({
       code: 'custom',
-      message: `unknown shipped Skill Moment '${value}'`,
+      message: `unknown shipped Skill Hook '${value}'`,
     });
     return;
   }
 
-  if (!CUSTOM_MOMENT_RE.test(value)) {
+  if (!CUSTOM_HOOK_RE.test(value)) {
     ctx.addIssue({
       code: 'custom',
-      message: 'custom Skill Moments must be namespaced as <namespace>/<before|after>:<name>',
+      message: 'custom Skill Hooks must be namespaced as <namespace>/<before|after>:<name>',
     });
     return;
   }
 
-  if (SHIPPED_MOMENTS.has(momentBody(value))) {
+  if (SHIPPED_HOOKS.has(hookBody(value))) {
     ctx.addIssue({
       code: 'custom',
-      message: 'custom Skill Moments must not reuse shipped moment names',
+      message: 'custom Skill Hooks must not reuse shipped hook names',
     });
   }
 });
-export type SkillMomentName = z.infer<typeof SkillMomentName>;
+export type SkillHookName = z.infer<typeof SkillHookName>;
 
-export const SkillMomentNameArray = z.array(SkillMomentName).superRefine((moments, ctx) => {
+export const SkillHookNameArray = z.array(SkillHookName).superRefine((hooks, ctx) => {
   const seen = new Set<string>();
-  for (const [index, moment] of moments.entries()) {
-    if (seen.has(moment)) {
+  for (const [index, hook] of hooks.entries()) {
+    if (seen.has(hook)) {
       ctx.addIssue({
         code: 'custom',
         path: [index],
-        message: `duplicate Skill Moment '${moment}'`,
+        message: `duplicate Skill Hook '${hook}'`,
       });
     }
-    seen.add(moment);
+    seen.add(hook);
   }
 });
-export type SkillMomentNameArray = z.infer<typeof SkillMomentNameArray>;
+export type SkillHookNameArray = z.infer<typeof SkillHookNameArray>;
 
-export const SkillMomentPolicyRule = z
+export const SkillHookPolicyRule = z
   .object({
-    mode: SkillMomentPolicyMode,
+    mode: SkillHookPolicyMode,
     skills: z.array(SkillId).optional(),
     strict: z.boolean().default(false),
   })
@@ -159,7 +159,7 @@ export const SkillMomentPolicyRule = z
         ctx.addIssue({
           code: 'custom',
           path: ['skills'],
-          message: 'mute Skill Moment policy must not declare skills',
+          message: 'mute Skill Hook policy must not declare skills',
         });
       }
       return;
@@ -169,7 +169,7 @@ export const SkillMomentPolicyRule = z
       ctx.addIssue({
         code: 'custom',
         path: ['skills'],
-        message: `${rule.mode} Skill Moment policy requires at least one skill`,
+        message: `${rule.mode} Skill Hook policy requires at least one skill`,
       });
       return;
     }
@@ -181,34 +181,34 @@ export const SkillMomentPolicyRule = z
         ctx.addIssue({
           code: 'custom',
           path: ['skills', index],
-          message: `duplicate Skill Moment skill '${key}'`,
+          message: `duplicate Skill Hook skill '${key}'`,
         });
       }
       seen.add(key);
     }
   });
-export type SkillMomentPolicyRule = z.infer<typeof SkillMomentPolicyRule>;
+export type SkillHookPolicyRule = z.infer<typeof SkillHookPolicyRule>;
 
-export const SkillMomentDetectionConfig = z
+export const SkillHookDetectionConfig = z
   .object({
     react_surfaces: z.array(z.string().min(1)).optional(),
     test_surfaces: z.array(z.string().min(1)).optional(),
     schema_surfaces: z.array(z.string().min(1)).optional(),
     api_surfaces: z.array(z.string().min(1)).optional(),
-    disabled_patterns: z.record(SkillMomentName, z.array(z.string().min(1))).default({}),
+    disabled_patterns: z.record(SkillHookName, z.array(z.string().min(1))).default({}),
   })
   .strict();
-export type SkillMomentDetectionConfig = z.infer<typeof SkillMomentDetectionConfig>;
+export type SkillHookDetectionConfig = z.infer<typeof SkillHookDetectionConfig>;
 
-export const SkillMomentConfig = z
+export const SkillHookConfig = z
   .object({
-    policy: z.record(SkillMomentName, SkillMomentPolicyRule).default({}),
-    detection: SkillMomentDetectionConfig.default({ disabled_patterns: {} }),
+    policy: z.record(SkillHookName, SkillHookPolicyRule).default({}),
+    detection: SkillHookDetectionConfig.default({ disabled_patterns: {} }),
   })
   .strict();
-export type SkillMomentConfig = z.infer<typeof SkillMomentConfig>;
+export type SkillHookConfig = z.infer<typeof SkillHookConfig>;
 
-export const SkillMomentSkillState = z.enum([
+export const SkillHookSkillState = z.enum([
   'planned',
   'staged',
   'requested',
@@ -216,9 +216,9 @@ export const SkillMomentSkillState = z.enum([
   'unplanned',
   'unavailable',
 ]);
-export type SkillMomentSkillState = z.infer<typeof SkillMomentSkillState>;
+export type SkillHookSkillState = z.infer<typeof SkillHookSkillState>;
 
-export const SkillMomentPolicyResolution = z.discriminatedUnion('source', [
+export const SkillHookPolicyResolution = z.discriminatedUnion('source', [
   z
     .object({
       mode: z.literal('none'),
@@ -227,19 +227,19 @@ export const SkillMomentPolicyResolution = z.discriminatedUnion('source', [
     .strict(),
   z
     .object({
-      mode: SkillMomentPolicyMode,
+      mode: SkillHookPolicyMode,
       source: z.enum(['project-policy', 'user-global-policy', 'default-mapping']),
       strict: z.boolean(),
       policy_ref: z.string().min(1).optional(),
     })
     .strict(),
 ]);
-export type SkillMomentPolicyResolution = z.infer<typeof SkillMomentPolicyResolution>;
+export type SkillHookPolicyResolution = z.infer<typeof SkillHookPolicyResolution>;
 
-export const SkillMomentSkillRef = z
+export const SkillHookSkillRef = z
   .object({
     id: SkillId,
-    state: SkillMomentSkillState,
+    state: SkillHookSkillState,
     source: z.enum(['project-policy', 'user-global-policy', 'default-mapping', 'host-observed']),
     reason: z.string().min(1).optional(),
   })
@@ -249,27 +249,27 @@ export const SkillMomentSkillRef = z
       ctx.addIssue({
         code: 'custom',
         path: ['source'],
-        message: `${skill.state} Skill Moment activity requires host-observed source`,
+        message: `${skill.state} Skill Hook activity requires host-observed source`,
       });
     }
   });
-export type SkillMomentSkillRef = z.infer<typeof SkillMomentSkillRef>;
+export type SkillHookSkillRef = z.infer<typeof SkillHookSkillRef>;
 
-export const RunSkillMomentEvent = z
+export const RunSkillHookEvent = z
   .object({
-    schema: z.literal('run.skill-moment@v0'),
+    schema: z.literal('run.skill-hook@v0'),
     event_id: z.string().min(1),
-    moment: SkillMomentName,
+    hook: SkillHookName,
     detected_from: z.array(z.string().min(1)).min(1),
-    cardinality: SkillMomentCardinality,
-    policy: SkillMomentPolicyResolution,
+    cardinality: SkillHookCardinality,
+    policy: SkillHookPolicyResolution,
     flow_id: CompiledFlowId.optional(),
     stage_id: StageId.optional(),
     step_id: StepId.optional(),
     attempt_id: z.string().min(1).optional(),
     decision_packet_id: z.string().min(1).optional(),
-    triggered_skills: z.array(SkillMomentSkillRef),
-    unavailable_skills: z.array(SkillMomentSkillRef).optional(),
+    triggered_skills: z.array(SkillHookSkillRef),
+    unavailable_skills: z.array(SkillHookSkillRef).optional(),
   })
   .strict()
   .superRefine((event, ctx) => {
@@ -280,7 +280,7 @@ export const RunSkillMomentEvent = z
       ctx.addIssue({
         code: 'custom',
         path: ['triggered_skills'],
-        message: `${event.policy.mode} Skill Moment policy must not trigger skills`,
+        message: `${event.policy.mode} Skill Hook policy must not trigger skills`,
       });
     }
 
@@ -304,4 +304,4 @@ export const RunSkillMomentEvent = z
       }
     }
   });
-export type RunSkillMomentEvent = z.infer<typeof RunSkillMomentEvent>;
+export type RunSkillHookEvent = z.infer<typeof RunSkillHookEvent>;

@@ -27,16 +27,26 @@ function relayerWithBody(body: string): RelayFn {
   return makeStubRelayer(body, { receipt_id: 'stub-receipt-runtime-soak' });
 }
 
+const BUILD_CONTEXT_RELAY_BODY = JSON.stringify({
+  verdict: 'accept',
+  sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Module the change touches.' }],
+  observations: ['The target module is small and self-contained.'],
+  open_questions: [],
+  anticipated_file_extensions: ['.ts'],
+});
+
 function buildRelayer(): RelayFn {
   return makeStubRelayer(
-    (input) =>
-      input.prompt.includes('Step: review-step')
+    (input) => {
+      if (input.prompt.includes('Step: analyze-step')) return BUILD_CONTEXT_RELAY_BODY;
+      return input.prompt.includes('Step: review-step')
         ? JSON.stringify({
             verdict: 'accept',
             summary: 'No blocking issue found',
             findings: [],
           })
-        : BUILD_RELAY_BODY,
+        : BUILD_RELAY_BODY;
+    },
     { receipt_id: 'stub-receipt-runtime-soak-build' },
   );
 }

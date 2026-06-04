@@ -57,6 +57,7 @@ describe('fromCompiledFlow', () => {
     expect(manifest.entryModes).toBeUndefined();
     expect(manifest.stages.map((stage) => stage.id)).toEqual([
       'frame-stage',
+      'analyze-stage',
       'plan-stage',
       'act-stage',
       'verify-stage',

@@ -31,6 +31,14 @@ const EXPLORE_REVIEW_VERDICT_BODY = JSON.stringify({
   missed_angles: [],
 });
 
+const BUILD_CONTEXT_BODY = JSON.stringify({
+  verdict: 'accept',
+  sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Module the change touches.' }],
+  observations: ['The target module is small and self-contained.'],
+  open_questions: [],
+  anticipated_file_extensions: ['.ts'],
+});
+
 const BUILD_IMPLEMENTATION_BODY = JSON.stringify({
   verdict: 'accept',
   summary: 'Implemented the requested change',
@@ -107,17 +115,19 @@ function createProofProject(name: string): string {
 function relayerWithBody(body: string): RelayFn {
   return makeStubRelayer(
     (input) =>
-      input.prompt.includes('Step: act-step') && body === '{"verdict":"accept"}'
-        ? BUILD_IMPLEMENTATION_BODY
-        : input.prompt.includes('Step: review-step') &&
-            input.prompt.includes('build.review@v1') &&
-            body === '{"verdict":"accept"}'
-          ? BUILD_REVIEW_BODY
-          : input.prompt.includes('Step: synthesize-step') && body === '{"verdict":"accept"}'
-            ? EXPLORE_SYNTHESIS_BODY
-            : input.prompt.includes('Step: review-step') && body === '{"verdict":"accept"}'
-              ? EXPLORE_REVIEW_VERDICT_BODY
-              : body,
+      input.prompt.includes('Step: analyze-step') && body === '{"verdict":"accept"}'
+        ? BUILD_CONTEXT_BODY
+        : input.prompt.includes('Step: act-step') && body === '{"verdict":"accept"}'
+          ? BUILD_IMPLEMENTATION_BODY
+          : input.prompt.includes('Step: review-step') &&
+              input.prompt.includes('build.review@v1') &&
+              body === '{"verdict":"accept"}'
+            ? BUILD_REVIEW_BODY
+            : input.prompt.includes('Step: synthesize-step') && body === '{"verdict":"accept"}'
+              ? EXPLORE_SYNTHESIS_BODY
+              : input.prompt.includes('Step: review-step') && body === '{"verdict":"accept"}'
+                ? EXPLORE_REVIEW_VERDICT_BODY
+                : body,
     { receipt_id: 'stub-receipt-cli-router' },
   );
 }

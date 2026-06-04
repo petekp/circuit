@@ -2,6 +2,11 @@
   "schema_version": 1,
   "run_id": "44444444-4444-4444-4444-444444444407",
   "flow_id": "fix",
+  "resolved_axes": {
+    "rigor": "lite",
+    "tournament": false,
+    "autonomous": false
+  },
   "selected_flow": "fix",
   "routed_by": "classifier",
   "router_reason": "matched quick fix prefix; routed to Fix flow",
@@ -10,9 +15,13 @@
   "entry_mode_source": "classifier",
   "run_folder": "<repo>/docs/release/proofs/runs/fix/run",
   "outcome": "complete",
-  "trace_entries_observed": 50,
+  "trace_entries_observed": 65,
   "result_path": "<repo>/docs/release/proofs/runs/fix/run/reports/result.json",
   "operator_summary_path": "<repo>/docs/release/proofs/runs/fix/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/fix/run/reports/operator-summary.md",
-  "operator_summary_status_text": "Fix applied with follow-ups. Verification: passed. Review: skipped."
+  "operator_summary_status_text": "Fix applied with follow-ups. Verification: passed. Review: skipped.",
+  "run_envelope_path": "<repo>/docs/release/proofs/runs/fix/run/reports/run-envelope.json",
+  "run_process_evidence_path": "<repo>/docs/release/proofs/runs/fix/run/reports/process-evidence.json",
+  "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/fix/run/reports/run-surface.md",
+  "run_surface_status_text": "Done: fix completed with required process evidence."
 }

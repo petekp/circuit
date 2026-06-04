@@ -2,6 +2,13 @@ Step: review-step
 Title: Review - implementation review relay
 Role: reviewer
 Accepted verdicts: accept, accept-with-fixes
+Rigor: deep. Tune your thoroughness and effort to this level; it does not change which steps run.
+
+Operator Goal:
+deep change that asks for scope
+
+Prior-Run Memory (optional, hint-only):
+You may consult prior-run memory with `circuit history pull --run-folder <repo>/docs/release/proofs/runs/checkpoint/run --flow build --decision-point <label> <query>`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.
 
 Context (from reads):
 --- reports/build/brief.json ---
@@ -40,11 +47,18 @@ Context (from reads):
 --- reports/build/plan.json ---
 {
   "objective": "deep change that asks for scope",
-  "approach": "Make the smallest safe change inside scope: Make the smallest safe change that satisfies the requested goal.",
+  "approach": "Grounded in a codebase read (1 sources): The synthetic target module is small and self-contained. Then Make the smallest safe change inside scope: Make the smallest safe change that satisfies the requested goal.",
   "slices": [
-    "Satisfy: The requested behavior is implemented",
-    "Satisfy: Verification passes",
-    "Satisfy: Review completes without a blocking issue"
+    {
+      "id": "slice-1",
+      "intent": "deep change that asks for scope",
+      "anticipated_file_extensions": [
+        ".ts"
+      ]
+    }
+  ],
+  "anticipated_file_extensions": [
+    ".ts"
   ],
   "verification": {
     "commands": [
@@ -92,7 +106,7 @@ Context (from reads):
       "cwd": ".",
       "exit_code": 0,
       "status": "passed",
-      "duration_ms": 3099,
+      "duration_ms": 2931,
       "stdout_summary": "\n> circuit@0.0.1 check\n> tsc --noEmit\n\n",
       "stderr_summary": ""
     }
