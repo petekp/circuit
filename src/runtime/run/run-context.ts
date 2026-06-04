@@ -29,6 +29,12 @@ export interface RunContext
   readonly externalFiles: ExternalFileReader;
   readonly activeStepAttempt?: number;
   readonly acceptanceRetryFeedback?: AcceptanceRetryFeedback;
+  // Set by the graph-runner on a loop-body step during an active slice loop
+  // (deep-rigor Build): the 0-based index of the slice being executed and the
+  // slice's metadata, so executors can tag trace entries and the relay prompt
+  // can scope the worker to the current slice. Absent on single-pass runs.
+  readonly activeSliceIndex?: number;
+  readonly activeSlice?: unknown;
   readonly resumeCheckpoint?: {
     readonly stepId: string;
     readonly attempt: number;

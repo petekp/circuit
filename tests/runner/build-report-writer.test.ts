@@ -381,7 +381,7 @@ function seedBuildRoleReport(runFolder: string, schema: string): void {
       BuildPlan.parse({
         objective: 'Add a small feature',
         approach: 'Implement and verify',
-        slices: ['Runtime writer test'],
+        slices: [{ id: 'slice-1', intent: 'Runtime writer test', anticipated_file_extensions: [] }],
         verification: {
           commands: [
             {
@@ -527,7 +527,11 @@ describe('Build compose writers', () => {
       },
     ]);
     expect(plan.objective).toBe('Add a small feature');
-    expect(plan.slices).toEqual(['Satisfy: Build result parses']);
+    // No build.context@v1 in this reduced fixture, so the plan writer falls
+    // back to a single slice covering the whole objective (single pass).
+    expect(plan.slices).toEqual([
+      { id: 'slice-1', intent: 'Add a small feature', anticipated_file_extensions: [] },
+    ]);
   });
 
   it('aborts Build plan when the brief is not an explicit read', async () => {

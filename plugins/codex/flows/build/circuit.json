@@ -237,6 +237,7 @@
       "routes": {
         "continue": "review-step",
         "pass": "review-step",
+        "advance": "act-step",
         "retry": "act-step",
         "stop": "@stop"
       },

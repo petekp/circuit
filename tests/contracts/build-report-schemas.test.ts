@@ -251,7 +251,9 @@ describe('Build report schemas', () => {
       BuildPlan.parse({
         objective: 'Add a small feature',
         approach: 'Make the smallest code change and verify it',
-        slices: ['Implement the behavior'],
+        slices: [
+          { id: 'slice-1', intent: 'Implement the behavior', anticipated_file_extensions: [] },
+        ],
         verification: { commands: [verificationCommand()] },
       }),
     ).toBeDefined();

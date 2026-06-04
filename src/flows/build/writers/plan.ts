@@ -34,10 +34,24 @@ export const buildPlanComposeBuilder: ComposeBuilder = {
       grounding === undefined
         ? baseApproach
         : `Grounded in a codebase read (${grounding.sources.length} sources): ${grounding.observations.join(' ')} Then ${baseApproach}`;
+    // Carry the researcher's ordered work-unit slices. When the analyze
+    // step found no decomposition (single indivisible change, or a reduced
+    // fixture with no context), fall back to one slice covering the whole
+    // objective so the plan always has >=1 slice and a single pass runs.
+    const slices =
+      grounding !== undefined && grounding.slices.length > 0
+        ? grounding.slices
+        : [
+            {
+              id: 'slice-1',
+              intent: brief.objective,
+              anticipated_file_extensions: grounding?.anticipated_file_extensions ?? [],
+            },
+          ];
     return BuildPlan.parse({
       objective: brief.objective,
       approach,
-      slices: brief.success_criteria.map((criterion) => `Satisfy: ${criterion}`),
+      slices,
       anticipated_file_extensions: grounding?.anticipated_file_extensions ?? [],
       verification: {
         commands: brief.verification_command_candidates,

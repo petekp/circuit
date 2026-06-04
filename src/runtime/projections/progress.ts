@@ -378,6 +378,14 @@ export function createProgressProjector(input: {
         activeAttempts.set(stepId, entry.attempt);
         taskStatuses.set(stepId, 'in_progress');
         const display = stepDisplay({ flow: input.flow, stepDisplayById, stepId });
+        // Slice loop (deep-rigor Build): when this step runs one slice of a
+        // slice loop, surface which slice so the operator can follow the
+        // per-slice implement+verify gating rather than seeing the same line
+        // repeat. slice_index is 0-based; show it 1-based.
+        const activeText =
+          typeof entry.slice_index === 'number'
+            ? `${display.activeText} (slice ${entry.slice_index + 1})`
+            : display.activeText;
         reportProgress(input.progress, {
           schema_version: 1,
           type: 'step.started',
@@ -385,8 +393,8 @@ export function createProgressProjector(input: {
           flow_id: flowId,
           recorded_at: recordedAt,
           label: display.title,
-          display: progressDisplay(`Circuit: ${display.activeText}...`, 'major', 'info'),
-          presentation: appendStatus(runId, `${display.activeText}...`),
+          display: progressDisplay(`Circuit: ${activeText}...`, 'major', 'info'),
+          presentation: appendStatus(runId, `${activeText}...`),
           step_id: stepId,
           step_title: display.title,
           attempt: entry.attempt,

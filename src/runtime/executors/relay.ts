@@ -474,6 +474,9 @@ export async function executeProductionRelayAttempt(input: {
     context.flow.id,
     // F-M-1: thread the run's resolved rigor as a worker-effort signal.
     context.axes?.rigor,
+    // Slice loop: when this relay runs one slice of a slice loop, scope the
+    // worker to that slice's unit of work. Undefined on single-pass runs.
+    context.activeSlice,
   );
 
   const request = step.writes?.request;
@@ -685,6 +688,11 @@ export async function executeProductionRelayAttempt(input: {
     receipt_path: receipt.path,
   });
   const resultVerdictEvaluation = failureKind === 'acceptance' ? checkEvaluation : evaluation;
+  // Slice loop: tag the relay's checks so per-slice attempts stay attributable
+  // and the recovery-evidence resolver does not cross an earlier slice's failed
+  // check onto a later slice's clean attempt (same collision class as verify).
+  const sliceTag =
+    context.activeSliceIndex === undefined ? {} : { slice_index: context.activeSliceIndex };
   await context.trace.append({
     run_id: context.runId,
     kind: 'check.evaluated',
@@ -693,6 +701,7 @@ export async function executeProductionRelayAttempt(input: {
     check_kind: 'result_verdict',
     outcome: resultVerdictEvaluation.kind === 'pass' ? 'pass' : 'fail',
     ...(resultVerdictEvaluation.kind === 'pass' ? {} : { reason: resultVerdictEvaluation.reason }),
+    ...sliceTag,
   });
   const acceptanceCheckEntries: CheckEvaluatedTraceEntry[] = [];
   for (const check of acceptance?.checks ?? []) {
@@ -710,6 +719,7 @@ export async function executeProductionRelayAttempt(input: {
       ...(check.status === undefined ? {} : { status: check.status }),
       ...(check.stdout_summary === undefined ? {} : { stdout_summary: check.stdout_summary }),
       ...(check.stderr_summary === undefined ? {} : { stderr_summary: check.stderr_summary }),
+      ...sliceTag,
     });
     acceptanceCheckEntries.push(CheckEvaluatedTraceEntry.parse(entry));
   }

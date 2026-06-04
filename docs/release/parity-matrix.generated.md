@@ -35,5 +35,5 @@ Compares the checked-in original Circuit snapshot with the current capability sn
 | fix | autonomous, deep, default, lite | ask, complete, connector-failed, continue, escalate, handoff, retry, revise, stop | connector-failed |
 | pursue | autonomous, default | complete, continue, escalate, handoff, retry, stop |  |
 | prototype | autonomous, deep, default, tournament | complete, continue, stop |  |
-| build | autonomous, deep, default, lite | ask, complete, continue, retry, revise, stop |  |
+| build | autonomous, deep, default, lite | advance, ask, complete, continue, retry, revise, stop | advance |
 | explore | autonomous, deep, default, lite, tournament | complete, continue, retry, revise, stop |  |

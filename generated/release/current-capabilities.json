@@ -226,8 +226,8 @@
         "verification": 1,
         "checkpoint": 1
       },
-      "route_outcomes": ["ask", "complete", "continue", "retry", "revise", "stop"],
-      "unsupported_route_outcomes": []
+      "route_outcomes": ["advance", "ask", "complete", "continue", "retry", "revise", "stop"],
+      "unsupported_route_outcomes": ["advance"]
     },
     {
       "id": "explore",
@@ -1071,6 +1071,21 @@
       "summary": "All defined golden example runs are captured.",
       "evidence": ["docs/release/proofs/index.yaml"],
       "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "route-outcome:build:advance",
+      "kind": "route_outcome",
+      "title": "build route advance",
+      "status": "partial",
+      "summary": "advance is declared in the schematic but not executable in compiled routes.",
+      "evidence": ["src/flows/build/schematic.json"],
+      "readiness_refs": ["REL-003"],
       "axes": {
         "intent_hints": [],
         "modes": [],

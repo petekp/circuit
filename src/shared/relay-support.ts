@@ -184,6 +184,28 @@ function pullAffordanceSection(runFolder: string, flowId: string | undefined): s
 // v0 prompt composition: name the step, enumerate accepted verdicts, and
 // inline every reads-declared report (or a clear placeholder if the
 // reads report hasn't been written yet).
+// When the run is executing one slice of a slice loop, scope the worker to
+// that single unit of work. Returns undefined for non-slice runs or a slice
+// without a usable intent.
+function currentSliceSection(activeSlice: unknown): string | undefined {
+  if (activeSlice === null || typeof activeSlice !== 'object') return undefined;
+  const slice = activeSlice as {
+    id?: unknown;
+    intent?: unknown;
+    anticipated_file_extensions?: unknown;
+  };
+  if (typeof slice.intent !== 'string' || slice.intent.length === 0) return undefined;
+  const exts = Array.isArray(slice.anticipated_file_extensions)
+    ? slice.anticipated_file_extensions.filter((ext): ext is string => typeof ext === 'string')
+    : [];
+  return [
+    'Current slice (implement ONLY this unit of work; leave later slices for their own turn):',
+    `- id: ${typeof slice.id === 'string' ? slice.id : '(unnamed)'}`,
+    `- intent: ${slice.intent}`,
+    ...(exts.length === 0 ? [] : [`- anticipated file extensions: ${exts.join(', ')}`]),
+  ].join('\n');
+}
+
 export function composeRelayPrompt(
   step: RelayStep,
   runFolder: string,
@@ -193,6 +215,7 @@ export function composeRelayPrompt(
   memoryInputs: readonly MemoryInputValue[] = [],
   flowId?: string,
   rigor?: string,
+  activeSlice?: unknown,
 ): string {
   const readsBody =
     step.reads.length === 0
@@ -205,6 +228,7 @@ export function composeRelayPrompt(
           })
           .join('\n\n');
   const skillsSection = selectedSkillsSection(loadedSkills);
+  const sliceSection = currentSliceSection(activeSlice);
   const criteriaSection = acceptanceCriteriaSection(step);
   const feedbackSection = acceptanceRetryFeedbackSection(acceptanceRetryFeedback);
   const memorySection = memoryInputsSection(memoryInputs);
@@ -229,6 +253,7 @@ export function composeRelayPrompt(
       ? []
       : ['Operator Goal:', operatorGoal, '']),
     ...(memorySection === undefined ? [] : [memorySection, '']),
+    ...(sliceSection === undefined ? [] : [sliceSection, '']),
     pullSection,
     '',
     'Context (from reads):',

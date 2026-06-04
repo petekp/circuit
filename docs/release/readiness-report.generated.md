@@ -9,7 +9,7 @@ Infra checks may pass while release blockers remain. `npm run check-release-read
 | Measure | Value |
 | --- | --- |
 | Original capabilities | 13 |
-| Current capabilities | 84 |
+| Current capabilities | 85 |
 | Tracked exceptions | 3 |
 | Public claims | 10 |
 | Proof scenarios | 13 |

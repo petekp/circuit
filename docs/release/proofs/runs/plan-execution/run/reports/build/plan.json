@@ -2,9 +2,13 @@
   "objective": "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
   "approach": "Grounded in a codebase read (1 sources): The synthetic target module is small and self-contained. Then Make the smallest safe change inside scope: Make the smallest safe change that satisfies the requested goal.",
   "slices": [
-    "Satisfy: The requested behavior is implemented",
-    "Satisfy: Verification passes",
-    "Satisfy: Review completes without a blocking issue"
+    {
+      "id": "slice-1",
+      "intent": "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
+      "anticipated_file_extensions": [
+        ".ts"
+      ]
+    }
   ],
   "anticipated_file_extensions": [
     ".ts"

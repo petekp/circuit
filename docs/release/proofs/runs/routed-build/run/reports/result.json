@@ -7,6 +7,6 @@
   "summary": "Run closed with outcome complete via @complete.",
   "closed_at": "2026-04-29T18:00:54.000Z",
   "trace_entries_observed": 53,
-  "manifest_hash": "e543c1c65de5c5621472bd66ce92fce9eb16288c87ad04d500e7cf0195806f31",
+  "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2",
   "verdict": "accept"
 }

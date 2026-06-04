@@ -223,6 +223,7 @@
       "skill_slots": [],
       "routes": {
         "continue": "review-step",
+        "advance": "act-step",
         "retry": "act-step",
         "stop": "@stop"
       },

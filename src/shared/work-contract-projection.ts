@@ -154,7 +154,10 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
   ]),
 };
 
-const NORMAL_ROUTE_IDS = new Set(['pass', 'continue', 'complete', 'close']);
+// 'advance' is the slice-loop forward edge (deep-rigor Build): a successful
+// slice verify re-enters the head step for the next slice. It carries no
+// recovery mechanics, exactly like 'continue'.
+const NORMAL_ROUTE_IDS = new Set(['pass', 'continue', 'complete', 'close', 'advance']);
 
 const RECOVERY_BY_ROUTE: Readonly<Record<string, RecoveryRouteKind>> = {
   revise: 'narrow_scope',

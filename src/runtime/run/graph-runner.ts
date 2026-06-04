@@ -7,6 +7,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { findCompiledFlowPackageById } from '../../flows/catalog.js';
+import type { SliceLoopEngineFlag } from '../../flows/types.js';
 import type { Axes } from '../../schemas/axes.js';
 import type { ChangeKindDeclaration, StandardChangeKind } from '../../schemas/change-kind.js';
 import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
@@ -15,6 +16,7 @@ import { computeManifestHash } from '../../schemas/manifest.js';
 import type { RecoveryRouteBindingV0 } from '../../schemas/recovery-route-kind.js';
 import type { Ref } from '../../schemas/ref.js';
 import type { ProofAssessedTraceEntry } from '../../schemas/trace-entry.js';
+import { resolveDottedPath } from '../../shared/fanout-branch-template.js';
 import { isProofPlanBlockedError } from '../../shared/proof-plan.js';
 import { isAcceptanceRetryFeedback } from '../acceptance-criteria.js';
 import type { RouteTarget, TerminalTarget } from '../domain/route.js';
@@ -37,6 +39,7 @@ import { RecoveryCorridor } from './recovery-corridor.js';
 import { type RuntimeRunResult, writeRuntimeRunResult } from './result-writer.js';
 import { openRunBoundary } from './run-boundary.js';
 import type { RunContext } from './run-context.js';
+import { SliceCorridor } from './slice-corridor.js';
 
 export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   readonly runDir: string;
@@ -257,10 +260,23 @@ function latestRecoveryFailureEvidence(input: {
   readonly stepId: string;
   readonly attempt: number;
   readonly details: Record<string, unknown>;
+  // The active slice index for loop-body steps. Under the slice loop a step's
+  // attempt number resets per slice, so (step_id, attempt) collides across
+  // slices; without this filter the resolver would attribute an earlier
+  // slice's failed check to a later slice's clean attempt. Undefined for
+  // non-loop steps (no filtering, unchanged behavior).
+  readonly sliceIndex?: number;
 }): RecoveryFailureEvidence | undefined {
   for (const entry of [...input.context.trace.getAll()].reverse()) {
     if (entry.kind !== 'check.evaluated' && entry.kind !== 'relay.failed') continue;
     if (entry.step_id !== input.stepId || entry.attempt !== input.attempt) continue;
+    if (
+      input.sliceIndex !== undefined &&
+      'slice_index' in entry &&
+      entry.slice_index !== input.sliceIndex
+    ) {
+      continue;
+    }
     if (entry.kind === 'check.evaluated') {
       if (entry.outcome !== 'fail') continue;
       return {
@@ -288,6 +304,12 @@ function latestRecoveryFailureEvidence(input: {
   return undefined;
 }
 
+// Unlike latestRecoveryFailureEvidence, this needs no slice filter: every
+// loop-body execution writes a report/result, so under the slice loop the
+// current slice's entry is always the latest-by-sequence match for
+// (step_id, attempt) and reverse iteration returns it. (A clean slice has no
+// failure entry of its own, which is why the failure resolver — not this one —
+// must filter by slice to avoid crossing an earlier slice's failure.)
 function latestStepReportOrRelayRef(input: {
   readonly context: RunContext;
   readonly stepId: string;
@@ -362,13 +384,45 @@ function bootstrapChangeKind(input: {
   return standardChangeKindDeclaration(defaultKind);
 }
 
-function completedStepCountsFromTrace(entries: readonly TraceEntry[]): Map<string, number> {
+function completedStepCountsFromTrace(
+  entries: readonly TraceEntry[],
+  corridor: SliceCorridor,
+): Map<string, number> {
   const counts = new Map<string, number>();
   for (const entry of entries) {
     if (entry.kind !== 'step.completed' || entry.step_id === undefined) continue;
-    counts.set(entry.step_id, (counts.get(entry.step_id) ?? 0) + 1);
+    // Loop-body completions are keyed per slice so a resumed run restarts the
+    // next slice at attempt 1 (matching the live keying below). The recorded
+    // slice_index is load-bearing here; non-loop steps key on the bare id.
+    const sliceIndex = typeof entry.slice_index === 'number' ? entry.slice_index : 0;
+    const key = corridor.countKey(entry.step_id, sliceIndex);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
+}
+
+// A slice loop re-enters its body once per slice. The resume path
+// reconstructs slice progress from the trace, which only holds completed
+// steps, so a checkpoint pausing mid-loop would lose the live slice index.
+// Build's only checkpoint sits before the loop; this assertion keeps that
+// true for any flow that opts into iteratesSliceLoop.
+function assertNoCheckpointInSliceLoop(flow: ExecutableFlow, flag: SliceLoopEngineFlag): void {
+  const steps = new Map(flow.steps.map((step) => [step.id, step]));
+  const visited = new Set<string>();
+  let cursor: string | undefined = flag.headStep;
+  while (cursor !== undefined && !visited.has(cursor)) {
+    visited.add(cursor);
+    const step = steps.get(cursor);
+    if (step === undefined) break;
+    if (step.kind === 'checkpoint') {
+      throw new Error(
+        `slice loop body contains checkpoint step '${cursor}'; a checkpoint inside [${flag.headStep}..${flag.tailStep}] is not supported`,
+      );
+    }
+    if (cursor === flag.tailStep) break;
+    const forward = step.routes.continue ?? step.routes.pass;
+    cursor = forward?.kind === 'step' ? forward.stepId : undefined;
+  }
 }
 
 function resolveManifestHash(flow: ExecutableFlow, options: GraphRunnerOptions): string {
@@ -554,10 +608,35 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...options.executors,
   };
   const steps = new Map(flow.steps.map((step) => [step.id, step]));
+  const sliceFlag = findCompiledFlowPackageById(flow.id)?.engineFlags?.iteratesSliceLoop;
+  if (sliceFlag !== undefined) {
+    assertNoCheckpointInSliceLoop(flow, sliceFlag);
+  }
+  const sliceCorridor = new SliceCorridor({
+    flag: sliceFlag,
+    depth: context.depth,
+    readSlices: async () => {
+      if (sliceFlag === undefined) return [];
+      try {
+        const raw = await files.readJson(sliceFlag.slicesFrom.report);
+        const items = resolveDottedPath(raw, sliceFlag.slicesFrom.itemsPath);
+        return Array.isArray(items) ? items : [];
+      } catch {
+        return [];
+      }
+    },
+  });
   const completedStepCounts = isResume
-    ? completedStepCountsFromTrace(existingTrace)
+    ? completedStepCountsFromTrace(existingTrace, sliceCorridor)
     : new Map<string, number>();
-  const maxSteps = options.maxSteps ?? Math.max(flow.steps.length * 4, 8);
+  const defaultMaxSteps = Math.max(flow.steps.length * 4, 8);
+  // A slice loop runs the body once per slice, each with its own retry budget,
+  // so the flat step counter needs headroom the single-pass default lacks.
+  const maxSteps =
+    options.maxSteps ??
+    (sliceFlag !== undefined && sliceCorridor.isActive()
+      ? defaultMaxSteps + sliceFlag.maxSlices * 6
+      : defaultMaxSteps);
 
   const bootstrapRecordedAt = context.now().toISOString();
   if (!isResume && options.manifestBytes !== undefined) {
@@ -622,8 +701,18 @@ async function executeExecutableFlowOutcomeUnsafe(
       );
     }
 
+    // Slice loop: load the slice list when first reaching the loop head, then
+    // capture this step's slice index (the live index, pre-advance) so its
+    // trace, attempt, and completion count are all keyed to the same slice.
+    if (sliceCorridor.isActive() && sliceFlag !== undefined && step.id === sliceFlag.headStep) {
+      await sliceCorridor.ensureInitialized();
+    }
+    const isLoopBodyStep = sliceCorridor.isLoopBodyStep(step.id);
+    const stepSliceIndex = sliceCorridor.currentSliceIndex();
+    const stepCountKey = sliceCorridor.countKey(step.id, stepSliceIndex);
+
     const isResumedCheckpoint = options.resumeCheckpoint?.stepId === currentStepId;
-    const completedCount = completedStepCounts.get(step.id) ?? 0;
+    const completedCount = completedStepCounts.get(stepCountKey) ?? 0;
     const incomingIsActiveRecovery = corridor.isActiveRoute(incomingRouteTaken);
     const maxAttempts = maxAttemptsForRoute(step, incomingIsActiveRecovery);
     const isRecoveryOriginReentry = corridor.isReturnToOrigin({
@@ -653,7 +742,13 @@ async function executeExecutableFlowOutcomeUnsafe(
     }
 
     if (!isResumedCheckpoint) {
-      await trace.append({ run_id: runId, kind: 'step.entered', step_id: step.id, attempt });
+      await trace.append({
+        run_id: runId,
+        kind: 'step.entered',
+        step_id: step.id,
+        attempt,
+        ...(isLoopBodyStep ? { slice_index: stepSliceIndex } : {}),
+      });
     }
 
     let route: string;
@@ -663,10 +758,13 @@ async function executeExecutableFlowOutcomeUnsafe(
         stepId: step.id,
         incomingRoute: incomingRouteTaken,
       });
+      const activeSlice = isLoopBodyStep ? sliceCorridor.currentSlice() : undefined;
       const stepContext: RunContext = {
         ...context,
         activeStepAttempt: attempt,
         ...(acceptanceRetryFeedback === undefined ? {} : { acceptanceRetryFeedback }),
+        ...(isLoopBodyStep ? { activeSliceIndex: stepSliceIndex } : {}),
+        ...(activeSlice === undefined ? {} : { activeSlice }),
         ...(isResumedCheckpoint && options.resumeCheckpoint !== undefined
           ? { resumeCheckpoint: options.resumeCheckpoint }
           : {}),
@@ -700,6 +798,20 @@ async function executeExecutableFlowOutcomeUnsafe(
       return await closeRun(context, 'aborted', undefined, reason);
     }
 
+    // Slice loop: when the tail step passes its forward route and more slices
+    // remain, redirect to the loop head via the declared advance route instead
+    // of proceeding past the loop. advance() bumps the live slice index so the
+    // re-entered head step is keyed to (and budgeted for) the next slice, while
+    // this completing step keeps its captured stepSliceIndex below.
+    if (sliceCorridor.isActive() && sliceFlag !== undefined && step.id === sliceFlag.tailStep) {
+      const forwardTarget = step.routes[route];
+      const forwardStepId = forwardTarget?.kind === 'step' ? forwardTarget.stepId : undefined;
+      if (sliceCorridor.shouldAdvance({ stepId: step.id, targetStepId: forwardStepId })) {
+        route = sliceFlag.advanceRoute;
+        sliceCorridor.advance();
+      }
+    }
+
     const target = step.routes[route];
     if (target === undefined) {
       const reason = `step '${step.id}' selected undeclared route '${route}'`;
@@ -730,6 +842,7 @@ async function executeExecutableFlowOutcomeUnsafe(
         stepId: step.id,
         attempt,
         details,
+        ...(isLoopBodyStep ? { sliceIndex: stepSliceIndex } : {}),
       }) ??
       reportSelectedCheckpointBoundaryEvidence({
         context,
@@ -781,7 +894,13 @@ async function executeExecutableFlowOutcomeUnsafe(
     }
 
     if (target.kind === 'step') {
-      const targetCompletedCount = completedStepCounts.get(target.stepId) ?? 0;
+      // The live slice index here is post-advance, so a slice-advance redirect
+      // to the loop head reads the next slice's (empty) count rather than the
+      // just-completed slice's, and is not flagged as a cycle.
+      const targetCompletedCount =
+        completedStepCounts.get(
+          sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex()),
+        ) ?? 0;
       const targetStep = steps.get(target.stepId);
       const isRecoveryReturnToOrigin = corridor.isReturnToOrigin({
         stepId: target.stepId,
@@ -848,8 +967,12 @@ async function executeExecutableFlowOutcomeUnsafe(
       step_id: step.id,
       attempt,
       route_taken: route,
+      ...(isLoopBodyStep ? { slice_index: stepSliceIndex } : {}),
     });
-    completedStepCounts.set(step.id, completedCount + 1);
+    // Keyed to this step's captured slice index (pre-advance), so a tail step
+    // that just advanced still records its own slice's completion, not the
+    // next slice's.
+    completedStepCounts.set(stepCountKey, completedCount + 1);
 
     if (target.kind === 'terminal') {
       return await closeRun(context, outcomeForTerminal(target.target), target.target);

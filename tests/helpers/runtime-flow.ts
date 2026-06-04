@@ -500,7 +500,9 @@ function reportBody(
       return BuildPlan.parse({
         objective: goal,
         approach: 'Use the converted v1 manifest.',
-        slices: ['Run the simple path.'],
+        slices: [
+          { id: 'slice-1', intent: 'Run the simple path.', anticipated_file_extensions: ['.ts'] },
+        ],
         anticipated_file_extensions: ['.ts'],
         verification: { commands: [commandSpec] },
       });

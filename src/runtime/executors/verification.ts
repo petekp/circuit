@@ -208,6 +208,12 @@ export async function executeVerificationResult(
   context: RunContext,
 ): Promise<StepExecutionResult> {
   const attempt = context.activeStepAttempt ?? 1;
+  // Slice loop: tag this step's check/command trace so per-slice attempts
+  // (which collide on (step_id, attempt) across slices) stay attributable and
+  // the recovery-evidence resolver does not cross a failed check from an
+  // earlier slice onto a later slice's clean attempt.
+  const sliceTag =
+    context.activeSliceIndex === undefined ? {} : { slice_index: context.activeSliceIndex };
   let report: NonNullable<NonNullable<VerificationStep['writes']>['report']>;
   let reportSchema: string;
   let body: {
@@ -257,6 +263,7 @@ export async function executeVerificationResult(
         duration_ms: observation.duration_ms,
         stdout_summary: observation.stdout_summary,
         stderr_summary: observation.stderr_summary,
+        ...sliceTag,
       });
     }
     body = builder.buildResult(observations, builderContext) as {
@@ -274,6 +281,7 @@ export async function executeVerificationResult(
       check_kind: 'schema_sections',
       outcome: 'fail',
       reason,
+      ...sliceTag,
     });
     return stepExecutionFailed(reason, blocked ? error : new Error(reason));
   }
@@ -295,6 +303,7 @@ export async function executeVerificationResult(
       attempt,
       check_kind: 'schema_sections',
       outcome: 'pass',
+      ...sliceTag,
     });
     await writeVerificationProofAssessment({
       context,
@@ -315,6 +324,7 @@ export async function executeVerificationResult(
     check_kind: 'schema_sections',
     outcome: 'fail',
     reason,
+    ...sliceTag,
   });
   await writeVerificationProofAssessment({
     context,

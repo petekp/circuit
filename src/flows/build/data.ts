@@ -325,6 +325,11 @@ export const buildFlowData = {
         required: ['overall_status', 'commands'],
         routes: {
           continue: 'review-step',
+          // Slice loop (deep rigor): when this slice's verify passes and
+          // more slices remain, the engine selects 'advance' instead of
+          // 'continue', re-entering act-step for the next slice. A normal,
+          // non-recovery route; see docs/ideas/build-slice-decomposition.md.
+          advance: 'act-step',
           retry: 'act-step',
           stop: '@stop',
         },
@@ -494,5 +499,20 @@ export const buildFlowData = {
   },
   engineFlags: {
     bindsExecutionDepthToRelaySelection: true,
+    // Deep rigor implements and verifies the plan's slices one at a time:
+    // the engine re-enters act-step for each slice and only advances to
+    // review once every slice's verify passes. Lighter rigor runs a single
+    // pass. See docs/ideas/build-slice-decomposition.md.
+    iteratesSliceLoop: {
+      headStep: 'act-step',
+      tailStep: 'verify-step',
+      advanceRoute: 'advance',
+      slicesFrom: {
+        report: 'reports/build/plan.json',
+        itemsPath: 'slices',
+      },
+      maxSlices: 8,
+      activateWhenDepthAtLeast: 'deep',
+    },
   },
 } satisfies FlowData;
