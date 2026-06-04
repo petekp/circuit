@@ -18,7 +18,7 @@ import type { Ref } from '../../schemas/ref.js';
 import type { ProofAssessedTraceEntry } from '../../schemas/trace-entry.js';
 import { resolveDottedPath } from '../../shared/fanout-branch-template.js';
 import { isProofPlanBlockedError } from '../../shared/proof-plan.js';
-import { dispatchSkillHooksForEntries } from '../../skill-hooks/dispatch.js';
+import { dispatchSkillHooks } from '../../skill-hooks/dispatch.js';
 import { isAcceptanceRetryFeedback } from '../acceptance-criteria.js';
 import type { RouteTarget, TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
@@ -981,9 +981,10 @@ async function executeExecutableFlowOutcomeUnsafe(
     // Skill-hook dispatch (report-only): record any hook events this step's
     // signals trigger under the run's config, and inject nothing. Best-effort
     // and fully isolated — a dispatch failure must never affect the run, and a
-    // run with no skill_hooks config records nothing.
+    // run with no skill_hooks config records nothing. File-edit hooks read the
+    // step's reports via the run file store; check-outcome hooks read the trace.
     try {
-      const hookEvents = dispatchSkillHooksForEntries({
+      const hookEvents = await dispatchSkillHooks({
         entries: trace.getAll().slice(traceLengthBeforeStep),
         ...(context.selectionConfigLayers === undefined
           ? {}
@@ -994,6 +995,7 @@ async function executeExecutableFlowOutcomeUnsafe(
           attemptId: String(attempt),
         },
         eventIdBase: `${runId}:${step.id}:${attempt}`,
+        readJson: (ref) => context.files.readJson(ref),
       });
       for (const event of hookEvents) {
         await trace.append({ run_id: runId, kind: 'run.skill-hook', event });

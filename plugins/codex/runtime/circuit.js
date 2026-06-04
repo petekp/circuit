@@ -27022,33 +27022,22 @@ var SKILL_HOOK_VOCABULARY = [
     cardinality: "per-stage",
     default_mode: "auto"
   },
+  // Parameterized file-edit anchors. One pair replaces the five named
+  // file-surface hooks (after:react-ui-change/test-change/schema-change/
+  // api-surface-change/dependency-change) and the four *_surfaces config
+  // buckets. The operator writes the predicate as a key suffix
+  // (`after:edit-file:.tsx`); the engine matches a literal extension suffix and
+  // never interprets the meaning. See docs/ideas/skill-hooks-first-principles.md
+  // (the reframe) and docs/ideas/skill-hooks-dispatch-spec.md (D1).
   {
-    hook: "after:react-ui-change",
-    detected_from: ["diff:*.tsx", "diff:*.jsx", "config:skill_hooks.detection.react_surfaces"],
+    hook: "before:edit-file",
+    detected_from: ["plan-report:anticipated-file-extensions", "plan-report:likely-touched"],
     cardinality: "per-step",
     default_mode: "auto"
   },
   {
-    hook: "after:test-change",
-    detected_from: ["diff:*.test.*", "diff:*.spec.*", "diff:tests/**", "diff:__tests__/**"],
-    cardinality: "per-step",
-    default_mode: "auto"
-  },
-  {
-    hook: "after:schema-change",
-    detected_from: ["diff:*.prisma", "diff:*.sql", "diff:migrations/**", "diff:schemas/**"],
-    cardinality: "per-step",
-    default_mode: "auto"
-  },
-  {
-    hook: "after:api-surface-change",
-    detected_from: ["config:skill_hooks.detection.api_surfaces"],
-    cardinality: "per-step",
-    default_mode: "auto"
-  },
-  {
-    hook: "after:dependency-change",
-    detected_from: ["diff:lockfile", "diff:package-manifest-dependencies"],
+    hook: "after:edit-file",
+    detected_from: ["change-report:touched-files", "change-set:observed"],
     cardinality: "per-step",
     default_mode: "auto"
   },
@@ -27082,12 +27071,15 @@ var SkillHookPolicyMode = external_exports.enum(["auto", "ask", "mute"]);
 var SHIPPED_HOOKS = new Set(SKILL_HOOK_VOCABULARY.map((entry) => entry.hook));
 var CUSTOM_HOOK_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
 var SHIPPED_SHAPE_RE = /^(before|after):[a-z][a-z0-9-]*$/;
+var PARAMETERIZED_EDIT_FILE_RE = /^(before|after):edit-file:(\.[A-Za-z0-9]+)+$/;
 function hookBody(value) {
   const slash = value.indexOf("/");
   return slash === -1 ? value : value.slice(slash + 1);
 }
 var SkillHookName = external_exports.string().superRefine((value, ctx) => {
   if (SHIPPED_HOOKS.has(value))
+    return;
+  if (PARAMETERIZED_EDIT_FILE_RE.test(value))
     return;
   if (SHIPPED_SHAPE_RE.test(value)) {
     ctx.addIssue({
@@ -27160,10 +27152,6 @@ var SkillHookPolicyRule = external_exports.object({
   }
 });
 var SkillHookDetectionConfig = external_exports.object({
-  react_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
-  test_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
-  schema_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
-  api_surfaces: external_exports.array(external_exports.string().min(1)).optional(),
   disabled_patterns: external_exports.record(SkillHookName, external_exports.array(external_exports.string().min(1))).default({})
 }).strict();
 var SkillHookConfig = external_exports.object({
@@ -44974,6 +44962,39 @@ function buildRunSkillHookEvent(input) {
   });
 }
 
+// dist/skill-hooks/surface-sources.js
+function stringArrayField(report, field) {
+  if (report === null || typeof report !== "object")
+    return [];
+  const value = report[field];
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+}
+function planAndSliceExtensions(report) {
+  const top = stringArrayField(report, "anticipated_file_extensions");
+  const slices = report !== null && typeof report === "object" && Array.isArray(report.slices) ? report.slices.flatMap((slice) => stringArrayField(slice, "anticipated_file_extensions")) : [];
+  return [.../* @__PURE__ */ new Set([...top, ...slices])];
+}
+var EDIT_FILE_SURFACE_SOURCES = {
+  // Fix: the runtime-computed change-set. `observed` is the ground-truth set of
+  // actual touched paths (already computed against the baseline snapshot), so
+  // it is the strongest `after:edit-file` surface in the codebase.
+  "fix.change-set@v1": {
+    timing: "after",
+    extract: (report) => stringArrayField(report, "observed")
+  },
+  // Build: the plan's predicted surface (a `compose` step, so it crosses the
+  // trace as step.report_written). This is the `before:edit-file` prediction
+  // arm — the advisory extensions the repo-grounded plan expects to touch, at
+  // plan- and per-slice level. Build's actual touched-files self-report
+  // (`build.implementation@v1` `changed_files`) is a relay report, not a
+  // step.report_written, so the `after` arm on Build is a later follow-up
+  // (Fix's change-set already proves the `after` arm).
+  "build.plan@v1": {
+    timing: "before",
+    extract: planAndSliceExtensions
+  }
+};
+
 // dist/skill-hooks/dispatch.js
 var VOCABULARY_BY_HOOK = new Map(SKILL_HOOK_VOCABULARY.map((entry) => [entry.hook, entry]));
 function hookForEntry(entry) {
@@ -45011,6 +45032,84 @@ function dispatchSkillHooksForEntries(input) {
     events.push(event);
   }
   return events;
+}
+var EDIT_FILE_KEY_RE = /^(before|after):edit-file(:(\.[A-Za-z0-9]+)+)?$/;
+function editFileTiming(key) {
+  return key.startsWith("before:") ? "before" : "after";
+}
+function baseEditFileHook(key) {
+  return key.startsWith("before:") ? "before:edit-file" : "after:edit-file";
+}
+function editFileSuffix(key) {
+  const rest = key.slice(baseEditFileHook(key).length);
+  return rest.startsWith(":") ? rest.slice(1) : "";
+}
+function surfaceMatches(surface, suffix) {
+  if (suffix === "")
+    return surface.length > 0;
+  return surface.some((item) => item.endsWith(suffix));
+}
+function editFilePolicyKeys(configLayers) {
+  const keys = /* @__PURE__ */ new Set();
+  for (const layer of configLayers) {
+    for (const key of Object.keys(layer.config.skill_hooks.policy)) {
+      if (EDIT_FILE_KEY_RE.test(key))
+        keys.add(key);
+    }
+  }
+  return [...keys];
+}
+async function dispatchEditFileHooksForEntries(input) {
+  const keys = editFilePolicyKeys(input.configLayers ?? []);
+  if (keys.length === 0)
+    return [];
+  const events = [];
+  for (const entry of input.entries) {
+    if (entry.kind !== "step.report_written")
+      continue;
+    const source = EDIT_FILE_SURFACE_SOURCES[entry.report_schema];
+    if (source === void 0)
+      continue;
+    let report;
+    try {
+      report = await input.readJson(entry.report_path);
+    } catch {
+      continue;
+    }
+    const surface = source.extract(report);
+    if (surface.length === 0)
+      continue;
+    for (const key of keys) {
+      if (editFileTiming(key) !== source.timing)
+        continue;
+      if (!surfaceMatches(surface, editFileSuffix(key)))
+        continue;
+      const vocabulary = VOCABULARY_BY_HOOK.get(baseEditFileHook(key));
+      if (vocabulary === void 0)
+        continue;
+      const event = buildRunSkillHookEvent({
+        eventId: `${input.eventIdBase}:${key}:${entry.sequence}`,
+        hook: key,
+        detectedFrom: [...vocabulary.detected_from],
+        cardinality: vocabulary.cardinality,
+        ...input.configLayers === void 0 ? {} : { configLayers: input.configLayers },
+        ...input.registry === void 0 ? {} : { registry: input.registry },
+        ...input.scope.flowId === void 0 ? {} : { flowId: input.scope.flowId },
+        ...input.scope.stageId === void 0 ? {} : { stageId: input.scope.stageId },
+        ...input.scope.stepId === void 0 ? {} : { stepId: input.scope.stepId },
+        ...input.scope.attemptId === void 0 ? {} : { attemptId: input.scope.attemptId }
+      });
+      if (event.policy.mode === "none")
+        continue;
+      events.push(event);
+    }
+  }
+  return events;
+}
+async function dispatchSkillHooks(input) {
+  const checkOutcome = dispatchSkillHooksForEntries(input);
+  const editFile = await dispatchEditFileHooksForEntries(input);
+  return [...checkOutcome, ...editFile];
 }
 
 // dist/runtime/acceptance-criteria.js
@@ -54328,7 +54427,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     });
     completedStepCounts.set(stepCountKey, completedCount + 1);
     try {
-      const hookEvents = dispatchSkillHooksForEntries({
+      const hookEvents = await dispatchSkillHooks({
         entries: trace.getAll().slice(traceLengthBeforeStep),
         ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers },
         scope: {
@@ -54336,7 +54435,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
           stepId: step.id,
           attemptId: String(attempt)
         },
-        eventIdBase: `${runId}:${step.id}:${attempt}`
+        eventIdBase: `${runId}:${step.id}:${attempt}`,
+        readJson: (ref) => context.files.readJson(ref)
       });
       for (const event of hookEvents) {
         await trace.append({ run_id: runId, kind: "run.skill-hook", event });
@@ -57943,7 +58043,7 @@ function arrayField(report, key) {
   const value = report?.[key];
   return Array.isArray(value) ? value : [];
 }
-function stringArrayField(report, key) {
+function stringArrayField2(report, key) {
   return arrayField(report, key).filter((item) => typeof item === "string");
 }
 function objectField(report, key) {
@@ -58094,8 +58194,8 @@ function exploreReviewFoldInDetails(flowReport) {
   const foldIns = objectField(flowReport, "review_fold_ins");
   if (foldIns === void 0)
     return [];
-  const objections = stringArrayField(foldIns, "objections");
-  const missedAngles = stringArrayField(foldIns, "missed_angles");
+  const objections = stringArrayField2(foldIns, "objections");
+  const missedAngles = stringArrayField2(foldIns, "missed_angles");
   const details = [];
   if (objections.length > 0) {
     details.push("Reviewer: Accepted the direction, with required fold-ins.");
@@ -58114,9 +58214,9 @@ function reviewFoldInWeight(flowReport) {
   const foldIns = objectField(flowReport, "review_fold_ins");
   if (foldIns === void 0)
     return "none";
-  if (stringArrayField(foldIns, "objections").length > 0)
+  if (stringArrayField2(foldIns, "objections").length > 0)
     return "required";
-  if (stringArrayField(foldIns, "missed_angles").length > 0)
+  if (stringArrayField2(foldIns, "missed_angles").length > 0)
     return "optional";
   return "none";
 }
@@ -58160,7 +58260,7 @@ var exploreSummaryProjector = ({ runFolder, flowReport, resultSummary: resultSum
     const decisionReport = exploreDecisionReport(runFolder, flowReport);
     const question = stringField2(decisionReport, "decision_question");
     const rationale = stringField2(decisionReport, "rationale");
-    const risks = stringArrayField(decisionReport, "residual_risks");
+    const risks = stringArrayField2(decisionReport, "residual_risks");
     const nextAction = stringField2(decisionReport, "next_action");
     if (question !== void 0)
       details.push(`Decision question: ${question}`);
@@ -58198,7 +58298,7 @@ function reviewFindingDetails(report) {
       continue;
     const severity = (stringField2(finding, "severity") ?? "unknown").toUpperCase();
     const text = stringField2(finding, "text") ?? "(no text)";
-    const fileRefs = stringArrayField(finding, "file_refs");
+    const fileRefs = stringArrayField2(finding, "file_refs");
     const summary = firstLineSummary(text, 140);
     const fileSuffix = fileRefs.length === 0 ? "" : ` \u2014 at ${fileRefs.join(", ")}`;
     lines.push(`[${severity}] ${summary}${fileSuffix}`);
@@ -58211,11 +58311,11 @@ function reviewAssessmentDetails(report) {
   if (assessment !== void 0 && assessment.trim().length > 0) {
     lines.push(`Assessment: ${assessment.trim()}`);
   }
-  const verification = stringArrayField(report, "verification").map((step) => step.trim()).filter((step) => step.length > 0);
+  const verification = stringArrayField2(report, "verification").map((step) => step.trim()).filter((step) => step.length > 0);
   if (verification.length > 0) {
     lines.push(`Reviewer steps: ${verification.join("; ")}`);
   }
-  const limitations = stringArrayField(report, "confidence_limitations").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+  const limitations = stringArrayField2(report, "confidence_limitations").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
   if (limitations.length > 0) {
     lines.push(`Confidence limitations: ${limitations.join("; ")}`);
   }
@@ -58315,7 +58415,7 @@ function prototypeDetails(flowReport) {
   const root = stringField2(flowReport, "prototype_root");
   if (root !== void 0)
     details.push(`Prototype root: ${root}.`);
-  const entryPoints = stringArrayField(flowReport, "entry_points");
+  const entryPoints = stringArrayField2(flowReport, "entry_points");
   if (entryPoints.length > 0)
     details.push(`Entry points: ${entryPoints.join(", ")}.`);
   const nextStep = stringField2(flowReport, "next_step");
@@ -58324,7 +58424,7 @@ function prototypeDetails(flowReport) {
   return details;
 }
 function goalArrayDetail(flowReport, field, label) {
-  const values = stringArrayField(flowReport, field);
+  const values = stringArrayField2(flowReport, field);
   return `${label}: ${values.length === 0 ? "none" : values.join("; ")}.`;
 }
 function goalEvidenceDetails(flowReport) {

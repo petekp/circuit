@@ -12,7 +12,10 @@ import type { LayeredConfig } from '../../src/schemas/config.js';
 import type { TraceEntry } from '../../src/schemas/trace-entry.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
-import { dispatchSkillHooksForEntries } from '../../src/skill-hooks/dispatch.js';
+import {
+  dispatchEditFileHooksForEntries,
+  dispatchSkillHooksForEntries,
+} from '../../src/skill-hooks/dispatch.js';
 
 const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
 const TIMEOUT_MS = 15_000;
@@ -49,6 +52,52 @@ function relayer(onActPrompt?: (prompt: string) => void): RelayFn {
       const isAnalyze = input.prompt.includes('Step: analyze-step');
       const isAct = input.prompt.includes('Step: act-step');
       if (isAct) onActPrompt?.(input.prompt);
+      return {
+        request_payload: input.prompt,
+        receipt_id: 'stub',
+        result_body: isAnalyze ? context : isAct ? implementation : review,
+        duration_ms: 1,
+        cli_version: '0.0.0-stub',
+      };
+    },
+  };
+}
+
+// A Build relayer whose analyze (context) output predicts a file surface, so
+// the compiled plan carries `anticipated_file_extensions` (the before:edit-file
+// detection signal). Mirrors relayer() but threads the predicted extensions
+// through the context and its single slice.
+function surfaceRelayer(opts: {
+  readonly extensions: readonly string[];
+  readonly onActPrompt?: (prompt: string) => void;
+}): RelayFn {
+  const context = JSON.stringify({
+    verdict: 'accept',
+    sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Module the change touches' }],
+    observations: ['Small self-contained module'],
+    open_questions: [],
+    anticipated_file_extensions: opts.extensions,
+    slices: [
+      {
+        id: 'slice-1',
+        intent: 'implement the change',
+        anticipated_file_extensions: opts.extensions,
+      },
+    ],
+  });
+  const implementation = JSON.stringify({
+    verdict: 'accept',
+    summary: 'Implemented the requested change',
+    changed_files: ['src/example.ts'],
+    evidence: ['stub'],
+  });
+  const review = JSON.stringify({ verdict: 'accept', summary: 'ok', findings: [] });
+  return {
+    connectorName: 'claude-code',
+    relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
+      const isAnalyze = input.prompt.includes('Step: analyze-step');
+      const isAct = input.prompt.includes('Step: act-step');
+      if (isAct) opts.onActPrompt?.(input.prompt);
       return {
         request_payload: input.prompt,
         receipt_id: 'stub',
@@ -227,6 +276,48 @@ describe('Skill-hook report-only dispatch', () => {
   );
 });
 
+describe('Skill-hook edit-file dispatch (Build, end-to-end)', () => {
+  it(
+    'records before:edit-file:.ts when the plan predicts the surface, and injects nothing',
+    async () => {
+      const runFolder = join(runFolderBase, 'build-before');
+      const actPrompts: string[] = [];
+      await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: fixtureBytes(),
+        runId: 'a1000000-0000-0000-0000-000000000010',
+        goal: 'Add a tiny Build feature',
+        depth: 'standard',
+        now: deterministicNow(Date.UTC(2026, 5, 4, 2, 0, 0)),
+        relayer: surfaceRelayer({ extensions: ['.ts'], onActPrompt: (p) => actPrompts.push(p) }),
+        projectRoot: failingProjectRoot(),
+        selectionConfigLayers: [
+          projectPolicyLayer({
+            'before:edit-file:.ts': { mode: 'auto', skills: ['tdd'] },
+            'before:edit-file:.py': { mode: 'auto', skills: ['python-doctor'] },
+          }),
+        ],
+      });
+
+      const hooks = skillHookEntries(await readTrace(runFolder));
+      const hookNames = hooks.map((entry) => entry.event.hook);
+      // The plan predicted .ts, so the .ts rule fires on the plan step ...
+      expect(hookNames).toContain('before:edit-file:.ts');
+      const before = hooks.find((entry) => entry.event.hook === 'before:edit-file:.ts');
+      expect(before?.event.step_id).toBe('plan-step');
+      expect(before?.event.policy).toMatchObject({ mode: 'auto', source: 'project-policy' });
+      // ... but the unpredicted .py rule does not.
+      expect(hookNames).not.toContain('before:edit-file:.py');
+      // Report-only: the predicted skill is never injected into the act relay.
+      expect(actPrompts.length).toBeGreaterThan(0);
+      for (const prompt of actPrompts) {
+        expect(prompt).not.toContain('tdd');
+      }
+    },
+    TIMEOUT_MS,
+  );
+});
+
 // A minimal synthetic trace entry exposing only the fields the dispatcher reads.
 function entry(fields: Record<string, unknown>): TraceEntry {
   return {
@@ -344,6 +435,103 @@ describe('Skill-hook detection (unit)', () => {
           overall_status: 'proven',
           sequence: 4,
         }),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('Skill-hook edit-file detection (unit, Fix change-set)', () => {
+  // A synthetic step.report_written pointing at a fix.change-set@v1 report.
+  function reportWritten(schema: string): TraceEntry {
+    return entry({
+      kind: 'step.report_written',
+      step_id: 'fix-change-set',
+      report_path: 'reports/fix/change-set.json',
+      report_schema: schema,
+      sequence: 1,
+    });
+  }
+
+  // The real FixChangeSet `observed` field carries the actual touched paths.
+  async function editHooksFor(
+    schema: string,
+    reportBody: unknown,
+    policy: Record<string, unknown>,
+  ): Promise<string[]> {
+    const events = await dispatchEditFileHooksForEntries({
+      entries: [reportWritten(schema)],
+      configLayers: [projectPolicyLayer(policy)],
+      scope: { flowId: 'fix', stepId: 'fix-change-set', attemptId: '1' },
+      eventIdBase: 'e',
+      readJson: async () => reportBody,
+    });
+    return events.map((event) => event.hook).sort();
+  }
+
+  it('fires after:edit-file:.ts when an observed path matches the extension suffix', async () => {
+    expect(
+      await editHooksFor(
+        'fix.change-set@v1',
+        { observed: ['src/foo.ts', 'src/bar.tsx'] },
+        { 'after:edit-file:.ts': { mode: 'auto', skills: ['tdd'] } },
+      ),
+    ).toEqual(['after:edit-file:.ts']);
+  });
+
+  it('matches multi-dot extensions and the bare any-edit anchor; skips non-matching suffixes', async () => {
+    expect(
+      await editHooksFor(
+        'fix.change-set@v1',
+        { observed: ['src/bar.tsx', 'src/foo.test.ts'] },
+        {
+          'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
+          'after:edit-file:.test.ts': { mode: 'auto', skills: ['tdd'] },
+          'after:edit-file:.py': { mode: 'auto', skills: ['python-doctor'] },
+          'after:edit-file': { mode: 'auto', skills: ['any-edit'] },
+        },
+      ),
+    ).toEqual(['after:edit-file', 'after:edit-file:.tsx', 'after:edit-file:.test.ts'].sort());
+  });
+
+  it('records the resolved policy and the parameterized hook name on the event', async () => {
+    const events = await dispatchEditFileHooksForEntries({
+      entries: [reportWritten('fix.change-set@v1')],
+      configLayers: [
+        projectPolicyLayer({ 'after:edit-file:.tsx': { mode: 'mute', strict: false } }),
+      ],
+      scope: { flowId: 'fix', stepId: 'fix-change-set', attemptId: '1' },
+      eventIdBase: 'e',
+      readJson: async () => ({ observed: ['src/bar.tsx'] }),
+    });
+    expect(events).toHaveLength(1);
+    expect(events[0]?.hook).toBe('after:edit-file:.tsx');
+    expect(events[0]?.policy).toMatchObject({ mode: 'mute', source: 'project-policy' });
+    expect(events[0]?.triggered_skills).toEqual([]);
+  });
+
+  it('does not fire a before:edit-file key on an after-timed (change-set) report', async () => {
+    expect(
+      await editHooksFor(
+        'fix.change-set@v1',
+        { observed: ['src/bar.tsx'] },
+        { 'before:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] } },
+      ),
+    ).toEqual([]);
+  });
+
+  it('records nothing without a configured edit-file policy, or for an unknown report schema', async () => {
+    expect(
+      await editHooksFor(
+        'fix.change-set@v1',
+        { observed: ['src/bar.tsx'] },
+        { 'after:verification-failed': { mode: 'mute', strict: false } },
+      ),
+    ).toEqual([]);
+    expect(
+      await editHooksFor(
+        'something.unmapped@v1',
+        { observed: ['src/bar.tsx'] },
+        { 'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] } },
       ),
     ).toEqual([]);
   });

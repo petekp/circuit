@@ -79,24 +79,31 @@ live in author or operator namespaces (see "Authoring Custom Hooks").
 | `before:plan-implementation` | About to decide an implementation approach for the current goal. | Stage transition into Plan, or step metadata `kind: plan`. | per-stage | `auto` |
 | `before:implementation` | About to start writing code for an approved plan. | Stage transition from Plan to Act, or first Act-stage step start. | per-stage | `auto` |
 | `before:verification` | About to verify the work against acceptance criteria. | Stage transition into Verify, or step metadata `kind: verify`. | per-stage | `auto` |
-| `after:react-ui-change` | A step finished after touching React UI files. | Step diff includes paths matching `*.tsx`, `*.jsx`, or future `skill_hooks.detection.react_surfaces` patterns in project config. | per-step | `auto` |
-| `after:test-change` | A step finished after touching test files. | Step diff includes paths matching `*.test.*`, `*.spec.*`, `__tests__/`, `tests/`, or future `skill_hooks.detection.test_surfaces` patterns in project config. | per-step | `auto` |
-| `after:schema-change` | A step finished after touching type, schema, or migration files. | Step diff includes paths matching `*.prisma`, `*.sql`, `migrations/`, `schemas/`, or future `skill_hooks.detection.schema_surfaces` patterns in project config. | per-step | `auto` |
-| `after:api-surface-change` | A step finished after touching declared public API. | Step diff includes future `skill_hooks.detection.api_surfaces` patterns in project config. No common-pattern fallback; explicit declaration only. | per-step | `auto` |
-| `after:dependency-change` | A step finished after adding, removing, or upgrading a dependency. | Step diff shows lockfile changes, package manifest dependency-section changes, or language-specific dependency declarations. Script, metadata, or formatting-only manifest edits do not count. | per-step | `auto` |
+| `before:edit-file` | About to edit a file matching the policy's extension predicate. | A prior step's typed predicted surface (`anticipated_file_extensions` / `likely_touched`) contains an entry matching the key suffix. Bare `before:edit-file` matches any predicted edit. | per-step | `auto` |
+| `after:edit-file` | A step finished after editing a file matching the policy's extension predicate. | The step's actual touched-files surface (change-set `observed`, or a touched-files self-report) contains an entry matching the key suffix. Bare `after:edit-file` matches any edit. | per-step | `auto` |
 | `after:verification-failed` | A required verification check returned failure. | Evidence map shows a required check with `outcome: failed` recorded during this Run. | per-step | `auto` |
 | `after:evidence-gap` | Required evidence is missing after the verify stage. | Run envelope evidence map shows unsatisfied required claims after Verify-stage steps have run. | per-stage | `auto` |
 | `before:close-run` | About to finalize the Run as complete, blocked, or handed off. | Run envelope decision to close, or stage transition into Close. | per-run | `auto` |
 | `before:handoff` | About to save Run state for cross-session continuity. | Explicit handoff command, or Run envelope decision to handoff. | per-run | `auto` |
 
-Fourteen hooks. The plan calls for "probably 10-15," and this set leaves
-deliberate room for additions when concrete needs prove them.
+Eleven hooks. The five named file-surface hooks
+(`after:react-ui-change`/`test-change`/`schema-change`/`api-surface-change`/`dependency-change`)
+and the four `skill_hooks.detection.*_surfaces` config buckets were collapsed
+into the one parameterized `before:edit-file`/`after:edit-file` pair: the glob
+predicate now lives in the policy key suffix (v1: an extension suffix such as
+`.tsx`), so the engine matches a literal extension and the meaning lives in
+operator config. See
+[`docs/ideas/skill-hooks-first-principles.md`](../ideas/skill-hooks-first-principles.md)
+(the reframe) and
+[`docs/ideas/skill-hooks-dispatch-spec.md`](../ideas/skill-hooks-dispatch-spec.md)
+(slice 2). The set leaves deliberate room for additions when concrete needs
+prove them.
 
 ## Cardinality Notes
 
 `per-step` cardinality fires at most once per step, even when many files in
 that step's diff match the detection rule. The detector does not iterate per
-file. If a single Act step touches twenty React files, `after:react-ui-change`
+file. If a single Act step touches twenty `.tsx` files, `after:edit-file:.tsx`
 fires once at step close.
 
 `per-stage` cardinality fires at most once per stage instance or process
@@ -199,7 +206,7 @@ Fixtures that should exist before this vocabulary is wired into Run:
 - **Pete's named examples fixture.** A sample project policy maps
   `before:high-impact-alignment` to alignment-class skills,
   `before:architecture-analysis` to architecture-analysis-class skills, and
-  `after:react-ui-change` to React review skills. Each match is explainable
+  `after:edit-file:.tsx` to React review skills. Each match is explainable
   through that policy entry. Without the sample policy, the hooks are
   recorded but no skill is prepared or requested.
 - **Cross-flow fixture.** The same hook, emitted from two different flows,

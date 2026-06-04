@@ -79,21 +79,21 @@ describe('Skill Hook policy schema', () => {
       schema_version: 1,
       skill_hooks: {
         policy: {
-          'after:react-ui-change': { mode: 'auto', skills: ['react-doctor'] },
+          'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
           'before:high-impact-alignment': { mode: 'ask', skills: ['grill-with-docs'] },
           'before:architecture-analysis': { mode: 'mute' },
         },
       },
     });
 
-    expect(parsed.skill_hooks.policy['after:react-ui-change']?.strict).toBe(false);
+    expect(parsed.skill_hooks.policy['after:edit-file:.tsx']?.strict).toBe(false);
     expect(parsed.skill_hooks.detection.disabled_patterns).toEqual({});
   });
 
   it('rejects slot-shaped and fuzzy policy shapes', () => {
     expect(
       SkillHookConfig.safeParse({
-        policy: { 'after:react-ui-change': { mode: 'auto' } },
+        policy: { 'after:edit-file:.tsx': { mode: 'auto' } },
       }).success,
     ).toBe(false);
     expect(
@@ -109,7 +109,7 @@ describe('Skill Hook policy schema', () => {
     expect(
       SkillHookConfig.safeParse({
         policy: {
-          'after:react-ui-change': { mode: 'auto', skills: ['react-doctor', 'react-doctor'] },
+          'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor', 'react-doctor'] },
         },
       }).success,
     ).toBe(false);
@@ -121,7 +121,7 @@ describe('Skill Hook policy schema', () => {
     expect(
       SkillHookConfig.safeParse({
         policy: {
-          'team/after:react-ui-change': { mode: 'auto', skills: ['react-doctor'] },
+          'team/after:edit-file': { mode: 'auto', skills: ['react-doctor'] },
         },
       }).success,
     ).toBe(false);
@@ -137,7 +137,7 @@ describe('Skill Hook policy schema', () => {
   it('layers project policy as whole-entry replacement over user-global policy', () => {
     const user = configLayer('user-global', {
       'before:architecture-analysis': { mode: 'auto', skills: ['seam-ripper'] },
-      'after:react-ui-change': { mode: 'auto', skills: ['react-doctor'] },
+      'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
     });
     const project = configLayer('project', {
       'before:architecture-analysis': { mode: 'mute' },
@@ -148,7 +148,7 @@ describe('Skill Hook policy schema', () => {
       source: 'project-policy',
       skills: [],
     });
-    expect(resolveSkillHookPolicy([user, project], 'after:react-ui-change')).toMatchObject({
+    expect(resolveSkillHookPolicy([user, project], 'after:edit-file:.tsx')).toMatchObject({
       mode: 'auto',
       source: 'user-global-policy',
       skills: ['react-doctor'],
@@ -164,7 +164,7 @@ describe('Skill Hook policy schema', () => {
     writeSkill(agentsRoot, 'react-doctor');
     const registry = createUserSkillRegistry({ roots: [agentsRoot] });
     const layer = configLayer('project', {
-      'after:react-ui-change': {
+      'after:edit-file:.tsx': {
         mode: 'auto',
         skills: ['react-doctor', 'missing-skill'],
       },
@@ -172,7 +172,7 @@ describe('Skill Hook policy schema', () => {
 
     const event = buildRunSkillHookEvent({
       eventId: 'hook-1',
-      hook: SkillHookName.parse('after:react-ui-change'),
+      hook: SkillHookName.parse('after:edit-file:.tsx'),
       detectedFrom: ['diff:src/component.tsx'],
       cardinality: 'per-step',
       configLayers: [layer],
@@ -263,7 +263,7 @@ describe('Skill Hook policy schema', () => {
     });
 
     const strictLayer = configLayer('project', {
-      'after:react-ui-change': {
+      'after:edit-file:.tsx': {
         mode: 'auto',
         strict: true,
         skills: ['missing-skill'],
@@ -271,7 +271,7 @@ describe('Skill Hook policy schema', () => {
     });
     const strictEvent = buildRunSkillHookEvent({
       eventId: 'hook-strict',
-      hook: SkillHookName.parse('after:react-ui-change'),
+      hook: SkillHookName.parse('after:edit-file:.tsx'),
       detectedFrom: ['diff:src/component.tsx'],
       cardinality: 'per-step',
       configLayers: [strictLayer],
@@ -298,7 +298,7 @@ describe('Skill Hook policy schema', () => {
       RunSkillHookEvent.safeParse({
         schema: 'run.skill-hook@v0',
         event_id: 'hook-observed',
-        hook: 'after:react-ui-change',
+        hook: 'after:edit-file:.tsx',
         detected_from: ['host:skills.loaded'],
         cardinality: 'per-step',
         policy: { mode: 'none', source: 'none' },
@@ -310,7 +310,7 @@ describe('Skill Hook policy schema', () => {
       RunSkillHookEvent.safeParse({
         schema: 'run.skill-hook@v0',
         event_id: 'hook-unplanned',
-        hook: 'after:react-ui-change',
+        hook: 'after:edit-file:.tsx',
         detected_from: ['host:skills.loaded'],
         cardinality: 'per-step',
         policy: { mode: 'auto', source: 'project-policy', strict: false },
@@ -321,7 +321,7 @@ describe('Skill Hook policy schema', () => {
 
   it('adds a hook-only step field without reviving skill binding matrices', () => {
     expect(
-      RelayStep.safeParse(baseRelayStep({ skill_hooks: ['after:react-ui-change'] })).success,
+      RelayStep.safeParse(baseRelayStep({ skill_hooks: ['after:edit-file:.tsx'] })).success,
     ).toBe(true);
     expect(
       RelayStep.safeParse(baseRelayStep({ skill_hooks: [{ skills: ['react-doctor'] }] })).success,
@@ -333,8 +333,10 @@ describe('Skill Hook policy schema', () => {
 });
 
 describe('Skill Hook vocabulary fixtures', () => {
-  it('pins the shipped V1 vocabulary to observable detection sources', () => {
-    expect(SKILL_HOOK_VOCABULARY).toHaveLength(14);
+  it('pins the shipped vocabulary to observable detection sources', () => {
+    // 14 named hooks minus the 5 collapsed file-surface hooks plus the 2
+    // parameterized edit-file anchors = 11.
+    expect(SKILL_HOOK_VOCABULARY).toHaveLength(11);
     for (const entry of SKILL_HOOK_VOCABULARY) {
       expect(SkillHookName.safeParse(entry.hook).success).toBe(true);
       expect(entry.detected_from.length).toBeGreaterThan(0);
@@ -342,5 +344,62 @@ describe('Skill Hook vocabulary fixtures', () => {
       expect(['auto', 'ask', 'mute']).toContain(entry.default_mode);
       expect(['per-run', 'per-stage', 'per-step']).toContain(entry.cardinality);
     }
+  });
+
+  it('carries the parameterized edit-file anchors and drops the named file-surface hooks', () => {
+    const hooks = SKILL_HOOK_VOCABULARY.map((entry) => entry.hook);
+    expect(hooks).toContain('before:edit-file');
+    expect(hooks).toContain('after:edit-file');
+    for (const dropped of [
+      'after:react-ui-change',
+      'after:test-change',
+      'after:schema-change',
+      'after:api-surface-change',
+      'after:dependency-change',
+    ]) {
+      expect(hooks).not.toContain(dropped);
+    }
+  });
+});
+
+describe('Skill Hook parameterized edit-file names', () => {
+  it('accepts the bare anchors and extension-suffix forms', () => {
+    for (const name of [
+      'before:edit-file',
+      'after:edit-file',
+      'after:edit-file:.tsx',
+      'before:edit-file:.ts',
+      'after:edit-file:.test.ts',
+      'after:edit-file:.d.ts',
+    ]) {
+      expect(SkillHookName.safeParse(name).success).toBe(true);
+    }
+  });
+
+  it('rejects malformed extension suffixes', () => {
+    for (const name of [
+      'after:edit-file:', // empty suffix
+      'after:edit-file:tsx', // missing leading dot
+      'after:edit-file:.', // dot with no extension
+      'after:edit-file:.tsx.', // trailing dot
+      'after:edit-file:*.tsx', // glob char is not an extension suffix in v1
+      'after:other-thing:.tsx', // only edit-file is parameterized
+    ]) {
+      expect(SkillHookName.safeParse(name).success).toBe(false);
+    }
+  });
+
+  it('round-trips a parameterized policy key through Config and resolution', () => {
+    const parsed = Config.parse({
+      schema_version: 1,
+      skill_hooks: {
+        policy: {
+          'after:edit-file:.tsx': { mode: 'auto', skills: ['react-doctor'] },
+          'after:edit-file:.py': { mode: 'auto', skills: ['python-doctor'] },
+        },
+      },
+    });
+    expect(parsed.skill_hooks.policy['after:edit-file:.tsx']?.skills).toEqual(['react-doctor']);
+    expect(parsed.skill_hooks.policy['after:edit-file:.py']?.skills).toEqual(['python-doctor']);
   });
 });

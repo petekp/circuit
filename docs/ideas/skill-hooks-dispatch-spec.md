@@ -103,15 +103,84 @@ and this is the decision it made." Report-only writes this entry and nothing els
   feeds a glob filter later.
 - Prove on **Fix first**: `after:edit-file` keys on Fix's `FixChangeSet`
   (actual touched files, already computed) — report-only records which configured
-  edit-file policies the actual surface matched. Then `before:edit-file` keys on
-  Fix's diagnosis-emitted predicted surface.
+  edit-file policies the actual surface matched.
 - Then extend to Build: `before:edit-file` keys on `anticipated_file_extensions`
   (plan- and per-slice level — the slice loop gives per-step granularity for
-  free); `after:edit-file` keys on `changed_files`.
+  free).
 - **Verification:** report-only records the right matches on Fix and Build;
-  per-flow touched-files field name is read correctly (`changed_files` vs
-  `actual_touch_set` vs `created_files`); planned-vs-actual divergence is visible
-  in the recorded events; `npm run verify` green; both hosts.
+  the per-flow surface field is read correctly (`observed` for Fix, plan-level
+  ∪ per-slice `anticipated_file_extensions` for Build); `npm run verify` green;
+  both hosts.
+
+#### What slice 2 shipped (proof split) + deferrals
+
+Following the first-principles recommendation ("Build proves the prediction arm
+while Fix proves the planned-vs-actual gate"), slice 2 divided the proof by what
+each flow already has, so it needed **no new flow field** and **no relay-report
+plumbing**:
+
+- **Fix proves `after:edit-file`** on `fix.change-set@v1` `observed` — a
+  `verification` step, so it crosses the trace as `step.report_written` and the
+  dispatcher reads it directly. This is the ground-truth actual-surface arm.
+- **Build proves `before:edit-file`** on `build.plan@v1`
+  `anticipated_file_extensions` (plan ∪ slice) — a `compose` step, also
+  `step.report_written`. This is the pre-act prediction arm, proven end-to-end on
+  the Build fixture (the plan predicts `.ts`, the `.ts` rule fires on `plan-step`,
+  a non-matching `.py` rule does not, and nothing is injected).
+
+Two arms are **deferred** (recorded so they are unambiguous), because each needs
+a mechanism slice 2 deliberately did not build, and the timing each represents is
+already proven by the pair above:
+
+1. **`after:edit-file` on a relay self-report** (Build's
+   `build.implementation@v1` `changed_files`; also Prototype `created_files`,
+   Pursue `actual_touch_set`). Relay steps emit `relay.completed`/`relay.result`,
+   **not** `step.report_written`, and the relay's report **schema** is not on the
+   trace — so reading a relay report needs the graph-runner to pass the completed
+   step's `writes.report` `{schema, path}` into the dispatcher. A clean, separable
+   addition; the `after` timing is already proven via Fix's change-set.
+2. **`before:edit-file` on a Fix diagnosis prediction.** Needs a new advisory
+   `anticipated_file_extensions` field on `FixDiagnosis` (a flow-authoring change
+   + relay-hints + generated surface). The `before` timing is already proven via
+   Build's plan, so this is additive recall, not a gap in the loop.
+
+#### Resolved build decisions (slice 2)
+
+These two contract questions are hard to revert once the schema ships, so the
+smallest-defensible answer is recorded here before building.
+
+- **D1 — the filter lives in the hook key, not a new rule field.** The spec says
+  the hook is "keyed on a glob filter," so the literal predicate is the key
+  *suffix*: `after:edit-file:.tsx`, `before:edit-file:.ts`. The base
+  `before:edit-file` / `after:edit-file` are vocabulary anchors (and a usable
+  "any edit" predicate when written bare). v1 predicate is **extension-suffix
+  match**: a surface entry matches a key iff it `endsWith` the suffix (so
+  `.test.ts` and `.d.ts` multi-dot extensions work for free, and a bare key with
+  no suffix matches any non-empty surface). This keeps `SkillHookPolicyRule` and
+  `resolveSkillHookPolicy` **unchanged** — the parameterized name is just another
+  `z.record` key, and the existing layered resolution looks it up verbatim. It
+  also gives the doc's multi-mapping for free: `after:edit-file:.tsx → [react]`
+  and `after:edit-file:.py → [python]` are two keys; the dispatcher unions the
+  skills of every key whose suffix matches the surface.
+  *Rejected alternative:* a `match: string[]` field on the rule (or an
+  array-valued policy entry). It mirrors the idea doc's pseudo-config more
+  literally but forces a `SkillHookPolicyRule` shape change, a record-value union,
+  and new resolution logic — strictly more surface for no v1 capability the
+  key-suffix form lacks. Revisit only when a path-scoped (non-extension) glob is
+  genuinely needed.
+- **D2 — surfaces come from reports via a schema→field table, read at dispatch.**
+  The dispatcher already receives the step's `step.report_written` entries (each
+  carrying `report_path` + `report_schema`). It is handed a `readJson` accessor
+  and consults a small declarative table mapping `report_schema` →
+  `{ timing: before|after, extract }`. Data, not flow-name branching, so the "no
+  flow names in the dispatcher" principle holds and the engine stays clean (the
+  graph-runner passes `readJson` + entries; all schema knowledge lives in
+  `src/skill-hooks/`). v1 table entries: `fix.change-set@v1` → after (`observed`,
+  ground-truth touched paths, already computed); `fix.diagnosis@v1` → before
+  (`anticipated_file_extensions`, a new advisory field); `build.plan@v1` → before
+  (`anticipated_file_extensions`, plan- and slice-level); Build's change report →
+  after (`changed_files`). The dispatch call becomes async (the runner already
+  awaits it).
 
 ### Slice 3 — actuation (the router actuator)
 - Flip report-only to **act** per policy mode: `auto` injects the

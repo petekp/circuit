@@ -14,6 +14,7 @@ import { type RunSkillHookEvent, SKILL_HOOK_VOCABULARY } from '../schemas/skill-
 import type { TraceEntry } from '../schemas/trace-entry.js';
 import type { UserSkillRegistry } from '../shared/user-skill-registry.js';
 import { buildRunSkillHookEvent } from './policy.js';
+import { EDIT_FILE_SURFACE_SOURCES, type EditFileTiming } from './surface-sources.js';
 
 const VOCABULARY_BY_HOOK = new Map<string, (typeof SKILL_HOOK_VOCABULARY)[number]>(
   SKILL_HOOK_VOCABULARY.map((entry) => [entry.hook, entry]),
@@ -102,4 +103,122 @@ export function dispatchSkillHooksForEntries(
     events.push(event);
   }
   return events;
+}
+
+// ---------------------------------------------------------------------------
+// File-edit hooks (before:edit-file / after:edit-file)
+// ---------------------------------------------------------------------------
+//
+// Unlike the check-outcome hooks (which read a literal trace signal), the
+// file-edit hooks key on a FILE SURFACE that a step wrote into a typed report:
+// the actual touched paths (after) or a predicted surface (before). The
+// dispatcher reads the report via a `readJson` accessor, pulls the surface out
+// via the per-flow EDIT_FILE_SURFACE_SOURCES table, and tests it against the
+// operator's configured edit-file policy keys. The predicate is the key suffix
+// (extension-suffix in v1): `after:edit-file:.tsx` matches a surface entry that
+// `endsWith('.tsx')`; the bare `after:edit-file` matches any non-empty surface.
+// See docs/ideas/skill-hooks-dispatch-spec.md (slice 2, D1/D2).
+
+export type DispatchReadJson = (ref: string) => Promise<unknown>;
+
+export interface DispatchEditFileHooksInput extends DispatchSkillHooksInput {
+  // Reads a run-relative report path (the report_path on a step.report_written
+  // entry) and returns its parsed JSON body.
+  readonly readJson: DispatchReadJson;
+}
+
+// Matches the bare anchors and the v1 extension-suffix form, and nothing else
+// (a namespaced custom hook starts with `<ns>/`, so it never matches).
+const EDIT_FILE_KEY_RE = /^(before|after):edit-file(:(\.[A-Za-z0-9]+)+)?$/;
+
+function editFileTiming(key: string): EditFileTiming {
+  return key.startsWith('before:') ? 'before' : 'after';
+}
+
+function baseEditFileHook(key: string): 'before:edit-file' | 'after:edit-file' {
+  return key.startsWith('before:') ? 'before:edit-file' : 'after:edit-file';
+}
+
+// The literal predicate carried in the key suffix: '.tsx' for
+// `after:edit-file:.tsx`, '' (match-any) for a bare `after:edit-file`.
+function editFileSuffix(key: string): string {
+  const rest = key.slice(baseEditFileHook(key).length);
+  return rest.startsWith(':') ? rest.slice(1) : '';
+}
+
+function surfaceMatches(surface: readonly string[], suffix: string): boolean {
+  if (suffix === '') return surface.length > 0;
+  return surface.some((item) => item.endsWith(suffix));
+}
+
+// The distinct edit-file policy keys configured across the run's config layers.
+function editFilePolicyKeys(configLayers: readonly LayeredConfig[]): readonly string[] {
+  const keys = new Set<string>();
+  for (const layer of configLayers) {
+    for (const key of Object.keys(layer.config.skill_hooks.policy)) {
+      if (EDIT_FILE_KEY_RE.test(key)) keys.add(key);
+    }
+  }
+  return [...keys];
+}
+
+// Build the edit-file skill-hook events a step's report surfaces trigger under
+// the run's config. Returns only events whose policy resolved to something the
+// operator opted into (mode !== 'none'). Best-effort: an unreadable report or a
+// report schema with no surface source is skipped, never thrown.
+export async function dispatchEditFileHooksForEntries(
+  input: DispatchEditFileHooksInput,
+): Promise<readonly RunSkillHookEvent[]> {
+  const keys = editFilePolicyKeys(input.configLayers ?? []);
+  if (keys.length === 0) return [];
+
+  const events: RunSkillHookEvent[] = [];
+  for (const entry of input.entries) {
+    if (entry.kind !== 'step.report_written') continue;
+    const source = EDIT_FILE_SURFACE_SOURCES[entry.report_schema];
+    if (source === undefined) continue;
+
+    let report: unknown;
+    try {
+      report = await input.readJson(entry.report_path);
+    } catch {
+      continue; // unreadable report: report-only dispatch must never break a run
+    }
+
+    const surface = source.extract(report);
+    if (surface.length === 0) continue;
+
+    for (const key of keys) {
+      if (editFileTiming(key) !== source.timing) continue;
+      if (!surfaceMatches(surface, editFileSuffix(key))) continue;
+      const vocabulary = VOCABULARY_BY_HOOK.get(baseEditFileHook(key));
+      if (vocabulary === undefined) continue;
+      const event = buildRunSkillHookEvent({
+        eventId: `${input.eventIdBase}:${key}:${entry.sequence}`,
+        hook: key,
+        detectedFrom: [...vocabulary.detected_from],
+        cardinality: vocabulary.cardinality,
+        ...(input.configLayers === undefined ? {} : { configLayers: input.configLayers }),
+        ...(input.registry === undefined ? {} : { registry: input.registry }),
+        ...(input.scope.flowId === undefined ? {} : { flowId: input.scope.flowId }),
+        ...(input.scope.stageId === undefined ? {} : { stageId: input.scope.stageId }),
+        ...(input.scope.stepId === undefined ? {} : { stepId: input.scope.stepId }),
+        ...(input.scope.attemptId === undefined ? {} : { attemptId: input.scope.attemptId }),
+      });
+      if (event.policy.mode === 'none') continue;
+      events.push(event);
+    }
+  }
+  return events;
+}
+
+// The single dispatch entry the graph-runner calls after a step completes:
+// records both check-outcome hooks (sync, from trace signals) and file-edit
+// hooks (async, from report surfaces) the step's entries trigger.
+export async function dispatchSkillHooks(
+  input: DispatchEditFileHooksInput,
+): Promise<readonly RunSkillHookEvent[]> {
+  const checkOutcome = dispatchSkillHooksForEntries(input);
+  const editFile = await dispatchEditFileHooksForEntries(input);
+  return [...checkOutcome, ...editFile];
 }
