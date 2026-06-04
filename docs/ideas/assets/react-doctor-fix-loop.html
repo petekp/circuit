@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>react-doctor — inspect, fix, re-inspect until clean</title>
+<style>
+  body {
+    margin: 0;
+    background: #ffffff;
+    color: #0f172a;
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    padding: 40px 48px 56px;
+  }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .sub { color: #64748b; font-size: 16px; margin: 0 0 28px; }
+  .wrap { display: flex; gap: 48px; align-items: flex-start; flex-wrap: wrap; }
+  .mermaid { font-size: 17px; }
+  .legend { font-size: 14.5px; line-height: 1.9; max-width: 320px; }
+  .legend h2 { font-size: 15px; margin: 0 0 8px; color: #0f172a; }
+  .chip { display: inline-block; width: 13px; height: 13px; border-radius: 3px; margin-right: 8px; vertical-align: middle; }
+  .green { background: #ecfdf5; border: 2px solid #059669; }
+  .blue  { background: #eff6ff; border: 2px solid #2563eb; }
+  .orange{ background: #fff7ed; border: 2px dashed #ea580c; }
+  .take { margin-top: 22px; font-size: 14.5px; color: #334155; max-width: 320px; }
+  .take b { color: #0f172a; }
+</style>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'default', flowchart: { curve: 'basis', padding: 14 } });
+</script>
+</head>
+<body>
+  <h1>react-doctor: inspect, fix, re-inspect until clean</h1>
+  <p class="sub">Your "address every finding" use case, as a loop</p>
+
+  <div class="wrap">
+    <pre class="mermaid">
+flowchart TD
+    A([Build step writes React code]) --> B["react-doctor inspects<br/><i>after moment — leaves findings</i>"]
+    B --> C{"Any findings?"}
+    C -->|"No — clean"| E([Continue to whatever's next])
+    C -->|"Yes"| D["Fixer fixes them<br/><i>before moment — findings are its cheat-sheet</i>"]
+    D --> B
+
+    F["Safety cap:<br/>stop after N tries<br/>so it can't loop forever"] -. watches .-> C
+
+    classDef inspect fill:#ecfdf5,stroke:#059669,color:#065f46,stroke-width:2px;
+    classDef fix fill:#eff6ff,stroke:#2563eb,color:#1e3a8a,stroke-width:2px;
+    classDef plain fill:#f1f5f9,stroke:#94a3b8,color:#0f172a;
+    classDef cap fill:#fff7ed,stroke:#ea580c,color:#7c2d12,stroke-dasharray:4 3;
+    class B inspect;
+    class D fix;
+    class A,E plain;
+    class F cap;
+    </pre>
+
+    <div class="legend">
+      <h2>Reading it</h2>
+      <div><span class="chip green"></span><b>Inspect</b> — react-doctor reviews the code (the after moment)</div>
+      <div><span class="chip blue"></span><b>Fix</b> — a worker addresses the findings (the before moment: the findings are its cheat-sheet)</div>
+      <div><span class="chip orange"></span><b>Safety cap</b> — a limit so the loop can't run forever</div>
+      <div class="take">
+        The loop itself (<b>inspect → fix → re-inspect</b>) is the part Circuit already does for its normal checks. The new piece is just running react-doctor as the inspector and handing its findings to the fixer.
+      </div>
+    </div>
+  </div>
+</body>
+</html>
