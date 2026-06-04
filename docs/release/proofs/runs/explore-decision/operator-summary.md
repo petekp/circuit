@@ -1,4 +1,4 @@
-Circuit · Explore: Decided: Vue
+Circuit · Explore
 
 Choose Vue for a smaller surface and faster product iteration.
 

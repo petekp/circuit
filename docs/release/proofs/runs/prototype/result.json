@@ -8,7 +8,7 @@
   "result_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/result.json",
   "operator_summary_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/operator-summary.md",
-  "operator_summary_status_text": "Prototype: Saved as Build input",
+  "operator_summary_status_text": "Prototype",
   "run_envelope_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/run-envelope.json",
   "run_process_evidence_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/process-evidence.json",
   "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/prototype/run/reports/run-surface.md",

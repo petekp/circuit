@@ -1,4 +1,4 @@
-Circuit · Build: Waiting
+Circuit · Build
 
 Circuit is waiting for a checkpoint choice before this flow can continue.
 

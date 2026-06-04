@@ -6,10 +6,10 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "complete",
-  "headline": "Circuit · Prototype: Saved as Build input",
-  "status_text": "Prototype: Saved as Build input",
+  "headline": "Circuit · Prototype",
+  "status_text": "Prototype",
   "brief_slots": {
-    "headline": "Circuit · Prototype: Saved as Build input",
+    "headline": "Circuit · Prototype",
     "assessment": "Prototype verified and saved as Build input. Created a local prototype artifact for building custom Circuit flows from existing blocks and inspecting pre-packaged flows.",
     "key_points": [
       "Worker access: A worker can edit this checkout.",

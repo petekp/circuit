@@ -187,6 +187,10 @@ function digestStatusText(headline: string): string {
   return headline.replace(/^Circuit\s*·\s*/i, '').trim();
 }
 
+function digestHeadline(flowName: string): string {
+  return `Circuit · ${flowName}`;
+}
+
 function withoutDetailPrefix(detail: string, prefix: string): string {
   return detail.slice(prefix.length).trim();
 }
@@ -431,7 +435,7 @@ function runOutcomeOverrideBrief(input: {
   const keyPoints = keyPointsFromDetails(input.details);
   if (input.runResult.outcome === 'checkpoint_waiting') {
     return {
-      headline: `Circuit · ${input.flowName}: Waiting`,
+      headline: digestHeadline(input.flowName),
       assessment: 'Circuit is waiting for a checkpoint choice before this flow can continue.',
       key_points: [
         `Checkpoint step: ${input.runResult.checkpoint.step_id}`,
@@ -444,7 +448,7 @@ function runOutcomeOverrideBrief(input: {
   }
   if (input.runResult.outcome === 'aborted') {
     return {
-      headline: `Circuit · ${input.flowName}: Aborted`,
+      headline: digestHeadline(input.flowName),
       assessment: 'The run aborted before this flow could finish.',
       key_points: [
         ...(input.runResult.reason === undefined
@@ -458,7 +462,7 @@ function runOutcomeOverrideBrief(input: {
   }
   if (input.runResult.outcome === 'escalated') {
     return {
-      headline: `Circuit · ${input.flowName}: Escalated`,
+      headline: digestHeadline(input.flowName),
       assessment: 'The run escalated because Circuit could not close the flow safely.',
       key_points: [
         ...(input.runResult.reason === undefined
@@ -472,7 +476,7 @@ function runOutcomeOverrideBrief(input: {
   }
   if (input.runResult.outcome === 'handoff') {
     return {
-      headline: `Circuit · ${input.flowName}: Handed off`,
+      headline: digestHeadline(input.flowName),
       assessment: 'The flow prepared a handoff instead of closing complete.',
       key_points: [
         ...(input.runResult.reason === undefined
@@ -486,7 +490,7 @@ function runOutcomeOverrideBrief(input: {
   }
   if (input.runResult.outcome === 'stopped') {
     return {
-      headline: `Circuit · ${input.flowName}: Stopped`,
+      headline: digestHeadline(input.flowName),
       assessment: 'The flow stopped before complete evidence was produced.',
       key_points: [
         ...(input.runResult.reason === undefined ? [] : [`Stop reason: ${input.runResult.reason}`]),
@@ -523,7 +527,7 @@ function buildBriefSlots(input: {
     resultSummary: input.runResult.summary,
   });
   return {
-    headline: `Circuit · ${flowName}: ${outcomeLabel}`,
+    headline: digestHeadline(flowName),
     assessment: normalizedAssessment(input.details, input.projectionHeadline),
     key_points: keyPointsFromDetails(input.details),
     caveats: caveatsFrom({ details: input.details, warnings: input.warnings }),

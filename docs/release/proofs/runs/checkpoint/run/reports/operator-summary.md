@@ -1,4 +1,4 @@
-Circuit · Build: Implemented
+Circuit · Build
 
 Implemented the requested synthetic change.
 

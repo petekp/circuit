@@ -51,7 +51,7 @@ describe('OperatorSummary schema', () => {
   it('accepts the five-slot digest brief and rejects the old dormant slot shape', () => {
     expect(
       OperatorBriefSlots.safeParse({
-        headline: 'Circuit · Review: Clean',
+        headline: 'Circuit · Review',
         assessment: 'Reviewer found nothing actionable.',
         key_points: ['Checked the staged diff'],
         caveats: ['Untracked files were metadata only.'],
@@ -61,7 +61,7 @@ describe('OperatorSummary schema', () => {
 
     expect(
       OperatorBriefSlots.safeParse({
-        headline: 'Circuit · Review: Clean',
+        headline: 'Circuit · Review',
         primary: {
           label: 'Verdict',
           text: 'Clean',

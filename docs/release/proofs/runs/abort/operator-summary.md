@@ -1,4 +1,4 @@
-Circuit · Build: Aborted
+Circuit · Build
 
 The run aborted before this flow could finish.
 

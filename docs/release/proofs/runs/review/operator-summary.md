@@ -1,4 +1,4 @@
-Circuit · Review: Clean
+Circuit · Review
 
 Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.
 

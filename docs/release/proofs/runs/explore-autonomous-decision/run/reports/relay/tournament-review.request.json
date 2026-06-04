@@ -62,12 +62,12 @@ Context (from reads):
   "branches": [
     {
       "branch_id": "option-1",
-      "child_run_id": "47002243-cdaa-4482-8c73-0e59fcfb4bb2",
+      "child_run_id": "fb06d48c-8132-499c-b62b-15519b4008f3",
       "child_outcome": "complete",
       "verdict": "accept",
       "admitted": true,
       "result_path": "reports/tournament-branches/option-1/report.json",
-      "duration_ms": 3,
+      "duration_ms": 2,
       "result_body": {
         "verdict": "accept",
         "option_id": "option-1",
@@ -170,12 +170,12 @@ Context (from reads):
     },
     {
       "branch_id": "option-2",
-      "child_run_id": "3dbe9fc7-7681-44fd-9f96-66f5629bf800",
+      "child_run_id": "2f5c16bb-ad7e-444d-bbd5-e80828d3ae87",
       "child_outcome": "complete",
       "verdict": "accept",
       "admitted": true,
       "result_path": "reports/tournament-branches/option-2/report.json",
-      "duration_ms": 3,
+      "duration_ms": 2,
       "result_body": {
         "verdict": "accept",
         "option_id": "option-2",

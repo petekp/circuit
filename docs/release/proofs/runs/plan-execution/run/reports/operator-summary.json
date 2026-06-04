@@ -6,10 +6,10 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "complete",
-  "headline": "Circuit · Build: Implemented",
-  "status_text": "Build: Implemented",
+  "headline": "Circuit · Build",
+  "status_text": "Build",
   "brief_slots": {
-    "headline": "Circuit · Build: Implemented",
+    "headline": "Circuit · Build",
     "assessment": "./docs/specs/headless-engine-host-api-v1.md: Implemented the requested synthetic change.",
     "key_points": [
       "Worker access: A worker can edit this checkout.",

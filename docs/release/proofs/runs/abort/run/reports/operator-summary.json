@@ -6,10 +6,10 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "aborted",
-  "headline": "Circuit · Build: Aborted",
-  "status_text": "Build: Aborted",
+  "headline": "Circuit · Build",
+  "status_text": "Build",
   "brief_slots": {
-    "headline": "Circuit · Build: Aborted",
+    "headline": "Circuit · Build",
     "assessment": "The run aborted before this flow could finish.",
     "key_points": [
       "Abort reason: step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)",

@@ -1,4 +1,4 @@
-Circuit · Prototype: Saved as Build input
+Circuit · Prototype
 
 Prototype verified and saved as Build input. Created a local prototype artifact for building custom Circuit flows from existing blocks and inspecting pre-packaged flows.
 

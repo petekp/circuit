@@ -16,7 +16,7 @@
   "result_path": "<repo>/docs/release/proofs/runs/fix/run/reports/result.json",
   "operator_summary_path": "<repo>/docs/release/proofs/runs/fix/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/fix/run/reports/operator-summary.md",
-  "operator_summary_status_text": "Fix: Applied with follow-ups",
+  "operator_summary_status_text": "Fix",
   "run_envelope_path": "<repo>/docs/release/proofs/runs/fix/run/reports/run-envelope.json",
   "run_process_evidence_path": "<repo>/docs/release/proofs/runs/fix/run/reports/process-evidence.json",
   "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/fix/run/reports/run-surface.md",

@@ -6,10 +6,10 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "checkpoint_waiting",
-  "headline": "Circuit · Build: Waiting",
-  "status_text": "Build: Waiting",
+  "headline": "Circuit · Build",
+  "status_text": "Build",
   "brief_slots": {
-    "headline": "Circuit · Build: Waiting",
+    "headline": "Circuit · Build",
     "assessment": "Circuit is waiting for a checkpoint choice before this flow can continue.",
     "key_points": [
       "Checkpoint step: frame-step",

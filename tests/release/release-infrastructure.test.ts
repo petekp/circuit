@@ -504,7 +504,8 @@ describe('release truth infrastructure', () => {
       resolve(root, 'docs/release/proofs/runs/explore-decision/operator-summary.md'),
       'utf8',
     );
-    expect(summary).toContain('Circuit · Explore: Decided: Vue');
+    expect(summary).toContain('Circuit · Explore');
+    expect(summary).toContain('Choose Vue for a smaller surface and faster product iteration.');
     expect(summary).toContain('Caveat: Team familiarity may be thinner.');
     expect(summary).toContain('Next: Run a Build plan for a Vue prototype.');
     // Format-drift guards. The current renderMarkdown does not emit

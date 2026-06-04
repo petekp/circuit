@@ -1,4 +1,4 @@
-Circuit · Build: Implemented
+Circuit · Build
 
 ./docs/specs/headless-engine-host-api-v1.md: Implemented the requested synthetic change.
 

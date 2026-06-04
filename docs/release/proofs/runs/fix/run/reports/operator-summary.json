@@ -6,10 +6,10 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "complete",
-  "headline": "Circuit · Fix: Applied with follow-ups",
-  "status_text": "Fix: Applied with follow-ups",
+  "headline": "Circuit · Fix",
+  "status_text": "Fix",
   "brief_slots": {
-    "headline": "Circuit · Fix: Applied with follow-ups",
+    "headline": "Circuit · Fix",
     "assessment": "Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.",
     "key_points": [
       "Worker access: A worker can edit this checkout.",

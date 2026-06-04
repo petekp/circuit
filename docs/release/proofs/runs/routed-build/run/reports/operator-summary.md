@@ -1,4 +1,4 @@
-Circuit · Build: Implemented
+Circuit · Build
 
 add a small safe change: Implemented the requested synthetic change.
 

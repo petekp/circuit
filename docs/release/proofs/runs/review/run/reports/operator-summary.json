@@ -6,10 +6,10 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "complete",
-  "headline": "Circuit · Review: Clean",
-  "status_text": "Review: Clean",
+  "headline": "Circuit · Review",
+  "status_text": "Review",
   "brief_slots": {
-    "headline": "Circuit · Review: Clean",
+    "headline": "Circuit · Review",
     "assessment": "Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.",
     "key_points": [
       "Inspected the relayed review-intake report.",

@@ -12,7 +12,7 @@
   "trace_entries_observed": 55,
   "operator_summary_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/operator-summary.md",
-  "operator_summary_status_text": "Explore: Waiting",
+  "operator_summary_status_text": "Explore",
   "run_envelope_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/run-envelope.json",
   "run_process_evidence_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/process-evidence.json",
   "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/run-surface.md",

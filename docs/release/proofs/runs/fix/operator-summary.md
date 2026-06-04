@@ -1,4 +1,4 @@
-Circuit · Fix: Applied with follow-ups
+Circuit · Fix
 
 Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.
 
