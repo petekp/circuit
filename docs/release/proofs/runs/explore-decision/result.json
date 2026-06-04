@@ -8,7 +8,7 @@
   "result_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/result.json",
   "operator_summary_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/operator-summary.md",
-  "operator_summary_status_text": "Decision made. Selected: Vue. Choose Vue for a smaller surface and faster product iteration.",
+  "operator_summary_status_text": "Explore",
   "operator_summary_html_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/operator-summary.html",
   "run_envelope_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/run-envelope.json",
   "run_process_evidence_path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/process-evidence.json",

@@ -3,15 +3,12 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Command } from 'commander';
 import { build } from 'esbuild';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '../..');
-const program = new Command('runtime-bundle').option('--check');
-program.parse(process.argv.slice(2), { from: 'user' });
-const checkMode = program.opts<{ check?: boolean }>().check === true;
 const entryPoint = resolve(repoRoot, 'dist/cli/circuit.js');
 const versionManifestPath = resolve(repoRoot, 'plugins/version.json');
 const outputPaths = ['plugins/claude/runtime/circuit.js', 'plugins/codex/runtime/circuit.js'];
@@ -79,69 +76,85 @@ async function buildRuntimeBundle(): Promise<string> {
         'process.env.CIRCUIT_VERSION': JSON.stringify(readVersion()),
       },
     });
-    return stripTrailingWhitespace(readFileSync(tempFile, 'utf8'));
+    return normalizeRuntimeBundle(readFileSync(tempFile, 'utf8'));
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
+}
+
+export function normalizeRuntimeBundle(body: string): string {
+  return stripTrailingWhitespace(body)
+    .replace(/^(\s*")([^"\n]*\/)?node_modules\/([^"\n]+)"(\([^)]*\) \{)$/gm, '$1node_modules/$3"$4')
+    .replace(/^(\/\/ ).*?node_modules\//gm, '$1node_modules/');
 }
 
 function stripTrailingWhitespace(body: string): string {
   return body.replace(/[ \t]+$/gm, '');
 }
 
-const bundle = await buildRuntimeBundle();
-let drifted = false;
+async function main(): Promise<void> {
+  const program = new Command('runtime-bundle').option('--check');
+  program.parse(process.argv.slice(2), { from: 'user' });
+  const checkMode = program.opts<{ check?: boolean }>().check === true;
+  const bundle = await buildRuntimeBundle();
+  let drifted = false;
 
-for (const rel of outputPaths) {
-  const outAbs = resolve(repoRoot, rel);
-  if (checkMode) {
-    let current: string | undefined;
-    try {
-      current = readFileSync(outAbs, 'utf8');
-    } catch {
-      current = undefined;
-    }
-    if (current === bundle) {
-      console.log(`✓ ${rel} is in sync with the compiled CLI`);
-    } else {
-      console.error(`✗ ${rel} drifted from the compiled CLI; run npm run build-plugin-runtime`);
-      drifted = true;
-    }
-  } else {
-    mkdirSync(dirname(outAbs), { recursive: true });
-    writeFileSync(outAbs, bundle);
-    console.log(`emitted ${rel}`);
-  }
-}
-
-for (const sidecar of ASSET_SIDECARS) {
-  const srcAbs = resolve(repoRoot, sidecar.src);
-  const sourceBody = readFileSync(srcAbs, 'utf8');
-  for (const rel of sidecar.outs) {
+  for (const rel of outputPaths) {
     const outAbs = resolve(repoRoot, rel);
-    // dist/* targets are gitignored local-build artifacts that tsc does not
-    // emit, so they need to be brought into being in --check mode too;
-    // committed targets under plugins/* still go through the drift check.
-    const emitOnly = rel.startsWith('dist/');
-    if (checkMode && !emitOnly) {
+    if (checkMode) {
       let current: string | undefined;
       try {
         current = readFileSync(outAbs, 'utf8');
       } catch {
         current = undefined;
       }
-      if (current === sourceBody) {
-        console.log(`✓ ${rel} is in sync with ${sidecar.src}`);
+      if (current === bundle) {
+        console.log(`✓ ${rel} is in sync with the compiled CLI`);
       } else {
-        console.error(`✗ ${rel} drifted from ${sidecar.src}; run npm run build-plugin-runtime`);
+        console.error(`✗ ${rel} drifted from the compiled CLI; run npm run build-plugin-runtime`);
         drifted = true;
       }
     } else {
       mkdirSync(dirname(outAbs), { recursive: true });
-      writeFileSync(outAbs, sourceBody);
+      writeFileSync(outAbs, bundle);
       console.log(`emitted ${rel}`);
     }
   }
+
+  for (const sidecar of ASSET_SIDECARS) {
+    const srcAbs = resolve(repoRoot, sidecar.src);
+    const sourceBody = readFileSync(srcAbs, 'utf8');
+    for (const rel of sidecar.outs) {
+      const outAbs = resolve(repoRoot, rel);
+      // dist/* targets are gitignored local-build artifacts that tsc does not
+      // emit, so they need to be brought into being in --check mode too;
+      // committed targets under plugins/* still go through the drift check.
+      const emitOnly = rel.startsWith('dist/');
+      if (checkMode && !emitOnly) {
+        let current: string | undefined;
+        try {
+          current = readFileSync(outAbs, 'utf8');
+        } catch {
+          current = undefined;
+        }
+        if (current === sourceBody) {
+          console.log(`✓ ${rel} is in sync with ${sidecar.src}`);
+        } else {
+          console.error(`✗ ${rel} drifted from ${sidecar.src}; run npm run build-plugin-runtime`);
+          drifted = true;
+        }
+      } else {
+        mkdirSync(dirname(outAbs), { recursive: true });
+        writeFileSync(outAbs, sourceBody);
+        console.log(`emitted ${rel}`);
+      }
+    }
+  }
+
+  if (drifted) process.exit(1);
 }
 
-if (drifted) process.exit(1);
+const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : undefined;
+if (invokedPath === import.meta.url) {
+  await main();
+}

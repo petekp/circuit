@@ -8,17 +8,15 @@ describe('CLI run output domain values', () => {
     expect(
       routeOutputFields({
         selectedFlow: 'fix',
-        routedBy: 'classifier',
+        routedBy: 'explicit',
         routerReason: 'matched fix prefix',
-        routerSignal: 'fix prefix',
         entryMode: 'lite',
         entryModeSource: 'explicit',
       }),
     ).toEqual({
       selected_flow: 'fix',
-      routed_by: 'classifier',
+      routed_by: 'explicit',
       router_reason: 'matched fix prefix',
-      router_signal: 'fix prefix',
       entry_mode: 'lite',
       entry_mode_source: 'explicit',
     });

@@ -400,8 +400,8 @@ describe('Run envelope source writer', () => {
     expect(record.surface_output.status_text).not.toMatch(/\b(?:done|complete|completed)\b/i);
   });
 
-  it('records router-selected processes without fabricating an explicit process request', () => {
-    const runFolder = join(tempDir, 'router-review-run');
+  it('records explicit-selected processes with an explicit process request', () => {
+    const runFolder = join(tempDir, 'explicit-review-run');
     const resultPath = join(runFolder, 'reports/result.json');
     const reviewResultPath = join(runFolder, 'reports/review-result.json');
     const childResult = runResult('review');
@@ -418,17 +418,17 @@ describe('Run envelope source writer', () => {
       operatorIntent: 'Please review this PR.',
       selectedProcess: {
         process_id: 'review',
-        routed_by: 'classifier',
-        router_reason: 'matched review request',
+        routed_by: 'explicit',
+        router_reason: 'explicit flow positional argument',
       },
       processEvidence,
       recordedAt: '2026-05-28T05:01:00.000Z',
     });
 
     const record = RunEnvelopeRecord.parse(JSON.parse(readFileSync(written.path, 'utf8')));
-    expect(record.explicit_process_request).toBeUndefined();
-    expect(record.process_plan.selection_source).toBe('router');
-    expect(record.process_plan.rationale).toBe('matched review request');
+    expect(record.explicit_process_request).toBe('review');
+    expect(record.process_plan.selection_source).toBe('explicit_operator_request');
+    expect(record.process_plan.rationale).toBe('explicit flow positional argument');
   });
 
   it('records missing resume route state as recovery provenance', () => {

@@ -15,7 +15,7 @@ export const RUN_ENVELOPE_SHADOW_RELATIVE_PATH = 'reports/run-envelope-shadow.js
 
 type SelectedProcess = {
   readonly process_id: string;
-  readonly routed_by?: 'explicit' | 'classifier';
+  readonly routed_by?: 'explicit';
   readonly router_reason: string;
   readonly entry_mode?: string;
 };

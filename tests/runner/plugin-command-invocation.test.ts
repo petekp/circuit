@@ -68,10 +68,12 @@ function hasExecutableBuildInvocation(body: string): boolean {
 
 function hasExecutableRouterInvocation(body: string): boolean {
   const blocks = extractBashBlocks(body);
-  const binInvocation = /^\s*\.\/bin\/circuit run --goal(?:\s|$)/;
-  const nodeInvocation = /^\s*node dist\/cli\/circuit\.js run --goal(?:\s|$)/;
+  // Routing is model-only, so an executable invocation always names a flow:
+  // `run <flow> --goal ...`. (The old flowless `run --goal` form is gone.)
+  const binInvocation = /^\s*\.\/bin\/circuit run [a-z]+ --goal(?:\s|$)/;
+  const nodeInvocation = /^\s*node dist\/cli\/circuit\.js run [a-z]+ --goal(?:\s|$)/;
   const claudePluginInvocation = new RegExp(
-    `^\\s*${CLAUDE_WRAPPER_PATTERN} present run --goal(?:\\s|$)`,
+    `^\\s*${CLAUDE_WRAPPER_PATTERN} present run [a-z]+ --goal(?:\\s|$)`,
   );
   for (const block of blocks) {
     for (const line of block.split('\n')) {

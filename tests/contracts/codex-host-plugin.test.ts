@@ -239,7 +239,6 @@ describe('Codex host plugin package', () => {
     expect(skill).toContain(
       'Runs Circuit from the intent front door with recorded flow selection, trace, reports, and evidence.',
     );
-    expect(skill).toContain("node '<plugin root>/scripts/circuit.ts' run --goal");
     expect(skill).toContain("node '<plugin root>/scripts/circuit.ts' run fix --goal");
     expect(skill).toContain('--progress jsonl');
     expect(skill).toContain('new visible progress as the status block itself');
@@ -698,6 +697,7 @@ describe('Codex host plugin package', () => {
         return main(
           [
             'run',
+            'review',
             '--goal',
             'review this patch',
             '--flow-root',

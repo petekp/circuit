@@ -3,6 +3,7 @@
   "run_id": "44444444-4444-4444-4444-444444444441",
   "operator_intent": "decide: React vs Vue",
   "explicit_constraints": [],
+  "explicit_process_request": "explore",
   "memory_context": {
     "used": false,
     "memory_input_ids": [],
@@ -57,8 +58,8 @@
   },
   "process_plan": {
     "schema": "run.process-plan@v0",
-    "selection_source": "router",
-    "rationale": "matched decide intent; selected Explore tournament mode",
+    "selection_source": "explicit_operator_request",
+    "rationale": "explicit flow positional argument",
     "planned_attempts": [
       {
         "attempt_id": "attempt-primary",

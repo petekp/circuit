@@ -2,7 +2,7 @@ Step: fix-gather-context
 Title: Analyze — gather problem context
 Role: researcher
 Accepted verdicts: accept
-Rigor: lite. Tune your thoroughness and effort to this level; it does not change which steps run.
+Rigor: standard. Tune your thoroughness and effort to this level; it does not change which steps run.
 
 Operator Goal:
 quick fix: restore the failing login test

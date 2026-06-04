@@ -1,6 +1,5 @@
 import { expandBlockStepUse } from '../block-step-expansion.js';
 import type { FlowData } from '../flow-definition.js';
-import type { CompiledFlowSignal } from '../types.js';
 import {
   fixChangeShapeHint,
   fixContextShapeHint,
@@ -29,65 +28,12 @@ import { fixRegressionBaselineWriter } from './writers/regression-baseline.js';
 import { fixRegressionRerunWriter } from './writers/regression-rerun.js';
 import { fixVerificationWriter } from './writers/verification.js';
 
-const FIX_SIGNALS: readonly CompiledFlowSignal[] = [
-  { label: 'fix prefix', pattern: /^\s*fix\s*:/i },
-  { label: 'quick fix prefix', pattern: /^\s*(?:quick|small|tiny|simple)\s+fix\s*:/i },
-  {
-    label: 'fix request',
-    pattern:
-      /^\s*(?:please\s+)?(?:fix|patch|debug|diagnose|reproduce)\s+(?:a\s+|an\s+|the\s+|this\s+|that\s+|my\s+|some\s+)?\S+/i,
-  },
-  {
-    label: 'trailing fix request',
-    pattern:
-      /\b(?:bug|buggy|broken|failing|fails|failed|wrong|incorrect|instead\s+of|regression|crash|crashes|throw|throws)\b[\s\S]{0,200}\bfix\s+(?:it|this|that|please)\b/i,
-  },
-];
-
-// Entry-mode signals that map Fix intent to a thoroughness mode. Owned
-// by the Fix flow so the router infers depth via routing metadata
-// rather than hardcoding flow-name conditionals.
-const FIX_DEEP_SIGNAL =
-  /\b(?:regression|flaky|intermittent|incident|outage|crash|failure|failing\s+(?:test|build)|debug|diagnose|reproduce|root\s+cause)\b/i;
-const FIX_QUICK_SIGNAL =
-  /^\s*(?:(?:quick|small|tiny|simple)\s+fix\s*:|fix\s*:\s*(?:quick|small|tiny|simple)\b)/i;
-
 export const fixFlowData = {
   id: 'fix',
   visibility: 'public',
   paths: {
     schematic: 'src/flows/fix/schematic.json',
     contract: 'src/flows/fix/contract.md',
-  },
-  routing: {
-    order: 20,
-    signals: FIX_SIGNALS,
-    skipOnPlanningReport: true,
-    reasonForMatch(signal) {
-      return `matched ${signal.label}; routed to Fix flow`;
-    },
-    inferEntryMode(taskText) {
-      if (/\bflaky\b/i.test(taskText)) {
-        return {
-          name: 'deep',
-          reason: 'matched flaky signal; selected deep thoroughness',
-        };
-      }
-      const deepMatch = taskText.match(FIX_DEEP_SIGNAL);
-      if (deepMatch?.[0] !== undefined) {
-        return {
-          name: 'deep',
-          reason: `matched ${deepMatch[0]} signal; selected deep thoroughness`,
-        };
-      }
-      if (FIX_QUICK_SIGNAL.test(taskText)) {
-        return {
-          name: 'lite',
-          reason: 'matched quick Fix intent; selected lite thoroughness',
-        };
-      }
-      return undefined;
-    },
   },
   schematic: {
     schema_version: '1',

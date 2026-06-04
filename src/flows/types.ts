@@ -1,11 +1,12 @@
 // CompiledFlow package — the per-flow unit the engine consumes.
 //
 // Each flow lives in src/flows/<id>/ and exports a FlowDefinition that
-// compiles into a CompiledFlowPackage describing source files, routing
-// metadata, relay reports, writers, and structural shape hints. The
-// engine (router, registries, report-schemas, emit script) derives
-// everything from the flowPackages aggregation in src/flows/catalog.ts —
-// it never imports a flow module directly.
+// compiles into a CompiledFlowPackage describing source files, relay
+// reports, writers, and structural shape hints. The engine (registries,
+// report-schemas, emit script) derives everything from the flowPackages
+// aggregation in src/flows/catalog.ts — it never imports a flow module
+// directly. Routing is model-only: the host or operator names the flow,
+// so flows carry no routing/classification metadata.
 //
 // The flow-authoring playbook lives in docs/flows/authoring-model.md.
 // No engine edits are needed for normal flow additions.
@@ -17,56 +18,6 @@ import type { ComposeBuilder } from './registries/compose-writers/types.js';
 import type { CrossReportValidator } from './registries/cross-report-validators.js';
 import type { StructuralShapeHint } from './registries/shape-hints/types.js';
 import type { VerificationBuilder } from './registries/verification-writers/types.js';
-
-export interface CompiledFlowSignal {
-  readonly label: string;
-  readonly pattern: RegExp;
-}
-
-// Entry-mode inference outcome a flow's routing block may produce for a
-// given task text. `name` is the axis-selection name (e.g. 'tournament',
-// 'deep', 'lite', 'default'); `reason` is the operator-facing rationale.
-export interface CompiledFlowEntryMode {
-  readonly name: string;
-  readonly reason: string;
-}
-
-export interface CompiledFlowRoutingMetadata {
-  // Lower order = earlier consideration. Review goes first because
-  // its signals are unambiguous; build goes last because its signals
-  // collide with planning-report phrasing. Default flow uses a
-  // sentinel (Number.MAX_SAFE_INTEGER) and is selected only when no
-  // other package matches.
-  readonly order: number;
-
-  // Positive signals that route a request to this flow.
-  readonly signals: readonly CompiledFlowSignal[];
-
-  // When true, a positive signal that ALSO mentions a planning
-  // report (proposal/plan/brief/etc.) is treated as a non-match,
-  // letting routing fall through to subsequent packages and ultimately
-  // the default. Used by build/fix. Review skips this.
-  readonly skipOnPlanningReport?: boolean;
-
-  // Reason string for matched routes. Receives the matched signal so
-  // packages can preserve their existing phrasing.
-  reasonForMatch(signal: CompiledFlowSignal): string;
-
-  // When true, this package is the catch-all when no signal matches.
-  // Exactly one package may set this.
-  readonly isDefault?: boolean;
-
-  // Reason string when this package is selected as the default.
-  readonly defaultReason?: string;
-
-  // Optional per-flow entry-mode inference. The router calls this for
-  // the selected flow (whether matched by signal or chosen as the
-  // default) to infer a thoroughness/tournament mode from the task
-  // text when the operator did not pin one. Returns undefined when no
-  // rule applies. Lives here so each flow owns its own mode signals
-  // instead of the router hardcoding flow-name conditionals.
-  inferEntryMode?(taskText: string): CompiledFlowEntryMode | undefined;
-}
 
 export interface CompiledFlowRelayReport {
   // Schema string (e.g. 'build.implementation@v1'). The engine uses
@@ -198,7 +149,6 @@ export interface CompiledFlowPackage {
   // Internal flows are emitted only as canonical generated fixtures.
   readonly visibility: CompiledFlowVisibility;
   readonly paths: CompiledFlowPaths;
-  readonly routing?: CompiledFlowRoutingMetadata;
   readonly relayReports: readonly CompiledFlowRelayReport[];
   readonly reportSchemas?: readonly CompiledFlowReportSchema[];
   readonly writers: {

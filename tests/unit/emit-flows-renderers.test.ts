@@ -60,8 +60,9 @@ describe('emit-flows host renderers (real command sources)', () => {
     // ./bin/circuit is rewritten to the installed Claude plugin wrapper.
     expect(rendered).not.toContain('./bin/circuit');
     expect(rendered).toContain('${CLAUDE_PLUGIN_ROOT}');
-    // run is rewritten to the present-mode invocation.
-    expect(rendered).toContain('present run --goal');
+    // run is rewritten to the present-mode invocation (routing is model-only,
+    // so the example always names a flow).
+    expect(rendered).toMatch(/present run [a-z]+ --goal/);
     // The presentation instruction block replaces the raw progress step.
     expect(rendered).toContain('Let the presentation wrapper render output');
     // HTML comments are stripped from generated output.

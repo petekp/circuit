@@ -17,8 +17,8 @@
       "scope_refs": [
         {
           "kind": "work_contract",
-          "ref": "<repo>/generated/flows/fix/lite.work-contract.v0.json",
-          "sha256": "701fcd2bb9ff9beab36d9601763e522d5fecece01674e9c52fc395ec78b8f5cf",
+          "ref": "<repo>/generated/flows/fix/circuit.work-contract.v0.json",
+          "sha256": "5bebf9c92b2cebd1c3a9351f8aed2c71c1c14c4c546f5cbae8628e178cf749f1",
           "flow_id": "fix"
         }
       ],
@@ -46,8 +46,8 @@
       "input_refs": [
         {
           "kind": "work_contract",
-          "ref": "<repo>/generated/flows/fix/lite.work-contract.v0.json",
-          "sha256": "701fcd2bb9ff9beab36d9601763e522d5fecece01674e9c52fc395ec78b8f5cf",
+          "ref": "<repo>/generated/flows/fix/circuit.work-contract.v0.json",
+          "sha256": "5bebf9c92b2cebd1c3a9351f8aed2c71c1c14c4c546f5cbae8628e178cf749f1",
           "flow_id": "fix"
         }
       ],

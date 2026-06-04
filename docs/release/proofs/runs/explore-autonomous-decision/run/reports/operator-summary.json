@@ -6,8 +6,22 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "complete",
-  "headline": "Circuit: Decision made. Selected: Vue. Choose Vue for a smaller surface and faster product iteration.",
-  "status_text": "Decision made. Selected: Vue. Choose Vue for a smaller surface and faster product iteration.",
+  "headline": "Circuit · Explore",
+  "status_text": "Explore",
+  "brief_slots": {
+    "headline": "Circuit · Explore",
+    "assessment": "Choose Vue for a smaller surface and faster product iteration.",
+    "key_points": [
+      "Decision question: Which path should Circuit recommend for: decide: React vs Vue?",
+      "Rationale: React is safer on ecosystem depth, while Vue is faster to shape."
+    ],
+    "caveats": [
+      "Team familiarity may be thinner.",
+      "Vue depends more on team-specific familiarity.",
+      "No implementation spike was gathered."
+    ],
+    "next_action": "Run a Build plan for a Vue prototype."
+  },
   "details": [
     "Recommendation: Choose Vue for a smaller surface and faster product iteration.",
     "Decision question: Which path should Circuit recommend for: decide: React vs Vue?",

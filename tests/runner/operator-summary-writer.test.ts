@@ -443,7 +443,7 @@ describe('operator summary writer', () => {
       runResult: baseResult('review'),
       route: {
         selectedFlow: 'review',
-        routedBy: 'classifier',
+        routedBy: 'explicit',
         routerReason: 'matched review',
       },
     });
@@ -451,8 +451,8 @@ describe('operator summary writer', () => {
     expect(existsSync(written.jsonPath)).toBe(true);
     expect(existsSync(written.markdownPath)).toBe(true);
     const summary = OperatorSummary.parse(JSON.parse(readFileSync(written.jsonPath, 'utf8')));
-    expect(summary.headline).toBe('Circuit: Review complete. Verdict: CLEAN. Findings: 0.');
-    expect(summary.status_text).toBe('Review complete. Verdict: CLEAN. Findings: 0.');
+    expect(summary.headline).toBe('Circuit · Review');
+    expect(summary.status_text).toBe('Review');
     expect(summary.details).toContain(
       'Untracked evidence: contents included for 1 file (1 untracked file found).',
     );
@@ -464,9 +464,10 @@ describe('operator summary writer', () => {
       'review result',
     ]);
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('CIRCUIT\n⎿ Review complete. Verdict: CLEAN. Findings: 0.');
+    expect(markdown).toContain('Circuit · Review');
     expect(markdown).toContain('Untracked evidence: contents included for 1 file');
     expect(markdown).toContain('diff_truncated');
+    expect(markdown).not.toContain('CIRCUIT');
     expect(markdown).not.toContain('write-capable Claude Code worker');
     expect(markdown).not.toContain('v0.1.0 closed');
   });
@@ -481,10 +482,15 @@ describe('operator summary writer', () => {
       verification: [
         'Read src/example.ts',
         'Replayed the staged diff against tests/example.test.ts',
+        'Checked generated docs',
+        'Ran npm test',
+        'Skipped fifth proof because the digest budget is capped',
       ],
       confidence_limitations: [
         'HEAD~1 history was out of scope for this review.',
         'No untracked content was relayed.',
+        'A third reviewer limitation should be visible.',
+        'A fourth reviewer limitation should be hidden by the caveat cap.',
       ],
       evidence_summary: {
         kind: 'git-working-tree',
@@ -493,7 +499,12 @@ describe('operator summary writer', () => {
         untracked_files_sampled: 0,
         untracked_files_truncated: false,
       },
-      evidence_warnings: [],
+      evidence_warnings: [
+        {
+          kind: 'diff_truncated',
+          message: 'staged diff was truncated before relay',
+        },
+      ],
     });
 
     const written = writeOperatorSummary({
@@ -502,22 +513,62 @@ describe('operator summary writer', () => {
       route: { selectedFlow: 'review' },
     });
 
-    expect(written.summary.headline).toBe('Circuit: Review complete. Verdict: CLEAN. Findings: 0.');
+    expect(written.summary.headline).toBe('Circuit · Review');
+    expect(written.summary.status_text).toBe('Review');
+    expect(written.summary.brief_slots).toEqual({
+      headline: 'Circuit · Review',
+      assessment:
+        'Reviewer inspected the staged diff and the new test fixture; nothing actionable surfaced.',
+      key_points: [
+        'Read src/example.ts',
+        'Replayed the staged diff against tests/example.test.ts',
+        'Checked generated docs',
+        'Ran npm test',
+      ],
+      caveats: [
+        'HEAD~1 history was out of scope for this review.',
+        'No untracked content was relayed.',
+        'A third reviewer limitation should be visible.',
+      ],
+      next_action: 'nothing required.',
+    });
     // The bare "Findings: 0" detail is replaced by the reviewer's assessment.
     expect(written.summary.details).not.toContain('Findings: 0');
     expect(written.summary.details).toContain(
       'Assessment: Reviewer inspected the staged diff and the new test fixture; nothing actionable surfaced.',
     );
     expect(written.summary.details).toContain(
-      'Reviewer steps: Read src/example.ts; Replayed the staged diff against tests/example.test.ts',
+      'Reviewer steps: Read src/example.ts; Replayed the staged diff against tests/example.test.ts; Checked generated docs; Ran npm test; Skipped fifth proof because the digest budget is capped',
     );
     expect(written.summary.details).toContain(
-      'Confidence limitations: HEAD~1 history was out of scope for this review.; No untracked content was relayed.',
+      'Confidence limitations: HEAD~1 history was out of scope for this review.; No untracked content was relayed.; A third reviewer limitation should be visible.; A fourth reviewer limitation should be hidden by the caveat cap.',
     );
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('Assessment: Reviewer inspected the staged diff');
-    expect(markdown).toContain('Reviewer steps: Read src/example.ts');
-    expect(markdown).toContain('Confidence limitations:');
+    expect(written.htmlPath).toBeDefined();
+    expect(markdown).toBe(
+      [
+        'Circuit · Review',
+        '',
+        'Reviewer inspected the staged diff and the new test fixture; nothing actionable surfaced.',
+        '',
+        '- Read src/example.ts',
+        '- Replayed the staged diff against tests/example.test.ts',
+        '- Checked generated docs',
+        '- Ran npm test',
+        '- Caveat: HEAD~1 history was out of scope for this review.',
+        '- Caveat: No untracked content was relayed.',
+        '- Caveat: A third reviewer limitation should be visible.',
+        '',
+        'Next: nothing required.',
+        '',
+        `Rich summary: ${written.htmlPath as string}`,
+        '',
+      ].join('\n'),
+    );
+    expect(markdown).not.toContain('CIRCUIT');
+    expect(markdown).not.toContain('Skipped fifth proof');
+    expect(markdown).not.toContain('A fourth reviewer limitation');
+    expect(markdown).not.toContain('diff_truncated');
   });
 
   it('renders clean Review results with low-severity notes without saying Findings are blocking', () => {
@@ -544,12 +595,8 @@ describe('operator summary writer', () => {
       route: { selectedFlow: 'review' },
     });
 
-    expect(written.summary.headline).toBe(
-      'Circuit: Review complete. Verdict: CLEAN. Low-severity notes: 1.',
-    );
-    expect(written.summary.status_text).toBe(
-      'Review complete. Verdict: CLEAN. Low-severity notes: 1.',
-    );
+    expect(written.summary.headline).toBe('Circuit · Review');
+    expect(written.summary.status_text).toBe('Review');
     expect(written.summary.details).toContain('[LOW] small naming note — at notes.txt');
     expect(readFileSync(written.markdownPath, 'utf8')).not.toContain(
       'Verdict: CLEAN. Findings: 1.',
@@ -614,9 +661,7 @@ describe('operator summary writer', () => {
       route: { selectedFlow: 'explore' },
     });
 
-    expect(written.summary.headline).toBe(
-      'Circuit: Recommendation accepted, with optional considerations.',
-    );
+    expect(written.summary.headline).toBe('Circuit · Explore');
     expect(written.summary.details).toContain(
       'Reviewer: Accepted the direction, with optional considerations.',
     );
@@ -654,8 +699,13 @@ describe('operator summary writer', () => {
       route: { selectedFlow: 'review' },
     });
 
-    expect(written.summary.headline).toContain('no uncommitted source content to examine');
-    expect(written.summary.headline).toContain('committed history (HEAD~1) was not part of this');
+    expect(written.summary.headline).toBe('Circuit · Review');
+    expect(written.summary.brief_slots?.assessment).toContain(
+      'no uncommitted source content to examine',
+    );
+    expect(written.summary.brief_slots?.assessment).toContain(
+      'committed history (HEAD~1) was not part of this',
+    );
     expect(written.summary.headline).not.toMatch(/^Circuit: Review complete\./);
     // Verdict reference must not survive into the scope_empty headline:
     // verdict is meaningless when no source content was inspected, and
@@ -703,9 +753,7 @@ describe('operator summary writer', () => {
       route: { selectedFlow: 'review' },
     });
 
-    expect(written.summary.headline).toBe(
-      'Circuit: Review complete. Verdict: ISSUES_FOUND. Findings: 3.',
-    );
+    expect(written.summary.headline).toBe('Circuit · Review');
     expect(written.summary.details).toContain(
       '[CRITICAL] eval call enables remote code execution — at evil.js',
     );
@@ -769,8 +817,7 @@ describe('operator summary writer', () => {
             },
           ],
         },
-        expected:
-          'Circuit: Build complete. Change implemented, verification passed, review accepted.',
+        expected: 'Circuit · Build',
       },
       {
         flow: 'build',
@@ -789,8 +836,7 @@ describe('operator summary writer', () => {
             },
           ],
         },
-        expected:
-          'Circuit: Build needs follow-up. Verification passed, but review requested fixes.',
+        expected: 'Circuit · Build',
       },
       {
         flow: 'fix',
@@ -805,7 +851,7 @@ describe('operator summary writer', () => {
             { report_id: 'fix.review', path: 'reports/fix/review.json', schema: 'fix.review@v1' },
           ],
         },
-        expected: 'Circuit: Fix complete. Verification: passed. Review: accepted.',
+        expected: 'Circuit · Fix',
       },
       {
         flow: 'pursue',
@@ -830,8 +876,7 @@ describe('operator summary writer', () => {
             },
           ],
         },
-        expected:
-          'Circuit: Pursue finished with outcome complete. 1/1 pursuit completed. Verification: passed.',
+        expected: 'Circuit · Pursue',
       },
     ];
 
@@ -868,47 +913,43 @@ describe('operator summary writer', () => {
         outcome: 'fixed',
         verification: 'passed',
         review: 'accept',
-        expectedHeadline: 'Circuit: Fix complete. Verification: passed. Review: accepted.',
+        expectedHeadline: 'Circuit · Fix',
       },
       {
         outcome: 'partial',
         verification: 'passed',
         review: 'accept',
-        expectedHeadline:
-          'Circuit: Fix applied with follow-ups. Verification: passed. Review: accepted.',
+        expectedHeadline: 'Circuit · Fix',
       },
       {
         outcome: 'partial',
         verification: 'passed',
         review: 'accept-with-fixes',
-        expectedHeadline:
-          'Circuit: Fix applied with follow-ups. Verification: passed. Review: requested follow-up fixes.',
+        expectedHeadline: 'Circuit · Fix',
       },
       {
         outcome: 'failed',
         verification: 'failed',
         review: 'accept-with-fixes',
-        expectedHeadline:
-          'Circuit: Fix attempt failed verification. Verification: failed. Review: requested follow-up fixes.',
+        expectedHeadline: 'Circuit · Fix',
       },
       {
         outcome: 'not-reproduced',
         verification: 'not-run',
         review: 'accept',
-        expectedHeadline:
-          'Circuit: Could not reproduce the issue. Verification: not-run. Review: accepted.',
+        expectedHeadline: 'Circuit · Fix',
       },
       {
         outcome: 'stopped',
         verification: 'passed',
         review: 'accept',
-        expectedHeadline: 'Circuit: Fix stopped. Verification: passed. Review: accepted.',
+        expectedHeadline: 'Circuit · Fix',
       },
       {
         outcome: 'handoff',
         verification: 'not-run',
         review: 'accept',
-        expectedHeadline: 'Circuit: Fix handed off. Verification: not-run. Review: accepted.',
+        expectedHeadline: 'Circuit · Fix',
       },
     ];
 
@@ -960,8 +1001,37 @@ describe('operator summary writer', () => {
       route: { selectedFlow: 'build' },
     });
 
-    expect(written.summary.headline).toBe(
-      'Circuit: Build finished with outcome stopped. Verification: unknown. Review: unknown.',
+    expect(written.summary.headline).toBe('Circuit · Build');
+    expect(written.summary.brief_slots?.assessment).toBe(
+      'The flow stopped before complete evidence was produced.',
+    );
+  });
+
+  it('uses a defined handoff digest shape for run-level handoff outcomes', () => {
+    const handoffResult = RunResult.parse({
+      ...baseResult('build'),
+      outcome: 'handoff',
+      summary: 'build prepared a handoff',
+      reason: 'operator asked to continue in a fresh session',
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: handoffResult,
+      route: { selectedFlow: 'build' },
+    });
+
+    expect(written.summary.headline).toBe('Circuit · Build');
+    expect(written.summary.brief_slots).toMatchObject({
+      assessment: 'The flow prepared a handoff instead of closing complete.',
+      key_points: [
+        'Handoff reason: operator asked to continue in a fresh session',
+        'Worker access: A worker can edit this checkout.',
+      ],
+      next_action: 'resume from the handoff record.',
+    });
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      'Handoff reason: operator asked to continue in a fresh session',
     );
   });
 
@@ -989,9 +1059,7 @@ describe('operator summary writer', () => {
       route: { selectedFlow: 'explore' },
     });
 
-    expect(written.summary.headline).toBe(
-      'Circuit: Recommendation accepted, with required fold-ins to address.',
-    );
+    expect(written.summary.headline).toBe('Circuit · Explore');
     expect(written.summary.details).toEqual([
       'Recommendation: Build a private eval suite around product-specific failure modes: Seam-fit eval; Operator-prose eval.',
       'Before building: inspect src/ and tests/ for an existing eval harness; confirm the saved run corpus.',
@@ -1001,12 +1069,10 @@ describe('operator summary writer', () => {
       'Consider: Check the operator summary markdown, not only the JSON report.',
     ]);
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('CIRCUIT\n⎿ Recommendation accepted, with required fold-ins');
-    expect(markdown).toContain(
-      'Recommendation: Build a private eval suite around product-specific failure modes',
-    );
-    expect(markdown).toContain('Required fold-in: Clarify whether host output was inspected');
-    expect(markdown).toContain('Consider: Check the operator summary markdown');
+    expect(markdown).toContain('Circuit · Explore');
+    expect(markdown).toContain('Build a private eval suite around product-specific failure modes');
+    expect(markdown).toContain('Caveat: Clarify whether host output was inspected');
+    expect(markdown).toContain('Caveat: Check the operator summary markdown');
     expect(markdown).not.toContain('Follow-up:');
     expect(markdown).not.toContain('accept-with-fold-ins');
     expect(markdown).not.toContain('Run folder:');
@@ -1176,9 +1242,8 @@ describe('operator summary writer', () => {
       route: { selectedFlow: 'explore' },
     });
 
-    expect(written.summary.headline).toBe(
-      'Circuit: Decision made. Selected: Vue. Choose Vue for a smaller surface and faster product iteration.',
-    );
+    expect(written.summary.headline).toBe('Circuit · Explore');
+    expect(readFileSync(written.markdownPath, 'utf8').split('\n')[0]).toBe('Circuit · Explore');
     expect(written.summary.details).toContain(
       'Decision question: Which frontend framework should the project use?',
     );
@@ -2140,13 +2205,13 @@ describe('operator summary writer', () => {
       runResult: baseResult('explore'),
       route: {
         selectedFlow: 'explore',
-        routedBy: 'classifier',
+        routedBy: 'explicit',
         routerReason: 'matched explore goal',
       },
     });
 
     const recovered = readPriorRoute(runFolder);
-    expect(recovered.routedBy).toBe('classifier');
+    expect(recovered.routedBy).toBe('explicit');
     expect(recovered.routerReason).toBe('matched explore goal');
   });
 
@@ -2198,7 +2263,10 @@ describe('operator summary writer', () => {
       route: { selectedFlow: 'review' },
     });
 
-    expect(written.summary.headline).toBe('Circuit: Run aborted.');
+    expect(written.summary.headline).toBe('Circuit · Review');
+    expect(written.summary.brief_slots?.assessment).toBe(
+      'The run aborted before this flow could finish.',
+    );
     expect(written.summary.details).toContain(
       'Abort reason: relay result failed schema validation',
     );
@@ -2223,7 +2291,10 @@ describe('operator summary writer', () => {
 
     // An escalated run is a failure; it must not read as a neutral/complete
     // per-flow headline, and its reason must be surfaced like an abort.
-    expect(written.summary.headline).toBe('Circuit: Run escalated.');
+    expect(written.summary.headline).toBe('Circuit · Review');
+    expect(written.summary.brief_slots?.assessment).toBe(
+      'The run escalated because Circuit could not close the flow safely.',
+    );
     expect(written.summary.details).toContain(
       'Escalation reason: recovery exceeded the allowed attempts',
     );

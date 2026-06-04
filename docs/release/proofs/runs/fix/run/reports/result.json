@@ -5,8 +5,8 @@
   "goal": "quick fix: restore the failing login test",
   "outcome": "complete",
   "summary": "Run closed with outcome complete via @complete.",
-  "closed_at": "2026-04-29T20:31:06.000Z",
-  "trace_entries_observed": 65,
-  "manifest_hash": "a0d748f4855973c9e6d10830a7082257598762a24c4da8b661af42d05a30aeff",
+  "closed_at": "2026-04-29T20:31:13.000Z",
+  "trace_entries_observed": 72,
+  "manifest_hash": "f4e8514d4fd965dda324b8d80b9bafbe85375c8c5e30c2c65099d8da526ab19d",
   "verdict": "accept"
 }

@@ -260,7 +260,13 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
     readonly safe_autonomous_choice?: string;
     readonly choices: readonly { readonly id: string; readonly label?: string }[];
   };
-  const effectiveDepth = context.depth ?? 'standard';
+  const effectiveDepth =
+    context.depth ??
+    (context.axes?.autonomous === true
+      ? 'autonomous'
+      : context.axes?.tournament === true
+        ? 'tournament'
+        : (context.axes?.rigor ?? 'standard'));
   const waitsForOperator = effectiveDepth === 'deep' || effectiveDepth === 'tournament';
   const autoSelection =
     effectiveDepth === 'autonomous'
@@ -1083,7 +1089,7 @@ async function captureCustomization(): Promise<void> {
 const scenarios: Scenario[] = [
   {
     slug: 'routed-build',
-    argv: ['run', '--goal', 'develop: add a small safe change'],
+    argv: ['run', 'build', '--goal', 'develop: add a small safe change'],
     relayer: buildRelayer(),
     runtimeExecutors: buildProofExecutors(),
     runId: '44444444-4444-4444-4444-444444444402',
@@ -1124,7 +1130,7 @@ const scenarios: Scenario[] = [
   },
   {
     slug: 'fix',
-    argv: ['run', '--goal', 'quick fix: restore the failing login test'],
+    argv: ['run', 'fix', '--goal', 'quick fix: restore the failing login test'],
     relayer: fixRelayer(),
     runtimeExecutors: fixProofExecutors(),
     runId: '44444444-4444-4444-4444-444444444407',
@@ -1132,7 +1138,15 @@ const scenarios: Scenario[] = [
   },
   {
     slug: 'explore-decision',
-    argv: ['run', '--goal', 'decide: React vs Vue'],
+    argv: [
+      'run',
+      'explore',
+      '--goal',
+      'decide: React vs Vue',
+      '--tournament',
+      '--tournament-n',
+      '3',
+    ],
     relayer: exploreDecisionRelayer(),
     resumeChoice: 'option-2',
     runId: '44444444-4444-4444-4444-444444444441',
@@ -1171,7 +1185,12 @@ const scenarios: Scenario[] = [
   },
   {
     slug: 'plan-execution',
-    argv: ['run', '--goal', 'Execute this plan: ./docs/specs/headless-engine-host-api-v1.md'],
+    argv: [
+      'run',
+      'build',
+      '--goal',
+      'Execute this plan: ./docs/specs/headless-engine-host-api-v1.md',
+    ],
     relayer: buildRelayer(),
     runtimeExecutors: buildProofExecutors(),
     runId: '44444444-4444-4444-4444-444444444410',

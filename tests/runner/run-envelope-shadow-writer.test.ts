@@ -99,7 +99,7 @@ describe('Run envelope shadow writer', () => {
       operatorIntent: 'Build the thing.',
       selectedProcess: {
         process_id: 'build',
-        routed_by: 'classifier',
+        routed_by: 'explicit',
         router_reason: 'matched build signal',
         entry_mode: 'default',
       },

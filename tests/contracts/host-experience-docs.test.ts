@@ -89,9 +89,21 @@ describe('host experience docs', () => {
     expect(doc).toContain('/circuit:run — default Circuit command');
     expect(doc).toContain('Recommend the flow before invoking the CLI');
     expect(doc).toContain('Circuit records the selected flow');
-    expect(doc).toContain('node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present run --goal');
+    expect(doc).toContain('node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present run fix --goal');
     expect(doc).not.toContain('Do not classify the task yourself');
     expect(doc).toContain('Let the presentation wrapper render output');
+    // The decider owns the why: when the host picks the flow it states its
+    // one-line reason before invoking, so the operator can redirect in-thread.
+    expect(doc).toContain('state the recommended flow and your one-line reason');
+
+    // The Codex run skill renders output itself (no present wrapper), so it
+    // parses the JSON. Routing is model-only, so it must treat router_reason as
+    // a fixed placeholder and not present it as a CLI-derived rationale.
+    const codexSkill = readFileSync(
+      resolve(REPO_ROOT, 'plugins/codex/skills/run/SKILL.md'),
+      'utf8',
+    );
+    expect(codexSkill).toContain('routing is model-only');
   });
 
   it('teaches one natural-language front door per host in the README', () => {

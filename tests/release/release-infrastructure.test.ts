@@ -109,7 +109,7 @@ describe('release truth infrastructure', () => {
     expect(fix?.stages).toEqual(expectedStages);
   });
 
-  it('records implemented router intent hints on flow capability axes', () => {
+  it('records flow capability axes (stage path, proof, outputs)', () => {
     const snapshot = CurrentCapabilitySnapshot.parse(
       jsonFile('generated/release/current-capabilities.json'),
     );
@@ -117,9 +117,6 @@ describe('release truth infrastructure', () => {
       snapshot.capabilities.map((capability) => [capability.id, capability]),
     );
 
-    expect(capabilities.get('flow:build')?.axes.intent_hints).toEqual(['develop:']);
-    expect(capabilities.get('flow:fix')?.axes.intent_hints).toEqual(['fix:']);
-    expect(capabilities.get('flow:explore')?.axes.intent_hints).toEqual(['decide:']);
     expect(capabilities.get('flow:explore')?.axes.stage_path).toContain('Plan or Decision');
     expect(capabilities.get('flow:explore')?.axes.proof).toBe('Golden decision or tournament run.');
     expect(capabilities.get('flow:build')?.axes.proof).toBe(
@@ -181,17 +178,6 @@ describe('release truth infrastructure', () => {
       'All defined golden example runs are captured.',
     );
     expect(capabilities.get('proof:golden-runs')?.summary).not.toContain('proof:plan-execution');
-    expect(capabilities.get('feature:plan-execution')?.status).toBe('implemented');
-    expect(capabilities.get('feature:plan-execution')?.axes.worker_handoff).toContain(
-      'first executable flow slice',
-    );
-    expect(capabilities.get('feature:plan-execution')?.axes.proof).toBe(
-      'Plan-execution campaign-start proof.',
-    );
-    expect(capabilities.get('router:intent:plan-execution')?.status).toBe('implemented');
-    expect(capabilities.get('router:intent:plan-execution')?.summary).toContain(
-      'routed to build with default mode',
-    );
   });
 
   it('route inventory marks rich routes executable', () => {
@@ -244,7 +230,6 @@ describe('release truth infrastructure', () => {
       schema_version: 1,
       generated_by: 'test',
       flows: [],
-      router_intents: [],
       commands: { source: [], claude_plugin: [], codex_plugin: [], claude_plugin_skills: [] },
       connectors: [],
       hosts: [],
@@ -294,7 +279,6 @@ describe('release truth infrastructure', () => {
       schema_version: 1,
       generated_by: 'test',
       flows: [],
-      router_intents: [],
       commands: { source: [], claude_plugin: [], codex_plugin: [], claude_plugin_skills: [] },
       connectors: [],
       hosts: [],
@@ -470,7 +454,8 @@ describe('release truth infrastructure', () => {
       type: 'route.selected',
       selected_flow: 'explore',
       entry_mode: 'tournament',
-      router_reason: 'matched decide intent; selected Explore tournament mode',
+      routed_by: 'explicit',
+      router_reason: 'explicit flow positional argument',
     });
     expect(progress.map((event) => event.type)).toContain('checkpoint.waiting');
     expect(progress.map((event) => event.type)).toContain('run.completed');
@@ -519,9 +504,10 @@ describe('release truth infrastructure', () => {
       resolve(root, 'docs/release/proofs/runs/explore-decision/operator-summary.md'),
       'utf8',
     );
-    expect(summary).toContain('Selected: Vue');
-    expect(summary).toContain('Residual risks:');
-    expect(summary).toContain('Next action: Run a Build plan for a Vue prototype.');
+    expect(summary).toContain('Circuit · Explore');
+    expect(summary).toContain('Choose Vue for a smaller surface and faster product iteration.');
+    expect(summary).toContain('Caveat: Team familiarity may be thinner.');
+    expect(summary).toContain('Next: Run a Build plan for a Vue prototype.');
     // Format-drift guards. The current renderMarkdown does not emit
     // legacy '## What Happened' / '## Run Files' / '## Reports' sections,
     // and tournament-shape proofs MUST carry the 'Rich summary:' link

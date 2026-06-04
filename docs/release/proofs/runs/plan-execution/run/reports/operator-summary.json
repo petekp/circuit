@@ -3,11 +3,23 @@
   "run_id": "44444444-4444-4444-4444-444444444410",
   "flow_id": "build",
   "selected_flow": "build",
-  "routed_by": "classifier",
-  "router_reason": "matched plan-execution request; selected Build to start the first executable slice",
+  "routed_by": "explicit",
+  "router_reason": "explicit flow positional argument",
   "outcome": "complete",
-  "headline": "Circuit: Build complete. Change implemented, verification passed, review accepted.",
-  "status_text": "Build complete. Change implemented, verification passed, review accepted.",
+  "headline": "Circuit · Build",
+  "status_text": "Build",
+  "brief_slots": {
+    "headline": "Circuit · Build",
+    "assessment": "./docs/specs/headless-engine-host-api-v1.md: Implemented the requested synthetic change.",
+    "key_points": [
+      "Worker access: A worker can edit this checkout.",
+      "Result: ./docs/specs/headless-engine-host-api-v1.md: Implemented the requested synthetic change.",
+      "Verification: passed.",
+      "Review: accepted."
+    ],
+    "caveats": [],
+    "next_action": "nothing required."
+  },
   "details": [
     "Worker access: A worker can edit this checkout.",
     "Run note: Run closed with outcome complete via @complete.",

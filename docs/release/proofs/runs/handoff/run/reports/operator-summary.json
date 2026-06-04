@@ -6,8 +6,19 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "checkpoint_waiting",
-  "headline": "Circuit: Waiting for a checkpoint choice.",
-  "status_text": "Waiting for a checkpoint choice.",
+  "headline": "Circuit · Build",
+  "status_text": "Build",
+  "brief_slots": {
+    "headline": "Circuit · Build",
+    "assessment": "Circuit is waiting for a checkpoint choice before this flow can continue.",
+    "key_points": [
+      "Checkpoint step: frame-step",
+      "Choices: continue",
+      "Worker access: A worker can edit this checkout."
+    ],
+    "caveats": [],
+    "next_action": "choose a checkpoint option to continue."
+  },
   "details": [
     "Worker access: A worker can edit this checkout.",
     "Run note: checkpoint 'frame-step' is waiting for an operator choice."

@@ -136,7 +136,6 @@ export const RunProcessPlan = z
     schema: z.literal('run.process-plan@v0'),
     selection_source: z.enum([
       'explicit_operator_request',
-      'router',
       'goal_contract',
       'completion_followup',
       'recovery',
@@ -447,7 +446,7 @@ export const RunEnvelopeShadowRecord = z
     selected_process: z
       .object({
         process_id: CompiledFlowId,
-        routed_by: z.enum(['explicit', 'classifier']).optional(),
+        routed_by: z.literal('explicit').optional(),
         router_reason: z.string().min(1),
         entry_mode: z.string().min(1).optional(),
       })

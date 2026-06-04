@@ -1,6 +1,5 @@
 import { expandBlockStepUse } from '../block-step-expansion.js';
 import type { FlowData } from '../flow-definition.js';
-import type { CompiledFlowSignal } from '../types.js';
 import {
   buildContextShapeHint,
   buildImplementationShapeHint,
@@ -20,52 +19,12 @@ import { buildCloseBuilder } from './writers/close.js';
 import { buildPlanComposeBuilder } from './writers/plan.js';
 import { buildVerificationWriter } from './writers/verification.js';
 
-const BUILD_SIGNALS: readonly CompiledFlowSignal[] = [
-  { label: 'develop prefix', pattern: /^\s*develop\s*:/i },
-  {
-    label: 'build implementation request',
-    pattern:
-      /^\s*(?:please\s+)?(?:build|implement|develop|add|create|ship)\s+(?:a\s+|an\s+|the\s+|this\s+|that\s+)?(?:new\s+|missing\s+)?(?:feature|change|fix|implementation|endpoint|component|command|tool|integration|helper|export|function|method|behavior)\b/i,
-  },
-  {
-    label: 'missing implementation request',
-    pattern:
-      /^\s*(?:please\s+)?(?:add|implement|create|ship)\s+(?:the\s+)?missing\s+(?:[\w.-]+\s+)?(?:helper|export|function|method|component|command|endpoint|behavior)\b/i,
-  },
-  {
-    label: 'test-passing implementation request',
-    pattern:
-      /^\s*(?:please\s+)?(?:add|implement|create|ship|make)\b.*\b(?:helper|export|function|method|component|command|endpoint|behavior)\b.*\b(?:test|tests|check|build|verification)\b.*\b(?:pass|passes|green)\b/i,
-  },
-  {
-    label: 'make change request',
-    pattern: /^\s*(?:please\s+)?make\s+(?:a\s+|the\s+|this\s+|that\s+)?(?:focused\s+)?change\b/i,
-  },
-];
-
 export const buildFlowData = {
   id: 'build',
   visibility: 'public',
   paths: {
     schematic: 'src/flows/build/schematic.json',
     contract: 'src/flows/build/contract.md',
-  },
-  routing: {
-    order: 30,
-    signals: BUILD_SIGNALS,
-    skipOnPlanningReport: true,
-    reasonForMatch(signal) {
-      return `matched ${signal.label}; routed to implementation Build flow`;
-    },
-    inferEntryMode(taskText) {
-      if (/^\s*develop\s*:/i.test(taskText)) {
-        return {
-          name: 'default',
-          reason: 'matched develop intent; selected default Build thoroughness',
-        };
-      }
-      return undefined;
-    },
   },
   schematic: {
     schema_version: '1',

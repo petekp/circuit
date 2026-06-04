@@ -31,7 +31,6 @@ import {
 } from '../app/process-evidence/projection.js';
 import { runAutonomousContinuation } from '../app/run-envelope/autonomous-run.js';
 import { findCompiledFlowPackageById, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
-import { classifyCompiledFlowTask } from '../flows/router.js';
 import { validateCompiledFlowKindPolicy } from '../policy/flow-kind-policy.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { readPriorRoute, writeOperatorSummary } from '../shared/operator-summary-writer.js';
@@ -112,18 +111,18 @@ type TopLevelInvocation = {
   readonly argv: readonly string[];
 };
 
+// Routing is model-only: the host (or operator) always supplies the flow.
+// There is no deterministic classifier, so the route source is always the
+// explicit positional flow argument.
 interface ResolvedCompiledFlowRoute {
   flowName: string;
-  source: 'explicit' | 'classifier';
+  source: 'explicit';
   reason: string;
-  matched_signal?: string;
-  inferredEntryModeName?: string;
-  inferredEntryModeReason?: string;
 }
 
 interface ResolvedEntryModeSelection {
   entryModeName?: string;
-  source?: 'explicit' | 'classifier';
+  source?: 'explicit';
   reason?: string;
 }
 
@@ -460,10 +459,11 @@ function resolveCompiledFlowRoute(args: ParsedArgs): ResolvedCompiledFlowRoute {
       reason: 'explicit flow positional argument',
     };
   }
-  if (args.goal === undefined) {
-    throw new Error('--goal is required when not resuming a checkpoint');
-  }
-  return classifyCompiledFlowTask(args.goal);
+  // Routing is model-only: the host or operator names the flow. There is no
+  // deterministic classifier to guess one from the goal text.
+  throw new Error(
+    'a flow name is required: pass one of build|fix|review|explore|prototype|pursue as the first argument',
+  );
 }
 
 function hasExplicitAxes(args: ParsedArgs): boolean {
@@ -490,45 +490,14 @@ function runtimeDepthForAxes(axes: AxesValue): string {
   return axes.rigor;
 }
 
-function axesForAxisSelectionName(entryModeName: string): AxesValue {
-  if (entryModeName === 'lite' || entryModeName === 'deep') {
-    return Axes.parse({ rigor: entryModeName });
-  }
-  if (entryModeName === 'tournament') {
-    return Axes.parse({ tournament: true });
-  }
-  if (entryModeName === 'autonomous') {
-    return Axes.parse({ autonomous: true });
-  }
-  return Axes.parse({});
-}
-
-function selectedAxes(args: ParsedArgs, route: ResolvedCompiledFlowRoute): AxesValue {
-  if (hasExplicitAxes(args)) return args.axes;
-  if (route.inferredEntryModeName !== undefined) {
-    return axesForAxisSelectionName(route.inferredEntryModeName);
-  }
-  return args.axes;
-}
-
-function resolveEntryModeSelection(
-  args: ParsedArgs,
-  route: ResolvedCompiledFlowRoute,
-): ResolvedEntryModeSelection {
+// Entry mode (thoroughness) is explicit-only: it comes from the axis flags
+// (--rigor/--tournament/--autonomous), never inferred from goal text.
+function resolveEntryModeSelection(args: ParsedArgs): ResolvedEntryModeSelection {
   if (hasExplicitAxes(args)) {
     return {
       entryModeName: axisSelectionNameForAxes(args.axes),
       source: 'explicit',
       reason: 'explicit axis flags',
-    };
-  }
-  if (route.inferredEntryModeName !== undefined) {
-    return {
-      entryModeName: route.inferredEntryModeName,
-      source: 'classifier',
-      ...(route.inferredEntryModeReason === undefined
-        ? {}
-        : { reason: route.inferredEntryModeReason }),
     };
   }
   return {};
@@ -563,7 +532,7 @@ function validateFlowAxes(input: {
   readonly route: ResolvedCompiledFlowRoute;
   readonly fixturePath: string;
 }): void {
-  const axes = selectedAxes(input.args, input.route);
+  const axes = input.args.axes;
   const support = axisSupportFromFlow(input);
   const flowId = input.flow.id as unknown as string;
   const allowList = axisAllowListText(flowId, support);
@@ -621,12 +590,9 @@ function selectedEntryModeName(
 function selectedDepth(
   flow: CompiledFlow,
   args: ParsedArgs,
-  route: ResolvedCompiledFlowRoute,
   _entryModeSelection: ResolvedEntryModeSelection,
 ): string {
   if (hasExplicitAxes(args)) return runtimeDepthForAxes(args.axes);
-  if (route.inferredEntryModeName !== undefined)
-    return runtimeDepthForAxes(selectedAxes(args, route));
   return runtimeDepthForAxes(flow.axes.default);
 }
 
@@ -639,7 +605,7 @@ function classifyRuntimeSupport(input: {
 }): RuntimeSupportDecision {
   const flowId = input.flow.id as unknown as string;
   const entryModeName = selectedEntryModeName(input.flow, input.entryModeSelection);
-  const depth = selectedDepth(input.flow, input.args, input.route, input.entryModeSelection);
+  const depth = selectedDepth(input.flow, input.args, input.entryModeSelection);
   return {
     kind: 'supported',
     flowId,
@@ -848,9 +814,15 @@ async function runExecutionCommand(args: ParsedArgs, options: CliMainOptions): P
   }
   const operatorGoal = args.goal;
 
-  const route = resolveCompiledFlowRoute(args);
-  const entryModeSelection = resolveEntryModeSelection(args, route);
-  const fixtureSelectionName = fixtureSelectionNameForAxes(selectedAxes(args, route));
+  let route: ResolvedCompiledFlowRoute;
+  try {
+    route = resolveCompiledFlowRoute(args);
+  } catch (err) {
+    process.stderr.write(`error: ${(err as Error).message}\n`);
+    return 2;
+  }
+  const entryModeSelection = resolveEntryModeSelection(args);
+  const fixtureSelectionName = fixtureSelectionNameForAxes(args.axes);
   const fixturePath = resolveFixturePath(
     route.flowName,
     fixtureSelectionName,
@@ -902,7 +874,6 @@ async function runExecutionCommand(args: ParsedArgs, options: CliMainOptions): P
     selected_flow: flow.id,
     routed_by: route.source,
     router_reason: route.reason,
-    ...(route.matched_signal === undefined ? {} : { router_signal: route.matched_signal }),
     ...(entryModeSelection.entryModeName === undefined
       ? {}
       : { entry_mode: entryModeSelection.entryModeName }),
@@ -956,8 +927,8 @@ async function runExecutionCommand(args: ParsedArgs, options: CliMainOptions): P
       now,
       projectRoot,
       childCompiledFlowResolver: defaultChildCompiledFlowResolver(args.flowRoot),
-      depth: selectedDepth(flow, args, route, entryModeSelection),
-      axes: selectedAxes(args, route),
+      depth: selectedDepth(flow, args, entryModeSelection),
+      axes: args.axes,
       ...(entryModeSelection.entryModeName === undefined
         ? {}
         : { entryModeName: entryModeSelection.entryModeName }),
@@ -1059,7 +1030,6 @@ async function runExecutionCommand(args: ParsedArgs, options: CliMainOptions): P
               selectedFlow: route.flowName,
               routedBy: route.source,
               routerReason: route.reason,
-              ...(route.matched_signal === undefined ? {} : { routerSignal: route.matched_signal }),
               ...(entryModeSelection.entryModeName === undefined
                 ? {}
                 : { entryMode: entryModeSelection.entryModeName }),
@@ -1141,13 +1111,13 @@ async function runExecutionCommand(args: ParsedArgs, options: CliMainOptions): P
     // complete by exhaustion. Failures degrade to the normal single-shot result.
     let autonomousLoop: Awaited<ReturnType<typeof runAutonomousContinuation>> | undefined;
     if (
-      selectedAxes(args, route).autonomous === true &&
+      args.axes.autonomous === true &&
       processEvidence !== undefined &&
       runEnvelope !== undefined
     ) {
       const primaryProjection = processEvidence.projection;
       const contract = runEnvelope.record.goal_contract;
-      const parentAxes = selectedAxes(args, route);
+      const parentAxes = args.axes;
       // Cache each routed recovery flow so a repeated route does not re-read and
       // re-parse the same compiled flow from disk on every attempt.
       const recoveryFlowCache = new Map<
@@ -1269,7 +1239,7 @@ async function runExecutionCommand(args: ParsedArgs, options: CliMainOptions): P
     // Record the resolved axes on the envelope so a reader can audit which
     // rigor/tournament/autonomous selection actually ran (F-M-1). entry_mode
     // collapses the three axes into one name; resolved_axes keeps them explicit.
-    const resolvedAxes = selectedAxes(args, route);
+    const resolvedAxes = args.axes;
     process.stdout.write(
       `${JSON.stringify(
         {
@@ -1285,7 +1255,6 @@ async function runExecutionCommand(args: ParsedArgs, options: CliMainOptions): P
             selectedFlow: route.flowName,
             routedBy: route.source,
             routerReason: route.reason,
-            ...(route.matched_signal === undefined ? {} : { routerSignal: route.matched_signal }),
             ...(entryModeSelection.entryModeName === undefined
               ? {}
               : { entryMode: entryModeSelection.entryModeName }),

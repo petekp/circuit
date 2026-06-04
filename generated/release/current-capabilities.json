@@ -6,21 +6,6 @@
       "id": "review",
       "source": "src/flows/review/schematic.json",
       "contract_path": "src/flows/review/contract.md",
-      "routing": {
-        "routable": true,
-        "is_default": false,
-        "order": 0,
-        "signal_labels": [
-          "audit request",
-          "change inspection request",
-          "change review request",
-          "change-check request",
-          "code review",
-          "critique request",
-          "issue-finding request",
-          "risk-hunt request"
-        ]
-      },
       "axis_support": {
         "allowed_rigors": ["standard"],
         "supports_tournament": false,
@@ -47,12 +32,6 @@
       "id": "fix",
       "source": "src/flows/fix/schematic.json",
       "contract_path": "src/flows/fix/contract.md",
-      "routing": {
-        "routable": true,
-        "is_default": false,
-        "order": 20,
-        "signal_labels": ["fix prefix", "fix request", "quick fix prefix", "trailing fix request"]
-      },
       "axis_support": {
         "allowed_rigors": ["lite", "standard", "deep"],
         "supports_tournament": false,
@@ -101,12 +80,6 @@
     {
       "id": "pursue",
       "source": "src/flows/pursue/schematic.json",
-      "routing": {
-        "routable": true,
-        "is_default": false,
-        "order": 25,
-        "signal_labels": ["multiple autonomous goals", "pursue prefix", "pursuit request"]
-      },
       "axis_support": {
         "allowed_rigors": ["standard"],
         "supports_tournament": false,
@@ -141,12 +114,6 @@
       "id": "prototype",
       "source": "src/flows/prototype/schematic.json",
       "contract_path": "src/flows/prototype/contract.md",
-      "routing": {
-        "routable": true,
-        "is_default": false,
-        "order": 25,
-        "signal_labels": ["create prototype request", "prototype prefix", "prototype request"]
-      },
       "axis_support": {
         "allowed_rigors": ["standard", "deep"],
         "supports_tournament": true,
@@ -187,18 +154,6 @@
       "id": "build",
       "source": "src/flows/build/schematic.json",
       "contract_path": "src/flows/build/contract.md",
-      "routing": {
-        "routable": true,
-        "is_default": false,
-        "order": 30,
-        "signal_labels": [
-          "build implementation request",
-          "develop prefix",
-          "make change request",
-          "missing implementation request",
-          "test-passing implementation request"
-        ]
-      },
       "axis_support": {
         "allowed_rigors": ["lite", "standard", "deep"],
         "supports_tournament": false,
@@ -233,13 +188,6 @@
       "id": "explore",
       "source": "src/flows/explore/schematic.json",
       "contract_path": "src/flows/explore/contract.md",
-      "routing": {
-        "routable": true,
-        "is_default": true,
-        "order": 9007199254740991,
-        "signal_labels": [],
-        "default_reason": "no routed flow signal matched; routed to explore as the conservative default"
-      },
       "axis_support": {
         "allowed_rigors": ["lite", "standard", "deep"],
         "supports_tournament": true,
@@ -273,46 +221,6 @@
       },
       "route_outcomes": ["complete", "continue", "retry", "revise", "stop"],
       "unsupported_route_outcomes": []
-    }
-  ],
-  "router_intents": [
-    {
-      "id": "fix",
-      "input": "fix: handle the missing token edge case",
-      "expected_flow": "fix",
-      "actual_flow": "fix",
-      "status": "implemented",
-      "readiness_refs": []
-    },
-    {
-      "id": "develop",
-      "input": "develop: add SSO flow",
-      "expected_flow": "build",
-      "actual_flow": "build",
-      "expected_entry_mode": "default",
-      "actual_entry_mode": "default",
-      "status": "implemented",
-      "readiness_refs": []
-    },
-    {
-      "id": "decide",
-      "input": "decide: choose the queue architecture",
-      "expected_flow": "explore",
-      "actual_flow": "explore",
-      "expected_entry_mode": "tournament",
-      "actual_entry_mode": "tournament",
-      "status": "implemented",
-      "readiness_refs": []
-    },
-    {
-      "id": "plan-execution",
-      "input": "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md",
-      "expected_flow": "build",
-      "actual_flow": "build",
-      "expected_entry_mode": "default",
-      "actual_entry_mode": "default",
-      "status": "implemented",
-      "readiness_refs": []
     }
   ],
   "commands": {
@@ -541,23 +449,6 @@
       }
     },
     {
-      "id": "feature:plan-execution",
-      "kind": "plan_execution",
-      "title": "Plan execution",
-      "status": "implemented",
-      "summary": "Plan-execution requests start the first executable flow slice instead of ending as analysis-only Explore.",
-      "evidence": ["src/flows/router.ts", "tests/contracts/flow-router.test.ts"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": [],
-        "worker_handoff": "Plan-execution requests route into the first executable flow slice instead of ending as analysis-only Explore.",
-        "proof": "Plan-execution campaign-start proof."
-      }
-    },
-    {
       "id": "flow:build",
       "kind": "flow",
       "title": "build flow",
@@ -566,7 +457,7 @@
       "evidence": ["src/flows/build/schematic.json", "generated/flows/build/circuit.json"],
       "readiness_refs": [],
       "axes": {
-        "intent_hints": ["develop:"],
+        "intent_hints": [],
         "modes": ["autonomous", "deep", "default", "lite"],
         "stage_path": ["Frame", "Analyze", "Plan", "Act", "Verify", "Review", "Close"],
         "outputs": ["brief.md", "plan.md", "result.md", "review.md"],
@@ -587,7 +478,7 @@
       "evidence": ["src/flows/explore/schematic.json", "generated/flows/explore/circuit.json"],
       "readiness_refs": [],
       "axes": {
-        "intent_hints": ["decide:"],
+        "intent_hints": [],
         "modes": ["autonomous", "deep", "default", "lite", "tournament"],
         "stage_path": ["Frame", "Analyze", "Plan or Decision", "Close"],
         "outputs": ["analysis.md", "brief.md", "decision.md", "plan.md", "result.md"],
@@ -608,7 +499,7 @@
       "evidence": ["src/flows/fix/schematic.json", "generated/flows/fix/circuit.json"],
       "readiness_refs": [],
       "axes": {
-        "intent_hints": ["fix:"],
+        "intent_hints": [],
         "modes": ["autonomous", "deep", "default", "lite"],
         "stage_path": ["Frame", "Analyze", "Fix", "Verify", "Review", "Close"],
         "outputs": ["analysis.md", "brief.md", "result.md", "review.md"],
@@ -1599,66 +1490,6 @@
       "axes": {
         "intent_hints": [],
         "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "router:intent:decide",
-      "kind": "router_intent",
-      "title": "decide routing",
-      "status": "implemented",
-      "summary": "decide: choose the queue architecture routed to explore with tournament mode; expected explore.",
-      "evidence": ["src/flows/router.ts"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": ["decide:"],
-        "modes": ["tournament"],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "router:intent:develop",
-      "kind": "router_intent",
-      "title": "develop routing",
-      "status": "implemented",
-      "summary": "develop: add SSO flow routed to build with default mode; expected build.",
-      "evidence": ["src/flows/router.ts"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": ["develop:"],
-        "modes": ["default"],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "router:intent:fix",
-      "kind": "router_intent",
-      "title": "fix routing",
-      "status": "implemented",
-      "summary": "fix: handle the missing token edge case routed to fix; expected fix.",
-      "evidence": ["src/flows/router.ts"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": ["fix:"],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
-      "id": "router:intent:plan-execution",
-      "kind": "plan_execution",
-      "title": "plan-execution routing",
-      "status": "implemented",
-      "summary": "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md routed to build with default mode; expected build.",
-      "evidence": ["src/flows/router.ts"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": ["plan-execution:"],
-        "modes": ["default"],
         "stage_path": [],
         "outputs": []
       }

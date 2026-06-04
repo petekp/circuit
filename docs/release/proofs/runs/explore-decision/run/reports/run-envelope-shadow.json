@@ -7,8 +7,8 @@
   "recorded_at": "2026-04-29T17:01:10.000Z",
   "selected_process": {
     "process_id": "explore",
-    "routed_by": "classifier",
-    "router_reason": "matched decide intent; selected Explore tournament mode"
+    "routed_by": "explicit",
+    "router_reason": "explicit flow positional argument"
   },
   "child_run": {
     "run_id": "44444444-4444-4444-4444-444444444441",

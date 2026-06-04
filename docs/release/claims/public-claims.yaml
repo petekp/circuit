@@ -73,20 +73,6 @@ claims:
         - tests/runner/cli-router.test.ts
     user_risk: Untracked scratch or secret-like files could be relayed unexpectedly if this regresses.
     readiness_refs: [REL-005]
-  - id: CLAIM-PLAN-EXECUTION
-    claim: Plan-execution requests must start the right work slice, ask one blocking question, or return one exact next command.
-    type: plan-execution
-    status: verified_current
-    surfaces: [plugins/claude/commands/run.md, plugins/codex/skills/run/SKILL.md, docs/release/readiness-report.generated.md]
-    backing:
-      capability_ids: [feature:plan-execution]
-      proof_ids: [proof:plan-execution]
-      test_paths:
-        - tests/contracts/flow-router.test.ts
-        - tests/runner/cli-router.test.ts
-      script_checks: [scripts/release/emit-current-capabilities.ts --check]
-    user_risk: Users can ask Circuit to execute a plan and receive analysis-only output that preserves the next-action burden.
-    readiness_refs: [REL-016]
   - id: CLAIM-WRITE-CAPABLE-WORKER
     claim: Write-capable worker behavior must be disclosed before Build, Fix, Prototype, or Pursue work that can edit files.
     type: safety

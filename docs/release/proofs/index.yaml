@@ -274,12 +274,12 @@ scenarios:
     exception_ids: []
     readiness_refs: [REL-017]
   - id: proof:plan-execution
-    title: Plan Execution Campaign Start
+    title: Plan Execution With A Named Flow
     category: plan-execution
-    command: './bin/circuit run --goal "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md" --progress jsonl'
+    command: './bin/circuit run build --goal "implement the plan in ./docs/specs/headless-engine-host-api-v1.md" --progress jsonl'
     expected_flow: build
     expected_outcome: complete or needs_attention
-    summary_contract: Summary identifies plan execution, the selected flow, verification, review, risk, and next action.
+    summary_contract: Summary identifies the named Build flow, the implemented work, verification, review, risk, and next action.
     redaction_policy: Uses a scrubbed plan fixture if the live spec contains local details.
     required_files:
       - docs/release/proofs/runs/plan-execution/progress.jsonl

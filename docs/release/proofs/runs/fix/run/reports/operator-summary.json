@@ -3,11 +3,22 @@
   "run_id": "44444444-4444-4444-4444-444444444407",
   "flow_id": "fix",
   "selected_flow": "fix",
-  "routed_by": "classifier",
-  "router_reason": "matched quick fix prefix; routed to Fix flow",
+  "routed_by": "explicit",
+  "router_reason": "explicit flow positional argument",
   "outcome": "complete",
-  "headline": "Circuit: Fix applied with follow-ups. Verification: passed. Review: skipped.",
-  "status_text": "Fix applied with follow-ups. Verification: passed. Review: skipped.",
+  "headline": "Circuit · Fix",
+  "status_text": "Fix",
+  "brief_slots": {
+    "headline": "Circuit · Fix",
+    "assessment": "Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.",
+    "key_points": [
+      "Worker access: A worker can edit this checkout.",
+      "Result: Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.",
+      "Verification: passed."
+    ],
+    "caveats": [],
+    "next_action": "address the follow-up, then rerun the relevant check."
+  },
   "details": [
     "Worker access: A worker can edit this checkout.",
     "Run note: Run closed with outcome complete via @complete.",

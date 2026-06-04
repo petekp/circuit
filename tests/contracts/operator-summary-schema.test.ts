@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { OperatorAutoResolution } from '../../src/schemas/operator-summary.js';
+import { OperatorAutoResolution, OperatorBriefSlots } from '../../src/schemas/operator-summary.js';
 
 function baseAutoResolutionRecord(policy: string) {
   return {
@@ -48,6 +48,29 @@ function fullHighestScoreRecord(): Record<string, unknown> {
 }
 
 describe('OperatorSummary schema', () => {
+  it('accepts the five-slot digest brief and rejects the old dormant slot shape', () => {
+    expect(
+      OperatorBriefSlots.safeParse({
+        headline: 'Circuit · Review',
+        assessment: 'Reviewer found nothing actionable.',
+        key_points: ['Checked the staged diff'],
+        caveats: ['Untracked files were metadata only.'],
+        next_action: 'nothing required.',
+      }).success,
+    ).toBe(true);
+
+    expect(
+      OperatorBriefSlots.safeParse({
+        headline: 'Circuit · Review',
+        primary: {
+          label: 'Verdict',
+          text: 'Clean',
+        },
+        cautions: [],
+      }).success,
+    ).toBe(false);
+  });
+
   it('accepts highest-score auto-resolution records', () => {
     expect(OperatorAutoResolution.safeParse(fullHighestScoreRecord()).success).toBe(true);
   });

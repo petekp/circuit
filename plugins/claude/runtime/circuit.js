@@ -10884,28 +10884,6 @@ function buildRuntimeSurfaceRegistry(packages) {
   }
   return map2;
 }
-function buildRoutablePackages(packages) {
-  const out = [];
-  for (const pkg of packages) {
-    if (pkg.routing === void 0)
-      continue;
-    if (pkg.visibility === "internal")
-      continue;
-    out.push({ pkg, routing: pkg.routing });
-  }
-  return out.sort((a, b) => a.routing.order - b.routing.order);
-}
-function findDefaultRoutablePackage(routables) {
-  const defaults = routables.filter((entry) => entry.routing.isDefault === true);
-  const [first, ...rest] = defaults;
-  if (first === void 0) {
-    throw new Error("no flow package marked isDefault \u2014 router has no fallback");
-  }
-  if (rest.length > 0) {
-    throw new Error(`more than one default flow package: ${defaults.map((entry) => entry.pkg.id).join(", ")}`);
-  }
-  return first;
-}
 
 // dist/shared/html/index.js
 var HTML_PROJECTORS = /* @__PURE__ */ new Map();
@@ -28405,7 +28383,6 @@ function compileFlowDefinition(definition) {
     id: definition.id,
     visibility: definition.visibility,
     paths: compilePaths(definition),
-    ...definition.routing === void 0 ? {} : { routing: definition.routing },
     relayReports: reportSurfaces.relayReports,
     ...reportSurfaces.reportSchemas === void 0 ? {} : { reportSchemas: reportSurfaces.reportSchemas },
     writers: {
@@ -29612,48 +29589,12 @@ var buildVerificationWriter = {
 };
 
 // dist/flows/build/data.js
-var BUILD_SIGNALS = [
-  { label: "develop prefix", pattern: /^\s*develop\s*:/i },
-  {
-    label: "build implementation request",
-    pattern: /^\s*(?:please\s+)?(?:build|implement|develop|add|create|ship)\s+(?:a\s+|an\s+|the\s+|this\s+|that\s+)?(?:new\s+|missing\s+)?(?:feature|change|fix|implementation|endpoint|component|command|tool|integration|helper|export|function|method|behavior)\b/i
-  },
-  {
-    label: "missing implementation request",
-    pattern: /^\s*(?:please\s+)?(?:add|implement|create|ship)\s+(?:the\s+)?missing\s+(?:[\w.-]+\s+)?(?:helper|export|function|method|component|command|endpoint|behavior)\b/i
-  },
-  {
-    label: "test-passing implementation request",
-    pattern: /^\s*(?:please\s+)?(?:add|implement|create|ship|make)\b.*\b(?:helper|export|function|method|component|command|endpoint|behavior)\b.*\b(?:test|tests|check|build|verification)\b.*\b(?:pass|passes|green)\b/i
-  },
-  {
-    label: "make change request",
-    pattern: /^\s*(?:please\s+)?make\s+(?:a\s+|the\s+|this\s+|that\s+)?(?:focused\s+)?change\b/i
-  }
-];
 var buildFlowData = {
   id: "build",
   visibility: "public",
   paths: {
     schematic: "src/flows/build/schematic.json",
     contract: "src/flows/build/contract.md"
-  },
-  routing: {
-    order: 30,
-    signals: BUILD_SIGNALS,
-    skipOnPlanningReport: true,
-    reasonForMatch(signal) {
-      return `matched ${signal.label}; routed to implementation Build flow`;
-    },
-    inferEntryMode(taskText) {
-      if (/^\s*develop\s*:/i.test(taskText)) {
-        return {
-          name: "default",
-          reason: "matched develop intent; selected default Build thoroughness"
-        };
-      }
-      return void 0;
-    }
   },
   schematic: {
     schema_version: "1",
@@ -31271,24 +31212,6 @@ var exploreFlowData = {
   paths: {
     schematic: "src/flows/explore/schematic.json",
     contract: "src/flows/explore/contract.md"
-  },
-  routing: {
-    order: Number.MAX_SAFE_INTEGER,
-    signals: [],
-    reasonForMatch() {
-      throw new Error("explore is the default flow; reasonForMatch should not be called");
-    },
-    isDefault: true,
-    defaultReason: "no routed flow signal matched; routed to explore as the conservative default",
-    inferEntryMode(taskText) {
-      if (/^\s*decide\s*:/i.test(taskText)) {
-        return {
-          name: "tournament",
-          reason: "matched decide intent; selected Explore tournament mode"
-        };
-      }
-      return void 0;
-    }
   },
   schematic: {
     schema_version: "1",
@@ -33606,56 +33529,12 @@ var fixVerificationWriter = {
 };
 
 // dist/flows/fix/data.js
-var FIX_SIGNALS = [
-  { label: "fix prefix", pattern: /^\s*fix\s*:/i },
-  { label: "quick fix prefix", pattern: /^\s*(?:quick|small|tiny|simple)\s+fix\s*:/i },
-  {
-    label: "fix request",
-    pattern: /^\s*(?:please\s+)?(?:fix|patch|debug|diagnose|reproduce)\s+(?:a\s+|an\s+|the\s+|this\s+|that\s+|my\s+|some\s+)?\S+/i
-  },
-  {
-    label: "trailing fix request",
-    pattern: /\b(?:bug|buggy|broken|failing|fails|failed|wrong|incorrect|instead\s+of|regression|crash|crashes|throw|throws)\b[\s\S]{0,200}\bfix\s+(?:it|this|that|please)\b/i
-  }
-];
-var FIX_DEEP_SIGNAL = /\b(?:regression|flaky|intermittent|incident|outage|crash|failure|failing\s+(?:test|build)|debug|diagnose|reproduce|root\s+cause)\b/i;
-var FIX_QUICK_SIGNAL = /^\s*(?:(?:quick|small|tiny|simple)\s+fix\s*:|fix\s*:\s*(?:quick|small|tiny|simple)\b)/i;
 var fixFlowData = {
   id: "fix",
   visibility: "public",
   paths: {
     schematic: "src/flows/fix/schematic.json",
     contract: "src/flows/fix/contract.md"
-  },
-  routing: {
-    order: 20,
-    signals: FIX_SIGNALS,
-    skipOnPlanningReport: true,
-    reasonForMatch(signal) {
-      return `matched ${signal.label}; routed to Fix flow`;
-    },
-    inferEntryMode(taskText) {
-      if (/\bflaky\b/i.test(taskText)) {
-        return {
-          name: "deep",
-          reason: "matched flaky signal; selected deep thoroughness"
-        };
-      }
-      const deepMatch = taskText.match(FIX_DEEP_SIGNAL);
-      if (deepMatch?.[0] !== void 0) {
-        return {
-          name: "deep",
-          reason: `matched ${deepMatch[0]} signal; selected deep thoroughness`
-        };
-      }
-      if (FIX_QUICK_SIGNAL.test(taskText)) {
-        return {
-          name: "lite",
-          reason: "matched quick Fix intent; selected lite thoroughness"
-        };
-      }
-      return void 0;
-    }
   },
   schematic: {
     schema_version: "1",
@@ -36748,10 +36627,6 @@ var goalRecoveryBuilder = {
 };
 
 // dist/flows/goal/data.js
-var GOAL_SIGNALS = [
-  { label: "goal prefix", pattern: /^\s*(?:goal|supervise)\s*:/i },
-  { label: "goal flow request", pattern: /\b(?:goal flow|long-running goal)\b/i }
-];
 var CHILD_PASS_VERDICTS = [
   "accept",
   "accept-with-fixes",
@@ -36802,13 +36677,6 @@ var goalFlowData = {
   visibility: "internal",
   paths: {
     schematic: "src/flows/goal/schematic.json"
-  },
-  routing: {
-    order: 5,
-    signals: GOAL_SIGNALS,
-    reasonForMatch(signal) {
-      return `matched ${signal.label}; routed to Goal flow`;
-    }
   },
   schematic: {
     schema_version: "1",
@@ -39102,31 +38970,12 @@ var prototypeVerificationWriter = {
 };
 
 // dist/flows/prototype/data.js
-var PROTOTYPE_SIGNALS = [
-  { label: "prototype prefix", pattern: /^\s*prototype\s*:/i },
-  {
-    label: "create prototype request",
-    pattern: /^\s*(?:please\s+)?(?:use\s+(?:this\s+new\s+flow|(?:the\s+)?prototype(?:\s+flow)?)\s+to\s+)?(?:create|make|build|draft)\s+(?:a\s+|an\s+|the\s+)?(?:[\w-]+\s+){0,5}prototype\b/i
-  },
-  {
-    label: "prototype request",
-    pattern: /^\s*(?:please\s+)?(?:prototype|mock\s+up|sketch)\s+(?:a\s+|an\s+|the\s+|this\s+|that\s+)?(?:small\s+|simple\s+|intuitive\s+|disposable\s+|throwaway\s+)?(?:prototype|artifact|screen|flow|interaction|experience)\b/i
-  }
-];
 var prototypeFlowData = {
   id: "prototype",
   visibility: "public",
   paths: {
     schematic: "src/flows/prototype/schematic.json",
     contract: "src/flows/prototype/contract.md"
-  },
-  routing: {
-    order: 25,
-    signals: PROTOTYPE_SIGNALS,
-    skipOnPlanningReport: true,
-    reasonForMatch(signal) {
-      return `matched ${signal.label}; routed to disposable Prototype flow`;
-    }
   },
   schematic: {
     schema_version: "1",
@@ -41086,17 +40935,6 @@ var pursuitWavePlanComposeBuilder = {
 };
 
 // dist/flows/pursue/data.js
-var PURSUE_SIGNALS = [
-  { label: "pursue prefix", pattern: /^\s*pursue\s*:/i },
-  {
-    label: "pursuit request",
-    pattern: /^\s*(?:please\s+)?(?:pursue|coordinate|handle)\b.*\b(?:pursuit|pursuits|ideas|goals|tracks)\b/i
-  },
-  {
-    label: "multiple autonomous goals",
-    pattern: /^\s*(?:please\s+)?(?:run|execute|coordinate)\b.*\b(?:multiple|several|parallel)\b.*\b(?:goals|ideas|changes|tracks)\b/i
-  }
-];
 var PURSUE_STAGE_POLICY = defineEnforcedStagePolicy({
   canonicals: ["frame", "plan", "act", "verify", "review", "close"],
   omits: ["analyze"],
@@ -41111,13 +40949,6 @@ var pursueFlowData = {
   visibility: "public",
   paths: {
     schematic: "src/flows/pursue/schematic.json"
-  },
-  routing: {
-    order: 25,
-    signals: PURSUE_SIGNALS,
-    reasonForMatch(signal) {
-      return `matched ${signal.label}; routed to Pursue flow`;
-    }
   },
   schematic: {
     schema_version: "1",
@@ -41956,44 +41787,12 @@ var reviewResultComposeBuilder = {
 };
 
 // dist/flows/review/data.js
-var REVIEW_SIGNALS = [
-  { label: "code review", pattern: /\bcode\s+review\b/i },
-  {
-    label: "change review request",
-    pattern: /\breview\s+(?:this\s+|the\s+|my\s+|a\s+)?(?:[\w-]+\s+){0,8}(?:changes?|diff|patch|commit|pr|pull\s+request|code|report|file)\b/i
-  },
-  { label: "audit request", pattern: /\baudit\b/i },
-  { label: "critique request", pattern: /\bcritique\b/i },
-  {
-    label: "change inspection request",
-    pattern: /\binspect\s+(?:this\s+|the\s+|my\s+|a\s+)?(?:change|diff|patch|commit|pr|pull\s+request|code|report|file)\b/i
-  },
-  {
-    label: "change-check request",
-    pattern: /\bcheck\s+(?:this\s+)?(?:change|diff|patch|commit|pr|pull\s+request)\b/i
-  },
-  {
-    label: "issue-finding request",
-    pattern: /\b(?:find|surface|identify|spot|detect|look\s+for)\s+(?:an?\s+|any\s+)?(?:(?:issue|issues)(?!\s*(?:#|\d))|bug|bugs|defect|defects|problem|problems|regression|regressions|risk|risks)\b/i
-  },
-  {
-    label: "risk-hunt request",
-    pattern: /\blook\s+for\s+(?:bugs|issues|regressions|risks)\b/i
-  }
-];
 var reviewFlowData = {
   id: "review",
   visibility: "public",
   paths: {
     schematic: "src/flows/review/schematic.json",
     contract: "src/flows/review/contract.md"
-  },
-  routing: {
-    order: 0,
-    signals: REVIEW_SIGNALS,
-    reasonForMatch(signal) {
-      return `matched ${signal.label}; routed to audit-only review flow`;
-    }
   },
   schematic: {
     schema_version: "1",
@@ -42180,6 +41979,112 @@ var reviewFlowData = {
 // dist/flows/review/flow.js
 var reviewFlowDefinition = defineFlowData(reviewFlowData);
 
+// dist/flows/review/writers/result-html.js
+function severityIntent(severity) {
+  if (severity === "critical" || severity === "high")
+    return "negative";
+  if (severity === "medium")
+    return "attention";
+  return "info";
+}
+function findingList(findings) {
+  if (findings.length === 0)
+    return '<p class="summary">No actionable findings.</p>';
+  const items = findings.map((finding) => {
+    const refs = finding.file_refs.length === 0 ? "" : ` <span class="chip">${escapeHtml(finding.file_refs.join(", "))}</span>`;
+    return `<li><strong>${escapeHtml(finding.severity.toUpperCase())}</strong>: ${escapeHtml(finding.text)}${refs}</li>`;
+  }).join("");
+  return `<ul class="tradeoffs">${items}</ul>`;
+}
+function stringList(items) {
+  if (items.length === 0)
+    return '<p class="summary">None.</p>';
+  return `<ul class="tradeoffs">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+}
+function warningList(warnings) {
+  if (warnings.length === 0)
+    return '<p class="summary">No evidence warnings.</p>';
+  return `<ul class="tradeoffs">${warnings.map((warning) => {
+    const path = warning.path === void 0 ? "" : ` (${warning.path})`;
+    return `<li><strong>${escapeHtml(warning.kind)}</strong>${escapeHtml(path)}: ${escapeHtml(warning.message)}</li>`;
+  }).join("")}</ul>`;
+}
+function evidenceSummary2(report) {
+  const evidence2 = report.evidence_summary;
+  if (evidence2 === void 0)
+    return '<p class="summary">No evidence summary was recorded.</p>';
+  if (evidence2.kind === "unavailable") {
+    return `<p class="summary">${escapeHtml(evidence2.message)}</p>`;
+  }
+  const sampled = `${evidence2.untracked_files_sampled}/${evidence2.untracked_file_count}`;
+  const truncated = evidence2.untracked_files_truncated ? "yes" : "no";
+  return `<ul class="tradeoffs">
+    <li>Untracked content policy: ${escapeHtml(evidence2.untracked_content_policy)}</li>
+    <li>Untracked files sampled: ${escapeHtml(sampled)}</li>
+    <li>Untracked file list truncated: ${escapeHtml(truncated)}</li>
+  </ul>`;
+}
+function shouldRenderHtml(report) {
+  return report.findings.length > 0 || report.evidence_warnings.length > 0 || report.confidence_limitations.length > 0;
+}
+var reviewResultProjector = (ctx) => {
+  const parsed = ReviewResult.safeParse(ctx.flowReport);
+  if (!parsed.success)
+    return void 0;
+  const report = parsed.data;
+  if (!shouldRenderHtml(report))
+    return void 0;
+  const worstIntent = report.findings.reduce((intent, finding) => {
+    const findingIntent = severityIntent(finding.severity);
+    if (findingIntent === "negative")
+      return "negative";
+    if (findingIntent === "attention" && intent === "positive")
+      return "attention";
+    return intent;
+  }, report.verdict === "CLEAN" ? "positive" : "attention");
+  const body = [
+    verdictBanner({
+      intent: worstIntent,
+      badgeText: report.verdict,
+      mainHtml: `<strong>${escapeHtml(report.scope)}</strong>`,
+      aside: `${report.findings.length} finding${report.findings.length === 1 ? "" : "s"}`
+    }),
+    card({
+      intent: worstIntent,
+      eyebrow: "Findings",
+      title: "Reviewer findings",
+      bodyHtml: findingList(report.findings)
+    }),
+    card({
+      intent: report.confidence_limitations.length > 0 ? "attention" : "info",
+      eyebrow: "Evidence",
+      title: "What was checked",
+      bodyHtml: [
+        `<p class="summary">${escapeHtml(report.assessment)}</p>`,
+        '<p class="section-label">Verification</p>',
+        stringList(report.verification),
+        '<p class="section-label">Confidence limits</p>',
+        stringList(report.confidence_limitations)
+      ].join("\n")
+    }),
+    card({
+      intent: report.evidence_warnings.length > 0 ? "attention" : "info",
+      eyebrow: "Caveats",
+      title: "Evidence caveats",
+      bodyHtml: [warningList(report.evidence_warnings), evidenceSummary2(report)].join("\n")
+    })
+  ].join("\n");
+  return renderPage({
+    title: "Review result",
+    metaLine: `Circuit \xB7 Review \xB7 ${ctx.runOutcome}`,
+    headline: "Review result",
+    subtitle: report.assessment,
+    bodyHtml: body,
+    footerLeft: `Run ${ctx.runId}`,
+    footerRight: "reports/review-result.json"
+  });
+};
+
 // dist/flows/runtime-proof/reports.js
 var RuntimeProofCompose = external_exports.object({
   summary: external_exports.string().min(1)
@@ -42351,6 +42256,7 @@ var RUNTIME_SURFACES = buildRuntimeSurfaceRegistry(flowPackages);
 registerHtmlProjector("build", buildCheckpointProjector);
 registerHtmlProjector("explore", exploreTournamentProjector);
 registerHtmlProjector("prototype", prototypeCheckpointProjector);
+registerHtmlProjector("review", reviewResultProjector);
 function findCompiledFlowPackageById(id) {
   return PACKAGES_BY_ID.get(id);
 }
@@ -47849,11 +47755,12 @@ var RunStartedProgressEvent = ProgressEventBase.extend({
 var RouteSelectedProgressEvent = ProgressEventBase.extend({
   type: external_exports.literal("route.selected"),
   selected_flow: CompiledFlowId,
-  routed_by: external_exports.enum(["explicit", "classifier"]),
+  // Routing is model-only: the host or operator names the flow, so the route
+  // source is always the explicit positional flow argument.
+  routed_by: external_exports.literal("explicit"),
   router_reason: external_exports.string().min(1),
-  router_signal: external_exports.string().min(1).optional(),
   entry_mode: external_exports.string().min(1).optional(),
-  entry_mode_source: external_exports.enum(["explicit", "classifier"]).optional()
+  entry_mode_source: external_exports.literal("explicit").optional()
 }).strict();
 var StepStartedProgressEvent = ProgressEventBase.extend({
   type: external_exports.literal("step.started"),
@@ -48026,14 +47933,10 @@ var OperatorSummaryReportLink = external_exports.object({
 }).strict();
 var OperatorBriefSlots = external_exports.object({
   headline: external_exports.string().min(1),
-  primary: external_exports.object({
-    label: external_exports.string().min(1),
-    text: external_exports.string().min(1)
-  }).strict(),
-  why: external_exports.string().min(1).optional(),
-  startWith: external_exports.string().min(1).optional(),
-  cautions: external_exports.array(external_exports.string().min(1)),
-  nextStep: external_exports.string().min(1).optional()
+  assessment: external_exports.string().min(1),
+  key_points: external_exports.array(external_exports.string().min(1)).max(4),
+  caveats: external_exports.array(external_exports.string().min(1)).max(3),
+  next_action: external_exports.string().min(1)
 }).strict();
 var OperatorAutoResolution = external_exports.object({
   checkpoint_id: external_exports.string().min(1),
@@ -48058,7 +47961,7 @@ var OperatorSummary = external_exports.object({
   run_id: RunId,
   flow_id: CompiledFlowId,
   selected_flow: CompiledFlowId,
-  routed_by: external_exports.enum(["explicit", "classifier"]).optional(),
+  routed_by: external_exports.literal("explicit").optional(),
   router_reason: external_exports.string().min(1).optional(),
   outcome: external_exports.union([RunClosedOutcome, external_exports.literal("checkpoint_waiting")]),
   headline: external_exports.string().min(1),
@@ -48815,7 +48718,6 @@ var RunProcessPlan = external_exports.object({
   schema: external_exports.literal("run.process-plan@v0"),
   selection_source: external_exports.enum([
     "explicit_operator_request",
-    "router",
     "goal_contract",
     "completion_followup",
     "recovery"
@@ -49042,7 +48944,7 @@ var RunEnvelopeShadowRecord = external_exports.object({
   recorded_at: external_exports.string().datetime(),
   selected_process: external_exports.object({
     process_id: CompiledFlowId,
-    routed_by: external_exports.enum(["explicit", "classifier"]).optional(),
+    routed_by: external_exports.literal("explicit").optional(),
     router_reason: external_exports.string().min(1),
     entry_mode: external_exports.string().min(1).optional()
   }).strict(),
@@ -52821,11 +52723,6 @@ function truncateStatusText(text) {
 function normalizeStatusText(text) {
   const withoutChrome = text.replace(/^Circuit:\s*/i, "").replace(/^⎿\s*/, "").trim();
   return truncateStatusText(withoutChrome);
-}
-function statusTextFromHeadline(headline) {
-  const stripped = headline.replace(/^Circuit:\s*/i, "").trim();
-  const withSentence = /[.!?]$/.test(stripped) ? stripped : `${stripped}.`;
-  return truncateStatusText(withSentence);
 }
 function progressPresentation(input) {
   const lineMode = input.lineMode ?? "append";
@@ -57056,8 +56953,6 @@ function runOutcome2(input) {
 function selectionSourceFor(routedBy) {
   if (routedBy === "explicit")
     return "explicit_operator_request";
-  if (routedBy === "classifier")
-    return "router";
   return "recovery";
 }
 function requiredEvidenceKindForProcess(processId) {
@@ -57646,102 +57541,6 @@ async function runAutonomousContinuation(input) {
       return attemptResultFromProjection(run.projection);
     }
   });
-}
-
-// dist/flows/router.js
-var ROUTABLE_PACKAGES = buildRoutablePackages(flowPackages);
-var DEFAULT_PACKAGE = findDefaultRoutablePackage(ROUTABLE_PACKAGES);
-var ROUTABLE_WORKFLOWS = Object.freeze(ROUTABLE_PACKAGES.map((entry) => entry.pkg.id));
-var PLANNING_ARTIFACT_SIGNAL = /\b(?:proposal|plan|brief|matrix|evaluation\s+matrix|design\s+doc|design\s+document|spec|specification|rfc|memo|document|doc|guide|analysis|evaluation|selection|strategy|outline|report|comparison|recommendation|write-?up|options|approaches)\b/i;
-var PLAN_EXECUTION_SIGNAL = /^\s*(?:execute|run|start|begin|work\s+through|carry\s+out|tackle)\s+(?:this\s+|the\s+)?(?:[\w-]+\s+){0,3}(?:plan|backlog|checklist|roadmap|doc|document)(?::|\b)/i;
-function resolvePlanExecutionFlowName(flowId, routables, defaultPackage) {
-  if (defaultPackage.pkg.id === flowId)
-    return defaultPackage.pkg.id;
-  const match = routables.find((entry) => entry.pkg.id === flowId);
-  if (match === void 0) {
-    throw new Error(`plan-execution target '${flowId}' is not a routable flow`);
-  }
-  return match.pkg.id;
-}
-function classifyPlanExecutionRequest(taskText, routables, defaultPackage) {
-  if (!PLAN_EXECUTION_SIGNAL.test(taskText))
-    return void 0;
-  const lower = taskText.toLowerCase();
-  let target;
-  if (/\b(?:decide|decision|choose|choice|option|options|tradeoff|trade-off)\b/.test(lower)) {
-    target = {
-      flowId: "explore",
-      reason: "matched plan-execution request; selected Explore tournament for a blocking decision",
-      inferredEntryModeName: "tournament",
-      inferredEntryModeReason: "matched decision-oriented plan execution; selected Explore tournament mode"
-    };
-  } else if (/\b(?:fix|bug|regression|flaky|incident|outage|debug|diagnose|crash|failure)\b/.test(lower)) {
-    target = {
-      flowId: "fix",
-      reason: "matched plan-execution request; selected Fix for the first bug-fix slice",
-      inferredEntryModeName: "deep",
-      inferredEntryModeReason: "matched bug-fix-oriented plan execution; selected deep thoroughness"
-    };
-  } else {
-    target = {
-      flowId: "build",
-      reason: "matched plan-execution request; selected Build to start the first executable slice",
-      inferredEntryModeName: "default",
-      inferredEntryModeReason: "matched general plan execution; selected default Build thoroughness"
-    };
-  }
-  return {
-    flowName: resolvePlanExecutionFlowName(target.flowId, routables, defaultPackage),
-    source: "classifier",
-    matched_signal: "plan-execution",
-    reason: target.reason,
-    inferredEntryModeName: target.inferredEntryModeName,
-    inferredEntryModeReason: target.inferredEntryModeReason
-  };
-}
-function inferEntryMode(flowName, taskText, routables, defaultPackage) {
-  const entry = defaultPackage.pkg.id === flowName ? defaultPackage : routables.find((candidate) => candidate.pkg.id === flowName);
-  const inferred = entry?.routing.inferEntryMode?.(taskText);
-  if (inferred === void 0)
-    return {};
-  return {
-    inferredEntryModeName: inferred.name,
-    inferredEntryModeReason: inferred.reason
-  };
-}
-function classifyTaskAgainstRoutables(taskText, routables, defaultPackage) {
-  const planExecution = classifyPlanExecutionRequest(taskText, routables, defaultPackage);
-  if (planExecution !== void 0)
-    return planExecution;
-  const hasPlanningReport = PLANNING_ARTIFACT_SIGNAL.test(taskText);
-  for (const { pkg, routing } of routables) {
-    if (routing.isDefault)
-      continue;
-    for (const signal of routing.signals) {
-      if (!signal.pattern.test(taskText))
-        continue;
-      if (routing.skipOnPlanningReport === true && hasPlanningReport) {
-        break;
-      }
-      return {
-        flowName: pkg.id,
-        source: "classifier",
-        matched_signal: signal.label,
-        reason: routing.reasonForMatch(signal),
-        ...inferEntryMode(pkg.id, taskText, routables, defaultPackage)
-      };
-    }
-  }
-  const inferred = inferEntryMode(defaultPackage.pkg.id, taskText, routables, defaultPackage);
-  return {
-    flowName: defaultPackage.pkg.id,
-    source: "classifier",
-    reason: inferred.inferredEntryModeReason ?? defaultPackage.routing.defaultReason ?? `no signal matched; routed to ${defaultPackage.pkg.id} as the conservative default`,
-    ...inferred
-  };
-}
-function classifyCompiledFlowTask(taskText) {
-  return classifyTaskAgainstRoutables(taskText, ROUTABLE_PACKAGES, DEFAULT_PACKAGE);
 }
 
 // dist/flows/canonical-stage-policy.js
@@ -58370,18 +58169,18 @@ function reviewAssessmentDetails(report) {
   return lines;
 }
 function reviewEvidenceDetails(report) {
-  const evidenceSummary2 = isObject4(report?.evidence_summary) ? report.evidence_summary : void 0;
-  const kind = stringField2(evidenceSummary2, "kind");
+  const evidenceSummary3 = isObject4(report?.evidence_summary) ? report.evidence_summary : void 0;
+  const kind = stringField2(evidenceSummary3, "kind");
   if (kind === "unavailable") {
-    const message = stringField2(evidenceSummary2, "message");
+    const message = stringField2(evidenceSummary3, "message");
     return message === void 0 ? [] : [`Review evidence: unavailable (${message})`];
   }
   if (kind !== "git-working-tree")
     return [];
-  const policy2 = stringField2(evidenceSummary2, "untracked_content_policy");
-  const count = numberField(evidenceSummary2, "untracked_file_count") ?? 0;
-  const sampled = numberField(evidenceSummary2, "untracked_files_sampled") ?? 0;
-  const truncated = evidenceSummary2?.untracked_files_truncated === true;
+  const policy2 = stringField2(evidenceSummary3, "untracked_content_policy");
+  const count = numberField(evidenceSummary3, "untracked_file_count") ?? 0;
+  const sampled = numberField(evidenceSummary3, "untracked_files_sampled") ?? 0;
+  const truncated = evidenceSummary3?.untracked_files_truncated === true;
   if (policy2 === "include-content") {
     const suffix = truncated ? "; additional untracked files were not sampled" : "";
     return [
@@ -58621,7 +58420,7 @@ function readPriorRoute(runFolder) {
     const routedBy = raw.routed_by;
     const routerReason = raw.router_reason;
     return {
-      ...routedBy === "explicit" || routedBy === "classifier" ? { routedBy } : {},
+      ...routedBy === "explicit" ? { routedBy } : {},
       ...typeof routerReason === "string" && routerReason.length > 0 ? { routerReason } : {}
     };
   } catch {
@@ -58629,6 +58428,8 @@ function readPriorRoute(runFolder) {
   }
 }
 var HTML_REPORT_LABEL = "Operator summary (HTML)";
+var MAX_KEY_POINTS = 4;
+var MAX_CAVEATS = 3;
 function jsonPath(runFolder) {
   return join19(runFolder, "reports", "operator-summary.json");
 }
@@ -58686,6 +58487,330 @@ function warningRecords(report) {
     const path = stringField2(item, "path");
     return [{ kind, message, ...path === void 0 ? {} : { path } }];
   });
+}
+function flowDisplayName(flowId) {
+  return flowId.split("-").map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
+}
+function digestStatusText(headline) {
+  return headline.replace(/^Circuit\s*·\s*/i, "").trim();
+}
+function digestHeadline(flowName) {
+  return `Circuit \xB7 ${flowName}`;
+}
+function withoutDetailPrefix(detail, prefix) {
+  return detail.slice(prefix.length).trim();
+}
+function sentence2(value) {
+  const trimmed = value.trim();
+  if (trimmed.length === 0)
+    return trimmed;
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+function splitSemicolonDetail(detail, prefix) {
+  return withoutDetailPrefix(detail, prefix).split(/;\s*/).map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+}
+function detailWithPrefix(details, prefix) {
+  return details.find((detail) => detail.startsWith(prefix));
+}
+function hasEvidenceWarningKind2(report, kind) {
+  return arrayField(report, "evidence_warnings").some((item) => isObject4(item) && stringField2(item, "kind") === kind);
+}
+function reviewOutcomeLabel(flowReport) {
+  if (hasEvidenceWarningKind2(flowReport, "scope_empty"))
+    return "No scope";
+  const verdict = stringField2(flowReport, "verdict");
+  const findings = arrayField(flowReport, "findings").length;
+  if (verdict === "CLEAN")
+    return "Clean";
+  return `Issues (${findings})`;
+}
+function buildOutcomeLabel(flowReport, runOutcome3) {
+  const outcome = stringField2(flowReport, "outcome") ?? runOutcome3;
+  const verification = stringField2(flowReport, "verification_status");
+  const review = stringField2(flowReport, "review_verdict");
+  if (outcome === "complete" && verification === "passed" && review === "accept") {
+    return "Implemented";
+  }
+  if (outcome === "needs_attention")
+    return "Needs follow-up";
+  return `Finished (${outcome})`;
+}
+function fixOutcomeLabel(flowReport, runOutcome3) {
+  const outcome = stringField2(flowReport, "outcome") ?? runOutcome3;
+  switch (outcome) {
+    case "fixed":
+      return "Fixed";
+    case "partial":
+      return "Applied with follow-ups";
+    case "not-reproduced":
+      return "Not reproduced";
+    case "failed":
+      return "Failed";
+    case "stopped":
+      return "Stopped";
+    case "handoff":
+      return "Handed off";
+    default:
+      return friendlyFixOutcome(outcome);
+  }
+}
+function exploreOutcomeLabel(input) {
+  const decisionReport = evidenceReportById(input.runFolder, input.flowReport, "explore.decision") ?? readJsonIfPresent(input.runFolder, "reports/decision.json");
+  const selected = stringField2(decisionReport, "selected_option_label");
+  if (selected !== void 0)
+    return `Decided: ${selected}`;
+  const snapshot = isObject4(input.flowReport?.verdict_snapshot) ? input.flowReport.verdict_snapshot : void 0;
+  const review = stringField2(snapshot, "review_verdict");
+  if (review === "accept-with-fold-ins") {
+    const foldIns = isObject4(input.flowReport?.review_fold_ins) ? input.flowReport.review_fold_ins : void 0;
+    if (stringArrayField2(foldIns, "objections").length > 0) {
+      return "Recommendation with required fold-ins";
+    }
+    if (stringArrayField2(foldIns, "missed_angles").length > 0) {
+      return "Recommendation with optional considerations";
+    }
+    return "Recommendation with reviewer notes";
+  }
+  return "Recommendation ready";
+}
+function prototypeOutcomeLabel(flowReport, runOutcome3) {
+  const outcome = stringField2(flowReport, "outcome") ?? runOutcome3;
+  if (outcome === "kept")
+    return "Kept";
+  if (outcome === "build_input_saved")
+    return "Saved as Build input";
+  if (outcome === "discarded")
+    return "Discarded";
+  return `Finished (${outcome})`;
+}
+function pursueOutcomeLabel(flowReport) {
+  const total = numberField(flowReport, "total_pursuits");
+  const completed = numberField(flowReport, "completed_count") ?? 0;
+  return total === void 0 ? `${completed} completed` : `${completed}/${total} completed`;
+}
+function goalOutcomeLabel(flowReport, runOutcome3) {
+  const outcome = stringField2(flowReport, "outcome") ?? runOutcome3;
+  return outcome === "complete" ? "Met" : "Not met";
+}
+function outcomeLabelFor(input) {
+  switch (input.flowId) {
+    case "review":
+      return reviewOutcomeLabel(input.flowReport);
+    case "build":
+      return buildOutcomeLabel(input.flowReport, input.runOutcome);
+    case "fix":
+      return fixOutcomeLabel(input.flowReport, input.runOutcome);
+    case "explore":
+      return exploreOutcomeLabel(input);
+    case "prototype":
+      return prototypeOutcomeLabel(input.flowReport, input.runOutcome);
+    case "pursue":
+      return pursueOutcomeLabel(input.flowReport);
+    case "goal":
+      return goalOutcomeLabel(input.flowReport, input.runOutcome);
+    default:
+      return input.runOutcome;
+  }
+}
+function normalizedAssessment(details, fallback) {
+  const assessment = detailWithPrefix(details, "Assessment: ");
+  if (assessment !== void 0)
+    return withoutDetailPrefix(assessment, "Assessment: ");
+  const recommendation = detailWithPrefix(details, "Recommendation: ");
+  if (recommendation !== void 0)
+    return withoutDetailPrefix(recommendation, "Recommendation: ");
+  const result = detailWithPrefix(details, "Result: ");
+  if (result !== void 0)
+    return withoutDetailPrefix(result, "Result: ");
+  return sentence2(fallback.replace(/^Circuit:\s*/i, "").replace(/^Circuit\s*·\s*/i, "").trim());
+}
+function keyPointsFromDetails(details) {
+  const points = [];
+  const add = (point) => {
+    const trimmed = point.trim();
+    if (trimmed.length === 0)
+      return;
+    if (points.includes(trimmed))
+      return;
+    if (points.length >= MAX_KEY_POINTS)
+      return;
+    points.push(trimmed);
+  };
+  for (const detail of details) {
+    if (detail.startsWith("Run note: "))
+      continue;
+    if (detail.startsWith("Assessment: "))
+      continue;
+    if (detail.startsWith("Recommendation: "))
+      continue;
+    if (detail.startsWith("Abort reason: "))
+      continue;
+    if (detail.startsWith("Escalation reason: "))
+      continue;
+    if (detail.startsWith("Handoff reason: "))
+      continue;
+    if (detail.startsWith("Stop reason: "))
+      continue;
+    if (detail.startsWith("Confidence limitations: "))
+      continue;
+    if (detail.startsWith("Residual risks: "))
+      continue;
+    if (detail.startsWith("Required fold-in: "))
+      continue;
+    if (detail.startsWith("Consider: "))
+      continue;
+    if (detail.startsWith("Next action: ") || detail.startsWith("Next step: "))
+      continue;
+    if (detail.startsWith("Reviewer steps: ")) {
+      for (const step of splitSemicolonDetail(detail, "Reviewer steps: "))
+        add(step);
+      continue;
+    }
+    add(detail);
+  }
+  return points;
+}
+function caveatsFrom(input) {
+  const caveats = [];
+  const add = (caveat) => {
+    const trimmed = caveat.trim();
+    if (trimmed.length === 0)
+      return;
+    if (caveats.includes(trimmed))
+      return;
+    if (caveats.length >= MAX_CAVEATS)
+      return;
+    caveats.push(trimmed);
+  };
+  for (const detail of input.details) {
+    if (detail.startsWith("Confidence limitations: ")) {
+      for (const caveat of splitSemicolonDetail(detail, "Confidence limitations: ")) {
+        add(sentence2(caveat));
+      }
+      continue;
+    }
+    if (detail.startsWith("Residual risks: ")) {
+      for (const caveat of splitSemicolonDetail(detail, "Residual risks: "))
+        add(sentence2(caveat));
+      continue;
+    }
+    if (detail.startsWith("Required fold-in: "))
+      add(withoutDetailPrefix(detail, "Required fold-in: "));
+    if (detail.startsWith("Consider: "))
+      add(withoutDetailPrefix(detail, "Consider: "));
+  }
+  for (const warning of input.warnings) {
+    add(`${warning.kind}: ${warning.message}`);
+  }
+  return caveats;
+}
+function nextActionFrom(details, flowId, outcomeLabel) {
+  const nextAction = detailWithPrefix(details, "Next action: ");
+  if (nextAction !== void 0)
+    return sentence2(withoutDetailPrefix(nextAction, "Next action: "));
+  const nextStep = detailWithPrefix(details, "Next step: ");
+  if (nextStep !== void 0)
+    return sentence2(withoutDetailPrefix(nextStep, "Next step: "));
+  if (flowId === "review" && outcomeLabel.startsWith("Issues")) {
+    return "address the findings, then rerun Review.";
+  }
+  if (outcomeLabel === "Needs follow-up" || outcomeLabel === "Applied with follow-ups") {
+    return "address the follow-up, then rerun the relevant check.";
+  }
+  if (outcomeLabel === "No scope")
+    return "rerun Review with source content in scope.";
+  if (outcomeLabel === "Failed")
+    return "inspect the failed proof and rerun after correction.";
+  return "nothing required.";
+}
+function runOutcomeOverrideBrief(input) {
+  const keyPoints = keyPointsFromDetails(input.details);
+  if (input.runResult.outcome === "checkpoint_waiting") {
+    return {
+      headline: digestHeadline(input.flowName),
+      assessment: "Circuit is waiting for a checkpoint choice before this flow can continue.",
+      key_points: [
+        `Checkpoint step: ${input.runResult.checkpoint.step_id}`,
+        `Choices: ${input.runResult.checkpoint.allowed_choices.join(", ")}`,
+        ...keyPoints
+      ].slice(0, MAX_KEY_POINTS),
+      caveats: [],
+      next_action: "choose a checkpoint option to continue."
+    };
+  }
+  if (input.runResult.outcome === "aborted") {
+    return {
+      headline: digestHeadline(input.flowName),
+      assessment: "The run aborted before this flow could finish.",
+      key_points: [
+        ...input.runResult.reason === void 0 ? [] : [`Abort reason: ${input.runResult.reason}`],
+        ...keyPoints
+      ].slice(0, MAX_KEY_POINTS),
+      caveats: [],
+      next_action: "fix the abort cause, then rerun the flow."
+    };
+  }
+  if (input.runResult.outcome === "escalated") {
+    return {
+      headline: digestHeadline(input.flowName),
+      assessment: "The run escalated because Circuit could not close the flow safely.",
+      key_points: [
+        ...input.runResult.reason === void 0 ? [] : [`Escalation reason: ${input.runResult.reason}`],
+        ...keyPoints
+      ].slice(0, MAX_KEY_POINTS),
+      caveats: [],
+      next_action: "inspect the escalation reason and choose the recovery path."
+    };
+  }
+  if (input.runResult.outcome === "handoff") {
+    return {
+      headline: digestHeadline(input.flowName),
+      assessment: "The flow prepared a handoff instead of closing complete.",
+      key_points: [
+        ...input.runResult.reason === void 0 ? [] : [`Handoff reason: ${input.runResult.reason}`],
+        ...keyPoints
+      ].slice(0, MAX_KEY_POINTS),
+      caveats: [],
+      next_action: "resume from the handoff record."
+    };
+  }
+  if (input.runResult.outcome === "stopped") {
+    return {
+      headline: digestHeadline(input.flowName),
+      assessment: "The flow stopped before complete evidence was produced.",
+      key_points: [
+        ...input.runResult.reason === void 0 ? [] : [`Stop reason: ${input.runResult.reason}`],
+        ...keyPoints
+      ].slice(0, MAX_KEY_POINTS),
+      caveats: [],
+      next_action: "inspect the stopped run and choose whether to rerun or hand off."
+    };
+  }
+  return void 0;
+}
+function buildBriefSlots(input) {
+  const flowName = flowDisplayName(input.flowId);
+  const override = runOutcomeOverrideBrief({
+    flowName,
+    runResult: input.runResult,
+    details: input.details
+  });
+  if (override !== void 0)
+    return override;
+  const outcomeLabel = outcomeLabelFor({
+    runFolder: input.runFolder,
+    flowId: input.flowId,
+    flowReport: input.flowReport,
+    runOutcome: input.runResult.outcome,
+    resultSummary: input.runResult.summary
+  });
+  return {
+    headline: digestHeadline(flowName),
+    assessment: normalizedAssessment(input.details, input.projectionHeadline),
+    key_points: keyPointsFromDetails(input.details),
+    caveats: caveatsFrom({ details: input.details, warnings: input.warnings }),
+    next_action: nextActionFrom(input.details, input.flowId, outcomeLabel)
+  };
 }
 function evidenceLinks2(runFolder, report) {
   return arrayField(report, "evidence_links").flatMap((item) => {
@@ -58765,7 +58890,26 @@ function checkpointOptionDetails(runFolder, allowedChoices) {
   });
 }
 function renderMarkdown(summary) {
-  const lines = ["CIRCUIT", `\u23BF ${summary.status_text ?? statusTextFromHeadline(summary.headline)}`];
+  if (summary.brief_slots !== void 0) {
+    const lines2 = [summary.brief_slots.headline, "", summary.brief_slots.assessment, ""];
+    for (const point of summary.brief_slots.key_points)
+      lines2.push(`- ${point}`);
+    for (const caveat of summary.brief_slots.caveats)
+      lines2.push(`- Caveat: ${caveat}`);
+    lines2.push("", `Next: ${summary.brief_slots.next_action}`);
+    if (summary.auto_resolutions !== void 0 && summary.auto_resolutions.length > 0) {
+      lines2.push("", "Auto-resolutions:");
+      for (const resolution of summary.auto_resolutions.slice(0, MAX_KEY_POINTS)) {
+        lines2.push(`- ${autoResolutionSummaryLine(resolution)}`);
+      }
+    }
+    if (summary.html_path !== void 0) {
+      lines2.push("", `Rich summary: ${summary.html_path}`);
+    }
+    return `${lines2.join("\n")}
+`;
+  }
+  const lines = [summary.headline, "", summary.status_text ?? digestStatusText(summary.headline)];
   if (summary.checkpoint !== void 0) {
     lines.push("", "## Checkpoint", "");
     lines.push(`- Step: \`${summary.checkpoint.step_id}\``);
@@ -58894,7 +59038,19 @@ function writeOperatorSummary(input) {
   if (input.runResult.outcome === "escalated" && input.runResult.reason !== void 0) {
     details.push(`Escalation reason: ${input.runResult.reason}`);
   }
-  const headline = input.runResult.outcome === "checkpoint_waiting" ? "Circuit: Waiting for a checkpoint choice." : input.runResult.outcome === "aborted" ? "Circuit: Run aborted." : input.runResult.outcome === "escalated" ? "Circuit: Run escalated." : projection.headline;
+  const warnings = [
+    ...warningRecords(flowReport),
+    ...htmlEmitWarning === void 0 ? [] : [htmlEmitWarning]
+  ];
+  const briefSlots = buildBriefSlots({
+    runFolder: input.runFolder,
+    flowId,
+    flowReport,
+    runResult: input.runResult,
+    projectionHeadline: projection.headline,
+    details,
+    warnings
+  });
   const candidate = OperatorSummary.parse({
     schema_version: 1,
     run_id: input.runResult.run_id,
@@ -58903,13 +59059,11 @@ function writeOperatorSummary(input) {
     ...input.route.routedBy === void 0 ? {} : { routed_by: input.route.routedBy },
     ...input.route.routerReason === void 0 ? {} : { router_reason: input.route.routerReason },
     outcome: input.runResult.outcome,
-    headline,
-    status_text: statusTextFromHeadline(headline),
+    headline: briefSlots.headline,
+    status_text: digestStatusText(briefSlots.headline),
+    brief_slots: briefSlots,
     details,
-    evidence_warnings: [
-      ...warningRecords(flowReport),
-      ...htmlEmitWarning === void 0 ? [] : [htmlEmitWarning]
-    ],
+    evidence_warnings: warnings,
     run_folder: input.runFolder,
     ...resultPath2 === void 0 ? {} : { result_path: resultPath2 },
     ...outHtmlPath === void 0 ? {} : { html_path: outHtmlPath },
@@ -62363,7 +62517,6 @@ function routeOutputFields(input) {
     selected_flow: input.selectedFlow,
     routed_by: input.routedBy,
     router_reason: input.routerReason,
-    ...input.routerSignal === void 0 ? {} : { router_signal: input.routerSignal },
     ...input.entryMode === void 0 ? {} : { entry_mode: input.entryMode },
     ...input.entryModeSource === void 0 ? {} : { entry_mode_source: input.entryModeSource }
   };
@@ -62709,10 +62862,7 @@ function resolveCompiledFlowRoute(args) {
       reason: "explicit flow positional argument"
     };
   }
-  if (args.goal === void 0) {
-    throw new Error("--goal is required when not resuming a checkpoint");
-  }
-  return classifyCompiledFlowTask(args.goal);
+  throw new Error("a flow name is required: pass one of build|fix|review|explore|prototype|pursue as the first argument");
 }
 function hasExplicitAxes(args) {
   return args.rigorProvided || args.tournamentProvided || args.autonomousProvided;
@@ -62742,39 +62892,12 @@ function runtimeDepthForAxes(axes) {
     return "tournament";
   return axes.rigor;
 }
-function axesForAxisSelectionName(entryModeName) {
-  if (entryModeName === "lite" || entryModeName === "deep") {
-    return Axes.parse({ rigor: entryModeName });
-  }
-  if (entryModeName === "tournament") {
-    return Axes.parse({ tournament: true });
-  }
-  if (entryModeName === "autonomous") {
-    return Axes.parse({ autonomous: true });
-  }
-  return Axes.parse({});
-}
-function selectedAxes(args, route) {
-  if (hasExplicitAxes(args))
-    return args.axes;
-  if (route.inferredEntryModeName !== void 0) {
-    return axesForAxisSelectionName(route.inferredEntryModeName);
-  }
-  return args.axes;
-}
-function resolveEntryModeSelection(args, route) {
+function resolveEntryModeSelection(args) {
   if (hasExplicitAxes(args)) {
     return {
       entryModeName: axisSelectionNameForAxes(args.axes),
       source: "explicit",
       reason: "explicit axis flags"
-    };
-  }
-  if (route.inferredEntryModeName !== void 0) {
-    return {
-      entryModeName: route.inferredEntryModeName,
-      source: "classifier",
-      ...route.inferredEntryModeReason === void 0 ? {} : { reason: route.inferredEntryModeReason }
     };
   }
   return {};
@@ -62797,7 +62920,7 @@ function axisAllowListText(flowId, support) {
   return `${flowId} allows rigors: ${rigors}; tournament: ${support.supportsTournament ? "yes" : "no"}; autonomous: ${support.supportsAutonomous ? "yes" : "no"}`;
 }
 function validateFlowAxes(input) {
-  const axes = selectedAxes(input.args, input.route);
+  const axes = input.args.axes;
   const support = axisSupportFromFlow(input);
   const flowId = input.flow.id;
   const allowList = axisAllowListText(flowId, support);
@@ -62841,17 +62964,15 @@ function assertFixtureMatchesRoute(flow, route) {
 function selectedEntryModeName(_flow, entryModeSelection) {
   return entryModeSelection.entryModeName ?? "default";
 }
-function selectedDepth(flow, args, route, _entryModeSelection) {
+function selectedDepth(flow, args, _entryModeSelection) {
   if (hasExplicitAxes(args))
     return runtimeDepthForAxes(args.axes);
-  if (route.inferredEntryModeName !== void 0)
-    return runtimeDepthForAxes(selectedAxes(args, route));
   return runtimeDepthForAxes(flow.axes.default);
 }
 function classifyRuntimeSupport(input) {
   const flowId = input.flow.id;
   const entryModeName = selectedEntryModeName(input.flow, input.entryModeSelection);
-  const depth = selectedDepth(input.flow, input.args, input.route, input.entryModeSelection);
+  const depth = selectedDepth(input.flow, input.args, input.entryModeSelection);
   return {
     kind: "supported",
     flowId,
@@ -63026,9 +63147,16 @@ async function runExecutionCommand(args, options) {
     throw new Error("internal error: --goal missing outside checkpoint resume mode");
   }
   const operatorGoal = args.goal;
-  const route = resolveCompiledFlowRoute(args);
-  const entryModeSelection = resolveEntryModeSelection(args, route);
-  const fixtureSelectionName = fixtureSelectionNameForAxes(selectedAxes(args, route));
+  let route;
+  try {
+    route = resolveCompiledFlowRoute(args);
+  } catch (err) {
+    process.stderr.write(`error: ${err.message}
+`);
+    return 2;
+  }
+  const entryModeSelection = resolveEntryModeSelection(args);
+  const fixtureSelectionName = fixtureSelectionNameForAxes(args.axes);
   const fixturePath = resolveFixturePath(route.flowName, fixtureSelectionName, args.fixturePath, args.flowRoot);
   if (!existsSync30(fixturePath)) {
     const pkg = findCompiledFlowPackageById(route.flowName);
@@ -63069,7 +63197,6 @@ async function runExecutionCommand(args, options) {
     selected_flow: flow.id,
     routed_by: route.source,
     router_reason: route.reason,
-    ...route.matched_signal === void 0 ? {} : { router_signal: route.matched_signal },
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
@@ -63111,8 +63238,8 @@ async function runExecutionCommand(args, options) {
       now,
       projectRoot,
       childCompiledFlowResolver: defaultChildCompiledFlowResolver(args.flowRoot),
-      depth: selectedDepth(flow, args, route, entryModeSelection),
-      axes: selectedAxes(args, route),
+      depth: selectedDepth(flow, args, entryModeSelection),
+      axes: args.axes,
       ...entryModeSelection.entryModeName === void 0 ? {} : { entryModeName: entryModeSelection.entryModeName },
       ...options.relayer === void 0 ? {} : { relayer: options.relayer },
       ...options.runtimeExecutors === void 0 ? {} : { executors: options.runtimeExecutors },
@@ -63204,7 +63331,6 @@ async function runExecutionCommand(args, options) {
           selectedFlow: route.flowName,
           routedBy: route.source,
           routerReason: route.reason,
-          ...route.matched_signal === void 0 ? {} : { routerSignal: route.matched_signal },
           ...entryModeSelection.entryModeName === void 0 ? {} : { entryMode: entryModeSelection.entryModeName },
           ...entryModeSelection.source === void 0 ? {} : { entryModeSource: entryModeSelection.source }
         }),
@@ -63266,10 +63392,10 @@ async function runExecutionCommand(args, options) {
       recallMemoryIndicator: historyRecall?.precision.indicator
     });
     let autonomousLoop;
-    if (selectedAxes(args, route).autonomous === true && processEvidence !== void 0 && runEnvelope !== void 0) {
+    if (args.axes.autonomous === true && processEvidence !== void 0 && runEnvelope !== void 0) {
       const primaryProjection = processEvidence.projection;
       const contract = runEnvelope.record.goal_contract;
-      const parentAxes = selectedAxes(args, route);
+      const parentAxes = args.axes;
       const recoveryFlowCache = /* @__PURE__ */ new Map();
       try {
         autonomousLoop = await runAutonomousContinuation({
@@ -63357,7 +63483,7 @@ async function runExecutionCommand(args, options) {
         autonomousLoop = void 0;
       }
     }
-    const resolvedAxes = selectedAxes(args, route);
+    const resolvedAxes = args.axes;
     process.stdout.write(`${JSON.stringify({
       schema_version: 1,
       run_id: runResult.run_id,
@@ -63371,7 +63497,6 @@ async function runExecutionCommand(args, options) {
         selectedFlow: route.flowName,
         routedBy: route.source,
         routerReason: route.reason,
-        ...route.matched_signal === void 0 ? {} : { routerSignal: route.matched_signal },
         ...entryModeSelection.entryModeName === void 0 ? {} : { entryMode: entryModeSelection.entryModeName },
         ...entryModeSelection.source === void 0 ? {} : { entryModeSource: entryModeSelection.source }
       }),

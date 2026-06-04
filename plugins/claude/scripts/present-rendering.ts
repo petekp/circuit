@@ -9,17 +9,18 @@ function stringField(record: Record<string, unknown>, key: string): string | und
 
 // The final user-facing answer Markdown path. Per
 // docs/contracts/host-rendering.md "Final Rendering", hosts MUST read
-// `run_surface_markdown_path` (the compact Run surface) when present and only
-// fall back to `operator_summary_markdown_path` when it is absent. Returns the
-// first of those that actually exists on disk (F-M-3).
+// `operator_summary_markdown_path` (the readable digest) when present and only
+// fall back to `run_surface_markdown_path` (the compact Run surface, a status
+// line plus artifact links) when the digest is absent. Returns the first of
+// those that actually exists on disk.
 export function finalAnswerMarkdownPath(
   result: Record<string, unknown>,
   exists: (path: string) => boolean,
 ): string | undefined {
-  const runSurface = stringField(result, 'run_surface_markdown_path');
-  if (runSurface !== undefined && exists(runSurface)) return runSurface;
   const operatorSummary = stringField(result, 'operator_summary_markdown_path');
   if (operatorSummary !== undefined && exists(operatorSummary)) return operatorSummary;
+  const runSurface = stringField(result, 'run_surface_markdown_path');
+  if (runSurface !== undefined && exists(runSurface)) return runSurface;
   return undefined;
 }
 

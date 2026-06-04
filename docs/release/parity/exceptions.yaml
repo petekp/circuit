@@ -12,6 +12,24 @@ exceptions:
     readiness_ref: REL-007
     rationale: Write-capable worker behavior is now disclosed in first-run docs, progress output, and final summaries.
     public_wording: Write-capable worker behavior is disclosed before use.
+  - id: EX-REL-004-DEVELOP-INTENT-REMOVED
+    capability_id: router:intent:develop
+    status: approved_exception
+    readiness_ref: REL-004
+    rationale: Circuit removed the deterministic flow classifier; routing is model-only. The operator or host names the flow, so the "develop:" goal-text intent prefix no longer exists as a routing capability.
+    public_wording: Run Build with the explicit Build command; goal-text prefixes are no longer required or routed.
+  - id: EX-REL-004-DECIDE-INTENT-REMOVED
+    capability_id: router:intent:decide
+    status: approved_exception
+    readiness_ref: REL-004
+    rationale: Circuit removed the deterministic flow classifier; routing is model-only. The operator or host names the flow, so the "decide:" goal-text intent prefix no longer exists as a routing capability.
+    public_wording: Run Explore with the explicit Explore command; goal-text prefixes are no longer required or routed.
+  - id: EX-REL-016-PLAN-EXECUTION-REMOVED
+    capability_id: feature:plan-execution
+    status: approved_exception
+    readiness_ref: REL-016
+    rationale: Circuit removed the deterministic flow classifier; routing is model-only. Entry-mode inference, including detecting an "Execute this plan:" request and selecting the first executable slice, no longer exists. The operator or host names the flow and points it at the plan.
+    public_wording: To execute a plan, name the flow and point it at the plan; Circuit no longer infers a plan-execution entry mode from goal text.
   - id: EX-REL-011-BUILD-ANALYZE-GROUNDING
     capability_id: flow:build
     status: approved_exception

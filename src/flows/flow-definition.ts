@@ -24,7 +24,6 @@ import type {
   CompiledFlowPaths,
   CompiledFlowRelayReport,
   CompiledFlowReportSchema,
-  CompiledFlowRoutingMetadata,
   CompiledFlowRuntimeSurface,
   CompiledFlowVisibility,
 } from './types.js';
@@ -68,7 +67,6 @@ export interface FlowDefinitionInput {
   readonly visibility: CompiledFlowVisibility;
   readonly schematic: FlowDefinitionSchematicInput;
   readonly paths?: FlowDefinitionPaths;
-  readonly routing?: CompiledFlowRoutingMetadata;
   readonly reportDeclarations?: readonly FlowReportDeclaration[];
   readonly relayReports?: readonly CompiledFlowRelayReport[];
   readonly reportSchemas?: readonly CompiledFlowReportSchema[];
@@ -302,7 +300,6 @@ export function compileFlowDefinition(definition: FlowDefinition): CompiledFlowP
     id: definition.id,
     visibility: definition.visibility,
     paths: compilePaths(definition),
-    ...(definition.routing === undefined ? {} : { routing: definition.routing }),
     relayReports: reportSurfaces.relayReports,
     ...(reportSurfaces.reportSchemas === undefined
       ? {}

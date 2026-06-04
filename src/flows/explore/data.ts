@@ -32,24 +32,6 @@ export const exploreFlowData = {
     schematic: 'src/flows/explore/schematic.json',
     contract: 'src/flows/explore/contract.md',
   },
-  routing: {
-    order: Number.MAX_SAFE_INTEGER,
-    signals: [],
-    reasonForMatch() {
-      throw new Error('explore is the default flow; reasonForMatch should not be called');
-    },
-    isDefault: true,
-    defaultReason: 'no routed flow signal matched; routed to explore as the conservative default',
-    inferEntryMode(taskText) {
-      if (/^\s*decide\s*:/i.test(taskText)) {
-        return {
-          name: 'tournament',
-          reason: 'matched decide intent; selected Explore tournament mode',
-        };
-      }
-      return undefined;
-    },
-  },
   schematic: {
     schema_version: '1',
     id: 'explore',

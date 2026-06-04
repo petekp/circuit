@@ -6,8 +6,20 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "complete",
-  "headline": "Circuit: Prototype verified and saved as Build input.",
-  "status_text": "Prototype verified and saved as Build input.",
+  "headline": "Circuit · Prototype",
+  "status_text": "Prototype",
+  "brief_slots": {
+    "headline": "Circuit · Prototype",
+    "assessment": "Prototype verified and saved as Build input. Created a local prototype artifact for building custom Circuit flows from existing blocks and inspecting pre-packaged flows.",
+    "key_points": [
+      "Worker access: A worker can edit this checkout.",
+      "Result: Prototype verified and saved as Build input. Created a local prototype artifact for building custom Circuit flows from existing blocks and inspecting pre-packaged flows.",
+      "Verification: passed.",
+      "Prototype root: docs/release/proofs/runs/prototype/run/prototype-files."
+    ],
+    "caveats": [],
+    "next_action": "Use build_followup_prompt as the starting brief for Build when you are ready to turn this prototype into production code."
+  },
   "details": [
     "Worker access: A worker can edit this checkout.",
     "Run note: Run closed with outcome complete via @complete.",

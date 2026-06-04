@@ -14,7 +14,7 @@
     {
       "kind": "request",
       "ref": "reports/checkpoints/frame-step-request.json",
-      "sha256": "e29aacfef7b762b99fc7a63e73ff8ac1585123e1f6b035366b8832bfc5d26245",
+      "sha256": "fd2cd5cad80aa1516f850a12dc53d26b03cac12f52b97df819850e688b630241",
       "run_id": "44444444-4444-4444-4444-444444444403",
       "flow_id": "build",
       "step_id": "frame-step"
@@ -37,7 +37,7 @@
     "request_ref": {
       "kind": "request",
       "ref": "reports/checkpoints/frame-step-request.json",
-      "sha256": "e29aacfef7b762b99fc7a63e73ff8ac1585123e1f6b035366b8832bfc5d26245",
+      "sha256": "fd2cd5cad80aa1516f850a12dc53d26b03cac12f52b97df819850e688b630241",
       "run_id": "44444444-4444-4444-4444-444444444403",
       "flow_id": "build",
       "step_id": "frame-step"

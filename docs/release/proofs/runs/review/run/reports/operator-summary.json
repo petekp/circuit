@@ -6,8 +6,23 @@
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
   "outcome": "complete",
-  "headline": "Circuit: Review complete. Verdict: CLEAN. Findings: 0.",
-  "status_text": "Review complete. Verdict: CLEAN. Findings: 0.",
+  "headline": "Circuit · Review",
+  "status_text": "Review",
+  "brief_slots": {
+    "headline": "Circuit · Review",
+    "assessment": "Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.",
+    "key_points": [
+      "Inspected the relayed review-intake report.",
+      "Cross-checked the staged diff against the untracked-file metadata.",
+      "Untracked evidence: paths and sizes only for 1 file (1 untracked file found)."
+    ],
+    "caveats": [
+      "Untracked file contents were omitted from the relay (metadata-only policy).",
+      "Untracked file evidence was capped at 20 files.",
+      "untracked_file_content_omitted: untracked file contents were not included; pass --include-untracked-content only when those files are safe to relay"
+    ],
+    "next_action": "nothing required."
+  },
   "details": [
     "Run note: Run closed with outcome complete via @complete.",
     "Assessment: Reviewer inspected the relayed staged-diff and untracked-file evidence and found nothing actionable in scope.",
@@ -23,6 +38,7 @@
   ],
   "run_folder": "<repo>/docs/release/proofs/runs/review/run",
   "result_path": "<repo>/docs/release/proofs/runs/review/run/reports/result.json",
+  "html_path": "<repo>/docs/release/proofs/runs/review/run/reports/operator-summary.html",
   "report_paths": [
     {
       "label": "Run result",
@@ -31,6 +47,10 @@
     {
       "label": "review result",
       "path": "<repo>/docs/release/proofs/runs/review/run/reports/review-result.json"
+    },
+    {
+      "label": "Operator summary (HTML)",
+      "path": "<repo>/docs/release/proofs/runs/review/run/reports/operator-summary.html"
     }
   ]
 }

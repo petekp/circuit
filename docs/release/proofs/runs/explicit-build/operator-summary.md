@@ -1,10 +1,9 @@
-CIRCUIT
-⎿ Waiting for a checkpoint choice.
+Circuit · Build
 
-## Checkpoint
+Circuit is waiting for a checkpoint choice before this flow can continue.
 
-- Step: `frame-step`
-- Request: <repo>/docs/release/proofs/runs/explicit-build/run/reports/checkpoints/frame-step-request.json
+- Checkpoint step: frame-step
 - Choices: continue
-
 - Worker access: A worker can edit this checkout.
+
+Next: choose a checkpoint option to continue.

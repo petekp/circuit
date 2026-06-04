@@ -114,11 +114,6 @@ export async function loadCurrentCatalog(): Promise<any> {
   return import(resolve(projectRoot, 'dist/flows/catalog.js'));
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: dynamically imports built router module.
-export async function loadRouter(): Promise<any> {
-  return import(resolve(projectRoot, 'dist/flows/router.js'));
-}
-
 // biome-ignore lint/suspicious/noExplicitAny: dynamically imports built connector schemas module.
 export async function loadConnectorSchemas(): Promise<any> {
   return import(resolve(projectRoot, 'dist/schemas/connector.js'));

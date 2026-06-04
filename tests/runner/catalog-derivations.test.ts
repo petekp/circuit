@@ -11,12 +11,10 @@ import {
   buildCloseRegistry,
   buildComposeRegistry,
   buildReportSchemaRegistry,
-  buildRoutablePackages,
   buildRuntimeSurfaceRegistry,
   buildSchemaHintMap,
   buildStructuralHintList,
   buildVerificationRegistry,
-  findDefaultRoutablePackage,
 } from '../../src/flows/catalog-derivations.js';
 import type { CheckpointBriefBuilder } from '../../src/flows/registries/checkpoint-writers/types.js';
 import type { CloseBuilder } from '../../src/flows/registries/close-writers/types.js';
@@ -33,7 +31,6 @@ function fakePackage(
     id: opts.id,
     visibility: opts.visibility ?? 'public',
     paths: opts.paths ?? { schematic: `synthetic/${opts.id}.schematic.json` },
-    ...(opts.routing === undefined ? {} : { routing: opts.routing }),
     relayReports: opts.relayReports ?? [],
     writers: opts.writers ?? { compose: [], close: [], verification: [], checkpoint: [] },
     ...(opts.structuralHints === undefined ? {} : { structuralHints: opts.structuralHints }),
@@ -386,118 +383,10 @@ describe('catalog-derivations: schema and structural hint maps', () => {
   });
 });
 
-describe('catalog-derivations: routable packages and default selection', () => {
-  it('keeps only packages with routing and sorts by routing.order ascending', () => {
-    const packages = [
-      fakePackage({
-        id: 'sub-only',
-        // no routing → not routable
-      }),
-      fakePackage({
-        id: 'late',
-        routing: {
-          order: 30,
-          signals: [],
-          reasonForMatch: () => 'late',
-        },
-      }),
-      fakePackage({
-        id: 'early',
-        routing: {
-          order: 10,
-          signals: [],
-          reasonForMatch: () => 'early',
-        },
-      }),
-      fakePackage({
-        id: 'middle',
-        routing: {
-          order: 20,
-          signals: [],
-          reasonForMatch: () => 'middle',
-        },
-      }),
-    ];
-    const routables = buildRoutablePackages(packages);
-    expect(routables.map((r) => r.pkg.id)).toEqual(['early', 'middle', 'late']);
-  });
-
-  it('throws when no routable package is marked isDefault', () => {
-    const routables = buildRoutablePackages([
-      fakePackage({
-        id: 'a',
-        routing: {
-          order: 10,
-          signals: [],
-          reasonForMatch: () => 'a',
-        },
-      }),
-    ]);
-    expect(() => findDefaultRoutablePackage(routables)).toThrow(/no flow package marked isDefault/);
-  });
-
-  it('throws when more than one routable package is marked isDefault', () => {
-    const routables = buildRoutablePackages([
-      fakePackage({
-        id: 'a',
-        routing: {
-          order: 10,
-          signals: [],
-          reasonForMatch: () => 'a',
-          isDefault: true,
-          defaultReason: 'a default',
-        },
-      }),
-      fakePackage({
-        id: 'b',
-        routing: {
-          order: 20,
-          signals: [],
-          reasonForMatch: () => 'b',
-          isDefault: true,
-          defaultReason: 'b default',
-        },
-      }),
-    ]);
-    expect(() => findDefaultRoutablePackage(routables)).toThrow(
-      /more than one default flow package: a, b/,
-    );
-  });
-
-  it('returns the unique default package when exactly one is marked isDefault', () => {
-    const routables = buildRoutablePackages([
-      fakePackage({
-        id: 'normal',
-        routing: { order: 10, signals: [], reasonForMatch: () => 'normal' },
-      }),
-      fakePackage({
-        id: 'fallback',
-        routing: {
-          order: 99,
-          signals: [],
-          reasonForMatch: () => 'fallback',
-          isDefault: true,
-          defaultReason: 'fell through',
-        },
-      }),
-    ]);
-    const def = findDefaultRoutablePackage(routables);
-    expect(def.pkg.id).toBe('fallback');
-  });
-});
-
 describe('catalog-derivations: real catalog invariants', () => {
   // These run against the actual src/flows/catalog.ts so the
   // behavioral guarantees apply to the live engine state, not just
   // synthetic fixtures.
-  it('the live catalog has exactly one isDefault routable package', async () => {
-    const { flowPackages } = await import('../../src/flows/catalog.js');
-    const routables = buildRoutablePackages(flowPackages);
-    const defaults = routables.filter((r) => r.routing.isDefault === true);
-    expect(defaults).toHaveLength(1);
-    expect(defaults[0]?.pkg.id).toBe('explore');
-  });
-
   it('the live catalog has no duplicate flow ids', async () => {
     const { flowPackages } = await import('../../src/flows/catalog.js');
     const ids = flowPackages.map((p) => p.id);
