@@ -195,9 +195,9 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
 
 - **CONFIG-I10 — Skill Hook policy is typed, deterministic, and
   separate from flow-step skill slots.** `Config.skill_hooks.policy` maps
-  `SkillHookName` keys to policy rules with `mode: auto | ask | mute`.
-  `auto` and `ask` rules require a non-empty unique list of concrete
-  `SkillId`s; `mute` rules must not name skills. Project layers replace
+  `SkillHookName` keys to policy rules with `mode: auto | mute` (mode
+  defaults to `auto` when omitted). An `auto` rule requires a non-empty unique
+  list of concrete `SkillId`s; a `mute` rule must not name skills. Project layers replace
   user-global entries by hook key; V1 does not merge skill arrays across
   layers. `Config.skill_hooks.detection` carries optional literal file-pattern
   declarations. This surface does not dispatch skills by itself; runtime
@@ -473,8 +473,8 @@ After a `CircuitOverride` is accepted:
 - **v0.3 (Run-centered Skill Hook policy slice, this version)** —
   CONFIG-I10 added. Schema-level landings:
   - `skill_hooks.policy` added as a strict record keyed by `SkillHookName`.
-    Policy rules support only `auto`, `ask`, and `mute`; concrete skill ids
-    are availability-gated later and no dispatch happens at config parse time.
+    Policy rules support `auto` and `mute` (mode defaults to `auto`); concrete
+    skill ids are availability-gated later and no dispatch happens at config parse time.
   - `skill_hooks.detection` added as a strict holder for literal detection
     patterns. Detection remains observable-state based; natural-language
     inference is not a config feature.

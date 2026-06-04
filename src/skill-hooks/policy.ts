@@ -1,18 +1,12 @@
-// Skill-hook policy layer — deliberately PRE-WIRED; no live caller yet.
-//
-// The schema half of this domain ships and runs today: Config.skill_hooks
-// (SkillHookConfig), Step.skill_hooks (SkillHookNameArray), and the
-// 'skill-hook-ask' run-decision reason all flow through the runtime. This
-// module is the policy/dispatch half, staged for Phase 3.5 of the run-centered
-// migration ("future config surface; no dispatch yet"). By design nothing in
-// the runtime, CLI, or flows invokes resolveSkillHookPolicy /
-// buildRunSkillHookEvent yet, so esbuild tree-shakes it out of the shipped
-// plugin bundle.
+// Skill-hook policy layer — resolves an operator's skill_hooks policy for a hook
+// and builds the run.skill-hook event the dispatcher records (and, for `auto`,
+// the actuator injects). Live since the dispatch slices: graph-runner ->
+// dispatch.ts -> buildRunSkillHookEvent. Two modes: `auto` prepares the
+// configured skills; `mute` records the event with no prepared skills. A strict
+// policy whose configured skill is unavailable raises a decision packet instead
+// of silently proceeding.
 //
 // Behavioral oracle: tests/contracts/skill-hook-policy-schema.test.ts.
-// This is intentionally-staged code, not dead code: deleting it would discard
-// contract-tested policy logic the live schema is already shaped to drive. When
-// skill-hook dispatch is wired, this is the layer that activates.
 
 import type { LayeredConfig } from '../schemas/config.js';
 import { SkillId } from '../schemas/ids.js';
@@ -49,7 +43,6 @@ export interface BuildRunSkillHookEventInput {
   readonly cardinality: SkillHookCardinality;
   readonly configLayers?: readonly LayeredConfig[];
   readonly registry?: UserSkillRegistry;
-  readonly askDecision?: 'pending' | 'accepted' | 'rejected';
   readonly decisionPacketId?: string;
   readonly flowId?: string;
   readonly stageId?: string;
@@ -111,9 +104,7 @@ export function buildRunSkillHookEvent(input: BuildRunSkillHookEventInput): RunS
   const registry = input.registry ?? createUserSkillRegistry();
   const triggeredSkills: RunSkillHookEventValue['triggered_skills'] = [];
   const unavailableSkills: RunSkillHookEventValue['unavailable_skills'] = [];
-  const askDecision = input.askDecision ?? 'pending';
-  const shouldPrepare =
-    policy.mode === 'auto' || (policy.mode === 'ask' && askDecision === 'accepted');
+  const shouldPrepare = policy.mode === 'auto';
 
   if (shouldPrepare) {
     for (const skill of policy.skills) {
@@ -136,11 +127,9 @@ export function buildRunSkillHookEvent(input: BuildRunSkillHookEventInput): RunS
   }
 
   const decisionPacketId =
-    policy.mode === 'ask' && askDecision !== 'accepted'
-      ? (input.decisionPacketId ?? `${input.eventId}:ask`)
-      : policy.mode !== 'none' && policy.strict && unavailableSkills.length > 0
-        ? (input.decisionPacketId ?? `${input.eventId}:strict-skill-unavailable`)
-        : input.decisionPacketId;
+    policy.mode !== 'none' && policy.strict && unavailableSkills.length > 0
+      ? (input.decisionPacketId ?? `${input.eventId}:strict-skill-unavailable`)
+      : input.decisionPacketId;
 
   return RunSkillHookEvent.parse({
     schema: 'run.skill-hook@v0',

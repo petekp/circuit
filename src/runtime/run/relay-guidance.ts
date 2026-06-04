@@ -376,7 +376,7 @@ export function planRelayGuidanceDecision(input: {
   assertConnectorSelectionCompatible(relayExecution.connectorName, resolvedSelection);
   // Skill-hook actuation: any skills an `auto` hook injected so far, applied
   // ONLY to write-capable (implementer) relays. Every injecting hook today
-  // (before/after:edit-file, after:verification-failed) concerns a code edit, so
+  // (before/after:edit-files, after:verification-failed) concerns a code edit, so
   // a researcher or reviewer relay must never receive these skills — a reviewer
   // judges the work independently and an implementer skill would contaminate that
   // role. (Without this gate the run-scoped channel would leak the skill into

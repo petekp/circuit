@@ -107,15 +107,24 @@ The skill contract is [`docs/contracts/skill.md`](contracts/skill.md).
 
 ## Skill Hook Policy
 
-The `skill_hooks` config surface declares which skills a run would prepare at
-named moments. Dispatch is **report-only** today: it records which hooks fire
-under your policy (in the run trace), but injects no skill into any worker yet.
+The `skill_hooks` config surface declares which skills a run loads at named
+moments. Each hook resolves to one of two modes:
+
+- **`auto`** (the default): inject the listed skills into the worker that makes
+  the change. This is what fires when you omit `mode`, so listing skills under a
+  hook is enough to load them.
+- **`mute`**: record that the hook fired (in the run trace) but inject nothing.
+  Use it to watch what a hook *would* load before you let it act, or as a
+  one-line off switch that keeps the skill list around.
+
+Injection is role-scoped: an `auto` hook loads its skills only into the
+implementer worker, never the researcher or reviewer.
 
 File-edit hooks are parameterized by an extension suffix in the key:
-`after:edit-file:.tsx` fires after a step touches a `.tsx` file,
-`before:edit-file:.ts` fires when a step is predicted to touch `.ts`. The engine
+`after:edit-files:.tsx` fires after a step touches a `.tsx` file,
+`before:edit-files:.ts` fires when a step is predicted to touch `.ts`. The engine
 matches the literal extension suffix; the meaning (`.tsx` means React, so load a
-React skill) lives entirely in your policy. A bare `after:edit-file` matches any
+React skill) lives entirely in your policy. A bare `after:edit-files` matches any
 file edit.
 
 ```yaml
@@ -123,20 +132,17 @@ schema_version: 1
 
 skill_hooks:
   policy:
-    after:edit-file:.tsx:
-      mode: auto
+    # mode omitted -> auto: list skills and they load.
+    after:edit-files:.tsx:
       skills:
         - react-doctor
-    before:high-impact-alignment:
-      mode: ask
-      skills:
-        - grill-with-docs
+    # observe-only: records the hook, injects nothing.
     before:architecture-analysis:
       mode: mute
 ```
 
-`auto` and `ask` need at least one concrete skill id. `mute` names no skills.
-Project config replaces user-global policy by hook key.
+An `auto` rule needs at least one concrete skill id. A `mute` rule names no
+skills. Project config replaces user-global policy by hook key.
 
 ## Codex Host And Codex Worker
 

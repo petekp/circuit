@@ -79,8 +79,8 @@ live in author or operator namespaces (see "Authoring Custom Hooks").
 | `before:plan-implementation` | About to decide an implementation approach for the current goal. | Stage transition into Plan, or step metadata `kind: plan`. | per-stage | `auto` |
 | `before:implementation` | About to start writing code for an approved plan. | Stage transition from Plan to Act, or first Act-stage step start. | per-stage | `auto` |
 | `before:verification` | About to verify the work against acceptance criteria. | Stage transition into Verify, or step metadata `kind: verify`. | per-stage | `auto` |
-| `before:edit-file` | About to edit a file matching the policy's extension predicate. | A prior step's typed predicted surface (`anticipated_file_extensions` / `likely_touched`) contains an entry matching the key suffix. Bare `before:edit-file` matches any predicted edit. | per-step | `auto` |
-| `after:edit-file` | A step finished after editing a file matching the policy's extension predicate. | The step's actual touched-files surface (change-set `observed`, or a touched-files self-report) contains an entry matching the key suffix. Bare `after:edit-file` matches any edit. | per-step | `auto` |
+| `before:edit-files` | About to edit a file matching the policy's extension predicate. | A prior step's typed predicted surface (`anticipated_file_extensions` / `likely_touched`) contains an entry matching the key suffix. Bare `before:edit-files` matches any predicted edit. | per-step | `auto` |
+| `after:edit-files` | A step finished after editing a file matching the policy's extension predicate. | The step's actual touched-files surface (change-set `observed`, or a touched-files self-report) contains an entry matching the key suffix. Bare `after:edit-files` matches any edit. | per-step | `auto` |
 | `after:verification-failed` | A required verification check returned failure. | Evidence map shows a required check with `outcome: failed` recorded during this Run. | per-step | `auto` |
 | `after:evidence-gap` | Required evidence is missing after the verify stage. | Run envelope evidence map shows unsatisfied required claims after Verify-stage steps have run. | per-stage | `auto` |
 | `before:close-run` | About to finalize the Run as complete, blocked, or handed off. | Run envelope decision to close, or stage transition into Close. | per-run | `auto` |
@@ -89,7 +89,7 @@ live in author or operator namespaces (see "Authoring Custom Hooks").
 Eleven hooks. The five named file-surface hooks
 (`after:react-ui-change`/`test-change`/`schema-change`/`api-surface-change`/`dependency-change`)
 and the four `skill_hooks.detection.*_surfaces` config buckets were collapsed
-into the one parameterized `before:edit-file`/`after:edit-file` pair: the glob
+into the one parameterized `before:edit-files`/`after:edit-files` pair: the glob
 predicate now lives in the policy key suffix (v1: an extension suffix such as
 `.tsx`), so the engine matches a literal extension and the meaning lives in
 operator config. See
@@ -103,7 +103,7 @@ prove them.
 
 `per-step` cardinality fires at most once per step, even when many files in
 that step's diff match the detection rule. The detector does not iterate per
-file. If a single Act step touches twenty `.tsx` files, `after:edit-file:.tsx`
+file. If a single Act step touches twenty `.tsx` files, `after:edit-files:.tsx`
 fires once at step close.
 
 `per-stage` cardinality fires at most once per stage instance or process
@@ -206,7 +206,7 @@ Fixtures that should exist before this vocabulary is wired into Run:
 - **Pete's named examples fixture.** A sample project policy maps
   `before:high-impact-alignment` to alignment-class skills,
   `before:architecture-analysis` to architecture-analysis-class skills, and
-  `after:edit-file:.tsx` to React review skills. Each match is explainable
+  `after:edit-files:.tsx` to React review skills. Each match is explainable
   through that policy entry. Without the sample policy, the hooks are
   recorded but no skill is prepared or requested.
 - **Cross-flow fixture.** The same hook, emitted from two different flows,

@@ -93,7 +93,6 @@ describe('YAML editor schemas', () => {
     expect(serialized).toContain('"skill_hooks"');
     expect(serialized).toContain('"policy"');
     expect(serialized).toContain('"auto"');
-    expect(serialized).toContain('"ask"');
     expect(serialized).toContain('"mute"');
   });
 
