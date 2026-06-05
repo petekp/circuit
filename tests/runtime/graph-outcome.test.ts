@@ -12,6 +12,7 @@ import {
   executeExecutableFlowWithWaiting,
   isGraphRejectedOutcome,
 } from '../../src/runtime/run/graph-runner.js';
+import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 
 function singleStepFlow(): ExecutableFlow {
   return {
@@ -117,8 +118,9 @@ describe('graph execution outcome values', () => {
   });
 
   it('returns checkpoint waiting as a typed value', async () => {
+    const runDir = join(runFolderBase, 'checkpoint');
     const outcome = await executeExecutableFlowOutcome(checkpointFlow(), {
-      runDir: join(runFolderBase, 'checkpoint'),
+      runDir,
       runId: '71000000-0000-0000-0000-000000000003',
       goal: 'wait through a typed outcome',
       depth: 'deep',
@@ -131,6 +133,10 @@ describe('graph execution outcome values', () => {
     }
     expect(outcome.checkpoint.stepId).toBe('checkpoint-step');
     expect(outcome.checkpoint.allowedChoices).toEqual(['continue']);
+    const entries = await new TraceStore(runDir).load();
+    expect(entries.some((entry) => entry.kind === 'checkpoint.requested')).toBe(true);
+    expect(entries.some((entry) => entry.kind === 'step.aborted')).toBe(false);
+    expect(entries.some((entry) => entry.kind === 'run.closed')).toBe(false);
   });
 
   it('returns rejected setup failures as values while compatibility runners still throw', async () => {
