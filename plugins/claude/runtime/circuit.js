@@ -34431,6 +34431,84 @@ var RecoveryRequiredRefKind = external_exports.enum([
   "trace",
   "report"
 ]);
+var RECOVERY_KIND_CONTRACT_RULES = {
+  retry_same_step_with_feedback: {
+    allowedFailureCauses: ["failed_check", "failed_acceptance_criteria", "relay_result_invalid"],
+    defaultRequiredRefs: ["failed_check", "acceptance_feedback", "budget_state"],
+    rejectsUnknownFailure: true
+  },
+  narrow_scope: {
+    allowedFailureCauses: ["failed_check", "scope_drift", "weak_proof", "unproved_claim"],
+    defaultRequiredRefs: ["proof_assessment", "runtime_diff"]
+  },
+  run_verification: {
+    allowedFailureCauses: [
+      "failed_check",
+      "weak_proof",
+      "unproved_claim",
+      "generated_surface_drift"
+    ],
+    defaultRequiredRefs: ["proof_assessment", "generated_surface_evidence"],
+    rejectsUnknownFailure: true
+  },
+  run_independent_review: {
+    allowedFailureCauses: ["weak_proof", "contradicted_evidence", "scope_drift"],
+    defaultRequiredRefs: ["proof_assessment", "report"],
+    rejectsUnknownFailure: true
+  },
+  checkpoint_authority: {
+    allowedFailureCauses: [
+      "checkpoint_boundary",
+      "protected_file_touched",
+      "budget_exceeded",
+      "unknown_failure"
+    ],
+    defaultRequiredRefs: ["checkpoint_request", "runtime_diff", "budget_state"],
+    causeRequiredRefs: {
+      protected_file_touched: {
+        anyOf: ["runtime_diff", "change_packet"],
+        message: "protected_file_touched requires runtime_diff or change_packet refs"
+      }
+    }
+  },
+  safe_apply_reject: {
+    allowedFailureCauses: [
+      "base_mismatch",
+      "apply_conflict",
+      "protected_file_touched",
+      "generated_surface_drift"
+    ],
+    defaultRequiredRefs: ["safe_apply_result", "runtime_diff", "generated_surface_evidence"],
+    requiredRefs: {
+      anyOf: ["safe_apply_result", "runtime_diff", "change_packet"],
+      message: "safe_apply_reject requires safe_apply_result, runtime_diff, or change_packet refs"
+    },
+    causeRequiredRefs: {
+      protected_file_touched: {
+        anyOf: ["runtime_diff", "change_packet"],
+        message: "protected_file_touched requires runtime_diff or change_packet refs"
+      }
+    }
+  },
+  stop_unsafe: {
+    allowedFailureCauses: [
+      "failed_check",
+      "contradicted_evidence",
+      "scope_drift",
+      "budget_exceeded",
+      "unknown_failure"
+    ],
+    defaultRequiredRefs: ["failed_check", "trace"]
+  },
+  escalate: {
+    allowedFailureCauses: ["relay_connector_failed", "budget_exceeded", "unknown_failure"],
+    defaultRequiredRefs: ["relay_result", "trace"]
+  },
+  handoff: {
+    allowedFailureCauses: ["checkpoint_boundary", "budget_exceeded", "unknown_failure"],
+    defaultRequiredRefs: ["trace", "report"]
+  }
+};
 var RecoveryOperatorAuthority = external_exports.enum([
   "not_required",
   "required_before_route",
@@ -34460,6 +34538,8 @@ var RecoveryRouteBindingV0 = external_exports.object({
 }).strict().superRefine((binding, ctx) => {
   const requiredRefs = new Set(binding.required_refs);
   const causes = new Set(binding.allowed_failure_causes);
+  const rule = RECOVERY_KIND_CONTRACT_RULES[binding.kind];
+  const hasAnyRequiredRef = (requirement) => requirement.anyOf.some((ref) => requiredRefs.has(ref));
   if (binding.kind === "retry_same_step_with_feedback") {
     if (binding.route_target !== binding.step_id) {
       ctx.addIssue({
@@ -34497,32 +34577,37 @@ var RecoveryRouteBindingV0 = external_exports.object({
       });
     }
   }
-  if (causes.has("unknown_failure") && ["retry_same_step_with_feedback", "run_verification", "run_independent_review"].includes(binding.kind)) {
+  if (causes.has("unknown_failure") && rule.rejectsUnknownFailure === true) {
     ctx.addIssue({
       code: "custom",
       path: ["allowed_failure_causes"],
       message: "unknown_failure cannot route to retry, verification, or independent review"
     });
   }
-  if (binding.kind === "safe_apply_reject" && !requiredRefs.has("safe_apply_result") && !requiredRefs.has("runtime_diff") && !requiredRefs.has("change_packet")) {
+  if (rule.requiredRefs !== void 0 && !hasAnyRequiredRef(rule.requiredRefs)) {
     ctx.addIssue({
       code: "custom",
       path: ["required_refs"],
-      message: "safe_apply_reject requires safe_apply_result, runtime_diff, or change_packet refs"
+      message: rule.requiredRefs.message
     });
   }
-  if (causes.has("generated_surface_drift") && !requiredRefs.has("generated_surface_evidence")) {
+  const causeRequiredRefs = {
+    ...rule.causeRequiredRefs ?? {},
+    ...causes.has("generated_surface_drift") ? {
+      generated_surface_drift: {
+        anyOf: ["generated_surface_evidence"],
+        message: "generated_surface_drift requires generated_surface_evidence refs"
+      }
+    } : {}
+  };
+  for (const cause of binding.allowed_failure_causes) {
+    const requirement = causeRequiredRefs[cause];
+    if (requirement === void 0 || hasAnyRequiredRef(requirement))
+      continue;
     ctx.addIssue({
       code: "custom",
       path: ["required_refs"],
-      message: "generated_surface_drift requires generated_surface_evidence refs"
-    });
-  }
-  if (causes.has("protected_file_touched") && !requiredRefs.has("runtime_diff") && !requiredRefs.has("change_packet")) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["required_refs"],
-      message: "protected_file_touched requires runtime_diff or change_packet refs"
+      message: requirement.message
     });
   }
   if (binding.source_ref.kind !== "work_contract") {
@@ -43100,6 +43185,103 @@ function resolveRunFilePath(runDir, runRelativePath2) {
   return fullPath;
 }
 
+// dist/policy/recovery-route-policy.js
+var NORMAL_ROUTE_IDS = /* @__PURE__ */ new Set(["pass", "continue", "complete", "close", "advance"]);
+var RECOVERY_ROUTE_PROJECTION_POLICY = {
+  retry_same_step_with_feedback: {
+    selectors: [{ routeId: "retry", target: "same_step" }],
+    contract: RECOVERY_KIND_CONTRACT_RULES.retry_same_step_with_feedback,
+    operatorAuthority: "not_required",
+    attemptBudget: { consumesStepAttempt: true, retryTarget: "same_step" }
+  },
+  narrow_scope: {
+    selectors: [{ routeId: "revise" }, { routeId: "retry", target: "different_step" }],
+    contract: RECOVERY_KIND_CONTRACT_RULES.narrow_scope,
+    operatorAuthority: "not_required",
+    attemptBudget: { consumesStepAttempt: false, retryTarget: "declared_step" }
+  },
+  run_verification: {
+    selectors: [],
+    contract: RECOVERY_KIND_CONTRACT_RULES.run_verification,
+    operatorAuthority: "not_required",
+    attemptBudget: { consumesStepAttempt: false, retryTarget: "declared_step" }
+  },
+  run_independent_review: {
+    selectors: [{ routeId: "run-review" }],
+    contract: RECOVERY_KIND_CONTRACT_RULES.run_independent_review,
+    operatorAuthority: "not_required",
+    attemptBudget: { consumesStepAttempt: false, retryTarget: "declared_step" }
+  },
+  checkpoint_authority: {
+    selectors: [{ routeId: "checkpoint" }, { routeId: "ask" }],
+    contract: RECOVERY_KIND_CONTRACT_RULES.checkpoint_authority,
+    operatorAuthority: "required_before_route",
+    attemptBudget: { consumesStepAttempt: false, retryTarget: "declared_step" }
+  },
+  safe_apply_reject: {
+    selectors: [],
+    contract: RECOVERY_KIND_CONTRACT_RULES.safe_apply_reject,
+    operatorAuthority: "not_required",
+    attemptBudget: { consumesStepAttempt: false, retryTarget: "declared_step" }
+  },
+  stop_unsafe: {
+    selectors: [{ routeId: "blocked" }, { routeId: "stop" }],
+    contract: RECOVERY_KIND_CONTRACT_RULES.stop_unsafe,
+    operatorAuthority: "not_required",
+    attemptBudget: { consumesStepAttempt: false, retryTarget: "declared_step" }
+  },
+  escalate: {
+    selectors: [{ routeId: "escalate" }, { routeId: "connector-failed" }],
+    contract: RECOVERY_KIND_CONTRACT_RULES.escalate,
+    operatorAuthority: "not_required",
+    attemptBudget: { consumesStepAttempt: false, retryTarget: "declared_step" }
+  },
+  handoff: {
+    selectors: [{ routeId: "handoff" }],
+    contract: RECOVERY_KIND_CONTRACT_RULES.handoff,
+    operatorAuthority: "required_to_continue_after_route",
+    attemptBudget: { consumesStepAttempt: false, retryTarget: "declared_step" }
+  }
+};
+function selectorMatches(input) {
+  if (input.selector.routeId !== input.routeId)
+    return false;
+  if (input.selector.target === void 0)
+    return true;
+  const targetRelation = input.routeTarget === input.stepId ? "same_step" : "different_step";
+  return input.selector.target === targetRelation;
+}
+function recoveryKindForRoute(input) {
+  for (const [kind, policy2] of Object.entries(RECOVERY_ROUTE_PROJECTION_POLICY)) {
+    if (policy2.selectors.some((selector) => selectorMatches({
+      selector,
+      routeId: input.routeId,
+      routeTarget: input.routeTarget,
+      stepId: input.stepId
+    }))) {
+      return kind;
+    }
+  }
+  return void 0;
+}
+function recoveryAllowedFailureCausesForKind(kind) {
+  return [...RECOVERY_ROUTE_PROJECTION_POLICY[kind].contract.allowedFailureCauses];
+}
+function recoveryRequiredRefsForKind(kind) {
+  return [...RECOVERY_ROUTE_PROJECTION_POLICY[kind].contract.defaultRequiredRefs];
+}
+function recoveryOperatorAuthorityForKind(kind) {
+  return RECOVERY_ROUTE_PROJECTION_POLICY[kind].operatorAuthority;
+}
+function recoveryAttemptBudgetForKind(kind) {
+  const policy2 = RECOVERY_ROUTE_PROJECTION_POLICY[kind].attemptBudget;
+  return {
+    consumes_step_attempt: policy2.consumesStepAttempt,
+    must_respect_max_attempts: true,
+    retry_target: policy2.retryTarget
+  };
+}
+
 // dist/schemas/work-contract-projection.js
 var ReportSlot = external_exports.object({
   step_id: StepId,
@@ -43390,98 +43572,6 @@ var STEP_KEYS = {
     "check"
   ])
 };
-var NORMAL_ROUTE_IDS = /* @__PURE__ */ new Set(["pass", "continue", "complete", "close", "advance"]);
-var RECOVERY_BY_ROUTE = {
-  revise: "narrow_scope",
-  "run-review": "run_independent_review",
-  checkpoint: "checkpoint_authority",
-  ask: "checkpoint_authority",
-  blocked: "stop_unsafe",
-  stop: "stop_unsafe",
-  escalate: "escalate",
-  "connector-failed": "escalate",
-  handoff: "handoff"
-};
-var CAUSES_BY_KIND = {
-  retry_same_step_with_feedback: [
-    "failed_check",
-    "failed_acceptance_criteria",
-    "relay_result_invalid"
-  ],
-  narrow_scope: ["failed_check", "scope_drift", "weak_proof", "unproved_claim"],
-  run_verification: ["failed_check", "weak_proof", "unproved_claim", "generated_surface_drift"],
-  run_independent_review: ["weak_proof", "contradicted_evidence", "scope_drift"],
-  checkpoint_authority: [
-    "checkpoint_boundary",
-    "protected_file_touched",
-    "budget_exceeded",
-    "unknown_failure"
-  ],
-  safe_apply_reject: [
-    "base_mismatch",
-    "apply_conflict",
-    "protected_file_touched",
-    "generated_surface_drift"
-  ],
-  stop_unsafe: [
-    "failed_check",
-    "contradicted_evidence",
-    "scope_drift",
-    "budget_exceeded",
-    "unknown_failure"
-  ],
-  escalate: ["relay_connector_failed", "budget_exceeded", "unknown_failure"],
-  handoff: ["checkpoint_boundary", "budget_exceeded", "unknown_failure"]
-};
-function recoveryKindForRoute(step, routeId, target) {
-  if (routeId === "retry") {
-    return target === step.id ? "retry_same_step_with_feedback" : "narrow_scope";
-  }
-  return RECOVERY_BY_ROUTE[routeId];
-}
-function requiredRefsForRecoveryKind(kind) {
-  switch (kind) {
-    case "retry_same_step_with_feedback":
-      return ["failed_check", "acceptance_feedback", "budget_state"];
-    case "narrow_scope":
-      return ["proof_assessment", "runtime_diff"];
-    case "run_verification":
-      return ["proof_assessment", "generated_surface_evidence"];
-    case "run_independent_review":
-      return ["proof_assessment", "report"];
-    case "checkpoint_authority":
-      return ["checkpoint_request", "runtime_diff", "budget_state"];
-    case "safe_apply_reject":
-      return ["safe_apply_result", "runtime_diff", "generated_surface_evidence"];
-    case "stop_unsafe":
-      return ["failed_check", "trace"];
-    case "escalate":
-      return ["relay_result", "trace"];
-    case "handoff":
-      return ["trace", "report"];
-  }
-}
-function operatorAuthorityForRecoveryKind(kind) {
-  if (kind === "checkpoint_authority")
-    return "required_before_route";
-  if (kind === "handoff")
-    return "required_to_continue_after_route";
-  return "not_required";
-}
-function attemptBudgetForRecoveryKind(kind, routeTarget, stepId) {
-  if (kind === "retry_same_step_with_feedback") {
-    return {
-      consumes_step_attempt: true,
-      must_respect_max_attempts: true,
-      retry_target: routeTarget === stepId ? "same_step" : "declared_step"
-    };
-  }
-  return {
-    consumes_step_attempt: false,
-    must_respect_max_attempts: true,
-    retry_target: "declared_step"
-  };
-}
 function sha2562(value) {
   return sha256OfJson(value);
 }
@@ -43645,7 +43735,11 @@ function projectWorkContractProjectionV0(input) {
     for (const [routeId, target] of Object.entries(step.routes)) {
       if (NORMAL_ROUTE_IDS.has(routeId))
         continue;
-      const kind = recoveryKindForRoute(step, routeId, target);
+      const kind = recoveryKindForRoute({
+        routeId,
+        routeTarget: target,
+        stepId: step.id
+      });
       if (kind === void 0)
         continue;
       recovery.push({
@@ -43654,10 +43748,10 @@ function projectWorkContractProjectionV0(input) {
         route_id: routeId,
         route_target: target,
         kind,
-        allowed_failure_causes: [...CAUSES_BY_KIND[kind]],
-        required_refs: requiredRefsForRecoveryKind(kind),
-        operator_authority: operatorAuthorityForRecoveryKind(kind),
-        attempt_budget: attemptBudgetForRecoveryKind(kind, target, step.id),
+        allowed_failure_causes: recoveryAllowedFailureCausesForKind(kind),
+        required_refs: recoveryRequiredRefsForKind(kind),
+        operator_authority: recoveryOperatorAuthorityForKind(kind),
+        attempt_budget: recoveryAttemptBudgetForKind(kind),
         guidance: {
           subject: "recovery_route",
           must_match_step_completed: true

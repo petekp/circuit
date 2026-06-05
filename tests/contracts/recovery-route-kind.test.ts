@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { RecoveryRouteBindingV0, RecoveryRouteKind, StepId } from '../../src/index.js';
+import {
+  RECOVERY_KIND_CONTRACT_RULES,
+  RecoveryRouteBindingV0,
+  RecoveryRouteKind,
+  StepId,
+} from '../../src/index.js';
 
 const workContractRef = {
   kind: 'work_contract' as const,
@@ -34,6 +39,12 @@ function retryBinding(overrides: Record<string, unknown> = {}) {
 }
 
 describe('RecoveryRouteKind schema foundation', () => {
+  it('keeps schema-local contract rules exhaustive over recovery kinds', () => {
+    expect(Object.keys(RECOVERY_KIND_CONTRACT_RULES).sort()).toEqual(
+      RecoveryRouteKind.options.slice().sort(),
+    );
+  });
+
   it('rejects route ids and older prose names as recovery kinds', () => {
     expect(RecoveryRouteKind.safeParse('retry').success).toBe(false);
     expect(RecoveryRouteKind.safeParse('revise').success).toBe(false);

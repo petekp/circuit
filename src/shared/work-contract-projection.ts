@@ -1,3 +1,11 @@
+import {
+  NORMAL_ROUTE_IDS,
+  recoveryAllowedFailureCausesForKind,
+  recoveryAttemptBudgetForKind,
+  recoveryKindForRoute,
+  recoveryOperatorAuthorityForKind,
+  recoveryRequiredRefsForKind,
+} from '../policy/recovery-route-policy.js';
 import type { CompiledFlow } from '../schemas/compiled-flow.js';
 import { sha256OfJson } from '../schemas/hashing.js';
 import type { JsonObject } from '../schemas/json.js';
@@ -12,10 +20,6 @@ import type {
   SubRunStep,
 } from '../schemas/step.js';
 import {
-  type RecoveryFailureCause,
-  type RecoveryOperatorAuthority,
-  type RecoveryRequiredRefKind,
-  type RecoveryRouteKind,
   WorkContractProjectionV0,
   type WorkContractProjectionV0 as WorkContractProjectionValue,
 } from '../schemas/work-contract-projection.js';
@@ -153,114 +157,6 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'check',
   ]),
 };
-
-// 'advance' is the slice-loop forward edge (deep-rigor Build): a successful
-// slice verify re-enters the head step for the next slice. It carries no
-// recovery mechanics, exactly like 'continue'.
-const NORMAL_ROUTE_IDS = new Set(['pass', 'continue', 'complete', 'close', 'advance']);
-
-const RECOVERY_BY_ROUTE: Readonly<Record<string, RecoveryRouteKind>> = {
-  revise: 'narrow_scope',
-  'run-review': 'run_independent_review',
-  checkpoint: 'checkpoint_authority',
-  ask: 'checkpoint_authority',
-  blocked: 'stop_unsafe',
-  stop: 'stop_unsafe',
-  escalate: 'escalate',
-  'connector-failed': 'escalate',
-  handoff: 'handoff',
-};
-
-const CAUSES_BY_KIND: Readonly<Record<RecoveryRouteKind, readonly RecoveryFailureCause[]>> = {
-  retry_same_step_with_feedback: [
-    'failed_check',
-    'failed_acceptance_criteria',
-    'relay_result_invalid',
-  ],
-  narrow_scope: ['failed_check', 'scope_drift', 'weak_proof', 'unproved_claim'],
-  run_verification: ['failed_check', 'weak_proof', 'unproved_claim', 'generated_surface_drift'],
-  run_independent_review: ['weak_proof', 'contradicted_evidence', 'scope_drift'],
-  checkpoint_authority: [
-    'checkpoint_boundary',
-    'protected_file_touched',
-    'budget_exceeded',
-    'unknown_failure',
-  ],
-  safe_apply_reject: [
-    'base_mismatch',
-    'apply_conflict',
-    'protected_file_touched',
-    'generated_surface_drift',
-  ],
-  stop_unsafe: [
-    'failed_check',
-    'contradicted_evidence',
-    'scope_drift',
-    'budget_exceeded',
-    'unknown_failure',
-  ],
-  escalate: ['relay_connector_failed', 'budget_exceeded', 'unknown_failure'],
-  handoff: ['checkpoint_boundary', 'budget_exceeded', 'unknown_failure'],
-};
-
-function recoveryKindForRoute(
-  step: Step,
-  routeId: string,
-  target: string,
-): RecoveryRouteKind | undefined {
-  if (routeId === 'retry') {
-    return target === step.id ? 'retry_same_step_with_feedback' : 'narrow_scope';
-  }
-  return RECOVERY_BY_ROUTE[routeId];
-}
-
-function requiredRefsForRecoveryKind(kind: RecoveryRouteKind): RecoveryRequiredRefKind[] {
-  switch (kind) {
-    case 'retry_same_step_with_feedback':
-      return ['failed_check', 'acceptance_feedback', 'budget_state'];
-    case 'narrow_scope':
-      return ['proof_assessment', 'runtime_diff'];
-    case 'run_verification':
-      return ['proof_assessment', 'generated_surface_evidence'];
-    case 'run_independent_review':
-      return ['proof_assessment', 'report'];
-    case 'checkpoint_authority':
-      return ['checkpoint_request', 'runtime_diff', 'budget_state'];
-    case 'safe_apply_reject':
-      return ['safe_apply_result', 'runtime_diff', 'generated_surface_evidence'];
-    case 'stop_unsafe':
-      return ['failed_check', 'trace'];
-    case 'escalate':
-      return ['relay_result', 'trace'];
-    case 'handoff':
-      return ['trace', 'report'];
-  }
-}
-
-function operatorAuthorityForRecoveryKind(kind: RecoveryRouteKind): RecoveryOperatorAuthority {
-  if (kind === 'checkpoint_authority') return 'required_before_route';
-  if (kind === 'handoff') return 'required_to_continue_after_route';
-  return 'not_required';
-}
-
-function attemptBudgetForRecoveryKind(
-  kind: RecoveryRouteKind,
-  routeTarget: string,
-  stepId: string,
-): WorkContractProjectionValue['work_contract']['recovery'][number]['attempt_budget'] {
-  if (kind === 'retry_same_step_with_feedback') {
-    return {
-      consumes_step_attempt: true,
-      must_respect_max_attempts: true,
-      retry_target: routeTarget === stepId ? 'same_step' : 'declared_step',
-    };
-  }
-  return {
-    consumes_step_attempt: false,
-    must_respect_max_attempts: true,
-    retry_target: 'declared_step',
-  };
-}
 
 function sha256(value: unknown): string {
   return sha256OfJson(value);
@@ -495,7 +391,11 @@ export function projectWorkContractProjectionV0(
 
     for (const [routeId, target] of Object.entries(step.routes)) {
       if (NORMAL_ROUTE_IDS.has(routeId)) continue;
-      const kind = recoveryKindForRoute(step, routeId, target);
+      const kind = recoveryKindForRoute({
+        routeId,
+        routeTarget: target,
+        stepId: step.id,
+      });
       if (kind === undefined) continue;
       recovery.push({
         schema_version: 0,
@@ -503,10 +403,10 @@ export function projectWorkContractProjectionV0(
         route_id: routeId,
         route_target: target,
         kind,
-        allowed_failure_causes: [...CAUSES_BY_KIND[kind]],
-        required_refs: requiredRefsForRecoveryKind(kind),
-        operator_authority: operatorAuthorityForRecoveryKind(kind),
-        attempt_budget: attemptBudgetForRecoveryKind(kind, target, step.id),
+        allowed_failure_causes: recoveryAllowedFailureCausesForKind(kind),
+        required_refs: recoveryRequiredRefsForKind(kind),
+        operator_authority: recoveryOperatorAuthorityForKind(kind),
+        attempt_budget: recoveryAttemptBudgetForKind(kind),
         guidance: {
           subject: 'recovery_route',
           must_match_step_completed: true,

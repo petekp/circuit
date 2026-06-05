@@ -263,6 +263,26 @@ describe('WorkContractProjectionV0', () => {
     }
   });
 
+  it('keeps built-in recovery kind reachability intentional', () => {
+    const intentionallyUnreachableRecoveryKinds = new Set<RecoveryRouteKind>([
+      'run_verification',
+      'safe_apply_reject',
+    ]);
+    const projectedKinds = new Set(
+      compiledBuiltInFlows()
+        .flatMap((flow) => buildProjection(flow).work_contract.recovery)
+        .map((route) => route.kind),
+    );
+    const expectedReachable = RecoveryRouteKind.options
+      .filter((kind) => !intentionallyUnreachableRecoveryKinds.has(kind))
+      .sort();
+
+    expect([...projectedKinds].sort()).toEqual(expectedReachable);
+    for (const kind of intentionallyUnreachableRecoveryKinds) {
+      expect(projectedKinds.has(kind), `${kind} is allow-listed but now projected`).toBe(false);
+    }
+  });
+
   it('does not treat normal review routes as recovery routes', () => {
     const goal = compiledBuiltInFlows().find((flow) => flow.id === 'goal');
     if (goal === undefined) throw new Error('Goal flow must be compiled');
