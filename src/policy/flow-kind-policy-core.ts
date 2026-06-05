@@ -51,6 +51,11 @@ export type CompiledFlowKindPolicyCheckResult =
   | { readonly kind: 'pass_through'; readonly detail: string }
   | { readonly kind: 'red'; readonly detail: string };
 
+export interface CompiledFlowKindPolicyTable {
+  readonly canonicalSets: Readonly<Record<string, CompiledFlowKindPolicyEntry>>;
+  readonly exemptFlowIds: ReadonlySet<string>;
+}
+
 export const FLOW_KIND_CANONICAL_SETS: Readonly<Record<string, CompiledFlowKindPolicyEntry>> =
   FLOW_CANONICAL_STAGE_POLICY_BY_ID;
 
@@ -225,8 +230,9 @@ export function checkReviewIdentitySeparationPolicy(
   };
 }
 
-export function checkCompiledFlowKindCanonicalPolicy(
+export function checkCompiledFlowKindCanonicalPolicyWithTable(
   fixture: unknown,
+  table: CompiledFlowKindPolicyTable,
 ): CompiledFlowKindPolicyCheckResult {
   const f = objectRecord(fixture);
   if (f === undefined) {
@@ -243,14 +249,14 @@ export function checkCompiledFlowKindCanonicalPolicy(
     };
   }
 
-  if (EXEMPT_FLOW_IDS.has(id)) {
+  if (table.exemptFlowIds.has(id)) {
     return {
       kind: 'exempt',
       detail: `${id}: exempt from kind-canonical enforcement (partial-stage path, recorded)`,
     };
   }
 
-  const expected = FLOW_KIND_CANONICAL_SETS[id];
+  const expected = table.canonicalSets[id];
   if (expected === undefined) {
     return {
       kind: 'pass_through',
@@ -293,4 +299,13 @@ export function checkCompiledFlowKindCanonicalPolicy(
     kind: 'green',
     detail: acceptedVariant.detail,
   };
+}
+
+export function checkCompiledFlowKindCanonicalPolicy(
+  fixture: unknown,
+): CompiledFlowKindPolicyCheckResult {
+  return checkCompiledFlowKindCanonicalPolicyWithTable(fixture, {
+    canonicalSets: FLOW_KIND_CANONICAL_SETS,
+    exemptFlowIds: EXEMPT_FLOW_IDS,
+  });
 }

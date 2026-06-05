@@ -7,9 +7,11 @@ import {
 import { flowDefinitions } from '../../src/flows/catalog.js';
 import {
   type CompiledFlowKindPolicyCheckResult,
+  type CompiledFlowKindPolicyEntry,
   EXEMPT_FLOW_IDS,
   FLOW_KIND_CANONICAL_SETS,
   checkCompiledFlowKindCanonicalPolicy,
+  checkCompiledFlowKindCanonicalPolicyWithTable,
 } from '../../src/policy/flow-kind-policy-core.js';
 import {
   type ValidateCompiledFlowKindPolicyResult,
@@ -329,6 +331,66 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
     const result = checkCompiledFlowKindCanonicalPolicy(validExploreFixture());
     expect(result.kind).toBe('green');
     expect(result.detail).toMatch(/explore: canonical set/);
+  });
+
+  it('can check canonical policy from caller-supplied policy tables', () => {
+    const canonicalSets = {
+      explore: {
+        canonicals: ['frame', 'analyze', 'plan', 'close'],
+        omits: ['act', 'verify', 'review'],
+        optional_canonicals: [],
+        variants: [],
+        title: 'Test Explore',
+        authority: 'test-policy-table',
+      },
+      review: {
+        canonicals: ['frame', 'analyze', 'close'],
+        omits: ['plan', 'act', 'verify', 'review'],
+        optional_canonicals: [],
+        variants: [],
+        title: 'Test Review',
+        authority: 'test-policy-table',
+      },
+    } satisfies Record<string, CompiledFlowKindPolicyEntry>;
+    const policyTable = {
+      canonicalSets,
+      exemptFlowIds: new Set(['runtime-proof']),
+    };
+
+    expect(
+      checkCompiledFlowKindCanonicalPolicyWithTable(validExploreFixture(), policyTable),
+    ).toMatchObject({
+      kind: 'green',
+      detail: expect.stringContaining('test-policy-table'),
+    });
+    expect(
+      checkCompiledFlowKindCanonicalPolicyWithTable(reviewPolicyOnlyPayload(), policyTable),
+    ).toMatchObject({
+      kind: 'green',
+      detail: expect.stringContaining('review: canonical set'),
+    });
+    expect(
+      checkCompiledFlowKindCanonicalPolicyWithTable(
+        {
+          schema_version: '2',
+          id: 'runtime-proof',
+          stages: [],
+          stage_path_policy: { mode: 'partial', omits: [] },
+        },
+        policyTable,
+      ),
+    ).toMatchObject({ kind: 'exempt' });
+    expect(
+      checkCompiledFlowKindCanonicalPolicyWithTable(
+        {
+          schema_version: '2',
+          id: 'future-kind',
+          stages: [],
+          stage_path_policy: { mode: 'partial', omits: [] },
+        },
+        policyTable,
+      ),
+    ).toMatchObject({ kind: 'pass_through' });
   });
 
   it('EXPLORE-I1 — returns green on the Explore tournament Decision-stage variant', () => {

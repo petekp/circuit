@@ -57816,7 +57816,7 @@ function checkReviewIdentitySeparationPolicy(fixture) {
     detail: "close review.result report writer is preceded by an analyze-stage reviewer relay"
   };
 }
-function checkCompiledFlowKindCanonicalPolicy(fixture) {
+function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
   const f = objectRecord(fixture);
   if (f === void 0) {
     return {
@@ -57831,13 +57831,13 @@ function checkCompiledFlowKindCanonicalPolicy(fixture) {
       detail: "fixture missing top-level `id` string field"
     };
   }
-  if (EXEMPT_FLOW_IDS.has(id)) {
+  if (table.exemptFlowIds.has(id)) {
     return {
       kind: "exempt",
       detail: `${id}: exempt from kind-canonical enforcement (partial-stage path, recorded)`
     };
   }
-  const expected = FLOW_KIND_CANONICAL_SETS[id];
+  const expected = table.canonicalSets[id];
   if (expected === void 0) {
     return {
       kind: "pass_through",
@@ -57869,6 +57869,12 @@ function checkCompiledFlowKindCanonicalPolicy(fixture) {
     kind: "green",
     detail: acceptedVariant.detail
   };
+}
+function checkCompiledFlowKindCanonicalPolicy(fixture) {
+  return checkCompiledFlowKindCanonicalPolicyWithTable(fixture, {
+    canonicalSets: FLOW_KIND_CANONICAL_SETS,
+    exemptFlowIds: EXEMPT_FLOW_IDS
+  });
 }
 
 // dist/policy/flow-kind-policy.js
