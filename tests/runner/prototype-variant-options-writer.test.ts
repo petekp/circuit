@@ -6,6 +6,7 @@ import type {
   ComposeStep,
 } from '../../src/flows/registries/compose-writers/types.js';
 import type { RuntimeIndexedFlow } from '../../src/flows/registries/runtime-index.js';
+import { runtimeConnectorPlanner } from '../../src/runtime/run/connector-planning.js';
 import { CircuitVariantModels, LayeredConfig } from '../../src/schemas/config.js';
 
 const PROTOTYPE_ROOT = '.circuit/runs/model-comparison/prototype-files';
@@ -68,6 +69,7 @@ function buildContext(
     goal: 'prototype: compare model variants',
     axes: { rigor: 'standard', tournament: true, tournament_n: tournamentN, autonomous: false },
     selectionConfigLayers: [layerWithVariants(variantModels, connectors)],
+    connectorPlanner: runtimeConnectorPlanner,
     inputs: {
       brief: {
         objective: 'Sketch a connector-aware prototype tournament UI',

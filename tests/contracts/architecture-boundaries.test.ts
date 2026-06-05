@@ -153,8 +153,6 @@ describe('architecture boundary ratchets', () => {
   it('keeps top-level source import cycles inside the current architecture ratchet', () => {
     const allowedCycles = [
       'app -> memory -> app',
-      'connectors -> shared -> flows -> connectors',
-      'connectors -> shared -> policy -> flows -> connectors',
       'flows -> policy -> flows',
       'flows -> shared -> flows',
       'flows -> shared -> policy -> flows',
@@ -206,7 +204,6 @@ describe('architecture boundary ratchets', () => {
   });
 
   it('keeps flow package -> src/connectors edges inside the current ratchet allow-list', () => {
-    const allowedFiles = ['src/flows/prototype/writers/variant-options.ts'];
     const offenders = sourceImportEdges('src/flows').filter(
       (edge) => edge.toModule === 'connectors',
     );
@@ -215,7 +212,19 @@ describe('architecture boundary ratchets', () => {
     expect(
       offenderFiles,
       `flow package files importing src/connectors changed:\n${formatEdges(offenders)}`,
-    ).toEqual(allowedFiles);
+    ).toEqual([]);
+  });
+
+  it('keeps src/selection as a flow-safe planning layer', () => {
+    const allowedTargetModules = new Set(['schemas', 'selection']);
+    const offenders = sourceImportEdges('src/selection').filter(
+      (edge) => !allowedTargetModules.has(edge.toModule),
+    );
+
+    expect(
+      offenders,
+      `src/selection imported outside its flow-safe boundary:\n${formatEdges(offenders)}`,
+    ).toEqual([]);
   });
 
   it('keeps Skill Hooks out of runtime executors and flow packages', () => {

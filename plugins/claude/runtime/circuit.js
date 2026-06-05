@@ -38497,135 +38497,8 @@ var prototypeVariantChoiceOptionsComposeBuilder = {
   }
 };
 
-// dist/connectors/resolver.js
-function mergedRelayConfig(layers) {
-  const merged = {
-    default: "auto",
-    roles: {},
-    circuits: {},
-    connectors: {}
-  };
-  for (const layer of layers ?? []) {
-    if (layer.config.relay.default !== "auto" || merged.default === "auto") {
-      merged.default = layer.config.relay.default;
-    }
-    merged.roles = { ...merged.roles, ...layer.config.relay.roles };
-    merged.circuits = { ...merged.circuits, ...layer.config.relay.circuits };
-    merged.connectors = { ...merged.connectors, ...layer.config.relay.connectors };
-  }
-  return merged;
-}
-function mergedHostKind(layers) {
-  let hostKind;
-  for (const layer of layers ?? []) {
-    const configuredHostKind = layer.config.host?.kind;
-    if (configuredHostKind !== void 0) {
-      hostKind = configuredHostKind;
-    }
-  }
-  return hostKind ?? "generic-shell";
-}
-function connectorCapabilities(connector) {
-  if (connector.kind === "builtin")
-    return BUILTIN_CONNECTOR_CAPABILITIES[connector.name];
-  return connector.capabilities;
-}
-function assertConnectorCanRunRole(connector, role) {
-  const capabilities = connectorCapabilities(connector);
-  if (role === "implementer" && capabilities.filesystem === "read-only") {
-    throw new Error(`relay connector '${connector.name}' is read-only and cannot run implementer step role '${role}'`);
-  }
-}
-function resolvedConnectorFromReference(ref, relay) {
-  if (ref.kind === "builtin")
-    return ref;
-  const descriptor = relay.connectors[ref.name];
-  if (descriptor === void 0) {
-    throw new Error(`relay connector '${ref.name}' is referenced but not declared`);
-  }
-  return descriptor;
-}
-function resolveConnectorReference(input) {
-  return resolvedConnectorFromReference(input.ref, mergedRelayConfig(input.configLayers));
-}
-function isEnabledConnector(value) {
-  return EnabledConnector.options.includes(value);
-}
-function resolvedConnectorFromDefault(defaultRef, relay) {
-  if (isEnabledConnector(defaultRef)) {
-    return { kind: "builtin", name: defaultRef };
-  }
-  const descriptor = relay.connectors[defaultRef];
-  if (descriptor === void 0) {
-    throw new Error(`relay default connector '${defaultRef}' is referenced but not declared`);
-  }
-  return descriptor;
-}
-function decision(connector, resolvedFrom, role) {
-  assertConnectorCanRunRole(connector, role);
-  return {
-    connectorName: connector.name,
-    connector,
-    resolvedFrom
-  };
-}
-function autoConnectorForHost(hostKind) {
-  if (hostKind === "codex")
-    return { kind: "builtin", name: "codex" };
-  return { kind: "builtin", name: "claude-code" };
-}
-function resolveConnectorForGuidanceInput(input) {
-  if (input.explicitConnector !== void 0) {
-    return decision(input.explicitConnector, { source: "explicit" }, input.role);
-  }
-  const relay = mergedRelayConfig(input.configLayers);
-  const roleRef = relay.roles[input.role];
-  if (roleRef !== void 0) {
-    return decision(resolvedConnectorFromReference(roleRef, relay), {
-      source: "role",
-      role: input.role
-    }, input.role);
-  }
-  const flowId = input.flowId;
-  const flowRef = relay.circuits[flowId];
-  if (flowRef !== void 0) {
-    return decision(resolvedConnectorFromReference(flowRef, relay), {
-      source: "circuit",
-      flow_id: flowId
-    }, input.role);
-  }
-  if (relay.default !== "auto") {
-    return decision(resolvedConnectorFromDefault(relay.default, relay), { source: "default" }, input.role);
-  }
-  return decision(autoConnectorForHost(input.hostKind ?? mergedHostKind(input.configLayers)), { source: "auto" }, input.role);
-}
-function expectedProvider(connectorName) {
-  if (!isEnabledConnector(connectorName))
-    return void 0;
-  return BUILTIN_CONNECTOR_SPECS[connectorName].provider;
-}
-function supportedEfforts(connectorName) {
-  if (!isEnabledConnector(connectorName))
-    return void 0;
-  return BUILTIN_CONNECTOR_SPECS[connectorName].supportedEfforts;
-}
-function assertConnectorSelectionCompatible(connectorName, selection) {
-  const expected = expectedProvider(connectorName);
-  const model = selection?.model;
-  if (expected !== void 0 && model !== void 0 && model.provider !== expected) {
-    throw new Error(`${connectorName} connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider '${expected}'`);
-  }
-  const effort = selection?.effort;
-  if (effort === void 0)
-    return;
-  const supported = supportedEfforts(connectorName);
-  if (supported !== void 0 && !supported.includes(effort)) {
-    throw new Error(`${connectorName} connector cannot honor effort '${effort}'; supported efforts: ${supported.join(", ")}`);
-  }
-}
-
-// dist/flows/prototype/writers/variant-options.js
-function configuredVariants(layers) {
+// dist/selection/connector-planning.js
+function configuredPrototypeVariants(layers) {
   let variants;
   for (const layer of layers ?? []) {
     const circuits = layer.config.circuits;
@@ -38635,7 +38508,7 @@ function configuredVariants(layers) {
   }
   return variants;
 }
-function resolvedSelectionForCompatibility(selection) {
+function resolvedPrototypeVariantSelection(selection) {
   return {
     ...selection.model === void 0 ? {} : { model: selection.model },
     ...selection.effort === void 0 ? {} : { effort: selection.effort },
@@ -38644,30 +38517,17 @@ function resolvedSelectionForCompatibility(selection) {
     invocation_options: selection.invocation_options
   };
 }
-function validateVariantModelMatrix(input) {
+function planPrototypeVariantConnectorMatrix(input) {
   if (input.variants.length !== input.expectedCount) {
     throw new Error(`prototype.variant-options@v1 requires exactly axes.tournament_n (${input.expectedCount}) variant_models entries; found ${input.variants.length}`);
   }
-  for (const variant of input.variants) {
-    const relay = resolveVariantRelay({
-      variant,
-      ...input.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: input.selectionConfigLayers }
-    });
-    assertConnectorSelectionCompatible(relay.connectorName, resolvedSelectionForCompatibility(variant.selection));
-  }
+  return input.variants.map((variant) => input.planner.planPrototypeVariantConnector({
+    variant,
+    ...input.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: input.selectionConfigLayers }
+  }));
 }
-function resolveVariantRelay(input) {
-  const explicitConnector = input.variant.connector === void 0 ? void 0 : resolveConnectorReference({
-    ref: input.variant.connector,
-    ...input.selectionConfigLayers === void 0 ? {} : { configLayers: input.selectionConfigLayers }
-  });
-  return resolveConnectorForGuidanceInput({
-    flowId: "prototype",
-    role: "implementer",
-    ...explicitConnector === void 0 ? {} : { explicitConnector },
-    ...input.selectionConfigLayers === void 0 ? {} : { configLayers: input.selectionConfigLayers }
-  });
-}
+
+// dist/flows/prototype/writers/variant-options.js
 var prototypeVariantOptionsComposeBuilder = {
   resultSchemaName: "prototype.variant-options@v1",
   reads: [
@@ -38677,16 +38537,21 @@ var prototypeVariantOptionsComposeBuilder = {
   build(context) {
     const brief = PrototypeBrief.parse(context.inputs.brief);
     const plan = PrototypePlan.parse(context.inputs.plan);
-    const variants = configuredVariants(context.selectionConfigLayers);
+    const variants = configuredPrototypeVariants(context.selectionConfigLayers);
     if (variants === void 0) {
       throw new Error("prototype.variant-options@v1 requires circuits.prototype.variant_models in Circuit config");
     }
+    if (context.connectorPlanner === void 0) {
+      throw new Error("prototype.variant-options@v1 requires a connector planner in compose context");
+    }
     const expectedCount = context.axes?.tournament_n ?? 3;
-    validateVariantModelMatrix({
+    const connectorPlans = planPrototypeVariantConnectorMatrix({
       variants,
       expectedCount,
+      planner: context.connectorPlanner,
       ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers }
     });
+    const connectorPlanByVariantId = new Map(connectorPlans.map((connectorPlan) => [connectorPlan.variantId, connectorPlan]));
     return PrototypeVariantOptions.parse({
       schema_version: 1,
       objective: brief.objective,
@@ -38700,10 +38565,10 @@ var prototypeVariantOptionsComposeBuilder = {
           throw new Error(`prototype.variant-options@v1 variant '${variant.id}' requires selection.model and selection.effort`);
         }
         const artifactRoot = `${plan.prototype_root}/variants/${variant.id}`;
-        const relay = resolveVariantRelay({
-          variant,
-          ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers }
-        });
+        const connectorPlan = connectorPlanByVariantId.get(variant.id);
+        if (connectorPlan === void 0) {
+          throw new Error(`prototype.variant-options@v1 missing connector plan for '${variant.id}'`);
+        }
         return {
           variant_id: variant.id,
           label: variant.label,
@@ -38711,8 +38576,8 @@ var prototypeVariantOptionsComposeBuilder = {
           model: model.model,
           effort,
           ...variant.connector === void 0 ? {} : { connector: variant.connector },
-          connector_name: relay.connectorName,
-          connector_source: relay.resolvedFrom,
+          connector_name: connectorPlan.connectorName,
+          connector_source: connectorPlan.resolvedFrom,
           prototype_root: plan.prototype_root,
           variant_root: artifactRoot,
           entry_point_hint: `${artifactRoot}/index.html`,
@@ -46050,6 +45915,155 @@ function resolveComposeReadPaths(builder, flow, step) {
   return paths;
 }
 
+// dist/connectors/resolver.js
+function mergedRelayConfig(layers) {
+  const merged = {
+    default: "auto",
+    roles: {},
+    circuits: {},
+    connectors: {}
+  };
+  for (const layer of layers ?? []) {
+    if (layer.config.relay.default !== "auto" || merged.default === "auto") {
+      merged.default = layer.config.relay.default;
+    }
+    merged.roles = { ...merged.roles, ...layer.config.relay.roles };
+    merged.circuits = { ...merged.circuits, ...layer.config.relay.circuits };
+    merged.connectors = { ...merged.connectors, ...layer.config.relay.connectors };
+  }
+  return merged;
+}
+function mergedHostKind(layers) {
+  let hostKind;
+  for (const layer of layers ?? []) {
+    const configuredHostKind = layer.config.host?.kind;
+    if (configuredHostKind !== void 0) {
+      hostKind = configuredHostKind;
+    }
+  }
+  return hostKind ?? "generic-shell";
+}
+function connectorCapabilities(connector) {
+  if (connector.kind === "builtin")
+    return BUILTIN_CONNECTOR_CAPABILITIES[connector.name];
+  return connector.capabilities;
+}
+function assertConnectorCanRunRole(connector, role) {
+  const capabilities = connectorCapabilities(connector);
+  if (role === "implementer" && capabilities.filesystem === "read-only") {
+    throw new Error(`relay connector '${connector.name}' is read-only and cannot run implementer step role '${role}'`);
+  }
+}
+function resolvedConnectorFromReference(ref, relay) {
+  if (ref.kind === "builtin")
+    return ref;
+  const descriptor = relay.connectors[ref.name];
+  if (descriptor === void 0) {
+    throw new Error(`relay connector '${ref.name}' is referenced but not declared`);
+  }
+  return descriptor;
+}
+function resolveConnectorReference(input) {
+  return resolvedConnectorFromReference(input.ref, mergedRelayConfig(input.configLayers));
+}
+function isEnabledConnector(value) {
+  return EnabledConnector.options.includes(value);
+}
+function resolvedConnectorFromDefault(defaultRef, relay) {
+  if (isEnabledConnector(defaultRef)) {
+    return { kind: "builtin", name: defaultRef };
+  }
+  const descriptor = relay.connectors[defaultRef];
+  if (descriptor === void 0) {
+    throw new Error(`relay default connector '${defaultRef}' is referenced but not declared`);
+  }
+  return descriptor;
+}
+function decision(connector, resolvedFrom, role) {
+  assertConnectorCanRunRole(connector, role);
+  return {
+    connectorName: connector.name,
+    connector,
+    resolvedFrom
+  };
+}
+function autoConnectorForHost(hostKind) {
+  if (hostKind === "codex")
+    return { kind: "builtin", name: "codex" };
+  return { kind: "builtin", name: "claude-code" };
+}
+function resolveConnectorForGuidanceInput(input) {
+  if (input.explicitConnector !== void 0) {
+    return decision(input.explicitConnector, { source: "explicit" }, input.role);
+  }
+  const relay = mergedRelayConfig(input.configLayers);
+  const roleRef = relay.roles[input.role];
+  if (roleRef !== void 0) {
+    return decision(resolvedConnectorFromReference(roleRef, relay), {
+      source: "role",
+      role: input.role
+    }, input.role);
+  }
+  const flowId = input.flowId;
+  const flowRef = relay.circuits[flowId];
+  if (flowRef !== void 0) {
+    return decision(resolvedConnectorFromReference(flowRef, relay), {
+      source: "circuit",
+      flow_id: flowId
+    }, input.role);
+  }
+  if (relay.default !== "auto") {
+    return decision(resolvedConnectorFromDefault(relay.default, relay), { source: "default" }, input.role);
+  }
+  return decision(autoConnectorForHost(input.hostKind ?? mergedHostKind(input.configLayers)), { source: "auto" }, input.role);
+}
+function expectedProvider(connectorName) {
+  if (!isEnabledConnector(connectorName))
+    return void 0;
+  return BUILTIN_CONNECTOR_SPECS[connectorName].provider;
+}
+function supportedEfforts(connectorName) {
+  if (!isEnabledConnector(connectorName))
+    return void 0;
+  return BUILTIN_CONNECTOR_SPECS[connectorName].supportedEfforts;
+}
+function assertConnectorSelectionCompatible(connectorName, selection) {
+  const expected = expectedProvider(connectorName);
+  const model = selection?.model;
+  if (expected !== void 0 && model !== void 0 && model.provider !== expected) {
+    throw new Error(`${connectorName} connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider '${expected}'`);
+  }
+  const effort = selection?.effort;
+  if (effort === void 0)
+    return;
+  const supported = supportedEfforts(connectorName);
+  if (supported !== void 0 && !supported.includes(effort)) {
+    throw new Error(`${connectorName} connector cannot honor effort '${effort}'; supported efforts: ${supported.join(", ")}`);
+  }
+}
+
+// dist/runtime/run/connector-planning.js
+var runtimeConnectorPlanner = {
+  planPrototypeVariantConnector(input) {
+    const explicitConnector = input.variant.connector === void 0 ? void 0 : resolveConnectorReference({
+      ref: input.variant.connector,
+      ...input.selectionConfigLayers === void 0 ? {} : { configLayers: input.selectionConfigLayers }
+    });
+    const relay = resolveConnectorForGuidanceInput({
+      flowId: "prototype",
+      role: "implementer",
+      ...explicitConnector === void 0 ? {} : { explicitConnector },
+      ...input.selectionConfigLayers === void 0 ? {} : { configLayers: input.selectionConfigLayers }
+    });
+    assertConnectorSelectionCompatible(relay.connectorName, resolvedPrototypeVariantSelection(input.variant.selection));
+    return {
+      variantId: input.variant.id,
+      connectorName: relay.connectorName,
+      resolvedFrom: relay.resolvedFrom
+    };
+  }
+};
+
 // dist/runtime/run/run-values.js
 function runValueFromContext(context) {
   return {
@@ -46185,6 +46199,7 @@ async function writeRegisteredComposeReport(step, context) {
       ...context.ports.worktree.projectRoot === void 0 ? {} : { projectRoot: context.ports.worktree.projectRoot },
       ...context.ports.worktree.evidencePolicy === void 0 ? {} : { evidencePolicy: context.ports.worktree.evidencePolicy },
       ...context.ports.selection.configLayers === void 0 ? {} : { selectionConfigLayers: context.ports.selection.configLayers },
+      connectorPlanner: runtimeConnectorPlanner,
       inputs
     });
     await context.ports.runFiles.writeJson(report, body);

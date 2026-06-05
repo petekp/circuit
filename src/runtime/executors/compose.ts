@@ -8,6 +8,7 @@ import {
 } from '../../flows/registries/compose-writers/registry.js';
 import type { StepOutcome } from '../domain/step.js';
 import type { ComposeStep } from '../manifest/executable-flow.js';
+import { runtimeConnectorPlanner } from '../run/connector-planning.js';
 import type { RunContext } from '../run/run-context.js';
 import { type StepExecutionContext, stepExecutionContextFromContext } from '../run/run-values.js';
 import {
@@ -70,6 +71,7 @@ async function writeRegisteredComposeReport(
       ...(context.ports.selection.configLayers === undefined
         ? {}
         : { selectionConfigLayers: context.ports.selection.configLayers }),
+      connectorPlanner: runtimeConnectorPlanner,
       inputs,
     });
     await context.ports.runFiles.writeJson(report, body);
