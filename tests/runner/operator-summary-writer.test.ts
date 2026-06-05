@@ -4,11 +4,11 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { readPriorRoute, writeOperatorSummary } from '../../src/app/operator-summary/writer.js';
 import { THREE_AXIS_RUBRIC_TIE_BREAK_ORDER, combineRubricResult } from '../../src/policy/rubric.js';
 import { CompiledFlowId, RunId } from '../../src/schemas/ids.js';
 import { OperatorSummary } from '../../src/schemas/operator-summary.js';
 import { RunResult } from '../../src/schemas/result.js';
-import { readPriorRoute, writeOperatorSummary } from '../../src/shared/operator-summary-writer.js';
 
 let runFolder: string;
 

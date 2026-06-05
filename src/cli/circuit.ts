@@ -26,6 +26,7 @@ import {
   HISTORY_RECALL_REPORT_PATH,
   prepareRunStartHistoryRecall,
 } from '../app/history/run-start-recall.js';
+import { readPriorRoute, writeOperatorSummary } from '../app/operator-summary/writer.js';
 import {
   projectCheckpointWaitingProcessEvidence,
   projectClosedProcessEvidence,
@@ -34,7 +35,6 @@ import { runAutonomousContinuation } from '../app/run-envelope/autonomous-run.js
 import { validateCompiledFlowKindPolicy } from '../flows/canonical-stage-policy.js';
 import { findCompiledFlowPackageById, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
-import { readPriorRoute, writeOperatorSummary } from '../shared/operator-summary-writer.js';
 import { progressDisplay, progressPresentation } from '../shared/progress-output.js';
 import type { ComposeWriterFn, RelayFn } from '../shared/relay-runtime-types.js';
 import { CLI_COMMAND_NAMES, type CliCommandName } from './command-vocabulary.js';

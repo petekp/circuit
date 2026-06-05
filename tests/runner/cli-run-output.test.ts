@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { OperatorSummaryWriteResult } from '../../src/app/operator-summary/writer.js';
 import { operatorSummaryOutputFields, routeOutputFields } from '../../src/cli/run-output.js';
-import type { OperatorSummaryWriteResult } from '../../src/shared/operator-summary-writer.js';
 
 describe('CLI run output domain values', () => {
   it('builds route fields without requiring process rendering', () => {

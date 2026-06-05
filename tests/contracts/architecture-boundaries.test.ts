@@ -161,7 +161,7 @@ describe('architecture boundary ratchets', () => {
   });
 
   it('keeps src/shared -> src/flows edges inside the current ratchet allow-list', () => {
-    const allowedFiles = ['src/shared/operator-summary-writer.ts', 'src/shared/relay-support.ts'];
+    const allowedFiles = ['src/shared/relay-support.ts'];
     const offenders = sourceImportEdges('src/shared').filter((edge) => edge.toModule === 'flows');
     const offenderFiles = uniqueSorted(offenders.map((edge) => edge.file));
 

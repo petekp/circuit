@@ -1,3 +1,4 @@
+import type { OperatorSummaryWriteResult } from '../app/operator-summary/writer.js';
 import { writeProcessEvidenceProjection } from '../app/process-evidence/projection.js';
 import {
   type WriteRunEnvelopeShadowRecordInput,
@@ -22,7 +23,6 @@ import {
 // it here closes the latent copy-divergence: the resume path passes
 // memoryContext explicitly undefined rather than silently omitting it.
 import type { ProcessEvidenceProjection as ProcessEvidenceProjectionValue } from '../schemas/process-evidence.js';
-import type { OperatorSummaryWriteResult } from '../shared/operator-summary-writer.js';
 
 export type PostRunArtifactWarning = {
   readonly label: string;

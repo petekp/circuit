@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
 
+import { writeOperatorSummary } from '../../src/app/operator-summary/writer.js';
 import type { ClaudeCodeRelayInput } from '../../src/connectors/claude-code.js';
 import { fromCompiledFlow } from '../../src/runtime/manifest/from-compiled-flow.js';
 import {
@@ -20,7 +21,6 @@ import {
 } from '../../src/schemas/policy-envelope.js';
 import { RunResult } from '../../src/schemas/result.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
-import { writeOperatorSummary } from '../../src/shared/operator-summary-writer.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
 // Slice 3 (the actuator): an `auto` skill-hook policy injects its resolved

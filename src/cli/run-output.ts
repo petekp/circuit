@@ -1,5 +1,5 @@
+import type { OperatorSummaryWriteResult } from '../app/operator-summary/writer.js';
 import type { WriteRunEnvelopeRecordResult } from '../app/run-envelope/source-record.js';
-import type { OperatorSummaryWriteResult } from '../shared/operator-summary-writer.js';
 
 export interface RouteOutputFieldsInput {
   readonly selectedFlow: string;

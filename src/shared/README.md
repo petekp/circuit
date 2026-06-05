@@ -27,7 +27,7 @@ names.
 | Cluster | Current files | Direction |
 | --- | --- | --- |
 | Relay support | `relay-support.ts` | First move candidate. Move or invert the flow lookup before tightening the remaining `shared -> flows` ratchet. Selection resolution now lives in `src/selection/`. |
-| Operator-facing summaries and status | `operator-summary-writer.ts`, `operator-summary/`, `progress-output.ts`, `status-block-renderer.ts` | `operator-summary-writer.ts` is a first move candidate for app reporting because it knows flow runtime surfaces. The smaller renderer/projection helpers can stay shared while multiple layers use them. |
+| Operator-facing projections and status | `operator-summary/`, `progress-output.ts`, `status-block-renderer.ts` | Stay shared while multiple layers use these smaller renderer/projection helpers. The operator summary writer now lives in `src/app/operator-summary/` because it composes app-level run artifacts and reads flow runtime surfaces. |
 | HTML projection registry | `html/` | Keep shared as the inversion model: flow packages register projectors; shared HTML code does not import flow packages. |
 | Config, skills, and connector-neutral relay helpers | `config-loader.ts`, `skill-loading.ts`, `user-skill-registry.ts`, `connector-relay.ts`, `write-capable-worker-disclosure.ts` | Stay shared while they serve CLI, runtime, and hooks without importing flow packages. |
 | Run-folder and runtime-source helpers | `run-artifact-io.ts`, `run-file-paths.ts`, `run-relative-path.ts`, `result-path.ts`, `runtime-source.ts`, `manifest-snapshot.ts` | Stay shared unless a helper becomes engine-only or app-only. |

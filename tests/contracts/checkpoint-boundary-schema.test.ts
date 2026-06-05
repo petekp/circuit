@@ -56,7 +56,7 @@ describe('CheckpointBoundaryV0 schema foundation', () => {
       'utf8',
     );
     const summaryWriterSource = readFileSync(
-      join(process.cwd(), 'src/shared/operator-summary-writer.ts'),
+      join(process.cwd(), 'src/app/operator-summary/writer.ts'),
       'utf8',
     );
 

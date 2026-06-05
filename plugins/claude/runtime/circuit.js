@@ -56799,1217 +56799,20 @@ function prepareRunStartHistoryRecall(options) {
   }
 }
 
-// dist/app/process-evidence/projection.js
-import { existsSync as existsSync19, mkdirSync as mkdirSync3, writeFileSync as writeFileSync3 } from "node:fs";
-import { dirname as dirname5, join as join16 } from "node:path";
-function traceRef2(runId) {
-  return {
-    kind: "trace",
-    ref: "trace.ndjson#sequence=0",
-    run_id: RunId.parse(runId),
-    sequence: 0
-  };
-}
-function reportRef(input) {
-  return {
-    kind: "report",
-    ref: runRelativePath(input.runFolder, input.path),
-    sha256: sha256OfFile(input.path),
-    run_id: RunId.parse(input.runId),
-    flow_id: CompiledFlowId.parse(input.flowId)
-  };
-}
-function requestRef(input) {
-  return {
-    kind: "request",
-    ref: runRelativePath(input.runFolder, input.path),
-    sha256: sha256OfFile(input.path),
-    run_id: RunId.parse(input.runId),
-    flow_id: CompiledFlowId.parse(input.flowId),
-    step_id: StepId.parse(input.stepId)
-  };
-}
-function normalizeClosedOutcome(outcome) {
-  if (outcome === "complete" || outcome === "handoff" || outcome === "aborted")
-    return outcome;
-  return "blocked";
-}
-function declaredReportPaths(flowId) {
-  const primaryResult = findFlowRuntimeSurfaceById(flowId)?.primaryResult;
-  return primaryResult === void 0 ? [] : [primaryResult.path];
-}
-function missingEvidenceFor(runResult) {
-  if (runResult.outcome === "complete")
-    return [];
-  return [
-    {
-      claim_id: "process-completion",
-      reason: runResult.reason ?? runResult.summary,
-      next_action: "Inspect the child process result before closing Run."
-    }
-  ];
-}
-function projectClosedProcessEvidence(input) {
-  const flowId = input.runResult.flow_id;
-  const declaredPaths = declaredReportPaths(flowId);
-  const resultRef = reportRef({
-    runFolder: input.runFolder,
-    path: input.resultPath,
-    runId: input.runResult.run_id,
-    flowId
-  });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync19(join16(input.runFolder, path))).map((path) => reportRef({
-    runFolder: input.runFolder,
-    path: join16(input.runFolder, path),
-    runId: input.runResult.run_id,
-    flowId
-  }));
-  const additionalRefs = (input.additionalEvidencePaths ?? []).map((path) => reportRef({
-    runFolder: input.runFolder,
-    path: join16(input.runFolder, path),
-    runId: input.runResult.run_id,
-    flowId
-  }));
-  const outcome = normalizeClosedOutcome(input.runResult.outcome);
-  return ProcessEvidenceProjection.parse({
-    schema: "process.evidence@v0",
-    flow_id: CompiledFlowId.parse(flowId),
-    attempt_id: input.attemptId ?? "primary",
-    outcome,
-    summary: input.runResult.summary,
-    child_run_ref: traceRef2(input.runResult.run_id),
-    result_ref: resultRef,
-    evidence_refs: [resultRef, ...declaredReportRefs, ...additionalRefs],
-    declared_report_paths: declaredPaths,
-    missing_evidence: missingEvidenceFor(input.runResult),
-    trace_entries_observed: input.runResult.trace_entries_observed,
-    manifest_hash: input.runResult.manifest_hash,
-    ...outcome === "blocked" ? { blocked_reason: input.runResult.reason ?? input.runResult.summary } : {}
-  });
-}
-function projectCheckpointWaitingProcessEvidence(input) {
-  const checkpointRequestRef = requestRef({
-    runFolder: input.runFolder,
-    path: input.checkpoint.requestPath,
-    runId: input.runId,
-    flowId: input.flowId,
-    stepId: input.checkpoint.stepId
-  });
-  return ProcessEvidenceProjection.parse({
-    schema: "process.evidence@v0",
-    flow_id: CompiledFlowId.parse(input.flowId),
-    attempt_id: input.attemptId ?? "primary",
-    outcome: "checkpoint_waiting",
-    summary: "Selected process is waiting for an operator checkpoint choice.",
-    child_run_ref: traceRef2(input.runId),
-    evidence_refs: [checkpointRequestRef],
-    declared_report_paths: declaredReportPaths(input.flowId),
-    missing_evidence: [
-      {
-        claim_id: "process-checkpoint",
-        reason: "The process is waiting for an operator checkpoint choice.",
-        next_action: "Resolve the checkpoint before evaluating process evidence."
-      }
-    ],
-    trace_entries_observed: input.traceEntriesObserved,
-    manifest_hash: input.manifestHash,
-    checkpoint: {
-      step_id: StepId.parse(input.checkpoint.stepId),
-      request_ref: checkpointRequestRef,
-      allowed_choices: [...input.checkpoint.allowedChoices]
-    }
-  });
-}
-function writeProcessEvidenceProjection(input) {
-  const projection = ProcessEvidenceProjection.parse(input.projection);
-  const outPath = join16(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
-  mkdirSync3(dirname5(outPath), { recursive: true });
-  writeFileSync3(outPath, `${JSON.stringify(projection, null, 2)}
-`);
-  return { path: outPath, projection };
-}
-
-// dist/app/run-envelope/contract-quality.js
-var IMPLEMENTATION_INTENT = /\b(build|fix|implement|add|change|create|refactor|ship|integrate|update|wire)\b/;
-var REVIEW_INTENT2 = /\b(review|audit|assess|inspect|findings?)\b/;
-var EXPLORE_INTENT2 = /\b(explore|compare|decide|decision|tradeoffs?|options?)\b/;
-function objectiveKind(objective) {
-  const text = objective.toLowerCase();
-  if (IMPLEMENTATION_INTENT.test(text))
-    return "implementation";
-  if (REVIEW_INTENT2.test(text))
-    return "review";
-  if (EXPLORE_INTENT2.test(text))
-    return "explore";
-  return "other";
-}
-var MIN_REQUIRED_KIND_BY_OBJECTIVE = {
-  implementation: "command",
-  review: "review"
-};
-function hasRequiredEvidenceOfKind(contract, kind) {
-  return contract.done_when.some((claim) => claim.required_evidence.some((entry) => entry.required && entry.kind === kind));
-}
-function contractQualityReview(contract) {
-  const findings = [];
-  const kind = objectiveKind(contract.objective);
-  const minKind = MIN_REQUIRED_KIND_BY_OBJECTIVE[kind];
-  if (minKind !== void 0 && !hasRequiredEvidenceOfKind(contract, minKind)) {
-    findings.push({
-      severity: "high",
-      text: `A ${kind} objective needs at least one required '${minKind}' evidence entry, but the contract has none. Satisfying this contract would not prove the objective.`
-    });
-  }
-  const blocking = findings.some((finding) => finding.severity === "critical" || finding.severity === "high" || finding.severity === "medium");
-  return {
-    verdict: blocking ? "blocked" : "gate-pass",
-    attack_lens: "contract-quality",
-    findings
-  };
-}
-
-// dist/app/run-envelope/no-progress.js
-function sameSet(a, b) {
-  if (a.length !== b.length)
-    return false;
-  const seen = new Set(a);
-  return b.every((value) => seen.has(value));
-}
-function shrank(from, to) {
-  return to.length < from.length;
-}
-function detectNoProgress(attempts) {
-  if (attempts.length >= 2) {
-    const last = attempts[attempts.length - 1];
-    const prev = attempts[attempts.length - 2];
-    if (last !== void 0 && prev !== void 0 && sameSet(last.unmetEvidence, prev.unmetEvidence)) {
-      return { escalate: true, reason: "no-progress" };
-    }
-  }
-  if (attempts.length >= 3) {
-    const first = attempts[attempts.length - 3];
-    const middle = attempts[attempts.length - 2];
-    const last = attempts[attempts.length - 1];
-    if (first !== void 0 && middle !== void 0 && last !== void 0) {
-      const oscillating = last.route === first.route && last.route !== middle.route;
-      const noNetProgress = !shrank(first.unmetEvidence, last.unmetEvidence);
-      if (oscillating && noNetProgress) {
-        return { escalate: true, reason: "oscillation" };
-      }
-    }
-  }
-  return { escalate: false, reason: null };
-}
-
-// dist/app/run-envelope/source-record.js
-import { mkdirSync as mkdirSync4, writeFileSync as writeFileSync4 } from "node:fs";
-import { dirname as dirname6, join as join17 } from "node:path";
-var RUN_ENVELOPE_RELATIVE_PATH = "reports/run-envelope.json";
-var RUN_SURFACE_RELATIVE_PATH = "reports/run-surface.md";
-var RUN_DECISION_PACKET_RELATIVE_DIR = "reports/decision-packets";
-function childRunIdFromProjection(projection) {
-  return RunId.parse(projection.child_run_ref.run_id);
-}
-function evidenceFileRef(input) {
-  return {
-    kind: "evidence",
-    ref: runRelativePath(input.runFolder, input.path),
-    sha256: sha256OfFile(input.path),
-    run_id: RunId.parse(input.runId),
-    flow_id: CompiledFlowId.parse(input.flowId)
-  };
-}
-function evidence(source, ref) {
-  return { source, ref };
-}
-function artifactLabel(ref) {
-  if (ref.ref === RUN_ENVELOPE_RELATIVE_PATH)
-    return "Run envelope";
-  if (ref.ref === PROCESS_EVIDENCE_RELATIVE_PATH)
-    return "Process evidence";
-  if (ref.ref === "reports/result.json")
-    return "Child result";
-  if (ref.ref.startsWith(`${RUN_DECISION_PACKET_RELATIVE_DIR}/`))
-    return "Decision packet";
-  if (ref.kind === "request")
-    return "Decision request";
-  return ref.ref;
-}
-function markdownLink(label, path) {
-  return `[${label}](${path})`;
-}
-function renderSurfaceMarkdown(input) {
-  const artifactRefs = [
-    {
-      kind: "report",
-      ref: RUN_ENVELOPE_RELATIVE_PATH
-    },
-    ...input.record.surface_output.artifact_links
-  ];
-  const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
-  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join17(input.runFolder, ref.ref))).join(" \xB7 ");
-  return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
-}
-function processAttemptOutcome(outcome) {
-  if (outcome === "aborted")
-    return "failed";
-  return outcome;
-}
-function missingRunEvidence(projection) {
-  if (projection.outcome !== "complete")
-    return void 0;
-  const refs = new Set(projection.evidence_refs.map((ref) => ref.ref));
-  const missingRefs = projection.declared_report_paths.filter((path) => !refs.has(path));
-  if (missingRefs.length === 0)
-    return void 0;
-  return {
-    claim_id: "process-evidence",
-    reason: `Missing expected process evidence: ${missingRefs.join(", ")}.`,
-    missing_refs: missingRefs
-  };
-}
-function runOutcome2(input) {
-  if (input.missingEvidence !== void 0)
-    return "needs_attention";
-  if (input.projection.outcome === "checkpoint_waiting")
-    return "needs_attention";
-  if (input.projection.outcome === "aborted")
-    return "failed";
-  return input.projection.outcome;
-}
-function selectionSourceFor(routedBy) {
-  if (routedBy === "explicit")
-    return "explicit_operator_request";
-  return "recovery";
-}
-function requiredEvidenceKindForProcess(processId) {
-  switch (processId) {
-    case "fix":
-    case "build":
-      return "command";
-    case "review":
-    case "explore":
-      return "review";
-    case "pursue":
-    case "prototype":
-      return "report";
-    default:
-      return "report";
-  }
-}
-function describeRequiredEvidence(kind, objective) {
-  switch (kind) {
-    case "command":
-      return `A passing verification command proving: ${objective}`;
-    case "review":
-      return `A review confirming no blocking findings for: ${objective}`;
-    case "report":
-      return `A report-backed result proving: ${objective}`;
-    case "source":
-      return `Source-backed justification for: ${objective}`;
-    case "checkpoint":
-      return `An operator checkpoint resolving: ${objective}`;
-  }
-}
-function deriveRequiredEvidence(processId, objective) {
-  const kind = requiredEvidenceKindForProcess(processId);
-  return [{ kind, description: describeRequiredEvidence(kind, objective), required: true }];
-}
-var RECOVERY_ROUTE_FOR_UNMET_EVIDENCE_KIND = {
-  command: "fix",
-  report: "build",
-  review: "review",
-  source: "explore",
-  checkpoint: "checkpoint"
-};
-var RECOVERY_KIND_PRIORITY = [
-  "command",
-  "report",
-  "review",
-  "source",
-  "checkpoint"
-];
-function recoveryRouteForUnmetKinds(unmetKinds) {
-  for (const kind of RECOVERY_KIND_PRIORITY) {
-    if (unmetKinds.includes(kind))
-      return RECOVERY_ROUTE_FOR_UNMET_EVIDENCE_KIND[kind];
-  }
-  return "review";
-}
-function gateFor(input) {
-  if (input.projection.outcome === "complete") {
-    if (input.missingEvidence !== void 0) {
-      return {
-        schema: "run.completion-gate@v0",
-        verdict: "needs_followup",
-        claim_results: [
-          {
-            claim_id: input.missingEvidence.claim_id,
-            status: "missing",
-            evidence: [input.processEvidence],
-            gap: input.missingEvidence.reason
-          }
-        ],
-        gate_passes: [],
-        clean_streak: 0,
-        required_passes: 2,
-        next_action: "plan-followup-process"
-      };
-    }
-    return {
-      schema: "run.completion-gate@v0",
-      verdict: "complete",
-      claim_results: [
-        {
-          claim_id: "process-evidence",
-          status: "proved",
-          evidence: [input.processEvidence]
-        }
-      ],
-      gate_passes: [
-        {
-          pass_id: "gate-process-evidence",
-          attack_lens: "required-evidence-present",
-          evidence_checked: [input.processEvidence],
-          verdict: "gate-pass"
-        },
-        {
-          pass_id: "gate-child-outcome",
-          attack_lens: "child-outcome-consistent",
-          evidence_checked: [input.processEvidence],
-          verdict: "gate-pass"
-        }
-      ],
-      clean_streak: 2,
-      required_passes: 2,
-      next_action: "close"
-    };
-  }
-  if (input.projection.outcome === "checkpoint_waiting") {
-    return {
-      schema: "run.completion-gate@v0",
-      verdict: "needs_followup",
-      claim_results: [
-        {
-          claim_id: "process-evidence",
-          status: "missing",
-          evidence: [input.processEvidence],
-          gap: "The selected process is waiting for an operator checkpoint choice."
-        }
-      ],
-      gate_passes: [],
-      clean_streak: 0,
-      required_passes: 2,
-      next_action: "ask-operator"
-    };
-  }
-  if (input.projection.outcome === "handoff") {
-    return {
-      schema: "run.completion-gate@v0",
-      verdict: "handoff",
-      claim_results: [
-        {
-          claim_id: "process-evidence",
-          status: "blocked",
-          evidence: [input.processEvidence],
-          gap: "The selected process handed off before Run could close complete."
-        }
-      ],
-      gate_passes: [],
-      clean_streak: 0,
-      required_passes: 2,
-      next_action: "handoff"
-    };
-  }
-  const failed = input.projection.outcome === "failed" || input.projection.outcome === "aborted";
-  return {
-    schema: "run.completion-gate@v0",
-    verdict: failed ? "failed" : "blocked",
-    claim_results: [
-      {
-        claim_id: "process-evidence",
-        status: failed ? "contradicted" : "blocked",
-        evidence: [input.processEvidence],
-        gap: input.projection.blocked_reason ?? input.projection.missing_evidence[0]?.reason ?? "The selected process did not produce complete evidence."
-      }
-    ],
-    gate_passes: [],
-    clean_streak: 0,
-    required_passes: 2,
-    next_action: failed ? "failed" : "blocked"
-  };
-}
-function followupProcessId(primaryProcessId) {
-  const unmetKind = requiredEvidenceKindForProcess(primaryProcessId);
-  return CompiledFlowId.parse(recoveryRouteForUnmetKinds([unmetKind]));
-}
-function followupPlannedAttempt(input) {
-  if (input.missingEvidence === void 0)
-    return void 0;
-  const followupProcess = followupProcessId(input.primaryProcessId);
-  return {
-    attempt_id: "attempt-followup-1",
-    process_id: followupProcess,
-    goal: `Run ${followupProcess} to produce the missing evidence to close: ${input.operatorIntent}`,
-    expected_evidence: [PROCESS_EVIDENCE_RELATIVE_PATH, ...input.missingEvidence.missing_refs],
-    depends_on_attempt_ids: ["attempt-primary"],
-    followup_for: {
-      claim_id: input.missingEvidence.claim_id,
-      prior_attempt_id: "attempt-primary",
-      missing_evidence: [...input.missingEvidence.missing_refs]
-    }
-  };
-}
-function decisionPacketsFor(input) {
-  if (input.missingEvidence !== void 0) {
-    return [
-      {
-        schema: "run.decision-packet@v0",
-        decision_id: "decision-missing-evidence-followup",
-        reason: "missing-evidence",
-        prompt: "Choose whether Run should continue with the planned follow-up.",
-        choices: [
-          {
-            id: "run-followup",
-            label: "Run follow-up",
-            effect: "Use the planned follow-up process to resolve the missing evidence."
-          },
-          {
-            id: "stop",
-            label: "Stop here",
-            effect: "Leave the Run open with the missing evidence recorded."
-          }
-        ],
-        resume_target: {
-          kind: "run-envelope",
-          run_id: input.childRunId
-        },
-        artifact_refs: [input.processEvidence.ref]
-      }
-    ];
-  }
-  const checkpoint = input.projection.checkpoint;
-  if (checkpoint === void 0)
-    return [];
-  return [
-    {
-      schema: "run.decision-packet@v0",
-      decision_id: "decision-checkpoint-primary",
-      reason: "process-checkpoint",
-      prompt: "Choose how the selected process should continue.",
-      choices: checkpoint.allowed_choices.map((choice) => ({
-        id: choice,
-        label: choice,
-        effect: `Resume the checkpoint with '${choice}'.`
-      })),
-      resume_target: {
-        kind: "process-checkpoint",
-        run_id: input.childRunId,
-        step_id: checkpoint.step_id,
-        request_ref: checkpoint.request_ref
-      },
-      artifact_refs: [input.processEvidence.ref, checkpoint.request_ref]
-    }
-  ];
-}
-function decisionPacketRelativePath(packet) {
-  const safeId = packet.decision_id.replace(/[^a-zA-Z0-9._-]+/g, "-");
-  return `${RUN_DECISION_PACKET_RELATIVE_DIR}/${safeId}.json`;
-}
-function decisionPacketArtifacts(input) {
-  return input.packets.map((packet) => {
-    const body = `${JSON.stringify(packet, null, 2)}
-`;
-    return {
-      packet,
-      body,
-      ref: {
-        kind: "report",
-        ref: decisionPacketRelativePath(packet),
-        sha256: Sha256.parse(sha256OfString(body)),
-        run_id: input.runId
-      }
-    };
-  });
-}
-function memoryUpdateEvents(input) {
-  return (input.updates ?? []).map((update) => ({
-    schema: "run.memory-update-event@v0",
-    event_id: update.event_id,
-    scope: update.scope,
-    ...update.scope === "flow" ? { flow_id: CompiledFlowId.parse(update.flow_id ?? input.processId) } : {},
-    action: update.action,
-    reason: update.reason,
-    summary: update.summary,
-    source_refs: [input.processEvidence.ref],
-    authority: "hint_only",
-    ...update.operator_indicator === void 0 ? {} : { operator_indicator: update.operator_indicator }
-  }));
-}
-function surfaceFor(input) {
-  const artifactLinks = [
-    input.processEvidence.ref,
-    ...input.decisionPacketRefs ?? [],
-    ...input.childResult === void 0 ? [] : [input.childResult.ref],
-    ...input.checkpointRequest === void 0 ? [] : [input.checkpointRequest]
-  ];
-  const base = {
-    schema: "run.surface-output@v0",
-    outcome: input.outcome,
-    artifact_links: artifactLinks,
-    ...input.memoryIndicator === void 0 ? {} : { memory_indicator: input.memoryIndicator }
-  };
-  if (input.outcome === "complete") {
-    return {
-      ...base,
-      status_text: `Done: ${input.processId} completed with required process evidence.`,
-      next_action: "close"
-    };
-  }
-  if (input.outcome === "needs_attention") {
-    if (input.missingEvidence !== void 0) {
-      return {
-        ...base,
-        status_text: `Needs follow-up: ${input.processId} is missing expected process evidence.`,
-        next_action: "plan-followup-process",
-        ...input.decisionPacketRefs?.[0] === void 0 ? {} : { decision_packet_ref: input.decisionPacketRefs[0] }
-      };
-    }
-    return {
-      ...base,
-      status_text: `Needs input: ${input.processId} is waiting at a checkpoint.`,
-      next_action: "ask-operator",
-      ...input.decisionPacketRefs?.[0] === void 0 ? {} : { decision_packet_ref: input.decisionPacketRefs[0] }
-    };
-  }
-  if (input.outcome === "blocked") {
-    return {
-      ...base,
-      status_text: `Blocked: ${input.processId} did not produce enough process evidence.`,
-      next_action: "Inspect the process evidence and choose a recovery path."
-    };
-  }
-  if (input.outcome === "handoff") {
-    return {
-      ...base,
-      status_text: `Handoff ready: ${input.processId} paused with handoff evidence.`,
-      next_action: "resume from handoff"
-    };
-  }
-  if (input.outcome === "failed") {
-    return {
-      ...base,
-      status_text: `Failed: ${input.processId} could not close with the required process evidence.`,
-      next_action: "Inspect the process evidence and rerun with a corrected goal."
-    };
-  }
-  return {
-    ...base,
-    status_text: `Stopped: ${input.processId} could not close with enough process evidence.`,
-    next_action: "Inspect the process evidence and rerun with a corrected goal."
-  };
-}
-function writeRunEnvelopeRecord(input) {
-  const projection = ProcessEvidenceProjection.parse(input.processEvidence.projection);
-  const processEvidencePath = input.processEvidence.path;
-  const childRunId = childRunIdFromProjection(projection);
-  const processEvidence = evidence("process_evidence", evidenceFileRef({
-    runFolder: input.runFolder,
-    path: processEvidencePath,
-    runId: childRunId,
-    flowId: projection.flow_id
-  }));
-  const childResult = projection.result_ref === void 0 ? void 0 : evidence("child_result", projection.result_ref);
-  const missingEvidence = missingRunEvidence(projection);
-  const gate = gateFor({
-    projection,
-    processEvidence,
-    ...missingEvidence && { missingEvidence }
-  });
-  const outcome = runOutcome2({ projection, ...missingEvidence && { missingEvidence } });
-  const processId = projection.flow_id;
-  const followupAttempt = followupPlannedAttempt({
-    operatorIntent: input.operatorIntent,
-    primaryProcessId: processId,
-    ...missingEvidence && { missingEvidence }
-  });
-  const decisionPackets = decisionPacketsFor({
-    projection,
-    processEvidence,
-    childRunId,
-    ...missingEvidence && { missingEvidence }
-  });
-  const decisionArtifacts = decisionPacketArtifacts({
-    runId: childRunId,
-    packets: decisionPackets
-  });
-  const memoryEvents = memoryUpdateEvents({
-    processId,
-    processEvidence,
-    ...input.memoryUpdates === void 0 ? {} : { updates: input.memoryUpdates }
-  });
-  const writeIndicator = memoryEvents.find((event) => event.action === "proposed" || event.action === "recorded")?.operator_indicator;
-  const memoryIndicator = writeIndicator ?? input.recallMemoryIndicator;
-  const record2 = RunEnvelopeRecord.parse({
-    schema: "run.envelope@v0",
-    run_id: projection.child_run_ref.run_id,
-    operator_intent: input.operatorIntent,
-    explicit_constraints: [],
-    explicit_process_request: input.selectedProcess.routed_by === "explicit" ? CompiledFlowId.parse(input.selectedProcess.process_id) : void 0,
-    memory_context: {
-      used: input.memoryContext?.used ?? false,
-      memory_input_ids: [...input.memoryContext?.memoryInputIds ?? []],
-      authority: "hint_only"
-    },
-    goal_contract: {
-      schema: "run.goal-contract@v0",
-      objective: input.operatorIntent,
-      scope: {
-        in: [input.operatorIntent],
-        out: [],
-        assumptions: []
-      },
-      constraints: [],
-      done_when: [
-        {
-          id: "process-evidence",
-          claim: `The ${input.selectedProcess.process_id} work is complete with the required proof for: ${input.operatorIntent}`,
-          required_evidence: deriveRequiredEvidence(input.selectedProcess.process_id, input.operatorIntent)
-        }
-      ],
-      recovery_policy: {
-        max_process_attempts: 2,
-        allowed_routes: ["retry-process", "run-review", "checkpoint", "handoff", "blocked"]
-      },
-      stop_conditions: ["Stop instead of closing complete when required evidence is missing."],
-      completion_gate: {
-        required_passes: 2,
-        blocking_severities: ["critical", "high", "medium"],
-        reset_on_blocking_finding: true
-      }
-    },
-    process_plan: {
-      schema: "run.process-plan@v0",
-      selection_source: selectionSourceFor(input.selectedProcess.routed_by),
-      rationale: input.selectedProcess.router_reason,
-      planned_attempts: [
-        {
-          attempt_id: "attempt-primary",
-          process_id: CompiledFlowId.parse(input.selectedProcess.process_id),
-          goal: input.operatorIntent,
-          expected_evidence: [PROCESS_EVIDENCE_RELATIVE_PATH],
-          depends_on_attempt_ids: []
-        },
-        ...followupAttempt === void 0 ? [] : [followupAttempt]
-      ]
-    },
-    process_attempts: [
-      {
-        schema: "run.process-attempt@v0",
-        attempt_id: "attempt-primary",
-        process_id: CompiledFlowId.parse(input.selectedProcess.process_id),
-        goal: input.operatorIntent,
-        started_at: input.recordedAt,
-        ...projection.outcome === "checkpoint_waiting" ? {} : { completed_at: input.recordedAt },
-        outcome: processAttemptOutcome(projection.outcome),
-        child_run: {
-          run_id: projection.child_run_ref.run_id,
-          run_folder: input.runFolder,
-          ...childResult === void 0 ? {} : { result_ref: childResult },
-          trace_entries_observed: projection.trace_entries_observed,
-          manifest_hash: projection.manifest_hash
-        },
-        ...projection.checkpoint === void 0 ? {} : {
-          checkpoint: {
-            step_id: StepId.parse(projection.checkpoint.step_id),
-            request_ref: projection.checkpoint.request_ref,
-            allowed_choices: projection.checkpoint.allowed_choices
-          }
-        },
-        evidence_refs: [processEvidence, ...childResult === void 0 ? [] : [childResult]],
-        summary: projection.summary,
-        ...projection.blocked_reason === void 0 ? {} : { blocked_reason: projection.blocked_reason }
-      }
-    ],
-    completion_gate: gate,
-    decision_packets: decisionPackets,
-    memory_update_events: memoryEvents,
-    surface_output: surfaceFor({
-      outcome,
-      processId,
-      processEvidence,
-      ...missingEvidence && { missingEvidence },
-      decisionPacketRefs: decisionArtifacts.map((artifact) => artifact.ref),
-      ...memoryIndicator === void 0 ? {} : { memoryIndicator },
-      ...childResult === void 0 ? {} : { childResult },
-      ...projection.checkpoint === void 0 ? {} : { checkpointRequest: projection.checkpoint.request_ref }
-    }),
-    outcome
-  });
-  const outPath = join17(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH);
-  mkdirSync4(dirname6(outPath), { recursive: true });
-  const decisionPacketPaths = decisionArtifacts.map((artifact) => {
-    const path = join17(input.runFolder, artifact.ref.ref);
-    mkdirSync4(dirname6(path), { recursive: true });
-    writeFileSync4(path, artifact.body);
-    return path;
-  });
-  writeFileSync4(outPath, `${JSON.stringify(record2, null, 2)}
-`);
-  const surfacePath = join17(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
-  writeFileSync4(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
-  return {
-    path: outPath,
-    processEvidencePath,
-    surfacePath,
-    decisionPacketPaths,
-    record: record2
-  };
-}
-
-// dist/app/run-envelope/continuation-loop.js
-async function runContinuationLoop(input) {
-  const quality = contractQualityReview(input.contract);
-  if (quality.verdict === "blocked") {
-    const detail = quality.findings[0]?.text ?? "The contract is too weak to prove the objective.";
-    return {
-      outcome: "needs_attention",
-      attempts: [],
-      stopReason: `contract-quality blocked before any attempt: ${detail}`
-    };
-  }
-  const maxAttempts = input.contract.recovery_policy.max_process_attempts;
-  const attempts = [];
-  const progress = [];
-  let currentProcess = input.primaryProcessId;
-  for (let attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber += 1) {
-    const result = await input.runAttempt({ processId: currentProcess, attemptNumber });
-    attempts.push(result);
-    if (result.outcome === "complete") {
-      return { outcome: "complete", attempts, stopReason: "required evidence satisfied" };
-    }
-    if (result.outcome === "checkpoint") {
-      return { outcome: "needs_attention", attempts, stopReason: "stopped at operator checkpoint" };
-    }
-    if (result.outcome === "handoff") {
-      return { outcome: "handoff", attempts, stopReason: "process handed off before closure" };
-    }
-    if (result.outcome === "failed") {
-      return { outcome: "failed", attempts, stopReason: "process failed" };
-    }
-    if (result.outcome === "blocked") {
-      return { outcome: "blocked", attempts, stopReason: "process blocked" };
-    }
-    progress.push({ unmetEvidence: result.unmetEvidence, route: result.process_id });
-    const noProgress = detectNoProgress(progress);
-    if (noProgress.escalate) {
-      return {
-        outcome: "needs_attention",
-        attempts,
-        stopReason: `escalated on no-progress (${noProgress.reason})`
-      };
-    }
-    if (attemptNumber >= maxAttempts)
-      break;
-    const unmetKinds = result.unmetKinds ?? [requiredEvidenceKindForProcess(result.process_id)];
-    const nextRoute = recoveryRouteForUnmetKinds(unmetKinds);
-    if (nextRoute === "checkpoint") {
-      return {
-        outcome: "needs_attention",
-        attempts,
-        stopReason: "recovery requires an operator checkpoint"
-      };
-    }
-    currentProcess = nextRoute;
-  }
-  return {
-    outcome: "needs_attention",
-    attempts,
-    stopReason: `stopped at attempt limit: ran ${attempts.length} attempt(s); required evidence remains unmet`
-  };
-}
-
-// dist/app/run-envelope/autonomous-run.js
-function attemptOutcomeFromProjection(projection, missing) {
-  switch (projection.outcome) {
-    case "complete":
-      return missing === void 0 ? "complete" : "needs_followup";
-    case "checkpoint_waiting":
-      return "checkpoint";
-    case "handoff":
-      return "handoff";
-    case "failed":
-    case "aborted":
-      return "failed";
-    default:
-      return "blocked";
-  }
-}
-function attemptResultFromProjection(projection) {
-  const missing = missingRunEvidence(projection);
-  const outcome = attemptOutcomeFromProjection(projection, missing);
-  const ranProcess = projection.flow_id;
-  if (missing === void 0) {
-    return { process_id: ranProcess, outcome, unmetEvidence: [] };
-  }
-  return {
-    process_id: ranProcess,
-    outcome,
-    unmetEvidence: missing.missing_refs,
-    unmetKinds: [requiredEvidenceKindForProcess(ranProcess)]
-  };
-}
-async function runAutonomousContinuation(input) {
-  return runContinuationLoop({
-    contract: input.contract,
-    primaryProcessId: input.primaryProcessId,
-    runAttempt: async ({ processId, attemptNumber }) => {
-      const run = await input.runFlow({ processId, attemptNumber });
-      return attemptResultFromProjection(run.projection);
-    }
-  });
-}
-
-// dist/policy/flow-kind-policy-core.js
-function objectRecord(value) {
-  return value !== null && typeof value === "object" ? value : void 0;
-}
-function stringStepIdsForCanonical(stages, canonical) {
-  const ids = [];
-  for (const stage of stages) {
-    const p = objectRecord(stage);
-    if (p === void 0 || p.canonical !== canonical || !Array.isArray(p.steps))
-      continue;
-    for (const id of p.steps) {
-      if (typeof id === "string")
-        ids.push(id);
-    }
-  }
-  return ids;
-}
-function isReviewResultReportWriter(step) {
-  const s = objectRecord(step);
-  if (s === void 0 || s.kind !== "compose")
-    return false;
-  const writes = objectRecord(s.writes);
-  const report = objectRecord(writes?.report);
-  return report?.schema === "review.result@v1";
-}
-function isReviewerRelay(step) {
-  const s = objectRecord(step);
-  return s !== void 0 && s.kind === "relay" && s.role === "reviewer";
-}
-function declaredCanonicalsFor(fixture) {
-  const declared = /* @__PURE__ */ new Set();
-  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
-  for (const stage of stages) {
-    const stageRecord = objectRecord(stage);
-    if (typeof stageRecord?.canonical === "string") {
-      declared.add(stageRecord.canonical);
-    }
-  }
-  return declared;
-}
-function checkCanonicalStagePolicyVariant(id, fixture, variant, optionalCanonicals, authority) {
-  const declared = declaredCanonicalsFor(fixture);
-  const optional2 = new Set(optionalCanonicals);
-  const required2 = new Set(variant.canonicals.filter((c) => !optional2.has(c)));
-  const acceptedDeclared = /* @__PURE__ */ new Set([...required2, ...optional2]);
-  const missing = [...required2].filter((c) => !declared.has(c));
-  const extra = [...declared].filter((c) => !acceptedDeclared.has(c));
-  if (missing.length > 0 || extra.length > 0) {
-    const parts = [];
-    if (missing.length > 0)
-      parts.push(`missing canonical(s): ${missing.join(", ")}`);
-    if (extra.length > 0)
-      parts.push(`unexpected canonical(s): ${extra.join(", ")}`);
-    return {
-      ok: false,
-      detail: `${id}: canonical stage-set mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
-    };
-  }
-  const sp = objectRecord(fixture.stage_path_policy);
-  if (sp === void 0) {
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy missing or not an object`
-    };
-  }
-  const omits = Array.isArray(sp.omits) ? sp.omits.filter((s) => typeof s === "string") : [];
-  const optionalOmitted = [...optional2].filter((c) => !declared.has(c));
-  const expectedOmits = /* @__PURE__ */ new Set([...variant.omits, ...optionalOmitted]);
-  const expectedMode = expectedOmits.size === 0 ? "strict" : "partial";
-  if (sp.mode !== expectedMode) {
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy.mode must be '${expectedMode}' for kind-canonical enforcement; got '${String(sp.mode)}'`
-    };
-  }
-  const missingOmits = [...expectedOmits].filter((o) => !omits.includes(o));
-  const extraOmits = omits.filter((o) => !expectedOmits.has(o));
-  if (missingOmits.length > 0 || extraOmits.length > 0) {
-    const parts = [];
-    if (missingOmits.length > 0)
-      parts.push(`missing omit(s): ${missingOmits.join(", ")}`);
-    if (extraOmits.length > 0)
-      parts.push(`unexpected omit(s): ${extraOmits.join(", ")}`);
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy.omits mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
-    };
-  }
-  return {
-    ok: true,
-    detail: `${id}: canonical set {${variant.canonicals.join(", ")}} + omits {${variant.omits.join(", ")}} enforced (authority: ${authority})`
-  };
-}
-function checkReviewIdentitySeparationPolicy(fixture) {
-  const f = objectRecord(fixture);
-  if (f === void 0) {
-    return { ok: false, detail: "fixture is not an object" };
-  }
-  const stages = Array.isArray(f.stages) ? f.stages : [];
-  const steps = Array.isArray(f.steps) ? f.steps : [];
-  const analyzeStepIds = stringStepIdsForCanonical(stages, "analyze");
-  const closeStepIds = stringStepIdsForCanonical(stages, "close");
-  const stepsById = /* @__PURE__ */ new Map();
-  for (let index = 0; index < steps.length; index++) {
-    const step = objectRecord(steps[index]);
-    if (typeof step?.id === "string")
-      stepsById.set(step.id, { step, index });
-  }
-  const reviewerRelayIndices = analyzeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewerRelay(entry.step)).map((entry) => entry.index);
-  if (reviewerRelayIndices.length === 0) {
-    return {
-      ok: false,
-      detail: "analyze stage must contain a relay step with role=reviewer before the close report writer"
-    };
-  }
-  const closeWriterIndices = closeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewResultReportWriter(entry.step)).map((entry) => entry.index);
-  if (closeWriterIndices.length === 0) {
-    return {
-      ok: false,
-      detail: "close stage must contain a compose step that writes the primary review.result report"
-    };
-  }
-  const everyCloseWriterPreceded = closeWriterIndices.every((closeIndex) => reviewerRelayIndices.some((reviewerIndex) => reviewerIndex < closeIndex));
-  if (!everyCloseWriterPreceded) {
-    return {
-      ok: false,
-      detail: "each close-stage review.result report writer must be preceded in steps[] by an analyze-stage reviewer relay"
-    };
-  }
-  return {
-    ok: true,
-    detail: "close review.result report writer is preceded by an analyze-stage reviewer relay"
-  };
-}
-function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
-  const f = objectRecord(fixture);
-  if (f === void 0) {
-    return {
-      kind: "red",
-      detail: "fixture is not an object"
-    };
-  }
-  const id = f.id;
-  if (typeof id !== "string") {
-    return {
-      kind: "red",
-      detail: "fixture missing top-level `id` string field"
-    };
-  }
-  if (table.exemptFlowIds.has(id)) {
-    return {
-      kind: "exempt",
-      detail: `${id}: exempt from kind-canonical enforcement (partial-stage path, recorded)`
-    };
-  }
-  const expected = table.canonicalSets[id];
-  if (expected === void 0) {
-    return {
-      kind: "pass_through",
-      detail: `${id}: no canonical-set entry (unknown flow kind; pass-through)`
-    };
-  }
-  const variants = [
-    { canonicals: expected.canonicals, omits: expected.omits, title: expected.title },
-    ...expected.variants ?? []
-  ];
-  const checkedVariants = variants.map((variant) => checkCanonicalStagePolicyVariant(id, f, variant, expected.optional_canonicals, expected.authority));
-  const acceptedVariant = checkedVariants.find((variant) => variant.ok);
-  if (acceptedVariant === void 0) {
-    return {
-      kind: "red",
-      detail: checkedVariants.map((variant) => variant.detail).join(" OR ")
-    };
-  }
-  if (id === "review") {
-    const identitySeparation = checkReviewIdentitySeparationPolicy(f);
-    if (!identitySeparation.ok) {
-      return {
-        kind: "red",
-        detail: `${id}: ${identitySeparation.detail} (authority: ${expected.authority})`
-      };
-    }
-  }
-  return {
-    kind: "green",
-    detail: acceptedVariant.detail
-  };
-}
-
-// dist/policy/flow-kind-policy.js
-function humanizeZodIssueMessage(message) {
-  return message.replace(/, received undefined/g, " (missing)").replace(/\breceived undefined\b/g, "missing");
-}
-function validateCompiledFlowKindPolicyWithTable(flow, table) {
-  const parsed = CompiledFlow.safeParse(flow);
-  if (!parsed.success) {
-    const issueSummary = parsed.error.issues.slice(0, 5).map((i) => `  ${i.path.join(".") || "<root>"}: ${humanizeZodIssueMessage(i.message)}`).join("\n");
-    const more = parsed.error.issues.length > 5 ? `
-  ... +${parsed.error.issues.length - 5} more` : "";
-    return {
-      ok: false,
-      reason: `CompiledFlow.safeParse failed:
-${issueSummary}${more}`
-    };
-  }
-  const policyResult = checkCompiledFlowKindCanonicalPolicyWithTable(parsed.data, table);
-  if (policyResult.kind === "red") {
-    return {
-      ok: false,
-      reason: `flow-kind canonical policy violation: ${policyResult.detail}`
-    };
-  }
-  return {
-    ok: true,
-    kind: policyResult.kind,
-    detail: policyResult.detail
-  };
-}
-
-// dist/flows/canonical-stage-policy.js
-var canonicalStagePolicyById = {};
-var canonicalStagePolicyExemptIds = /* @__PURE__ */ new Set();
-for (const definition of flowDefinitions) {
-  const policy2 = definition.canonicalStagePolicy;
-  if (policy2 === void 0)
-    continue;
-  if (policy2.kind === "exempt") {
-    canonicalStagePolicyExemptIds.add(definition.id);
-    continue;
-  }
-  const { kind: _kind, ...entry } = policy2;
-  canonicalStagePolicyById[definition.id] = entry;
-}
-var FLOW_CANONICAL_STAGE_POLICY_BY_ID = canonicalStagePolicyById;
-var FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS = canonicalStagePolicyExemptIds;
-var FLOW_KIND_CANONICAL_SETS = FLOW_CANONICAL_STAGE_POLICY_BY_ID;
-var EXEMPT_FLOW_IDS = FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS;
-var FLOW_KIND_POLICY_TABLE = {
-  canonicalSets: FLOW_KIND_CANONICAL_SETS,
-  exemptFlowIds: EXEMPT_FLOW_IDS
-};
-function validateCompiledFlowKindPolicy(flow) {
-  return validateCompiledFlowKindPolicyWithTable(flow, FLOW_KIND_POLICY_TABLE);
-}
-
-// dist/shared/config-loader.js
-var import_yaml2 = __toESM(require_dist(), 1);
-import { existsSync as existsSync20, readFileSync as readFileSync31 } from "node:fs";
-import { homedir as homedir2 } from "node:os";
-import { join as join18, resolve as resolve12 } from "node:path";
-var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
-var PROJECT_CONFIG_RELATIVE_PATH = [".circuit", "config.yaml"];
-function userGlobalConfigPath(homeDir = homedir2()) {
-  return join18(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
-}
-function projectConfigPath(cwd = process.cwd()) {
-  return join18(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
-}
-function parseConfigYaml(text, sourcePath) {
-  try {
-    return (0, import_yaml2.parse)(text);
-  } catch (err) {
-    throw new Error(`config YAML parse failed at ${sourcePath}: ${err.message}`);
-  }
-}
-function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
-  const abs = resolve12(sourcePath);
-  if (!existsSync20(abs))
-    return void 0;
-  const raw = parseConfigYaml(readFileSync31(abs, "utf8"), abs);
-  if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
-    const schemaVersion = raw.schema_version;
-    if (schemaVersion === 2) {
-      try {
-        return {
-          policy: PolicyLayer.parse({
-            source: layer,
-            source_path: abs,
-            envelope: PolicyEnvelopeV2.parse(raw)
-          })
-        };
-      } catch (err) {
-        throw new Error(`policy validation failed for ${layer} at ${abs}: ${err.message}`);
-      }
-    }
-  }
-  try {
-    return {
-      selection: LayeredConfig.parse({
-        layer,
-        source_path: abs,
-        config: Config.parse(raw)
-      })
-    };
-  } catch (err) {
-    throw new Error(`config validation failed for ${layer} at ${abs}: ${err.message}`);
-  }
-}
-function discoverRuntimeConfigLayers(options = {}) {
-  const selectionConfigLayers = [];
-  const policyLayers = [];
-  for (const [layer, path] of [
-    ["user-global", userGlobalConfigPath(options.homeDir)],
-    ["project", projectConfigPath(options.cwd)]
-  ]) {
-    const loaded = loadRuntimeConfigLayerFromPath(layer, path);
-    if (loaded?.selection !== void 0)
-      selectionConfigLayers.push(loaded.selection);
-    if (loaded?.policy !== void 0)
-      policyLayers.push(loaded.policy);
-  }
-  if (options.invocationConfig !== void 0) {
-    selectionConfigLayers.push(LayeredConfig.parse({
-      layer: "invocation",
-      config: options.invocationConfig
-    }));
-  }
-  if (options.invocationPolicy !== void 0) {
-    policyLayers.push(PolicyLayer.parse({
-      source: "invocation",
-      envelope: options.invocationPolicy
-    }));
-  }
-  return { selectionConfigLayers, policyLayers };
-}
-
-// dist/shared/operator-summary-writer.js
-import { existsSync as existsSync22, mkdirSync as mkdirSync5, readFileSync as readFileSync33, rmSync, writeFileSync as writeFileSync5 } from "node:fs";
-import { dirname as dirname7, isAbsolute as isAbsolute11, join as join19, relative as relative11, resolve as resolve13 } from "node:path";
+// dist/app/operator-summary/writer.js
+import { existsSync as existsSync20, mkdirSync as mkdirSync3, readFileSync as readFileSync32, rmSync, writeFileSync as writeFileSync3 } from "node:fs";
+import { dirname as dirname5, isAbsolute as isAbsolute11, join as join16, relative as relative11, resolve as resolve12 } from "node:path";
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync21, readFileSync as readFileSync32 } from "node:fs";
+import { existsSync as existsSync19, readFileSync as readFileSync31 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
-  if (!existsSync21(path))
+  if (!existsSync19(path))
     return void 0;
-  const parsed = JSON.parse(readFileSync32(path, "utf8"));
+  const parsed = JSON.parse(readFileSync31(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
 }
 function stringField2(report, key) {
@@ -58542,13 +57345,13 @@ function projectSummary(input) {
   return projector(input);
 }
 
-// dist/shared/operator-summary-writer.js
+// dist/app/operator-summary/writer.js
 function readPriorRoute(runFolder) {
-  const path = join19(runFolder, "reports", "operator-summary.json");
-  if (!existsSync22(path))
+  const path = join16(runFolder, "reports", "operator-summary.json");
+  if (!existsSync20(path))
     return {};
   try {
-    const raw = JSON.parse(readFileSync33(path, "utf8"));
+    const raw = JSON.parse(readFileSync32(path, "utf8"));
     if (!isObject4(raw))
       return {};
     const routedBy = raw.routed_by;
@@ -58565,13 +57368,13 @@ var HTML_REPORT_LABEL = "Operator summary (HTML)";
 var MAX_KEY_POINTS = 4;
 var MAX_CAVEATS = 3;
 function jsonPath(runFolder) {
-  return join19(runFolder, "reports", "operator-summary.json");
+  return join16(runFolder, "reports", "operator-summary.json");
 }
 function markdownPath(runFolder) {
-  return join19(runFolder, "reports", "operator-summary.md");
+  return join16(runFolder, "reports", "operator-summary.md");
 }
 function htmlPath(runFolder) {
-  return join19(runFolder, "reports", "operator-summary.html");
+  return join16(runFolder, "reports", "operator-summary.html");
 }
 function isInsideOrSame4(root, target) {
   const fromRoot = relative11(root, target);
@@ -58580,16 +57383,16 @@ function isInsideOrSame4(root, target) {
 function readCheckpointRequest(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute11(checkpoint.request_path) ? resolve13(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute11(checkpoint.request_path) ? resolve12(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     return void 0;
   }
-  if (!isInsideOrSame4(resolve13(runFolder), requestPath))
+  if (!isInsideOrSame4(resolve12(runFolder), requestPath))
     return void 0;
-  if (!existsSync22(requestPath))
+  if (!existsSync20(requestPath))
     return void 0;
   try {
-    const parsed = JSON.parse(readFileSync33(requestPath, "utf8"));
+    const parsed = JSON.parse(readFileSync32(requestPath, "utf8"));
     return isObject4(parsed) ? parsed : void 0;
   } catch {
     return void 0;
@@ -58965,11 +57768,11 @@ function evidenceLinks2(runFolder, report) {
   });
 }
 function readAutoResolutions(runFolder) {
-  const tracePath = join19(runFolder, "trace.ndjson");
-  if (!existsSync22(tracePath))
+  const tracePath = join16(runFolder, "trace.ndjson");
+  if (!existsSync20(tracePath))
     return [];
   const records = [];
-  for (const line of readFileSync33(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync32(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -59008,13 +57811,13 @@ function skillHookSourceLabel(source) {
   }
 }
 function readSkillHookSummary(runFolder) {
-  const tracePath = join19(runFolder, "trace.ndjson");
-  if (!existsSync22(tracePath))
+  const tracePath = join16(runFolder, "trace.ndjson");
+  if (!existsSync20(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
   const warnings = [];
-  for (const line of readFileSync33(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync32(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -59188,7 +57991,7 @@ function writeOperatorSummary(input) {
   const skillHookSummary = readSkillHookSummary(input.runFolder);
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
-  mkdirSync5(dirname7(outJsonPath), { recursive: true });
+  mkdirSync3(dirname5(outJsonPath), { recursive: true });
   const projector = getHtmlProjector(flowId);
   const candidateHtmlPath = htmlPath(input.runFolder);
   let outHtmlPath;
@@ -59219,14 +58022,14 @@ function writeOperatorSummary(input) {
     }
   }
   if (renderedHtml === void 0) {
-    if (existsSync22(candidateHtmlPath))
+    if (existsSync20(candidateHtmlPath))
       rmSync(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
-      writeFileSync5(candidateHtmlPath, renderedHtml);
+      writeFileSync3(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
-      if (existsSync22(candidateHtmlPath))
+      if (existsSync20(candidateHtmlPath))
         rmSync(candidateHtmlPath, { force: true, recursive: true });
       htmlEmitWarning = {
         kind: "html_write_failed",
@@ -59311,15 +58114,1212 @@ function writeOperatorSummary(input) {
     ...skillHookSummary.activations.length === 0 ? {} : { skill_hook_activations: skillHookSummary.activations },
     ...input.runResult.outcome === "checkpoint_waiting" ? { checkpoint: input.runResult.checkpoint } : {}
   });
-  writeFileSync5(outJsonPath, `${JSON.stringify(candidate, null, 2)}
+  writeFileSync3(outJsonPath, `${JSON.stringify(candidate, null, 2)}
 `);
-  writeFileSync5(outMarkdownPath, renderMarkdown(candidate));
+  writeFileSync3(outMarkdownPath, renderMarkdown(candidate));
   return outHtmlPath === void 0 ? { summary: candidate, jsonPath: outJsonPath, markdownPath: outMarkdownPath } : {
     summary: candidate,
     jsonPath: outJsonPath,
     markdownPath: outMarkdownPath,
     htmlPath: outHtmlPath
   };
+}
+
+// dist/app/process-evidence/projection.js
+import { existsSync as existsSync21, mkdirSync as mkdirSync4, writeFileSync as writeFileSync4 } from "node:fs";
+import { dirname as dirname6, join as join17 } from "node:path";
+function traceRef2(runId) {
+  return {
+    kind: "trace",
+    ref: "trace.ndjson#sequence=0",
+    run_id: RunId.parse(runId),
+    sequence: 0
+  };
+}
+function reportRef(input) {
+  return {
+    kind: "report",
+    ref: runRelativePath(input.runFolder, input.path),
+    sha256: sha256OfFile(input.path),
+    run_id: RunId.parse(input.runId),
+    flow_id: CompiledFlowId.parse(input.flowId)
+  };
+}
+function requestRef(input) {
+  return {
+    kind: "request",
+    ref: runRelativePath(input.runFolder, input.path),
+    sha256: sha256OfFile(input.path),
+    run_id: RunId.parse(input.runId),
+    flow_id: CompiledFlowId.parse(input.flowId),
+    step_id: StepId.parse(input.stepId)
+  };
+}
+function normalizeClosedOutcome(outcome) {
+  if (outcome === "complete" || outcome === "handoff" || outcome === "aborted")
+    return outcome;
+  return "blocked";
+}
+function declaredReportPaths(flowId) {
+  const primaryResult = findFlowRuntimeSurfaceById(flowId)?.primaryResult;
+  return primaryResult === void 0 ? [] : [primaryResult.path];
+}
+function missingEvidenceFor(runResult) {
+  if (runResult.outcome === "complete")
+    return [];
+  return [
+    {
+      claim_id: "process-completion",
+      reason: runResult.reason ?? runResult.summary,
+      next_action: "Inspect the child process result before closing Run."
+    }
+  ];
+}
+function projectClosedProcessEvidence(input) {
+  const flowId = input.runResult.flow_id;
+  const declaredPaths = declaredReportPaths(flowId);
+  const resultRef = reportRef({
+    runFolder: input.runFolder,
+    path: input.resultPath,
+    runId: input.runResult.run_id,
+    flowId
+  });
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync21(join17(input.runFolder, path))).map((path) => reportRef({
+    runFolder: input.runFolder,
+    path: join17(input.runFolder, path),
+    runId: input.runResult.run_id,
+    flowId
+  }));
+  const additionalRefs = (input.additionalEvidencePaths ?? []).map((path) => reportRef({
+    runFolder: input.runFolder,
+    path: join17(input.runFolder, path),
+    runId: input.runResult.run_id,
+    flowId
+  }));
+  const outcome = normalizeClosedOutcome(input.runResult.outcome);
+  return ProcessEvidenceProjection.parse({
+    schema: "process.evidence@v0",
+    flow_id: CompiledFlowId.parse(flowId),
+    attempt_id: input.attemptId ?? "primary",
+    outcome,
+    summary: input.runResult.summary,
+    child_run_ref: traceRef2(input.runResult.run_id),
+    result_ref: resultRef,
+    evidence_refs: [resultRef, ...declaredReportRefs, ...additionalRefs],
+    declared_report_paths: declaredPaths,
+    missing_evidence: missingEvidenceFor(input.runResult),
+    trace_entries_observed: input.runResult.trace_entries_observed,
+    manifest_hash: input.runResult.manifest_hash,
+    ...outcome === "blocked" ? { blocked_reason: input.runResult.reason ?? input.runResult.summary } : {}
+  });
+}
+function projectCheckpointWaitingProcessEvidence(input) {
+  const checkpointRequestRef = requestRef({
+    runFolder: input.runFolder,
+    path: input.checkpoint.requestPath,
+    runId: input.runId,
+    flowId: input.flowId,
+    stepId: input.checkpoint.stepId
+  });
+  return ProcessEvidenceProjection.parse({
+    schema: "process.evidence@v0",
+    flow_id: CompiledFlowId.parse(input.flowId),
+    attempt_id: input.attemptId ?? "primary",
+    outcome: "checkpoint_waiting",
+    summary: "Selected process is waiting for an operator checkpoint choice.",
+    child_run_ref: traceRef2(input.runId),
+    evidence_refs: [checkpointRequestRef],
+    declared_report_paths: declaredReportPaths(input.flowId),
+    missing_evidence: [
+      {
+        claim_id: "process-checkpoint",
+        reason: "The process is waiting for an operator checkpoint choice.",
+        next_action: "Resolve the checkpoint before evaluating process evidence."
+      }
+    ],
+    trace_entries_observed: input.traceEntriesObserved,
+    manifest_hash: input.manifestHash,
+    checkpoint: {
+      step_id: StepId.parse(input.checkpoint.stepId),
+      request_ref: checkpointRequestRef,
+      allowed_choices: [...input.checkpoint.allowedChoices]
+    }
+  });
+}
+function writeProcessEvidenceProjection(input) {
+  const projection = ProcessEvidenceProjection.parse(input.projection);
+  const outPath = join17(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
+  mkdirSync4(dirname6(outPath), { recursive: true });
+  writeFileSync4(outPath, `${JSON.stringify(projection, null, 2)}
+`);
+  return { path: outPath, projection };
+}
+
+// dist/app/run-envelope/contract-quality.js
+var IMPLEMENTATION_INTENT = /\b(build|fix|implement|add|change|create|refactor|ship|integrate|update|wire)\b/;
+var REVIEW_INTENT2 = /\b(review|audit|assess|inspect|findings?)\b/;
+var EXPLORE_INTENT2 = /\b(explore|compare|decide|decision|tradeoffs?|options?)\b/;
+function objectiveKind(objective) {
+  const text = objective.toLowerCase();
+  if (IMPLEMENTATION_INTENT.test(text))
+    return "implementation";
+  if (REVIEW_INTENT2.test(text))
+    return "review";
+  if (EXPLORE_INTENT2.test(text))
+    return "explore";
+  return "other";
+}
+var MIN_REQUIRED_KIND_BY_OBJECTIVE = {
+  implementation: "command",
+  review: "review"
+};
+function hasRequiredEvidenceOfKind(contract, kind) {
+  return contract.done_when.some((claim) => claim.required_evidence.some((entry) => entry.required && entry.kind === kind));
+}
+function contractQualityReview(contract) {
+  const findings = [];
+  const kind = objectiveKind(contract.objective);
+  const minKind = MIN_REQUIRED_KIND_BY_OBJECTIVE[kind];
+  if (minKind !== void 0 && !hasRequiredEvidenceOfKind(contract, minKind)) {
+    findings.push({
+      severity: "high",
+      text: `A ${kind} objective needs at least one required '${minKind}' evidence entry, but the contract has none. Satisfying this contract would not prove the objective.`
+    });
+  }
+  const blocking = findings.some((finding) => finding.severity === "critical" || finding.severity === "high" || finding.severity === "medium");
+  return {
+    verdict: blocking ? "blocked" : "gate-pass",
+    attack_lens: "contract-quality",
+    findings
+  };
+}
+
+// dist/app/run-envelope/no-progress.js
+function sameSet(a, b) {
+  if (a.length !== b.length)
+    return false;
+  const seen = new Set(a);
+  return b.every((value) => seen.has(value));
+}
+function shrank(from, to) {
+  return to.length < from.length;
+}
+function detectNoProgress(attempts) {
+  if (attempts.length >= 2) {
+    const last = attempts[attempts.length - 1];
+    const prev = attempts[attempts.length - 2];
+    if (last !== void 0 && prev !== void 0 && sameSet(last.unmetEvidence, prev.unmetEvidence)) {
+      return { escalate: true, reason: "no-progress" };
+    }
+  }
+  if (attempts.length >= 3) {
+    const first = attempts[attempts.length - 3];
+    const middle = attempts[attempts.length - 2];
+    const last = attempts[attempts.length - 1];
+    if (first !== void 0 && middle !== void 0 && last !== void 0) {
+      const oscillating = last.route === first.route && last.route !== middle.route;
+      const noNetProgress = !shrank(first.unmetEvidence, last.unmetEvidence);
+      if (oscillating && noNetProgress) {
+        return { escalate: true, reason: "oscillation" };
+      }
+    }
+  }
+  return { escalate: false, reason: null };
+}
+
+// dist/app/run-envelope/source-record.js
+import { mkdirSync as mkdirSync5, writeFileSync as writeFileSync5 } from "node:fs";
+import { dirname as dirname7, join as join18 } from "node:path";
+var RUN_ENVELOPE_RELATIVE_PATH = "reports/run-envelope.json";
+var RUN_SURFACE_RELATIVE_PATH = "reports/run-surface.md";
+var RUN_DECISION_PACKET_RELATIVE_DIR = "reports/decision-packets";
+function childRunIdFromProjection(projection) {
+  return RunId.parse(projection.child_run_ref.run_id);
+}
+function evidenceFileRef(input) {
+  return {
+    kind: "evidence",
+    ref: runRelativePath(input.runFolder, input.path),
+    sha256: sha256OfFile(input.path),
+    run_id: RunId.parse(input.runId),
+    flow_id: CompiledFlowId.parse(input.flowId)
+  };
+}
+function evidence(source, ref) {
+  return { source, ref };
+}
+function artifactLabel(ref) {
+  if (ref.ref === RUN_ENVELOPE_RELATIVE_PATH)
+    return "Run envelope";
+  if (ref.ref === PROCESS_EVIDENCE_RELATIVE_PATH)
+    return "Process evidence";
+  if (ref.ref === "reports/result.json")
+    return "Child result";
+  if (ref.ref.startsWith(`${RUN_DECISION_PACKET_RELATIVE_DIR}/`))
+    return "Decision packet";
+  if (ref.kind === "request")
+    return "Decision request";
+  return ref.ref;
+}
+function markdownLink(label, path) {
+  return `[${label}](${path})`;
+}
+function renderSurfaceMarkdown(input) {
+  const artifactRefs = [
+    {
+      kind: "report",
+      ref: RUN_ENVELOPE_RELATIVE_PATH
+    },
+    ...input.record.surface_output.artifact_links
+  ];
+  const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
+  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join18(input.runFolder, ref.ref))).join(" \xB7 ");
+  return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
+}
+function processAttemptOutcome(outcome) {
+  if (outcome === "aborted")
+    return "failed";
+  return outcome;
+}
+function missingRunEvidence(projection) {
+  if (projection.outcome !== "complete")
+    return void 0;
+  const refs = new Set(projection.evidence_refs.map((ref) => ref.ref));
+  const missingRefs = projection.declared_report_paths.filter((path) => !refs.has(path));
+  if (missingRefs.length === 0)
+    return void 0;
+  return {
+    claim_id: "process-evidence",
+    reason: `Missing expected process evidence: ${missingRefs.join(", ")}.`,
+    missing_refs: missingRefs
+  };
+}
+function runOutcome2(input) {
+  if (input.missingEvidence !== void 0)
+    return "needs_attention";
+  if (input.projection.outcome === "checkpoint_waiting")
+    return "needs_attention";
+  if (input.projection.outcome === "aborted")
+    return "failed";
+  return input.projection.outcome;
+}
+function selectionSourceFor(routedBy) {
+  if (routedBy === "explicit")
+    return "explicit_operator_request";
+  return "recovery";
+}
+function requiredEvidenceKindForProcess(processId) {
+  switch (processId) {
+    case "fix":
+    case "build":
+      return "command";
+    case "review":
+    case "explore":
+      return "review";
+    case "pursue":
+    case "prototype":
+      return "report";
+    default:
+      return "report";
+  }
+}
+function describeRequiredEvidence(kind, objective) {
+  switch (kind) {
+    case "command":
+      return `A passing verification command proving: ${objective}`;
+    case "review":
+      return `A review confirming no blocking findings for: ${objective}`;
+    case "report":
+      return `A report-backed result proving: ${objective}`;
+    case "source":
+      return `Source-backed justification for: ${objective}`;
+    case "checkpoint":
+      return `An operator checkpoint resolving: ${objective}`;
+  }
+}
+function deriveRequiredEvidence(processId, objective) {
+  const kind = requiredEvidenceKindForProcess(processId);
+  return [{ kind, description: describeRequiredEvidence(kind, objective), required: true }];
+}
+var RECOVERY_ROUTE_FOR_UNMET_EVIDENCE_KIND = {
+  command: "fix",
+  report: "build",
+  review: "review",
+  source: "explore",
+  checkpoint: "checkpoint"
+};
+var RECOVERY_KIND_PRIORITY = [
+  "command",
+  "report",
+  "review",
+  "source",
+  "checkpoint"
+];
+function recoveryRouteForUnmetKinds(unmetKinds) {
+  for (const kind of RECOVERY_KIND_PRIORITY) {
+    if (unmetKinds.includes(kind))
+      return RECOVERY_ROUTE_FOR_UNMET_EVIDENCE_KIND[kind];
+  }
+  return "review";
+}
+function gateFor(input) {
+  if (input.projection.outcome === "complete") {
+    if (input.missingEvidence !== void 0) {
+      return {
+        schema: "run.completion-gate@v0",
+        verdict: "needs_followup",
+        claim_results: [
+          {
+            claim_id: input.missingEvidence.claim_id,
+            status: "missing",
+            evidence: [input.processEvidence],
+            gap: input.missingEvidence.reason
+          }
+        ],
+        gate_passes: [],
+        clean_streak: 0,
+        required_passes: 2,
+        next_action: "plan-followup-process"
+      };
+    }
+    return {
+      schema: "run.completion-gate@v0",
+      verdict: "complete",
+      claim_results: [
+        {
+          claim_id: "process-evidence",
+          status: "proved",
+          evidence: [input.processEvidence]
+        }
+      ],
+      gate_passes: [
+        {
+          pass_id: "gate-process-evidence",
+          attack_lens: "required-evidence-present",
+          evidence_checked: [input.processEvidence],
+          verdict: "gate-pass"
+        },
+        {
+          pass_id: "gate-child-outcome",
+          attack_lens: "child-outcome-consistent",
+          evidence_checked: [input.processEvidence],
+          verdict: "gate-pass"
+        }
+      ],
+      clean_streak: 2,
+      required_passes: 2,
+      next_action: "close"
+    };
+  }
+  if (input.projection.outcome === "checkpoint_waiting") {
+    return {
+      schema: "run.completion-gate@v0",
+      verdict: "needs_followup",
+      claim_results: [
+        {
+          claim_id: "process-evidence",
+          status: "missing",
+          evidence: [input.processEvidence],
+          gap: "The selected process is waiting for an operator checkpoint choice."
+        }
+      ],
+      gate_passes: [],
+      clean_streak: 0,
+      required_passes: 2,
+      next_action: "ask-operator"
+    };
+  }
+  if (input.projection.outcome === "handoff") {
+    return {
+      schema: "run.completion-gate@v0",
+      verdict: "handoff",
+      claim_results: [
+        {
+          claim_id: "process-evidence",
+          status: "blocked",
+          evidence: [input.processEvidence],
+          gap: "The selected process handed off before Run could close complete."
+        }
+      ],
+      gate_passes: [],
+      clean_streak: 0,
+      required_passes: 2,
+      next_action: "handoff"
+    };
+  }
+  const failed = input.projection.outcome === "failed" || input.projection.outcome === "aborted";
+  return {
+    schema: "run.completion-gate@v0",
+    verdict: failed ? "failed" : "blocked",
+    claim_results: [
+      {
+        claim_id: "process-evidence",
+        status: failed ? "contradicted" : "blocked",
+        evidence: [input.processEvidence],
+        gap: input.projection.blocked_reason ?? input.projection.missing_evidence[0]?.reason ?? "The selected process did not produce complete evidence."
+      }
+    ],
+    gate_passes: [],
+    clean_streak: 0,
+    required_passes: 2,
+    next_action: failed ? "failed" : "blocked"
+  };
+}
+function followupProcessId(primaryProcessId) {
+  const unmetKind = requiredEvidenceKindForProcess(primaryProcessId);
+  return CompiledFlowId.parse(recoveryRouteForUnmetKinds([unmetKind]));
+}
+function followupPlannedAttempt(input) {
+  if (input.missingEvidence === void 0)
+    return void 0;
+  const followupProcess = followupProcessId(input.primaryProcessId);
+  return {
+    attempt_id: "attempt-followup-1",
+    process_id: followupProcess,
+    goal: `Run ${followupProcess} to produce the missing evidence to close: ${input.operatorIntent}`,
+    expected_evidence: [PROCESS_EVIDENCE_RELATIVE_PATH, ...input.missingEvidence.missing_refs],
+    depends_on_attempt_ids: ["attempt-primary"],
+    followup_for: {
+      claim_id: input.missingEvidence.claim_id,
+      prior_attempt_id: "attempt-primary",
+      missing_evidence: [...input.missingEvidence.missing_refs]
+    }
+  };
+}
+function decisionPacketsFor(input) {
+  if (input.missingEvidence !== void 0) {
+    return [
+      {
+        schema: "run.decision-packet@v0",
+        decision_id: "decision-missing-evidence-followup",
+        reason: "missing-evidence",
+        prompt: "Choose whether Run should continue with the planned follow-up.",
+        choices: [
+          {
+            id: "run-followup",
+            label: "Run follow-up",
+            effect: "Use the planned follow-up process to resolve the missing evidence."
+          },
+          {
+            id: "stop",
+            label: "Stop here",
+            effect: "Leave the Run open with the missing evidence recorded."
+          }
+        ],
+        resume_target: {
+          kind: "run-envelope",
+          run_id: input.childRunId
+        },
+        artifact_refs: [input.processEvidence.ref]
+      }
+    ];
+  }
+  const checkpoint = input.projection.checkpoint;
+  if (checkpoint === void 0)
+    return [];
+  return [
+    {
+      schema: "run.decision-packet@v0",
+      decision_id: "decision-checkpoint-primary",
+      reason: "process-checkpoint",
+      prompt: "Choose how the selected process should continue.",
+      choices: checkpoint.allowed_choices.map((choice) => ({
+        id: choice,
+        label: choice,
+        effect: `Resume the checkpoint with '${choice}'.`
+      })),
+      resume_target: {
+        kind: "process-checkpoint",
+        run_id: input.childRunId,
+        step_id: checkpoint.step_id,
+        request_ref: checkpoint.request_ref
+      },
+      artifact_refs: [input.processEvidence.ref, checkpoint.request_ref]
+    }
+  ];
+}
+function decisionPacketRelativePath(packet) {
+  const safeId = packet.decision_id.replace(/[^a-zA-Z0-9._-]+/g, "-");
+  return `${RUN_DECISION_PACKET_RELATIVE_DIR}/${safeId}.json`;
+}
+function decisionPacketArtifacts(input) {
+  return input.packets.map((packet) => {
+    const body = `${JSON.stringify(packet, null, 2)}
+`;
+    return {
+      packet,
+      body,
+      ref: {
+        kind: "report",
+        ref: decisionPacketRelativePath(packet),
+        sha256: Sha256.parse(sha256OfString(body)),
+        run_id: input.runId
+      }
+    };
+  });
+}
+function memoryUpdateEvents(input) {
+  return (input.updates ?? []).map((update) => ({
+    schema: "run.memory-update-event@v0",
+    event_id: update.event_id,
+    scope: update.scope,
+    ...update.scope === "flow" ? { flow_id: CompiledFlowId.parse(update.flow_id ?? input.processId) } : {},
+    action: update.action,
+    reason: update.reason,
+    summary: update.summary,
+    source_refs: [input.processEvidence.ref],
+    authority: "hint_only",
+    ...update.operator_indicator === void 0 ? {} : { operator_indicator: update.operator_indicator }
+  }));
+}
+function surfaceFor(input) {
+  const artifactLinks = [
+    input.processEvidence.ref,
+    ...input.decisionPacketRefs ?? [],
+    ...input.childResult === void 0 ? [] : [input.childResult.ref],
+    ...input.checkpointRequest === void 0 ? [] : [input.checkpointRequest]
+  ];
+  const base = {
+    schema: "run.surface-output@v0",
+    outcome: input.outcome,
+    artifact_links: artifactLinks,
+    ...input.memoryIndicator === void 0 ? {} : { memory_indicator: input.memoryIndicator }
+  };
+  if (input.outcome === "complete") {
+    return {
+      ...base,
+      status_text: `Done: ${input.processId} completed with required process evidence.`,
+      next_action: "close"
+    };
+  }
+  if (input.outcome === "needs_attention") {
+    if (input.missingEvidence !== void 0) {
+      return {
+        ...base,
+        status_text: `Needs follow-up: ${input.processId} is missing expected process evidence.`,
+        next_action: "plan-followup-process",
+        ...input.decisionPacketRefs?.[0] === void 0 ? {} : { decision_packet_ref: input.decisionPacketRefs[0] }
+      };
+    }
+    return {
+      ...base,
+      status_text: `Needs input: ${input.processId} is waiting at a checkpoint.`,
+      next_action: "ask-operator",
+      ...input.decisionPacketRefs?.[0] === void 0 ? {} : { decision_packet_ref: input.decisionPacketRefs[0] }
+    };
+  }
+  if (input.outcome === "blocked") {
+    return {
+      ...base,
+      status_text: `Blocked: ${input.processId} did not produce enough process evidence.`,
+      next_action: "Inspect the process evidence and choose a recovery path."
+    };
+  }
+  if (input.outcome === "handoff") {
+    return {
+      ...base,
+      status_text: `Handoff ready: ${input.processId} paused with handoff evidence.`,
+      next_action: "resume from handoff"
+    };
+  }
+  if (input.outcome === "failed") {
+    return {
+      ...base,
+      status_text: `Failed: ${input.processId} could not close with the required process evidence.`,
+      next_action: "Inspect the process evidence and rerun with a corrected goal."
+    };
+  }
+  return {
+    ...base,
+    status_text: `Stopped: ${input.processId} could not close with enough process evidence.`,
+    next_action: "Inspect the process evidence and rerun with a corrected goal."
+  };
+}
+function writeRunEnvelopeRecord(input) {
+  const projection = ProcessEvidenceProjection.parse(input.processEvidence.projection);
+  const processEvidencePath = input.processEvidence.path;
+  const childRunId = childRunIdFromProjection(projection);
+  const processEvidence = evidence("process_evidence", evidenceFileRef({
+    runFolder: input.runFolder,
+    path: processEvidencePath,
+    runId: childRunId,
+    flowId: projection.flow_id
+  }));
+  const childResult = projection.result_ref === void 0 ? void 0 : evidence("child_result", projection.result_ref);
+  const missingEvidence = missingRunEvidence(projection);
+  const gate = gateFor({
+    projection,
+    processEvidence,
+    ...missingEvidence && { missingEvidence }
+  });
+  const outcome = runOutcome2({ projection, ...missingEvidence && { missingEvidence } });
+  const processId = projection.flow_id;
+  const followupAttempt = followupPlannedAttempt({
+    operatorIntent: input.operatorIntent,
+    primaryProcessId: processId,
+    ...missingEvidence && { missingEvidence }
+  });
+  const decisionPackets = decisionPacketsFor({
+    projection,
+    processEvidence,
+    childRunId,
+    ...missingEvidence && { missingEvidence }
+  });
+  const decisionArtifacts = decisionPacketArtifacts({
+    runId: childRunId,
+    packets: decisionPackets
+  });
+  const memoryEvents = memoryUpdateEvents({
+    processId,
+    processEvidence,
+    ...input.memoryUpdates === void 0 ? {} : { updates: input.memoryUpdates }
+  });
+  const writeIndicator = memoryEvents.find((event) => event.action === "proposed" || event.action === "recorded")?.operator_indicator;
+  const memoryIndicator = writeIndicator ?? input.recallMemoryIndicator;
+  const record2 = RunEnvelopeRecord.parse({
+    schema: "run.envelope@v0",
+    run_id: projection.child_run_ref.run_id,
+    operator_intent: input.operatorIntent,
+    explicit_constraints: [],
+    explicit_process_request: input.selectedProcess.routed_by === "explicit" ? CompiledFlowId.parse(input.selectedProcess.process_id) : void 0,
+    memory_context: {
+      used: input.memoryContext?.used ?? false,
+      memory_input_ids: [...input.memoryContext?.memoryInputIds ?? []],
+      authority: "hint_only"
+    },
+    goal_contract: {
+      schema: "run.goal-contract@v0",
+      objective: input.operatorIntent,
+      scope: {
+        in: [input.operatorIntent],
+        out: [],
+        assumptions: []
+      },
+      constraints: [],
+      done_when: [
+        {
+          id: "process-evidence",
+          claim: `The ${input.selectedProcess.process_id} work is complete with the required proof for: ${input.operatorIntent}`,
+          required_evidence: deriveRequiredEvidence(input.selectedProcess.process_id, input.operatorIntent)
+        }
+      ],
+      recovery_policy: {
+        max_process_attempts: 2,
+        allowed_routes: ["retry-process", "run-review", "checkpoint", "handoff", "blocked"]
+      },
+      stop_conditions: ["Stop instead of closing complete when required evidence is missing."],
+      completion_gate: {
+        required_passes: 2,
+        blocking_severities: ["critical", "high", "medium"],
+        reset_on_blocking_finding: true
+      }
+    },
+    process_plan: {
+      schema: "run.process-plan@v0",
+      selection_source: selectionSourceFor(input.selectedProcess.routed_by),
+      rationale: input.selectedProcess.router_reason,
+      planned_attempts: [
+        {
+          attempt_id: "attempt-primary",
+          process_id: CompiledFlowId.parse(input.selectedProcess.process_id),
+          goal: input.operatorIntent,
+          expected_evidence: [PROCESS_EVIDENCE_RELATIVE_PATH],
+          depends_on_attempt_ids: []
+        },
+        ...followupAttempt === void 0 ? [] : [followupAttempt]
+      ]
+    },
+    process_attempts: [
+      {
+        schema: "run.process-attempt@v0",
+        attempt_id: "attempt-primary",
+        process_id: CompiledFlowId.parse(input.selectedProcess.process_id),
+        goal: input.operatorIntent,
+        started_at: input.recordedAt,
+        ...projection.outcome === "checkpoint_waiting" ? {} : { completed_at: input.recordedAt },
+        outcome: processAttemptOutcome(projection.outcome),
+        child_run: {
+          run_id: projection.child_run_ref.run_id,
+          run_folder: input.runFolder,
+          ...childResult === void 0 ? {} : { result_ref: childResult },
+          trace_entries_observed: projection.trace_entries_observed,
+          manifest_hash: projection.manifest_hash
+        },
+        ...projection.checkpoint === void 0 ? {} : {
+          checkpoint: {
+            step_id: StepId.parse(projection.checkpoint.step_id),
+            request_ref: projection.checkpoint.request_ref,
+            allowed_choices: projection.checkpoint.allowed_choices
+          }
+        },
+        evidence_refs: [processEvidence, ...childResult === void 0 ? [] : [childResult]],
+        summary: projection.summary,
+        ...projection.blocked_reason === void 0 ? {} : { blocked_reason: projection.blocked_reason }
+      }
+    ],
+    completion_gate: gate,
+    decision_packets: decisionPackets,
+    memory_update_events: memoryEvents,
+    surface_output: surfaceFor({
+      outcome,
+      processId,
+      processEvidence,
+      ...missingEvidence && { missingEvidence },
+      decisionPacketRefs: decisionArtifacts.map((artifact) => artifact.ref),
+      ...memoryIndicator === void 0 ? {} : { memoryIndicator },
+      ...childResult === void 0 ? {} : { childResult },
+      ...projection.checkpoint === void 0 ? {} : { checkpointRequest: projection.checkpoint.request_ref }
+    }),
+    outcome
+  });
+  const outPath = join18(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH);
+  mkdirSync5(dirname7(outPath), { recursive: true });
+  const decisionPacketPaths = decisionArtifacts.map((artifact) => {
+    const path = join18(input.runFolder, artifact.ref.ref);
+    mkdirSync5(dirname7(path), { recursive: true });
+    writeFileSync5(path, artifact.body);
+    return path;
+  });
+  writeFileSync5(outPath, `${JSON.stringify(record2, null, 2)}
+`);
+  const surfacePath = join18(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
+  writeFileSync5(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
+  return {
+    path: outPath,
+    processEvidencePath,
+    surfacePath,
+    decisionPacketPaths,
+    record: record2
+  };
+}
+
+// dist/app/run-envelope/continuation-loop.js
+async function runContinuationLoop(input) {
+  const quality = contractQualityReview(input.contract);
+  if (quality.verdict === "blocked") {
+    const detail = quality.findings[0]?.text ?? "The contract is too weak to prove the objective.";
+    return {
+      outcome: "needs_attention",
+      attempts: [],
+      stopReason: `contract-quality blocked before any attempt: ${detail}`
+    };
+  }
+  const maxAttempts = input.contract.recovery_policy.max_process_attempts;
+  const attempts = [];
+  const progress = [];
+  let currentProcess = input.primaryProcessId;
+  for (let attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber += 1) {
+    const result = await input.runAttempt({ processId: currentProcess, attemptNumber });
+    attempts.push(result);
+    if (result.outcome === "complete") {
+      return { outcome: "complete", attempts, stopReason: "required evidence satisfied" };
+    }
+    if (result.outcome === "checkpoint") {
+      return { outcome: "needs_attention", attempts, stopReason: "stopped at operator checkpoint" };
+    }
+    if (result.outcome === "handoff") {
+      return { outcome: "handoff", attempts, stopReason: "process handed off before closure" };
+    }
+    if (result.outcome === "failed") {
+      return { outcome: "failed", attempts, stopReason: "process failed" };
+    }
+    if (result.outcome === "blocked") {
+      return { outcome: "blocked", attempts, stopReason: "process blocked" };
+    }
+    progress.push({ unmetEvidence: result.unmetEvidence, route: result.process_id });
+    const noProgress = detectNoProgress(progress);
+    if (noProgress.escalate) {
+      return {
+        outcome: "needs_attention",
+        attempts,
+        stopReason: `escalated on no-progress (${noProgress.reason})`
+      };
+    }
+    if (attemptNumber >= maxAttempts)
+      break;
+    const unmetKinds = result.unmetKinds ?? [requiredEvidenceKindForProcess(result.process_id)];
+    const nextRoute = recoveryRouteForUnmetKinds(unmetKinds);
+    if (nextRoute === "checkpoint") {
+      return {
+        outcome: "needs_attention",
+        attempts,
+        stopReason: "recovery requires an operator checkpoint"
+      };
+    }
+    currentProcess = nextRoute;
+  }
+  return {
+    outcome: "needs_attention",
+    attempts,
+    stopReason: `stopped at attempt limit: ran ${attempts.length} attempt(s); required evidence remains unmet`
+  };
+}
+
+// dist/app/run-envelope/autonomous-run.js
+function attemptOutcomeFromProjection(projection, missing) {
+  switch (projection.outcome) {
+    case "complete":
+      return missing === void 0 ? "complete" : "needs_followup";
+    case "checkpoint_waiting":
+      return "checkpoint";
+    case "handoff":
+      return "handoff";
+    case "failed":
+    case "aborted":
+      return "failed";
+    default:
+      return "blocked";
+  }
+}
+function attemptResultFromProjection(projection) {
+  const missing = missingRunEvidence(projection);
+  const outcome = attemptOutcomeFromProjection(projection, missing);
+  const ranProcess = projection.flow_id;
+  if (missing === void 0) {
+    return { process_id: ranProcess, outcome, unmetEvidence: [] };
+  }
+  return {
+    process_id: ranProcess,
+    outcome,
+    unmetEvidence: missing.missing_refs,
+    unmetKinds: [requiredEvidenceKindForProcess(ranProcess)]
+  };
+}
+async function runAutonomousContinuation(input) {
+  return runContinuationLoop({
+    contract: input.contract,
+    primaryProcessId: input.primaryProcessId,
+    runAttempt: async ({ processId, attemptNumber }) => {
+      const run = await input.runFlow({ processId, attemptNumber });
+      return attemptResultFromProjection(run.projection);
+    }
+  });
+}
+
+// dist/policy/flow-kind-policy-core.js
+function objectRecord(value) {
+  return value !== null && typeof value === "object" ? value : void 0;
+}
+function stringStepIdsForCanonical(stages, canonical) {
+  const ids = [];
+  for (const stage of stages) {
+    const p = objectRecord(stage);
+    if (p === void 0 || p.canonical !== canonical || !Array.isArray(p.steps))
+      continue;
+    for (const id of p.steps) {
+      if (typeof id === "string")
+        ids.push(id);
+    }
+  }
+  return ids;
+}
+function isReviewResultReportWriter(step) {
+  const s = objectRecord(step);
+  if (s === void 0 || s.kind !== "compose")
+    return false;
+  const writes = objectRecord(s.writes);
+  const report = objectRecord(writes?.report);
+  return report?.schema === "review.result@v1";
+}
+function isReviewerRelay(step) {
+  const s = objectRecord(step);
+  return s !== void 0 && s.kind === "relay" && s.role === "reviewer";
+}
+function declaredCanonicalsFor(fixture) {
+  const declared = /* @__PURE__ */ new Set();
+  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
+  for (const stage of stages) {
+    const stageRecord = objectRecord(stage);
+    if (typeof stageRecord?.canonical === "string") {
+      declared.add(stageRecord.canonical);
+    }
+  }
+  return declared;
+}
+function checkCanonicalStagePolicyVariant(id, fixture, variant, optionalCanonicals, authority) {
+  const declared = declaredCanonicalsFor(fixture);
+  const optional2 = new Set(optionalCanonicals);
+  const required2 = new Set(variant.canonicals.filter((c) => !optional2.has(c)));
+  const acceptedDeclared = /* @__PURE__ */ new Set([...required2, ...optional2]);
+  const missing = [...required2].filter((c) => !declared.has(c));
+  const extra = [...declared].filter((c) => !acceptedDeclared.has(c));
+  if (missing.length > 0 || extra.length > 0) {
+    const parts = [];
+    if (missing.length > 0)
+      parts.push(`missing canonical(s): ${missing.join(", ")}`);
+    if (extra.length > 0)
+      parts.push(`unexpected canonical(s): ${extra.join(", ")}`);
+    return {
+      ok: false,
+      detail: `${id}: canonical stage-set mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
+    };
+  }
+  const sp = objectRecord(fixture.stage_path_policy);
+  if (sp === void 0) {
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy missing or not an object`
+    };
+  }
+  const omits = Array.isArray(sp.omits) ? sp.omits.filter((s) => typeof s === "string") : [];
+  const optionalOmitted = [...optional2].filter((c) => !declared.has(c));
+  const expectedOmits = /* @__PURE__ */ new Set([...variant.omits, ...optionalOmitted]);
+  const expectedMode = expectedOmits.size === 0 ? "strict" : "partial";
+  if (sp.mode !== expectedMode) {
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy.mode must be '${expectedMode}' for kind-canonical enforcement; got '${String(sp.mode)}'`
+    };
+  }
+  const missingOmits = [...expectedOmits].filter((o) => !omits.includes(o));
+  const extraOmits = omits.filter((o) => !expectedOmits.has(o));
+  if (missingOmits.length > 0 || extraOmits.length > 0) {
+    const parts = [];
+    if (missingOmits.length > 0)
+      parts.push(`missing omit(s): ${missingOmits.join(", ")}`);
+    if (extraOmits.length > 0)
+      parts.push(`unexpected omit(s): ${extraOmits.join(", ")}`);
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy.omits mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
+    };
+  }
+  return {
+    ok: true,
+    detail: `${id}: canonical set {${variant.canonicals.join(", ")}} + omits {${variant.omits.join(", ")}} enforced (authority: ${authority})`
+  };
+}
+function checkReviewIdentitySeparationPolicy(fixture) {
+  const f = objectRecord(fixture);
+  if (f === void 0) {
+    return { ok: false, detail: "fixture is not an object" };
+  }
+  const stages = Array.isArray(f.stages) ? f.stages : [];
+  const steps = Array.isArray(f.steps) ? f.steps : [];
+  const analyzeStepIds = stringStepIdsForCanonical(stages, "analyze");
+  const closeStepIds = stringStepIdsForCanonical(stages, "close");
+  const stepsById = /* @__PURE__ */ new Map();
+  for (let index = 0; index < steps.length; index++) {
+    const step = objectRecord(steps[index]);
+    if (typeof step?.id === "string")
+      stepsById.set(step.id, { step, index });
+  }
+  const reviewerRelayIndices = analyzeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewerRelay(entry.step)).map((entry) => entry.index);
+  if (reviewerRelayIndices.length === 0) {
+    return {
+      ok: false,
+      detail: "analyze stage must contain a relay step with role=reviewer before the close report writer"
+    };
+  }
+  const closeWriterIndices = closeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewResultReportWriter(entry.step)).map((entry) => entry.index);
+  if (closeWriterIndices.length === 0) {
+    return {
+      ok: false,
+      detail: "close stage must contain a compose step that writes the primary review.result report"
+    };
+  }
+  const everyCloseWriterPreceded = closeWriterIndices.every((closeIndex) => reviewerRelayIndices.some((reviewerIndex) => reviewerIndex < closeIndex));
+  if (!everyCloseWriterPreceded) {
+    return {
+      ok: false,
+      detail: "each close-stage review.result report writer must be preceded in steps[] by an analyze-stage reviewer relay"
+    };
+  }
+  return {
+    ok: true,
+    detail: "close review.result report writer is preceded by an analyze-stage reviewer relay"
+  };
+}
+function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
+  const f = objectRecord(fixture);
+  if (f === void 0) {
+    return {
+      kind: "red",
+      detail: "fixture is not an object"
+    };
+  }
+  const id = f.id;
+  if (typeof id !== "string") {
+    return {
+      kind: "red",
+      detail: "fixture missing top-level `id` string field"
+    };
+  }
+  if (table.exemptFlowIds.has(id)) {
+    return {
+      kind: "exempt",
+      detail: `${id}: exempt from kind-canonical enforcement (partial-stage path, recorded)`
+    };
+  }
+  const expected = table.canonicalSets[id];
+  if (expected === void 0) {
+    return {
+      kind: "pass_through",
+      detail: `${id}: no canonical-set entry (unknown flow kind; pass-through)`
+    };
+  }
+  const variants = [
+    { canonicals: expected.canonicals, omits: expected.omits, title: expected.title },
+    ...expected.variants ?? []
+  ];
+  const checkedVariants = variants.map((variant) => checkCanonicalStagePolicyVariant(id, f, variant, expected.optional_canonicals, expected.authority));
+  const acceptedVariant = checkedVariants.find((variant) => variant.ok);
+  if (acceptedVariant === void 0) {
+    return {
+      kind: "red",
+      detail: checkedVariants.map((variant) => variant.detail).join(" OR ")
+    };
+  }
+  if (id === "review") {
+    const identitySeparation = checkReviewIdentitySeparationPolicy(f);
+    if (!identitySeparation.ok) {
+      return {
+        kind: "red",
+        detail: `${id}: ${identitySeparation.detail} (authority: ${expected.authority})`
+      };
+    }
+  }
+  return {
+    kind: "green",
+    detail: acceptedVariant.detail
+  };
+}
+
+// dist/policy/flow-kind-policy.js
+function humanizeZodIssueMessage(message) {
+  return message.replace(/, received undefined/g, " (missing)").replace(/\breceived undefined\b/g, "missing");
+}
+function validateCompiledFlowKindPolicyWithTable(flow, table) {
+  const parsed = CompiledFlow.safeParse(flow);
+  if (!parsed.success) {
+    const issueSummary = parsed.error.issues.slice(0, 5).map((i) => `  ${i.path.join(".") || "<root>"}: ${humanizeZodIssueMessage(i.message)}`).join("\n");
+    const more = parsed.error.issues.length > 5 ? `
+  ... +${parsed.error.issues.length - 5} more` : "";
+    return {
+      ok: false,
+      reason: `CompiledFlow.safeParse failed:
+${issueSummary}${more}`
+    };
+  }
+  const policyResult = checkCompiledFlowKindCanonicalPolicyWithTable(parsed.data, table);
+  if (policyResult.kind === "red") {
+    return {
+      ok: false,
+      reason: `flow-kind canonical policy violation: ${policyResult.detail}`
+    };
+  }
+  return {
+    ok: true,
+    kind: policyResult.kind,
+    detail: policyResult.detail
+  };
+}
+
+// dist/flows/canonical-stage-policy.js
+var canonicalStagePolicyById = {};
+var canonicalStagePolicyExemptIds = /* @__PURE__ */ new Set();
+for (const definition of flowDefinitions) {
+  const policy2 = definition.canonicalStagePolicy;
+  if (policy2 === void 0)
+    continue;
+  if (policy2.kind === "exempt") {
+    canonicalStagePolicyExemptIds.add(definition.id);
+    continue;
+  }
+  const { kind: _kind, ...entry } = policy2;
+  canonicalStagePolicyById[definition.id] = entry;
+}
+var FLOW_CANONICAL_STAGE_POLICY_BY_ID = canonicalStagePolicyById;
+var FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS = canonicalStagePolicyExemptIds;
+var FLOW_KIND_CANONICAL_SETS = FLOW_CANONICAL_STAGE_POLICY_BY_ID;
+var EXEMPT_FLOW_IDS = FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS;
+var FLOW_KIND_POLICY_TABLE = {
+  canonicalSets: FLOW_KIND_CANONICAL_SETS,
+  exemptFlowIds: EXEMPT_FLOW_IDS
+};
+function validateCompiledFlowKindPolicy(flow) {
+  return validateCompiledFlowKindPolicyWithTable(flow, FLOW_KIND_POLICY_TABLE);
+}
+
+// dist/shared/config-loader.js
+var import_yaml2 = __toESM(require_dist(), 1);
+import { existsSync as existsSync22, readFileSync as readFileSync33 } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { join as join19, resolve as resolve13 } from "node:path";
+var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
+var PROJECT_CONFIG_RELATIVE_PATH = [".circuit", "config.yaml"];
+function userGlobalConfigPath(homeDir = homedir2()) {
+  return join19(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
+}
+function projectConfigPath(cwd = process.cwd()) {
+  return join19(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
+}
+function parseConfigYaml(text, sourcePath) {
+  try {
+    return (0, import_yaml2.parse)(text);
+  } catch (err) {
+    throw new Error(`config YAML parse failed at ${sourcePath}: ${err.message}`);
+  }
+}
+function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
+  const abs = resolve13(sourcePath);
+  if (!existsSync22(abs))
+    return void 0;
+  const raw = parseConfigYaml(readFileSync33(abs, "utf8"), abs);
+  if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
+    const schemaVersion = raw.schema_version;
+    if (schemaVersion === 2) {
+      try {
+        return {
+          policy: PolicyLayer.parse({
+            source: layer,
+            source_path: abs,
+            envelope: PolicyEnvelopeV2.parse(raw)
+          })
+        };
+      } catch (err) {
+        throw new Error(`policy validation failed for ${layer} at ${abs}: ${err.message}`);
+      }
+    }
+  }
+  try {
+    return {
+      selection: LayeredConfig.parse({
+        layer,
+        source_path: abs,
+        config: Config.parse(raw)
+      })
+    };
+  } catch (err) {
+    throw new Error(`config validation failed for ${layer} at ${abs}: ${err.message}`);
+  }
+}
+function discoverRuntimeConfigLayers(options = {}) {
+  const selectionConfigLayers = [];
+  const policyLayers = [];
+  for (const [layer, path] of [
+    ["user-global", userGlobalConfigPath(options.homeDir)],
+    ["project", projectConfigPath(options.cwd)]
+  ]) {
+    const loaded = loadRuntimeConfigLayerFromPath(layer, path);
+    if (loaded?.selection !== void 0)
+      selectionConfigLayers.push(loaded.selection);
+    if (loaded?.policy !== void 0)
+      policyLayers.push(loaded.policy);
+  }
+  if (options.invocationConfig !== void 0) {
+    selectionConfigLayers.push(LayeredConfig.parse({
+      layer: "invocation",
+      config: options.invocationConfig
+    }));
+  }
+  if (options.invocationPolicy !== void 0) {
+    policyLayers.push(PolicyLayer.parse({
+      source: "invocation",
+      envelope: options.invocationPolicy
+    }));
+  }
+  return { selectionConfigLayers, policyLayers };
 }
 
 // dist/cli/command-vocabulary.js
