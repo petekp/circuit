@@ -156,6 +156,22 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/frontier-lab-circuit-strategy.md",
+      "title": "Frontier-Lab Circuit Strategy",
+      "status": "current-strategy-context",
+      "category": "strategy-and-comparisons",
+      "tags": ["strategy", "frontier-agents", "trust-layer", "typed-coordination", "evals"],
+      "current_reading": "12-month strategy proposal for making Circuit a friendly coordination and trust layer for AI software work. Not current behavior.",
+      "related": [
+        "docs/ideas/typed-coordination-alignment-proposal.md",
+        "docs/ideas/future-proofing-circuit.md",
+        "docs/ideas/flow-eval-suites-implementation.md",
+        "docs/ideas/pull-query-memory-engineering-proposal.md",
+        "docs/ideas/multi-channel-hitl-proposal.md"
+      ],
+      "last_checked": "2026-06-05"
+    },
+    {
       "path": "docs/ideas/future-proofing-circuit.md",
       "title": "Future-proofing Circuit",
       "status": "current-strategy-context",
