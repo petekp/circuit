@@ -151,7 +151,7 @@ describe('architecture boundary ratchets', () => {
   });
 
   it('keeps top-level source import cycles inside the current architecture ratchet', () => {
-    const allowedCycles = ['app -> memory -> app'];
+    const allowedCycles: readonly string[] = [];
 
     const cycles = topLevelGraphCycles();
     expect(
@@ -182,7 +182,7 @@ describe('architecture boundary ratchets', () => {
   });
 
   it('keeps src/memory -> src/app edges inside the current ratchet allow-list', () => {
-    const allowedFiles = ['src/memory/project-distill.ts'];
+    const allowedFiles: readonly string[] = [];
     const offenders = sourceImportEdges('src/memory').filter((edge) => edge.toModule === 'app');
     const offenderFiles = uniqueSorted(offenders.map((edge) => edge.file));
 
