@@ -50,6 +50,15 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/ambitious-applications.md",
+      "title": "Ambitious Applications of Circuit",
+      "status": "current-strategy-context",
+      "category": "strategy-and-comparisons",
+      "tags": ["applications", "strategy", "flows", "engine-boundary"],
+      "current_reading": "Strategy context for future Circuit applications and feasibility labels. Use as option generation, not shipped behavior.",
+      "last_checked": "2026-06-04"
+    },
+    {
       "path": "docs/ideas/architecture-hardening-plan-v2.md",
       "title": "Circuit Architecture Hardening - Authoritative Plan (v2)",
       "status": "implemented-closed",

@@ -7,6 +7,13 @@ can see its packaged flows, and can write a run folder.
 
 Run the doctor for the package you are testing.
 
+For local checkout testing, refresh the installed host caches before you run
+host-surface checks:
+
+```bash
+npm run plugins:refresh-local
+```
+
 Claude Code marketplace install:
 
 ```bash

@@ -50,7 +50,7 @@ no errors, Claude tag `circuit--v0.1.0-alpha.6`, and Codex marketplace source
 | --- | --- | --- | --- |
 | REL-PUB-008 | Produce a short external proof demo for the reliability claim. | [docs/positioning-and-strategy.md](../positioning-and-strategy.md) says the strongest claim is externally unproven and recommends a same-task comparison demo. | Capture one focused Build/Fix/Review example showing the evidence trail and a concrete verification or review moment. |
 | REL-PUB-009 | Add a tiny release-notes page that links the exact proof and check commands used for this alpha. | The release truth exists across generated reports, claims, proofs, and plugin publish output, but there is no single reader-facing release note yet. | Draft release notes after blockers are fixed, with links to proof scenarios and the final command transcript. |
-| REL-PUB-010 | Refresh installed host caches after the final release diff, if using local dogfood installs. | [docs/contracts/host-adapter.md](../contracts/host-adapter.md) documents `npm run sync:host-plugin-caches` and `npm run check:host-plugin-caches`; local caches can drift. | Run the sync/check pair only for local dogfooding. Do not treat it as marketplace publication. |
+| REL-PUB-010 | Refresh installed host caches after the final release diff, if using local dogfood installs. | [docs/contracts/host-adapter.md](../contracts/host-adapter.md) documents `npm run plugins:refresh-local`; local caches can drift. | Run the refresh command only for local dogfooding. Do not treat it as marketplace publication. |
 
 ## Gap-Audit Acceptance Additions
 
@@ -73,15 +73,14 @@ These are the extra proof points from the execution-plan gap review:
   claim they make needs either the listed source/proof backing or explicit
   non-shipping wording.
 - `REL-PUB-010`: if a local installed-host trial is part of `REL-PUB-004`, run
-  the host cache sync/check pair after the final generated diff and before that
-  trial. Use the narrower Codex or Claude pair only when that is the only host
-  under test.
+  `npm run plugins:refresh-local` after the final generated diff and before that
+  trial. Use the narrower Codex or Claude sync/check pair only when debugging a
+  single host.
 - Final `publish:plugins:check`: inspect the fresh
   `.circuit/release/plugin-publish-report.json` for `status`, version alignment,
   and warnings/errors instead of treating command success alone as sufficient.
-  Inspect cache-target evidence from `sync:host-plugin-caches` or
-  `check:host-plugin-caches` when local installed-host dogfooding is part of the
-  release pass.
+  Inspect cache-target evidence from `plugins:refresh-local` when local
+  installed-host dogfooding is part of the release pass.
 
 ## Not In Scope Or Deferred
 

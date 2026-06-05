@@ -112,6 +112,7 @@ every later extension in the note shipped.
 
 | Note | Status | Current reading |
 | --- | --- | --- |
+| [`ambitious-applications.md`](ambitious-applications.md) | `current-strategy-context` | Strategy context for future Circuit applications and feasibility labels. Use as option generation, not shipped behavior. |
 | [`architecture-hardening-plan-v2.md`](architecture-hardening-plan-v2.md) | `implemented-closed` | Authoritative architecture-hardening plan with 2026-05-30 closeout. Use as historical implementation context, not an open idea queue. |
 | [`circuit-vs-compound-engineering.md`](circuit-vs-compound-engineering.md) | `current-strategy-context` | Positioning context comparing Circuit with Every's Compound Engineering plugin. Useful for strategy, not implementation truth. |
 | [`dynamic-workflows-vs-circuit.md`](dynamic-workflows-vs-circuit.md) | `current-comparison` | Comparison with Claude Code's Workflow tool. Net-new path is a compile-to-host-Workflow backend; not current behavior. |
