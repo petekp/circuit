@@ -123,6 +123,29 @@ describe('circuit memory note|list|forget (Slice 5 phase 1)', () => {
     expect(code).toBe(2);
   });
 
+  it('rejects an unknown flow id (exit 2) and stores nothing — F-M-3', async () => {
+    // `not-a-flow` is a well-formed slug but not a real flow. It must reject
+    // like an unknown --applies-to, not be silently persisted under a flow id
+    // that recall will never match.
+    const { runsBase, memoryDir } = tempProject();
+    writeRunFolder(runsBase);
+    const { code } = await run([
+      'note',
+      '--json',
+      '--flow',
+      'not-a-flow',
+      '--applies-to',
+      'repo_convention',
+      '--runs-base',
+      runsBase,
+      '--memory-dir',
+      memoryDir,
+      'x',
+    ]);
+    expect(code).toBe(2);
+    expect(readProjectFacts({ memoryDir }).facts).toHaveLength(0);
+  });
+
   it('list over an empty store reports zero facts', async () => {
     const { memoryDir } = tempProject();
     const { code, stdout } = await run(['list', '--json', '--memory-dir', memoryDir]);

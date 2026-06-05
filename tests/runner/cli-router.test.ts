@@ -989,6 +989,43 @@ describe('CLI router', () => {
     expect(existsSync(runFolder)).toBe(false);
   });
 
+  it('rejects prototype --tournament up-front when variant_models config is absent (F-M-2)', async () => {
+    // With no `circuits.prototype.variant_models` config, the tournament axis
+    // cannot resolve its model variants. This must reject up-front like an
+    // unsupported axis (exit 2, no run folder) instead of aborting mid-run at
+    // the variant-options step after framing and planning work. Empty config
+    // dirs replicate a fresh repo with no project config.
+    const runFolder = join(runFolderBase, 'prototype-tournament-no-config');
+    const { result: exit, stderr } = await captureStreams(() =>
+      main(
+        [
+          'run',
+          'prototype',
+          '--tournament',
+          '--tournament-n',
+          '2',
+          '--goal',
+          'compare two disposable README note variants',
+          '--run-folder',
+          runFolder,
+        ],
+        {
+          relayer: relayerWithBody('{"verdict":"accept"}'),
+          now: deterministicNow(Date.UTC(2026, 3, 24, 15, 0, 0)),
+          runId: '84000000-0000-0000-0000-000000000077',
+          configHomeDir: join(runFolderBase, 'empty-home'),
+          configCwd: join(runFolderBase, 'empty-cwd'),
+        },
+      ),
+    );
+
+    expect(exit).toBe(2);
+    expect(stderr).toContain('circuits.prototype.variant_models');
+    expect(stderr).toContain('--tournament');
+    // Up-front: no worker ran, so no run folder, no framing/planning artifacts.
+    expect(existsSync(runFolder)).toBe(false);
+  });
+
   it('rejects an internal flow absent from the host with a clear message (F-L-3)', async () => {
     // Simulate the host package: a flow root that ships only public flows, so
     // the internal `goal` fixture is absent. The reject must name goal as an

@@ -352,6 +352,14 @@ function normalizedAssessment(details: readonly string[], fallback: string): str
 
 function keyPointsFromDetails(details: readonly string[]): string[] {
   const points: string[] = [];
+  // `Result: ` is the third-choice assessment source (after Assessment: and
+  // Recommendation: — see normalizedAssessment). When neither higher-precedence
+  // prefix is present it becomes the assessment, so it must not also render as a
+  // key point (the Pursue/Fix duplication in F-L-1). Review carries both an
+  // assessment paragraph and a Result line, so there it stays a distinct point.
+  const resultIsAssessmentSource =
+    !details.some((detail) => detail.startsWith('Assessment: ')) &&
+    !details.some((detail) => detail.startsWith('Recommendation: '));
   const add = (point: string) => {
     const trimmed = point.trim();
     if (trimmed.length === 0) return;
@@ -363,6 +371,7 @@ function keyPointsFromDetails(details: readonly string[]): string[] {
     if (detail.startsWith('Run note: ')) continue;
     if (detail.startsWith('Assessment: ')) continue;
     if (detail.startsWith('Recommendation: ')) continue;
+    if (resultIsAssessmentSource && detail.startsWith('Result: ')) continue;
     if (detail.startsWith('Abort reason: ')) continue;
     if (detail.startsWith('Escalation reason: ')) continue;
     if (detail.startsWith('Handoff reason: ')) continue;

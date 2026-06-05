@@ -75,6 +75,7 @@ export interface FlowDefinitionInput {
   readonly runtimeSurface?: FlowDefinitionRuntimeSurface;
   readonly canonicalStagePolicy?: FlowDefinitionCanonicalStagePolicy;
   readonly engineFlags?: CompiledFlowPackage['engineFlags'];
+  readonly requiredConfig?: CompiledFlowPackage['requiredConfig'];
 }
 
 export interface FlowData extends Omit<FlowDefinitionInput, 'reportDeclarations'> {
@@ -315,6 +316,9 @@ export function compileFlowDefinition(definition: FlowDefinition): CompiledFlowP
       : { structuralHints: definition.structuralHints }),
     ...(runtimeSurface === undefined ? {} : { runtimeSurface }),
     ...(definition.engineFlags === undefined ? {} : { engineFlags: definition.engineFlags }),
+    ...(definition.requiredConfig === undefined
+      ? {}
+      : { requiredConfig: definition.requiredConfig }),
   };
 }
 

@@ -28393,7 +28393,8 @@ function compileFlowDefinition(definition) {
     },
     ...definition.structuralHints === void 0 ? {} : { structuralHints: definition.structuralHints },
     ...runtimeSurface === void 0 ? {} : { runtimeSurface },
-    ...definition.engineFlags === void 0 ? {} : { engineFlags: definition.engineFlags }
+    ...definition.engineFlags === void 0 ? {} : { engineFlags: definition.engineFlags },
+    ...definition.requiredConfig === void 0 ? {} : { requiredConfig: definition.requiredConfig }
   };
 }
 function validatePackageSet(packages) {
@@ -39677,7 +39678,19 @@ var prototypeFlowData = {
   },
   engineFlags: {
     bindsExecutionDepthToRelaySelection: true
-  }
+  },
+  // The tournament axis fans out one relay per configured model variant, so it
+  // cannot run without operator-provided variant models. Declare the
+  // prerequisite so the CLI rejects up-front (exit 2, no run folder) instead of
+  // aborting at the variant-options step after framing and planning work. The
+  // variant-options writer keeps its own check as a last line of defense.
+  requiredConfig: [
+    {
+      axis: "tournament",
+      path: "circuits.prototype.variant_models",
+      message: "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament."
+    }
+  ]
 };
 
 // dist/flows/prototype/flow.js
@@ -52052,7 +52065,8 @@ async function executeSubRunInternal(step, context) {
   }
   const childResultBody = parsedChildResult.body;
   const verdict = evaluateChildResult(step, childResultBody);
-  const admitted = verdict.admitted && childResultBody.outcome === "complete";
+  const childComplete = childResultBody.outcome === "complete";
+  const admitted = verdict.admitted && childComplete;
   await context.trace.append({
     run_id: context.runId,
     kind: "sub_run.completed",
@@ -52074,6 +52088,26 @@ async function executeSubRunInternal(step, context) {
       outcome: "pass"
     });
     return { route: "pass", details: { child_run_id: childRunId, verdict: verdict.verdict } };
+  }
+  if (!childComplete && step.routes.stop !== void 0) {
+    const reason = `sub-run step '${step.id}': child closed with outcome '${childResultBody.outcome}'`;
+    await context.trace.append({
+      run_id: context.runId,
+      kind: "check.evaluated",
+      step_id: step.id,
+      attempt,
+      check_kind: "result_verdict",
+      outcome: "fail",
+      reason
+    });
+    return {
+      route: "stop",
+      details: {
+        child_run_id: childRunId,
+        child_outcome: childResultBody.outcome,
+        verdict: verdict.verdict
+      }
+    };
   }
   return await recordSubRunCheckFailure(step, context, verdict.failureReason ?? `sub-run step '${step.id}': child closed with outcome '${childResultBody.outcome}'`);
 }
@@ -58659,6 +58693,7 @@ function normalizedAssessment(details, fallback) {
 }
 function keyPointsFromDetails(details) {
   const points = [];
+  const resultIsAssessmentSource = !details.some((detail) => detail.startsWith("Assessment: ")) && !details.some((detail) => detail.startsWith("Recommendation: "));
   const add = (point) => {
     const trimmed = point.trim();
     if (trimmed.length === 0)
@@ -58675,6 +58710,8 @@ function keyPointsFromDetails(details) {
     if (detail.startsWith("Assessment: "))
       continue;
     if (detail.startsWith("Recommendation: "))
+      continue;
+    if (resultIsAssessmentSource && detail.startsWith("Result: "))
       continue;
     if (detail.startsWith("Abort reason: "))
       continue;
@@ -62263,6 +62300,9 @@ function parseMemoryArgs(argv) {
     if (!CompiledFlowId.safeParse(options.flow).success) {
       throw new Error("--flow must be a valid flow id");
     }
+    if (!catalogFlowIds.includes(options.flow)) {
+      throw new Error(`--flow must be one of ${catalogFlowIds.join(", ")}`);
+    }
     const text = textParts.join(" ").trim();
     if (text.length === 0)
       throw new Error("note text must be non-empty");
@@ -63070,6 +63110,36 @@ function validateFlowAxes(input) {
     throw new Error(`--autonomous is not supported by flow '${flowId}'. ${allowList}`);
   }
 }
+function readConfigPathFromLayers(layers, dotPath) {
+  const segments = dotPath.split(".");
+  let resolved;
+  for (const layer of layers) {
+    let cursor = layer.config;
+    for (const segment of segments) {
+      if (cursor === null || typeof cursor !== "object") {
+        cursor = void 0;
+        break;
+      }
+      cursor = cursor[segment];
+    }
+    if (cursor !== void 0)
+      resolved = cursor;
+  }
+  return resolved;
+}
+function validateFlowConfigRequirements(input) {
+  const requirements = findCompiledFlowPackageById(input.flow.id)?.requiredConfig;
+  if (requirements === void 0)
+    return;
+  for (const requirement of requirements) {
+    const axisActive = requirement.axis === "tournament" ? input.axes.tournament : input.axes.autonomous;
+    if (!axisActive)
+      continue;
+    if (readConfigPathFromLayers(input.selectionConfigLayers, requirement.path) === void 0) {
+      throw new Error(requirement.message);
+    }
+  }
+}
 function loadFixture(fixturePath) {
   if (!existsSync30(fixturePath)) {
     throw new Error(`flow fixture not found: ${fixturePath}`);
@@ -63342,6 +63412,13 @@ async function runExecutionCommand(args, options) {
     ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {}
   });
   const { policyLayers, selectionConfigLayers } = runtimeConfigLayers;
+  try {
+    validateFlowConfigRequirements({ flow, axes: args.axes, selectionConfigLayers });
+  } catch (err) {
+    process.stderr.write(`error: ${err.message}
+`);
+    return 2;
+  }
   const hostKind = runtimeHostKind(options);
   const projectRoot = resolve19(options.configCwd ?? process.cwd());
   const runtimeSupport = classifyRuntimeSupport({

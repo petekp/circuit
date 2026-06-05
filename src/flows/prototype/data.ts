@@ -734,4 +734,17 @@ export const prototypeFlowData = {
   engineFlags: {
     bindsExecutionDepthToRelaySelection: true,
   },
+  // The tournament axis fans out one relay per configured model variant, so it
+  // cannot run without operator-provided variant models. Declare the
+  // prerequisite so the CLI rejects up-front (exit 2, no run folder) instead of
+  // aborting at the variant-options step after framing and planning work. The
+  // variant-options writer keeps its own check as a last line of defense.
+  requiredConfig: [
+    {
+      axis: 'tournament',
+      path: 'circuits.prototype.variant_models',
+      message:
+        "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament.",
+    },
+  ],
 } satisfies FlowData;

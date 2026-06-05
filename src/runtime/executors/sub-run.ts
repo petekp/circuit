@@ -232,7 +232,8 @@ async function executeSubRunInternal(step: SubRunStep, context: RunContext): Pro
   const childResultBody = parsedChildResult.body;
 
   const verdict = evaluateChildResult(step, childResultBody);
-  const admitted = verdict.admitted && childResultBody.outcome === 'complete';
+  const childComplete = childResultBody.outcome === 'complete';
+  const admitted = verdict.admitted && childComplete;
   await context.trace.append({
     run_id: context.runId,
     kind: 'sub_run.completed',
@@ -255,6 +256,37 @@ async function executeSubRunInternal(step: SubRunStep, context: RunContext): Pro
       outcome: 'pass',
     });
     return { route: 'pass', details: { child_run_id: childRunId, verdict: verdict.verdict } };
+  }
+
+  // A child that ran end to end and handed back a typed RunResult but closed
+  // with a non-complete outcome (e.g. build aborts after exhausting verification
+  // retries) is a legible non-success, not an infrastructure failure: the child
+  // never CLAIMED success, so the parent should not crash. When the step
+  // declares a `stop` route, take it and let the parent flow decide what closing
+  // on a non-admissible child means (goal: @stop -> stopped). The recorded
+  // reason names the child's own outcome, which is the real cause, rather than
+  // the downstream "missing verdict" symptom. A child that closed `complete`
+  // without an admissible verdict is a genuine contract violation and still
+  // aborts below.
+  if (!childComplete && step.routes.stop !== undefined) {
+    const reason = `sub-run step '${step.id}': child closed with outcome '${childResultBody.outcome}'`;
+    await context.trace.append({
+      run_id: context.runId,
+      kind: 'check.evaluated',
+      step_id: step.id,
+      attempt,
+      check_kind: 'result_verdict',
+      outcome: 'fail',
+      reason,
+    });
+    return {
+      route: 'stop',
+      details: {
+        child_run_id: childRunId,
+        child_outcome: childResultBody.outcome,
+        verdict: verdict.verdict,
+      },
+    };
   }
 
   return await recordSubRunCheckFailure(
