@@ -53812,6 +53812,44 @@ async function openRunBoundary(options) {
   };
 }
 
+// dist/runtime/run/run-transition.js
+function isRouteTargetAbort(transition) {
+  return "reason" in transition;
+}
+function classifyRouteDeclarationTransition(input) {
+  if (input.target === void 0) {
+    return {
+      kind: "undeclared_route_abort",
+      reason: `step '${input.stepId}' selected undeclared route '${input.route}'`
+    };
+  }
+  return { kind: "declared_route", target: input.target };
+}
+function classifyRouteTargetTransition(input) {
+  if (input.target.kind === "terminal") {
+    return { kind: "terminal_close", terminalTarget: input.target.target };
+  }
+  if (input.target.stepId === input.stepId && input.route === "pass") {
+    return {
+      kind: "self_pass_cycle_abort",
+      reason: `route cycle detected: step '${input.stepId}' routes via '${input.route}' to itself`
+    };
+  }
+  if (input.targetCompletedCount > 0 && !input.isRecoveryReturnToOrigin && (!input.routeHasRecoveryMechanics || input.targetCompletedCount >= input.targetMaxAttempts)) {
+    if (input.routeHasRecoveryMechanics) {
+      return {
+        kind: "recovery_attempts_exhausted_abort",
+        reason: `route '${input.route}' for step '${input.target.stepId}' exhausted max_attempts=${input.targetMaxAttempts}${input.recoveryReasonSuffix}`
+      };
+    }
+    return {
+      kind: "completed_step_cycle_abort",
+      reason: `route cycle detected: step '${input.stepId}' routes via '${input.route}' to already completed step '${input.target.stepId}'${input.recoveryReasonSuffix}`
+    };
+  }
+  return { kind: "step_advance", targetStepId: input.target.stepId };
+}
+
 // dist/runtime/run/slice-corridor.js
 var DEPTH_ORDER = ["lite", "standard", "deep", "tournament", "autonomous"];
 function depthAtLeast(depth, floor) {
@@ -54452,18 +54490,22 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         sliceCorridor.advance();
       }
     }
-    const target = step.routes[route];
-    if (target === void 0) {
-      const reason = `step '${step.id}' selected undeclared route '${route}'`;
+    const routeDeclaration = classifyRouteDeclarationTransition({
+      stepId: step.id,
+      route,
+      target: step.routes[route]
+    });
+    if (routeDeclaration.kind === "undeclared_route_abort") {
       await trace.append({
         run_id: runId,
         kind: "step.aborted",
         step_id: step.id,
         attempt,
-        reason
+        reason: routeDeclaration.reason
       });
-      return await closeRun(context, "aborted", void 0, reason);
+      return await closeRun(context, "aborted", void 0, routeDeclaration.reason);
     }
+    const target = routeDeclaration.target;
     const recoveryBinding = recoveryBindingForCompletedRoute({
       bindings: recoveryRouteBindings,
       step,
@@ -54512,37 +54554,32 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       });
       return await closeRun(context, "aborted", void 0, bindingVerdict.reason);
     }
-    if (target.kind === "step" && target.stepId === step.id && route === "pass") {
-      const reason = `route cycle detected: step '${step.id}' routes via '${route}' to itself`;
+    const targetCompletedCount = target.kind === "step" ? completedStepCounts.get(sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex())) ?? 0 : 0;
+    const targetStep = target.kind === "step" ? steps.get(target.stepId) : void 0;
+    const isRecoveryReturnToOrigin = target.kind === "step" ? corridor.isReturnToOrigin({
+      stepId: target.stepId,
+      route
+    }) : false;
+    const targetMaxAttempts = target.kind === "step" && targetStep !== void 0 ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics) : maxAttemptsForRoute(step, routeHasRecoveryMechanics);
+    const targetTransition = classifyRouteTargetTransition({
+      stepId: step.id,
+      route,
+      target,
+      targetCompletedCount,
+      isRecoveryReturnToOrigin,
+      routeHasRecoveryMechanics,
+      targetMaxAttempts,
+      recoveryReasonSuffix: corridor.lastReasonSuffix()
+    });
+    if (isRouteTargetAbort(targetTransition)) {
       await trace.append({
         run_id: runId,
         kind: "step.aborted",
         step_id: step.id,
         attempt,
-        reason
+        reason: targetTransition.reason
       });
-      return await closeRun(context, "aborted", void 0, reason);
-    }
-    if (target.kind === "step") {
-      const targetCompletedCount = completedStepCounts.get(sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex())) ?? 0;
-      const targetStep = steps.get(target.stepId);
-      const isRecoveryReturnToOrigin = corridor.isReturnToOrigin({
-        stepId: target.stepId,
-        route
-      });
-      const targetMaxAttempts = targetStep === void 0 ? maxAttemptsForRoute(step, routeHasRecoveryMechanics) : maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics);
-      if (targetCompletedCount > 0 && !isRecoveryReturnToOrigin && (!routeHasRecoveryMechanics || targetCompletedCount >= targetMaxAttempts)) {
-        const recoverySuffix = corridor.lastReasonSuffix();
-        const reason = routeHasRecoveryMechanics ? `route '${route}' for step '${target.stepId}' exhausted max_attempts=${targetMaxAttempts}${recoverySuffix}` : `route cycle detected: step '${step.id}' routes via '${route}' to already completed step '${target.stepId}'${recoverySuffix}`;
-        await trace.append({
-          run_id: runId,
-          kind: "step.aborted",
-          step_id: step.id,
-          attempt,
-          reason
-        });
-        return await closeRun(context, "aborted", void 0, reason);
-      }
+      return await closeRun(context, "aborted", void 0, targetTransition.reason);
     }
     if (routeHasRecoveryMechanics) {
       corridor.enter({
@@ -54609,10 +54646,10 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       } catch {
       }
     }
-    if (target.kind === "terminal") {
-      return await closeRun(context, outcomeForTerminal(target.target), target.target);
+    if (targetTransition.kind === "terminal_close") {
+      return await closeRun(context, outcomeForTerminal(targetTransition.terminalTarget), targetTransition.terminalTarget);
     }
-    currentStepId = target.stepId;
+    currentStepId = targetTransition.targetStepId;
     incomingRouteTaken = route;
   }
   return await closeRun(context, "aborted", void 0, `maxSteps exceeded: ${maxSteps}`);

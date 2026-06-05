@@ -1,0 +1,89 @@
+import type { RouteTarget, TerminalTarget } from '../domain/route.js';
+
+export type RouteDeclarationTransition =
+  | {
+      readonly kind: 'declared_route';
+      readonly target: RouteTarget;
+    }
+  | {
+      readonly kind: 'undeclared_route_abort';
+      readonly reason: string;
+    };
+
+export type RouteTargetTransition =
+  | {
+      readonly kind: 'step_advance';
+      readonly targetStepId: string;
+    }
+  | {
+      readonly kind: 'terminal_close';
+      readonly terminalTarget: TerminalTarget;
+    }
+  | {
+      readonly kind:
+        | 'self_pass_cycle_abort'
+        | 'completed_step_cycle_abort'
+        | 'recovery_attempts_exhausted_abort';
+      readonly reason: string;
+    };
+
+export function isRouteTargetAbort(
+  transition: RouteTargetTransition,
+): transition is Extract<RouteTargetTransition, { readonly reason: string }> {
+  return 'reason' in transition;
+}
+
+export function classifyRouteDeclarationTransition(input: {
+  readonly stepId: string;
+  readonly route: string;
+  readonly target: RouteTarget | undefined;
+}): RouteDeclarationTransition {
+  if (input.target === undefined) {
+    return {
+      kind: 'undeclared_route_abort',
+      reason: `step '${input.stepId}' selected undeclared route '${input.route}'`,
+    };
+  }
+  return { kind: 'declared_route', target: input.target };
+}
+
+export function classifyRouteTargetTransition(input: {
+  readonly stepId: string;
+  readonly route: string;
+  readonly target: RouteTarget;
+  readonly targetCompletedCount: number;
+  readonly isRecoveryReturnToOrigin: boolean;
+  readonly routeHasRecoveryMechanics: boolean;
+  readonly targetMaxAttempts: number;
+  readonly recoveryReasonSuffix: string;
+}): RouteTargetTransition {
+  if (input.target.kind === 'terminal') {
+    return { kind: 'terminal_close', terminalTarget: input.target.target };
+  }
+
+  if (input.target.stepId === input.stepId && input.route === 'pass') {
+    return {
+      kind: 'self_pass_cycle_abort',
+      reason: `route cycle detected: step '${input.stepId}' routes via '${input.route}' to itself`,
+    };
+  }
+
+  if (
+    input.targetCompletedCount > 0 &&
+    !input.isRecoveryReturnToOrigin &&
+    (!input.routeHasRecoveryMechanics || input.targetCompletedCount >= input.targetMaxAttempts)
+  ) {
+    if (input.routeHasRecoveryMechanics) {
+      return {
+        kind: 'recovery_attempts_exhausted_abort',
+        reason: `route '${input.route}' for step '${input.target.stepId}' exhausted max_attempts=${input.targetMaxAttempts}${input.recoveryReasonSuffix}`,
+      };
+    }
+    return {
+      kind: 'completed_step_cycle_abort',
+      reason: `route cycle detected: step '${input.stepId}' routes via '${input.route}' to already completed step '${input.target.stepId}'${input.recoveryReasonSuffix}`,
+    };
+  }
+
+  return { kind: 'step_advance', targetStepId: input.target.stepId };
+}
