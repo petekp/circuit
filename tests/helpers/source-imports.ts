@@ -1,8 +1,9 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, normalize, resolve, sep } from 'node:path';
 
-const STATIC_IMPORT_PATTERN = /\bimport\s+(?:type\s+)?(?:[^'"\n;]+\s+from\s+)?['"]([^'"\n]+)['"]/g;
-const REEXPORT_PATTERN = /\bexport\s+(?:type\s+)?(?:\*\s+|\{[^}]*\}\s+)?from\s+['"]([^'"\n]+)['"]/g;
+const STATIC_IMPORT_PATTERN = /\bimport\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+)?['"]([^'"\n]+)['"]/g;
+const REEXPORT_PATTERN =
+  /\bexport\s+(?:type\s+)?(?:\*\s+|\{[\s\S]*?\}\s+)?from\s+['"]([^'"\n]+)['"]/g;
 const DYNAMIC_IMPORT_PATTERN = /\bimport\(\s*['"]([^'"\n]+)['"]\s*\)/g;
 
 export function readSource(path: string): string {

@@ -8,9 +8,14 @@
 // state into the CompiledFlowPackage shape and re-derive instead.
 
 import { readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { importPathsFrom, walkTsFiles } from '../helpers/source-imports.js';
+import {
+  importPathsFrom,
+  relativeImportTarget,
+  topLevelSourceModuleFor,
+  walkTsFiles,
+} from '../helpers/source-imports.js';
 
 const RUNTIME_ROOT = 'src/runtime';
 const WORKFLOWS_ROOT = 'src/flows';
@@ -20,38 +25,50 @@ const NON_FLOW_PACKAGE_DIRECTORIES = new Set(['registries']);
 // Allow-list: match by suffix so engine files at any directory depth
 // get the same exemption. These are shared flow infrastructure surfaces,
 // not per-flow implementation modules.
-const ALLOWED_ENGINE_WORKFLOW_IMPORT_SUFFIXES = [
-  '/flows/catalog.js',
-  '/flows/catalog-derivations.js',
-  '/flows/compile-schematic-to-flow.js',
-  '/flows/types.js',
+const ALLOWED_ENGINE_WORKFLOW_TARGETS = [
+  'src/flows/catalog.ts',
+  'src/flows/catalog-derivations.ts',
+  'src/flows/compile-schematic-to-flow.ts',
+  'src/flows/types.ts',
 ];
 
-const ALLOWED_TEST_WORKFLOW_IMPORT_SUFFIXES = [
-  ...ALLOWED_ENGINE_WORKFLOW_IMPORT_SUFFIXES,
-  '/flows/canonical-stage-policy.js',
-  '/flows/flow-definition.js',
-  '/flows/report-declarations.js',
+const ALLOWED_TEST_WORKFLOW_TARGETS = [
+  ...ALLOWED_ENGINE_WORKFLOW_TARGETS,
+  'src/flows/block-step-expansion.ts',
+  'src/flows/canonical-stage-policy.ts',
+  'src/flows/flow-definition.ts',
+  'src/flows/report-declarations.ts',
 ];
 
-function isCompiledFlowImport(importPath: string): boolean {
-  // Match the literal '/flows/' segment so paths that merely
-  // contain the word 'flows' as a substring (e.g. comments,
-  // hypothetical 'foo-flows-bar.ts') don't trigger.
-  return /\/flows\//.test(importPath) || importPath.endsWith('/flows');
+const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
+  'tests/runner/fix-result-projection.test.ts -> src/flows/fix/writers/result-projection.ts',
+]);
+
+function flowImportTarget(file: string, importPath: string): string | undefined {
+  const target = relativeImportTarget(file, importPath);
+  if (target === undefined) return undefined;
+  return topLevelSourceModuleFor(target) === 'flows' ? relative(process.cwd(), target) : undefined;
 }
 
-function isAllowedEngineImport(importPath: string): boolean {
+function flowPackageIdForTarget(target: string): string | undefined {
+  const prefix = `${WORKFLOWS_ROOT}/`;
+  if (!target.startsWith(prefix)) return undefined;
+  const rest = target.slice(prefix.length);
+  const [entry] = rest.split('/');
+  if (entry === undefined || NON_FLOW_PACKAGE_DIRECTORIES.has(entry)) return undefined;
+  const flowDir = join(WORKFLOWS_ROOT, entry);
+  return statSync(flowDir).isDirectory() ? entry : undefined;
+}
+
+function isAllowedEngineImport(target: string): boolean {
   return (
-    ALLOWED_ENGINE_WORKFLOW_IMPORT_SUFFIXES.some((suffix) => importPath.endsWith(suffix)) ||
-    importPath.includes('/flows/registries/')
+    ALLOWED_ENGINE_WORKFLOW_TARGETS.includes(target) || target.startsWith('src/flows/registries/')
   );
 }
 
-function isAllowedTestImport(importPath: string): boolean {
+function isAllowedTestImport(target: string): boolean {
   return (
-    ALLOWED_TEST_WORKFLOW_IMPORT_SUFFIXES.some((suffix) => importPath.endsWith(suffix)) ||
-    importPath.includes('/flows/registries/')
+    ALLOWED_TEST_WORKFLOW_TARGETS.includes(target) || target.startsWith('src/flows/registries/')
   );
 }
 
@@ -62,8 +79,9 @@ describe('engine ↔ flow boundary', () => {
     const offenders: { readonly file: string; readonly importPath: string }[] = [];
     for (const file of runtimeFiles) {
       for (const importPath of importPathsFrom(file)) {
-        if (!isCompiledFlowImport(importPath)) continue;
-        if (isAllowedEngineImport(importPath)) continue;
+        const target = flowImportTarget(file, importPath);
+        if (target === undefined) continue;
+        if (isAllowedEngineImport(target)) continue;
         offenders.push({ file, importPath });
       }
     }
@@ -71,9 +89,7 @@ describe('engine ↔ flow boundary', () => {
       offenders,
       `engine files imported per-flow modules outside the catalog allowlist:\n${offenders
         .map((o) => `  ${o.file} → ${o.importPath}`)
-        .join(
-          '\n',
-        )}\nAllowed engine→flow import suffixes: ${ALLOWED_ENGINE_WORKFLOW_IMPORT_SUFFIXES.join(', ')}`,
+        .join('\n')}\nAllowed engine→flow targets: ${ALLOWED_ENGINE_WORKFLOW_TARGETS.join(', ')}`,
     ).toEqual([]);
   });
 
@@ -91,17 +107,15 @@ describe('engine ↔ flow boundary', () => {
       flowsInspected++;
       for (const file of walkTsFiles(flowDir)) {
         for (const importPath of importPathsFrom(file)) {
-          if (!isCompiledFlowImport(importPath)) continue;
-          // Allowed: same-flow imports starting with ./
-          if (importPath.startsWith('./')) continue;
+          const target = flowImportTarget(file, importPath);
+          if (target === undefined) continue;
+          const importedCompiledFlow = flowPackageIdForTarget(target);
+          if (importedCompiledFlow === undefined) continue;
+          // Allowed: same-flow imports.
+          if (importedCompiledFlow === entry) continue;
           // Allowed: shared flow infrastructure at flows/ root.
-          if (isAllowedEngineImport(importPath)) continue;
-          const otherCompiledFlowMatch = importPath.match(/\/flows\/([^/]+)\//);
-          if (otherCompiledFlowMatch === null) continue;
-          const importedCompiledFlow = otherCompiledFlowMatch[1];
-          if (importedCompiledFlow !== undefined && importedCompiledFlow !== entry) {
-            offenders.push({ file, fromCompiledFlow: entry, toCompiledFlow: importedCompiledFlow });
-          }
+          if (isAllowedEngineImport(target)) continue;
+          offenders.push({ file, fromCompiledFlow: entry, toCompiledFlow: importedCompiledFlow });
         }
       }
     }
@@ -135,10 +149,9 @@ describe('engine ↔ flow boundary', () => {
     for (const file of srcFiles) {
       if (file === join(WORKFLOWS_ROOT, 'catalog.ts')) continue;
       for (const importPath of importPathsFrom(file)) {
-        if (!isCompiledFlowImport(importPath)) continue;
-        const indexMatch = importPath.match(/\/flows\/([^/]+)\/index\.js$/);
-        if (indexMatch === null) continue;
-        const importedCompiledFlow = indexMatch[1];
+        const target = flowImportTarget(file, importPath);
+        if (target === undefined || !target.endsWith('/index.ts')) continue;
+        const importedCompiledFlow = flowPackageIdForTarget(target);
         if (importedCompiledFlow === undefined) continue;
         // A flow's own folder may import its own index — leave alone.
         if (file.includes(`/flows/${importedCompiledFlow}/`)) continue;
@@ -169,12 +182,14 @@ describe('engine ↔ flow boundary', () => {
     const offenders: { readonly file: string; readonly importPath: string }[] = [];
     for (const file of testFiles) {
       for (const importPath of importPathsFrom(file)) {
-        if (!isCompiledFlowImport(importPath)) continue;
+        const target = flowImportTarget(file, importPath);
+        if (target === undefined) continue;
         // index.js / catalog.js / types.js / reports.js are the
         // supported public surfaces.
-        if (importPath.endsWith('/index.js')) continue;
-        if (importPath.endsWith('/reports.js')) continue;
-        if (isAllowedTestImport(importPath)) continue;
+        if (target.endsWith('/index.ts')) continue;
+        if (target.endsWith('/reports.ts')) continue;
+        if (isAllowedTestImport(target)) continue;
+        if (ALLOWED_TEST_INTERNAL_FLOW_IMPORTS.has(`${file} -> ${target}`)) continue;
         offenders.push({ file, importPath });
       }
     }

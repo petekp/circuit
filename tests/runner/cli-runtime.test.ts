@@ -162,7 +162,6 @@ describe('CLI runtime', () => {
       'operator_summary_path',
       'operator_summary_markdown_path',
       'operator_summary_status_text',
-      'operator_summary_html_path',
       'run_envelope_path',
       'run_process_evidence_path',
       'run_surface_markdown_path',

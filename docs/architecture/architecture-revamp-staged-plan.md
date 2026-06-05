@@ -8,9 +8,10 @@ Purpose: turn the architecture roadmap, prefactoring plan, and recovery/restore 
 
 - Stage 0 — complete on `pkp/architecture-revamp-stage-1-guardrails`; baseline `npm run verify` passed on `main` at `315bb7f5e66d687c3c71b516a5adf7dd0aec2a31`, with a clean worktree before branching.
 - Stage 1 — complete on `pkp/architecture-revamp-stage-1-guardrails`; focused architecture tests and `npm run check` passed after adding the import helper, top-level cycle ratchet, boundary ratchets, Skill Hooks ratchet, and shared ownership inventory.
+- Stage 1 ratchet parser correction — complete on `pkp/architecture-revamp-stage-1-ratchet-parser`; `npm run verify` passed after the import helper was corrected to detect multi-line imports, the architecture ratchet was reseeded to the live graph exposed by that stronger scan, and the Review stdout characterization was corrected to omit the optional HTML path for a clean Review summary.
 - Stage 2 — complete on `pkp/architecture-revamp-stage-2-characterization`; focused Skill Hooks, CLI stdout, run-transition, checkpoint-waiting, recovery-retry, and sub-run tests passed after adding the Skill Hooks contract doc and characterization assertions.
-- Stage 3 Prototype connector-planning edge removal — superseded by baseline: the live Stage 1 ratchet found no flow-package imports from `src/connectors`, so the allow-list is seeded empty.
-- Stage 4 `src/policy -> src/flows` edge removal — superseded by baseline: the live Stage 1 ratchet found no `src/policy` imports from `src/flows`, so the allow-list is seeded empty.
+- Stage 3 Prototype connector-planning edge removal — pending after the Stage 1 parser correction; the live ratchet now names `src/flows/prototype/writers/variant-options.ts` as the only flow-package import from `src/connectors`.
+- Stage 4 `src/policy -> src/flows` edge removal — pending after the Stage 1 parser correction; the live ratchet now names `src/policy/flow-kind-policy-core.ts` as the only `src/policy` import from `src/flows`.
 
 Primary inputs (each is a whole document; the ranges below are start-here pointers, not the full source the plan draws on):
 
