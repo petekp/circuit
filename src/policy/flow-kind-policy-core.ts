@@ -1,13 +1,7 @@
 // Single source of truth for flow-kind canonical stage-set policy.
 //
-// Consumed by src/shared/flow-kind-policy.ts, which wraps these checks with
-// Zod-driven CompiledFlow.safeParse so the CLI fixture loader can reject
-// structurally- or policy-invalid fixtures with one call.
-
-import {
-  FLOW_CANONICAL_STAGE_POLICY_BY_ID,
-  FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS,
-} from '../flows/canonical-stage-policy.js';
+// The core is table-parameterized so catalog-derived flow data can live on the
+// flow side of the boundary while policy keeps the pure checks.
 
 interface FlowKindPolicyVariant {
   readonly canonicals: readonly string[];
@@ -55,11 +49,6 @@ export interface CompiledFlowKindPolicyTable {
   readonly canonicalSets: Readonly<Record<string, CompiledFlowKindPolicyEntry>>;
   readonly exemptFlowIds: ReadonlySet<string>;
 }
-
-export const FLOW_KIND_CANONICAL_SETS: Readonly<Record<string, CompiledFlowKindPolicyEntry>> =
-  FLOW_CANONICAL_STAGE_POLICY_BY_ID;
-
-export const EXEMPT_FLOW_IDS: ReadonlySet<string> = FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS;
 
 function objectRecord(value: unknown): RecordLike | undefined {
   return value !== null && typeof value === 'object' ? (value as RecordLike) : undefined;
@@ -299,13 +288,4 @@ export function checkCompiledFlowKindCanonicalPolicyWithTable(
     kind: 'green',
     detail: acceptedVariant.detail,
   };
-}
-
-export function checkCompiledFlowKindCanonicalPolicy(
-  fixture: unknown,
-): CompiledFlowKindPolicyCheckResult {
-  return checkCompiledFlowKindCanonicalPolicyWithTable(fixture, {
-    canonicalSets: FLOW_KIND_CANONICAL_SETS,
-    exemptFlowIds: EXEMPT_FLOW_IDS,
-  });
 }

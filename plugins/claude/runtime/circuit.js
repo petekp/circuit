@@ -57663,26 +57663,7 @@ async function runAutonomousContinuation(input) {
   });
 }
 
-// dist/flows/canonical-stage-policy.js
-var canonicalStagePolicyById = {};
-var canonicalStagePolicyExemptIds = /* @__PURE__ */ new Set();
-for (const definition of flowDefinitions) {
-  const policy2 = definition.canonicalStagePolicy;
-  if (policy2 === void 0)
-    continue;
-  if (policy2.kind === "exempt") {
-    canonicalStagePolicyExemptIds.add(definition.id);
-    continue;
-  }
-  const { kind: _kind, ...entry } = policy2;
-  canonicalStagePolicyById[definition.id] = entry;
-}
-var FLOW_CANONICAL_STAGE_POLICY_BY_ID = canonicalStagePolicyById;
-var FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS = canonicalStagePolicyExemptIds;
-
 // dist/policy/flow-kind-policy-core.js
-var FLOW_KIND_CANONICAL_SETS = FLOW_CANONICAL_STAGE_POLICY_BY_ID;
-var EXEMPT_FLOW_IDS = FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS;
 function objectRecord(value) {
   return value !== null && typeof value === "object" ? value : void 0;
 }
@@ -57870,18 +57851,12 @@ function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
     detail: acceptedVariant.detail
   };
 }
-function checkCompiledFlowKindCanonicalPolicy(fixture) {
-  return checkCompiledFlowKindCanonicalPolicyWithTable(fixture, {
-    canonicalSets: FLOW_KIND_CANONICAL_SETS,
-    exemptFlowIds: EXEMPT_FLOW_IDS
-  });
-}
 
 // dist/policy/flow-kind-policy.js
 function humanizeZodIssueMessage(message) {
   return message.replace(/, received undefined/g, " (missing)").replace(/\breceived undefined\b/g, "missing");
 }
-function validateCompiledFlowKindPolicy(flow) {
+function validateCompiledFlowKindPolicyWithTable(flow, table) {
   const parsed = CompiledFlow.safeParse(flow);
   if (!parsed.success) {
     const issueSummary = parsed.error.issues.slice(0, 5).map((i) => `  ${i.path.join(".") || "<root>"}: ${humanizeZodIssueMessage(i.message)}`).join("\n");
@@ -57893,7 +57868,7 @@ function validateCompiledFlowKindPolicy(flow) {
 ${issueSummary}${more}`
     };
   }
-  const policyResult = checkCompiledFlowKindCanonicalPolicy(parsed.data);
+  const policyResult = checkCompiledFlowKindCanonicalPolicyWithTable(parsed.data, table);
   if (policyResult.kind === "red") {
     return {
       ok: false,
@@ -57905,6 +57880,32 @@ ${issueSummary}${more}`
     kind: policyResult.kind,
     detail: policyResult.detail
   };
+}
+
+// dist/flows/canonical-stage-policy.js
+var canonicalStagePolicyById = {};
+var canonicalStagePolicyExemptIds = /* @__PURE__ */ new Set();
+for (const definition of flowDefinitions) {
+  const policy2 = definition.canonicalStagePolicy;
+  if (policy2 === void 0)
+    continue;
+  if (policy2.kind === "exempt") {
+    canonicalStagePolicyExemptIds.add(definition.id);
+    continue;
+  }
+  const { kind: _kind, ...entry } = policy2;
+  canonicalStagePolicyById[definition.id] = entry;
+}
+var FLOW_CANONICAL_STAGE_POLICY_BY_ID = canonicalStagePolicyById;
+var FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS = canonicalStagePolicyExemptIds;
+var FLOW_KIND_CANONICAL_SETS = FLOW_CANONICAL_STAGE_POLICY_BY_ID;
+var EXEMPT_FLOW_IDS = FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS;
+var FLOW_KIND_POLICY_TABLE = {
+  canonicalSets: FLOW_KIND_CANONICAL_SETS,
+  exemptFlowIds: EXEMPT_FLOW_IDS
+};
+function validateCompiledFlowKindPolicy(flow) {
+  return validateCompiledFlowKindPolicyWithTable(flow, FLOW_KIND_POLICY_TABLE);
 }
 
 // dist/shared/config-loader.js

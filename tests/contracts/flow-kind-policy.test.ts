@@ -1,25 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  type CompiledFlowKindPolicyCheckResult,
+  EXEMPT_FLOW_IDS,
   FLOW_CANONICAL_STAGE_POLICY_BY_ID,
   FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS,
+  FLOW_KIND_CANONICAL_SETS,
+  type ValidateCompiledFlowKindPolicyResult,
+  checkCompiledFlowKindCanonicalPolicy,
+  validateCompiledFlowKindPolicy,
 } from '../../src/flows/canonical-stage-policy.js';
 import { flowDefinitions } from '../../src/flows/catalog.js';
 import {
-  type CompiledFlowKindPolicyCheckResult,
   type CompiledFlowKindPolicyEntry,
-  EXEMPT_FLOW_IDS,
-  FLOW_KIND_CANONICAL_SETS,
-  checkCompiledFlowKindCanonicalPolicy,
   checkCompiledFlowKindCanonicalPolicyWithTable,
 } from '../../src/policy/flow-kind-policy-core.js';
-import {
-  type ValidateCompiledFlowKindPolicyResult,
-  validateCompiledFlowKindPolicy,
-} from '../../src/policy/flow-kind-policy.js';
 
-// validateCompiledFlowKindPolicy helper unit tests cover the shared
-// canonical-set check AND the TS wrapper that adds CompiledFlow.safeParse.
+// validateCompiledFlowKindPolicy helper unit tests cover the flow-owned
+// canonical-set adapter AND the policy wrapper that adds CompiledFlow.safeParse.
 
 function validExploreSteps(): ReadonlyArray<Record<string, unknown>> {
   return [

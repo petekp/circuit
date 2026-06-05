@@ -31,8 +31,8 @@ import {
   projectClosedProcessEvidence,
 } from '../app/process-evidence/projection.js';
 import { runAutonomousContinuation } from '../app/run-envelope/autonomous-run.js';
+import { validateCompiledFlowKindPolicy } from '../flows/canonical-stage-policy.js';
 import { findCompiledFlowPackageById, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
-import { validateCompiledFlowKindPolicy } from '../policy/flow-kind-policy.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { readPriorRoute, writeOperatorSummary } from '../shared/operator-summary-writer.js';
 import { progressDisplay, progressPresentation } from '../shared/progress-output.js';

@@ -151,12 +151,7 @@ describe('architecture boundary ratchets', () => {
   });
 
   it('keeps top-level source import cycles inside the current architecture ratchet', () => {
-    const allowedCycles = [
-      'app -> memory -> app',
-      'flows -> policy -> flows',
-      'flows -> shared -> flows',
-      'flows -> shared -> policy -> flows',
-    ];
+    const allowedCycles = ['app -> memory -> app', 'flows -> shared -> flows'];
 
     const cycles = topLevelGraphCycles();
     expect(
@@ -182,14 +177,13 @@ describe('architecture boundary ratchets', () => {
   });
 
   it('keeps src/policy -> src/flows edges inside the current ratchet allow-list', () => {
-    const allowedFiles = ['src/policy/flow-kind-policy-core.ts'];
     const offenders = sourceImportEdges('src/policy').filter((edge) => edge.toModule === 'flows');
     const offenderFiles = uniqueSorted(offenders.map((edge) => edge.file));
 
     expect(
       offenderFiles,
       `src/policy files importing src/flows changed:\n${formatEdges(offenders)}`,
-    ).toEqual(allowedFiles);
+    ).toEqual([]);
   });
 
   it('keeps src/memory -> src/app edges inside the current ratchet allow-list', () => {
