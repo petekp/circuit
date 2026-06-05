@@ -359,6 +359,21 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/spec-driven-flow-opportunities.md",
+      "title": "Circuit-native spec-driven development flow opportunities",
+      "status": "current-proposal",
+      "category": "flows-and-blocks",
+      "tags": ["spec-driven-development", "spec-flow", "reports", "checkpoints", "research"],
+      "current_reading": "Research-backed proposal for a Circuit-native `spec` flow that uses typed Reports and Checkpoints before exporting markdown specs. Not current behavior.",
+      "related": [
+        "docs/ideas/doc-checkpoint-block.md",
+        "docs/ideas/dynamic-flow-ratchet.md",
+        "docs/ideas/typed-coordination-alignment-proposal.md",
+        "docs/ideas/effective-memory-program.md"
+      ],
+      "last_checked": "2026-06-05"
+    },
+    {
       "path": "docs/ideas/self-auditing-memory-review.md",
       "title": "Self-Auditing Memory: Soundness and Durability Review",
       "status": "archived",
