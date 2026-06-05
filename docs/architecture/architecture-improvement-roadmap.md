@@ -1,6 +1,6 @@
 # Circuit Architecture Improvement Roadmap
 
-Status: source-backed roadmap, current as of 2026-06-04.
+Status: source-backed roadmap, current as of 2026-06-05.
 
 This document turns the recent system analysis into an improvement roadmap. It is not a rewrite plan. It is a sequence of small changes that make the current design easier to understand, easier to extend, and harder to accidentally complect.
 
@@ -37,26 +37,26 @@ A lightweight top-level TypeScript import scan of the current checkout found thi
 
 ```text
 MODULES
-flows      files=121 exports=577 fanIn=5  fanOut=4  out=connectors,policy,schemas,shared
-schemas    files=51  exports=858 fanIn=10 fanOut=0  out=
+flows      files=121 exports=570 fanIn=5  fanOut=4  out=connectors,policy,schemas,shared
+schemas    files=51  exports=862 fanIn=10 fanOut=0  out=
 runtime    files=49  exports=207 fanIn=2  fanOut=6  out=connectors,flows,policy,schemas,shared,skill-hooks
 shared     files=42  exports=167 fanIn=7  fanOut=3  out=flows,policy,schemas
 app        files=24  exports=117 fanIn=2  fanOut=5  out=flows,memory,runtime,schemas,shared
 cli        files=12  exports=47  fanIn=0  fanOut=7  out=app,flows,memory,policy,runtime,schemas,shared
 connectors files=8  exports=52  fanIn=2  fanOut=2  out=schemas,shared
 policy     files=6   exports=35  fanIn=4  fanOut=2  out=flows,schemas
-skill-hooks files=5  exports=18  fanIn=1  fanOut=2  out=schemas,shared
+skill-hooks files=5  exports=17  fanIn=1  fanOut=2  out=schemas,shared
 memory     files=4   exports=32  fanIn=2  fanOut=3  out=app,schemas,shared
-release    files=2   exports=53  fanIn=0  fanOut=0  out=
+release    files=2   exports=51  fanIn=0  fanOut=0  out=
 index.ts   files=1   exports=1   fanIn=0  fanOut=1  out=schemas
 
 CYCLES
-app -> memory
-connectors -> shared -> flows
-connectors -> shared -> policy -> flows
-flows -> policy
-flows -> shared
-flows -> shared -> policy
+app -> memory -> app
+connectors -> shared -> flows -> connectors
+connectors -> shared -> policy -> flows -> connectors
+flows -> policy -> flows
+flows -> shared -> flows
+flows -> shared -> policy -> flows
 ```
 
 Treat this as a smoke alarm, not a complete dependency proof. The existing tests should become the authoritative guardrail.
@@ -129,8 +129,8 @@ Severity: high. This is live runtime behavior, not a future sketch.
 
 - `src/schemas/skill-hook.ts:85-89` defines the shipped policy modes: `auto` injects, `mute` records only, and there is no `ask` mode.
 - `src/schemas/skill-hook.ts:94-98` defines the parameterized `before:edit-files` and `after:edit-files` hook-name form.
-- `src/runtime/run/graph-runner.ts:580-588` creates one run-scoped Skill Hook injection channel and one run-scoped skill registry.
-- `src/runtime/run/graph-runner.ts:992-1018` dispatches Skill Hooks after `step.completed`, records `run.skill-hook`, and starts actuation for `auto` events.
+- `src/runtime/run/graph-runner.ts:610-618` creates one run-scoped Skill Hook injection channel and one run-scoped skill registry.
+- `src/runtime/run/graph-runner.ts:1015-1090` appends `step.completed`, then dispatches Skill Hooks, records `run.skill-hook`, starts actuation for `auto` events, and records dispatch failures as non-fatal trace evidence.
 - `src/skill-hooks/injection.ts:1-37` documents the current actuation contract: persistent run-scoped accumulator, implementer-only injection, deduped, pure, non-draining.
 - `src/runtime/run/relay-guidance.ts:377-403` gates injected Skill Hook skills to implementer relays and passes them into skill loading.
 - `src/shared/skill-loading.ts:51-101` merges selected skills, slot bindings, and injected skills, with injected skills last and deduped.
@@ -244,36 +244,43 @@ Severity: high.
 - `src/flows/prototype/writers/variant-options.ts:45-67` validates Prototype variant connector/model compatibility inside a flow compose writer.
 - `src/flows/prototype/writers/variant-options.ts:69-90` resolves variant relay choices from config and connector policy.
 - `src/flows/prototype/writers/variant-options.ts:121-145` writes resolved connector name/source into `prototype.variant-options@v1`.
+- `src/flows/types.ts:122-135` defines flow-owned axis config prerequisites that the CLI validates before workers run.
+- `src/flows/types.ts:181-185` exposes those prerequisites as `CompiledFlowPackage.requiredConfig`.
+- `src/flows/prototype/data.ts:737-749` declares `circuits.prototype.variant_models` as required when Prototype runs with the tournament axis.
+- `src/cli/circuit.ts:571-590` and `src/cli/circuit.ts:933-938` reject missing required config before creating a run folder.
+- `tests/runner/cli-router.test.ts:992-1027` proves Prototype `--tournament` rejects up-front when `variant_models` is absent.
 - `src/runtime/run/relay-guidance.ts:271-399` already owns per-relay connector, policy, selection, and skill planning for normal relay steps.
 
 ### Problem
 
-Prototype variant planning is a flow report writer, but it reaches into connector policy and resolution. That makes a flow package know too much about worker infrastructure.
+Prototype now declares its tournament config prerequisite in the flow package, and the CLI rejects a missing `variant_models` setting before any worker runs. Keep that improvement. The remaining smell is narrower: Prototype variant planning is a flow report writer, but it still reaches into connector policy and resolution. That makes a flow package know too much about worker infrastructure.
 
-The flow should declare the variant requests and output a variant plan. Connector planning should live in a selection/connector planning service below both runtime guidance and this compose writer.
+The flow should declare the axis requirement, variant requests, and report shape. Connector planning should live in a selection/connector planning service below both runtime guidance and this compose writer.
 
 ### Rectification
 
-1. Extract a connector planning function that is not runtime-owned. Put it under `src/connectors/` or a small `src/selection/` area.
+1. Extract a connector planning contract that is not runtime-owned and not flow-owned. Prefer a neutral module such as `src/selection/connector-planning.ts`; do not make the eventual Prototype caller import `src/connectors`.
 2. Give that function an explicit input:
    - flow id;
    - relay role;
    - requested connector reference, if any;
    - layered config;
    - resolved model/effort selection.
-3. Reuse it from `planRelayGuidanceDecision` and from Prototype variant-options.
+3. Reuse it from `planRelayGuidanceDecision` and from Prototype variant-options only after the flow-facing contract is neutral. If the first extraction still needs connector resolver adapters, keep those adapters runtime-facing until a neutral contract exists.
 4. Keep Prototype-specific report shaping in the flow writer. Move only connector resolution/compatibility checks out.
-5. Add a fitness test: flow packages may not import `src/connectors` directly, with the current Prototype file allow-listed until the migration lands.
+5. Add a fitness test: flow packages may not import `src/connectors` directly, with the current Prototype file allow-listed until the migration lands. Do not count the migration done while Prototype imports any connector resolver/planner module under `src/connectors`.
+6. Preserve `CompiledFlowPackage.requiredConfig` as the place where a flow declares up-front axis prerequisites. Do not fold that contract into connector planning.
 
 ### Verification
 
 - Run Prototype writer tests and connector resolver tests.
+- Run `npm run test -- tests/runner/cli-router.test.ts` or a focused equivalent that includes the Prototype `--tournament` missing-config case.
 - Run `tests/contracts/engine-flow-boundary.test.ts`.
 - Add or update a test that proves `prototype.variant-options@v1` output is byte-equivalent for a fixture before and after the move.
 
 ### Watch-outs
 
-Do not move the whole Prototype variant report out of the flow. Only the connector decision belongs elsewhere. The flow still owns its report shape.
+Do not move the whole Prototype variant report out of the flow. Only the connector decision belongs elsewhere. The flow still owns its report shape, and the flow package still owns its up-front config prerequisite.
 
 ## 5. Resolve The `flows` / `policy` Cycle
 
@@ -324,7 +331,8 @@ Severity: high.
 ### Evidence
 
 - `src/shared/README.md:3-20` defines `shared` as helpers used across layers and lists selection/config/skill loading, relay helpers, operator summaries, HTML, proof, verification, fanout, scoring, JSON extraction, schema conversion, run-folder helpers, and runtime-source helpers.
-- `src/shared/operator-summary-writer.ts:1-33` imports the flow catalog, schemas, HTML projectors, progress output, result paths, and write-capable-worker disclosure. This is presentation/application orchestration, not a leaf helper.
+- `src/shared/operator-summary-writer.ts:1-39` imports the flow catalog, schemas, HTML projectors, progress output, result paths, and write-capable-worker disclosure. This is presentation/application orchestration, not a leaf helper.
+- `src/shared/operator-summary-writer.ts:189-195` owns digest headline/status shaping, another sign that this file is an app/reporting service rather than a generic helper.
 - `src/shared/relay-selection.ts:1-19` imports flow catalog and runtime-index types to derive relay selection.
 - `src/shared/skill-loading.ts:1-24` mixes config, skill registry, selection policy, trace evidence, and Skill Hook injection inputs.
 - `src/shared/html/index.ts:1-21` is the good pattern: it holds a registry and generic contract, and `src/flows/catalog.ts:57-63` registers flow-specific projectors without `shared/html` importing flows.
@@ -417,9 +425,9 @@ Severity: medium.
 ### Evidence
 
 - `src/cli/circuit.ts:1-67` imports runtime, app history, process evidence, autonomous continuation, flows, policy, config loading, operator summary, progress, run output, and runtime routing policy.
-- `src/cli/circuit.ts:692-737` dispatches top-level commands and delegates existing extracted commands such as handoff, history, memory, create, and runs.
-- `src/cli/circuit.ts:739-843` contains checkpoint resume orchestration, runtime resume, operator summary writing, process evidence projection, and stdout envelope creation.
-- `src/cli/circuit.ts:845-1320` contains fresh run routing, fixture loading, config discovery, history recall, runtime execution, checkpoint waiting output, operator summary writing, run envelope writing, autonomous continuation, and final stdout output.
+- `src/cli/circuit.ts:701-745` dispatches top-level commands and delegates existing extracted commands such as handoff, history, memory, create, and runs.
+- `src/cli/circuit.ts:748-852` contains checkpoint resume orchestration, runtime resume, operator summary writing, process evidence projection, and stdout envelope creation.
+- `src/cli/circuit.ts:854-1354` contains fresh run routing, fixture loading, config discovery, up-front flow config validation, history recall, runtime execution, checkpoint waiting output, operator summary writing, run envelope writing, autonomous continuation, and final stdout output.
 - `src/cli/post-run-artifacts.ts` already exists and is used as an extraction point.
 
 ### Problem
@@ -459,11 +467,13 @@ Severity: medium.
 
 ### Evidence
 
-- `src/runtime/run/graph-runner.ts:542-610` builds a large `RunContext` with files, trace, config, policies, Skill Hook injections, memory inputs, history recall, project root, progress, and execution capabilities.
-- `src/runtime/run/graph-runner.ts:700-810` enters each step, computes attempt/cycle state, appends `step.entered`, executes the step, handles checkpoint waiting, and handles executor errors.
-- `src/runtime/run/graph-runner.ts:811-823` mutates routes for slice-loop advancement.
-- `src/runtime/run/graph-runner.ts:825-972` validates route targets, recovery bindings, cycle guards, max attempts, recovery corridor entry/exit, and recovery guidance.
-- `src/runtime/run/graph-runner.ts:974-1027` appends `step.completed`, dispatches Skill Hooks, closes terminal targets, or advances to the next step.
+- `src/runtime/run/graph-runner.ts:592-645` builds a large `RunContext` with files, trace, config, policies, Skill Hook injections, memory inputs, history recall, project root, progress, and execution capabilities.
+- `src/runtime/run/graph-runner.ts:741-850` enters each step, computes attempt/cycle state, appends `step.entered`, executes the step, handles checkpoint waiting, and handles executor errors.
+- `src/runtime/run/graph-runner.ts:852-864` mutates routes for slice-loop advancement.
+- `src/runtime/run/graph-runner.ts:866-1013` validates route targets, recovery bindings, cycle guards, max attempts, recovery corridor entry/exit, and recovery guidance.
+- `src/runtime/run/graph-runner.ts:1015-1097` appends `step.completed`, dispatches Skill Hooks, closes terminal targets, or advances to the next step.
+- `src/runtime/executors/sub-run.ts:261-290` routes a non-complete child result through a declared `stop` route instead of aborting the parent.
+- `tests/runtime/sub-run.test.ts:290-330` proves that child non-success closes the parent as stopped when the route is declared.
 - `src/runtime/run/recovery-corridor.ts` and `src/runtime/run/slice-corridor.ts` are positive extractions. The loop has started to shed concepts, but the transition order still lives in one function.
 
 ### Problem
@@ -517,7 +527,7 @@ Severity: medium.
 
 - `src/schemas/index.ts:1-50` re-exports every schema module.
 - `tests/contracts/schemas-barrel.test.ts:1-58` explicitly requires every `src/schemas/<name>.ts` file to be re-exported by `src/schemas/index.ts`.
-- The import graph shows `src/schemas` has 51 files, 858 exports, fan-in 10, and fan-out 0. The direction is healthy; the surface is simply broad.
+- The import graph shows `src/schemas` has 51 files, 862 exports, fan-in 10, and fan-out 0. The direction is healthy; the surface is simply broad.
 - Historical context: `docs/ideas/architecture-hardening-plan-v2.md` later dropped the idea of replacing the schema barrel because it contradicted the test-enforced completeness invariant. The active source of truth is the test above.
 
 ### Problem

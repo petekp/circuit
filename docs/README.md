@@ -35,6 +35,8 @@ only the layer you need, then go deeper when the change touches that layer.
 - [docs/architecture/run-process.md](architecture/run-process.md) - current
   Run decision timeline, including flow routing, axes, depth, relay selection,
   runtime evidence, checkpoint resume, and autonomous continuation.
+- [docs/architecture/architecture-revamp-staged-plan.md](architecture/architecture-revamp-staged-plan.md)
+  - staged execution plan for the active architecture roadmap.
 - [docs/pivot/contract-guidance-proof-recovery/](pivot/contract-guidance-proof-recovery/)
   - consolidated reference point for the contract, guidance, proof, and
     recovery pivot.

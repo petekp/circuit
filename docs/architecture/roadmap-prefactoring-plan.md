@@ -1,6 +1,6 @@
 # Roadmap Prefactoring Plan
 
-Status: source-backed plan, current as of 2026-06-04.
+Status: source-backed plan, current as of 2026-06-05.
 
 Purpose: make the architecture roadmap easier before executing it. The point is not to do the roadmap twice. The point is to add the tests, seams, and small neutral modules that let later boundary moves land as boring, behavior-preserving changes.
 
@@ -13,8 +13,8 @@ The roadmap target is [docs/architecture/architecture-improvement-roadmap.md](ar
 Current checkout reality matters:
 
 - Skill Hooks are stable shipped ground now. The shipped surface uses `auto` and `mute`, defaults omitted mode to `auto`, and uses `edit-files` hook names.
-- Full `npm run verify` is green after the Skill Hooks stabilization and the later roadmap-doc checks. Keep using it as the canonical baseline before source-moving architecture work.
-- There are unrelated dirty and untracked files. Prefactoring must stay scoped and must not normalize unrelated work.
+- Keep using full `npm run verify` as the canonical baseline before source-moving architecture work.
+- Prefactoring should stay scoped and avoid normalizing unrelated work if later branches introduce it.
 
 ## Ranked Prefactoring Sequence
 
@@ -41,8 +41,8 @@ Ranks 0 through 7 should happen before the first major source-tree reshaping. Ra
 
 - The project guide says `npm run verify` is the canonical check before claiming a change is done.
 - Skill Hooks/runtime work is no longer a baseline blocker.
-- Full `npm run verify` has passed after the Skill Hooks stabilization. Treat that as the baseline gate for the next architecture branch.
-- The checkout may still carry unrelated untracked architecture and idea docs. Keep future prefactoring patches scoped so verification failures can be attributed.
+- Treat a fresh full verify as the baseline gate for the next architecture branch.
+- Keep future prefactoring patches scoped so verification failures can be attributed.
 
 ### Prep Change
 
@@ -142,7 +142,7 @@ npm run check
 
 ### Evidence
 
-- `src/runtime/run/graph-runner.ts:992-1018` dispatches Skill Hooks after `step.completed`, records `run.skill-hook`, and actuates `auto` events.
+- `src/runtime/run/graph-runner.ts:1015-1090` appends `step.completed`, then dispatches Skill Hooks, records `run.skill-hook`, actuates `auto` events, and records dispatch failures as non-fatal trace evidence.
 - `src/runtime/run/relay-guidance.ts:377-403` gates injected skills to implementer relays and passes the run skill registry into skill loading.
 - `tests/runner/skill-hook-actuation.test.ts` already proves `before:edit-files` auto injection, omitted-mode default to `auto`, mute behavior, verification-failure retry injection, and no reviewer/researcher leak.
 
@@ -219,10 +219,13 @@ npm run check
 - `src/runtime/run/relay-guidance.ts:29-326` adds supplied connector identity checks, policy connector preferences, policy hard constraints, and relay execution planning around the base resolver.
 - `src/flows/prototype/writers/variant-options.ts:1-5` imports connector resolver functions directly.
 - `src/flows/prototype/writers/variant-options.ts:45-90` validates and resolves variant connector/model choices inside the flow writer.
+- `src/flows/types.ts:122-135` defines flow-owned axis config prerequisites.
+- `src/flows/prototype/data.ts:737-749` declares Prototype's tournament `variant_models` prerequisite.
+- `tests/runner/cli-router.test.ts:992-1027` proves missing Prototype tournament config rejects up-front with no run folder.
 
 ### Prep Change
 
-Extract a neutral connector planning module, such as `src/connectors/relay-planning.ts`, with one public planning function that can serve both runtime relay guidance and Prototype variant planning later.
+Extract a neutral connector planning contract, such as `src/selection/connector-planning.ts`, with one public planning shape that can serve both runtime relay guidance and Prototype variant planning later. This is now a smaller slice than the original roadmap note: keep Prototype's `requiredConfig` prerequisite exactly where it is and move only connector/model planning.
 
 The first slice should move only pure planning code out of `relay-guidance.ts`:
 
@@ -231,7 +234,7 @@ The first slice should move only pure planning code out of `relay-guidance.ts`:
 - policy hard constraint checks for connector/model/effort;
 - final connector decision shape.
 
-Then keep `planRelayGuidanceDecision` as the only caller. Prototype does not switch yet.
+Then keep `planRelayGuidanceDecision` as the only caller. Prototype does not switch yet, and its up-front config validation remains unchanged. If the first extraction still needs adapters around `src/connectors/resolver.ts`, keep those adapters runtime-facing; the later Prototype migration should consume only the neutral contract, not a module under `src/connectors`.
 
 ### What This Makes Easy
 
@@ -239,14 +242,14 @@ The later Prototype migration can call the same planner without pulling runtime 
 
 ### What Not To Do Yet
 
-Do not change Prototype in this prep slice. Do not move relay prompt or skill loading logic into connectors. The connector planner should not know about prompts, reports, or loaded skill bodies.
+Do not change Prototype in this prep slice. Do not move `requiredConfig`, relay prompt, or skill loading logic into connector infrastructure. The connector planner should not know about prompts, reports, loaded skill bodies, or whether a flow's axis config was present, and the final flow-facing seam must not require flow packages to import `src/connectors`.
 
 ### Verification
 
 Run:
 
 ```bash
-npm run test -- tests/runtime/connectors.test.ts tests/runner/runner-relay-connector-identity.test.ts tests/contracts/codex-connector-schema.test.ts tests/runner/cli-runtime.test.ts
+npm run test -- tests/runtime/connectors.test.ts tests/runner/runner-relay-connector-identity.test.ts tests/contracts/codex-connector-schema.test.ts tests/runner/cli-runtime.test.ts tests/runner/cli-router.test.ts
 npm run check
 ```
 
@@ -333,9 +336,9 @@ If glob expansion does not match, find the current tests with `rg "listCandidate
 
 ### Evidence
 
-- `src/cli/circuit.ts:692-737` dispatches top-level commands.
-- `src/cli/circuit.ts:739-843` contains resume orchestration and stdout output.
-- `src/cli/circuit.ts:845-1320` contains fresh run orchestration and stdout output.
+- `src/cli/circuit.ts:701-745` dispatches top-level commands.
+- `src/cli/circuit.ts:748-852` contains resume orchestration and stdout output.
+- `src/cli/circuit.ts:854-1354` contains fresh run orchestration and stdout output.
 - `tests/runner/cli-router.test.ts:1-220` already has rich CLI relay fixtures and stream capture helpers.
 
 ### Prep Change
@@ -371,10 +374,12 @@ npm run check
 
 ### Evidence
 
-- `src/runtime/run/graph-runner.ts:700-810` handles step entry, executor call, checkpoint waiting, and executor errors.
-- `src/runtime/run/graph-runner.ts:811-823` handles slice-loop route rewriting.
-- `src/runtime/run/graph-runner.ts:825-972` handles target validation, recovery binding, cycle guards, recovery corridor changes, and recovery guidance.
-- `src/runtime/run/graph-runner.ts:974-1027` writes `step.completed`, dispatches Skill Hooks, closes terminal targets, or advances.
+- `src/runtime/run/graph-runner.ts:741-850` handles step entry, executor call, checkpoint waiting, and executor errors.
+- `src/runtime/run/graph-runner.ts:852-864` handles slice-loop route rewriting.
+- `src/runtime/run/graph-runner.ts:866-1013` handles target validation, recovery binding, cycle guards, recovery corridor changes, and recovery guidance.
+- `src/runtime/run/graph-runner.ts:1015-1097` writes `step.completed`, dispatches Skill Hooks, closes terminal targets, or advances.
+- `src/runtime/executors/sub-run.ts:261-290` now treats a non-complete child run with a declared `stop` route as a normal stopped transition, while complete-without-verdict remains a contract failure.
+- `tests/runtime/sub-run.test.ts:290-330` already proves the stopped-parent case, and `tests/runtime/sub-run.test.ts:559-596` preserves the complete-without-verdict failure case.
 
 ### Prep Change
 
@@ -385,6 +390,7 @@ Add tests that pin current order and outcome for a minimal fixture:
 - self-cycle -> abort reason;
 - recovery retry -> legal re-entry;
 - checkpoint waiting -> no `step.completed` for the waiting checkpoint until resume.
+- preserve the existing sub-run child non-success case: declared `stop` route -> stopped parent, not aborted parent.
 
 The tests should read the trace as the authority.
 
@@ -519,7 +525,7 @@ The architecture roadmap is ready to execute when:
 - the top-level import graph ratchet exists with current-cycle allow-list;
 - Skill Hook trace and role-separation behavior is characterized;
 - report-surface declarations have a typed projection seam, even if no flow uses it yet;
-- connector planning has a neutral module or at least a tested pure function ready to share;
+- connector planning has a neutral flow-safe contract, with any connector-resolver adapter kept runtime-facing;
 - flow-kind policy has a pure table-parameterized checker;
 - memory no longer needs to import app just to list run folders, or the exact extraction slice is ready and tested;
 - CLI and run transition behavior have characterization tests before code motion.

@@ -1,6 +1,6 @@
 # Recovery And Restore Roadmap Addendum
 
-Status: source-backed addendum, current as of 2026-06-04.
+Status: source-backed addendum, current as of 2026-06-05.
 
 Purpose: capture recovery, restore, baseline, StepKind, and Fix test-fixture architecture opportunities before folding them into the canonical architecture improvement roadmap. This document does not implement the changes. It records what the current code says, where the seams are awkward, and how to improve them while preserving the stable Skill Hooks runtime seam.
 
@@ -241,7 +241,7 @@ Slot: same cluster as Opportunity 3, and before a restore executor is reintroduc
 - `src/flows/fix/reports.ts:19-31` maps every Fix artifact id to a Fix report path.
 - `src/flows/fix/reports.ts:749-761` limits Fix result evidence pointers to Fix report ids.
 - `src/flows/fix/reports.ts:774-789` makes `FixResult.evidence_links` an array of `FixResultReportPointer`, with min/max bounds tied to Fix report ids.
-- `src/flows/types.ts:152-169` documents narrow engine flags for engine-visible behavior and says flags should describe behavior, not flow names.
+- `src/flows/types.ts:103-120` documents narrow engine flags for engine-visible behavior and says flags should describe behavior, not flow names.
 - `docs/flows/authoring-model.md:350-352` says `CompiledFlowPackage.engineFlags` are for opt-in engine behavior the engine branches on.
 
 ### Problem
