@@ -635,6 +635,10 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...(options.selectionConfigLayers === undefined
       ? {}
       : { selectionConfigLayers: options.selectionConfigLayers }),
+    guidanceSelection: {
+      bindsExecutionDepthToGuidanceSelection:
+        compiledPackage?.engineFlags?.bindsExecutionDepthToRelaySelection === true,
+    },
     ...(options.policyLayers === undefined ? {} : { policyLayers: options.policyLayers }),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
     ...(options.memoryInputs === undefined ? {} : { memoryInputs: options.memoryInputs }),

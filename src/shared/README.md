@@ -6,7 +6,7 @@ that a reader can tell why code does not belong in `src/runtime/`,
 
 Common groups:
 
-- selection, config, and local skill loading,
+- config and local skill loading,
 - relay prompt and result helpers,
 - operator summaries, HTML projectors, progress, and status rendering,
 - deterministic proof, verification, verdict, and checkpoint helpers,
@@ -26,7 +26,7 @@ names.
 
 | Cluster | Current files | Direction |
 | --- | --- | --- |
-| Selection and relay planning | `relay-selection.ts`, `selection-resolver.ts`, `relay-support.ts` | First move candidates. Move or invert the flow lookups before tightening the `shared -> flows` ratchet. |
+| Relay support | `relay-support.ts` | First move candidate. Move or invert the flow lookup before tightening the remaining `shared -> flows` ratchet. Selection resolution now lives in `src/selection/`. |
 | Operator-facing summaries and status | `operator-summary-writer.ts`, `operator-summary/`, `progress-output.ts`, `status-block-renderer.ts` | `operator-summary-writer.ts` is a first move candidate for app reporting because it knows flow runtime surfaces. The smaller renderer/projection helpers can stay shared while multiple layers use them. |
 | HTML projection registry | `html/` | Keep shared as the inversion model: flow packages register projectors; shared HTML code does not import flow packages. |
 | Config, skills, and connector-neutral relay helpers | `config-loader.ts`, `skill-loading.ts`, `user-skill-registry.ts`, `connector-relay.ts`, `write-capable-worker-disclosure.ts` | Stay shared while they serve CLI, runtime, and hooks without importing flow packages. |

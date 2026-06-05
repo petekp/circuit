@@ -50089,7 +50089,7 @@ function recoveryRouteForFailure(input) {
   return recoveryBindingForFailure(input)?.route_id;
 }
 
-// dist/shared/selection-resolver.js
+// dist/selection/selection-resolver.js
 var PRE_FLOW_CONFIG_SOURCES = ["default", "user-global", "project"];
 function overrideContributes2(o) {
   if (o.model !== void 0)
@@ -50218,7 +50218,11 @@ function resolveSelectionForGuidanceInput(input) {
     resolved = pushIfContributing(applied, { source: "stage", stage_id: stage.id, override: stage.selection }, resolved);
   }
   if (input.step.selection !== void 0) {
-    resolved = pushIfContributing(applied, { source: "step", step_id: input.step.id, override: input.step.selection }, resolved);
+    resolved = pushIfContributing(applied, {
+      source: "step",
+      step_id: input.step.id,
+      override: input.step.selection
+    }, resolved);
   }
   const invocationLayer = configLayers.invocation;
   const invocationOverride = invocationLayer === void 0 ? void 0 : configLayerSelection(flowId, invocationLayer, resolved);
@@ -50228,10 +50232,9 @@ function resolveSelectionForGuidanceInput(input) {
   return SelectionResolution.parse({ resolved, applied });
 }
 
-// dist/shared/relay-selection.js
-function bindsExecutionDepthToGuidanceSelection(flow) {
-  const pkg = findCompiledFlowPackageById(flow.id);
-  return pkg?.engineFlags?.bindsExecutionDepthToRelaySelection === true;
+// dist/selection/relay-selection.js
+function bindsExecutionDepthToGuidanceSelection(inv) {
+  return inv.bindsExecutionDepthToGuidanceSelection === true;
 }
 function guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth) {
   const layers = [...inv.selectionConfigLayers ?? []];
@@ -50266,7 +50269,7 @@ function guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth) {
   return layers;
 }
 function selectionConfigLayersForGuidanceInput(inv, flow, depth) {
-  if (!bindsExecutionDepthToGuidanceSelection(flow)) {
+  if (!bindsExecutionDepthToGuidanceSelection(inv)) {
     return inv.selectionConfigLayers ?? [];
   }
   return guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth);
@@ -50550,7 +50553,8 @@ function planRelayGuidanceDecision(input) {
     ...step.connector === void 0 ? {} : { stepConnector: step.connector }
   });
   const resolvedSelection = deriveResolvedSelection({
-    ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers }
+    ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers },
+    bindsExecutionDepthToGuidanceSelection: context.guidanceSelection?.bindsExecutionDepthToGuidanceSelection === true
   }, flow, compiledStep, input.depth);
   assertConnectorSelectionCompatible(relayExecution.connectorName, resolvedSelection);
   const injectedSkillIds = relayExecution.role === "implementer" ? context.skillHookInjections?.ids() ?? [] : [];
@@ -54179,6 +54183,9 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.relayer === void 0 ? {} : { relayer: options.relayer },
     ...options.hostKind === void 0 ? {} : { hostKind: options.hostKind },
     ...options.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: options.selectionConfigLayers },
+    guidanceSelection: {
+      bindsExecutionDepthToGuidanceSelection: compiledPackage?.engineFlags?.bindsExecutionDepthToRelaySelection === true
+    },
     ...options.policyLayers === void 0 ? {} : { policyLayers: options.policyLayers },
     ...options.progress === void 0 ? {} : { progress: options.progress },
     ...options.memoryInputs === void 0 ? {} : { memoryInputs: options.memoryInputs },

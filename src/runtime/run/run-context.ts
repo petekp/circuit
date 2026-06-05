@@ -25,6 +25,9 @@ export interface RunContext
   readonly entryModeName?: string;
   readonly depth?: string;
   readonly axes?: Axes;
+  readonly guidanceSelection?: {
+    readonly bindsExecutionDepthToGuidanceSelection: boolean;
+  };
   readonly now: () => Date;
   readonly files: RunFileStore;
   readonly trace: TraceStore;

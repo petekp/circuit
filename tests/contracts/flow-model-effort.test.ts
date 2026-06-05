@@ -12,8 +12,8 @@ import { LayeredConfig } from '../../src/schemas/config.js';
 import { SkillId } from '../../src/schemas/ids.js';
 import type { ResolvedSelection } from '../../src/schemas/selection-policy.js';
 import { SelectionOverride } from '../../src/schemas/selection-policy.js';
+import { resolveSelectionForGuidanceInput } from '../../src/selection/selection-resolver.js';
 import type { RelayFn, RelayInput } from '../../src/shared/relay-runtime-types.js';
-import { resolveSelectionForGuidanceInput } from '../../src/shared/selection-resolver.js';
 
 const FIXTURE_PATH = resolve('generated/flows/explore/circuit.json');
 

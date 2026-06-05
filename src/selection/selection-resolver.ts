@@ -1,4 +1,3 @@
-import type { RuntimeIndexedFlow, RuntimeIndexedStep } from '../flows/registries/runtime-index.js';
 import type { LayeredConfig } from '../schemas/config.js';
 import type { SkillId } from '../schemas/ids.js';
 import {
@@ -13,9 +12,24 @@ import {
 
 const PRE_FLOW_CONFIG_SOURCES = ['default', 'user-global', 'project'] as const;
 
+export interface GuidanceSelectionFlow {
+  readonly id: string;
+  readonly default_selection?: SelectionOverrideValue | undefined;
+  readonly stages: readonly {
+    readonly id: string;
+    readonly steps: readonly string[];
+    readonly selection?: SelectionOverrideValue | undefined;
+  }[];
+}
+
+export interface GuidanceSelectionStep {
+  readonly id: string;
+  readonly selection?: unknown | undefined;
+}
+
 interface ResolveSelectionInput {
-  readonly flow: RuntimeIndexedFlow;
-  readonly step: RuntimeIndexedStep;
+  readonly flow: GuidanceSelectionFlow;
+  readonly step: GuidanceSelectionStep;
   readonly configLayers?: readonly LayeredConfig[];
 }
 
@@ -193,7 +207,11 @@ export function resolveSelectionForGuidanceInput(
   if (input.step.selection !== undefined) {
     resolved = pushIfContributing(
       applied,
-      { source: 'step', step_id: input.step.id as never, override: input.step.selection as never },
+      {
+        source: 'step',
+        step_id: input.step.id as never,
+        override: input.step.selection as SelectionOverrideValue,
+      },
       resolved,
     );
   }
