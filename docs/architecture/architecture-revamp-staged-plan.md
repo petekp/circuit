@@ -4,6 +4,13 @@ Status: staged execution plan, current as of 2026-06-05.
 
 Purpose: turn the architecture roadmap, prefactoring plan, and recovery/restore addendum into one execution program. This document does not implement the revamp. It defines the order, branch slices, gates, rollback rules, and evidence map for doing the work without losing the simplicity goal.
 
+## Execution Status
+
+- Stage 0 — complete on `pkp/architecture-revamp-stage-1-guardrails`; baseline `npm run verify` passed on `main` at `315bb7f5e66d687c3c71b516a5adf7dd0aec2a31`, with a clean worktree before branching.
+- Stage 1 — complete on `pkp/architecture-revamp-stage-1-guardrails`; focused architecture tests and `npm run check` passed after adding the import helper, top-level cycle ratchet, boundary ratchets, Skill Hooks ratchet, and shared ownership inventory.
+- Stage 3 Prototype connector-planning edge removal — superseded by baseline: the live Stage 1 ratchet found no flow-package imports from `src/connectors`, so the allow-list is seeded empty.
+- Stage 4 `src/policy -> src/flows` edge removal — superseded by baseline: the live Stage 1 ratchet found no `src/policy` imports from `src/flows`, so the allow-list is seeded empty.
+
 Primary inputs (each is a whole document; the ranges below are start-here pointers, not the full source the plan draws on):
 
 - `docs/architecture/architecture-improvement-roadmap.md` (north star and import-graph snapshot at `:9-62`; the ten roadmap items run to `:561`; definition of done at `:613-626`)

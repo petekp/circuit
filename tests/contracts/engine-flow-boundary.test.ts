@@ -7,9 +7,10 @@
 // engine has grown a flow-specific import. Move the imported
 // state into the CompiledFlowPackage shape and re-derive instead.
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { importPathsFrom, walkTsFiles } from '../helpers/source-imports.js';
 
 const RUNTIME_ROOT = 'src/runtime';
 const WORKFLOWS_ROOT = 'src/flows';
@@ -32,42 +33,6 @@ const ALLOWED_TEST_WORKFLOW_IMPORT_SUFFIXES = [
   '/flows/flow-definition.js',
   '/flows/report-declarations.js',
 ];
-
-function walk(dir: string): readonly string[] {
-  if (!existsSync(dir)) return [];
-  const out: string[] = [];
-  for (const entry of readdirSync(dir)) {
-    const path = join(dir, entry);
-    if (statSync(path).isDirectory()) {
-      out.push(...walk(path));
-    } else if (extname(path) === '.ts') {
-      out.push(path);
-    }
-  }
-  return out;
-}
-
-// Patterns covering every form a flow path can sneak in through:
-//   - `import x from '...'` and `import type x from '...'`
-//   - `import '...'` (side-effect)
-//   - `export ... from '...'` (re-export)
-//   - `await import('...')` (dynamic import)
-// Each pattern uses a single capture group for the import path.
-const STATIC_IMPORT_PATTERN = /\bimport\s+(?:type\s+)?(?:[^'"\n;]+\s+from\s+)?['"]([^'"\n]+)['"]/g;
-const REEXPORT_PATTERN = /\bexport\s+(?:type\s+)?(?:\*\s+|\{[^}]*\}\s+)?from\s+['"]([^'"\n]+)['"]/g;
-const DYNAMIC_IMPORT_PATTERN = /\bimport\(\s*['"]([^'"\n]+)['"]\s*\)/g;
-
-function importPathsFrom(file: string): readonly string[] {
-  const text = readFileSync(file, 'utf8');
-  const out: string[] = [];
-  for (const pattern of [STATIC_IMPORT_PATTERN, REEXPORT_PATTERN, DYNAMIC_IMPORT_PATTERN]) {
-    for (const match of text.matchAll(pattern)) {
-      const importPath = match[1];
-      if (importPath !== undefined) out.push(importPath);
-    }
-  }
-  return out;
-}
 
 function isCompiledFlowImport(importPath: string): boolean {
   // Match the literal '/flows/' segment so paths that merely
@@ -92,7 +57,7 @@ function isAllowedTestImport(importPath: string): boolean {
 
 describe('engine ↔ flow boundary', () => {
   it('no file under src/runtime/ imports a flow source other than the catalog or types', () => {
-    const runtimeFiles = walk(RUNTIME_ROOT);
+    const runtimeFiles = walkTsFiles(RUNTIME_ROOT);
     expect(runtimeFiles.length).toBeGreaterThan(0);
     const offenders: { readonly file: string; readonly importPath: string }[] = [];
     for (const file of runtimeFiles) {
@@ -124,7 +89,7 @@ describe('engine ↔ flow boundary', () => {
       if (!statSync(flowDir).isDirectory()) continue;
       if (NON_FLOW_PACKAGE_DIRECTORIES.has(entry)) continue;
       flowsInspected++;
-      for (const file of walk(flowDir)) {
+      for (const file of walkTsFiles(flowDir)) {
         for (const importPath of importPathsFrom(file)) {
           if (!isCompiledFlowImport(importPath)) continue;
           // Allowed: same-flow imports starting with ./
@@ -161,7 +126,7 @@ describe('engine ↔ flow boundary', () => {
     // rather than reach into a specific flow package directly.
     // Tests are exempt because they may legitimately exercise a
     // single flow in isolation.
-    const srcFiles = walk('src');
+    const srcFiles = walkTsFiles('src');
     expect(
       srcFiles.length,
       'src walk returned unexpectedly few files — discovery loop is likely broken',
@@ -196,7 +161,7 @@ describe('engine ↔ flow boundary', () => {
     // allowed. What they MUST NOT do is import a flow's writer /
     // relay-hint internals — that would entangle the test surface
     // with the flow's internal layout.
-    const testFiles = walk('tests');
+    const testFiles = walkTsFiles('tests');
     expect(
       testFiles.length,
       'tests walk returned unexpectedly few files — discovery loop is likely broken',
