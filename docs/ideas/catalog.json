@@ -51,12 +51,13 @@
     },
     {
       "path": "docs/ideas/ambitious-applications.md",
-      "title": "Ambitious Applications of Circuit",
+      "title": "Ambitious Applications Of Circuit",
       "status": "current-strategy-context",
       "category": "strategy-and-comparisons",
-      "tags": ["applications", "strategy", "flows", "engine-boundary"],
-      "current_reading": "Strategy context for future Circuit applications and feasibility labels. Use as option generation, not shipped behavior.",
-      "last_checked": "2026-06-04"
+      "tags": ["applications", "strategy", "flows", "engine-boundaries"],
+      "current_reading": "Catalog of potential Circuit application areas and feasibility labels. Strategy context only; verify each claim before using it as implementation guidance.",
+      "related": ["docs/ideas/future-proofing-circuit.md"],
+      "last_checked": "2026-06-05"
     },
     {
       "path": "docs/ideas/architecture-hardening-plan-v2.md",
@@ -155,6 +156,22 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/frontier-lab-circuit-strategy.md",
+      "title": "Frontier-Lab Circuit Strategy",
+      "status": "current-strategy-context",
+      "category": "strategy-and-comparisons",
+      "tags": ["strategy", "frontier-agents", "trust-layer", "typed-coordination", "evals"],
+      "current_reading": "12-month strategy proposal for making Circuit a friendly coordination and trust layer for AI software work. Not current behavior.",
+      "related": [
+        "docs/ideas/typed-coordination-alignment-proposal.md",
+        "docs/ideas/future-proofing-circuit.md",
+        "docs/ideas/flow-eval-suites-implementation.md",
+        "docs/ideas/pull-query-memory-engineering-proposal.md",
+        "docs/ideas/multi-channel-hitl-proposal.md"
+      ],
+      "last_checked": "2026-06-05"
+    },
+    {
       "path": "docs/ideas/future-proofing-circuit.md",
       "title": "Future-proofing Circuit",
       "status": "current-strategy-context",
@@ -181,6 +198,21 @@
       "current_reading": "Archived in place. Its useful direction was absorbed into self-auditing memory specs, the effective-memory program, and current history memory implementation.",
       "related": ["docs/ideas/self-auditing-memory.md", "docs/ideas/effective-memory-program.md"],
       "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/local-sqlite-read-model.md",
+      "title": "Local SQLite Read Model For Circuit",
+      "status": "current-proposal",
+      "category": "memory-and-ratchet",
+      "tags": ["sqlite", "history", "run-inspection", "memory", "evals"],
+      "current_reading": "Proposal to use SQLite first as a derived local read model over existing run artifacts, not as runtime authority.",
+      "related": [
+        "docs/ideas/pull-query-memory-engineering-proposal.md",
+        "docs/ideas/run-inspection-implementation.md",
+        "docs/ideas/effective-memory-program.md",
+        "docs/ideas/flow-eval-suites-implementation.md"
+      ],
+      "last_checked": "2026-06-05"
     },
     {
       "path": "docs/ideas/memory-phase0-failure-legibility-spec.md",

@@ -68,6 +68,7 @@ every later extension in the note shipped.
 | --- | --- | --- |
 | [`effective-memory-program.md`](effective-memory-program.md) | `partially-implemented` | Memory substrate, pull surface, recall precision, failure legibility, and local project facts exist; automatic lesson capture and measured value claims remain open. |
 | [`effective-memory-program-review-codex.md`](effective-memory-program-review-codex.md) | `independent-review` | Independent review of the memory program. Use as critique and risk context, not as a separate implementation plan. |
+| [`local-sqlite-read-model.md`](local-sqlite-read-model.md) | `current-proposal` | Proposal to use SQLite first as a derived local read model over existing run artifacts, not as runtime authority. |
 | [`memory-phase0-failure-legibility-spec.md`](memory-phase0-failure-legibility-spec.md) | `implemented` | Implemented failure outcome reconciliation and failure-query ranking slice. Current code lives in history, run-envelope, outcome, and related tests. |
 | [`project-execution-memory.md`](project-execution-memory.md) | `partially-implemented` | Project memory note/list/forget, local project facts, identity, injection, and distiller exist; automatic run-close write-back remains future work. |
 | [`pull-query-memory-engineering-proposal.md`](pull-query-memory-engineering-proposal.md) | `partially-implemented` | The bounded history pull substrate exists; the broader host-facing History Ask wrapper remains proposal material. |
@@ -112,10 +113,11 @@ every later extension in the note shipped.
 
 | Note | Status | Current reading |
 | --- | --- | --- |
-| [`ambitious-applications.md`](ambitious-applications.md) | `current-strategy-context` | Strategy context for future Circuit applications and feasibility labels. Use as option generation, not shipped behavior. |
+| [`ambitious-applications.md`](ambitious-applications.md) | `current-strategy-context` | Catalog of potential Circuit application areas and feasibility labels. Strategy context only; verify each claim before using it as implementation guidance. |
 | [`architecture-hardening-plan-v2.md`](architecture-hardening-plan-v2.md) | `implemented-closed` | Authoritative architecture-hardening plan with 2026-05-30 closeout. Use as historical implementation context, not an open idea queue. |
 | [`circuit-vs-compound-engineering.md`](circuit-vs-compound-engineering.md) | `current-strategy-context` | Positioning context comparing Circuit with Every's Compound Engineering plugin. Useful for strategy, not implementation truth. |
 | [`dynamic-workflows-vs-circuit.md`](dynamic-workflows-vs-circuit.md) | `current-comparison` | Comparison with Claude Code's Workflow tool. Net-new path is a compile-to-host-Workflow backend; not current behavior. |
+| [`frontier-lab-circuit-strategy.md`](frontier-lab-circuit-strategy.md) | `current-strategy-context` | 12-month strategy proposal for making Circuit a friendly coordination and trust layer for AI software work. Not current behavior. |
 | [`future-proofing-circuit.md`](future-proofing-circuit.md) | `current-strategy-context` | Strategy note on which Circuit bets compound as models improve and which erode. No direct implementation status. |
 | [`modern-engineering-practices-proposals.md`](modern-engineering-practices-proposals.md) | `current-proposal` | Proposal set from comparing Circuit with Christoph Nakazawa's Modern Engineering Values workflow. Not shipped unless a section says otherwise. |
 | [`smithers-circuit-comparison.md`](smithers-circuit-comparison.md) | `current-comparison` | Source-backed comparison and recommendation. Smithers overlaps with Circuit on structured work but is a durable TSX workflow runtime. |
