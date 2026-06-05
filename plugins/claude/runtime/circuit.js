@@ -32230,6 +32230,109 @@ function collapseDiscriminatedUnion(discriminator, options, visited, depth) {
   return `{ ${entries.join(", ")} }`;
 }
 
+// dist/schemas/runtime-evidence.js
+var RuntimeGitStateEntry = external_exports.object({
+  status_code: external_exports.string().length(2),
+  path: external_exports.string().min(1),
+  fingerprint: external_exports.string().min(1),
+  from: external_exports.string().min(1).optional()
+}).strict();
+var RuntimeHiddenIndexFlag = external_exports.object({
+  tag: external_exports.string().length(1),
+  path: external_exports.string().min(1)
+}).strict();
+var RuntimeGitStateSnapshot = external_exports.object({
+  head_sha: external_exports.string().min(1),
+  entries: external_exports.array(RuntimeGitStateEntry),
+  hidden_index_flags: external_exports.array(RuntimeHiddenIndexFlag)
+}).strict();
+var RuntimeGitStateSnapshotReport = RuntimeGitStateSnapshot.extend({
+  overall_status: external_exports.literal("passed")
+}).strict();
+var RuntimeTouchedFileStatus = external_exports.enum(["added", "modified", "deleted", "renamed"]);
+var RuntimeTouchedFile = external_exports.object({
+  path: external_exports.string().min(1),
+  status: RuntimeTouchedFileStatus,
+  source: external_exports.literal("runtime_diff"),
+  generated_surface: external_exports.boolean(),
+  protected: external_exports.boolean()
+}).strict();
+var RuntimeTouchedFilesCore = external_exports.object({
+  baseline_head_sha: external_exports.string().min(1),
+  head_sha: external_exports.string().min(1),
+  head_diverged: external_exports.boolean(),
+  files: external_exports.array(RuntimeTouchedFile),
+  worker_declared: external_exports.array(external_exports.string().min(1)),
+  worker_claim_matches_runtime: external_exports.boolean(),
+  undeclared_worker_extras: external_exports.array(external_exports.string().min(1)),
+  missing_worker_declared: external_exports.array(external_exports.string().min(1)),
+  baseline_dirty_mutated: external_exports.array(external_exports.string().min(1)),
+  hidden_index_flags: external_exports.array(RuntimeHiddenIndexFlag)
+}).strict();
+function addRuntimeTouchedFilesIssues(touched, ctx) {
+  const observed = touched.files.map((file2) => file2.path);
+  const observedSet = new Set(observed);
+  const declaredSet = new Set(touched.worker_declared);
+  const expectedExtras = observed.filter((path) => !declaredSet.has(path));
+  const expectedMissing = touched.worker_declared.filter((path) => !observedSet.has(path));
+  const expectedMatches = expectedExtras.length === 0 && expectedMissing.length === 0;
+  if (touched.head_diverged !== (touched.baseline_head_sha !== touched.head_sha)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["head_diverged"],
+      message: "head_diverged must equal baseline_head_sha !== head_sha"
+    });
+  }
+  if (touched.worker_claim_matches_runtime !== expectedMatches) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["worker_claim_matches_runtime"],
+      message: "worker_claim_matches_runtime must reflect undeclared_worker_extras and missing_worker_declared"
+    });
+  }
+  if (expectedExtras.length !== touched.undeclared_worker_extras.length || expectedExtras.some((path, index) => path !== touched.undeclared_worker_extras[index])) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["undeclared_worker_extras"],
+      message: "undeclared_worker_extras must equal runtime-observed paths minus worker_declared"
+    });
+  }
+  if (expectedMissing.length !== touched.missing_worker_declared.length || expectedMissing.some((path, index) => path !== touched.missing_worker_declared[index])) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["missing_worker_declared"],
+      message: "missing_worker_declared must equal worker_declared minus runtime-observed paths"
+    });
+  }
+  for (const [index, path] of touched.baseline_dirty_mutated.entries()) {
+    if (!observedSet.has(path)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["baseline_dirty_mutated", index],
+        message: `baseline_dirty_mutated path '${path}' must also appear in files`
+      });
+    }
+  }
+}
+var RuntimeTouchedFilesProjection = RuntimeTouchedFilesCore.superRefine(addRuntimeTouchedFilesIssues);
+var RuntimeTouchedFilesReport = RuntimeTouchedFilesCore.extend({
+  overall_status: external_exports.enum(["passed", "failed"])
+}).superRefine((report, ctx) => {
+  addRuntimeTouchedFilesIssues(report, ctx);
+  const hasFailure = report.head_diverged || !report.worker_claim_matches_runtime || report.hidden_index_flags.length > 0;
+  const expected = hasFailure ? "failed" : "passed";
+  if (report.overall_status !== expected) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["overall_status"],
+      message: `overall_status must be '${expected}' for the runtime touched-file evidence`
+    });
+  }
+});
+var RuntimeTouchedFilesEvidenceRef = Ref.refine((ref) => ref.kind === "evidence", {
+  message: "runtime touched-file evidence refs must use kind evidence"
+});
+
 // dist/flows/fix/reports.js
 var FIX_RESULT_SCHEMA_BY_ARTIFACT_ID = {
   "fix.brief": "fix.brief@v1",
@@ -32517,23 +32620,8 @@ var FixRegressionProof = external_exports.object({
     }
   }
 });
-var FixBaselineSnapshotEntry = external_exports.object({
-  // Raw two-character porcelain status (e.g. ' M', '??', 'R ', 'AD').
-  status_code: external_exports.string().length(2),
-  // Working-tree path. For renames/copies this is the destination; the
-  // source is in `from`.
-  path: external_exports.string().min(1),
-  // Content fingerprint:
-  //   - 40-char hex git OID for files we could `git hash-object`
-  //   - '<deleted>' for paths whose working-tree copy is gone
-  //   - '<unhashable:...>' if hash-object failed unexpectedly
-  fingerprint: external_exports.string().min(1),
-  from: external_exports.string().min(1).optional()
-}).strict();
-var FixHiddenIndexFlag = external_exports.object({
-  tag: external_exports.string().length(1),
-  path: external_exports.string().min(1)
-}).strict();
+var FixBaselineSnapshotEntry = RuntimeGitStateEntry;
+var FixHiddenIndexFlag = RuntimeHiddenIndexFlag;
 var FixBaselineSnapshot = external_exports.object({
   overall_status: external_exports.literal("passed"),
   head_sha: external_exports.string().min(1),
@@ -32927,16 +33015,7 @@ import { fileURLToPath } from "node:url";
 var GIT_TIMEOUT_MS = 6e4;
 var GIT_MAX_OUTPUT_BYTES = 5e6;
 var GIT_STATE_HELPER_PATH = fileURLToPath(new URL("./git-state.ts", import.meta.url));
-var GitStateHelperOutput = external_exports.object({
-  head_sha: external_exports.string().min(1),
-  entries: external_exports.array(external_exports.object({
-    status_code: external_exports.string().length(2),
-    path: external_exports.string().min(1),
-    fingerprint: external_exports.string().min(1),
-    from: external_exports.string().min(1).optional()
-  }).strict()),
-  hidden_index_flags: external_exports.array(external_exports.object({ tag: external_exports.string().length(1), path: external_exports.string().min(1) }).strict())
-}).strict();
+var GitStateHelperOutput = RuntimeGitStateSnapshot;
 function fixGitStateCommand(id) {
   return {
     id,
@@ -33152,80 +33231,140 @@ var fixBriefComposeBuilder = {
 import { readFileSync as readFileSync8 } from "node:fs";
 import { isAbsolute as isAbsolute3, relative as relative3 } from "node:path";
 
+// dist/shared/runtime-touched-files.js
+function isPathInPrefix(path, prefixes) {
+  return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+function filterEntries(entries, prefixes) {
+  if (prefixes.length === 0)
+    return [...entries];
+  return entries.filter((entry) => !isPathInPrefix(entry.path, prefixes));
+}
+function filterHiddenFlags(flags, prefixes) {
+  if (prefixes.length === 0)
+    return [...flags];
+  return flags.filter((flag) => !isPathInPrefix(flag.path, prefixes));
+}
+function entriesByPath(entries) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const entry of entries) {
+    map2.set(entry.path, entry);
+  }
+  return map2;
+}
+function hiddenPaths(flags) {
+  return new Set(flags.map((flag) => flag.path));
+}
+function uniqueSorted(paths) {
+  return [...new Set(paths)].sort((a, b) => a.localeCompare(b));
+}
+function statusFromEntry(baseline, post) {
+  if (post?.from !== void 0 || post?.status_code.includes("R")) {
+    return "renamed";
+  }
+  if (post?.status_code.includes("D")) {
+    return "deleted";
+  }
+  if (baseline === void 0 && post !== void 0 && (post.status_code.includes("?") || post.status_code.includes("A"))) {
+    return "added";
+  }
+  return "modified";
+}
+function uniqueFlags(flags) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const flag of flags) {
+    const key = `${flag.tag}\0${flag.path}`;
+    if (seen.has(key))
+      continue;
+    seen.add(key);
+    out.push(flag);
+  }
+  return out.sort((a, b) => a.path.localeCompare(b.path) || a.tag.localeCompare(b.tag));
+}
+function projectRuntimeTouchedFiles(options) {
+  const ignoredPathPrefixes = options.ignoredPathPrefixes ?? [];
+  const baselineEntries = filterEntries(options.baseline.entries, ignoredPathPrefixes);
+  const postEntries = filterEntries(options.post.entries, ignoredPathPrefixes);
+  const baselineHiddenFlags = filterHiddenFlags(options.baseline.hidden_index_flags, ignoredPathPrefixes);
+  const postHiddenFlags = filterHiddenFlags(options.post.hidden_index_flags, ignoredPathPrefixes);
+  const baselineByPath = entriesByPath(baselineEntries);
+  const postByPath = entriesByPath(postEntries);
+  const baselinePaths = new Set(baselineByPath.keys());
+  const postPaths = new Set(postByPath.keys());
+  const hiddenBaselinePaths = hiddenPaths(baselineHiddenFlags);
+  const newDirt = [...postPaths].filter((path) => !baselinePaths.has(path));
+  const baselineDirtyMutated = [...baselinePaths].filter((path) => {
+    if (hiddenBaselinePaths.has(path))
+      return false;
+    const before = baselineByPath.get(path);
+    const after = postByPath.get(path);
+    return before?.fingerprint !== after?.fingerprint;
+  });
+  const observed = uniqueSorted([...newDirt, ...baselineDirtyMutated]);
+  const workerDeclared = uniqueSorted((options.workerDeclaredPaths ?? []).filter((path) => !isPathInPrefix(path, ignoredPathPrefixes)));
+  const observedSet = new Set(observed);
+  const workerDeclaredSet = new Set(workerDeclared);
+  const undeclaredWorkerExtras = observed.filter((path) => !workerDeclaredSet.has(path));
+  const missingWorkerDeclared = workerDeclared.filter((path) => !observedSet.has(path));
+  return RuntimeTouchedFilesProjection.parse({
+    baseline_head_sha: options.baseline.head_sha,
+    head_sha: options.post.head_sha,
+    head_diverged: options.baseline.head_sha !== options.post.head_sha,
+    files: observed.map((path) => {
+      const baseline = baselineByPath.get(path);
+      const post = postByPath.get(path);
+      return {
+        path,
+        status: statusFromEntry(baseline, post),
+        source: "runtime_diff",
+        generated_surface: isPathInPrefix(path, options.generatedSurfacePathPrefixes ?? []),
+        protected: isPathInPrefix(path, options.protectedPathPrefixes ?? [])
+      };
+    }),
+    worker_declared: workerDeclared,
+    worker_claim_matches_runtime: undeclaredWorkerExtras.length === 0 && missingWorkerDeclared.length === 0,
+    undeclared_worker_extras: undeclaredWorkerExtras,
+    missing_worker_declared: missingWorkerDeclared,
+    baseline_dirty_mutated: uniqueSorted(baselineDirtyMutated),
+    hidden_index_flags: uniqueFlags([...baselineHiddenFlags, ...postHiddenFlags])
+  });
+}
+
 // dist/flows/fix/writers/change-set-projection.js
 function isIgnoredPath(path, prefixes) {
   return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
-function filterBaseline(baseline, prefixes) {
-  if (prefixes.length === 0)
-    return baseline;
+function runtimeGitStateSnapshotFromFixBaselineSnapshot(baseline) {
   return {
-    ...baseline,
-    entries: baseline.entries.filter((entry) => !isIgnoredPath(entry.path, prefixes)),
-    hidden_index_flags: baseline.hidden_index_flags.filter((flag) => !isIgnoredPath(flag.path, prefixes))
+    head_sha: baseline.head_sha,
+    entries: baseline.entries,
+    hidden_index_flags: baseline.hidden_index_flags
   };
 }
-function filterPost(post, prefixes) {
-  if (prefixes.length === 0)
-    return post;
+function runtimeGitStateSnapshotFromGitStateHelperOutput(output) {
   return {
-    ...post,
-    entries: post.entries.filter((entry) => !isIgnoredPath(entry.path, prefixes)),
-    hidden_index_flags: post.hidden_index_flags.filter((flag) => !isIgnoredPath(flag.path, prefixes))
+    head_sha: output.head_sha,
+    entries: output.entries,
+    hidden_index_flags: output.hidden_index_flags
   };
 }
-function fingerprintsByPath(entries) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const entry of entries) {
-    map2.set(entry.path, entry.fingerprint);
-  }
-  return map2;
-}
-function hiddenFlagsByPath(flags) {
-  return new Set(flags.map((flag) => flag.path));
-}
-function computeObservedChangeSet(options) {
-  const { baseline, post, declared } = options;
-  const baselineFingerprints = fingerprintsByPath(baseline.entries);
-  const postFingerprints = fingerprintsByPath(post.entries);
-  const baselinePaths = new Set(baselineFingerprints.keys());
-  const postPaths = new Set(postFingerprints.keys());
-  const baselineHiddenPaths = hiddenFlagsByPath(baseline.hidden_index_flags);
-  const newDirt = [...postPaths].filter((path) => !baselinePaths.has(path));
-  const baselineDirtyMutated = [...baselinePaths].filter((path) => {
-    if (baselineHiddenPaths.has(path))
-      return false;
-    const before = baselineFingerprints.get(path);
-    const after = postFingerprints.get(path);
-    return before !== after;
+function projectRuntimeTouchedFilesForFixChangeSet(inputs) {
+  return projectRuntimeTouchedFiles({
+    baseline: runtimeGitStateSnapshotFromFixBaselineSnapshot(inputs.baseline),
+    post: runtimeGitStateSnapshotFromGitStateHelperOutput(inputs.post),
+    workerDeclaredPaths: inputs.change.changed_files,
+    ...inputs.ignoredPathPrefixes === void 0 ? {} : { ignoredPathPrefixes: inputs.ignoredPathPrefixes }
   });
-  const observedSet = /* @__PURE__ */ new Set([...newDirt, ...baselineDirtyMutated]);
-  const observed = [...observedSet].sort((a, b) => a.localeCompare(b));
-  const declaredSorted = [...declared].sort((a, b) => a.localeCompare(b));
-  const declaredSet = new Set(declaredSorted);
-  const undeclaredExtras = observed.filter((path) => !declaredSet.has(path));
-  const missingDeclared = declaredSorted.filter((path) => !observedSet.has(path));
-  const baselineDirtyMutatedSorted = [...baselineDirtyMutated].sort((a, b) => a.localeCompare(b));
-  return {
-    observed,
-    declared: declaredSorted,
-    undeclaredExtras,
-    missingDeclared,
-    baselineDirtyMutated: baselineDirtyMutatedSorted
-  };
 }
 function projectFixChangeSet(inputs) {
   const ignoredPathPrefixes = inputs.ignoredPathPrefixes ?? [];
-  const baseline = filterBaseline(inputs.baseline, ignoredPathPrefixes);
-  const post = filterPost(inputs.post, ignoredPathPrefixes);
-  const computed = computeObservedChangeSet({
-    baseline,
-    post,
-    declared: inputs.change.changed_files
-  });
-  const headDiverged = post.head_sha !== baseline.head_sha;
-  const hiddenFlags = post.hidden_index_flags;
-  const setsClean = computed.undeclaredExtras.length === 0 && computed.missingDeclared.length === 0;
+  const runtimeTouchedFiles = projectRuntimeTouchedFilesForFixChangeSet(inputs);
+  const postHiddenFlags = inputs.post.hidden_index_flags.filter((flag) => !isIgnoredPath(flag.path, ignoredPathPrefixes));
+  const observed = runtimeTouchedFiles.files.map((file2) => file2.path);
+  const headDiverged = runtimeTouchedFiles.head_diverged;
+  const hiddenFlags = postHiddenFlags;
+  const setsClean = runtimeTouchedFiles.worker_claim_matches_runtime;
   const status_ = setsClean && !headDiverged && hiddenFlags.length === 0 ? "pass" : "fail";
   let reason;
   if (status_ === "fail") {
@@ -33233,11 +33372,11 @@ function projectFixChangeSet(inputs) {
     if (headDiverged) {
       parts.push(`HEAD moved during the fix run (baseline ${inputs.baseline.head_sha}, post ${inputs.post.head_sha}); the agent committed mid-run, which the change-set writer cannot reconcile against the declared file list.`);
     }
-    if (computed.undeclaredExtras.length > 0) {
-      parts.push(`undeclared extras: ${computed.undeclaredExtras.join(", ")}`);
+    if (runtimeTouchedFiles.undeclared_worker_extras.length > 0) {
+      parts.push(`undeclared extras: ${runtimeTouchedFiles.undeclared_worker_extras.join(", ")}`);
     }
-    if (computed.missingDeclared.length > 0) {
-      parts.push(`missing declared: ${computed.missingDeclared.join(", ")}`);
+    if (runtimeTouchedFiles.missing_worker_declared.length > 0) {
+      parts.push(`missing declared: ${runtimeTouchedFiles.missing_worker_declared.join(", ")}`);
     }
     if (hiddenFlags.length > 0) {
       const labelled = hiddenFlags.map((flag) => `${flag.path} (${flag.tag})`).join(", ");
@@ -33249,13 +33388,13 @@ function projectFixChangeSet(inputs) {
     status: status_,
     overall_status: status_ === "pass" ? "passed" : "failed",
     ...reason === void 0 ? {} : { reason },
-    baseline_head_sha: baseline.head_sha,
-    head_sha: post.head_sha,
-    declared: computed.declared,
-    observed: computed.observed,
-    undeclared_extras: computed.undeclaredExtras,
-    missing_declared: computed.missingDeclared,
-    baseline_dirty_mutated: computed.baselineDirtyMutated,
+    baseline_head_sha: runtimeTouchedFiles.baseline_head_sha,
+    head_sha: runtimeTouchedFiles.head_sha,
+    declared: runtimeTouchedFiles.worker_declared,
+    observed,
+    undeclared_extras: runtimeTouchedFiles.undeclared_worker_extras,
+    missing_declared: runtimeTouchedFiles.missing_worker_declared,
+    baseline_dirty_mutated: runtimeTouchedFiles.baseline_dirty_mutated,
     hidden_index_flags: [...hiddenFlags]
   });
 }
@@ -34688,7 +34827,8 @@ var SafeApplySelected = external_exports.object({
   change_packet_ref: ChangePacketRef,
   base_ref: BaseRef,
   protected_file_decision: external_exports.enum(["allowed", "rejected", "checkpointed"]).optional(),
-  final_verification_ref: FinalVerificationRef.optional()
+  final_verification_ref: FinalVerificationRef.optional(),
+  touched_files_ref: RuntimeTouchedFilesEvidenceRef.optional()
 }).strict().superRefine((selected, ctx) => {
   if (selected.action === "apply" && selected.final_verification_ref === void 0) {
     ctx.addIssue({
@@ -34703,7 +34843,8 @@ var RecoveryRouteSelected = external_exports.object({
   recovery_kind: RecoveryRouteKind,
   failure_cause: RecoveryFailureCause,
   failure_ref: Ref,
-  binding_ref: WorkContractRef
+  binding_ref: WorkContractRef,
+  touched_files_ref: RuntimeTouchedFilesEvidenceRef.optional()
 }).strict().superRefine((selected, ctx) => {
   if (["work_contract", "policy", "memory"].includes(selected.failure_ref.kind)) {
     ctx.addIssue({
@@ -34940,7 +35081,7 @@ function refineGuidanceDecisionTraceEntry(entry, ctx) {
   if (entry.subject === "safe_apply") {
     const safeApplySelected = SafeApplySelected.safeParse(entry.selected);
     if (safeApplySelected.success) {
-      const { base_ref, change_packet_ref, final_verification_ref } = safeApplySelected.data;
+      const { base_ref, change_packet_ref, final_verification_ref, touched_files_ref } = safeApplySelected.data;
       addScopedRefIssues(ctx, ["selected", "change_packet_ref"], "safe_apply change_packet_ref", change_packet_ref, entry);
       addScopedRefIssues(ctx, ["selected", "base_ref"], "safe_apply base_ref", base_ref, entry);
       if (!entry.input_refs.some((ref) => sameRef(ref, change_packet_ref))) {
@@ -34967,6 +35108,16 @@ function refineGuidanceDecisionTraceEntry(entry, ctx) {
           });
         }
       }
+      if (touched_files_ref !== void 0) {
+        addScopedRefIssues(ctx, ["selected", "touched_files_ref"], "safe_apply touched_files_ref", touched_files_ref, entry);
+        if (!entry.evidence_refs?.some((ref) => sameRef(ref, touched_files_ref))) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["evidence_refs"],
+            message: "safe_apply evidence_refs must include selected.touched_files_ref"
+          });
+        }
+      }
     }
   }
   if (entry.subject === "recovery_route" && !RecoveryRouteSelected.safeParse(entry.selected).success) {
@@ -34979,7 +35130,7 @@ function refineGuidanceDecisionTraceEntry(entry, ctx) {
   if (entry.subject === "recovery_route") {
     const recoverySelected = RecoveryRouteSelected.safeParse(entry.selected);
     if (recoverySelected.success) {
-      const { binding_ref, failure_ref } = recoverySelected.data;
+      const { binding_ref, failure_ref, touched_files_ref } = recoverySelected.data;
       if (!entry.input_refs.some((ref) => sameRef(ref, failure_ref))) {
         ctx.addIssue({
           code: "custom",
@@ -34993,6 +35144,43 @@ function refineGuidanceDecisionTraceEntry(entry, ctx) {
           path: ["evidence_refs"],
           message: "recovery_route evidence_refs must include selected.failure_ref"
         });
+      }
+      if (touched_files_ref !== void 0) {
+        if (!entry.evidence_refs?.some((ref) => sameRef(ref, touched_files_ref))) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["evidence_refs"],
+            message: "recovery_route evidence_refs must include selected.touched_files_ref"
+          });
+        }
+        if (touched_files_ref.run_id !== void 0 && touched_files_ref.run_id !== entry.run_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["selected", "touched_files_ref", "run_id"],
+            message: "recovery touched_files_ref run_id must match guidance run_id"
+          });
+        }
+        if (touched_files_ref.flow_id !== void 0 && touched_files_ref.flow_id !== entry.scope.flow_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["selected", "touched_files_ref", "flow_id"],
+            message: "recovery touched_files_ref flow_id must match guidance scope.flow_id"
+          });
+        }
+        if (touched_files_ref.step_id !== void 0 && touched_files_ref.step_id !== entry.scope.step_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["selected", "touched_files_ref", "step_id"],
+            message: "recovery touched_files_ref step_id must match guidance scope.step_id"
+          });
+        }
+        if (touched_files_ref.attempt !== void 0 && touched_files_ref.attempt !== entry.scope.attempt) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["selected", "touched_files_ref", "attempt"],
+            message: "recovery touched_files_ref attempt must match guidance scope.attempt"
+          });
+        }
       }
       if (failure_ref.kind === "trace" && failure_ref.sequence !== void 0 && failure_ref.sequence >= entry.sequence) {
         ctx.addIssue({
@@ -35474,6 +35662,7 @@ var SafeApplyResultTraceEntry = TraceEntryBase.extend({
   reason_codes: external_exports.array(SafeApplyReasonCode).min(1),
   protected_file_decision: ProtectedFileDecision.optional(),
   final_verification_ref: SafeApplyFinalVerificationRef.optional(),
+  touched_files_ref: RuntimeTouchedFilesEvidenceRef.optional(),
   result_ref: SafeApplyResultRef
 }).strict();
 var CheckpointRequestedTraceEntry = TraceEntryBase.extend({
@@ -35783,6 +35972,13 @@ var TraceEntry = external_exports.discriminatedUnion("kind", [
           label: "safe apply final_verification_ref",
           path: ["final_verification_ref"],
           ref: ev.final_verification_ref
+        }
+      ],
+      ...ev.touched_files_ref === void 0 ? [] : [
+        {
+          label: "safe apply touched_files_ref",
+          path: ["touched_files_ref"],
+          ref: ev.touched_files_ref
         }
       ]
     ]) {
@@ -42559,7 +42755,7 @@ var EFFORT_ORDER = [
   "xhigh",
   "max"
 ];
-function uniqueSorted(values) {
+function uniqueSorted2(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
 function unionInto(target, values) {
@@ -42654,23 +42850,23 @@ function composePolicyHardConstraints(envelopes) {
   }
   return ComposedPolicyHardConstraints.parse({
     connectors: {
-      ...allow !== void 0 ? { allow: uniqueSorted(allow) } : {},
-      deny: uniqueSorted(deny),
-      deny_for_write: uniqueSorted(denyForWrite)
+      ...allow !== void 0 ? { allow: uniqueSorted2(allow) } : {},
+      deny: uniqueSorted2(deny),
+      deny_for_write: uniqueSorted2(denyForWrite)
     },
     models: {
-      deny_providers: uniqueSorted(denyProviders),
+      deny_providers: uniqueSorted2(denyProviders),
       require_provider_for_connector: Object.fromEntries(Object.entries(requireProviderForConnector).sort(([a], [b]) => a.localeCompare(b)))
     },
     writes: {
       ...autoApply !== void 0 ? { auto_apply: autoApply } : {},
-      require_checkpoint_globs: uniqueSorted(checkpointGlobs)
+      require_checkpoint_globs: uniqueSorted2(checkpointGlobs)
     },
     skills: {
-      deny: uniqueSorted(deniedSkills)
+      deny: uniqueSorted2(deniedSkills)
     },
     proof: {
-      require_independent_review_for: uniqueSorted(independentReviewFor)
+      require_independent_review_for: uniqueSorted2(independentReviewFor)
     },
     limits: {
       ...maxAttempts !== void 0 ? { max_attempts_per_step: maxAttempts } : {},

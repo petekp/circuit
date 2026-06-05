@@ -19,7 +19,7 @@
 // the runner's own error path because the helper exits non-zero.
 
 import { fileURLToPath } from 'node:url';
-import { z } from 'zod';
+import { RuntimeGitStateSnapshot } from '../../../schemas/runtime-evidence.js';
 import type {
   VerificationBuildContext,
   VerificationBuilder,
@@ -44,25 +44,8 @@ const GIT_STATE_HELPER_PATH = fileURLToPath(new URL('./git-state.ts', import.met
 // Shape of the helper's stdout JSON. Validated before we trust it to build a
 // FixBaselineSnapshot — a corrupt helper observation should fail fast with a
 // clear message rather than silently passing incomplete state downstream.
-const GitStateHelperOutput = z
-  .object({
-    head_sha: z.string().min(1),
-    entries: z.array(
-      z
-        .object({
-          status_code: z.string().length(2),
-          path: z.string().min(1),
-          fingerprint: z.string().min(1),
-          from: z.string().min(1).optional(),
-        })
-        .strict(),
-    ),
-    hidden_index_flags: z.array(
-      z.object({ tag: z.string().length(1), path: z.string().min(1) }).strict(),
-    ),
-  })
-  .strict();
-export type GitStateHelperOutput = z.infer<typeof GitStateHelperOutput>;
+const GitStateHelperOutput = RuntimeGitStateSnapshot;
+export type GitStateHelperOutput = RuntimeGitStateSnapshot;
 
 export function fixGitStateCommand(id: string): VerificationCommand {
   return {

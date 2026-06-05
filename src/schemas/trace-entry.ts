@@ -16,6 +16,7 @@ import {
 import { CompiledFlowId, InvocationId, RunId, SkillId, SkillSlotId, StepId } from './ids.js';
 import { ProofAssessmentId, ProofStatus } from './proof-assessment.js';
 import { Ref, Sha256 } from './ref.js';
+import { RuntimeTouchedFilesEvidenceRef } from './runtime-evidence.js';
 import { ResolvedSelection } from './selection-policy.js';
 import { RunSkillHookEvent } from './skill-hook.js';
 import { FanoutFailurePolicy, RelayRole } from './step.js';
@@ -188,6 +189,7 @@ export const SafeApplyResultTraceEntry = TraceEntryBase.extend({
   reason_codes: z.array(SafeApplyReasonCode).min(1),
   protected_file_decision: ProtectedFileDecision.optional(),
   final_verification_ref: SafeApplyFinalVerificationRef.optional(),
+  touched_files_ref: RuntimeTouchedFilesEvidenceRef.optional(),
   result_ref: SafeApplyResultRef,
 }).strict();
 export type SafeApplyResultTraceEntry = z.infer<typeof SafeApplyResultTraceEntry>;
@@ -638,6 +640,15 @@ export const TraceEntry = z
                 label: 'safe apply final_verification_ref',
                 path: ['final_verification_ref'],
                 ref: ev.final_verification_ref,
+              },
+            ]),
+        ...(ev.touched_files_ref === undefined
+          ? []
+          : [
+              {
+                label: 'safe apply touched_files_ref',
+                path: ['touched_files_ref'],
+                ref: ev.touched_files_ref,
               },
             ]),
       ] as const) {

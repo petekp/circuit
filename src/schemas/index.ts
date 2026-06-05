@@ -27,6 +27,7 @@ export * from './report-file-surface.js';
 export * from './rubric.js';
 export * from './rigor.js';
 export * from './runtime-source.js';
+export * from './runtime-evidence.js';
 export * from './axes.js';
 export * from './acceptance-criteria.js';
 export * from './depth.js';

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RuntimeGitStateEntry, RuntimeHiddenIndexFlag } from '../../schemas/runtime-evidence.js';
 import { VerificationCommand } from '../../schemas/verification.js';
 import { resultReportPointer } from '../report-schema-kit.js';
 
@@ -426,21 +427,7 @@ export type FixRegressionProof = z.infer<typeof FixRegressionProof>;
 // a path that flips from "dirty (operator's edit)" to "dirty (operator's edit
 // + fix-act's further edit)" looks identical in path-set terms and the fix
 // can hide undeclared changes inside pre-existing dirt.
-export const FixBaselineSnapshotEntry = z
-  .object({
-    // Raw two-character porcelain status (e.g. ' M', '??', 'R ', 'AD').
-    status_code: z.string().length(2),
-    // Working-tree path. For renames/copies this is the destination; the
-    // source is in `from`.
-    path: z.string().min(1),
-    // Content fingerprint:
-    //   - 40-char hex git OID for files we could `git hash-object`
-    //   - '<deleted>' for paths whose working-tree copy is gone
-    //   - '<unhashable:...>' if hash-object failed unexpectedly
-    fingerprint: z.string().min(1),
-    from: z.string().min(1).optional(),
-  })
-  .strict();
+export const FixBaselineSnapshotEntry = RuntimeGitStateEntry;
 export type FixBaselineSnapshotEntry = z.infer<typeof FixBaselineSnapshotEntry>;
 
 // Paths flagged with `git update-index --assume-unchanged` or
@@ -448,12 +435,7 @@ export type FixBaselineSnapshotEntry = z.infer<typeof FixBaselineSnapshotEntry>;
 // tracked edits behind these flags. The change-set writer fails closed when
 // hidden_index_flags is non-empty; the field is a list rather than a count
 // so the failure message can name the offending paths.
-export const FixHiddenIndexFlag = z
-  .object({
-    tag: z.string().length(1),
-    path: z.string().min(1),
-  })
-  .strict();
+export const FixHiddenIndexFlag = RuntimeHiddenIndexFlag;
 export type FixHiddenIndexFlag = z.infer<typeof FixHiddenIndexFlag>;
 
 // Runtime-owned pre-fix-act snapshot of git state. Captured before the
