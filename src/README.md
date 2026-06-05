@@ -10,10 +10,13 @@ then read that layer's local README if you need more detail.
 | `src/connectors/` | Built-in worker connectors. |
 | `src/flows/` | Built-in flows, flow catalog, compiler support, and flow-owned writers. |
 | `src/history/` | Run-corpus and history-store primitives shared by app history and memory. |
+| `src/memory/` | Project memory storage, distillation, and memory-input helpers. |
 | `src/policy/` | Flow-domain policy: flow-kind rules, fanout join, terminal verdict, policy envelope, rubric scoring. |
 | `src/runtime/` | Engine mechanics for running compiled flows. |
 | `src/schemas/` | Zod contracts for config, traces, reports, flows, and host surfaces. |
+| `src/selection/` | Flow-safe relay and connector planning contracts used before runtime connector resolution. |
 | `src/shared/` | Helpers used by more than one source layer. |
+| `src/skill-hooks/` | Skill Hook matching, actuation policy, and loaded-skill projection. |
 | `src/app/` | Application services that compose the engine for the CLI (run envelope, run status, history, process evidence). |
 | `src/release/` | Release metadata helpers. |
 | `src/types/` | Hand-written TypeScript helpers that schemas cannot express cleanly. |

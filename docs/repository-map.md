@@ -67,8 +67,14 @@ on them, then adds maps at the boundaries where readers had to infer ownership:
 |       +-- README.md
 +-- src/
     +-- README.md
+    +-- app/
+    +-- history/
+    +-- policy/
+    +-- release/
     +-- runtime/README.md
     +-- schemas/README.md
+    +-- selection/
+    +-- skill-hooks/
     +-- flows/README.md
     +-- shared/README.md
     +-- types/README.md
@@ -86,8 +92,9 @@ The contributor path is now layered:
 docs/repository-map.md -> src/README.md -> src/<layer>/README.md -> code
 ```
 
-Layer maps live at `src/runtime/README.md`, `src/schemas/README.md`,
-`src/flows/README.md`, `src/shared/README.md`, and `src/types/README.md`.
+Layer maps live at `src/README.md`, `src/runtime/README.md`,
+`src/schemas/README.md`, `src/flows/README.md`, `src/shared/README.md`, and
+`src/types/README.md`.
 
 ## Migration Rationale
 

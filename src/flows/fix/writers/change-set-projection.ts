@@ -1,8 +1,4 @@
-import {
-  type RuntimeGitStateSnapshot,
-  type RuntimeTouchedFilesProjection,
-  projectRuntimeTouchedFiles,
-} from '../../../shared/runtime-touched-files.js';
+import { projectRuntimeTouchedFiles } from '../../../shared/runtime-touched-files.js';
 import {
   type FixBaselineSnapshot,
   type FixChange,
@@ -22,42 +18,24 @@ function isIgnoredPath(path: string, prefixes: readonly string[]): boolean {
   return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
-export function runtimeGitStateSnapshotFromFixBaselineSnapshot(
-  baseline: FixBaselineSnapshot,
-): RuntimeGitStateSnapshot {
-  return {
-    head_sha: baseline.head_sha,
-    entries: baseline.entries,
-    hidden_index_flags: baseline.hidden_index_flags,
-  };
-}
-
-export function runtimeGitStateSnapshotFromGitStateHelperOutput(
-  output: GitStateHelperOutput,
-): RuntimeGitStateSnapshot {
-  return {
-    head_sha: output.head_sha,
-    entries: output.entries,
-    hidden_index_flags: output.hidden_index_flags,
-  };
-}
-
-export function projectRuntimeTouchedFilesForFixChangeSet(
-  inputs: FixChangeSetProjectorInputs,
-): RuntimeTouchedFilesProjection {
-  return projectRuntimeTouchedFiles({
-    baseline: runtimeGitStateSnapshotFromFixBaselineSnapshot(inputs.baseline),
-    post: runtimeGitStateSnapshotFromGitStateHelperOutput(inputs.post),
+export function projectFixChangeSet(inputs: FixChangeSetProjectorInputs): FixChangeSet {
+  const ignoredPathPrefixes = inputs.ignoredPathPrefixes ?? [];
+  const runtimeTouchedFiles = projectRuntimeTouchedFiles({
+    baseline: {
+      head_sha: inputs.baseline.head_sha,
+      entries: inputs.baseline.entries,
+      hidden_index_flags: inputs.baseline.hidden_index_flags,
+    },
+    post: {
+      head_sha: inputs.post.head_sha,
+      entries: inputs.post.entries,
+      hidden_index_flags: inputs.post.hidden_index_flags,
+    },
     workerDeclaredPaths: inputs.change.changed_files,
     ...(inputs.ignoredPathPrefixes === undefined
       ? {}
       : { ignoredPathPrefixes: inputs.ignoredPathPrefixes }),
   });
-}
-
-export function projectFixChangeSet(inputs: FixChangeSetProjectorInputs): FixChangeSet {
-  const ignoredPathPrefixes = inputs.ignoredPathPrefixes ?? [];
-  const runtimeTouchedFiles = projectRuntimeTouchedFilesForFixChangeSet(inputs);
   const postHiddenFlags = inputs.post.hidden_index_flags.filter(
     (flag) => !isIgnoredPath(flag.path, ignoredPathPrefixes),
   );

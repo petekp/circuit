@@ -10,9 +10,10 @@ release evidence, prefer those sources and update this document.
 Primary sources:
 
 - `src/commands/run.md` - host command instructions for `/circuit:run`.
-- `src/cli/circuit.ts` - CLI argument parsing, routing, axis selection,
-  runtime setup, final output, checkpoint resume routing, and autonomous loop
-  handoff.
+- `src/cli/circuit.ts` - top-level CLI command dispatch and version output.
+- `src/cli/run.ts` - run/resume argument parsing, explicit flow routing, axis
+  selection, fixture loading, runtime setup, final run output, checkpoint
+  resume routing, post-run artifacts, and the autonomous loop handoff.
 - `src/flows/catalog-derivations.ts` - pure derivations turning flow packages
   into engine registries.
 - `src/runtime/run/compiled-flow-runner.ts` and
