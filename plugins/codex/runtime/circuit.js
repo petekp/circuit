@@ -10884,6 +10884,18 @@ function buildRuntimeSurfaceRegistry(packages) {
   }
   return map2;
 }
+function buildReportFileSurfaceRegistry(packages) {
+  const out = {};
+  for (const pkg of packages) {
+    for (const [schemaName, declaration] of Object.entries(pkg.reportFileSurfaces ?? {})) {
+      if (Object.hasOwn(out, schemaName)) {
+        throw new Error(`duplicate report file surface registered for schema '${schemaName}' (flow ${pkg.id})`);
+      }
+      out[schemaName] = declaration;
+    }
+  }
+  return Object.freeze(out);
+}
 
 // dist/shared/html/index.js
 var HTML_PROJECTORS = /* @__PURE__ */ new Map();
@@ -28206,6 +28218,7 @@ function projectFlowReportDeclarations(declarations) {
   const close = [];
   const verification = [];
   const checkpoint = [];
+  const reportFileSurfaces = {};
   for (const declaration of declarations) {
     if (declaration.channel === "relay") {
       relayReports.push({
@@ -28220,6 +28233,9 @@ function projectFlowReportDeclarations(declarations) {
         schema: declaration.schema
       });
     }
+    if (declaration.fileSurface !== void 0) {
+      reportFileSurfaces[declaration.schemaName] = declaration.fileSurface;
+    }
     compose.push(...declaration.writers?.compose ?? []);
     close.push(...declaration.writers?.close ?? []);
     verification.push(...declaration.writers?.verification ?? []);
@@ -28228,6 +28244,7 @@ function projectFlowReportDeclarations(declarations) {
   return {
     relayReports,
     reportSchemas,
+    reportFileSurfaces,
     writers: {
       compose,
       close,
@@ -28373,6 +28390,7 @@ function projectDefinitionReportSurfaces(definition) {
   return {
     relayReports: definition.relayReports ?? reportProjection?.relayReports ?? [],
     ...definition.reportSchemas !== void 0 ? { reportSchemas: definition.reportSchemas } : reportProjection?.reportSchemas === void 0 ? {} : { reportSchemas: reportProjection.reportSchemas },
+    ...reportProjection === void 0 || Object.keys(reportProjection.reportFileSurfaces).length === 0 ? {} : { reportFileSurfaces: reportProjection.reportFileSurfaces },
     writers: definition.writers ?? reportProjection?.writers ?? {}
   };
 }
@@ -28385,6 +28403,7 @@ function compileFlowDefinition(definition) {
     paths: compilePaths(definition),
     relayReports: reportSurfaces.relayReports,
     ...reportSurfaces.reportSchemas === void 0 ? {} : { reportSchemas: reportSurfaces.reportSchemas },
+    ...reportSurfaces.reportFileSurfaces === void 0 ? {} : { reportFileSurfaces: reportSurfaces.reportFileSurfaces },
     writers: {
       compose: reportSurfaces.writers.compose ?? [],
       close: reportSurfaces.writers.close ?? [],
@@ -28413,6 +28432,15 @@ function validatePackageSet(packages) {
       }
       reportNames.set(report.schemaName, pkg.id);
     }
+    const knownPackageReports = /* @__PURE__ */ new Set([
+      ...pkg.relayReports.map((report) => report.schemaName),
+      ...(pkg.reportSchemas ?? []).map((report) => report.schemaName)
+    ]);
+    for (const schemaName of Object.keys(pkg.reportFileSurfaces ?? {})) {
+      if (!knownPackageReports.has(schemaName)) {
+        throw new Error(`report file surface '${schemaName}' is not registered as a report schema for flow '${pkg.id}'`);
+      }
+    }
     for (const [slot, builders] of Object.entries(pkg.writers)) {
       for (const builder of builders) {
         const owner = writerNames.get(builder.resultSchemaName);
@@ -28435,6 +28463,7 @@ function assertCatalogInvariants(packages) {
   buildStructuralHintList(packages);
   buildCrossReportValidatorRegistry(packages);
   buildRuntimeSurfaceRegistry(packages);
+  buildReportFileSurfaceRegistry(packages);
 }
 function compileFlowDefinitions(definitions) {
   const packages = definitions.map(compileFlowDefinition);
@@ -29956,6 +29985,10 @@ var buildFlowData = {
       schemaName: "build.plan@v1",
       channel: "report",
       schema: BuildPlan,
+      fileSurface: {
+        timing: "before",
+        extractor: { kind: "build-plan-and-slices-anticipated-file-extensions" }
+      },
       writers: { compose: [buildPlanComposeBuilder] }
     },
     {
@@ -34137,6 +34170,10 @@ var fixFlowData = {
       schemaName: "fix.change-set@v1",
       channel: "report",
       schema: FixChangeSet,
+      fileSurface: {
+        timing: "after",
+        extractor: { kind: "string-array-field", field: "observed" }
+      },
       writers: { verification: [fixChangeSetWriter] }
     },
     {
@@ -44888,39 +44925,6 @@ function buildRunSkillHookEvent(input) {
   });
 }
 
-// dist/skill-hooks/surface-sources.js
-function stringArrayField(report, field) {
-  if (report === null || typeof report !== "object")
-    return [];
-  const value = report[field];
-  return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
-}
-function planAndSliceExtensions(report) {
-  const top = stringArrayField(report, "anticipated_file_extensions");
-  const slices = report !== null && typeof report === "object" && Array.isArray(report.slices) ? report.slices.flatMap((slice) => stringArrayField(slice, "anticipated_file_extensions")) : [];
-  return [.../* @__PURE__ */ new Set([...top, ...slices])];
-}
-var EDIT_FILE_SURFACE_SOURCES = {
-  // Fix: the runtime-computed change-set. `observed` is the ground-truth set of
-  // actual touched paths (already computed against the baseline snapshot), so
-  // it is the strongest `after:edit-files` surface in the codebase.
-  "fix.change-set@v1": {
-    timing: "after",
-    extract: (report) => stringArrayField(report, "observed")
-  },
-  // Build: the plan's predicted surface (a `compose` step, so it crosses the
-  // trace as step.report_written). This is the `before:edit-files` prediction
-  // arm — the advisory extensions the repo-grounded plan expects to touch, at
-  // plan- and per-slice level. Build's actual touched-files self-report
-  // (`build.implementation@v1` `changed_files`) is a relay report, not a
-  // step.report_written, so the `after` arm on Build is a later follow-up
-  // (Fix's change-set already proves the `after` arm).
-  "build.plan@v1": {
-    timing: "before",
-    extract: planAndSliceExtensions
-  }
-};
-
 // dist/skill-hooks/dispatch.js
 var VOCABULARY_BY_HOOK = new Map(SKILL_HOOK_VOCABULARY.map((entry) => [entry.hook, entry]));
 function hookForEntry(entry) {
@@ -44993,7 +44997,7 @@ async function dispatchEditFileHooksForEntries(input) {
   for (const entry of input.entries) {
     if (entry.kind !== "step.report_written")
       continue;
-    const source = EDIT_FILE_SURFACE_SOURCES[entry.report_schema];
+    const source = input.editFileSurfaceSources[entry.report_schema];
     if (source === void 0)
       continue;
     let report;
@@ -45050,6 +45054,37 @@ function createSkillHookInjectionChannel() {
       return [...set2];
     }
   };
+}
+
+// dist/skill-hooks/surface-sources.js
+function stringArrayField(report, field) {
+  if (report === null || typeof report !== "object")
+    return [];
+  const value = report[field];
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+}
+function planAndSliceExtensions(report) {
+  const top = stringArrayField(report, "anticipated_file_extensions");
+  const slices = report !== null && typeof report === "object" && Array.isArray(report.slices) ? report.slices.flatMap((slice) => stringArrayField(slice, "anticipated_file_extensions")) : [];
+  return [.../* @__PURE__ */ new Set([...top, ...slices])];
+}
+function extractorFor(declaration) {
+  if (declaration.kind === "string-array-field") {
+    return (report) => stringArrayField(report, declaration.field);
+  }
+  return planAndSliceExtensions;
+}
+function surfaceSourceFromDeclaration(declaration) {
+  return {
+    timing: declaration.timing,
+    extract: extractorFor(declaration.extractor)
+  };
+}
+function surfaceSourcesFromDeclarations(declarations) {
+  return Object.freeze(Object.fromEntries(Object.entries(declarations).map(([schemaName, declaration]) => [
+    schemaName,
+    surfaceSourceFromDeclaration(declaration)
+  ])));
 }
 
 // dist/runtime/acceptance-criteria.js
@@ -54092,6 +54127,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const runDir = boundary.runDirectory.path;
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
+  const compiledPackage = findCompiledFlowPackageById(flow.id);
+  const editFileSurfaceSources = surfaceSourcesFromDeclarations(compiledPackage?.reportFileSurfaces ?? {});
   const context = {
     flow,
     packageIndex,
@@ -54141,7 +54178,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.executors
   };
   const steps = new Map(flow.steps.map((step) => [step.id, step]));
-  const sliceFlag = findCompiledFlowPackageById(flow.id)?.engineFlags?.iteratesSliceLoop;
+  const sliceFlag = compiledPackage?.engineFlags?.iteratesSliceLoop;
   if (sliceFlag !== void 0) {
     assertNoCheckpointInSliceLoop(flow, sliceFlag);
   }
@@ -54434,6 +54471,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         },
         eventIdBase: `${runId}:${step.id}:${attempt}`,
         readJson: (ref) => context.files.readJson(ref),
+        editFileSurfaceSources,
         // Share the run's single registry so the recorded triggered/unavailable
         // split matches what the relay loader will actually resolve.
         ...context.skillRegistry === void 0 ? {} : { registry: context.skillRegistry }

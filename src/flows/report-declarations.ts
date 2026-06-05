@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 
+import type { ReportFileSurfaceDeclaration } from '../schemas/report-file-surface.js';
 import type {
   CompiledFlowPackage,
   CompiledFlowRelayReport,
@@ -16,12 +17,14 @@ export interface FlowReportDeclaration {
   readonly schema: z.ZodTypeAny;
   readonly relayHint?: string;
   readonly crossReportValidate?: CompiledFlowRelayReport['crossReportValidate'];
+  readonly fileSurface?: ReportFileSurfaceDeclaration;
   readonly writers?: Partial<FlowWriters>;
 }
 
 export interface FlowReportDeclarationProjection {
   readonly relayReports: readonly CompiledFlowRelayReport[];
   readonly reportSchemas: readonly CompiledFlowReportSchema[];
+  readonly reportFileSurfaces: Readonly<Record<string, ReportFileSurfaceDeclaration>>;
   readonly writers: FlowWriters;
 }
 
@@ -34,6 +37,7 @@ export function projectFlowReportDeclarations(
   const close: FlowWriters['close'][number][] = [];
   const verification: FlowWriters['verification'][number][] = [];
   const checkpoint: FlowWriters['checkpoint'][number][] = [];
+  const reportFileSurfaces: Record<string, ReportFileSurfaceDeclaration> = {};
 
   for (const declaration of declarations) {
     if (declaration.channel === 'relay') {
@@ -52,6 +56,10 @@ export function projectFlowReportDeclarations(
       });
     }
 
+    if (declaration.fileSurface !== undefined) {
+      reportFileSurfaces[declaration.schemaName] = declaration.fileSurface;
+    }
+
     compose.push(...(declaration.writers?.compose ?? []));
     close.push(...(declaration.writers?.close ?? []));
     verification.push(...(declaration.writers?.verification ?? []));
@@ -61,6 +69,7 @@ export function projectFlowReportDeclarations(
   return {
     relayReports,
     reportSchemas,
+    reportFileSurfaces,
     writers: {
       compose,
       close,

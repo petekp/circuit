@@ -386,6 +386,10 @@ export const buildFlowData = {
       schemaName: 'build.plan@v1',
       channel: 'report',
       schema: BuildPlan,
+      fileSurface: {
+        timing: 'before',
+        extractor: { kind: 'build-plan-and-slices-anticipated-file-extensions' },
+      },
       writers: { compose: [buildPlanComposeBuilder] },
     },
     {

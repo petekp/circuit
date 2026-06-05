@@ -264,6 +264,10 @@ describe('FlowDefinition compiler', () => {
         schemaName: 'flow-data-report@v1',
         channel: 'report' as const,
         schema,
+        fileSurface: {
+          timing: 'after' as const,
+          extractor: { kind: 'string-array-field' as const, field: 'observed' },
+        },
         writers: { compose: [composeBuilder] },
       },
     ];
@@ -280,6 +284,12 @@ describe('FlowDefinition compiler', () => {
 
     expect(definition.reportDeclarations).toEqual(reports);
     expect(compileFlowDefinition(definition)).toEqual(compileFlowDefinition(legacyDefinition));
+    expect(compileFlowDefinition(definition).reportFileSurfaces).toEqual({
+      'flow-data-report@v1': {
+        timing: 'after',
+        extractor: { kind: 'string-array-field', field: 'observed' },
+      },
+    });
   });
 
   it('returns typed errors for invalid FlowData report ownership', () => {
@@ -431,6 +441,10 @@ describe('FlowDefinition compiler', () => {
           schemaName: 'definition-report@v1',
           channel: 'report',
           schema,
+          fileSurface: {
+            timing: 'before',
+            extractor: { kind: 'build-plan-and-slices-anticipated-file-extensions' },
+          },
           writers: { compose: [composeBuilder] },
         },
       ],
@@ -440,6 +454,12 @@ describe('FlowDefinition compiler', () => {
     expect(pkg.relayReports.map((report) => report.schemaName)).toEqual(['definition-relay@v1']);
     expect(pkg.relayReports[0]?.relayHint).toBe('emit definition-relay JSON');
     expect(pkg.reportSchemas?.map((report) => report.schemaName)).toEqual(['definition-report@v1']);
+    expect(pkg.reportFileSurfaces).toEqual({
+      'definition-report@v1': {
+        timing: 'before',
+        extractor: { kind: 'build-plan-and-slices-anticipated-file-extensions' },
+      },
+    });
     expect(pkg.writers.compose).toEqual([composeBuilder]);
   });
 

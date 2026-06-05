@@ -147,7 +147,7 @@ describe('CLI runtime', () => {
       routed_by: 'explicit',
       outcome: 'complete',
     });
-    expectStdoutKeys(output, [
+    const expectedKeys = [
       'schema_version',
       'run_id',
       'flow_id',
@@ -166,7 +166,15 @@ describe('CLI runtime', () => {
       'run_process_evidence_path',
       'run_surface_markdown_path',
       'run_surface_status_text',
-    ]);
+    ];
+    if (typeof output.operator_summary_html_path === 'string') {
+      expectedKeys.splice(
+        expectedKeys.indexOf('run_envelope_path'),
+        0,
+        'operator_summary_html_path',
+      );
+    }
+    expectStdoutKeys(output, expectedKeys);
     expect(output).not.toHaveProperty('runtime');
     expect(output).not.toHaveProperty('runtime_reason');
     expect(firstTraceEntry(runFolder)).toMatchObject({

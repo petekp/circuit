@@ -9,6 +9,7 @@ import {
   buildCloseRegistry,
   buildComposeRegistry,
   buildCrossReportValidatorRegistry,
+  buildReportFileSurfaceRegistry,
   buildReportSchemaRegistry,
   buildRuntimeSurfaceRegistry,
   buildSchemaHintMap,
@@ -277,6 +278,7 @@ function compileRuntimeSurface(definition: FlowDefinition): CompiledFlowRuntimeS
 function projectDefinitionReportSurfaces(definition: FlowDefinition): {
   readonly relayReports: readonly CompiledFlowRelayReport[];
   readonly reportSchemas?: readonly CompiledFlowReportSchema[];
+  readonly reportFileSurfaces?: CompiledFlowPackage['reportFileSurfaces'];
   readonly writers: FlowDefinitionWriters;
 } {
   const reportProjection =
@@ -290,6 +292,10 @@ function projectDefinitionReportSurfaces(definition: FlowDefinition): {
       : reportProjection?.reportSchemas === undefined
         ? {}
         : { reportSchemas: reportProjection.reportSchemas }),
+    ...(reportProjection === undefined ||
+    Object.keys(reportProjection.reportFileSurfaces).length === 0
+      ? {}
+      : { reportFileSurfaces: reportProjection.reportFileSurfaces }),
     writers: definition.writers ?? reportProjection?.writers ?? {},
   };
 }
@@ -305,6 +311,9 @@ export function compileFlowDefinition(definition: FlowDefinition): CompiledFlowP
     ...(reportSurfaces.reportSchemas === undefined
       ? {}
       : { reportSchemas: reportSurfaces.reportSchemas }),
+    ...(reportSurfaces.reportFileSurfaces === undefined
+      ? {}
+      : { reportFileSurfaces: reportSurfaces.reportFileSurfaces }),
     writers: {
       compose: reportSurfaces.writers.compose ?? [],
       close: reportSurfaces.writers.close ?? [],
@@ -340,6 +349,17 @@ function validatePackageSet(packages: readonly CompiledFlowPackage[]): void {
       }
       reportNames.set(report.schemaName, pkg.id);
     }
+    const knownPackageReports = new Set([
+      ...pkg.relayReports.map((report) => report.schemaName),
+      ...(pkg.reportSchemas ?? []).map((report) => report.schemaName),
+    ]);
+    for (const schemaName of Object.keys(pkg.reportFileSurfaces ?? {})) {
+      if (!knownPackageReports.has(schemaName)) {
+        throw new Error(
+          `report file surface '${schemaName}' is not registered as a report schema for flow '${pkg.id}'`,
+        );
+      }
+    }
     for (const [slot, builders] of Object.entries(pkg.writers)) {
       for (const builder of builders) {
         const owner = writerNames.get(builder.resultSchemaName);
@@ -374,6 +394,7 @@ function assertCatalogInvariants(packages: readonly CompiledFlowPackage[]): void
   buildStructuralHintList(packages);
   buildCrossReportValidatorRegistry(packages);
   buildRuntimeSurfaceRegistry(packages);
+  buildReportFileSurfaceRegistry(packages);
 }
 
 export function compileFlowDefinitions(

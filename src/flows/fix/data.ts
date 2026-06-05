@@ -637,6 +637,10 @@ export const fixFlowData = {
       schemaName: 'fix.change-set@v1',
       channel: 'report',
       schema: FixChangeSet,
+      fileSurface: {
+        timing: 'after',
+        extractor: { kind: 'string-array-field', field: 'observed' },
+      },
       writers: { verification: [fixChangeSetWriter] },
     },
     {

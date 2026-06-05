@@ -282,6 +282,42 @@ describe('flow catalog completeness', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('file-edit hook surfaces are declared by the report-owning package', () => {
+    const offenders: string[] = [];
+    const actual: Record<string, unknown> = {};
+
+    for (const pkg of flowPackages) {
+      const surfaces = pkg.reportFileSurfaces ?? {};
+      if (Object.keys(surfaces).length > 0) actual[pkg.id] = surfaces;
+      const knownReportSchemas = new Set([
+        ...(pkg.reportSchemas ?? []).map((report) => report.schemaName),
+        ...pkg.relayReports.map((report) => report.schemaName),
+      ]);
+      for (const [schemaName, declaration] of Object.entries(surfaces)) {
+        if (!knownReportSchemas.has(schemaName)) {
+          offenders.push(`${pkg.id}: ${schemaName} is not package-owned`);
+        }
+        expect(JSON.parse(JSON.stringify(declaration))).toEqual(declaration);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+    expect(actual).toEqual({
+      build: {
+        'build.plan@v1': {
+          timing: 'before',
+          extractor: { kind: 'build-plan-and-slices-anticipated-file-extensions' },
+        },
+      },
+      fix: {
+        'fix.change-set@v1': {
+          timing: 'after',
+          extractor: { kind: 'string-array-field', field: 'observed' },
+        },
+      },
+    });
+  });
+
   it('public flow runtime surfaces own progress display metadata for every schematic item', () => {
     const offenders: string[] = [];
 

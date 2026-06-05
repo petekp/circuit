@@ -23,6 +23,7 @@ export * from './progress-event.js';
 export * from './process-evidence.js';
 export * from './proof-assessment.js';
 export * from './recovery-route-kind.js';
+export * from './report-file-surface.js';
 export * from './rubric.js';
 export * from './rigor.js';
 export * from './runtime-source.js';

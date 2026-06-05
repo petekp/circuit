@@ -24,6 +24,7 @@ import {
   type SkillHookInjectionChannel,
   createSkillHookInjectionChannel,
 } from '../../skill-hooks/injection.js';
+import { surfaceSourcesFromDeclarations } from '../../skill-hooks/surface-sources.js';
 import { isAcceptanceRetryFeedback } from '../acceptance-criteria.js';
 import type { RouteTarget, TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
@@ -589,6 +590,10 @@ async function executeExecutableFlowOutcomeUnsafe(
   const runDir = boundary.runDirectory.path;
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
+  const compiledPackage = findCompiledFlowPackageById(flow.id);
+  const editFileSurfaceSources = surfaceSourcesFromDeclarations(
+    compiledPackage?.reportFileSurfaces ?? {},
+  );
   const context: RunContext = {
     flow,
     packageIndex,
@@ -650,7 +655,7 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...options.executors,
   };
   const steps = new Map(flow.steps.map((step) => [step.id, step]));
-  const sliceFlag = findCompiledFlowPackageById(flow.id)?.engineFlags?.iteratesSliceLoop;
+  const sliceFlag = compiledPackage?.engineFlags?.iteratesSliceLoop;
   if (sliceFlag !== undefined) {
     assertNoCheckpointInSliceLoop(flow, sliceFlag);
   }
@@ -1044,6 +1049,7 @@ async function executeExecutableFlowOutcomeUnsafe(
         },
         eventIdBase: `${runId}:${step.id}:${attempt}`,
         readJson: (ref) => context.files.readJson(ref),
+        editFileSurfaceSources,
         // Share the run's single registry so the recorded triggered/unavailable
         // split matches what the relay loader will actually resolve.
         ...(context.skillRegistry === undefined ? {} : { registry: context.skillRegistry }),

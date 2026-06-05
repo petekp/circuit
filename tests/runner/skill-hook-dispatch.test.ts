@@ -16,9 +16,20 @@ import {
   dispatchEditFileHooksForEntries,
   dispatchSkillHooksForEntries,
 } from '../../src/skill-hooks/dispatch.js';
+import { surfaceSourcesFromDeclarations } from '../../src/skill-hooks/surface-sources.js';
 
 const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
 const TIMEOUT_MS = 15_000;
+const TEST_EDIT_FILE_SURFACE_SOURCES = surfaceSourcesFromDeclarations({
+  'fix.change-set@v1': {
+    timing: 'after',
+    extractor: { kind: 'string-array-field', field: 'observed' },
+  },
+  'build.plan@v1': {
+    timing: 'before',
+    extractor: { kind: 'build-plan-and-slices-anticipated-file-extensions' },
+  },
+});
 
 let runFolderBase: string;
 beforeEach(() => {
@@ -464,6 +475,7 @@ describe('Skill-hook edit-files detection (unit, Fix change-set)', () => {
       scope: { flowId: 'fix', stepId: 'fix-change-set', attemptId: '1' },
       eventIdBase: 'e',
       readJson: async () => reportBody,
+      editFileSurfaceSources: TEST_EDIT_FILE_SURFACE_SOURCES,
     });
     return events.map((event) => event.hook).sort();
   }
@@ -502,6 +514,7 @@ describe('Skill-hook edit-files detection (unit, Fix change-set)', () => {
       scope: { flowId: 'fix', stepId: 'fix-change-set', attemptId: '1' },
       eventIdBase: 'e',
       readJson: async () => ({ observed: ['src/bar.tsx'] }),
+      editFileSurfaceSources: TEST_EDIT_FILE_SURFACE_SOURCES,
     });
     expect(events).toHaveLength(1);
     expect(events[0]?.hook).toBe('after:edit-files:.tsx');
@@ -567,6 +580,7 @@ describe('Skill-hook edit-files detection (unit, coverage)', () => {
       readJson: async () => {
         throw new Error('ENOENT: report missing');
       },
+      editFileSurfaceSources: TEST_EDIT_FILE_SURFACE_SOURCES,
     });
     expect(events).toEqual([]);
   });
@@ -588,6 +602,7 @@ describe('Skill-hook edit-files detection (unit, coverage)', () => {
         anticipated_file_extensions: ['.ts'],
         slices: [{ id: 'slice-1', intent: 'x', anticipated_file_extensions: ['.tsx'] }],
       }),
+      editFileSurfaceSources: TEST_EDIT_FILE_SURFACE_SOURCES,
     });
     expect(events.map((event) => event.hook).sort()).toEqual(
       ['before:edit-files:.ts', 'before:edit-files:.tsx'].sort(),
@@ -609,6 +624,7 @@ describe('Skill-hook edit-files detection (unit, coverage)', () => {
       scope: { flowId: 'fix', stepId: 's', attemptId: '1' },
       eventIdBase: 'e',
       readJson: async () => ({ observed: ['src/a.ts', 'src/b.tsx'] }),
+      editFileSurfaceSources: TEST_EDIT_FILE_SURFACE_SOURCES,
     });
     const byHook = new Map(events.map((event) => [event.hook, event]));
     // .ts is surfaced from user-global but the project layer overrides it to mute.

@@ -1,4 +1,5 @@
-// Edit-file surface sources — the per-flow declaration the dispatcher reads.
+// Edit-file surface sources — the dispatcher-facing projection of per-flow
+// serializable declarations.
 //
 // The `after:edit-files` / `before:edit-files` hooks key on a file surface that a
 // step wrote into a typed report, but the field that carries it is named per
@@ -7,12 +8,17 @@
 // pre-act surface (`before`) or the ACTUAL touched surface (`after`), and (b)
 // how to pull the surface strings out of the report body.
 //
-// It is data, not flow-name branching: the dispatcher consults this table by
-// report-schema string and never names a flow, so the "no flow names in the
-// dispatcher" principle holds and the engine stays flow-agnostic. See
+// Flow packages own the serializable declaration. This module interprets the
+// small tagged-union vocabulary into live extractors for the dispatcher. It
+// never imports flow packages, so the "no flow names in the dispatcher"
+// principle holds and the engine stays flow-agnostic. See
 // docs/ideas/skill-hooks-dispatch-spec.md (D2).
 
-export type EditFileTiming = 'before' | 'after';
+import type {
+  EditFileTiming,
+  ReportFileSurfaceDeclaration,
+  ReportFileSurfaceExtractorDeclaration,
+} from '../schemas/report-file-surface.js';
 
 export interface EditFileSurfaceSource {
   // 'after' reports carry actual touched paths; 'before' reports carry a
@@ -49,25 +55,33 @@ function planAndSliceExtensions(report: unknown): readonly string[] {
   return [...new Set([...top, ...slices])];
 }
 
-// v1 table. Seeded on Fix (the flow that already has both halves of the loop)
-// and extended to Build by later slices.
-export const EDIT_FILE_SURFACE_SOURCES: Readonly<Record<string, EditFileSurfaceSource>> = {
-  // Fix: the runtime-computed change-set. `observed` is the ground-truth set of
-  // actual touched paths (already computed against the baseline snapshot), so
-  // it is the strongest `after:edit-files` surface in the codebase.
-  'fix.change-set@v1': {
-    timing: 'after',
-    extract: (report) => stringArrayField(report, 'observed'),
-  },
-  // Build: the plan's predicted surface (a `compose` step, so it crosses the
-  // trace as step.report_written). This is the `before:edit-files` prediction
-  // arm — the advisory extensions the repo-grounded plan expects to touch, at
-  // plan- and per-slice level. Build's actual touched-files self-report
-  // (`build.implementation@v1` `changed_files`) is a relay report, not a
-  // step.report_written, so the `after` arm on Build is a later follow-up
-  // (Fix's change-set already proves the `after` arm).
-  'build.plan@v1': {
-    timing: 'before',
-    extract: planAndSliceExtensions,
-  },
-};
+function extractorFor(
+  declaration: ReportFileSurfaceExtractorDeclaration,
+): EditFileSurfaceSource['extract'] {
+  if (declaration.kind === 'string-array-field') {
+    return (report) => stringArrayField(report, declaration.field);
+  }
+  return planAndSliceExtensions;
+}
+
+export function surfaceSourceFromDeclaration(
+  declaration: ReportFileSurfaceDeclaration,
+): EditFileSurfaceSource {
+  return {
+    timing: declaration.timing,
+    extract: extractorFor(declaration.extractor),
+  };
+}
+
+export function surfaceSourcesFromDeclarations(
+  declarations: Readonly<Record<string, ReportFileSurfaceDeclaration>>,
+): Readonly<Record<string, EditFileSurfaceSource>> {
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(declarations).map(([schemaName, declaration]) => [
+        schemaName,
+        surfaceSourceFromDeclaration(declaration),
+      ]),
+    ),
+  );
+}
