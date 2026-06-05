@@ -52,7 +52,7 @@ every later extension in the note shipped.
 | [`doc-checkpoint-block.md`](doc-checkpoint-block.md) | `current-idea` | Markdown-specific checkpoint block idea. Checkpoints exist, but this doc-review block is not a shipped flow block. |
 | [`dynamic-flow-ratchet.md`](dynamic-flow-ratchet.md) | `current-idea` | Future-facing idea for runtime-generated flows and eventual crystallization into reusable structures. Dynamic composition is not shipped. |
 | [`sandboxed-parallel-pursuits.md`](sandboxed-parallel-pursuits.md) | `current-idea` | Idea for safe parallel code-changing Pursuits through isolated worktrees and verified change packets. Not shipped. |
-| [`spec-driven-flow-opportunities.md`](spec-driven-flow-opportunities.md) | `current-proposal` | Research-backed proposal for a Circuit-native spec flow that uses typed Reports and Checkpoints before exporting markdown specs. Not current behavior. |
+| [`spec-driven-flow-opportunities.md`](spec-driven-flow-opportunities.md) | `current-proposal` | Research-backed proposal for a Circuit-native spec flow that uses typed Reports and Checkpoints before exporting a packet plus readable views. Not current behavior. |
 
 ### Verification And Evals
 

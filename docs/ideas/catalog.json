@@ -364,7 +364,7 @@
       "status": "current-proposal",
       "category": "flows-and-blocks",
       "tags": ["spec-driven-development", "spec-flow", "reports", "checkpoints", "research"],
-      "current_reading": "Research-backed proposal for a Circuit-native `spec` flow that uses typed Reports and Checkpoints before exporting markdown specs. Not current behavior.",
+      "current_reading": "Research-backed proposal for a Circuit-native `spec` flow that uses typed Reports and Checkpoints before exporting a packet plus readable views. Not current behavior.",
       "related": [
         "docs/ideas/doc-checkpoint-block.md",
         "docs/ideas/dynamic-flow-ratchet.md",

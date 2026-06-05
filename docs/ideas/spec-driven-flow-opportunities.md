@@ -16,19 +16,26 @@ The Circuit-specific improvement is stronger:
 > Circuit can make the spec lifecycle a typed Run before it becomes markdown.
 
 That means the first version should produce typed Reports for requirements,
-design, task breakdown, traceability, and export status. Markdown documents
-should be exports from those Reports, written only after checkpoints and
-deterministic Checks have passed.
+design, task breakdown, traceability, packet export, Build handoff, and export
+status. Markdown documents should be readable views from those Reports and the
+approved packet, written only after checkpoints and deterministic Checks have
+passed.
 
 Recommended first export shape:
 
 ```text
 docs/specs/<feature-slug>/
+  spec.packet.json
+  build-input.json
   requirements.md
   design.md
   tasks.md
   traceability.md
 ```
+
+`spec.packet.json` is the load-bearing project export. Markdown is for reading,
+discussion, and review. `build-input.json` is a normalized handoff that Build
+can optionally consume later.
 
 Keep implementation out of v1. The `spec` flow should hand off to Build or
 Pursue after the operator accepts the spec package.
@@ -40,11 +47,12 @@ The decision is not "Should Circuit have a spec prompt?"
 The decision is "Which parts of spec-driven development should become typed
 coordination, and which parts should remain plain project documents?"
 
-A useful v1 should preserve three invariants:
+A useful v1 should preserve four invariants:
 
 1. The source of truth during the Run is typed Reports, Trace, and Evidence.
-2. Project markdown is an export, not the private state machine.
-3. The operator sees checkpoints before Circuit writes or updates project spec
+2. The approved project packet is the load-bearing export after the Run.
+3. Project markdown and HTML are views, not the private state machine.
+4. The operator sees checkpoints before Circuit writes or updates project spec
    documents.
 
 Non-goals:
@@ -53,6 +61,8 @@ Non-goals:
 - Do not clone SDDW's command names, directory names, or self-improvement file.
 - Do not require a new runtime path for normal flow authoring.
 - Do not introduce model-selected local skills in a public built-in flow.
+- Do not make Build consume a whole spec packet directly. Build should consume a
+  normalized implementation input derived from the spec packet.
 - Do not make markdown review blocks a hard dependency; the doc-checkpoint
   block remains a separate future idea.
 
@@ -68,6 +78,9 @@ Local Circuit sources:
 - [Host adapter contract](../contracts/host-adapter.md) for current routed and
   explicit Run behavior, checkpoint resume, progress, report reading, and the
   current host-selection boundary.
+- [Build flow contract](../../src/flows/build/contract.md) and
+  [Build report schemas](../../src/flows/build/reports.ts) for Build's existing
+  brief, context, plan, implementation, verification, review, and result chain.
 - [Ubiquitous language](../../UBIQUITOUS_LANGUAGE.md) for product vocabulary.
 - Related idea notes:
   [doc-checkpoint-block.md](doc-checkpoint-block.md),
@@ -157,6 +170,8 @@ and reviewable transitions.
 | Machine checks | acceptance criteria and verification steps | Strong for deterministic checks; weak for subjective document quality. |
 | Evidence trail | Trace, Evidence, Run folder | Strong. Each spec claim can cite inspected files or mark itself as an assumption. |
 | Host portability | Host adapter contract | Good. After registration, the Flow can run behind `/circuit:run` or explicit `circuit run spec`. |
+| Project export | versioned JSON plus generated views | Good. JSON should carry load-bearing state; markdown and HTML should carry human review. |
+| Downstream implementation | Build's typed brief/context/plan chain | Good. Build can accept a normalized input without becoming spec-specific. |
 | Project-specific expertise | Skill Hooks and skill slots | Good, but keep public flow defaults portable. |
 | Long-lived spec governance | idea-level only | Future work. OpenSpec-style deltas should wait. |
 | Inline markdown review | doc-checkpoint idea only | Future work. Do not block v1 on it. |
@@ -176,12 +191,57 @@ Proposed report ids:
 - `spec.design@v1`
 - `spec.tasks@v1`
 - `spec.traceability@v1`
+- `spec.packet@v1`
+- `spec.build-input@v1`
 - `spec.export@v1`
 - `spec.result@v1`
 
-The markdown files become readable exports from these Reports.
+The project packet and markdown files become exports from these Reports. The
+packet is the durable project-facing record. Markdown is the readable view.
 
-### 2. Checkpoint Before Project Writes
+### 2. Packet-First Project Export
+
+Markdown is useful, but it should not be the load-bearing project export when a
+later step needs to parse, check, resume, or implement from the spec.
+
+Use a versioned JSON packet for the accepted spec:
+
+```json
+{
+  "kind": "spec.packet@v1",
+  "feature_slug": "search-filters",
+  "requirements": [
+    {
+      "id": "REQ-1",
+      "statement": "Users can filter results by status.",
+      "acceptance_criteria": ["Filtering by status returns only matching results."],
+      "evidence_refs": ["src/search/filter.ts:42"],
+      "confidence": "confirmed"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TASK-1",
+      "covers": ["REQ-1"],
+      "depends_on": [],
+      "verification": "npm test -- search-filter"
+    }
+  ]
+}
+```
+
+This is philosophically closer to Circuit than markdown-only output:
+
+- it can be schema-checked;
+- it can preserve stable requirement and task ids;
+- it can separate confirmed facts from assumptions;
+- it can be hashed and linked back to the Run;
+- it can feed Build, Pursue, evals, memory, and future run inspection.
+
+Markdown and HTML should remain generated views of the packet. They are the
+right format for human reading, not the authority another Flow should trust.
+
+### 3. Checkpoint Before Project Writes
 
 The operator should approve the generated spec package before Circuit writes
 into `docs/specs/<feature-slug>/`.
@@ -190,7 +250,7 @@ This gives Circuit a cleaner safety story than tools that write project docs as
 they go. A failed or abandoned Run still has Reports in the Run folder without
 mutating the checkout.
 
-### 3. Deterministic Traceability Checks
+### 4. Deterministic Traceability Checks
 
 Spec quality is partly subjective, but some useful checks are mechanical:
 
@@ -199,13 +259,14 @@ Spec quality is partly subjective, but some useful checks are mechanical:
 - every requirement is covered by a task or marked deferred;
 - every assumption has evidence, owner input, or a confidence label;
 - exported markdown exists only after the export Checkpoint;
-- exported markdown links back to the Run folder or report ids;
+- exported packet and markdown views link back to the Run folder or report ids;
+- generated markdown views carry the source packet hash they were rendered from;
 - the export step changes only the approved spec export path unless the
   operator explicitly chooses a broader update.
 
 These Checks make the Flow stronger than prompt-only discipline.
 
-### 4. Context-Grounded Planning
+### 5. Context-Grounded Planning
 
 Spec work for existing code should not start from a blank page. A dedicated
 Analyze step can inspect the repository and write `spec.context@v1` before
@@ -218,7 +279,7 @@ This should separate:
 - unknowns that need a Checkpoint;
 - risky areas where Build should later use deeper verification.
 
-### 5. Confidence And Gap Labels For Brownfield Specs
+### 6. Confidence And Gap Labels For Brownfield Specs
 
 Reversa and related research point toward reverse-documenting existing systems
 with explicit gaps and confidence labels. Circuit can make that a first-class
@@ -227,7 +288,7 @@ field rather than a prose convention.
 This matters when a spec is generated for existing behavior. The Flow should not
 pretend inferred behavior is confirmed.
 
-### 6. Skill Hooks For Project-Owned Expertise
+### 7. Skill Hooks For Project-Owned Expertise
 
 A public `spec` Flow should not ship concrete local skill ids. It can expose
 skill slots or hook moments where project policy may add expertise.
@@ -240,7 +301,44 @@ Useful hook moments:
 
 This keeps local taste and domain rules outside the portable built-in Flow.
 
-### 7. Report-Backed Retrospectives
+### 8. Build-Ready Handoff Packet
+
+Build should optionally accept a spec-derived input, but it should not consume
+the full `spec.packet@v1` directly.
+
+The cleaner shape is a normalized Build input:
+
+```json
+{
+  "kind": "build.input@v1",
+  "source": {
+    "kind": "spec.packet@v1",
+    "path": "docs/specs/search-filters/spec.packet.json",
+    "hash": "sha256:..."
+  },
+  "objective": "Implement search filters.",
+  "scope": "Status filtering only.",
+  "requirements": ["REQ-1"],
+  "tasks": ["TASK-1"],
+  "verification_hints": ["npm test -- search-filter"],
+  "must_not_do": ["Do not change ranking behavior."]
+}
+```
+
+That keeps the boundary clean:
+
+- Spec owns requirements, design, task traceability, and accepted packet export.
+- Build owns implementation, verification, review, and close evidence.
+- Build can prefill its brief from `build.input@v1`, but it should still gather
+  repository context before planning.
+- Review can check whether implementation satisfied the referenced requirements
+  without broadening scope.
+
+This also lets other producers use Build later: tracker issues, Pursue slices,
+hand-authored packets, or custom flows can all emit the same normalized input.
+Spec becomes one producer. Build stays the implementation Flow.
+
+### 9. Report-Backed Retrospectives
 
 SDDW's self-improvement prompt is directionally useful but risky as a default.
 Circuit can defer this into run-close evidence:
@@ -253,7 +351,7 @@ Circuit can defer this into run-close evidence:
 That evidence can later feed memory or eval work without teaching every spec Run
 to mutate the process.
 
-### 8. Spec Deltas As A Future Mode
+### 10. Spec Deltas As A Future Mode
 
 OpenSpec's capability/change split is attractive, but it is too much for v1.
 The future version should support a mode that writes change deltas against an
@@ -266,8 +364,9 @@ V1 should write a single feature spec package.
 ### Option A: One Public `spec` Flow
 
 One Flow frames the request, gathers context, writes requirements, asks for
-approval, writes design and tasks, asks for approval, exports markdown, verifies
-traceability, and closes with a handoff recommendation.
+approval, writes design and tasks, asks for approval, exports a packet plus
+readable views, verifies traceability, and closes with a Build-ready handoff
+recommendation.
 
 Pros:
 
@@ -374,6 +473,8 @@ reports/spec/requirements.json
 reports/spec/design.json
 reports/spec/tasks.json
 reports/spec/traceability.json
+reports/spec/packet.json
+reports/spec/build-input.json
 reports/spec/export.json
 reports/spec/result.json
 ```
@@ -385,11 +486,25 @@ docs/specs/<feature-slug>/requirements.md
 docs/specs/<feature-slug>/design.md
 docs/specs/<feature-slug>/tasks.md
 docs/specs/<feature-slug>/traceability.md
+docs/specs/<feature-slug>/spec.packet.json
+docs/specs/<feature-slug>/build-input.json
 ```
 
-Each exported file should include a short generated footer with the Run id,
-Report id, and source report hash. The footer does not make markdown the source
-of truth; it makes the export auditable.
+Optional richer view:
+
+```text
+docs/specs/<feature-slug>/index.html
+```
+
+`spec.packet.json` is the load-bearing export. `build-input.json` is the
+normalized handoff for Build. Each markdown file should include a short
+generated footer with the Run id, Report id, and source packet hash. The footer
+does not make markdown the source of truth; it makes the view auditable.
+
+Avoid YAML as the core packet format. It is pleasant to read, but its parsing
+quirks make it a poor authority for load-bearing state. Use JSON for the packet,
+markdown for reading, HTML for richer inspection, and Trace JSONL for the Run
+timeline.
 
 ## Minimum Report Fields
 
@@ -429,17 +544,39 @@ of truth; it makes the export auditable.
 - coverage status;
 - gaps that must block export.
 
+`spec.packet@v1`:
+
+- feature slug and title;
+- packet schema version;
+- requirements, design summary, tasks, traceability, assumptions, and gaps;
+- evidence references and confidence labels;
+- source Run id and source report hashes.
+
+`spec.build-input@v1`:
+
+- source spec packet path and hash;
+- implementation objective and scope;
+- requirement ids and task ids selected for Build;
+- verification hints;
+- explicit "must not do" constraints.
+
+Naming note: this report may stay spec-owned as `spec.build-input@v1` in v1,
+but the payload should be designed so it can become or project to a Build-owned
+`build.input@v1` contract.
+
 ## Acceptance And Verification Checks
 
 The first version should prove these Checks:
 
 1. All spec Reports parse under their schemas.
-2. Each requirement has at least one acceptance criterion.
-3. Each task references at least one requirement.
-4. Each requirement is covered by at least one task or is explicitly deferred.
-5. Exported markdown is written only after the export Checkpoint.
-6. Exported markdown carries Run/report provenance.
-7. The export step changes only the approved spec export path unless the
+2. The exported packet parses under `spec.packet@v1`.
+3. Each requirement has at least one acceptance criterion.
+4. Each task references at least one requirement.
+5. Each requirement is covered by at least one task or is explicitly deferred.
+6. `spec.build-input@v1` references only declared requirements and tasks.
+7. Exported markdown is written only after the export Checkpoint.
+8. Exported markdown carries Run/report provenance and a source packet hash.
+9. The export step changes only the approved spec export path unless the
    operator explicitly chooses a broader update.
 
 Subjective quality belongs in checkpoints and review, not deterministic
@@ -456,7 +593,7 @@ acceptance criteria.
 | Implement command | Out of scope. Hand off to Build or Pursue. |
 | Verify command | Verify spec structure and export provenance, not implementation. |
 | Self-improve command | Out of scope. Record run-close evidence for later memory/eval work. |
-| Markdown-first specs | Typed Reports first; markdown export after checkpoints. |
+| Markdown-first specs | Typed Reports first; packet export as authority; markdown views after checkpoints. |
 
 This keeps the human-friendly lifecycle while making the machine-facing state
 stronger.
@@ -480,6 +617,11 @@ stronger.
    inspected file or Report. This tests whether the Flow reduces hallucinated
    design.
 
+5. Build-handoff proof.
+   Produce a `build-input.json` from a spec packet and run Build from that
+   normalized input. The proof is that Build pre-fills its brief, still gathers
+   code context, and closes with requirement/task coverage evidence.
+
 ## Risks
 
 | Risk | Why it matters | Mitigation |
@@ -487,6 +629,9 @@ stronger.
 | Spec theater | Pretty docs can hide weak thinking. | Typed traceability Checks and explicit unknowns. |
 | Over-scoping | Spec systems easily become project-management suites. | Keep v1 to feature spec creation and export. |
 | Markdown drift | Exported docs can diverge from Run Reports. | Footer provenance plus future `spec-check`. |
+| Packet drift | Humans may edit markdown and forget the packet. | Treat packet as authority; regenerate markdown views from it. |
+| Hand-edited JSON is unpleasant | Operators should not edit large JSON by hand. | Review markdown or HTML projections; checkpoints update the typed packet. |
+| Build coupling | Build could become a spec-only implementation flow. | Build accepts normalized `build.input@v1`, not the whole spec packet. |
 | False confidence in brownfield code | The model may infer behavior it did not inspect. | Required evidence refs and confidence labels. |
 | Too many checkpoints | Operators may stop using the Flow if it asks too often. | Lite mode uses one export checkpoint; standard uses two. |
 | Local skill leakage | Public flows can become non-portable. | Use skill slots and hooks, not concrete local skill ids. |
@@ -497,8 +642,9 @@ stronger.
   a project-configured path?
 - Should v1 use one combined design/tasks checkpoint or separate checkpoints?
 - Should `spec-check` be a mode of `spec` or a separate Flow after v1?
-- Should Build consume `spec.result@v1` directly, or should the operator pass
-  the exported markdown path as the next goal?
+- Should the Build handoff schema be Build-owned as `build.input@v1`, shared as
+  `implementation.input@v1`, or spec-owned as `spec.build-input@v1` with a later
+  Build adapter?
 - How much brownfield context should `lite` mode gather before it asks the
   first checkpoint?
 
@@ -510,6 +656,8 @@ High confidence:
   derive from `src/flows/catalog.ts` and flow package files.
 - Typed Reports, Evidence, Checkpoints, and deterministic acceptance criteria are
   the strongest Circuit-specific improvement over prompt-only command bundles.
+- A packet-first export fits Circuit better than markdown as authority because
+  traces, Reports, and source references remain checkable and reusable.
 - SDDW's useful pattern is the staged requirements/design/tasks/verify habit,
   not its exact names or file layout.
 
@@ -520,10 +668,12 @@ Medium confidence:
   comparisons, but it should be dogfooded.
 - Skill Hooks are a good place for project-owned spec expertise. The public Flow
   should expose hook moments carefully and avoid concrete local skill ids.
+- Build should accept a normalized implementation input derived from the spec
+  packet, but the exact schema ownership needs a design pass.
 
 Lower confidence:
 
-- The exact export directory and markdown section layout. These need operator
-  taste and dogfood.
+- The exact export directory, packet filename, and markdown section layout.
+  These need operator taste and dogfood.
 - Whether spec deltas should land as a mode, a separate Flow, or a future custom
   flow adapter.
