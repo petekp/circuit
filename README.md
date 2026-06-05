@@ -60,10 +60,11 @@ run `npm install`, install a `circuit` binary, or create a symlink.
 
 ### Codex
 
-For Codex host use from this checkout, refresh the local plugin package:
+For Codex host use from this checkout, refresh the local plugin package and
+installed host caches:
 
 ```bash
-npm run sync:codex-plugin-cache
+npm run plugins:refresh-local
 ```
 
 Then ask Codex to use Circuit:

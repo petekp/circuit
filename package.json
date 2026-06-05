@@ -46,6 +46,7 @@
     "sync:host-plugin-caches": "npm run sync:claude-plugin-cache && npm run sync:codex-plugin-cache",
     "check:host-plugin-caches": "npm run check:claude-plugin-cache && npm run check:codex-plugin-cache",
     "doctor:plugins:installed": "node scripts/plugins/installed-doctor.ts",
+    "plugins:refresh-local": "node scripts/plugins/refresh-local.ts",
     "publish:plugins": "node scripts/plugins/publish.ts check",
     "publish:plugins:bump": "node scripts/plugins/publish.ts bump",
     "publish:plugins:check": "node scripts/plugins/publish.ts check",

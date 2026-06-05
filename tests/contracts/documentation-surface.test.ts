@@ -71,6 +71,8 @@ describe('documentation surface', () => {
 
   it('keeps the host-ready flow-authoring playbook centralized', () => {
     const authoring = readRepoFile('docs/flows/authoring-model.md');
+    const readme = readRepoFile('README.md');
+    const firstRun = readRepoFile('docs/first-run.md');
 
     for (const required of [
       'This is the flow-authoring playbook.',
@@ -79,14 +81,17 @@ describe('documentation surface', () => {
       '`plugins/claude/commands/<id>.md`',
       '`plugins/codex/commands/<id>.md`',
       '`plugins/codex/skills/<id>/SKILL.md`',
-      'npm run sync:host-plugin-caches',
-      'npm run check:host-plugin-caches',
+      'npm run plugins:refresh-local',
       'npm run check-release-infra',
       'npm run check-flow-drift',
       'npm run verify',
     ]) {
       expect(authoring).toContain(required);
     }
+
+    expect(readme).toContain('npm run plugins:refresh-local');
+    expect(readme).not.toContain('npm run sync:codex-plugin-cache');
+    expect(firstRun).toContain('npm run plugins:refresh-local');
 
     for (const pointerFile of [
       'AGENTS.md',

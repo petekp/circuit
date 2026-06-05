@@ -7,8 +7,7 @@ for normal first-run setup; use [docs/first-run.md](first-run.md) instead.
 ## Setup
 
 - Refresh generated host output.
-- Refresh installed host plugin caches with `npm run sync:host-plugin-caches`
-  and confirm them with `npm run check:host-plugin-caches`.
+- Refresh installed host plugin caches with `npm run plugins:refresh-local`.
 - Run Codex doctor from a normal temp repo.
 - Confirm `circuit` on PATH is the expected checkout.
 

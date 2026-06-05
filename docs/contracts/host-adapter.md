@@ -169,21 +169,28 @@ Codex command files are generated mirrors and reference surfaces. Keep both
 unless the Codex plugin contract and emitter change together.
 
 Local development caches can drift from this repo package. For local-package
-development across both installed hosts, use the deterministic cache sync:
+development across both installed hosts, use the local refresh command:
+
+```bash
+npm run plugins:refresh-local
+```
+
+That command rebuilds generated host output, clears only Circuit-owned plugin
+cache roots, syncs fresh Claude and Codex cache copies, checks the synced package
+bytes, and runs the installed-plugin doctor. It is local dogfood setup, not a
+public marketplace release.
+
+Use the narrower sync/check commands only when debugging a stale command surface
+or a single host:
 
 ```bash
 npm run sync:host-plugin-caches
+npm run check:host-plugin-caches
 ```
 
 The sync scripts delete and replace only the exact Circuit package cache paths.
 Explicit `--cache-path` is test-only and must point under the system temp
 directory with the same package-path suffix.
-
-Use the check form when debugging a stale command surface:
-
-```bash
-npm run check:host-plugin-caches
-```
 
 Codex-only local dogfooding may use
 `sync:codex-plugin-cache` / `check:codex-plugin-cache`; Claude-only local

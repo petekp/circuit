@@ -362,18 +362,17 @@ Then inspect [docs/generated-surfaces.md](../generated-surfaces.md). It is the
 generated source map for command, skill, schematic, compiled manifest, and
 plugin mirror ownership. Do not hand-edit generated host files.
 
-If you need to test installed host packages from this checkout, sync the local
-host plugin caches after regeneration:
+If you need to test installed host packages from this checkout, refresh the
+local host plugin caches after regeneration:
 
 ```bash
-npm run sync:host-plugin-caches
-npm run check:host-plugin-caches
+npm run plugins:refresh-local
 ```
 
 For Codex-only local testing, the narrower
 `sync:codex-plugin-cache` / `check:codex-plugin-cache` pair is still available.
-Cache sync is a local host-test step. It is not a substitute for generated
-surface drift checks.
+The refresh command is a local host-test step. It is not public release
+publishing.
 
 ### 5. Update release truth when behavior changes
 

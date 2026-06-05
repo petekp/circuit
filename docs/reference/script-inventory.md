@@ -14,7 +14,7 @@ produced the current layout.
 | Owner | Current paths | Responsibility |
 | --- | --- | --- |
 | Flow generation | `scripts/flows/*` | Emit generated flow surfaces, generated-surface maps, host command mirrors, skill mirrors, schematics, and block catalogs. |
-| Plugin packaging | `scripts/plugins/*` | Build plugin runtime bundles, compare package trees, publish local or release plugin copies, sync installed host caches, and diagnose installed plugins. |
+| Plugin packaging | `scripts/plugins/*` | Build plugin runtime bundles, compare package trees, publish local or release plugin copies, refresh/sync installed host caches, and diagnose installed plugins. |
 | Host smoke checks | `scripts/hosts/smoke/*` | Run live or preflight host handoff smoke checks. |
 | Eval operations | `scripts/evals/*` | List evals, validate eval registry and fixtures, run dry-run matrices, score fix-vs-vanilla output, and share eval runner helpers. |
 | Release checks | `scripts/release/*` | Emit release truth, check release parity and public claims, capture golden proof runs, and render release reports. |
@@ -91,6 +91,7 @@ scripts/hosts/smoke/codex-handoff.ts
 scripts/plugins/installed-doctor.ts
 scripts/plugins/package-tree.ts
 scripts/plugins/publish.ts
+scripts/plugins/refresh-local.ts
 scripts/plugins/sync-claude-cache.ts
 scripts/plugins/runtime-bundle.ts
 scripts/plugins/sync-codex-cache.ts
@@ -120,6 +121,7 @@ Source: `git diff --name-status 1957e041..origin/main -- scripts`
 | `scripts/plugin-package-tree.mjs` | `scripts/plugins/package-tree.ts` | Plugin packaging | Shared package-tree comparison helper for publish and doctor flows. |
 | `scripts/plugin-package-tree.d.mts` | none | Plugin packaging | Retired declaration file; `scripts/plugins/package-tree.ts` is typed source. No runtime script was deleted. |
 | `scripts/publish-plugins.ts` | `scripts/plugins/publish.ts` | Plugin packaging | Keeps all `publish:plugins*` npm command names. |
+| none | `scripts/plugins/refresh-local.ts` | Plugin packaging | Adds `plugins:refresh-local` as the one-command local dogfood refresh that rebuilds generated plugin output, clears Circuit-only caches, syncs both host caches, checks them, and runs installed doctors. |
 | none | `scripts/plugins/sync-claude-cache.ts` | Plugin packaging | Adds deterministic `sync:claude-plugin-cache` and `check:claude-plugin-cache` commands for local Claude Code dogfooding. |
 | `scripts/sync-codex-plugin-cache.mjs` | `scripts/plugins/sync-codex-cache.ts` | Plugin packaging | Keeps `sync:codex-plugin-cache` and `check:codex-plugin-cache` command names. |
 | `scripts/host-smoke/claude-handoff.mjs` | `scripts/hosts/smoke/claude-handoff.ts` | Host smoke checks | Host smoke scripts now sit under the host owner. |

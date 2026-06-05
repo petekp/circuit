@@ -32,8 +32,7 @@ dependencies are missing, run npm install from the repo root, then run
 npm run build.
 
 Do not hand-edit generated host output. For installed host setup, run
-npm run sync:host-plugin-caches and npm run check:host-plugin-caches. For
-config changes, preview the exact YAML before writing either
+npm run plugins:refresh-local. For config changes, preview the exact YAML before writing either
 ~/.config/circuit/config.yaml or ./.circuit/config.yaml.
 
 Use Review as the first real run unless I ask for a write-capable flow. Report
@@ -48,7 +47,7 @@ commands run, files changed, verification results, and any blocker.
   [docs/operator-guide.md#verification](operator-guide.md#verification).
 - Config boundaries and connector choices:
   [docs/configuration.md](configuration.md).
-- Generated host output and installed host cache sync:
+- Generated host output and installed host cache refresh:
   [docs/generated-surfaces.md](generated-surfaces.md).
 
 Use Review first because it is audit-only. Build, Fix, Prototype, and Pursue may

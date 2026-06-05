@@ -68,6 +68,7 @@ function createFixture(options: FixtureOptions = {}): string {
         'npm run sync:claude-plugin-cache && npm run sync:codex-plugin-cache',
       'check:host-plugin-caches':
         'npm run check:claude-plugin-cache && npm run check:codex-plugin-cache',
+      'plugins:refresh-local': 'node scripts/plugins/refresh-local.ts',
     },
   });
   writeJson(join(root, 'plugins/version.json'), { version });
@@ -287,6 +288,7 @@ describe('plugin publish automation', () => {
     expect(pkg.scripts['doctor:plugins:installed']).toBe(
       'node scripts/plugins/installed-doctor.ts',
     );
+    expect(pkg.scripts['plugins:refresh-local']).toBe('node scripts/plugins/refresh-local.ts');
     expect(pkg.scripts['sync:host-plugin-caches']).toBe(
       'npm run sync:claude-plugin-cache && npm run sync:codex-plugin-cache',
     );
