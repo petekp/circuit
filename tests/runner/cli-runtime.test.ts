@@ -98,6 +98,10 @@ function firstTraceEntry(runFolder: string): Record<string, unknown> {
   ) as Record<string, unknown>;
 }
 
+function expectStdoutKeys(output: Record<string, unknown>, keys: readonly string[]): void {
+  expect(Object.keys(output)).toEqual(keys);
+}
+
 let runFolderBase: string;
 
 beforeEach(() => {
@@ -143,6 +147,34 @@ describe('CLI runtime', () => {
       routed_by: 'explicit',
       outcome: 'complete',
     });
+    const expectedKeys = [
+      'schema_version',
+      'run_id',
+      'flow_id',
+      'resolved_axes',
+      'selected_flow',
+      'routed_by',
+      'router_reason',
+      'run_folder',
+      'outcome',
+      'trace_entries_observed',
+      'result_path',
+      'operator_summary_path',
+      'operator_summary_markdown_path',
+      'operator_summary_status_text',
+      'run_envelope_path',
+      'run_process_evidence_path',
+      'run_surface_markdown_path',
+      'run_surface_status_text',
+    ];
+    if (typeof output.operator_summary_html_path === 'string') {
+      expectedKeys.splice(
+        expectedKeys.indexOf('run_envelope_path'),
+        0,
+        'operator_summary_html_path',
+      );
+    }
+    expectStdoutKeys(output, expectedKeys);
     expect(output).not.toHaveProperty('runtime');
     expect(output).not.toHaveProperty('runtime_reason');
     expect(firstTraceEntry(runFolder)).toMatchObject({
@@ -333,10 +365,34 @@ describe('CLI runtime', () => {
     );
 
     expect(paused.code, paused.stderr).toBe(0);
-    expect(JSON.parse(paused.stdout)).toMatchObject({
+    const pausedOutput = JSON.parse(paused.stdout) as Record<string, unknown>;
+    expect(pausedOutput).toMatchObject({
       flow_id: 'build',
       outcome: 'checkpoint_waiting',
     });
+    expectStdoutKeys(pausedOutput, [
+      'schema_version',
+      'run_id',
+      'flow_id',
+      'selected_flow',
+      'routed_by',
+      'router_reason',
+      'entry_mode',
+      'entry_mode_source',
+      'run_folder',
+      'outcome',
+      'trace_entries_observed',
+      'operator_summary_path',
+      'operator_summary_markdown_path',
+      'operator_summary_status_text',
+      'operator_summary_html_path',
+      'run_envelope_path',
+      'run_process_evidence_path',
+      'run_surface_markdown_path',
+      'run_surface_status_text',
+      'run_decision_packet_paths',
+      'checkpoint',
+    ]);
 
     const resumed = await withRuntimeDiagnostics(() =>
       captureMain(['resume', '--run-folder', runFolder, '--checkpoint-choice', 'continue'], {
@@ -352,6 +408,23 @@ describe('CLI runtime', () => {
       outcome: 'complete',
       runtime_reason: 'checkpoint resume follows the saved run folder engine marker',
     });
+    expectStdoutKeys(output, [
+      'schema_version',
+      'run_id',
+      'flow_id',
+      'run_folder',
+      'outcome',
+      'trace_entries_observed',
+      'result_path',
+      'runtime_reason',
+      'operator_summary_path',
+      'operator_summary_markdown_path',
+      'operator_summary_status_text',
+      'run_envelope_path',
+      'run_process_evidence_path',
+      'run_surface_markdown_path',
+      'run_surface_status_text',
+    ]);
     expect(output).not.toHaveProperty('runtime');
   });
 });

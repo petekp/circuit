@@ -9,7 +9,7 @@ import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
-import { validateCompiledFlowKindPolicy } from '../../src/policy/flow-kind-policy.js';
+import { validateCompiledFlowKindPolicy } from '../../src/flows/canonical-stage-policy.js';
 import { makeStubRelayer } from '../helpers/runtime-fixtures.js';
 
 // `explore` end-to-end fixture run.

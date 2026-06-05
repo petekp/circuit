@@ -50,6 +50,98 @@ export const RecoveryRequiredRefKind = z.enum([
 ]);
 export type RecoveryRequiredRefKind = z.infer<typeof RecoveryRequiredRefKind>;
 
+export type RecoveryRefRequirement = {
+  readonly anyOf: readonly RecoveryRequiredRefKind[];
+  readonly message: string;
+};
+
+export type RecoveryKindContractRule = {
+  readonly allowedFailureCauses: readonly RecoveryFailureCause[];
+  readonly defaultRequiredRefs: readonly RecoveryRequiredRefKind[];
+  readonly rejectsUnknownFailure?: boolean;
+  readonly requiredRefs?: RecoveryRefRequirement;
+  readonly causeRequiredRefs?: Partial<Record<RecoveryFailureCause, RecoveryRefRequirement>>;
+};
+
+export const RECOVERY_KIND_CONTRACT_RULES = {
+  retry_same_step_with_feedback: {
+    allowedFailureCauses: ['failed_check', 'failed_acceptance_criteria', 'relay_result_invalid'],
+    defaultRequiredRefs: ['failed_check', 'acceptance_feedback', 'budget_state'],
+    rejectsUnknownFailure: true,
+  },
+  narrow_scope: {
+    allowedFailureCauses: ['failed_check', 'scope_drift', 'weak_proof', 'unproved_claim'],
+    defaultRequiredRefs: ['proof_assessment', 'runtime_diff'],
+  },
+  run_verification: {
+    allowedFailureCauses: [
+      'failed_check',
+      'weak_proof',
+      'unproved_claim',
+      'generated_surface_drift',
+    ],
+    defaultRequiredRefs: ['proof_assessment', 'generated_surface_evidence'],
+    rejectsUnknownFailure: true,
+  },
+  run_independent_review: {
+    allowedFailureCauses: ['weak_proof', 'contradicted_evidence', 'scope_drift'],
+    defaultRequiredRefs: ['proof_assessment', 'report'],
+    rejectsUnknownFailure: true,
+  },
+  checkpoint_authority: {
+    allowedFailureCauses: [
+      'checkpoint_boundary',
+      'protected_file_touched',
+      'budget_exceeded',
+      'unknown_failure',
+    ],
+    defaultRequiredRefs: ['checkpoint_request', 'runtime_diff', 'budget_state'],
+    causeRequiredRefs: {
+      protected_file_touched: {
+        anyOf: ['runtime_diff', 'change_packet'],
+        message: 'protected_file_touched requires runtime_diff or change_packet refs',
+      },
+    },
+  },
+  safe_apply_reject: {
+    allowedFailureCauses: [
+      'base_mismatch',
+      'apply_conflict',
+      'protected_file_touched',
+      'generated_surface_drift',
+    ],
+    defaultRequiredRefs: ['safe_apply_result', 'runtime_diff', 'generated_surface_evidence'],
+    requiredRefs: {
+      anyOf: ['safe_apply_result', 'runtime_diff', 'change_packet'],
+      message: 'safe_apply_reject requires safe_apply_result, runtime_diff, or change_packet refs',
+    },
+    causeRequiredRefs: {
+      protected_file_touched: {
+        anyOf: ['runtime_diff', 'change_packet'],
+        message: 'protected_file_touched requires runtime_diff or change_packet refs',
+      },
+    },
+  },
+  stop_unsafe: {
+    allowedFailureCauses: [
+      'failed_check',
+      'contradicted_evidence',
+      'scope_drift',
+      'budget_exceeded',
+      'unknown_failure',
+    ],
+    defaultRequiredRefs: ['failed_check', 'trace'],
+  },
+  escalate: {
+    allowedFailureCauses: ['relay_connector_failed', 'budget_exceeded', 'unknown_failure'],
+    defaultRequiredRefs: ['relay_result', 'trace'],
+  },
+  handoff: {
+    allowedFailureCauses: ['checkpoint_boundary', 'budget_exceeded', 'unknown_failure'],
+    defaultRequiredRefs: ['trace', 'report'],
+  },
+} satisfies Record<RecoveryRouteKind, RecoveryKindContractRule>;
+
 export const RecoveryOperatorAuthority = z.enum([
   'not_required',
   'required_before_route',
@@ -92,6 +184,9 @@ export const RecoveryRouteBindingV0 = z
   .superRefine((binding, ctx) => {
     const requiredRefs = new Set(binding.required_refs);
     const causes = new Set(binding.allowed_failure_causes);
+    const rule: RecoveryKindContractRule = RECOVERY_KIND_CONTRACT_RULES[binding.kind];
+    const hasAnyRequiredRef = (requirement: RecoveryRefRequirement) =>
+      requirement.anyOf.some((ref) => requiredRefs.has(ref));
 
     if (binding.kind === 'retry_same_step_with_feedback') {
       if (binding.route_target !== binding.step_id) {
@@ -131,12 +226,7 @@ export const RecoveryRouteBindingV0 = z
       }
     }
 
-    if (
-      causes.has('unknown_failure') &&
-      ['retry_same_step_with_feedback', 'run_verification', 'run_independent_review'].includes(
-        binding.kind,
-      )
-    ) {
+    if (causes.has('unknown_failure') && rule.rejectsUnknownFailure === true) {
       ctx.addIssue({
         code: 'custom',
         path: ['allowed_failure_causes'],
@@ -144,37 +234,32 @@ export const RecoveryRouteBindingV0 = z
       });
     }
 
-    if (
-      binding.kind === 'safe_apply_reject' &&
-      !requiredRefs.has('safe_apply_result') &&
-      !requiredRefs.has('runtime_diff') &&
-      !requiredRefs.has('change_packet')
-    ) {
+    if (rule.requiredRefs !== undefined && !hasAnyRequiredRef(rule.requiredRefs)) {
       ctx.addIssue({
         code: 'custom',
         path: ['required_refs'],
-        message:
-          'safe_apply_reject requires safe_apply_result, runtime_diff, or change_packet refs',
+        message: rule.requiredRefs.message,
       });
     }
 
-    if (causes.has('generated_surface_drift') && !requiredRefs.has('generated_surface_evidence')) {
+    const causeRequiredRefs = {
+      ...(rule.causeRequiredRefs ?? {}),
+      ...(causes.has('generated_surface_drift')
+        ? {
+            generated_surface_drift: {
+              anyOf: ['generated_surface_evidence'],
+              message: 'generated_surface_drift requires generated_surface_evidence refs',
+            } satisfies RecoveryRefRequirement,
+          }
+        : {}),
+    };
+    for (const cause of binding.allowed_failure_causes) {
+      const requirement = causeRequiredRefs[cause];
+      if (requirement === undefined || hasAnyRequiredRef(requirement)) continue;
       ctx.addIssue({
         code: 'custom',
         path: ['required_refs'],
-        message: 'generated_surface_drift requires generated_surface_evidence refs',
-      });
-    }
-
-    if (
-      causes.has('protected_file_touched') &&
-      !requiredRefs.has('runtime_diff') &&
-      !requiredRefs.has('change_packet')
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['required_refs'],
-        message: 'protected_file_touched requires runtime_diff or change_packet refs',
+        message: requirement.message,
       });
     }
 

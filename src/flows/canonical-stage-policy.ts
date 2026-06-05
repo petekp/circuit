@@ -1,3 +1,13 @@
+import {
+  type CompiledFlowKindPolicyCheckResult,
+  type CompiledFlowKindPolicyEntry,
+  type CompiledFlowKindPolicyTable,
+  checkCompiledFlowKindCanonicalPolicyWithTable,
+} from '../policy/flow-kind-policy-core.js';
+import {
+  type ValidateCompiledFlowKindPolicyResult,
+  validateCompiledFlowKindPolicyWithTable,
+} from '../policy/flow-kind-policy.js';
 import { flowDefinitions } from './catalog.js';
 import type { FlowDefinitionCanonicalStagePolicy } from './flow-definition.js';
 
@@ -26,3 +36,27 @@ export const FLOW_CANONICAL_STAGE_POLICY_BY_ID: Readonly<
 
 export const FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS: ReadonlySet<string> =
   canonicalStagePolicyExemptIds;
+
+export const FLOW_KIND_CANONICAL_SETS: Readonly<Record<string, CompiledFlowKindPolicyEntry>> =
+  FLOW_CANONICAL_STAGE_POLICY_BY_ID;
+
+export const EXEMPT_FLOW_IDS: ReadonlySet<string> = FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS;
+
+const FLOW_KIND_POLICY_TABLE: CompiledFlowKindPolicyTable = {
+  canonicalSets: FLOW_KIND_CANONICAL_SETS,
+  exemptFlowIds: EXEMPT_FLOW_IDS,
+};
+
+export type { CompiledFlowKindPolicyCheckResult, ValidateCompiledFlowKindPolicyResult };
+
+export function checkCompiledFlowKindCanonicalPolicy(
+  fixture: unknown,
+): CompiledFlowKindPolicyCheckResult {
+  return checkCompiledFlowKindCanonicalPolicyWithTable(fixture, FLOW_KIND_POLICY_TABLE);
+}
+
+export function validateCompiledFlowKindPolicy(
+  flow: unknown,
+): ValidateCompiledFlowKindPolicyResult {
+  return validateCompiledFlowKindPolicyWithTable(flow, FLOW_KIND_POLICY_TABLE);
+}

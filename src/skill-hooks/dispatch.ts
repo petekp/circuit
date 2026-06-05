@@ -10,11 +10,12 @@
 // never a model reading prose. See docs/ideas/skill-hooks-dispatch-spec.md.
 
 import type { LayeredConfig } from '../schemas/config.js';
+import type { EditFileTiming } from '../schemas/report-file-surface.js';
 import { type RunSkillHookEvent, SKILL_HOOK_VOCABULARY } from '../schemas/skill-hook.js';
 import type { TraceEntry } from '../schemas/trace-entry.js';
 import type { UserSkillRegistry } from '../shared/user-skill-registry.js';
 import { buildRunSkillHookEvent } from './policy.js';
-import { EDIT_FILE_SURFACE_SOURCES, type EditFileTiming } from './surface-sources.js';
+import type { EditFileSurfaceSource } from './surface-sources.js';
 
 const VOCABULARY_BY_HOOK = new Map<string, (typeof SKILL_HOOK_VOCABULARY)[number]>(
   SKILL_HOOK_VOCABULARY.map((entry) => [entry.hook, entry]),
@@ -125,6 +126,7 @@ export interface DispatchEditFileHooksInput extends DispatchSkillHooksInput {
   // Reads a run-relative report path (the report_path on a step.report_written
   // entry) and returns its parsed JSON body.
   readonly readJson: DispatchReadJson;
+  readonly editFileSurfaceSources: Readonly<Record<string, EditFileSurfaceSource>>;
 }
 
 // Matches the bare anchors and the v1 extension-suffix form, and nothing else
@@ -175,7 +177,7 @@ export async function dispatchEditFileHooksForEntries(
   const events: RunSkillHookEvent[] = [];
   for (const entry of input.entries) {
     if (entry.kind !== 'step.report_written') continue;
-    const source = EDIT_FILE_SURFACE_SOURCES[entry.report_schema];
+    const source = input.editFileSurfaceSources[entry.report_schema];
     if (source === undefined) continue;
 
     let report: unknown;

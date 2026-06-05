@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  checkCompiledFlowKindCanonicalPolicy,
-  checkReviewIdentitySeparationPolicy,
-} from '../../../src/policy/flow-kind-policy-core.js';
+import { checkCompiledFlowKindCanonicalPolicy } from '../../../src/flows/canonical-stage-policy.js';
+import { checkReviewIdentitySeparationPolicy } from '../../../src/policy/flow-kind-policy-core.js';
 
 type StepStub = Record<string, unknown>;
 

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MemoryInputV0 } from '../../src/index.js';
-import { composeRelayPrompt } from '../../src/shared/relay-support.js';
+import { composeRelayPrompt } from '../../src/runtime/run/relay-support.js';
 
 let runFolder: string;
 

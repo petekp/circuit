@@ -1,6 +1,6 @@
 # Run Process Spec
 
-Status: current-state architecture reference. Last validated: 2026-06-01.
+Status: current-state architecture reference. Last validated: 2026-06-05.
 
 This document describes what Run decides, when it decides it, and what evidence
 records the decision. It is a map of the current implementation, not a proposal.
@@ -10,9 +10,10 @@ release evidence, prefer those sources and update this document.
 Primary sources:
 
 - `src/commands/run.md` - host command instructions for `/circuit:run`.
-- `src/cli/circuit.ts` - CLI argument parsing, routing, axis selection,
-  runtime setup, final output, checkpoint resume routing, and autonomous loop
-  handoff.
+- `src/cli/circuit.ts` - top-level CLI command dispatch and version output.
+- `src/cli/run.ts` - run/resume argument parsing, explicit flow routing, axis
+  selection, fixture loading, runtime setup, final run output, checkpoint
+  resume routing, post-run artifacts, and the autonomous loop handoff.
 - `src/flows/catalog-derivations.ts` - pure derivations turning flow packages
   into engine registries.
 - `src/runtime/run/compiled-flow-runner.ts` and
@@ -341,6 +342,21 @@ The graph runner advances the executable graph. For each step it decides:
 - whether the selected route is declared
 - whether recovery route bindings authorize recovery mechanics
 - whether the selected route closes the run or moves to another step
+
+The route transition order is named in `src/runtime/run/run-transition.ts` and
+stays pure:
+
+1. Route declaration classification returns either `declared_route` or
+   `undeclared_route_abort`. An undeclared route appends `step.aborted` and
+   closes the run before `step.completed` can be recorded.
+2. Recovery binding policy then validates declared recovery mechanics. This is
+   still in the graph runner because it needs current trace/report evidence.
+3. Route target classification returns `step_advance`, `terminal_close`,
+   `self_pass_cycle_abort`, `completed_step_cycle_abort`, or
+   `recovery_attempts_exhausted_abort`.
+4. Successful `step_advance` and `terminal_close` transitions append
+   `step.completed` before the next step is entered or the terminal close is
+   written. Abort transitions append `step.aborted` instead.
 
 Trace evidence:
 

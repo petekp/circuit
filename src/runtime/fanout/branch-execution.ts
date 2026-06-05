@@ -8,7 +8,6 @@ import { parseReport } from '../../flows/registries/report-schemas.js';
 import { CompiledFlow as CompiledFlowSchema } from '../../schemas/compiled-flow.js';
 import { Depth } from '../../schemas/depth.js';
 import { RunResult } from '../../schemas/result.js';
-import type { RelayStep as CompiledRelayStepV1 } from '../../shared/relay-support.js';
 import type { TraceEntry } from '../domain/trace.js';
 import {
   type ProductionRelayAttemptValidationInput,
@@ -18,6 +17,7 @@ import {
 import type { FanoutStep, RelayStep } from '../manifest/executable-flow.js';
 import type { WorktreeRunner } from '../run/child-runner.js';
 import { planRelayGuidanceDecision } from '../run/relay-guidance.js';
+import type { RelayStep as CompiledRelayStepV1 } from '../run/relay-support.js';
 import type { RunContext } from '../run/run-context.js';
 import {
   type BranchOutcome,

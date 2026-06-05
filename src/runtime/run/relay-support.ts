@@ -1,13 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
-import type { RuntimeIndexedRelayStep } from '../flows/registries/runtime-index.js';
-import { findRelayShapeHint } from '../flows/registries/shape-hints/registry.js';
-import type { AcceptanceCriterion } from '../schemas/acceptance-criteria.js';
+import type { RuntimeIndexedRelayStep } from '../../flows/registries/runtime-index.js';
+import { findRelayShapeHint } from '../../flows/registries/shape-hints/registry.js';
+import type { AcceptanceCriterion } from '../../schemas/acceptance-criteria.js';
 import {
   HISTORY_AUTHORITY_NOTICE,
   type MemoryInputV0 as MemoryInputValue,
-} from '../schemas/index.js';
-import { resolveRunRelative } from './run-relative-path.js';
-import type { LoadedRelaySkill } from './skill-loading.js';
+} from '../../schemas/index.js';
+import { resolveRunRelative } from '../../shared/run-relative-path.js';
+import type { LoadedRelaySkill } from '../../shared/skill-loading.js';
 
 export type RelayStep = RuntimeIndexedRelayStep;
 

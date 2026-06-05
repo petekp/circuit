@@ -10,6 +10,7 @@ import {
   buildCheckpointRegistry,
   buildCloseRegistry,
   buildComposeRegistry,
+  buildReportFileSurfaceRegistry,
   buildReportSchemaRegistry,
   buildRuntimeSurfaceRegistry,
   buildSchemaHintMap,
@@ -32,6 +33,10 @@ function fakePackage(
     visibility: opts.visibility ?? 'public',
     paths: opts.paths ?? { schematic: `synthetic/${opts.id}.schematic.json` },
     relayReports: opts.relayReports ?? [],
+    ...(opts.reportSchemas === undefined ? {} : { reportSchemas: opts.reportSchemas }),
+    ...(opts.reportFileSurfaces === undefined
+      ? {}
+      : { reportFileSurfaces: opts.reportFileSurfaces }),
     writers: opts.writers ?? { compose: [], close: [], verification: [], checkpoint: [] },
     ...(opts.structuralHints === undefined ? {} : { structuralHints: opts.structuralHints }),
     ...(opts.runtimeSurface === undefined ? {} : { runtimeSurface: opts.runtimeSurface }),
@@ -93,6 +98,10 @@ describe('flow report declarations', () => {
         schemaName: 'a.report@v1',
         channel: 'report',
         schema,
+        fileSurface: {
+          timing: 'after',
+          extractor: { kind: 'string-array-field', field: 'observed' },
+        },
         writers: { compose: [composeBuilder] },
       },
       {
@@ -117,10 +126,53 @@ describe('flow report declarations', () => {
       'a.verify@v1',
       'a.result@v1',
     ]);
+    expect(projected.reportFileSurfaces).toEqual({
+      'a.report@v1': {
+        timing: 'after',
+        extractor: { kind: 'string-array-field', field: 'observed' },
+      },
+    });
     expect(projected.writers.compose).toEqual([composeBuilder]);
     expect(projected.writers.close).toEqual([closeBuilder]);
     expect(projected.writers.verification).toEqual([verificationBuilder]);
     expect(projected.writers.checkpoint).toEqual([checkpointBuilder]);
+  });
+});
+
+describe('catalog-derivations: report file surfaces', () => {
+  it('flattens package-owned report file surfaces by schema name', () => {
+    const registry = buildReportFileSurfaceRegistry([
+      fakePackage({
+        id: 'a',
+        reportFileSurfaces: {
+          'a.report@v1': {
+            timing: 'after',
+            extractor: { kind: 'string-array-field', field: 'observed' },
+          },
+        },
+      }),
+    ]);
+
+    expect(registry).toEqual({
+      'a.report@v1': {
+        timing: 'after',
+        extractor: { kind: 'string-array-field', field: 'observed' },
+      },
+    });
+  });
+
+  it('throws when two packages register a file surface for the same schema', () => {
+    const declaration = {
+      timing: 'before' as const,
+      extractor: { kind: 'build-plan-and-slices-anticipated-file-extensions' as const },
+    };
+
+    expect(() =>
+      buildReportFileSurfaceRegistry([
+        fakePackage({ id: 'a', reportFileSurfaces: { 'shared@v1': declaration } }),
+        fakePackage({ id: 'b', reportFileSurfaces: { 'shared@v1': declaration } }),
+      ]),
+    ).toThrow(/duplicate report file surface registered for schema 'shared@v1' \(flow b\)/);
   });
 });
 

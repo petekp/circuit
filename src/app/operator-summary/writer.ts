@@ -4,7 +4,7 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import { findFlowRuntimeSurfaceById } from '../flows/catalog.js';
+import { findFlowRuntimeSurfaceById } from '../../flows/catalog.js';
 import {
   OperatorAutoResolution,
   type OperatorAutoResolution as OperatorAutoResolutionValue,
@@ -14,10 +14,10 @@ import {
   OperatorSummary,
   type OperatorSummaryReportLink,
   type OperatorSummaryWarning,
-} from '../schemas/operator-summary.js';
-import type { RunResult } from '../schemas/result.js';
-import { RunSkillHookEvent } from '../schemas/skill-hook.js';
-import { type HtmlProjectorContext, getHtmlProjector } from './html/index.js';
+} from '../../schemas/operator-summary.js';
+import type { RunResult } from '../../schemas/result.js';
+import { RunSkillHookEvent } from '../../schemas/skill-hook.js';
+import { type HtmlProjectorContext, getHtmlProjector } from '../../shared/html/index.js';
 import {
   type JsonObject,
   arrayField,
@@ -29,14 +29,14 @@ import {
   readJsonIfPresent,
   stringArrayField,
   stringField,
-} from './operator-summary/index.js';
-import { friendlyFixOutcome } from './operator-summary/text.js';
-import { RUN_RESULT_RELATIVE_PATH } from './result-path.js';
-import { resolveRunRelative } from './run-relative-path.js';
+} from '../../shared/operator-summary/index.js';
+import { friendlyFixOutcome } from '../../shared/operator-summary/text.js';
+import { RUN_RESULT_RELATIVE_PATH } from '../../shared/result-path.js';
+import { resolveRunRelative } from '../../shared/run-relative-path.js';
 import {
   WRITE_CAPABLE_WORKER_DISCLOSURE,
   flowMayInvokeWriteCapableWorker,
-} from './write-capable-worker-disclosure.js';
+} from '../../shared/write-capable-worker-disclosure.js';
 
 type RouteSummary = {
   readonly selectedFlow: string;

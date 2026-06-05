@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { listCandidateRunFolders } from '../app/history/indexer.js';
+import { listCandidateRunFolders } from '../history/run-corpus.js';
 import {
   type MemoryInputV0,
   MemoryInputV0 as MemoryInputV0Schema,

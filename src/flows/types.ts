@@ -12,6 +12,7 @@
 // No engine edits are needed for normal flow additions.
 
 import type { z } from 'zod';
+import type { ReportFileSurfaceDeclaration } from '../schemas/report-file-surface.js';
 import type { CheckpointBriefBuilder } from './registries/checkpoint-writers/types.js';
 import type { CloseBuilder } from './registries/close-writers/types.js';
 import type { ComposeBuilder } from './registries/compose-writers/types.js';
@@ -166,6 +167,7 @@ export interface CompiledFlowPackage {
   readonly paths: CompiledFlowPaths;
   readonly relayReports: readonly CompiledFlowRelayReport[];
   readonly reportSchemas?: readonly CompiledFlowReportSchema[];
+  readonly reportFileSurfaces?: Readonly<Record<string, ReportFileSurfaceDeclaration>>;
   readonly writers: {
     readonly compose: readonly ComposeBuilder[];
     readonly close: readonly CloseBuilder[];

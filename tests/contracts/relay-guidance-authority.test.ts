@@ -17,11 +17,11 @@ describe('relay guidance authority boundary', () => {
       'utf8',
     );
     const selectionResolverSource = readFileSync(
-      join(process.cwd(), 'src/shared/selection-resolver.ts'),
+      join(process.cwd(), 'src/selection/selection-resolver.ts'),
       'utf8',
     );
     const relaySelectionSource = readFileSync(
-      join(process.cwd(), 'src/shared/relay-selection.ts'),
+      join(process.cwd(), 'src/selection/relay-selection.ts'),
       'utf8',
     );
     const fanoutBranchExecutionSource = readFileSync(

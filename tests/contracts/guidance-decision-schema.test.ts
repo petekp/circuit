@@ -63,6 +63,16 @@ const finalVerificationRef = {
   attempt: 1,
 };
 
+const runtimeTouchedFilesRef = {
+  kind: 'evidence' as const,
+  ref: 'reports/runtime/touched-files.json',
+  sha256: sha,
+  run_id: runId,
+  flow_id: 'build',
+  step_id: 'act-step',
+  attempt: 1,
+};
+
 function relayDecision() {
   return {
     schema_version: 1,
@@ -361,6 +371,23 @@ describe('GuidanceDecisionTraceEntry schema', () => {
         }),
       ).success,
     ).toBe(false);
+
+    expect(
+      GuidanceDecisionTraceEntry.safeParse(
+        recoveryDecision({
+          selected: {
+            route_id: 'stop',
+            recovery_kind: 'stop_unsafe',
+            failure_cause: 'generated_surface_drift',
+            failure_ref: runtimeTouchedFilesRef,
+            binding_ref: workContractRef,
+            touched_files_ref: runtimeTouchedFilesRef,
+          },
+          input_refs: [runtimeTouchedFilesRef],
+          evidence_refs: [runtimeTouchedFilesRef],
+        }),
+      ).success,
+    ).toBe(true);
   });
 
   it('requires safe apply decisions to name packet, base, and apply verification refs', () => {
@@ -585,6 +612,40 @@ describe('GuidanceDecisionTraceEntry schema', () => {
           },
         ],
       }).success,
+    ).toBe(false);
+
+    expect(
+      GuidanceDecisionTraceEntry.safeParse(
+        safeApplyDecision({
+          selected: {
+            action: 'apply',
+            change_packet_ref: changePacketRef,
+            base_ref: baseRef,
+            protected_file_decision: 'allowed',
+            final_verification_ref: finalVerificationRef,
+            touched_files_ref: runtimeTouchedFilesRef,
+          },
+          evidence_refs: [changePacketRef, baseRef, finalVerificationRef, runtimeTouchedFilesRef],
+        }),
+      ).success,
+    ).toBe(true);
+
+    expect(
+      GuidanceDecisionTraceEntry.safeParse(
+        safeApplyDecision({
+          selected: {
+            action: 'apply',
+            change_packet_ref: changePacketRef,
+            base_ref: baseRef,
+            final_verification_ref: finalVerificationRef,
+            touched_files_ref: {
+              ...runtimeTouchedFilesRef,
+              kind: 'report',
+            },
+          },
+          evidence_refs: [changePacketRef, baseRef, finalVerificationRef],
+        }),
+      ).success,
     ).toBe(false);
   });
 });

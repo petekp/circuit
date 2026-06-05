@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { checkCompiledFlowKindCanonicalPolicy } from '../../src/flows/canonical-stage-policy.js';
 import { reviewCompiledFlowPackage } from '../../src/flows/review/index.js';
-import { checkCompiledFlowKindCanonicalPolicy } from '../../src/policy/flow-kind-policy-core.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 
 const REVIEW_FIXTURE_PATH = join('generated', 'flows', 'review', 'circuit.json');

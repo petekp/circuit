@@ -20,7 +20,7 @@ import type {
 import type { ResolvedSelection as ResolvedSelectionValue } from '../../schemas/selection-policy.js';
 import type { SkillSlot } from '../../schemas/skill.js';
 import { RelayRole } from '../../schemas/step.js';
-import { deriveResolvedSelection } from '../../shared/relay-selection.js';
+import { deriveResolvedSelection } from '../../selection/relay-selection.js';
 import { type LoadedRelaySkill, resolveLoadedRelaySkills } from '../../shared/skill-loading.js';
 import type { RelayConnector } from '../executors/relay.js';
 import type { RelayStep } from '../manifest/executable-flow.js';
@@ -368,6 +368,8 @@ export function planRelayGuidanceDecision(input: {
       ...(context.selectionConfigLayers === undefined
         ? {}
         : { selectionConfigLayers: context.selectionConfigLayers }),
+      bindsExecutionDepthToGuidanceSelection:
+        context.guidanceSelection?.bindsExecutionDepthToGuidanceSelection === true,
     },
     flow as RuntimeIndexedFlow,
     compiledStep,

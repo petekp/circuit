@@ -4,6 +4,7 @@ import { CompiledFlowId, RunId, SkillId, SkillSlotId, StepId } from './ids.js';
 import { JsonObject } from './json.js';
 import { RecoveryFailureCause, RecoveryRouteKind } from './recovery-route-kind.js';
 import { Ref, Sha256 } from './ref.js';
+import { RuntimeTouchedFilesEvidenceRef } from './runtime-evidence.js';
 import { Effort, ProviderScopedModel } from './selection-policy.js';
 import { RelayRole } from './step.js';
 
@@ -108,6 +109,7 @@ const SafeApplySelected = z
     base_ref: BaseRef,
     protected_file_decision: z.enum(['allowed', 'rejected', 'checkpointed']).optional(),
     final_verification_ref: FinalVerificationRef.optional(),
+    touched_files_ref: RuntimeTouchedFilesEvidenceRef.optional(),
   })
   .strict()
   .superRefine((selected, ctx) => {
@@ -127,6 +129,7 @@ const RecoveryRouteSelected = z
     failure_cause: RecoveryFailureCause,
     failure_ref: Ref,
     binding_ref: WorkContractRef,
+    touched_files_ref: RuntimeTouchedFilesEvidenceRef.optional(),
   })
   .strict()
   .superRefine((selected, ctx) => {
@@ -422,7 +425,8 @@ export function refineGuidanceDecisionTraceEntry(
   if (entry.subject === 'safe_apply') {
     const safeApplySelected = SafeApplySelected.safeParse(entry.selected);
     if (safeApplySelected.success) {
-      const { base_ref, change_packet_ref, final_verification_ref } = safeApplySelected.data;
+      const { base_ref, change_packet_ref, final_verification_ref, touched_files_ref } =
+        safeApplySelected.data;
 
       addScopedRefIssues(
         ctx,
@@ -464,6 +468,22 @@ export function refineGuidanceDecisionTraceEntry(
           });
         }
       }
+      if (touched_files_ref !== undefined) {
+        addScopedRefIssues(
+          ctx,
+          ['selected', 'touched_files_ref'],
+          'safe_apply touched_files_ref',
+          touched_files_ref,
+          entry,
+        );
+        if (!entry.evidence_refs?.some((ref) => sameRef(ref, touched_files_ref))) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['evidence_refs'],
+            message: 'safe_apply evidence_refs must include selected.touched_files_ref',
+          });
+        }
+      }
     }
   }
 
@@ -481,7 +501,7 @@ export function refineGuidanceDecisionTraceEntry(
   if (entry.subject === 'recovery_route') {
     const recoverySelected = RecoveryRouteSelected.safeParse(entry.selected);
     if (recoverySelected.success) {
-      const { binding_ref, failure_ref } = recoverySelected.data;
+      const { binding_ref, failure_ref, touched_files_ref } = recoverySelected.data;
 
       if (!entry.input_refs.some((ref) => sameRef(ref, failure_ref))) {
         ctx.addIssue({
@@ -496,6 +516,52 @@ export function refineGuidanceDecisionTraceEntry(
           path: ['evidence_refs'],
           message: 'recovery_route evidence_refs must include selected.failure_ref',
         });
+      }
+      if (touched_files_ref !== undefined) {
+        if (!entry.evidence_refs?.some((ref) => sameRef(ref, touched_files_ref))) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['evidence_refs'],
+            message: 'recovery_route evidence_refs must include selected.touched_files_ref',
+          });
+        }
+        if (touched_files_ref.run_id !== undefined && touched_files_ref.run_id !== entry.run_id) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['selected', 'touched_files_ref', 'run_id'],
+            message: 'recovery touched_files_ref run_id must match guidance run_id',
+          });
+        }
+        if (
+          touched_files_ref.flow_id !== undefined &&
+          touched_files_ref.flow_id !== entry.scope.flow_id
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['selected', 'touched_files_ref', 'flow_id'],
+            message: 'recovery touched_files_ref flow_id must match guidance scope.flow_id',
+          });
+        }
+        if (
+          touched_files_ref.step_id !== undefined &&
+          touched_files_ref.step_id !== entry.scope.step_id
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['selected', 'touched_files_ref', 'step_id'],
+            message: 'recovery touched_files_ref step_id must match guidance scope.step_id',
+          });
+        }
+        if (
+          touched_files_ref.attempt !== undefined &&
+          touched_files_ref.attempt !== entry.scope.attempt
+        ) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['selected', 'touched_files_ref', 'attempt'],
+            message: 'recovery touched_files_ref attempt must match guidance scope.attempt',
+          });
+        }
       }
       if (
         failure_ref.kind === 'trace' &&

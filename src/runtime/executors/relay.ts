@@ -22,13 +22,6 @@ import { CheckEvaluatedTraceEntry } from '../../schemas/trace-entry.js';
 import type { ConnectorRelayInput } from '../../shared/connector-relay.js';
 import type { RelayResult } from '../../shared/connector-relay.js';
 import { evidenceFromAcceptanceCriteriaTrace } from '../../shared/proof-assessment.js';
-import {
-  type CheckEvaluation,
-  type RelayStep as CompiledRelayStepV1,
-  NO_VERDICT_SENTINEL,
-  composeRelayPrompt,
-  evaluateRelayCheck,
-} from '../../shared/relay-support.js';
 import type { LoadedRelaySkill } from '../../shared/skill-loading.js';
 import { responseJsonSchemaFromZod } from '../../shared/zod-to-response-schema.js';
 import {
@@ -40,6 +33,13 @@ import type { RelayStep } from '../manifest/executable-flow.js';
 import { appendProofPolicyGuidance, appendRelayExecutionGuidance } from '../run/guidance.js';
 import { recoveryBindingForFailure, recoveryRouteForFailure } from '../run/recovery-selection.js';
 import { planRelayGuidanceDecision } from '../run/relay-guidance.js';
+import {
+  type CheckEvaluation,
+  type RelayStep as CompiledRelayStepV1,
+  NO_VERDICT_SENTINEL,
+  composeRelayPrompt,
+  evaluateRelayCheck,
+} from '../run/relay-support.js';
 import type { RunContext } from '../run/run-context.js';
 import {
   type StepExecutionResult,

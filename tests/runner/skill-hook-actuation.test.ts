@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
 
+import { writeOperatorSummary } from '../../src/app/operator-summary/writer.js';
 import type { ClaudeCodeRelayInput } from '../../src/connectors/claude-code.js';
 import { fromCompiledFlow } from '../../src/runtime/manifest/from-compiled-flow.js';
 import {
@@ -20,7 +21,6 @@ import {
 } from '../../src/schemas/policy-envelope.js';
 import { RunResult } from '../../src/schemas/result.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
-import { writeOperatorSummary } from '../../src/shared/operator-summary-writer.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
 // Slice 3 (the actuator): an `auto` skill-hook policy injects its resolved
@@ -162,6 +162,15 @@ function actStepSkillsLoaded(entries: Awaited<ReturnType<typeof readTrace>>) {
   );
 }
 
+function traceIndex(
+  entries: Awaited<ReturnType<typeof readTrace>>,
+  predicate: (entry: (typeof entries)[number]) => boolean,
+): number {
+  const index = entries.findIndex(predicate);
+  expect(index).toBeGreaterThanOrEqual(0);
+  return index;
+}
+
 describe('Skill-hook actuation (auto injection, Build before:edit-files)', () => {
   it(
     'injects an auto-matched skill into the next relay prompt and skills.loaded',
@@ -211,6 +220,25 @@ describe('Skill-hook actuation (auto injection, Build before:edit-files)', () =>
           ),
         ),
       ).toBe(true);
+      const planCompletedIndex = traceIndex(
+        entries,
+        (entry) =>
+          entry.kind === 'step.completed' &&
+          entry.step_id === before?.event.step_id &&
+          entry.route_taken === 'pass',
+      );
+      const hookIndex = traceIndex(entries, (entry) => entry === before);
+      const actLoadedIndex = traceIndex(
+        entries,
+        (entry) =>
+          entry.kind === 'skills.loaded' &&
+          entry.step_id === 'act-step' &&
+          (entry.skills as ReadonlyArray<{ readonly id: string }>).some(
+            (skill) => skill.id === 'tdd',
+          ),
+      );
+      expect(hookIndex).toBeGreaterThan(planCompletedIndex);
+      expect(actLoadedIndex).toBeGreaterThan(hookIndex);
 
       // The unpredicted .py rule never fired, so python-doctor is never injected.
       expect(actPrompts.every((prompt) => !prompt.includes(PY_BODY))).toBe(true);

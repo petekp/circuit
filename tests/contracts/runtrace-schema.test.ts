@@ -341,6 +341,16 @@ const safeApplyResultRef = {
   attempt: 1,
 };
 
+const runtimeTouchedFilesRef = {
+  kind: 'evidence' as const,
+  ref: 'reports/runtime/touched-files.json',
+  sha256: guidanceSha,
+  run_id: RUN_A,
+  flow_id: 'explore',
+  step_id: 'frame',
+  attempt: 1,
+};
+
 function flowSelectionGuidanceAt(sequence: number, overrides: Record<string, unknown> = {}) {
   return {
     schema_version: 1,
@@ -790,6 +800,13 @@ describe('GuidanceDecision trace invariants', () => {
 
   it('TraceEntry accepts safe_apply.result through the public trace union', () => {
     expect(TraceEntry.safeParse(safeApplyResultAt(4)).success).toBe(true);
+    expect(
+      TraceEntry.safeParse(
+        safeApplyResultAt(4, {
+          touched_files_ref: runtimeTouchedFilesRef,
+        }),
+      ).success,
+    ).toBe(true);
   });
 
   it('TraceEntry rejects applied safe_apply.result without final verification', () => {
@@ -797,6 +814,17 @@ describe('GuidanceDecision trace invariants', () => {
       TraceEntry.safeParse(
         safeApplyResultAt(4, {
           final_verification_ref: undefined,
+        }),
+      ).success,
+    ).toBe(false);
+
+    expect(
+      TraceEntry.safeParse(
+        safeApplyResultAt(4, {
+          touched_files_ref: {
+            ...runtimeTouchedFilesRef,
+            run_id: RUN_B,
+          },
         }),
       ).success,
     ).toBe(false);

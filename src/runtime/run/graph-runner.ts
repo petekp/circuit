@@ -24,6 +24,7 @@ import {
   type SkillHookInjectionChannel,
   createSkillHookInjectionChannel,
 } from '../../skill-hooks/injection.js';
+import { surfaceSourcesFromDeclarations } from '../../skill-hooks/surface-sources.js';
 import { isAcceptanceRetryFeedback } from '../acceptance-criteria.js';
 import type { RouteTarget, TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
@@ -45,6 +46,11 @@ import { RecoveryCorridor } from './recovery-corridor.js';
 import { type RuntimeRunResult, writeRuntimeRunResult } from './result-writer.js';
 import { openRunBoundary } from './run-boundary.js';
 import type { RunContext } from './run-context.js';
+import {
+  classifyRouteDeclarationTransition,
+  classifyRouteTargetTransition,
+  isRouteTargetAbort,
+} from './run-transition.js';
 import { SliceCorridor } from './slice-corridor.js';
 
 export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
@@ -589,6 +595,10 @@ async function executeExecutableFlowOutcomeUnsafe(
   const runDir = boundary.runDirectory.path;
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
+  const compiledPackage = findCompiledFlowPackageById(flow.id);
+  const editFileSurfaceSources = surfaceSourcesFromDeclarations(
+    compiledPackage?.reportFileSurfaces ?? {},
+  );
   const context: RunContext = {
     flow,
     packageIndex,
@@ -630,6 +640,10 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...(options.selectionConfigLayers === undefined
       ? {}
       : { selectionConfigLayers: options.selectionConfigLayers }),
+    guidanceSelection: {
+      bindsExecutionDepthToGuidanceSelection:
+        compiledPackage?.engineFlags?.bindsExecutionDepthToRelaySelection === true,
+    },
     ...(options.policyLayers === undefined ? {} : { policyLayers: options.policyLayers }),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
     ...(options.memoryInputs === undefined ? {} : { memoryInputs: options.memoryInputs }),
@@ -650,7 +664,7 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...options.executors,
   };
   const steps = new Map(flow.steps.map((step) => [step.id, step]));
-  const sliceFlag = findCompiledFlowPackageById(flow.id)?.engineFlags?.iteratesSliceLoop;
+  const sliceFlag = compiledPackage?.engineFlags?.iteratesSliceLoop;
   if (sliceFlag !== undefined) {
     assertNoCheckpointInSliceLoop(flow, sliceFlag);
   }
@@ -863,18 +877,22 @@ async function executeExecutableFlowOutcomeUnsafe(
       }
     }
 
-    const target = step.routes[route];
-    if (target === undefined) {
-      const reason = `step '${step.id}' selected undeclared route '${route}'`;
+    const routeDeclaration = classifyRouteDeclarationTransition({
+      stepId: step.id,
+      route,
+      target: step.routes[route],
+    });
+    if (routeDeclaration.kind === 'undeclared_route_abort') {
       await trace.append({
         run_id: runId,
         kind: 'step.aborted',
         step_id: step.id,
         attempt,
-        reason,
+        reason: routeDeclaration.reason,
       });
-      return await closeRun(context, 'aborted', undefined, reason);
+      return await closeRun(context, 'aborted', undefined, routeDeclaration.reason);
     }
+    const target = routeDeclaration.target;
 
     const recoveryBinding = recoveryBindingForCompletedRoute({
       bindings: recoveryRouteBindings,
@@ -932,53 +950,46 @@ async function executeExecutableFlowOutcomeUnsafe(
       return await closeRun(context, 'aborted', undefined, bindingVerdict.reason);
     }
 
-    if (target.kind === 'step' && target.stepId === step.id && route === 'pass') {
-      const reason = `route cycle detected: step '${step.id}' routes via '${route}' to itself`;
+    // The live slice index here is post-advance, so a slice-advance redirect
+    // to the loop head reads the next slice's (empty) count rather than the
+    // just-completed slice's, and is not flagged as a cycle.
+    const targetCompletedCount =
+      target.kind === 'step'
+        ? (completedStepCounts.get(
+            sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex()),
+          ) ?? 0)
+        : 0;
+    const targetStep = target.kind === 'step' ? steps.get(target.stepId) : undefined;
+    const isRecoveryReturnToOrigin =
+      target.kind === 'step'
+        ? corridor.isReturnToOrigin({
+            stepId: target.stepId,
+            route,
+          })
+        : false;
+    const targetMaxAttempts =
+      target.kind === 'step' && targetStep !== undefined
+        ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics)
+        : maxAttemptsForRoute(step, routeHasRecoveryMechanics);
+    const targetTransition = classifyRouteTargetTransition({
+      stepId: step.id,
+      route,
+      target,
+      targetCompletedCount,
+      isRecoveryReturnToOrigin,
+      routeHasRecoveryMechanics,
+      targetMaxAttempts,
+      recoveryReasonSuffix: corridor.lastReasonSuffix(),
+    });
+    if (isRouteTargetAbort(targetTransition)) {
       await trace.append({
         run_id: runId,
         kind: 'step.aborted',
         step_id: step.id,
         attempt,
-        reason,
+        reason: targetTransition.reason,
       });
-      return await closeRun(context, 'aborted', undefined, reason);
-    }
-
-    if (target.kind === 'step') {
-      // The live slice index here is post-advance, so a slice-advance redirect
-      // to the loop head reads the next slice's (empty) count rather than the
-      // just-completed slice's, and is not flagged as a cycle.
-      const targetCompletedCount =
-        completedStepCounts.get(
-          sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex()),
-        ) ?? 0;
-      const targetStep = steps.get(target.stepId);
-      const isRecoveryReturnToOrigin = corridor.isReturnToOrigin({
-        stepId: target.stepId,
-        route,
-      });
-      const targetMaxAttempts =
-        targetStep === undefined
-          ? maxAttemptsForRoute(step, routeHasRecoveryMechanics)
-          : maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics);
-      if (
-        targetCompletedCount > 0 &&
-        !isRecoveryReturnToOrigin &&
-        (!routeHasRecoveryMechanics || targetCompletedCount >= targetMaxAttempts)
-      ) {
-        const recoverySuffix = corridor.lastReasonSuffix();
-        const reason = routeHasRecoveryMechanics
-          ? `route '${route}' for step '${target.stepId}' exhausted max_attempts=${targetMaxAttempts}${recoverySuffix}`
-          : `route cycle detected: step '${step.id}' routes via '${route}' to already completed step '${target.stepId}'${recoverySuffix}`;
-        await trace.append({
-          run_id: runId,
-          kind: 'step.aborted',
-          step_id: step.id,
-          attempt,
-          reason,
-        });
-        return await closeRun(context, 'aborted', undefined, reason);
-      }
+      return await closeRun(context, 'aborted', undefined, targetTransition.reason);
     }
 
     if (routeHasRecoveryMechanics) {
@@ -1044,6 +1055,7 @@ async function executeExecutableFlowOutcomeUnsafe(
         },
         eventIdBase: `${runId}:${step.id}:${attempt}`,
         readJson: (ref) => context.files.readJson(ref),
+        editFileSurfaceSources,
         // Share the run's single registry so the recorded triggered/unavailable
         // split matches what the relay loader will actually resolve.
         ...(context.skillRegistry === undefined ? {} : { registry: context.skillRegistry }),
@@ -1089,11 +1101,15 @@ async function executeExecutableFlowOutcomeUnsafe(
       }
     }
 
-    if (target.kind === 'terminal') {
-      return await closeRun(context, outcomeForTerminal(target.target), target.target);
+    if (targetTransition.kind === 'terminal_close') {
+      return await closeRun(
+        context,
+        outcomeForTerminal(targetTransition.terminalTarget),
+        targetTransition.terminalTarget,
+      );
     }
 
-    currentStepId = target.stepId;
+    currentStepId = targetTransition.targetStepId;
     incomingRouteTaken = route;
   }
 

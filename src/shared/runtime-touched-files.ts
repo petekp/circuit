@@ -1,43 +1,20 @@
-export type RuntimeGitStateEntry = {
-  readonly status_code: string;
-  readonly path: string;
-  readonly fingerprint: string;
-  readonly from?: string;
-};
+import {
+  type RuntimeGitStateEntry,
+  type RuntimeGitStateSnapshot,
+  type RuntimeHiddenIndexFlag,
+  type RuntimeTouchedFileStatus,
+  RuntimeTouchedFilesProjection,
+  type RuntimeTouchedFilesProjection as RuntimeTouchedFilesProjectionValue,
+} from '../schemas/runtime-evidence.js';
 
-export type RuntimeHiddenIndexFlag = {
-  readonly tag: string;
-  readonly path: string;
-};
-
-export type RuntimeGitStateSnapshot = {
-  readonly head_sha: string;
-  readonly entries: readonly RuntimeGitStateEntry[];
-  readonly hidden_index_flags: readonly RuntimeHiddenIndexFlag[];
-};
-
-export type RuntimeTouchedFileStatus = 'added' | 'modified' | 'deleted' | 'renamed';
-
-export type RuntimeTouchedFile = {
-  readonly path: string;
-  readonly status: RuntimeTouchedFileStatus;
-  readonly source: 'runtime_diff';
-  readonly generated_surface: boolean;
-  readonly protected: boolean;
-};
-
-export type RuntimeTouchedFilesProjection = {
-  readonly baseline_head_sha: string;
-  readonly head_sha: string;
-  readonly head_diverged: boolean;
-  readonly files: readonly RuntimeTouchedFile[];
-  readonly worker_declared: readonly string[];
-  readonly worker_claim_matches_runtime: boolean;
-  readonly undeclared_worker_extras: readonly string[];
-  readonly missing_worker_declared: readonly string[];
-  readonly baseline_dirty_mutated: readonly string[];
-  readonly hidden_index_flags: readonly RuntimeHiddenIndexFlag[];
-};
+export type {
+  RuntimeGitStateEntry,
+  RuntimeGitStateSnapshot,
+  RuntimeHiddenIndexFlag,
+  RuntimeTouchedFile,
+  RuntimeTouchedFileStatus,
+  RuntimeTouchedFilesProjection,
+} from '../schemas/runtime-evidence.js';
 
 export type ProjectRuntimeTouchedFilesOptions = {
   readonly baseline: RuntimeGitStateSnapshot;
@@ -120,7 +97,7 @@ function uniqueFlags(flags: readonly RuntimeHiddenIndexFlag[]): RuntimeHiddenInd
 
 export function projectRuntimeTouchedFiles(
   options: ProjectRuntimeTouchedFilesOptions,
-): RuntimeTouchedFilesProjection {
+): RuntimeTouchedFilesProjectionValue {
   const ignoredPathPrefixes = options.ignoredPathPrefixes ?? [];
   const baselineEntries = filterEntries(options.baseline.entries, ignoredPathPrefixes);
   const postEntries = filterEntries(options.post.entries, ignoredPathPrefixes);
@@ -155,7 +132,7 @@ export function projectRuntimeTouchedFiles(
   const undeclaredWorkerExtras = observed.filter((path) => !workerDeclaredSet.has(path));
   const missingWorkerDeclared = workerDeclared.filter((path) => !observedSet.has(path));
 
-  return {
+  return RuntimeTouchedFilesProjection.parse({
     baseline_head_sha: options.baseline.head_sha,
     head_sha: options.post.head_sha,
     head_diverged: options.baseline.head_sha !== options.post.head_sha,
@@ -177,5 +154,5 @@ export function projectRuntimeTouchedFiles(
     missing_worker_declared: missingWorkerDeclared,
     baseline_dirty_mutated: uniqueSorted(baselineDirtyMutated),
     hidden_index_flags: uniqueFlags([...baselineHiddenFlags, ...postHiddenFlags]),
-  };
+  });
 }

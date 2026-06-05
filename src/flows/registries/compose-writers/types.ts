@@ -21,6 +21,7 @@
 
 import type { Axes } from '../../../schemas/axes.js';
 import type { LayeredConfig as LayeredConfigValue } from '../../../schemas/config.js';
+import type { PrototypeVariantConnectorPlanner } from '../../../selection/connector-planning.js';
 import type { RuntimeEvidencePolicy } from '../../../shared/relay-runtime-types.js';
 import type { RuntimeIndexedComposeStep, RuntimeIndexedFlow } from '../runtime-index.js';
 
@@ -46,6 +47,7 @@ export interface ComposeBuildContext {
   readonly projectRoot?: string;
   readonly evidencePolicy?: RuntimeEvidencePolicy;
   readonly selectionConfigLayers?: readonly LayeredConfigValue[];
+  readonly connectorPlanner?: PrototypeVariantConnectorPlanner;
   // Pre-resolved inputs from declared reads (or empty if no reads
   // declared). Builders narrow each via their own Zod schema.
   readonly inputs: Record<string, unknown | undefined>;

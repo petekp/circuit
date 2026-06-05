@@ -1,17 +1,14 @@
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+  DEFAULT_RUNS_BASE,
+  HistoryCommandError,
+  computeRunFolderNamesHash,
+  listCandidateRunFolders,
+} from '../../history/run-corpus.js';
 import {
   type HistoryDocumentV1 as HistoryDocument,
   HistoryDocumentV1,
-  type HistoryErrorCodeV1,
   HistoryErrorV1,
   type HistoryManifestV1 as HistoryManifest,
   HistoryManifestV1,
@@ -19,27 +16,21 @@ import {
   HistoryStatusV1,
   type HistoryWarningV1,
 } from '../../schemas/index.js';
-import { sha256Hex } from '../../shared/connector-relay.js';
 import { mtimeMs } from '../../shared/run-artifact-io.js';
 import { extractRunHistoryDocuments } from './extract.js';
 import { collectRunSourceFiles } from './run-source-files.js';
 
-export const DEFAULT_RUNS_BASE = '.circuit/runs';
 export const DEFAULT_INDEX_DIR = '.circuit/history';
 export const HISTORY_DOCUMENTS_FILE = 'documents.v1.jsonl';
 export const HISTORY_MANIFEST_FILE = 'manifest.v1.json';
 export const HISTORY_MEMORY_MERGE_FILE = 'memory-merge.v1.json';
 export const HISTORY_MEMORY_EFFECT_FILE = 'memory-effect.v1.json';
-
-export class HistoryCommandError extends Error {
-  constructor(
-    readonly code: HistoryErrorCodeV1,
-    message: string,
-    readonly paths: { readonly runsBase?: string; readonly indexDir?: string } = {},
-  ) {
-    super(message);
-  }
-}
+export {
+  DEFAULT_RUNS_BASE,
+  HistoryCommandError,
+  computeRunFolderNamesHash,
+  listCandidateRunFolders,
+} from '../../history/run-corpus.js';
 
 export interface HistoryPaths {
   readonly repoRoot: string;
@@ -71,63 +62,6 @@ export function resolveHistoryPaths(options: HistoryPathOptions = {}): HistoryPa
     manifestPath: join(indexDir, HISTORY_MANIFEST_FILE),
     documentsPath: join(indexDir, HISTORY_DOCUMENTS_FILE),
   };
-}
-
-function isCandidateRunFolder(runFolder: string): boolean {
-  return (
-    existsSync(join(runFolder, 'manifest.snapshot.json')) ||
-    existsSync(join(runFolder, 'trace.ndjson')) ||
-    existsSync(join(runFolder, 'reports/result.json'))
-  );
-}
-
-export function listCandidateRunFolders(runsBase: string): readonly string[] {
-  if (!existsSync(runsBase)) {
-    throw new HistoryCommandError('runs_base_not_found', `runs base not found: ${runsBase}`, {
-      runsBase,
-    });
-  }
-  let stat: ReturnType<typeof statSync>;
-  try {
-    stat = statSync(runsBase);
-  } catch (error) {
-    throw new HistoryCommandError(
-      'runs_base_unreadable',
-      `runs base unreadable: ${error instanceof Error ? error.message : String(error)}`,
-      { runsBase },
-    );
-  }
-  if (!stat.isDirectory()) {
-    throw new HistoryCommandError(
-      'runs_base_unreadable',
-      `runs base is not a directory: ${runsBase}`,
-      {
-        runsBase,
-      },
-    );
-  }
-  try {
-    return readdirSync(runsBase, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => join(runsBase, entry.name))
-      .filter(isCandidateRunFolder)
-      .sort((left, right) => basename(left).localeCompare(basename(right)));
-  } catch (error) {
-    throw new HistoryCommandError(
-      'runs_base_unreadable',
-      `runs base unreadable: ${error instanceof Error ? error.message : String(error)}`,
-      { runsBase },
-    );
-  }
-}
-
-export function computeRunFolderNamesHash(runFolders: readonly string[]): string {
-  return sha256Hex(
-    runFolders
-      .map((folder) => basename(folder))
-      .sort()
-      .join('\n'),
-  );
 }
 
 export function computeLatestSourceMtime(sourceFiles: readonly string[]): number {

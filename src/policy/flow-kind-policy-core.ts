@@ -1,13 +1,7 @@
 // Single source of truth for flow-kind canonical stage-set policy.
 //
-// Consumed by src/shared/flow-kind-policy.ts, which wraps these checks with
-// Zod-driven CompiledFlow.safeParse so the CLI fixture loader can reject
-// structurally- or policy-invalid fixtures with one call.
-
-import {
-  FLOW_CANONICAL_STAGE_POLICY_BY_ID,
-  FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS,
-} from '../flows/canonical-stage-policy.js';
+// The core is table-parameterized so catalog-derived flow data can live on the
+// flow side of the boundary while policy keeps the pure checks.
 
 interface FlowKindPolicyVariant {
   readonly canonicals: readonly string[];
@@ -51,10 +45,10 @@ export type CompiledFlowKindPolicyCheckResult =
   | { readonly kind: 'pass_through'; readonly detail: string }
   | { readonly kind: 'red'; readonly detail: string };
 
-export const FLOW_KIND_CANONICAL_SETS: Readonly<Record<string, CompiledFlowKindPolicyEntry>> =
-  FLOW_CANONICAL_STAGE_POLICY_BY_ID;
-
-export const EXEMPT_FLOW_IDS: ReadonlySet<string> = FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS;
+export interface CompiledFlowKindPolicyTable {
+  readonly canonicalSets: Readonly<Record<string, CompiledFlowKindPolicyEntry>>;
+  readonly exemptFlowIds: ReadonlySet<string>;
+}
 
 function objectRecord(value: unknown): RecordLike | undefined {
   return value !== null && typeof value === 'object' ? (value as RecordLike) : undefined;
@@ -225,8 +219,9 @@ export function checkReviewIdentitySeparationPolicy(
   };
 }
 
-export function checkCompiledFlowKindCanonicalPolicy(
+export function checkCompiledFlowKindCanonicalPolicyWithTable(
   fixture: unknown,
+  table: CompiledFlowKindPolicyTable,
 ): CompiledFlowKindPolicyCheckResult {
   const f = objectRecord(fixture);
   if (f === undefined) {
@@ -243,14 +238,14 @@ export function checkCompiledFlowKindCanonicalPolicy(
     };
   }
 
-  if (EXEMPT_FLOW_IDS.has(id)) {
+  if (table.exemptFlowIds.has(id)) {
     return {
       kind: 'exempt',
       detail: `${id}: exempt from kind-canonical enforcement (partial-stage path, recorded)`,
     };
   }
 
-  const expected = FLOW_KIND_CANONICAL_SETS[id];
+  const expected = table.canonicalSets[id];
   if (expected === undefined) {
     return {
       kind: 'pass_through',

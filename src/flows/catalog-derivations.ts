@@ -4,6 +4,7 @@
 // invariants) is testable in isolation against synthetic packages.
 
 import type { z } from 'zod';
+import type { ReportFileSurfaceDeclaration } from '../schemas/report-file-surface.js';
 import type { CheckpointBriefBuilder } from './registries/checkpoint-writers/types.js';
 import type { CloseBuilder } from './registries/close-writers/types.js';
 import type { ComposeBuilder } from './registries/compose-writers/types.js';
@@ -147,4 +148,21 @@ export function buildRuntimeSurfaceRegistry(
     map.set(pkg.id, pkg.runtimeSurface);
   }
   return map;
+}
+
+export function buildReportFileSurfaceRegistry(
+  packages: readonly CompiledFlowPackage[],
+): Readonly<Record<string, ReportFileSurfaceDeclaration>> {
+  const out: Record<string, ReportFileSurfaceDeclaration> = {};
+  for (const pkg of packages) {
+    for (const [schemaName, declaration] of Object.entries(pkg.reportFileSurfaces ?? {})) {
+      if (Object.hasOwn(out, schemaName)) {
+        throw new Error(
+          `duplicate report file surface registered for schema '${schemaName}' (flow ${pkg.id})`,
+        );
+      }
+      out[schemaName] = declaration;
+    }
+  }
+  return Object.freeze(out);
 }
