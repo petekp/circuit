@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { Command, CommanderError } from 'commander';
 import { listCandidateRunFolders } from '../app/history/indexer.js';
+import { catalogFlowIds } from '../flows/catalog.js';
 import { resolveProjectId, stampMemoryManifest } from '../memory/project-identity.js';
 import { appendProjectFact, forgetProjectFact, readProjectFacts } from '../memory/project-store.js';
 import {
@@ -101,6 +102,13 @@ function parseMemoryArgs(argv: readonly string[]): ParsedMemoryArgs | string {
         }
         if (!CompiledFlowId.safeParse(options.flow).success) {
           throw new Error('--flow must be a valid flow id');
+        }
+        // `CompiledFlowId` only validates the slug shape; a well-formed but
+        // unknown id (a typo or a renamed flow) would otherwise be persisted
+        // under a flow recall can never match. Reject it like an unknown
+        // --applies-to so the asymmetry the surface test found is closed.
+        if (!catalogFlowIds.includes(options.flow)) {
+          throw new Error(`--flow must be one of ${catalogFlowIds.join(', ')}`);
         }
         const text = textParts.join(' ').trim();
         if (text.length === 0) throw new Error('note text must be non-empty');

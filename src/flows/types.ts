@@ -119,6 +119,21 @@ export interface CompiledFlowEngineFlags {
   readonly iteratesSliceLoop?: SliceLoopEngineFlag;
 }
 
+// A config prerequisite the CLI validates up-front, before any worker runs, so
+// a missing requirement rejects like an unsupported axis (exit 2, no run
+// folder) instead of aborting mid-run after framing and planning work.
+// Currently only Prototype's tournament axis needs operator-provided variant
+// models. Like engineFlags, this describes a requirement, not a flow name.
+export interface CompiledFlowAxisConfigRequirement {
+  // The boolean axis whose selection makes the config mandatory.
+  readonly axis: 'tournament' | 'autonomous';
+  // Dot path into the layered selection config, e.g.
+  // 'circuits.prototype.variant_models'. The last layer that defines it wins.
+  readonly path: string;
+  // Operator-facing reason printed on rejection.
+  readonly message: string;
+}
+
 export interface CompiledFlowPrimaryResult {
   readonly schemaName: string;
   readonly path: string;
@@ -165,4 +180,7 @@ export interface CompiledFlowPackage {
   readonly runtimeSurface?: CompiledFlowRuntimeSurface;
   // Optional engine-visible behavior flags. Absent = all defaults.
   readonly engineFlags?: CompiledFlowEngineFlags;
+  // Config prerequisites the CLI validates up-front before any worker runs.
+  // Absent = no required config.
+  readonly requiredConfig?: readonly CompiledFlowAxisConfigRequirement[];
 }

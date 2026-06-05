@@ -902,6 +902,70 @@ describe('operator summary writer', () => {
     }
   });
 
+  it('does not repeat the Pursue Result summary as a key point (F-L-1)', () => {
+    writeReport('reports/pursuit-result.json', {
+      summary:
+        'Executed both tiny pursuits serially. Pursuit-1 documented add.js; Pursuit-2 ran npm run verify, which succeeded.',
+      outcome: 'complete',
+      verification_status: 'passed',
+      review_verdict: 'clean',
+      total_pursuits: 2,
+      completed_count: 2,
+      skipped_count: 0,
+      blocked_count: 0,
+      failed_count: 0,
+      serial_code_writes: true,
+      evidence_links: [
+        {
+          report_id: 'pursuit.review',
+          path: 'reports/pursuit/review.json',
+          schema: 'pursuit.review@v1',
+        },
+      ],
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('pursue'),
+      route: { selectedFlow: 'pursue' },
+    });
+
+    const slots = written.summary.brief_slots;
+    if (slots === undefined) throw new Error('expected brief_slots');
+    // The Result summary already fills the assessment slot, so it must not also
+    // render as a key point (neither bare nor with the "Result: " prefix).
+    expect(slots.key_points).not.toContain(`Result: ${slots.assessment}`);
+    for (const point of slots.key_points) {
+      expect(point).not.toBe(slots.assessment);
+    }
+  });
+
+  it('keeps the Review Result summary as a key point when a distinct assessment exists (F-L-1 non-regression)', () => {
+    writeReport('reports/review-result.json', {
+      summary: 'Reviewed the auth diff; one medium finding.',
+      verdict: 'ISSUES_FOUND',
+      assessment: 'The token refresh path drops the retry budget on a 401.',
+      findings: [{ severity: 'medium', text: 'Retry budget reset on 401', file_refs: ['auth.ts'] }],
+      evidence_links: [
+        { report_id: 'review.audit', path: 'reports/review/audit.json', schema: 'review.audit@v1' },
+      ],
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('review'),
+      route: { selectedFlow: 'review' },
+    });
+
+    const slots = written.summary.brief_slots;
+    if (slots === undefined) throw new Error('expected brief_slots');
+    // Review carries both an assessment paragraph and a Result summary; the
+    // assessment comes from the paragraph, so the Result line stays a distinct
+    // key point and must not be dropped.
+    expect(slots.assessment).toContain('token refresh path');
+    expect(slots.key_points.some((point) => point.startsWith('Result: '))).toBe(true);
+  });
+
   it('renders Fix outcomes through friendly phrases instead of leaking the raw "outcome partial" enum into the headline', () => {
     const cases: Array<{
       readonly outcome: string;

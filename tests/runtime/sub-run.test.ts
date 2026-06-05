@@ -24,7 +24,7 @@ afterEach(async () => {
 
 function parentFlow(
   pass: readonly string[] = ['accept'],
-  options: { readonly reportPath?: string } = {},
+  options: { readonly reportPath?: string; readonly stopRoute?: boolean } = {},
 ): ExecutableFlow {
   return {
     id: 'parent-test',
@@ -37,7 +37,12 @@ function parentFlow(
         kind: 'sub-run',
         title: 'Run child',
         protocol: 'sub-run-test@v1',
-        routes: { pass: { kind: 'terminal', target: '@complete' } },
+        routes: {
+          pass: { kind: 'terminal', target: '@complete' },
+          ...(options.stopRoute === true
+            ? { stop: { kind: 'terminal', target: '@stop' as const } }
+            : {}),
+        },
         flowRef: 'child-test',
         entryMode: 'default',
         goal: 'child goal',
@@ -280,6 +285,51 @@ describe('runtime sub-run executor', () => {
         reason: expect.stringContaining("child closed with outcome 'aborted'"),
       }),
     );
+  });
+
+  it('routes the declared stop route when the child closes non-complete instead of aborting the parent', async () => {
+    // F-M-1: a child that ran end to end and handed back a typed RunResult but
+    // closed non-complete (e.g. build aborts after verification retries) is a
+    // legible non-success, not an infrastructure failure. When the sub-run step
+    // declares a `stop` route, the parent must take it (goal: @stop -> stopped)
+    // rather than crashing on the missing verdict. This is the exact shape of
+    // the surface-test build child: outcome 'aborted', no verdict field.
+    const runDir = join(baseDir, 'parent-child-aborted-stop-route-run');
+    const result = await executeExecutableFlow(parentFlow(['accept'], { stopRoute: true }), {
+      runDir,
+      runId: '50000000-0000-4000-8000-000000000012',
+      goal: 'parent goal',
+      childCompiledFlowResolver: () => ({ flowBytes: childFlowBytes() }),
+      childRunner: stubChildRunnerWithResultBody({ outcome: 'aborted' }),
+      now: () => new Date('2026-05-03T00:00:00.000Z'),
+    });
+
+    const entries = await trace(runDir);
+    const finalResult = RunResult.parse(
+      JSON.parse(await readFile(join(runDir, 'reports', 'result.json'), 'utf8')),
+    );
+    expect(result.outcome).toBe('stopped');
+    expect(result.verdict).toBeUndefined();
+    expect(finalResult.outcome).toBe('stopped');
+    // The trace explains the real cause (the child's own outcome), not the
+    // downstream "missing verdict" symptom.
+    expect(entries).toContainEqual(
+      expect.objectContaining({
+        kind: 'sub_run.completed',
+        step_id: 'child-step',
+        child_outcome: 'aborted',
+      }),
+    );
+    expect(entries).toContainEqual(
+      expect.objectContaining({
+        kind: 'check.evaluated',
+        step_id: 'child-step',
+        outcome: 'fail',
+        reason: expect.stringContaining("child closed with outcome 'aborted'"),
+      }),
+    );
+    // The parent did not abort: no step.aborted / run.closed-aborted reason.
+    expect(result.reason).toBeUndefined();
   });
 
   it('fails before child start when writes.report diverges from writes.result', async () => {

@@ -11,6 +11,7 @@ import { runCompiledFlowWithWaiting } from '../runtime/run/compiled-flow-runner.
 import { isGraphCheckpointWaitingResult } from '../runtime/run/graph-runner.js';
 import { Axes, type Axes as AxesValue, TournamentN } from '../schemas/axes.js';
 import { CompiledFlow } from '../schemas/compiled-flow.js';
+import type { LayeredConfig } from '../schemas/config.js';
 import { HostKind, type HostKind as HostKindValue } from '../schemas/host.js';
 import { CompiledFlowId, RunId } from '../schemas/ids.js';
 import { computeManifestHash } from '../schemas/manifest.js';
@@ -547,6 +548,48 @@ function validateFlowAxes(input: {
   }
 }
 
+// Resolve a dot path (e.g. 'circuits.prototype.variant_models') across the
+// layered selection config. The last layer that defines it wins, matching how
+// flow writers read config. Returns undefined when no layer defines the path.
+function readConfigPathFromLayers(layers: readonly LayeredConfig[], dotPath: string): unknown {
+  const segments = dotPath.split('.');
+  let resolved: unknown;
+  for (const layer of layers) {
+    let cursor: unknown = layer.config;
+    for (const segment of segments) {
+      if (cursor === null || typeof cursor !== 'object') {
+        cursor = undefined;
+        break;
+      }
+      cursor = (cursor as Record<string, unknown>)[segment];
+    }
+    if (cursor !== undefined) resolved = cursor;
+  }
+  return resolved;
+}
+
+// Reject up-front when an active axis needs config the operator has not
+// supplied. This runs before any worker, so a missing prerequisite fails like
+// an unsupported axis (exit 2, no run folder) instead of aborting mid-run.
+function validateFlowConfigRequirements(input: {
+  readonly flow: CompiledFlow;
+  readonly axes: AxesValue;
+  readonly selectionConfigLayers: readonly LayeredConfig[];
+}): void {
+  const requirements = findCompiledFlowPackageById(
+    input.flow.id as unknown as string,
+  )?.requiredConfig;
+  if (requirements === undefined) return;
+  for (const requirement of requirements) {
+    const axisActive =
+      requirement.axis === 'tournament' ? input.axes.tournament : input.axes.autonomous;
+    if (!axisActive) continue;
+    if (readConfigPathFromLayers(input.selectionConfigLayers, requirement.path) === undefined) {
+      throw new Error(requirement.message);
+    }
+  }
+}
+
 function loadFixture(fixturePath: string): { flow: CompiledFlow; bytes: Buffer } {
   if (!existsSync(fixturePath)) {
     throw new Error(`flow fixture not found: ${fixturePath}`);
@@ -887,6 +930,12 @@ async function runExecutionCommand(args: ParsedArgs, options: CliMainOptions): P
     ...(options.configCwd !== undefined ? { cwd: options.configCwd } : {}),
   });
   const { policyLayers, selectionConfigLayers } = runtimeConfigLayers;
+  try {
+    validateFlowConfigRequirements({ flow, axes: args.axes, selectionConfigLayers });
+  } catch (err) {
+    process.stderr.write(`error: ${(err as Error).message}\n`);
+    return 2;
+  }
   const hostKind = runtimeHostKind(options);
 
   const projectRoot = resolve(options.configCwd ?? process.cwd());
