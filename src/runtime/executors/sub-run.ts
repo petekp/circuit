@@ -11,9 +11,9 @@ import {
   type CompiledFlow as ParsedChildFlow,
 } from '../../schemas/compiled-flow.js';
 import { type RunResult as ParsedRunResult, RunResult } from '../../schemas/result.js';
-import { NO_VERDICT_SENTINEL } from '../../shared/relay-support.js';
 import type { StepOutcome } from '../domain/step.js';
 import type { SubRunStep } from '../manifest/executable-flow.js';
+import { NO_VERDICT_SENTINEL } from '../run/relay-support.js';
 import type { RunContext } from '../run/run-context.js';
 import {
   type StepExecutionResult,

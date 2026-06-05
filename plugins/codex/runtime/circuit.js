@@ -47504,7 +47504,597 @@ function evidenceFromAcceptanceCriteriaTrace(input) {
   });
 }
 
-// dist/shared/relay-support.js
+// dist/shared/zod-to-response-schema.js
+function isRecord3(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function normalizeSchemaNode(node) {
+  if (!isRecord3(node))
+    return;
+  if (Array.isArray(node.oneOf) && node.anyOf === void 0) {
+    node.anyOf = node.oneOf;
+    Reflect.deleteProperty(node, "oneOf");
+  }
+  if (node.type === "object" && isRecord3(node.properties) && node.additionalProperties === void 0) {
+    node.additionalProperties = false;
+  }
+  if (isRecord3(node.additionalProperties) && Object.keys(node.additionalProperties).length === 0) {
+    node.additionalProperties = true;
+  }
+  for (const value of Object.values(node)) {
+    if (Array.isArray(value)) {
+      for (const item of value)
+        normalizeSchemaNode(item);
+    } else {
+      normalizeSchemaNode(value);
+    }
+  }
+}
+function assertNoReferenceSyntax(node) {
+  if (!isRecord3(node))
+    return;
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "$ref" || key === "$defs" || key === "definitions") {
+      throw new Error(`Zod JSON Schema conversion emitted unsupported ${key}`);
+    }
+    if (Array.isArray(value)) {
+      for (const item of value)
+        assertNoReferenceSyntax(item);
+    } else {
+      assertNoReferenceSyntax(value);
+    }
+  }
+}
+function responseJsonSchemaFromZod(schema) {
+  const result = external_exports.toJSONSchema(schema, {
+    target: "draft-07",
+    io: "input",
+    reused: "inline",
+    cycles: "throw"
+  });
+  if (typeof result !== "object" || result === null) {
+    throw new Error("Zod JSON Schema conversion returned a non-object value");
+  }
+  normalizeSchemaNode(result);
+  assertNoReferenceSyntax(result);
+  return result;
+}
+
+// dist/runtime/run/recovery-selection.js
+var FALLBACK_RECOVERY_ROUTE_ORDER = [
+  "retry",
+  "revise",
+  "ask",
+  "stop",
+  "handoff",
+  "escalate"
+];
+function routeTargetKey(target) {
+  return target.kind === "terminal" ? target.target : target.stepId;
+}
+function bindingMatches(input) {
+  if (input.binding.step_id !== input.step.id)
+    return false;
+  if (!input.binding.allowed_failure_causes.includes(input.cause))
+    return false;
+  const target = input.step.routes[input.binding.route_id];
+  return target !== void 0 && input.binding.route_target === routeTargetKey(target);
+}
+function fallbackRouteByRecoveryOrder(step) {
+  return FALLBACK_RECOVERY_ROUTE_ORDER.find((route) => Object.hasOwn(step.routes, route));
+}
+function recoveryBindingForFailure(input) {
+  const preferredRouteDeclared = input.preferredRoute !== void 0 && Object.hasOwn(input.step.routes, input.preferredRoute);
+  if (input.workContractRef === void 0)
+    return void 0;
+  const matchingBindings = input.recoveryRouteBindings?.filter((binding) => bindingMatches({ step: input.step, binding, cause: input.cause })) ?? [];
+  if (preferredRouteDeclared && matchingBindings.some((binding) => binding.route_id === input.preferredRoute)) {
+    return matchingBindings.find((binding) => binding.route_id === input.preferredRoute);
+  }
+  return matchingBindings[0];
+}
+function recoveryRouteForFailure(input) {
+  if (input.workContractRef === void 0) {
+    const preferredRouteDeclared = input.preferredRoute !== void 0 && Object.hasOwn(input.step.routes, input.preferredRoute);
+    if (preferredRouteDeclared)
+      return input.preferredRoute;
+    return fallbackRouteByRecoveryOrder(input.step);
+  }
+  return recoveryBindingForFailure(input)?.route_id;
+}
+
+// dist/selection/selection-resolver.js
+var PRE_FLOW_CONFIG_SOURCES = ["default", "user-global", "project"];
+function overrideContributes2(o) {
+  if (o.model !== void 0)
+    return true;
+  if (o.effort !== void 0)
+    return true;
+  if (o.depth !== void 0)
+    return true;
+  if (o.skills.mode !== "inherit")
+    return true;
+  if (Object.keys(o.invocation_options).length > 0)
+    return true;
+  return false;
+}
+function composeConfigLayerSelection(base, circuit, current) {
+  if (base === void 0 && circuit === void 0)
+    return void 0;
+  const baseSkillOp = base?.skills.mode === "inherit" ? void 0 : base?.skills;
+  const circuitSkillOp = circuit?.skills.mode === "inherit" ? void 0 : circuit?.skills;
+  let skills;
+  if (baseSkillOp !== void 0 || circuitSkillOp !== void 0) {
+    const baseSkills = baseSkillOp !== void 0 ? applySkillOp(current.skills, baseSkillOp) : current.skills;
+    const composedSkills = circuitSkillOp !== void 0 ? applySkillOp(baseSkills, circuitSkillOp) : baseSkills;
+    skills = { mode: "replace", skills: [...composedSkills] };
+  }
+  const raw = {
+    ...base?.model !== void 0 || circuit?.model !== void 0 ? { model: circuit?.model ?? base?.model } : {},
+    ...base?.effort !== void 0 || circuit?.effort !== void 0 ? { effort: circuit?.effort ?? base?.effort } : {},
+    ...skills !== void 0 ? { skills } : {},
+    ...base?.depth !== void 0 || circuit?.depth !== void 0 ? { depth: circuit?.depth ?? base?.depth } : {},
+    invocation_options: {
+      ...base?.invocation_options ?? {},
+      ...circuit?.invocation_options ?? {}
+    }
+  };
+  const parsed = SelectionOverride.parse(raw);
+  return overrideContributes2(parsed) ? parsed : void 0;
+}
+function configLayerSelection(flowId, layer, current) {
+  const circuits = layer.config.circuits;
+  const circuit = Object.hasOwn(circuits, flowId) ? circuits[flowId] : void 0;
+  return composeConfigLayerSelection(layer.config.defaults.selection, circuit?.selection, current);
+}
+function applySkillOp(base, op) {
+  if (op.mode === "inherit")
+    return base;
+  if (op.mode === "replace")
+    return op.skills;
+  if (op.mode === "append") {
+    const seen = new Set(base);
+    const out = [...base];
+    for (const s of op.skills) {
+      const key = s;
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(s);
+      }
+    }
+    return out;
+  }
+  const removeSet = new Set(op.skills);
+  return base.filter((s) => !removeSet.has(s));
+}
+function applyOverride(current, override) {
+  const model = override.model ?? current.model;
+  const effort = override.effort ?? current.effort;
+  const depth = override.depth ?? current.depth;
+  const skills = applySkillOp(current.skills, override.skills);
+  const invocation_options = {
+    ...current.invocation_options,
+    ...override.invocation_options
+  };
+  return {
+    ...model !== void 0 ? { model } : {},
+    ...effort !== void 0 ? { effort } : {},
+    skills,
+    ...depth !== void 0 ? { depth } : {},
+    invocation_options
+  };
+}
+function pushIfContributing(applied, entry, resolved) {
+  if (!overrideContributes2(entry.override))
+    return resolved;
+  applied.push(entry);
+  return applyOverride(resolved, entry.override);
+}
+function configLayersBySource(layers) {
+  const out = {};
+  const seen = /* @__PURE__ */ new Set();
+  for (const layer of layers) {
+    if (seen.has(layer.layer)) {
+      throw new Error(`duplicate selection config layer '${layer.layer}'`);
+    }
+    seen.add(layer.layer);
+    out[layer.layer] = layer;
+  }
+  return out;
+}
+function resolveSelectionForGuidanceInput(input) {
+  const flowId = input.flow.id;
+  const stepId = input.step.id;
+  const applied = [];
+  let resolved = { skills: [], invocation_options: {} };
+  const configLayers = configLayersBySource(input.configLayers ?? []);
+  for (const source of PRE_FLOW_CONFIG_SOURCES) {
+    const layer = configLayers[source];
+    if (layer === void 0)
+      continue;
+    const override = configLayerSelection(flowId, layer, resolved);
+    if (override === void 0)
+      continue;
+    resolved = pushIfContributing(applied, {
+      source,
+      override
+    }, resolved);
+  }
+  if (input.flow.default_selection !== void 0) {
+    resolved = pushIfContributing(applied, { source: "flow", override: input.flow.default_selection }, resolved);
+  }
+  for (const stage of input.flow.stages) {
+    const stageSteps = stage.steps;
+    if (!stageSteps.includes(stepId))
+      continue;
+    if (stage.selection === void 0)
+      continue;
+    resolved = pushIfContributing(applied, { source: "stage", stage_id: stage.id, override: stage.selection }, resolved);
+  }
+  if (input.step.selection !== void 0) {
+    resolved = pushIfContributing(applied, {
+      source: "step",
+      step_id: input.step.id,
+      override: input.step.selection
+    }, resolved);
+  }
+  const invocationLayer = configLayers.invocation;
+  const invocationOverride = invocationLayer === void 0 ? void 0 : configLayerSelection(flowId, invocationLayer, resolved);
+  if (invocationOverride !== void 0) {
+    resolved = pushIfContributing(applied, { source: "invocation", override: invocationOverride }, resolved);
+  }
+  return SelectionResolution.parse({ resolved, applied });
+}
+
+// dist/selection/relay-selection.js
+function bindsExecutionDepthToGuidanceSelection(inv) {
+  return inv.bindsExecutionDepthToGuidanceSelection === true;
+}
+function guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth) {
+  const layers = [...inv.selectionConfigLayers ?? []];
+  const flowId = flow.id;
+  const existingIndex = layers.findIndex((layer) => layer.layer === "invocation");
+  const existing = existingIndex === -1 ? void 0 : layers[existingIndex];
+  const baseConfig = existing?.config ?? Config.parse({ schema_version: 1 });
+  const existingCircuit = baseConfig.circuits[flowId];
+  const selection = {
+    ...existingCircuit?.selection ?? {},
+    depth
+  };
+  const invocationLayer = LayeredConfig.parse({
+    layer: "invocation",
+    ...existing?.source_path === void 0 ? {} : { source_path: existing.source_path },
+    config: {
+      ...baseConfig,
+      circuits: {
+        ...baseConfig.circuits,
+        [flowId]: {
+          ...existingCircuit ?? {},
+          selection
+        }
+      }
+    }
+  });
+  if (existingIndex === -1) {
+    layers.push(invocationLayer);
+  } else {
+    layers[existingIndex] = invocationLayer;
+  }
+  return layers;
+}
+function selectionConfigLayersForGuidanceInput(inv, flow, depth) {
+  if (!bindsExecutionDepthToGuidanceSelection(inv)) {
+    return inv.selectionConfigLayers ?? [];
+  }
+  return guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth);
+}
+function deriveResolvedSelection(inv, flow, step, depth) {
+  return resolveSelectionForGuidanceInput({
+    flow,
+    step,
+    configLayers: selectionConfigLayersForGuidanceInput(inv, flow, depth)
+  }).resolved;
+}
+
+// dist/shared/skill-loading.js
+function resolveSkillBindingsForFlow(flowId, configLayers = []) {
+  const globalBindings = /* @__PURE__ */ new Map();
+  const flowBindings = /* @__PURE__ */ new Map();
+  const flowKey = flowId;
+  for (const layer of configLayers) {
+    for (const [slot, skill] of Object.entries(layer.config.skills.bindings)) {
+      if (skill === void 0)
+        continue;
+      globalBindings.set(slot, skill);
+    }
+    const circuit = layer.config.circuits[flowKey];
+    if (circuit === void 0)
+      continue;
+    for (const [slot, skill] of Object.entries(circuit.skill_bindings)) {
+      if (skill === void 0)
+        continue;
+      flowBindings.set(slot, skill);
+    }
+  }
+  return new Map([...globalBindings, ...flowBindings]);
+}
+function resolveLoadedRelaySkills(input) {
+  const registry2 = input.registry ?? createUserSkillRegistry();
+  const bindings = resolveSkillBindingsForFlow(input.flowId, input.configLayers);
+  const loaded = [];
+  const seen = /* @__PURE__ */ new Set();
+  const addSkill = (id, slot) => {
+    const key = id;
+    if (seen.has(key))
+      return;
+    let resolved;
+    try {
+      resolved = registry2.resolve(id);
+    } catch (err) {
+      const slotText = slot === void 0 ? "" : ` for slot '${slot}'`;
+      throw new Error(`relay step '${input.stepId}' selected skill '${key}'${slotText} could not be resolved:
+${err.message}`);
+    }
+    seen.add(key);
+    loaded.push({
+      id: resolved.entry.id,
+      ...slot === void 0 ? {} : { slot },
+      path: resolved.entry.path,
+      sha256: resolved.entry.sha256,
+      bytes: resolved.entry.bytes,
+      body: resolved.body
+    });
+  };
+  for (const id of input.resolvedSelection.skills) {
+    addSkill(id);
+  }
+  for (const slot of input.skillSlots) {
+    const skill = bindings.get(slot.id);
+    if (skill === void 0)
+      continue;
+    addSkill(skill, slot.id);
+  }
+  for (const id of input.injectedSkillIds ?? []) {
+    addSkill(id);
+  }
+  return loaded;
+}
+
+// dist/runtime/run/relay-guidance.js
+function builtinConnector(name) {
+  if (name === "claude-code" || name === "codex" || name === "cursor-agent") {
+    return { kind: "builtin", name };
+  }
+  return void 0;
+}
+function resolvedConnectorName(connector) {
+  return connector?.name;
+}
+function configLayerConnector(name, configLayers) {
+  let descriptor;
+  for (const layer of configLayers ?? []) {
+    descriptor = layer.config.relay.connectors[name] ?? descriptor;
+  }
+  return descriptor;
+}
+function policyLayerConnector(name, policyLayers) {
+  let descriptor;
+  for (const layer of policyLayers ?? []) {
+    descriptor = layer.envelope.policy.rules.connectors.registry[name] ?? descriptor;
+  }
+  return descriptor;
+}
+function connectorFromPolicyRef(ref, policyLayers) {
+  if (ref.kind === "builtin")
+    return ref;
+  const descriptor = policyLayerConnector(ref.name, policyLayers);
+  if (descriptor !== void 0)
+    return descriptor;
+  throw new Error(`policy connector '${ref.name}' is referenced but not declared`);
+}
+function requestedConnectorForGuidanceInput(input) {
+  const suppliedResolved = input.suppliedConnector?.connector;
+  const suppliedResolvedName = resolvedConnectorName(suppliedResolved);
+  const suppliedName = input.suppliedConnector?.connectorName ?? suppliedResolvedName;
+  if (input.suppliedConnector?.connectorName !== void 0 && suppliedResolvedName !== void 0 && input.suppliedConnector.connectorName !== suppliedResolvedName) {
+    throw new Error(`relay connector identity mismatch: connectorName '${input.suppliedConnector.connectorName}' does not match resolved connector '${suppliedResolvedName}'`);
+  }
+  if (input.stepConnector !== void 0 && suppliedName !== void 0 && input.stepConnector !== suppliedName) {
+    throw new Error(`relay connector identity mismatch: step requests '${input.stepConnector}' but supplied connector is '${suppliedName}'`);
+  }
+  const requested = input.stepConnector ?? suppliedName;
+  if (requested === void 0)
+    return void 0;
+  const builtin = builtinConnector(requested);
+  if (builtin !== void 0)
+    return builtin;
+  if (suppliedResolved !== void 0 && suppliedResolved.name === requested) {
+    return suppliedResolved;
+  }
+  const policyConfigured = policyLayerConnector(requested, input.policyLayers);
+  if (policyConfigured !== void 0)
+    return policyConfigured;
+  const configured = configLayerConnector(requested, input.configLayers);
+  if (configured !== void 0)
+    return configured;
+  throw new Error(`relay connector '${requested}' requires resolved connector capabilities before execution`);
+}
+function relayDecision(connector, resolvedFrom, role) {
+  assertConnectorCanRunRole(connector, role);
+  return {
+    role,
+    connectorName: connector.name,
+    connector,
+    resolvedFrom
+  };
+}
+function policyConnectorChoice(input) {
+  if ((input.policyLayers?.length ?? 0) === 0)
+    return void 0;
+  let roleRef;
+  let flowRef;
+  let defaultRef;
+  const flowId = input.flowId;
+  for (const layer of input.policyLayers ?? []) {
+    roleRef = layer.envelope.policy.preferences.relay.roles[input.role]?.prefer_connector ?? roleRef;
+    for (const hint of layer.envelope.policy.preferences.relay.flow_connector_hints) {
+      if (hint.flow_id === flowId) {
+        flowRef = hint.prefer_connector;
+      }
+    }
+    defaultRef = layer.envelope.policy.defaults.connector ?? defaultRef;
+  }
+  if (roleRef !== void 0) {
+    return relayDecision(connectorFromPolicyRef(roleRef, input.policyLayers), { source: "role", role: input.role }, input.role);
+  }
+  if (flowRef !== void 0) {
+    return relayDecision(connectorFromPolicyRef(flowRef, input.policyLayers), { source: "circuit", flow_id: flowId }, input.role);
+  }
+  if (defaultRef !== void 0 && defaultRef !== "auto") {
+    return relayDecision(connectorFromPolicyRef(defaultRef, input.policyLayers), { source: "default" }, input.role);
+  }
+  return void 0;
+}
+var EFFORT_ORDER2 = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+function effortExceedsMax(effort, maxEffort) {
+  if (effort === void 0 || maxEffort === void 0)
+    return false;
+  return EFFORT_ORDER2.indexOf(effort) > EFFORT_ORDER2.indexOf(maxEffort);
+}
+function assertPolicyAllowsRelayPlan(input) {
+  const policyLayers = input.context.policyLayers ?? [];
+  assertPolicyAllowsRelayExecutionInput({
+    policyLayers,
+    role: input.role,
+    connectorName: input.connectorName,
+    resolvedSelection: input.resolvedSelection
+  });
+  if (policyLayers.length === 0)
+    return;
+  const constraints = composePolicyHardConstraints(policyLayers.map((layer) => layer.envelope));
+  const deniedSkills = new Set(constraints.skills.deny);
+  const deniedLoadedSkill = input.loadedSkills.find((skill) => deniedSkills.has(skill.id));
+  if (deniedLoadedSkill !== void 0) {
+    throw new Error(`PolicyEnvelope disallows skill '${deniedLoadedSkill.id}': skill is denied`);
+  }
+}
+function assertPolicyAllowsRelayExecutionInput(input) {
+  const policyLayers = input.policyLayers ?? [];
+  if (policyLayers.length === 0)
+    return;
+  const constraints = composePolicyHardConstraints(policyLayers.map((layer) => layer.envelope));
+  const allowedConnectors = constraints.connectors.allow;
+  if (allowedConnectors !== void 0 && !allowedConnectors.includes(input.connectorName)) {
+    throw new Error(`PolicyEnvelope disallows connector '${input.connectorName}': not in allowed connectors`);
+  }
+  if (constraints.connectors.deny.includes(input.connectorName)) {
+    throw new Error(`PolicyEnvelope disallows connector '${input.connectorName}': connector is denied`);
+  }
+  if (input.role === "implementer" && constraints.connectors.deny_for_write.includes(input.connectorName)) {
+    throw new Error(`PolicyEnvelope disallows connector '${input.connectorName}': connector is denied for write-capable relays`);
+  }
+  const provider = input.resolvedSelection?.model?.provider;
+  if (provider !== void 0 && constraints.models.deny_providers.includes(provider)) {
+    throw new Error(`PolicyEnvelope disallows provider '${provider}': provider is denied`);
+  }
+  const requiredProvider = constraints.models.require_provider_for_connector[input.connectorName];
+  if (requiredProvider !== void 0 && provider !== requiredProvider) {
+    throw new Error(`PolicyEnvelope requires connector '${input.connectorName}' to use provider '${requiredProvider}'`);
+  }
+  if (effortExceedsMax(input.resolvedSelection?.effort, constraints.limits.max_effort)) {
+    throw new Error(`PolicyEnvelope disallows effort '${input.resolvedSelection?.effort}': max effort is '${constraints.limits.max_effort}'`);
+  }
+}
+function resolveRelayGuidanceExecution(input) {
+  const role = RelayRole.parse(input.role);
+  const explicitConnector = requestedConnectorForGuidanceInput({
+    ...input.stepConnector === void 0 ? {} : { stepConnector: input.stepConnector },
+    ...input.suppliedConnector === void 0 ? {} : { suppliedConnector: input.suppliedConnector },
+    ...input.configLayers === void 0 ? {} : { configLayers: input.configLayers },
+    ...input.policyLayers === void 0 ? {} : { policyLayers: input.policyLayers }
+  });
+  const resolved = explicitConnector === void 0 ? policyConnectorChoice({
+    flowId: input.flowId,
+    role,
+    ...input.policyLayers === void 0 ? {} : { policyLayers: input.policyLayers }
+  }) ?? resolveConnectorForGuidanceInput({
+    flowId: input.flowId,
+    role,
+    ...input.configLayers === void 0 ? {} : { configLayers: input.configLayers },
+    ...input.hostKind === void 0 ? {} : { hostKind: input.hostKind }
+  }) : resolveConnectorForGuidanceInput({
+    flowId: input.flowId,
+    role,
+    ...input.configLayers === void 0 ? {} : { configLayers: input.configLayers },
+    explicitConnector,
+    ...input.hostKind === void 0 ? {} : { hostKind: input.hostKind }
+  });
+  const resolvedConnector = resolved.connector;
+  assertPolicyAllowsRelayExecutionInput({
+    ...input.policyLayers === void 0 ? {} : { policyLayers: input.policyLayers },
+    role,
+    connectorName: resolvedConnector.name
+  });
+  return {
+    role,
+    connectorName: resolvedConnector.name,
+    connector: resolvedConnector,
+    resolvedFrom: resolved.resolvedFrom
+  };
+}
+function suppliedConnectorFromRelayer(context) {
+  if (context.relayer === void 0)
+    return void 0;
+  return {
+    connectorName: context.relayer.connectorName,
+    ...context.relayer.connector === void 0 ? {} : { connector: context.relayer.connector },
+    async relay() {
+      throw new Error("relay identity placeholder should not be invoked");
+    }
+  };
+}
+function planRelayGuidanceDecision(input) {
+  const { context, step, compiledStep } = input;
+  const flow = context.packageIndex.flow;
+  const suppliedConnector = input.suppliedConnector ?? suppliedConnectorFromRelayer(context);
+  const relayExecution = resolveRelayGuidanceExecution({
+    flowId: context.flow.id,
+    role: step.role,
+    ...suppliedConnector === void 0 ? {} : { suppliedConnector },
+    ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers },
+    ...context.policyLayers === void 0 ? {} : { policyLayers: context.policyLayers },
+    ...context.hostKind === void 0 ? {} : { hostKind: context.hostKind },
+    ...step.connector === void 0 ? {} : { stepConnector: step.connector }
+  });
+  const resolvedSelection = deriveResolvedSelection({
+    ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers },
+    bindsExecutionDepthToGuidanceSelection: context.guidanceSelection?.bindsExecutionDepthToGuidanceSelection === true
+  }, flow, compiledStep, input.depth);
+  assertConnectorSelectionCompatible(relayExecution.connectorName, resolvedSelection);
+  const injectedSkillIds = relayExecution.role === "implementer" ? context.skillHookInjections?.ids() ?? [] : [];
+  const loadedSkills = resolveLoadedRelaySkills({
+    flowId: flow.id,
+    stepId: step.id,
+    skillSlots: compiledStep.skill_slots ?? [],
+    resolvedSelection,
+    ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers },
+    ...injectedSkillIds.length === 0 ? {} : { injectedSkillIds },
+    // Share the run's single registry (the same one the skill-hook dispatcher
+    // resolved against), so an injected skill recorded as triggered resolves here
+    // identically — no dispatch-vs-relay divergence, one filesystem snapshot.
+    ...context.skillRegistry === void 0 ? {} : { registry: context.skillRegistry }
+  });
+  assertPolicyAllowsRelayPlan({
+    context,
+    role: RelayRole.parse(relayExecution.role),
+    connectorName: relayExecution.connectorName,
+    resolvedSelection,
+    loadedSkills
+  });
+  return { relayExecution, resolvedSelection, loadedSkills };
+}
+
+// dist/runtime/run/relay-support.js
 import { existsSync as existsSync11, readFileSync as readFileSync22 } from "node:fs";
 
 // dist/flows/registries/shape-hints/registry.js
@@ -49809,7 +50399,7 @@ var HistoryPullLogV1 = external_exports.object({
   warnings: external_exports.array(HistoryWarningV1)
 }).strict();
 
-// dist/shared/relay-support.js
+// dist/runtime/run/relay-support.js
 var NO_VERDICT_SENTINEL = "<no-verdict>";
 function evaluateRelayCheck(step, resultBody) {
   let parsed;
@@ -49988,596 +50578,6 @@ ${readFileSync22(abs, "utf8")}`;
     ...feedbackSection === void 0 ? [] : [feedbackSection, ""],
     relayResponseInstruction(step)
   ].join("\n");
-}
-
-// dist/shared/zod-to-response-schema.js
-function isRecord3(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function normalizeSchemaNode(node) {
-  if (!isRecord3(node))
-    return;
-  if (Array.isArray(node.oneOf) && node.anyOf === void 0) {
-    node.anyOf = node.oneOf;
-    Reflect.deleteProperty(node, "oneOf");
-  }
-  if (node.type === "object" && isRecord3(node.properties) && node.additionalProperties === void 0) {
-    node.additionalProperties = false;
-  }
-  if (isRecord3(node.additionalProperties) && Object.keys(node.additionalProperties).length === 0) {
-    node.additionalProperties = true;
-  }
-  for (const value of Object.values(node)) {
-    if (Array.isArray(value)) {
-      for (const item of value)
-        normalizeSchemaNode(item);
-    } else {
-      normalizeSchemaNode(value);
-    }
-  }
-}
-function assertNoReferenceSyntax(node) {
-  if (!isRecord3(node))
-    return;
-  for (const [key, value] of Object.entries(node)) {
-    if (key === "$ref" || key === "$defs" || key === "definitions") {
-      throw new Error(`Zod JSON Schema conversion emitted unsupported ${key}`);
-    }
-    if (Array.isArray(value)) {
-      for (const item of value)
-        assertNoReferenceSyntax(item);
-    } else {
-      assertNoReferenceSyntax(value);
-    }
-  }
-}
-function responseJsonSchemaFromZod(schema) {
-  const result = external_exports.toJSONSchema(schema, {
-    target: "draft-07",
-    io: "input",
-    reused: "inline",
-    cycles: "throw"
-  });
-  if (typeof result !== "object" || result === null) {
-    throw new Error("Zod JSON Schema conversion returned a non-object value");
-  }
-  normalizeSchemaNode(result);
-  assertNoReferenceSyntax(result);
-  return result;
-}
-
-// dist/runtime/run/recovery-selection.js
-var FALLBACK_RECOVERY_ROUTE_ORDER = [
-  "retry",
-  "revise",
-  "ask",
-  "stop",
-  "handoff",
-  "escalate"
-];
-function routeTargetKey(target) {
-  return target.kind === "terminal" ? target.target : target.stepId;
-}
-function bindingMatches(input) {
-  if (input.binding.step_id !== input.step.id)
-    return false;
-  if (!input.binding.allowed_failure_causes.includes(input.cause))
-    return false;
-  const target = input.step.routes[input.binding.route_id];
-  return target !== void 0 && input.binding.route_target === routeTargetKey(target);
-}
-function fallbackRouteByRecoveryOrder(step) {
-  return FALLBACK_RECOVERY_ROUTE_ORDER.find((route) => Object.hasOwn(step.routes, route));
-}
-function recoveryBindingForFailure(input) {
-  const preferredRouteDeclared = input.preferredRoute !== void 0 && Object.hasOwn(input.step.routes, input.preferredRoute);
-  if (input.workContractRef === void 0)
-    return void 0;
-  const matchingBindings = input.recoveryRouteBindings?.filter((binding) => bindingMatches({ step: input.step, binding, cause: input.cause })) ?? [];
-  if (preferredRouteDeclared && matchingBindings.some((binding) => binding.route_id === input.preferredRoute)) {
-    return matchingBindings.find((binding) => binding.route_id === input.preferredRoute);
-  }
-  return matchingBindings[0];
-}
-function recoveryRouteForFailure(input) {
-  if (input.workContractRef === void 0) {
-    const preferredRouteDeclared = input.preferredRoute !== void 0 && Object.hasOwn(input.step.routes, input.preferredRoute);
-    if (preferredRouteDeclared)
-      return input.preferredRoute;
-    return fallbackRouteByRecoveryOrder(input.step);
-  }
-  return recoveryBindingForFailure(input)?.route_id;
-}
-
-// dist/selection/selection-resolver.js
-var PRE_FLOW_CONFIG_SOURCES = ["default", "user-global", "project"];
-function overrideContributes2(o) {
-  if (o.model !== void 0)
-    return true;
-  if (o.effort !== void 0)
-    return true;
-  if (o.depth !== void 0)
-    return true;
-  if (o.skills.mode !== "inherit")
-    return true;
-  if (Object.keys(o.invocation_options).length > 0)
-    return true;
-  return false;
-}
-function composeConfigLayerSelection(base, circuit, current) {
-  if (base === void 0 && circuit === void 0)
-    return void 0;
-  const baseSkillOp = base?.skills.mode === "inherit" ? void 0 : base?.skills;
-  const circuitSkillOp = circuit?.skills.mode === "inherit" ? void 0 : circuit?.skills;
-  let skills;
-  if (baseSkillOp !== void 0 || circuitSkillOp !== void 0) {
-    const baseSkills = baseSkillOp !== void 0 ? applySkillOp(current.skills, baseSkillOp) : current.skills;
-    const composedSkills = circuitSkillOp !== void 0 ? applySkillOp(baseSkills, circuitSkillOp) : baseSkills;
-    skills = { mode: "replace", skills: [...composedSkills] };
-  }
-  const raw = {
-    ...base?.model !== void 0 || circuit?.model !== void 0 ? { model: circuit?.model ?? base?.model } : {},
-    ...base?.effort !== void 0 || circuit?.effort !== void 0 ? { effort: circuit?.effort ?? base?.effort } : {},
-    ...skills !== void 0 ? { skills } : {},
-    ...base?.depth !== void 0 || circuit?.depth !== void 0 ? { depth: circuit?.depth ?? base?.depth } : {},
-    invocation_options: {
-      ...base?.invocation_options ?? {},
-      ...circuit?.invocation_options ?? {}
-    }
-  };
-  const parsed = SelectionOverride.parse(raw);
-  return overrideContributes2(parsed) ? parsed : void 0;
-}
-function configLayerSelection(flowId, layer, current) {
-  const circuits = layer.config.circuits;
-  const circuit = Object.hasOwn(circuits, flowId) ? circuits[flowId] : void 0;
-  return composeConfigLayerSelection(layer.config.defaults.selection, circuit?.selection, current);
-}
-function applySkillOp(base, op) {
-  if (op.mode === "inherit")
-    return base;
-  if (op.mode === "replace")
-    return op.skills;
-  if (op.mode === "append") {
-    const seen = new Set(base);
-    const out = [...base];
-    for (const s of op.skills) {
-      const key = s;
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(s);
-      }
-    }
-    return out;
-  }
-  const removeSet = new Set(op.skills);
-  return base.filter((s) => !removeSet.has(s));
-}
-function applyOverride(current, override) {
-  const model = override.model ?? current.model;
-  const effort = override.effort ?? current.effort;
-  const depth = override.depth ?? current.depth;
-  const skills = applySkillOp(current.skills, override.skills);
-  const invocation_options = {
-    ...current.invocation_options,
-    ...override.invocation_options
-  };
-  return {
-    ...model !== void 0 ? { model } : {},
-    ...effort !== void 0 ? { effort } : {},
-    skills,
-    ...depth !== void 0 ? { depth } : {},
-    invocation_options
-  };
-}
-function pushIfContributing(applied, entry, resolved) {
-  if (!overrideContributes2(entry.override))
-    return resolved;
-  applied.push(entry);
-  return applyOverride(resolved, entry.override);
-}
-function configLayersBySource(layers) {
-  const out = {};
-  const seen = /* @__PURE__ */ new Set();
-  for (const layer of layers) {
-    if (seen.has(layer.layer)) {
-      throw new Error(`duplicate selection config layer '${layer.layer}'`);
-    }
-    seen.add(layer.layer);
-    out[layer.layer] = layer;
-  }
-  return out;
-}
-function resolveSelectionForGuidanceInput(input) {
-  const flowId = input.flow.id;
-  const stepId = input.step.id;
-  const applied = [];
-  let resolved = { skills: [], invocation_options: {} };
-  const configLayers = configLayersBySource(input.configLayers ?? []);
-  for (const source of PRE_FLOW_CONFIG_SOURCES) {
-    const layer = configLayers[source];
-    if (layer === void 0)
-      continue;
-    const override = configLayerSelection(flowId, layer, resolved);
-    if (override === void 0)
-      continue;
-    resolved = pushIfContributing(applied, {
-      source,
-      override
-    }, resolved);
-  }
-  if (input.flow.default_selection !== void 0) {
-    resolved = pushIfContributing(applied, { source: "flow", override: input.flow.default_selection }, resolved);
-  }
-  for (const stage of input.flow.stages) {
-    const stageSteps = stage.steps;
-    if (!stageSteps.includes(stepId))
-      continue;
-    if (stage.selection === void 0)
-      continue;
-    resolved = pushIfContributing(applied, { source: "stage", stage_id: stage.id, override: stage.selection }, resolved);
-  }
-  if (input.step.selection !== void 0) {
-    resolved = pushIfContributing(applied, {
-      source: "step",
-      step_id: input.step.id,
-      override: input.step.selection
-    }, resolved);
-  }
-  const invocationLayer = configLayers.invocation;
-  const invocationOverride = invocationLayer === void 0 ? void 0 : configLayerSelection(flowId, invocationLayer, resolved);
-  if (invocationOverride !== void 0) {
-    resolved = pushIfContributing(applied, { source: "invocation", override: invocationOverride }, resolved);
-  }
-  return SelectionResolution.parse({ resolved, applied });
-}
-
-// dist/selection/relay-selection.js
-function bindsExecutionDepthToGuidanceSelection(inv) {
-  return inv.bindsExecutionDepthToGuidanceSelection === true;
-}
-function guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth) {
-  const layers = [...inv.selectionConfigLayers ?? []];
-  const flowId = flow.id;
-  const existingIndex = layers.findIndex((layer) => layer.layer === "invocation");
-  const existing = existingIndex === -1 ? void 0 : layers[existingIndex];
-  const baseConfig = existing?.config ?? Config.parse({ schema_version: 1 });
-  const existingCircuit = baseConfig.circuits[flowId];
-  const selection = {
-    ...existingCircuit?.selection ?? {},
-    depth
-  };
-  const invocationLayer = LayeredConfig.parse({
-    layer: "invocation",
-    ...existing?.source_path === void 0 ? {} : { source_path: existing.source_path },
-    config: {
-      ...baseConfig,
-      circuits: {
-        ...baseConfig.circuits,
-        [flowId]: {
-          ...existingCircuit ?? {},
-          selection
-        }
-      }
-    }
-  });
-  if (existingIndex === -1) {
-    layers.push(invocationLayer);
-  } else {
-    layers[existingIndex] = invocationLayer;
-  }
-  return layers;
-}
-function selectionConfigLayersForGuidanceInput(inv, flow, depth) {
-  if (!bindsExecutionDepthToGuidanceSelection(inv)) {
-    return inv.selectionConfigLayers ?? [];
-  }
-  return guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth);
-}
-function deriveResolvedSelection(inv, flow, step, depth) {
-  return resolveSelectionForGuidanceInput({
-    flow,
-    step,
-    configLayers: selectionConfigLayersForGuidanceInput(inv, flow, depth)
-  }).resolved;
-}
-
-// dist/shared/skill-loading.js
-function resolveSkillBindingsForFlow(flowId, configLayers = []) {
-  const globalBindings = /* @__PURE__ */ new Map();
-  const flowBindings = /* @__PURE__ */ new Map();
-  const flowKey = flowId;
-  for (const layer of configLayers) {
-    for (const [slot, skill] of Object.entries(layer.config.skills.bindings)) {
-      if (skill === void 0)
-        continue;
-      globalBindings.set(slot, skill);
-    }
-    const circuit = layer.config.circuits[flowKey];
-    if (circuit === void 0)
-      continue;
-    for (const [slot, skill] of Object.entries(circuit.skill_bindings)) {
-      if (skill === void 0)
-        continue;
-      flowBindings.set(slot, skill);
-    }
-  }
-  return new Map([...globalBindings, ...flowBindings]);
-}
-function resolveLoadedRelaySkills(input) {
-  const registry2 = input.registry ?? createUserSkillRegistry();
-  const bindings = resolveSkillBindingsForFlow(input.flowId, input.configLayers);
-  const loaded = [];
-  const seen = /* @__PURE__ */ new Set();
-  const addSkill = (id, slot) => {
-    const key = id;
-    if (seen.has(key))
-      return;
-    let resolved;
-    try {
-      resolved = registry2.resolve(id);
-    } catch (err) {
-      const slotText = slot === void 0 ? "" : ` for slot '${slot}'`;
-      throw new Error(`relay step '${input.stepId}' selected skill '${key}'${slotText} could not be resolved:
-${err.message}`);
-    }
-    seen.add(key);
-    loaded.push({
-      id: resolved.entry.id,
-      ...slot === void 0 ? {} : { slot },
-      path: resolved.entry.path,
-      sha256: resolved.entry.sha256,
-      bytes: resolved.entry.bytes,
-      body: resolved.body
-    });
-  };
-  for (const id of input.resolvedSelection.skills) {
-    addSkill(id);
-  }
-  for (const slot of input.skillSlots) {
-    const skill = bindings.get(slot.id);
-    if (skill === void 0)
-      continue;
-    addSkill(skill, slot.id);
-  }
-  for (const id of input.injectedSkillIds ?? []) {
-    addSkill(id);
-  }
-  return loaded;
-}
-
-// dist/runtime/run/relay-guidance.js
-function builtinConnector(name) {
-  if (name === "claude-code" || name === "codex" || name === "cursor-agent") {
-    return { kind: "builtin", name };
-  }
-  return void 0;
-}
-function resolvedConnectorName(connector) {
-  return connector?.name;
-}
-function configLayerConnector(name, configLayers) {
-  let descriptor;
-  for (const layer of configLayers ?? []) {
-    descriptor = layer.config.relay.connectors[name] ?? descriptor;
-  }
-  return descriptor;
-}
-function policyLayerConnector(name, policyLayers) {
-  let descriptor;
-  for (const layer of policyLayers ?? []) {
-    descriptor = layer.envelope.policy.rules.connectors.registry[name] ?? descriptor;
-  }
-  return descriptor;
-}
-function connectorFromPolicyRef(ref, policyLayers) {
-  if (ref.kind === "builtin")
-    return ref;
-  const descriptor = policyLayerConnector(ref.name, policyLayers);
-  if (descriptor !== void 0)
-    return descriptor;
-  throw new Error(`policy connector '${ref.name}' is referenced but not declared`);
-}
-function requestedConnectorForGuidanceInput(input) {
-  const suppliedResolved = input.suppliedConnector?.connector;
-  const suppliedResolvedName = resolvedConnectorName(suppliedResolved);
-  const suppliedName = input.suppliedConnector?.connectorName ?? suppliedResolvedName;
-  if (input.suppliedConnector?.connectorName !== void 0 && suppliedResolvedName !== void 0 && input.suppliedConnector.connectorName !== suppliedResolvedName) {
-    throw new Error(`relay connector identity mismatch: connectorName '${input.suppliedConnector.connectorName}' does not match resolved connector '${suppliedResolvedName}'`);
-  }
-  if (input.stepConnector !== void 0 && suppliedName !== void 0 && input.stepConnector !== suppliedName) {
-    throw new Error(`relay connector identity mismatch: step requests '${input.stepConnector}' but supplied connector is '${suppliedName}'`);
-  }
-  const requested = input.stepConnector ?? suppliedName;
-  if (requested === void 0)
-    return void 0;
-  const builtin = builtinConnector(requested);
-  if (builtin !== void 0)
-    return builtin;
-  if (suppliedResolved !== void 0 && suppliedResolved.name === requested) {
-    return suppliedResolved;
-  }
-  const policyConfigured = policyLayerConnector(requested, input.policyLayers);
-  if (policyConfigured !== void 0)
-    return policyConfigured;
-  const configured = configLayerConnector(requested, input.configLayers);
-  if (configured !== void 0)
-    return configured;
-  throw new Error(`relay connector '${requested}' requires resolved connector capabilities before execution`);
-}
-function relayDecision(connector, resolvedFrom, role) {
-  assertConnectorCanRunRole(connector, role);
-  return {
-    role,
-    connectorName: connector.name,
-    connector,
-    resolvedFrom
-  };
-}
-function policyConnectorChoice(input) {
-  if ((input.policyLayers?.length ?? 0) === 0)
-    return void 0;
-  let roleRef;
-  let flowRef;
-  let defaultRef;
-  const flowId = input.flowId;
-  for (const layer of input.policyLayers ?? []) {
-    roleRef = layer.envelope.policy.preferences.relay.roles[input.role]?.prefer_connector ?? roleRef;
-    for (const hint of layer.envelope.policy.preferences.relay.flow_connector_hints) {
-      if (hint.flow_id === flowId) {
-        flowRef = hint.prefer_connector;
-      }
-    }
-    defaultRef = layer.envelope.policy.defaults.connector ?? defaultRef;
-  }
-  if (roleRef !== void 0) {
-    return relayDecision(connectorFromPolicyRef(roleRef, input.policyLayers), { source: "role", role: input.role }, input.role);
-  }
-  if (flowRef !== void 0) {
-    return relayDecision(connectorFromPolicyRef(flowRef, input.policyLayers), { source: "circuit", flow_id: flowId }, input.role);
-  }
-  if (defaultRef !== void 0 && defaultRef !== "auto") {
-    return relayDecision(connectorFromPolicyRef(defaultRef, input.policyLayers), { source: "default" }, input.role);
-  }
-  return void 0;
-}
-var EFFORT_ORDER2 = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
-function effortExceedsMax(effort, maxEffort) {
-  if (effort === void 0 || maxEffort === void 0)
-    return false;
-  return EFFORT_ORDER2.indexOf(effort) > EFFORT_ORDER2.indexOf(maxEffort);
-}
-function assertPolicyAllowsRelayPlan(input) {
-  const policyLayers = input.context.policyLayers ?? [];
-  assertPolicyAllowsRelayExecutionInput({
-    policyLayers,
-    role: input.role,
-    connectorName: input.connectorName,
-    resolvedSelection: input.resolvedSelection
-  });
-  if (policyLayers.length === 0)
-    return;
-  const constraints = composePolicyHardConstraints(policyLayers.map((layer) => layer.envelope));
-  const deniedSkills = new Set(constraints.skills.deny);
-  const deniedLoadedSkill = input.loadedSkills.find((skill) => deniedSkills.has(skill.id));
-  if (deniedLoadedSkill !== void 0) {
-    throw new Error(`PolicyEnvelope disallows skill '${deniedLoadedSkill.id}': skill is denied`);
-  }
-}
-function assertPolicyAllowsRelayExecutionInput(input) {
-  const policyLayers = input.policyLayers ?? [];
-  if (policyLayers.length === 0)
-    return;
-  const constraints = composePolicyHardConstraints(policyLayers.map((layer) => layer.envelope));
-  const allowedConnectors = constraints.connectors.allow;
-  if (allowedConnectors !== void 0 && !allowedConnectors.includes(input.connectorName)) {
-    throw new Error(`PolicyEnvelope disallows connector '${input.connectorName}': not in allowed connectors`);
-  }
-  if (constraints.connectors.deny.includes(input.connectorName)) {
-    throw new Error(`PolicyEnvelope disallows connector '${input.connectorName}': connector is denied`);
-  }
-  if (input.role === "implementer" && constraints.connectors.deny_for_write.includes(input.connectorName)) {
-    throw new Error(`PolicyEnvelope disallows connector '${input.connectorName}': connector is denied for write-capable relays`);
-  }
-  const provider = input.resolvedSelection?.model?.provider;
-  if (provider !== void 0 && constraints.models.deny_providers.includes(provider)) {
-    throw new Error(`PolicyEnvelope disallows provider '${provider}': provider is denied`);
-  }
-  const requiredProvider = constraints.models.require_provider_for_connector[input.connectorName];
-  if (requiredProvider !== void 0 && provider !== requiredProvider) {
-    throw new Error(`PolicyEnvelope requires connector '${input.connectorName}' to use provider '${requiredProvider}'`);
-  }
-  if (effortExceedsMax(input.resolvedSelection?.effort, constraints.limits.max_effort)) {
-    throw new Error(`PolicyEnvelope disallows effort '${input.resolvedSelection?.effort}': max effort is '${constraints.limits.max_effort}'`);
-  }
-}
-function resolveRelayGuidanceExecution(input) {
-  const role = RelayRole.parse(input.role);
-  const explicitConnector = requestedConnectorForGuidanceInput({
-    ...input.stepConnector === void 0 ? {} : { stepConnector: input.stepConnector },
-    ...input.suppliedConnector === void 0 ? {} : { suppliedConnector: input.suppliedConnector },
-    ...input.configLayers === void 0 ? {} : { configLayers: input.configLayers },
-    ...input.policyLayers === void 0 ? {} : { policyLayers: input.policyLayers }
-  });
-  const resolved = explicitConnector === void 0 ? policyConnectorChoice({
-    flowId: input.flowId,
-    role,
-    ...input.policyLayers === void 0 ? {} : { policyLayers: input.policyLayers }
-  }) ?? resolveConnectorForGuidanceInput({
-    flowId: input.flowId,
-    role,
-    ...input.configLayers === void 0 ? {} : { configLayers: input.configLayers },
-    ...input.hostKind === void 0 ? {} : { hostKind: input.hostKind }
-  }) : resolveConnectorForGuidanceInput({
-    flowId: input.flowId,
-    role,
-    ...input.configLayers === void 0 ? {} : { configLayers: input.configLayers },
-    explicitConnector,
-    ...input.hostKind === void 0 ? {} : { hostKind: input.hostKind }
-  });
-  const resolvedConnector = resolved.connector;
-  assertPolicyAllowsRelayExecutionInput({
-    ...input.policyLayers === void 0 ? {} : { policyLayers: input.policyLayers },
-    role,
-    connectorName: resolvedConnector.name
-  });
-  return {
-    role,
-    connectorName: resolvedConnector.name,
-    connector: resolvedConnector,
-    resolvedFrom: resolved.resolvedFrom
-  };
-}
-function suppliedConnectorFromRelayer(context) {
-  if (context.relayer === void 0)
-    return void 0;
-  return {
-    connectorName: context.relayer.connectorName,
-    ...context.relayer.connector === void 0 ? {} : { connector: context.relayer.connector },
-    async relay() {
-      throw new Error("relay identity placeholder should not be invoked");
-    }
-  };
-}
-function planRelayGuidanceDecision(input) {
-  const { context, step, compiledStep } = input;
-  const flow = context.packageIndex.flow;
-  const suppliedConnector = input.suppliedConnector ?? suppliedConnectorFromRelayer(context);
-  const relayExecution = resolveRelayGuidanceExecution({
-    flowId: context.flow.id,
-    role: step.role,
-    ...suppliedConnector === void 0 ? {} : { suppliedConnector },
-    ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers },
-    ...context.policyLayers === void 0 ? {} : { policyLayers: context.policyLayers },
-    ...context.hostKind === void 0 ? {} : { hostKind: context.hostKind },
-    ...step.connector === void 0 ? {} : { stepConnector: step.connector }
-  });
-  const resolvedSelection = deriveResolvedSelection({
-    ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers },
-    bindsExecutionDepthToGuidanceSelection: context.guidanceSelection?.bindsExecutionDepthToGuidanceSelection === true
-  }, flow, compiledStep, input.depth);
-  assertConnectorSelectionCompatible(relayExecution.connectorName, resolvedSelection);
-  const injectedSkillIds = relayExecution.role === "implementer" ? context.skillHookInjections?.ids() ?? [] : [];
-  const loadedSkills = resolveLoadedRelaySkills({
-    flowId: flow.id,
-    stepId: step.id,
-    skillSlots: compiledStep.skill_slots ?? [],
-    resolvedSelection,
-    ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers },
-    ...injectedSkillIds.length === 0 ? {} : { injectedSkillIds },
-    // Share the run's single registry (the same one the skill-hook dispatcher
-    // resolved against), so an injected skill recorded as triggered resolves here
-    // identically — no dispatch-vs-relay divergence, one filesystem snapshot.
-    ...context.skillRegistry === void 0 ? {} : { registry: context.skillRegistry }
-  });
-  assertPolicyAllowsRelayPlan({
-    context,
-    role: RelayRole.parse(relayExecution.role),
-    connectorName: relayExecution.connectorName,
-    resolvedSelection,
-    loadedSkills
-  });
-  return { relayExecution, resolvedSelection, loadedSkills };
 }
 
 // dist/runtime/executors/relay.js

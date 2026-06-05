@@ -7,6 +7,7 @@ import type { ExecutableFlow } from '../../src/runtime/manifest/executable-flow.
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import { executeExecutableFlow } from '../../src/runtime/run/graph-runner.js';
 import { appendProofPolicyGuidance } from '../../src/runtime/run/guidance.js';
+import { NO_VERDICT_SENTINEL } from '../../src/runtime/run/relay-support.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlowId } from '../../src/schemas/ids.js';
 import {
@@ -16,7 +17,6 @@ import {
 import { type RunResult as ParsedRunResult, RunResult } from '../../src/schemas/result.js';
 import { RunTrace } from '../../src/schemas/run.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
-import { NO_VERDICT_SENTINEL } from '../../src/shared/relay-support.js';
 import { makeStubRelayer, withTempRun } from '../helpers/runtime-fixtures.js';
 
 type RichCheckpointRoute = 'ask' | 'retry' | 'revise' | 'stop' | 'handoff' | 'escalate';

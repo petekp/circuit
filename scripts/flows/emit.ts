@@ -986,15 +986,23 @@ async function buildArtifactDescriptors(scratchDir: string): Promise<{
 // per-flow plans and the expected skill/command id sets), so the sweep can never
 // drift from what was generated. This stays separate from emitOrCheck on
 // purpose: it is the one place where emit and check genuinely diverge.
-function sweepStaleSurfaces(
-  mode: 'emit' | 'check',
+type StaleSurfacePlan = {
+  readonly staleSiblings: readonly string[];
+  readonly internalHostMirrorDirs: readonly string[];
+  readonly staleCodexSkillDirs: readonly string[];
+  readonly staleHostCommandFiles: readonly string[];
+  readonly obsoleteRootHostSurfaces: readonly string[];
+};
+
+function collectStaleSurfaces(
   flowPlans: { entry: SchematicEntry; plan: SchematicFilePlan[] }[],
-): boolean {
-  let drifted = false;
+): StaleSurfacePlan {
   const expectedSkills = expectedCodexSkillIds();
   const expectedHostCommands = expectedHostCommandIds();
+  const staleSiblings: string[] = [];
+  const internalHostMirrorDirsToRemove: string[] = [];
   for (const { entry, plan } of flowPlans) {
-    const staleSiblings = [
+    staleSiblings.push(
       ...findStaleSiblings(entry.id, plan, 'generated/flows'),
       ...(entry.visibility === 'public'
         ? [
@@ -1011,10 +1019,44 @@ function sweepStaleSurfaces(
             }),
           ]
         : []),
-    ];
+    );
+    internalHostMirrorDirsToRemove.push(...findExistingInternalHostMirrorDirs(entry));
+  }
+  return {
+    staleSiblings,
+    internalHostMirrorDirs: internalHostMirrorDirsToRemove,
+    staleCodexSkillDirs: findStaleCodexSkillDirs(expectedSkills),
+    staleHostCommandFiles: findStaleHostCommandFiles(expectedHostCommands),
+    obsoleteRootHostSurfaces: findObsoleteRootHostSurfaces(),
+  };
+}
+
+function removeFileIfPresent(relPath: string): void {
+  const abs = resolve(projectRoot, relPath);
+  if (existsSync(abs)) unlinkSync(abs);
+}
+
+function removeDirIfPresent(relPath: string): void {
+  rmSync(resolve(projectRoot, relPath), { recursive: true, force: true });
+}
+
+function sweepStaleSurfaces(
+  mode: 'emit' | 'check',
+  flowPlans: { entry: SchematicEntry; plan: SchematicFilePlan[] }[],
+  precomputed?: StaleSurfacePlan,
+): boolean {
+  let drifted = false;
+  const stalePlan = precomputed ?? collectStaleSurfaces(flowPlans);
+  for (const { entry } of flowPlans) {
+    const staleSiblings = stalePlan.staleSiblings.filter(
+      (stale) =>
+        stale.startsWith(`generated/flows/${entry.id}/`) ||
+        stale.startsWith(`${CLAUDE_PLUGIN_ROOT_REL}/skills/${entry.id}/`) ||
+        stale.startsWith(`${CODEX_PLUGIN_ROOT_REL}/flows/${entry.id}/`),
+    );
     for (const stale of staleSiblings) {
       if (mode === 'emit') {
-        unlinkSync(resolve(projectRoot, stale));
+        removeFileIfPresent(stale);
         console.log(`removed stale ${stale}`);
       } else {
         console.error(
@@ -1023,9 +1065,11 @@ function sweepStaleSurfaces(
         drifted = true;
       }
     }
-    for (const staleDir of findExistingInternalHostMirrorDirs(entry)) {
+    for (const staleDir of stalePlan.internalHostMirrorDirs.filter((dir) =>
+      dir.endsWith(`/${entry.id}`),
+    )) {
       if (mode === 'emit') {
-        rmSync(resolve(projectRoot, staleDir), { recursive: true, force: true });
+        removeDirIfPresent(staleDir);
         console.log(`removed internal host mirror ${staleDir}`);
       } else {
         console.error(
@@ -1035,9 +1079,9 @@ function sweepStaleSurfaces(
       }
     }
   }
-  for (const stale of findStaleCodexSkillDirs(expectedSkills)) {
+  for (const stale of stalePlan.staleCodexSkillDirs) {
     if (mode === 'emit') {
-      rmSync(resolve(projectRoot, stale), { recursive: true, force: true });
+      removeDirIfPresent(stale);
       console.log(`removed stale ${stale}`);
     } else {
       console.error(
@@ -1046,9 +1090,9 @@ function sweepStaleSurfaces(
       drifted = true;
     }
   }
-  for (const stale of findStaleHostCommandFiles(expectedHostCommands)) {
+  for (const stale of stalePlan.staleHostCommandFiles) {
     if (mode === 'emit') {
-      unlinkSync(resolve(projectRoot, stale));
+      removeFileIfPresent(stale);
       console.log(`removed stale ${stale}`);
     } else {
       console.error(
@@ -1057,9 +1101,9 @@ function sweepStaleSurfaces(
       drifted = true;
     }
   }
-  for (const stale of findObsoleteRootHostSurfaces()) {
+  for (const stale of stalePlan.obsoleteRootHostSurfaces) {
     if (mode === 'emit') {
-      rmSync(resolve(projectRoot, stale), { recursive: true, force: true });
+      removeDirIfPresent(stale);
       console.log(`removed obsolete root host surface ${stale}`);
     } else {
       console.error(
@@ -1075,10 +1119,11 @@ async function emitMode(): Promise<void> {
   const tmpDir = mkdtempSync(join(tmpdir(), 'flow-emit-'));
   try {
     const { descriptors, flowPlans } = await buildArtifactDescriptors(tmpDir);
+    const stalePlan = collectStaleSurfaces(flowPlans);
     for (const descriptor of descriptors) {
       emitOrCheck(descriptor, 'emit');
     }
-    sweepStaleSurfaces('emit', flowPlans);
+    sweepStaleSurfaces('emit', flowPlans, stalePlan);
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -1089,12 +1134,13 @@ async function checkMode(): Promise<void> {
   let drifted = false;
   try {
     const { descriptors, flowPlans } = await buildArtifactDescriptors(tmpDir);
+    const stalePlan = collectStaleSurfaces(flowPlans);
     for (const descriptor of descriptors) {
       if (emitOrCheck(descriptor, 'check')) {
         drifted = true;
       }
     }
-    if (sweepStaleSurfaces('check', flowPlans)) {
+    if (sweepStaleSurfaces('check', flowPlans, stalePlan)) {
       drifted = true;
     }
   } finally {

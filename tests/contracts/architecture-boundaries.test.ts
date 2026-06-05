@@ -151,7 +151,7 @@ describe('architecture boundary ratchets', () => {
   });
 
   it('keeps top-level source import cycles inside the current architecture ratchet', () => {
-    const allowedCycles = ['app -> memory -> app', 'flows -> shared -> flows'];
+    const allowedCycles = ['app -> memory -> app'];
 
     const cycles = topLevelGraphCycles();
     expect(
@@ -161,7 +161,7 @@ describe('architecture boundary ratchets', () => {
   });
 
   it('keeps src/shared -> src/flows edges inside the current ratchet allow-list', () => {
-    const allowedFiles = ['src/shared/relay-support.ts'];
+    const allowedFiles: readonly string[] = [];
     const offenders = sourceImportEdges('src/shared').filter((edge) => edge.toModule === 'flows');
     const offenderFiles = uniqueSorted(offenders.map((edge) => edge.file));
 
