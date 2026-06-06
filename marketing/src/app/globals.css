@@ -101,6 +101,10 @@
   --flow-review-accent: hsl(338 100% 65%);
   --flow-goal: hsl(46 100% 62%);
   --flow-goal-accent: hsl(334 100% 59%);
+  --diagram-surface: hsl(0 0% 0% / 28%);
+  --diagram-chip: hsl(40 12% 15%);
+  --diagram-chip-text: hsl(45 28% 93%);
+  --diagram-shadow: hsl(0 0% 0% / 28%);
 }
 
 .dark {
@@ -188,6 +192,10 @@
     --flow-review-accent: color(display-p3 1 0.3 0.55);
     --flow-goal: color(display-p3 1 0.82 0.25);
     --flow-goal-accent: color(display-p3 1 0.18 0.53);
+    --diagram-surface: color(display-p3 0 0 0 / 28%);
+    --diagram-chip: color(display-p3 0.15 0.135 0.115);
+    --diagram-chip-text: color(display-p3 0.945 0.93 0.89);
+    --diagram-shadow: color(display-p3 0 0 0 / 28%);
   }
 
   .dark {
@@ -276,5 +284,166 @@
   }
   to {
     filter: hue-rotate(360deg) saturate(1.35);
+  }
+}
+
+.flow-composer {
+  position: relative;
+  overflow: hidden;
+  border-block: 1px solid var(--border);
+  border-radius: 6px;
+  background: linear-gradient(
+    135deg,
+    var(--diagram-surface) 0%,
+    var(--panel) 100%
+  );
+}
+
+.flow-composer-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.65fr);
+  gap: 1.5rem;
+  padding: 1.25rem;
+}
+
+.flow-composer-bank,
+.flow-composer-routes {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.flow-composer-bank {
+  gap: 1rem;
+}
+
+.flow-composer-pool {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.flow-composer-pool-chip,
+.flow-composer-step {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--diagram-chip-text);
+  background: var(--diagram-chip);
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 100% / 12%),
+    0 1px 0 var(--diagram-shadow);
+}
+
+@supports (color: color(display-p3 1 1 1)) {
+  .flow-composer-pool-chip,
+  .flow-composer-step {
+    box-shadow:
+      inset 0 1px 0 color(display-p3 1 1 1 / 12%),
+      0 1px 0 var(--diagram-shadow);
+  }
+}
+
+.flow-composer-pool-chip {
+  display: flex;
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0.4rem;
+  font-size: 0.7rem;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.flow-composer-routes {
+  gap: 0.8rem;
+}
+
+.flow-composer-route {
+  position: relative;
+  display: grid;
+  grid-template-columns: 5.2rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  min-height: 4.35rem;
+  padding: 0.8rem 0;
+}
+
+.flow-composer-route + .flow-composer-route {
+  border-top: 1px solid var(--border);
+}
+
+.flow-composer-route::before {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 6.2rem;
+  height: 1px;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--flow-color) 20%,
+    var(--flow-accent) 70%,
+    transparent 100%
+  );
+  opacity: 0.38;
+}
+
+.flow-composer-route-name {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.flow-composer-route-name span {
+  font-size: 0.86rem;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.flow-composer-sequence {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.flow-composer-step {
+  position: relative;
+  overflow: hidden;
+  padding: 0.48rem 0.58rem;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+@media (max-width: 760px) {
+  .flow-composer-grid {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+  }
+
+  .flow-composer-route {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+
+  .flow-composer-route::before {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .flow-composer-pool {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
