@@ -44973,8 +44973,7 @@ function composeAmbientBrief(record2, state, debt) {
     "Notes:",
     debt,
     "",
-    "Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked.",
-    "Useful commands: /circuit:handoff resume, /circuit:handoff done"
+    "Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked."
   ].join("\n");
 }
 function composeBriefFor(record2, state, debt) {

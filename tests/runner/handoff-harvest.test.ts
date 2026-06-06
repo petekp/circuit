@@ -459,4 +459,29 @@ describe('handoff brief precedence (manual save outranks ambient harvest)', () =
       source: 'ambient_record',
     });
   });
+
+  // The ambient brief is an automatic snapshot whose boundary says not to
+  // resume the work unasked. Nudging `resume` in the same brief contradicts
+  // that and wrongly pulls finished work back in after a `done`. The ambient
+  // brief must not advertise resume; the deliberate manual brief still does.
+  it('does not nudge resume in the ambient brief', async () => {
+    const projectRoot = tempRoot('circuit-brief-ambient-no-resume-');
+    await harvestInto(projectRoot, 'ambient snapshot that must not be resumed');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot]);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { additional_context: string };
+    expect(output.additional_context).not.toContain('/circuit:handoff resume');
+    expect(output.additional_context).not.toContain('Useful commands');
+  });
+
+  it('still offers resume in the deliberate manual brief', async () => {
+    const projectRoot = tempRoot('circuit-brief-manual-resume-');
+    await saveManual(projectRoot, 'Manual goal worth resuming');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot]);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { additional_context: string };
+    expect(output.additional_context).toContain('/circuit:handoff resume');
+  });
 });
