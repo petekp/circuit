@@ -55,6 +55,23 @@ export const RunAttachedProvenance = z
 export type RunAttachedProvenance = z.infer<typeof RunAttachedProvenance>;
 
 /**
+ * Ambient-capture provenance. Ambient records are harvested mechanically by
+ * a Stop/SessionEnd hook from the live transcript — not written by a
+ * deliberate `circuit handoff save`. This block records where the capture
+ * came from so resume adjudication can weigh it against a manual save and an
+ * operator can audit it. `transcript_path` points back to the full history;
+ * `session_id` is the harvesting session; `source` names the hook that fired.
+ */
+export const AmbientProvenance = z
+  .object({
+    session_id: z.string().min(1).optional(),
+    transcript_path: z.string().min(1),
+    source: z.enum(['stop', 'session-end']),
+  })
+  .strict();
+export type AmbientProvenance = z.infer<typeof AmbientProvenance>;
+
+/**
  * Non-contradiction between `auto_resume` and `requires_explicit_resume`.
  * Exactly one must be true. Both-true means "auto-resume AND require
  * explicit resume" — incoherent. Both-false means neither resume path is
@@ -88,6 +105,15 @@ const RunBackedResumeContract = z
   .strict()
   .refine(resumeContractRefine, resumeContractRefineMessage);
 
+const AmbientResumeContract = z
+  .object({
+    mode: z.literal('resume_ambient'),
+    auto_resume: z.boolean(),
+    requires_explicit_resume: z.boolean(),
+  })
+  .strict()
+  .refine(resumeContractRefine, resumeContractRefineMessage);
+
 const ContinuityBase = z.object({
   schema_version: z.literal(1),
   record_id: ControlPlaneFileStem,
@@ -109,6 +135,21 @@ export const RunBackedContinuity = ContinuityBase.extend({
   resume_contract: RunBackedResumeContract,
 }).strict();
 export type RunBackedContinuity = z.infer<typeof RunBackedContinuity>;
+
+/**
+ * Ambient continuity — a mechanically harvested cross-session resume point.
+ * Reuses the same narrative shape as a manual save so the brief renderer is
+ * uniform, but is discriminated by `continuity_kind: 'ambient'` and carries
+ * `ambient_provenance` instead of `run_ref`. A manual save outranks an
+ * ambient record at resume time; the index keeps them in separate pointers
+ * so neither writer clobbers the other.
+ */
+export const AmbientContinuity = ContinuityBase.extend({
+  continuity_kind: z.literal('ambient'),
+  ambient_provenance: AmbientProvenance,
+  resume_contract: AmbientResumeContract,
+}).strict();
+export type AmbientContinuity = z.infer<typeof AmbientContinuity>;
 
 /**
  * Raw-input own-property guard. `.strict()` rejects surplus own keys but
@@ -133,20 +174,30 @@ const recordOwnPropertyGuard = z.custom<unknown>((raw) => {
  * prepends an own-property guard before the discriminated union.
  */
 export const ContinuityRecord = recordOwnPropertyGuard.pipe(
-  z.discriminatedUnion('continuity_kind', [StandaloneContinuity, RunBackedContinuity]),
+  z.discriminatedUnion('continuity_kind', [
+    StandaloneContinuity,
+    RunBackedContinuity,
+    AmbientContinuity,
+  ]),
 );
 export type ContinuityRecord = z.infer<typeof ContinuityRecord>;
 
 /**
  * ContinuityIndex aggregate. The index resolves which continuity record
- * is authoritative for resume. Two orthogonal pointers:
- *   - `pending_record`: by `record_id`; null when no record is pending.
+ * is authoritative for resume. Three orthogonal pointers:
+ *   - `pending_record`: a deliberate manual save, by `record_id`; null when
+ *     no record is pending.
  *   - `current_run`: by `run_id` plus the at-attach stage/step snapshot;
  *     null when no run is attached.
+ *   - `ambient_record`: a mechanically harvested ambient record, by
+ *     `record_id`; absent/null when nothing has been harvested. Kept
+ *     separate from `pending_record` so a manual save and an auto-harvest
+ *     never overwrite each other.
  *
- * Both pointers may be simultaneously populated, simultaneously null, or
- * mixed. Resume semantics (which pointer wins when both are set) is a
- * resolver-level concern, not a schema invariant.
+ * Pointers may be simultaneously populated, simultaneously null, or mixed.
+ * Resume semantics (which pointer wins when several are set — a manual
+ * `pending_record` outranks `ambient_record`) is a resolver-level concern,
+ * not a schema invariant.
  */
 export const PendingRecordPointer = z
   .object({
@@ -169,12 +220,29 @@ export const AttachedRunPointer = z
   .strict();
 export type AttachedRunPointer = z.infer<typeof AttachedRunPointer>;
 
+/**
+ * Ambient-record pointer. The index keeps the harvested ambient record in
+ * its own pointer, orthogonal to `pending_record` (manual saves) and
+ * `current_run`. Resume prefers a manual `pending_record`; the ambient
+ * pointer is the fallback safety net. Optional/absent on pre-ambient
+ * indexes, so older index files keep parsing.
+ */
+export const AmbientRecordPointer = z
+  .object({
+    record_id: ControlPlaneFileStem,
+    continuity_kind: z.literal('ambient'),
+    created_at: z.string().datetime(),
+  })
+  .strict();
+export type AmbientRecordPointer = z.infer<typeof AmbientRecordPointer>;
+
 const ContinuityIndexBody = z
   .object({
     schema_version: z.literal(1),
     project_root: z.string().min(1),
     pending_record: PendingRecordPointer.nullable(),
     current_run: AttachedRunPointer.nullable(),
+    ambient_record: AmbientRecordPointer.nullable().optional(),
   })
   .strict();
 

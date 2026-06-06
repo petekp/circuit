@@ -8,7 +8,7 @@ depends_on: [ids, scalars, snapshot]
 report_ids:
   - continuity.record
   - continuity.index
-invariant_ids: [CONT-I1, CONT-I2, CONT-I3, CONT-I4, CONT-I5, CONT-I6, CONT-I7, CONT-I8, CONT-I9, CONT-I10, CONT-I11, CONT-I12]
+invariant_ids: [CONT-I1, CONT-I2, CONT-I3, CONT-I4, CONT-I5, CONT-I6, CONT-I7, CONT-I8, CONT-I9, CONT-I10, CONT-I11, CONT-I12, CONT-I13, CONT-I14, CONT-I15, CONT-I16, CONT-I17, CONT-I18]
 property_ids: [continuity.prop.boundary_own_property_defense, continuity.prop.discriminator_field_presence_closure, continuity.prop.index_dangling_reference_surfaces, continuity.prop.index_pointer_kind_matches_record, continuity.prop.index_pointer_roundtrip, continuity.prop.index_pointer_run_id_coherence, continuity.prop.mode_kind_coherence, continuity.prop.record_id_stem_roundtrip, continuity.prop.run_ref_matches_log_at_save, continuity.prop.safety_boolean_non_contradiction]
 ---
 
@@ -44,6 +44,18 @@ This slice adds to [UBIQUITOUS_LANGUAGE.md](../../UBIQUITOUS_LANGUAGE.md):
   `pending_record.record_id` names a file that is not present at
   `<control-plane>/continuity/records/${record_id}.json`. Runtime
   semantics: surface as an error at resume time; do not silently drop.
+- **Ambient continuity record** — a continuity record harvested
+  mechanically by a Stop/SessionEnd hook from the live transcript, rather
+  than written by a deliberate `circuit handoff save`. Same narrative
+  shape as a manual save, discriminated by `continuity_kind: 'ambient'`.
+- **Ambient-capture provenance** — the snapshot of where an ambient
+  record came from (`transcript_path`, optional `session_id`, and the
+  `source` hook that fired). Lets resume weigh an auto-harvest against a
+  manual save and lets an operator audit the capture.
+- **Ambient-record pointer** — the index entry that names the harvested
+  ambient record, kept separate from the pending-record pointer so a
+  manual save and an auto-harvest never overwrite each other. Optional on
+  pre-ambient indexes.
 
 The distinction to keep straight: a **continuity record** is the report
 at rest (a JSON file carrying narrative + resume contract + optional run
@@ -81,9 +93,10 @@ and tested in `tests/contracts/continuity-schema.test.ts`.
 - **CONT-I2 — `schema_version` is `1` (number literal).** Circuit uses
   `z.literal(1)`. String versions are rejected by the runtime schema.
 
-- **CONT-I3 — `continuity_kind` is a 2-variant discriminated union.**
-  Exactly one of `standalone` or `run-backed`. No third variant, no
-  omission, no free-form string.
+- **CONT-I3 — `continuity_kind` is a 3-variant discriminated union.**
+  Exactly one of `standalone`, `run-backed`, or `ambient`. No fourth
+  variant, no omission, no free-form string. (The `ambient` variant and
+  its field-presence/mode/safety closure are CONT-I13..I16.)
 
 - **CONT-I4 — Standalone vs run-backed field-presence closure.**
   - `standalone` records MUST NOT carry `run_ref` — enforced by
@@ -125,17 +138,19 @@ and tested in `tests/contracts/continuity-schema.test.ts`.
 
 - **CONT-I8 — Transitive `.strict()` on every nested object.** Applies
   to `GitState`, `ContinuityNarrative`, `StandaloneContinuity`,
-  `RunBackedContinuity`, both `resume_contract` inner objects,
-  `RunAttachedProvenance`, `ContinuityIndex`, `PendingRecordPointer`, and
-  `AttachedRunPointer`. Surplus keys are rejected at every depth. This
+  `RunBackedContinuity`, `AmbientContinuity`, all three `resume_contract`
+  inner objects, `RunAttachedProvenance`, `AmbientProvenance`,
+  `ContinuityIndex`, `PendingRecordPointer`, `AttachedRunPointer`, and
+  `AmbientRecordPointer`. Surplus keys are rejected at every depth. This
   closes the aggregate-level HIGH flagged by the pre-authoring review
   (the prior schema only strict-checked the top level).
 
 - **CONT-I9 — `ContinuityIndex` is a standalone aggregate.** The index
   is not an envelope around records; it is a separate on-disk report
   (`<control-plane>/continuity/index.json`) with its own
-  `schema_version`, `project_root`, `pending_record` pointer, and
-  `current_run` pointer. Both pointers are nullable and independent.
+  `schema_version`, `project_root`, `pending_record` pointer,
+  `current_run` pointer, and optional `ambient_record` pointer
+  (CONT-I18). All pointers are nullable and independent.
 
 - **CONT-I10 — `PendingRecordPointer.record_id` uses
   `ControlPlaneFileStem`.** The index-side pointer is type-aligned with
@@ -168,6 +183,53 @@ and tested in `tests/contracts/continuity-schema.test.ts`.
   `continuity.prop.boundary_own_property_defense`; v0.1 covers the
   load-bearing identity/discriminator surface.
 
+- **CONT-I13 — Ambient records carry `ambient_provenance`, not `run_ref`.**
+  An `ambient` record is harvested mechanically by a Stop/SessionEnd hook,
+  so it cannot carry run-attached provenance. It MUST carry an
+  `ambient_provenance` block (`transcript_path` required; `session_id`
+  optional; `source` one of the closed enum `'stop' | 'session-end'`) and
+  MUST NOT carry `run_ref` — enforced by `.strict()` on
+  `AmbientContinuity` (surplus-key rejection). This is the ambient analog
+  of CONT-I4's standalone/run-backed field-presence closure.
+
+- **CONT-I14 — Ambient field-presence closure.** The discriminator
+  `continuity_kind === 'ambient'` is present iff the record carries
+  `ambient_provenance` and a `resume_ambient` resume contract. A record
+  tagged `ambient` but missing `ambient_provenance` is rejected; a record
+  carrying `ambient_provenance` under any other `continuity_kind` is
+  rejected by that variant's `.strict()`.
+
+- **CONT-I15 — Ambient `resume_contract.mode` is bound to the kind.**
+  `AmbientContinuity.resume_contract.mode === 'resume_ambient'`. Crossed
+  pairings (`ambient` × `resume_standalone`; `ambient` × `resume_run`;
+  `standalone`/`run-backed` × `resume_ambient`) are rejected at parse
+  time. Extends CONT-I5 to the third variant.
+
+- **CONT-I16 — Ambient safety-boolean non-contradiction.** The ambient
+  `resume_contract` reuses the same per-variant `.refine()` as the other
+  two: exactly one of `auto_resume` / `requires_explicit_resume` is true;
+  both-true and both-false are rejected. Extends CONT-I6 to the third
+  variant. Note: an ambient record is a mechanical harvest, so the
+  resolver SHOULD default it to a require-explicit-resume posture — but
+  that posture choice is resolver work, not a schema invariant; the
+  schema only forbids the contradiction.
+
+- **CONT-I17 — `AmbientRecordPointer` is the index-side ambient entry.**
+  A `.strict()` pointer carrying `record_id` (a `ControlPlaneFileStem`,
+  type-aligned with CONT-I1/CONT-I10), `continuity_kind: 'ambient'`
+  (literal — the pointer rejects `standalone`/`run-backed`), and
+  `created_at` (ISO 8601 datetime). Same denormalized-hint caveat as
+  `PendingRecordPointer`: the record is authority, the pointer is a hint.
+
+- **CONT-I18 — Index `ambient_record` is optional and back-compatible.**
+  `ContinuityIndex.ambient_record` is `AmbientRecordPointer.nullable().optional()`:
+  populated when a harvest exists, `null` when explicitly cleared, and
+  absent on pre-ambient index files so older indexes keep parsing. It is
+  deliberately NOT in the index own-property guard (CONT-I12) — a missing
+  key is legal, so requiring own-ness would reject valid older indexes.
+  Kept in a separate pointer from `pending_record` so a manual save and an
+  auto-harvest never clobber each other (see §Resolver precedence).
+
 ## Pre-conditions
 
 - Continuity JSON must parse under `ContinuityRecord.safeParse`;
@@ -199,10 +261,12 @@ After a `ContinuityRecord` is accepted:
 
 After a `ContinuityIndex` is accepted:
 
-- Both pointers are either `null` or schema-valid; no partial pointer
-  can be stored (CONT-I9..I11).
+- Every pointer (`pending_record`, `current_run`, and the optional
+  `ambient_record`) is either `null`/absent or schema-valid; no partial
+  pointer can be stored (CONT-I9..I11, CONT-I17..I18).
 - Dangling-reference (stem valid but file absent) is NOT rejected at
-  parse time; it is a runtime adjudication at resume.
+  parse time; it is a runtime adjudication at resume — and applies to the
+  `ambient_record` pointer the same as to `pending_record`.
 
 ## Dangling reference policy
 
@@ -219,11 +283,24 @@ time (zod schemas are pure). At resume time, the resolver:
    does NOT silently drop the pointer. The runtime policy is
    `error-at-resolve`.
 
-## Resolver precedence (pending_record vs current_run)
+## Resolver precedence (pending_record vs ambient_record vs current_run)
 
-`ContinuityIndex.pending_record` and `ContinuityIndex.current_run` are
-schema-independent (CONT-I9). The schema accepts any combination, but
-the **resolver** adjudicates conflicts. Two cases are material:
+`ContinuityIndex.pending_record`, `ContinuityIndex.ambient_record`, and
+`ContinuityIndex.current_run` are schema-independent (CONT-I9). The schema
+accepts any combination, but the **resolver** adjudicates conflicts. Three
+cases are material:
+
+0. **Manual save outranks ambient harvest.** When both `pending_record`
+   (a deliberate `circuit handoff save`) and `ambient_record` (a
+   mechanical harvest) are populated, the resolver MUST prefer
+   `pending_record`. The operator's explicit intent beats an auto-capture.
+   The ambient pointer is the fallback safety net — used only when no
+   manual save is pending. This precedence is resolver-level; the schema
+   keeps the two pointers separate (CONT-I18) precisely so the resolver
+   has both available rather than one having clobbered the other. An
+   ambient record's resume posture SHOULD also be more conservative than a
+   manual save's (mechanical capture was never reviewed by the operator),
+   but that framing is resolver work, not a schema invariant.
 
 1. **Pointer kind drift.** `pending_record.continuity_kind` and the
    pointed record's `continuity_kind` can disagree, because the index
@@ -261,7 +338,8 @@ the **resolver** adjudicates conflicts. Two cases are material:
   to the same `record_id` (no escaping introduced).
 - `continuity.prop.discriminator_field_presence_closure` — for every
   accepted record, the `run_ref` field is present iff `continuity_kind
-  === 'run-backed'`.
+  === 'run-backed'`, and the `ambient_provenance` field is present iff
+  `continuity_kind === 'ambient'`.
 - `continuity.prop.mode_kind_coherence` — for every accepted record,
   `resume_contract.mode` and `continuity_kind` agree per CONT-I5.
 - `continuity.prop.safety_boolean_non_contradiction` — for every
@@ -367,6 +445,17 @@ scoped to v0.2 with rationale in the §Resolver precedence section above.
   LOW #6 (coverage additions) folded in; MED #3 (pointer-kind
   denormalization) + MED #4 (split-brain resolver precedence) scoped
   to v0.2 as resolver-level concerns.
+- **v0.1 + ambient (2026-06-06)** — additive third continuity kind for
+  the warm-writer consolidation. Adds `AmbientContinuity` (a mechanically
+  harvested cross-session resume point), `AmbientProvenance`,
+  `AmbientResumeContract` (`mode: 'resume_ambient'`), and an
+  `AmbientRecordPointer` carried in the index as an optional
+  `ambient_record`. Six new invariants (CONT-I13..I18). Back-compatible:
+  the index pointer is `.nullable().optional()`, so pre-ambient index
+  files keep parsing, and the new kind widens (not narrows) the record
+  union. Motivated by folding the personal warm-handoff writer into
+  Circuit's per-repo continuity store so the two continuity layers stop
+  disagreeing.
 - **v0.2** — candidate scope items if evidence supports:
   - Introduce a `schema_version` fence (e.g., `2` for a future shape
     change), with a documented migration posture. Reopen condition:

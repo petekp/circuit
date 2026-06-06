@@ -43744,10 +43744,11 @@ async function runCreateCommand(argv, options = {}) {
 }
 
 // dist/cli/handoff.js
+import { execFileSync } from "node:child_process";
 import { randomUUID as randomUUID3 } from "node:crypto";
-import { copyFileSync, existsSync as existsSync12, mkdirSync as mkdirSync2, readFileSync as readFileSync25, writeFileSync as writeFileSync3 } from "node:fs";
+import { copyFileSync, existsSync as existsSync12, mkdirSync as mkdirSync2, readFileSync as readFileSync25, renameSync, writeFileSync as writeFileSync3 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname3, join as join9, resolve as resolve9 } from "node:path";
+import { basename, dirname as dirname3, join as join9, resolve as resolve9 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // dist/app/run-status/run-folder-projector.js
@@ -44725,6 +44726,11 @@ var RunAttachedProvenance = external_exports.object({
   runtime_status: SnapshotStatus,
   runtime_updated_at: external_exports.string().datetime()
 }).strict();
+var AmbientProvenance = external_exports.object({
+  session_id: external_exports.string().min(1).optional(),
+  transcript_path: external_exports.string().min(1),
+  source: external_exports.enum(["stop", "session-end"])
+}).strict();
 var resumeContractRefine = (v) => v.auto_resume !== v.requires_explicit_resume;
 var resumeContractRefineMessage = {
   message: "auto_resume and requires_explicit_resume are contradictory: exactly one must be true"
@@ -44736,6 +44742,11 @@ var StandaloneResumeContract = external_exports.object({
 }).strict().refine(resumeContractRefine, resumeContractRefineMessage);
 var RunBackedResumeContract = external_exports.object({
   mode: external_exports.literal("resume_run"),
+  auto_resume: external_exports.boolean(),
+  requires_explicit_resume: external_exports.boolean()
+}).strict().refine(resumeContractRefine, resumeContractRefineMessage);
+var AmbientResumeContract = external_exports.object({
+  mode: external_exports.literal("resume_ambient"),
   auto_resume: external_exports.boolean(),
   requires_explicit_resume: external_exports.boolean()
 }).strict().refine(resumeContractRefine, resumeContractRefineMessage);
@@ -44756,6 +44767,11 @@ var RunBackedContinuity = ContinuityBase.extend({
   run_ref: RunAttachedProvenance,
   resume_contract: RunBackedResumeContract
 }).strict();
+var AmbientContinuity = ContinuityBase.extend({
+  continuity_kind: external_exports.literal("ambient"),
+  ambient_provenance: AmbientProvenance,
+  resume_contract: AmbientResumeContract
+}).strict();
 var recordOwnPropertyGuard = external_exports.custom((raw) => {
   if (raw === null || typeof raw !== "object")
     return true;
@@ -44765,7 +44781,11 @@ var recordOwnPropertyGuard = external_exports.custom((raw) => {
       return false;
   return true;
 }, "continuity record has inherited (not own) identity/discriminator field; prototype-chain smuggle rejected");
-var ContinuityRecord = recordOwnPropertyGuard.pipe(external_exports.discriminatedUnion("continuity_kind", [StandaloneContinuity, RunBackedContinuity]));
+var ContinuityRecord = recordOwnPropertyGuard.pipe(external_exports.discriminatedUnion("continuity_kind", [
+  StandaloneContinuity,
+  RunBackedContinuity,
+  AmbientContinuity
+]));
 var PendingRecordPointer = external_exports.object({
   record_id: ControlPlaneFileStem,
   continuity_kind: external_exports.union([external_exports.literal("standalone"), external_exports.literal("run-backed")]),
@@ -44779,11 +44799,17 @@ var AttachedRunPointer = external_exports.object({
   attached_at: external_exports.string().datetime(),
   last_validated_at: external_exports.string().datetime()
 }).strict();
+var AmbientRecordPointer = external_exports.object({
+  record_id: ControlPlaneFileStem,
+  continuity_kind: external_exports.literal("ambient"),
+  created_at: external_exports.string().datetime()
+}).strict();
 var ContinuityIndexBody = external_exports.object({
   schema_version: external_exports.literal(1),
   project_root: external_exports.string().min(1),
   pending_record: PendingRecordPointer.nullable(),
-  current_run: AttachedRunPointer.nullable()
+  current_run: AttachedRunPointer.nullable(),
+  ambient_record: AmbientRecordPointer.nullable().optional()
 }).strict();
 var indexOwnPropertyGuard = external_exports.custom((raw) => {
   if (raw === null || typeof raw !== "object")
@@ -44805,7 +44831,7 @@ var HANDOFF_HOOKS_API_VERSION = "handoff-hooks-v1";
 var HANDOFF_HOOKS_SCHEMA_VERSION = 1;
 var CIRCUIT_HOOK_MARKER = "CIRCUIT_HANDOFF_HOOK=1";
 function addHandoffOptions(program2) {
-  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--progress <format>").option("--json");
+  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--source <stop|session-end>").option("--progress <format>").option("--json");
 }
 function parseArgs2(argv) {
   let parsed;
@@ -44825,6 +44851,7 @@ function parseArgs2(argv) {
   addAction("done");
   addAction("brief");
   addAction("hook");
+  addAction("harvest");
   const hooks = program2.command("hooks").action(() => {
     throw new Error("handoff hooks requires install, uninstall, or doctor");
   });
@@ -44860,7 +44887,10 @@ function parseArgs2(argv) {
     ...opts.hooksFile === void 0 ? {} : { hooksFile: opts.hooksFile },
     ...opts.launcher === void 0 ? {} : { launcher: opts.launcher },
     ...opts.recordId === void 0 ? {} : { recordId: opts.recordId },
-    ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt }
+    ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt },
+    ...opts.transcriptPath === void 0 ? {} : { transcriptPath: opts.transcriptPath },
+    ...opts.sessionId === void 0 ? {} : { sessionId: opts.sessionId },
+    ...opts.source === void 0 ? {} : { source: opts.source }
   };
 }
 function resolveProjectRootArg(args) {
@@ -44900,6 +44930,13 @@ function writeJson2(path, value) {
   writeFileSync3(path, `${JSON.stringify(value, null, 2)}
 `);
 }
+function writeJsonAtomic(path, value) {
+  mkdirSync2(dirname3(path), { recursive: true });
+  const staging = `${path}.${randomUUID3()}.tmp`;
+  writeFileSync3(staging, `${JSON.stringify(value, null, 2)}
+`);
+  renameSync(staging, path);
+}
 function writeMarkdown(path, value) {
   mkdirSync2(dirname3(path), { recursive: true });
   writeFileSync3(path, value.endsWith("\n") ? value : `${value}
@@ -44922,6 +44959,27 @@ function composeHandoffBrief(record2, state, debt) {
     "Useful commands: /circuit:handoff resume, /circuit:handoff done"
   ].join("\n");
 }
+function composeAmbientBrief(record2, state, debt) {
+  const repo = basename(record2.git.cwd) || record2.git.cwd;
+  return [
+    `Circuit automatically captured the recent state of ${repo}. No handoff was saved.`,
+    "",
+    `Latest request: ${record2.narrative.goal}`,
+    `Suggested next: ${record2.narrative.next}`,
+    "",
+    "Recent state:",
+    state,
+    "",
+    "Notes:",
+    debt,
+    "",
+    "Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked.",
+    "Useful commands: /circuit:handoff resume, /circuit:handoff done"
+  ].join("\n");
+}
+function composeBriefFor(record2, state, debt) {
+  return record2.continuity_kind === "ambient" ? composeAmbientBrief(record2, state, debt) : composeHandoffBrief(record2, state, debt);
+}
 function fitText(value, budget) {
   const marker = "\n[truncated]";
   if (value.length <= budget)
@@ -44935,11 +44993,11 @@ function fitText(value, budget) {
 function renderHandoffBrief(record2) {
   const state = record2.narrative.state_markdown;
   const debt = record2.narrative.debt_markdown;
-  const full = composeHandoffBrief(record2, state, debt);
+  const full = composeBriefFor(record2, state, debt);
   if (full.length <= HANDOFF_BRIEF_MAX_CHARS) {
     return { ok: true, additionalContext: full };
   }
-  const fixed2 = composeHandoffBrief(record2, "", "");
+  const fixed2 = composeBriefFor(record2, "", "");
   if (fixed2.length > HANDOFF_BRIEF_MAX_CHARS) {
     return {
       ok: false,
@@ -44960,16 +45018,16 @@ function renderHandoffBrief(record2) {
   }
   let renderedState = fitText(state, stateBudget);
   let renderedDebt = fitText(debt, debtBudget);
-  let rendered = composeHandoffBrief(record2, renderedState, renderedDebt);
+  let rendered = composeBriefFor(record2, renderedState, renderedDebt);
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedDebt = fitText(renderedDebt, Math.max(0, renderedDebt.length - overflow));
-    rendered = composeHandoffBrief(record2, renderedState, renderedDebt);
+    rendered = composeBriefFor(record2, renderedState, renderedDebt);
   }
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedState = fitText(renderedState, Math.max(0, renderedState.length - overflow));
-    rendered = composeHandoffBrief(record2, renderedState, renderedDebt);
+    rendered = composeBriefFor(record2, renderedState, renderedDebt);
   }
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     return {
@@ -45007,8 +45065,41 @@ function invalidBrief(args, code, message, recordId) {
     error: { code, message }
   };
 }
-function handoffBrief(args) {
+function resolvePointerBrief(args, controlPlane, pointer, source) {
   const projectRoot = resolveProjectRootArg(args);
+  const indexAbs = indexPath(controlPlane);
+  const recordAbs = recordPath(controlPlane, pointer.record_id);
+  if (!existsSync12(recordAbs)) {
+    return invalidBrief(args, "record_missing", "Continuity index points at a missing record.", pointer.record_id);
+  }
+  let record2;
+  try {
+    record2 = ContinuityRecord.parse(JSON.parse(readFileSync25(recordAbs, "utf8")));
+  } catch {
+    return invalidBrief(args, "record_invalid", "Continuity record is malformed.", pointer.record_id);
+  }
+  if (record2.continuity_kind !== pointer.continuity_kind) {
+    return invalidBrief(args, "record_kind_mismatch", "Continuity index kind disagrees with the pointed record.", pointer.record_id);
+  }
+  const rendered = renderHandoffBrief(record2);
+  if (!rendered.ok) {
+    return invalidBrief(args, rendered.code, rendered.message, pointer.record_id);
+  }
+  return {
+    api_version: HANDOFF_BRIEF_API_VERSION,
+    schema_version: HANDOFF_BRIEF_SCHEMA_VERSION,
+    status: "available",
+    project_root: projectRoot,
+    control_plane: controlPlane,
+    index_path: indexAbs,
+    source,
+    record_id: record2.record_id,
+    continuity_kind: record2.continuity_kind,
+    created_at: record2.created_at,
+    additional_context: rendered.additionalContext
+  };
+}
+function handoffBrief(args) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
   if (!existsSync12(indexAbs))
@@ -45019,37 +45110,13 @@ function handoffBrief(args) {
   } catch {
     return invalidBrief(args, "index_invalid", "Continuity index is malformed.");
   }
-  if (index.pending_record === null)
-    return emptyBrief(args, "no_pending_record");
-  const recordAbs = recordPath(controlPlane, index.pending_record.record_id);
-  if (!existsSync12(recordAbs)) {
-    return invalidBrief(args, "record_missing", "Continuity index points at a missing record.", index.pending_record.record_id);
+  if (index.pending_record !== null) {
+    return resolvePointerBrief(args, controlPlane, index.pending_record, "pending_record");
   }
-  let record2;
-  try {
-    record2 = ContinuityRecord.parse(JSON.parse(readFileSync25(recordAbs, "utf8")));
-  } catch {
-    return invalidBrief(args, "record_invalid", "Continuity record is malformed.", index.pending_record.record_id);
+  if (index.ambient_record) {
+    return resolvePointerBrief(args, controlPlane, index.ambient_record, "ambient_record");
   }
-  if (record2.continuity_kind !== index.pending_record.continuity_kind) {
-    return invalidBrief(args, "record_kind_mismatch", "Continuity index kind disagrees with the pointed record.", index.pending_record.record_id);
-  }
-  const rendered = renderHandoffBrief(record2);
-  if (!rendered.ok) {
-    return invalidBrief(args, rendered.code, rendered.message, index.pending_record.record_id);
-  }
-  return {
-    api_version: HANDOFF_BRIEF_API_VERSION,
-    schema_version: HANDOFF_BRIEF_SCHEMA_VERSION,
-    status: "available",
-    project_root: projectRoot,
-    control_plane: controlPlane,
-    index_path: indexAbs,
-    record_id: record2.record_id,
-    continuity_kind: record2.continuity_kind,
-    created_at: record2.created_at,
-    additional_context: rendered.additionalContext
-  };
+  return emptyBrief(args, "no_pending_record");
 }
 function debugHook(message) {
   if (process.env.CIRCUIT_HANDOFF_HOOK_DEBUG === "1") {
@@ -45599,6 +45666,7 @@ function saveContinuity(args, now) {
   const record2 = buildRecord(args, now);
   const recordAbs = recordPath(controlPlane, record2.record_id);
   writeJson2(recordAbs, record2);
+  const existing = readContinuityIndexOrNull(controlPlane);
   const index = ContinuityIndex.parse({
     schema_version: 1,
     project_root: record2.project_root,
@@ -45614,7 +45682,8 @@ function saveContinuity(args, now) {
       runtime_status: record2.run_ref.runtime_status,
       attached_at: record2.created_at,
       last_validated_at: record2.created_at
-    } : null
+    } : null,
+    ...existing?.ambient_record ? { ambient_record: existing.ambient_record } : {}
   });
   writeJson2(indexPath(controlPlane), index);
   const activeRun = writeActiveRun(controlPlane, record2);
@@ -45735,11 +45804,13 @@ function clearContinuity(args, now) {
   const controlPlane = resolveControlPlaneArg(args);
   const projectRoot = resolveProjectRootArg(args);
   const createdAt = args.createdAt ?? now().toISOString();
+  const existing = readContinuityIndexOrNull(controlPlane);
   const index = ContinuityIndex.parse({
     schema_version: 1,
     project_root: projectRoot,
     pending_record: null,
-    current_run: null
+    current_run: null,
+    ...existing?.ambient_record ? { ambient_record: existing.ambient_record } : {}
   });
   writeJson2(indexPath(controlPlane), index);
   const summaryPath2 = operatorSummaryPath(controlPlane);
@@ -45755,6 +45826,288 @@ function clearContinuity(args, now) {
   const resultPath2 = handoffResultPath(controlPlane, "done");
   writeJson2(resultPath2, result);
   return { ...result, result_path: resultPath2 };
+}
+var DEFAULT_AMBIENT_RECORD_STEM = "ambient-latest";
+var AMBIENT_INTENT_MAX_CHARS = 280;
+var AMBIENT_MAX_INTENTS = 4;
+var AMBIENT_HOST_TAG_PREFIX = /^<(command-name|command-message|command-args|local-command|system-reminder|task-notification|bash-input|bash-stdout|bash-stderr)/;
+var AMBIENT_DROP_LINE_PREFIX = /^(# \/|# Warm continuity record|Caveat:|\[SESSION CONTINUITY\])/;
+var AMBIENT_INTERRUPT_MARKER = /Request interrupted/;
+function collapseWhitespace(value) {
+  return value.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function isDroppedIntent(text) {
+  return text.length === 0 || AMBIENT_HOST_TAG_PREFIX.test(text) || AMBIENT_DROP_LINE_PREFIX.test(text) || AMBIENT_INTERRUPT_MARKER.test(text);
+}
+function textBlocks(content) {
+  if (!Array.isArray(content))
+    return [];
+  const blocks = [];
+  for (const block of content) {
+    if (typeof block === "object" && block !== null && block.type === "text" && typeof block.text === "string") {
+      blocks.push(block.text);
+    }
+  }
+  return blocks;
+}
+function userMessageText(content) {
+  if (typeof content === "string") {
+    const collapsed = collapseWhitespace(content);
+    return collapsed.length === 0 ? void 0 : collapsed;
+  }
+  if (Array.isArray(content)) {
+    const collapsed = collapseWhitespace(textBlocks(content).join(" "));
+    return collapsed.length === 0 ? void 0 : collapsed;
+  }
+  return void 0;
+}
+function compactSummaryText(content) {
+  const raw = typeof content === "string" ? content : textBlocks(content).join("\n");
+  const trimmed = raw.trim();
+  return trimmed.length === 0 ? void 0 : trimmed;
+}
+function parseTranscriptForHarvest(transcriptPath) {
+  let raw;
+  try {
+    raw = readFileSync25(transcriptPath, "utf8");
+  } catch {
+    return void 0;
+  }
+  const intents = [];
+  let summary;
+  for (const line of raw.split("\n")) {
+    if (line.trim().length === 0)
+      continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof parsed !== "object" || parsed === null)
+      continue;
+    const entry = parsed;
+    const content = entry.message?.content;
+    if (entry.isCompactSummary === true) {
+      const text2 = compactSummaryText(content);
+      if (text2 !== void 0)
+        summary = text2;
+      continue;
+    }
+    if (entry.type !== "user")
+      continue;
+    const text = userMessageText(content);
+    if (text === void 0 || isDroppedIntent(text))
+      continue;
+    intents.push(text.slice(0, AMBIENT_INTENT_MAX_CHARS));
+  }
+  return { intents: intents.slice(-AMBIENT_MAX_INTENTS), summary };
+}
+function realAmbientGitProbe(projectRoot) {
+  const git = (gitArgs) => {
+    try {
+      return execFileSync("git", ["-C", projectRoot, ...gitArgs], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"]
+      }).trim();
+    } catch {
+      return void 0;
+    }
+  };
+  if (git(["rev-parse", "--is-inside-work-tree"]) !== "true")
+    return {};
+  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const head = git(["rev-parse", "--short", "HEAD"]);
+  const status = git(["status", "--porcelain=v1"]);
+  const statusPorcelain = status === void 0 || status.length === 0 ? void 0 : status.split("\n").slice(0, 40).join("\n");
+  return {
+    ...branch ? { branch } : {},
+    ...head ? { head } : {},
+    ...statusPorcelain ? { statusPorcelain } : {}
+  };
+}
+function composeAmbientStateMarkdown(intents, summary, git, transcriptPath) {
+  const lines = ["## Recent intent (your last requests, newest last)"];
+  if (intents.length > 0) {
+    for (const intent of intents)
+      lines.push(`- ${intent}`);
+  } else {
+    lines.push("- (none captured; see the transcript below)");
+  }
+  lines.push("", "## Working tree (uncommitted)");
+  if (git.statusPorcelain !== void 0) {
+    lines.push("```", git.statusPorcelain, "```");
+  } else {
+    lines.push("clean, or not a git repo");
+  }
+  lines.push("", "## Structured summary (harvested from the last compaction)");
+  lines.push(summary ?? "None captured this session. Full history is in the transcript below.");
+  lines.push("", "## Full detail", `Transcript: ${transcriptPath}`);
+  return lines.join("\n");
+}
+function readContinuityIndexOrNull(controlPlane) {
+  const indexAbs = indexPath(controlPlane);
+  if (!existsSync12(indexAbs))
+    return null;
+  const raw = readJsonSafely(indexAbs);
+  if (!raw.ok)
+    return null;
+  const parsed = ContinuityIndex.safeParse(raw.value);
+  return parsed.success ? parsed.data : null;
+}
+function harvestAmbientContinuity(input) {
+  const projectRoot = resolve9(input.projectRoot);
+  const controlPlane = input.controlPlane === void 0 ? resolve9(projectRoot, DEFAULT_CONTROL_PLANE) : resolve9(input.controlPlane);
+  const skip = (reason) => ({
+    schema_version: 1,
+    action: "harvest",
+    status: "skipped",
+    reason,
+    index_path: indexPath(controlPlane)
+  });
+  if (!existsSync12(input.transcriptPath))
+    return skip("no_transcript");
+  const parsed = parseTranscriptForHarvest(input.transcriptPath);
+  if (parsed === void 0)
+    return skip("transcript_unreadable");
+  const git = (input.gitProbe ?? (() => ({})))(projectRoot);
+  if (parsed.intents.length === 0 && parsed.summary === void 0 && git.statusPorcelain === void 0) {
+    return skip("nothing_to_harvest");
+  }
+  const createdAt = input.createdAt ?? input.now().toISOString();
+  const recordId = input.recordId ?? DEFAULT_AMBIENT_RECORD_STEM;
+  const latestIntent = parsed.intents[parsed.intents.length - 1];
+  const goal = latestIntent ?? `Resume the mechanically captured session in ${basename(projectRoot) || projectRoot}`;
+  const record2 = ContinuityRecord.parse({
+    schema_version: 1,
+    record_id: recordId,
+    project_root: projectRoot,
+    created_at: createdAt,
+    git: {
+      cwd: projectRoot,
+      ...git.branch ? { branch: git.branch } : {},
+      ...git.head ? { head: git.head } : {}
+    },
+    narrative: {
+      goal,
+      next: "Review the recent intents and harvested summary below, then continue. This record was captured automatically, not saved by you, so confirm before acting.",
+      state_markdown: composeAmbientStateMarkdown(parsed.intents, parsed.summary, git, input.transcriptPath),
+      debt_markdown: `- Mechanically harvested from the live transcript at ${createdAt}. Treat it as a hint, not a verified plan.`
+    },
+    continuity_kind: "ambient",
+    ambient_provenance: {
+      transcript_path: input.transcriptPath,
+      ...input.sessionId ? { session_id: input.sessionId } : {},
+      source: input.source
+    },
+    resume_contract: {
+      mode: "resume_ambient",
+      auto_resume: false,
+      requires_explicit_resume: true
+    }
+  });
+  const recordAbs = recordPath(controlPlane, record2.record_id);
+  writeJsonAtomic(recordAbs, record2);
+  const existing = readContinuityIndexOrNull(controlPlane);
+  const index = ContinuityIndex.parse({
+    schema_version: 1,
+    project_root: existing?.project_root ?? projectRoot,
+    pending_record: existing?.pending_record ?? null,
+    current_run: existing?.current_run ?? null,
+    ambient_record: {
+      record_id: record2.record_id,
+      continuity_kind: "ambient",
+      created_at: record2.created_at
+    }
+  });
+  writeJsonAtomic(indexPath(controlPlane), index);
+  return {
+    schema_version: 1,
+    action: "harvest",
+    status: "harvested",
+    record_id: record2.record_id,
+    continuity_path: recordAbs,
+    index_path: indexPath(controlPlane),
+    intents_captured: parsed.intents.length,
+    summary_captured: parsed.summary !== void 0
+  };
+}
+function ambientSourceFrom(value, hookEventName) {
+  if (value === "session-end")
+    return "session-end";
+  if (value === "stop")
+    return "stop";
+  if (typeof hookEventName === "string" && hookEventName === "SessionEnd")
+    return "session-end";
+  return "stop";
+}
+function runHandoffHarvest(args, now) {
+  let transcriptPath = args.transcriptPath;
+  let projectRoot = args.projectRoot;
+  let sessionId = args.sessionId;
+  let hookEventName;
+  if (transcriptPath === void 0 || projectRoot === void 0 || sessionId === void 0) {
+    let input = {};
+    try {
+      input = readHookInput();
+    } catch (err) {
+      debugHook(`harvest could not parse hook input: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (typeof input === "object" && input !== null) {
+      const hi = input;
+      if (transcriptPath === void 0 && typeof hi.transcript_path === "string") {
+        transcriptPath = hi.transcript_path;
+      }
+      if (projectRoot === void 0 && typeof hi.cwd === "string")
+        projectRoot = hi.cwd;
+      if (sessionId === void 0 && typeof hi.session_id === "string")
+        sessionId = hi.session_id;
+      hookEventName = hi.hook_event_name;
+    }
+  }
+  const resolvedProjectRoot = projectRoot ?? process.cwd();
+  const source = ambientSourceFrom(args.source, hookEventName);
+  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve9(args.controlPlane);
+  const fallbackIndexPath = indexPath(controlPlane ?? resolve9(resolvedProjectRoot, DEFAULT_CONTROL_PLANE));
+  if (transcriptPath === void 0) {
+    const result = {
+      schema_version: 1,
+      action: "harvest",
+      status: "skipped",
+      reason: "no_transcript",
+      index_path: fallbackIndexPath
+    };
+    process.stdout.write(`${JSON.stringify(result, null, 2)}
+`);
+    return 0;
+  }
+  try {
+    const result = harvestAmbientContinuity({
+      transcriptPath,
+      projectRoot: resolvedProjectRoot,
+      source,
+      ...controlPlane === void 0 ? {} : { controlPlane },
+      ...sessionId === void 0 ? {} : { sessionId },
+      ...args.recordId === void 0 ? {} : { recordId: args.recordId },
+      ...args.createdAt === void 0 ? {} : { createdAt: args.createdAt },
+      now,
+      gitProbe: realAmbientGitProbe
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}
+`);
+  } catch (err) {
+    debugHook(`harvest failed: ${err instanceof Error ? err.message : String(err)}`);
+    const result = {
+      schema_version: 1,
+      action: "harvest",
+      status: "skipped",
+      reason: "transcript_unreadable",
+      index_path: fallbackIndexPath
+    };
+    process.stdout.write(`${JSON.stringify(result, null, 2)}
+`);
+  }
+  return 0;
 }
 async function runHandoffCommand(argv, options = {}) {
   let args;
@@ -45776,6 +46129,9 @@ async function runHandoffCommand(argv, options = {}) {
   }
   if (args.action === "hook") {
     return runHandoffHook(args);
+  }
+  if (args.action === "harvest") {
+    return runHandoffHarvest(args, options.now ?? (() => /* @__PURE__ */ new Date()));
   }
   if (args.action === "hooks") {
     try {
@@ -45857,15 +46213,15 @@ async function runHandoffCommand(argv, options = {}) {
 }
 
 // dist/cli/history.js
-import { basename as basename3 } from "node:path";
+import { basename as basename4 } from "node:path";
 
 // dist/app/history/indexer.js
-import { existsSync as existsSync16, mkdirSync as mkdirSync3, readFileSync as readFileSync27, renameSync, writeFileSync as writeFileSync4 } from "node:fs";
+import { existsSync as existsSync16, mkdirSync as mkdirSync3, readFileSync as readFileSync27, renameSync as renameSync2, writeFileSync as writeFileSync4 } from "node:fs";
 import { join as join11, resolve as resolve12 } from "node:path";
 
 // dist/history/run-corpus.js
 import { existsSync as existsSync13, readdirSync, statSync as statSync2 } from "node:fs";
-import { basename, join as join10 } from "node:path";
+import { basename as basename2, join as join10 } from "node:path";
 var DEFAULT_RUNS_BASE = ".circuit/runs";
 var HistoryCommandError = class extends Error {
   code;
@@ -45897,13 +46253,13 @@ function listCandidateRunFolders(runsBase) {
     });
   }
   try {
-    return readdirSync(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join10(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename(left).localeCompare(basename(right)));
+    return readdirSync(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join10(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename2(left).localeCompare(basename2(right)));
   } catch (error51) {
     throw new HistoryCommandError("runs_base_unreadable", `runs base unreadable: ${error51 instanceof Error ? error51.message : String(error51)}`, { runsBase });
   }
 }
 function computeRunFolderNamesHash(runFolders) {
-  return sha256OfString(runFolders.map((folder) => basename(folder)).sort().join("\n"));
+  return sha256OfString(runFolders.map((folder) => basename2(folder)).sort().join("\n"));
 }
 
 // dist/schemas/checkpoint-boundary.js
@@ -48358,7 +48714,7 @@ function mtimeMs(path) {
 
 // dist/app/history/extract.js
 import { existsSync as existsSync15, lstatSync as lstatSync6, readFileSync as readFileSync26, readdirSync as readdirSync3, realpathSync as realpathSync5 } from "node:fs";
-import { basename as basename2, isAbsolute as isAbsolute10, relative as relative11, resolve as resolve11 } from "node:path";
+import { basename as basename3, isAbsolute as isAbsolute10, relative as relative11, resolve as resolve11 } from "node:path";
 
 // dist/shared/outcome.js
 var FAILURE_OUTCOMES = /* @__PURE__ */ new Set([
@@ -48721,7 +49077,7 @@ function docId(input) {
   return `${input.runId}/${input.docKind}/${sha256OfString(`${input.sourcePath}#${input.selector}`).slice(0, 12)}`;
 }
 function skipReport(relPath) {
-  const name = basename2(relPath);
+  const name = basename3(relPath);
   if (!relPath.endsWith(".json"))
     return true;
   if (relPath.startsWith("reports/relay/"))
@@ -48982,7 +49338,7 @@ function makeTraceDocument(input) {
 }
 function extractRunHistoryDocuments(runFolder) {
   const runFolderAbs = resolve11(runFolder);
-  const runFolderName = basename2(runFolderAbs);
+  const runFolderName = basename3(runFolderAbs);
   const warnings = [];
   const documents = [];
   const manifestPath2 = resolve11(runFolderAbs, "manifest.snapshot.json");
@@ -49184,8 +49540,8 @@ function rebuildHistoryIndex(options = {}) {
       continue;
     HistoryDocumentV1.parse(JSON.parse(line));
   }
-  renameSync(documentsTmp, paths.documentsPath);
-  renameSync(manifestTmp, paths.manifestPath);
+  renameSync2(documentsTmp, paths.documentsPath);
+  renameSync2(manifestTmp, paths.manifestPath);
   return {
     manifest,
     documents
@@ -49326,11 +49682,11 @@ function loadMemoryEffectReport(paths) {
 }
 
 // dist/app/history/memory-effect.js
-import { mkdirSync as mkdirSync5, readFileSync as readFileSync30, renameSync as renameSync3, writeFileSync as writeFileSync6 } from "node:fs";
+import { mkdirSync as mkdirSync5, readFileSync as readFileSync30, renameSync as renameSync4, writeFileSync as writeFileSync6 } from "node:fs";
 import { join as join14 } from "node:path";
 
 // dist/app/history/memory-merge.js
-import { existsSync as existsSync18, mkdirSync as mkdirSync4, readFileSync as readFileSync29, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync18, mkdirSync as mkdirSync4, readFileSync as readFileSync29, renameSync as renameSync3, writeFileSync as writeFileSync5 } from "node:fs";
 import { join as join13 } from "node:path";
 
 // dist/app/history/memory-identity.js
@@ -49530,7 +49886,7 @@ function writeMemoryMergeReport(report, paths) {
   writeFileSync5(tmpPath, `${JSON.stringify(report, null, 2)}
 `, "utf8");
   HistoryMemoryMergeV1.parse(JSON.parse(readFileSync29(tmpPath, "utf8")));
-  renameSync2(tmpPath, outPath);
+  renameSync3(tmpPath, outPath);
   return outPath;
 }
 
@@ -49730,7 +50086,7 @@ function writeMemoryEffectReport(report, paths) {
   writeFileSync6(tmpPath, `${JSON.stringify(report, null, 2)}
 `, "utf8");
   HistoryMemoryEffectV1.parse(JSON.parse(readFileSync30(tmpPath, "utf8")));
-  renameSync3(tmpPath, outPath);
+  renameSync4(tmpPath, outPath);
   return outPath;
 }
 
@@ -49818,7 +50174,7 @@ function historyMemoryInputPreview(input) {
 }
 
 // dist/app/history/pull-log.js
-import { existsSync as existsSync19, mkdirSync as mkdirSync6, readFileSync as readFileSync31, renameSync as renameSync4, writeFileSync as writeFileSync7 } from "node:fs";
+import { existsSync as existsSync19, mkdirSync as mkdirSync6, readFileSync as readFileSync31, renameSync as renameSync5, writeFileSync as writeFileSync7 } from "node:fs";
 import { dirname as dirname4, join as join15 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error51) {
@@ -49874,7 +50230,7 @@ function appendPullLogEntry(runFolder, input) {
     writeFileSync7(tmpPath, `${JSON.stringify(log, null, 2)}
 `, "utf8");
     HistoryPullLogV1.parse(JSON.parse(readFileSync31(tmpPath, "utf8")));
-    renameSync4(tmpPath, outPath);
+    renameSync5(tmpPath, outPath);
     return { path: outPath, warnings };
   } catch (error51) {
     return { warnings: [...warnings, pullLogUnavailable(runFolder, error51)] };
@@ -50402,7 +50758,7 @@ function runPull(parsed) {
     entry,
     // The pull-log header's run_id is the active run that pulled; derive it
     // from the run folder name (the run-folder layout convention).
-    runId: basename3(runFolder)
+    runId: basename4(runFolder)
   }).warnings;
   const printed = HistoryMemoryInputPreviewV1.parse({
     ...suppressed,
@@ -50487,16 +50843,16 @@ async function runHistoryCommand(argv) {
 // dist/cli/memory.js
 import { createHash as createHash4 } from "node:crypto";
 import { existsSync as existsSync23, readFileSync as readFileSync35 } from "node:fs";
-import { basename as basename4, join as join17 } from "node:path";
+import { basename as basename5, join as join17 } from "node:path";
 
 // dist/memory/project-identity.js
 var import_yaml2 = __toESM(require_dist(), 1);
-import { execFileSync } from "node:child_process";
-import { existsSync as existsSync22, mkdirSync as mkdirSync8, readFileSync as readFileSync34, renameSync as renameSync6, writeFileSync as writeFileSync9 } from "node:fs";
+import { execFileSync as execFileSync2 } from "node:child_process";
+import { existsSync as existsSync22, mkdirSync as mkdirSync8, readFileSync as readFileSync34, renameSync as renameSync7, writeFileSync as writeFileSync9 } from "node:fs";
 import { resolve as resolve14 } from "node:path";
 
 // dist/memory/project-store.js
-import { existsSync as existsSync21, mkdirSync as mkdirSync7, readFileSync as readFileSync33, renameSync as renameSync5, writeFileSync as writeFileSync8 } from "node:fs";
+import { existsSync as existsSync21, mkdirSync as mkdirSync7, readFileSync as readFileSync33, renameSync as renameSync6, writeFileSync as writeFileSync8 } from "node:fs";
 import { join as join16, resolve as resolve13 } from "node:path";
 var MEMORY_DIR_RELATIVE_PATH = ".circuit/memory";
 var PROJECT_FACTS_FILE = "project.v1.jsonl";
@@ -50586,7 +50942,7 @@ function rewriteProjectFacts(records, options = {}) {
       continue;
     MemoryInputV0.parse(JSON.parse(line));
   }
-  renameSync5(tmpPath, paths.factsPath);
+  renameSync6(tmpPath, paths.factsPath);
   return paths.factsPath;
 }
 function appendProjectFact(record2, options = {}) {
@@ -50632,7 +50988,7 @@ function readConfigProjectId(repoRoot) {
 }
 function readGitRemoteUrl(repoRoot) {
   try {
-    const url2 = execFileSync("git", ["remote", "get-url", "origin"], {
+    const url2 = execFileSync2("git", ["remote", "get-url", "origin"], {
       cwd: repoRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"]
@@ -50681,7 +51037,7 @@ function stampMemoryManifest(resolved, options = {}) {
   writeFileSync9(tmpPath, `${JSON.stringify(manifest, null, 2)}
 `, "utf8");
   JSON.parse(readFileSync34(tmpPath, "utf8"));
-  renameSync6(tmpPath, paths.manifestPath);
+  renameSync7(tmpPath, paths.manifestPath);
   return paths.manifestPath;
 }
 
@@ -50781,7 +51137,7 @@ function resolveNoteSource(input) {
   }
   const tracePath = join17(input.runFolder, "trace.ndjson");
   if (existsSync23(tracePath)) {
-    const runId = basename4(input.runFolder);
+    const runId = basename5(input.runFolder);
     const sha2564 = sha256Text(readFileSync35(tracePath, "utf8"));
     const trace = Ref.safeParse({
       kind: "trace",
@@ -54593,7 +54949,7 @@ function parseClaudeCodeStdout(stdout, prompt, duration_ms) {
 }
 
 // dist/connectors/codex.js
-import { execFileSync as execFileSync2 } from "node:child_process";
+import { execFileSync as execFileSync3 } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join as joinPath } from "node:path";
@@ -54641,7 +54997,7 @@ function captureCodexVersion() {
     return cachedCodexVersion;
   let stdout;
   try {
-    stdout = execFileSync2(CODEX_EXECUTABLE, ["--version"], {
+    stdout = execFileSync3(CODEX_EXECUTABLE, ["--version"], {
       encoding: "utf8",
       timeout: VERSION_CAPTURE_TIMEOUT_MS,
       stdio: ["ignore", "pipe", "pipe"]
@@ -54974,7 +55330,7 @@ function parseCodexStdout(stdout, prompt, duration_ms, cli_version) {
 }
 
 // dist/connectors/cursor-agent.js
-import { execFileSync as execFileSync3 } from "node:child_process";
+import { execFileSync as execFileSync4 } from "node:child_process";
 var CURSOR_AGENT_EXECUTABLE = "cursor-agent";
 var CURSOR_AGENT_DISPATCH_FLAGS = Object.freeze([
   "--print",
@@ -54994,7 +55350,7 @@ function captureCursorAgentVersion() {
     return cachedCursorAgentVersion;
   let stdout;
   try {
-    stdout = execFileSync3(CURSOR_AGENT_EXECUTABLE, ["--version"], {
+    stdout = execFileSync4(CURSOR_AGENT_EXECUTABLE, ["--version"], {
       encoding: "utf8",
       timeout: VERSION_CAPTURE_TIMEOUT_MS2,
       stdio: ["ignore", "pipe", "pipe"]
@@ -64012,7 +64368,7 @@ function usage() {
     "       circuit runs show --run-folder <path> --json",
     "       circuit history rebuild|query|status --json [options]",
     '       circuit memory note --flow <id> [--applies-to <kind>] "<text>" | memory list | memory forget <id>',
-    "       circuit handoff [save|resume|done|brief|hook|hooks] [options]",
+    "       circuit handoff [save|resume|done|brief|hook|hooks|harvest] [options]",
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
     "       circuit version [--json]",
     "",

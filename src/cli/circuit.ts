@@ -46,7 +46,7 @@ export function usage(): string {
     '       circuit runs show --run-folder <path> --json',
     '       circuit history rebuild|query|status --json [options]',
     '       circuit memory note --flow <id> [--applies-to <kind>] "<text>" | memory list | memory forget <id>',
-    '       circuit handoff [save|resume|done|brief|hook|hooks] [options]',
+    '       circuit handoff [save|resume|done|brief|hook|hooks|harvest] [options]',
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
     '       circuit version [--json]',
     '',

@@ -1,7 +1,15 @@
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import { projectRunStatusFromRunFolder } from '../app/run-status/run-folder-projector.js';
@@ -19,7 +27,8 @@ import { progressPresentation } from '../shared/progress-output.js';
 import { parseCommanderOrThrow } from './commander-support.js';
 import { utilityProgress } from './utility-progress.js';
 
-type HandoffAction = 'save' | 'resume' | 'done' | 'brief' | 'hook' | 'hooks';
+type HandoffAction = 'save' | 'resume' | 'done' | 'brief' | 'hook' | 'hooks' | 'harvest';
+type AmbientSource = 'stop' | 'session-end';
 type HandoffHookHost = 'codex';
 type HandoffHooksAction = 'install' | 'uninstall' | 'doctor';
 
@@ -38,6 +47,9 @@ interface HandoffArgs {
   readonly launcher?: string;
   readonly recordId?: string;
   readonly createdAt?: string;
+  readonly transcriptPath?: string;
+  readonly sessionId?: string;
+  readonly source?: string;
   readonly progress: boolean;
   readonly json: boolean;
 }
@@ -71,6 +83,9 @@ type HandoffCommanderOptions = {
   launcher?: string;
   recordId?: string;
   createdAt?: string;
+  transcriptPath?: string;
+  sessionId?: string;
+  source?: string;
   progress?: string;
   json?: boolean;
 };
@@ -89,6 +104,9 @@ function addHandoffOptions(program: Command): Command {
     .option('--launcher <path>')
     .option('--record-id <stem>')
     .option('--created-at <iso>')
+    .option('--transcript-path <path>')
+    .option('--session-id <id>')
+    .option('--source <stop|session-end>')
     .option('--progress <format>')
     .option('--json');
 }
@@ -121,6 +139,7 @@ function parseArgs(argv: readonly string[]): HandoffArgs {
   addAction('done');
   addAction('brief');
   addAction('hook');
+  addAction('harvest');
   const hooks = program.command('hooks').action(() => {
     throw new Error('handoff hooks requires install, uninstall, or doctor');
   });
@@ -159,6 +178,9 @@ function parseArgs(argv: readonly string[]): HandoffArgs {
     ...(opts.launcher === undefined ? {} : { launcher: opts.launcher }),
     ...(opts.recordId === undefined ? {} : { recordId: opts.recordId }),
     ...(opts.createdAt === undefined ? {} : { createdAt: opts.createdAt }),
+    ...(opts.transcriptPath === undefined ? {} : { transcriptPath: opts.transcriptPath }),
+    ...(opts.sessionId === undefined ? {} : { sessionId: opts.sessionId }),
+    ...(opts.source === undefined ? {} : { source: opts.source }),
   };
 }
 
@@ -208,6 +230,19 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+/**
+ * Atomic JSON write: stage to a sibling temp file, then rename over the
+ * target. Rename is atomic within a filesystem, so a concurrent reader sees
+ * either the old file or the new one, never a torn half-write. The ambient
+ * harvest fires on every Stop, so torn writes are a real risk without this.
+ */
+function writeJsonAtomic(path: string, value: unknown): void {
+  mkdirSync(dirname(path), { recursive: true });
+  const staging = `${path}.${randomUUID()}.tmp`;
+  writeFileSync(staging, `${JSON.stringify(value, null, 2)}\n`);
+  renameSync(staging, path);
+}
+
 function writeMarkdown(path: string, value: string): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, value.endsWith('\n') ? value : `${value}\n`);
@@ -231,6 +266,37 @@ function composeHandoffBrief(record: ContinuityRecordValue, state: string, debt:
   ].join('\n');
 }
 
+/**
+ * Ambient records were captured mechanically, not saved by the operator, so
+ * their brief is framed as an automatic snapshot keyed to this repo — not a
+ * vetted plan. The boundary is deliberately more cautious than the manual
+ * one: confirm the goal before acting, and never resume the work unasked.
+ */
+function composeAmbientBrief(record: ContinuityRecordValue, state: string, debt: string): string {
+  const repo = basename(record.git.cwd) || record.git.cwd;
+  return [
+    `Circuit automatically captured the recent state of ${repo}. No handoff was saved.`,
+    '',
+    `Latest request: ${record.narrative.goal}`,
+    `Suggested next: ${record.narrative.next}`,
+    '',
+    'Recent state:',
+    state,
+    '',
+    'Notes:',
+    debt,
+    '',
+    'Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked.',
+    'Useful commands: /circuit:handoff resume, /circuit:handoff done',
+  ].join('\n');
+}
+
+function composeBriefFor(record: ContinuityRecordValue, state: string, debt: string): string {
+  return record.continuity_kind === 'ambient'
+    ? composeAmbientBrief(record, state, debt)
+    : composeHandoffBrief(record, state, debt);
+}
+
 function fitText(value: string, budget: number): string {
   const marker = '\n[truncated]';
   if (value.length <= budget) return value;
@@ -242,12 +308,12 @@ function fitText(value: string, budget: number): string {
 function renderHandoffBrief(record: ContinuityRecordValue): HandoffBriefRenderResult {
   const state = record.narrative.state_markdown;
   const debt = record.narrative.debt_markdown;
-  const full = composeHandoffBrief(record, state, debt);
+  const full = composeBriefFor(record, state, debt);
   if (full.length <= HANDOFF_BRIEF_MAX_CHARS) {
     return { ok: true, additionalContext: full };
   }
 
-  const fixed = composeHandoffBrief(record, '', '');
+  const fixed = composeBriefFor(record, '', '');
   if (fixed.length > HANDOFF_BRIEF_MAX_CHARS) {
     return {
       ok: false,
@@ -271,17 +337,17 @@ function renderHandoffBrief(record: ContinuityRecordValue): HandoffBriefRenderRe
 
   let renderedState = fitText(state, stateBudget);
   let renderedDebt = fitText(debt, debtBudget);
-  let rendered = composeHandoffBrief(record, renderedState, renderedDebt);
+  let rendered = composeBriefFor(record, renderedState, renderedDebt);
 
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedDebt = fitText(renderedDebt, Math.max(0, renderedDebt.length - overflow));
-    rendered = composeHandoffBrief(record, renderedState, renderedDebt);
+    rendered = composeBriefFor(record, renderedState, renderedDebt);
   }
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedState = fitText(renderedState, Math.max(0, renderedState.length - overflow));
-    rendered = composeHandoffBrief(record, renderedState, renderedDebt);
+    rendered = composeBriefFor(record, renderedState, renderedDebt);
   }
 
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
@@ -329,28 +395,32 @@ function invalidBrief(
   };
 }
 
-function handoffBrief(args: HandoffArgs) {
+type BriefPointer = {
+  readonly record_id: ControlPlaneFileStem;
+  readonly continuity_kind: 'standalone' | 'run-backed' | 'ambient';
+};
+
+/**
+ * Resolve one index pointer to a rendered brief, surfacing the same
+ * invalid-state envelopes (missing record, malformed record, kind mismatch,
+ * over-cap) the single-pointer path always used. `source` names which pointer
+ * won so the host can distinguish a manual save from an ambient fallback.
+ */
+function resolvePointerBrief(
+  args: HandoffArgs,
+  controlPlane: string,
+  pointer: BriefPointer,
+  source: 'pending_record' | 'ambient_record',
+) {
   const projectRoot = resolveProjectRootArg(args);
-  const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync(indexAbs)) return emptyBrief(args, 'no_index');
-
-  let index: ContinuityIndexValue;
-  try {
-    index = ContinuityIndex.parse(JSON.parse(readFileSync(indexAbs, 'utf8')));
-  } catch {
-    return invalidBrief(args, 'index_invalid', 'Continuity index is malformed.');
-  }
-
-  if (index.pending_record === null) return emptyBrief(args, 'no_pending_record');
-
-  const recordAbs = recordPath(controlPlane, index.pending_record.record_id);
+  const recordAbs = recordPath(controlPlane, pointer.record_id);
   if (!existsSync(recordAbs)) {
     return invalidBrief(
       args,
       'record_missing',
       'Continuity index points at a missing record.',
-      index.pending_record.record_id,
+      pointer.record_id,
     );
   }
 
@@ -362,22 +432,22 @@ function handoffBrief(args: HandoffArgs) {
       args,
       'record_invalid',
       'Continuity record is malformed.',
-      index.pending_record.record_id,
+      pointer.record_id,
     );
   }
 
-  if (record.continuity_kind !== index.pending_record.continuity_kind) {
+  if (record.continuity_kind !== pointer.continuity_kind) {
     return invalidBrief(
       args,
       'record_kind_mismatch',
       'Continuity index kind disagrees with the pointed record.',
-      index.pending_record.record_id,
+      pointer.record_id,
     );
   }
 
   const rendered = renderHandoffBrief(record);
   if (!rendered.ok) {
-    return invalidBrief(args, rendered.code, rendered.message, index.pending_record.record_id);
+    return invalidBrief(args, rendered.code, rendered.message, pointer.record_id);
   }
 
   return {
@@ -387,11 +457,36 @@ function handoffBrief(args: HandoffArgs) {
     project_root: projectRoot,
     control_plane: controlPlane,
     index_path: indexAbs,
+    source,
     record_id: record.record_id,
     continuity_kind: record.continuity_kind,
     created_at: record.created_at,
     additional_context: rendered.additionalContext,
   };
+}
+
+function handoffBrief(args: HandoffArgs) {
+  const controlPlane = resolveControlPlaneArg(args);
+  const indexAbs = indexPath(controlPlane);
+  if (!existsSync(indexAbs)) return emptyBrief(args, 'no_index');
+
+  let index: ContinuityIndexValue;
+  try {
+    index = ContinuityIndex.parse(JSON.parse(readFileSync(indexAbs, 'utf8')));
+  } catch {
+    return invalidBrief(args, 'index_invalid', 'Continuity index is malformed.');
+  }
+
+  // Precedence (docs/contracts/continuity.md §Resolver precedence): a
+  // deliberate manual save outranks a mechanical ambient harvest. The ambient
+  // pointer is the fallback safety net when nothing manual is pending.
+  if (index.pending_record !== null) {
+    return resolvePointerBrief(args, controlPlane, index.pending_record, 'pending_record');
+  }
+  if (index.ambient_record) {
+    return resolvePointerBrief(args, controlPlane, index.ambient_record, 'ambient_record');
+  }
+  return emptyBrief(args, 'no_pending_record');
 }
 
 function debugHook(message: string): void {
@@ -1049,6 +1144,10 @@ function saveContinuity(args: HandoffArgs, now: () => Date) {
   const record = buildRecord(args, now);
   const recordAbs = recordPath(controlPlane, record.record_id);
   writeJson(recordAbs, record);
+  // A manual save owns pending_record/current_run, but a mechanical ambient
+  // harvest lives in its own pointer; carry it forward so the save does not
+  // clobber it (the two writers must never overwrite each other).
+  const existing = readContinuityIndexOrNull(controlPlane);
   const index = ContinuityIndex.parse({
     schema_version: 1,
     project_root: record.project_root,
@@ -1068,6 +1167,7 @@ function saveContinuity(args: HandoffArgs, now: () => Date) {
             last_validated_at: record.created_at,
           }
         : null,
+    ...(existing?.ambient_record ? { ambient_record: existing.ambient_record } : {}),
   });
   writeJson(indexPath(controlPlane), index);
   const activeRun = writeActiveRun(controlPlane, record);
@@ -1218,11 +1318,16 @@ function clearContinuity(args: HandoffArgs, now: () => Date) {
   const controlPlane = resolveControlPlaneArg(args);
   const projectRoot = resolveProjectRootArg(args);
   const createdAt = args.createdAt ?? now().toISOString();
+  // `done` clears the manual save only. The ambient harvest is an orthogonal
+  // freshness cache, kept so a finished manual task still leaves the latest
+  // auto-captured state available as a fallback.
+  const existing = readContinuityIndexOrNull(controlPlane);
   const index = ContinuityIndex.parse({
     schema_version: 1,
     project_root: projectRoot,
     pending_record: null,
     current_run: null,
+    ...(existing?.ambient_record ? { ambient_record: existing.ambient_record } : {}),
   });
   writeJson(indexPath(controlPlane), index);
   const summaryPath = operatorSummaryPath(controlPlane);
@@ -1238,6 +1343,413 @@ function clearContinuity(args: HandoffArgs, now: () => Date) {
   const resultPath = handoffResultPath(controlPlane, 'done');
   writeJson(resultPath, result);
   return { ...result, result_path: resultPath };
+}
+
+// --- Ambient continuity harvest -------------------------------------------
+//
+// `circuit handoff harvest` is the mechanical producer for the third
+// continuity kind. A Stop/SessionEnd hook drives it with the live transcript;
+// it lifts genuine human intents and the latest compaction summary, builds an
+// `ambient` continuity record, and points the index's `ambient_record` at it
+// WITHOUT touching the manual `pending_record`. This is the in-engine
+// replacement for the personal warm-handoff shell writer, so the two
+// continuity layers stop disagreeing (see docs/contracts/continuity.md
+// CONT-I13..I18).
+
+const DEFAULT_AMBIENT_RECORD_STEM = 'ambient-latest';
+const AMBIENT_INTENT_MAX_CHARS = 280;
+const AMBIENT_MAX_INTENTS = 4;
+
+// Host-injected user turns the model should never treat as human intent.
+// Mirrors the proven warm-writer filter, plus the writer's own header so a
+// prior ambient record can never re-ingest itself.
+const AMBIENT_HOST_TAG_PREFIX =
+  /^<(command-name|command-message|command-args|local-command|system-reminder|task-notification|bash-input|bash-stdout|bash-stderr)/;
+const AMBIENT_DROP_LINE_PREFIX = /^(# \/|# Warm continuity record|Caveat:|\[SESSION CONTINUITY\])/;
+const AMBIENT_INTERRUPT_MARKER = /Request interrupted/;
+
+export interface AmbientGitProbe {
+  readonly branch?: string;
+  readonly head?: string;
+  readonly statusPorcelain?: string;
+}
+
+export interface AmbientHarvestInput {
+  readonly transcriptPath: string;
+  readonly projectRoot: string;
+  readonly source: AmbientSource;
+  readonly controlPlane?: string;
+  readonly sessionId?: string;
+  readonly recordId?: string;
+  readonly createdAt?: string;
+  readonly now: () => Date;
+  readonly gitProbe?: (projectRoot: string) => AmbientGitProbe;
+}
+
+export type AmbientHarvestResult =
+  | {
+      readonly schema_version: 1;
+      readonly action: 'harvest';
+      readonly status: 'harvested';
+      readonly record_id: ControlPlaneFileStem;
+      readonly continuity_path: string;
+      readonly index_path: string;
+      readonly intents_captured: number;
+      readonly summary_captured: boolean;
+    }
+  | {
+      readonly schema_version: 1;
+      readonly action: 'harvest';
+      readonly status: 'skipped';
+      readonly reason: 'no_transcript' | 'transcript_unreadable' | 'nothing_to_harvest';
+      readonly index_path: string;
+    };
+
+interface ParsedTranscript {
+  readonly intents: readonly string[];
+  readonly summary: string | undefined;
+}
+
+function collapseWhitespace(value: string): string {
+  return value
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isDroppedIntent(text: string): boolean {
+  return (
+    text.length === 0 ||
+    AMBIENT_HOST_TAG_PREFIX.test(text) ||
+    AMBIENT_DROP_LINE_PREFIX.test(text) ||
+    AMBIENT_INTERRUPT_MARKER.test(text)
+  );
+}
+
+function textBlocks(content: unknown): string[] {
+  if (!Array.isArray(content)) return [];
+  const blocks: string[] = [];
+  for (const block of content) {
+    if (
+      typeof block === 'object' &&
+      block !== null &&
+      (block as { type?: unknown }).type === 'text' &&
+      typeof (block as { text?: unknown }).text === 'string'
+    ) {
+      blocks.push((block as { text: string }).text);
+    }
+  }
+  return blocks;
+}
+
+/**
+ * Genuine human intent from a user turn. A string is the typed message; an
+ * array is a structured turn (pasted images, tool results) where only the
+ * `text` blocks are human — tool_result/image blocks are dropped. Collapses
+ * whitespace so the host-tag prefix test is reliable.
+ */
+function userMessageText(content: unknown): string | undefined {
+  if (typeof content === 'string') {
+    const collapsed = collapseWhitespace(content);
+    return collapsed.length === 0 ? undefined : collapsed;
+  }
+  if (Array.isArray(content)) {
+    const collapsed = collapseWhitespace(textBlocks(content).join(' '));
+    return collapsed.length === 0 ? undefined : collapsed;
+  }
+  return undefined;
+}
+
+/**
+ * Rich narrative from a compaction summary turn. Unlike intents, newlines are
+ * preserved so the harvested markdown structure survives.
+ */
+function compactSummaryText(content: unknown): string | undefined {
+  const raw = typeof content === 'string' ? content : textBlocks(content).join('\n');
+  const trimmed = raw.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
+}
+
+/**
+ * Parse a Claude Code transcript (JSONL) in TypeScript — no jq, UTF-8 safe by
+ * virtue of reading as utf8. Malformed lines are skipped, not fatal. Returns
+ * undefined only when the file itself cannot be read.
+ */
+function parseTranscriptForHarvest(transcriptPath: string): ParsedTranscript | undefined {
+  let raw: string;
+  try {
+    raw = readFileSync(transcriptPath, 'utf8');
+  } catch {
+    return undefined;
+  }
+  const intents: string[] = [];
+  let summary: string | undefined;
+  for (const line of raw.split('\n')) {
+    if (line.trim().length === 0) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof parsed !== 'object' || parsed === null) continue;
+    const entry = parsed as {
+      type?: unknown;
+      isCompactSummary?: unknown;
+      message?: { content?: unknown };
+    };
+    const content = entry.message?.content;
+    if (entry.isCompactSummary === true) {
+      const text = compactSummaryText(content);
+      if (text !== undefined) summary = text; // keep the latest
+      continue;
+    }
+    if (entry.type !== 'user') continue;
+    const text = userMessageText(content);
+    if (text === undefined || isDroppedIntent(text)) continue;
+    intents.push(text.slice(0, AMBIENT_INTENT_MAX_CHARS));
+  }
+  return { intents: intents.slice(-AMBIENT_MAX_INTENTS), summary };
+}
+
+function realAmbientGitProbe(projectRoot: string): AmbientGitProbe {
+  const git = (gitArgs: readonly string[]): string | undefined => {
+    try {
+      return execFileSync('git', ['-C', projectRoot, ...gitArgs], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+    } catch {
+      return undefined;
+    }
+  };
+  if (git(['rev-parse', '--is-inside-work-tree']) !== 'true') return {};
+  const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
+  const head = git(['rev-parse', '--short', 'HEAD']);
+  const status = git(['status', '--porcelain=v1']);
+  const statusPorcelain =
+    status === undefined || status.length === 0
+      ? undefined
+      : status.split('\n').slice(0, 40).join('\n');
+  return {
+    ...(branch ? { branch } : {}),
+    ...(head ? { head } : {}),
+    ...(statusPorcelain ? { statusPorcelain } : {}),
+  };
+}
+
+function composeAmbientStateMarkdown(
+  intents: readonly string[],
+  summary: string | undefined,
+  git: AmbientGitProbe,
+  transcriptPath: string,
+): string {
+  const lines: string[] = ['## Recent intent (your last requests, newest last)'];
+  if (intents.length > 0) {
+    for (const intent of intents) lines.push(`- ${intent}`);
+  } else {
+    lines.push('- (none captured; see the transcript below)');
+  }
+  lines.push('', '## Working tree (uncommitted)');
+  if (git.statusPorcelain !== undefined) {
+    lines.push('```', git.statusPorcelain, '```');
+  } else {
+    lines.push('clean, or not a git repo');
+  }
+  lines.push('', '## Structured summary (harvested from the last compaction)');
+  lines.push(summary ?? 'None captured this session. Full history is in the transcript below.');
+  lines.push('', '## Full detail', `Transcript: ${transcriptPath}`);
+  return lines.join('\n');
+}
+
+function readContinuityIndexOrNull(controlPlane: string): ContinuityIndexValue | null {
+  const indexAbs = indexPath(controlPlane);
+  if (!existsSync(indexAbs)) return null;
+  const raw = readJsonSafely(indexAbs);
+  if (!raw.ok) return null;
+  const parsed = ContinuityIndex.safeParse(raw.value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function harvestAmbientContinuity(input: AmbientHarvestInput): AmbientHarvestResult {
+  const projectRoot = resolve(input.projectRoot);
+  const controlPlane =
+    input.controlPlane === undefined
+      ? resolve(projectRoot, DEFAULT_CONTROL_PLANE)
+      : resolve(input.controlPlane);
+  const skip = (
+    reason: 'no_transcript' | 'transcript_unreadable' | 'nothing_to_harvest',
+  ): AmbientHarvestResult => ({
+    schema_version: 1,
+    action: 'harvest',
+    status: 'skipped',
+    reason,
+    index_path: indexPath(controlPlane),
+  });
+
+  if (!existsSync(input.transcriptPath)) return skip('no_transcript');
+  const parsed = parseTranscriptForHarvest(input.transcriptPath);
+  if (parsed === undefined) return skip('transcript_unreadable');
+
+  const git: AmbientGitProbe = (input.gitProbe ?? ((): AmbientGitProbe => ({})))(projectRoot);
+  if (
+    parsed.intents.length === 0 &&
+    parsed.summary === undefined &&
+    git.statusPorcelain === undefined
+  ) {
+    // Mirror the warm-writer guard: never blank a good prior record just
+    // because this turn captured nothing.
+    return skip('nothing_to_harvest');
+  }
+
+  const createdAt = input.createdAt ?? input.now().toISOString();
+  const recordId = (input.recordId ?? DEFAULT_AMBIENT_RECORD_STEM) as ControlPlaneFileStem;
+  const latestIntent = parsed.intents[parsed.intents.length - 1];
+  const goal =
+    latestIntent ??
+    `Resume the mechanically captured session in ${basename(projectRoot) || projectRoot}`;
+
+  const record = ContinuityRecord.parse({
+    schema_version: 1,
+    record_id: recordId,
+    project_root: projectRoot,
+    created_at: createdAt,
+    git: {
+      cwd: projectRoot,
+      ...(git.branch ? { branch: git.branch } : {}),
+      ...(git.head ? { head: git.head } : {}),
+    },
+    narrative: {
+      goal,
+      next: 'Review the recent intents and harvested summary below, then continue. This record was captured automatically, not saved by you, so confirm before acting.',
+      state_markdown: composeAmbientStateMarkdown(
+        parsed.intents,
+        parsed.summary,
+        git,
+        input.transcriptPath,
+      ),
+      debt_markdown: `- Mechanically harvested from the live transcript at ${createdAt}. Treat it as a hint, not a verified plan.`,
+    },
+    continuity_kind: 'ambient',
+    ambient_provenance: {
+      transcript_path: input.transcriptPath,
+      ...(input.sessionId ? { session_id: input.sessionId } : {}),
+      source: input.source,
+    },
+    resume_contract: {
+      mode: 'resume_ambient',
+      auto_resume: false,
+      requires_explicit_resume: true,
+    },
+  });
+
+  const recordAbs = recordPath(controlPlane, record.record_id);
+  writeJsonAtomic(recordAbs, record);
+
+  // Read-merge-write so a deliberate manual save (pending_record) and any
+  // attached run (current_run) survive untouched; only ambient_record moves.
+  const existing = readContinuityIndexOrNull(controlPlane);
+  const index = ContinuityIndex.parse({
+    schema_version: 1,
+    project_root: existing?.project_root ?? projectRoot,
+    pending_record: existing?.pending_record ?? null,
+    current_run: existing?.current_run ?? null,
+    ambient_record: {
+      record_id: record.record_id,
+      continuity_kind: 'ambient',
+      created_at: record.created_at,
+    },
+  });
+  writeJsonAtomic(indexPath(controlPlane), index);
+
+  return {
+    schema_version: 1,
+    action: 'harvest',
+    status: 'harvested',
+    record_id: record.record_id,
+    continuity_path: recordAbs,
+    index_path: indexPath(controlPlane),
+    intents_captured: parsed.intents.length,
+    summary_captured: parsed.summary !== undefined,
+  };
+}
+
+function ambientSourceFrom(value: string | undefined, hookEventName: unknown): AmbientSource {
+  if (value === 'session-end') return 'session-end';
+  if (value === 'stop') return 'stop';
+  if (typeof hookEventName === 'string' && hookEventName === 'SessionEnd') return 'session-end';
+  return 'stop';
+}
+
+function runHandoffHarvest(args: HandoffArgs, now: () => Date): number {
+  let transcriptPath = args.transcriptPath;
+  let projectRoot = args.projectRoot;
+  let sessionId = args.sessionId;
+  let hookEventName: unknown;
+  if (transcriptPath === undefined || projectRoot === undefined || sessionId === undefined) {
+    let input: unknown = {};
+    try {
+      input = readHookInput();
+    } catch (err) {
+      debugHook(
+        `harvest could not parse hook input: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (typeof input === 'object' && input !== null) {
+      const hi = input as Record<string, unknown>;
+      if (transcriptPath === undefined && typeof hi.transcript_path === 'string') {
+        transcriptPath = hi.transcript_path;
+      }
+      if (projectRoot === undefined && typeof hi.cwd === 'string') projectRoot = hi.cwd;
+      if (sessionId === undefined && typeof hi.session_id === 'string') sessionId = hi.session_id;
+      hookEventName = hi.hook_event_name;
+    }
+  }
+  const resolvedProjectRoot = projectRoot ?? process.cwd();
+  const source = ambientSourceFrom(args.source, hookEventName);
+  const controlPlane = args.controlPlane === undefined ? undefined : resolve(args.controlPlane);
+  const fallbackIndexPath = indexPath(
+    controlPlane ?? resolve(resolvedProjectRoot, DEFAULT_CONTROL_PLANE),
+  );
+
+  if (transcriptPath === undefined) {
+    const result: AmbientHarvestResult = {
+      schema_version: 1,
+      action: 'harvest',
+      status: 'skipped',
+      reason: 'no_transcript',
+      index_path: fallbackIndexPath,
+    };
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+  }
+
+  try {
+    const result = harvestAmbientContinuity({
+      transcriptPath,
+      projectRoot: resolvedProjectRoot,
+      source,
+      ...(controlPlane === undefined ? {} : { controlPlane }),
+      ...(sessionId === undefined ? {} : { sessionId }),
+      ...(args.recordId === undefined ? {} : { recordId: args.recordId }),
+      ...(args.createdAt === undefined ? {} : { createdAt: args.createdAt }),
+      now,
+      gitProbe: realAmbientGitProbe,
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  } catch (err) {
+    // A continuity harvest must never break the session it fires in.
+    debugHook(`harvest failed: ${err instanceof Error ? err.message : String(err)}`);
+    const result: AmbientHarvestResult = {
+      schema_version: 1,
+      action: 'harvest',
+      status: 'skipped',
+      reason: 'transcript_unreadable',
+      index_path: fallbackIndexPath,
+    };
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  }
+  return 0;
 }
 
 export async function runHandoffCommand(
@@ -1265,6 +1777,10 @@ export async function runHandoffCommand(
 
   if (args.action === 'hook') {
     return runHandoffHook(args);
+  }
+
+  if (args.action === 'harvest') {
+    return runHandoffHarvest(args, options.now ?? (() => new Date()));
   }
 
   if (args.action === 'hooks') {
