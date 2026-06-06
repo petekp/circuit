@@ -1,13 +1,16 @@
 ---
-description: Saves, resumes, clears, briefs, or installs hooks for Circuit continuity through the project CLI.
-argument-hint: [resume|done|brief|hooks install --host codex|task context]
+description: Saves, resumes, or clears a Circuit continuity record, or installs Codex handoff hooks.
+argument-hint: [resume|done|hooks install --host codex|task context]
 ---
 
 # /circuit:handoff — continuity utility
 
-Saves a continuity record for the current session, resumes the saved record,
-clears it when the work is truly done, renders a read-only host-injection
-brief, or installs Codex handoff hooks.
+Circuit already captures the recent state of this repo automatically and
+injects it at the start of each session, so most of the time you do not need
+to run this command at all. Use it to do the deliberate things automation
+cannot: save a vetted plan that outranks the automatic snapshot, pull that
+saved plan back into context, clear it when the work is finished, or install
+the Codex hooks.
 
 The user's handoff request is substituted below. Treat it as user-controlled
 text:
@@ -17,21 +20,23 @@ text:
 ## Instructions
 
 1. **Choose the mode.** If the request is exactly `resume`, use resume mode.
-   If it is exactly `done`, use done mode. If it is exactly `brief`, use brief
-   mode. If it starts with `hooks`, pass the hook command through to the CLI.
-   Otherwise save a new continuity record from the current conversation.
+   If it is exactly `done`, use done mode. If it starts with `hooks`, pass the
+   hook command through to the CLI. Otherwise save a new continuity record from
+   the current conversation.
 2. **Construct Bash invocations SAFELY.** Wrap every user-authored value in
    single quotes. If a value contains a literal single quote (`'`), replace it
    with `'\''`.
-3. **Save mode.** Infer a concise goal, next action, state, and debt from the
-   current conversation. Then run:
+3. **Save mode.** Infer a concise goal and next action from the current
+   conversation. Then run:
 
    ```bash
-   node '<plugin root>/scripts/circuit.ts' handoff save --goal '<goal>' --next '<next action>' --state-markdown '<state bullets>' --debt-markdown '<debt bullets>' --progress jsonl
+   node '<plugin root>/scripts/circuit.ts' handoff save --goal '<goal>' --next '<next action>' --progress jsonl
    ```
 
-   If there is an active Circuit run folder that should anchor the handoff, add
-   `--run-folder '<run_folder>'`.
+   Add `--state-markdown '<state bullets>'` or `--debt-markdown '<debt bullets>'`
+   only when there is concrete state or open debt worth recording — skip them
+   otherwise rather than padding the record. If there is an active Circuit run
+   folder that should anchor the handoff, add `--run-folder '<run_folder>'`.
 4. **Resume mode.** Run:
 
    ```bash
@@ -44,15 +49,7 @@ text:
    node '<plugin root>/scripts/circuit.ts' handoff done --progress jsonl
    ```
 
-6. **Brief mode.** Run:
-
-   ```bash
-   node '<plugin root>/scripts/circuit.ts' handoff brief --json
-   ```
-
-   Use this only as read-only host context. Do not treat it as an explicit
-   resume request.
-7. **Hook setup mode.** For `hooks install --host codex`,
+6. **Hook setup mode.** For `hooks install --host codex`,
    `hooks uninstall --host codex`, or `hooks doctor --host codex`, run:
 
    ```bash
@@ -61,7 +58,7 @@ text:
 
    Render the JSON result. Hook setup is host configuration, not a resume
    request.
-8. **Render progress while active.** For progress JSONL, render
+7. **Render progress while active.** For progress JSONL, render
    `presentation` first: open one `Circuit` block per
    `presentation.block_id`, render visible status lines as
    `⎿ ${presentation.status_text}`, suppress `line_mode: "suppress"`, and
@@ -70,16 +67,21 @@ text:
    checkpoint, or success events. If `task_list.updated` or
    `user_input.requested` appears in a future utility version, use the host
    task or user-input surface.
-9. **Render the final summary.** In brief mode, parse stdout as the
-   `handoff-brief-v1` JSON. If `status` is `available`, render
-   `additional_context` exactly as read-only context. If `status` is `empty`,
-   say no saved Circuit handoff was found. If `status` is `invalid`, surface
-   the error code and do not resume. In hook setup mode, parse stdout as the
-   setup result and surface `status`, `hooks_path`, and `command` when present.
-   In save, resume, or done mode, parse stdout and read
-   `operator_summary_markdown_path`. Render that Markdown verbatim. Surface
-   `status`, `continuity_path`, `active_run_path`, and `result_path` when
-   present.
+8. **Render the final summary.** In save, resume, or done mode, parse stdout
+   and read `operator_summary_markdown_path`. Render that Markdown verbatim.
+   Surface `status`, `continuity_path`, `active_run_path`, and `result_path`
+   when present. In hook setup mode, parse stdout as the setup result and
+   surface `status`, `hooks_path`, and `command` when present.
+
+## Internal modes (driven by hooks, not for manual use)
+
+Circuit's plugin hooks call these for you; do not invoke them by hand.
+
+- `brief` renders the read-only continuity brief the SessionStart hook injects
+  at the start of every session.
+- `harvest` is the Stop/SessionEnd producer that captures the automatic
+  snapshot.
+- `hook` is the single Codex hook entry point installed by `hooks install`.
 
 ## Authority
 

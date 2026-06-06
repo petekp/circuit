@@ -17,3 +17,9 @@ export const CONT_RUN_PROVENANCE = {
   runtime_status: 'in_progress',
   runtime_updated_at: '2026-04-19T00:00:00.000Z',
 } as const;
+
+export const CONT_AMBIENT_PROVENANCE = {
+  transcript_path: '/Users/x/.claude/projects/-Users-x-Code/abc.jsonl',
+  session_id: 'abc-session',
+  source: 'stop',
+} as const;

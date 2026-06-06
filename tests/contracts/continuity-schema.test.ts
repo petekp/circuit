@@ -2,13 +2,19 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  AmbientRecordPointer,
   AttachedRunPointer,
   ContinuityIndex,
   ContinuityRecord,
   PendingRecordPointer,
   RunAttachedProvenance,
 } from '../../src/index.js';
-import { CONT_NARRATIVE, CONT_RUN, CONT_RUN_PROVENANCE } from '../helpers/continuity-builders.js';
+import {
+  CONT_AMBIENT_PROVENANCE,
+  CONT_NARRATIVE,
+  CONT_RUN,
+  CONT_RUN_PROVENANCE,
+} from '../helpers/continuity-builders.js';
 
 describe('Continuity discriminated union (CONT-I3..I5)', () => {
   it('standalone form parses when auto_resume XOR requires_explicit_resume', () => {
@@ -528,6 +534,205 @@ describe('Continuity coverage additions', () => {
       record_id: 'foo..bar',
       continuity_kind: 'standalone',
       created_at: '2026-04-19T00:00:00.000Z',
+    });
+    expect(bad.success).toBe(false);
+  });
+});
+
+describe('Ambient continuity record — CONT-I13..I16', () => {
+  const baseAmbient = {
+    schema_version: 1 as const,
+    record_id: 'continuity-ambient-1',
+    project_root: '/Users/x/Code',
+    continuity_kind: 'ambient' as const,
+    created_at: '2026-06-06T05:00:00.000Z',
+    git: { cwd: '/Users/x/Code' },
+    narrative: CONT_NARRATIVE,
+    ambient_provenance: CONT_AMBIENT_PROVENANCE,
+    resume_contract: {
+      mode: 'resume_ambient' as const,
+      auto_resume: false,
+      requires_explicit_resume: true,
+    },
+  };
+
+  it('CONT-I13 — ambient form parses with ambient_provenance + resume_ambient', () => {
+    expect(ContinuityRecord.safeParse(baseAmbient).success).toBe(true);
+  });
+
+  it('CONT-I13 — ambient form accepts auto_resume=true (auto-resume framing)', () => {
+    const ok = ContinuityRecord.safeParse({
+      ...baseAmbient,
+      resume_contract: {
+        mode: 'resume_ambient',
+        auto_resume: true,
+        requires_explicit_resume: false,
+      },
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('CONT-I14 — ambient form requires ambient_provenance', () => {
+    const { ambient_provenance: _omit, ...rest } = baseAmbient;
+    expect(ContinuityRecord.safeParse(rest).success).toBe(false);
+  });
+
+  it('CONT-I14 — ambient form rejects run_ref (strict)', () => {
+    const bad = ContinuityRecord.safeParse({ ...baseAmbient, run_ref: CONT_RUN_PROVENANCE });
+    expect(bad.success).toBe(false);
+  });
+
+  it('CONT-I15 — ambient kind rejects resume_standalone mode', () => {
+    const bad = ContinuityRecord.safeParse({
+      ...baseAmbient,
+      resume_contract: {
+        mode: 'resume_standalone',
+        auto_resume: false,
+        requires_explicit_resume: true,
+      },
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('CONT-I15 — standalone kind rejects resume_ambient mode', () => {
+    const bad = ContinuityRecord.safeParse({
+      schema_version: 1,
+      record_id: 'continuity-abc',
+      project_root: '/Users/x/Code',
+      continuity_kind: 'standalone',
+      created_at: '2026-04-18T05:00:00.000Z',
+      git: { cwd: '/Users/x/Code' },
+      narrative: CONT_NARRATIVE,
+      resume_contract: {
+        mode: 'resume_ambient',
+        auto_resume: false,
+        requires_explicit_resume: true,
+      },
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('CONT-I16 — ambient resume_contract rejects both-true (non-contradiction)', () => {
+    const bad = ContinuityRecord.safeParse({
+      ...baseAmbient,
+      resume_contract: {
+        mode: 'resume_ambient',
+        auto_resume: true,
+        requires_explicit_resume: true,
+      },
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('CONT-I16 — ambient resume_contract rejects both-false', () => {
+    const bad = ContinuityRecord.safeParse({
+      ...baseAmbient,
+      resume_contract: {
+        mode: 'resume_ambient',
+        auto_resume: false,
+        requires_explicit_resume: false,
+      },
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('CONT-I8 — ambient_provenance rejects surplus keys (strict)', () => {
+    const bad = ContinuityRecord.safeParse({
+      ...baseAmbient,
+      ambient_provenance: { ...CONT_AMBIENT_PROVENANCE, harvested_by: 'hook' },
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('CONT-I14 — ambient_provenance requires transcript_path', () => {
+    const { transcript_path: _omit, ...prov } = CONT_AMBIENT_PROVENANCE;
+    const bad = ContinuityRecord.safeParse({ ...baseAmbient, ambient_provenance: prov });
+    expect(bad.success).toBe(false);
+  });
+
+  it('CONT-I14 — ambient_provenance rejects invalid source enum', () => {
+    const bad = ContinuityRecord.safeParse({
+      ...baseAmbient,
+      ambient_provenance: { ...CONT_AMBIENT_PROVENANCE, source: 'compact' },
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('CONT-I14 — ambient_provenance allows omitting optional session_id', () => {
+    const { session_id: _omit, ...prov } = CONT_AMBIENT_PROVENANCE;
+    const ok = ContinuityRecord.safeParse({ ...baseAmbient, ambient_provenance: prov });
+    expect(ok.success).toBe(true);
+  });
+});
+
+describe('Ambient index pointer — CONT-I17..I18', () => {
+  const ambientPointer = {
+    record_id: 'continuity-ambient-1',
+    continuity_kind: 'ambient' as const,
+    created_at: '2026-06-06T05:00:00.000Z',
+  };
+
+  it('CONT-I17 — AmbientRecordPointer parses', () => {
+    expect(AmbientRecordPointer.safeParse(ambientPointer).success).toBe(true);
+  });
+
+  it('CONT-I17 — AmbientRecordPointer rejects non-ambient kind', () => {
+    const bad = AmbientRecordPointer.safeParse({
+      ...ambientPointer,
+      continuity_kind: 'standalone',
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('CONT-I17 — AmbientRecordPointer record_id uses ControlPlaneFileStem (rejects uppercase)', () => {
+    const bad = AmbientRecordPointer.safeParse({ ...ambientPointer, record_id: 'Continuity-ABC' });
+    expect(bad.success).toBe(false);
+  });
+
+  it('CONT-I8 — AmbientRecordPointer rejects surplus keys', () => {
+    const bad = AmbientRecordPointer.safeParse({ ...ambientPointer, source: 'stop' });
+    expect(bad.success).toBe(false);
+  });
+
+  it('CONT-I18 — index parses with ambient_record alongside the manual pointers', () => {
+    const ok = ContinuityIndex.safeParse({
+      schema_version: 1,
+      project_root: '/Users/x/Code',
+      pending_record: null,
+      current_run: null,
+      ambient_record: ambientPointer,
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('CONT-I18 — index parses with ambient_record null', () => {
+    const ok = ContinuityIndex.safeParse({
+      schema_version: 1,
+      project_root: '/Users/x/Code',
+      pending_record: null,
+      current_run: null,
+      ambient_record: null,
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('CONT-I18 — index parses with ambient_record absent (back-compat with pre-ambient indexes)', () => {
+    const ok = ContinuityIndex.safeParse({
+      schema_version: 1,
+      project_root: '/Users/x/Code',
+      pending_record: null,
+      current_run: null,
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('CONT-I18 — index rejects ambient_record carrying a non-ambient kind', () => {
+    const bad = ContinuityIndex.safeParse({
+      schema_version: 1,
+      project_root: '/Users/x/Code',
+      pending_record: null,
+      current_run: null,
+      ambient_record: { ...ambientPointer, continuity_kind: 'standalone' },
     });
     expect(bad.success).toBe(false);
   });
