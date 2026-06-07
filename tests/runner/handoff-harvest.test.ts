@@ -1439,6 +1439,34 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
     expect(ctx).toContain('Confirm the current goal with the user before acting on it');
   });
 
+  // A deleted captured branch with HEAD unmoved and a clean tree must NOT
+  // collapse to "Repo unchanged since capture." branch_gone is real divergence,
+  // so the unchanged guard (`branch_gone !== true`) has to keep the block in its
+  // per-fact form and the boundary on its advanced wording. This locks that
+  // guard: without it, a gone branch would render the false "nothing changed".
+  it('does not collapse to unchanged when the captured branch is gone but HEAD held (Slice 3)', async () => {
+    const projectRoot = await ambientWithBaseline(
+      'circuit-brief-render-gone-held-',
+      'ambient request whose branch was deleted while HEAD stayed put',
+      { branch: 'feat/x', head: 'aaaaaaa' },
+    );
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({ head_advanced: false, tree_clean: true, branch_gone: true }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const ctx = (JSON.parse(brief.stdout) as { additional_context: string }).additional_context;
+    expect(ctx).toContain('Repo state since capture:');
+    expect(ctx).not.toContain('Repo unchanged since capture.');
+    // The branch is gone but not known-merged (no capture_head_reachable), so
+    // the render must say only "no longer present", never "merged".
+    expect(ctx).toContain('- That branch is no longer present.');
+    expect(ctx).not.toContain('merged and no longer present');
+    // branch_gone is divergence, so the boundary takes its advanced wording.
+    expect(ctx).toContain('The repo has advanced since it was captured');
+  });
+
   it('renders no block at all when the probe produced no facts (Slice 3)', async () => {
     const projectRoot = await ambientWithBaseline(
       'circuit-brief-render-nofacts-',
