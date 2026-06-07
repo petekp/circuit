@@ -92,7 +92,7 @@ of truth, soft-failing every field to omitted:
 staleness: {
   head_advanced: boolean,
   capture_head_reachable: boolean,
-  branch_merged_or_gone: boolean,
+  branch_gone: boolean,
   tree_clean: boolean,
   commits_since: number,
 }

@@ -76,7 +76,12 @@ interface HandoffMainOptions {
 export interface StalenessFacts {
   readonly head_advanced?: boolean;
   readonly capture_head_reachable?: boolean;
-  readonly branch_merged_or_gone?: boolean;
+  // True only when the captured branch ref no longer resolves. We deliberately
+  // do not infer "merged but still present": that nuance is already carried by
+  // capture_head_reachable/head_advanced, and calling a present branch "gone"
+  // would be a wrong fact. The render decides "merged and gone" vs just "gone"
+  // from capture_head_reachable.
+  readonly branch_gone?: boolean;
   readonly tree_clean?: boolean;
   readonly commits_since?: number;
   readonly current_head?: string;
@@ -318,14 +323,14 @@ const AMBIENT_BOUNDARY_ADVANCED =
 /**
  * True when the live repo has moved past the captured baseline in a way that
  * means the captured request may already have landed: HEAD advanced, the
- * captured branch merged or gone, or commits accrued since capture. Drives the
+ * captured branch gone, or commits accrued since capture. Drives the
  * boundary clause; `tree_clean` and `capture_head_reachable` alone are not
  * divergence (the captured commit can be reachable with HEAD unmoved).
  */
 function stalenessDiverged(staleness: StalenessFacts): boolean {
   return (
     staleness.head_advanced === true ||
-    staleness.branch_merged_or_gone === true ||
+    staleness.branch_gone === true ||
     (staleness.commits_since !== undefined && staleness.commits_since > 0)
   );
 }
@@ -341,7 +346,7 @@ function stalenessUnchanged(staleness: StalenessFacts): boolean {
   return (
     staleness.head_advanced === false &&
     staleness.tree_clean === true &&
-    staleness.branch_merged_or_gone !== true
+    staleness.branch_gone !== true
   );
 }
 
@@ -373,8 +378,15 @@ function stalenessBlockLines(
         : `- Captured at ${head}.`,
     );
   }
-  if (staleness.branch_merged_or_gone === true) {
-    lines.push('- That branch is now merged and no longer present.');
+  if (staleness.branch_gone === true) {
+    // The captured branch ref is gone. If its captured commit is also reachable
+    // from the current HEAD it was merged before deletion; otherwise it was
+    // simply deleted (or rebased away) and we only know it is no longer there.
+    lines.push(
+      staleness.capture_head_reachable === true
+        ? '- That branch is now merged and no longer present.'
+        : '- That branch is no longer present.',
+    );
   }
   if (staleness.capture_head_reachable === true) {
     const headSuffix =
@@ -388,7 +400,9 @@ function stalenessBlockLines(
   if (staleness.tree_clean === true) {
     lines.push('- Working tree is clean.');
   }
-  return lines;
+  // Never emit a bare header with no bullets: if no fact line survived (only an
+  // inconsistent or empty fact set reached here), render nothing.
+  return lines.length > 1 ? lines : [];
 }
 
 /**
@@ -2278,7 +2292,7 @@ function realBriefGitProbe(input: {
     const facts: {
       head_advanced?: boolean;
       capture_head_reachable?: boolean;
-      branch_merged_or_gone?: boolean;
+      branch_gone?: boolean;
       tree_clean?: boolean;
       commits_since?: number;
       current_head?: string;
@@ -2318,22 +2332,17 @@ function realBriefGitProbe(input: {
       }
     }
 
-    // branch_merged_or_gone is only meaningful when the capture named a real
-    // branch. A detached capture stored the literal "HEAD" and has no branch to
-    // track, so it is skipped there.
+    // branch_gone is only meaningful when the capture named a real branch. A
+    // detached capture stored the literal "HEAD" and has no branch to track, so
+    // it is skipped there. We set the fact ONLY when the ref no longer resolves:
+    // a branch that still exists is present, full stop, even if HEAD has moved
+    // past its tip. Whether the captured commit also merged is carried
+    // separately by capture_head_reachable, which the render reads to choose
+    // "merged and no longer present" vs just "no longer present".
     if (capturedBranch !== undefined && capturedBranch.length > 0 && capturedBranch !== 'HEAD') {
       const branchSha = git(['rev-parse', '--verify', '--quiet', `refs/heads/${capturedBranch}`]);
       if (branchSha === undefined) {
-        // The captured branch ref is gone.
-        facts.branch_merged_or_gone = true;
-      } else if (headFull !== undefined && branchSha !== headFull) {
-        // The branch still exists but HEAD has moved past it (its tip is an
-        // ancestor of HEAD). The `branchSha !== headFull` guard dodges the
-        // self-match: sitting on the still-active captured branch would
-        // otherwise read as "merged into itself".
-        if (gitBool(['merge-base', '--is-ancestor', branchSha, 'HEAD']) === true) {
-          facts.branch_merged_or_gone = true;
-        }
+        facts.branch_gone = true;
       }
     }
 

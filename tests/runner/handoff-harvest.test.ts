@@ -1024,7 +1024,7 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
       now: NOW,
       briefGitProbe: () => ({
         capture_head_reachable: true,
-        branch_merged_or_gone: true,
+        branch_gone: true,
         tree_clean: true,
         head_advanced: true,
         current_head: 'bbbbbbb',
@@ -1041,7 +1041,7 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
     expect(output.continuity_kind).toBe('ambient');
     expect(output.staleness).toEqual({
       capture_head_reachable: true,
-      branch_merged_or_gone: true,
+      branch_gone: true,
       tree_clean: true,
       head_advanced: true,
       current_head: 'bbbbbbb',
@@ -1138,7 +1138,7 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
         tree_clean?: boolean;
         commits_since?: number;
         current_head?: string;
-        branch_merged_or_gone?: boolean;
+        branch_gone?: boolean;
       };
     };
     expect(output.staleness).toBeDefined();
@@ -1147,9 +1147,102 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
     expect(output.staleness?.tree_clean).toBe(true);
     expect(output.staleness?.commits_since).toBe(1);
     expect(typeof output.staleness?.current_head).toBe('string');
-    // Still sitting on the captured branch (its tip == HEAD), so the
-    // self-match guard keeps branch_merged_or_gone from firing.
-    expect(output.staleness?.branch_merged_or_gone).toBeUndefined();
+    // The captured branch ref still exists (we are sitting on it), so
+    // branch_gone never fires: a present branch is present, full stop.
+    expect(output.staleness?.branch_gone).toBeUndefined();
+  });
+
+  // End-to-end exercise of the real-git branch_gone path: the
+  // captured branch is merged into another branch and deleted, so the brief
+  // must report it gone (ref lookup fails) and render the merged line.
+  it('reports the captured branch as merged and gone after a real merge + delete (Slice 2)', async () => {
+    const projectRoot = tempRoot('circuit-brief-staleness-merged-');
+    const git = (...gitArgs: string[]): void => {
+      execFileSync('git', ['-C', projectRoot, ...gitArgs], {
+        stdio: ['ignore', 'ignore', 'ignore'],
+      });
+    };
+    git('init', '-q');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'Test');
+    git('config', 'commit.gpgsign', 'false');
+    writeFileSync(join(projectRoot, 'a.txt'), 'one\n');
+    git('add', '-A');
+    git('commit', '-qm', 'base');
+    git('branch', '-m', 'base');
+
+    // Do the captured work on a feature branch, then harvest from it.
+    git('checkout', '-q', '-b', 'feat/x');
+    writeFileSync(join(projectRoot, 'b.txt'), 'two\n');
+    git('add', '-A');
+    git('commit', '-qm', 'feature work');
+    await harvestInto(projectRoot, 'ambient request whose branch later merges');
+
+    // Merge the feature branch back into base and delete it.
+    git('checkout', '-q', 'base');
+    git('merge', '--no-ff', '-q', '-m', 'merge feat/x', 'feat/x');
+    git('branch', '-d', 'feat/x');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      staleness?: { branch_gone?: boolean; capture_head_reachable?: boolean };
+      additional_context: string;
+    };
+    expect(output.staleness?.branch_gone).toBe(true);
+    expect(output.staleness?.capture_head_reachable).toBe(true);
+    expect(output.additional_context).toContain(
+      '- That branch is now merged and no longer present.',
+    );
+  });
+
+  // The everyday flow: the captured branch is merged but NOT deleted, so its ref
+  // still resolves. `branch_gone` must stay unset and the brief must never claim
+  // the branch is "no longer present" while it is sitting right there. This locks
+  // the fix for the false "no longer present" line on a still-present branch.
+  it('does not report a merged-but-undeleted branch as gone (Slice 2)', async () => {
+    const projectRoot = tempRoot('circuit-brief-staleness-merged-kept-');
+    const git = (...gitArgs: string[]): void => {
+      execFileSync('git', ['-C', projectRoot, ...gitArgs], {
+        stdio: ['ignore', 'ignore', 'ignore'],
+      });
+    };
+    git('init', '-q');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'Test');
+    git('config', 'commit.gpgsign', 'false');
+    writeFileSync(join(projectRoot, 'a.txt'), 'one\n');
+    git('add', '-A');
+    git('commit', '-qm', 'base');
+    git('branch', '-m', 'base');
+
+    // Capture work on a feature branch.
+    git('checkout', '-q', '-b', 'feat/x');
+    writeFileSync(join(projectRoot, 'b.txt'), 'two\n');
+    git('add', '-A');
+    git('commit', '-qm', 'feature work');
+    await harvestInto(projectRoot, 'ambient request whose branch merges but survives');
+
+    // Merge the feature branch into base WITHOUT deleting it; feat/x still exists.
+    git('checkout', '-q', 'base');
+    git('merge', '--no-ff', '-q', '-m', 'merge feat/x', 'feat/x');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      staleness?: { branch_gone?: boolean; capture_head_reachable?: boolean };
+      additional_context: string;
+    };
+    // The branch ref still resolves, so branch_gone must not fire.
+    expect(output.staleness?.branch_gone).toBeUndefined();
+    // The captured commit did merge, so that fact is still reported.
+    expect(output.staleness?.capture_head_reachable).toBe(true);
+    expect(output.additional_context).not.toContain('no longer present');
+    expect(output.additional_context).toContain('already in the current history');
   });
 
   // Slice 2: the facts become a rendered "Repo state since capture" block plus
@@ -1176,7 +1269,7 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
     const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
       now: NOW,
       briefGitProbe: () => ({
-        branch_merged_or_gone: true,
+        branch_gone: true,
         capture_head_reachable: true,
         tree_clean: true,
         head_advanced: true,
@@ -1231,13 +1324,16 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
       now: NOW,
       briefGitProbe: () => ({
         capture_head_reachable: false,
-        branch_merged_or_gone: true,
+        branch_gone: true,
       }),
     });
     expect(brief.code, brief.stderr).toBe(0);
     const ctx = (JSON.parse(brief.stdout) as { additional_context: string }).additional_context;
     expect(ctx).toContain('Repo state since capture:');
-    expect(ctx).toContain('- That branch is now merged and no longer present.');
+    // The branch ref is gone but its captured commit is NOT reachable from HEAD,
+    // so we must not claim it merged: only that it is no longer present.
+    expect(ctx).toContain('- That branch is no longer present.');
+    expect(ctx).not.toContain('merged and no longer present');
     expect(ctx).not.toContain('already in the current history');
     // Even with the commit unreachable, the boundary still nudges a check.
     expect(ctx).toContain('check whether the captured request already landed before acting');
@@ -1271,7 +1367,7 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
 
     const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
       now: NOW,
-      briefGitProbe: () => ({ head_advanced: true, branch_merged_or_gone: true }),
+      briefGitProbe: () => ({ head_advanced: true, branch_gone: true }),
     });
     expect(brief.code, brief.stderr).toBe(0);
     const ctx = (JSON.parse(brief.stdout) as { additional_context: string }).additional_context;
@@ -1295,7 +1391,7 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
     const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
       now: NOW,
       briefGitProbe: () => ({
-        branch_merged_or_gone: true,
+        branch_gone: true,
         capture_head_reachable: true,
         tree_clean: true,
         head_advanced: true,
@@ -1383,7 +1479,7 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
     const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
       now: NOW,
       briefGitProbe: () => ({
-        branch_merged_or_gone: true,
+        branch_gone: true,
         capture_head_reachable: true,
         tree_clean: true,
         head_advanced: true,
@@ -1402,7 +1498,7 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
     expect(output.status).toBe('available');
     expect(output.source).toBe('ambient_record');
     expect(output.recovered_from?.code).toBe('record_missing');
-    expect(output.staleness).toMatchObject({ head_advanced: true, branch_merged_or_gone: true });
+    expect(output.staleness).toMatchObject({ head_advanced: true, branch_gone: true });
     expect(output.additional_context).toContain('Repo state since capture:');
     expect(output.additional_context).toContain('The repo has advanced since it was captured');
   });
@@ -1418,7 +1514,7 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
       { branch: 'feat/x', head: 'aaaaaaa' },
     );
     const probe = () => ({
-      branch_merged_or_gone: true,
+      branch_gone: true,
       capture_head_reachable: true,
       tree_clean: true,
       head_advanced: true,

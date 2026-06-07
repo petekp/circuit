@@ -146,7 +146,7 @@ merge, and count signals, some exit-code-based):
 interface StalenessFacts {
   readonly head_advanced?: boolean;
   readonly capture_head_reachable?: boolean;   // capture HEAD in current history
-  readonly branch_merged_or_gone?: boolean;
+  readonly branch_gone?: boolean;              // captured branch ref no longer resolves
   readonly tree_clean?: boolean;
   readonly commits_since?: number;
   readonly current_head?: string;              // short SHA of HEAD now, for the render
@@ -195,16 +195,15 @@ string `HEAD` when the capturing session was in a detached-HEAD state
   is the only string fact; it exists solely so the render can name where
   the repo sits today (the captured side is already in `record.git`). Omit
   on soft-fail; the render drops the parenthetical when it is absent.
-- `branch_merged_or_gone`: skip entirely when `capturedBranch` is absent or
-  is the literal `HEAD` (a detached capture has no branch to track). Then
-  it is true when EITHER the branch is gone (`rev-parse --verify --quiet
-  refs/heads/<capturedBranch>` fails) OR the branch still resolves to a SHA
-  `B` with `B !== headFull` AND `merge-base --is-ancestor <B> HEAD`
-  succeeds (the branch tip is in current history but HEAD has moved past
-  it). The `B !== headFull` clause is the fix for the self-match: a bare
-  `git branch --merged` always lists the current branch as merged into
-  itself, so sitting on the still-active captured branch would
-  false-positive without it.
+- `branch_gone`: skip entirely when `capturedBranch` is absent or is the
+  literal `HEAD` (a detached capture has no branch to track). Then it is
+  true ONLY when the branch ref no longer resolves (`rev-parse --verify
+  --quiet refs/heads/<capturedBranch>` fails). A branch that still resolves
+  is present, full stop, even if HEAD has moved past its tip: calling a
+  present branch "gone" is a wrong git fact, and the everyday merge-without-
+  delete flow would trip it. Whether the captured commit also merged is
+  carried separately by `capture_head_reachable`; the render reads that to
+  choose "merged and no longer present" vs just "no longer present".
 
 Each git call fails soft to `undefined`. Wrap the probe so any unexpected
 throw yields `{}` rather than propagating (the brief must never crash the
@@ -265,7 +264,7 @@ wrapper), which is a small, contained addition.
 
 1. Failing test: an ambient record (captured branch `feat/x`, captured
    head `aaaaaaa`) resolved through `handoffBrief` with a stub probe
-   returning `{ capture_head_reachable: true, branch_merged_or_gone: true,
+   returning `{ capture_head_reachable: true, branch_gone: true,
    tree_clean: true, head_advanced: true }` yields an envelope with that
    `staleness` object on the `available` status.
 2. A manual (`standalone`/`run-backed`) record yields **no** `staleness`
@@ -305,7 +304,10 @@ already in hand:
 - `feat/x` / `aaaaaaa` come from `record.git.branch` / `record.git.head`
   (the captured side, always present on an ambient record that carried
   them).
-- "merged and no longer present" is gated on `branch_merged_or_gone`.
+- the branch-gone line is gated on `branch_gone`; it reads "merged and no
+  longer present" when `capture_head_reachable` is also true (the captured
+  commit landed before the ref was deleted) and just "no longer present"
+  otherwise (deleted or rebased away, not known to have merged).
 - "already in the current history" is gated on `capture_head_reachable`;
   the `(HEAD bbbbbbb)` parenthetical prints `current_head` and is dropped
   when that fact soft-failed.
@@ -349,10 +351,11 @@ and stays within the cap.
    `current_head` and asserts the same block without the `(HEAD ...)`
    parenthetical, locking the omit-when-absent rule.
 2. Rebased fixture: stub returns `capture_head_reachable: false,
-   branch_merged_or_gone: true`. Assert the block does **not** assert
-   "commit already in history" and the boundary still nudges a check (no
-   false "done"). This locks the "reachable is sufficient, not necessary"
-   trap from the design doc.
+   branch_gone: true`. Assert the branch line reads "no longer present"
+   (NOT "merged and no longer present", since the commit is unreachable),
+   the block does **not** assert "commit already in history", and the
+   boundary still nudges a check (no false "done"). This locks the
+   "reachable is sufficient, not necessary" trap from the design doc.
 3. Weak-divergence fixture: stub returns only `head_advanced: true` (other
    work). Assert a minimal block and the boundary clause, but no
    merged/reachable claims.

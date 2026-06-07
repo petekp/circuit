@@ -44963,10 +44963,10 @@ function composeHandoffBrief(record2, state, debt) {
 var AMBIENT_BOUNDARY_DEFAULT = "Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked.";
 var AMBIENT_BOUNDARY_ADVANCED = "Boundary: This is an automatic snapshot, not a saved plan. The repo has advanced since it was captured, so check whether the captured request already landed before acting. Confirm the current goal with the user, and do not resume this work unasked.";
 function stalenessDiverged(staleness) {
-  return staleness.head_advanced === true || staleness.branch_merged_or_gone === true || staleness.commits_since !== void 0 && staleness.commits_since > 0;
+  return staleness.head_advanced === true || staleness.branch_gone === true || staleness.commits_since !== void 0 && staleness.commits_since > 0;
 }
 function stalenessUnchanged(staleness) {
-  return staleness.head_advanced === false && staleness.tree_clean === true && staleness.branch_merged_or_gone !== true;
+  return staleness.head_advanced === false && staleness.tree_clean === true && staleness.branch_gone !== true;
 }
 function stalenessBlockLines(record2, staleness) {
   if (staleness === void 0 || Object.keys(staleness).length === 0)
@@ -44979,8 +44979,8 @@ function stalenessBlockLines(record2, staleness) {
   if (head !== void 0) {
     lines.push(branch !== void 0 && branch !== "HEAD" ? `- Captured on branch ${branch} at ${head}.` : `- Captured at ${head}.`);
   }
-  if (staleness.branch_merged_or_gone === true) {
-    lines.push("- That branch is now merged and no longer present.");
+  if (staleness.branch_gone === true) {
+    lines.push(staleness.capture_head_reachable === true ? "- That branch is now merged and no longer present." : "- That branch is no longer present.");
   }
   if (staleness.capture_head_reachable === true) {
     const headSuffix = staleness.current_head === void 0 ? "" : ` (HEAD ${staleness.current_head})`;
@@ -44993,7 +44993,7 @@ function stalenessBlockLines(record2, staleness) {
   if (staleness.tree_clean === true) {
     lines.push("- Working tree is clean.");
   }
-  return lines;
+  return lines.length > 1 ? lines : [];
 }
 function composeAmbientBrief(record2, state, debt, ageLabel, staleness) {
   const repo = basename(record2.git.cwd) || record2.git.cwd;
@@ -46320,11 +46320,7 @@ function realBriefGitProbe(input) {
     if (capturedBranch !== void 0 && capturedBranch.length > 0 && capturedBranch !== "HEAD") {
       const branchSha = git(["rev-parse", "--verify", "--quiet", `refs/heads/${capturedBranch}`]);
       if (branchSha === void 0) {
-        facts.branch_merged_or_gone = true;
-      } else if (headFull !== void 0 && branchSha !== headFull) {
-        if (gitBool(["merge-base", "--is-ancestor", branchSha, "HEAD"]) === true) {
-          facts.branch_merged_or_gone = true;
-        }
+        facts.branch_gone = true;
       }
     }
     return facts;
