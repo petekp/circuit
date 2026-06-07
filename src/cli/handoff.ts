@@ -1634,10 +1634,14 @@ const AMBIENT_MAX_INTENTS = 4;
 
 // Host-injected user turns the model should never treat as human intent.
 // Mirrors the proven warm-writer filter, plus the writer's own header so a
-// prior ambient record can never re-ingest itself.
+// prior ambient record can never re-ingest itself. The skill-harness
+// preamble ("Base directory for this skill:") is dropped because a slash
+// command expands its skill body into a plain user turn that carries no host
+// tag; left in, it would surface as the headline intent in the next brief.
 const AMBIENT_HOST_TAG_PREFIX =
   /^<(command-name|command-message|command-args|local-command|system-reminder|task-notification|bash-input|bash-stdout|bash-stderr)/;
-const AMBIENT_DROP_LINE_PREFIX = /^(# \/|# Warm continuity record|Caveat:|\[SESSION CONTINUITY\])/;
+const AMBIENT_DROP_LINE_PREFIX =
+  /^(# \/|# Warm continuity record|Caveat:|\[SESSION CONTINUITY\]|Base directory for this skill:)/;
 const AMBIENT_INTERRUPT_MARKER = /Request interrupted/;
 
 export interface AmbientGitProbe {

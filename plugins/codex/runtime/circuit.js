@@ -45958,7 +45958,7 @@ var DEFAULT_AMBIENT_RECORD_STEM = "ambient-latest";
 var AMBIENT_INTENT_MAX_CHARS = 280;
 var AMBIENT_MAX_INTENTS = 4;
 var AMBIENT_HOST_TAG_PREFIX = /^<(command-name|command-message|command-args|local-command|system-reminder|task-notification|bash-input|bash-stdout|bash-stderr)/;
-var AMBIENT_DROP_LINE_PREFIX = /^(# \/|# Warm continuity record|Caveat:|\[SESSION CONTINUITY\])/;
+var AMBIENT_DROP_LINE_PREFIX = /^(# \/|# Warm continuity record|Caveat:|\[SESSION CONTINUITY\]|Base directory for this skill:)/;
 var AMBIENT_INTERRUPT_MARKER = /Request interrupted/;
 function collapseWhitespace(value) {
   return value.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
