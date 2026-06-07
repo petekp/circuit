@@ -105,6 +105,29 @@
       "last_checked": "2026-06-06"
     },
     {
+      "path": "docs/ideas/continuity-staleness-check.md",
+      "title": "Continuity staleness check",
+      "status": "pre-implementation",
+      "category": "memory-and-ratchet",
+      "tags": ["continuity", "handoff", "ambient", "staleness", "git"],
+      "current_reading": "Design exploration that orients the ambient brief against current git, plus a frame-check that surfaces harvest-side intent quality as a sibling lever. Report-only and ambient-only; deterministic git facts, never an engine done verdict. Slice 0 (intent-quality drop) is the first build; verify current handoff behavior before treating later slices as shipped.",
+      "related": [
+        "docs/ideas/continuity-staleness-implementation.md",
+        "docs/ideas/continuity-restore-fast-robust.md"
+      ],
+      "last_checked": "2026-06-07"
+    },
+    {
+      "path": "docs/ideas/continuity-staleness-implementation.md",
+      "title": "Continuity staleness check: implementation spec",
+      "status": "implementation-spec",
+      "category": "memory-and-ratchet",
+      "tags": ["continuity", "handoff", "ambient", "staleness", "implementation-spec"],
+      "current_reading": "Build-ready spec for the intent-quality drop (Slice 0) and the brief-time staleness facts and render (Slices 1-3). Every code citation source-verified. Only Slice 0 is being built; treat Slices 1-3 as design, not current behavior.",
+      "related": ["docs/ideas/continuity-staleness-check.md"],
+      "last_checked": "2026-06-07"
+    },
+    {
       "path": "docs/ideas/doc-checkpoint-block.md",
       "title": "Doc checkpoint block - let the operator mark up the agent's markdown",
       "status": "current-idea",

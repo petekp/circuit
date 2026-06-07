@@ -161,6 +161,101 @@ describe('circuit handoff harvest (ambient continuity producer)', () => {
     expect(index.current_run).toBeNull();
   });
 
+  it('drops an expanded slash-command skill body from the harvested intent', async () => {
+    const projectRoot = tempRoot('circuit-harvest-skill-body-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    // A slash command emits a dropped <command-name> host tag and then a
+    // separate plain user turn carrying the expanded skill body, which begins
+    // with the skill-harness preamble. That body must not survive as intent —
+    // otherwise it becomes the headline "Latest request" in the next brief.
+    writeFileSync(
+      transcript,
+      jsonl([
+        userString('review the staleness spec for local optima'),
+        userString('<command-name>write-goal</command-name>'),
+        userString(
+          'Base directory for this skill: /Users/x/.claude/skills/write-goal\n\n# Write Goal\n\n## Overview\nTurn the user request into a compact Goal.',
+        ),
+      ]),
+    );
+
+    const harvest = await captureMain(
+      [
+        'handoff',
+        'harvest',
+        '--transcript-path',
+        transcript,
+        '--project-root',
+        projectRoot,
+        '--session-id',
+        's1',
+        '--source',
+        'stop',
+        '--record-id',
+        'ambient-latest',
+      ],
+      { now: NOW },
+    );
+
+    expect(harvest.code, harvest.stderr).toBe(0);
+    const result = JSON.parse(harvest.stdout) as {
+      status: string;
+      continuity_path: string;
+      intents_captured: number;
+    };
+    expect(result.status).toBe('harvested');
+    // Only the real prior request survives; the command tag and the skill
+    // body are both dropped.
+    expect(result.intents_captured).toBe(1);
+
+    const record = ContinuityRecord.parse(JSON.parse(readFileSync(result.continuity_path, 'utf8')));
+    expect(record.narrative.goal).toContain('review the staleness spec');
+    expect(record.narrative.goal).not.toContain('Base directory for this skill');
+    expect(record.narrative.state_markdown).not.toContain('Base directory for this skill');
+    expect(record.narrative.state_markdown).not.toContain('# Write Goal');
+  });
+
+  it('keeps a user message that merely mentions the skill preamble mid-line', async () => {
+    const projectRoot = tempRoot('circuit-harvest-skill-mention-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(
+      transcript,
+      jsonl([userString('what is the Base directory for this skill: line all about?')]),
+    );
+
+    const harvest = await captureMain(
+      [
+        'handoff',
+        'harvest',
+        '--transcript-path',
+        transcript,
+        '--project-root',
+        projectRoot,
+        '--session-id',
+        's1',
+        '--source',
+        'stop',
+        '--record-id',
+        'ambient-latest',
+      ],
+      { now: NOW },
+    );
+
+    expect(harvest.code, harvest.stderr).toBe(0);
+    const result = JSON.parse(harvest.stdout) as {
+      status: string;
+      continuity_path: string;
+      intents_captured: number;
+    };
+    expect(result.status).toBe('harvested');
+    expect(result.intents_captured).toBe(1);
+
+    const record = ContinuityRecord.parse(JSON.parse(readFileSync(result.continuity_path, 'utf8')));
+    // The `^`-anchored filter only drops the preamble at line start, so a
+    // genuine message that mentions it mid-sentence is preserved.
+    expect(record.narrative.goal).toContain('Base directory for this skill:');
+  });
+
   it('preserves a manual pending_record and current_run while setting ambient_record', async () => {
     const projectRoot = tempRoot('circuit-harvest-preserve-');
     const controlPlane = join(projectRoot, '.circuit');
