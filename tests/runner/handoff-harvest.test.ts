@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -337,6 +345,310 @@ describe('circuit handoff harvest (ambient continuity producer)', () => {
   });
 });
 
+// C2: when a compaction summary exists it is the richest signal in the
+// snapshot, so it should lead the state markdown as the spine. When no summary
+// was harvested, the recent intent stays first (nothing better to lead with).
+describe('circuit handoff harvest compaction-summary spine (C2)', () => {
+  async function harvestStateMarkdown(lines: ReadonlyArray<unknown | string>): Promise<string> {
+    const projectRoot = tempRoot('circuit-harvest-c2-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(transcript, jsonl(lines));
+    const harvest = await captureMain(
+      [
+        'handoff',
+        'harvest',
+        '--transcript-path',
+        transcript,
+        '--project-root',
+        projectRoot,
+        '--session-id',
+        's-c2',
+        '--source',
+        'stop',
+        '--record-id',
+        'ambient-latest',
+      ],
+      { now: NOW },
+    );
+    expect(harvest.code, harvest.stderr).toBe(0);
+    const result = JSON.parse(harvest.stdout) as { continuity_path: string };
+    const record = ContinuityRecord.parse(JSON.parse(readFileSync(result.continuity_path, 'utf8')));
+    return record.narrative.state_markdown;
+  }
+
+  it('leads with the structured summary when a compaction summary exists', async () => {
+    const markdown = await harvestStateMarkdown([
+      userString('an early request'),
+      userString('the latest request'),
+      {
+        type: 'user',
+        isCompactSummary: true,
+        message: {
+          role: 'user',
+          content: [
+            { type: 'text', text: '## Structured summary\nThe rich narrative from compaction.' },
+          ],
+        },
+      },
+    ]);
+
+    const summaryAt = markdown.indexOf('## Structured summary');
+    const intentAt = markdown.indexOf('## Recent intent');
+    const treeAt = markdown.indexOf('## Working tree');
+    const detailAt = markdown.indexOf('## Full detail');
+    expect(summaryAt).toBeGreaterThanOrEqual(0);
+    expect(intentAt).toBeGreaterThanOrEqual(0);
+    // The summary is the spine: it precedes intent, working tree, and detail.
+    expect(summaryAt).toBeLessThan(intentAt);
+    expect(intentAt).toBeLessThan(treeAt);
+    expect(treeAt).toBeLessThan(detailAt);
+    // The rich body and the intents are all still present.
+    expect(markdown).toContain('The rich narrative from compaction.');
+    expect(markdown).toContain('the latest request');
+  });
+
+  it('keeps recent intent first when no compaction summary was harvested', async () => {
+    const markdown = await harvestStateMarkdown([
+      userString('an early request'),
+      userString('the latest request'),
+    ]);
+
+    const intentAt = markdown.indexOf('## Recent intent');
+    const summaryAt = markdown.indexOf('## Structured summary');
+    expect(intentAt).toBeGreaterThanOrEqual(0);
+    expect(summaryAt).toBeGreaterThanOrEqual(0);
+    // No spine to lead with: intent stays first, summary placeholder trails.
+    expect(intentAt).toBeLessThan(summaryAt);
+  });
+});
+
+// B1: harvest fires every Stop and re-parsing the whole transcript from byte
+// zero is the largest pile of avoidable work. A cursor lets a later harvest
+// read only the tail appended since the last one, while a shrink or identity
+// change falls back to a full read so nothing is silently lost.
+describe('circuit handoff harvest incremental parsing (B1)', () => {
+  // Pad past the head-fingerprint window so the cursor's incremental path
+  // engages (small files fall back to a full read, which is cheap anyway).
+  function paddedTranscript(intents: readonly string[]): string {
+    const filler = Array.from({ length: 80 }, (_, i) => ({
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: `assistant filler line ${i}` }],
+      },
+    }));
+    return jsonl([...filler, ...intents.map((intent) => userString(intent))]);
+  }
+
+  async function harvestRecordId(
+    projectRoot: string,
+    transcript: string,
+    recordId: string,
+  ): Promise<void> {
+    const harvest = await captureMain(
+      [
+        'handoff',
+        'harvest',
+        '--transcript-path',
+        transcript,
+        '--project-root',
+        projectRoot,
+        '--session-id',
+        'sb1',
+        '--source',
+        'stop',
+        '--record-id',
+        recordId,
+      ],
+      { now: NOW },
+    );
+    expect(harvest.code, harvest.stderr).toBe(0);
+  }
+
+  function ambientState(projectRoot: string, recordId: string): string {
+    const record = ContinuityRecord.parse(
+      JSON.parse(
+        readFileSync(join(projectRoot, `.circuit/continuity/records/${recordId}.json`), 'utf8'),
+      ),
+    );
+    return record.narrative.state_markdown;
+  }
+
+  it('captures intents appended after the first harvest and matches a full re-read', async () => {
+    const projectRoot = tempRoot('circuit-harvest-incremental-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+
+    // First harvest builds the cursor over a large transcript (four intents,
+    // the running window is full).
+    writeFileSync(
+      transcript,
+      paddedTranscript(['intent one', 'intent two', 'intent three', 'intent four']),
+    );
+    await harvestRecordId(projectRoot, transcript, 'ambient-latest');
+    expect(existsSync(join(projectRoot, '.circuit/continuity/cursors/ambient-latest.json'))).toBe(
+      true,
+    );
+
+    // Append one new intent; the second harvest should read only the tail and
+    // merge it with the carried-over window, dropping the oldest intent.
+    const appended = `${readFileSync(transcript, 'utf8')}${jsonl([userString('intent five appended')])}`;
+    writeFileSync(transcript, appended);
+    await harvestRecordId(projectRoot, transcript, 'ambient-latest');
+
+    const incrementalState = ambientState(projectRoot, 'ambient-latest');
+    expect(incrementalState).toContain('intent five appended');
+    // Only the last four intents are kept; the oldest is dropped on merge.
+    expect(incrementalState).toContain('intent two');
+    expect(incrementalState).toContain('intent four');
+    expect(incrementalState).not.toContain('intent one');
+
+    // A fresh full read of the same final transcript must agree.
+    const freshRoot = tempRoot('circuit-harvest-incremental-fresh-');
+    const freshTranscript = join(freshRoot, 'transcript.jsonl');
+    writeFileSync(freshTranscript, appended);
+    await harvestRecordId(freshRoot, freshTranscript, 'ambient-latest');
+    const fullState = ambientState(freshRoot, 'ambient-latest');
+    const intentsOf = (state: string) =>
+      state
+        .split('\n')
+        .filter((line) => line.startsWith('- intent '))
+        .join('\n');
+    expect(intentsOf(incrementalState)).toBe(intentsOf(fullState));
+  });
+
+  it('falls back to a full read when the transcript shrinks or is rewritten in place', async () => {
+    const projectRoot = tempRoot('circuit-harvest-shrink-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+
+    writeFileSync(transcript, paddedTranscript(['original tall intent']));
+    await harvestRecordId(projectRoot, transcript, 'ambient-latest');
+    expect(ambientState(projectRoot, 'ambient-latest')).toContain('original tall intent');
+
+    // Replace the file with smaller, divergent content (rotation/compaction).
+    writeFileSync(transcript, jsonl([userString('replacement short intent')]));
+    await harvestRecordId(projectRoot, transcript, 'ambient-latest');
+    const state = ambientState(projectRoot, 'ambient-latest');
+    expect(state).toContain('replacement short intent');
+    expect(state).not.toContain('original tall intent');
+  });
+
+  it('falls back to a full read when a same-size rewrite diverges at the head', async () => {
+    const projectRoot = tempRoot('circuit-harvest-rewrite-head-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+
+    writeFileSync(transcript, paddedTranscript(['head-A intent before rewrite']));
+    await harvestRecordId(projectRoot, transcript, 'ambient-latest');
+
+    // Rewrite with the same padding shape but a different head and tail. Size
+    // is similar, so only the head fingerprint distinguishes them.
+    const rewritten = jsonl([
+      ...Array.from({ length: 80 }, (_, i) => ({
+        type: 'assistant',
+        message: { role: 'assistant', content: [{ type: 'text', text: `REWRITTEN filler ${i}` }] },
+      })),
+      userString('head-B intent after rewrite'),
+    ]);
+    writeFileSync(transcript, rewritten);
+    await harvestRecordId(projectRoot, transcript, 'ambient-latest');
+    const state = ambientState(projectRoot, 'ambient-latest');
+    expect(state).toContain('head-B intent after rewrite');
+    expect(state).not.toContain('head-A intent before rewrite');
+  });
+});
+
+// D1: harvest used to write a single `ambient-latest` record, so two sessions
+// in the same repo raced on one file and the loser's state was destroyed on
+// disk. Keying the record by session (with a transcript-derived fallback) lets
+// each session's last state survive as its own record; the index points at the
+// most recent and old records are garbage-collected.
+describe('circuit handoff harvest per-session records (D1)', () => {
+  async function harvestSession(
+    projectRoot: string,
+    opts: { transcript: string; intent: string; sessionId?: string; createdAt: string },
+  ): Promise<{ code: number; stdout: string; stderr: string }> {
+    writeFileSync(opts.transcript, jsonl([userString(opts.intent)]));
+    return captureMain(
+      [
+        'handoff',
+        'harvest',
+        '--transcript-path',
+        opts.transcript,
+        '--project-root',
+        projectRoot,
+        ...(opts.sessionId === undefined ? [] : ['--session-id', opts.sessionId]),
+        '--source',
+        'stop',
+        '--created-at',
+        opts.createdAt,
+      ],
+      { now: NOW },
+    );
+  }
+
+  function recordIds(projectRoot: string): string[] {
+    return readdirSync(join(projectRoot, '.circuit/continuity/records'))
+      .filter((name) => name.startsWith('ambient-') && name.endsWith('.json'))
+      .map((name) => name.slice(0, -'.json'.length))
+      .sort();
+  }
+
+  it('keeps each session as its own record and points the index at the most recent', async () => {
+    const projectRoot = tempRoot('circuit-d1-sessions-');
+    const a = await harvestSession(projectRoot, {
+      transcript: join(projectRoot, 'a.jsonl'),
+      intent: 'session A request',
+      sessionId: 'sa',
+      createdAt: '2026-06-06T12:00:00.000Z',
+    });
+    expect(a.code, a.stderr).toBe(0);
+    const b = await harvestSession(projectRoot, {
+      transcript: join(projectRoot, 'b.jsonl'),
+      intent: 'session B request',
+      sessionId: 'sb',
+      createdAt: '2026-06-06T13:00:00.000Z',
+    });
+    expect(b.code, b.stderr).toBe(0);
+
+    // Both sessions survive on disk: no clobber.
+    expect(recordIds(projectRoot)).toEqual(['ambient-sa', 'ambient-sb']);
+    // The index points at the most recent session by time.
+    expect(readIndex(projectRoot).ambient_record?.record_id).toBe('ambient-sb');
+  });
+
+  it('derives a stem from the transcript when no session id is supplied', async () => {
+    const projectRoot = tempRoot('circuit-d1-fallback-');
+    const result = await harvestSession(projectRoot, {
+      transcript: join(projectRoot, 'deadbeef-session.jsonl'),
+      intent: 'fallback-keyed request',
+      createdAt: '2026-06-06T12:00:00.000Z',
+    });
+    expect(result.code, result.stderr).toBe(0);
+    expect(recordIds(projectRoot)).toEqual(['ambient-deadbeef-session']);
+    expect(readIndex(projectRoot).ambient_record?.record_id).toBe('ambient-deadbeef-session');
+  });
+
+  it('garbage-collects old per-session records beyond the keep limit', async () => {
+    const projectRoot = tempRoot('circuit-d1-gc-');
+    for (let i = 0; i < 13; i++) {
+      const id = String(i).padStart(2, '0');
+      const result = await harvestSession(projectRoot, {
+        transcript: join(projectRoot, `s${id}.jsonl`),
+        intent: `request ${id}`,
+        sessionId: `s${id}`,
+        createdAt: `2026-06-06T${id}:00:00.000Z`,
+      });
+      expect(result.code, result.stderr).toBe(0);
+    }
+    const remaining = recordIds(projectRoot);
+    // Only the 10 newest survive; the 3 oldest are collected.
+    expect(remaining.length).toBe(10);
+    expect(remaining).not.toContain('ambient-s00');
+    expect(remaining).not.toContain('ambient-s02');
+    expect(remaining).toContain('ambient-s12');
+    expect(readIndex(projectRoot).ambient_record?.record_id).toBe('ambient-s12');
+  });
+});
+
 const MANUAL_BOUNDARY = 'Boundary: Use this as context only. Do not continue unless the user asks.';
 
 async function harvestInto(projectRoot: string, intent: string): Promise<void> {
@@ -483,5 +795,189 @@ describe('handoff brief precedence (manual save outranks ambient harvest)', () =
     expect(brief.code, brief.stderr).toBe(0);
     const output = JSON.parse(brief.stdout) as { additional_context: string };
     expect(output.additional_context).toContain('/circuit:handoff resume');
+  });
+});
+
+describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 staleness)', () => {
+  function indexFile(projectRoot: string): string {
+    return join(projectRoot, '.circuit/continuity/index.json');
+  }
+
+  it('falls through to the ambient record when the manual save is broken, with a recovered signal (A4)', async () => {
+    const projectRoot = tempRoot('circuit-brief-a4-');
+    await harvestInto(projectRoot, 'ambient fallback after broken manual save');
+
+    // Point pending_record at a record that does not exist on disk.
+    const path = indexFile(projectRoot);
+    const index = JSON.parse(readFileSync(path, 'utf8'));
+    index.pending_record = {
+      record_id: 'continuity-deadbeef-dead-4ead-8ead-deaddeaddead',
+      continuity_kind: 'standalone',
+      created_at: '2026-06-06T09:00:00.000Z',
+    };
+    writeFileSync(path, `${JSON.stringify(index, null, 2)}\n`);
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot]);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      status: string;
+      source: string;
+      continuity_kind: string;
+      recovered_from?: { code: string };
+      operator_notice?: string;
+      additional_context: string;
+    };
+    expect(output.status).toBe('available');
+    expect(output.source).toBe('ambient_record');
+    expect(output.continuity_kind).toBe('ambient');
+    expect(output.recovered_from?.code).toBe('record_missing');
+    expect(output.operator_notice).toContain('could not load');
+    expect(output.additional_context).toContain('ambient fallback after broken manual save');
+  });
+
+  it('surfaces invalid (not empty) with an operator_notice when the manual save is broken and no ambient fallback exists (A1)', async () => {
+    const projectRoot = tempRoot('circuit-brief-a1-invalid-');
+    await saveManual(projectRoot, 'manual goal that will be corrupted');
+    const recordPath = join(
+      projectRoot,
+      '.circuit/continuity/records/continuity-abababab-abab-4bab-8bab-abababababab.json',
+    );
+    writeFileSync(recordPath, '{ not valid json');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot]);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      status: string;
+      error?: { code: string };
+      operator_notice?: string;
+    };
+    expect(output.status).toBe('invalid');
+    expect(output.error?.code).toBe('record_invalid');
+    expect(output.operator_notice).toContain('could not load');
+  });
+
+  it('renders the ambient record age as a staleness signal (A2)', async () => {
+    const projectRoot = tempRoot('circuit-brief-a2-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(transcript, jsonl([userString('stale ambient request')]));
+    const harvest = await captureMain(
+      [
+        'handoff',
+        'harvest',
+        '--transcript-path',
+        transcript,
+        '--project-root',
+        projectRoot,
+        '--session-id',
+        'sa2',
+        '--source',
+        'stop',
+        '--record-id',
+        'ambient-latest',
+        '--created-at',
+        '2026-05-16T12:00:00.000Z',
+      ],
+      { now: NOW },
+    );
+    expect(harvest.code, harvest.stderr).toBe(0);
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { additional_context: string };
+    // 2026-05-16 to 2026-06-06 is 21 days.
+    expect(output.additional_context).toContain('captured 3 weeks ago');
+  });
+
+  it('omits the age signal on a deliberate manual brief (A2 is ambient-only)', async () => {
+    const projectRoot = tempRoot('circuit-brief-a2-manual-');
+    await saveManual(projectRoot, 'manual goal needs no age');
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { additional_context: string };
+    expect(output.additional_context).not.toContain('captured');
+  });
+});
+
+// E1: `handoff done` clears the manual save but deliberately keeps the ambient
+// record so a finished task still leaves the latest auto-captured state as a
+// fallback. `--clear-ambient` is the opt-in that also wipes the ambient layer
+// for operators who do not want finished work resurfacing.
+describe('circuit handoff done ambient semantics (E1)', () => {
+  async function seedAmbient(projectRoot: string): Promise<void> {
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(transcript, jsonl([userString('seed ambient state for done')]));
+    const harvest = await captureMain(
+      [
+        'handoff',
+        'harvest',
+        '--transcript-path',
+        transcript,
+        '--project-root',
+        projectRoot,
+        '--session-id',
+        's-e1',
+        '--source',
+        'stop',
+      ],
+      { now: NOW },
+    );
+    expect(harvest.code, harvest.stderr).toBe(0);
+  }
+
+  function ambientRecordFiles(projectRoot: string): string[] {
+    return readdirSync(join(projectRoot, '.circuit/continuity/records')).filter((name) =>
+      name.startsWith('ambient-'),
+    );
+  }
+
+  it('keeps the ambient record by default so finished work still has a fallback', async () => {
+    const projectRoot = tempRoot('circuit-done-e1-keep-');
+    await seedAmbient(projectRoot);
+
+    const done = await captureMain(['handoff', 'done', '--project-root', projectRoot], {
+      now: NOW,
+    });
+    expect(done.code, done.stderr).toBe(0);
+    const result = JSON.parse(done.stdout) as { ambient_cleared?: boolean };
+    expect(result.ambient_cleared).toBe(false);
+
+    const index = ContinuityIndex.parse(
+      JSON.parse(readFileSync(join(projectRoot, '.circuit/continuity/index.json'), 'utf8')),
+    );
+    expect(index.pending_record).toBeNull();
+    expect(index.ambient_record ?? null).not.toBeNull();
+    expect(ambientRecordFiles(projectRoot).length).toBeGreaterThan(0);
+  });
+
+  it('clears the ambient record and its files when --clear-ambient is set (opt-in)', async () => {
+    const projectRoot = tempRoot('circuit-done-e1-clear-');
+    await seedAmbient(projectRoot);
+
+    const done = await captureMain(
+      ['handoff', 'done', '--project-root', projectRoot, '--clear-ambient'],
+      { now: NOW },
+    );
+    expect(done.code, done.stderr).toBe(0);
+    const result = JSON.parse(done.stdout) as { ambient_cleared?: boolean };
+    expect(result.ambient_cleared).toBe(true);
+
+    const index = ContinuityIndex.parse(
+      JSON.parse(readFileSync(join(projectRoot, '.circuit/continuity/index.json'), 'utf8')),
+    );
+    expect(index.pending_record).toBeNull();
+    expect(index.ambient_record ?? null).toBeNull();
+    expect(ambientRecordFiles(projectRoot)).toEqual([]);
+
+    // A brief after a full clear surfaces nothing: the repo reads as clean.
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const briefOut = JSON.parse(brief.stdout) as { status: string };
+    expect(briefOut.status).toBe('empty');
   });
 });

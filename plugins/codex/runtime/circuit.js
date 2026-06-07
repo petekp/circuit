@@ -43745,8 +43745,8 @@ async function runCreateCommand(argv, options = {}) {
 
 // dist/cli/handoff.js
 import { execFileSync } from "node:child_process";
-import { randomUUID as randomUUID3 } from "node:crypto";
-import { copyFileSync, existsSync as existsSync12, mkdirSync as mkdirSync2, readFileSync as readFileSync25, renameSync, writeFileSync as writeFileSync3 } from "node:fs";
+import { createHash as createHash4, randomUUID as randomUUID3 } from "node:crypto";
+import { closeSync as closeSync2, copyFileSync, existsSync as existsSync12, mkdirSync as mkdirSync2, openSync as openSync2, readFileSync as readFileSync25, readSync as readSync2, readdirSync, renameSync, rmSync as rmSync2, statSync as statSync2, writeFileSync as writeFileSync3 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { basename, dirname as dirname3, join as join9, resolve as resolve9 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
@@ -44831,7 +44831,7 @@ var HANDOFF_HOOKS_API_VERSION = "handoff-hooks-v1";
 var HANDOFF_HOOKS_SCHEMA_VERSION = 1;
 var CIRCUIT_HOOK_MARKER = "CIRCUIT_HANDOFF_HOOK=1";
 function addHandoffOptions(program2) {
-  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--source <stop|session-end>").option("--progress <format>").option("--json");
+  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--source <stop|session-end>").option("--clear-ambient").option("--progress <format>").option("--json");
 }
 function parseArgs2(argv) {
   let parsed;
@@ -44877,6 +44877,7 @@ function parseArgs2(argv) {
     ...opts.host === void 0 ? {} : { host: opts.host },
     progress: opts.progress === "jsonl",
     json: opts.json === true,
+    clearAmbient: opts.clearAmbient === true,
     ...opts.goal === void 0 ? {} : { goal: opts.goal },
     ...opts.next === void 0 ? {} : { next: opts.next },
     ...opts.stateMarkdown === void 0 ? {} : { stateMarkdown: opts.stateMarkdown },
@@ -44959,10 +44960,11 @@ function composeHandoffBrief(record2, state, debt) {
     "Useful commands: /circuit:handoff resume, /circuit:handoff done"
   ].join("\n");
 }
-function composeAmbientBrief(record2, state, debt) {
+function composeAmbientBrief(record2, state, debt, ageLabel) {
   const repo = basename(record2.git.cwd) || record2.git.cwd;
+  const capturedSuffix = ageLabel === void 0 ? "" : ` (captured ${ageLabel})`;
   return [
-    `Circuit automatically captured the recent state of ${repo}. No handoff was saved.`,
+    `Circuit automatically captured the recent state of ${repo}${capturedSuffix}. No handoff was saved.`,
     "",
     `Latest request: ${record2.narrative.goal}`,
     `Suggested next: ${record2.narrative.next}`,
@@ -44976,8 +44978,8 @@ function composeAmbientBrief(record2, state, debt) {
     "Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked."
   ].join("\n");
 }
-function composeBriefFor(record2, state, debt) {
-  return record2.continuity_kind === "ambient" ? composeAmbientBrief(record2, state, debt) : composeHandoffBrief(record2, state, debt);
+function composeBriefFor(record2, state, debt, ageLabel) {
+  return record2.continuity_kind === "ambient" ? composeAmbientBrief(record2, state, debt, ageLabel) : composeHandoffBrief(record2, state, debt);
 }
 function fitText(value, budget) {
   const marker = "\n[truncated]";
@@ -44989,14 +44991,15 @@ function fitText(value, budget) {
     return marker.slice(0, budget);
   return `${value.slice(0, budget - marker.length)}${marker}`;
 }
-function renderHandoffBrief(record2) {
+function renderHandoffBrief(record2, now) {
   const state = record2.narrative.state_markdown;
   const debt = record2.narrative.debt_markdown;
-  const full = composeBriefFor(record2, state, debt);
+  const ageLabel = record2.continuity_kind === "ambient" ? relativeAge(record2.created_at, now()) : void 0;
+  const full = composeBriefFor(record2, state, debt, ageLabel);
   if (full.length <= HANDOFF_BRIEF_MAX_CHARS) {
     return { ok: true, additionalContext: full };
   }
-  const fixed2 = composeBriefFor(record2, "", "");
+  const fixed2 = composeBriefFor(record2, "", "", ageLabel);
   if (fixed2.length > HANDOFF_BRIEF_MAX_CHARS) {
     return {
       ok: false,
@@ -45017,16 +45020,16 @@ function renderHandoffBrief(record2) {
   }
   let renderedState = fitText(state, stateBudget);
   let renderedDebt = fitText(debt, debtBudget);
-  let rendered = composeBriefFor(record2, renderedState, renderedDebt);
+  let rendered = composeBriefFor(record2, renderedState, renderedDebt, ageLabel);
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedDebt = fitText(renderedDebt, Math.max(0, renderedDebt.length - overflow));
-    rendered = composeBriefFor(record2, renderedState, renderedDebt);
+    rendered = composeBriefFor(record2, renderedState, renderedDebt, ageLabel);
   }
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedState = fitText(renderedState, Math.max(0, renderedState.length - overflow));
-    rendered = composeBriefFor(record2, renderedState, renderedDebt);
+    rendered = composeBriefFor(record2, renderedState, renderedDebt, ageLabel);
   }
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     return {
@@ -45036,6 +45039,37 @@ function renderHandoffBrief(record2) {
     };
   }
   return { ok: true, additionalContext: rendered };
+}
+function briefInvalidNotice(code) {
+  return `Circuit found saved continuity for this repo but could not load it (${code}). Run /circuit:handoff done to clear it, or /circuit:handoff resume to inspect.`;
+}
+function briefRecoveredNotice(code) {
+  return `Circuit could not load your saved handoff for this repo (${code}); showing the automatically captured snapshot below instead.`;
+}
+function relativeAge(createdAtIso, now) {
+  const created = new Date(createdAtIso).getTime();
+  if (!Number.isFinite(created))
+    return void 0;
+  const ms = now.getTime() - created;
+  const minutes = Math.floor(ms / 6e4);
+  if (minutes < 1)
+    return "just now";
+  const unit = (value, name) => `${value} ${name}${value === 1 ? "" : "s"} ago`;
+  if (minutes < 60)
+    return unit(minutes, "minute");
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24)
+    return unit(hours, "hour");
+  const days = Math.floor(hours / 24);
+  if (days < 7)
+    return unit(days, "day");
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5)
+    return unit(weeks, "week");
+  const months = Math.floor(days / 30);
+  if (months < 12)
+    return unit(months, "month");
+  return unit(Math.floor(days / 365), "year");
 }
 function emptyBrief(args, reason) {
   const projectRoot = resolveProjectRootArg(args);
@@ -45061,10 +45095,12 @@ function invalidBrief(args, code, message, recordId) {
     control_plane: controlPlane,
     index_path: indexPath(controlPlane),
     ...recordId === void 0 ? {} : { record_id: recordId },
-    error: { code, message }
+    error: { code, message },
+    // A1: one human-facing line so a broken store is visible, not silent.
+    operator_notice: briefInvalidNotice(code)
   };
 }
-function resolvePointerBrief(args, controlPlane, pointer, source) {
+function resolvePointerBrief(args, controlPlane, pointer, source, now) {
   const projectRoot = resolveProjectRootArg(args);
   const indexAbs = indexPath(controlPlane);
   const recordAbs = recordPath(controlPlane, pointer.record_id);
@@ -45080,7 +45116,7 @@ function resolvePointerBrief(args, controlPlane, pointer, source) {
   if (record2.continuity_kind !== pointer.continuity_kind) {
     return invalidBrief(args, "record_kind_mismatch", "Continuity index kind disagrees with the pointed record.", pointer.record_id);
   }
-  const rendered = renderHandoffBrief(record2);
+  const rendered = renderHandoffBrief(record2, now);
   if (!rendered.ok) {
     return invalidBrief(args, rendered.code, rendered.message, pointer.record_id);
   }
@@ -45098,7 +45134,7 @@ function resolvePointerBrief(args, controlPlane, pointer, source) {
     additional_context: rendered.additionalContext
   };
 }
-function handoffBrief(args) {
+function handoffBrief(args, now = () => /* @__PURE__ */ new Date()) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
   if (!existsSync12(indexAbs))
@@ -45110,12 +45146,32 @@ function handoffBrief(args) {
     return invalidBrief(args, "index_invalid", "Continuity index is malformed.");
   }
   if (index.pending_record !== null) {
-    return resolvePointerBrief(args, controlPlane, index.pending_record, "pending_record");
+    const pending = resolvePointerBrief(args, controlPlane, index.pending_record, "pending_record", now);
+    if (pending.status === "available")
+      return pending;
+    if (index.ambient_record) {
+      const ambient = resolvePointerBrief(args, controlPlane, index.ambient_record, "ambient_record", now);
+      if (ambient.status === "available") {
+        const failure = briefErrorOf(pending);
+        return {
+          ...ambient,
+          recovered_from: failure,
+          operator_notice: briefRecoveredNotice(failure.code)
+        };
+      }
+    }
+    return pending;
   }
   if (index.ambient_record) {
-    return resolvePointerBrief(args, controlPlane, index.ambient_record, "ambient_record");
+    return resolvePointerBrief(args, controlPlane, index.ambient_record, "ambient_record", now);
   }
   return emptyBrief(args, "no_pending_record");
+}
+function briefErrorOf(brief) {
+  const error51 = typeof brief === "object" && brief !== null && "error" in brief ? brief.error : void 0;
+  const code = typeof error51 === "object" && error51 !== null && "code" in error51 ? String(error51.code ?? "record_invalid") : "record_invalid";
+  const message = typeof error51 === "object" && error51 !== null && "message" in error51 ? String(error51.message ?? "Continuity record could not be loaded.") : "Continuity record could not be loaded.";
+  return { code, message };
 }
 function debugHook(message) {
   if (process.env.CIRCUIT_HANDOFF_HOOK_DEBUG === "1") {
@@ -45137,12 +45193,35 @@ function projectRootFromHookInput(input) {
   }
   return void 0;
 }
+function sourceFromHookInput(input) {
+  if (typeof input === "object" && input !== null && "source" in input && typeof input.source === "string") {
+    return input.source;
+  }
+  return void 0;
+}
+function injectModeForSource(source, env = process.env) {
+  if (source === "clear" && env.CIRCUIT_HANDOFF_ON_CLEAR === "suppress")
+    return "suppress";
+  if (source === "compact" && env.CIRCUIT_HANDOFF_ON_COMPACT === "suppress")
+    return "suppress";
+  return "inject";
+}
 function parseHookHost(args) {
   if (args.host === "codex")
     return "codex";
   throw new Error("handoff hook requires --host codex");
 }
-function runHandoffHook(args) {
+var HOOK_BRIEF_FAILED_NOTICE = "Circuit could not check this repo's saved continuity (the restore step did not complete). Continuing without it.";
+function emitSessionStartContext(additionalContext) {
+  process.stdout.write(`${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "SessionStart",
+      additionalContext
+    }
+  })}
+`);
+}
+function runHandoffHook(args, now = () => /* @__PURE__ */ new Date()) {
   try {
     parseHookHost(args);
   } catch (err) {
@@ -45150,6 +45229,7 @@ function runHandoffHook(args) {
     return 0;
   }
   let projectRoot = args.projectRoot;
+  let source = args.source;
   if (projectRoot === void 0) {
     let input;
     try {
@@ -45159,9 +45239,14 @@ function runHandoffHook(args) {
       return 0;
     }
     projectRoot = projectRootFromHookInput(input);
+    source = source ?? sourceFromHookInput(input);
   }
   if (projectRoot === void 0 || projectRoot.length === 0) {
     debugHook("hook input did not include cwd; skipping handoff injection");
+    return 0;
+  }
+  if (injectModeForSource(source) === "suppress") {
+    debugHook(`source '${source ?? "unknown"}' opted out of brief injection; skipping`);
     return 0;
   }
   try {
@@ -45169,23 +45254,24 @@ function runHandoffHook(args) {
       action: "brief",
       projectRoot,
       progress: false,
-      json: true
-    });
+      json: true,
+      clearAmbient: false
+    }, now);
     if (brief.status === "invalid") {
+      const notice = typeof brief.operator_notice === "string" ? brief.operator_notice : briefInvalidNotice(brief.error?.code ?? "unknown");
       debugHook(`brief state is invalid: ${brief.error?.code ?? "unknown"}`);
+      emitSessionStartContext(notice);
       return 0;
     }
     if (brief.status !== "available" || typeof brief.additional_context !== "string")
       return 0;
-    process.stdout.write(`${JSON.stringify({
-      hookSpecificOutput: {
-        hookEventName: "SessionStart",
-        additionalContext: brief.additional_context
-      }
-    })}
-`);
+    const additionalContext = typeof brief.operator_notice === "string" ? `${brief.operator_notice}
+
+${brief.additional_context}` : brief.additional_context;
+    emitSessionStartContext(additionalContext);
   } catch (err) {
     debugHook(`brief command failed: ${err instanceof Error ? err.message : String(err)}`);
+    emitSessionStartContext(HOOK_BRIEF_FAILED_NOTICE);
   }
   return 0;
 }
@@ -45524,6 +45610,43 @@ function runHandoffHooksCommand(args) {
     return doctorCodexHandoffHook(args);
   throw new Error("handoff hooks requires install, uninstall, or doctor");
 }
+var CODEX_INSTALL_NUDGE_MARKER = ".codex-install-nudged";
+var CODEX_INSTALL_NUDGE_NOTICE = "Circuit restores this repo automatically on Claude, but on Codex it needs a one-time hook install before each new session can restore your continuity. Run: circuit handoff hooks install --host codex (this notice shows once per repo).";
+function codexInstallNudgeMarkerPath(controlPlane) {
+  return join9(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
+}
+function isCodexHandoffHookInstalled(hooksPath) {
+  if (!existsSync12(hooksPath))
+    return false;
+  let config2;
+  try {
+    config2 = readHooksConfig(hooksPath);
+  } catch {
+    return false;
+  }
+  try {
+    return circuitHookEntryCount(sessionStartEntries(config2)) > 0;
+  } catch {
+    return false;
+  }
+}
+function codexInstallAssurance(input) {
+  const controlPlane = input.controlPlane ?? resolve9(input.projectRoot, DEFAULT_CONTROL_PLANE);
+  const markerPath = codexInstallNudgeMarkerPath(controlPlane);
+  const hooksPath = input.hooksFile ?? defaultCodexHooksFile();
+  if (isCodexHandoffHookInstalled(hooksPath))
+    return { status: "ok", marker_path: markerPath };
+  if (existsSync12(markerPath))
+    return { status: "already_nudged", marker_path: markerPath };
+  const stampedAt = (input.now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
+  try {
+    mkdirSync2(dirname3(markerPath), { recursive: true });
+    writeFileSync3(markerPath, `nudged at ${stampedAt}
+`);
+  } catch {
+  }
+  return { status: "nudge", notice: CODEX_INSTALL_NUDGE_NOTICE, marker_path: markerPath };
+}
 function stageForCurrentStep(flow, currentStep) {
   const stage = flow.stages.find((candidate) => candidate.steps.includes(currentStep));
   return stage?.canonical ?? stage?.id ?? "frame";
@@ -45804,12 +45927,16 @@ function clearContinuity(args, now) {
   const projectRoot = resolveProjectRootArg(args);
   const createdAt = args.createdAt ?? now().toISOString();
   const existing = readContinuityIndexOrNull(controlPlane);
+  const clearAmbient = args.clearAmbient === true;
+  if (clearAmbient)
+    removeAllAmbientRecords(controlPlane);
+  const keepAmbient = !clearAmbient && existing?.ambient_record;
   const index = ContinuityIndex.parse({
     schema_version: 1,
     project_root: projectRoot,
     pending_record: null,
     current_run: null,
-    ...existing?.ambient_record ? { ambient_record: existing.ambient_record } : {}
+    ...keepAmbient ? { ambient_record: existing?.ambient_record } : {}
   });
   writeJson2(indexPath(controlPlane), index);
   const summaryPath2 = operatorSummaryPath(controlPlane);
@@ -45820,7 +45947,8 @@ function clearContinuity(args, now) {
     status: "cleared",
     index_path: indexPath(controlPlane),
     operator_summary_markdown_path: summaryPath2,
-    cleared_at: createdAt
+    cleared_at: createdAt,
+    ambient_cleared: clearAmbient
   };
   const resultPath2 = handoffResultPath(controlPlane, "done");
   writeJson2(resultPath2, result);
@@ -45865,13 +45993,7 @@ function compactSummaryText(content) {
   const trimmed = raw.trim();
   return trimmed.length === 0 ? void 0 : trimmed;
 }
-function parseTranscriptForHarvest(transcriptPath) {
-  let raw;
-  try {
-    raw = readFileSync25(transcriptPath, "utf8");
-  } catch {
-    return void 0;
-  }
+function parseTranscriptContent(raw) {
   const intents = [];
   let summary;
   for (const line of raw.split("\n")) {
@@ -45902,6 +46024,181 @@ function parseTranscriptForHarvest(transcriptPath) {
   }
   return { intents: intents.slice(-AMBIENT_MAX_INTENTS), summary };
 }
+var HEAD_FINGERPRINT_BYTES = 4096;
+function cursorsRoot(controlPlane) {
+  return join9(continuityRoot(controlPlane), "cursors");
+}
+function cursorPath(controlPlane, recordId) {
+  return join9(cursorsRoot(controlPlane), `${recordId}.json`);
+}
+function isSafeControlPlaneStem(value) {
+  return /^[a-z0-9][a-z0-9._-]*$/.test(value) && !value.includes("..") && value.length <= 128;
+}
+function sha256Hex(buf) {
+  return createHash4("sha256").update(buf).digest("hex");
+}
+function readByteRange(path, start, length) {
+  if (length <= 0)
+    return Buffer.alloc(0);
+  let fd;
+  try {
+    fd = openSync2(path, "r");
+    const buf = Buffer.allocUnsafe(length);
+    const read = readSync2(fd, buf, 0, length, start);
+    return buf.subarray(0, read);
+  } catch {
+    return void 0;
+  } finally {
+    if (fd !== void 0)
+      closeSync2(fd);
+  }
+}
+function readHarvestCursor(path) {
+  if (!existsSync12(path))
+    return void 0;
+  const raw = readJsonSafely(path);
+  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
+    return void 0;
+  const o = raw.value;
+  if (typeof o.transcript_path !== "string")
+    return void 0;
+  if (typeof o.byte_offset !== "number" || !Number.isFinite(o.byte_offset) || o.byte_offset < 0) {
+    return void 0;
+  }
+  if (typeof o.head_fingerprint !== "string")
+    return void 0;
+  if (!Array.isArray(o.intents) || !o.intents.every((i) => typeof i === "string"))
+    return void 0;
+  if (o.summary !== void 0 && typeof o.summary !== "string")
+    return void 0;
+  return {
+    transcript_path: o.transcript_path,
+    byte_offset: o.byte_offset,
+    head_fingerprint: o.head_fingerprint,
+    intents: o.intents,
+    ...typeof o.summary === "string" ? { summary: o.summary } : {}
+  };
+}
+function parseTranscriptForHarvest(transcriptPath, cursor) {
+  let size;
+  try {
+    size = statSync2(transcriptPath).size;
+  } catch {
+    return void 0;
+  }
+  if (cursor !== void 0 && cursor.transcript_path === transcriptPath && cursor.byte_offset >= HEAD_FINGERPRINT_BYTES && cursor.byte_offset <= size) {
+    const head = readByteRange(transcriptPath, 0, HEAD_FINGERPRINT_BYTES);
+    if (head !== void 0 && sha256Hex(head) === cursor.head_fingerprint) {
+      const tail = readByteRange(transcriptPath, cursor.byte_offset, size - cursor.byte_offset);
+      if (tail !== void 0) {
+        const tailParsed = parseTranscriptContent(tail.toString("utf8"));
+        const intents = [...cursor.intents, ...tailParsed.intents].slice(-AMBIENT_MAX_INTENTS);
+        const summary = tailParsed.summary ?? cursor.summary;
+        const tailLastNewline = tail.lastIndexOf(10);
+        const byteOffset2 = tailLastNewline === -1 ? cursor.byte_offset : cursor.byte_offset + tailLastNewline + 1;
+        return {
+          parsed: { intents, summary },
+          nextCursor: {
+            transcript_path: transcriptPath,
+            byte_offset: byteOffset2,
+            // Head region is unchanged and stays >= window, so the fingerprint
+            // is still valid for the next harvest.
+            head_fingerprint: cursor.head_fingerprint,
+            intents,
+            ...summary === void 0 ? {} : { summary }
+          }
+        };
+      }
+    }
+  }
+  let buf;
+  try {
+    buf = readFileSync25(transcriptPath);
+  } catch {
+    return void 0;
+  }
+  const parsed = parseTranscriptContent(buf.toString("utf8"));
+  const lastNewline = buf.lastIndexOf(10);
+  const byteOffset = lastNewline === -1 ? 0 : lastNewline + 1;
+  const headLength = Math.min(byteOffset, HEAD_FINGERPRINT_BYTES);
+  return {
+    parsed,
+    nextCursor: {
+      transcript_path: transcriptPath,
+      byte_offset: byteOffset,
+      head_fingerprint: sha256Hex(buf.subarray(0, headLength)),
+      intents: parsed.intents,
+      ...parsed.summary === void 0 ? {} : { summary: parsed.summary }
+    }
+  };
+}
+var AMBIENT_RECORDS_KEPT = 10;
+function sanitizeStemPart(raw) {
+  if (raw === void 0)
+    return void 0;
+  const cleaned = raw.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/\.{2,}/g, ".").replace(/^[^a-z0-9]+/, "").slice(0, 100);
+  return cleaned.length === 0 ? void 0 : cleaned;
+}
+function deriveAmbientStem(sessionId, transcriptPath) {
+  const fromSession = sanitizeStemPart(sessionId);
+  if (fromSession !== void 0)
+    return `ambient-${fromSession}`;
+  const base = basename(transcriptPath).replace(/\.jsonl$/i, "");
+  const fromTranscript = sanitizeStemPart(base);
+  if (fromTranscript !== void 0)
+    return `ambient-${fromTranscript}`;
+  return DEFAULT_AMBIENT_RECORD_STEM;
+}
+function listAmbientRecords(controlPlane) {
+  let names;
+  try {
+    names = readdirSync(recordsRoot(controlPlane));
+  } catch {
+    return [];
+  }
+  const entries = [];
+  for (const name of names) {
+    if (!name.startsWith("ambient-") || !name.endsWith(".json"))
+      continue;
+    const recordId = name.slice(0, -".json".length);
+    const raw = readJsonSafely(join9(recordsRoot(controlPlane), name));
+    const createdAt = raw.ok && typeof raw.value === "object" && raw.value !== null && typeof raw.value.created_at === "string" ? raw.value.created_at : "";
+    entries.push({ record_id: recordId, created_at: createdAt });
+  }
+  return entries;
+}
+function removeFileQuietly(path) {
+  try {
+    rmSync2(path, { force: true });
+  } catch {
+  }
+}
+function removeAllAmbientRecords(controlPlane) {
+  for (const entry of listAmbientRecords(controlPlane)) {
+    removeFileQuietly(recordPath(controlPlane, entry.record_id));
+    if (isSafeControlPlaneStem(entry.record_id)) {
+      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
+    }
+  }
+}
+function reconcileAmbientRecords(controlPlane, current) {
+  const entries = listAmbientRecords(controlPlane);
+  let pointer = current;
+  for (const entry of entries) {
+    if (entry.created_at > pointer.created_at)
+      pointer = entry;
+  }
+  const sorted = [...entries].sort((a, b) => a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0);
+  for (const entry of sorted.slice(AMBIENT_RECORDS_KEPT)) {
+    if (entry.record_id === pointer.record_id || entry.record_id === current.record_id)
+      continue;
+    removeFileQuietly(recordPath(controlPlane, entry.record_id));
+    if (isSafeControlPlaneStem(entry.record_id)) {
+      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
+    }
+  }
+  return pointer;
+}
 function realAmbientGitProbe(projectRoot) {
   const git = (gitArgs) => {
     try {
@@ -45926,21 +46223,30 @@ function realAmbientGitProbe(projectRoot) {
   };
 }
 function composeAmbientStateMarkdown(intents, summary, git, transcriptPath) {
-  const lines = ["## Recent intent (your last requests, newest last)"];
-  if (intents.length > 0) {
-    for (const intent of intents)
-      lines.push(`- ${intent}`);
-  } else {
-    lines.push("- (none captured; see the transcript below)");
-  }
-  lines.push("", "## Working tree (uncommitted)");
-  if (git.statusPorcelain !== void 0) {
-    lines.push("```", git.statusPorcelain, "```");
-  } else {
-    lines.push("clean, or not a git repo");
-  }
-  lines.push("", "## Structured summary (harvested from the last compaction)");
-  lines.push(summary ?? "None captured this session. Full history is in the transcript below.");
+  const summarySection = () => [
+    "## Structured summary (harvested from the last compaction)",
+    summary ?? "None captured this session. Full history is in the transcript below."
+  ];
+  const intentSection = () => {
+    const out = ["## Recent intent (your last requests, newest last)"];
+    if (intents.length > 0) {
+      for (const intent of intents)
+        out.push(`- ${intent}`);
+    } else {
+      out.push("- (none captured; see the transcript below)");
+    }
+    return out;
+  };
+  const treeSection = () => {
+    const out = ["## Working tree (uncommitted)"];
+    if (git.statusPorcelain !== void 0) {
+      out.push("```", git.statusPorcelain, "```");
+    } else {
+      out.push("clean, or not a git repo");
+    }
+    return out;
+  };
+  const lines = summary !== void 0 ? [...summarySection(), "", ...intentSection(), "", ...treeSection()] : [...intentSection(), "", ...treeSection(), "", ...summarySection()];
   lines.push("", "## Full detail", `Transcript: ${transcriptPath}`);
   return lines.join("\n");
 }
@@ -45966,15 +46272,19 @@ function harvestAmbientContinuity(input) {
   });
   if (!existsSync12(input.transcriptPath))
     return skip("no_transcript");
-  const parsed = parseTranscriptForHarvest(input.transcriptPath);
-  if (parsed === void 0)
+  const recordId = input.recordId ?? deriveAmbientStem(input.sessionId, input.transcriptPath);
+  const stemSafe = isSafeControlPlaneStem(recordId);
+  const cursorAbs = stemSafe ? cursorPath(controlPlane, recordId) : void 0;
+  const priorCursor = cursorAbs === void 0 ? void 0 : readHarvestCursor(cursorAbs);
+  const harvested = parseTranscriptForHarvest(input.transcriptPath, priorCursor);
+  if (harvested === void 0)
     return skip("transcript_unreadable");
+  const parsed = harvested.parsed;
   const git = (input.gitProbe ?? (() => ({})))(projectRoot);
   if (parsed.intents.length === 0 && parsed.summary === void 0 && git.statusPorcelain === void 0) {
     return skip("nothing_to_harvest");
   }
   const createdAt = input.createdAt ?? input.now().toISOString();
-  const recordId = input.recordId ?? DEFAULT_AMBIENT_RECORD_STEM;
   const latestIntent = parsed.intents[parsed.intents.length - 1];
   const goal = latestIntent ?? `Resume the mechanically captured session in ${basename(projectRoot) || projectRoot}`;
   const record2 = ContinuityRecord.parse({
@@ -46007,6 +46317,12 @@ function harvestAmbientContinuity(input) {
   });
   const recordAbs = recordPath(controlPlane, record2.record_id);
   writeJsonAtomic(recordAbs, record2);
+  if (cursorAbs !== void 0)
+    writeJsonAtomic(cursorAbs, harvested.nextCursor);
+  const pointer = reconcileAmbientRecords(controlPlane, {
+    record_id: record2.record_id,
+    created_at: record2.created_at
+  });
   const existing = readContinuityIndexOrNull(controlPlane);
   const index = ContinuityIndex.parse({
     schema_version: 1,
@@ -46014,9 +46330,9 @@ function harvestAmbientContinuity(input) {
     pending_record: existing?.pending_record ?? null,
     current_run: existing?.current_run ?? null,
     ambient_record: {
-      record_id: record2.record_id,
+      record_id: pointer.record_id,
       continuity_kind: "ambient",
-      created_at: record2.created_at
+      created_at: pointer.created_at
     }
   });
   writeJsonAtomic(indexPath(controlPlane), index);
@@ -46122,12 +46438,12 @@ async function runHandoffCommand(argv, options = {}) {
       process.stderr.write("handoff brief returns machine-readable JSON for host injection. Pass --json to confirm that output mode and run it.\n");
       return 2;
     }
-    process.stdout.write(`${JSON.stringify(handoffBrief(args), null, 2)}
+    process.stdout.write(`${JSON.stringify(handoffBrief(args, options.now ?? (() => /* @__PURE__ */ new Date())), null, 2)}
 `);
     return 0;
   }
   if (args.action === "hook") {
-    return runHandoffHook(args);
+    return runHandoffHook(args, options.now ?? (() => /* @__PURE__ */ new Date()));
   }
   if (args.action === "harvest") {
     return runHandoffHarvest(args, options.now ?? (() => /* @__PURE__ */ new Date()));
@@ -46219,7 +46535,7 @@ import { existsSync as existsSync16, mkdirSync as mkdirSync3, readFileSync as re
 import { join as join11, resolve as resolve12 } from "node:path";
 
 // dist/history/run-corpus.js
-import { existsSync as existsSync13, readdirSync, statSync as statSync2 } from "node:fs";
+import { existsSync as existsSync13, readdirSync as readdirSync2, statSync as statSync3 } from "node:fs";
 import { basename as basename2, join as join10 } from "node:path";
 var DEFAULT_RUNS_BASE = ".circuit/runs";
 var HistoryCommandError = class extends Error {
@@ -46242,7 +46558,7 @@ function listCandidateRunFolders(runsBase) {
   }
   let stat2;
   try {
-    stat2 = statSync2(runsBase);
+    stat2 = statSync3(runsBase);
   } catch (error51) {
     throw new HistoryCommandError("runs_base_unreadable", `runs base unreadable: ${error51 instanceof Error ? error51.message : String(error51)}`, { runsBase });
   }
@@ -46252,7 +46568,7 @@ function listCandidateRunFolders(runsBase) {
     });
   }
   try {
-    return readdirSync(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join10(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename2(left).localeCompare(basename2(right)));
+    return readdirSync2(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join10(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename2(left).localeCompare(basename2(right)));
   } catch (error51) {
     throw new HistoryCommandError("runs_base_unreadable", `runs base unreadable: ${error51 instanceof Error ? error51.message : String(error51)}`, { runsBase });
   }
@@ -48702,17 +49018,17 @@ var HistoryPullLogV1 = external_exports.object({
 }).strict();
 
 // dist/shared/run-artifact-io.js
-import { statSync as statSync3 } from "node:fs";
+import { statSync as statSync4 } from "node:fs";
 import { isAbsolute as isAbsolute8, relative as relative9 } from "node:path";
 function runRelativePath(runFolder, path) {
   return isAbsolute8(path) ? relative9(runFolder, path) : path;
 }
 function mtimeMs(path) {
-  return Math.trunc(statSync3(path).mtimeMs);
+  return Math.trunc(statSync4(path).mtimeMs);
 }
 
 // dist/app/history/extract.js
-import { existsSync as existsSync15, lstatSync as lstatSync6, readFileSync as readFileSync26, readdirSync as readdirSync3, realpathSync as realpathSync5 } from "node:fs";
+import { existsSync as existsSync15, lstatSync as lstatSync6, readFileSync as readFileSync26, readdirSync as readdirSync4, realpathSync as realpathSync5 } from "node:fs";
 import { basename as basename3, isAbsolute as isAbsolute10, relative as relative11, resolve as resolve11 } from "node:path";
 
 // dist/shared/outcome.js
@@ -48727,7 +49043,7 @@ function isFailureOutcome(outcome) {
 }
 
 // dist/app/history/run-source-files.js
-import { existsSync as existsSync14, lstatSync as lstatSync5, readdirSync as readdirSync2, realpathSync as realpathSync4 } from "node:fs";
+import { existsSync as existsSync14, lstatSync as lstatSync5, readdirSync as readdirSync3, realpathSync as realpathSync4 } from "node:fs";
 import { isAbsolute as isAbsolute9, relative as relative10, resolve as resolve10 } from "node:path";
 function collectRunSourceFiles(runFolder) {
   const runFolderAbs = resolve10(runFolder);
@@ -48766,7 +49082,7 @@ function walkReportJsonFiles(reportsRoot2) {
     const current = stack.pop();
     if (current === void 0)
       continue;
-    for (const entry of readdirSync2(current, { withFileTypes: true })) {
+    for (const entry of readdirSync3(current, { withFileTypes: true })) {
       const absPath = resolve10(current, entry.name);
       if (entry.isSymbolicLink() || lstatSync5(absPath).isSymbolicLink())
         continue;
@@ -48855,7 +49171,7 @@ function listFiles(root, prefix = "") {
   const rootReal = realpathSync5.native(absRoot);
   const out = [];
   function walk(absDir, relDir) {
-    for (const entry of readdirSync3(absDir, { withFileTypes: true })) {
+    for (const entry of readdirSync4(absDir, { withFileTypes: true })) {
       const absPath = resolve11(absDir, entry.name);
       if (lstatSync6(absPath).isSymbolicLink())
         continue;
@@ -50840,7 +51156,7 @@ async function runHistoryCommand(argv) {
 }
 
 // dist/cli/memory.js
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash5 } from "node:crypto";
 import { existsSync as existsSync23, readFileSync as readFileSync35 } from "node:fs";
 import { basename as basename5, join as join17 } from "node:path";
 
@@ -51051,7 +51367,7 @@ function commanderErrorMessage2(err) {
   return err instanceof Error ? err.message : String(err);
 }
 function sha256Text(text) {
-  return createHash4("sha256").update(text, "utf8").digest("hex");
+  return createHash5("sha256").update(text, "utf8").digest("hex");
 }
 function parseMemoryArgs(argv) {
   let parsed;
@@ -52672,7 +52988,7 @@ function expandTemplate(template, item) {
 
 // dist/shared/user-skill-registry.js
 var import_yaml3 = __toESM(require_dist(), 1);
-import { existsSync as existsSync24, readFileSync as readFileSync36, readdirSync as readdirSync4 } from "node:fs";
+import { existsSync as existsSync24, readFileSync as readFileSync36, readdirSync as readdirSync5 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { join as join19, resolve as resolve15 } from "node:path";
 var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
@@ -52716,7 +53032,7 @@ function discoverCandidates(roots) {
     const rootAbs = resolve15(root);
     if (!existsSync24(rootAbs))
       continue;
-    for (const entry of readdirSync4(rootAbs, { withFileTypes: true })) {
+    for (const entry of readdirSync5(rootAbs, { withFileTypes: true })) {
       if (!entry.isDirectory())
         continue;
       const id = SkillId.safeParse(entry.name);
@@ -61018,7 +61334,7 @@ function prepareRunStartHistoryRecall(options) {
 }
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync28, mkdirSync as mkdirSync9, readFileSync as readFileSync42, rmSync as rmSync2, writeFileSync as writeFileSync10 } from "node:fs";
+import { existsSync as existsSync28, mkdirSync as mkdirSync9, readFileSync as readFileSync42, rmSync as rmSync3, writeFileSync as writeFileSync10 } from "node:fs";
 import { dirname as dirname9, isAbsolute as isAbsolute11, join as join26, relative as relative12, resolve as resolve17 } from "node:path";
 
 // dist/shared/operator-summary/json.js
@@ -62241,14 +62557,14 @@ function writeOperatorSummary(input) {
   }
   if (renderedHtml === void 0) {
     if (existsSync28(candidateHtmlPath))
-      rmSync2(candidateHtmlPath, { force: true, recursive: true });
+      rmSync3(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
       writeFileSync10(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
       if (existsSync28(candidateHtmlPath))
-        rmSync2(candidateHtmlPath, { force: true, recursive: true });
+        rmSync3(candidateHtmlPath, { force: true, recursive: true });
       htmlEmitWarning = {
         kind: "html_write_failed",
         message: err instanceof Error ? err.message : String(err),
@@ -63965,6 +64281,15 @@ async function runExecutionCommand(args, options) {
   }
   const hostKind = runtimeHostKind(options);
   const projectRoot = resolve19(options.configCwd ?? process.cwd());
+  if (hostKind === "codex") {
+    try {
+      const assurance = codexInstallAssurance({ projectRoot, now });
+      if (assurance.notice !== void 0)
+        process.stderr.write(`${assurance.notice}
+`);
+    } catch {
+    }
+  }
   const runtimeSupport = classifyRuntimeSupport({
     flow,
     args,

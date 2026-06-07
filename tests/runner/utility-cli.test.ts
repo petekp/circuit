@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { main } from '../../src/cli/circuit.js';
-import { missingDefaultLauncherMessage, resolveDefaultLauncher } from '../../src/cli/handoff.js';
+import {
+  codexInstallAssurance,
+  missingDefaultLauncherMessage,
+  resolveDefaultLauncher,
+} from '../../src/cli/handoff.js';
 import { CUSTOM_FLOW_ROOT_RUNTIME_POLICY } from '../../src/cli/runtime-routing-policy.js';
 import {
   CompiledFlow,
@@ -1229,6 +1233,200 @@ describe('utility CLI commands', () => {
     ]);
     expect(empty.code, empty.stderr).toBe(0);
     expect(empty.stdout).toBe('');
+  });
+
+  it('Codex hook entrypoint surfaces a visible notice when the brief is invalid (A1)', async () => {
+    const projectRoot = tempRoot('circuit-handoff-hook-invalid-');
+    const save = await captureMain([
+      'handoff',
+      'save',
+      '--goal',
+      'Resume work that will be corrupted',
+      '--next',
+      'do the thing',
+      '--project-root',
+      projectRoot,
+      '--record-id',
+      'continuity-77777777-7777-4777-8777-777777777777',
+      '--created-at',
+      '2026-04-29T23:16:00.000Z',
+    ]);
+    expect(save.code, save.stderr).toBe(0);
+    writeFileSync(
+      join(
+        projectRoot,
+        '.circuit/continuity/records/continuity-77777777-7777-4777-8777-777777777777.json',
+      ),
+      '{ not valid json',
+    );
+
+    const hook = await captureMain([
+      'handoff',
+      'hook',
+      '--host',
+      'codex',
+      '--project-root',
+      projectRoot,
+    ]);
+    expect(hook.code, hook.stderr).toBe(0);
+    const output = JSON.parse(hook.stdout) as {
+      hookSpecificOutput: { additionalContext: string };
+    };
+    expect(output.hookSpecificOutput.additionalContext).toContain('could not load');
+  });
+
+  it('Codex hook entrypoint prepends the recovered notice when a broken manual save falls through to ambient (A4)', async () => {
+    const projectRoot = tempRoot('circuit-handoff-hook-recovered-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(
+      transcript,
+      `${JSON.stringify({ type: 'user', message: { role: 'user', content: 'ambient body that survives' } })}\n`,
+    );
+    const harvest = await captureMain([
+      'handoff',
+      'harvest',
+      '--transcript-path',
+      transcript,
+      '--project-root',
+      projectRoot,
+      '--session-id',
+      'rec-1',
+      '--source',
+      'stop',
+      '--record-id',
+      'ambient-latest',
+    ]);
+    expect(harvest.code, harvest.stderr).toBe(0);
+
+    // Point pending_record at a record that does not exist on disk.
+    const indexPath = join(projectRoot, '.circuit/continuity/index.json');
+    const index = JSON.parse(readFileSync(indexPath, 'utf8'));
+    index.pending_record = {
+      record_id: 'continuity-feedface-feed-4eed-8eed-feedfeedfeed',
+      continuity_kind: 'standalone',
+      created_at: '2026-04-29T23:17:00.000Z',
+    };
+    writeFileSync(indexPath, `${JSON.stringify(index, null, 2)}\n`);
+
+    const hook = await captureMain([
+      'handoff',
+      'hook',
+      '--host',
+      'codex',
+      '--project-root',
+      projectRoot,
+    ]);
+    expect(hook.code, hook.stderr).toBe(0);
+    const output = JSON.parse(hook.stdout) as {
+      hookSpecificOutput: { additionalContext: string };
+    };
+    expect(output.hookSpecificOutput.additionalContext).toContain('could not load');
+    expect(output.hookSpecificOutput.additionalContext).toContain('ambient body that survives');
+  });
+
+  it('Codex hook entrypoint suppresses injection on a suppressed source (E2)', async () => {
+    const projectRoot = tempRoot('circuit-handoff-hook-source-');
+    const save = await captureMain([
+      'handoff',
+      'save',
+      '--goal',
+      'Resume work that clear should not resurrect',
+      '--next',
+      'do the thing',
+      '--project-root',
+      projectRoot,
+      '--record-id',
+      'continuity-88888888-8888-4888-8888-888888888888',
+      '--created-at',
+      '2026-04-29T23:18:00.000Z',
+    ]);
+    expect(save.code, save.stderr).toBe(0);
+
+    // Default (no env, no source): the brief injects as usual.
+    const def = await captureMain([
+      'handoff',
+      'hook',
+      '--host',
+      'codex',
+      '--project-root',
+      projectRoot,
+    ]);
+    expect(def.code, def.stderr).toBe(0);
+    expect(def.stdout).not.toBe('');
+
+    // Opted in to suppress clear: a clear source injects nothing.
+    const previous = process.env.CIRCUIT_HANDOFF_ON_CLEAR;
+    process.env.CIRCUIT_HANDOFF_ON_CLEAR = 'suppress';
+    try {
+      const suppressed = await captureMain([
+        'handoff',
+        'hook',
+        '--host',
+        'codex',
+        '--project-root',
+        projectRoot,
+        '--source',
+        'clear',
+      ]);
+      expect(suppressed.code, suppressed.stderr).toBe(0);
+      expect(suppressed.stdout).toBe('');
+    } finally {
+      if (previous === undefined) Reflect.deleteProperty(process.env, 'CIRCUIT_HANDOFF_ON_CLEAR');
+      else process.env.CIRCUIT_HANDOFF_ON_CLEAR = previous;
+    }
+  });
+
+  // A3: on Codex restore needs a one-time hook install (Claude is zero-setup),
+  // so a Codex user can silently have no continuity. The assurance nudges once
+  // per repo when the hook is absent and stays silent once installed or once
+  // already nudged.
+  it('codexInstallAssurance nudges once per repo when the Codex hook is not installed (A3)', () => {
+    const projectRoot = tempRoot('circuit-codex-assure-nudge-');
+    const hooksFile = join(projectRoot, 'codex-hooks.json');
+
+    const first = codexInstallAssurance({
+      projectRoot,
+      hooksFile,
+      now: () => new Date('2026-06-06T12:00:00.000Z'),
+    });
+    expect(first.status).toBe('nudge');
+    expect(first.notice).toContain('install --host codex');
+    expect(existsSync(first.marker_path)).toBe(true);
+
+    // Once-per-repo: a second check on the same repo stays silent.
+    const second = codexInstallAssurance({ projectRoot, hooksFile });
+    expect(second.status).toBe('already_nudged');
+    expect(second.notice).toBeUndefined();
+  });
+
+  it('codexInstallAssurance stays silent when the Codex hook is already installed (A3)', () => {
+    const projectRoot = tempRoot('circuit-codex-assure-ok-');
+    const hooksFile = join(projectRoot, 'codex-hooks.json');
+    writeFileSync(
+      hooksFile,
+      JSON.stringify({
+        hooks: {
+          SessionStart: [
+            {
+              matcher: 'startup|resume|clear',
+              hooks: [
+                {
+                  type: 'command',
+                  command: 'CIRCUIT_HANDOFF_HOOK=1 node launcher handoff hook --host codex',
+                  timeout: 3,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    const result = codexInstallAssurance({ projectRoot, hooksFile });
+    expect(result.status).toBe('ok');
+    expect(result.notice).toBeUndefined();
+    // Nothing needed nudging, so no marker is written.
+    expect(existsSync(result.marker_path)).toBe(false);
   });
 
   it('can bind handoff continuity to a runtime waiting run and write active-run output', async () => {

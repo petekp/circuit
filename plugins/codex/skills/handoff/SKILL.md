@@ -56,6 +56,11 @@ as literal user-controlled text when constructing shell commands.
    node '<plugin root>/scripts/circuit.ts' handoff done --progress jsonl
    ```
 
+   `done` clears the saved plan but keeps the automatic snapshot, so a finished
+   task still leaves the latest auto-captured state as a fallback. Add
+   `--clear-ambient` only when the operator wants that automatic snapshot wiped
+   too, so finished work does not resurface at the next session.
+
 6. **Hook setup mode.** For `hooks install --host codex`,
    `hooks uninstall --host codex`, or `hooks doctor --host codex`, run:
 
@@ -79,6 +84,17 @@ as literal user-controlled text when constructing shell commands.
    Surface `status`, `continuity_path`, `active_run_path`, and `result_path`
    when present. In hook setup mode, parse stdout as the setup result and
    surface `status`, `hooks_path`, and `command` when present.
+
+## Tuning automatic restore (optional)
+
+These are off by default; restore behaves the same unless the operator opts in.
+
+- Set `CIRCUIT_HANDOFF_ON_CLEAR=suppress` to stop the brief from re-injecting
+  the snapshot right after a deliberate `/clear`.
+- Set `CIRCUIT_HANDOFF_ON_COMPACT=suppress` to stop the brief from re-injecting
+  on top of the host's own compaction summary.
+- On Codex, restore needs a one-time `hooks install --host codex`; the front
+  door reminds the operator once per repo until the hook is installed.
 
 ## Internal modes (driven by hooks, not for manual use)
 

@@ -1,11 +1,17 @@
 import { execFileSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
+  closeSync,
   copyFileSync,
   existsSync,
   mkdirSync,
+  openSync,
   readFileSync,
+  readSync,
+  readdirSync,
   renameSync,
+  rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
@@ -50,6 +56,7 @@ interface HandoffArgs {
   readonly transcriptPath?: string;
   readonly sessionId?: string;
   readonly source?: string;
+  readonly clearAmbient: boolean;
   readonly progress: boolean;
   readonly json: boolean;
 }
@@ -86,6 +93,7 @@ type HandoffCommanderOptions = {
   transcriptPath?: string;
   sessionId?: string;
   source?: string;
+  clearAmbient?: boolean;
   progress?: string;
   json?: boolean;
 };
@@ -107,6 +115,7 @@ function addHandoffOptions(program: Command): Command {
     .option('--transcript-path <path>')
     .option('--session-id <id>')
     .option('--source <stop|session-end>')
+    .option('--clear-ambient')
     .option('--progress <format>')
     .option('--json');
 }
@@ -167,6 +176,7 @@ function parseArgs(argv: readonly string[]): HandoffArgs {
     ...(opts.host === undefined ? {} : { host: opts.host }),
     progress: opts.progress === 'jsonl',
     json: opts.json === true,
+    clearAmbient: opts.clearAmbient === true,
     ...(opts.goal === undefined ? {} : { goal: opts.goal }),
     ...(opts.next === undefined ? {} : { next: opts.next }),
     ...(opts.stateMarkdown === undefined ? {} : { stateMarkdown: opts.stateMarkdown }),
@@ -272,10 +282,16 @@ function composeHandoffBrief(record: ContinuityRecordValue, state: string, debt:
  * vetted plan. The boundary is deliberately more cautious than the manual
  * one: confirm the goal before acting, and never resume the work unasked.
  */
-function composeAmbientBrief(record: ContinuityRecordValue, state: string, debt: string): string {
+function composeAmbientBrief(
+  record: ContinuityRecordValue,
+  state: string,
+  debt: string,
+  ageLabel?: string,
+): string {
   const repo = basename(record.git.cwd) || record.git.cwd;
+  const capturedSuffix = ageLabel === undefined ? '' : ` (captured ${ageLabel})`;
   return [
-    `Circuit automatically captured the recent state of ${repo}. No handoff was saved.`,
+    `Circuit automatically captured the recent state of ${repo}${capturedSuffix}. No handoff was saved.`,
     '',
     `Latest request: ${record.narrative.goal}`,
     `Suggested next: ${record.narrative.next}`,
@@ -290,9 +306,14 @@ function composeAmbientBrief(record: ContinuityRecordValue, state: string, debt:
   ].join('\n');
 }
 
-function composeBriefFor(record: ContinuityRecordValue, state: string, debt: string): string {
+function composeBriefFor(
+  record: ContinuityRecordValue,
+  state: string,
+  debt: string,
+  ageLabel?: string,
+): string {
   return record.continuity_kind === 'ambient'
-    ? composeAmbientBrief(record, state, debt)
+    ? composeAmbientBrief(record, state, debt, ageLabel)
     : composeHandoffBrief(record, state, debt);
 }
 
@@ -304,15 +325,22 @@ function fitText(value: string, budget: number): string {
   return `${value.slice(0, budget - marker.length)}${marker}`;
 }
 
-function renderHandoffBrief(record: ContinuityRecordValue): HandoffBriefRenderResult {
+function renderHandoffBrief(
+  record: ContinuityRecordValue,
+  now: () => Date,
+): HandoffBriefRenderResult {
   const state = record.narrative.state_markdown;
   const debt = record.narrative.debt_markdown;
-  const full = composeBriefFor(record, state, debt);
+  // Staleness signal (A2): only ambient records carry an age line. A manual
+  // save is a deliberate act, so its freshness is the operator's concern.
+  const ageLabel =
+    record.continuity_kind === 'ambient' ? relativeAge(record.created_at, now()) : undefined;
+  const full = composeBriefFor(record, state, debt, ageLabel);
   if (full.length <= HANDOFF_BRIEF_MAX_CHARS) {
     return { ok: true, additionalContext: full };
   }
 
-  const fixed = composeBriefFor(record, '', '');
+  const fixed = composeBriefFor(record, '', '', ageLabel);
   if (fixed.length > HANDOFF_BRIEF_MAX_CHARS) {
     return {
       ok: false,
@@ -336,17 +364,17 @@ function renderHandoffBrief(record: ContinuityRecordValue): HandoffBriefRenderRe
 
   let renderedState = fitText(state, stateBudget);
   let renderedDebt = fitText(debt, debtBudget);
-  let rendered = composeBriefFor(record, renderedState, renderedDebt);
+  let rendered = composeBriefFor(record, renderedState, renderedDebt, ageLabel);
 
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedDebt = fitText(renderedDebt, Math.max(0, renderedDebt.length - overflow));
-    rendered = composeBriefFor(record, renderedState, renderedDebt);
+    rendered = composeBriefFor(record, renderedState, renderedDebt, ageLabel);
   }
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedState = fitText(renderedState, Math.max(0, renderedState.length - overflow));
-    rendered = composeBriefFor(record, renderedState, renderedDebt);
+    rendered = composeBriefFor(record, renderedState, renderedDebt, ageLabel);
   }
 
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
@@ -358,6 +386,49 @@ function renderHandoffBrief(record: ContinuityRecordValue): HandoffBriefRenderRe
   }
 
   return { ok: true, additionalContext: rendered };
+}
+
+/**
+ * Human-facing line for a restore that failed because the store is broken
+ * (corrupt index, missing or malformed record, over-cap brief). A1 makes
+ * this visible so a broken store cannot look identical to a clean one. Lives
+ * in one place so both hosts surface the same words.
+ */
+function briefInvalidNotice(code: string): string {
+  return `Circuit found saved continuity for this repo but could not load it (${code}). Run /circuit:handoff done to clear it, or /circuit:handoff resume to inspect.`;
+}
+
+/**
+ * Human-facing line for the A4 fall-through: the manual save was broken, so
+ * the ambient snapshot is shown instead. Deliberately does not nudge resume —
+ * the ambient brief's own boundary forbids resuming unasked.
+ */
+function briefRecoveredNotice(code: string): string {
+  return `Circuit could not load your saved handoff for this repo (${code}); showing the automatically captured snapshot below instead.`;
+}
+
+/**
+ * Relative age of an ambient record for the staleness signal (A2). Render-only;
+ * never throws. Returns undefined for an unparseable timestamp so the brief
+ * simply omits the signal rather than showing a wrong age.
+ */
+function relativeAge(createdAtIso: string, now: Date): string | undefined {
+  const created = new Date(createdAtIso).getTime();
+  if (!Number.isFinite(created)) return undefined;
+  const ms = now.getTime() - created;
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return 'just now';
+  const unit = (value: number, name: string) => `${value} ${name}${value === 1 ? '' : 's'} ago`;
+  if (minutes < 60) return unit(minutes, 'minute');
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return unit(hours, 'hour');
+  const days = Math.floor(hours / 24);
+  if (days < 7) return unit(days, 'day');
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return unit(weeks, 'week');
+  const months = Math.floor(days / 30);
+  if (months < 12) return unit(months, 'month');
+  return unit(Math.floor(days / 365), 'year');
 }
 
 function emptyBrief(args: HandoffArgs, reason: 'no_index' | 'no_pending_record') {
@@ -391,6 +462,8 @@ function invalidBrief(
     index_path: indexPath(controlPlane),
     ...(recordId === undefined ? {} : { record_id: recordId }),
     error: { code, message },
+    // A1: one human-facing line so a broken store is visible, not silent.
+    operator_notice: briefInvalidNotice(code),
   };
 }
 
@@ -410,6 +483,7 @@ function resolvePointerBrief(
   controlPlane: string,
   pointer: BriefPointer,
   source: 'pending_record' | 'ambient_record',
+  now: () => Date,
 ) {
   const projectRoot = resolveProjectRootArg(args);
   const indexAbs = indexPath(controlPlane);
@@ -444,7 +518,7 @@ function resolvePointerBrief(
     );
   }
 
-  const rendered = renderHandoffBrief(record);
+  const rendered = renderHandoffBrief(record, now);
   if (!rendered.ok) {
     return invalidBrief(args, rendered.code, rendered.message, pointer.record_id);
   }
@@ -464,7 +538,7 @@ function resolvePointerBrief(
   };
 }
 
-function handoffBrief(args: HandoffArgs) {
+function handoffBrief(args: HandoffArgs, now: () => Date = () => new Date()) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
   if (!existsSync(indexAbs)) return emptyBrief(args, 'no_index');
@@ -480,12 +554,64 @@ function handoffBrief(args: HandoffArgs) {
   // deliberate manual save outranks a mechanical ambient harvest. The ambient
   // pointer is the fallback safety net when nothing manual is pending.
   if (index.pending_record !== null) {
-    return resolvePointerBrief(args, controlPlane, index.pending_record, 'pending_record');
+    const pending = resolvePointerBrief(
+      args,
+      controlPlane,
+      index.pending_record,
+      'pending_record',
+      now,
+    );
+    if (pending.status === 'available') return pending;
+
+    // A4: a single broken manual save must not blind restore when a good
+    // ambient snapshot sits right behind it. Fall through to the ambient
+    // record and thread a "recovered" signal so A1 still surfaces that the
+    // manual save was broken (the available path no longer trips A1's invalid
+    // branch).
+    if (index.ambient_record) {
+      const ambient = resolvePointerBrief(
+        args,
+        controlPlane,
+        index.ambient_record,
+        'ambient_record',
+        now,
+      );
+      if (ambient.status === 'available') {
+        const failure = briefErrorOf(pending);
+        return {
+          ...ambient,
+          recovered_from: failure,
+          operator_notice: briefRecoveredNotice(failure.code),
+        };
+      }
+    }
+    // No usable fallback: surface the original manual-save failure (it carries
+    // its own operator_notice from invalidBrief).
+    return pending;
   }
   if (index.ambient_record) {
-    return resolvePointerBrief(args, controlPlane, index.ambient_record, 'ambient_record');
+    return resolvePointerBrief(args, controlPlane, index.ambient_record, 'ambient_record', now);
   }
   return emptyBrief(args, 'no_pending_record');
+}
+
+/** Read the `error` envelope from an invalid brief result without leaking the
+ * loose object type into the resolver. Defaults keep a malformed envelope from
+ * throwing the hook. */
+function briefErrorOf(brief: unknown): { code: string; message: string } {
+  const error =
+    typeof brief === 'object' && brief !== null && 'error' in brief
+      ? (brief as { error?: unknown }).error
+      : undefined;
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code?: unknown }).code ?? 'record_invalid')
+      : 'record_invalid';
+  const message =
+    typeof error === 'object' && error !== null && 'message' in error
+      ? String((error as { message?: unknown }).message ?? 'Continuity record could not be loaded.')
+      : 'Continuity record could not be loaded.';
+  return { code, message };
 }
 
 function debugHook(message: string): void {
@@ -514,12 +640,57 @@ function projectRootFromHookInput(input: unknown): string | undefined {
   return undefined;
 }
 
+function sourceFromHookInput(input: unknown): string | undefined {
+  if (
+    typeof input === 'object' &&
+    input !== null &&
+    'source' in input &&
+    typeof (input as { source?: unknown }).source === 'string'
+  ) {
+    return (input as { source: string }).source;
+  }
+  return undefined;
+}
+
+// E2: brief injection is source-aware and opt-in. The SessionStart matcher
+// fires on startup|resume|clear|compact; today every source injects the full
+// brief. A deliberate `clear` (the operator just wiped context) and a fresh
+// `compact` (the host already left its own summary) are the two sources where
+// re-injecting the snapshot is redundant or unwanted. Suppression is per-source
+// and defaults to today's inject-everything, so nothing changes unless the
+// operator opts in via CIRCUIT_HANDOFF_ON_CLEAR / CIRCUIT_HANDOFF_ON_COMPACT.
+function injectModeForSource(
+  source: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): 'inject' | 'suppress' {
+  if (source === 'clear' && env.CIRCUIT_HANDOFF_ON_CLEAR === 'suppress') return 'suppress';
+  if (source === 'compact' && env.CIRCUIT_HANDOFF_ON_COMPACT === 'suppress') return 'suppress';
+  return 'inject';
+}
+
 function parseHookHost(args: HandoffArgs): HandoffHookHost {
   if (args.host === 'codex') return 'codex';
   throw new Error('handoff hook requires --host codex');
 }
 
-function runHandoffHook(args: HandoffArgs): number {
+// Hook-local fallback line when the brief never produced an envelope (an
+// exception, or on the Claude spawn path a timeout / non-zero exit). A1: a
+// failed restore says so once rather than looking like a clean repo.
+const HOOK_BRIEF_FAILED_NOTICE =
+  "Circuit could not check this repo's saved continuity (the restore step did not complete). Continuing without it.";
+
+function emitSessionStartContext(additionalContext: string): void {
+  process.stdout.write(
+    `${JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'SessionStart',
+        additionalContext,
+      },
+    })}\n`,
+  );
+}
+
+function runHandoffHook(args: HandoffArgs, now: () => Date = () => new Date()): number {
   try {
     parseHookHost(args);
   } catch (err) {
@@ -528,6 +699,10 @@ function runHandoffHook(args: HandoffArgs): number {
   }
 
   let projectRoot = args.projectRoot;
+  let source = args.source;
+  // Read the hook input only when projectRoot was not passed explicitly (the
+  // installed Codex path relies on stdin for cwd). The source rides along on
+  // that same payload so we never read fd 0 twice.
   if (projectRoot === undefined) {
     let input: unknown;
     try {
@@ -537,6 +712,7 @@ function runHandoffHook(args: HandoffArgs): number {
       return 0;
     }
     projectRoot = projectRootFromHookInput(input);
+    source = source ?? sourceFromHookInput(input);
   }
 
   if (projectRoot === undefined || projectRoot.length === 0) {
@@ -544,29 +720,54 @@ function runHandoffHook(args: HandoffArgs): number {
     return 0;
   }
 
+  // E2: a deliberate clear or a fresh compaction can opt out of re-injecting
+  // the snapshot. Default stays inject-everything.
+  if (injectModeForSource(source) === 'suppress') {
+    debugHook(`source '${source ?? 'unknown'}' opted out of brief injection; skipping`);
+    return 0;
+  }
+
   try {
-    const brief = handoffBrief({
-      action: 'brief',
-      projectRoot,
-      progress: false,
-      json: true,
-    }) as { status?: string; additional_context?: unknown; error?: { code?: string } };
+    const brief = handoffBrief(
+      {
+        action: 'brief',
+        projectRoot,
+        progress: false,
+        json: true,
+        clearAmbient: false,
+      },
+      now,
+    ) as {
+      status?: string;
+      additional_context?: unknown;
+      error?: { code?: string };
+      operator_notice?: unknown;
+    };
+
+    // A1: a broken store is visible. The brief carries operator_notice; fall
+    // back to a synthesized line if an older envelope omits it.
     if (brief.status === 'invalid') {
+      const notice =
+        typeof brief.operator_notice === 'string'
+          ? brief.operator_notice
+          : briefInvalidNotice(brief.error?.code ?? 'unknown');
       debugHook(`brief state is invalid: ${brief.error?.code ?? 'unknown'}`);
+      emitSessionStartContext(notice);
       return 0;
     }
     if (brief.status !== 'available' || typeof brief.additional_context !== 'string') return 0;
 
-    process.stdout.write(
-      `${JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: 'SessionStart',
-          additionalContext: brief.additional_context,
-        },
-      })}\n`,
-    );
+    // A4: when the brief recovered from a broken manual save it carries an
+    // operator_notice on the available path; prepend it so the operator learns
+    // the manual save was broken even though a fallback was shown.
+    const additionalContext =
+      typeof brief.operator_notice === 'string'
+        ? `${brief.operator_notice}\n\n${brief.additional_context}`
+        : brief.additional_context;
+    emitSessionStartContext(additionalContext);
   } catch (err) {
     debugHook(`brief command failed: ${err instanceof Error ? err.message : String(err)}`);
+    emitSessionStartContext(HOOK_BRIEF_FAILED_NOTICE);
   }
 
   return 0;
@@ -981,6 +1182,72 @@ function runHandoffHooksCommand(args: HandoffArgs): unknown {
   throw new Error('handoff hooks requires install, uninstall, or doctor');
 }
 
+// --- A3: Codex install assurance ------------------------------------------
+//
+// Claude restore is zero-setup (the plugin ships hooks.json), but Codex
+// requires a one-time `handoff hooks install --host codex`. A Codex user who
+// never installs gets no restore and no signal that one is missing. The Codex
+// wrapper sets CIRCUIT_HOST_KIND=codex on every circuit invocation, so the
+// front-door `run` command can detect "running on Codex" regardless of install
+// state and nudge once per repo. The nudge is written to a marker in the repo's
+// control plane so it never repeats per session.
+const CODEX_INSTALL_NUDGE_MARKER = '.codex-install-nudged';
+const CODEX_INSTALL_NUDGE_NOTICE =
+  'Circuit restores this repo automatically on Claude, but on Codex it needs a one-time hook install before each new session can restore your continuity. Run: circuit handoff hooks install --host codex (this notice shows once per repo).';
+
+function codexInstallNudgeMarkerPath(controlPlane: string): string {
+  return join(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
+}
+
+function isCodexHandoffHookInstalled(hooksPath: string): boolean {
+  if (!existsSync(hooksPath)) return false;
+  let config: Record<string, unknown>;
+  try {
+    config = readHooksConfig(hooksPath);
+  } catch {
+    return false;
+  }
+  try {
+    return circuitHookEntryCount(sessionStartEntries(config)) > 0;
+  } catch {
+    return false;
+  }
+}
+
+export interface CodexInstallAssuranceInput {
+  readonly projectRoot: string;
+  readonly hooksFile?: string;
+  readonly controlPlane?: string;
+  readonly now?: () => Date;
+}
+
+export interface CodexInstallAssuranceResult {
+  readonly status: 'ok' | 'nudge' | 'already_nudged';
+  readonly notice?: string;
+  readonly marker_path: string;
+}
+
+export function codexInstallAssurance(
+  input: CodexInstallAssuranceInput,
+): CodexInstallAssuranceResult {
+  const controlPlane = input.controlPlane ?? resolve(input.projectRoot, DEFAULT_CONTROL_PLANE);
+  const markerPath = codexInstallNudgeMarkerPath(controlPlane);
+  const hooksPath = input.hooksFile ?? defaultCodexHooksFile();
+
+  if (isCodexHandoffHookInstalled(hooksPath)) return { status: 'ok', marker_path: markerPath };
+  if (existsSync(markerPath)) return { status: 'already_nudged', marker_path: markerPath };
+
+  const stampedAt = (input.now ?? (() => new Date()))().toISOString();
+  try {
+    mkdirSync(dirname(markerPath), { recursive: true });
+    writeFileSync(markerPath, `nudged at ${stampedAt}\n`);
+  } catch {
+    // Best-effort: if we cannot persist the marker we still nudge once now,
+    // rather than suppressing the only signal a Codex user would ever get.
+  }
+  return { status: 'nudge', notice: CODEX_INSTALL_NUDGE_NOTICE, marker_path: markerPath };
+}
+
 function stageForCurrentStep(flow: CompiledFlow, currentStep: string): string {
   const stage = flow.stages.find((candidate) => candidate.steps.includes(currentStep as never));
   return stage?.canonical ?? stage?.id ?? 'frame';
@@ -1318,15 +1585,20 @@ function clearContinuity(args: HandoffArgs, now: () => Date) {
   const projectRoot = resolveProjectRootArg(args);
   const createdAt = args.createdAt ?? now().toISOString();
   // `done` clears the manual save only. The ambient harvest is an orthogonal
-  // freshness cache, kept so a finished manual task still leaves the latest
-  // auto-captured state available as a fallback.
+  // freshness cache, kept by default so a finished manual task still leaves the
+  // latest auto-captured state available as a fallback. E1: `--clear-ambient`
+  // is the opt-in for operators who do not want finished work resurfacing; it
+  // drops the ambient pointer and removes the ambient record files and cursors.
   const existing = readContinuityIndexOrNull(controlPlane);
+  const clearAmbient = args.clearAmbient === true;
+  if (clearAmbient) removeAllAmbientRecords(controlPlane);
+  const keepAmbient = !clearAmbient && existing?.ambient_record;
   const index = ContinuityIndex.parse({
     schema_version: 1,
     project_root: projectRoot,
     pending_record: null,
     current_run: null,
-    ...(existing?.ambient_record ? { ambient_record: existing.ambient_record } : {}),
+    ...(keepAmbient ? { ambient_record: existing?.ambient_record } : {}),
   });
   writeJson(indexPath(controlPlane), index);
   const summaryPath = operatorSummaryPath(controlPlane);
@@ -1338,6 +1610,7 @@ function clearContinuity(args: HandoffArgs, now: () => Date) {
     index_path: indexPath(controlPlane),
     operator_summary_markdown_path: summaryPath,
     cleared_at: createdAt,
+    ambient_cleared: clearAmbient,
   };
   const resultPath = handoffResultPath(controlPlane, 'done');
   writeJson(resultPath, result);
@@ -1470,17 +1743,12 @@ function compactSummaryText(content: unknown): string | undefined {
 }
 
 /**
- * Parse a Claude Code transcript (JSONL) in TypeScript — no jq, UTF-8 safe by
- * virtue of reading as utf8. Malformed lines are skipped, not fatal. Returns
- * undefined only when the file itself cannot be read.
+ * Parse a chunk of a Claude Code transcript (JSONL) in TypeScript — no jq,
+ * UTF-8 safe by virtue of being decoded as utf8. Malformed lines are skipped,
+ * not fatal. Operates on an in-memory string so the same loop serves both a
+ * full-file read and an incremental tail read (B1).
  */
-function parseTranscriptForHarvest(transcriptPath: string): ParsedTranscript | undefined {
-  let raw: string;
-  try {
-    raw = readFileSync(transcriptPath, 'utf8');
-  } catch {
-    return undefined;
-  }
+function parseTranscriptContent(raw: string): ParsedTranscript {
   const intents: string[] = [];
   let summary: string | undefined;
   for (const line of raw.split('\n')) {
@@ -1509,6 +1777,270 @@ function parseTranscriptForHarvest(transcriptPath: string): ParsedTranscript | u
     intents.push(text.slice(0, AMBIENT_INTENT_MAX_CHARS));
   }
   return { intents: intents.slice(-AMBIENT_MAX_INTENTS), summary };
+}
+
+// --- Incremental harvest cursor (B1) --------------------------------------
+//
+// Harvest fires on every Stop and the transcript only grows, so re-reading it
+// from byte zero each time is O(turns x size). The cursor remembers the byte
+// offset we last consumed plus the running last-N intents and latest summary,
+// so a later harvest reads only the appended tail and merges. A shrink, a
+// path change, or a head-fingerprint mismatch (rotation / in-place rewrite /
+// compaction) invalidates the cursor and forces a full read — that is the
+// load-bearing correctness case, so nothing is silently lost.
+
+const HEAD_FINGERPRINT_BYTES = 4096;
+
+interface HarvestCursor {
+  readonly transcript_path: string;
+  readonly byte_offset: number;
+  readonly head_fingerprint: string;
+  readonly intents: readonly string[];
+  readonly summary?: string;
+}
+
+function cursorsRoot(controlPlane: string): string {
+  return join(continuityRoot(controlPlane), 'cursors');
+}
+
+function cursorPath(controlPlane: string, recordId: string): string {
+  return join(cursorsRoot(controlPlane), `${recordId}.json`);
+}
+
+/** Path-safe stem check mirroring ControlPlaneFileStem, without importing the
+ * Zod value (kept a type import to preserve existing `as` casts). Guards the
+ * cursor path join before the record schema validates the same stem. */
+function isSafeControlPlaneStem(value: string): boolean {
+  return /^[a-z0-9][a-z0-9._-]*$/.test(value) && !value.includes('..') && value.length <= 128;
+}
+
+function sha256Hex(buf: Buffer): string {
+  return createHash('sha256').update(buf).digest('hex');
+}
+
+function readByteRange(path: string, start: number, length: number): Buffer | undefined {
+  if (length <= 0) return Buffer.alloc(0);
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, 'r');
+    const buf = Buffer.allocUnsafe(length);
+    const read = readSync(fd, buf, 0, length, start);
+    return buf.subarray(0, read);
+  } catch {
+    return undefined;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+function readHarvestCursor(path: string): HarvestCursor | undefined {
+  if (!existsSync(path)) return undefined;
+  const raw = readJsonSafely(path);
+  if (!raw.ok || typeof raw.value !== 'object' || raw.value === null) return undefined;
+  const o = raw.value as Record<string, unknown>;
+  if (typeof o.transcript_path !== 'string') return undefined;
+  if (typeof o.byte_offset !== 'number' || !Number.isFinite(o.byte_offset) || o.byte_offset < 0) {
+    return undefined;
+  }
+  if (typeof o.head_fingerprint !== 'string') return undefined;
+  if (!Array.isArray(o.intents) || !o.intents.every((i) => typeof i === 'string')) return undefined;
+  if (o.summary !== undefined && typeof o.summary !== 'string') return undefined;
+  return {
+    transcript_path: o.transcript_path,
+    byte_offset: o.byte_offset,
+    head_fingerprint: o.head_fingerprint,
+    intents: o.intents as string[],
+    ...(typeof o.summary === 'string' ? { summary: o.summary } : {}),
+  };
+}
+
+/**
+ * Parse the transcript using the cursor when it is safe to, else full read.
+ * Returns the parsed result and the cursor to persist. Returns undefined only
+ * when the file cannot be read at all (caller maps that to a skip).
+ */
+function parseTranscriptForHarvest(
+  transcriptPath: string,
+  cursor: HarvestCursor | undefined,
+): { readonly parsed: ParsedTranscript; readonly nextCursor: HarvestCursor } | undefined {
+  let size: number;
+  try {
+    size = statSync(transcriptPath).size;
+  } catch {
+    return undefined;
+  }
+
+  // Incremental only when the consumed prefix is at least the fingerprint
+  // window, so [0, HEAD_FINGERPRINT_BYTES) is fully consumed and an append
+  // cannot change it. Small files take the full read; it is cheap.
+  if (
+    cursor !== undefined &&
+    cursor.transcript_path === transcriptPath &&
+    cursor.byte_offset >= HEAD_FINGERPRINT_BYTES &&
+    cursor.byte_offset <= size
+  ) {
+    const head = readByteRange(transcriptPath, 0, HEAD_FINGERPRINT_BYTES);
+    if (head !== undefined && sha256Hex(head) === cursor.head_fingerprint) {
+      const tail = readByteRange(transcriptPath, cursor.byte_offset, size - cursor.byte_offset);
+      if (tail !== undefined) {
+        const tailParsed = parseTranscriptContent(tail.toString('utf8'));
+        const intents = [...cursor.intents, ...tailParsed.intents].slice(-AMBIENT_MAX_INTENTS);
+        const summary = tailParsed.summary ?? cursor.summary;
+        const tailLastNewline = tail.lastIndexOf(0x0a);
+        const byteOffset =
+          tailLastNewline === -1 ? cursor.byte_offset : cursor.byte_offset + tailLastNewline + 1;
+        return {
+          parsed: { intents, summary },
+          nextCursor: {
+            transcript_path: transcriptPath,
+            byte_offset: byteOffset,
+            // Head region is unchanged and stays >= window, so the fingerprint
+            // is still valid for the next harvest.
+            head_fingerprint: cursor.head_fingerprint,
+            intents,
+            ...(summary === undefined ? {} : { summary }),
+          },
+        };
+      }
+    }
+  }
+
+  let buf: Buffer;
+  try {
+    buf = readFileSync(transcriptPath);
+  } catch {
+    return undefined;
+  }
+  const parsed = parseTranscriptContent(buf.toString('utf8'));
+  const lastNewline = buf.lastIndexOf(0x0a);
+  const byteOffset = lastNewline === -1 ? 0 : lastNewline + 1;
+  const headLength = Math.min(byteOffset, HEAD_FINGERPRINT_BYTES);
+  return {
+    parsed,
+    nextCursor: {
+      transcript_path: transcriptPath,
+      byte_offset: byteOffset,
+      head_fingerprint: sha256Hex(buf.subarray(0, headLength)),
+      intents: parsed.intents,
+      ...(parsed.summary === undefined ? {} : { summary: parsed.summary }),
+    },
+  };
+}
+
+// --- Per-session ambient records (D1) -------------------------------------
+//
+// One shared `ambient-latest` record means two sessions in the same repo race
+// on a single file and the loser's state is destroyed on disk. Keying the
+// record by session keeps each session's last state as its own record. The
+// index still has one `ambient_record` pointer, so restore surfaces the most
+// recent session; a per-session resolver is out of scope. Old records are
+// garbage-collected so the directory does not grow without bound.
+
+const AMBIENT_RECORDS_KEPT = 10;
+
+/** Sanitize a raw key part into a ControlPlaneFileStem-safe segment, or
+ * undefined when nothing usable remains. */
+function sanitizeStemPart(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const cleaned = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/\.{2,}/g, '.')
+    .replace(/^[^a-z0-9]+/, '')
+    .slice(0, 100);
+  return cleaned.length === 0 ? undefined : cleaned;
+}
+
+/** Derive the per-session ambient record stem. Prefers the host session id,
+ * falls back to the transcript filename (also unique per session), and finally
+ * to the legacy single-record stem so a host that supplies neither still
+ * harvests. */
+function deriveAmbientStem(sessionId: string | undefined, transcriptPath: string): string {
+  const fromSession = sanitizeStemPart(sessionId);
+  if (fromSession !== undefined) return `ambient-${fromSession}`;
+  const base = basename(transcriptPath).replace(/\.jsonl$/i, '');
+  const fromTranscript = sanitizeStemPart(base);
+  if (fromTranscript !== undefined) return `ambient-${fromTranscript}`;
+  return DEFAULT_AMBIENT_RECORD_STEM;
+}
+
+interface AmbientRecordEntry {
+  readonly record_id: string;
+  readonly created_at: string;
+}
+
+function listAmbientRecords(controlPlane: string): AmbientRecordEntry[] {
+  let names: string[];
+  try {
+    names = readdirSync(recordsRoot(controlPlane));
+  } catch {
+    return [];
+  }
+  const entries: AmbientRecordEntry[] = [];
+  for (const name of names) {
+    if (!name.startsWith('ambient-') || !name.endsWith('.json')) continue;
+    const recordId = name.slice(0, -'.json'.length);
+    const raw = readJsonSafely(join(recordsRoot(controlPlane), name));
+    const createdAt =
+      raw.ok &&
+      typeof raw.value === 'object' &&
+      raw.value !== null &&
+      typeof (raw.value as { created_at?: unknown }).created_at === 'string'
+        ? (raw.value as { created_at: string }).created_at
+        : '';
+    entries.push({ record_id: recordId, created_at: createdAt });
+  }
+  return entries;
+}
+
+function removeFileQuietly(path: string): void {
+  try {
+    rmSync(path, { force: true });
+  } catch {
+    // GC is best-effort; a record we cannot remove is not fatal.
+  }
+}
+
+/**
+ * E1: remove every ambient record file and its cursor. Used by `done
+ * --clear-ambient` so a deliberate clear wipes the auto-captured layer too.
+ * Manual saves use the `continuity-` stem and are never touched here.
+ */
+function removeAllAmbientRecords(controlPlane: string): void {
+  for (const entry of listAmbientRecords(controlPlane)) {
+    removeFileQuietly(recordPath(controlPlane, entry.record_id));
+    if (isSafeControlPlaneStem(entry.record_id)) {
+      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
+    }
+  }
+}
+
+/**
+ * Choose the ambient pointer (newest by created_at, current session wins ties)
+ * and garbage-collect ambient records beyond the keep limit. Never collects
+ * the pointer target or the current session's record.
+ */
+function reconcileAmbientRecords(
+  controlPlane: string,
+  current: AmbientRecordEntry,
+): AmbientRecordEntry {
+  const entries = listAmbientRecords(controlPlane);
+  let pointer = current;
+  for (const entry of entries) {
+    if (entry.created_at > pointer.created_at) pointer = entry;
+  }
+
+  const sorted = [...entries].sort((a, b) =>
+    a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0,
+  );
+  for (const entry of sorted.slice(AMBIENT_RECORDS_KEPT)) {
+    if (entry.record_id === pointer.record_id || entry.record_id === current.record_id) continue;
+    removeFileQuietly(recordPath(controlPlane, entry.record_id));
+    if (isSafeControlPlaneStem(entry.record_id)) {
+      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
+    }
+  }
+  return pointer;
 }
 
 function realAmbientGitProbe(projectRoot: string): AmbientGitProbe {
@@ -1543,20 +2075,37 @@ function composeAmbientStateMarkdown(
   git: AmbientGitProbe,
   transcriptPath: string,
 ): string {
-  const lines: string[] = ['## Recent intent (your last requests, newest last)'];
-  if (intents.length > 0) {
-    for (const intent of intents) lines.push(`- ${intent}`);
-  } else {
-    lines.push('- (none captured; see the transcript below)');
-  }
-  lines.push('', '## Working tree (uncommitted)');
-  if (git.statusPorcelain !== undefined) {
-    lines.push('```', git.statusPorcelain, '```');
-  } else {
-    lines.push('clean, or not a git repo');
-  }
-  lines.push('', '## Structured summary (harvested from the last compaction)');
-  lines.push(summary ?? 'None captured this session. Full history is in the transcript below.');
+  // C2: a harvested compaction summary is the richest, most condensed signal in
+  // the snapshot, so when one exists it leads as the spine and the recent intent
+  // follows. With no summary there is nothing better to lead with, so the recent
+  // intent stays first and the summary placeholder trails.
+  const summarySection = (): string[] => [
+    '## Structured summary (harvested from the last compaction)',
+    summary ?? 'None captured this session. Full history is in the transcript below.',
+  ];
+  const intentSection = (): string[] => {
+    const out = ['## Recent intent (your last requests, newest last)'];
+    if (intents.length > 0) {
+      for (const intent of intents) out.push(`- ${intent}`);
+    } else {
+      out.push('- (none captured; see the transcript below)');
+    }
+    return out;
+  };
+  const treeSection = (): string[] => {
+    const out = ['## Working tree (uncommitted)'];
+    if (git.statusPorcelain !== undefined) {
+      out.push('```', git.statusPorcelain, '```');
+    } else {
+      out.push('clean, or not a git repo');
+    }
+    return out;
+  };
+
+  const lines: string[] =
+    summary !== undefined
+      ? [...summarySection(), '', ...intentSection(), '', ...treeSection()]
+      : [...intentSection(), '', ...treeSection(), '', ...summarySection()];
   lines.push('', '## Full detail', `Transcript: ${transcriptPath}`);
   return lines.join('\n');
 }
@@ -1587,8 +2136,19 @@ export function harvestAmbientContinuity(input: AmbientHarvestInput): AmbientHar
   });
 
   if (!existsSync(input.transcriptPath)) return skip('no_transcript');
-  const parsed = parseTranscriptForHarvest(input.transcriptPath);
-  if (parsed === undefined) return skip('transcript_unreadable');
+
+  // The cursor is keyed by the record stem so each session's incremental state
+  // is independent. D1: when no explicit record id is given, the stem is keyed
+  // by session so parallel sessions in one repo do not clobber each other.
+  const recordId = (input.recordId ??
+    deriveAmbientStem(input.sessionId, input.transcriptPath)) as ControlPlaneFileStem;
+  const stemSafe = isSafeControlPlaneStem(recordId);
+  const cursorAbs = stemSafe ? cursorPath(controlPlane, recordId) : undefined;
+  const priorCursor = cursorAbs === undefined ? undefined : readHarvestCursor(cursorAbs);
+
+  const harvested = parseTranscriptForHarvest(input.transcriptPath, priorCursor);
+  if (harvested === undefined) return skip('transcript_unreadable');
+  const parsed = harvested.parsed;
 
   const git: AmbientGitProbe = (input.gitProbe ?? ((): AmbientGitProbe => ({})))(projectRoot);
   if (
@@ -1597,12 +2157,12 @@ export function harvestAmbientContinuity(input: AmbientHarvestInput): AmbientHar
     git.statusPorcelain === undefined
   ) {
     // Mirror the warm-writer guard: never blank a good prior record just
-    // because this turn captured nothing.
+    // because this turn captured nothing. No cursor write either, so the next
+    // harvest re-reads (the file is still small in this case).
     return skip('nothing_to_harvest');
   }
 
   const createdAt = input.createdAt ?? input.now().toISOString();
-  const recordId = (input.recordId ?? DEFAULT_AMBIENT_RECORD_STEM) as ControlPlaneFileStem;
   const latestIntent = parsed.intents[parsed.intents.length - 1];
   const goal =
     latestIntent ??
@@ -1645,6 +2205,17 @@ export function harvestAmbientContinuity(input: AmbientHarvestInput): AmbientHar
   const recordAbs = recordPath(controlPlane, record.record_id);
   writeJsonAtomic(recordAbs, record);
 
+  // Persist the incremental cursor alongside the record so the next harvest
+  // reads only the appended tail (B1). Written only when a record is written.
+  if (cursorAbs !== undefined) writeJsonAtomic(cursorAbs, harvested.nextCursor);
+
+  // D1: point the index at the newest ambient record across all sessions and
+  // garbage-collect old per-session records.
+  const pointer = reconcileAmbientRecords(controlPlane, {
+    record_id: record.record_id,
+    created_at: record.created_at,
+  });
+
   // Read-merge-write so a deliberate manual save (pending_record) and any
   // attached run (current_run) survive untouched; only ambient_record moves.
   const existing = readContinuityIndexOrNull(controlPlane);
@@ -1654,9 +2225,9 @@ export function harvestAmbientContinuity(input: AmbientHarvestInput): AmbientHar
     pending_record: existing?.pending_record ?? null,
     current_run: existing?.current_run ?? null,
     ambient_record: {
-      record_id: record.record_id,
+      record_id: pointer.record_id,
       continuity_kind: 'ambient',
-      created_at: record.created_at,
+      created_at: pointer.created_at,
     },
   });
   writeJsonAtomic(indexPath(controlPlane), index);
@@ -1770,12 +2341,14 @@ export async function runHandoffCommand(
       );
       return 2;
     }
-    process.stdout.write(`${JSON.stringify(handoffBrief(args), null, 2)}\n`);
+    process.stdout.write(
+      `${JSON.stringify(handoffBrief(args, options.now ?? (() => new Date())), null, 2)}\n`,
+    );
     return 0;
   }
 
   if (args.action === 'hook') {
-    return runHandoffHook(args);
+    return runHandoffHook(args, options.now ?? (() => new Date()));
   }
 
   if (args.action === 'harvest') {
