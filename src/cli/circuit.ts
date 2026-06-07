@@ -6,7 +6,7 @@ import { Command, CommanderError } from 'commander';
 import { CLI_COMMAND_NAMES, type CliCommandName } from './command-vocabulary.js';
 import { parseCommanderOrThrow } from './commander-support.js';
 import { runCreateCommand } from './create.js';
-import { runHandoffCommand } from './handoff.js';
+import { type BriefGitProbe, runHandoffCommand } from './handoff.js';
 import { runHistoryCommand } from './history.js';
 import { runMemoryCommand } from './memory.js';
 import {
@@ -35,7 +35,9 @@ type TopLevelInvocation = {
   readonly argv: readonly string[];
 };
 
-export interface CliMainOptions extends RunCommandOptions {}
+export interface CliMainOptions extends RunCommandOptions {
+  briefGitProbe?: BriefGitProbe;
+}
 
 export { CIRCUIT_HOST_KIND_ENV } from './run.js';
 
@@ -172,6 +174,7 @@ export async function main(argv: readonly string[], options: CliMainOptions = {}
   if (invocation.command === 'handoff') {
     return runHandoffCommand(invocation.argv, {
       ...(options.now === undefined ? {} : { now: options.now }),
+      ...(options.briefGitProbe === undefined ? {} : { briefGitProbe: options.briefGitProbe }),
     });
   }
   if (invocation.command === 'history') {

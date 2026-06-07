@@ -1,10 +1,10 @@
 # Continuity staleness check: implementation spec
 
-Status: build-ready implementation spec, 2026-06-07. Companion to the
-design exploration in
+Status: BUILT 2026-06-07. Companion to the design exploration in
 [`continuity-staleness-check.md`](continuity-staleness-check.md) and its
-frame-check review. Design-only until built. Every code reference is cited
-to current source and was verified on 2026-06-07.
+frame-check review. Slice 0 shipped via PR #45 (merge `8d9abb69`); Slices
+1-3 shipped on `feat/handoff-brief-staleness`. Every code reference was
+cited to source and verified on 2026-06-07. Kept as the rationale record.
 
 ## Scope
 

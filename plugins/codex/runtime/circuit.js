@@ -44960,9 +44960,46 @@ function composeHandoffBrief(record2, state, debt) {
     "Useful commands: /circuit:handoff resume, /circuit:handoff done"
   ].join("\n");
 }
-function composeAmbientBrief(record2, state, debt, ageLabel) {
+var AMBIENT_BOUNDARY_DEFAULT = "Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked.";
+var AMBIENT_BOUNDARY_ADVANCED = "Boundary: This is an automatic snapshot, not a saved plan. The repo has advanced since it was captured, so check whether the captured request already landed before acting. Confirm the current goal with the user, and do not resume this work unasked.";
+function stalenessDiverged(staleness) {
+  return staleness.head_advanced === true || staleness.branch_merged_or_gone === true || staleness.commits_since !== void 0 && staleness.commits_since > 0;
+}
+function stalenessUnchanged(staleness) {
+  return staleness.head_advanced === false && staleness.tree_clean === true && staleness.branch_merged_or_gone !== true;
+}
+function stalenessBlockLines(record2, staleness) {
+  if (staleness === void 0 || Object.keys(staleness).length === 0)
+    return [];
+  if (stalenessUnchanged(staleness)) {
+    return ["Repo state since capture:", "- Repo unchanged since capture."];
+  }
+  const lines = ["Repo state since capture:"];
+  const { branch, head } = record2.git;
+  if (head !== void 0) {
+    lines.push(branch !== void 0 && branch !== "HEAD" ? `- Captured on branch ${branch} at ${head}.` : `- Captured at ${head}.`);
+  }
+  if (staleness.branch_merged_or_gone === true) {
+    lines.push("- That branch is now merged and no longer present.");
+  }
+  if (staleness.capture_head_reachable === true) {
+    const headSuffix = staleness.current_head === void 0 ? "" : ` (HEAD ${staleness.current_head})`;
+    lines.push(`- The captured commit is already in the current history${headSuffix}.`);
+  }
+  if (staleness.commits_since !== void 0 && staleness.commits_since > 0) {
+    const n = staleness.commits_since;
+    lines.push(`- ${n} commit${n === 1 ? "" : "s"} since capture.`);
+  }
+  if (staleness.tree_clean === true) {
+    lines.push("- Working tree is clean.");
+  }
+  return lines;
+}
+function composeAmbientBrief(record2, state, debt, ageLabel, staleness) {
   const repo = basename(record2.git.cwd) || record2.git.cwd;
   const capturedSuffix = ageLabel === void 0 ? "" : ` (captured ${ageLabel})`;
+  const stalenessLines = stalenessBlockLines(record2, staleness);
+  const boundary = staleness !== void 0 && stalenessDiverged(staleness) ? AMBIENT_BOUNDARY_ADVANCED : AMBIENT_BOUNDARY_DEFAULT;
   return [
     `Circuit automatically captured the recent state of ${repo}${capturedSuffix}. No handoff was saved.`,
     "",
@@ -44975,11 +45012,12 @@ function composeAmbientBrief(record2, state, debt, ageLabel) {
     "Notes:",
     debt,
     "",
-    "Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked."
+    ...stalenessLines.length > 0 ? [...stalenessLines, ""] : [],
+    boundary
   ].join("\n");
 }
-function composeBriefFor(record2, state, debt, ageLabel) {
-  return record2.continuity_kind === "ambient" ? composeAmbientBrief(record2, state, debt, ageLabel) : composeHandoffBrief(record2, state, debt);
+function composeBriefFor(record2, state, debt, ageLabel, staleness) {
+  return record2.continuity_kind === "ambient" ? composeAmbientBrief(record2, state, debt, ageLabel, staleness) : composeHandoffBrief(record2, state, debt);
 }
 function fitText(value, budget) {
   const marker = "\n[truncated]";
@@ -44991,15 +45029,15 @@ function fitText(value, budget) {
     return marker.slice(0, budget);
   return `${value.slice(0, budget - marker.length)}${marker}`;
 }
-function renderHandoffBrief(record2, now) {
+function renderHandoffBrief(record2, now, staleness) {
   const state = record2.narrative.state_markdown;
   const debt = record2.narrative.debt_markdown;
   const ageLabel = record2.continuity_kind === "ambient" ? relativeAge(record2.created_at, now()) : void 0;
-  const full = composeBriefFor(record2, state, debt, ageLabel);
+  const full = composeBriefFor(record2, state, debt, ageLabel, staleness);
   if (full.length <= HANDOFF_BRIEF_MAX_CHARS) {
     return { ok: true, additionalContext: full };
   }
-  const fixed2 = composeBriefFor(record2, "", "", ageLabel);
+  const fixed2 = composeBriefFor(record2, "", "", ageLabel, staleness);
   if (fixed2.length > HANDOFF_BRIEF_MAX_CHARS) {
     return {
       ok: false,
@@ -45020,16 +45058,16 @@ function renderHandoffBrief(record2, now) {
   }
   let renderedState = fitText(state, stateBudget);
   let renderedDebt = fitText(debt, debtBudget);
-  let rendered = composeBriefFor(record2, renderedState, renderedDebt, ageLabel);
+  let rendered = composeBriefFor(record2, renderedState, renderedDebt, ageLabel, staleness);
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedDebt = fitText(renderedDebt, Math.max(0, renderedDebt.length - overflow));
-    rendered = composeBriefFor(record2, renderedState, renderedDebt, ageLabel);
+    rendered = composeBriefFor(record2, renderedState, renderedDebt, ageLabel, staleness);
   }
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedState = fitText(renderedState, Math.max(0, renderedState.length - overflow));
-    rendered = composeBriefFor(record2, renderedState, renderedDebt, ageLabel);
+    rendered = composeBriefFor(record2, renderedState, renderedDebt, ageLabel, staleness);
   }
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     return {
@@ -45100,7 +45138,7 @@ function invalidBrief(args, code, message, recordId) {
     operator_notice: briefInvalidNotice(code)
   };
 }
-function resolvePointerBrief(args, controlPlane, pointer, source, now) {
+function resolvePointerBrief(args, controlPlane, pointer, source, now, gitProbe) {
   const projectRoot = resolveProjectRootArg(args);
   const indexAbs = indexPath(controlPlane);
   const recordAbs = recordPath(controlPlane, pointer.record_id);
@@ -45116,7 +45154,13 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now) {
   if (record2.continuity_kind !== pointer.continuity_kind) {
     return invalidBrief(args, "record_kind_mismatch", "Continuity index kind disagrees with the pointed record.", pointer.record_id);
   }
-  const rendered = renderHandoffBrief(record2, now);
+  const staleness = record2.continuity_kind === "ambient" && resolve9(record2.git.cwd) === resolve9(projectRoot) ? gitProbe({
+    projectRoot,
+    ...record2.git.head === void 0 ? {} : { capturedHead: record2.git.head },
+    ...record2.git.branch === void 0 ? {} : { capturedBranch: record2.git.branch }
+  }) : void 0;
+  const hasStaleness = staleness !== void 0 && Object.keys(staleness).length > 0;
+  const rendered = renderHandoffBrief(record2, now, staleness);
   if (!rendered.ok) {
     return invalidBrief(args, rendered.code, rendered.message, pointer.record_id);
   }
@@ -45131,10 +45175,11 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now) {
     record_id: record2.record_id,
     continuity_kind: record2.continuity_kind,
     created_at: record2.created_at,
-    additional_context: rendered.additionalContext
+    additional_context: rendered.additionalContext,
+    ...hasStaleness ? { staleness } : {}
   };
 }
-function handoffBrief(args, now = () => /* @__PURE__ */ new Date()) {
+function handoffBrief(args, now = () => /* @__PURE__ */ new Date(), gitProbe = realBriefGitProbe) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
   if (!existsSync12(indexAbs))
@@ -45146,11 +45191,11 @@ function handoffBrief(args, now = () => /* @__PURE__ */ new Date()) {
     return invalidBrief(args, "index_invalid", "Continuity index is malformed.");
   }
   if (index.pending_record !== null) {
-    const pending = resolvePointerBrief(args, controlPlane, index.pending_record, "pending_record", now);
+    const pending = resolvePointerBrief(args, controlPlane, index.pending_record, "pending_record", now, gitProbe);
     if (pending.status === "available")
       return pending;
     if (index.ambient_record) {
-      const ambient = resolvePointerBrief(args, controlPlane, index.ambient_record, "ambient_record", now);
+      const ambient = resolvePointerBrief(args, controlPlane, index.ambient_record, "ambient_record", now, gitProbe);
       if (ambient.status === "available") {
         const failure = briefErrorOf(pending);
         return {
@@ -45163,7 +45208,7 @@ function handoffBrief(args, now = () => /* @__PURE__ */ new Date()) {
     return pending;
   }
   if (index.ambient_record) {
-    return resolvePointerBrief(args, controlPlane, index.ambient_record, "ambient_record", now);
+    return resolvePointerBrief(args, controlPlane, index.ambient_record, "ambient_record", now, gitProbe);
   }
   return emptyBrief(args, "no_pending_record");
 }
@@ -46222,6 +46267,71 @@ function realAmbientGitProbe(projectRoot) {
     ...statusPorcelain ? { statusPorcelain } : {}
   };
 }
+function realBriefGitProbe(input) {
+  const { projectRoot, capturedHead, capturedBranch } = input;
+  const git = (gitArgs) => {
+    try {
+      return execFileSync("git", ["-C", projectRoot, ...gitArgs], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 2e3
+      }).trim();
+    } catch {
+      return void 0;
+    }
+  };
+  const gitBool = (gitArgs) => {
+    try {
+      execFileSync("git", ["-C", projectRoot, ...gitArgs], {
+        stdio: ["ignore", "ignore", "ignore"],
+        timeout: 2e3
+      });
+      return true;
+    } catch (err) {
+      return err.status === 1 ? false : void 0;
+    }
+  };
+  try {
+    if (git(["rev-parse", "--is-inside-work-tree"]) !== "true")
+      return {};
+    const facts = {};
+    const headFull = git(["rev-parse", "HEAD"]);
+    const capturedFull = capturedHead === void 0 ? void 0 : git(["rev-parse", "--verify", `${capturedHead}^{commit}`]);
+    const status = git(["status", "--porcelain=v1"]);
+    if (status !== void 0)
+      facts.tree_clean = status.length === 0;
+    const currentShort = git(["rev-parse", "--short", "HEAD"]);
+    if (currentShort !== void 0)
+      facts.current_head = currentShort;
+    if (headFull !== void 0 && capturedFull !== void 0) {
+      facts.head_advanced = headFull !== capturedFull;
+    }
+    if (capturedHead !== void 0) {
+      const reachable = gitBool(["merge-base", "--is-ancestor", capturedHead, "HEAD"]);
+      if (reachable !== void 0)
+        facts.capture_head_reachable = reachable;
+      const countRaw = git(["rev-list", "--count", `${capturedHead}..HEAD`]);
+      if (countRaw !== void 0) {
+        const n = Number.parseInt(countRaw, 10);
+        if (Number.isFinite(n))
+          facts.commits_since = n;
+      }
+    }
+    if (capturedBranch !== void 0 && capturedBranch.length > 0 && capturedBranch !== "HEAD") {
+      const branchSha = git(["rev-parse", "--verify", "--quiet", `refs/heads/${capturedBranch}`]);
+      if (branchSha === void 0) {
+        facts.branch_merged_or_gone = true;
+      } else if (headFull !== void 0 && branchSha !== headFull) {
+        if (gitBool(["merge-base", "--is-ancestor", branchSha, "HEAD"]) === true) {
+          facts.branch_merged_or_gone = true;
+        }
+      }
+    }
+    return facts;
+  } catch {
+    return {};
+  }
+}
 function composeAmbientStateMarkdown(intents, summary, git, transcriptPath) {
   const summarySection = () => [
     "## Structured summary (harvested from the last compaction)",
@@ -46438,7 +46548,7 @@ async function runHandoffCommand(argv, options = {}) {
       process.stderr.write("handoff brief returns machine-readable JSON for host injection. Pass --json to confirm that output mode and run it.\n");
       return 2;
     }
-    process.stdout.write(`${JSON.stringify(handoffBrief(args, options.now ?? (() => /* @__PURE__ */ new Date())), null, 2)}
+    process.stdout.write(`${JSON.stringify(handoffBrief(args, options.now ?? (() => /* @__PURE__ */ new Date()), options.briefGitProbe ?? realBriefGitProbe), null, 2)}
 `);
     return 0;
   }
@@ -64796,7 +64906,8 @@ async function main(argv, options = {}) {
   }
   if (invocation.command === "handoff") {
     return runHandoffCommand(invocation.argv, {
-      ...options.now === void 0 ? {} : { now: options.now }
+      ...options.now === void 0 ? {} : { now: options.now },
+      ...options.briefGitProbe === void 0 ? {} : { briefGitProbe: options.briefGitProbe }
     });
   }
   if (invocation.command === "history") {
