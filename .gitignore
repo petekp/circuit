@@ -23,6 +23,10 @@ coverage/
 # per-machine state; nothing here is a deliverable.
 .circuit/
 
+# CodeGraph local index (SQLite knowledge graph + cache). Per-machine and
+# rebuildable from source; nothing here is a deliverable.
+/.codegraph/
+
 # Local-only internal documentation archive. These files can include historical
 # planning notes, audit ledgers, and other material that should not ship as
 # public documentation.

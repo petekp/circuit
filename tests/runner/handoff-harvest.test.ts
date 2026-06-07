@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -793,6 +794,21 @@ function readIndex(projectRoot: string) {
   );
 }
 
+// A harvest in a non-git temp dir captures no git.branch/head. Tests that need
+// a captured baseline (to render the "Captured on branch X at Y" anchor) patch
+// it onto the record after harvest, the same way the cross-repo test patches
+// git.cwd.
+function patchRecordGit(
+  projectRoot: string,
+  recordId: string,
+  git: { branch?: string; head?: string },
+): void {
+  const recordPath = join(projectRoot, `.circuit/continuity/records/${recordId}.json`);
+  const record = JSON.parse(readFileSync(recordPath, 'utf8'));
+  record.git = { ...record.git, ...git };
+  writeFileSync(recordPath, `${JSON.stringify(record, null, 2)}\n`);
+}
+
 describe('handoff brief precedence (manual save outranks ambient harvest)', () => {
   it('falls back to the ambient record when no manual save is pending', async () => {
     const projectRoot = tempRoot('circuit-brief-ambient-');
@@ -994,6 +1010,559 @@ describe('handoff brief robustness (A1 visible failure, A4 fall-through, A2 stal
     expect(brief.code, brief.stderr).toBe(0);
     const output = JSON.parse(brief.stdout) as { additional_context: string };
     expect(output.additional_context).not.toContain('captured');
+  });
+
+  // Slice 1: structured staleness facts on the available envelope (no rendered
+  // text yet). The probe is injected so the fact matrix is exercised without
+  // building awkward real-git states; one default-probe soft-fail case proves
+  // the real path stays quiet outside a git repo.
+  it('adds a staleness object to the available envelope for an ambient record (Slice 1)', async () => {
+    const projectRoot = tempRoot('circuit-brief-staleness-');
+    await harvestInto(projectRoot, 'ambient request with staleness facts');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({
+        capture_head_reachable: true,
+        branch_gone: true,
+        tree_clean: true,
+        head_advanced: true,
+        current_head: 'bbbbbbb',
+        commits_since: 3,
+      }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      status: string;
+      continuity_kind: string;
+      staleness?: Record<string, unknown>;
+    };
+    expect(output.status).toBe('available');
+    expect(output.continuity_kind).toBe('ambient');
+    expect(output.staleness).toEqual({
+      capture_head_reachable: true,
+      branch_gone: true,
+      tree_clean: true,
+      head_advanced: true,
+      current_head: 'bbbbbbb',
+      commits_since: 3,
+    });
+  });
+
+  it('omits staleness for a manual record even with a probe (ambient-only, Slice 1)', async () => {
+    const projectRoot = tempRoot('circuit-brief-staleness-manual-');
+    await saveManual(projectRoot, 'manual goal carries no staleness');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({ head_advanced: true }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { continuity_kind: string; staleness?: unknown };
+    expect(output.continuity_kind).toBe('standalone');
+    expect(output.staleness).toBeUndefined();
+  });
+
+  it('omits staleness when the captured cwd is a different repo (cross-repo guard, Slice 1)', async () => {
+    const projectRoot = tempRoot('circuit-brief-staleness-xrepo-');
+    await harvestInto(projectRoot, 'ambient captured under a different tree');
+
+    // Rewrite the captured cwd so it points at a different tree than the brief's
+    // project root; the cross-repo guard must then refuse to probe.
+    const recordPath = join(projectRoot, '.circuit/continuity/records/ambient-latest.json');
+    const record = JSON.parse(readFileSync(recordPath, 'utf8'));
+    record.git.cwd = join(projectRoot, 'somewhere-else');
+    writeFileSync(recordPath, `${JSON.stringify(record, null, 2)}\n`);
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({ head_advanced: true }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { staleness?: unknown };
+    expect(output.staleness).toBeUndefined();
+  });
+
+  it('soft-fails to no staleness in a non-git project (default real probe, Slice 1)', async () => {
+    const projectRoot = tempRoot('circuit-brief-staleness-nogit-');
+    await harvestInto(projectRoot, 'ambient in a non-git temp dir');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      status: string;
+      additional_context: string;
+      staleness?: unknown;
+    };
+    expect(output.status).toBe('available');
+    expect(output.staleness).toBeUndefined();
+    expect(output.additional_context).toContain('ambient in a non-git temp dir');
+  });
+
+  // End-to-end exercise of the default `realBriefGitProbe` against a real temp
+  // repo: harvest captures the baseline, a clean commit advances HEAD, and the
+  // brief must report the divergence facts computed from live git, not a stub.
+  it('computes real staleness facts end to end after a commit advances HEAD (Slice 1)', async () => {
+    const projectRoot = tempRoot('circuit-brief-staleness-realgit-');
+    const git = (...gitArgs: string[]): void => {
+      execFileSync('git', ['-C', projectRoot, ...gitArgs], {
+        stdio: ['ignore', 'ignore', 'ignore'],
+      });
+    };
+    git('init', '-q');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'Test');
+    git('config', 'commit.gpgsign', 'false');
+    writeFileSync(join(projectRoot, 'a.txt'), 'one\n');
+    git('add', '-A');
+    git('commit', '-qm', 'first');
+
+    // Harvest captures the current branch + head as the baseline.
+    await harvestInto(projectRoot, 'ambient request before HEAD advanced');
+
+    // Advance HEAD with a clean commit on the same branch.
+    writeFileSync(join(projectRoot, 'b.txt'), 'two\n');
+    git('add', '-A');
+    git('commit', '-qm', 'second');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      staleness?: {
+        head_advanced?: boolean;
+        capture_head_reachable?: boolean;
+        tree_clean?: boolean;
+        commits_since?: number;
+        current_head?: string;
+        branch_gone?: boolean;
+      };
+    };
+    expect(output.staleness).toBeDefined();
+    expect(output.staleness?.head_advanced).toBe(true);
+    expect(output.staleness?.capture_head_reachable).toBe(true);
+    expect(output.staleness?.tree_clean).toBe(true);
+    expect(output.staleness?.commits_since).toBe(1);
+    expect(typeof output.staleness?.current_head).toBe('string');
+    // The captured branch ref still exists (we are sitting on it), so
+    // branch_gone never fires: a present branch is present, full stop.
+    expect(output.staleness?.branch_gone).toBeUndefined();
+  });
+
+  // End-to-end exercise of the real-git branch_gone path: the
+  // captured branch is merged into another branch and deleted, so the brief
+  // must report it gone (ref lookup fails) and render the merged line.
+  it('reports the captured branch as merged and gone after a real merge + delete (Slice 2)', async () => {
+    const projectRoot = tempRoot('circuit-brief-staleness-merged-');
+    const git = (...gitArgs: string[]): void => {
+      execFileSync('git', ['-C', projectRoot, ...gitArgs], {
+        stdio: ['ignore', 'ignore', 'ignore'],
+      });
+    };
+    git('init', '-q');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'Test');
+    git('config', 'commit.gpgsign', 'false');
+    writeFileSync(join(projectRoot, 'a.txt'), 'one\n');
+    git('add', '-A');
+    git('commit', '-qm', 'base');
+    git('branch', '-m', 'base');
+
+    // Do the captured work on a feature branch, then harvest from it.
+    git('checkout', '-q', '-b', 'feat/x');
+    writeFileSync(join(projectRoot, 'b.txt'), 'two\n');
+    git('add', '-A');
+    git('commit', '-qm', 'feature work');
+    await harvestInto(projectRoot, 'ambient request whose branch later merges');
+
+    // Merge the feature branch back into base and delete it.
+    git('checkout', '-q', 'base');
+    git('merge', '--no-ff', '-q', '-m', 'merge feat/x', 'feat/x');
+    git('branch', '-d', 'feat/x');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      staleness?: { branch_gone?: boolean; capture_head_reachable?: boolean };
+      additional_context: string;
+    };
+    expect(output.staleness?.branch_gone).toBe(true);
+    expect(output.staleness?.capture_head_reachable).toBe(true);
+    expect(output.additional_context).toContain(
+      '- That branch is now merged and no longer present.',
+    );
+  });
+
+  // The everyday flow: the captured branch is merged but NOT deleted, so its ref
+  // still resolves. `branch_gone` must stay unset and the brief must never claim
+  // the branch is "no longer present" while it is sitting right there. This locks
+  // the fix for the false "no longer present" line on a still-present branch.
+  it('does not report a merged-but-undeleted branch as gone (Slice 2)', async () => {
+    const projectRoot = tempRoot('circuit-brief-staleness-merged-kept-');
+    const git = (...gitArgs: string[]): void => {
+      execFileSync('git', ['-C', projectRoot, ...gitArgs], {
+        stdio: ['ignore', 'ignore', 'ignore'],
+      });
+    };
+    git('init', '-q');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'Test');
+    git('config', 'commit.gpgsign', 'false');
+    writeFileSync(join(projectRoot, 'a.txt'), 'one\n');
+    git('add', '-A');
+    git('commit', '-qm', 'base');
+    git('branch', '-m', 'base');
+
+    // Capture work on a feature branch.
+    git('checkout', '-q', '-b', 'feat/x');
+    writeFileSync(join(projectRoot, 'b.txt'), 'two\n');
+    git('add', '-A');
+    git('commit', '-qm', 'feature work');
+    await harvestInto(projectRoot, 'ambient request whose branch merges but survives');
+
+    // Merge the feature branch into base WITHOUT deleting it; feat/x still exists.
+    git('checkout', '-q', 'base');
+    git('merge', '--no-ff', '-q', '-m', 'merge feat/x', 'feat/x');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      staleness?: { branch_gone?: boolean; capture_head_reachable?: boolean };
+      additional_context: string;
+    };
+    // The branch ref still resolves, so branch_gone must not fire.
+    expect(output.staleness?.branch_gone).toBeUndefined();
+    // The captured commit did merge, so that fact is still reported.
+    expect(output.staleness?.capture_head_reachable).toBe(true);
+    expect(output.additional_context).not.toContain('no longer present');
+    expect(output.additional_context).toContain('already in the current history');
+  });
+
+  // Slice 2: the facts become a rendered "Repo state since capture" block plus
+  // a boundary clause. Each line is gated on a present fact; the captured
+  // anchor comes from the record's own git.
+  async function ambientWithBaseline(
+    prefix: string,
+    intent: string,
+    git: { branch?: string; head?: string },
+  ): Promise<string> {
+    const projectRoot = tempRoot(prefix);
+    await harvestInto(projectRoot, intent);
+    patchRecordGit(projectRoot, 'ambient-latest', git);
+    return projectRoot;
+  }
+
+  it('renders the full Repo state since capture block and the advanced boundary clause (Slice 2)', async () => {
+    const projectRoot = await ambientWithBaseline(
+      'circuit-brief-render-full-',
+      'ambient request whose work may already have landed',
+      { branch: 'feat/x', head: 'aaaaaaa' },
+    );
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({
+        branch_gone: true,
+        capture_head_reachable: true,
+        tree_clean: true,
+        head_advanced: true,
+        current_head: 'bbbbbbb',
+        commits_since: 3,
+      }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const ctx = (JSON.parse(brief.stdout) as { additional_context: string }).additional_context;
+    expect(ctx).toContain('Repo state since capture:');
+    expect(ctx).toContain('- Captured on branch feat/x at aaaaaaa.');
+    expect(ctx).toContain('- That branch is now merged and no longer present.');
+    expect(ctx).toContain(
+      '- The captured commit is already in the current history (HEAD bbbbbbb).',
+    );
+    expect(ctx).toContain('- 3 commits since capture.');
+    expect(ctx).toContain('- Working tree is clean.');
+    expect(ctx).toContain(
+      'The repo has advanced since it was captured, so check whether the captured request already landed before acting.',
+    );
+  });
+
+  it('drops the (HEAD ...) parenthetical when current_head soft-failed (Slice 2)', async () => {
+    const projectRoot = await ambientWithBaseline(
+      'circuit-brief-render-nohead-',
+      'ambient request without a current head',
+      { branch: 'feat/x', head: 'aaaaaaa' },
+    );
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({
+        capture_head_reachable: true,
+        head_advanced: true,
+        commits_since: 2,
+      }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const ctx = (JSON.parse(brief.stdout) as { additional_context: string }).additional_context;
+    expect(ctx).toContain('- The captured commit is already in the current history.');
+    expect(ctx).not.toContain('(HEAD');
+  });
+
+  it('does not claim the captured commit landed when it is unreachable after a rebase (Slice 2)', async () => {
+    const projectRoot = await ambientWithBaseline(
+      'circuit-brief-render-rebased-',
+      'ambient request whose commit was rebased away',
+      { branch: 'feat/x', head: 'aaaaaaa' },
+    );
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({
+        capture_head_reachable: false,
+        branch_gone: true,
+      }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const ctx = (JSON.parse(brief.stdout) as { additional_context: string }).additional_context;
+    expect(ctx).toContain('Repo state since capture:');
+    // The branch ref is gone but its captured commit is NOT reachable from HEAD,
+    // so we must not claim it merged: only that it is no longer present.
+    expect(ctx).toContain('- That branch is no longer present.');
+    expect(ctx).not.toContain('merged and no longer present');
+    expect(ctx).not.toContain('already in the current history');
+    // Even with the commit unreachable, the boundary still nudges a check.
+    expect(ctx).toContain('check whether the captured request already landed before acting');
+  });
+
+  it('renders a minimal block and the boundary clause for weak divergence (Slice 2)', async () => {
+    const projectRoot = await ambientWithBaseline(
+      'circuit-brief-render-weak-',
+      'ambient request with only other work since',
+      { branch: 'feat/y', head: 'ccccccc' },
+    );
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({ head_advanced: true }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const ctx = (JSON.parse(brief.stdout) as { additional_context: string }).additional_context;
+    expect(ctx).toContain('Repo state since capture:');
+    expect(ctx).toContain('- Captured on branch feat/y at ccccccc.');
+    expect(ctx).not.toContain('merged and no longer present');
+    expect(ctx).not.toContain('already in the current history');
+    expect(ctx).toContain(
+      'The repo has advanced since it was captured, so check whether the captured request already landed before acting.',
+    );
+  });
+
+  it('renders no staleness block and keeps the manual boundary for a manual record (Slice 2)', async () => {
+    const projectRoot = tempRoot('circuit-brief-render-manual-');
+    await saveManual(projectRoot, 'manual goal needs no repo-state block');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({ head_advanced: true, branch_gone: true }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const ctx = (JSON.parse(brief.stdout) as { additional_context: string }).additional_context;
+    expect(ctx).not.toContain('Repo state since capture:');
+    expect(ctx).toContain(MANUAL_BOUNDARY);
+  });
+
+  it('keeps the staleness block as fixed framing when state is truncated near the cap (Slice 2)', async () => {
+    const projectRoot = await ambientWithBaseline(
+      'circuit-brief-render-cap-',
+      'ambient request with an oversized state body',
+      { branch: 'feat/x', head: 'aaaaaaa' },
+    );
+    // Force the truncatable state over the cap so the fit loop must trim it
+    // while the fixed staleness framing rides along intact.
+    const recordPath = join(projectRoot, '.circuit/continuity/records/ambient-latest.json');
+    const record = JSON.parse(readFileSync(recordPath, 'utf8'));
+    record.narrative.state_markdown = 'x'.repeat(6000);
+    writeFileSync(recordPath, `${JSON.stringify(record, null, 2)}\n`);
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({
+        branch_gone: true,
+        capture_head_reachable: true,
+        tree_clean: true,
+        head_advanced: true,
+        current_head: 'bbbbbbb',
+        commits_since: 3,
+      }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const ctx = (JSON.parse(brief.stdout) as { additional_context: string }).additional_context;
+    expect(ctx.length).toBeLessThanOrEqual(3000);
+    expect(ctx).toContain('Repo state since capture:');
+    expect(ctx).toContain('- That branch is now merged and no longer present.');
+    expect(ctx).toContain('[truncated]');
+  });
+
+  // Slice 3: when the facts show no divergence, the block collapses to a single
+  // "unchanged" line (orientation that the snapshot world still matches the
+  // real one) and the boundary stays the default, non-advanced wording.
+  it('collapses to a single unchanged line when the repo has not diverged (Slice 3)', async () => {
+    const projectRoot = await ambientWithBaseline(
+      'circuit-brief-render-unchanged-',
+      'ambient request whose repo has not moved',
+      { branch: 'feat/x', head: 'aaaaaaa' },
+    );
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({
+        head_advanced: false,
+        tree_clean: true,
+        capture_head_reachable: true,
+        commits_since: 0,
+        current_head: 'aaaaaaa',
+      }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const ctx = (JSON.parse(brief.stdout) as { additional_context: string }).additional_context;
+    expect(ctx).toContain('Repo state since capture:');
+    expect(ctx).toContain('- Repo unchanged since capture.');
+    // The unchanged collapse suppresses the per-fact lines.
+    expect(ctx).not.toContain('already in the current history');
+    expect(ctx).not.toContain('- Captured on branch');
+    // Not diverged, so the boundary keeps its default wording.
+    expect(ctx).not.toContain('The repo has advanced since it was captured');
+    expect(ctx).toContain('Confirm the current goal with the user before acting on it');
+  });
+
+  // A deleted captured branch with HEAD unmoved and a clean tree must NOT
+  // collapse to "Repo unchanged since capture." branch_gone is real divergence,
+  // so the unchanged guard (`branch_gone !== true`) has to keep the block in its
+  // per-fact form and the boundary on its advanced wording. This locks that
+  // guard: without it, a gone branch would render the false "nothing changed".
+  it('does not collapse to unchanged when the captured branch is gone but HEAD held (Slice 3)', async () => {
+    const projectRoot = await ambientWithBaseline(
+      'circuit-brief-render-gone-held-',
+      'ambient request whose branch was deleted while HEAD stayed put',
+      { branch: 'feat/x', head: 'aaaaaaa' },
+    );
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({ head_advanced: false, tree_clean: true, branch_gone: true }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const ctx = (JSON.parse(brief.stdout) as { additional_context: string }).additional_context;
+    expect(ctx).toContain('Repo state since capture:');
+    expect(ctx).not.toContain('Repo unchanged since capture.');
+    // The branch is gone but not known-merged (no capture_head_reachable), so
+    // the render must say only "no longer present", never "merged".
+    expect(ctx).toContain('- That branch is no longer present.');
+    expect(ctx).not.toContain('merged and no longer present');
+    // branch_gone is divergence, so the boundary takes its advanced wording.
+    expect(ctx).toContain('The repo has advanced since it was captured');
+  });
+
+  it('renders no block at all when the probe produced no facts (Slice 3)', async () => {
+    const projectRoot = await ambientWithBaseline(
+      'circuit-brief-render-nofacts-',
+      'ambient request with an empty probe result',
+      { branch: 'feat/x', head: 'aaaaaaa' },
+    );
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({}),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { additional_context: string; staleness?: unknown };
+    expect(output.additional_context).not.toContain('Repo state since capture:');
+    expect(output.additional_context).not.toContain('Repo unchanged since capture.');
+    expect(output.staleness).toBeUndefined();
+  });
+
+  // The staleness object rides the same resolvePointerBrief return that the A4
+  // fall-through augments, so an ambient brief recovered after a broken manual
+  // save must still carry staleness and render its block.
+  it('carries staleness on an A4-recovered ambient brief', async () => {
+    const projectRoot = await ambientWithBaseline(
+      'circuit-brief-a4-staleness-',
+      'ambient fallback that should still carry staleness',
+      { branch: 'feat/x', head: 'aaaaaaa' },
+    );
+    // Break the manual save so A4 falls through to the ambient record.
+    const path = join(projectRoot, '.circuit/continuity/index.json');
+    const index = JSON.parse(readFileSync(path, 'utf8'));
+    index.pending_record = {
+      record_id: 'continuity-deadbeef-dead-4ead-8ead-deaddeaddead',
+      continuity_kind: 'standalone',
+      created_at: '2026-06-06T09:00:00.000Z',
+    };
+    writeFileSync(path, `${JSON.stringify(index, null, 2)}\n`);
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: () => ({
+        branch_gone: true,
+        capture_head_reachable: true,
+        tree_clean: true,
+        head_advanced: true,
+        current_head: 'bbbbbbb',
+        commits_since: 3,
+      }),
+    });
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      status: string;
+      source: string;
+      recovered_from?: { code: string };
+      staleness?: Record<string, unknown>;
+      additional_context: string;
+    };
+    expect(output.status).toBe('available');
+    expect(output.source).toBe('ambient_record');
+    expect(output.recovered_from?.code).toBe('record_missing');
+    expect(output.staleness).toMatchObject({ head_advanced: true, branch_gone: true });
+    expect(output.additional_context).toContain('Repo state since capture:');
+    expect(output.additional_context).toContain('The repo has advanced since it was captured');
+  });
+
+  // Parity: the brief is a pure function of (record, now, probe) with no host
+  // input and no hidden clock or randomness, so two runs are byte-identical.
+  // Both session-start hooks spawn the same `handoff brief` CLI (see the
+  // adapter test), so this also documents the cross-host parity invariant.
+  it('produces a byte-identical brief for the same record, now, and probe (host-independent)', async () => {
+    const projectRoot = await ambientWithBaseline(
+      'circuit-brief-parity-',
+      'ambient request rendered deterministically',
+      { branch: 'feat/x', head: 'aaaaaaa' },
+    );
+    const probe = () => ({
+      branch_gone: true,
+      capture_head_reachable: true,
+      tree_clean: true,
+      head_advanced: true,
+      current_head: 'bbbbbbb',
+      commits_since: 3,
+    });
+    const first = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot], {
+      now: NOW,
+      briefGitProbe: probe,
+    });
+    const second = await captureMain(
+      ['handoff', 'brief', '--json', '--project-root', projectRoot],
+      {
+        now: NOW,
+        briefGitProbe: probe,
+      },
+    );
+    expect(first.code, first.stderr).toBe(0);
+    expect(second.code, second.stderr).toBe(0);
+    expect(second.stdout).toBe(first.stdout);
   });
 });
 

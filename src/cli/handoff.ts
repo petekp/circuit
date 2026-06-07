@@ -63,7 +63,42 @@ interface HandoffArgs {
 
 interface HandoffMainOptions {
   readonly now?: () => Date;
+  readonly briefGitProbe?: BriefGitProbe;
 }
+
+/**
+ * Deterministic git divergence between an ambient record's captured baseline
+ * and the live repo, computed at brief time (the state-divergence staleness
+ * signal). Every field is optional: a probe omits any fact it could not
+ * compute so a missing signal never renders a wrong claim, mirroring
+ * `relativeAge` returning undefined on an unparseable timestamp.
+ */
+export interface StalenessFacts {
+  readonly head_advanced?: boolean;
+  readonly capture_head_reachable?: boolean;
+  // True only when the captured branch ref no longer resolves. We deliberately
+  // do not infer "merged but still present": that nuance is already carried by
+  // capture_head_reachable/head_advanced, and calling a present branch "gone"
+  // would be a wrong fact. The render decides "merged and gone" vs just "gone"
+  // from capture_head_reachable.
+  readonly branch_gone?: boolean;
+  readonly tree_clean?: boolean;
+  readonly commits_since?: number;
+  readonly current_head?: string;
+}
+
+/**
+ * Probe the live repo against a captured baseline. Defaulted to
+ * `realBriefGitProbe`; tests inject a stub to exercise states awkward to build
+ * with real git (the rebased "work landed but the captured commit is
+ * unreachable" case especially). Distinct from `AmbientGitProbe`: this needs
+ * ancestry, merge, and count signals, some read purely by exit code.
+ */
+export type BriefGitProbe = (input: {
+  readonly projectRoot: string;
+  readonly capturedHead?: string;
+  readonly capturedBranch?: string;
+}) => StalenessFacts;
 
 const DEFAULT_CONTROL_PLANE = '.circuit';
 const HANDOFF_BRIEF_API_VERSION = 'handoff-brief-v1';
@@ -276,20 +311,123 @@ function composeHandoffBrief(record: ContinuityRecordValue, state: string, debt:
   ].join('\n');
 }
 
+const AMBIENT_BOUNDARY_DEFAULT =
+  'Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked.';
+// When the repo has diverged from the captured baseline, the boundary gains a
+// clause telling the agent to check whether the captured request already
+// landed. It deliberately never declares the work "done" — the git facts only
+// orient, they do not verify.
+const AMBIENT_BOUNDARY_ADVANCED =
+  'Boundary: This is an automatic snapshot, not a saved plan. The repo has advanced since it was captured, so check whether the captured request already landed before acting. Confirm the current goal with the user, and do not resume this work unasked.';
+
+/**
+ * True when the live repo has moved past the captured baseline in a way that
+ * means the captured request may already have landed: HEAD advanced, the
+ * captured branch gone, or commits accrued since capture. Drives the
+ * boundary clause; `tree_clean` and `capture_head_reachable` alone are not
+ * divergence (the captured commit can be reachable with HEAD unmoved).
+ */
+function stalenessDiverged(staleness: StalenessFacts): boolean {
+  return (
+    staleness.head_advanced === true ||
+    staleness.branch_gone === true ||
+    (staleness.commits_since !== undefined && staleness.commits_since > 0)
+  );
+}
+
+/**
+ * True when the probe positively established that the snapshot world still
+ * matches the real one: HEAD known not to have moved and the working tree
+ * clean, with the captured branch still present. Requires `head_advanced` to be
+ * an explicit `false` (not merely absent) so "unchanged" is only ever claimed
+ * from a known fact, never from a soft-failed probe.
+ */
+function stalenessUnchanged(staleness: StalenessFacts): boolean {
+  return (
+    staleness.head_advanced === false &&
+    staleness.tree_clean === true &&
+    staleness.branch_gone !== true
+  );
+}
+
+/**
+ * Render the deterministic "Repo state since capture" block from the captured
+ * baseline (the record's own git) and the brief-time divergence facts. Each
+ * line is emitted only for a present fact, and every token it prints is already
+ * in hand. Returns [] when there are no facts to show.
+ */
+function stalenessBlockLines(
+  record: ContinuityRecordValue,
+  staleness: StalenessFacts | undefined,
+): string[] {
+  if (staleness === undefined || Object.keys(staleness).length === 0) return [];
+  // No divergence and a clean tree: collapse to a single orientation line. The
+  // snapshot world still matches the real one, so the resume point is live.
+  if (stalenessUnchanged(staleness)) {
+    return ['Repo state since capture:', '- Repo unchanged since capture.'];
+  }
+  const lines = ['Repo state since capture:'];
+  // Captured baseline anchor, from the record's own git (the captured side). A
+  // detached capture stored the literal "HEAD" as the branch, so name only the
+  // commit there.
+  const { branch, head } = record.git;
+  if (head !== undefined) {
+    lines.push(
+      branch !== undefined && branch !== 'HEAD'
+        ? `- Captured on branch ${branch} at ${head}.`
+        : `- Captured at ${head}.`,
+    );
+  }
+  if (staleness.branch_gone === true) {
+    // The captured branch ref is gone. If its captured commit is also reachable
+    // from the current HEAD it was merged before deletion; otherwise it was
+    // simply deleted (or rebased away) and we only know it is no longer there.
+    lines.push(
+      staleness.capture_head_reachable === true
+        ? '- That branch is now merged and no longer present.'
+        : '- That branch is no longer present.',
+    );
+  }
+  if (staleness.capture_head_reachable === true) {
+    const headSuffix =
+      staleness.current_head === undefined ? '' : ` (HEAD ${staleness.current_head})`;
+    lines.push(`- The captured commit is already in the current history${headSuffix}.`);
+  }
+  if (staleness.commits_since !== undefined && staleness.commits_since > 0) {
+    const n = staleness.commits_since;
+    lines.push(`- ${n} commit${n === 1 ? '' : 's'} since capture.`);
+  }
+  if (staleness.tree_clean === true) {
+    lines.push('- Working tree is clean.');
+  }
+  // Never emit a bare header with no bullets: if no fact line survived (only an
+  // inconsistent or empty fact set reached here), render nothing.
+  return lines.length > 1 ? lines : [];
+}
+
 /**
  * Ambient records were captured mechanically, not saved by the operator, so
  * their brief is framed as an automatic snapshot keyed to this repo — not a
  * vetted plan. The boundary is deliberately more cautious than the manual
- * one: confirm the goal before acting, and never resume the work unasked.
+ * one: confirm the goal before acting, and never resume the work unasked. When
+ * the repo has diverged from the captured baseline, a "Repo state since
+ * capture" block and an advanced-boundary clause are added so the agent checks
+ * whether the captured request already landed.
  */
 function composeAmbientBrief(
   record: ContinuityRecordValue,
   state: string,
   debt: string,
   ageLabel?: string,
+  staleness?: StalenessFacts,
 ): string {
   const repo = basename(record.git.cwd) || record.git.cwd;
   const capturedSuffix = ageLabel === undefined ? '' : ` (captured ${ageLabel})`;
+  const stalenessLines = stalenessBlockLines(record, staleness);
+  const boundary =
+    staleness !== undefined && stalenessDiverged(staleness)
+      ? AMBIENT_BOUNDARY_ADVANCED
+      : AMBIENT_BOUNDARY_DEFAULT;
   return [
     `Circuit automatically captured the recent state of ${repo}${capturedSuffix}. No handoff was saved.`,
     '',
@@ -302,7 +440,8 @@ function composeAmbientBrief(
     'Notes:',
     debt,
     '',
-    'Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked.',
+    ...(stalenessLines.length > 0 ? [...stalenessLines, ''] : []),
+    boundary,
   ].join('\n');
 }
 
@@ -311,9 +450,10 @@ function composeBriefFor(
   state: string,
   debt: string,
   ageLabel?: string,
+  staleness?: StalenessFacts,
 ): string {
   return record.continuity_kind === 'ambient'
-    ? composeAmbientBrief(record, state, debt, ageLabel)
+    ? composeAmbientBrief(record, state, debt, ageLabel, staleness)
     : composeHandoffBrief(record, state, debt);
 }
 
@@ -328,6 +468,7 @@ function fitText(value: string, budget: number): string {
 function renderHandoffBrief(
   record: ContinuityRecordValue,
   now: () => Date,
+  staleness?: StalenessFacts,
 ): HandoffBriefRenderResult {
   const state = record.narrative.state_markdown;
   const debt = record.narrative.debt_markdown;
@@ -335,12 +476,15 @@ function renderHandoffBrief(
   // save is a deliberate act, so its freshness is the operator's concern.
   const ageLabel =
     record.continuity_kind === 'ambient' ? relativeAge(record.created_at, now()) : undefined;
-  const full = composeBriefFor(record, state, debt, ageLabel);
+  const full = composeBriefFor(record, state, debt, ageLabel, staleness);
   if (full.length <= HANDOFF_BRIEF_MAX_CHARS) {
     return { ok: true, additionalContext: full };
   }
 
-  const fixed = composeBriefFor(record, '', '', ageLabel);
+  // The staleness block is fixed framing, not truncatable content, so it rides
+  // in the `fixed` measurement below. `remaining` then subtracts it before
+  // state/debt are fitted, so the fit loop trims only the truncatable body.
+  const fixed = composeBriefFor(record, '', '', ageLabel, staleness);
   if (fixed.length > HANDOFF_BRIEF_MAX_CHARS) {
     return {
       ok: false,
@@ -364,17 +508,17 @@ function renderHandoffBrief(
 
   let renderedState = fitText(state, stateBudget);
   let renderedDebt = fitText(debt, debtBudget);
-  let rendered = composeBriefFor(record, renderedState, renderedDebt, ageLabel);
+  let rendered = composeBriefFor(record, renderedState, renderedDebt, ageLabel, staleness);
 
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedDebt = fitText(renderedDebt, Math.max(0, renderedDebt.length - overflow));
-    rendered = composeBriefFor(record, renderedState, renderedDebt, ageLabel);
+    rendered = composeBriefFor(record, renderedState, renderedDebt, ageLabel, staleness);
   }
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
     const overflow = rendered.length - HANDOFF_BRIEF_MAX_CHARS;
     renderedState = fitText(renderedState, Math.max(0, renderedState.length - overflow));
-    rendered = composeBriefFor(record, renderedState, renderedDebt, ageLabel);
+    rendered = composeBriefFor(record, renderedState, renderedDebt, ageLabel, staleness);
   }
 
   if (rendered.length > HANDOFF_BRIEF_MAX_CHARS) {
@@ -484,6 +628,7 @@ function resolvePointerBrief(
   pointer: BriefPointer,
   source: 'pending_record' | 'ambient_record',
   now: () => Date,
+  gitProbe: BriefGitProbe,
 ) {
   const projectRoot = resolveProjectRootArg(args);
   const indexAbs = indexPath(controlPlane);
@@ -518,7 +663,24 @@ function resolvePointerBrief(
     );
   }
 
-  const rendered = renderHandoffBrief(record, now);
+  // State-divergence staleness (ambient-only, like the A2 age line). Compare
+  // the captured baseline to the live repo. Cross-repo guard: only probe when
+  // the captured cwd resolves to the same tree as the project root, since a
+  // mismatch means the baseline was captured for a different repo and any
+  // divergence fact would be meaningless. Soft-fail (no facts) drops the key
+  // and renders no block. Computed before the render so the block can ride in
+  // the brief's fixed framing.
+  const staleness =
+    record.continuity_kind === 'ambient' && resolve(record.git.cwd) === resolve(projectRoot)
+      ? gitProbe({
+          projectRoot,
+          ...(record.git.head === undefined ? {} : { capturedHead: record.git.head }),
+          ...(record.git.branch === undefined ? {} : { capturedBranch: record.git.branch }),
+        })
+      : undefined;
+  const hasStaleness = staleness !== undefined && Object.keys(staleness).length > 0;
+
+  const rendered = renderHandoffBrief(record, now, staleness);
   if (!rendered.ok) {
     return invalidBrief(args, rendered.code, rendered.message, pointer.record_id);
   }
@@ -535,10 +697,15 @@ function resolvePointerBrief(
     continuity_kind: record.continuity_kind,
     created_at: record.created_at,
     additional_context: rendered.additionalContext,
+    ...(hasStaleness ? { staleness } : {}),
   };
 }
 
-function handoffBrief(args: HandoffArgs, now: () => Date = () => new Date()) {
+function handoffBrief(
+  args: HandoffArgs,
+  now: () => Date = () => new Date(),
+  gitProbe: BriefGitProbe = realBriefGitProbe,
+) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
   if (!existsSync(indexAbs)) return emptyBrief(args, 'no_index');
@@ -560,6 +727,7 @@ function handoffBrief(args: HandoffArgs, now: () => Date = () => new Date()) {
       index.pending_record,
       'pending_record',
       now,
+      gitProbe,
     );
     if (pending.status === 'available') return pending;
 
@@ -575,6 +743,7 @@ function handoffBrief(args: HandoffArgs, now: () => Date = () => new Date()) {
         index.ambient_record,
         'ambient_record',
         now,
+        gitProbe,
       );
       if (ambient.status === 'available') {
         const failure = briefErrorOf(pending);
@@ -590,7 +759,14 @@ function handoffBrief(args: HandoffArgs, now: () => Date = () => new Date()) {
     return pending;
   }
   if (index.ambient_record) {
-    return resolvePointerBrief(args, controlPlane, index.ambient_record, 'ambient_record', now);
+    return resolvePointerBrief(
+      args,
+      controlPlane,
+      index.ambient_record,
+      'ambient_record',
+      now,
+      gitProbe,
+    );
   }
   return emptyBrief(args, 'no_pending_record');
 }
@@ -2073,6 +2249,109 @@ function realAmbientGitProbe(projectRoot: string): AmbientGitProbe {
   };
 }
 
+/**
+ * Brief-time staleness probe (see `BriefGitProbe`). Mirrors the
+ * `realAmbientGitProbe` house pattern: each git call fails soft to undefined,
+ * and any unexpected throw collapses the whole probe to `{}` so a brief can
+ * never crash the session-start hook. Reads ancestry/merge by exit code.
+ */
+function realBriefGitProbe(input: {
+  readonly projectRoot: string;
+  readonly capturedHead?: string;
+  readonly capturedBranch?: string;
+}): StalenessFacts {
+  const { projectRoot, capturedHead, capturedBranch } = input;
+  // Capture a git value as trimmed stdout, or undefined on any non-zero exit.
+  const git = (gitArgs: readonly string[]): string | undefined => {
+    try {
+      return execFileSync('git', ['-C', projectRoot, ...gitArgs], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 2000,
+      }).trim();
+    } catch {
+      return undefined;
+    }
+  };
+  // Read a git predicate purely by exit code: 0 -> true, 1 -> false, anything
+  // else (or no git) -> undefined so the fact is omitted rather than guessed.
+  const gitBool = (gitArgs: readonly string[]): boolean | undefined => {
+    try {
+      execFileSync('git', ['-C', projectRoot, ...gitArgs], {
+        stdio: ['ignore', 'ignore', 'ignore'],
+        timeout: 2000,
+      });
+      return true;
+    } catch (err) {
+      return (err as { status?: number }).status === 1 ? false : undefined;
+    }
+  };
+  try {
+    if (git(['rev-parse', '--is-inside-work-tree']) !== 'true') return {};
+
+    const facts: {
+      head_advanced?: boolean;
+      capture_head_reachable?: boolean;
+      branch_gone?: boolean;
+      tree_clean?: boolean;
+      commits_since?: number;
+      current_head?: string;
+    } = {};
+
+    // Resolve HEAD to a full SHA up front. The captured head was stored with
+    // `rev-parse --short HEAD`, whose abbreviation length git grows as the repo
+    // gains objects, so comparing raw short strings is unsound. Expand the
+    // captured short SHA to full too; that expansion fails (verify throws) if
+    // the commit was rebased away or garbage-collected, leaving the SHA-based
+    // facts omitted.
+    const headFull = git(['rev-parse', 'HEAD']);
+    const capturedFull =
+      capturedHead === undefined
+        ? undefined
+        : git(['rev-parse', '--verify', `${capturedHead}^{commit}`]);
+
+    const status = git(['status', '--porcelain=v1']);
+    if (status !== undefined) facts.tree_clean = status.length === 0;
+
+    const currentShort = git(['rev-parse', '--short', 'HEAD']);
+    if (currentShort !== undefined) facts.current_head = currentShort;
+
+    // head_advanced needs both sides resolved; never compares short strings.
+    if (headFull !== undefined && capturedFull !== undefined) {
+      facts.head_advanced = headFull !== capturedFull;
+    }
+
+    if (capturedHead !== undefined) {
+      const reachable = gitBool(['merge-base', '--is-ancestor', capturedHead, 'HEAD']);
+      if (reachable !== undefined) facts.capture_head_reachable = reachable;
+
+      const countRaw = git(['rev-list', '--count', `${capturedHead}..HEAD`]);
+      if (countRaw !== undefined) {
+        const n = Number.parseInt(countRaw, 10);
+        if (Number.isFinite(n)) facts.commits_since = n;
+      }
+    }
+
+    // branch_gone is only meaningful when the capture named a real branch. A
+    // detached capture stored the literal "HEAD" and has no branch to track, so
+    // it is skipped there. We set the fact ONLY when the ref no longer resolves:
+    // a branch that still exists is present, full stop, even if HEAD has moved
+    // past its tip. Whether the captured commit also merged is carried
+    // separately by capture_head_reachable, which the render reads to choose
+    // "merged and no longer present" vs just "no longer present".
+    if (capturedBranch !== undefined && capturedBranch.length > 0 && capturedBranch !== 'HEAD') {
+      const branchSha = git(['rev-parse', '--verify', '--quiet', `refs/heads/${capturedBranch}`]);
+      if (branchSha === undefined) {
+        facts.branch_gone = true;
+      }
+    }
+
+    return facts;
+  } catch {
+    return {};
+  }
+}
+
 function composeAmbientStateMarkdown(
   intents: readonly string[],
   summary: string | undefined,
@@ -2346,7 +2625,15 @@ export async function runHandoffCommand(
       return 2;
     }
     process.stdout.write(
-      `${JSON.stringify(handoffBrief(args, options.now ?? (() => new Date())), null, 2)}\n`,
+      `${JSON.stringify(
+        handoffBrief(
+          args,
+          options.now ?? (() => new Date()),
+          options.briefGitProbe ?? realBriefGitProbe,
+        ),
+        null,
+        2,
+      )}\n`,
     );
     return 0;
   }
