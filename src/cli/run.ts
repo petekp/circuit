@@ -37,6 +37,7 @@ import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { progressDisplay, progressPresentation } from '../shared/progress-output.js';
 import type { ComposeWriterFn, RelayFn } from '../shared/relay-runtime-types.js';
 import { parseCommanderOrThrow } from './commander-support.js';
+import { codexInstallAssurance } from './handoff.js';
 import {
   type PostRunArtifactContext,
   type PostRunArtifactWarning,
@@ -742,6 +743,18 @@ export async function runExecutionCommand(
   const hostKind = runtimeHostKind(options);
 
   const projectRoot = resolve(options.configCwd ?? process.cwd());
+
+  // A3: on Codex, restore needs a one-time hook install (Claude is zero-setup).
+  // The front-door run is the only path a not-yet-installed Codex user reliably
+  // triggers, so nudge once per repo here. Best-effort: never block a run.
+  if (hostKind === 'codex') {
+    try {
+      const assurance = codexInstallAssurance({ projectRoot, now });
+      if (assurance.notice !== undefined) process.stderr.write(`${assurance.notice}\n`);
+    } catch {
+      // Assurance is advisory; a failure to detect or persist must not abort.
+    }
+  }
 
   const runtimeSupport = classifyRuntimeSupport({
     flow,

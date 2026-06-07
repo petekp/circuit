@@ -96,6 +96,15 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/continuity-restore-fast-robust.md",
+      "title": "Faster, more robust continuity restore",
+      "status": "current-idea",
+      "category": "memory-and-ratchet",
+      "tags": ["continuity", "handoff", "ambient", "restore", "robustness"],
+      "current_reading": "Probe-grounded design exploration of the SessionStart brief and Stop/SessionEnd harvest paths. Finds restore latency is already fast and recommends visibility, staleness signal, throttled incremental harvest, and per-session records over a daemon. Design only, nothing built.",
+      "last_checked": "2026-06-06"
+    },
+    {
       "path": "docs/ideas/doc-checkpoint-block.md",
       "title": "Doc checkpoint block - let the operator mark up the agent's markdown",
       "status": "current-idea",

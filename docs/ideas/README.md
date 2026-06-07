@@ -67,6 +67,7 @@ every later extension in the note shipped.
 
 | Note | Status | Current reading |
 | --- | --- | --- |
+| [`continuity-restore-fast-robust.md`](continuity-restore-fast-robust.md) | `current-idea` | Probe-grounded exploration of continuity restore and harvest. Restore latency is already fast; recommends visibility, a staleness signal, throttled incremental harvest, and per-session records. Design only, nothing built. |
 | [`effective-memory-program.md`](effective-memory-program.md) | `partially-implemented` | Memory substrate, pull surface, recall precision, failure legibility, and local project facts exist; automatic lesson capture and measured value claims remain open. |
 | [`effective-memory-program-review-codex.md`](effective-memory-program-review-codex.md) | `independent-review` | Independent review of the memory program. Use as critique and risk context, not as a separate implementation plan. |
 | [`local-sqlite-read-model.md`](local-sqlite-read-model.md) | `current-proposal` | Proposal to use SQLite first as a derived local read model over existing run artifacts, not as runtime authority. |

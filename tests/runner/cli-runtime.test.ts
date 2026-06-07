@@ -300,6 +300,54 @@ describe('CLI runtime', () => {
     });
   });
 
+  it('nudges once per repo to install the Codex handoff hook on a Codex run (A3)', async () => {
+    const projectRoot = join(runFolderBase, 'codex-assure-project');
+    writeProjectRoot(projectRoot);
+    // An empty CODEX_HOME means the Codex handoff hook is not installed.
+    const codexHome = join(runFolderBase, 'codex-home');
+    mkdirSync(codexHome, { recursive: true });
+
+    const prevHost = process.env.CIRCUIT_HOST_KIND;
+    const prevCodexHome = process.env.CODEX_HOME;
+    process.env.CIRCUIT_HOST_KIND = 'codex';
+    process.env.CODEX_HOME = codexHome;
+    try {
+      const first = await captureMain(
+        [
+          'run',
+          'review',
+          '--goal',
+          'review this patch',
+          '--run-folder',
+          join(runFolderBase, 'a3-run-1'),
+        ],
+        { relayer: relayerWithBody(REVIEW_RELAY_BODY), configCwd: projectRoot },
+      );
+      expect(first.code, first.stderr).toBe(0);
+      expect(first.stderr).toContain('install --host codex');
+
+      // Once-per-repo: the next Codex run in the same repo does not nag again.
+      const second = await captureMain(
+        [
+          'run',
+          'review',
+          '--goal',
+          'review this patch again',
+          '--run-folder',
+          join(runFolderBase, 'a3-run-2'),
+        ],
+        { relayer: relayerWithBody(REVIEW_RELAY_BODY), configCwd: projectRoot },
+      );
+      expect(second.code, second.stderr).toBe(0);
+      expect(second.stderr).not.toContain('install --host codex');
+    } finally {
+      if (prevHost === undefined) Reflect.deleteProperty(process.env, 'CIRCUIT_HOST_KIND');
+      else process.env.CIRCUIT_HOST_KIND = prevHost;
+      if (prevCodexHome === undefined) Reflect.deleteProperty(process.env, 'CODEX_HOME');
+      else process.env.CODEX_HOME = prevCodexHome;
+    }
+  });
+
   it('rejects untrusted explicit fixtures before writing a run folder', async () => {
     const fixturePath = join(runFolderBase, 'fixtures/review.json');
     mkdirSync(join(runFolderBase, 'fixtures'), { recursive: true });

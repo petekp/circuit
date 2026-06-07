@@ -3,7 +3,7 @@ contract: continuity
 status: ratified-v0.1
 version: 0.1
 schema_source: src/schemas/continuity.ts
-last_updated: 2026-04-19
+last_updated: 2026-06-06
 depends_on: [ids, scalars, snapshot]
 report_ids:
   - continuity.record
@@ -279,9 +279,16 @@ time (zod schemas are pure). At resume time, the resolver:
 2. If `pending_record` is populated, resolves the record path and
    attempts to read `<control-plane>/continuity/records/
    ${pending_record.record_id}.json`.
-3. If the record file is absent, surfaces the mismatch as an error;
-   does NOT silently drop the pointer. The runtime policy is
-   `error-at-resolve`.
+3. If the record file is absent, surfaces the mismatch rather than
+   silently dropping the pointer. The base policy is `error-at-resolve`:
+   the brief resolves to `invalid` and carries an `operator_notice`. One
+   resolver refinement applies to a dangling or invalid `pending_record`:
+   when a valid `ambient_record` exists, the resolver falls through to it
+   (returns `available`) and still surfaces the failure through
+   `recovered_from` + `operator_notice`, so the error is reported and a
+   usable fallback is restored at once (the A4 fall-through, §Resolver
+   precedence case 0). A dangling `ambient_record` pointer has no further
+   fallback and resolves to `invalid`.
 
 ## Resolver precedence (pending_record vs ambient_record vs current_run)
 
@@ -294,8 +301,16 @@ cases are material:
    (a deliberate `circuit handoff save`) and `ambient_record` (a
    mechanical harvest) are populated, the resolver MUST prefer
    `pending_record`. The operator's explicit intent beats an auto-capture.
-   The ambient pointer is the fallback safety net — used only when no
-   manual save is pending. This precedence is resolver-level; the schema
+   The ambient pointer is the fallback safety net, used when no manual
+   save is pending and also when a pending manual save cannot be loaded
+   (its record file is missing, or the record fails schema validation).
+   In that broken-manual-save case the resolver falls through to the
+   ambient record and returns it as `available`, carrying a
+   `recovered_from` marker and an `operator_notice` so the broken manual
+   save is surfaced rather than silently masked (the A4 fall-through; see
+   also §Dangling reference policy). When no usable ambient fallback
+   exists, the broken manual save still surfaces as `invalid`. This
+   precedence is resolver-level; the schema
    keeps the two pointers separate (CONT-I18) precisely so the resolver
    has both available rather than one having clobbered the other. An
    ambient record's resume posture SHOULD also be more conservative than a
@@ -456,6 +471,18 @@ scoped to v0.2 with rationale in the §Resolver precedence section above.
   union. Motivated by folding the personal warm-handoff writer into
   Circuit's per-repo continuity store so the two continuity layers stop
   disagreeing.
+- **v0.1 + ambient resolver refinements (2026-06-06)** — resolver and
+  harvest behavior added alongside the continuity-restore work, none of
+  it schema-level: the brief falls through from a broken `pending_record`
+  to a valid `ambient_record` and surfaces the failure (A4); an ambient
+  record's rendered brief carries a relative-age staleness signal (A2);
+  `handoff done --clear-ambient` additionally drops the ambient pointer
+  and removes ambient record files (E1); harvest keys ambient records per
+  session and parses the transcript incrementally via a per-repo cursor
+  under `<control-plane>/continuity/cursors/` (D1, B1). None of these
+  touch the record or index schema or CONT-I1..I18; the single
+  `ambient_record` pointer (CONT-I17/I18) is preserved, and the new
+  cursor files are not continuity reports (no schema, advisory only).
 - **v0.2** — candidate scope items if evidence supports:
   - Introduce a `schema_version` fence (e.g., `2` for a future shape
     change), with a documented migration posture. Reopen condition:
