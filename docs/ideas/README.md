@@ -67,6 +67,7 @@ every later extension in the note shipped.
 
 | Note | Status | Current reading |
 | --- | --- | --- |
+| [`continuity-capture-refactor-implementation.md`](continuity-capture-refactor-implementation.md) | `implementation-spec` | Thin spec for Steps 0-2 of the first-principles eval: the Step 0 classifier-feasibility probe (gate), the Step 1 capture-side satisfaction model (goal = newest still-open intent), and the Step 2 render wins. Step 3 already shipped; Steps 1-2 gated on Step 0. Design only, nothing built yet. |
 | [`continuity-restore-fast-robust.md`](continuity-restore-fast-robust.md) | `current-idea` | Probe-grounded exploration of continuity restore and harvest. Restore latency is already fast; recommends visibility, a staleness signal, throttled incremental harvest, and per-session records. Design only, nothing built. |
 | [`continuity-staleness-check.md`](continuity-staleness-check.md) | `pre-implementation` | Design exploration that orients the ambient brief against current git, with a frame-check surfacing harvest-side intent quality as a sibling lever. Report-only, ambient-only, facts not a done verdict. Slice 0 (intent-quality drop) is the first build. |
 | [`continuity-staleness-implementation.md`](continuity-staleness-implementation.md) | `implementation-spec` | Build-ready spec for the intent-quality drop (Slice 0) and brief-time staleness facts and render (Slices 1-3). Citations source-verified. Only Slice 0 is being built; treat the rest as design. |

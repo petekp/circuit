@@ -45973,8 +45973,14 @@ function clearContinuity(args, now) {
   const createdAt = args.createdAt ?? now().toISOString();
   const existing = readContinuityIndexOrNull(controlPlane);
   const clearAmbient = args.clearAmbient === true;
-  if (clearAmbient)
+  if (clearAmbient) {
+    for (const entry of listAmbientRecords(controlPlane)) {
+      if (isSafeControlPlaneStem(entry.record_id)) {
+        tombstoneAmbientRecord(controlPlane, entry.record_id, now);
+      }
+    }
     removeAllAmbientRecords(controlPlane);
+  }
   const keepAmbient = !clearAmbient && existing?.ambient_record;
   const index = ContinuityIndex.parse({
     schema_version: 1,
@@ -46123,6 +46129,68 @@ function readHarvestCursor(path) {
     intents: o.intents,
     ...typeof o.summary === "string" ? { summary: o.summary } : {}
   };
+}
+function tombstonesRoot(controlPlane) {
+  return join9(continuityRoot(controlPlane), "tombstones");
+}
+function tombstonePath(controlPlane, recordId) {
+  return join9(tombstonesRoot(controlPlane), `${recordId}.json`);
+}
+function readTombstone(path) {
+  if (!existsSync12(path))
+    return void 0;
+  const raw = readJsonSafely(path);
+  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
+    return void 0;
+  const o = raw.value;
+  if (o.schema_version !== 1)
+    return void 0;
+  if (typeof o.record_id !== "string")
+    return void 0;
+  if (typeof o.transcript_path !== "string")
+    return void 0;
+  if (typeof o.position !== "number" || !Number.isFinite(o.position) || o.position < 0)
+    return void 0;
+  if (typeof o.cleared_at !== "string")
+    return void 0;
+  return {
+    schema_version: 1,
+    record_id: o.record_id,
+    transcript_path: o.transcript_path,
+    position: o.position,
+    cleared_at: o.cleared_at
+  };
+}
+function readAmbientTranscriptPath(controlPlane, recordId) {
+  const raw = readJsonSafely(recordPath(controlPlane, recordId));
+  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
+    return void 0;
+  const prov = raw.value.ambient_provenance;
+  if (!prov || typeof prov.transcript_path !== "string" || prov.transcript_path.length === 0) {
+    return void 0;
+  }
+  return prov.transcript_path;
+}
+function tombstoneAmbientRecord(controlPlane, recordId, now) {
+  const transcriptPath = readAmbientTranscriptPath(controlPlane, recordId);
+  if (transcriptPath === void 0)
+    return;
+  let position;
+  try {
+    position = statSync2(transcriptPath).size;
+  } catch {
+    position = readHarvestCursor(cursorPath(controlPlane, recordId))?.byte_offset;
+  }
+  if (position === void 0)
+    return;
+  const tombstone = {
+    schema_version: 1,
+    record_id: recordId,
+    transcript_path: transcriptPath,
+    position,
+    cleared_at: now().toISOString()
+  };
+  writeJsonAtomic(tombstonePath(controlPlane, recordId), tombstone);
 }
 function parseTranscriptForHarvest(transcriptPath, cursor) {
   let size;
@@ -46382,6 +46450,25 @@ function harvestAmbientContinuity(input) {
   const stemSafe = isSafeControlPlaneStem(recordId);
   const cursorAbs = stemSafe ? cursorPath(controlPlane, recordId) : void 0;
   const priorCursor = cursorAbs === void 0 ? void 0 : readHarvestCursor(cursorAbs);
+  const tombstoneAbs = stemSafe ? tombstonePath(controlPlane, recordId) : void 0;
+  if (tombstoneAbs !== void 0) {
+    const tombstone = readTombstone(tombstoneAbs);
+    if (tombstone !== void 0 && tombstone.transcript_path === input.transcriptPath) {
+      let size;
+      try {
+        size = statSync2(input.transcriptPath).size;
+      } catch {
+        size = 0;
+      }
+      if (size <= tombstone.position)
+        return skip("cleared");
+      const tail = readByteRange(input.transcriptPath, tombstone.position, size - tombstone.position);
+      const tailIntents = tail === void 0 ? [] : parseTranscriptContent(tail.toString("utf8")).intents;
+      if (tailIntents.length === 0)
+        return skip("cleared");
+      removeFileQuietly(tombstoneAbs);
+    }
+  }
   const harvested = parseTranscriptForHarvest(input.transcriptPath, priorCursor);
   if (harvested === void 0)
     return skip("transcript_unreadable");

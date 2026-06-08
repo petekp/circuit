@@ -96,6 +96,16 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/continuity-capture-refactor-implementation.md",
+      "title": "Continuity capture-path refactor (Steps 0-2): implementation spec",
+      "status": "implementation-spec",
+      "category": "memory-and-ratchet",
+      "tags": ["continuity", "handoff", "ambient", "capture", "satisfaction-model", "implementation-spec"],
+      "current_reading": "Thin spec implementing Steps 0-2 of docs/architecture/continuity-first-principles-evaluation.md: the Step 0 classifier-feasibility probe (gate), the Step 1 capture-side satisfaction model (goal = newest still-open intent plus one optional status field), and the Step 2 render wins (runtime_status mapping, likely-done label). Step 3 already shipped. Steps 1-2 are gated on Step 0; design only, nothing built yet.",
+      "related": ["docs/ideas/continuity-staleness-implementation.md"],
+      "last_checked": "2026-06-07"
+    },
+    {
       "path": "docs/ideas/continuity-restore-fast-robust.md",
       "title": "Faster, more robust continuity restore",
       "status": "current-idea",

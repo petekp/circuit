@@ -1767,7 +1767,18 @@ function clearContinuity(args: HandoffArgs, now: () => Date) {
   // drops the ambient pointer and removes the ambient record files and cursors.
   const existing = readContinuityIndexOrNull(controlPlane);
   const clearAmbient = args.clearAmbient === true;
-  if (clearAmbient) removeAllAmbientRecords(controlPlane);
+  if (clearAmbient) {
+    // Bury each session's cleared work before removing the records, so the next
+    // turn's harvest does not rebuild it (Step 3). Read the provenance off the
+    // records while they still exist; tombstones are keyed by the same stem the
+    // harvest re-derives, so the lookup matches per session.
+    for (const entry of listAmbientRecords(controlPlane)) {
+      if (isSafeControlPlaneStem(entry.record_id)) {
+        tombstoneAmbientRecord(controlPlane, entry.record_id, now);
+      }
+    }
+    removeAllAmbientRecords(controlPlane);
+  }
   const keepAmbient = !clearAmbient && existing?.ambient_record;
   const index = ContinuityIndex.parse({
     schema_version: 1,
@@ -1853,7 +1864,7 @@ export type AmbientHarvestResult =
       readonly schema_version: 1;
       readonly action: 'harvest';
       readonly status: 'skipped';
-      readonly reason: 'no_transcript' | 'transcript_unreadable' | 'nothing_to_harvest';
+      readonly reason: 'no_transcript' | 'transcript_unreadable' | 'nothing_to_harvest' | 'cleared';
       readonly index_path: string;
     };
 
@@ -2032,6 +2043,95 @@ function readHarvestCursor(path: string): HarvestCursor | undefined {
     intents: o.intents as string[],
     ...(typeof o.summary === 'string' ? { summary: o.summary } : {}),
   };
+}
+
+// --- Ambient clear tombstones (Step 3) ------------------------------------
+//
+// `done --clear-ambient` removes the ambient records and cursors, but the
+// Stop hook has no matcher so harvest fires again on the very next turn,
+// re-reads the still-live transcript, and rebuilds exactly what was cleared.
+// A tombstone records, per session stem, the transcript position at clear
+// time. The next harvest honors it (skips) until a genuinely new intent
+// appears in the tail past that position, then lifts it. Intents come only
+// from user turns, so an assistant reply appended after a clear adds bytes
+// but no intent and stays buried. The tombstone is an internal cache like the
+// cursor, not a schema-validated continuity record.
+
+interface AmbientTombstone {
+  readonly schema_version: 1;
+  readonly record_id: string;
+  readonly transcript_path: string;
+  readonly position: number;
+  readonly cleared_at: string;
+}
+
+function tombstonesRoot(controlPlane: string): string {
+  return join(continuityRoot(controlPlane), 'tombstones');
+}
+
+function tombstonePath(controlPlane: string, recordId: string): string {
+  return join(tombstonesRoot(controlPlane), `${recordId}.json`);
+}
+
+function readTombstone(path: string): AmbientTombstone | undefined {
+  if (!existsSync(path)) return undefined;
+  const raw = readJsonSafely(path);
+  if (!raw.ok || typeof raw.value !== 'object' || raw.value === null) return undefined;
+  const o = raw.value as Record<string, unknown>;
+  if (o.schema_version !== 1) return undefined;
+  if (typeof o.record_id !== 'string') return undefined;
+  if (typeof o.transcript_path !== 'string') return undefined;
+  if (typeof o.position !== 'number' || !Number.isFinite(o.position) || o.position < 0)
+    return undefined;
+  if (typeof o.cleared_at !== 'string') return undefined;
+  return {
+    schema_version: 1,
+    record_id: o.record_id,
+    transcript_path: o.transcript_path,
+    position: o.position,
+    cleared_at: o.cleared_at,
+  };
+}
+
+/** Recover the live transcript path an ambient record was harvested from, read
+ * straight off its `ambient_provenance`. `clearContinuity` has no session id or
+ * transcript path of its own, so this is how the tombstone learns which file to
+ * measure and key against. */
+function readAmbientTranscriptPath(controlPlane: string, recordId: string): string | undefined {
+  const raw = readJsonSafely(recordPath(controlPlane, recordId));
+  if (!raw.ok || typeof raw.value !== 'object' || raw.value === null) return undefined;
+  const prov = (raw.value as { ambient_provenance?: { transcript_path?: unknown } })
+    .ambient_provenance;
+  if (!prov || typeof prov.transcript_path !== 'string' || prov.transcript_path.length === 0) {
+    return undefined;
+  }
+  return prov.transcript_path;
+}
+
+/**
+ * Write a tombstone for one ambient record before it is removed. The position
+ * is the transcript size at clear time; on a stat failure it falls back to the
+ * cursor's last byte offset, and if neither is available no tombstone is
+ * written (graceful degradation to the pre-fix behavior for that record).
+ */
+function tombstoneAmbientRecord(controlPlane: string, recordId: string, now: () => Date): void {
+  const transcriptPath = readAmbientTranscriptPath(controlPlane, recordId);
+  if (transcriptPath === undefined) return;
+  let position: number | undefined;
+  try {
+    position = statSync(transcriptPath).size;
+  } catch {
+    position = readHarvestCursor(cursorPath(controlPlane, recordId))?.byte_offset;
+  }
+  if (position === undefined) return;
+  const tombstone: AmbientTombstone = {
+    schema_version: 1,
+    record_id: recordId,
+    transcript_path: transcriptPath,
+    position,
+    cleared_at: now().toISOString(),
+  };
+  writeJsonAtomic(tombstonePath(controlPlane, recordId), tombstone);
 }
 
 /**
@@ -2409,7 +2509,7 @@ export function harvestAmbientContinuity(input: AmbientHarvestInput): AmbientHar
       ? resolve(projectRoot, DEFAULT_CONTROL_PLANE)
       : resolve(input.controlPlane);
   const skip = (
-    reason: 'no_transcript' | 'transcript_unreadable' | 'nothing_to_harvest',
+    reason: 'no_transcript' | 'transcript_unreadable' | 'nothing_to_harvest' | 'cleared',
   ): AmbientHarvestResult => ({
     schema_version: 1,
     action: 'harvest',
@@ -2428,6 +2528,33 @@ export function harvestAmbientContinuity(input: AmbientHarvestInput): AmbientHar
   const stemSafe = isSafeControlPlaneStem(recordId);
   const cursorAbs = stemSafe ? cursorPath(controlPlane, recordId) : undefined;
   const priorCursor = cursorAbs === undefined ? undefined : readHarvestCursor(cursorAbs);
+
+  // Honor a clear (Step 3): if this session's ambient work was tombstoned and
+  // nothing new has arrived since, do not resurrect the record. Lift the
+  // tombstone once a genuinely new intent appears in the tail past the cleared
+  // position; bytes alone (an assistant reply) do not lift it.
+  const tombstoneAbs = stemSafe ? tombstonePath(controlPlane, recordId) : undefined;
+  if (tombstoneAbs !== undefined) {
+    const tombstone = readTombstone(tombstoneAbs);
+    if (tombstone !== undefined && tombstone.transcript_path === input.transcriptPath) {
+      let size: number;
+      try {
+        size = statSync(input.transcriptPath).size;
+      } catch {
+        size = 0;
+      }
+      if (size <= tombstone.position) return skip('cleared');
+      const tail = readByteRange(
+        input.transcriptPath,
+        tombstone.position,
+        size - tombstone.position,
+      );
+      const tailIntents =
+        tail === undefined ? [] : parseTranscriptContent(tail.toString('utf8')).intents;
+      if (tailIntents.length === 0) return skip('cleared');
+      removeFileQuietly(tombstoneAbs);
+    }
+  }
 
   const harvested = parseTranscriptForHarvest(input.transcriptPath, priorCursor);
   if (harvested === undefined) return skip('transcript_unreadable');

@@ -477,12 +477,18 @@ scoped to v0.2 with rationale in the §Resolver precedence section above.
   to a valid `ambient_record` and surfaces the failure (A4); an ambient
   record's rendered brief carries a relative-age staleness signal (A2);
   `handoff done --clear-ambient` additionally drops the ambient pointer
-  and removes ambient record files (E1); harvest keys ambient records per
+  and removes ambient record files (E1); before removing them it writes a
+  per-session tombstone under `<control-plane>/continuity/tombstones/`
+  recording the transcript position at clear time, so the next harvest
+  (the Stop hook fires every turn) does not rebuild the cleared record,
+  and the tombstone is lifted once a genuinely new intent appears past
+  that position. Harvest keys ambient records per
   session and parses the transcript incrementally via a per-repo cursor
   under `<control-plane>/continuity/cursors/` (D1, B1). None of these
   touch the record or index schema or CONT-I1..I18; the single
   `ambient_record` pointer (CONT-I17/I18) is preserved, and the new
-  cursor files are not continuity reports (no schema, advisory only).
+  cursor and tombstone files are not continuity reports (no schema,
+  advisory only).
 - **v0.2** — candidate scope items if evidence supports:
   - Introduce a `schema_version` fence (e.g., `2` for a future shape
     change), with a documented migration posture. Reopen condition:

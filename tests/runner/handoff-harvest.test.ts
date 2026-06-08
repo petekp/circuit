@@ -1644,4 +1644,90 @@ describe('circuit handoff done ambient semantics (E1)', () => {
     const briefOut = JSON.parse(brief.stdout) as { status: string };
     expect(briefOut.status).toBe('empty');
   });
+
+  it('does not resurrect the cleared ambient record on the next harvest (tombstone honored)', async () => {
+    const projectRoot = tempRoot('circuit-done-e1-resurrect-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(transcript, jsonl([userString('build the thing that gets cleared')]));
+
+    const harvestArgs = [
+      'handoff',
+      'harvest',
+      '--transcript-path',
+      transcript,
+      '--project-root',
+      projectRoot,
+      '--session-id',
+      's-resurrect',
+      '--source',
+      'stop',
+    ];
+
+    const h1 = await captureMain(harvestArgs, { now: NOW });
+    expect(h1.code, h1.stderr).toBe(0);
+    expect(ambientRecordFiles(projectRoot).length).toBeGreaterThan(0);
+
+    const done = await captureMain(
+      ['handoff', 'done', '--project-root', projectRoot, '--clear-ambient'],
+      { now: NOW },
+    );
+    expect(done.code, done.stderr).toBe(0);
+    expect(ambientRecordFiles(projectRoot)).toEqual([]);
+
+    // The Stop hook fires every turn, so the next harvest runs against the same
+    // still-live transcript. Without a tombstone it rebuilds the cleared record.
+    const h2 = await captureMain(harvestArgs, { now: NOW });
+    expect(h2.code, h2.stderr).toBe(0);
+    const h2out = JSON.parse(h2.stdout) as { status: string; reason?: string };
+    expect(h2out.status).toBe('skipped');
+    expect(h2out.reason).toBe('cleared');
+    expect(ambientRecordFiles(projectRoot)).toEqual([]);
+
+    const index = ContinuityIndex.parse(
+      JSON.parse(readFileSync(join(projectRoot, '.circuit/continuity/index.json'), 'utf8')),
+    );
+    expect(index.ambient_record ?? null).toBeNull();
+  });
+
+  it('re-harvests after a clear once a genuinely new intent arrives (tombstone lifts)', async () => {
+    const projectRoot = tempRoot('circuit-done-e1-lift-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(transcript, jsonl([userString('build the thing that gets cleared')]));
+
+    const harvestArgs = [
+      'handoff',
+      'harvest',
+      '--transcript-path',
+      transcript,
+      '--project-root',
+      projectRoot,
+      '--session-id',
+      's-lift',
+      '--source',
+      'stop',
+    ];
+
+    await captureMain(harvestArgs, { now: NOW });
+    await captureMain(['handoff', 'done', '--project-root', projectRoot, '--clear-ambient'], {
+      now: NOW,
+    });
+    expect(ambientRecordFiles(projectRoot)).toEqual([]);
+
+    // A genuinely new user intent past the cleared point must lift the tombstone.
+    // The first line is byte-identical, so the cleared position still points at
+    // the boundary and only the new intent sits in the tail.
+    writeFileSync(
+      transcript,
+      jsonl([
+        userString('build the thing that gets cleared'),
+        userString('now start a brand new task after the clear'),
+      ]),
+    );
+
+    const h = await captureMain(harvestArgs, { now: NOW });
+    expect(h.code, h.stderr).toBe(0);
+    const out = JSON.parse(h.stdout) as { status: string };
+    expect(out.status).toBe('harvested');
+    expect(ambientRecordFiles(projectRoot).length).toBeGreaterThan(0);
+  });
 });
