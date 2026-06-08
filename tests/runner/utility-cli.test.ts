@@ -31,6 +31,7 @@ const BUILD_REVIEW_BODY = JSON.stringify({
   verdict: 'accept',
   summary: 'No blocking issue found',
   findings: [],
+  alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
 });
 const BUILD_CONTEXT_BODY = JSON.stringify({
   verdict: 'accept',

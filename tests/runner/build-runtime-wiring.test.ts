@@ -50,6 +50,7 @@ function relayerWith(
       verdict: 'accept',
       summary: 'No blocking issue found',
       findings: [],
+      alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
     });
   const contextBody =
     options.contextBody ??
@@ -529,6 +530,7 @@ describe('Build runtime wiring', () => {
                 file_refs: ['src/example.ts:1'],
               },
             ],
+            alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
           }),
         }),
         projectRoot: makeVerificationProjectRoot(),
@@ -563,6 +565,7 @@ describe('Build runtime wiring', () => {
             verdict: 'accept-with-fixes',
             summary: 'Fixes needed but omitted',
             findings: [],
+            alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
           }),
         }),
         projectRoot: makeVerificationProjectRoot(),
@@ -601,6 +604,7 @@ describe('Build runtime wiring', () => {
                 file_refs: ['tests/example.test.ts:1'],
               },
             ],
+            alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
           }),
         }),
         projectRoot: makeVerificationProjectRoot(),

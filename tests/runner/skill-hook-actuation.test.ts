@@ -96,7 +96,12 @@ function surfaceRelayer(opts: {
     changed_files: ['src/example.ts'],
     evidence: ['stub'],
   });
-  const review = JSON.stringify({ verdict: 'accept', summary: 'ok', findings: [] });
+  const review = JSON.stringify({
+    verdict: 'accept',
+    summary: 'ok',
+    findings: [],
+    alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
+  });
   return {
     connectorName: 'claude-code',
     relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {
@@ -533,7 +538,12 @@ function roleCapturingRelayer(captured: {
     changed_files: ['src/example.ts'],
     evidence: ['stub'],
   });
-  const review = JSON.stringify({ verdict: 'accept', summary: 'ok', findings: [] });
+  const review = JSON.stringify({
+    verdict: 'accept',
+    summary: 'ok',
+    findings: [],
+    alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
+  });
   return {
     connectorName: 'claude-code',
     relay: async (input: ClaudeCodeRelayInput): Promise<RelayResult> => {

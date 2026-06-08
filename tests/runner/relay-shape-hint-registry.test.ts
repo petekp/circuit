@@ -92,6 +92,21 @@ describe('relay shape-hint registry', () => {
     expect(implementation).toContain('Do not broaden semantics');
     expect(review).toContain('not just against passing tests');
     expect(review).toContain('broadens semantics beyond the goal');
+
+    // The implementer is told to respect the plan's negative space, and
+    // the reviewer is told to fill in the required alignment block.
+    expect(implementation).toContain('non_goals');
+    expect(implementation).toContain('invariants');
+    expect(review).toContain('alignment is required');
+    expect(review).toContain('scope_adherence');
+  });
+
+  it('Build context hint asks the researcher to capture guardrails', () => {
+    const context = findRelayShapeHint(relayStepWithSchema('build.context@v1'));
+    expect(context).toContain('guardrails');
+    expect(context).toContain('non_goals');
+    expect(context).toContain('invariants');
+    expect(context).toContain('negative space');
   });
 
   it('Fix hints push workers toward complete bug proof, not shallow test pass', () => {

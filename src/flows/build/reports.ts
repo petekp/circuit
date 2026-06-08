@@ -16,6 +16,24 @@ const BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID = {
 
 const NonEmptyStringArray = z.array(z.string().min(1)).min(1);
 
+// Negative-space intent carried context -> plan. non_goals are things the
+// change must NOT do (operator-stated boundaries, ~scope.out); invariants are
+// properties the change must preserve (~constraints/safeguards). Both default
+// empty so a change with no declared boundaries carries no ceremony tax.
+export const BuildGuardrails = z
+  .object({
+    non_goals: z
+      .array(z.string().min(1))
+      .default([])
+      .describe('things the change must not do, drawn from operator-stated boundaries'),
+    invariants: z
+      .array(z.string().min(1))
+      .default([])
+      .describe('properties the change must preserve, grounded in the codebase read'),
+  })
+  .strict();
+export type BuildGuardrails = z.infer<typeof BuildGuardrails>;
+
 // One ordered unit of implementation work. The researcher decomposes the
 // change into these during analyze; under deep rigor the engine implements
 // and verifies them one at a time. See docs/ideas/build-slice-decomposition.md.
@@ -178,6 +196,9 @@ export const BuildContext = z
       .describe(
         'ordered units of implementation work the change decomposes into, inferred from the codebase read; empty when the change is a single indivisible unit (the plan then runs one pass)',
       ),
+    guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe(
+      'negative space: operator-stated non_goals extracted from the goal and code-grounded invariants the change must preserve; empty when none apply',
+    ),
   })
   .strict();
 export type BuildContext = z.infer<typeof BuildContext>;
@@ -198,6 +219,9 @@ export const BuildPlan = z
       .describe(
         'file extensions the implementation is predicted to touch, surfaced from build.context@v1; empty when grounding made no confident prediction',
       ),
+    guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe(
+      'negative space carried from build.context@v1: non_goals the change must not do and invariants it must preserve; empty when none apply',
+    ),
     verification: z
       .object({
         commands: z.array(VerificationCommand).min(1),
@@ -238,11 +262,43 @@ export const BuildReviewFinding = z
   .strict();
 export type BuildReviewFinding = z.infer<typeof BuildReviewFinding>;
 
+// Per-declared-non-goal judgment: did the change respect the stated boundary?
+const BuildAlignmentNonGoal = z
+  .object({
+    statement: z.string().min(1).describe('the declared non-goal, echoed from the plan'),
+    status: z.enum(['respected', 'violated', 'not_applicable']),
+    evidence: z.string().min(1).describe('what in the change supports this judgment'),
+  })
+  .strict();
+
+// Per-declared-invariant judgment: did the change preserve the property?
+const BuildAlignmentInvariant = z
+  .object({
+    statement: z.string().min(1).describe('the declared invariant, echoed from the plan'),
+    status: z.enum(['preserved', 'violated', 'not_applicable']),
+    evidence: z.string().min(1).describe('what in the change supports this judgment'),
+  })
+  .strict();
+
+// The reviewer's assessment of the change against the captured intent.
+// scope_adherence is the always-present spine: it is assessable against the
+// always-present brief even when no guardrails were declared, so the gate is
+// never inert. non_goals/invariants carry one entry per declared guardrail.
+export const BuildReviewAlignment = z
+  .object({
+    scope_adherence: z.enum(['within_scope', 'exceeds_scope']),
+    non_goals: z.array(BuildAlignmentNonGoal).default([]),
+    invariants: z.array(BuildAlignmentInvariant).default([]),
+  })
+  .strict();
+export type BuildReviewAlignment = z.infer<typeof BuildReviewAlignment>;
+
 export const BuildReview = z
   .object({
     verdict: BuildReviewVerdict,
     summary: z.string().min(1),
     findings: z.array(BuildReviewFinding),
+    alignment: BuildReviewAlignment,
   })
   .strict()
   .superRefine((review, ctx) => {
@@ -252,6 +308,37 @@ export const BuildReview = z
         path: ['findings'],
         message: `findings must be non-empty when verdict is '${review.verdict}'`,
       });
+    }
+    // Exceeding the stated scope is itself a reviewable problem: it must be
+    // recorded as at least one finding the operator can act on.
+    if (review.alignment.scope_adherence === 'exceeds_scope' && review.findings.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['findings'],
+        message: "findings must be non-empty when scope_adherence is 'exceeds_scope'",
+      });
+    }
+    // A violated guardrail blocks a clean accept and must be backed by a
+    // finding. This is the structural teeth: scope creep the reviewer detected
+    // cannot be silently accepted.
+    const hasViolation =
+      review.alignment.non_goals.some((entry) => entry.status === 'violated') ||
+      review.alignment.invariants.some((entry) => entry.status === 'violated');
+    if (hasViolation) {
+      if (review.verdict === 'accept') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['verdict'],
+          message: "verdict may not be 'accept' when a declared guardrail is violated",
+        });
+      }
+      if (review.findings.length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['findings'],
+          message: 'findings must be non-empty when a declared guardrail is violated',
+        });
+      }
     }
   });
 export type BuildReview = z.infer<typeof BuildReview>;

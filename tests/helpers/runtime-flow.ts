@@ -523,6 +523,7 @@ function reportBody(
         verdict: 'accept',
         summary: 'No blocking findings in the parity fixture.',
         findings: [],
+        alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
       });
     case 'build.result@v1':
       return BuildResult.parse({

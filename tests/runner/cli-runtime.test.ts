@@ -44,6 +44,7 @@ function buildRelayer(): RelayFn {
     verdict: 'accept',
     summary: 'No blocking issue found',
     findings: [],
+    alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
   });
   return makeStubRelayer(
     (input) => {

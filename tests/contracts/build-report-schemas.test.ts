@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BuildBrief,
+  BuildContext,
   BuildImplementation,
   BuildPlan,
   BuildResult,
@@ -48,6 +49,15 @@ function verificationCommand(overrides: Record<string, unknown> = {}) {
     timeout_ms: 120_000,
     max_output_bytes: 200_000,
     env: {},
+    ...overrides,
+  };
+}
+
+function alignment(overrides: Record<string, unknown> = {}) {
+  return {
+    scope_adherence: 'within_scope',
+    non_goals: [],
+    invariants: [],
     ...overrides,
   };
 }
@@ -287,6 +297,7 @@ describe('Build report schemas', () => {
         verdict: 'accept',
         summary: 'No blocking issue found',
         findings: [],
+        alignment: alignment(),
       }),
     ).toBeDefined();
     expect(
@@ -300,6 +311,7 @@ describe('Build report schemas', () => {
             file_refs: [],
           },
         ],
+        alignment: alignment(),
       }),
     ).toBeDefined();
     expect(
@@ -466,6 +478,7 @@ describe('Build report schemas', () => {
             file_refs: ['src/runtime/runner.ts'],
           },
         ],
+        alignment: alignment(),
       }).findings[0]?.severity,
     ).toBe('critical');
   });
@@ -476,6 +489,7 @@ describe('Build report schemas', () => {
         verdict: 'accept-with-fixes',
         summary: 'Follow-up needed',
         findings: [],
+        alignment: alignment(),
       }).success,
     ).toBe(false);
     expect(
@@ -483,8 +497,116 @@ describe('Build report schemas', () => {
         verdict: 'reject',
         summary: 'Blocking issue found',
         findings: [],
+        alignment: alignment(),
       }).success,
     ).toBe(false);
+  });
+
+  it('requires an alignment block on every Build review', () => {
+    // A review without an intent-alignment assessment is incomplete by
+    // construction: the reviewer must judge the change against the captured
+    // scope and any declared guardrails.
+    expect(
+      BuildReview.safeParse({
+        verdict: 'accept',
+        summary: 'Looks good',
+        findings: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('treats scope_adherence as the always-present alignment spine', () => {
+    // scope_adherence is assessable against the always-present brief even when
+    // no non_goals or invariants were declared, so the gate is never inert.
+    const review = BuildReview.parse({
+      verdict: 'accept',
+      summary: 'Stayed inside the requested scope',
+      findings: [],
+      alignment: alignment({ scope_adherence: 'within_scope' }),
+    });
+    expect(review.alignment.scope_adherence).toBe('within_scope');
+    expect(review.alignment.non_goals).toEqual([]);
+    expect(review.alignment.invariants).toEqual([]);
+  });
+
+  it('requires findings when the reviewer judges the change exceeds scope', () => {
+    expect(
+      BuildReview.safeParse({
+        verdict: 'accept-with-fixes',
+        summary: 'Went beyond the brief',
+        findings: [],
+        alignment: alignment({ scope_adherence: 'exceeds_scope' }),
+      }).success,
+    ).toBe(false);
+    expect(
+      BuildReview.parse({
+        verdict: 'accept-with-fixes',
+        summary: 'Went beyond the brief',
+        findings: [
+          { severity: 'medium', text: 'Touched files outside the stated scope', file_refs: [] },
+        ],
+        alignment: alignment({ scope_adherence: 'exceeds_scope' }),
+      }).alignment.scope_adherence,
+    ).toBe('exceeds_scope');
+  });
+
+  it('forbids accepting a Build review that records a violated guardrail', () => {
+    // A violated non_goal or invariant may not coexist with an 'accept'
+    // verdict, and it must be backed by at least one finding.
+    expect(
+      BuildReview.safeParse({
+        verdict: 'accept',
+        summary: 'Accepted despite a violation',
+        findings: [{ severity: 'high', text: 'Broke a stated non-goal', file_refs: [] }],
+        alignment: alignment({
+          non_goals: [
+            {
+              statement: 'Do not change the public API',
+              status: 'violated',
+              evidence: 'src/api.ts:10',
+            },
+          ],
+        }),
+      }).success,
+    ).toBe(false);
+    expect(
+      BuildReview.safeParse({
+        verdict: 'accept-with-fixes',
+        summary: 'Flagged the violation but gave no finding',
+        findings: [],
+        alignment: alignment({
+          invariants: [
+            {
+              statement: 'Keep the cache write-through',
+              status: 'violated',
+              evidence: 'src/cache.ts:20',
+            },
+          ],
+        }),
+      }).success,
+    ).toBe(false);
+    expect(
+      BuildReview.parse({
+        verdict: 'accept-with-fixes',
+        summary: 'Flagged the violation with an actionable finding',
+        findings: [
+          {
+            severity: 'high',
+            text: 'Restore the write-through cache',
+            file_refs: ['src/cache.ts:20'],
+          },
+        ],
+        alignment: alignment({
+          invariants: [
+            {
+              statement: 'Keep the cache write-through',
+              status: 'violated',
+              evidence: 'src/cache.ts:20',
+            },
+          ],
+        }),
+      }).verdict,
+    ).toBe('accept-with-fixes');
   });
 
   it('rejects build.result pointer omissions, duplicates, and schema mismatches', () => {
@@ -514,6 +636,73 @@ describe('Build report schemas', () => {
         review_verdict: 'accept',
         evidence_links: [resultPointers()[0], resultPointers()[0], ...resultPointers().slice(2)],
       }).success,
+    ).toBe(false);
+  });
+});
+
+describe('Build guardrails (negative-space intent)', () => {
+  function context(overrides: Record<string, unknown> = {}) {
+    return {
+      verdict: 'accept',
+      sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Module the change touches' }],
+      observations: ['The target module is small and self-contained'],
+      open_questions: [],
+      ...overrides,
+    };
+  }
+
+  it('defaults context guardrails to empty negative space when omitted', () => {
+    const parsed = BuildContext.parse(context());
+    expect(parsed.guardrails).toEqual({ non_goals: [], invariants: [] });
+  });
+
+  it('carries declared context guardrails through', () => {
+    const parsed = BuildContext.parse(
+      context({
+        guardrails: {
+          non_goals: ['Do not change the public API'],
+          invariants: ['Keep the cache write-through'],
+        },
+      }),
+    );
+    expect(parsed.guardrails.non_goals).toEqual(['Do not change the public API']);
+    expect(parsed.guardrails.invariants).toEqual(['Keep the cache write-through']);
+  });
+
+  it('defaults plan guardrails to empty negative space when omitted', () => {
+    const parsed = BuildPlan.parse({
+      objective: 'Add a small feature',
+      approach: 'Make the smallest code change and verify it',
+      slices: [
+        { id: 'slice-1', intent: 'Implement the behavior', anticipated_file_extensions: [] },
+      ],
+      verification: { commands: [verificationCommand()] },
+    });
+    expect(parsed.guardrails).toEqual({ non_goals: [], invariants: [] });
+  });
+
+  it('carries declared plan guardrails through', () => {
+    const parsed = BuildPlan.parse({
+      objective: 'Add a small feature',
+      approach: 'Make the smallest code change and verify it',
+      slices: [
+        { id: 'slice-1', intent: 'Implement the behavior', anticipated_file_extensions: [] },
+      ],
+      guardrails: {
+        non_goals: ['Do not change the public API'],
+        invariants: ['Keep the cache write-through'],
+      },
+      verification: { commands: [verificationCommand()] },
+    });
+    expect(parsed.guardrails.non_goals).toEqual(['Do not change the public API']);
+    expect(parsed.guardrails.invariants).toEqual(['Keep the cache write-through']);
+  });
+
+  it('rejects surplus keys inside guardrails', () => {
+    expect(
+      BuildContext.safeParse(
+        context({ guardrails: { non_goals: [], invariants: [], smuggled: true } }),
+      ).success,
     ).toBe(false);
   });
 });

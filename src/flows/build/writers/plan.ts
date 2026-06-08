@@ -53,6 +53,10 @@ export const buildPlanComposeBuilder: ComposeBuilder = {
       approach,
       slices,
       anticipated_file_extensions: grounding?.anticipated_file_extensions ?? [],
+      // Carry the researcher's negative space forward so the implementer hint
+      // and the reviewer's alignment check read from the plan. A context-less
+      // plan (reduced fixtures) carries no guardrails.
+      guardrails: grounding?.guardrails ?? { non_goals: [], invariants: [] },
       verification: {
         commands: brief.verification_command_candidates,
       },

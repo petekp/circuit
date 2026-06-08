@@ -29183,10 +29183,11 @@ var buildContextShapeHint = {
   schema: "build.context@v1",
   instruction: [
     "Respond with a single raw JSON object whose top-level shape is exactly:",
-    '{ "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"], "slices": [{ "id": "slice-1", "intent": "<one concrete, independently-verifiable unit of implementation work>", "anticipated_file_extensions": ["<extension this slice will touch>"] }] }',
+    '{ "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"], "slices": [{ "id": "slice-1", "intent": "<one concrete, independently-verifiable unit of implementation work>", "anticipated_file_extensions": ["<extension this slice will touch>"] }], "guardrails": { "non_goals": ["<something the change must NOT do, stated by the operator>"], "invariants": ["<a property the change must preserve, grounded in the code>"] } }',
     "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated rigor (provided to you): on a quick or lite job read just the directly implicated files; on a deep job map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
     "In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer.",
     'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. Under deep rigor the engine implements and verifies these one at a time; under lighter rigor the change runs in a single pass regardless.',
+    'In guardrails, capture the negative space of the change. Put in non_goals the things the operator said the change must NOT do - boundaries drawn from the goal and brief, not invented. Put in invariants the properties the change must preserve, grounded in what you read (a contract, a data shape, an ordering, a safety property). Both default to empty arrays: declare a guardrail only when it is real and specific, never a generic "do not break anything". These carry forward to the plan and the reviewer checks the change against them.',
     "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.context@v1 before writing reports/build/context.json."
   ].join(" ")
 };
@@ -29197,6 +29198,7 @@ var buildImplementationShapeHint = {
     "Respond with a single raw JSON object whose top-level shape is exactly:",
     '{ "verdict": "accept", "summary": "<what changed>", "changed_files": ["<project-relative path>"], "evidence": ["<verification or implementation evidence>"] }',
     "Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass.",
+    "The plan may carry guardrails: non_goals (things this change must NOT do) and invariants (properties it must preserve). Stay inside the non_goals and preserve every invariant. These are advisory to you here, but the reviewer checks the finished change against them, so a violation will surface as a finding.",
     "When the request names a current slice (its id and intent), implement ONLY that slice's unit of work - the smallest change that satisfies that slice's intent - and leave later slices for their own turn. When no current slice is named, implement the whole plan in one pass. Report changed_files cumulatively: every file changed so far across all slices, not only this slice's files.",
     "The plan's anticipated_file_extensions (and the current slice's, when named) list the file types the grounding read expects to touch. Treat them as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched.",
     "Use an empty changed_files array only when no file changed. Evidence must contain at least one item. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
@@ -29208,8 +29210,9 @@ var buildReviewShapeHint = {
   schema: "build.review@v1",
   instruction: [
     "Respond with a single raw JSON object whose top-level shape is exactly:",
-    '{ "verdict": "<accept|accept-with-fixes|reject>", "summary": "<review summary>", "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }] }',
+    `{ "verdict": "<accept|accept-with-fixes|reject>", "summary": "<review summary>", "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }], "alignment": { "scope_adherence": "<within_scope|exceeds_scope>", "non_goals": [{ "statement": "<the plan's non_goal, verbatim>", "status": "<respected|violated|not_applicable>", "evidence": "<what in the change shows this>" }], "invariants": [{ "statement": "<the plan's invariant, verbatim>", "status": "<preserved|violated|not_applicable>", "evidence": "<what in the change shows this>" }] } }`,
     "Review the change against the requested scope, not just against passing tests. Flag behavior that broadens semantics beyond the goal even when verification passes.",
+    `alignment is required. Set scope_adherence by judging the finished change against the brief: within_scope when it does only what the goal asked, exceeds_scope when it reaches beyond. Add one non_goals entry per non_goal the plan declared and one invariants entry per invariant, each restating the plan's text with a status and concrete evidence; use empty arrays only when the plan declared none. If you set scope_adherence to exceeds_scope, or mark any non_goal violated or any invariant violated, the verdict cannot be "accept" and you must include at least one finding that explains the breach.`,
     'Use an empty findings array only with verdict "accept". Verdicts "accept-with-fixes" and "reject" must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.',
     "The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.review@v1 before writing reports/build/review.json."
   ].join(" ")
@@ -29253,6 +29256,10 @@ var BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID = {
   "build.review": "build.review@v1"
 };
 var NonEmptyStringArray = external_exports.array(external_exports.string().min(1)).min(1);
+var BuildGuardrails = external_exports.object({
+  non_goals: external_exports.array(external_exports.string().min(1)).default([]).describe("things the change must not do, drawn from operator-stated boundaries"),
+  invariants: external_exports.array(external_exports.string().min(1)).default([]).describe("properties the change must preserve, grounded in the codebase read")
+}).strict();
 var BuildSlice = external_exports.object({
   id: external_exports.string().min(1).describe('stable slice id, e.g. "slice-1"'),
   intent: external_exports.string().min(1).describe("one concrete, independently-verifiable unit of implementation work"),
@@ -29340,13 +29347,15 @@ var BuildContext = external_exports.object({
   observations: external_exports.array(external_exports.string().min(1).describe("observation grounded in the sources")).min(1),
   open_questions: external_exports.array(external_exports.string().min(1).describe("question still unresolved after gathering context")),
   anticipated_file_extensions: external_exports.array(external_exports.string().min(1).describe('file extension the implementation is expected to touch, e.g. ".ts" or ".test.ts"')).default([]).describe("file extensions the implementation is predicted to touch, inferred from the codebase read; empty when no confident prediction"),
-  slices: external_exports.array(BuildSlice).default([]).describe("ordered units of implementation work the change decomposes into, inferred from the codebase read; empty when the change is a single indivisible unit (the plan then runs one pass)")
+  slices: external_exports.array(BuildSlice).default([]).describe("ordered units of implementation work the change decomposes into, inferred from the codebase read; empty when the change is a single indivisible unit (the plan then runs one pass)"),
+  guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space: operator-stated non_goals extracted from the goal and code-grounded invariants the change must preserve; empty when none apply")
 }).strict();
 var BuildPlan = external_exports.object({
   objective: external_exports.string().min(1),
   approach: external_exports.string().min(1),
   slices: external_exports.array(BuildSlice).min(1).describe("ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). Under deep rigor the engine implements and verifies these one at a time"),
   anticipated_file_extensions: external_exports.array(external_exports.string().min(1)).default([]).describe("file extensions the implementation is predicted to touch, surfaced from build.context@v1; empty when grounding made no confident prediction"),
+  guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space carried from build.context@v1: non_goals the change must not do and invariants it must preserve; empty when none apply"),
   verification: external_exports.object({
     commands: external_exports.array(VerificationCommand).min(1)
   }).strict()
@@ -29364,10 +29373,26 @@ var BuildReviewFinding = external_exports.object({
   text: external_exports.string().min(1),
   file_refs: external_exports.array(external_exports.string().min(1))
 }).strict();
+var BuildAlignmentNonGoal = external_exports.object({
+  statement: external_exports.string().min(1).describe("the declared non-goal, echoed from the plan"),
+  status: external_exports.enum(["respected", "violated", "not_applicable"]),
+  evidence: external_exports.string().min(1).describe("what in the change supports this judgment")
+}).strict();
+var BuildAlignmentInvariant = external_exports.object({
+  statement: external_exports.string().min(1).describe("the declared invariant, echoed from the plan"),
+  status: external_exports.enum(["preserved", "violated", "not_applicable"]),
+  evidence: external_exports.string().min(1).describe("what in the change supports this judgment")
+}).strict();
+var BuildReviewAlignment = external_exports.object({
+  scope_adherence: external_exports.enum(["within_scope", "exceeds_scope"]),
+  non_goals: external_exports.array(BuildAlignmentNonGoal).default([]),
+  invariants: external_exports.array(BuildAlignmentInvariant).default([])
+}).strict();
 var BuildReview = external_exports.object({
   verdict: BuildReviewVerdict,
   summary: external_exports.string().min(1),
-  findings: external_exports.array(BuildReviewFinding)
+  findings: external_exports.array(BuildReviewFinding),
+  alignment: BuildReviewAlignment
 }).strict().superRefine((review, ctx) => {
   if (review.verdict !== "accept" && review.findings.length === 0) {
     ctx.addIssue({
@@ -29375,6 +29400,30 @@ var BuildReview = external_exports.object({
       path: ["findings"],
       message: `findings must be non-empty when verdict is '${review.verdict}'`
     });
+  }
+  if (review.alignment.scope_adherence === "exceeds_scope" && review.findings.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["findings"],
+      message: "findings must be non-empty when scope_adherence is 'exceeds_scope'"
+    });
+  }
+  const hasViolation = review.alignment.non_goals.some((entry) => entry.status === "violated") || review.alignment.invariants.some((entry) => entry.status === "violated");
+  if (hasViolation) {
+    if (review.verdict === "accept") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["verdict"],
+        message: "verdict may not be 'accept' when a declared guardrail is violated"
+      });
+    }
+    if (review.findings.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["findings"],
+        message: "findings must be non-empty when a declared guardrail is violated"
+      });
+    }
   }
 });
 var BuildResultReportId = external_exports.enum([
@@ -30078,6 +30127,10 @@ var buildPlanComposeBuilder = {
       approach,
       slices,
       anticipated_file_extensions: grounding?.anticipated_file_extensions ?? [],
+      // Carry the researcher's negative space forward so the implementer hint
+      // and the reviewer's alignment check read from the plan. A context-less
+      // plan (reduced fixtures) carries no guardrails.
+      guardrails: grounding?.guardrails ?? { non_goals: [], invariants: [] },
       verification: {
         commands: brief.verification_command_candidates
       }

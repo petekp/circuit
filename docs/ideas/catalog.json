@@ -230,6 +230,33 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/intent-capture-and-enforcement-implementation.md",
+      "title": "Intent capture and enforcement: implementation spec (Build v1)",
+      "status": "implementation-spec",
+      "category": "flows-and-blocks",
+      "tags": ["intent", "enforcement", "build-flow", "guardrails", "alignment"],
+      "current_reading": "Build-only implementation spec for the v2 intent design. Guardrails (non_goals + invariants) flow context -> plan; the reviewer's alignment block is a required field on build.review@v1 with a superRefine that forbids accepting a scope or guardrail breach. Records why acceptance-retry was abandoned after a runtime routing probe. Implemented and verified; no engine change.",
+      "related": [
+        "docs/ideas/intent-capture-and-enforcement.md",
+        "docs/ideas/pre-execution-memory-comparison.md"
+      ],
+      "last_checked": "2026-06-08"
+    },
+    {
+      "path": "docs/ideas/intent-capture-and-enforcement.md",
+      "title": "Intent capture and enforcement in Circuit flows (v2)",
+      "status": "current-proposal",
+      "category": "flows-and-blocks",
+      "tags": ["intent", "enforcement", "build-flow", "guardrails", "spec-driven"],
+      "current_reading": "Revamped proposal that reframes the Codex pre-execution-memory idea as typed intent enforced inside existing flow reports and checks, not a new preflight gate. Grounded in a codebase read and one runtime probe. Build-flow slice is implemented; broader direction is not current behavior.",
+      "related": [
+        "docs/ideas/pre-execution-memory-comparison.md",
+        "docs/ideas/intent-capture-and-enforcement-implementation.md",
+        "docs/ideas/spec-driven-flow-opportunities.md"
+      ],
+      "last_checked": "2026-06-08"
+    },
+    {
       "path": "docs/ideas/long-horizon-supervision.md",
       "title": "Long-horizon supervision - heartbeat course-correction and crow's-nest views",
       "status": "current-idea",
@@ -338,6 +365,16 @@
       "tags": ["run-captures", "portability", "sharing"],
       "current_reading": "Idea for exporting successful Runs as reusable team or personal process patterns. Future behavior.",
       "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/pre-execution-memory-comparison.md",
+      "title": "Circuit today vs. typed pre-execution memory",
+      "status": "current-comparison",
+      "category": "strategy-and-comparisons",
+      "tags": ["intent", "pre-execution-memory", "comparison", "preflight", "codex-proposal"],
+      "current_reading": "The Codex source proposal: a source-backed comparison of Circuit today against a typed pre-execution-memory / preflight-contract direction. The analysis stands as context; its specific recommendation is revised by intent-capture-and-enforcement.md, which enforces intent inside existing flow reports rather than adding a preflight gate.",
+      "related": ["docs/ideas/intent-capture-and-enforcement.md"],
+      "last_checked": "2026-06-08"
     },
     {
       "path": "docs/ideas/project-execution-memory.md",

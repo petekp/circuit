@@ -441,6 +441,7 @@ function seedBuildRoleReport(runFolder: string, schema: string): void {
         verdict: 'accept',
         summary: 'No blocking issues',
         findings: [],
+        alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
       }),
     );
     return;
@@ -734,5 +735,26 @@ describe('Build plan writer surfaces grounding from build.context@v1', () => {
     expect(plan.anticipated_file_extensions).toEqual([]);
     expect(plan.approach).toContain('Make the smallest safe change inside scope');
     expect(plan.approach).not.toContain('Grounded in a codebase read');
+  });
+
+  it('carries the grounding context guardrails (non_goals + invariants) onto the plan', () => {
+    const context = BuildContext.parse({
+      verdict: 'accept',
+      sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Touched module.' }],
+      observations: ['The target module is small and self-contained.'],
+      open_questions: [],
+      guardrails: {
+        non_goals: ['Do not change the public API'],
+        invariants: ['Keep the cache write-through'],
+      },
+    });
+    const plan = buildPlan({ brief, context });
+    expect(plan.guardrails.non_goals).toEqual(['Do not change the public API']);
+    expect(plan.guardrails.invariants).toEqual(['Keep the cache write-through']);
+  });
+
+  it('falls back to empty guardrails when context is absent', () => {
+    const plan = buildPlan({ brief });
+    expect(plan.guardrails).toEqual({ non_goals: [], invariants: [] });
   });
 });
