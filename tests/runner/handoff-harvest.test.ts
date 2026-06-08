@@ -320,6 +320,40 @@ describe('circuit handoff harvest (ambient continuity producer)', () => {
     });
   });
 
+  it('records the pre-compact source so a compaction-boundary harvest is auditable', async () => {
+    const projectRoot = tempRoot('circuit-harvest-precompact-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(transcript, jsonl([userString('capture this before the context is compacted')]));
+
+    const harvest = await captureMain(
+      [
+        'handoff',
+        'harvest',
+        '--transcript-path',
+        transcript,
+        '--project-root',
+        projectRoot,
+        '--session-id',
+        's-precompact',
+        '--source',
+        'pre-compact',
+        '--record-id',
+        'ambient-latest',
+      ],
+      { now: NOW },
+    );
+
+    expect(harvest.code, harvest.stderr).toBe(0);
+    const continuityRoot = join(projectRoot, '.circuit', 'continuity');
+    const record = ContinuityRecord.parse(
+      JSON.parse(readFileSync(join(continuityRoot, 'records/ambient-latest.json'), 'utf8')),
+    );
+    expect(record).toMatchObject({
+      continuity_kind: 'ambient',
+      ambient_provenance: { source: 'pre-compact' },
+    });
+  });
+
   it('skips without writing when there is nothing genuine to harvest', async () => {
     const projectRoot = tempRoot('circuit-harvest-empty-');
     const transcript = join(projectRoot, 'transcript.jsonl');
@@ -809,6 +843,63 @@ function patchRecordGit(
   writeFileSync(recordPath, `${JSON.stringify(record, null, 2)}\n`);
 }
 
+// Write a run-backed continuity record + index pending pointer with a chosen
+// runtime_status. Building a run-backed record through the CLI needs a real run
+// folder with a snapshot, so the brief render tests write the record on disk
+// directly (mirroring how the schema tests construct fixtures), matching the
+// exact shape `saveContinuity` emits for a run-backed save.
+function saveRunBacked(
+  projectRoot: string,
+  recordId: string,
+  runtimeStatus: string,
+  goal = 'Run-backed goal',
+): void {
+  const createdAt = '2026-06-06T09:00:00.000Z';
+  const runRef = {
+    run_id: '0191d2f0-cccc-7fff-8aaa-000000000030',
+    current_stage: 'frame',
+    current_step: 'frame-goal',
+    runtime_status: runtimeStatus,
+    runtime_updated_at: createdAt,
+  };
+  const record = {
+    schema_version: 1,
+    record_id: recordId,
+    project_root: projectRoot,
+    continuity_kind: 'run-backed',
+    created_at: createdAt,
+    git: { cwd: projectRoot },
+    narrative: {
+      goal,
+      next: 'continue the run',
+      state_markdown: '- run state',
+      debt_markdown: '- run debt',
+    },
+    run_ref: runRef,
+    resume_contract: { mode: 'resume_run', auto_resume: false, requires_explicit_resume: true },
+  };
+  const recordsDir = join(projectRoot, '.circuit/continuity/records');
+  mkdirSync(recordsDir, { recursive: true });
+  writeFileSync(join(recordsDir, `${recordId}.json`), `${JSON.stringify(record, null, 2)}\n`);
+  const index = {
+    schema_version: 1,
+    project_root: projectRoot,
+    pending_record: { record_id: recordId, continuity_kind: 'run-backed', created_at: createdAt },
+    current_run: {
+      run_id: runRef.run_id,
+      current_stage: runRef.current_stage,
+      current_step: runRef.current_step,
+      runtime_status: runtimeStatus,
+      attached_at: createdAt,
+      last_validated_at: createdAt,
+    },
+  };
+  writeFileSync(
+    join(projectRoot, '.circuit/continuity/index.json'),
+    `${JSON.stringify(index, null, 2)}\n`,
+  );
+}
+
 describe('handoff brief precedence (manual save outranks ambient harvest)', () => {
   it('falls back to the ambient record when no manual save is pending', async () => {
     const projectRoot = tempRoot('circuit-brief-ambient-');
@@ -906,6 +997,104 @@ describe('handoff brief precedence (manual save outranks ambient harvest)', () =
     expect(brief.code, brief.stderr).toBe(0);
     const output = JSON.parse(brief.stdout) as { additional_context: string };
     expect(output.additional_context).toContain('/circuit:handoff resume');
+  });
+});
+
+// Step 2a (continuity-first-principles-evaluation, Step 0 survivor): the brief
+// render reads run_ref.runtime_status so a finished run-backed record is not
+// surfaced as live work. The active-run file already shows the status; this
+// closes the gap that the resume brief did not. runtime_status is a real
+// recorded field, so this survives the Step 0 NO-GO on inferred satisfaction.
+describe('handoff brief run-backed status (Step 2a: runtime_status render)', () => {
+  it('renders an in-progress run-backed record as live work (unchanged)', async () => {
+    const projectRoot = tempRoot('circuit-brief-runbacked-live-');
+    saveRunBacked(projectRoot, 'continuity-run-live', 'in_progress', 'Live run goal');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot]);
+    expect(brief.code, brief.stderr).toBe(0);
+    const out = JSON.parse(brief.stdout) as {
+      continuity_kind: string;
+      additional_context: string;
+    };
+    expect(out.continuity_kind).toBe('run-backed');
+    expect(out.additional_context).toContain('Goal: Live run goal');
+    expect(out.additional_context).toContain('/circuit:handoff resume');
+    // An in-progress run carries no closed-run note.
+    expect(out.additional_context).not.toMatch(
+      /already finished|was aborted|was stopped|was handed off|escalated/,
+    );
+  });
+
+  it('renders a completed run-backed record as finished context, not live resume', async () => {
+    const projectRoot = tempRoot('circuit-brief-runbacked-complete-');
+    saveRunBacked(projectRoot, 'continuity-run-complete', 'complete', 'Finished run goal');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot]);
+    expect(brief.code, brief.stderr).toBe(0);
+    const out = JSON.parse(brief.stdout) as { additional_context: string };
+    expect(out.additional_context).toContain('status: complete');
+    expect(out.additional_context.toLowerCase()).toContain('already finished');
+    // A finished run must not advertise resume.
+    expect(out.additional_context).not.toContain('/circuit:handoff resume');
+  });
+
+  it('flags an escalated run-backed record for review, not blind resume', async () => {
+    const projectRoot = tempRoot('circuit-brief-runbacked-escalated-');
+    saveRunBacked(projectRoot, 'continuity-run-escalated', 'escalated', 'Escalated run goal');
+
+    const brief = await captureMain(['handoff', 'brief', '--json', '--project-root', projectRoot]);
+    expect(brief.code, brief.stderr).toBe(0);
+    const out = JSON.parse(brief.stdout) as { additional_context: string };
+    expect(out.additional_context).toContain('status: escalated');
+    expect(out.additional_context.toLowerCase()).toContain('do not resume it blindly');
+    expect(out.additional_context).not.toContain('/circuit:handoff resume');
+  });
+
+  it('maps handoff, stopped, and aborted run-backed records to closed, each labeled', async () => {
+    const handoffRoot = tempRoot('circuit-brief-runbacked-handoff-');
+    saveRunBacked(handoffRoot, 'continuity-run-handoff', 'handoff', 'Handed-off run goal');
+    const handoffOut = await captureMain([
+      'handoff',
+      'brief',
+      '--json',
+      '--project-root',
+      handoffRoot,
+    ]);
+    expect(handoffOut.code, handoffOut.stderr).toBe(0);
+    const handoffCtx = (JSON.parse(handoffOut.stdout) as { additional_context: string })
+      .additional_context;
+    expect(handoffCtx.toLowerCase()).toContain('handed off');
+    expect(handoffCtx).not.toContain('/circuit:handoff resume');
+
+    const stoppedRoot = tempRoot('circuit-brief-runbacked-stopped-');
+    saveRunBacked(stoppedRoot, 'continuity-run-stopped', 'stopped', 'Stopped run goal');
+    const stoppedOut = await captureMain([
+      'handoff',
+      'brief',
+      '--json',
+      '--project-root',
+      stoppedRoot,
+    ]);
+    expect(stoppedOut.code, stoppedOut.stderr).toBe(0);
+    const stoppedCtx = (JSON.parse(stoppedOut.stdout) as { additional_context: string })
+      .additional_context;
+    expect(stoppedCtx.toLowerCase()).toContain('was stopped');
+    expect(stoppedCtx).not.toContain('/circuit:handoff resume');
+
+    const abortedRoot = tempRoot('circuit-brief-runbacked-aborted-');
+    saveRunBacked(abortedRoot, 'continuity-run-aborted', 'aborted', 'Aborted run goal');
+    const abortedOut = await captureMain([
+      'handoff',
+      'brief',
+      '--json',
+      '--project-root',
+      abortedRoot,
+    ]);
+    expect(abortedOut.code, abortedOut.stderr).toBe(0);
+    const abortedCtx = (JSON.parse(abortedOut.stdout) as { additional_context: string })
+      .additional_context;
+    expect(abortedCtx.toLowerCase()).toContain('was aborted');
+    expect(abortedCtx).not.toContain('/circuit:handoff resume');
   });
 });
 
@@ -1643,5 +1832,91 @@ describe('circuit handoff done ambient semantics (E1)', () => {
     expect(brief.code, brief.stderr).toBe(0);
     const briefOut = JSON.parse(brief.stdout) as { status: string };
     expect(briefOut.status).toBe('empty');
+  });
+
+  it('does not resurrect the cleared ambient record on the next harvest (tombstone honored)', async () => {
+    const projectRoot = tempRoot('circuit-done-e1-resurrect-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(transcript, jsonl([userString('build the thing that gets cleared')]));
+
+    const harvestArgs = [
+      'handoff',
+      'harvest',
+      '--transcript-path',
+      transcript,
+      '--project-root',
+      projectRoot,
+      '--session-id',
+      's-resurrect',
+      '--source',
+      'stop',
+    ];
+
+    const h1 = await captureMain(harvestArgs, { now: NOW });
+    expect(h1.code, h1.stderr).toBe(0);
+    expect(ambientRecordFiles(projectRoot).length).toBeGreaterThan(0);
+
+    const done = await captureMain(
+      ['handoff', 'done', '--project-root', projectRoot, '--clear-ambient'],
+      { now: NOW },
+    );
+    expect(done.code, done.stderr).toBe(0);
+    expect(ambientRecordFiles(projectRoot)).toEqual([]);
+
+    // The Stop hook fires every turn, so the next harvest runs against the same
+    // still-live transcript. Without a tombstone it rebuilds the cleared record.
+    const h2 = await captureMain(harvestArgs, { now: NOW });
+    expect(h2.code, h2.stderr).toBe(0);
+    const h2out = JSON.parse(h2.stdout) as { status: string; reason?: string };
+    expect(h2out.status).toBe('skipped');
+    expect(h2out.reason).toBe('cleared');
+    expect(ambientRecordFiles(projectRoot)).toEqual([]);
+
+    const index = ContinuityIndex.parse(
+      JSON.parse(readFileSync(join(projectRoot, '.circuit/continuity/index.json'), 'utf8')),
+    );
+    expect(index.ambient_record ?? null).toBeNull();
+  });
+
+  it('re-harvests after a clear once a genuinely new intent arrives (tombstone lifts)', async () => {
+    const projectRoot = tempRoot('circuit-done-e1-lift-');
+    const transcript = join(projectRoot, 'transcript.jsonl');
+    writeFileSync(transcript, jsonl([userString('build the thing that gets cleared')]));
+
+    const harvestArgs = [
+      'handoff',
+      'harvest',
+      '--transcript-path',
+      transcript,
+      '--project-root',
+      projectRoot,
+      '--session-id',
+      's-lift',
+      '--source',
+      'stop',
+    ];
+
+    await captureMain(harvestArgs, { now: NOW });
+    await captureMain(['handoff', 'done', '--project-root', projectRoot, '--clear-ambient'], {
+      now: NOW,
+    });
+    expect(ambientRecordFiles(projectRoot)).toEqual([]);
+
+    // A genuinely new user intent past the cleared point must lift the tombstone.
+    // The first line is byte-identical, so the cleared position still points at
+    // the boundary and only the new intent sits in the tail.
+    writeFileSync(
+      transcript,
+      jsonl([
+        userString('build the thing that gets cleared'),
+        userString('now start a brand new task after the clear'),
+      ]),
+    );
+
+    const h = await captureMain(harvestArgs, { now: NOW });
+    expect(h.code, h.stderr).toBe(0);
+    const out = JSON.parse(h.stdout) as { status: string };
+    expect(out.status).toBe('harvested');
+    expect(ambientRecordFiles(projectRoot).length).toBeGreaterThan(0);
   });
 });

@@ -44729,7 +44729,7 @@ var RunAttachedProvenance = external_exports.object({
 var AmbientProvenance = external_exports.object({
   session_id: external_exports.string().min(1).optional(),
   transcript_path: external_exports.string().min(1),
-  source: external_exports.enum(["stop", "session-end"])
+  source: external_exports.enum(["stop", "session-end", "pre-compact"])
 }).strict();
 var resumeContractRefine = (v) => v.auto_resume !== v.requires_explicit_resume;
 var resumeContractRefineMessage = {
@@ -44831,7 +44831,7 @@ var HANDOFF_HOOKS_API_VERSION = "handoff-hooks-v1";
 var HANDOFF_HOOKS_SCHEMA_VERSION = 1;
 var CIRCUIT_HOOK_MARKER = "CIRCUIT_HANDOFF_HOOK=1";
 function addHandoffOptions(program2) {
-  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--source <stop|session-end>").option("--clear-ambient").option("--progress <format>").option("--json");
+  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--source <stop|session-end|pre-compact>").option("--clear-ambient").option("--progress <format>").option("--json");
 }
 function parseArgs2(argv) {
   let parsed;
@@ -44943,10 +44943,46 @@ function writeMarkdown(path, value) {
   writeFileSync3(path, value.endsWith("\n") ? value : `${value}
 `);
 }
+function runBackedStatusNote(record2) {
+  if (record2.continuity_kind !== "run-backed")
+    return void 0;
+  switch (record2.run_ref.runtime_status) {
+    case "in_progress":
+      return { headline: "", closed: false };
+    case "complete":
+      return {
+        headline: "This run already finished (status: complete). The goal below is context, not work to resume.",
+        closed: true
+      };
+    case "aborted":
+      return {
+        headline: "This run was aborted (status: aborted). The goal below is context, not work to resume.",
+        closed: true
+      };
+    case "stopped":
+      return {
+        headline: "This run was stopped (status: stopped). The goal below is context, not work to resume.",
+        closed: true
+      };
+    case "handoff":
+      return {
+        headline: "This run was handed off (status: handoff). The goal below is context, not work to resume.",
+        closed: true
+      };
+    case "escalated":
+      return {
+        headline: "This run escalated (status: escalated). Review before resuming; do not resume it blindly.",
+        closed: true
+      };
+  }
+}
 function composeHandoffBrief(record2, state, debt) {
+  const note = runBackedStatusNote(record2);
+  const closed = note?.closed === true;
   return [
     "Circuit handoff is present for this repo.",
     "",
+    ...note && note.headline.length > 0 ? [note.headline, ""] : [],
     `Goal: ${record2.narrative.goal}`,
     `Next: ${record2.narrative.next}`,
     "",
@@ -44957,7 +44993,7 @@ function composeHandoffBrief(record2, state, debt) {
     debt,
     "",
     "Boundary: Use this as context only. Do not continue unless the user asks.",
-    "Useful commands: /circuit:handoff resume, /circuit:handoff done"
+    closed ? "Useful commands: /circuit:handoff done" : "Useful commands: /circuit:handoff resume, /circuit:handoff done"
   ].join("\n");
 }
 var AMBIENT_BOUNDARY_DEFAULT = "Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked.";
@@ -45973,8 +46009,14 @@ function clearContinuity(args, now) {
   const createdAt = args.createdAt ?? now().toISOString();
   const existing = readContinuityIndexOrNull(controlPlane);
   const clearAmbient = args.clearAmbient === true;
-  if (clearAmbient)
+  if (clearAmbient) {
+    for (const entry of listAmbientRecords(controlPlane)) {
+      if (isSafeControlPlaneStem(entry.record_id)) {
+        tombstoneAmbientRecord(controlPlane, entry.record_id, now);
+      }
+    }
     removeAllAmbientRecords(controlPlane);
+  }
   const keepAmbient = !clearAmbient && existing?.ambient_record;
   const index = ContinuityIndex.parse({
     schema_version: 1,
@@ -46123,6 +46165,68 @@ function readHarvestCursor(path) {
     intents: o.intents,
     ...typeof o.summary === "string" ? { summary: o.summary } : {}
   };
+}
+function tombstonesRoot(controlPlane) {
+  return join9(continuityRoot(controlPlane), "tombstones");
+}
+function tombstonePath(controlPlane, recordId) {
+  return join9(tombstonesRoot(controlPlane), `${recordId}.json`);
+}
+function readTombstone(path) {
+  if (!existsSync12(path))
+    return void 0;
+  const raw = readJsonSafely(path);
+  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
+    return void 0;
+  const o = raw.value;
+  if (o.schema_version !== 1)
+    return void 0;
+  if (typeof o.record_id !== "string")
+    return void 0;
+  if (typeof o.transcript_path !== "string")
+    return void 0;
+  if (typeof o.position !== "number" || !Number.isFinite(o.position) || o.position < 0)
+    return void 0;
+  if (typeof o.cleared_at !== "string")
+    return void 0;
+  return {
+    schema_version: 1,
+    record_id: o.record_id,
+    transcript_path: o.transcript_path,
+    position: o.position,
+    cleared_at: o.cleared_at
+  };
+}
+function readAmbientTranscriptPath(controlPlane, recordId) {
+  const raw = readJsonSafely(recordPath(controlPlane, recordId));
+  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
+    return void 0;
+  const prov = raw.value.ambient_provenance;
+  if (!prov || typeof prov.transcript_path !== "string" || prov.transcript_path.length === 0) {
+    return void 0;
+  }
+  return prov.transcript_path;
+}
+function tombstoneAmbientRecord(controlPlane, recordId, now) {
+  const transcriptPath = readAmbientTranscriptPath(controlPlane, recordId);
+  if (transcriptPath === void 0)
+    return;
+  let position;
+  try {
+    position = statSync2(transcriptPath).size;
+  } catch {
+    position = readHarvestCursor(cursorPath(controlPlane, recordId))?.byte_offset;
+  }
+  if (position === void 0)
+    return;
+  const tombstone = {
+    schema_version: 1,
+    record_id: recordId,
+    transcript_path: transcriptPath,
+    position,
+    cleared_at: now().toISOString()
+  };
+  writeJsonAtomic(tombstonePath(controlPlane, recordId), tombstone);
 }
 function parseTranscriptForHarvest(transcriptPath, cursor) {
   let size;
@@ -46382,6 +46486,25 @@ function harvestAmbientContinuity(input) {
   const stemSafe = isSafeControlPlaneStem(recordId);
   const cursorAbs = stemSafe ? cursorPath(controlPlane, recordId) : void 0;
   const priorCursor = cursorAbs === void 0 ? void 0 : readHarvestCursor(cursorAbs);
+  const tombstoneAbs = stemSafe ? tombstonePath(controlPlane, recordId) : void 0;
+  if (tombstoneAbs !== void 0) {
+    const tombstone = readTombstone(tombstoneAbs);
+    if (tombstone !== void 0 && tombstone.transcript_path === input.transcriptPath) {
+      let size;
+      try {
+        size = statSync2(input.transcriptPath).size;
+      } catch {
+        size = 0;
+      }
+      if (size <= tombstone.position)
+        return skip("cleared");
+      const tail = readByteRange(input.transcriptPath, tombstone.position, size - tombstone.position);
+      const tailIntents = tail === void 0 ? [] : parseTranscriptContent(tail.toString("utf8")).intents;
+      if (tailIntents.length === 0)
+        return skip("cleared");
+      removeFileQuietly(tombstoneAbs);
+    }
+  }
   const harvested = parseTranscriptForHarvest(input.transcriptPath, priorCursor);
   if (harvested === void 0)
     return skip("transcript_unreadable");
@@ -46456,10 +46579,14 @@ function harvestAmbientContinuity(input) {
 function ambientSourceFrom(value, hookEventName) {
   if (value === "session-end")
     return "session-end";
+  if (value === "pre-compact")
+    return "pre-compact";
   if (value === "stop")
     return "stop";
   if (typeof hookEventName === "string" && hookEventName === "SessionEnd")
     return "session-end";
+  if (typeof hookEventName === "string" && hookEventName === "PreCompact")
+    return "pre-compact";
   return "stop";
 }
 function runHandoffHarvest(args, now) {

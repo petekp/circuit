@@ -658,6 +658,14 @@ describe('Ambient continuity record — CONT-I13..I16', () => {
     expect(bad.success).toBe(false);
   });
 
+  it('CONT-I14 — ambient_provenance accepts the pre-compact source', () => {
+    const ok = ContinuityRecord.safeParse({
+      ...baseAmbient,
+      ambient_provenance: { ...CONT_AMBIENT_PROVENANCE, source: 'pre-compact' },
+    });
+    expect(ok.success).toBe(true);
+  });
+
   it('CONT-I14 — ambient_provenance allows omitting optional session_id', () => {
     const { session_id: _omit, ...prov } = CONT_AMBIENT_PROVENANCE;
     const ok = ContinuityRecord.safeParse({ ...baseAmbient, ambient_provenance: prov });
