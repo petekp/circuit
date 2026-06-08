@@ -38,6 +38,138 @@ describe('operator-summary Prototype projection', () => {
   });
 });
 
+describe('operator-summary Build projection', () => {
+  const baseResult = (overrides: Record<string, unknown>) => ({
+    runFolder: '/tmp/circuit-run',
+    flowId: 'build',
+    runOutcome: 'complete',
+    resultSummary: 'Circuit run complete.',
+    flowReport: {
+      schema: 'build.result@v1',
+      summary: 'Build result: add a small feature',
+      verification_status: 'passed',
+      ...overrides,
+    },
+  });
+
+  it('renders a clean complete build with no scope deviation lines', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'complete',
+        review_verdict: 'accept',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build complete. Change implemented, verification passed, review accepted.',
+    );
+    expect(projection.details.some((d) => d.startsWith('Scope:'))).toBe(false);
+    expect(projection.details.some((d) => d.startsWith('Guardrails'))).toBe(false);
+  });
+
+  it('names guardrails the reviewer left unassessed and frames the cause as scope follow-up', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept',
+        scope: {
+          adherence: 'within_scope',
+          violated_guardrails: [],
+          unassessed_guardrails: ['Do not change the public API', 'Keep the cache write-through'],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but the change needs a scope follow-up.',
+    );
+    expect(projection.details).toContain(
+      'Guardrails the reviewer did not assess: Do not change the public API; Keep the cache write-through.',
+    );
+  });
+
+  it('surfaces an exceeds-scope judgment as a scope line', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept',
+        scope: { adherence: 'exceeds_scope', violated_guardrails: [], unassessed_guardrails: [] },
+      }),
+    );
+    expect(projection.details).toContain(
+      'Scope: reviewer judged the change exceeds the stated scope.',
+    );
+  });
+
+  it('names both causes when accept-with-fixes rides alongside a violated guardrail', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept-with-fixes',
+        scope: {
+          adherence: 'within_scope',
+          violated_guardrails: ['Keep the cache write-through'],
+          unassessed_guardrails: [],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but review requested fixes and the change needs a scope follow-up.',
+    );
+    expect(projection.details).toContain('Guardrails violated: Keep the cache write-through.');
+  });
+
+  it('frames a pure accept-with-fixes (clean scope) as review fixes only', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept-with-fixes',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but review requested fixes.',
+    );
+    expect(projection.details.some((d) => d.startsWith('Scope:'))).toBe(false);
+    expect(projection.details.some((d) => d.startsWith('Guardrails'))).toBe(false);
+  });
+
+  it('names the scope cause when accept-with-fixes coincides with an exceeds-scope judgment', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept-with-fixes',
+        scope: { adherence: 'exceeds_scope', violated_guardrails: [], unassessed_guardrails: [] },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but review requested fixes and the change needs a scope follow-up.',
+    );
+    expect(projection.details).toContain(
+      'Scope: reviewer judged the change exceeds the stated scope.',
+    );
+  });
+
+  it('names the scope cause when accept-with-fixes coincides with an unassessed guardrail', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept-with-fixes',
+        scope: {
+          adherence: 'within_scope',
+          violated_guardrails: [],
+          unassessed_guardrails: ['Do not change the public API'],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but review requested fixes and the change needs a scope follow-up.',
+    );
+    expect(projection.details).toContain(
+      'Guardrails the reviewer did not assess: Do not change the public API.',
+    );
+  });
+});
+
 describe('operator-summary Goal projection', () => {
   it('renders Goal results as a compact proof packet instead of a generic run summary', () => {
     const projection = projectSummary({

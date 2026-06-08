@@ -707,6 +707,108 @@ describe('Build guardrails (negative-space intent)', () => {
   });
 });
 
+describe('Build result scope gate', () => {
+  it('defaults scope to within_scope with empty guardrail lists when omitted', () => {
+    const parsed = BuildResult.parse({
+      summary: 'Feature added and verified',
+      outcome: 'complete',
+      verification_status: 'passed',
+      review_verdict: 'accept',
+      evidence_links: resultPointers(),
+    });
+    expect(parsed.scope).toEqual({
+      adherence: 'within_scope',
+      violated_guardrails: [],
+      unassessed_guardrails: [],
+    });
+  });
+
+  it('forbids a complete outcome when the change exceeded scope', () => {
+    expect(
+      BuildResult.safeParse({
+        summary: 'Complete but out of scope',
+        outcome: 'complete',
+        verification_status: 'passed',
+        review_verdict: 'accept',
+        scope: { adherence: 'exceeds_scope', violated_guardrails: [], unassessed_guardrails: [] },
+        evidence_links: resultPointers(),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('forbids a complete outcome when a guardrail was violated', () => {
+    expect(
+      BuildResult.safeParse({
+        summary: 'Complete despite a violation',
+        outcome: 'complete',
+        verification_status: 'passed',
+        review_verdict: 'accept',
+        scope: {
+          adherence: 'within_scope',
+          violated_guardrails: ['Do not change the public API'],
+          unassessed_guardrails: [],
+        },
+        evidence_links: resultPointers(),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('forbids a complete outcome when a plan guardrail was left unassessed', () => {
+    expect(
+      BuildResult.safeParse({
+        summary: 'Complete with an unassessed guardrail',
+        outcome: 'complete',
+        verification_status: 'passed',
+        review_verdict: 'accept',
+        scope: {
+          adherence: 'within_scope',
+          violated_guardrails: [],
+          unassessed_guardrails: ['Keep the cache write-through'],
+        },
+        evidence_links: resultPointers(),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('allows needs_attention with an accept verdict when scope degraded the outcome', () => {
+    // A reviewer can accept the change yet leave a declared guardrail
+    // unassessed; the close gate downgrades the outcome while preserving the
+    // reviewer's true verdict. needs_attention must therefore admit 'accept'.
+    const parsed = BuildResult.parse({
+      summary: 'Accepted but a guardrail went unassessed',
+      outcome: 'needs_attention',
+      verification_status: 'passed',
+      review_verdict: 'accept',
+      scope: {
+        adherence: 'within_scope',
+        violated_guardrails: [],
+        unassessed_guardrails: ['Keep the cache write-through'],
+      },
+      evidence_links: resultPointers(),
+    });
+    expect(parsed.outcome).toBe('needs_attention');
+    expect(parsed.review_verdict).toBe('accept');
+  });
+
+  it('rejects surplus keys inside the scope block', () => {
+    expect(
+      BuildResult.safeParse({
+        summary: 'Surplus scope key',
+        outcome: 'complete',
+        verification_status: 'passed',
+        review_verdict: 'accept',
+        scope: {
+          adherence: 'within_scope',
+          violated_guardrails: [],
+          unassessed_guardrails: [],
+          smuggled: true,
+        },
+        evidence_links: resultPointers(),
+      }).success,
+    ).toBe(false);
+  });
+});
+
 describe('Build generated flow report bindings', () => {
   const writes = reportWritesBySchema(loadBuildFlow());
 

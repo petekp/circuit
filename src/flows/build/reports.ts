@@ -358,12 +358,37 @@ export const BuildResultReportPointer = resultReportPointer(
 );
 export type BuildResultReportPointer = z.infer<typeof BuildResultReportPointer>;
 
+// Operator-facing scope summary, derived deterministically at close from the
+// reviewer's alignment and the plan's declared guardrails. It makes the scope
+// verdict visible in the result and lets the outcome reflect guardrails the
+// reviewer violated or never assessed. Defaults to a clean, within-scope shape
+// so a result synthesized without scope detail is permissive, not blocking.
+export const BuildScope = z
+  .object({
+    adherence: z.enum(['within_scope', 'exceeds_scope']),
+    violated_guardrails: z
+      .array(z.string().min(1))
+      .default([])
+      .describe('declared guardrails the reviewer marked violated'),
+    unassessed_guardrails: z
+      .array(z.string().min(1))
+      .default([])
+      .describe('plan-declared guardrails the reviewer did not assess in alignment'),
+  })
+  .strict();
+export type BuildScope = z.infer<typeof BuildScope>;
+
 export const BuildResult = z
   .object({
     summary: z.string().min(1),
     outcome: z.enum(['complete', 'needs_attention', 'failed']),
     verification_status: z.enum(['passed', 'failed']),
     review_verdict: BuildReviewVerdict,
+    scope: BuildScope.default({
+      adherence: 'within_scope',
+      violated_guardrails: [],
+      unassessed_guardrails: [],
+    }),
     evidence_links: z.array(BuildResultReportPointer).length(5),
   })
   .strict()
@@ -403,6 +428,32 @@ export const BuildResult = z
           message: "review_verdict must be 'accept' when outcome is 'complete'",
         });
       }
+      // A complete build must have stayed in scope with no violated or
+      // unassessed guardrail. This is the deterministic close-stage gate: a
+      // reviewer cannot launder an out-of-scope change or a skipped guardrail
+      // into a clean 'complete', because the close projector recomputes scope
+      // from the plan's declared guardrails and the reviewer's alignment.
+      if (result.scope.adherence !== 'within_scope') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['scope', 'adherence'],
+          message: "scope.adherence must be 'within_scope' when outcome is 'complete'",
+        });
+      }
+      if (result.scope.violated_guardrails.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['scope', 'violated_guardrails'],
+          message: "scope.violated_guardrails must be empty when outcome is 'complete'",
+        });
+      }
+      if (result.scope.unassessed_guardrails.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['scope', 'unassessed_guardrails'],
+          message: "scope.unassessed_guardrails must be empty when outcome is 'complete'",
+        });
+      }
     }
     if (result.outcome === 'needs_attention') {
       if (result.verification_status !== 'passed') {
@@ -412,11 +463,16 @@ export const BuildResult = z
           message: "verification_status must be 'passed' when outcome is 'needs_attention'",
         });
       }
-      if (result.review_verdict !== 'accept-with-fixes') {
+      // needs_attention covers two cases: the reviewer asked for fixes
+      // (accept-with-fixes), or the reviewer accepted but the scope gate
+      // degraded the outcome (an exceeds-scope judgment or an unassessed
+      // guardrail). It must therefore admit 'accept' and 'accept-with-fixes',
+      // but never a 'reject' (which is a failed outcome).
+      if (result.review_verdict === 'reject') {
         ctx.addIssue({
           code: 'custom',
           path: ['review_verdict'],
-          message: "review_verdict must be 'accept-with-fixes' when outcome is 'needs_attention'",
+          message: "review_verdict may not be 'reject' when outcome is 'needs_attention'",
         });
       }
     }

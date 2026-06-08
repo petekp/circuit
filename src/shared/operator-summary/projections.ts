@@ -173,6 +173,41 @@ function buildFixDetails(flowReport: JsonObject | undefined): string[] {
   return details;
 }
 
+// Build-only scope rendering. The reviewer self-reports per-guardrail
+// alignment; close.ts reconciles it against the plan's declared guardrails
+// into build.result.scope. We surface that here so the operator can see, in
+// the digest, whether the declared intent actually held — without opening the
+// review file. Deviation-only by design: a clean run says nothing extra (the
+// headline already carries "review accepted"); a gap is named loudly so an
+// accept verdict can never silently launder a scope skip.
+function hasScopeDeviation(flowReport: JsonObject | undefined): boolean {
+  const scope = isObject(flowReport?.scope) ? flowReport.scope : undefined;
+  if (scope === undefined) return false;
+  return (
+    stringField(scope, 'adherence') === 'exceeds_scope' ||
+    stringArrayField(scope, 'violated_guardrails').length > 0 ||
+    stringArrayField(scope, 'unassessed_guardrails').length > 0
+  );
+}
+
+function buildScopeDetails(flowReport: JsonObject | undefined): string[] {
+  const scope = isObject(flowReport?.scope) ? flowReport.scope : undefined;
+  if (scope === undefined) return [];
+  const details: string[] = [];
+  if (stringField(scope, 'adherence') === 'exceeds_scope') {
+    details.push('Scope: reviewer judged the change exceeds the stated scope.');
+  }
+  const violated = stringArrayField(scope, 'violated_guardrails');
+  if (violated.length > 0) {
+    details.push(`Guardrails violated: ${violated.join('; ')}.`);
+  }
+  const unassessed = stringArrayField(scope, 'unassessed_guardrails');
+  if (unassessed.length > 0) {
+    details.push(`Guardrails the reviewer did not assess: ${unassessed.join('; ')}.`);
+  }
+  return details;
+}
+
 function prototypeDetails(flowReport: JsonObject | undefined): string[] {
   const details: string[] = [];
   const summaryDetail = flowSummaryDetail(flowReport);
@@ -257,11 +292,25 @@ const buildProjector: SummaryProjector = ({ flowReport, runOutcome }) => {
       return 'Circuit: Build complete. Change implemented, verification passed, review accepted.';
     }
     if (outcome === 'needs_attention' && verification === 'passed') {
-      return 'Circuit: Build needs follow-up. Verification passed, but review requested fixes.';
+      // needs_attention has two independent causes that can co-occur: the
+      // reviewer asked for fixes (accept-with-fixes), and/or the change drifted
+      // from declared scope (exceeds-scope, a violated guardrail, or a guardrail
+      // left unassessed). These are orthogonal — an accept-with-fixes verdict
+      // can ride alongside a scope deviation — so name every cause that holds.
+      // A single-cause either/or would drop the scope skip from the skimmable
+      // headline even though the detail lines below surface it.
+      const causes: string[] = [];
+      if (review === 'accept-with-fixes') causes.push('review requested fixes');
+      if (hasScopeDeviation(flowReport)) causes.push('the change needs a scope follow-up');
+      const cause = causes.length > 0 ? causes.join(' and ') : 'review or scope needs a follow-up';
+      return `Circuit: Build needs follow-up. Verification passed, but ${cause}.`;
     }
     return `Circuit: Build finished with outcome ${outcome}. Verification: ${friendlyVerificationStatus(verification)}. Review: ${friendlyReviewStatus(review)}.`;
   })();
-  return { headline, details: buildFixDetails(flowReport) } satisfies SummaryProjection;
+  return {
+    headline,
+    details: [...buildFixDetails(flowReport), ...buildScopeDetails(flowReport)],
+  } satisfies SummaryProjection;
 };
 
 const prototypeProjector: SummaryProjector = ({ flowReport, runOutcome }) => {

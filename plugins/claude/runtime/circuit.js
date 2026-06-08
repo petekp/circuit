@@ -29434,11 +29434,21 @@ var BuildResultReportId = external_exports.enum([
   "build.review"
 ]);
 var BuildResultReportPointer = resultReportPointer(BuildResultReportId, BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID);
+var BuildScope = external_exports.object({
+  adherence: external_exports.enum(["within_scope", "exceeds_scope"]),
+  violated_guardrails: external_exports.array(external_exports.string().min(1)).default([]).describe("declared guardrails the reviewer marked violated"),
+  unassessed_guardrails: external_exports.array(external_exports.string().min(1)).default([]).describe("plan-declared guardrails the reviewer did not assess in alignment")
+}).strict();
 var BuildResult = external_exports.object({
   summary: external_exports.string().min(1),
   outcome: external_exports.enum(["complete", "needs_attention", "failed"]),
   verification_status: external_exports.enum(["passed", "failed"]),
   review_verdict: BuildReviewVerdict,
+  scope: BuildScope.default({
+    adherence: "within_scope",
+    violated_guardrails: [],
+    unassessed_guardrails: []
+  }),
   evidence_links: external_exports.array(BuildResultReportPointer).length(5)
 }).strict().superRefine((result, ctx) => {
   const seen = /* @__PURE__ */ new Set();
@@ -29476,6 +29486,27 @@ var BuildResult = external_exports.object({
         message: "review_verdict must be 'accept' when outcome is 'complete'"
       });
     }
+    if (result.scope.adherence !== "within_scope") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scope", "adherence"],
+        message: "scope.adherence must be 'within_scope' when outcome is 'complete'"
+      });
+    }
+    if (result.scope.violated_guardrails.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scope", "violated_guardrails"],
+        message: "scope.violated_guardrails must be empty when outcome is 'complete'"
+      });
+    }
+    if (result.scope.unassessed_guardrails.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scope", "unassessed_guardrails"],
+        message: "scope.unassessed_guardrails must be empty when outcome is 'complete'"
+      });
+    }
   }
   if (result.outcome === "needs_attention") {
     if (result.verification_status !== "passed") {
@@ -29485,11 +29516,11 @@ var BuildResult = external_exports.object({
         message: "verification_status must be 'passed' when outcome is 'needs_attention'"
       });
     }
-    if (result.review_verdict !== "accept-with-fixes") {
+    if (result.review_verdict === "reject") {
       ctx.addIssue({
         code: "custom",
         path: ["review_verdict"],
-        message: "review_verdict must be 'accept-with-fixes' when outcome is 'needs_attention'"
+        message: "review_verdict may not be 'reject' when outcome is 'needs_attention'"
       });
     }
   }
@@ -30056,13 +30087,37 @@ function flowHasReportSchemaInRuntimeFlow(flow, schemaName) {
 }
 
 // dist/flows/build/writers/result-projection.js
+function normalizeStatement(statement) {
+  return statement.trim().replace(/\s+/g, " ").toLowerCase();
+}
+function computeScope(plan, review) {
+  const { alignment } = review;
+  const violated = [
+    ...alignment.non_goals.filter((entry) => entry.status === "violated"),
+    ...alignment.invariants.filter((entry) => entry.status === "violated")
+  ].map((entry) => entry.statement);
+  const assessedNonGoals = new Set(alignment.non_goals.map((entry) => normalizeStatement(entry.statement)));
+  const assessedInvariants = new Set(alignment.invariants.map((entry) => normalizeStatement(entry.statement)));
+  const unassessed = [
+    ...plan.guardrails.non_goals.filter((statement) => !assessedNonGoals.has(normalizeStatement(statement))),
+    ...plan.guardrails.invariants.filter((statement) => !assessedInvariants.has(normalizeStatement(statement)))
+  ];
+  return BuildScope.parse({
+    adherence: alignment.scope_adherence,
+    violated_guardrails: violated,
+    unassessed_guardrails: unassessed
+  });
+}
 function projectBuildResult(inputs) {
-  const outcome = inputs.verification.overall_status !== "passed" ? "failed" : inputs.review.verdict === "accept" ? "complete" : inputs.review.verdict === "accept-with-fixes" ? "needs_attention" : "failed";
+  const scope = computeScope(inputs.plan, inputs.review);
+  const scopeClean = scope.adherence === "within_scope" && scope.violated_guardrails.length === 0 && scope.unassessed_guardrails.length === 0;
+  const outcome = inputs.verification.overall_status !== "passed" ? "failed" : inputs.review.verdict === "reject" ? "failed" : inputs.review.verdict === "accept" && scopeClean ? "complete" : "needs_attention";
   return BuildResult.parse({
     summary: `Build result for ${inputs.brief.objective}: ${inputs.implementation.summary}`,
     outcome,
     verification_status: inputs.verification.overall_status,
     review_verdict: inputs.review.verdict,
+    scope,
     evidence_links: inputs.evidenceLinks
   });
 }
@@ -30086,12 +30141,13 @@ var buildCloseBuilder = {
   ],
   build(context) {
     const brief = BuildBrief.parse(context.inputs.brief);
-    BuildPlan.parse(context.inputs.plan);
+    const plan = BuildPlan.parse(context.inputs.plan);
     const implementation = BuildImplementation.parse(context.inputs.implementation);
     const verification = BuildVerification.parse(context.inputs.verification);
     const review = BuildReview.parse(context.inputs.review);
     return projectBuildResult({
       brief,
+      plan,
       implementation,
       verification,
       review,
@@ -61992,6 +62048,30 @@ function buildFixDetails(flowReport) {
   }
   return details;
 }
+function hasScopeDeviation(flowReport) {
+  const scope = isObject4(flowReport?.scope) ? flowReport.scope : void 0;
+  if (scope === void 0)
+    return false;
+  return stringField2(scope, "adherence") === "exceeds_scope" || stringArrayField2(scope, "violated_guardrails").length > 0 || stringArrayField2(scope, "unassessed_guardrails").length > 0;
+}
+function buildScopeDetails(flowReport) {
+  const scope = isObject4(flowReport?.scope) ? flowReport.scope : void 0;
+  if (scope === void 0)
+    return [];
+  const details = [];
+  if (stringField2(scope, "adherence") === "exceeds_scope") {
+    details.push("Scope: reviewer judged the change exceeds the stated scope.");
+  }
+  const violated = stringArrayField2(scope, "violated_guardrails");
+  if (violated.length > 0) {
+    details.push(`Guardrails violated: ${violated.join("; ")}.`);
+  }
+  const unassessed = stringArrayField2(scope, "unassessed_guardrails");
+  if (unassessed.length > 0) {
+    details.push(`Guardrails the reviewer did not assess: ${unassessed.join("; ")}.`);
+  }
+  return details;
+}
 function prototypeDetails(flowReport) {
   const details = [];
   const summaryDetail = flowSummaryDetail(flowReport);
@@ -62066,11 +62146,20 @@ var buildProjector = ({ flowReport, runOutcome: runOutcome3 }) => {
       return "Circuit: Build complete. Change implemented, verification passed, review accepted.";
     }
     if (outcome === "needs_attention" && verification === "passed") {
-      return "Circuit: Build needs follow-up. Verification passed, but review requested fixes.";
+      const causes = [];
+      if (review === "accept-with-fixes")
+        causes.push("review requested fixes");
+      if (hasScopeDeviation(flowReport))
+        causes.push("the change needs a scope follow-up");
+      const cause = causes.length > 0 ? causes.join(" and ") : "review or scope needs a follow-up";
+      return `Circuit: Build needs follow-up. Verification passed, but ${cause}.`;
     }
     return `Circuit: Build finished with outcome ${outcome}. Verification: ${friendlyVerificationStatus(verification)}. Review: ${friendlyReviewStatus(review)}.`;
   })();
-  return { headline, details: buildFixDetails(flowReport) };
+  return {
+    headline,
+    details: [...buildFixDetails(flowReport), ...buildScopeDetails(flowReport)]
+  };
 };
 var prototypeProjector = ({ flowReport, runOutcome: runOutcome3 }) => {
   const outcome = flowOutcomeOrRunFallback(flowReport, runOutcome3);

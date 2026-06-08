@@ -1,11 +1,19 @@
 # Intent Capture and Enforcement in Circuit Flows
 
-Status: current-proposal, 2026-06-08 (v2, after a runtime probe and one
-adversarial review). This revises and supersedes the recommendation in
+Status: shipped, 2026-06-08 (v3). This revises and supersedes the
+recommendation in
 [`pre-execution-memory-comparison.md`](pre-execution-memory-comparison.md)
 (the Codex "Typed Pre-Execution Memory / Preflight Contract" proposal). It is
-grounded in a direct read of the current codebase and one verified runtime
-probe. It is not current behavior yet.
+grounded in a direct read of the current codebase and verified runtime probes.
+
+v1 (capture plus the required-`alignment` review gate) shipped at `00f05cd0`.
+A hardening pass then shipped the two things v1 named as fast-follows or
+overclaimed: the **deterministic guardrail-coverage gate** (moved out of the
+fast-follow list and built at close, not as a cross-report validator) and the
+**operator-facing visibility** of the alignment judgment (the v1 doc claimed
+this was "summarized at close" and "always visible" before the projector
+actually rendered it). Sections below are marked `SHIPPED (v1)` or
+`SHIPPED (hardening)` where the distinction matters.
 
 ## What changed from the Codex proposal, in one paragraph
 
@@ -97,8 +105,14 @@ contract before locking a plan that depends on it).
   failure reason as feedback. So forcing the reviewer to produce a field via an
   acceptance criterion gives a clean corrective retry of the reviewer itself.
 
-This is why the enforcement below leans on acceptance criteria plus an in-schema
-`superRefine`, not on the cross-report path.
+The probe ruled out both the cross-report path (mis-routes to the implementer)
+and, on a closer look, the acceptance-criterion path: an acceptance
+`retry-with-feedback` hard-requires the step's `retry` route to re-enter the
+*same* step, but the review step's `retry`/`revise` routes point at the act step
+for reject/re-implement semantics, so the two collide (see the parenthetical in
+"Enforce at Review"). What shipped instead leans on a **required field** plus an
+in-schema `superRefine`, with the coverage reconciliation done deterministically
+at close, and none of it needs a route or engine change.
 
 ## Design: a never-inert spine plus an optional sharper layer
 
@@ -121,10 +135,15 @@ Plan (compose, deterministic) carries guardrails forward unchanged
 
 Act (implementer relay)       relay hint surfaces the guardrails (advisory only)
 
-Review (reviewer relay)       alignment, REQUIRED via acceptance criterion:
+Review (reviewer relay)       alignment, REQUIRED field on the schema:
   build.review@v1               scope_adherence: within_scope | exceeds_scope   (never inert)
                                 non_goals[{statement,status,evidence}]          (covers declared)
                                 invariants[{statement,status,evidence}]         (covers declared)
+
+Close (compose, deterministic) reconcile plan.guardrails vs review.alignment;
+  build.result@v1               scope: { adherence, violated_guardrails[], unassessed_guardrails[] }
+                                superRefine: complete requires a clean scope
+                                operator digest names any gap (deviation-only)
 ```
 
 ### Capture: the researcher extracts, it does not invent
@@ -188,22 +207,106 @@ existing schema-failure recovery path with no route or engine change.)
    status is `violated`, the verdict may not be `accept` and findings must be
    non-empty. This makes a declared violation impossible to pair with a clean
    accept.
-3. **Visibility (human backstop):** the alignment block lands in the review
-   report and is summarized at close, so an operator or auditor can see "reviewer
-   marked all invariants preserved" and disagree. This is the honest limit of
-   the mechanism, stated plainly: the reviewer self-reports the statuses, so the
-   schema enforces coherence and presence, not ground truth. Presence plus
-   visibility is the value; it converts a skippable instruction into a recorded,
-   auditable judgment.
+3. **Coverage gate at close (deterministic):** `SHIPPED (hardening)`. The close
+   builder reconciles the plan's declared guardrails against the reviewer's
+   alignment and writes the result to `build.result.scope`
+   (`adherence`, `violated_guardrails[]`, `unassessed_guardrails[]`). A
+   plan-declared guardrail the reviewer never echoed counts as **unassessed**; an
+   `exceeds_scope` judgment or any `violated` entry is carried through too. The
+   `build.result@v1` `superRefine` then forbids `outcome: 'complete'` unless
+   `scope` is clean: within-scope, nothing violated, nothing unassessed. A
+   lenient reviewer who submits empty alignment arrays while the plan declared two
+   non-goals no longer launders an `accept` into `complete`; the run lands on
+   `needs_attention` with the skipped guardrails named. Matching is on a
+   normalized statement (trim, collapse inner whitespace, lowercase) layered over
+   the reviewer's verbatim-echo instruction, so minor formatting drift still
+   counts as assessed while a genuine omission surfaces as a named gap. See
+   "Why the gate lives at close, not at review" below for why this is a
+   close-stage projection and not a reviewer re-ask.
+4. **Visibility (human backstop):** `SHIPPED (hardening)`. The alignment block
+   lands in the review report, its reconciliation lands in `build.result.scope`,
+   and the operator-summary projector renders the scope verdict in the run digest
+   (`src/shared/operator-summary/projections.ts` `buildScopeDetails`). Rendering
+   is deviation-only: a clean run stays quiet (the headline already says "review
+   accepted"), and a gap is named loudly, with lines such as "Guardrails the
+   reviewer did not assess: ...", "Guardrails violated: ...", or "Scope:
+   reviewer judged the change exceeds the stated scope." The `needs_attention`
+   headline names every cause that holds (review fixes and/or a scope follow-up)
+   instead of always blaming "review requested fixes." This is the honest limit
+   of the mechanism, stated
+   plainly: the reviewer self-reports the statuses, so the schema enforces
+   coherence, presence, and now coverage, but not ground truth. An operator who
+   sees "reviewer marked all invariants preserved" can still disagree.
 
 What this deliberately does not claim: it does not make a lenient reviewer
-impossible. A reviewer can still mark everything `respected`, and nothing yet
-forces one alignment entry per declared guardrail (coverage is a soft hint, not a
-structural check; the deterministic coverage check is the first fast-follow). The
-defense is that the judgment is now always recorded (required field), always
-includes a scope verdict (never inert), and is always visible (audit). That is a
-real improvement over a free-form findings list, without pretending the model's
-self-report is ground truth.
+impossible at the level of judgment quality. A reviewer can still mark a
+guardrail `respected` when it was not. What the coverage gate removes is the
+*skip*: the reviewer can no longer stay silent on a declared guardrail and still
+reach `complete`, because close recomputes coverage deterministically from the
+plan and the alignment, independent of the reviewer's verdict. The defense is
+that the judgment is now always recorded (required field), always includes a
+scope verdict (never inert), is checked for coverage at close (deterministic),
+and is always visible in the digest (audit). What remains a self-report is
+whether an *assessed* guardrail's status is honest, and that is surfaced for the
+operator rather than hidden.
+
+One specific self-report exit is worth naming so it is not mistaken for closed:
+a reviewer can echo a declared guardrail with status `not_applicable` and a
+token evidence string, which counts as *assessed* for coverage and so does not
+block `complete`. This is deliberate, not an oversight. A declared guardrail can
+genuinely not apply to the change that was actually built (the plan anticipated
+touching a module the implementation never reached), and forcing those to
+`needs_attention` would manufacture false positives on good builds. Crucially,
+`not_applicable` is a recorded, evidence-bearing claim, categorically different
+from the silent empty-array skip the coverage gate closes: the reviewer is on
+record, the operator sees the status, and a bogus `not_applicable` is the same
+class of dishonest-but-visible self-report as a bogus `respected`. If a future
+run shows reviewers reaching for `not_applicable` to dodge judgment, the cheap
+hardening is to surface `not_applicable` guardrails as their own digest line (so
+mass-`not_applicable` is loud) rather than to block `complete` (which over-
+blocks legitimately-inapplicable guardrails). That is a visibility follow-up,
+not a gate change.
+
+### Why the gate lives at close, not at review
+
+`SHIPPED (hardening)`. The intuitive place for a coverage check is at review
+time: validate the reviewer's report against the plan, and if a declared
+guardrail is unassessed, bounce it back to the reviewer to fill in. A runtime
+probe of `src/runtime/executors/relay.ts` shows that path is not available to a
+flow without an engine change, for a specific and load-bearing reason.
+
+The relay's pass set is `{accept, accept-with-fixes}` (`src/flows/build/data.ts`,
+the review-step's inline `pass: ['accept', 'accept-with-fixes']`). Any verdict
+outside that set, and any cross-report or
+schema validation failure on the review report, collapses to the **same**
+internal signal: `evaluation.kind = 'fail'`, which routes through
+`recoveryRouteForFailure({ cause: 'failed_check' })`. Concretely:
+
+- A reviewer `reject` → not in pass → `failed_check`.
+- A cross-report validator that detected an unassessed guardrail →
+  `failureKind: 'schema'` → `failed_check`.
+
+These two are **indistinguishable** at the routing layer. For the Build
+`review-step`, `failed_check` selects the `retry` route, which targets
+`act-step`, the implementer. So a coverage failure would not re-ask the
+reviewer; it would bounce the work back to re-implementation, exactly as a
+genuine `reject` does. Re-asking the reviewer *specifically* on a coverage miss
+would require a new failure cause the engine can route on differently, which is
+an engine change. AGENTS.md is explicit that normal flow work derives from the
+catalog and must not edit the engine; a flow-specific routing cause would
+violate that boundary.
+
+The close-stage projection sidesteps the whole problem. Close already reads the
+plan and the review (it has to, to emit `build.result`), so reconciling the two
+there is a pure function over reports the builder already holds, with no new
+route, no new failure cause, and no engine branch. The cost is that a coverage miss is
+reported at close as `needs_attention` rather than corrected mid-run by a
+reviewer re-ask. That is the right trade: the operator gets a named,
+deterministic verdict ("these guardrails were never assessed") instead of an
+opaque bounce to re-implementation, and the flow/engine boundary stays intact.
+This is also why the design still does **not** register a cross-report
+validator: its only actuation is the mis-routing `failed_check` path, so it buys
+nothing the close projection does not, at the cost of the wrong recovery route.
 
 ## Vocabulary
 
@@ -235,21 +338,23 @@ report: a review that declares a violation cannot also declare a clean accept.
 - `build.plan@v1`: add the same `guardrails`, carried forward deterministically by the plan composer.
 - `build.implementation` relay hint: one advisory line to respect the plan's guardrails.
 - `build.review@v1`: add a required `alignment` object (`scope_adherence` plus per-guardrail status/evidence) with a `superRefine` for consistency. No route change, no acceptance criterion, no engine change: a missing `alignment` fails schema validation and reuses the existing review-failure recovery path.
+- `build.result@v1`: add a `scope` object (`adherence`, `violated_guardrails[]`, `unassessed_guardrails[]`) the close builder computes by reconciling the plan's guardrails against the reviewer's alignment; a `superRefine` gates `complete` on a clean scope. The operator-summary projector renders any scope gap in the run digest.
 - Relay hints updated for the researcher and reviewer.
 - Tests first for every behavior, then regenerate host surfaces.
 
+**Shipped in the hardening pass (was the top fast-follow):**
+
+- **Deterministic guardrail-coverage gate.** Done, but not as the cross-report
+  validator this section originally proposed. The probe (see "Why the gate lives
+  at close, not at review") showed a cross-report failure mis-routes to the
+  implementer, so the coverage reconciliation moved to the close builder
+  (`src/flows/build/writers/result-projection.ts` `computeScope`) and the
+  `build.result@v1` `superRefine` gates `complete` on a clean `scope`. This turns
+  "asked to address each guardrail" into "cannot reach complete while a declared
+  guardrail is unassessed," with no engine change and no cross-report validator.
+
 **Fast-follow, not v1 (designed, deferred):**
 
-- **Deterministic guardrail-coverage check (highest priority).** Today nothing
-  ties the reviewer's `alignment.non_goals`/`invariants` entries to the
-  guardrails the plan declared: a reviewer can submit empty alignment arrays even
-  when the plan named two non-goals, so the `violated`-blocks-accept teeth only
-  engage if the reviewer chooses to populate them. The cross-report check would
-  read the plan's `guardrails` at review-validation time and require one alignment
-  entry per declared guardrail. This is the load-bearing hardening that turns
-  "asked to address each guardrail" into "cannot skip a guardrail." It needs a
-  cross-report validator (review checked against plan), so confirm whether that is
-  flow-declarable without an engine change before building.
 - Same shape carried to **Prototype** and **Fix**.
 - `allowed_touch_area` with a deterministic `changed_files` containment check.
 - An operator-declared guardrail channel seeded in the Frame `report_template`,
@@ -280,7 +385,8 @@ different in kind, which is why it does not need that gate:
   records a scope verdict against the always-present brief, so the feature is
   never pure theater.
 - Enforcement is deterministic and built on probe-verified runtime behavior. The
-  acceptance criterion and `superRefine` are pure functions over typed reports.
+  required field, the `superRefine`, and the close-stage coverage reconciliation
+  are pure functions over typed reports.
 - It degrades to today's behavior. With empty guardrails and a `within_scope`
   verdict, the flow behaves as it does now, so the worst case is "no worse than
   current."
@@ -296,11 +402,11 @@ array, which costs nothing and still leaves the scope spine working.
 | Risk | Why it matters | Control |
 |---|---|---|
 | Inertness (theater) | Guardrails could default empty in most runs. | The `scope_adherence` spine is always assessed against the always-present brief, so the gate works with zero guardrails. |
-| Lenient reviewer | The reviewer self-reports statuses and could mark all `respected`. | Stated as the honest limit. The judgment is now forced (acceptance criterion), always includes a scope verdict, and is always visible for audit. Not claimed as ground truth. |
+| Lenient reviewer | The reviewer self-reports statuses and could mark all `respected`, or skip a declared guardrail entirely. | The *skip* is now closed: close recomputes coverage deterministically, so an unassessed guardrail blocks `complete` and is named in the digest. A dishonest status on an *assessed* guardrail remains a self-report (the honest limit), forced (required field), scope-verdict-bearing, and visible for audit. Not claimed as ground truth. |
 | Ceremony tax | Mandatory guardrails would push operators around the flow. | Guardrails default empty; only the cheap scope verdict is always required. |
 | Reviewer over-blocking | A spurious violation could stall a good change. | `violated` routes to `accept-with-fixes`/`reject`, both of which already drive a corrective retry, not a dead end; the operator sees the finding. |
 | Redundant vocabulary | Three intent vocabularies would confuse authoring. | Names align to `run.goal-contract@v0`; no new report. |
-| First production cross-report use | The cross-report path is unexercised and mis-routes on failure. | Not used. Enforcement uses acceptance criteria plus `superRefine`, both probe-verified. |
+| First production cross-report use | The cross-report path is unexercised and mis-routes on failure. | Not used. The plan-vs-alignment reconciliation runs in the close builder (a pure function over reports it already holds) and the gate is a `build.result@v1` `superRefine`; both probe-verified, neither touches the mis-routing cross-report path. |
 
 ## Claim inventory
 
@@ -323,6 +429,8 @@ actually does. Add `non_goals` and `invariants` to the reports the Build flow
 already produces, have the researcher extract them from the operator's goal and
 the code, carry them to the reviewer, and convert "I checked the boundaries" from
 a skippable instruction into a recorded, always-present, schema-coherent review
-judgment, enforced through the probe-verified acceptance-criteria path. It
-captures intent where it lives, enforces it at the gate where drift becomes
-visible, costs nothing on small tasks, and changes no engine code.
+judgment whose coverage is then reconciled deterministically at close and
+surfaced to the operator. It captures intent where it lives, enforces it at the
+gate where drift becomes visible, names any skipped guardrail instead of
+laundering it into `complete`, costs nothing on small tasks, and changes no
+engine code.

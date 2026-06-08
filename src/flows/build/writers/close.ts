@@ -1,9 +1,12 @@
 // Build close-with-evidence builder.
 //
 // Reads brief + plan + implementation + verification + review and emits
-// build.result@v1 with verification_status, review_verdict, summary, and
-// the canonical pointer set. Outcome is 'complete' only when verification
-// passed and review accepted cleanly; accepted follow-ups need attention.
+// build.result@v1 with verification_status, review_verdict, scope, summary,
+// and the canonical pointer set. Outcome is 'complete' only when verification
+// passed, review accepted, and the reviewer's alignment covered every
+// plan-declared guardrail with no violation or scope creep; accepted
+// follow-ups and any scope gap need attention. The plan is parsed and passed
+// so the projector can reconcile declared guardrails against the alignment.
 
 import type { CloseBuildContext, CloseBuilder } from '../../registries/close-writers/types.js';
 import { reportPathForSchemaInRuntimeFlow } from '../../registries/runtime-index.js';
@@ -35,12 +38,13 @@ export const buildCloseBuilder: CloseBuilder = {
   ],
   build(context: CloseBuildContext): unknown {
     const brief = BuildBrief.parse(context.inputs.brief);
-    BuildPlan.parse(context.inputs.plan);
+    const plan = BuildPlan.parse(context.inputs.plan);
     const implementation = BuildImplementation.parse(context.inputs.implementation);
     const verification = BuildVerification.parse(context.inputs.verification);
     const review = BuildReview.parse(context.inputs.review);
     return projectBuildResult({
       brief,
+      plan,
       implementation,
       verification,
       review,
