@@ -345,6 +345,67 @@ cases are material:
    error-on-conflict) once the resume flow lands and the operator
    picks a policy.
 
+## Brief render: run-backed status
+
+The resume brief reads `run_ref.runtime_status` so a finished run is not
+surfaced as live work. `runtime_status` is a real recorded field (the run's own
+status at capture), not an inferred one, so this render is deterministic. The
+mapping over the closed six-value `SnapshotStatus` set:
+
+- `in_progress` — live. Renders as before (`Goal`/`Next`) and offers
+  `/circuit:handoff resume`.
+- `complete`, `aborted`, `stopped`, `handoff` — closed. Each prepends a
+  one-line note ("This run already finished / was aborted / was stopped / was
+  handed off ... the goal below is context, not work to resume") and drops the
+  resume nudge, keeping only `/circuit:handoff done`.
+- `escalated` — flagged. Notes "Review before resuming; do not resume it
+  blindly" and also drops the resume nudge.
+
+This is a legibility change, not a safety one: the existing boundary line ("Use
+this as context only. Do not continue unless the user asks.") already blocks
+auto-resume. The note brings the resume brief in line with the active-run file,
+which already shows the status. Standalone records carry no `run_ref`, so they
+are unaffected and still offer resume. This render survived the Step 0 NO-GO on
+an inferred capture-side satisfaction classifier precisely because it reads a
+recorded field rather than guessing fulfilment (see
+[`continuity-first-principles-evaluation.md`](../architecture/continuity-first-principles-evaluation.md#step-0-results-probe-run-2026-06-07-no-go-on-the-capture-side-classifier)).
+
+## Capture coverage and its gaps
+
+Ambient capture is mechanical: a host hook fires `circuit handoff harvest`,
+which reads the live transcript and refreshes the per-repo `ambient_record`.
+The `ambient_provenance.source` field names the hook that fired, so coverage and
+its gaps are auditable from the record itself.
+
+On Claude the hooks are:
+
+- `Stop` → `source: "stop"`. Fires at the end of every assistant turn. This is
+  the steady-state, incremental harvest.
+- `SessionEnd` → `source: "session-end"`. The final flush when a session ends.
+- `PreCompact` → `source: "pre-compact"`. Fires just before the host collapses
+  the transcript into a summary. This is the richest mechanical capture point:
+  the incremental cursor treats a compaction as a cache miss (a head-fingerprint
+  change, or a transcript-path change if the host writes the summary to a new
+  file) and forces a full re-read, but by then the head is the *summary*. So work
+  done
+  after the last `Stop` but before the compaction would only ever be readable in
+  lossy summarized form. `PreCompact` captures that rich state once, in full,
+  before it is collapsed. It harvests through the same CLI path as the other two
+  hooks; only the recorded provenance differs.
+
+Two gaps remain, and they are gaps by design rather than defects:
+
+- **Codex has restore but not capture.** The Codex host wires a `SessionStart`
+  equivalent that reads the brief, but it has no `Stop`/`SessionEnd`/`PreCompact`
+  equivalent wired, so Codex sessions do not produce ambient records on their
+  own. A Codex session restores continuity another session captured; it does not
+  add to it. Closing this needs a Codex capture hook, not a change here.
+- **Idle is uncovered.** If an operator walks away mid-turn — no `Stop`, no
+  compaction, no `SessionEnd` — nothing fires, so the latest in-progress state is
+  not harvested until the next hook does fire. There is no timer-driven capture.
+  This is a known limit, not a silent one: the most recent ambient record is
+  simply as fresh as the last hook that fired.
+
 ## Property ids (reserved for Stage 2 testing)
 
 - `continuity.prop.record_id_stem_roundtrip` — for every accepted

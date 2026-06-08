@@ -34,7 +34,7 @@ import { parseCommanderOrThrow } from './commander-support.js';
 import { utilityProgress } from './utility-progress.js';
 
 type HandoffAction = 'save' | 'resume' | 'done' | 'brief' | 'hook' | 'hooks' | 'harvest';
-type AmbientSource = 'stop' | 'session-end';
+type AmbientSource = 'stop' | 'session-end' | 'pre-compact';
 type HandoffHookHost = 'codex';
 type HandoffHooksAction = 'install' | 'uninstall' | 'doctor';
 
@@ -149,7 +149,7 @@ function addHandoffOptions(program: Command): Command {
     .option('--created-at <iso>')
     .option('--transcript-path <path>')
     .option('--session-id <id>')
-    .option('--source <stop|session-end>')
+    .option('--source <stop|session-end|pre-compact>')
     .option('--clear-ambient')
     .option('--progress <format>')
     .option('--json');
@@ -293,10 +293,66 @@ function writeMarkdown(path: string, value: string): void {
   writeFileSync(path, value.endsWith('\n') ? value : `${value}\n`);
 }
 
+/**
+ * Step 2a: a run-backed record carries the run's `runtime_status`, a real
+ * recorded field (not an inferred one), so a finished run is not surfaced at
+ * resume as if it were still live. `in_progress` is live and renders as before.
+ * The five terminal/attention states each get a one-line note and suppress the
+ * resume nudge: a closed run is context, and an escalated run needs review
+ * before anyone touches it. The active-run file already shows the status; this
+ * brings the resume brief in line with it. SnapshotStatus is a closed set of
+ * six, so the switch is exhaustive.
+ */
+interface RunStatusNote {
+  readonly headline: string;
+  readonly closed: boolean;
+}
+
+function runBackedStatusNote(record: ContinuityRecordValue): RunStatusNote | undefined {
+  if (record.continuity_kind !== 'run-backed') return undefined;
+  switch (record.run_ref.runtime_status) {
+    case 'in_progress':
+      return { headline: '', closed: false };
+    case 'complete':
+      return {
+        headline:
+          'This run already finished (status: complete). The goal below is context, not work to resume.',
+        closed: true,
+      };
+    case 'aborted':
+      return {
+        headline:
+          'This run was aborted (status: aborted). The goal below is context, not work to resume.',
+        closed: true,
+      };
+    case 'stopped':
+      return {
+        headline:
+          'This run was stopped (status: stopped). The goal below is context, not work to resume.',
+        closed: true,
+      };
+    case 'handoff':
+      return {
+        headline:
+          'This run was handed off (status: handoff). The goal below is context, not work to resume.',
+        closed: true,
+      };
+    case 'escalated':
+      return {
+        headline:
+          'This run escalated (status: escalated). Review before resuming; do not resume it blindly.',
+        closed: true,
+      };
+  }
+}
+
 function composeHandoffBrief(record: ContinuityRecordValue, state: string, debt: string): string {
+  const note = runBackedStatusNote(record);
+  const closed = note?.closed === true;
   return [
     'Circuit handoff is present for this repo.',
     '',
+    ...(note && note.headline.length > 0 ? [note.headline, ''] : []),
     `Goal: ${record.narrative.goal}`,
     `Next: ${record.narrative.next}`,
     '',
@@ -307,7 +363,9 @@ function composeHandoffBrief(record: ContinuityRecordValue, state: string, debt:
     debt,
     '',
     'Boundary: Use this as context only. Do not continue unless the user asks.',
-    'Useful commands: /circuit:handoff resume, /circuit:handoff done',
+    closed
+      ? 'Useful commands: /circuit:handoff done'
+      : 'Useful commands: /circuit:handoff resume, /circuit:handoff done',
   ].join('\n');
 }
 
@@ -2656,8 +2714,10 @@ export function harvestAmbientContinuity(input: AmbientHarvestInput): AmbientHar
 
 function ambientSourceFrom(value: string | undefined, hookEventName: unknown): AmbientSource {
   if (value === 'session-end') return 'session-end';
+  if (value === 'pre-compact') return 'pre-compact';
   if (value === 'stop') return 'stop';
   if (typeof hookEventName === 'string' && hookEventName === 'SessionEnd') return 'session-end';
+  if (typeof hookEventName === 'string' && hookEventName === 'PreCompact') return 'pre-compact';
   return 'stop';
 }
 

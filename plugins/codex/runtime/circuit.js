@@ -44729,7 +44729,7 @@ var RunAttachedProvenance = external_exports.object({
 var AmbientProvenance = external_exports.object({
   session_id: external_exports.string().min(1).optional(),
   transcript_path: external_exports.string().min(1),
-  source: external_exports.enum(["stop", "session-end"])
+  source: external_exports.enum(["stop", "session-end", "pre-compact"])
 }).strict();
 var resumeContractRefine = (v) => v.auto_resume !== v.requires_explicit_resume;
 var resumeContractRefineMessage = {
@@ -44831,7 +44831,7 @@ var HANDOFF_HOOKS_API_VERSION = "handoff-hooks-v1";
 var HANDOFF_HOOKS_SCHEMA_VERSION = 1;
 var CIRCUIT_HOOK_MARKER = "CIRCUIT_HANDOFF_HOOK=1";
 function addHandoffOptions(program2) {
-  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--source <stop|session-end>").option("--clear-ambient").option("--progress <format>").option("--json");
+  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--source <stop|session-end|pre-compact>").option("--clear-ambient").option("--progress <format>").option("--json");
 }
 function parseArgs2(argv) {
   let parsed;
@@ -44943,10 +44943,46 @@ function writeMarkdown(path, value) {
   writeFileSync3(path, value.endsWith("\n") ? value : `${value}
 `);
 }
+function runBackedStatusNote(record2) {
+  if (record2.continuity_kind !== "run-backed")
+    return void 0;
+  switch (record2.run_ref.runtime_status) {
+    case "in_progress":
+      return { headline: "", closed: false };
+    case "complete":
+      return {
+        headline: "This run already finished (status: complete). The goal below is context, not work to resume.",
+        closed: true
+      };
+    case "aborted":
+      return {
+        headline: "This run was aborted (status: aborted). The goal below is context, not work to resume.",
+        closed: true
+      };
+    case "stopped":
+      return {
+        headline: "This run was stopped (status: stopped). The goal below is context, not work to resume.",
+        closed: true
+      };
+    case "handoff":
+      return {
+        headline: "This run was handed off (status: handoff). The goal below is context, not work to resume.",
+        closed: true
+      };
+    case "escalated":
+      return {
+        headline: "This run escalated (status: escalated). Review before resuming; do not resume it blindly.",
+        closed: true
+      };
+  }
+}
 function composeHandoffBrief(record2, state, debt) {
+  const note = runBackedStatusNote(record2);
+  const closed = note?.closed === true;
   return [
     "Circuit handoff is present for this repo.",
     "",
+    ...note && note.headline.length > 0 ? [note.headline, ""] : [],
     `Goal: ${record2.narrative.goal}`,
     `Next: ${record2.narrative.next}`,
     "",
@@ -44957,7 +44993,7 @@ function composeHandoffBrief(record2, state, debt) {
     debt,
     "",
     "Boundary: Use this as context only. Do not continue unless the user asks.",
-    "Useful commands: /circuit:handoff resume, /circuit:handoff done"
+    closed ? "Useful commands: /circuit:handoff done" : "Useful commands: /circuit:handoff resume, /circuit:handoff done"
   ].join("\n");
 }
 var AMBIENT_BOUNDARY_DEFAULT = "Boundary: This is an automatic snapshot, not a saved plan. Confirm the current goal with the user before acting on it, and do not resume this work unasked.";
@@ -46543,10 +46579,14 @@ function harvestAmbientContinuity(input) {
 function ambientSourceFrom(value, hookEventName) {
   if (value === "session-end")
     return "session-end";
+  if (value === "pre-compact")
+    return "pre-compact";
   if (value === "stop")
     return "stop";
   if (typeof hookEventName === "string" && hookEventName === "SessionEnd")
     return "session-end";
+  if (typeof hookEventName === "string" && hookEventName === "PreCompact")
+    return "pre-compact";
   return "stop";
 }
 function runHandoffHarvest(args, now) {

@@ -61,12 +61,15 @@ export type RunAttachedProvenance = z.infer<typeof RunAttachedProvenance>;
  * came from so resume adjudication can weigh it against a manual save and an
  * operator can audit it. `transcript_path` points back to the full history;
  * `session_id` is the harvesting session; `source` names the hook that fired.
+ * `pre-compact` is the richest mechanical capture point: it fires just before
+ * the host collapses the transcript into a summary, preserving rich state a
+ * later harvest could only read in lossy summarized form.
  */
 export const AmbientProvenance = z
   .object({
     session_id: z.string().min(1).optional(),
     transcript_path: z.string().min(1),
-    source: z.enum(['stop', 'session-end']),
+    source: z.enum(['stop', 'session-end', 'pre-compact']),
   })
   .strict();
 export type AmbientProvenance = z.infer<typeof AmbientProvenance>;

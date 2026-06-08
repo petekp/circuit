@@ -1,5 +1,18 @@
 # Continuity capture-path refactor (Steps 0-2): implementation spec
 
+> **Status (2026-06-07): Step 0 ran and returned NO-GO.** The capture-side
+> satisfaction classifier does not beat recency (false-resurrection 0.74x the
+> baseline against a 0.50x gate, and it over-buries 10% of genuinely-open work).
+> So **Step 1 and the ambient half of Step 2 below are cancelled.** The signal is
+> structural, not a tuning miss: 58% of sessions give the deterministic scan no
+> usable cue, and the harvest is a no-model every-turn CLI that cannot run a
+> semantic judge. What survives is **Step 2a** (render `run_ref.runtime_status`,
+> a real recorded field) and **Step 4** (compaction and host-parity coverage,
+> tracked in the eval). The full numbers and the redirect are in the
+> [eval's Step 0 results section](../architecture/continuity-first-principles-evaluation.md#step-0-results-probe-run-2026-06-07-no-go-on-the-capture-side-classifier).
+> The sections below are kept as the record of what was specced and gated; read
+> them as historical context, not as a build order.
+
 Implements Steps 0 to 2 of
 [`docs/architecture/continuity-first-principles-evaluation.md`](../architecture/continuity-first-principles-evaluation.md).
 Step 3 (the `done --clear-ambient` resurrection bug) already shipped, so it is

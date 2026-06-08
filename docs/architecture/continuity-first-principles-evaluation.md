@@ -545,18 +545,113 @@ clear path is not free: Step 3 adds the tombstone write there, with its own new
 test. The exact identifiers and line numbers for all of the above are in the
 confidence ledger.
 
+## Step 0 results (probe run 2026-06-07): NO-GO on the capture-side classifier
+
+The probe ran. The capture-side classifier does not clearly beat recency, so by
+the exit criterion above we do not ship it. The detail matters, because the same
+data points at a cheaper fix that is already mostly in place.
+
+**Method.** Read-only scan of every transcript under `~/.claude/projects`
+(4,695 files). 134 qualified as real multi-turn sessions (at least 5 genuine user
+intents, after the production intent filter). A structural fact shaped everything:
+133 of 134 end with an assistant turn, because the Stop hook fires right after the
+assistant replies. So "was the last request responded to" is almost always true
+and carries no signal, and trailing acknowledgments ("thanks", "perfect") are rare
+(5.2%). The only place an open-vs-done signal can live is the content of the
+assistant's final turn, which the parser currently discards. The candidate
+classifier was therefore a deterministic lexical scan of that final turn for
+completion cues ("done", "merged", "all green") versus continuation cues ("next
+I'll", "still need", "saved continuity to resume at X"). Gold labels came from a
+strong-model judge reading each session's neighborhood, blind to the classifier's
+prediction, with the question framed as the product question: "at session end, was
+there genuine unfinished work the user would want to resume?" Six were hand-checked
+and agreed with the judge.
+
+**The problem is real and large.** 66 of 134 sessions (49%) ended already
+satisfied. Recency resurfaces the last intent as live every time, so today roughly
+half of all resurfaced "goals" are already-finished work.
+
+**The classifier fails both gates.**
+
+- False-resurrection: the lexical classifier still resurfaces 49 of 66 satisfied
+  sessions, which is 0.74x the recency baseline. The gate was 0.50x or better.
+  FAIL.
+- Over-burying: it wrongly suppressed 7 of 67 genuinely-open sessions (10.4%), all
+  cases where the assistant had saved a handoff naming next-session work but also
+  used completion language for a sub-task. The gate was near-zero. FAIL.
+
+**Why it fails is structural, not a tuning miss.** 58% of sessions (78 of 134)
+land in "cannot-tell", and that bucket is a coin flip (41 satisfied, 36 open). A
+richer lexicon cannot fix this: the deciding information is semantic, and the
+harvest is a deterministic, no-model, every-turn CLI by design. You cannot run a
+satisfaction judge inside it without adding a model call to every Stop, which is
+exactly the cost the harvest was built to avoid. So the classifier is precluded by
+the architecture, and the probe confirms it empirically.
+
+**The data hands us the cheaper fix.** One deterministic signal that the harvest
+already has cleanly splits the corpus: did the assistant save an explicit handoff,
+or did the session fall back to the ambient auto-snapshot?
+
+- Explicit-save sessions (70): 81% open. A record was deliberately written with a
+  real goal and next step. Resume language fits.
+- Ambient-only sessions (64): 83% already satisfied. This is the blind-resurrection
+  population, and five times out of six its "goal" is already done.
+
+This is exactly the precedence the resolver already encodes (prefer the manual
+save, treat ambient as the fallback safety net), and the ambient brief already
+renders as non-directive context: "Latest request" rather than "resume", plus the
+boundary "this is an automatic snapshot, not a saved plan ... do not resume this
+work unasked", plus git-staleness reconciliation. In other words, the restore-side
+reconciliation the exit criterion names as the fallback (R1) is, for the common
+case, already shipped by the warm-writer slimming, the restore-improvements, and
+the staleness work. The 83%-done ambient population is handled by framing it as
+"here is the last thing, confirm before acting", which is the honest register for a
+signal that is right about one time in six.
+
+**Revised build set.** Step 1 (the capture-side satisfaction classifier) and the
+ambient half of Step 2 (an inferred `goal_status` label) are cancelled: they
+depend on a classifier that does not work. What survives, and is worth building:
+
+- **Step 2a, run-backed status in the brief.** Read `run_ref.runtime_status` in
+  the brief render so a finished run-backed record is not shown as live. This reads
+  a real recorded field, not an inferred one, so it is unaffected by the gate. The
+  safety boundary already blocks auto-resume, so this is a legibility win, not a
+  safety fix, but it is cheap, deterministic, and removes a genuine inconsistency
+  (the active-run file shows the status; the brief does not).
+- **Step 4, coverage.** A `PreCompact` harvest hook (capture the in-flight plan
+  before a compaction, not only on Stop), an honest signpost that capture is
+  Claude-first with the Codex path documented, and idle flagged as an uncovered
+  gap (no host idle signal exists).
+
+R1 beyond what is already shipped (retiring the staleness nudge, reconciling more
+carried claims) stays available but low-value: the ambient framing already absorbs
+the common case.
+
+**Honesty note on the judge.** The gold labels came from the same model family
+that designed the classifier, so there is a circularity risk. It is mitigated three
+ways: the judge read full content while the classifier read only structure, the
+judge was blind to the classifier's prediction, and the headline effects (49%
+satisfied overall, 83% satisfied among ambient-only) are large enough that a
+handful of mislabels cannot flip the verdict. The structural argument (no model in
+the harvest) holds regardless of the labels.
+
 ## What this evaluation did not do
 
-This was evaluation only. No code changed, no production doc changed. The
-`done --clear-ambient` bug is documented here but not fixed. Recommended
-follow-on efforts, each its own Goal:
+The evaluation itself changed no code. The follow-on efforts, updated for the
+Step 0 result:
 
-1. The Step 0 classifier-feasibility probe (read-only, decides whether the rest
-   proceeds).
-2. The capture-path refactor (Steps 1 and 2), gated on Step 0.
-3. The `done --clear-ambient` tombstone fix (Step 3), failing-test-first. This
-   one is independent and can go first; it is a real bug with a clear repro.
-4. The compaction and host-parity work (Step 4).
+1. The Step 0 probe (read-only). DONE, 2026-06-07. Verdict: NO-GO on the
+   capture-side classifier; see the results section above.
+2. The capture-path refactor (Steps 1 and the ambient half of Step 2). CANCELLED
+   by the Step 0 gate.
+3. The `done --clear-ambient` tombstone fix (Step 3), failing-test-first. SHIPPED
+   in PR #47.
+4. The surviving render win (Step 2a) and the compaction and host-parity coverage
+   (Step 4). BUILT, 2026-06-07, failing-test-first. Step 2a renders
+   `run_ref.runtime_status` in the brief; Step 4 adds the `PreCompact` harvest
+   hook (`source: "pre-compact"`) and documents the two by-design gaps (Codex
+   captures nothing on its own; idle is uncovered) in
+   [`continuity.md`](../contracts/continuity.md#capture-coverage-and-its-gaps).
 
 ## Confidence ledger
 

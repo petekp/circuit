@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-// harvest.ts — Stop / SessionEnd hook that keeps an ambient continuity record
-// warm. It is the in-engine replacement for the personal warm-handoff shell
-// writer: on every turn end (Stop) and final flush (SessionEnd) it asks the
-// Circuit CLI to harvest the live transcript into this repo's
-// `.circuit/continuity` store, pointing the index's `ambient_record` at it
-// without ever touching a manual `pending_record` (see
-// docs/contracts/continuity.md CONT-I13..I18).
+// harvest.ts — Stop / SessionEnd / PreCompact hook that keeps an ambient
+// continuity record warm. It is the in-engine replacement for the personal
+// warm-handoff shell writer: on every turn end (Stop), final flush
+// (SessionEnd), and compaction boundary (PreCompact) it asks the Circuit CLI
+// to harvest the live transcript into this repo's `.circuit/continuity` store,
+// pointing the index's `ambient_record` at it without ever touching a manual
+// `pending_record` (see docs/contracts/continuity.md CONT-I13..I18).
+//
+// PreCompact is the richest capture point: it fires before the host collapses
+// the transcript into a summary, so it preserves rich state that a later
+// post-compaction harvest could only read in lossy summarized form.
 //
 // Robustness contract: a continuity harvest must never break the session it
 // fires in. Every path returns 0; nothing is written to stdout.
@@ -46,6 +50,16 @@ function harvestTimeoutMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_HARVEST_TIMEOUT_MS;
 }
 
+// Name the capture source from the firing hook so the ambient record's
+// provenance is honest. PreCompact fires just before the host collapses the
+// transcript into a summary, so it captures the richest state; SessionEnd is
+// the final flush; everything else (Stop) is a per-turn harvest.
+function ambientSourceFromHookEvent(hookEventName: string | undefined): string {
+  if (hookEventName === 'SessionEnd') return 'session-end';
+  if (hookEventName === 'PreCompact') return 'pre-compact';
+  return 'stop';
+}
+
 function main(): number {
   let input: JsonRecord;
   try {
@@ -63,7 +77,7 @@ function main(): number {
     return 0;
   }
   const sessionId = stringField(input, 'session_id');
-  const source = stringField(input, 'hook_event_name') === 'SessionEnd' ? 'session-end' : 'stop';
+  const source = ambientSourceFromHookEvent(stringField(input, 'hook_event_name'));
 
   if (!existsSync(launcher)) {
     warn(`launcher is missing: ${launcher}`);

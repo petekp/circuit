@@ -98,10 +98,17 @@
     {
       "path": "docs/ideas/continuity-capture-refactor-implementation.md",
       "title": "Continuity capture-path refactor (Steps 0-2): implementation spec",
-      "status": "implementation-spec",
+      "status": "partially-implemented",
       "category": "memory-and-ratchet",
-      "tags": ["continuity", "handoff", "ambient", "capture", "satisfaction-model", "implementation-spec"],
-      "current_reading": "Thin spec implementing Steps 0-2 of docs/architecture/continuity-first-principles-evaluation.md: the Step 0 classifier-feasibility probe (gate), the Step 1 capture-side satisfaction model (goal = newest still-open intent plus one optional status field), and the Step 2 render wins (runtime_status mapping, likely-done label). Step 3 already shipped. Steps 1-2 are gated on Step 0; design only, nothing built yet.",
+      "tags": [
+        "continuity",
+        "handoff",
+        "ambient",
+        "capture",
+        "satisfaction-model",
+        "implementation-spec"
+      ],
+      "current_reading": "Thin spec for Steps 0-2 of docs/architecture/continuity-first-principles-evaluation.md. Step 0 ran 2026-06-07 and returned NO-GO: the capture-side satisfaction classifier does not beat recency (0.74x false-resurrection vs a 0.50x gate, over-buries 10% of open work); 58% of sessions give the deterministic scan no usable signal and the harvest is a no-model every-turn CLI. So Step 1 and the ambient half of Step 2 are CANCELLED. Step 3 shipped (PR #47). Surviving build set: Step 2a (render run_ref.runtime_status, a real recorded field) and Step 4 (compaction + host-parity coverage). Full numbers in the eval's Step 0 results section.",
       "related": ["docs/ideas/continuity-staleness-implementation.md"],
       "last_checked": "2026-06-07"
     },
