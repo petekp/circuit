@@ -189,6 +189,47 @@ function scoreDocument(input: {
   };
 }
 
+// Lexical relevance of a stored project fact to the run query. Reuses the same
+// machinery prior-run recall uses (tokenize -> weighted term frequency capped at
+// 3, exact-phrase +2, adjacent-bigram +0.5) so a project fact and a prior-run
+// hit are scored on the same scale. A project fact carries no corpus, so IDF is
+// flat (every matched term contributes its capped weighted tf directly) and the
+// stale/effect signals stay out of this number; those are the gate's job, not
+// the scorer's. The caller maps a fact's fields onto these inputs: `summary` is
+// the headline (summary weight), each hint `text` is detail (text weight), and
+// each hint `applies_to` is a categorical tag (facet weight). Returns 0 when the
+// query has no scorable terms, which preserves store order under a flat tie.
+export function scoreProjectFactRelevance(input: {
+  readonly query: string;
+  readonly summary: string;
+  readonly hintTexts: readonly string[];
+  readonly appliesTo: readonly string[];
+}): number {
+  const queryTerms = unique(tokenize(input.query));
+  if (queryTerms.length === 0) return 0;
+  const summaryCounts = termCounts(tokenize(input.summary));
+  const textCounts = termCounts(tokenize(input.hintTexts.join('\n')));
+  const facetCounts = termCounts(tokenize(input.appliesTo.join(' ')));
+  let score = 0;
+  for (const term of queryTerms) {
+    // Same field weighting as weightedTf (title*5 + summary*4 + facets*2 + text),
+    // minus the title field a project fact does not have, then capped at 3.
+    const weighted =
+      (summaryCounts.get(term) ?? 0) * 4 +
+      (facetCounts.get(term) ?? 0) * 2 +
+      (textCounts.get(term) ?? 0);
+    const tf = Math.min(weighted, 3);
+    if (tf > 0) score += tf;
+  }
+  const haystack = `${input.summary}\n${input.hintTexts.join('\n')}`.toLowerCase();
+  const queryPhrase = input.query.trim().toLowerCase();
+  if (queryPhrase.length > 0 && haystack.includes(queryPhrase)) score += 2;
+  for (const bigram of queryBigrams(queryTerms)) {
+    if (haystack.includes(bigram)) score += 0.5;
+  }
+  return score;
+}
+
 function normalizeText(text: string): string {
   return tokenize(text).join(' ');
 }

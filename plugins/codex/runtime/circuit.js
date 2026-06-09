@@ -51514,6 +51514,31 @@ ${input.doc.text}`.toLowerCase();
     reasons
   };
 }
+function scoreProjectFactRelevance(input) {
+  const queryTerms = unique(tokenize(input.query));
+  if (queryTerms.length === 0)
+    return 0;
+  const summaryCounts = termCounts(tokenize(input.summary));
+  const textCounts = termCounts(tokenize(input.hintTexts.join("\n")));
+  const facetCounts = termCounts(tokenize(input.appliesTo.join(" ")));
+  let score = 0;
+  for (const term of queryTerms) {
+    const weighted = (summaryCounts.get(term) ?? 0) * 4 + (facetCounts.get(term) ?? 0) * 2 + (textCounts.get(term) ?? 0);
+    const tf = Math.min(weighted, 3);
+    if (tf > 0)
+      score += tf;
+  }
+  const haystack = `${input.summary}
+${input.hintTexts.join("\n")}`.toLowerCase();
+  const queryPhrase = input.query.trim().toLowerCase();
+  if (queryPhrase.length > 0 && haystack.includes(queryPhrase))
+    score += 2;
+  for (const bigram of queryBigrams(queryTerms)) {
+    if (haystack.includes(bigram))
+      score += 0.5;
+  }
+  return score;
+}
 function normalizeText(text) {
   return tokenize(text).join(" ");
 }
@@ -62036,6 +62061,18 @@ function applyEarnedPrecision(input) {
 // dist/app/history/run-start-recall.js
 var HISTORY_RECALL_REPORT_PATH = "reports/history/recall.json";
 var DEFAULT_RECALL_LIMIT = 3;
+function rankProjectFactsByRelevance(facts, query) {
+  return facts.map((fact, origIndex) => ({
+    fact,
+    origIndex,
+    score: scoreProjectFactRelevance({
+      query,
+      summary: fact.summary,
+      hintTexts: fact.hints.map((hint) => hint.text),
+      appliesTo: fact.hints.map((hint) => hint.applies_to)
+    })
+  })).sort((left, right) => right.score !== left.score ? right.score - left.score : left.origIndex - right.origIndex).map((entry) => entry.fact);
+}
 function unavailableWarning(error51) {
   const prefix = error51 instanceof HistoryCommandError ? `history recall unavailable (${error51.code})` : "history recall unavailable";
   return {
@@ -62087,8 +62124,9 @@ function prepareRunStartHistoryRecall(options) {
       ...options.flowId === void 0 ? {} : { flowId: options.flowId },
       now
     }).candidates;
+    const orderedProjectFacts = options.rankProjectFacts === true ? rankProjectFactsByRelevance(projectFacts, options.query) : projectFacts;
     const { memoryInputs, precision } = applyEarnedPrecision({
-      candidates: [...preview.memory_inputs, ...projectFacts],
+      candidates: [...preview.memory_inputs, ...orderedProjectFacts],
       ...options.flowId === void 0 ? {} : { flowId: options.flowId },
       ...effect.report === void 0 ? {} : { effect: effect.report },
       budget: maxMemoryInputs,
@@ -65175,6 +65213,9 @@ async function runExecutionCommand(args, options) {
       repoRoot: projectRoot,
       query: operatorGoal,
       flowId: flow.id,
+      // Opt-in: rank project facts by query relevance before the gate's
+      // budget. Default off keeps the prior store-order behavior.
+      rankProjectFacts: process.env.CIRCUIT_RANK_PROJECT_FACTS === "1",
       now
     }) : void 0;
     const runtimeResult = await runCompiledFlowWithWaiting({

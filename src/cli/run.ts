@@ -780,6 +780,9 @@ export async function runExecutionCommand(
           repoRoot: projectRoot,
           query: operatorGoal,
           flowId: flow.id as unknown as string,
+          // Opt-in: rank project facts by query relevance before the gate's
+          // budget. Default off keeps the prior store-order behavior.
+          rankProjectFacts: process.env.CIRCUIT_RANK_PROJECT_FACTS === '1',
           now,
         })
       : undefined;
