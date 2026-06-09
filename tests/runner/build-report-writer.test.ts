@@ -12,6 +12,7 @@ import {
   BuildPlan,
   BuildResult,
   BuildReview,
+  BuildTouchArea,
   BuildVerification,
 } from '../../src/flows/build/reports.js';
 import { findComposeBuilder } from '../../src/flows/registries/compose-writers/registry.js';
@@ -207,6 +208,23 @@ function closeCompiledFlow(
         required: ['verdict', 'summary'],
       },
     },
+    {
+      id: 'seed-touch-area-step',
+      title: 'Seed touch area',
+      protocol: 'test-seed-build-touch-area@v1',
+      reads: ['reports/build/review.json'],
+      routes: { pass: 'close-step' },
+      executor: 'orchestrator',
+      kind: 'compose',
+      writes: {
+        report: { path: 'reports/build/touch-area.json', schema: 'build.touch-area@v1' },
+      },
+      check: {
+        kind: 'schema_sections',
+        source: { kind: 'report', ref: 'report' },
+        required: ['overall_status', 'enforcement', 'containment'],
+      },
+    },
   ].filter((step) => step.writes.report.schema !== options.omitProducerSchema);
   for (const [index, seedStep] of seedSteps.entries()) {
     seedStep.routes = { pass: seedSteps[index + 1]?.id ?? 'close-step' };
@@ -242,7 +260,11 @@ function closeCompiledFlow(
         id: 'close-step',
         title: 'Close',
         protocol: 'build-close@v1',
-        reads: options.reads ?? buildRoleReportPaths(),
+        // The close builder reads the 5 role reports (its evidence_links
+        // pointers) plus the touch-area verdict it gates on. touch-area is a
+        // verification report, not a close pointer, so it is not in
+        // buildRoleReportPaths() (which the evidence_links assertion checks).
+        reads: options.reads ?? [...buildRoleReportPaths(), 'reports/build/touch-area.json'],
         routes: { pass: '@complete' },
         executor: 'orchestrator',
         kind: 'compose',
@@ -441,6 +463,25 @@ function seedBuildRoleReport(runFolder: string, schema: string): void {
         verdict: 'accept',
         summary: 'No blocking issues',
         findings: [],
+        alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
+      }),
+    );
+    return;
+  }
+  if (schema === 'build.touch-area@v1') {
+    // The seeded plan declares no allowed_touch_area, so the gate is inert.
+    writeJson(
+      runFolder,
+      'reports/build/touch-area.json',
+      BuildTouchArea.parse({
+        overall_status: 'passed',
+        enforcement: 'not_enforced',
+        containment: 'within',
+        allowed_area: [],
+        observed_paths: [],
+        out_of_bounds_paths: [],
+        head_diverged: false,
+        hidden_index_flags: [],
       }),
     );
     return;
@@ -734,5 +775,26 @@ describe('Build plan writer surfaces grounding from build.context@v1', () => {
     expect(plan.anticipated_file_extensions).toEqual([]);
     expect(plan.approach).toContain('Make the smallest safe change inside scope');
     expect(plan.approach).not.toContain('Grounded in a codebase read');
+  });
+
+  it('carries the grounding context guardrails (non_goals + invariants) onto the plan', () => {
+    const context = BuildContext.parse({
+      verdict: 'accept',
+      sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Touched module.' }],
+      observations: ['The target module is small and self-contained.'],
+      open_questions: [],
+      guardrails: {
+        non_goals: ['Do not change the public API'],
+        invariants: ['Keep the cache write-through'],
+      },
+    });
+    const plan = buildPlan({ brief, context });
+    expect(plan.guardrails.non_goals).toEqual(['Do not change the public API']);
+    expect(plan.guardrails.invariants).toEqual(['Keep the cache write-through']);
+  });
+
+  it('falls back to empty guardrails when context is absent', () => {
+    const plan = buildPlan({ brief });
+    expect(plan.guardrails).toEqual({ non_goals: [], invariants: [] });
   });
 });

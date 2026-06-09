@@ -140,7 +140,7 @@
       },
       "skill_slots": [],
       "routes": {
-        "continue": "act-step",
+        "continue": "build-baseline",
         "revise": "plan-step",
         "stop": "@stop"
       },
@@ -151,6 +151,34 @@
       },
       "check": {
         "required": ["objective", "verification"]
+      }
+    },
+    {
+      "id": "build-baseline",
+      "block": "run-verification",
+      "title": "Verify - snapshot pre-change git state",
+      "stage": "verify",
+      "input": {
+        "proof": "verification.plan@v1",
+        "plan": "build.plan@v1"
+      },
+      "output": "build.baseline-snapshot@v1",
+      "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
+      "execution": {
+        "kind": "verification"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "act-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "build-baseline-snapshot@v1",
+      "writes": {
+        "report_path": "reports/build/baseline-snapshot.json"
+      },
+      "check": {
+        "required": ["overall_status"]
       }
     },
     {
@@ -222,7 +250,7 @@
       },
       "skill_slots": [],
       "routes": {
-        "continue": "review-step",
+        "continue": "build-touch-area",
         "advance": "act-step",
         "retry": "act-step",
         "stop": "@stop"
@@ -237,6 +265,36 @@
       }
     },
     {
+      "id": "build-touch-area",
+      "block": "run-verification",
+      "title": "Verify - check git-proven touch area",
+      "stage": "verify",
+      "input": {
+        "proof": "verification.plan@v1",
+        "plan": "build.plan@v1",
+        "baseline": "build.baseline-snapshot@v1",
+        "change": "build.implementation@v1"
+      },
+      "output": "build.touch-area@v1",
+      "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
+      "execution": {
+        "kind": "verification"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "review-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "build-touch-area@v1",
+      "writes": {
+        "report_path": "reports/build/touch-area.json"
+      },
+      "check": {
+        "required": ["overall_status", "enforcement", "containment"]
+      }
+    },
+    {
       "id": "review-step",
       "block": "review",
       "title": "Review - implementation review relay",
@@ -245,7 +303,8 @@
         "brief": "build.brief@v1",
         "plan": "build.plan@v1",
         "change": "build.implementation@v1",
-        "verification": "build.verification@v1"
+        "verification": "build.verification@v1",
+        "touch_area": "build.touch-area@v1"
       },
       "output": "build.review@v1",
       "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
@@ -282,7 +341,8 @@
         "plan": "build.plan@v1",
         "implementation": "build.implementation@v1",
         "verification": "build.verification@v1",
-        "review": "build.review@v1"
+        "review": "build.review@v1",
+        "touch_area": "build.touch-area@v1"
       },
       "output": "build.result@v1",
       "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],

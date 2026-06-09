@@ -107,6 +107,13 @@ async function writeVerificationProofAssessment(input: {
   readonly observations: readonly VerificationCommandObservation[];
 }): Promise<void> {
   if (input.context.workContractRef === undefined) return;
+  // A verification step that ran no commands makes no verification claim, so
+  // there is nothing to assess. Emitting an 'unproved' assessment here would
+  // both misrepresent the step and trip evidence-gap consumers (the
+  // after:evidence-gap skill hook keys on a non-proven verification proof). The
+  // zero-command case is intentional: an opt-in verification gate (e.g. Build's
+  // touch-area gate) skips its git command when the operator declared no area.
+  if (input.observations.length === 0) return;
 
   const claimId = `claim.verification:${proofIdPart(input.step.id)}:${input.attempt}`;
   const evidence: ProofEvidence[] = input.observations.map((observation, index) => {

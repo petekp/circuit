@@ -38,6 +38,235 @@ describe('operator-summary Prototype projection', () => {
   });
 });
 
+describe('operator-summary Build projection', () => {
+  const baseResult = (overrides: Record<string, unknown>) => ({
+    runFolder: '/tmp/circuit-run',
+    flowId: 'build',
+    runOutcome: 'complete',
+    resultSummary: 'Circuit run complete.',
+    flowReport: {
+      schema: 'build.result@v1',
+      summary: 'Build result: add a small feature',
+      verification_status: 'passed',
+      ...overrides,
+    },
+  });
+
+  it('renders a clean complete build with no scope deviation lines', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'complete',
+        review_verdict: 'accept',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build complete. Change implemented, verification passed, review accepted.',
+    );
+    expect(projection.details.some((d) => d.startsWith('Scope:'))).toBe(false);
+    expect(projection.details.some((d) => d.startsWith('Guardrails'))).toBe(false);
+  });
+
+  it('names guardrails the reviewer left unassessed and frames the cause as scope follow-up', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept',
+        scope: {
+          adherence: 'within_scope',
+          violated_guardrails: [],
+          unassessed_guardrails: ['Do not change the public API', 'Keep the cache write-through'],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but the change needs a scope follow-up.',
+    );
+    expect(projection.details).toContain(
+      'Guardrails the reviewer did not assess: Do not change the public API; Keep the cache write-through.',
+    );
+  });
+
+  it('surfaces an exceeds-scope judgment as a scope line', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept',
+        scope: { adherence: 'exceeds_scope', violated_guardrails: [], unassessed_guardrails: [] },
+      }),
+    );
+    expect(projection.details).toContain(
+      'Scope: reviewer judged the change exceeds the stated scope.',
+    );
+  });
+
+  it('names both causes when accept-with-fixes rides alongside a violated guardrail', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept-with-fixes',
+        scope: {
+          adherence: 'within_scope',
+          violated_guardrails: ['Keep the cache write-through'],
+          unassessed_guardrails: [],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but review requested fixes and the change needs a scope follow-up.',
+    );
+    expect(projection.details).toContain('Guardrails violated: Keep the cache write-through.');
+  });
+
+  it('frames a pure accept-with-fixes (clean scope) as review fixes only', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept-with-fixes',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but review requested fixes.',
+    );
+    expect(projection.details.some((d) => d.startsWith('Scope:'))).toBe(false);
+    expect(projection.details.some((d) => d.startsWith('Guardrails'))).toBe(false);
+  });
+
+  it('names the scope cause when accept-with-fixes coincides with an exceeds-scope judgment', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept-with-fixes',
+        scope: { adherence: 'exceeds_scope', violated_guardrails: [], unassessed_guardrails: [] },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but review requested fixes and the change needs a scope follow-up.',
+    );
+    expect(projection.details).toContain(
+      'Scope: reviewer judged the change exceeds the stated scope.',
+    );
+  });
+
+  it('names the scope cause when accept-with-fixes coincides with an unassessed guardrail', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept-with-fixes',
+        scope: {
+          adherence: 'within_scope',
+          violated_guardrails: [],
+          unassessed_guardrails: ['Do not change the public API'],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but review requested fixes and the change needs a scope follow-up.',
+    );
+    expect(projection.details).toContain(
+      'Guardrails the reviewer did not assess: Do not change the public API.',
+    );
+  });
+
+  it('renders a clean complete build with no touch-area line when contained', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'complete',
+        review_verdict: 'accept',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+        touch_area: { enforcement: 'enforced', containment: 'within', out_of_bounds_paths: [] },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build complete. Change implemented, verification passed, review accepted.',
+    );
+    expect(projection.details.some((d) => d.startsWith('Touch area:'))).toBe(false);
+  });
+
+  it('says nothing extra when the touch-area gate is not enforced', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'complete',
+        review_verdict: 'accept',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+        touch_area: { enforcement: 'not_enforced', containment: 'within', out_of_bounds_paths: [] },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build complete. Change implemented, verification passed, review accepted.',
+    );
+    expect(projection.details.some((d) => d.startsWith('Touch area:'))).toBe(false);
+  });
+
+  it('names the out-of-bounds paths and frames the cause when the change reached outside the area', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+        touch_area: {
+          enforcement: 'enforced',
+          containment: 'out_of_bounds',
+          out_of_bounds_paths: ['src/runtime/executor.ts', 'package.json'],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but the change reached outside the planned area.',
+    );
+    expect(projection.details).toContain(
+      'Touch area: the change modified files outside the planned area: src/runtime/executor.ts; package.json.',
+    );
+  });
+
+  it('frames an undetermined containment as a verification gap', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+        touch_area: {
+          enforcement: 'enforced',
+          containment: 'undetermined',
+          out_of_bounds_paths: [],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but the change reached outside the planned area.',
+    );
+    expect(projection.details).toContain(
+      'Touch area: containment could not be verified — history moved during the run, or a file is hidden from git.',
+    );
+  });
+
+  it('names every cause when an out-of-bounds touch area coincides with review fixes and a scope skip', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept-with-fixes',
+        scope: {
+          adherence: 'within_scope',
+          violated_guardrails: [],
+          unassessed_guardrails: ['Do not change the public API'],
+        },
+        touch_area: {
+          enforcement: 'enforced',
+          containment: 'out_of_bounds',
+          out_of_bounds_paths: ['src/runtime/executor.ts'],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but review requested fixes and the change needs a scope follow-up and the change reached outside the planned area.',
+    );
+    expect(projection.details).toContain(
+      'Touch area: the change modified files outside the planned area: src/runtime/executor.ts.',
+    );
+  });
+});
+
 describe('operator-summary Goal projection', () => {
   it('renders Goal results as a compact proof packet instead of a generic run summary', () => {
     const projection = projectSummary({

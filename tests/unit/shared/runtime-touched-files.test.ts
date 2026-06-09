@@ -67,6 +67,9 @@ describe('projectRuntimeTouchedFiles', () => {
         source: 'runtime_diff',
         generated_surface: false,
         protected: false,
+        // The rename source is carried so a containment consumer sees both
+        // endpoints; it does not enter `observed` / the worker-claim sets.
+        from: 'src/old-name.ts',
       },
       {
         path: 'src/new.ts',

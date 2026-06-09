@@ -167,18 +167,20 @@
       },
       "stages": ["Frame", "Analyze", "Plan", "Act", "Verify", "Review", "Close"],
       "reports": [
+        "build.baseline-snapshot@v1",
         "build.brief@v1",
         "build.context@v1",
         "build.implementation@v1",
         "build.plan@v1",
         "build.result@v1",
         "build.review@v1",
+        "build.touch-area@v1",
         "build.verification@v1"
       ],
       "writers": {
         "compose": 1,
         "close": 1,
-        "verification": 1,
+        "verification": 3,
         "checkpoint": 1
       },
       "route_outcomes": ["advance", "ask", "complete", "continue", "retry", "revise", "stop"],

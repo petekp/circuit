@@ -6,17 +6,21 @@ import {
   buildReviewShapeHint,
 } from './relay-hints.js';
 import {
+  BuildBaselineSnapshot,
   BuildBrief,
   BuildContext,
   BuildImplementation,
   BuildPlan,
   BuildResult,
   BuildReview,
+  BuildTouchArea,
   BuildVerification,
 } from './reports.js';
+import { buildBaselineSnapshotWriter } from './writers/baseline-snapshot.js';
 import { buildBriefCheckpointBuilder } from './writers/checkpoint-brief.js';
 import { buildCloseBuilder } from './writers/close.js';
 import { buildPlanComposeBuilder } from './writers/plan.js';
+import { buildTouchAreaWriter } from './writers/touch-area.js';
 import { buildVerificationWriter } from './writers/verification.js';
 
 export const buildFlowData = {
@@ -220,11 +224,35 @@ export const buildFlowData = {
           required: ['objective', 'verification'],
         },
         routes: {
-          continue: 'act-step',
+          continue: 'build-baseline',
           revise: 'plan-step',
           stop: '@stop',
         },
       },
+      expandBlockStepUse({
+        id: 'build-baseline',
+        title: 'Verify - snapshot pre-change git state',
+        stage: 'verify',
+        block: 'run-verification',
+        input: {
+          proof: 'verification.plan@v1',
+          // Read so the writer can check whether the plan declared an
+          // allowed_touch_area: the snapshot only shells out to git when the
+          // gate is on, staying inert (and git-free) otherwise.
+          plan: 'build.plan@v1',
+        },
+        output: 'build.baseline-snapshot@v1',
+        protocol: 'build-baseline-snapshot@v1',
+        reportPath: 'reports/build/baseline-snapshot.json',
+        required: ['overall_status'],
+        routes: {
+          // Captured once before the first slice; the slice loop re-enters
+          // act-step (not this step), so the baseline stays a single pre-change
+          // reference for the whole run.
+          continue: 'act-step',
+          stop: '@stop',
+        },
+      }),
       expandBlockStepUse({
         id: 'act-step',
         title: 'Act - implementation relay',
@@ -283,13 +311,38 @@ export const buildFlowData = {
         reportPath: 'reports/build/verification.json',
         required: ['overall_status', 'commands'],
         routes: {
-          continue: 'review-step',
+          // After the final slice's verify passes, compute the touch-area
+          // verdict before review so the reviewer sees git-proven containment.
+          continue: 'build-touch-area',
           // Slice loop (deep rigor): when this slice's verify passes and
           // more slices remain, the engine selects 'advance' instead of
           // 'continue', re-entering act-step for the next slice. A normal,
           // non-recovery route; see docs/ideas/build-slice-decomposition.md.
           advance: 'act-step',
           retry: 'act-step',
+          stop: '@stop',
+        },
+      }),
+      expandBlockStepUse({
+        id: 'build-touch-area',
+        title: 'Verify - check git-proven touch area',
+        stage: 'verify',
+        block: 'run-verification',
+        input: {
+          proof: 'verification.plan@v1',
+          plan: 'build.plan@v1',
+          baseline: 'build.baseline-snapshot@v1',
+          change: 'build.implementation@v1',
+        },
+        output: 'build.touch-area@v1',
+        protocol: 'build-touch-area@v1',
+        reportPath: 'reports/build/touch-area.json',
+        required: ['overall_status', 'enforcement', 'containment'],
+        routes: {
+          // The observation always succeeds (overall_status 'passed'); the
+          // containment verdict is recorded here and gated at close, the same
+          // close-stage placement the scope gate uses.
+          continue: 'review-step',
           stop: '@stop',
         },
       }),
@@ -303,6 +356,7 @@ export const buildFlowData = {
           plan: 'build.plan@v1',
           change: 'build.implementation@v1',
           verification: 'build.verification@v1',
+          touch_area: 'build.touch-area@v1',
         },
         output: 'build.review@v1',
         execution: {
@@ -333,6 +387,7 @@ export const buildFlowData = {
           implementation: 'build.implementation@v1',
           verification: 'build.verification@v1',
           review: 'build.review@v1',
+          touch_area: 'build.touch-area@v1',
         },
         output: 'build.result@v1',
         execution: {
@@ -399,6 +454,18 @@ export const buildFlowData = {
       writers: { verification: [buildVerificationWriter] },
     },
     {
+      schemaName: 'build.baseline-snapshot@v1',
+      channel: 'report',
+      schema: BuildBaselineSnapshot,
+      writers: { verification: [buildBaselineSnapshotWriter] },
+    },
+    {
+      schemaName: 'build.touch-area@v1',
+      channel: 'report',
+      schema: BuildTouchArea,
+      writers: { verification: [buildTouchAreaWriter] },
+    },
+    {
       schemaName: 'build.result@v1',
       channel: 'report',
       schema: BuildResult,
@@ -432,6 +499,11 @@ export const buildFlowData = {
           activeText: 'Planning the work',
         },
         {
+          stepId: 'build-baseline',
+          taskTitle: 'Note the starting point',
+          activeText: 'Noting the starting point',
+        },
+        {
           stepId: 'act-step',
           taskTitle: 'Make the change',
           activeText: 'Making the change',
@@ -443,6 +515,11 @@ export const buildFlowData = {
           stepId: 'verify-step',
           taskTitle: 'Check the work',
           activeText: 'Checking the work',
+        },
+        {
+          stepId: 'build-touch-area',
+          taskTitle: 'Check what changed',
+          activeText: 'Checking what changed',
         },
         {
           stepId: 'review-step',

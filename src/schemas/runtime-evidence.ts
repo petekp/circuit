@@ -43,6 +43,15 @@ export const RuntimeTouchedFile = z
     source: z.literal('runtime_diff'),
     generated_surface: z.boolean(),
     protected: z.boolean(),
+    // Rename/copy source. git folds a rename's source deletion into the
+    // destination entry, so the source path never appears as its own touched
+    // file. Carrying it here lets a path-containment consumer (Build's
+    // touch-area gate) see both endpoints of a move; without it, a
+    // `git mv out-of-area in-area` would hide the out-of-area source. Absent
+    // for non-rename entries. Deliberately NOT folded into the worker-claim
+    // comparison (which stays destination-only), so Fix's change-set verdict is
+    // unchanged: declaring a rename's destination remains a faithful claim.
+    from: z.string().min(1).optional(),
   })
   .strict();
 export type RuntimeTouchedFile = z.infer<typeof RuntimeTouchedFile>;
