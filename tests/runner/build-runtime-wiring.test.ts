@@ -640,8 +640,10 @@ describe('Build runtime wiring', () => {
       'frame-step',
       'analyze-step',
       'plan-step',
+      'build-baseline',
       'act-step',
       'verify-step',
+      'build-touch-area',
       'review-step',
       'close-step',
     ]);

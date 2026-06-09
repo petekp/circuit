@@ -31,6 +31,7 @@ import {
   BuildPlan as BuildPlanSchema,
   BuildResultReportPointer,
   BuildReview as BuildReviewSchema,
+  BuildTouchArea as BuildTouchAreaSchema,
   BuildVerification as BuildVerificationSchema,
 } from '../../src/flows/build/reports.js';
 import { projectBuildResult } from '../../src/flows/build/writers/result-projection.js';
@@ -94,6 +95,24 @@ function review(body: Record<string, unknown>): BuildReview {
   return BuildReviewSchema.parse(body);
 }
 
+// A not-enforced, within touch area — the inert default that keeps the scope
+// tests focused on scope. Touch-area corners override this explicitly.
+function touchArea(overrides: Record<string, unknown> = {}) {
+  return BuildTouchAreaSchema.parse({
+    overall_status: 'passed',
+    enforcement: 'not_enforced',
+    containment: 'within',
+    allowed_area: [],
+    observed_paths: [],
+    out_of_bounds_paths: [],
+    baseline_head_sha: 'aaaa',
+    head_sha: 'aaaa',
+    head_diverged: false,
+    hidden_index_flags: [],
+    ...overrides,
+  });
+}
+
 function alignment(overrides: Record<string, unknown> = {}) {
   return { scope_adherence: 'within_scope', non_goals: [], invariants: [], ...overrides };
 }
@@ -118,6 +137,7 @@ function project(inputs: {
   plan: ReturnType<typeof plan>;
   verification: BuildVerification;
   review: BuildReview;
+  touchArea?: ReturnType<typeof touchArea>;
 }): BuildResult {
   return projectBuildResult({
     brief,
@@ -125,6 +145,7 @@ function project(inputs: {
     implementation,
     verification: inputs.verification,
     review: inputs.review,
+    touchArea: inputs.touchArea ?? touchArea(),
     evidenceLinks,
   });
 }
@@ -305,5 +326,113 @@ describe('Build result scope gate', () => {
       }),
     });
     expect(result.outcome).toBe('failed');
+  });
+});
+
+describe('Build result touch-area gate', () => {
+  const cleanAccept = () =>
+    review({ verdict: 'accept', summary: 'Looks good', findings: [], alignment: alignment() });
+
+  it('stays complete when an enforced touch area is within bounds', () => {
+    const result = project({
+      plan: plan(),
+      verification: verification('passed'),
+      review: cleanAccept(),
+      touchArea: touchArea({
+        enforcement: 'enforced',
+        containment: 'within',
+        allowed_area: ['src/flows/build/'],
+        observed_paths: ['src/flows/build/x.ts'],
+      }),
+    });
+    expect(result.outcome).toBe('complete');
+    expect(result.touch_area).toEqual({
+      enforcement: 'enforced',
+      containment: 'within',
+      out_of_bounds_paths: [],
+    });
+  });
+
+  it('degrades an out-of-bounds change to needs_attention and names the paths', () => {
+    const result = project({
+      plan: plan(),
+      verification: verification('passed'),
+      review: cleanAccept(),
+      touchArea: touchArea({
+        enforcement: 'enforced',
+        containment: 'out_of_bounds',
+        allowed_area: ['src/flows/build/'],
+        observed_paths: ['src/flows/build/x.ts', 'src/runtime/engine.ts'],
+        out_of_bounds_paths: ['src/runtime/engine.ts'],
+        reason: 'the change touched 1 path(s) outside the allowed area: src/runtime/engine.ts',
+      }),
+    });
+    expect(result.outcome).toBe('needs_attention');
+    expect(result.review_verdict).toBe('accept');
+    expect(result.touch_area.out_of_bounds_paths).toEqual(['src/runtime/engine.ts']);
+  });
+
+  it('fail-closes an undetermined touch area (HEAD moved) out of complete', () => {
+    const result = project({
+      plan: plan(),
+      verification: verification('passed'),
+      review: cleanAccept(),
+      touchArea: touchArea({
+        enforcement: 'enforced',
+        containment: 'undetermined',
+        allowed_area: ['src/flows/build/'],
+        observed_paths: ['src/flows/build/x.ts'],
+        baseline_head_sha: 'aaaa',
+        head_sha: 'bbbb',
+        head_diverged: true,
+        reason: 'HEAD moved during the build',
+      }),
+    });
+    expect(result.outcome).toBe('needs_attention');
+    expect(result.touch_area.containment).toBe('undetermined');
+  });
+
+  it('does not block when the gate is not enforced even if the change ranged wide', () => {
+    const result = project({
+      plan: plan(),
+      verification: verification('passed'),
+      review: cleanAccept(),
+      touchArea: touchArea({
+        enforcement: 'not_enforced',
+        containment: 'within',
+        observed_paths: ['anywhere.ts', 'everywhere.ts'],
+      }),
+    });
+    expect(result.outcome).toBe('complete');
+  });
+
+  it('keeps a scope-clean but out-of-bounds build out of complete (both gates independent)', () => {
+    const result = project({
+      plan: plan({ non_goals: ['Do not touch the engine'] }),
+      verification: verification('passed'),
+      review: review({
+        verdict: 'accept',
+        summary: 'Reviewer saw nothing wrong',
+        findings: [],
+        alignment: alignment({
+          non_goals: [
+            { statement: 'Do not touch the engine', status: 'respected', evidence: 'looked fine' },
+          ],
+        }),
+      }),
+      touchArea: touchArea({
+        enforcement: 'enforced',
+        containment: 'out_of_bounds',
+        allowed_area: ['src/flows/build/'],
+        observed_paths: ['src/runtime/engine.ts'],
+        out_of_bounds_paths: ['src/runtime/engine.ts'],
+        reason: 'out of bounds',
+      }),
+    });
+    // The reviewer's alignment said the non-goal was respected (scope clean),
+    // but git proves the engine was touched. The hard gate wins.
+    expect(result.scope.violated_guardrails).toEqual([]);
+    expect(result.outcome).toBe('needs_attention');
+    expect(result.touch_area.containment).toBe('out_of_bounds');
   });
 });

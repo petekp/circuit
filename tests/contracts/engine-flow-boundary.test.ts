@@ -43,6 +43,7 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
   'tests/runner/fix-result-projection.test.ts -> src/flows/fix/writers/result-projection.ts',
   'tests/runner/build-result-projection.test.ts -> src/flows/build/writers/result-projection.ts',
+  'tests/runner/build-touch-area-projection.test.ts -> src/flows/build/writers/touch-area-projection.ts',
 ]);
 
 function flowImportTarget(file: string, importPath: string): string | undefined {

@@ -12,6 +12,7 @@ import {
   BuildPlan,
   BuildResult,
   BuildReview,
+  BuildTouchArea,
   BuildVerification,
 } from '../../src/flows/build/reports.js';
 import { findComposeBuilder } from '../../src/flows/registries/compose-writers/registry.js';
@@ -207,6 +208,23 @@ function closeCompiledFlow(
         required: ['verdict', 'summary'],
       },
     },
+    {
+      id: 'seed-touch-area-step',
+      title: 'Seed touch area',
+      protocol: 'test-seed-build-touch-area@v1',
+      reads: ['reports/build/review.json'],
+      routes: { pass: 'close-step' },
+      executor: 'orchestrator',
+      kind: 'compose',
+      writes: {
+        report: { path: 'reports/build/touch-area.json', schema: 'build.touch-area@v1' },
+      },
+      check: {
+        kind: 'schema_sections',
+        source: { kind: 'report', ref: 'report' },
+        required: ['overall_status', 'enforcement', 'containment'],
+      },
+    },
   ].filter((step) => step.writes.report.schema !== options.omitProducerSchema);
   for (const [index, seedStep] of seedSteps.entries()) {
     seedStep.routes = { pass: seedSteps[index + 1]?.id ?? 'close-step' };
@@ -242,7 +260,11 @@ function closeCompiledFlow(
         id: 'close-step',
         title: 'Close',
         protocol: 'build-close@v1',
-        reads: options.reads ?? buildRoleReportPaths(),
+        // The close builder reads the 5 role reports (its evidence_links
+        // pointers) plus the touch-area verdict it gates on. touch-area is a
+        // verification report, not a close pointer, so it is not in
+        // buildRoleReportPaths() (which the evidence_links assertion checks).
+        reads: options.reads ?? [...buildRoleReportPaths(), 'reports/build/touch-area.json'],
         routes: { pass: '@complete' },
         executor: 'orchestrator',
         kind: 'compose',
@@ -442,6 +464,24 @@ function seedBuildRoleReport(runFolder: string, schema: string): void {
         summary: 'No blocking issues',
         findings: [],
         alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
+      }),
+    );
+    return;
+  }
+  if (schema === 'build.touch-area@v1') {
+    // The seeded plan declares no allowed_touch_area, so the gate is inert.
+    writeJson(
+      runFolder,
+      'reports/build/touch-area.json',
+      BuildTouchArea.parse({
+        overall_status: 'passed',
+        enforcement: 'not_enforced',
+        containment: 'within',
+        allowed_area: [],
+        observed_paths: [],
+        out_of_bounds_paths: [],
+        head_diverged: false,
+        hidden_index_flags: [],
       }),
     );
     return;

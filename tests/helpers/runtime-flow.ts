@@ -1,12 +1,14 @@
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
+  BuildBaselineSnapshot,
   BuildBrief,
   BuildContext,
   BuildImplementation,
   BuildPlan,
   BuildResult,
   BuildReview,
+  BuildTouchArea,
   BuildVerification,
 } from '../../src/flows/build/reports.js';
 import {
@@ -505,6 +507,27 @@ function reportBody(
         ],
         anticipated_file_extensions: ['.ts'],
         verification: { commands: [commandSpec] },
+      });
+    // The parity plan declares no allowed_touch_area, so the touch-area gate is
+    // off: the baseline and touch-area verification steps run no git and record
+    // their inert reports. The real writers produce these shapes via git in a
+    // real repo; the parity stub stands in with the same inert bodies because
+    // the fixture's temp run dir is not a git checkout.
+    case 'build.baseline-snapshot@v1':
+      return BuildBaselineSnapshot.parse({ overall_status: 'passed', captured: false });
+    case 'build.touch-area@v1':
+      // Mirror of inertBuildTouchArea() (the writer's gate-off result); inlined
+      // here because tests reach the flow only through reports.ts, not writers.
+      // The parse pins this to the schema, so a required-field change fails here.
+      return BuildTouchArea.parse({
+        overall_status: 'passed',
+        enforcement: 'not_enforced',
+        containment: 'within',
+        allowed_area: [],
+        observed_paths: [],
+        out_of_bounds_paths: [],
+        head_diverged: false,
+        hidden_index_flags: [],
       });
     case 'build.implementation@v1':
       return BuildImplementation.parse({

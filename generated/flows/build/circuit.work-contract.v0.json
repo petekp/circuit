@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/build/circuit.work-contract.v0.json",
-    "sha256": "46f08ad095595347f4d28529bfdfd717f8fc78cd412c34cd8d3e5f5172dbe3c5",
+    "sha256": "5abded7add73d5c3cf0a4ad85b1223c0dbea6db276c68caf3c46a671479ee4b8",
     "flow_id": "build"
   },
   "work_contract": {
@@ -61,7 +61,7 @@
           "id": "verify-stage",
           "title": "Verify",
           "canonical": "verify",
-          "steps": ["verify-step"]
+          "steps": ["build-baseline", "verify-step", "build-touch-area"]
         },
         {
           "id": "review-stage",
@@ -123,12 +123,12 @@
         {
           "step_id": "plan-step",
           "route_id": "continue",
-          "target": "act-step"
+          "target": "build-baseline"
         },
         {
           "step_id": "plan-step",
           "route_id": "pass",
-          "target": "act-step"
+          "target": "build-baseline"
         },
         {
           "step_id": "plan-step",
@@ -137,6 +137,21 @@
         },
         {
           "step_id": "plan-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "build-baseline",
+          "route_id": "continue",
+          "target": "act-step"
+        },
+        {
+          "step_id": "build-baseline",
+          "route_id": "pass",
+          "target": "act-step"
+        },
+        {
+          "step_id": "build-baseline",
           "route_id": "stop",
           "target": "@stop"
         },
@@ -163,12 +178,12 @@
         {
           "step_id": "verify-step",
           "route_id": "continue",
-          "target": "review-step"
+          "target": "build-touch-area"
         },
         {
           "step_id": "verify-step",
           "route_id": "pass",
-          "target": "review-step"
+          "target": "build-touch-area"
         },
         {
           "step_id": "verify-step",
@@ -182,6 +197,21 @@
         },
         {
           "step_id": "verify-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "build-touch-area",
+          "route_id": "continue",
+          "target": "review-step"
+        },
+        {
+          "step_id": "build-touch-area",
+          "route_id": "pass",
+          "target": "review-step"
+        },
+        {
+          "step_id": "build-touch-area",
           "route_id": "stop",
           "target": "@stop"
         },
@@ -311,9 +341,36 @@
           "required": ["objective", "verification"]
         },
         "routes": {
+          "continue": "build-baseline",
+          "pass": "build-baseline",
+          "revise": "plan-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "build-baseline",
+        "title": "Verify - snapshot pre-change git state",
+        "kind": "verification",
+        "executor": "orchestrator",
+        "protocol": "build-baseline-snapshot@v1",
+        "reads": ["reports/build/plan.json"],
+        "writes": {
+          "report": {
+            "path": "reports/build/baseline-snapshot.json",
+            "schema": "build.baseline-snapshot@v1"
+          }
+        },
+        "check": {
+          "kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          },
+          "required": ["overall_status"]
+        },
+        "routes": {
           "continue": "act-step",
           "pass": "act-step",
-          "revise": "plan-step",
           "stop": "@stop"
         }
       },
@@ -370,10 +427,41 @@
           "required": ["overall_status", "commands"]
         },
         "routes": {
-          "continue": "review-step",
-          "pass": "review-step",
+          "continue": "build-touch-area",
+          "pass": "build-touch-area",
           "advance": "act-step",
           "retry": "act-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "build-touch-area",
+        "title": "Verify - check git-proven touch area",
+        "kind": "verification",
+        "executor": "orchestrator",
+        "protocol": "build-touch-area@v1",
+        "reads": [
+          "reports/build/plan.json",
+          "reports/build/baseline-snapshot.json",
+          "reports/build/implementation.json"
+        ],
+        "writes": {
+          "report": {
+            "path": "reports/build/touch-area.json",
+            "schema": "build.touch-area@v1"
+          }
+        },
+        "check": {
+          "kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          },
+          "required": ["overall_status", "enforcement", "containment"]
+        },
+        "routes": {
+          "continue": "review-step",
+          "pass": "review-step",
           "stop": "@stop"
         }
       },
@@ -387,7 +475,8 @@
           "reports/build/brief.json",
           "reports/build/plan.json",
           "reports/build/implementation.json",
-          "reports/build/verification.json"
+          "reports/build/verification.json",
+          "reports/build/touch-area.json"
         ],
         "writes": {
           "report": {
@@ -425,7 +514,8 @@
           "reports/build/plan.json",
           "reports/build/implementation.json",
           "reports/build/verification.json",
-          "reports/build/review.json"
+          "reports/build/review.json",
+          "reports/build/touch-area.json"
         ],
         "writes": {
           "report": {
@@ -550,6 +640,12 @@
           "schema": "build.plan@v1"
         },
         {
+          "step_id": "build-baseline",
+          "slot": "report",
+          "path": "reports/build/baseline-snapshot.json",
+          "schema": "build.baseline-snapshot@v1"
+        },
+        {
           "step_id": "act-step",
           "slot": "report",
           "path": "reports/build/implementation.json",
@@ -560,6 +656,12 @@
           "slot": "report",
           "path": "reports/build/verification.json",
           "schema": "build.verification@v1"
+        },
+        {
+          "step_id": "build-touch-area",
+          "slot": "report",
+          "path": "reports/build/touch-area.json",
+          "schema": "build.touch-area@v1"
         },
         {
           "step_id": "review-step",
@@ -600,6 +702,14 @@
           }
         },
         {
+          "step_id": "build-baseline",
+          "check_kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          }
+        },
+        {
           "step_id": "act-step",
           "check_kind": "result_verdict",
           "source": {
@@ -609,6 +719,14 @@
         },
         {
           "step_id": "verify-step",
+          "check_kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          }
+        },
+        {
+          "step_id": "build-touch-area",
           "check_kind": "schema_sections",
           "source": {
             "kind": "report",
@@ -686,7 +804,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -715,7 +833,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/retry",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -745,7 +863,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/ask",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -776,7 +894,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/stop",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -801,7 +919,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/revise",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -832,7 +950,38 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/stop",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
+          "flow_id": "build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "build-baseline",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/build-baseline/routes/stop",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -861,7 +1010,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/act-step/routes/retry",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -892,7 +1041,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/act-step/routes/stop",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -917,7 +1066,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/retry",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -948,7 +1097,38 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/stop",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
+          "flow_id": "build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "build-touch-area",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/build-touch-area/routes/stop",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -973,7 +1153,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/retry",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -998,7 +1178,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/revise",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -1029,7 +1209,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/stop",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       },
@@ -1060,7 +1240,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/stop",
-          "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+          "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
           "flow_id": "build"
         }
       }
@@ -1077,7 +1257,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/frame-step/policy/safe_default_choice",
-        "sha256": "6718c5442a09042b454e800f3a27294f62c046f225f4d620db833ded0e74b49d",
+        "sha256": "a030eb7fdb5aee4145b88f0e38bf4502c27e8080f896377e365056069f8c5273",
         "flow_id": "build"
       }
     ],

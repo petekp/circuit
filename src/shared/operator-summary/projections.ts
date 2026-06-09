@@ -208,6 +208,36 @@ function buildScopeDetails(flowReport: JsonObject | undefined): string[] {
   return details;
 }
 
+// Build-only touch-area rendering. Unlike scope (which is the reviewer's
+// self-report), this is a git-proven fact: the touch-area writer diffed the
+// working tree against a baseline snapshot and compared the touched paths to
+// the area the plan declared. We surface a deviation loudly so an accept
+// verdict can never launder a change that reached outside its declared area.
+// Deviation-only by design, same as scope: a contained change (or a run with
+// no declared area, where containment is always 'within') says nothing extra.
+function hasTouchAreaDeviation(flowReport: JsonObject | undefined): boolean {
+  const touchArea = isObject(flowReport?.touch_area) ? flowReport.touch_area : undefined;
+  if (touchArea === undefined) return false;
+  return stringField(touchArea, 'containment') !== 'within';
+}
+
+function buildTouchAreaDetails(flowReport: JsonObject | undefined): string[] {
+  const touchArea = isObject(flowReport?.touch_area) ? flowReport.touch_area : undefined;
+  if (touchArea === undefined) return [];
+  const containment = stringField(touchArea, 'containment');
+  if (containment === 'out_of_bounds') {
+    const paths = stringArrayField(touchArea, 'out_of_bounds_paths');
+    const list = paths.length === 0 ? '(paths unavailable)' : paths.join('; ');
+    return [`Touch area: the change modified files outside the planned area: ${list}.`];
+  }
+  if (containment === 'undetermined') {
+    return [
+      'Touch area: containment could not be verified — history moved during the run, or a file is hidden from git.',
+    ];
+  }
+  return [];
+}
+
 function prototypeDetails(flowReport: JsonObject | undefined): string[] {
   const details: string[] = [];
   const summaryDetail = flowSummaryDetail(flowReport);
@@ -302,6 +332,9 @@ const buildProjector: SummaryProjector = ({ flowReport, runOutcome }) => {
       const causes: string[] = [];
       if (review === 'accept-with-fixes') causes.push('review requested fixes');
       if (hasScopeDeviation(flowReport)) causes.push('the change needs a scope follow-up');
+      if (hasTouchAreaDeviation(flowReport)) {
+        causes.push('the change reached outside the planned area');
+      }
       const cause = causes.length > 0 ? causes.join(' and ') : 'review or scope needs a follow-up';
       return `Circuit: Build needs follow-up. Verification passed, but ${cause}.`;
     }
@@ -309,7 +342,11 @@ const buildProjector: SummaryProjector = ({ flowReport, runOutcome }) => {
   })();
   return {
     headline,
-    details: [...buildFixDetails(flowReport), ...buildScopeDetails(flowReport)],
+    details: [
+      ...buildFixDetails(flowReport),
+      ...buildScopeDetails(flowReport),
+      ...buildTouchAreaDetails(flowReport),
+    ],
   } satisfies SummaryProjection;
 };
 

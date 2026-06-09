@@ -168,6 +168,103 @@ describe('operator-summary Build projection', () => {
       'Guardrails the reviewer did not assess: Do not change the public API.',
     );
   });
+
+  it('renders a clean complete build with no touch-area line when contained', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'complete',
+        review_verdict: 'accept',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+        touch_area: { enforcement: 'enforced', containment: 'within', out_of_bounds_paths: [] },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build complete. Change implemented, verification passed, review accepted.',
+    );
+    expect(projection.details.some((d) => d.startsWith('Touch area:'))).toBe(false);
+  });
+
+  it('says nothing extra when the touch-area gate is not enforced', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'complete',
+        review_verdict: 'accept',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+        touch_area: { enforcement: 'not_enforced', containment: 'within', out_of_bounds_paths: [] },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build complete. Change implemented, verification passed, review accepted.',
+    );
+    expect(projection.details.some((d) => d.startsWith('Touch area:'))).toBe(false);
+  });
+
+  it('names the out-of-bounds paths and frames the cause when the change reached outside the area', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+        touch_area: {
+          enforcement: 'enforced',
+          containment: 'out_of_bounds',
+          out_of_bounds_paths: ['src/runtime/executor.ts', 'package.json'],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but the change reached outside the planned area.',
+    );
+    expect(projection.details).toContain(
+      'Touch area: the change modified files outside the planned area: src/runtime/executor.ts; package.json.',
+    );
+  });
+
+  it('frames an undetermined containment as a verification gap', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept',
+        scope: { adherence: 'within_scope', violated_guardrails: [], unassessed_guardrails: [] },
+        touch_area: {
+          enforcement: 'enforced',
+          containment: 'undetermined',
+          out_of_bounds_paths: [],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but the change reached outside the planned area.',
+    );
+    expect(projection.details).toContain(
+      'Touch area: containment could not be verified — history moved during the run, or a file is hidden from git.',
+    );
+  });
+
+  it('names every cause when an out-of-bounds touch area coincides with review fixes and a scope skip', () => {
+    const projection = projectSummary(
+      baseResult({
+        outcome: 'needs_attention',
+        review_verdict: 'accept-with-fixes',
+        scope: {
+          adherence: 'within_scope',
+          violated_guardrails: [],
+          unassessed_guardrails: ['Do not change the public API'],
+        },
+        touch_area: {
+          enforcement: 'enforced',
+          containment: 'out_of_bounds',
+          out_of_bounds_paths: ['src/runtime/executor.ts'],
+        },
+      }),
+    );
+    expect(projection.headline).toBe(
+      'Circuit: Build needs follow-up. Verification passed, but review requested fixes and the change needs a scope follow-up and the change reached outside the planned area.',
+    );
+    expect(projection.details).toContain(
+      'Touch area: the change modified files outside the planned area: src/runtime/executor.ts.',
+    );
+  });
 });
 
 describe('operator-summary Goal projection', () => {

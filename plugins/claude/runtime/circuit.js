@@ -10766,9 +10766,9 @@ var require_dist = __commonJS({
 });
 
 // dist/cli/circuit.js
-import { readFileSync as readFileSync45 } from "node:fs";
+import { readFileSync as readFileSync47 } from "node:fs";
 import { dirname as dirname14, resolve as resolve20 } from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // node_modules/commander/esm.mjs
 var import_index = __toESM(require_commander(), 1);
@@ -10823,7 +10823,7 @@ function parseCommanderOrThrow(program2, argv) {
 
 // dist/cli/create.js
 import { randomUUID as randomUUID2 } from "node:crypto";
-import { existsSync as existsSync9, mkdirSync, readFileSync as readFileSync22, rmSync, writeFileSync } from "node:fs";
+import { existsSync as existsSync9, mkdirSync, readFileSync as readFileSync24, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname as dirname2, join as join4, resolve as resolve6 } from "node:path";
 var import_yaml = __toESM(require_dist(), 1);
@@ -29183,11 +29183,12 @@ var buildContextShapeHint = {
   schema: "build.context@v1",
   instruction: [
     "Respond with a single raw JSON object whose top-level shape is exactly:",
-    '{ "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"], "slices": [{ "id": "slice-1", "intent": "<one concrete, independently-verifiable unit of implementation work>", "anticipated_file_extensions": ["<extension this slice will touch>"] }], "guardrails": { "non_goals": ["<something the change must NOT do, stated by the operator>"], "invariants": ["<a property the change must preserve, grounded in the code>"] } }',
+    '{ "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"], "slices": [{ "id": "slice-1", "intent": "<one concrete, independently-verifiable unit of implementation work>", "anticipated_file_extensions": ["<extension this slice will touch>"] }], "guardrails": { "non_goals": ["<something the change must NOT do, stated by the operator>"], "invariants": ["<a property the change must preserve, grounded in the code>"] }, "allowed_touch_area": ["<a directory subtree ending in \\"/\\", such as \\"src/flows/build/\\", or an exact repo-relative file path>"] }',
     "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated rigor (provided to you): on a quick or lite job read just the directly implicated files; on a deep job map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
     "In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer.",
     'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. Under deep rigor the engine implements and verifies these one at a time; under lighter rigor the change runs in a single pass regardless.',
     'In guardrails, capture the negative space of the change. Put in non_goals the things the operator said the change must NOT do - boundaries drawn from the goal and brief, not invented. Put in invariants the properties the change must preserve, grounded in what you read (a contract, a data shape, an ordering, a safety property). Both default to empty arrays: declare a guardrail only when it is real and specific, never a generic "do not break anything". These carry forward to the plan and the reviewer checks the change against them.',
+    'In allowed_touch_area, name the paths this change is allowed to touch, proposed from what you read - either a directory subtree ending in "/" (for example "src/flows/build/", which covers everything beneath it) or an exact repo-relative file path. Include every place a correct change legitimately needs to reach: the source it edits, the tests that cover it, and any generated output it regenerates. State the allowed area positively; do not list off-limits files. After the build the engine compares the files actually changed - proven from git, not self-reported - against this area, and a change that reaches outside it cannot finish clean. Because the implementer is held to this without trimming the work to fit, leave the array empty whenever you cannot scope the change with confidence: an empty area turns the check off rather than guessing a box.',
     "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.context@v1 before writing reports/build/context.json."
   ].join(" ")
 };
@@ -29201,6 +29202,7 @@ var buildImplementationShapeHint = {
     "The plan may carry guardrails: non_goals (things this change must NOT do) and invariants (properties it must preserve). Stay inside the non_goals and preserve every invariant. These are advisory to you here, but the reviewer checks the finished change against them, so a violation will surface as a finding.",
     "When the request names a current slice (its id and intent), implement ONLY that slice's unit of work - the smallest change that satisfies that slice's intent - and leave later slices for their own turn. When no current slice is named, implement the whole plan in one pass. Report changed_files cumulatively: every file changed so far across all slices, not only this slice's files.",
     "The plan's anticipated_file_extensions (and the current slice's, when named) list the file types the grounding read expects to touch. Treat them as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched.",
+    "The plan may also carry allowed_touch_area: the paths the grounding read predicted this change should reach. It is advisory to you, not a cage - implement what the slice and goal actually require and report every file you really changed. After you finish, the engine compares your git-proven changes against that area; reaching outside it does not fail the build but surfaces for a human to confirm, so do not pad the change with edits it does not need, and do not trim a necessary change just to stay inside the predicted box.",
     "Use an empty changed_files array only when no file changed. Evidence must contain at least one item. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
     "The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.implementation@v1 before writing reports/build/implementation.json."
   ].join(" ")
@@ -29213,10 +29215,123 @@ var buildReviewShapeHint = {
     `{ "verdict": "<accept|accept-with-fixes|reject>", "summary": "<review summary>", "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }], "alignment": { "scope_adherence": "<within_scope|exceeds_scope>", "non_goals": [{ "statement": "<the plan's non_goal, verbatim>", "status": "<respected|violated|not_applicable>", "evidence": "<what in the change shows this>" }], "invariants": [{ "statement": "<the plan's invariant, verbatim>", "status": "<preserved|violated|not_applicable>", "evidence": "<what in the change shows this>" }] } }`,
     "Review the change against the requested scope, not just against passing tests. Flag behavior that broadens semantics beyond the goal even when verification passes.",
     `alignment is required. Set scope_adherence by judging the finished change against the brief: within_scope when it does only what the goal asked, exceeds_scope when it reaches beyond. Add one non_goals entry per non_goal the plan declared and one invariants entry per invariant, each restating the plan's text with a status and concrete evidence; use empty arrays only when the plan declared none. If you set scope_adherence to exceeds_scope, or mark any non_goal violated or any invariant violated, the verdict cannot be "accept" and you must include at least one finding that explains the breach.`,
+    "You are also given a git-proven touch_area report: the files the change actually modified and whether they stayed inside the plan's allowed_touch_area. Treat it as ground truth about what was physically touched - more reliable than the implementer's self-reported file list - and let it inform your scope_adherence judgment and your evidence. The engine enforces that boundary separately at close, so your job here is the semantic call, not to re-run the boundary check.",
     'Use an empty findings array only with verdict "accept". Verdicts "accept-with-fixes" and "reject" must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.',
     "The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.review@v1 before writing reports/build/review.json."
   ].join(" ")
 };
+
+// dist/schemas/runtime-evidence.js
+var RuntimeGitStateEntry = external_exports.object({
+  status_code: external_exports.string().length(2),
+  path: external_exports.string().min(1),
+  fingerprint: external_exports.string().min(1),
+  from: external_exports.string().min(1).optional()
+}).strict();
+var RuntimeHiddenIndexFlag = external_exports.object({
+  tag: external_exports.string().length(1),
+  path: external_exports.string().min(1)
+}).strict();
+var RuntimeGitStateSnapshot = external_exports.object({
+  head_sha: external_exports.string().min(1),
+  entries: external_exports.array(RuntimeGitStateEntry),
+  hidden_index_flags: external_exports.array(RuntimeHiddenIndexFlag)
+}).strict();
+var RuntimeGitStateSnapshotReport = RuntimeGitStateSnapshot.extend({
+  overall_status: external_exports.literal("passed")
+}).strict();
+var RuntimeTouchedFileStatus = external_exports.enum(["added", "modified", "deleted", "renamed"]);
+var RuntimeTouchedFile = external_exports.object({
+  path: external_exports.string().min(1),
+  status: RuntimeTouchedFileStatus,
+  source: external_exports.literal("runtime_diff"),
+  generated_surface: external_exports.boolean(),
+  protected: external_exports.boolean(),
+  // Rename/copy source. git folds a rename's source deletion into the
+  // destination entry, so the source path never appears as its own touched
+  // file. Carrying it here lets a path-containment consumer (Build's
+  // touch-area gate) see both endpoints of a move; without it, a
+  // `git mv out-of-area in-area` would hide the out-of-area source. Absent
+  // for non-rename entries. Deliberately NOT folded into the worker-claim
+  // comparison (which stays destination-only), so Fix's change-set verdict is
+  // unchanged: declaring a rename's destination remains a faithful claim.
+  from: external_exports.string().min(1).optional()
+}).strict();
+var RuntimeTouchedFilesCore = external_exports.object({
+  baseline_head_sha: external_exports.string().min(1),
+  head_sha: external_exports.string().min(1),
+  head_diverged: external_exports.boolean(),
+  files: external_exports.array(RuntimeTouchedFile),
+  worker_declared: external_exports.array(external_exports.string().min(1)),
+  worker_claim_matches_runtime: external_exports.boolean(),
+  undeclared_worker_extras: external_exports.array(external_exports.string().min(1)),
+  missing_worker_declared: external_exports.array(external_exports.string().min(1)),
+  baseline_dirty_mutated: external_exports.array(external_exports.string().min(1)),
+  hidden_index_flags: external_exports.array(RuntimeHiddenIndexFlag)
+}).strict();
+function addRuntimeTouchedFilesIssues(touched, ctx) {
+  const observed = touched.files.map((file2) => file2.path);
+  const observedSet = new Set(observed);
+  const declaredSet = new Set(touched.worker_declared);
+  const expectedExtras = observed.filter((path) => !declaredSet.has(path));
+  const expectedMissing = touched.worker_declared.filter((path) => !observedSet.has(path));
+  const expectedMatches = expectedExtras.length === 0 && expectedMissing.length === 0;
+  if (touched.head_diverged !== (touched.baseline_head_sha !== touched.head_sha)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["head_diverged"],
+      message: "head_diverged must equal baseline_head_sha !== head_sha"
+    });
+  }
+  if (touched.worker_claim_matches_runtime !== expectedMatches) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["worker_claim_matches_runtime"],
+      message: "worker_claim_matches_runtime must reflect undeclared_worker_extras and missing_worker_declared"
+    });
+  }
+  if (expectedExtras.length !== touched.undeclared_worker_extras.length || expectedExtras.some((path, index) => path !== touched.undeclared_worker_extras[index])) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["undeclared_worker_extras"],
+      message: "undeclared_worker_extras must equal runtime-observed paths minus worker_declared"
+    });
+  }
+  if (expectedMissing.length !== touched.missing_worker_declared.length || expectedMissing.some((path, index) => path !== touched.missing_worker_declared[index])) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["missing_worker_declared"],
+      message: "missing_worker_declared must equal worker_declared minus runtime-observed paths"
+    });
+  }
+  for (const [index, path] of touched.baseline_dirty_mutated.entries()) {
+    if (!observedSet.has(path)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["baseline_dirty_mutated", index],
+        message: `baseline_dirty_mutated path '${path}' must also appear in files`
+      });
+    }
+  }
+}
+var RuntimeTouchedFilesProjection = RuntimeTouchedFilesCore.superRefine(addRuntimeTouchedFilesIssues);
+var RuntimeTouchedFilesReport = RuntimeTouchedFilesCore.extend({
+  overall_status: external_exports.enum(["passed", "failed"])
+}).superRefine((report, ctx) => {
+  addRuntimeTouchedFilesIssues(report, ctx);
+  const hasFailure = report.head_diverged || !report.worker_claim_matches_runtime || report.hidden_index_flags.length > 0;
+  const expected = hasFailure ? "failed" : "passed";
+  if (report.overall_status !== expected) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["overall_status"],
+      message: `overall_status must be '${expected}' for the runtime touched-file evidence`
+    });
+  }
+});
+var RuntimeTouchedFilesEvidenceRef = Ref.refine((ref) => ref.kind === "evidence", {
+  message: "runtime touched-file evidence refs must use kind evidence"
+});
 
 // dist/flows/report-schema-kit.js
 function resultReportPointer(reportId, schemaByReportId, pathByReportId) {
@@ -29260,6 +29375,7 @@ var BuildGuardrails = external_exports.object({
   non_goals: external_exports.array(external_exports.string().min(1)).default([]).describe("things the change must not do, drawn from operator-stated boundaries"),
   invariants: external_exports.array(external_exports.string().min(1)).default([]).describe("properties the change must preserve, grounded in the codebase read")
 }).strict();
+var AllowedTouchArea = external_exports.array(external_exports.string().min(1).describe('a directory subtree ending in "/" (segment-aware, e.g. "src/flows/build/") or an exact repo-relative file path')).default([]).describe("paths the change is allowed to touch, proposed by the researcher from the codebase read; empty leaves the touch-area gate inert (opt-in)");
 var BuildSlice = external_exports.object({
   id: external_exports.string().min(1).describe('stable slice id, e.g. "slice-1"'),
   intent: external_exports.string().min(1).describe("one concrete, independently-verifiable unit of implementation work"),
@@ -29348,7 +29464,8 @@ var BuildContext = external_exports.object({
   open_questions: external_exports.array(external_exports.string().min(1).describe("question still unresolved after gathering context")),
   anticipated_file_extensions: external_exports.array(external_exports.string().min(1).describe('file extension the implementation is expected to touch, e.g. ".ts" or ".test.ts"')).default([]).describe("file extensions the implementation is predicted to touch, inferred from the codebase read; empty when no confident prediction"),
   slices: external_exports.array(BuildSlice).default([]).describe("ordered units of implementation work the change decomposes into, inferred from the codebase read; empty when the change is a single indivisible unit (the plan then runs one pass)"),
-  guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space: operator-stated non_goals extracted from the goal and code-grounded invariants the change must preserve; empty when none apply")
+  guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space: operator-stated non_goals extracted from the goal and code-grounded invariants the change must preserve; empty when none apply"),
+  allowed_touch_area: AllowedTouchArea
 }).strict();
 var BuildPlan = external_exports.object({
   objective: external_exports.string().min(1),
@@ -29356,6 +29473,7 @@ var BuildPlan = external_exports.object({
   slices: external_exports.array(BuildSlice).min(1).describe("ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). Under deep rigor the engine implements and verifies these one at a time"),
   anticipated_file_extensions: external_exports.array(external_exports.string().min(1)).default([]).describe("file extensions the implementation is predicted to touch, surfaced from build.context@v1; empty when grounding made no confident prediction"),
   guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space carried from build.context@v1: non_goals the change must not do and invariants it must preserve; empty when none apply"),
+  allowed_touch_area: AllowedTouchArea.describe("paths the change is allowed to touch, carried from build.context@v1; empty leaves the touch-area gate inert (opt-in)"),
   verification: external_exports.object({
     commands: external_exports.array(VerificationCommand).min(1)
   }).strict()
@@ -29426,6 +29544,100 @@ var BuildReview = external_exports.object({
     }
   }
 });
+var BuildBaselineSnapshotEntry = RuntimeGitStateEntry;
+var BuildHiddenIndexFlag = RuntimeHiddenIndexFlag;
+var BuildBaselineCaptured = external_exports.object({
+  overall_status: external_exports.literal("passed"),
+  captured: external_exports.literal(true),
+  head_sha: external_exports.string().min(1),
+  entries: external_exports.array(BuildBaselineSnapshotEntry),
+  hidden_index_flags: external_exports.array(BuildHiddenIndexFlag)
+}).strict();
+var BuildBaselineInert = external_exports.object({
+  overall_status: external_exports.literal("passed"),
+  captured: external_exports.literal(false)
+}).strict();
+var BuildBaselineSnapshot = external_exports.discriminatedUnion("captured", [
+  BuildBaselineCaptured,
+  BuildBaselineInert
+]);
+var BuildTouchAreaEnforcement = external_exports.enum(["enforced", "not_enforced"]);
+var BuildTouchAreaContainment = external_exports.enum(["within", "out_of_bounds", "undetermined"]);
+var BuildTouchArea = external_exports.object({
+  overall_status: external_exports.literal("passed"),
+  enforcement: BuildTouchAreaEnforcement,
+  containment: BuildTouchAreaContainment,
+  allowed_area: external_exports.array(external_exports.string().min(1)),
+  observed_paths: external_exports.array(external_exports.string().min(1)),
+  out_of_bounds_paths: external_exports.array(external_exports.string().min(1)),
+  // The two git SHAs are present only when git actually ran (an area was
+  // declared). When the gate is not enforced the step skips git, so they are
+  // absent; the superRefine below requires them exactly when enforced.
+  baseline_head_sha: external_exports.string().min(1).optional(),
+  head_sha: external_exports.string().min(1).optional(),
+  head_diverged: external_exports.boolean(),
+  hidden_index_flags: external_exports.array(BuildHiddenIndexFlag),
+  reason: external_exports.string().min(1).optional()
+}).strict().superRefine((touchArea, ctx) => {
+  const enforced = touchArea.enforcement === "enforced";
+  if (enforced && (touchArea.baseline_head_sha === void 0 || touchArea.head_sha === void 0)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["baseline_head_sha"],
+      message: 'baseline_head_sha and head_sha are required when enforcement is "enforced"'
+    });
+  }
+  if (enforced === (touchArea.allowed_area.length === 0)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["enforcement"],
+      message: "enforcement must be 'enforced' exactly when allowed_area is non-empty (and 'not_enforced' when empty)"
+    });
+  }
+  if (!enforced && touchArea.containment !== "within") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["containment"],
+      message: "containment must be 'within' when enforcement is 'not_enforced'"
+    });
+  }
+  if (!enforced && touchArea.out_of_bounds_paths.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["out_of_bounds_paths"],
+      message: 'out_of_bounds_paths must be empty when enforcement is "not_enforced"'
+    });
+  }
+  if (touchArea.containment === "out_of_bounds" && touchArea.out_of_bounds_paths.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["out_of_bounds_paths"],
+      message: "out_of_bounds_paths must be non-empty when containment is 'out_of_bounds'"
+    });
+  }
+  if (touchArea.containment !== "out_of_bounds" && touchArea.out_of_bounds_paths.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["containment"],
+      message: "containment must be 'out_of_bounds' when out_of_bounds_paths is non-empty"
+    });
+  }
+  const cannotProve = touchArea.head_diverged || touchArea.hidden_index_flags.length > 0;
+  if (enforced && cannotProve && touchArea.containment !== "undetermined") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["containment"],
+      message: "containment must be 'undetermined' when HEAD moved or a hidden index flag is present (enforced)"
+    });
+  }
+  if (touchArea.containment === "undetermined" && !cannotProve) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["containment"],
+      message: "containment may be 'undetermined' only when HEAD moved or a hidden index flag is present"
+    });
+  }
+});
 var BuildResultReportId = external_exports.enum([
   "build.brief",
   "build.plan",
@@ -29439,6 +29651,11 @@ var BuildScope = external_exports.object({
   violated_guardrails: external_exports.array(external_exports.string().min(1)).default([]).describe("declared guardrails the reviewer marked violated"),
   unassessed_guardrails: external_exports.array(external_exports.string().min(1)).default([]).describe("plan-declared guardrails the reviewer did not assess in alignment")
 }).strict();
+var BuildTouchAreaSummary = external_exports.object({
+  enforcement: BuildTouchAreaEnforcement,
+  containment: BuildTouchAreaContainment,
+  out_of_bounds_paths: external_exports.array(external_exports.string().min(1)).default([]).describe("git-proven changed paths outside the allowed area")
+}).strict();
 var BuildResult = external_exports.object({
   summary: external_exports.string().min(1),
   outcome: external_exports.enum(["complete", "needs_attention", "failed"]),
@@ -29448,6 +29665,11 @@ var BuildResult = external_exports.object({
     adherence: "within_scope",
     violated_guardrails: [],
     unassessed_guardrails: []
+  }),
+  touch_area: BuildTouchAreaSummary.default({
+    enforcement: "not_enforced",
+    containment: "within",
+    out_of_bounds_paths: []
   }),
   evidence_links: external_exports.array(BuildResultReportPointer).length(5)
 }).strict().superRefine((result, ctx) => {
@@ -29507,6 +29729,20 @@ var BuildResult = external_exports.object({
         message: "scope.unassessed_guardrails must be empty when outcome is 'complete'"
       });
     }
+    if (result.touch_area.containment !== "within") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["touch_area", "containment"],
+        message: "touch_area.containment must be 'within' when outcome is 'complete'"
+      });
+    }
+    if (result.touch_area.out_of_bounds_paths.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["touch_area", "out_of_bounds_paths"],
+        message: "touch_area.out_of_bounds_paths must be empty when outcome is 'complete'"
+      });
+    }
   }
   if (result.outcome === "needs_attention") {
     if (result.verification_status !== "passed") {
@@ -29526,28 +29762,9 @@ var BuildResult = external_exports.object({
   }
 });
 
-// dist/flows/build/writers/checkpoint-brief.js
-import { readFileSync as readFileSync4 } from "node:fs";
-
-// dist/schemas/hashing.js
-import { createHash } from "node:crypto";
+// dist/flows/build/writers/baseline-snapshot.js
 import { readFileSync } from "node:fs";
-function canonicalJson(value) {
-  return JSON.stringify(value, (_key, item) => {
-    if (item === null || typeof item !== "object" || Array.isArray(item))
-      return item;
-    return Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)));
-  });
-}
-function sha256OfString(payload) {
-  return createHash("sha256").update(payload, "utf8").digest("hex");
-}
-function sha256OfJson(value) {
-  return createHash("sha256").update(canonicalJson(value)).digest("hex");
-}
-function sha256OfFile(path) {
-  return Sha256.parse(createHash("sha256").update(readFileSync(path)).digest("hex"));
-}
+import { fileURLToPath } from "node:url";
 
 // dist/shared/run-relative-path.js
 import { existsSync, lstatSync, realpathSync } from "node:fs";
@@ -29587,13 +29804,127 @@ function resolveRunRelative(runFolder, relPath) {
   return targetAbs;
 }
 
+// dist/flows/registries/runtime-index.js
+function requireRuntimeIndexedStep(index, stepId, kind) {
+  const indexedStep2 = index.stepsById.get(stepId);
+  if (indexedStep2 === void 0) {
+    throw new Error(`runtime package index has no step '${stepId}'`);
+  }
+  if (indexedStep2.kind !== kind) {
+    throw new Error(`runtime package index step '${stepId}' has kind '${indexedStep2.kind}', expected '${kind}'`);
+  }
+  return indexedStep2;
+}
+function reportPathForSchemaInRuntimeFlow(flow, schemaName) {
+  const matches = flow.steps.flatMap((step) => Object.values(step.writes).flatMap((write) => typeof write === "object" && write !== null && write.schema === schemaName ? [{ step, write }] : []));
+  if (matches.length !== 1) {
+    throw new Error(`expected exactly one report writer for schema '${schemaName}', found ${matches.length}`);
+  }
+  const report = matches[0]?.write;
+  if (typeof report !== "object" || report === null) {
+    throw new Error(`report writer for schema '${schemaName}' is missing a report path`);
+  }
+  return report.path;
+}
+function flowHasReportSchemaInRuntimeFlow(flow, schemaName) {
+  return flow.steps.some((step) => Object.values(step.writes).some((write) => typeof write === "object" && write !== null && write.schema === schemaName));
+}
+
+// dist/flows/build/writers/baseline-snapshot.js
+var GIT_TIMEOUT_MS = 6e4;
+var GIT_MAX_OUTPUT_BYTES = 5e6;
+var GIT_STATE_HELPER_PATH = fileURLToPath(new URL("./git-state.ts", import.meta.url));
+var GitStateHelperOutput = RuntimeGitStateSnapshot;
+function buildGitStateCommand(id) {
+  return {
+    id,
+    cwd: ".",
+    argv: [process.execPath, GIT_STATE_HELPER_PATH],
+    timeout_ms: GIT_TIMEOUT_MS,
+    max_output_bytes: GIT_MAX_OUTPUT_BYTES,
+    env: {}
+  };
+}
+function planDeclaresTouchArea(context) {
+  const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
+  if (!context.step.reads.includes(planPath)) {
+    throw new Error(`build touch-area gate requires step '${context.step.id}' to read ${planPath}`);
+  }
+  const plan = BuildPlan.parse(JSON.parse(readFileSync(resolveRunRelative(context.runFolder, planPath), "utf8")));
+  return plan.allowed_touch_area.length > 0;
+}
+function parseGitStateObservation(observation, schemaName) {
+  if (observation.status !== "passed") {
+    throw new Error(`${schemaName}: git-state helper failed (exit ${observation.exit_code}): ${observation.stderr_summary}`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(observation.stdout_summary);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(`${schemaName}: git-state helper stdout was not valid JSON: ${reason}`);
+  }
+  return GitStateHelperOutput.parse(parsed);
+}
+var buildBaselineSnapshotWriter = {
+  resultSchemaName: "build.baseline-snapshot@v1",
+  loadCommands(context) {
+    if (!planDeclaresTouchArea(context))
+      return [];
+    return [buildGitStateCommand("build-baseline-snapshot-git-state")];
+  },
+  buildResult(observations) {
+    if (observations.length === 0) {
+      return BuildBaselineSnapshot.parse({ overall_status: "passed", captured: false });
+    }
+    if (observations.length !== 1) {
+      throw new Error(`build.baseline-snapshot@v1: expected 1 git-state observation, got ${observations.length}`);
+    }
+    const observation = observations[0];
+    if (observation === void 0) {
+      throw new Error("build.baseline-snapshot@v1: git-state observation missing");
+    }
+    const state = parseGitStateObservation(observation, "build.baseline-snapshot@v1");
+    return BuildBaselineSnapshot.parse({
+      overall_status: "passed",
+      captured: true,
+      head_sha: state.head_sha,
+      entries: state.entries,
+      hidden_index_flags: state.hidden_index_flags
+    });
+  }
+};
+
+// dist/flows/build/writers/checkpoint-brief.js
+import { readFileSync as readFileSync5 } from "node:fs";
+
+// dist/schemas/hashing.js
+import { createHash } from "node:crypto";
+import { readFileSync as readFileSync2 } from "node:fs";
+function canonicalJson(value) {
+  return JSON.stringify(value, (_key, item) => {
+    if (item === null || typeof item !== "object" || Array.isArray(item))
+      return item;
+    return Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)));
+  });
+}
+function sha256OfString(payload) {
+  return createHash("sha256").update(payload, "utf8").digest("hex");
+}
+function sha256OfJson(value) {
+  return createHash("sha256").update(canonicalJson(value)).digest("hex");
+}
+function sha256OfFile(path) {
+  return Sha256.parse(createHash("sha256").update(readFileSync2(path)).digest("hex"));
+}
+
 // dist/shared/verification-resolver.js
-import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
+import { existsSync as existsSync3, readFileSync as readFileSync4 } from "node:fs";
 import { join as join2 } from "node:path";
 
 // dist/shared/proof-plan.js
 import { spawnSync } from "node:child_process";
-import { existsSync as existsSync2, lstatSync as lstatSync2, readFileSync as readFileSync2, realpathSync as realpathSync2 } from "node:fs";
+import { existsSync as existsSync2, lstatSync as lstatSync2, readFileSync as readFileSync3, realpathSync as realpathSync2 } from "node:fs";
 import { isAbsolute as isAbsolute2, join, relative as relative2, resolve as resolve2 } from "node:path";
 var PROOF_PLAN_ENV_INHERIT_ALLOWLIST = [
   "PATH",
@@ -29693,7 +30024,7 @@ function preflightProofPlanCommand(command, cwdAbs) {
   }
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync2(packageJsonPath, "utf8"));
+    parsed = JSON.parse(readFileSync3(packageJsonPath, "utf8"));
   } catch (error51) {
     const message = error51 instanceof Error ? error51.message : String(error51);
     throw new ProofPlanBlockedError(`Proof plan blocked: verification command '${command.id}' could not parse package.json at cwd ${JSON.stringify(command.cwd)}: ${message}.`);
@@ -29749,7 +30080,7 @@ function readPackageInfo(projectRoot) {
   }
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync3(packageJsonPath, "utf8"));
+    parsed = JSON.parse(readFileSync4(packageJsonPath, "utf8"));
   } catch (error51) {
     const message = error51 instanceof Error ? error51.message : String(error51);
     return `Cannot choose verification commands because package.json could not be parsed: ${message}.`;
@@ -30047,7 +30378,7 @@ var buildBriefCheckpointBuilder = {
   },
   validateResumeContext(context) {
     const reportAbs = resolveRunRelative(context.runFolder, context.reportPath);
-    const raw = readFileSync4(reportAbs, "utf8");
+    const raw = readFileSync5(reportAbs, "utf8");
     if (context.reportSha256 === void 0) {
       throw new Error("checkpoint resume rejected: checkpoint request is missing checkpoint_report_sha256");
     }
@@ -30060,33 +30391,14 @@ var buildBriefCheckpointBuilder = {
   }
 };
 
-// dist/flows/registries/runtime-index.js
-function requireRuntimeIndexedStep(index, stepId, kind) {
-  const indexedStep2 = index.stepsById.get(stepId);
-  if (indexedStep2 === void 0) {
-    throw new Error(`runtime package index has no step '${stepId}'`);
-  }
-  if (indexedStep2.kind !== kind) {
-    throw new Error(`runtime package index step '${stepId}' has kind '${indexedStep2.kind}', expected '${kind}'`);
-  }
-  return indexedStep2;
-}
-function reportPathForSchemaInRuntimeFlow(flow, schemaName) {
-  const matches = flow.steps.flatMap((step) => Object.values(step.writes).flatMap((write) => typeof write === "object" && write !== null && write.schema === schemaName ? [{ step, write }] : []));
-  if (matches.length !== 1) {
-    throw new Error(`expected exactly one report writer for schema '${schemaName}', found ${matches.length}`);
-  }
-  const report = matches[0]?.write;
-  if (typeof report !== "object" || report === null) {
-    throw new Error(`report writer for schema '${schemaName}' is missing a report path`);
-  }
-  return report.path;
-}
-function flowHasReportSchemaInRuntimeFlow(flow, schemaName) {
-  return flow.steps.some((step) => Object.values(step.writes).some((write) => typeof write === "object" && write !== null && write.schema === schemaName));
-}
-
 // dist/flows/build/writers/result-projection.js
+function summarizeTouchArea(touchArea) {
+  return {
+    enforcement: touchArea.enforcement,
+    containment: touchArea.containment,
+    out_of_bounds_paths: touchArea.out_of_bounds_paths
+  };
+}
 function normalizeStatement(statement) {
   return statement.trim().replace(/\s+/g, " ").toLowerCase();
 }
@@ -30111,13 +30423,16 @@ function computeScope(plan, review) {
 function projectBuildResult(inputs) {
   const scope = computeScope(inputs.plan, inputs.review);
   const scopeClean = scope.adherence === "within_scope" && scope.violated_guardrails.length === 0 && scope.unassessed_guardrails.length === 0;
-  const outcome = inputs.verification.overall_status !== "passed" ? "failed" : inputs.review.verdict === "reject" ? "failed" : inputs.review.verdict === "accept" && scopeClean ? "complete" : "needs_attention";
+  const touchArea = summarizeTouchArea(inputs.touchArea);
+  const touchAreaClean = touchArea.containment === "within";
+  const outcome = inputs.verification.overall_status !== "passed" ? "failed" : inputs.review.verdict === "reject" ? "failed" : inputs.review.verdict === "accept" && scopeClean && touchAreaClean ? "complete" : "needs_attention";
   return BuildResult.parse({
     summary: `Build result for ${inputs.brief.objective}: ${inputs.implementation.summary}`,
     outcome,
     verification_status: inputs.verification.overall_status,
     review_verdict: inputs.review.verdict,
     scope,
+    touch_area: touchArea,
     evidence_links: inputs.evidenceLinks
   });
 }
@@ -30137,7 +30452,8 @@ var buildCloseBuilder = {
     { name: "plan", schema: "build.plan@v1", required: true },
     { name: "implementation", schema: "build.implementation@v1", required: true },
     { name: "verification", schema: "build.verification@v1", required: true },
-    { name: "review", schema: "build.review@v1", required: true }
+    { name: "review", schema: "build.review@v1", required: true },
+    { name: "touch_area", schema: "build.touch-area@v1", required: true }
   ],
   build(context) {
     const brief = BuildBrief.parse(context.inputs.brief);
@@ -30145,12 +30461,14 @@ var buildCloseBuilder = {
     const implementation = BuildImplementation.parse(context.inputs.implementation);
     const verification = BuildVerification.parse(context.inputs.verification);
     const review = BuildReview.parse(context.inputs.review);
+    const touchArea = BuildTouchArea.parse(context.inputs.touch_area);
     return projectBuildResult({
       brief,
       plan,
       implementation,
       verification,
       review,
+      touchArea,
       evidenceLinks: POINTERS.map((p) => ({
         ...p,
         path: reportPathForSchemaInRuntimeFlow(context.flow, p.schema)
@@ -30187,6 +30505,10 @@ var buildPlanComposeBuilder = {
       // and the reviewer's alignment check read from the plan. A context-less
       // plan (reduced fixtures) carries no guardrails.
       guardrails: grounding?.guardrails ?? { non_goals: [], invariants: [] },
+      // Carry the researcher's allowed touch area forward so the touch-area gate
+      // can check the git-proven change set against it. A context-less plan
+      // carries no area, leaving the gate inert (opt-in).
+      allowed_touch_area: grounding?.allowed_touch_area ?? [],
       verification: {
         commands: brief.verification_command_candidates
       }
@@ -30194,8 +30516,275 @@ var buildPlanComposeBuilder = {
   }
 };
 
+// dist/flows/build/writers/touch-area.js
+import { readFileSync as readFileSync6 } from "node:fs";
+import { isAbsolute as isAbsolute3, relative as relative3 } from "node:path";
+
+// dist/shared/runtime-touched-files.js
+function isPathInPrefix(path, prefixes) {
+  return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+function filterEntries(entries, prefixes) {
+  if (prefixes.length === 0)
+    return [...entries];
+  return entries.filter((entry) => !isPathInPrefix(entry.path, prefixes));
+}
+function filterHiddenFlags(flags, prefixes) {
+  if (prefixes.length === 0)
+    return [...flags];
+  return flags.filter((flag) => !isPathInPrefix(flag.path, prefixes));
+}
+function entriesByPath(entries) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const entry of entries) {
+    map2.set(entry.path, entry);
+  }
+  return map2;
+}
+function hiddenPaths(flags) {
+  return new Set(flags.map((flag) => flag.path));
+}
+function uniqueSorted(paths) {
+  return [...new Set(paths)].sort((a, b) => a.localeCompare(b));
+}
+function statusFromEntry(baseline, post) {
+  if (post?.from !== void 0 || post?.status_code.includes("R")) {
+    return "renamed";
+  }
+  if (post?.status_code.includes("D")) {
+    return "deleted";
+  }
+  if (baseline === void 0 && post !== void 0 && (post.status_code.includes("?") || post.status_code.includes("A"))) {
+    return "added";
+  }
+  return "modified";
+}
+function uniqueFlags(flags) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const flag of flags) {
+    const key = `${flag.tag}\0${flag.path}`;
+    if (seen.has(key))
+      continue;
+    seen.add(key);
+    out.push(flag);
+  }
+  return out.sort((a, b) => a.path.localeCompare(b.path) || a.tag.localeCompare(b.tag));
+}
+function projectRuntimeTouchedFiles(options) {
+  const ignoredPathPrefixes = options.ignoredPathPrefixes ?? [];
+  const baselineEntries = filterEntries(options.baseline.entries, ignoredPathPrefixes);
+  const postEntries = filterEntries(options.post.entries, ignoredPathPrefixes);
+  const baselineHiddenFlags = filterHiddenFlags(options.baseline.hidden_index_flags, ignoredPathPrefixes);
+  const postHiddenFlags = filterHiddenFlags(options.post.hidden_index_flags, ignoredPathPrefixes);
+  const baselineByPath = entriesByPath(baselineEntries);
+  const postByPath = entriesByPath(postEntries);
+  const baselinePaths = new Set(baselineByPath.keys());
+  const postPaths = new Set(postByPath.keys());
+  const hiddenBaselinePaths = hiddenPaths(baselineHiddenFlags);
+  const newDirt = [...postPaths].filter((path) => !baselinePaths.has(path));
+  const baselineDirtyMutated = [...baselinePaths].filter((path) => {
+    if (hiddenBaselinePaths.has(path))
+      return false;
+    const before = baselineByPath.get(path);
+    const after = postByPath.get(path);
+    return before?.fingerprint !== after?.fingerprint;
+  });
+  const observed = uniqueSorted([...newDirt, ...baselineDirtyMutated]);
+  const workerDeclared = uniqueSorted((options.workerDeclaredPaths ?? []).filter((path) => !isPathInPrefix(path, ignoredPathPrefixes)));
+  const observedSet = new Set(observed);
+  const workerDeclaredSet = new Set(workerDeclared);
+  const undeclaredWorkerExtras = observed.filter((path) => !workerDeclaredSet.has(path));
+  const missingWorkerDeclared = workerDeclared.filter((path) => !observedSet.has(path));
+  return RuntimeTouchedFilesProjection.parse({
+    baseline_head_sha: options.baseline.head_sha,
+    head_sha: options.post.head_sha,
+    head_diverged: options.baseline.head_sha !== options.post.head_sha,
+    files: observed.map((path) => {
+      const baseline = baselineByPath.get(path);
+      const post = postByPath.get(path);
+      return {
+        path,
+        status: statusFromEntry(baseline, post),
+        source: "runtime_diff",
+        generated_surface: isPathInPrefix(path, options.generatedSurfacePathPrefixes ?? []),
+        protected: isPathInPrefix(path, options.protectedPathPrefixes ?? []),
+        // Carry the rename/copy source so a path-containment consumer can check
+        // both endpoints. This does NOT enter `observed` or the worker-claim
+        // comparison above, so the change-set verdict (Fix) is unchanged.
+        ...post?.from === void 0 ? {} : { from: post.from }
+      };
+    }),
+    worker_declared: workerDeclared,
+    worker_claim_matches_runtime: undeclaredWorkerExtras.length === 0 && missingWorkerDeclared.length === 0,
+    undeclared_worker_extras: undeclaredWorkerExtras,
+    missing_worker_declared: missingWorkerDeclared,
+    baseline_dirty_mutated: uniqueSorted(baselineDirtyMutated),
+    hidden_index_flags: uniqueFlags([...baselineHiddenFlags, ...postHiddenFlags])
+  });
+}
+
+// dist/flows/build/writers/touch-area-projection.js
+function normalizeAreaEntry(entry) {
+  return entry.trim().replace(/^\.\//, "").replace(/\/+$/, "");
+}
+function isInArea(path, normalizedPrefixes) {
+  return normalizedPrefixes.some((prefix) => prefix.length > 0 && (path === prefix || path.startsWith(`${prefix}/`)));
+}
+function inertBuildTouchArea() {
+  return BuildTouchArea.parse({
+    overall_status: "passed",
+    enforcement: "not_enforced",
+    containment: "within",
+    allowed_area: [],
+    observed_paths: [],
+    out_of_bounds_paths: [],
+    head_diverged: false,
+    hidden_index_flags: []
+  });
+}
+function projectBuildTouchArea(inputs) {
+  const { allowedArea, touched } = inputs;
+  const enforced = allowedArea.length > 0;
+  const observedPaths = [
+    ...new Set(touched.files.flatMap((file2) => file2.from === void 0 ? [file2.path] : [file2.path, file2.from]))
+  ];
+  const hiddenFlags = touched.hidden_index_flags.map((flag) => ({
+    tag: flag.tag,
+    path: flag.path
+  }));
+  const base = {
+    overall_status: "passed",
+    allowed_area: [...allowedArea],
+    observed_paths: observedPaths,
+    baseline_head_sha: touched.baseline_head_sha,
+    head_sha: touched.head_sha,
+    head_diverged: touched.head_diverged,
+    hidden_index_flags: hiddenFlags
+  };
+  if (!enforced) {
+    return BuildTouchArea.parse({
+      ...base,
+      enforcement: "not_enforced",
+      containment: "within",
+      out_of_bounds_paths: []
+    });
+  }
+  if (touched.head_diverged || hiddenFlags.length > 0) {
+    const parts = [];
+    if (touched.head_diverged) {
+      parts.push(`HEAD moved during the build (baseline ${touched.baseline_head_sha}, post ${touched.head_sha}); the implementer committed mid-run, so changed paths cannot be attributed for a containment check.`);
+    }
+    if (hiddenFlags.length > 0) {
+      const labelled = hiddenFlags.map((flag) => `${flag.path} (${flag.tag})`).join(", ");
+      parts.push(`hidden index flags present (assume-unchanged or skip-worktree paths can hide tracked edits from git status): ${labelled}`);
+    }
+    return BuildTouchArea.parse({
+      ...base,
+      enforcement: "enforced",
+      containment: "undetermined",
+      out_of_bounds_paths: [],
+      reason: parts.join("; ")
+    });
+  }
+  const normalizedPrefixes = allowedArea.map(normalizeAreaEntry);
+  const outOfBounds = observedPaths.filter((path) => !isInArea(path, normalizedPrefixes));
+  if (outOfBounds.length > 0) {
+    return BuildTouchArea.parse({
+      ...base,
+      enforcement: "enforced",
+      containment: "out_of_bounds",
+      out_of_bounds_paths: outOfBounds,
+      reason: `the change touched ${outOfBounds.length} path(s) outside the allowed area: ${outOfBounds.join(", ")}`
+    });
+  }
+  return BuildTouchArea.parse({
+    ...base,
+    enforcement: "enforced",
+    containment: "within",
+    out_of_bounds_paths: []
+  });
+}
+
+// dist/flows/build/writers/touch-area.js
+var SCHEMA_NAME = "build.touch-area@v1";
+function runFolderPrefix(input) {
+  if (input.projectRoot === void 0)
+    return void 0;
+  const rel = relative3(input.projectRoot, input.runFolder).split("\\").join("/");
+  if (rel.length === 0 || rel.startsWith("../") || rel === ".." || isAbsolute3(rel)) {
+    return void 0;
+  }
+  return rel;
+}
+var buildTouchAreaWriter = {
+  resultSchemaName: SCHEMA_NAME,
+  loadCommands(context) {
+    const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "build.baseline-snapshot@v1");
+    const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
+    if (!context.step.reads.includes(baselinePath)) {
+      throw new Error(`${SCHEMA_NAME} requires step '${context.step.id}' to read ${baselinePath}`);
+    }
+    if (!context.step.reads.includes(planPath)) {
+      throw new Error(`${SCHEMA_NAME} requires step '${context.step.id}' to read ${planPath}`);
+    }
+    if (!planDeclaresTouchArea(context))
+      return [];
+    return [buildGitStateCommand("build-touch-area-git-state")];
+  },
+  buildResult(observations, context) {
+    if (observations.length === 0) {
+      return inertBuildTouchArea();
+    }
+    if (observations.length !== 1) {
+      throw new Error(`${SCHEMA_NAME}: expected 1 git-state observation, got ${observations.length}`);
+    }
+    const observation = observations[0];
+    if (observation === void 0) {
+      throw new Error(`${SCHEMA_NAME}: git-state observation missing`);
+    }
+    const post = parseGitStateObservation(observation, SCHEMA_NAME);
+    const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "build.baseline-snapshot@v1");
+    const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
+    const baseline = BuildBaselineSnapshot.parse(JSON.parse(readFileSync6(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
+    if (baseline.captured === false) {
+      throw new Error(`${SCHEMA_NAME}: baseline snapshot is inert (captured: false) but an area was declared; baseline and touch-area steps disagree on enforcement`);
+    }
+    const plan = BuildPlan.parse(JSON.parse(readFileSync6(resolveRunRelative(context.runFolder, planPath), "utf8")));
+    let workerDeclaredPaths = [];
+    try {
+      const implementationPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.implementation@v1");
+      if (context.step.reads.includes(implementationPath)) {
+        const implementation = BuildImplementation.parse(JSON.parse(readFileSync6(resolveRunRelative(context.runFolder, implementationPath), "utf8")));
+        workerDeclaredPaths = implementation.changed_files;
+      }
+    } catch {
+      workerDeclaredPaths = [];
+    }
+    const ignoredRunFolderPrefix = runFolderPrefix({
+      runFolder: context.runFolder,
+      ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot }
+    });
+    const touched = projectRuntimeTouchedFiles({
+      baseline: {
+        head_sha: baseline.head_sha,
+        entries: baseline.entries,
+        hidden_index_flags: baseline.hidden_index_flags
+      },
+      post: {
+        head_sha: post.head_sha,
+        entries: post.entries,
+        hidden_index_flags: post.hidden_index_flags
+      },
+      workerDeclaredPaths,
+      ...ignoredRunFolderPrefix === void 0 ? {} : { ignoredPathPrefixes: [ignoredRunFolderPrefix] }
+    });
+    return projectBuildTouchArea({ allowedArea: plan.allowed_touch_area, touched });
+  }
+};
+
 // dist/flows/build/writers/verification.js
-import { readFileSync as readFileSync5 } from "node:fs";
+import { readFileSync as readFileSync7 } from "node:fs";
 
 // dist/flows/build/writers/verification-projection.js
 function projectBuildVerification(observations) {
@@ -30223,7 +30812,7 @@ var buildVerificationWriter = {
     if (!context.step.reads.includes(planPath)) {
       throw new Error(`build.verification@v1 requires step '${context.step.id}' to read ${planPath}`);
     }
-    const plan = BuildPlan.parse(JSON.parse(readFileSync5(resolveRunRelative(context.runFolder, planPath), "utf8")));
+    const plan = BuildPlan.parse(JSON.parse(readFileSync7(resolveRunRelative(context.runFolder, planPath), "utf8")));
     return plan.verification.commands;
   },
   buildResult(observations) {
@@ -30432,11 +31021,35 @@ var buildFlowData = {
           required: ["objective", "verification"]
         },
         routes: {
-          continue: "act-step",
+          continue: "build-baseline",
           revise: "plan-step",
           stop: "@stop"
         }
       },
+      expandBlockStepUse({
+        id: "build-baseline",
+        title: "Verify - snapshot pre-change git state",
+        stage: "verify",
+        block: "run-verification",
+        input: {
+          proof: "verification.plan@v1",
+          // Read so the writer can check whether the plan declared an
+          // allowed_touch_area: the snapshot only shells out to git when the
+          // gate is on, staying inert (and git-free) otherwise.
+          plan: "build.plan@v1"
+        },
+        output: "build.baseline-snapshot@v1",
+        protocol: "build-baseline-snapshot@v1",
+        reportPath: "reports/build/baseline-snapshot.json",
+        required: ["overall_status"],
+        routes: {
+          // Captured once before the first slice; the slice loop re-enters
+          // act-step (not this step), so the baseline stays a single pre-change
+          // reference for the whole run.
+          continue: "act-step",
+          stop: "@stop"
+        }
+      }),
       expandBlockStepUse({
         id: "act-step",
         title: "Act - implementation relay",
@@ -30495,13 +31108,38 @@ var buildFlowData = {
         reportPath: "reports/build/verification.json",
         required: ["overall_status", "commands"],
         routes: {
-          continue: "review-step",
+          // After the final slice's verify passes, compute the touch-area
+          // verdict before review so the reviewer sees git-proven containment.
+          continue: "build-touch-area",
           // Slice loop (deep rigor): when this slice's verify passes and
           // more slices remain, the engine selects 'advance' instead of
           // 'continue', re-entering act-step for the next slice. A normal,
           // non-recovery route; see docs/ideas/build-slice-decomposition.md.
           advance: "act-step",
           retry: "act-step",
+          stop: "@stop"
+        }
+      }),
+      expandBlockStepUse({
+        id: "build-touch-area",
+        title: "Verify - check git-proven touch area",
+        stage: "verify",
+        block: "run-verification",
+        input: {
+          proof: "verification.plan@v1",
+          plan: "build.plan@v1",
+          baseline: "build.baseline-snapshot@v1",
+          change: "build.implementation@v1"
+        },
+        output: "build.touch-area@v1",
+        protocol: "build-touch-area@v1",
+        reportPath: "reports/build/touch-area.json",
+        required: ["overall_status", "enforcement", "containment"],
+        routes: {
+          // The observation always succeeds (overall_status 'passed'); the
+          // containment verdict is recorded here and gated at close, the same
+          // close-stage placement the scope gate uses.
+          continue: "review-step",
           stop: "@stop"
         }
       }),
@@ -30514,7 +31152,8 @@ var buildFlowData = {
           brief: "build.brief@v1",
           plan: "build.plan@v1",
           change: "build.implementation@v1",
-          verification: "build.verification@v1"
+          verification: "build.verification@v1",
+          touch_area: "build.touch-area@v1"
         },
         output: "build.review@v1",
         execution: {
@@ -30544,7 +31183,8 @@ var buildFlowData = {
           plan: "build.plan@v1",
           implementation: "build.implementation@v1",
           verification: "build.verification@v1",
-          review: "build.review@v1"
+          review: "build.review@v1",
+          touch_area: "build.touch-area@v1"
         },
         output: "build.result@v1",
         execution: {
@@ -30611,6 +31251,18 @@ var buildFlowData = {
       writers: { verification: [buildVerificationWriter] }
     },
     {
+      schemaName: "build.baseline-snapshot@v1",
+      channel: "report",
+      schema: BuildBaselineSnapshot,
+      writers: { verification: [buildBaselineSnapshotWriter] }
+    },
+    {
+      schemaName: "build.touch-area@v1",
+      channel: "report",
+      schema: BuildTouchArea,
+      writers: { verification: [buildTouchAreaWriter] }
+    },
+    {
       schemaName: "build.result@v1",
       channel: "report",
       schema: BuildResult,
@@ -30644,6 +31296,11 @@ var buildFlowData = {
           activeText: "Planning the work"
         },
         {
+          stepId: "build-baseline",
+          taskTitle: "Note the starting point",
+          activeText: "Noting the starting point"
+        },
+        {
           stepId: "act-step",
           taskTitle: "Make the change",
           activeText: "Making the change",
@@ -30655,6 +31312,11 @@ var buildFlowData = {
           stepId: "verify-step",
           taskTitle: "Check the work",
           activeText: "Checking the work"
+        },
+        {
+          stepId: "build-touch-area",
+          taskTitle: "Check what changed",
+          activeText: "Checking what changed"
         },
         {
           stepId: "review-step",
@@ -31551,7 +32213,7 @@ var exploreBriefComposeBuilder = {
 };
 
 // dist/flows/explore/writers/close.js
-import { readFileSync as readFileSync6 } from "node:fs";
+import { readFileSync as readFileSync8 } from "node:fs";
 
 // dist/flows/explore/writers/result-projection.js
 function reviewHasFoldIns(review) {
@@ -31636,7 +32298,7 @@ var exploreCloseBuilder = {
       const review2 = ExploreTournamentReview.parse(context.inputs.tournamentReview);
       const decision2 = ExploreDecision.parse(context.inputs.decision);
       const aggregatePath = requiredTournamentAggregatePath(context);
-      ExploreTournamentAggregate.parse(JSON.parse(readFileSync6(resolveRunRelative(context.runFolder, aggregatePath), "utf8")));
+      ExploreTournamentAggregate.parse(JSON.parse(readFileSync8(resolveRunRelative(context.runFolder, aggregatePath), "utf8")));
       return projectExploreResult({
         kind: "tournament",
         brief,
@@ -31783,10 +32445,10 @@ var exploreDecisionOptionsComposeBuilder = {
 };
 
 // dist/flows/explore/writers/decision.js
-import { readFileSync as readFileSync7 } from "node:fs";
+import { readFileSync as readFileSync9 } from "node:fs";
 var CHECKPOINT_RESPONSE_STEP_ID = "tradeoff-checkpoint-step";
 function readJson(runFolder, path) {
-  return JSON.parse(readFileSync7(resolveRunRelative(runFolder, path), "utf8"));
+  return JSON.parse(readFileSync9(resolveRunRelative(runFolder, path), "utf8"));
 }
 function requiredRead(stepReads, suffix) {
   const path = stepReads.find((entry) => entry.endsWith(suffix));
@@ -32843,109 +33505,6 @@ function collapseDiscriminatedUnion(discriminator, options, visited, depth) {
   return `{ ${entries.join(", ")} }`;
 }
 
-// dist/schemas/runtime-evidence.js
-var RuntimeGitStateEntry = external_exports.object({
-  status_code: external_exports.string().length(2),
-  path: external_exports.string().min(1),
-  fingerprint: external_exports.string().min(1),
-  from: external_exports.string().min(1).optional()
-}).strict();
-var RuntimeHiddenIndexFlag = external_exports.object({
-  tag: external_exports.string().length(1),
-  path: external_exports.string().min(1)
-}).strict();
-var RuntimeGitStateSnapshot = external_exports.object({
-  head_sha: external_exports.string().min(1),
-  entries: external_exports.array(RuntimeGitStateEntry),
-  hidden_index_flags: external_exports.array(RuntimeHiddenIndexFlag)
-}).strict();
-var RuntimeGitStateSnapshotReport = RuntimeGitStateSnapshot.extend({
-  overall_status: external_exports.literal("passed")
-}).strict();
-var RuntimeTouchedFileStatus = external_exports.enum(["added", "modified", "deleted", "renamed"]);
-var RuntimeTouchedFile = external_exports.object({
-  path: external_exports.string().min(1),
-  status: RuntimeTouchedFileStatus,
-  source: external_exports.literal("runtime_diff"),
-  generated_surface: external_exports.boolean(),
-  protected: external_exports.boolean()
-}).strict();
-var RuntimeTouchedFilesCore = external_exports.object({
-  baseline_head_sha: external_exports.string().min(1),
-  head_sha: external_exports.string().min(1),
-  head_diverged: external_exports.boolean(),
-  files: external_exports.array(RuntimeTouchedFile),
-  worker_declared: external_exports.array(external_exports.string().min(1)),
-  worker_claim_matches_runtime: external_exports.boolean(),
-  undeclared_worker_extras: external_exports.array(external_exports.string().min(1)),
-  missing_worker_declared: external_exports.array(external_exports.string().min(1)),
-  baseline_dirty_mutated: external_exports.array(external_exports.string().min(1)),
-  hidden_index_flags: external_exports.array(RuntimeHiddenIndexFlag)
-}).strict();
-function addRuntimeTouchedFilesIssues(touched, ctx) {
-  const observed = touched.files.map((file2) => file2.path);
-  const observedSet = new Set(observed);
-  const declaredSet = new Set(touched.worker_declared);
-  const expectedExtras = observed.filter((path) => !declaredSet.has(path));
-  const expectedMissing = touched.worker_declared.filter((path) => !observedSet.has(path));
-  const expectedMatches = expectedExtras.length === 0 && expectedMissing.length === 0;
-  if (touched.head_diverged !== (touched.baseline_head_sha !== touched.head_sha)) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["head_diverged"],
-      message: "head_diverged must equal baseline_head_sha !== head_sha"
-    });
-  }
-  if (touched.worker_claim_matches_runtime !== expectedMatches) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["worker_claim_matches_runtime"],
-      message: "worker_claim_matches_runtime must reflect undeclared_worker_extras and missing_worker_declared"
-    });
-  }
-  if (expectedExtras.length !== touched.undeclared_worker_extras.length || expectedExtras.some((path, index) => path !== touched.undeclared_worker_extras[index])) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["undeclared_worker_extras"],
-      message: "undeclared_worker_extras must equal runtime-observed paths minus worker_declared"
-    });
-  }
-  if (expectedMissing.length !== touched.missing_worker_declared.length || expectedMissing.some((path, index) => path !== touched.missing_worker_declared[index])) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["missing_worker_declared"],
-      message: "missing_worker_declared must equal worker_declared minus runtime-observed paths"
-    });
-  }
-  for (const [index, path] of touched.baseline_dirty_mutated.entries()) {
-    if (!observedSet.has(path)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["baseline_dirty_mutated", index],
-        message: `baseline_dirty_mutated path '${path}' must also appear in files`
-      });
-    }
-  }
-}
-var RuntimeTouchedFilesProjection = RuntimeTouchedFilesCore.superRefine(addRuntimeTouchedFilesIssues);
-var RuntimeTouchedFilesReport = RuntimeTouchedFilesCore.extend({
-  overall_status: external_exports.enum(["passed", "failed"])
-}).superRefine((report, ctx) => {
-  addRuntimeTouchedFilesIssues(report, ctx);
-  const hasFailure = report.head_diverged || !report.worker_claim_matches_runtime || report.hidden_index_flags.length > 0;
-  const expected = hasFailure ? "failed" : "passed";
-  if (report.overall_status !== expected) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["overall_status"],
-      message: `overall_status must be '${expected}' for the runtime touched-file evidence`
-    });
-  }
-});
-var RuntimeTouchedFilesEvidenceRef = Ref.refine((ref) => ref.kind === "evidence", {
-  message: "runtime touched-file evidence refs must use kind evidence"
-});
-
 // dist/flows/fix/reports.js
 var FIX_RESULT_SCHEMA_BY_ARTIFACT_ID = {
   "fix.brief": "fix.brief@v1",
@@ -33624,22 +34183,22 @@ var fixReviewShapeHint = {
 };
 
 // dist/flows/fix/writers/baseline-snapshot.js
-import { fileURLToPath } from "node:url";
-var GIT_TIMEOUT_MS = 6e4;
-var GIT_MAX_OUTPUT_BYTES = 5e6;
-var GIT_STATE_HELPER_PATH = fileURLToPath(new URL("./git-state.ts", import.meta.url));
-var GitStateHelperOutput = RuntimeGitStateSnapshot;
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+var GIT_TIMEOUT_MS2 = 6e4;
+var GIT_MAX_OUTPUT_BYTES2 = 5e6;
+var GIT_STATE_HELPER_PATH2 = fileURLToPath2(new URL("./git-state.ts", import.meta.url));
+var GitStateHelperOutput2 = RuntimeGitStateSnapshot;
 function fixGitStateCommand(id) {
   return {
     id,
     cwd: ".",
-    argv: [process.execPath, GIT_STATE_HELPER_PATH],
-    timeout_ms: GIT_TIMEOUT_MS,
-    max_output_bytes: GIT_MAX_OUTPUT_BYTES,
+    argv: [process.execPath, GIT_STATE_HELPER_PATH2],
+    timeout_ms: GIT_TIMEOUT_MS2,
+    max_output_bytes: GIT_MAX_OUTPUT_BYTES2,
     env: {}
   };
 }
-function parseGitStateObservation(observation, schemaName) {
+function parseGitStateObservation2(observation, schemaName) {
   if (observation.status !== "passed") {
     throw new Error(`${schemaName}: git-state helper failed (exit ${observation.exit_code}): ${observation.stderr_summary}`);
   }
@@ -33650,7 +34209,7 @@ function parseGitStateObservation(observation, schemaName) {
     const reason = err instanceof Error ? err.message : String(err);
     throw new Error(`${schemaName}: git-state helper stdout was not valid JSON: ${reason}`);
   }
-  return GitStateHelperOutput.parse(parsed);
+  return GitStateHelperOutput2.parse(parsed);
 }
 var fixBaselineSnapshotWriter = {
   resultSchemaName: "fix.baseline-snapshot@v1",
@@ -33665,7 +34224,7 @@ var fixBaselineSnapshotWriter = {
     if (observation === void 0) {
       throw new Error("fix.baseline-snapshot@v1: git-state observation missing");
     }
-    const state = parseGitStateObservation(observation, "fix.baseline-snapshot@v1");
+    const state = parseGitStateObservation2(observation, "fix.baseline-snapshot@v1");
     return FixBaselineSnapshot.parse({
       overall_status: "passed",
       head_sha: state.head_sha,
@@ -33841,108 +34400,8 @@ var fixBriefComposeBuilder = {
 };
 
 // dist/flows/fix/writers/change-set.js
-import { readFileSync as readFileSync8 } from "node:fs";
-import { isAbsolute as isAbsolute3, relative as relative3 } from "node:path";
-
-// dist/shared/runtime-touched-files.js
-function isPathInPrefix(path, prefixes) {
-  return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
-}
-function filterEntries(entries, prefixes) {
-  if (prefixes.length === 0)
-    return [...entries];
-  return entries.filter((entry) => !isPathInPrefix(entry.path, prefixes));
-}
-function filterHiddenFlags(flags, prefixes) {
-  if (prefixes.length === 0)
-    return [...flags];
-  return flags.filter((flag) => !isPathInPrefix(flag.path, prefixes));
-}
-function entriesByPath(entries) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const entry of entries) {
-    map2.set(entry.path, entry);
-  }
-  return map2;
-}
-function hiddenPaths(flags) {
-  return new Set(flags.map((flag) => flag.path));
-}
-function uniqueSorted(paths) {
-  return [...new Set(paths)].sort((a, b) => a.localeCompare(b));
-}
-function statusFromEntry(baseline, post) {
-  if (post?.from !== void 0 || post?.status_code.includes("R")) {
-    return "renamed";
-  }
-  if (post?.status_code.includes("D")) {
-    return "deleted";
-  }
-  if (baseline === void 0 && post !== void 0 && (post.status_code.includes("?") || post.status_code.includes("A"))) {
-    return "added";
-  }
-  return "modified";
-}
-function uniqueFlags(flags) {
-  const seen = /* @__PURE__ */ new Set();
-  const out = [];
-  for (const flag of flags) {
-    const key = `${flag.tag}\0${flag.path}`;
-    if (seen.has(key))
-      continue;
-    seen.add(key);
-    out.push(flag);
-  }
-  return out.sort((a, b) => a.path.localeCompare(b.path) || a.tag.localeCompare(b.tag));
-}
-function projectRuntimeTouchedFiles(options) {
-  const ignoredPathPrefixes = options.ignoredPathPrefixes ?? [];
-  const baselineEntries = filterEntries(options.baseline.entries, ignoredPathPrefixes);
-  const postEntries = filterEntries(options.post.entries, ignoredPathPrefixes);
-  const baselineHiddenFlags = filterHiddenFlags(options.baseline.hidden_index_flags, ignoredPathPrefixes);
-  const postHiddenFlags = filterHiddenFlags(options.post.hidden_index_flags, ignoredPathPrefixes);
-  const baselineByPath = entriesByPath(baselineEntries);
-  const postByPath = entriesByPath(postEntries);
-  const baselinePaths = new Set(baselineByPath.keys());
-  const postPaths = new Set(postByPath.keys());
-  const hiddenBaselinePaths = hiddenPaths(baselineHiddenFlags);
-  const newDirt = [...postPaths].filter((path) => !baselinePaths.has(path));
-  const baselineDirtyMutated = [...baselinePaths].filter((path) => {
-    if (hiddenBaselinePaths.has(path))
-      return false;
-    const before = baselineByPath.get(path);
-    const after = postByPath.get(path);
-    return before?.fingerprint !== after?.fingerprint;
-  });
-  const observed = uniqueSorted([...newDirt, ...baselineDirtyMutated]);
-  const workerDeclared = uniqueSorted((options.workerDeclaredPaths ?? []).filter((path) => !isPathInPrefix(path, ignoredPathPrefixes)));
-  const observedSet = new Set(observed);
-  const workerDeclaredSet = new Set(workerDeclared);
-  const undeclaredWorkerExtras = observed.filter((path) => !workerDeclaredSet.has(path));
-  const missingWorkerDeclared = workerDeclared.filter((path) => !observedSet.has(path));
-  return RuntimeTouchedFilesProjection.parse({
-    baseline_head_sha: options.baseline.head_sha,
-    head_sha: options.post.head_sha,
-    head_diverged: options.baseline.head_sha !== options.post.head_sha,
-    files: observed.map((path) => {
-      const baseline = baselineByPath.get(path);
-      const post = postByPath.get(path);
-      return {
-        path,
-        status: statusFromEntry(baseline, post),
-        source: "runtime_diff",
-        generated_surface: isPathInPrefix(path, options.generatedSurfacePathPrefixes ?? []),
-        protected: isPathInPrefix(path, options.protectedPathPrefixes ?? [])
-      };
-    }),
-    worker_declared: workerDeclared,
-    worker_claim_matches_runtime: undeclaredWorkerExtras.length === 0 && missingWorkerDeclared.length === 0,
-    undeclared_worker_extras: undeclaredWorkerExtras,
-    missing_worker_declared: missingWorkerDeclared,
-    baseline_dirty_mutated: uniqueSorted(baselineDirtyMutated),
-    hidden_index_flags: uniqueFlags([...baselineHiddenFlags, ...postHiddenFlags])
-  });
-}
+import { readFileSync as readFileSync10 } from "node:fs";
+import { isAbsolute as isAbsolute4, relative as relative4 } from "node:path";
 
 // dist/flows/fix/writers/change-set-projection.js
 function isIgnoredPath(path, prefixes) {
@@ -34004,11 +34463,11 @@ function projectFixChangeSet(inputs) {
 }
 
 // dist/flows/fix/writers/change-set.js
-function runFolderPrefix(input) {
+function runFolderPrefix2(input) {
   if (input.projectRoot === void 0)
     return void 0;
-  const rel = relative3(input.projectRoot, input.runFolder).split("\\").join("/");
-  if (rel.length === 0 || rel.startsWith("../") || rel === ".." || isAbsolute3(rel)) {
+  const rel = relative4(input.projectRoot, input.runFolder).split("\\").join("/");
+  if (rel.length === 0 || rel.startsWith("../") || rel === ".." || isAbsolute4(rel)) {
     return void 0;
   }
   return rel;
@@ -34034,12 +34493,12 @@ var fixChangeSetWriter = {
     if (observation === void 0) {
       throw new Error("fix.change-set@v1: git-state observation missing");
     }
-    const post = parseGitStateObservation(observation, "fix.change-set@v1");
+    const post = parseGitStateObservation2(observation, "fix.change-set@v1");
     const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.baseline-snapshot@v1");
     const changePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.change@v1");
-    const baseline = FixBaselineSnapshot.parse(JSON.parse(readFileSync8(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
-    const change = FixChange.parse(JSON.parse(readFileSync8(resolveRunRelative(context.runFolder, changePath), "utf8")));
-    const ignoredRunFolderPrefix = runFolderPrefix({
+    const baseline = FixBaselineSnapshot.parse(JSON.parse(readFileSync10(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
+    const change = FixChange.parse(JSON.parse(readFileSync10(resolveRunRelative(context.runFolder, changePath), "utf8")));
+    const ignoredRunFolderPrefix = runFolderPrefix2({
       runFolder: context.runFolder,
       ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot }
     });
@@ -34153,7 +34612,7 @@ var fixCloseBuilder = {
 };
 
 // dist/flows/fix/writers/regression-baseline.js
-import { readFileSync as readFileSync9 } from "node:fs";
+import { readFileSync as readFileSync11 } from "node:fs";
 
 // dist/flows/fix/writers/regression-projection.js
 function regressionObservationPayload(observation) {
@@ -34234,7 +34693,7 @@ var fixRegressionBaselineWriter = {
     if (!context.step.reads.includes(briefPath)) {
       throw new Error(`fix.regression-proof@v1 requires step '${context.step.id}' to read ${briefPath}`);
     }
-    const brief = FixBrief.parse(JSON.parse(readFileSync9(resolveRunRelative(context.runFolder, briefPath), "utf8")));
+    const brief = FixBrief.parse(JSON.parse(readFileSync11(resolveRunRelative(context.runFolder, briefPath), "utf8")));
     if (brief.regression_contract.regression_test.status !== "failing-before-fix") {
       return [];
     }
@@ -34246,7 +34705,7 @@ var fixRegressionBaselineWriter = {
 };
 
 // dist/flows/fix/writers/regression-rerun.js
-import { readFileSync as readFileSync10 } from "node:fs";
+import { readFileSync as readFileSync12 } from "node:fs";
 var fixRegressionRerunWriter = {
   resultSchemaName: "fix.regression-rerun@v1",
   loadCommands(context) {
@@ -34254,7 +34713,7 @@ var fixRegressionRerunWriter = {
     if (!context.step.reads.includes(briefPath)) {
       throw new Error(`fix.regression-rerun@v1 requires step '${context.step.id}' to read ${briefPath}`);
     }
-    const brief = FixBrief.parse(JSON.parse(readFileSync10(resolveRunRelative(context.runFolder, briefPath), "utf8")));
+    const brief = FixBrief.parse(JSON.parse(readFileSync12(resolveRunRelative(context.runFolder, briefPath), "utf8")));
     if (brief.regression_contract.regression_test.status !== "failing-before-fix") {
       return [];
     }
@@ -34266,7 +34725,7 @@ var fixRegressionRerunWriter = {
 };
 
 // dist/flows/fix/writers/verification.js
-import { readFileSync as readFileSync11 } from "node:fs";
+import { readFileSync as readFileSync13 } from "node:fs";
 
 // dist/flows/fix/writers/verification-projection.js
 function projectFixVerification(observations) {
@@ -34297,7 +34756,7 @@ var fixVerificationWriter = {
     if (!context.step.reads.includes(briefPath)) {
       throw new Error(`fix.verification@v1 requires step '${context.step.id}' to read ${briefPath}`);
     }
-    const brief = FixBrief.parse(JSON.parse(readFileSync11(resolveRunRelative(context.runFolder, briefPath), "utf8")));
+    const brief = FixBrief.parse(JSON.parse(readFileSync13(resolveRunRelative(context.runFolder, briefPath), "utf8")));
     return brief.verification_command_candidates;
   },
   buildResult(observations) {
@@ -37161,7 +37620,7 @@ var GoalResult = external_exports.object({
 });
 
 // dist/flows/goal/writers/attempt.js
-import { existsSync as existsSync4, readFileSync as readFileSync12 } from "node:fs";
+import { existsSync as existsSync4, readFileSync as readFileSync14 } from "node:fs";
 var CHILD_RESULT_PATHS = {
   fix: "reports/goal/child-results/fix-result.json",
   build: "reports/goal/child-results/build-result.json",
@@ -37174,7 +37633,7 @@ function readChildResult(runFolder, target) {
   const absPath = resolveRunRelative(runFolder, relPath);
   if (!existsSync4(absPath))
     return void 0;
-  return JSON.parse(readFileSync12(absPath, "utf8"));
+  return JSON.parse(readFileSync14(absPath, "utf8"));
 }
 function mapChildOutcome(outcome) {
   if (outcome === "complete")
@@ -37407,7 +37866,7 @@ var goalContractBuilder = {
 };
 
 // dist/flows/goal/writers/evidence-evaluation.js
-import { existsSync as existsSync5, readFileSync as readFileSync13 } from "node:fs";
+import { existsSync as existsSync5, readFileSync as readFileSync15 } from "node:fs";
 var PROOF_ELIGIBLE_VERDICTS = {
   fix: ["accept"],
   build: ["accept"],
@@ -37419,7 +37878,7 @@ function readChildRunResult(runFolder, path) {
   const absPath = resolveRunRelative(runFolder, path);
   if (!existsSync5(absPath))
     return void 0;
-  return RunResult.parse(JSON.parse(readFileSync13(absPath, "utf8")));
+  return RunResult.parse(JSON.parse(readFileSync15(absPath, "utf8")));
 }
 function childResultIsProofEligible(input) {
   const allowedVerdicts = PROOF_ELIGIBLE_VERDICTS[input.target];
@@ -37492,7 +37951,7 @@ var goalEvidenceEvaluationBuilder = {
 };
 
 // dist/flows/goal/writers/recovery.js
-import { existsSync as existsSync6, readFileSync as readFileSync14 } from "node:fs";
+import { existsSync as existsSync6, readFileSync as readFileSync16 } from "node:fs";
 function routeFromEvaluation(evaluation) {
   if (evaluation.verdict === "missing-evidence") {
     return {
@@ -37529,7 +37988,7 @@ function readLatestGate(runFolder) {
     const absolutePath = resolveRunRelative(runFolder, path);
     if (!existsSync6(absolutePath))
       continue;
-    return GoalGate.parse(JSON.parse(readFileSync14(absolutePath, "utf8")));
+    return GoalGate.parse(JSON.parse(readFileSync16(absolutePath, "utf8")));
   }
   return void 0;
 }
@@ -38942,19 +39401,19 @@ var PrototypeResult = external_exports.union([
 
 // dist/flows/prototype/writers/brief.js
 import { createHash as createHash2 } from "node:crypto";
-import { isAbsolute as isAbsolute4, relative as relative4 } from "node:path";
+import { isAbsolute as isAbsolute5, relative as relative5 } from "node:path";
 function normalizeSlashes(value) {
   return value.replace(/\\/g, "/");
 }
 function isInsideOrSame2(relativePath) {
-  return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute4(relativePath);
+  return relativePath === "" || !relativePath.startsWith("..") && !isAbsolute5(relativePath);
 }
 function hashRunFolder(runFolder) {
   return createHash2("sha256").update(runFolder).digest("hex").slice(0, 12);
 }
 function prototypeRoot(context) {
   if (context.projectRoot !== void 0) {
-    const relativeRunFolder = relative4(context.projectRoot, context.runFolder);
+    const relativeRunFolder = relative5(context.projectRoot, context.runFolder);
     if (isInsideOrSame2(relativeRunFolder) && relativeRunFolder.length > 0) {
       return `${normalizeSlashes(relativeRunFolder)}/prototype-files`;
     }
@@ -38991,7 +39450,7 @@ var prototypeBriefComposeBuilder = {
 };
 
 // dist/flows/prototype/writers/close.js
-import { existsSync as existsSync7, readFileSync as readFileSync15 } from "node:fs";
+import { existsSync as existsSync7, readFileSync as readFileSync17 } from "node:fs";
 var CheckpointResponse = external_exports.object({
   schema_version: external_exports.literal(1),
   step_id: external_exports.literal("prototype-checkpoint-step"),
@@ -39034,7 +39493,7 @@ function readCheckpointResponse(context) {
   const abs = resolveRunRelative(context.runFolder, responsePath);
   if (!existsSync7(abs))
     return void 0;
-  const raw = JSON.parse(readFileSync15(abs, "utf8"));
+  const raw = JSON.parse(readFileSync17(abs, "utf8"));
   return { path: responsePath, response: CheckpointResponse.parse(raw) };
 }
 function readVariantCheckpointResponse(context) {
@@ -39045,7 +39504,7 @@ function readVariantCheckpointResponse(context) {
   const abs = resolveRunRelative(context.runFolder, responsePath);
   if (!existsSync7(abs))
     return void 0;
-  const raw = JSON.parse(readFileSync15(abs, "utf8"));
+  const raw = JSON.parse(readFileSync17(abs, "utf8"));
   return { path: responsePath, response: VariantCheckpointResponse.parse(raw) };
 }
 function existingCheckpointRequestPath(context) {
@@ -39100,7 +39559,7 @@ function readOptionalReport(context, schemaName, parse3) {
   const abs = resolveRunRelative(context.runFolder, path);
   if (!existsSync7(abs))
     return void 0;
-  return parse3(JSON.parse(readFileSync15(abs, "utf8")));
+  return parse3(JSON.parse(readFileSync17(abs, "utf8")));
 }
 function variantEvidenceLinks(context, checkpointResponse) {
   const links = BASE_VARIANT_POINTERS.map((pointer) => ({
@@ -39484,13 +39943,13 @@ var prototypeVariantOptionsComposeBuilder = {
 };
 
 // dist/flows/prototype/writers/variant-provider-evidence.js
-import { existsSync as existsSync8, readFileSync as readFileSync16 } from "node:fs";
+import { existsSync as existsSync8, readFileSync as readFileSync18 } from "node:fs";
 import { join as join3 } from "node:path";
 function readTraceEntries(runFolder) {
   const tracePath = join3(runFolder, "trace.ndjson");
   if (!existsSync8(tracePath))
     return [];
-  return readFileSync16(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line));
+  return readFileSync18(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line));
 }
 function isRelayStarted(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value) && value.kind === "relay.started";
@@ -39555,7 +40014,7 @@ var prototypeVariantProviderEvidenceComposeBuilder = {
 };
 
 // dist/flows/prototype/writers/variant-verification.js
-import { readFileSync as readFileSync17 } from "node:fs";
+import { readFileSync as readFileSync19 } from "node:fs";
 var VARIANT_INTEGRITY_SCRIPT = [
   "const fs = require('node:fs')",
   "const path = require('node:path')",
@@ -39596,7 +40055,7 @@ function readReport(context, schemaName, parse3) {
   if (!context.step.reads.includes(reportPath)) {
     throw new Error(`prototype.variant-verification@v1 requires step '${context.step.id}' to read ${reportPath}`);
   }
-  return parse3(JSON.parse(readFileSync17(resolveRunRelative(context.runFolder, reportPath), "utf8")));
+  return parse3(JSON.parse(readFileSync19(resolveRunRelative(context.runFolder, reportPath), "utf8")));
 }
 function aggregate(context) {
   return readReport(context, "prototype.variant-aggregate@v1", (raw) => PrototypeVariantAggregate.parse(raw));
@@ -39679,7 +40138,7 @@ var prototypeVariantVerificationWriter = {
 };
 
 // dist/flows/prototype/writers/verification.js
-import { readFileSync as readFileSync18 } from "node:fs";
+import { readFileSync as readFileSync20 } from "node:fs";
 var ARTIFACT_INTEGRITY_SCRIPT = [
   "const fs = require('node:fs')",
   "const path = require('node:path')",
@@ -39717,7 +40176,7 @@ function readReport2(context, schemaName, parse3) {
   if (!context.step.reads.includes(reportPath)) {
     throw new Error(`prototype.verification@v1 requires step '${context.step.id}' to read ${reportPath}`);
   }
-  return parse3(JSON.parse(readFileSync18(resolveRunRelative(context.runFolder, reportPath), "utf8")));
+  return parse3(JSON.parse(readFileSync20(resolveRunRelative(context.runFolder, reportPath), "utf8")));
 }
 function artifactIntegrityCommand(input) {
   const payload = {
@@ -40484,7 +40943,7 @@ var prototypeFlowData = {
 var prototypeFlowDefinition = defineFlowData(prototypeFlowData);
 
 // dist/shared/html/multi-variant.js
-import { isAbsolute as isAbsolute5, relative as relative5, resolve as resolve3 } from "node:path";
+import { isAbsolute as isAbsolute6, relative as relative6, resolve as resolve3 } from "node:path";
 import { pathToFileURL } from "node:url";
 var PREVIEWABLE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".gif",
@@ -40519,8 +40978,8 @@ function encodeUrlPath(value) {
   return value.split("/").map((part) => part === ".." || part === "." ? part : encodeURIComponent(part)).join("/");
 }
 function isInside2(root, target) {
-  const fromRoot = relative5(root, target);
-  return fromRoot !== "" && !fromRoot.startsWith("..") && !isAbsolute5(fromRoot);
+  const fromRoot = relative6(root, target);
+  return fromRoot !== "" && !fromRoot.startsWith("..") && !isAbsolute6(fromRoot);
 }
 function runIdFromFolder(runFolder) {
   const parts = toBrowserPath(resolve3(runFolder)).split("/").filter((part) => part.length > 0);
@@ -40531,11 +40990,11 @@ function runArtifactPreviewHref(input) {
     return void 0;
   const reportsDir = resolve3(input.runFolder, "reports");
   const runRoot = resolve3(input.runFolder);
-  if (isAbsolute5(input.entryPath)) {
+  if (isAbsolute6(input.entryPath)) {
     const absoluteEntry = resolve3(input.entryPath);
     if (!isInside2(runRoot, absoluteEntry))
       return void 0;
-    return encodeUrlPath(toBrowserPath(relative5(reportsDir, absoluteEntry)));
+    return encodeUrlPath(toBrowserPath(relative6(reportsDir, absoluteEntry)));
   }
   const normalized = toBrowserPath(input.entryPath).replace(/^\.\//, "");
   if (normalized.split("/").some((part) => part === ".."))
@@ -41668,7 +42127,7 @@ var pursuitGraphComposeBuilder = {
 };
 
 // dist/flows/pursue/writers/verification.js
-import { readFileSync as readFileSync19 } from "node:fs";
+import { readFileSync as readFileSync21 } from "node:fs";
 
 // dist/flows/pursue/writers/verification-projection.js
 function projectPursuitVerification(observations) {
@@ -41696,7 +42155,7 @@ var pursuitVerificationWriter = {
     if (!context.step.reads.includes(contractPath)) {
       throw new Error(`pursuit.verification@v1 requires step '${context.step.id}' to read ${contractPath}`);
     }
-    const contract = PursuitContract.parse(JSON.parse(readFileSync19(resolveRunRelative(context.runFolder, contractPath), "utf8")));
+    const contract = PursuitContract.parse(JSON.parse(readFileSync21(resolveRunRelative(context.runFolder, contractPath), "utf8")));
     return contract.verification_command_candidates;
   },
   buildResult(observations) {
@@ -42271,7 +42730,7 @@ var ReviewRelayResult = external_exports.object({
 // dist/flows/review/writers/intake.js
 import { spawnSync as spawnSync2 } from "node:child_process";
 import { closeSync, lstatSync as lstatSync3, openSync, readSync } from "node:fs";
-import { isAbsolute as isAbsolute6, relative as relative6, resolve as resolve4 } from "node:path";
+import { isAbsolute as isAbsolute7, relative as relative7, resolve as resolve4 } from "node:path";
 
 // dist/flows/review/writers/intake-projection.js
 function gitCommandFailed(text) {
@@ -42423,8 +42882,8 @@ function runGitDiff(projectRoot, args) {
   };
 }
 function insideProject(projectRoot, path) {
-  const rel = relative6(projectRoot, path);
-  return rel === "" || !rel.startsWith("..") && !isAbsolute6(rel);
+  const rel = relative7(projectRoot, path);
+  return rel === "" || !rel.startsWith("..") && !isAbsolute7(rel);
 }
 function readUntrackedFile(projectRoot, path, contentPolicy) {
   const abs = resolve4(projectRoot, path);
@@ -42529,7 +42988,7 @@ var reviewIntakeComposeBuilder = {
 };
 
 // dist/flows/review/writers/result.js
-import { readFileSync as readFileSync20 } from "node:fs";
+import { readFileSync as readFileSync22 } from "node:fs";
 
 // dist/flows/review/writers/result-projection.js
 function evidenceSummary(evidence2) {
@@ -42586,8 +43045,8 @@ var reviewResultComposeBuilder = {
   // its own resolution.
   build(context) {
     const path = reviewerRelayResultPath(context.flow, context.step);
-    const intake = ReviewIntake.parse(JSON.parse(readFileSync20(resolveRunRelative(context.runFolder, reviewIntakePath(context.flow, context.step)), "utf8")));
-    const relayResult = ReviewRelayResult.parse(JSON.parse(readFileSync20(resolveRunRelative(context.runFolder, path), "utf8")));
+    const intake = ReviewIntake.parse(JSON.parse(readFileSync22(resolveRunRelative(context.runFolder, reviewIntakePath(context.flow, context.step)), "utf8")));
+    const relayResult = ReviewRelayResult.parse(JSON.parse(readFileSync22(resolveRunRelative(context.runFolder, path), "utf8")));
     return projectReviewResult({ intake, relayResult });
   }
 };
@@ -43364,8 +43823,8 @@ function progressPresentation(input) {
 }
 
 // dist/cli/runtime-routing-policy.js
-import { readFileSync as readFileSync21 } from "node:fs";
-import { dirname, relative as relative7, resolve as resolve5 } from "node:path";
+import { readFileSync as readFileSync23 } from "node:fs";
+import { dirname, relative as relative8, resolve as resolve5 } from "node:path";
 var GENERATED_FLOW_MIRROR_ROOT_ENV = "CIRCUIT_GENERATED_FLOW_MIRROR_ROOT";
 var COMPOSE_WRITER_UNSUPPORTED_REASON = "programmatic composeWriter injections are not supported by the CLI runtime; use executor injection or generated reports";
 var RUNTIME_POLICY_REASONS = {
@@ -43376,7 +43835,7 @@ var RUNTIME_POLICY_REASONS = {
 var CUSTOM_FLOW_ROOT_RUNTIME_POLICY = "Custom roots created by `circuit create` publish a normal runnable flow command.";
 var CLI_RUNTIME_ROUTING_POLICY = "Runtime routing: supported flow modes use the runtime by default. Unsupported modes, untrusted fixtures, and programmatic composeWriter injection fail closed. Runtime diagnostics: CIRCUIT_SHOW_RUNTIME_DECISION=1 includes runtime_reason for the selector decision.";
 function pathIsInside(parent, child) {
-  const rel = relative7(parent, child);
+  const rel = relative8(parent, child);
   return rel.length === 0 || !rel.startsWith("..") && !rel.startsWith("/");
 }
 function fixtureEligibleForRuntime(input) {
@@ -43398,7 +43857,7 @@ function fixtureEligibleForRuntime(input) {
 }
 function publishedCustomFlowMatches(flowRoot2, fixturePath) {
   try {
-    const manifest = JSON.parse(readFileSync21(resolve5(dirname(resolve5(flowRoot2)), "manifest.json"), "utf8"));
+    const manifest = JSON.parse(readFileSync23(resolve5(dirname(resolve5(flowRoot2)), "manifest.json"), "utf8"));
     if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest))
       return false;
     const customFlows = manifest.custom_flows;
@@ -43559,7 +44018,7 @@ function loadTemplateFlow(args) {
   for (const candidate of candidateTemplatePaths(args)) {
     if (!existsSync9(candidate))
       continue;
-    return CompiledFlow.parse(JSON.parse(readFileSync22(candidate, "utf8")));
+    return CompiledFlow.parse(JSON.parse(readFileSync24(candidate, "utf8")));
   }
   throw new Error("could not find the Build template flow; pass --template-flow-root with a root containing build/circuit.json");
 }
@@ -43656,7 +44115,7 @@ function publishManifest(input) {
     custom_flows: []
   };
   if (existsSync9(manifestPath(input.home))) {
-    existing = JSON.parse(readFileSync22(manifestPath(input.home), "utf8"));
+    existing = JSON.parse(readFileSync24(manifestPath(input.home), "utf8"));
   }
   const withoutSlug = existing.custom_flows.filter((flow) => !(typeof flow === "object" && flow !== null && "id" in flow && flow.id === input.slug));
   writeJson(manifestPath(input.home), {
@@ -43702,7 +44161,7 @@ function writeDraft(input) {
 }
 function loadDraftFlow(home, slug) {
   const path = join4(draftRoot(home, slug), "circuit.json");
-  const flow = CompiledFlow.parse(JSON.parse(readFileSync22(path, "utf8")));
+  const flow = CompiledFlow.parse(JSON.parse(readFileSync24(path, "utf8")));
   validateCustomFlow(slug, flow, "custom flow draft");
   return flow;
 }
@@ -43711,16 +44170,16 @@ function publishDraft(input) {
   if (!existsSync9(join4(draft, "SKILL.md"))) {
     throw new Error(`draft missing for ${input.slug}: ${draft}`);
   }
-  const descriptor = readFileSync22(join4(draft, "circuit.yaml"), "utf8");
+  const descriptor = readFileSync24(join4(draft, "circuit.yaml"), "utf8");
   validateCircuitYamlDescriptor(descriptor, join4(draft, "circuit.yaml"), input.slug);
   const skillRoot = publishedRoot(input.home, input.slug);
   const customFlowRoot = join4(flowRoot(input.home), input.slug);
   mkdirSync(skillRoot, { recursive: true });
   mkdirSync(customFlowRoot, { recursive: true });
-  writeText(join4(skillRoot, "SKILL.md"), readFileSync22(join4(draft, "SKILL.md"), "utf8"));
+  writeText(join4(skillRoot, "SKILL.md"), readFileSync24(join4(draft, "SKILL.md"), "utf8"));
   writeText(join4(skillRoot, "circuit.yaml"), descriptor);
-  writeText(join4(customFlowRoot, "circuit.json"), readFileSync22(join4(draft, "circuit.json"), "utf8"));
-  writeText(join4(commandRoot(input.home), `${input.slug}.md`), readFileSync22(join4(draft, "command.md"), "utf8"));
+  writeText(join4(customFlowRoot, "circuit.json"), readFileSync24(join4(draft, "circuit.json"), "utf8"));
+  writeText(join4(commandRoot(input.home), `${input.slug}.md`), readFileSync24(join4(draft, "command.md"), "utf8"));
   publishManifest(input);
 }
 function summaryMarkdown(input) {
@@ -43855,17 +44314,17 @@ async function runCreateCommand(argv, options = {}) {
 // dist/cli/handoff.js
 import { execFileSync } from "node:child_process";
 import { createHash as createHash4, randomUUID as randomUUID3 } from "node:crypto";
-import { closeSync as closeSync2, copyFileSync, existsSync as existsSync12, mkdirSync as mkdirSync2, openSync as openSync2, readFileSync as readFileSync25, readSync as readSync2, readdirSync, renameSync, rmSync as rmSync2, statSync as statSync2, writeFileSync as writeFileSync3 } from "node:fs";
+import { closeSync as closeSync2, copyFileSync, existsSync as existsSync12, mkdirSync as mkdirSync2, openSync as openSync2, readFileSync as readFileSync27, readSync as readSync2, readdirSync, renameSync, rmSync as rmSync2, statSync as statSync2, writeFileSync as writeFileSync3 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { basename, dirname as dirname3, join as join9, resolve as resolve9 } from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // dist/app/run-status/run-folder-projector.js
 import { constants, accessSync, statSync } from "node:fs";
 import { resolve as resolve8 } from "node:path";
 
 // dist/shared/manifest-snapshot.js
-import { readFileSync as readFileSync23, writeFileSync as writeFileSync2 } from "node:fs";
+import { readFileSync as readFileSync25, writeFileSync as writeFileSync2 } from "node:fs";
 import { join as join5 } from "node:path";
 
 // dist/schemas/manifest.js
@@ -43912,7 +44371,7 @@ function manifestSnapshotPath(runFolder) {
   return join5(runFolder, "manifest.snapshot.json");
 }
 function readManifestSnapshot(runFolder) {
-  const text = readFileSync23(manifestSnapshotPath(runFolder), "utf8");
+  const text = readFileSync25(manifestSnapshotPath(runFolder), "utf8");
   const raw = JSON.parse(text);
   return ManifestSnapshot.parse(raw);
 }
@@ -44107,7 +44566,7 @@ function stepMetadata(flow, stepId) {
 }
 
 // dist/app/run-status/runtime-run-folder.js
-import { readFileSync as readFileSync24 } from "node:fs";
+import { readFileSync as readFileSync26 } from "node:fs";
 import { join as join8 } from "node:path";
 
 // dist/runtime/projections/tournament-checkpoint-context.js
@@ -44237,17 +44696,17 @@ function fanoutBranchKind(value) {
 
 // dist/shared/run-file-paths.js
 import { existsSync as existsSync11, lstatSync as lstatSync4, realpathSync as realpathSync3 } from "node:fs";
-import { isAbsolute as isAbsolute7, relative as relative8, resolve as resolve7, sep } from "node:path";
+import { isAbsolute as isAbsolute8, relative as relative9, resolve as resolve7, sep } from "node:path";
 function isInsideOrSame3(root, target) {
-  const fromRoot = relative8(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute7(fromRoot);
+  const fromRoot = relative9(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute8(fromRoot);
 }
 function validateRunFilePath(runRelativePath2) {
   const issues = [];
   if (runRelativePath2.trim().length === 0) {
     issues.push("must be non-empty");
   }
-  if (isAbsolute7(runRelativePath2)) {
+  if (isAbsolute8(runRelativePath2)) {
     issues.push("must be relative");
   }
   if (runRelativePath2.includes("\\")) {
@@ -44265,7 +44724,7 @@ function resolveRunFilePath(runDir, runRelativePath2) {
   if (runRelativePath2.trim().length === 0) {
     throw new Error("run file path must be non-empty");
   }
-  if (isAbsolute7(runRelativePath2)) {
+  if (isAbsolute8(runRelativePath2)) {
     throw new Error(`run file path must be relative: ${runRelativePath2}`);
   }
   const root = resolve7(runDir);
@@ -44307,7 +44766,7 @@ function isRecord2(value) {
 }
 function readRawTraceEntries(runFolder) {
   const tracePath = join8(runFolder, "trace.ndjson");
-  const text = readFileSync24(tracePath, "utf8");
+  const text = readFileSync26(tracePath, "utf8");
   const trimmed = text.trim();
   if (trimmed.length === 0)
     return [];
@@ -44488,7 +44947,7 @@ function runtimeWaitingCheckpointProjection(input) {
   let requestAbs;
   try {
     requestAbs = resolveRunFilePath(input.runFolder, requestPath);
-    requestText = readFileSync24(requestAbs, "utf8");
+    requestText = readFileSync26(requestAbs, "utf8");
   } catch (err) {
     return invalidProjection({
       runFolder: input.runFolder,
@@ -44549,7 +45008,7 @@ function runtimeWaitingCheckpointProjection(input) {
   const presentation = tournamentCheckpointPresentation({
     readJson: (path) => {
       try {
-        return JSON.parse(readFileSync24(join8(input.runFolder, path), "utf8"));
+        return JSON.parse(readFileSync26(join8(input.runFolder, path), "utf8"));
       } catch {
         return void 0;
       }
@@ -45292,7 +45751,7 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now, gitProbe)
   }
   let record2;
   try {
-    record2 = ContinuityRecord.parse(JSON.parse(readFileSync25(recordAbs, "utf8")));
+    record2 = ContinuityRecord.parse(JSON.parse(readFileSync27(recordAbs, "utf8")));
   } catch {
     return invalidBrief(args, "record_invalid", "Continuity record is malformed.", pointer.record_id);
   }
@@ -45331,7 +45790,7 @@ function handoffBrief(args, now = () => /* @__PURE__ */ new Date(), gitProbe = r
     return emptyBrief(args, "no_index");
   let index;
   try {
-    index = ContinuityIndex.parse(JSON.parse(readFileSync25(indexAbs, "utf8")));
+    index = ContinuityIndex.parse(JSON.parse(readFileSync27(indexAbs, "utf8")));
   } catch {
     return invalidBrief(args, "index_invalid", "Continuity index is malformed.");
   }
@@ -45372,7 +45831,7 @@ function debugHook(message) {
 function readHookInput() {
   if (process.stdin.isTTY)
     return {};
-  const raw = readFileSync25(0, "utf8");
+  const raw = readFileSync27(0, "utf8");
   if (raw.trim().length === 0)
     return {};
   return JSON.parse(raw);
@@ -45483,7 +45942,7 @@ function missingDefaultLauncherMessage(launcher) {
   ].join(" ");
 }
 function defaultLauncherPath() {
-  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname3(fileURLToPath2(import.meta.url)));
+  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname3(fileURLToPath3(import.meta.url)));
 }
 function parseCodexHooksHost(args) {
   if (args.host === "codex")
@@ -45523,7 +45982,7 @@ function defaultHooksConfig() {
 function readHooksConfig(path) {
   if (!existsSync12(path))
     return defaultHooksConfig();
-  const parsed = JSON.parse(readFileSync25(path, "utf8"));
+  const parsed = JSON.parse(readFileSync27(path, "utf8"));
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error("hooks file must contain a JSON object");
   }
@@ -46017,7 +46476,7 @@ function saveContinuity(args, now) {
 }
 function readJsonSafely(path) {
   try {
-    return { ok: true, value: JSON.parse(readFileSync25(path, "utf8")) };
+    return { ok: true, value: JSON.parse(readFileSync27(path, "utf8")) };
   } catch {
     return { ok: false };
   }
@@ -46371,7 +46830,7 @@ function parseTranscriptForHarvest(transcriptPath, cursor) {
   }
   let buf;
   try {
-    buf = readFileSync25(transcriptPath);
+    buf = readFileSync27(transcriptPath);
   } catch {
     return void 0;
   }
@@ -46873,7 +47332,7 @@ async function runHandoffCommand(argv, options = {}) {
 import { basename as basename4 } from "node:path";
 
 // dist/app/history/indexer.js
-import { existsSync as existsSync16, mkdirSync as mkdirSync3, readFileSync as readFileSync27, renameSync as renameSync2, writeFileSync as writeFileSync4 } from "node:fs";
+import { existsSync as existsSync16, mkdirSync as mkdirSync3, readFileSync as readFileSync29, renameSync as renameSync2, writeFileSync as writeFileSync4 } from "node:fs";
 import { join as join11, resolve as resolve12 } from "node:path";
 
 // dist/history/run-corpus.js
@@ -49361,17 +49820,17 @@ var HistoryPullLogV1 = external_exports.object({
 
 // dist/shared/run-artifact-io.js
 import { statSync as statSync4 } from "node:fs";
-import { isAbsolute as isAbsolute8, relative as relative9 } from "node:path";
+import { isAbsolute as isAbsolute9, relative as relative10 } from "node:path";
 function runRelativePath(runFolder, path) {
-  return isAbsolute8(path) ? relative9(runFolder, path) : path;
+  return isAbsolute9(path) ? relative10(runFolder, path) : path;
 }
 function mtimeMs(path) {
   return Math.trunc(statSync4(path).mtimeMs);
 }
 
 // dist/app/history/extract.js
-import { existsSync as existsSync15, lstatSync as lstatSync6, readFileSync as readFileSync26, readdirSync as readdirSync4, realpathSync as realpathSync5 } from "node:fs";
-import { basename as basename3, isAbsolute as isAbsolute10, relative as relative11, resolve as resolve11 } from "node:path";
+import { existsSync as existsSync15, lstatSync as lstatSync6, readFileSync as readFileSync28, readdirSync as readdirSync4, realpathSync as realpathSync5 } from "node:fs";
+import { basename as basename3, isAbsolute as isAbsolute11, relative as relative12, resolve as resolve11 } from "node:path";
 
 // dist/shared/outcome.js
 var FAILURE_OUTCOMES = /* @__PURE__ */ new Set([
@@ -49386,7 +49845,7 @@ function isFailureOutcome(outcome) {
 
 // dist/app/history/run-source-files.js
 import { existsSync as existsSync14, lstatSync as lstatSync5, readdirSync as readdirSync3, realpathSync as realpathSync4 } from "node:fs";
-import { isAbsolute as isAbsolute9, relative as relative10, resolve as resolve10 } from "node:path";
+import { isAbsolute as isAbsolute10, relative as relative11, resolve as resolve10 } from "node:path";
 function collectRunSourceFiles(runFolder) {
   const runFolderAbs = resolve10(runFolder);
   const files = /* @__PURE__ */ new Set();
@@ -49411,8 +49870,8 @@ function isSymlink(absPath) {
   }
 }
 function isInside3(root, target) {
-  const fromRoot = relative10(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute9(fromRoot);
+  const fromRoot = relative11(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute10(fromRoot);
 }
 function walkReportJsonFiles(reportsRoot2) {
   if (!existsSync14(reportsRoot2))
@@ -49489,7 +49948,7 @@ function safeDateString(value) {
   return Number.isNaN(Date.parse(raw)) ? void 0 : new Date(raw).toISOString();
 }
 function readJson2(path) {
-  return JSON.parse(readFileSync26(path, "utf8"));
+  return JSON.parse(readFileSync28(path, "utf8"));
 }
 function readJsonRecord(path) {
   try {
@@ -49500,11 +49959,11 @@ function readJsonRecord(path) {
   }
 }
 function sha256File(path) {
-  return sha256OfString(readFileSync26(path, "utf8"));
+  return sha256OfString(readFileSync28(path, "utf8"));
 }
 function isInside4(root, target) {
-  const fromRoot = relative11(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute10(fromRoot);
+  const fromRoot = relative12(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute11(fromRoot);
 }
 function listFiles(root, prefix = "") {
   const absRoot = resolve11(root);
@@ -49558,7 +50017,7 @@ function parseTrace(runFolder, runFolderName) {
   }
   let entries = [];
   try {
-    entries = readFileSync26(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
+    entries = readFileSync28(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
   } catch (error51) {
     return {
       entries: [],
@@ -50191,8 +50650,8 @@ function rebuildHistoryIndex(options = {}) {
   const manifestTmp = `${paths.manifestPath}.tmp-${process.pid}`;
   writeFileSync4(documentsTmp, documentsJsonl, "utf8");
   writeFileSync4(manifestTmp, manifestJson, "utf8");
-  HistoryManifestV1.parse(JSON.parse(readFileSync27(manifestTmp, "utf8")));
-  for (const line of readFileSync27(documentsTmp, "utf8").split("\n")) {
+  HistoryManifestV1.parse(JSON.parse(readFileSync29(manifestTmp, "utf8")));
+  for (const line of readFileSync29(documentsTmp, "utf8").split("\n")) {
     if (line.trim().length === 0)
       continue;
     HistoryDocumentV1.parse(JSON.parse(line));
@@ -50213,7 +50672,7 @@ function readHistoryManifest(paths) {
   }
   let raw;
   try {
-    raw = JSON.parse(readFileSync27(paths.manifestPath, "utf8"));
+    raw = JSON.parse(readFileSync29(paths.manifestPath, "utf8"));
   } catch (error51) {
     throw new HistoryCommandError("index_corrupt", `history manifest corrupt: ${error51 instanceof Error ? error51.message : String(error51)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -50237,7 +50696,7 @@ function readHistoryIndex(options = {}) {
   const manifest = readHistoryManifest(paths);
   let documentsRaw = "";
   try {
-    documentsRaw = readFileSync27(paths.documentsPath, "utf8");
+    documentsRaw = readFileSync29(paths.documentsPath, "utf8");
   } catch (error51) {
     throw new HistoryCommandError("index_corrupt", `history documents unreadable: ${error51 instanceof Error ? error51.message : String(error51)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -50307,7 +50766,7 @@ function historyStatus(options = {}) {
 }
 
 // dist/app/history/memory-effect-read.js
-import { existsSync as existsSync17, readFileSync as readFileSync28 } from "node:fs";
+import { existsSync as existsSync17, readFileSync as readFileSync30 } from "node:fs";
 import { join as join12 } from "node:path";
 function loadMemoryEffectReport(paths) {
   const effectPath = join12(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
@@ -50323,7 +50782,7 @@ function loadMemoryEffectReport(paths) {
     };
   }
   try {
-    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync28(effectPath, "utf8")));
+    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync30(effectPath, "utf8")));
     return { report, warnings: [] };
   } catch (error51) {
     return {
@@ -50339,11 +50798,11 @@ function loadMemoryEffectReport(paths) {
 }
 
 // dist/app/history/memory-effect.js
-import { mkdirSync as mkdirSync5, readFileSync as readFileSync30, renameSync as renameSync4, writeFileSync as writeFileSync6 } from "node:fs";
+import { mkdirSync as mkdirSync5, readFileSync as readFileSync32, renameSync as renameSync4, writeFileSync as writeFileSync6 } from "node:fs";
 import { join as join14 } from "node:path";
 
 // dist/app/history/memory-merge.js
-import { existsSync as existsSync18, mkdirSync as mkdirSync4, readFileSync as readFileSync29, renameSync as renameSync3, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync18, mkdirSync as mkdirSync4, readFileSync as readFileSync31, renameSync as renameSync3, writeFileSync as writeFileSync5 } from "node:fs";
 import { join as join13 } from "node:path";
 
 // dist/app/history/memory-identity.js
@@ -50382,7 +50841,7 @@ function readRecallInputs(runFolder, warnings) {
     return void 0;
   }
   try {
-    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync29(recallPath, "utf8")));
+    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync31(recallPath, "utf8")));
     return new Map(recall.memory_inputs.map((memory) => [memory.memory_id, memory]));
   } catch (error51) {
     warnings.push({
@@ -50439,7 +50898,7 @@ function extractRunMemoryLinkage(runFolder) {
   }
   let envelope;
   try {
-    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync29(envelopePath, "utf8")));
+    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync31(envelopePath, "utf8")));
   } catch (error51) {
     warnings.push({
       code: "source_invalid",
@@ -50542,7 +51001,7 @@ function writeMemoryMergeReport(report, paths) {
   const tmpPath = `${outPath}.tmp-${process.pid}`;
   writeFileSync5(tmpPath, `${JSON.stringify(report, null, 2)}
 `, "utf8");
-  HistoryMemoryMergeV1.parse(JSON.parse(readFileSync29(tmpPath, "utf8")));
+  HistoryMemoryMergeV1.parse(JSON.parse(readFileSync31(tmpPath, "utf8")));
   renameSync3(tmpPath, outPath);
   return outPath;
 }
@@ -50742,7 +51201,7 @@ function writeMemoryEffectReport(report, paths) {
   const tmpPath = `${outPath}.tmp-${process.pid}`;
   writeFileSync6(tmpPath, `${JSON.stringify(report, null, 2)}
 `, "utf8");
-  HistoryMemoryEffectV1.parse(JSON.parse(readFileSync30(tmpPath, "utf8")));
+  HistoryMemoryEffectV1.parse(JSON.parse(readFileSync32(tmpPath, "utf8")));
   renameSync4(tmpPath, outPath);
   return outPath;
 }
@@ -50831,7 +51290,7 @@ function historyMemoryInputPreview(input) {
 }
 
 // dist/app/history/pull-log.js
-import { existsSync as existsSync19, mkdirSync as mkdirSync6, readFileSync as readFileSync31, renameSync as renameSync5, writeFileSync as writeFileSync7 } from "node:fs";
+import { existsSync as existsSync19, mkdirSync as mkdirSync6, readFileSync as readFileSync33, renameSync as renameSync5, writeFileSync as writeFileSync7 } from "node:fs";
 import { dirname as dirname4, join as join15 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error51) {
@@ -50847,7 +51306,7 @@ function readPullLog(runFolder) {
   if (!existsSync19(path))
     return void 0;
   try {
-    return HistoryPullLogV1.parse(JSON.parse(readFileSync31(path, "utf8")));
+    return HistoryPullLogV1.parse(JSON.parse(readFileSync33(path, "utf8")));
   } catch {
     return void 0;
   }
@@ -50858,7 +51317,7 @@ function appendPullLogEntry(runFolder, input) {
   let existing;
   try {
     if (existsSync19(outPath)) {
-      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync31(outPath, "utf8")));
+      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync33(outPath, "utf8")));
     }
   } catch (error51) {
     warnings.push(pullLogUnavailable(runFolder, error51));
@@ -50886,7 +51345,7 @@ function appendPullLogEntry(runFolder, input) {
     const tmpPath = `${outPath}.tmp-${process.pid}`;
     writeFileSync7(tmpPath, `${JSON.stringify(log, null, 2)}
 `, "utf8");
-    HistoryPullLogV1.parse(JSON.parse(readFileSync31(tmpPath, "utf8")));
+    HistoryPullLogV1.parse(JSON.parse(readFileSync33(tmpPath, "utf8")));
     renameSync5(tmpPath, outPath);
     return { path: outPath, warnings };
   } catch (error51) {
@@ -50918,7 +51377,7 @@ function suppressMeasuredNegative(input) {
 }
 
 // dist/app/history/query.js
-import { existsSync as existsSync20, readFileSync as readFileSync32 } from "node:fs";
+import { existsSync as existsSync20, readFileSync as readFileSync34 } from "node:fs";
 var STOPWORDS = /* @__PURE__ */ new Set([
   "the",
   "and",
@@ -51085,7 +51544,7 @@ function sourceStaleness(doc, checkedAt) {
         checked_at: checkedAt
       };
     }
-    const currentHash = sha256OfString(readFileSync32(sourcePath, "utf8"));
+    const currentHash = sha256OfString(readFileSync34(sourcePath, "utf8"));
     return currentHash === doc.source_sha256 ? {
       status: "fresh",
       reason_codes: ["source_hash_verified"],
@@ -51499,17 +51958,17 @@ async function runHistoryCommand(argv) {
 
 // dist/cli/memory.js
 import { createHash as createHash5 } from "node:crypto";
-import { existsSync as existsSync23, readFileSync as readFileSync35 } from "node:fs";
+import { existsSync as existsSync23, readFileSync as readFileSync37 } from "node:fs";
 import { basename as basename5, join as join17 } from "node:path";
 
 // dist/memory/project-identity.js
 var import_yaml2 = __toESM(require_dist(), 1);
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { existsSync as existsSync22, mkdirSync as mkdirSync8, readFileSync as readFileSync34, renameSync as renameSync7, writeFileSync as writeFileSync9 } from "node:fs";
+import { existsSync as existsSync22, mkdirSync as mkdirSync8, readFileSync as readFileSync36, renameSync as renameSync7, writeFileSync as writeFileSync9 } from "node:fs";
 import { resolve as resolve14 } from "node:path";
 
 // dist/memory/project-store.js
-import { existsSync as existsSync21, mkdirSync as mkdirSync7, readFileSync as readFileSync33, renameSync as renameSync6, writeFileSync as writeFileSync8 } from "node:fs";
+import { existsSync as existsSync21, mkdirSync as mkdirSync7, readFileSync as readFileSync35, renameSync as renameSync6, writeFileSync as writeFileSync8 } from "node:fs";
 import { join as join16, resolve as resolve13 } from "node:path";
 var MEMORY_DIR_RELATIVE_PATH = ".circuit/memory";
 var PROJECT_FACTS_FILE = "project.v1.jsonl";
@@ -51531,7 +51990,7 @@ function readProjectFacts(options = {}) {
   }
   let raw = "";
   try {
-    raw = readFileSync33(paths.factsPath, "utf8");
+    raw = readFileSync35(paths.factsPath, "utf8");
   } catch (error51) {
     return {
       facts: [],
@@ -51594,7 +52053,7 @@ function rewriteProjectFacts(records, options = {}) {
 `;
   const tmpPath = `${paths.factsPath}.tmp-${process.pid}`;
   writeFileSync8(tmpPath, out, "utf8");
-  for (const line of readFileSync33(tmpPath, "utf8").split("\n")) {
+  for (const line of readFileSync35(tmpPath, "utf8").split("\n")) {
     if (line.trim().length === 0)
       continue;
     MemoryInputV0.parse(JSON.parse(line));
@@ -51634,7 +52093,7 @@ function readConfigProjectId(repoRoot) {
     return void 0;
   let raw;
   try {
-    raw = (0, import_yaml2.parse)(readFileSync34(configPath, "utf8"));
+    raw = (0, import_yaml2.parse)(readFileSync36(configPath, "utf8"));
   } catch {
     return void 0;
   }
@@ -51693,7 +52152,7 @@ function stampMemoryManifest(resolved, options = {}) {
   const tmpPath = `${paths.manifestPath}.tmp-${process.pid}`;
   writeFileSync9(tmpPath, `${JSON.stringify(manifest, null, 2)}
 `, "utf8");
-  JSON.parse(readFileSync34(tmpPath, "utf8"));
+  JSON.parse(readFileSync36(tmpPath, "utf8"));
   renameSync7(tmpPath, paths.manifestPath);
   return paths.manifestPath;
 }
@@ -51783,7 +52242,7 @@ function resolveNoteSource(input) {
     const abs = join17(input.runFolder, candidate.rel);
     if (!existsSync23(abs))
       continue;
-    const sha2564 = sha256Text(readFileSync35(abs, "utf8"));
+    const sha2564 = sha256Text(readFileSync37(abs, "utf8"));
     const ref = Ref.parse({
       kind: candidate.kind,
       ref: candidate.rel,
@@ -51795,7 +52254,7 @@ function resolveNoteSource(input) {
   const tracePath = join17(input.runFolder, "trace.ndjson");
   if (existsSync23(tracePath)) {
     const runId = basename5(input.runFolder);
-    const sha2564 = sha256Text(readFileSync35(tracePath, "utf8"));
+    const sha2564 = sha256Text(readFileSync37(tracePath, "utf8"));
     const trace = Ref.safeParse({
       kind: "trace",
       ref: "trace.ndjson#sequence=0",
@@ -51964,11 +52423,11 @@ function latestRunFolder(runsBase) {
 
 // dist/cli/run.js
 import { randomUUID as randomUUID7 } from "node:crypto";
-import { existsSync as existsSync31, mkdirSync as mkdirSync13, readFileSync as readFileSync44, writeFileSync as writeFileSync14 } from "node:fs";
+import { existsSync as existsSync31, mkdirSync as mkdirSync13, readFileSync as readFileSync46, writeFileSync as writeFileSync14 } from "node:fs";
 import { dirname as dirname13, join as join31, resolve as resolve19 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
-import { readFileSync as readFileSync39 } from "node:fs";
+import { readFileSync as readFileSync41 } from "node:fs";
 
 // dist/flows/registries/checkpoint-writers/registry.js
 var REGISTRY = buildCheckpointRegistry(flowPackages);
@@ -53330,7 +53789,7 @@ function expandTemplate(template, item) {
 
 // dist/shared/user-skill-registry.js
 var import_yaml3 = __toESM(require_dist(), 1);
-import { existsSync as existsSync24, readFileSync as readFileSync36, readdirSync as readdirSync5 } from "node:fs";
+import { existsSync as existsSync24, readFileSync as readFileSync38, readdirSync as readdirSync5 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { join as join19, resolve as resolve15 } from "node:path";
 var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
@@ -53398,7 +53857,7 @@ function discoverCandidates(roots) {
 function loadCandidate(candidate) {
   let text;
   try {
-    text = readFileSync36(candidate.path, "utf8");
+    text = readFileSync38(candidate.path, "utf8");
   } catch (err) {
     throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
   }
@@ -56838,7 +57297,7 @@ function planRelayGuidanceDecision(input) {
 }
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync25, readFileSync as readFileSync37 } from "node:fs";
+import { existsSync as existsSync25, readFileSync as readFileSync39 } from "node:fs";
 
 // dist/flows/registries/shape-hints/registry.js
 var SCHEMA_HINTS = buildSchemaHintMap(flowPackages);
@@ -57003,7 +57462,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     if (!existsSync25(abs))
       return `[reads unavailable: ${path}]`;
     return `--- ${path} ---
-${readFileSync37(abs, "utf8")}`;
+${readFileSync39(abs, "utf8")}`;
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
   const sliceSection = currentSliceSection(activeSlice);
@@ -58690,6 +59149,8 @@ function verificationProofMissing(input) {
 async function writeVerificationProofAssessment(input) {
   if (input.context.workContractRef === void 0)
     return;
+  if (input.observations.length === 0)
+    return;
   const claimId = `claim.verification:${proofIdPart(input.step.id)}:${input.attempt}`;
   const evidence2 = input.observations.map((observation, index) => {
     const ref = commandEvidenceRef({
@@ -59239,7 +59700,7 @@ async function writeRuntimeRunResult(files, result) {
 }
 
 // dist/runtime/run/run-boundary.js
-import { readFileSync as readFileSync38 } from "node:fs";
+import { readFileSync as readFileSync40 } from "node:fs";
 import { lstat, mkdir as mkdir4, readdir } from "node:fs/promises";
 
 // dist/runtime/projections/progress.js
@@ -60036,7 +60497,7 @@ async function openRunBoundary(options) {
     files: {
       readText(path) {
         try {
-          return readFileSync38(path, "utf8");
+          return readFileSync40(path, "utf8");
         } catch {
           return void 0;
         }
@@ -61101,7 +61562,7 @@ function readCheckpointRequestContextResult(input) {
   const requestAbs = resolveRunFilePath(input.runDir, input.requestPath);
   let requestText;
   try {
-    requestText = readFileSync39(requestAbs, "utf8");
+    requestText = readFileSync41(requestAbs, "utf8");
   } catch (error51) {
     return checkpointResumeRejectedFrom(error51);
   }
@@ -61440,7 +61901,7 @@ async function resumeCompiledFlow(options) {
 }
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync26, readFileSync as readFileSync40 } from "node:fs";
+import { existsSync as existsSync26, readFileSync as readFileSync42 } from "node:fs";
 import { join as join25, resolve as resolve16 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
@@ -61454,7 +61915,7 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
     if (!existsSync26(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
-    const currentHash = sha256OfString(readFileSync40(abs, "utf8"));
+    const currentHash = sha256OfString(readFileSync42(abs, "utf8"));
     return currentHash === sourceSha ? { status: "fresh", checked_at: checkedAt, reason_codes: ["source_hash_verified"] } : { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
   } catch {
     return { status: "unknown", checked_at: checkedAt, reason_codes: ["memory_unverified"] };
@@ -61676,11 +62137,11 @@ function prepareRunStartHistoryRecall(options) {
 }
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync28, mkdirSync as mkdirSync9, readFileSync as readFileSync42, rmSync as rmSync3, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname9, isAbsolute as isAbsolute11, join as join26, relative as relative12, resolve as resolve17 } from "node:path";
+import { existsSync as existsSync28, mkdirSync as mkdirSync9, readFileSync as readFileSync44, rmSync as rmSync3, writeFileSync as writeFileSync10 } from "node:fs";
+import { dirname as dirname9, isAbsolute as isAbsolute12, join as join26, relative as relative13, resolve as resolve17 } from "node:path";
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync27, readFileSync as readFileSync41 } from "node:fs";
+import { existsSync as existsSync27, readFileSync as readFileSync43 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -61688,7 +62149,7 @@ function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
   if (!existsSync27(path))
     return void 0;
-  const parsed = JSON.parse(readFileSync41(path, "utf8"));
+  const parsed = JSON.parse(readFileSync43(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
 }
 function stringField2(report, key) {
@@ -62072,6 +62533,29 @@ function buildScopeDetails(flowReport) {
   }
   return details;
 }
+function hasTouchAreaDeviation(flowReport) {
+  const touchArea = isObject4(flowReport?.touch_area) ? flowReport.touch_area : void 0;
+  if (touchArea === void 0)
+    return false;
+  return stringField2(touchArea, "containment") !== "within";
+}
+function buildTouchAreaDetails(flowReport) {
+  const touchArea = isObject4(flowReport?.touch_area) ? flowReport.touch_area : void 0;
+  if (touchArea === void 0)
+    return [];
+  const containment = stringField2(touchArea, "containment");
+  if (containment === "out_of_bounds") {
+    const paths = stringArrayField2(touchArea, "out_of_bounds_paths");
+    const list = paths.length === 0 ? "(paths unavailable)" : paths.join("; ");
+    return [`Touch area: the change modified files outside the planned area: ${list}.`];
+  }
+  if (containment === "undetermined") {
+    return [
+      "Touch area: containment could not be verified \u2014 history moved during the run, or a file is hidden from git."
+    ];
+  }
+  return [];
+}
 function prototypeDetails(flowReport) {
   const details = [];
   const summaryDetail = flowSummaryDetail(flowReport);
@@ -62151,6 +62635,9 @@ var buildProjector = ({ flowReport, runOutcome: runOutcome3 }) => {
         causes.push("review requested fixes");
       if (hasScopeDeviation(flowReport))
         causes.push("the change needs a scope follow-up");
+      if (hasTouchAreaDeviation(flowReport)) {
+        causes.push("the change reached outside the planned area");
+      }
       const cause = causes.length > 0 ? causes.join(" and ") : "review or scope needs a follow-up";
       return `Circuit: Build needs follow-up. Verification passed, but ${cause}.`;
     }
@@ -62158,7 +62645,11 @@ var buildProjector = ({ flowReport, runOutcome: runOutcome3 }) => {
   })();
   return {
     headline,
-    details: [...buildFixDetails(flowReport), ...buildScopeDetails(flowReport)]
+    details: [
+      ...buildFixDetails(flowReport),
+      ...buildScopeDetails(flowReport),
+      ...buildTouchAreaDetails(flowReport)
+    ]
   };
 };
 var prototypeProjector = ({ flowReport, runOutcome: runOutcome3 }) => {
@@ -62260,7 +62751,7 @@ function readPriorRoute(runFolder) {
   if (!existsSync28(path))
     return {};
   try {
-    const raw = JSON.parse(readFileSync42(path, "utf8"));
+    const raw = JSON.parse(readFileSync44(path, "utf8"));
     if (!isObject4(raw))
       return {};
     const routedBy = raw.routed_by;
@@ -62286,13 +62777,13 @@ function htmlPath(runFolder) {
   return join26(runFolder, "reports", "operator-summary.html");
 }
 function isInsideOrSame4(root, target) {
-  const fromRoot = relative12(root, target);
-  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute11(fromRoot);
+  const fromRoot = relative13(root, target);
+  return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute12(fromRoot);
 }
 function readCheckpointRequest(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute11(checkpoint.request_path) ? resolve17(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute12(checkpoint.request_path) ? resolve17(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     return void 0;
   }
@@ -62301,7 +62792,7 @@ function readCheckpointRequest(runFolder, checkpoint) {
   if (!existsSync28(requestPath))
     return void 0;
   try {
-    const parsed = JSON.parse(readFileSync42(requestPath, "utf8"));
+    const parsed = JSON.parse(readFileSync44(requestPath, "utf8"));
     return isObject4(parsed) ? parsed : void 0;
   } catch {
     return void 0;
@@ -62313,7 +62804,7 @@ function checkpointProjectRoot(runFolder, checkpoint) {
   if (!isObject4(executionContext))
     return void 0;
   const projectRoot = stringField2(executionContext, "project_root");
-  return projectRoot !== void 0 && isAbsolute11(projectRoot) ? projectRoot : void 0;
+  return projectRoot !== void 0 && isAbsolute12(projectRoot) ? projectRoot : void 0;
 }
 function reportLink(runFolder, label, relPath, schema) {
   return {
@@ -62681,7 +63172,7 @@ function readAutoResolutions(runFolder) {
   if (!existsSync28(tracePath))
     return [];
   const records = [];
-  for (const line of readFileSync42(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync44(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -62726,7 +63217,7 @@ function readSkillHookSummary(runFolder) {
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
   const warnings = [];
-  for (const line of readFileSync42(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync44(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -63907,7 +64398,7 @@ async function runAutonomousContinuation(input) {
 
 // dist/shared/config-loader.js
 var import_yaml4 = __toESM(require_dist(), 1);
-import { existsSync as existsSync30, readFileSync as readFileSync43 } from "node:fs";
+import { existsSync as existsSync30, readFileSync as readFileSync45 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
 import { join as join29, resolve as resolve18 } from "node:path";
 var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
@@ -63929,7 +64420,7 @@ function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
   const abs = resolve18(sourcePath);
   if (!existsSync30(abs))
     return void 0;
-  const raw = parseConfigYaml(readFileSync43(abs, "utf8"), abs);
+  const raw = parseConfigYaml(readFileSync45(abs, "utf8"), abs);
   if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
     const schemaVersion = raw.schema_version;
     if (schemaVersion === 2) {
@@ -64425,7 +64916,7 @@ function loadFixture(fixturePath) {
   if (!existsSync31(fixturePath)) {
     throw new Error(`flow fixture not found: ${fixturePath}`);
   }
-  const bytes = readFileSync44(fixturePath);
+  const bytes = readFileSync46(fixturePath);
   const raw = JSON.parse(bytes.toString("utf8"));
   const flow = CompiledFlow.parse(raw);
   const policy2 = validateCompiledFlowKindPolicy(flow);
@@ -64516,7 +65007,7 @@ async function runResumeCommand(args, options) {
         ...progress === void 0 ? {} : { progress },
         progressSurfaceForFlowId
       });
-      const runResult = RunResult.parse(JSON.parse(readFileSync44(runtimeResult.resultPath, "utf8")));
+      const runResult = RunResult.parse(JSON.parse(readFileSync46(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
       const postRunArtifactContext = {
@@ -64807,7 +65298,7 @@ async function runExecutionCommand(args, options) {
 `);
       return 0;
     }
-    const runResult = RunResult.parse(JSON.parse(readFileSync44(runtimeResult.resultPath, "utf8")));
+    const runResult = RunResult.parse(JSON.parse(readFileSync46(runtimeResult.resultPath, "utf8")));
     const selectedProcess = selectedProcessFields({
       processId: flow.id,
       routedBy: route.source,
@@ -64916,7 +65407,7 @@ async function runExecutionCommand(args, options) {
                 })
               };
             }
-            const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync44(recoveryResult.resultPath, "utf8")));
+            const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync46(recoveryResult.resultPath, "utf8")));
             return {
               projection: projectClosedProcessEvidence({
                 runFolder: attemptFolder,
@@ -65088,12 +65579,12 @@ function readSourceVersion() {
   if (true)
     return "0.1.0-alpha.6";
   const candidates = [
-    resolve20(dirname14(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
+    resolve20(dirname14(fileURLToPath4(import.meta.url)), "../../plugins/version.json"),
     resolve20(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync45(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync47(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {

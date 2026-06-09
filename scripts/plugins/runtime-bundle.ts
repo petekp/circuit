@@ -27,6 +27,17 @@ const ASSET_SIDECARS: Array<{ src: string; outs: readonly string[] }> = [
       'dist/flows/fix/writers/git-state.ts',
     ],
   },
+  // Build's touch-area gate runs the same git-state helper. Build cannot import
+  // Fix's copy (the engine<->flow boundary forbids cross-flow imports), so it
+  // keeps a byte-identical sibling, held in lockstep by a drift-guard test
+  // (tests/contracts/build-git-state-drift.test.ts). In the bundle both flows'
+  // inlined code resolves `./git-state.ts` to the single runtime/git-state.ts
+  // Fix already emits above, so only the dist sidecar is Build-specific. Unify
+  // into src/shared/git-state/ to drop the duplication (tracked follow-up).
+  {
+    src: 'src/flows/build/writers/git-state.ts',
+    outs: ['dist/flows/build/writers/git-state.ts'],
+  },
   // The host wrappers (plugins/{claude,codex}/scripts/circuit.ts) import the
   // shared launcher core relatively at runtime, the same way the Claude wrapper
   // imports ./auto-open-policy.ts. plugins/shared/launcher-core.ts is the single

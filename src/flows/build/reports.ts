@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RuntimeGitStateEntry, RuntimeHiddenIndexFlag } from '../../schemas/runtime-evidence.js';
 import {
   VerificationCommand,
   VerificationCommandResult,
@@ -33,6 +34,32 @@ export const BuildGuardrails = z
   })
   .strict();
 export type BuildGuardrails = z.infer<typeof BuildGuardrails>;
+
+// The allowed touch area: where the change is permitted to edit files, proposed
+// by the researcher from its codebase read and carried context -> plan. Each
+// entry is either a directory subtree (ends in '/', e.g. "src/flows/build/")
+// matched on segment boundaries, or an exact repo-relative file path. The
+// touch-area gate compares the git-proven set of files the implementer actually
+// changed against these prefixes; anything outside is overreach. Defaults empty,
+// which makes the gate opt-in: with no declared area the gate stays inert and
+// the build behaves exactly as before. The researcher proposes the area, never
+// the operator (asking an operator to enumerate off-limits files would be a
+// hostile product); a different role (the implementer) is then held to it, so
+// this is a drift check across roles, not the model granting itself permission.
+export const AllowedTouchArea = z
+  .array(
+    z
+      .string()
+      .min(1)
+      .describe(
+        'a directory subtree ending in "/" (segment-aware, e.g. "src/flows/build/") or an exact repo-relative file path',
+      ),
+  )
+  .default([])
+  .describe(
+    'paths the change is allowed to touch, proposed by the researcher from the codebase read; empty leaves the touch-area gate inert (opt-in)',
+  );
+export type AllowedTouchArea = z.infer<typeof AllowedTouchArea>;
 
 // One ordered unit of implementation work. The researcher decomposes the
 // change into these during analyze; under deep rigor the engine implements
@@ -199,6 +226,7 @@ export const BuildContext = z
     guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe(
       'negative space: operator-stated non_goals extracted from the goal and code-grounded invariants the change must preserve; empty when none apply',
     ),
+    allowed_touch_area: AllowedTouchArea,
   })
   .strict();
 export type BuildContext = z.infer<typeof BuildContext>;
@@ -221,6 +249,9 @@ export const BuildPlan = z
       ),
     guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe(
       'negative space carried from build.context@v1: non_goals the change must not do and invariants it must preserve; empty when none apply',
+    ),
+    allowed_touch_area: AllowedTouchArea.describe(
+      'paths the change is allowed to touch, carried from build.context@v1; empty leaves the touch-area gate inert (opt-in)',
     ),
     verification: z
       .object({
@@ -343,6 +374,190 @@ export const BuildReview = z
   });
 export type BuildReview = z.infer<typeof BuildReview>;
 
+export const BuildBaselineSnapshotEntry = RuntimeGitStateEntry;
+export type BuildBaselineSnapshotEntry = z.infer<typeof BuildBaselineSnapshotEntry>;
+
+export const BuildHiddenIndexFlag = RuntimeHiddenIndexFlag;
+export type BuildHiddenIndexFlag = z.infer<typeof BuildHiddenIndexFlag>;
+
+// Runtime-owned pre-act snapshot of git state. Captured once before the
+// implementer touches the working tree (and, under deep rigor, before the first
+// slice), it is the baseline the post-verify touch-area step diffs against to
+// recover the git-proven set of files the implementer actually changed. Mirrors
+// fix.baseline-snapshot@v1's captured shape; overall_status is always 'passed'
+// (the snapshot records state, it does not gate routing).
+//
+// Discriminated on `captured`. The touch-area gate is opt-in: when the plan
+// declares no allowed_touch_area there is nothing to enforce, so the baseline
+// step skips git entirely and records the inert `captured: false` shape. This
+// keeps a Build run that never opted into the gate free of any git dependency,
+// exactly as before the gate existed. Only when an area is declared does the
+// step shell out to git and record the full `captured: true` snapshot.
+export const BuildBaselineCaptured = z
+  .object({
+    overall_status: z.literal('passed'),
+    captured: z.literal(true),
+    head_sha: z.string().min(1),
+    entries: z.array(BuildBaselineSnapshotEntry),
+    hidden_index_flags: z.array(BuildHiddenIndexFlag),
+  })
+  .strict();
+export type BuildBaselineCaptured = z.infer<typeof BuildBaselineCaptured>;
+
+export const BuildBaselineInert = z
+  .object({
+    overall_status: z.literal('passed'),
+    captured: z.literal(false),
+  })
+  .strict();
+export type BuildBaselineInert = z.infer<typeof BuildBaselineInert>;
+
+export const BuildBaselineSnapshot = z.discriminatedUnion('captured', [
+  BuildBaselineCaptured,
+  BuildBaselineInert,
+]);
+export type BuildBaselineSnapshot = z.infer<typeof BuildBaselineSnapshot>;
+
+export const BuildTouchAreaEnforcement = z.enum(['enforced', 'not_enforced']);
+export type BuildTouchAreaEnforcement = z.infer<typeof BuildTouchAreaEnforcement>;
+
+// within        — every changed path is inside the allowed area (or the gate is
+//                 not enforced because no area was declared).
+// out_of_bounds — at least one git-proven changed path is outside the area.
+// undetermined  — containment cannot be proven: HEAD moved (the implementer
+//                 committed mid-run, so changes cannot be attributed) or a path
+//                 is hidden from git status (assume-unchanged / skip-worktree).
+//                 Treated as fail-closed at close.
+export const BuildTouchAreaContainment = z.enum(['within', 'out_of_bounds', 'undetermined']);
+export type BuildTouchAreaContainment = z.infer<typeof BuildTouchAreaContainment>;
+
+// Runtime-owned touch-area verdict. After the slice loop completes, the runtime
+// snapshots git again, diffs against the baseline to recover the git-proven set
+// of changed paths, and checks each against the plan's allowed_touch_area. This
+// is the hard half of intent enforcement: the reviewer's alignment is a model
+// judgment, but containment here is a deterministic git fact the implementer
+// cannot talk around.
+//
+// overall_status is always 'passed' when the observation itself succeeds, so the
+// verification step routes 'continue' and the gate lands at close (consistent
+// with the scope gate; a mid-flow re-route would collapse to failed_check ->
+// act-step, the same boundary constraint documented for the scope gate). If the
+// git observation fails, the writer throws and the runner takes its error path.
+//
+// Known boundaries (what "git-proven" does NOT cover). The gate reasons about
+// the git-tracked working tree, so a few paths are invisible to it by design,
+// and it fails closed rather than guess:
+//   - A rename moves two paths; git reports only the destination as the entry
+//     path. The source is carried on the touched-file's `from` and checked too,
+//     so `git mv out-of-area in-area` cannot hide the source (see
+//     projectBuildTouchArea).
+//   - Files matched by .gitignore are never tracked and never appear in
+//     `git status`, so a write to an ignored path outside the area is not seen.
+//     Such a path cannot be committed without an explicit `git add -f` (which
+//     makes it visible), so it is outside the gate's "tracked change" scope.
+//   - A working-tree blob that `git hash-object` cannot read is fingerprinted
+//     with a sentinel; if a baseline-dirty path is unreadable both before and
+//     after, an in-place mutation of it can go unobserved. This requires a path
+//     already dirty before the build and persistently unhashable - pathological,
+//     and noted here rather than papered over.
+// Cases the gate CAN observe but cannot attribute (HEAD moved, assume-unchanged
+// / skip-worktree) resolve to `undetermined`, which blocks close.
+export const BuildTouchArea = z
+  .object({
+    overall_status: z.literal('passed'),
+    enforcement: BuildTouchAreaEnforcement,
+    containment: BuildTouchAreaContainment,
+    allowed_area: z.array(z.string().min(1)),
+    observed_paths: z.array(z.string().min(1)),
+    out_of_bounds_paths: z.array(z.string().min(1)),
+    // The two git SHAs are present only when git actually ran (an area was
+    // declared). When the gate is not enforced the step skips git, so they are
+    // absent; the superRefine below requires them exactly when enforced.
+    baseline_head_sha: z.string().min(1).optional(),
+    head_sha: z.string().min(1).optional(),
+    head_diverged: z.boolean(),
+    hidden_index_flags: z.array(BuildHiddenIndexFlag),
+    reason: z.string().min(1).optional(),
+  })
+  .strict()
+  .superRefine((touchArea, ctx) => {
+    const enforced = touchArea.enforcement === 'enforced';
+    // When enforced, git ran, so both SHAs must be recorded — the containment
+    // verdict is only trustworthy when backed by a real before/after snapshot.
+    if (
+      enforced &&
+      (touchArea.baseline_head_sha === undefined || touchArea.head_sha === undefined)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['baseline_head_sha'],
+        message: 'baseline_head_sha and head_sha are required when enforcement is "enforced"',
+      });
+    }
+    if (enforced === (touchArea.allowed_area.length === 0)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['enforcement'],
+        message:
+          "enforcement must be 'enforced' exactly when allowed_area is non-empty (and 'not_enforced' when empty)",
+      });
+    }
+    // When the gate is not enforced (no declared area) it is fully inert:
+    // containment is 'within' and nothing is out of bounds, regardless of where
+    // the change landed or whether HEAD moved. An opt-out build is never gated.
+    if (!enforced && touchArea.containment !== 'within') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['containment'],
+        message: "containment must be 'within' when enforcement is 'not_enforced'",
+      });
+    }
+    if (!enforced && touchArea.out_of_bounds_paths.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['out_of_bounds_paths'],
+        message: 'out_of_bounds_paths must be empty when enforcement is "not_enforced"',
+      });
+    }
+    // out_of_bounds requires named paths; named paths require the out_of_bounds
+    // verdict. The two move together so the verdict can never disagree with the
+    // evidence behind it.
+    if (touchArea.containment === 'out_of_bounds' && touchArea.out_of_bounds_paths.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['out_of_bounds_paths'],
+        message: "out_of_bounds_paths must be non-empty when containment is 'out_of_bounds'",
+      });
+    }
+    if (touchArea.containment !== 'out_of_bounds' && touchArea.out_of_bounds_paths.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['containment'],
+        message: "containment must be 'out_of_bounds' when out_of_bounds_paths is non-empty",
+      });
+    }
+    // undetermined is the fail-closed verdict: it holds exactly when containment
+    // could not be proven because HEAD moved or a path was hidden from git.
+    const cannotProve = touchArea.head_diverged || touchArea.hidden_index_flags.length > 0;
+    if (enforced && cannotProve && touchArea.containment !== 'undetermined') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['containment'],
+        message:
+          "containment must be 'undetermined' when HEAD moved or a hidden index flag is present (enforced)",
+      });
+    }
+    if (touchArea.containment === 'undetermined' && !cannotProve) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['containment'],
+        message:
+          "containment may be 'undetermined' only when HEAD moved or a hidden index flag is present",
+      });
+    }
+  });
+export type BuildTouchArea = z.infer<typeof BuildTouchArea>;
+
 export const BuildResultReportId = z.enum([
   'build.brief',
   'build.plan',
@@ -378,6 +593,23 @@ export const BuildScope = z
   .strict();
 export type BuildScope = z.infer<typeof BuildScope>;
 
+// Operator-facing touch-area summary, derived deterministically at close from
+// build.touch-area@v1. It makes the git-proven containment verdict visible in
+// the result and lets the outcome reflect overreach the implementer cannot
+// self-report away. Defaults to a not-enforced, within shape so a result
+// synthesized without touch-area detail is permissive, not blocking.
+export const BuildTouchAreaSummary = z
+  .object({
+    enforcement: BuildTouchAreaEnforcement,
+    containment: BuildTouchAreaContainment,
+    out_of_bounds_paths: z
+      .array(z.string().min(1))
+      .default([])
+      .describe('git-proven changed paths outside the allowed area'),
+  })
+  .strict();
+export type BuildTouchAreaSummary = z.infer<typeof BuildTouchAreaSummary>;
+
 export const BuildResult = z
   .object({
     summary: z.string().min(1),
@@ -388,6 +620,11 @@ export const BuildResult = z
       adherence: 'within_scope',
       violated_guardrails: [],
       unassessed_guardrails: [],
+    }),
+    touch_area: BuildTouchAreaSummary.default({
+      enforcement: 'not_enforced',
+      containment: 'within',
+      out_of_bounds_paths: [],
     }),
     evidence_links: z.array(BuildResultReportPointer).length(5),
   })
@@ -452,6 +689,26 @@ export const BuildResult = z
           code: 'custom',
           path: ['scope', 'unassessed_guardrails'],
           message: "scope.unassessed_guardrails must be empty when outcome is 'complete'",
+        });
+      }
+      // The hard touch-area gate: a complete build must have stayed inside its
+      // declared area, proven by git, not by the implementer's self-report. An
+      // out-of-bounds change (a path the implementer touched outside the area)
+      // or an undetermined verdict (HEAD moved or a path hidden from git, so
+      // containment cannot be proven) blocks 'complete'. A not-enforced gate
+      // (no area declared) always reports 'within', so opt-out builds pass.
+      if (result.touch_area.containment !== 'within') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['touch_area', 'containment'],
+          message: "touch_area.containment must be 'within' when outcome is 'complete'",
+        });
+      }
+      if (result.touch_area.out_of_bounds_paths.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['touch_area', 'out_of_bounds_paths'],
+          message: "touch_area.out_of_bounds_paths must be empty when outcome is 'complete'",
         });
       }
     }

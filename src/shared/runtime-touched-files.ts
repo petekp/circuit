@@ -145,6 +145,10 @@ export function projectRuntimeTouchedFiles(
         source: 'runtime_diff',
         generated_surface: isPathInPrefix(path, options.generatedSurfacePathPrefixes ?? []),
         protected: isPathInPrefix(path, options.protectedPathPrefixes ?? []),
+        // Carry the rename/copy source so a path-containment consumer can check
+        // both endpoints. This does NOT enter `observed` or the worker-claim
+        // comparison above, so the change-set verdict (Fix) is unchanged.
+        ...(post?.from === undefined ? {} : { from: post.from }),
       };
     }),
     worker_declared: workerDeclared,

@@ -15,6 +15,7 @@ import {
   BuildImplementation,
   BuildPlan,
   BuildReview,
+  BuildTouchArea,
   BuildVerification,
 } from '../reports.js';
 import { projectBuildResult } from './result-projection.js';
@@ -35,6 +36,7 @@ export const buildCloseBuilder: CloseBuilder = {
     { name: 'implementation', schema: 'build.implementation@v1', required: true },
     { name: 'verification', schema: 'build.verification@v1', required: true },
     { name: 'review', schema: 'build.review@v1', required: true },
+    { name: 'touch_area', schema: 'build.touch-area@v1', required: true },
   ],
   build(context: CloseBuildContext): unknown {
     const brief = BuildBrief.parse(context.inputs.brief);
@@ -42,12 +44,14 @@ export const buildCloseBuilder: CloseBuilder = {
     const implementation = BuildImplementation.parse(context.inputs.implementation);
     const verification = BuildVerification.parse(context.inputs.verification);
     const review = BuildReview.parse(context.inputs.review);
+    const touchArea = BuildTouchArea.parse(context.inputs.touch_area);
     return projectBuildResult({
       brief,
       plan,
       implementation,
       verification,
       review,
+      touchArea,
       evidenceLinks: POINTERS.map((p) => ({
         ...p,
         path: reportPathForSchemaInRuntimeFlow(context.flow, p.schema),

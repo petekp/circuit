@@ -57,6 +57,10 @@ export const buildPlanComposeBuilder: ComposeBuilder = {
       // and the reviewer's alignment check read from the plan. A context-less
       // plan (reduced fixtures) carries no guardrails.
       guardrails: grounding?.guardrails ?? { non_goals: [], invariants: [] },
+      // Carry the researcher's allowed touch area forward so the touch-area gate
+      // can check the git-proven change set against it. A context-less plan
+      // carries no area, leaving the gate inert (opt-in).
+      allowed_touch_area: grounding?.allowed_touch_area ?? [],
       verification: {
         commands: brief.verification_command_candidates,
       },

@@ -5,6 +5,8 @@ import type {
   BuildPlan,
   BuildReview,
   BuildScope as BuildScopeType,
+  BuildTouchArea,
+  BuildTouchAreaSummary,
   BuildVerification,
 } from '../reports.js';
 
@@ -14,8 +16,20 @@ export type BuildResultProjectorInputs = {
   readonly implementation: BuildImplementation;
   readonly verification: BuildVerification;
   readonly review: BuildReview;
+  readonly touchArea: BuildTouchArea;
   readonly evidenceLinks: BuildResult['evidence_links'];
 };
+
+// Project the full touch-area report down to the operator-facing summary the
+// result carries. The git-proven containment verdict is already decided in the
+// verification writer; close only surfaces it and gates on it.
+function summarizeTouchArea(touchArea: BuildTouchArea): BuildTouchAreaSummary {
+  return {
+    enforcement: touchArea.enforcement,
+    containment: touchArea.containment,
+    out_of_bounds_paths: touchArea.out_of_bounds_paths,
+  };
+}
 
 // Normalize a guardrail statement for coverage matching: trim, collapse inner
 // whitespace, lowercase. The reviewer is instructed to echo each guardrail
@@ -66,18 +80,24 @@ export function projectBuildResult(inputs: BuildResultProjectorInputs): BuildRes
     scope.violated_guardrails.length === 0 &&
     scope.unassessed_guardrails.length === 0;
 
+  const touchArea = summarizeTouchArea(inputs.touchArea);
+  // The git-proven containment gate. 'within' covers both a contained change and
+  // a not-enforced gate (no declared area). 'out_of_bounds' and 'undetermined'
+  // (HEAD moved or a path hidden from git) both block 'complete'.
+  const touchAreaClean = touchArea.containment === 'within';
+
   // Outcome derivation, in priority order:
-  //   - verification not passing             -> failed
-  //   - reviewer rejected                    -> failed
-  //   - accept AND scope clean               -> complete
-  //   - accept-with-fixes, or accept with a  -> needs_attention
-  //     scope issue (exceeds-scope/unassessed)
+  //   - verification not passing               -> failed
+  //   - reviewer rejected                      -> failed
+  //   - accept AND scope clean AND in bounds   -> complete
+  //   - accept-with-fixes, a scope issue, or   -> needs_attention
+  //     an out-of-bounds/undetermined touch area
   const outcome: BuildResult['outcome'] =
     inputs.verification.overall_status !== 'passed'
       ? 'failed'
       : inputs.review.verdict === 'reject'
         ? 'failed'
-        : inputs.review.verdict === 'accept' && scopeClean
+        : inputs.review.verdict === 'accept' && scopeClean && touchAreaClean
           ? 'complete'
           : 'needs_attention';
 
@@ -87,6 +107,7 @@ export function projectBuildResult(inputs: BuildResultProjectorInputs): BuildRes
     verification_status: inputs.verification.overall_status,
     review_verdict: inputs.review.verdict,
     scope,
+    touch_area: touchArea,
     evidence_links: inputs.evidenceLinks,
   });
 }
