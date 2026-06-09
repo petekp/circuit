@@ -608,6 +608,20 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/swarm-memory-pooling.md",
+      "title": "Pooling Circuit Memory Across an Agent Swarm",
+      "status": "current-proposal",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "pooling", "swarm", "cite-and-verify", "crdt", "project-facts"],
+      "current_reading": "Design-only proposal (not built) for pooling Circuit's per-worktree project memory across a same-machine swarm first, then a cross-machine team. Densest kernel is a re-anchored, cite-and-verify-backed pooled read projection that converts the cross-worktree write race into a grow-only set (G-Set union merge) and replicates cited-artifact bytes so foreign facts still re-verify. Stage 0 (query-rankable, corroboration-aware recall) is the read-only slice that ships value first; the query-ranking half is being built behind a recall-side flag. External arXiv citations are post-cutoff and unverified; link-check before trusting numbers.",
+      "related": [
+        "docs/ideas/self-auditing-memory.md",
+        "docs/ideas/effective-memory-program.md",
+        "docs/ideas/project-execution-memory.md"
+      ],
+      "last_checked": "2026-06-09"
+    },
+    {
       "path": "docs/ideas/tracker-connector.md",
       "title": "Tracker connector - emit flow output as tracked issues",
       "status": "current-idea",

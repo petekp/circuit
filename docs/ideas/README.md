@@ -88,6 +88,7 @@ every later extension in the note shipped.
 | [`self-auditing-memory-slice-4-spec.md`](self-auditing-memory-slice-4-spec.md) | `implemented` | Implemented history pull, pull-log schema, suppression path, and relay affordance. Some path references inside use older source locations. |
 | [`self-auditing-memory-slice-5-spec.md`](self-auditing-memory-slice-5-spec.md) | `partially-implemented` | Operator-filed project memory and distillation substrate exist; full run-close write-back remains deferred. |
 | [`self-improving-circuit.md`](self-improving-circuit.md) | `current-idea` | Idea seed for a learning loop in Circuit flows. Product idea only, not shipped behavior. |
+| [`swarm-memory-pooling.md`](swarm-memory-pooling.md) | `current-proposal` | Design-only proposal for pooling per-worktree project memory across a same-machine swarm first, then a cross-machine team. Densest kernel is a re-anchored, cite-and-verify-backed pooled read projection that turns the cross-worktree write race into a grow-only set. Stage 0 (query-rankable, corroboration-aware recall) ships value first; the query-ranking half is being built behind a recall-side flag. |
 
 ### Run Inspection And Output
 

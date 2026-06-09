@@ -5,11 +5,12 @@ import {
   type HistoryRecallReportV1 as HistoryRecallReport,
   HistoryRecallReportV1,
   type HistoryWarningV1,
+  type MemoryInputV0,
 } from '../../schemas/index.js';
 import { HistoryCommandError, resolveHistoryPaths } from './indexer.js';
 import { loadMemoryEffectReport } from './memory-effect-read.js';
 import { historyMemoryInputPreview } from './memory-preview.js';
-import { queryHistory } from './query.js';
+import { queryHistory, scoreProjectFactRelevance } from './query.js';
 import { applyEarnedPrecision } from './recall-precision.js';
 
 export const HISTORY_RECALL_REPORT_PATH = 'reports/history/recall.json';
@@ -25,7 +26,38 @@ export interface RunStartHistoryRecallOptions {
   readonly flowId?: string;
   readonly indexDir?: string;
   readonly maxMemoryInputs?: number;
+  // When true, project facts are sorted by lexical relevance to `query` before
+  // they enter the earned-precision gate, instead of riding in raw store-
+  // insertion order behind the prior-run hits. Prior-run hits still lead (they
+  // are concatenated first), and the gate's stable rank keeps store order as the
+  // tie-break within an equal relevance score. Default/undefined is exactly the
+  // prior store-order behavior, so this flag is independently reversible.
+  readonly rankProjectFacts?: boolean;
   readonly now?: () => Date;
+}
+
+// Decorate-sort-undecorate project facts by query relevance, descending, with
+// store-insertion order (origIndex) as a stable tie-break. Flat scores (e.g. a
+// query that matches nothing) leave store order untouched.
+function rankProjectFactsByRelevance(
+  facts: readonly MemoryInputV0[],
+  query: string,
+): readonly MemoryInputV0[] {
+  return facts
+    .map((fact, origIndex) => ({
+      fact,
+      origIndex,
+      score: scoreProjectFactRelevance({
+        query,
+        summary: fact.summary,
+        hintTexts: fact.hints.map((hint) => hint.text),
+        appliesTo: fact.hints.map((hint) => hint.applies_to),
+      }),
+    }))
+    .sort((left, right) =>
+      right.score !== left.score ? right.score - left.score : left.origIndex - right.origIndex,
+    )
+    .map((entry) => entry.fact);
 }
 
 // Slice 3: the recall path now returns both the (gated) recall report and the
@@ -107,12 +139,20 @@ export function prepareRunStartHistoryRecall(
       ...(options.flowId === undefined ? {} : { flowId: options.flowId }),
       now,
     }).candidates;
+    // Flag-gated: rank project facts by query relevance so a fact that lexically
+    // matches the run carries a real score into the gate's budget of 3 instead
+    // of store-insertion order. Flag-off returns the same array, so the gate sees
+    // the exact prior candidate sequence.
+    const orderedProjectFacts =
+      options.rankProjectFacts === true
+        ? rankProjectFactsByRelevance(projectFacts, options.query)
+        : projectFacts;
 
     // The earned-precision gate runs between the preview and the cap, so the cap
     // applies to the gated set. memoryInputs is the push set (suppressed dropped,
     // ranked by tier, top-budget); precision is the always-written audit sidecar.
     const { memoryInputs, precision } = applyEarnedPrecision({
-      candidates: [...preview.memory_inputs, ...projectFacts],
+      candidates: [...preview.memory_inputs, ...orderedProjectFacts],
       ...(options.flowId === undefined ? {} : { flowId: options.flowId }),
       ...(effect.report === undefined ? {} : { effect: effect.report }),
       budget: maxMemoryInputs,
