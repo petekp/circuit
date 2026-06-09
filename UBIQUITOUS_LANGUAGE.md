@@ -129,6 +129,33 @@ the same safety review, not as a new product metaphor.
 | **runtime_vetoed** | A flag showing the runtime evidence overrode a model judgment to fail. | Runtime override |
 | **Tournament** | Explore's pattern for generating multiple candidate answers and selecting one. | Model comparison |
 
+## Build Limits Language
+
+These name the negative space of a Build change: what it must not do, what must
+keep working, and which files it may edit. Build proposes them by reading your
+goal and the code, never by asking you to list off-limits files. The reviewer
+and a git check confirm the change stayed inside them before it can be marked
+complete. These are plain product words mapped to unchanged Build code fields,
+not new field names. Build-scoped today: only the Build flow has these fields.
+The same words extend to other flows if and when they gain them.
+
+| Term | Definition | Maps to (unchanged code field) |
+| --- | --- | --- |
+| **Limits** | The lines a Build change agrees not to cross: what it must not do, what must keep working, and the files it is allowed to touch. | `guardrails` + `allowed_touch_area` |
+| **what the change must not do** | Something the change is told not to do, taken from the operator's goal. | `non_goals` |
+| **what must keep working** | A behavior the change must preserve, grounded in the code Build reads. | `invariants` |
+| **the files it is allowed to touch** | The files the change may edit. Build proposes them from the code; a git check blocks the build if anything outside them changed. Empty means the file check is off (opt-in). | `allowed_touch_area` |
+
+In operator prose, say a change **stayed inside its limits** or **went outside
+its limits** rather than the field names `within_scope` / `exceeds_scope` or the
+git verdict `within` / `out_of_bounds` / `undetermined`.
+
+Keep **Limits** distinct from Prototype's **Claim limits** and Review's
+**Confidence limits**, which name per-flow output caveats, not a change's edit
+limits. Keep **Scope** an internal field word only (`scope_adherence`,
+`within_scope`, `BuildScope`): it already names the positive work-extent in the
+Frame brief and Act, so do not use it for the limits in operator prose.
+
 ## Relay Language
 
 | Term | Definition | Aliases to avoid |
@@ -264,6 +291,11 @@ inside historical docs, tests, or migration notes when the context is explicit.
 - **Stage** appears in both product prose and runtime fields. The term is canonical in both places, but runtime field names should stay in backticks when discussing serialization.
 - **Fixture** is useful in tests, but it should not describe product-facing generated flows.
 - **Runtime proof** is an internal proof flow, not a public capability.
+- **Limits** is a Build change's edit limits (what it must not do, what must keep
+  working, the files it may touch). Do not confuse it with Prototype **Claim
+  limits** or Review **Confidence limits** (per-flow output caveats), and do not
+  use **Scope** for it: **Scope** is the positive work-extent and stays an
+  internal field word.
 
 ## Anti-Patterns
 
