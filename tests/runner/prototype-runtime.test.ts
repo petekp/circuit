@@ -322,6 +322,64 @@ describe('Prototype runtime wiring', () => {
     ).toMatchObject({ selection: 'keep-prototype', resolution_source: 'declared-default' });
   });
 
+  it("accepts a worker artifact whose created_files carry a leading './' prefix", async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(projectRoot, '.circuit/runs/dot-slash');
+
+    let actAttempts = 0;
+    const relayer: RelayFn = {
+      connectorName: 'claude-code',
+      relay: async (relayInput: RelayInput): Promise<RelayResult> => {
+        actAttempts += 1;
+        const plan = PrototypePlan.parse(readJson(runFolder, 'reports/prototype/plan.json'));
+        const indexFile = plan.files_to_create[0];
+        const readmeFile = plan.files_to_create[1];
+        if (indexFile === undefined || readmeFile === undefined) {
+          throw new Error('prototype plan did not include index.html and README.md files');
+        }
+        writeProjectFile(projectRoot, indexFile, '<!doctype html><main>dot-slash fixture</main>');
+        writeProjectFile(projectRoot, readmeFile, '# dot-slash fixture\n');
+        // Mirrors a real worker slip seen in release verification: one
+        // created_files entry carries a './' prefix. The schema must
+        // normalize it instead of failing validation and aborting the run.
+        const body = {
+          ...artifactBody({ plan }),
+          created_files: [`./${indexFile}`, readmeFile],
+        };
+        return {
+          request_payload: relayInput.prompt,
+          receipt_id: `prototype-act-dot-slash-stub-${actAttempts}`,
+          result_body: JSON.stringify(body),
+          duration_ms: 1,
+          cli_version: '0.0.0-stub',
+        };
+      },
+    };
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '94000000-0000-0000-0000-000000000007',
+      goal: 'prototype: sketch a custom flow builder UI',
+      depth: 'standard',
+      now: deterministicNow(Date.UTC(2026, 4, 20, 8, 5, 0)),
+      projectRoot,
+      relayer,
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    expect(actAttempts).toBe(1);
+    const result = PrototypeResult.parse(readJson(runFolder, 'reports/prototype-result.json'));
+    expect(result.outcome).toBe('kept');
+
+    const artifact = PrototypeArtifact.parse(
+      readJson(runFolder, 'reports/prototype/artifact.json'),
+    );
+    for (const created of artifact.created_files) {
+      expect(created.startsWith('./')).toBe(false);
+    }
+  });
+
   it('pauses in deep mode and resumes with save-build-input', async () => {
     const { bytes } = loadFixture();
     const runFolder = join(projectRoot, '.circuit/runs/deep');

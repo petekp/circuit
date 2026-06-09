@@ -38832,7 +38832,14 @@ function validateProjectRelativePath(value, ctx) {
     addPathIssue(ctx, [], "path must be normalized and must not escape the project root");
   }
 }
-var PrototypeProjectRelativePath = external_exports.string().min(1).superRefine(validateProjectRelativePath);
+function stripLeadingDotSlash(value) {
+  let result = value;
+  while (result.startsWith("./")) {
+    result = result.slice(2);
+  }
+  return result;
+}
+var PrototypeProjectRelativePath = external_exports.string().min(1).transform(stripLeadingDotSlash).superRefine(validateProjectRelativePath);
 var PrototypeRootPath = PrototypeProjectRelativePath.superRefine((root, ctx) => {
   const [firstSegment] = root.split("/");
   if (firstSegment === void 0)

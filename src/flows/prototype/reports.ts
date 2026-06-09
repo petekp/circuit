@@ -75,9 +75,21 @@ function validateProjectRelativePath(value: string, ctx: z.RefinementCtx): void 
   }
 }
 
+// Workers sometimes emit a leading './' on otherwise-valid relative paths.
+// That prefix carries no escape risk, so strip it before validation instead
+// of aborting the run on it. Interior '.' or any '..' segments still reject.
+function stripLeadingDotSlash(value: string): string {
+  let result = value;
+  while (result.startsWith('./')) {
+    result = result.slice(2);
+  }
+  return result;
+}
+
 export const PrototypeProjectRelativePath = z
   .string()
   .min(1)
+  .transform(stripLeadingDotSlash)
   .superRefine(validateProjectRelativePath);
 export type PrototypeProjectRelativePath = z.infer<typeof PrototypeProjectRelativePath>;
 
