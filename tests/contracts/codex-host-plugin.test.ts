@@ -249,7 +249,7 @@ describe('Codex host plugin package', () => {
     expect(skill).toContain("node '<plugin root>/scripts/circuit.ts' run fix --goal");
     expect(skill).toContain('--progress jsonl');
     expect(skill).toContain('new visible progress as the status block itself');
-    expect(skill).toContain('Do not translate those');
+    expect(skill).toContain('not as separate prose updates');
     expect(skill).toContain('`CIRCUIT` block');
     expect(skill).toContain('display.text');
     expect(skill).toContain('task_list.updated');

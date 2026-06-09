@@ -64,23 +64,19 @@ metacharacters:
    packaged flow root before it launches Circuit's bundled runtime.
 3. **Render progress while the run is active.** `--progress jsonl` writes
    machine-readable progress events to stderr and keeps the final result JSON
-   on stdout. After each command output chunk or poll, immediately render any
-   new visible progress as the status block itself. Do not translate those
-   events into separate prose updates such as "Circuit is running..." when
-   status events are available. Prefer `presentation` when present: open a
+   on stdout. Render new visible progress as the status block itself,
+   not as separate prose updates. Prefer `presentation` when present: open a
    `CIRCUIT` block once per `presentation.block_id`, render visible status
    lines as `⎿ ${presentation.status_text}`, suppress
    `presentation.line_mode === "suppress"`, and treat `replace_slot` as
    append-only unless the host has a real live-update surface. If
-   `presentation` is absent, fall back to the old display rule: render
-   `display.text` for major, warning, error, or checkpoint events and suppress
-   detail. Do not show raw JSON, raw step IDs, or trace internals by default.
-   When `task_list.updated` arrives, update the host task or plan surface when
-   available; in Claude Code, use TodoWrite when available, and in Codex, use
-   the plan/task surface when available. When `user_input.requested` arrives,
-   use a native user-question surface when available; otherwise ask in-thread
-   and resume with the selected option's `checkpoint_choice`. Keep
-   host/orchestrator and worker connector distinct in prose.
+   `presentation` is absent, render `display.text` for major, warning, error,
+   or checkpoint events and suppress detail. Do not show raw JSON, raw step
+   IDs, or trace internals by default. When `task_list.updated` arrives,
+   update the host task or plan surface when available. When
+   `user_input.requested` arrives, ask with a native user-question surface
+   when available, otherwise in-thread, and resume with the selected option's
+   `checkpoint_choice`.
 4. **Parse the CLI's final JSON output and surface:** `selected_flow`,
    `routed_by`, `router_reason`, `outcome`, `run_folder`, `trace_entries_observed`,
    `run_surface_markdown_path`, `run_envelope_path`,
