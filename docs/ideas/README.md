@@ -94,6 +94,7 @@ every later extension in the note shipped.
 
 | Note | Status | Current reading |
 | --- | --- | --- |
+| [`command-surface-slimming-and-relay-why.md`](command-surface-slimming-and-relay-why.md) | `implementation-spec` | Two-part spec from the 2026-06-09 Fable 5 prompting-guide review. Workstream A slims the run/pursue/handoff command sources behind a test-pinned phrase inventory. Workstream B adds an optional `--why` CLI flag carried into relay prompts as a Why line under Operator Goal. Spec only; not built. |
 | [`long-horizon-supervision.md`](long-horizon-supervision.md) | `current-idea` | Idea for executor/supervisor heartbeat and overview surfaces. Future work, not current behavior. |
 | [`output-model.md`](output-model.md) | `current-proposal` | Proposal for a three-channel output model, flow status indicator, routing checkpoint, and final digest. Revised after adversarial review; not yet built. |
 | [`portable-run-captures.md`](portable-run-captures.md) | `current-idea` | Idea for exporting successful Runs as reusable team or personal process patterns. Future behavior. |

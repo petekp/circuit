@@ -96,6 +96,22 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/command-surface-slimming-and-relay-why.md",
+      "title": "Command surface slimming and relay why: implementation spec",
+      "status": "implementation-spec",
+      "category": "run-inspection-and-output",
+      "tags": [
+        "command-surfaces",
+        "generated-surfaces",
+        "relays",
+        "operator-intent",
+        "implementation-spec"
+      ],
+      "current_reading": "Two-part spec from the 2026-06-09 Fable 5 prompting-guide review. Workstream A slims src/commands/run.md and the pursue/handoff command sources (11 examples to 5, merged routing prose, tightened rendering sections) behind a test-pinned phrase inventory that must survive. Workstream B adds an optional --why CLI flag threaded through RunContext into composeRelayPrompt as a Why line under Operator Goal and persisted on RunResult. Spec only; not built.",
+      "related": ["docs/ideas/intent-capture-and-enforcement-implementation.md"],
+      "last_checked": "2026-06-09"
+    },
+    {
       "path": "docs/ideas/continuity-capture-refactor-implementation.md",
       "title": "Continuity capture-path refactor (Steps 0-2): implementation spec",
       "status": "partially-implemented",
