@@ -3,6 +3,16 @@
   "outcome": "complete",
   "verification_status": "passed",
   "review_verdict": "accept",
+  "scope": {
+    "adherence": "within_scope",
+    "violated_guardrails": [],
+    "unassessed_guardrails": []
+  },
+  "touch_area": {
+    "enforcement": "not_enforced",
+    "containment": "within",
+    "out_of_bounds_paths": []
+  },
   "evidence_links": [
     {
       "report_id": "build.brief",

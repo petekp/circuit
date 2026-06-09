@@ -1,0 +1,10 @@
+{
+  "overall_status": "passed",
+  "enforcement": "not_enforced",
+  "containment": "within",
+  "allowed_area": [],
+  "observed_paths": [],
+  "out_of_bounds_paths": [],
+  "head_diverged": false,
+  "hidden_index_flags": []
+}

@@ -76,7 +76,7 @@ describe('generated host surface framing', () => {
     const claudeManifest = readRepoFile('plugins/claude/.claude-plugin/plugin.json');
 
     expect(codexManifest).toContain('coding intents');
-    expect(codexManifest).toContain('single normal Circuit entry point');
+    expect(codexManifest).toContain('default Circuit entry point');
     expect(codexManifest).not.toContain('choose the best bundled Circuit flow');
 
     expect(claudeManifest).toContain('default Circuit command');

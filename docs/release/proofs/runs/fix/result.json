@@ -12,7 +12,7 @@
   "router_reason": "explicit flow positional argument",
   "run_folder": "<repo>/docs/release/proofs/runs/fix/run",
   "outcome": "complete",
-  "trace_entries_observed": 72,
+  "trace_entries_observed": 68,
   "result_path": "<repo>/docs/release/proofs/runs/fix/run/reports/result.json",
   "operator_summary_path": "<repo>/docs/release/proofs/runs/fix/run/reports/operator-summary.json",
   "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/fix/run/reports/operator-summary.md",

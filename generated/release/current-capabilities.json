@@ -80,6 +80,7 @@
     {
       "id": "pursue",
       "source": "src/flows/pursue/schematic.json",
+      "command_path": "src/flows/pursue/command.md",
       "axis_support": {
         "allowed_rigors": ["standard"],
         "supports_tournament": false,
@@ -227,8 +228,8 @@
   ],
   "commands": {
     "source": ["create", "handoff", "run"],
-    "claude_plugin": ["handoff", "run"],
-    "codex_plugin": ["handoff", "run"],
+    "claude_plugin": ["handoff", "pursue", "run"],
+    "codex_plugin": ["handoff", "pursue", "run"],
     "claude_plugin_skills": ["build", "explore", "fix", "prototype", "pursue", "review"]
   },
   "connectors": [
@@ -304,6 +305,21 @@
       "status": "implemented",
       "summary": "Command handoff is present for claude-code.",
       "evidence": ["plugins/claude/commands/handoff.md"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "command:pursue",
+      "kind": "flow",
+      "title": "claude-code command pursue",
+      "status": "implemented",
+      "summary": "Command pursue is present for claude-code.",
+      "evidence": ["plugins/claude/commands/pursue.md"],
       "readiness_refs": [],
       "axes": {
         "intent_hints": [],

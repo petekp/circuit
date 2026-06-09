@@ -4,7 +4,7 @@
   "shadow_reason": "source-owned-run-not-active",
   "run_id": "44444444-4444-4444-4444-444444444405",
   "operator_intent": "deep change that asks for scope",
-  "recorded_at": "2026-04-29T19:30:58.000Z",
+  "recorded_at": "2026-04-29T19:31:06.000Z",
   "selected_process": {
     "process_id": "build",
     "routed_by": "explicit",
@@ -15,14 +15,14 @@
     "run_folder": "<repo>/docs/release/proofs/runs/checkpoint/run",
     "flow_id": "build",
     "outcome": "complete",
-    "trace_entries_observed": 54,
-    "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2",
+    "trace_entries_observed": 62,
+    "manifest_hash": "d595eb6a60ca2fa2a3ac04df8047915bd311914f05cc6bc1a86a504f47339241",
     "result_ref": {
       "source": "child_result",
       "ref": {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "ac05aa8527afd60ebd2b00a113513d35a5c0fd3707ada6454048e74a085efae1",
+        "sha256": "e21576eddbaf7e3fc9c036e8eef5b665a3883283ff7f14c89bc4f3d0d4b31254",
         "run_id": "44444444-4444-4444-4444-444444444405",
         "flow_id": "build"
       }
@@ -32,7 +32,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "ac05aa8527afd60ebd2b00a113513d35a5c0fd3707ada6454048e74a085efae1",
+      "sha256": "e21576eddbaf7e3fc9c036e8eef5b665a3883283ff7f14c89bc4f3d0d4b31254",
       "run_id": "44444444-4444-4444-4444-444444444405",
       "flow_id": "build"
     }

@@ -24,9 +24,11 @@ promise a root `/circuit` slash command until the host supports that alias.
 Users can also ask for Circuit in natural language, such as "Use Circuit on
 this task."
 
-Build, Fix, Explore, Review, Prototype, and Pursue are routed through Run. They
+Build, Fix, Explore, Review, and Prototype are routed through Run. They
 remain explicit CLI flow names for debugging, tests, old run folders, and
-advanced local use, but they are not published as separate host commands. From
+advanced local use, but they are not published as separate host commands.
+Pursue is also routed through Run and additionally owns `/circuit:pursue`
+for coordinated multi-goal work. From
 the operator's seat, Goal is not a kind of work; it is the completion standard
 Run uses by default. Goal is an internal flow and is never auto-selected.
 
@@ -222,10 +224,12 @@ metacharacters:
 
 ## Routed Flows
 
-Run is the only normal host command for coding work. It calls the CLI with an
+Run is the default host command for coding work. It calls the CLI with an
 explicit flow name after recommending the right flow; routing is model-only, so
 a flow name is always required. The underlying flows stay public and packaged so
-the runtime can run them, but they do not own separate host command files.
+the runtime can run them. Pursue additionally owns `/circuit:pursue` for
+coordinated multi-goal work; the other flows do not own separate host command
+files.
 
 ## Authority
 

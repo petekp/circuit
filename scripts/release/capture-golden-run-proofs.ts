@@ -179,6 +179,11 @@ function buildRelayer(): Relayer {
             verdict: 'accept',
             summary: 'No blocking issue found in the synthetic Build proof.',
             findings: [],
+            alignment: {
+              scope_adherence: 'within_scope',
+              non_goals: [],
+              invariants: [],
+            },
           }),
           duration_ms: 11,
           cli_version: 'proof-stub',

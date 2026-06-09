@@ -33,6 +33,7 @@ export const pursueFlowData = {
   visibility: 'public',
   paths: {
     schematic: 'src/flows/pursue/schematic.json',
+    command: 'src/flows/pursue/command.md',
   },
   schematic: {
     schema_version: '1',

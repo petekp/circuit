@@ -25,12 +25,100 @@
     "checkpoint_boundary_ref": {
       "kind": "work_contract",
       "ref": "compiled-flow/steps/prototype-checkpoint-step/checkpoint-boundary.v0",
-      "sha256": "713bd4e98ad9fcef845bb5c42d725a15d7543e0df30c594d9fa1f1fcfee37012",
+      "sha256": "81e23ed21e509cb1a606a211e3ea99939c7494c3545f4bedf6436920243ea43b",
       "flow_id": "prototype",
       "step_id": "prototype-checkpoint-step"
     },
-    "checkpoint_boundary_hash": "713bd4e98ad9fcef845bb5c42d725a15d7543e0df30c594d9fa1f1fcfee37012",
-    "selection_config_layers": [],
+    "checkpoint_boundary_hash": "81e23ed21e509cb1a606a211e3ea99939c7494c3545f4bedf6436920243ea43b",
+    "selection_config_layers": [
+      {
+        "layer": "project",
+        "source_path": "<repo>/.circuit/config.yaml",
+        "config": {
+          "schema_version": 1,
+          "relay": {
+            "default": "auto",
+            "roles": {},
+            "circuits": {},
+            "connectors": {}
+          },
+          "skills": {
+            "bindings": {}
+          },
+          "skill_hooks": {
+            "policy": {},
+            "detection": {
+              "disabled_patterns": {}
+            }
+          },
+          "circuits": {
+            "prototype": {
+              "skill_bindings": {},
+              "variant_models": [
+                {
+                  "id": "codex-55-xhigh",
+                  "label": "Codex 5.5 xhigh",
+                  "connector": {
+                    "kind": "builtin",
+                    "name": "codex"
+                  },
+                  "selection": {
+                    "model": {
+                      "provider": "openai",
+                      "model": "gpt-5.5"
+                    },
+                    "effort": "xhigh",
+                    "skills": {
+                      "mode": "inherit"
+                    },
+                    "invocation_options": {}
+                  }
+                },
+                {
+                  "id": "opus-47-max",
+                  "label": "Claude Opus 4.7 max",
+                  "connector": {
+                    "kind": "builtin",
+                    "name": "claude-code"
+                  },
+                  "selection": {
+                    "model": {
+                      "provider": "anthropic",
+                      "model": "claude-opus-4-7"
+                    },
+                    "effort": "max",
+                    "skills": {
+                      "mode": "inherit"
+                    },
+                    "invocation_options": {}
+                  }
+                },
+                {
+                  "id": "gemini-35-flash-cursor",
+                  "label": "Gemini 3.5 Flash via Cursor",
+                  "connector": {
+                    "kind": "builtin",
+                    "name": "cursor-agent"
+                  },
+                  "selection": {
+                    "model": {
+                      "provider": "gemini",
+                      "model": "gemini-3.5-flash"
+                    },
+                    "effort": "none",
+                    "skills": {
+                      "mode": "inherit"
+                    },
+                    "invocation_options": {}
+                  }
+                }
+              ]
+            }
+          },
+          "defaults": {}
+        }
+      }
+    ],
     "policy_layers": []
   }
 }

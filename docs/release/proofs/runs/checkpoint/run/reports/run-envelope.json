@@ -78,8 +78,8 @@
       "attempt_id": "attempt-primary",
       "process_id": "build",
       "goal": "deep change that asks for scope",
-      "started_at": "2026-04-29T19:30:58.000Z",
-      "completed_at": "2026-04-29T19:30:58.000Z",
+      "started_at": "2026-04-29T19:31:06.000Z",
+      "completed_at": "2026-04-29T19:31:06.000Z",
       "outcome": "complete",
       "child_run": {
         "run_id": "44444444-4444-4444-4444-444444444405",
@@ -89,13 +89,13 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "ac05aa8527afd60ebd2b00a113513d35a5c0fd3707ada6454048e74a085efae1",
+            "sha256": "e21576eddbaf7e3fc9c036e8eef5b665a3883283ff7f14c89bc4f3d0d4b31254",
             "run_id": "44444444-4444-4444-4444-444444444405",
             "flow_id": "build"
           }
         },
-        "trace_entries_observed": 54,
-        "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2"
+        "trace_entries_observed": 62,
+        "manifest_hash": "d595eb6a60ca2fa2a3ac04df8047915bd311914f05cc6bc1a86a504f47339241"
       },
       "evidence_refs": [
         {
@@ -103,7 +103,7 @@
           "ref": {
             "kind": "evidence",
             "ref": "reports/process-evidence.json",
-            "sha256": "a45a11aa911ad4670b8118bae446a25abe9c497348f3c71230eb35c7546c7671",
+            "sha256": "9e3e8eadb4fcb91d08bff4ddd0e86ae9b8faaa632d800c47468a77bf69528e03",
             "run_id": "44444444-4444-4444-4444-444444444405",
             "flow_id": "build"
           }
@@ -113,7 +113,7 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "ac05aa8527afd60ebd2b00a113513d35a5c0fd3707ada6454048e74a085efae1",
+            "sha256": "e21576eddbaf7e3fc9c036e8eef5b665a3883283ff7f14c89bc4f3d0d4b31254",
             "run_id": "44444444-4444-4444-4444-444444444405",
             "flow_id": "build"
           }
@@ -135,7 +135,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "a45a11aa911ad4670b8118bae446a25abe9c497348f3c71230eb35c7546c7671",
+              "sha256": "9e3e8eadb4fcb91d08bff4ddd0e86ae9b8faaa632d800c47468a77bf69528e03",
               "run_id": "44444444-4444-4444-4444-444444444405",
               "flow_id": "build"
             }
@@ -153,7 +153,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "a45a11aa911ad4670b8118bae446a25abe9c497348f3c71230eb35c7546c7671",
+              "sha256": "9e3e8eadb4fcb91d08bff4ddd0e86ae9b8faaa632d800c47468a77bf69528e03",
               "run_id": "44444444-4444-4444-4444-444444444405",
               "flow_id": "build"
             }
@@ -170,7 +170,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "a45a11aa911ad4670b8118bae446a25abe9c497348f3c71230eb35c7546c7671",
+              "sha256": "9e3e8eadb4fcb91d08bff4ddd0e86ae9b8faaa632d800c47468a77bf69528e03",
               "run_id": "44444444-4444-4444-4444-444444444405",
               "flow_id": "build"
             }
@@ -194,14 +194,14 @@
       {
         "kind": "evidence",
         "ref": "reports/process-evidence.json",
-        "sha256": "a45a11aa911ad4670b8118bae446a25abe9c497348f3c71230eb35c7546c7671",
+        "sha256": "9e3e8eadb4fcb91d08bff4ddd0e86ae9b8faaa632d800c47468a77bf69528e03",
         "run_id": "44444444-4444-4444-4444-444444444405",
         "flow_id": "build"
       },
       {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "ac05aa8527afd60ebd2b00a113513d35a5c0fd3707ada6454048e74a085efae1",
+        "sha256": "e21576eddbaf7e3fc9c036e8eef5b665a3883283ff7f14c89bc4f3d0d4b31254",
         "run_id": "44444444-4444-4444-4444-444444444405",
         "flow_id": "build"
       }

@@ -12,6 +12,11 @@ const CODEX_SKILL_METADATA: Record<string, { title: string; description: string 
     description:
       'Runs Circuit from the intent front door with recorded flow selection, trace, reports, and evidence.',
   },
+  pursue: {
+    title: 'Circuit Pursue',
+    description:
+      'Runs Circuit Pursue to coordinate several related goals as tracked pursuits with serial execution, verification, review, and recorded evidence.',
+  },
 };
 
 function stripMarkdownComments(content: string): string {
