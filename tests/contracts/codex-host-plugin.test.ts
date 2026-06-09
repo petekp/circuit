@@ -32,10 +32,16 @@ import {
 import { captureStreams } from '../helpers/runtime-fixtures.js';
 
 const PLUGIN_ROOT = resolve(REPO_ROOT, 'plugins/codex');
-const EXPECTED_CODEX_COMMANDS = ['handoff', 'run'];
+const EXPECTED_CODEX_COMMANDS = ['handoff', 'pursue', 'run'];
 const EXPECTED_CODEX_SKILL_TITLES: Record<string, string> = {
   handoff: 'Circuit Handoff',
+  pursue: 'Circuit Pursue',
   run: 'Circuit Run',
+};
+// Flow-owned command sources live in the flow package; direct command
+// sources live under src/commands/.
+const COMMAND_SOURCE_PATHS: Record<string, string> = {
+  pursue: 'src/flows/pursue/command.md',
 };
 
 const PluginManifest = z
@@ -58,7 +64,7 @@ const PluginManifest = z
   .passthrough();
 
 function sourceCommandPath(command: string): string {
-  return resolve(REPO_ROOT, `src/commands/${command}.md`);
+  return resolve(REPO_ROOT, COMMAND_SOURCE_PATHS[command] ?? `src/commands/${command}.md`);
 }
 
 describe('Codex host plugin package', () => {
@@ -80,7 +86,8 @@ describe('Codex host plugin package', () => {
     expect(manifest.interface.longDescription).toContain('by default');
     expect(manifest.interface.longDescription).not.toContain('@Circuit');
     expect(manifest.interface.longDescription).toContain('recommend a Circuit flow');
-    expect(manifest.interface.longDescription).toContain('single normal Circuit entry point');
+    expect(manifest.interface.longDescription).toContain('default Circuit entry point');
+    expect(manifest.interface.longDescription).toContain('/circuit:pursue');
     expect(manifest.interface.defaultPrompt).toEqual([
       'Use Circuit on this task',
       'Use Circuit to fix this bug',

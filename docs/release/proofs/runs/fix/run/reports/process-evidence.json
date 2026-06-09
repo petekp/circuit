@@ -13,7 +13,7 @@
   "result_ref": {
     "kind": "report",
     "ref": "reports/result.json",
-    "sha256": "37e7e71f1bf4bd45b6231af2bc984e962032152c630c387768d25d6e813d8acb",
+    "sha256": "a2430631bbf85bf6a0a90685000111276e90a66f59174ddbaf146964696f297f",
     "run_id": "44444444-4444-4444-4444-444444444407",
     "flow_id": "fix"
   },
@@ -21,7 +21,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "37e7e71f1bf4bd45b6231af2bc984e962032152c630c387768d25d6e813d8acb",
+      "sha256": "a2430631bbf85bf6a0a90685000111276e90a66f59174ddbaf146964696f297f",
       "run_id": "44444444-4444-4444-4444-444444444407",
       "flow_id": "fix"
     },
@@ -37,6 +37,6 @@
     "reports/fix-result.json"
   ],
   "missing_evidence": [],
-  "trace_entries_observed": 72,
+  "trace_entries_observed": 68,
   "manifest_hash": "f4e8514d4fd965dda324b8d80b9bafbe85375c8c5e30c2c65099d8da526ab19d"
 }

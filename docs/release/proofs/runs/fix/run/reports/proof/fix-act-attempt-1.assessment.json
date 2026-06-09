@@ -36,11 +36,11 @@
       "independence": "runtime",
       "ref": {
         "kind": "trace",
-        "ref": "trace.ndjson#sequence=40",
+        "ref": "trace.ndjson#sequence=38",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "step_id": "fix-act",
         "attempt": 1,
-        "sequence": 40
+        "sequence": 38
       },
       "input_refs": [
         {
@@ -51,11 +51,11 @@
         },
         {
           "kind": "trace",
-          "ref": "trace.ndjson#sequence=40",
+          "ref": "trace.ndjson#sequence=38",
           "run_id": "44444444-4444-4444-4444-444444444407",
           "step_id": "fix-act",
           "attempt": 1,
-          "sequence": 40
+          "sequence": 38
         }
       ],
       "covers_claims": [
@@ -71,11 +71,11 @@
       "independence": "runtime",
       "ref": {
         "kind": "trace",
-        "ref": "trace.ndjson#sequence=41",
+        "ref": "trace.ndjson#sequence=39",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "step_id": "fix-act",
         "attempt": 1,
-        "sequence": 41
+        "sequence": 39
       },
       "input_refs": [
         {
@@ -86,11 +86,11 @@
         },
         {
           "kind": "trace",
-          "ref": "trace.ndjson#sequence=41",
+          "ref": "trace.ndjson#sequence=39",
           "run_id": "44444444-4444-4444-4444-444444444407",
           "step_id": "fix-act",
           "attempt": 1,
-          "sequence": 41
+          "sequence": 39
         }
       ],
       "covers_claims": [

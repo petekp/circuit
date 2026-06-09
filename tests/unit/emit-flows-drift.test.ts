@@ -7,27 +7,63 @@
 //
 // `--check` must fail when an unexpected JSON sibling exists in a
 // schematic-controlled skill dir; `emit` mode must remove it.
+//
+// Every fixture is planted inside a disposable copy of the artifact tree
+// (CIRCUIT_EMIT_PROJECT_ROOT points the emit script at it), so an
+// interrupted run can never leak stubs into the real repo.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const projectRoot = resolve(__dirname, '../..');
 const emitScript = resolve(projectRoot, 'scripts/flows/emit.ts');
-const buildSkillDir = resolve(projectRoot, 'generated/flows/build');
-const stalePath = resolve(buildSkillDir, 'never-a-mode.json');
-const staleContractPath = resolve(buildSkillDir, 'never-a-mode.work-contract.v0.json');
-const claudeBuildSkillDir = resolve(projectRoot, 'plugins/claude/skills/build');
-const claudeStalePath = resolve(claudeBuildSkillDir, 'never-a-mode.json');
-const claudeStaleContractPath = resolve(claudeBuildSkillDir, 'never-a-mode.work-contract.v0.json');
-const codexBuildSkillDir = resolve(projectRoot, 'plugins/codex/flows/build');
-const codexStalePath = resolve(codexBuildSkillDir, 'never-a-mode.json');
-const codexStaleContractPath = resolve(codexBuildSkillDir, 'never-a-mode.work-contract.v0.json');
-const runtimeProofClaudeDir = resolve(projectRoot, 'plugins/claude/skills/runtime-proof');
-const runtimeProofCodexDir = resolve(projectRoot, 'plugins/codex/flows/runtime-proof');
-const rootClaudeMarketplacePath = resolve(projectRoot, '.claude-plugin/marketplace.json');
-const rootClaudeObsoleteManifestPath = resolve(projectRoot, '.claude-plugin/plugin.json');
+
+// Artifact trees the emit script reads, writes, or sweeps. Copied into the
+// temp root so emit/check operate on disposable bytes.
+const COPIED_PATHS = [
+  'src',
+  'generated/flows',
+  'plugins/claude/skills',
+  'plugins/claude/commands',
+  'plugins/codex/flows',
+  'plugins/codex/commands',
+  'plugins/codex/skills',
+  'docs/flows',
+  'docs/generated-surfaces.md',
+  '.claude-plugin',
+  'package.json',
+  'biome.json',
+];
+// Read-only dependencies the script resolves from the project root; symlinks
+// keep the temp root cheap.
+const LINKED_PATHS = ['node_modules', 'dist'];
+
+let tempRoot: string;
+
+function tempPath(rel: string): string {
+  return join(tempRoot, rel);
+}
+
+function runEmitScript(args: string[]) {
+  return spawnSync('node', [emitScript, ...args], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    env: { ...process.env, CIRCUIT_EMIT_PROJECT_ROOT: tempRoot },
+  });
+}
 
 function planted(path: string): boolean {
   return existsSync(path);
@@ -51,27 +87,64 @@ function removeDirIfPresent(path: string) {
   if (planted(path)) rmSync(path, { recursive: true, force: true });
 }
 
-function cleanupPlantedFixtures() {
-  removeStaleSiblingIfPresent(stalePath);
-  removeStaleSiblingIfPresent(staleContractPath);
-  removeStaleSiblingIfPresent(claudeStalePath);
-  removeStaleSiblingIfPresent(claudeStaleContractPath);
-  removeStaleSiblingIfPresent(codexStalePath);
-  removeStaleSiblingIfPresent(codexStaleContractPath);
-  removeDirIfPresent(runtimeProofClaudeDir);
-  removeDirIfPresent(runtimeProofCodexDir);
-  removeStaleSiblingIfPresent(rootClaudeObsoleteManifestPath);
-}
-
 describe('emit-flows.ts — stale per-mode sibling guard', () => {
+  let stalePath: string;
+  let staleContractPath: string;
+  let claudeStalePath: string;
+  let claudeStaleContractPath: string;
+  let codexStalePath: string;
+  let codexStaleContractPath: string;
+  let runtimeProofClaudeDir: string;
+  let runtimeProofCodexDir: string;
+  let rootClaudeMarketplacePath: string;
+  let rootClaudeObsoleteManifestPath: string;
+
+  function cleanupPlantedFixtures() {
+    removeStaleSiblingIfPresent(stalePath);
+    removeStaleSiblingIfPresent(staleContractPath);
+    removeStaleSiblingIfPresent(claudeStalePath);
+    removeStaleSiblingIfPresent(claudeStaleContractPath);
+    removeStaleSiblingIfPresent(codexStalePath);
+    removeStaleSiblingIfPresent(codexStaleContractPath);
+    removeDirIfPresent(runtimeProofClaudeDir);
+    removeDirIfPresent(runtimeProofCodexDir);
+    removeStaleSiblingIfPresent(rootClaudeObsoleteManifestPath);
+  }
+
   beforeAll(() => {
     // The script imports from dist/, so make sure it's built before any
     // subprocess calls. The verify pipeline does this in order; the test
     // suite needs to do it too when invoked in isolation.
     execFileSync('npm', ['run', 'build'], { cwd: projectRoot, stdio: 'pipe' });
+
+    tempRoot = mkdtempSync(join(tmpdir(), 'circuit-emit-drift-'));
+    for (const rel of COPIED_PATHS) {
+      mkdirSync(dirname(tempPath(rel)), { recursive: true });
+      cpSync(resolve(projectRoot, rel), tempPath(rel), { recursive: true });
+    }
+    for (const rel of LINKED_PATHS) {
+      symlinkSync(resolve(projectRoot, rel), tempPath(rel), 'dir');
+    }
+
+    stalePath = tempPath('generated/flows/build/never-a-mode.json');
+    staleContractPath = tempPath('generated/flows/build/never-a-mode.work-contract.v0.json');
+    claudeStalePath = tempPath('plugins/claude/skills/build/never-a-mode.json');
+    claudeStaleContractPath = tempPath(
+      'plugins/claude/skills/build/never-a-mode.work-contract.v0.json',
+    );
+    codexStalePath = tempPath('plugins/codex/flows/build/never-a-mode.json');
+    codexStaleContractPath = tempPath(
+      'plugins/codex/flows/build/never-a-mode.work-contract.v0.json',
+    );
+    runtimeProofClaudeDir = tempPath('plugins/claude/skills/runtime-proof');
+    runtimeProofCodexDir = tempPath('plugins/codex/flows/runtime-proof');
+    rootClaudeMarketplacePath = tempPath('.claude-plugin/marketplace.json');
+    rootClaudeObsoleteManifestPath = tempPath('.claude-plugin/plugin.json');
   });
 
-  afterAll(cleanupPlantedFixtures);
+  afterAll(() => {
+    rmSync(tempRoot, { recursive: true, force: true });
+  });
 
   it('detects and removes stale generated siblings and host surfaces', () => {
     cleanupPlantedFixtures();
@@ -82,10 +155,7 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     plantStaleSibling(claudeStaleContractPath);
     plantStaleSibling(codexStalePath);
     plantStaleSibling(codexStaleContractPath);
-    const staleCheck = spawnSync('node', [emitScript, '--check'], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-    });
+    const staleCheck = runEmitScript(['--check']);
     expect(staleCheck.status).toBe(1);
     const staleCheckOutput = `${staleCheck.stdout ?? ''}\n${staleCheck.stderr ?? ''}`;
     expect(staleCheckOutput).toContain('generated/flows/build/never-a-mode.json');
@@ -113,10 +183,7 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     expect(planted(claudeStaleContractPath)).toBe(true);
     expect(planted(codexStalePath)).toBe(true);
     expect(planted(codexStaleContractPath)).toBe(true);
-    const staleEmit = spawnSync('node', [emitScript], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-    });
+    const staleEmit = runEmitScript([]);
     expect(staleEmit.status).toBe(0);
     expect(planted(stalePath)).toBe(false);
     expect(planted(staleContractPath)).toBe(false);
@@ -146,10 +213,7 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     cleanupPlantedFixtures();
     plantInternalHostMirror(runtimeProofClaudeDir);
     plantInternalHostMirror(runtimeProofCodexDir);
-    const internalMirrorCheck = spawnSync('node', [emitScript, '--check'], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-    });
+    const internalMirrorCheck = runEmitScript(['--check']);
     expect(internalMirrorCheck.status).toBe(1);
     const internalMirrorOutput = `${internalMirrorCheck.stdout ?? ''}\n${
       internalMirrorCheck.stderr ?? ''
@@ -158,10 +222,7 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     expect(internalMirrorOutput).toContain('plugins/codex/flows/runtime-proof');
     expect(internalMirrorOutput).toContain('stale host mirror for internal flow');
 
-    const internalMirrorEmit = spawnSync('node', [emitScript], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-    });
+    const internalMirrorEmit = runEmitScript([]);
     expect(internalMirrorEmit.status).toBe(0);
     expect(planted(runtimeProofClaudeDir)).toBe(false);
     expect(planted(runtimeProofCodexDir)).toBe(false);
@@ -175,10 +236,7 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     cleanupPlantedFixtures();
     const marketplaceBefore = readFileSync(rootClaudeMarketplacePath, 'utf8');
     plantStaleSibling(rootClaudeObsoleteManifestPath);
-    const rootEmit = spawnSync('node', [emitScript], {
-      cwd: projectRoot,
-      encoding: 'utf8',
-    });
+    const rootEmit = runEmitScript([]);
     expect(rootEmit.status).toBe(0);
     expect(planted(rootClaudeObsoleteManifestPath)).toBe(false);
     expect(readFileSync(rootClaudeMarketplacePath, 'utf8')).toBe(marketplaceBefore);

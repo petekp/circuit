@@ -358,13 +358,13 @@ describe('FlowDefinition compiler', () => {
     expect(compileFlowDefinition(definition).writers.compose).toEqual([aliasedBuilder]);
   });
 
-  it('keeps Pursue public flow commandless', () => {
+  it('keeps Pursue as a public flow owning /circuit:pursue', () => {
     const pkg = packageFor('pursue');
 
-    expect(pkg.paths.command).toBeUndefined();
-    expect(existsSync('plugins/claude/commands/pursue.md')).toBe(false);
-    expect(existsSync('plugins/codex/commands/pursue.md')).toBe(false);
-    expect(existsSync('plugins/codex/skills/pursue/SKILL.md')).toBe(false);
+    expect(pkg.paths.command).toBe('src/flows/pursue/command.md');
+    expect(existsSync('plugins/claude/commands/pursue.md')).toBe(true);
+    expect(existsSync('plugins/codex/commands/pursue.md')).toBe(true);
+    expect(existsSync('plugins/codex/skills/pursue/SKILL.md')).toBe(true);
   });
 
   it('keeps Build checkpoint, writer, and engine-flag contracts', () => {
@@ -529,17 +529,10 @@ describe('FlowDefinition compiler', () => {
     for (const flowId of ['review', 'build', 'explore', 'prototype', 'pursue'] as const) {
       expect(packageFor(flowId).runtimeSurface).not.toHaveProperty('supportedEntryModes');
     }
-    for (const flowId of [
-      'build',
-      'explore',
-      'fix',
-      'goal',
-      'prototype',
-      'review',
-      'pursue',
-    ] as const) {
+    for (const flowId of ['build', 'explore', 'fix', 'goal', 'prototype', 'review'] as const) {
       expect(packageFor(flowId).paths.command).toBeUndefined();
     }
+    expect(packageFor('pursue').paths.command).toBe('src/flows/pursue/command.md');
     expect(packageFor('fix').runtimeSurface?.progress?.steps).toHaveLength(14);
     expect(packageFor('build').engineFlags).toEqual({
       bindsExecutionDepthToRelaySelection: true,

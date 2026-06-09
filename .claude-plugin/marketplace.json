@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "circuit",
-      "version": "0.1.0-alpha.6",
+      "version": "0.1.0-alpha.7",
       "description": "Structured, resumable developer flows for Claude Code.",
       "source": "./plugins/claude"
     }

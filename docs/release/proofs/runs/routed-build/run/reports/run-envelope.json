@@ -78,8 +78,8 @@
       "attempt_id": "attempt-primary",
       "process_id": "build",
       "goal": "develop: add a small safe change",
-      "started_at": "2026-04-29T18:00:55.000Z",
-      "completed_at": "2026-04-29T18:00:55.000Z",
+      "started_at": "2026-04-29T18:01:03.000Z",
+      "completed_at": "2026-04-29T18:01:03.000Z",
       "outcome": "complete",
       "child_run": {
         "run_id": "44444444-4444-4444-4444-444444444402",
@@ -89,13 +89,13 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "e39ee2bf24a5f2be7763bf3e180c874b1842b588e9b580bdcd30c6f9b16bd212",
+            "sha256": "84ead7af9700ef3d1909ae9349379d93d8d8021ce616bd7db71c320ed47982fb",
             "run_id": "44444444-4444-4444-4444-444444444402",
             "flow_id": "build"
           }
         },
-        "trace_entries_observed": 53,
-        "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2"
+        "trace_entries_observed": 61,
+        "manifest_hash": "d595eb6a60ca2fa2a3ac04df8047915bd311914f05cc6bc1a86a504f47339241"
       },
       "evidence_refs": [
         {
@@ -103,7 +103,7 @@
           "ref": {
             "kind": "evidence",
             "ref": "reports/process-evidence.json",
-            "sha256": "f09249836913144939a6a0ec825f8f1279d80673a29d221486d22dafaa139407",
+            "sha256": "10d28931b37d2d31e4e6bd9f1ff518233e2b73216c6269fa1dec28b02d97abfe",
             "run_id": "44444444-4444-4444-4444-444444444402",
             "flow_id": "build"
           }
@@ -113,7 +113,7 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "e39ee2bf24a5f2be7763bf3e180c874b1842b588e9b580bdcd30c6f9b16bd212",
+            "sha256": "84ead7af9700ef3d1909ae9349379d93d8d8021ce616bd7db71c320ed47982fb",
             "run_id": "44444444-4444-4444-4444-444444444402",
             "flow_id": "build"
           }
@@ -135,7 +135,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "f09249836913144939a6a0ec825f8f1279d80673a29d221486d22dafaa139407",
+              "sha256": "10d28931b37d2d31e4e6bd9f1ff518233e2b73216c6269fa1dec28b02d97abfe",
               "run_id": "44444444-4444-4444-4444-444444444402",
               "flow_id": "build"
             }
@@ -153,7 +153,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "f09249836913144939a6a0ec825f8f1279d80673a29d221486d22dafaa139407",
+              "sha256": "10d28931b37d2d31e4e6bd9f1ff518233e2b73216c6269fa1dec28b02d97abfe",
               "run_id": "44444444-4444-4444-4444-444444444402",
               "flow_id": "build"
             }
@@ -170,7 +170,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "f09249836913144939a6a0ec825f8f1279d80673a29d221486d22dafaa139407",
+              "sha256": "10d28931b37d2d31e4e6bd9f1ff518233e2b73216c6269fa1dec28b02d97abfe",
               "run_id": "44444444-4444-4444-4444-444444444402",
               "flow_id": "build"
             }
@@ -194,14 +194,14 @@
       {
         "kind": "evidence",
         "ref": "reports/process-evidence.json",
-        "sha256": "f09249836913144939a6a0ec825f8f1279d80673a29d221486d22dafaa139407",
+        "sha256": "10d28931b37d2d31e4e6bd9f1ff518233e2b73216c6269fa1dec28b02d97abfe",
         "run_id": "44444444-4444-4444-4444-444444444402",
         "flow_id": "build"
       },
       {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "e39ee2bf24a5f2be7763bf3e180c874b1842b588e9b580bdcd30c6f9b16bd212",
+        "sha256": "84ead7af9700ef3d1909ae9349379d93d8d8021ce616bd7db71c320ed47982fb",
         "run_id": "44444444-4444-4444-4444-444444444402",
         "flow_id": "build"
       }

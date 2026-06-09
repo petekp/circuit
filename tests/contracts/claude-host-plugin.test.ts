@@ -28,7 +28,7 @@ import {
 } from '../helpers/host-plugin-fixtures.js';
 
 const PLUGIN_ROOT = resolve(REPO_ROOT, 'plugins/claude');
-const EXPECTED_CLAUDE_COMMANDS = ['handoff', 'run'];
+const EXPECTED_CLAUDE_COMMANDS = ['handoff', 'pursue', 'run'];
 const RAW_PROGRESS_INVOCATION =
   /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/circuit\.ts" (?!present\b)[^\n]*--progress jsonl/;
 

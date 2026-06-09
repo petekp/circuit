@@ -78,8 +78,8 @@
       "attempt_id": "attempt-primary",
       "process_id": "fix",
       "goal": "quick fix: restore the failing login test",
-      "started_at": "2026-04-29T20:31:14.000Z",
-      "completed_at": "2026-04-29T20:31:14.000Z",
+      "started_at": "2026-04-29T20:31:10.000Z",
+      "completed_at": "2026-04-29T20:31:10.000Z",
       "outcome": "complete",
       "child_run": {
         "run_id": "44444444-4444-4444-4444-444444444407",
@@ -89,12 +89,12 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "37e7e71f1bf4bd45b6231af2bc984e962032152c630c387768d25d6e813d8acb",
+            "sha256": "a2430631bbf85bf6a0a90685000111276e90a66f59174ddbaf146964696f297f",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
         },
-        "trace_entries_observed": 72,
+        "trace_entries_observed": 68,
         "manifest_hash": "f4e8514d4fd965dda324b8d80b9bafbe85375c8c5e30c2c65099d8da526ab19d"
       },
       "evidence_refs": [
@@ -103,7 +103,7 @@
           "ref": {
             "kind": "evidence",
             "ref": "reports/process-evidence.json",
-            "sha256": "7277277c8b9c402c364adcb19e048c1cd3cc21564bfe93f7fa216717c42f05f1",
+            "sha256": "379deab2090363f3915e94f3edfcc37a9b8c1241aad75dabc3829320776ddcb3",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
@@ -113,7 +113,7 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "37e7e71f1bf4bd45b6231af2bc984e962032152c630c387768d25d6e813d8acb",
+            "sha256": "a2430631bbf85bf6a0a90685000111276e90a66f59174ddbaf146964696f297f",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
@@ -135,7 +135,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "7277277c8b9c402c364adcb19e048c1cd3cc21564bfe93f7fa216717c42f05f1",
+              "sha256": "379deab2090363f3915e94f3edfcc37a9b8c1241aad75dabc3829320776ddcb3",
               "run_id": "44444444-4444-4444-4444-444444444407",
               "flow_id": "fix"
             }
@@ -153,7 +153,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "7277277c8b9c402c364adcb19e048c1cd3cc21564bfe93f7fa216717c42f05f1",
+              "sha256": "379deab2090363f3915e94f3edfcc37a9b8c1241aad75dabc3829320776ddcb3",
               "run_id": "44444444-4444-4444-4444-444444444407",
               "flow_id": "fix"
             }
@@ -170,7 +170,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "7277277c8b9c402c364adcb19e048c1cd3cc21564bfe93f7fa216717c42f05f1",
+              "sha256": "379deab2090363f3915e94f3edfcc37a9b8c1241aad75dabc3829320776ddcb3",
               "run_id": "44444444-4444-4444-4444-444444444407",
               "flow_id": "fix"
             }
@@ -194,14 +194,14 @@
       {
         "kind": "evidence",
         "ref": "reports/process-evidence.json",
-        "sha256": "7277277c8b9c402c364adcb19e048c1cd3cc21564bfe93f7fa216717c42f05f1",
+        "sha256": "379deab2090363f3915e94f3edfcc37a9b8c1241aad75dabc3829320776ddcb3",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "flow_id": "fix"
       },
       {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "37e7e71f1bf4bd45b6231af2bc984e962032152c630c387768d25d6e813d8acb",
+        "sha256": "a2430631bbf85bf6a0a90685000111276e90a66f59174ddbaf146964696f297f",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "flow_id": "fix"
       }

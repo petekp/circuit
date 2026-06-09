@@ -4,7 +4,7 @@
   "shadow_reason": "source-owned-run-not-active",
   "run_id": "44444444-4444-4444-4444-444444444406",
   "operator_intent": "simulate connector failure",
-  "recorded_at": "2026-04-29T20:00:29.000Z",
+  "recorded_at": "2026-04-29T20:00:33.000Z",
   "selected_process": {
     "process_id": "build",
     "routed_by": "explicit",
@@ -15,14 +15,14 @@
     "run_folder": "<repo>/docs/release/proofs/runs/abort/run",
     "flow_id": "build",
     "outcome": "aborted",
-    "trace_entries_observed": 27,
-    "manifest_hash": "f363d7493b5c420773fa9470c76d3907e27f53ba7b1692b2e0b11700b85023a2",
+    "trace_entries_observed": 31,
+    "manifest_hash": "d595eb6a60ca2fa2a3ac04df8047915bd311914f05cc6bc1a86a504f47339241",
     "result_ref": {
       "source": "child_result",
       "ref": {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "b015fe6c0eb288bb71afc6832432fb85d99fcf6336ade796f7e13fd447b19791",
+        "sha256": "ea4ab12171af339518d9df42446abd49758840a9d776b702e747a352926cb91a",
         "run_id": "44444444-4444-4444-4444-444444444406",
         "flow_id": "build"
       }
@@ -32,7 +32,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "b015fe6c0eb288bb71afc6832432fb85d99fcf6336ade796f7e13fd447b19791",
+      "sha256": "ea4ab12171af339518d9df42446abd49758840a9d776b702e747a352926cb91a",
       "run_id": "44444444-4444-4444-4444-444444444406",
       "flow_id": "build"
     }

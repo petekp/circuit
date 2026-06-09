@@ -13,6 +13,11 @@
   "anticipated_file_extensions": [
     ".ts"
   ],
+  "guardrails": {
+    "non_goals": [],
+    "invariants": []
+  },
+  "allowed_touch_area": [],
   "verification": {
     "commands": [
       {

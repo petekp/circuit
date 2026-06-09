@@ -73,7 +73,9 @@
       "title": "Verify",
       "canonical": "verify",
       "steps": [
-        "verify-step"
+        "build-baseline",
+        "verify-step",
+        "build-touch-area"
       ]
     },
     {
@@ -192,8 +194,8 @@
         "reports/build/context.json"
       ],
       "routes": {
-        "continue": "act-step",
-        "pass": "act-step",
+        "continue": "build-baseline",
+        "pass": "build-baseline",
         "revise": "plan-step",
         "stop": "@stop"
       },
@@ -214,6 +216,37 @@
         "required": [
           "objective",
           "verification"
+        ]
+      }
+    },
+    {
+      "id": "build-baseline",
+      "title": "Verify - snapshot pre-change git state",
+      "protocol": "build-baseline-snapshot@v1",
+      "reads": [
+        "reports/build/plan.json"
+      ],
+      "routes": {
+        "continue": "act-step",
+        "pass": "act-step",
+        "stop": "@stop"
+      },
+      "executor": "orchestrator",
+      "kind": "verification",
+      "writes": {
+        "report": {
+          "path": "reports/build/baseline-snapshot.json",
+          "schema": "build.baseline-snapshot@v1"
+        }
+      },
+      "check": {
+        "kind": "schema_sections",
+        "source": {
+          "kind": "report",
+          "ref": "report"
+        },
+        "required": [
+          "overall_status"
         ]
       }
     },
@@ -286,8 +319,8 @@
         "reports/build/implementation.json"
       ],
       "routes": {
-        "continue": "review-step",
-        "pass": "review-step",
+        "continue": "build-touch-area",
+        "pass": "build-touch-area",
         "advance": "act-step",
         "retry": "act-step",
         "stop": "@stop"
@@ -313,6 +346,41 @@
       }
     },
     {
+      "id": "build-touch-area",
+      "title": "Verify - check git-proven touch area",
+      "protocol": "build-touch-area@v1",
+      "reads": [
+        "reports/build/plan.json",
+        "reports/build/baseline-snapshot.json",
+        "reports/build/implementation.json"
+      ],
+      "routes": {
+        "continue": "review-step",
+        "pass": "review-step",
+        "stop": "@stop"
+      },
+      "executor": "orchestrator",
+      "kind": "verification",
+      "writes": {
+        "report": {
+          "path": "reports/build/touch-area.json",
+          "schema": "build.touch-area@v1"
+        }
+      },
+      "check": {
+        "kind": "schema_sections",
+        "source": {
+          "kind": "report",
+          "ref": "report"
+        },
+        "required": [
+          "overall_status",
+          "enforcement",
+          "containment"
+        ]
+      }
+    },
+    {
       "id": "review-step",
       "title": "Review - implementation review relay",
       "protocol": "build-review@v1",
@@ -320,7 +388,8 @@
         "reports/build/brief.json",
         "reports/build/plan.json",
         "reports/build/implementation.json",
-        "reports/build/verification.json"
+        "reports/build/verification.json",
+        "reports/build/touch-area.json"
       ],
       "routes": {
         "continue": "close-step",
@@ -362,7 +431,8 @@
         "reports/build/plan.json",
         "reports/build/implementation.json",
         "reports/build/verification.json",
-        "reports/build/review.json"
+        "reports/build/review.json",
+        "reports/build/touch-area.json"
       ],
       "routes": {
         "complete": "@complete",

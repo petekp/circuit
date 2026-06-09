@@ -74,7 +74,14 @@ type SchematicEntry = {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const projectRoot = resolve(__dirname, '../..');
+// Project root for every read, write, and sweep in this script.
+// CIRCUIT_EMIT_PROJECT_ROOT overrides it so tests can run emit/check against
+// a disposable copy of the artifact tree instead of planting fixtures in the
+// real repo. The override root must provide dist/ and node_modules/
+// (symlinks are fine) plus the generated artifact trees.
+const projectRoot = process.env.CIRCUIT_EMIT_PROJECT_ROOT
+  ? resolve(process.env.CIRCUIT_EMIT_PROJECT_ROOT)
+  : resolve(__dirname, '../..');
 
 // SCHEMATICS is loaded from src/flows/catalog.ts (compiled to dist/)
 // so adding a flow doesn't require touching this script. The compiled

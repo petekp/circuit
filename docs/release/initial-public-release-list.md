@@ -89,7 +89,7 @@ These are the extra proof points from the execution-plan gap review:
 | REL-PUB-011 | Native Codex App Server and Claude Agent SDK adapters. | These are not current roadmap items. Release truth should not list them as planned capabilities, and public copy should not imply they are pending support. |
 | REL-PUB-013 | Broad smart-memory claims. | [docs/positioning-and-strategy.md](../positioning-and-strategy.md) treats `circuit history` query/pull and cited run-start hints as real but bounded. Exact prior-failure recall is the strongest current case; broad recall quality still needs proof, so do not claim automatic project intelligence, broad semantic recall, or measured value improvement until release evidence proves it. |
 | REL-PUB-014 | Keep-up-for-you update channel. | [docs/positioning-and-strategy.md](../positioning-and-strategy.md) says the update-channel claim is not yet supported. Do not use launch copy that implies automatic methodology updates. |
-| REL-PUB-015 | Public `/circuit:pursue` slash command. | Pursue is a public routable flow and has generated flow mirrors, but [docs/generated-surfaces.md](../generated-surfaces.md) and `src/commands/run.md` say it has no dedicated command surface yet. |
+| REL-PUB-015 | Public `/circuit:pursue` slash command. | Deferred from the initial release. Shipped in 0.1.0-alpha.7: Pursue now owns `src/flows/pursue/command.md`, and [docs/generated-surfaces.md](../generated-surfaces.md) and `src/commands/run.md` document the dedicated command surface. |
 
 ## Final Gate Used For Alpha.6
 

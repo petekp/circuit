@@ -1,1 +1,1 @@
-{"verdict":"accept","summary":"No blocking issue found in the synthetic Build proof.","findings":[]}
+{"verdict":"accept","summary":"No blocking issue found in the synthetic Build proof.","findings":[],"alignment":{"scope_adherence":"within_scope","non_goals":[],"invariants":[]}}

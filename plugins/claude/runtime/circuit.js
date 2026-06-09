@@ -42213,7 +42213,8 @@ var pursueFlowData = {
   id: "pursue",
   visibility: "public",
   paths: {
-    schematic: "src/flows/pursue/schematic.json"
+    schematic: "src/flows/pursue/schematic.json",
+    command: "src/flows/pursue/command.md"
   },
   schematic: {
     schema_version: "1",
@@ -65618,7 +65619,7 @@ function usage() {
 }
 function readSourceVersion() {
   if (true)
-    return "0.1.0-alpha.6";
+    return "0.1.0-alpha.7";
   const candidates = [
     resolve20(dirname14(fileURLToPath4(import.meta.url)), "../../plugins/version.json"),
     resolve20(process.cwd(), "plugins/version.json")

@@ -60,6 +60,11 @@ Context (from reads):
   "anticipated_file_extensions": [
     ".ts"
   ],
+  "guardrails": {
+    "non_goals": [],
+    "invariants": []
+  },
+  "allowed_touch_area": [],
   "verification": {
     "commands": [
       {
@@ -106,7 +111,7 @@ Context (from reads):
       "cwd": ".",
       "exit_code": 0,
       "status": "passed",
-      "duration_ms": 3370,
+      "duration_ms": 3320,
       "stdout_summary": "\n> circuit@0.0.1 check\n> tsc --noEmit\n\n",
       "stderr_summary": ""
     }
@@ -114,4 +119,17 @@ Context (from reads):
 }
 
 
-Respond with a single raw JSON object whose top-level shape is exactly: { "verdict": "<accept|accept-with-fixes|reject>", "summary": "<review summary>", "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }] } Review the change against the requested scope, not just against passing tests. Flag behavior that broadens semantics beyond the goal even when verification passes. Use an empty findings array only with verdict "accept". Verdicts "accept-with-fixes" and "reject" must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.review@v1 before writing reports/build/review.json.
+--- reports/build/touch-area.json ---
+{
+  "overall_status": "passed",
+  "enforcement": "not_enforced",
+  "containment": "within",
+  "allowed_area": [],
+  "observed_paths": [],
+  "out_of_bounds_paths": [],
+  "head_diverged": false,
+  "hidden_index_flags": []
+}
+
+
+Respond with a single raw JSON object whose top-level shape is exactly: { "verdict": "<accept|accept-with-fixes|reject>", "summary": "<review summary>", "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }], "alignment": { "scope_adherence": "<within_scope|exceeds_scope>", "non_goals": [{ "statement": "<the plan's non_goal, verbatim>", "status": "<respected|violated|not_applicable>", "evidence": "<what in the change shows this>" }], "invariants": [{ "statement": "<the plan's invariant, verbatim>", "status": "<preserved|violated|not_applicable>", "evidence": "<what in the change shows this>" }] } } Review the change against the requested scope, not just against passing tests. Flag behavior that broadens semantics beyond the goal even when verification passes. alignment is required. Set scope_adherence by judging the finished change against the brief: within_scope when it does only what the goal asked, exceeds_scope when it reaches beyond. Add one non_goals entry per non_goal the plan declared and one invariants entry per invariant, each restating the plan's text with a status and concrete evidence; use empty arrays only when the plan declared none. If you set scope_adherence to exceeds_scope, or mark any non_goal violated or any invariant violated, the verdict cannot be "accept" and you must include at least one finding that explains the breach. You are also given a git-proven touch_area report: the files the change actually modified and whether they stayed inside the plan's allowed_touch_area. Treat it as ground truth about what was physically touched - more reliable than the implementer's self-reported file list - and let it inform your scope_adherence judgment and your evidence. The engine enforces that boundary separately at close, so your job here is the semantic call, not to re-run the boundary check. Use an empty findings array only with verdict "accept". Verdicts "accept-with-fixes" and "reject" must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.review@v1 before writing reports/build/review.json.
