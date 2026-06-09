@@ -41,9 +41,14 @@ import { BuildBaselineSnapshot, BuildPlan } from '../reports.js';
 const GIT_TIMEOUT_MS = 60_000;
 const GIT_MAX_OUTPUT_BYTES = 5_000_000;
 
-// Resolves to the Build-local git-state.ts sibling. The bundle flattens this to
-// runtime/git-state.ts (shared with Fix's identical copy); the dist sidecar
-// emits dist/flows/build/writers/git-state.ts for source-tree CLI runs.
+// Marketplace-safe by build-pipeline emission: git-state.ts runs as a sibling
+// of the bundled CLI, not the source file. scripts/plugins/runtime-bundle.ts
+// emits the helper as a sidecar to every bundle target (the bundle flattens it
+// to plugins/<host>/runtime/git-state.ts, shared with Fix's identical copy; the
+// dist sidecar emits dist/flows/build/writers/git-state.ts for source-tree CLI
+// runs), and --check mode fails if any sidecar is missing or drifts from src/.
+// Sibling-of-bundle resolution is correct in every install layout because the
+// build pipeline puts a sibling there.
 const GIT_STATE_HELPER_PATH = fileURLToPath(new URL('./git-state.ts', import.meta.url));
 
 const GitStateHelperOutput = RuntimeGitStateSnapshot;
