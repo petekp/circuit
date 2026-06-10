@@ -59,22 +59,51 @@ export function buildCheckpointRegistry(
   return collectBuilderRegistry(packages, 'checkpoint', (pkg) => pkg.writers.checkpoint);
 }
 
-// Compose the relay-report zod registry from the catalog plus an
-// optional fixtures map (used by tests). Throws when a schema name
-// collides between fixtures and packages, or across packages.
+// The single merge core for report-schema zod registries. Two engine
+// registries derive from it and they deliberately differ in coverage:
+//
+// - channels: 'relay' — pkg.relayReports only. This is parseReport's
+//   registry (src/flows/registries/report-schemas.ts). parseReport
+//   only ever sees connector relay result bodies, and the narrowness
+//   is load-bearing: it is the runtime guard that a relay step's
+//   `writes.report.schema` names a schema declared channel:'relay'.
+//   A channel:'report' name routed through a relay step fails closed
+//   instead of silently skipping relay-only machinery (relay hints,
+//   cross-report validators).
+// - channels: 'relay+report' — relayReports plus pkg.reportSchemas.
+//   This is the run-file validation registry
+//   (src/runtime/run-files/report-validator.ts), which must admit
+//   EVERY report written into a run dir: compose / close /
+//   verification / checkpoint / sub-run reports (channel:'report')
+//   as well as materialized relay reports.
+//
+// `channels` is required so neither call site can drift to the other
+// coverage by accident. Optional fixtures (engine builtins, test
+// schemas) merge first; any name collision throws.
+export interface ReportSchemaRegistryOptions {
+  readonly channels: 'relay' | 'relay+report';
+  readonly fixtures?: Readonly<Record<string, z.ZodType<unknown>>>;
+}
+
 export function buildReportSchemaRegistry(
   packages: readonly CompiledFlowPackage[],
-  fixtures: Readonly<Record<string, z.ZodType<unknown>>> = {},
+  options: ReportSchemaRegistryOptions,
 ): Readonly<Record<string, z.ZodType<unknown>>> {
-  const out: Record<string, z.ZodType<unknown>> = { ...fixtures };
+  const out: Record<string, z.ZodType<unknown>> = { ...(options.fixtures ?? {}) };
+  const register = (schemaName: string, schema: z.ZodType<unknown>, flowId: string): void => {
+    if (Object.hasOwn(out, schemaName)) {
+      throw new Error(`duplicate report schema '${schemaName}' registered (flow ${flowId})`);
+    }
+    out[schemaName] = schema;
+  };
   for (const pkg of packages) {
     for (const report of pkg.relayReports) {
-      if (Object.hasOwn(out, report.schemaName)) {
-        throw new Error(
-          `duplicate relay report schema '${report.schemaName}' registered (flow ${pkg.id})`,
-        );
+      register(report.schemaName, report.schema, pkg.id);
+    }
+    if (options.channels === 'relay+report') {
+      for (const report of pkg.reportSchemas ?? []) {
+        register(report.schemaName, report.schema, pkg.id);
       }
-      out[report.schemaName] = report.schema;
     }
   }
   return Object.freeze(out);

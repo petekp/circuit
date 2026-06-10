@@ -28616,14 +28616,22 @@ function buildVerificationRegistry(packages) {
 function buildCheckpointRegistry(packages) {
   return collectBuilderRegistry(packages, "checkpoint", (pkg) => pkg.writers.checkpoint);
 }
-function buildReportSchemaRegistry(packages, fixtures = {}) {
-  const out = { ...fixtures };
+function buildReportSchemaRegistry(packages, options) {
+  const out = { ...options.fixtures ?? {} };
+  const register = (schemaName, schema, flowId) => {
+    if (Object.hasOwn(out, schemaName)) {
+      throw new Error(`duplicate report schema '${schemaName}' registered (flow ${flowId})`);
+    }
+    out[schemaName] = schema;
+  };
   for (const pkg of packages) {
     for (const report of pkg.relayReports) {
-      if (Object.hasOwn(out, report.schemaName)) {
-        throw new Error(`duplicate relay report schema '${report.schemaName}' registered (flow ${pkg.id})`);
+      register(report.schemaName, report.schema, pkg.id);
+    }
+    if (options.channels === "relay+report") {
+      for (const report of pkg.reportSchemas ?? []) {
+        register(report.schemaName, report.schema, pkg.id);
       }
-      out[report.schemaName] = report.schema;
     }
   }
   return Object.freeze(out);
@@ -28945,7 +28953,7 @@ function assertCatalogInvariants(packages) {
   buildCloseRegistry(packages);
   buildVerificationRegistry(packages);
   buildCheckpointRegistry(packages);
-  buildReportSchemaRegistry(packages);
+  buildReportSchemaRegistry(packages, { channels: "relay+report" });
   buildSchemaHintMap(packages);
   buildStructuralHintList(packages);
   buildCrossReportValidatorRegistry(packages);
@@ -55620,7 +55628,10 @@ function runCrossReportValidator(schemaName, flow, runFolder, resultBody) {
 }
 
 // dist/flows/registries/report-schemas.js
-var REGISTRY5 = buildReportSchemaRegistry(flowPackages, BUILTIN_REPORT_SCHEMAS);
+var REGISTRY5 = buildReportSchemaRegistry(flowPackages, {
+  channels: "relay",
+  fixtures: BUILTIN_REPORT_SCHEMAS
+});
 function findReportZodSchema(schemaName) {
   if (!Object.hasOwn(REGISTRY5, schemaName))
     return void 0;
@@ -60290,25 +60301,10 @@ function createProgressProjector(input) {
 }
 
 // dist/runtime/run-files/report-validator.js
-function buildReportValidationRegistry() {
-  const out = { ...BUILTIN_REPORT_SCHEMAS };
-  for (const pkg of flowPackages) {
-    for (const report of pkg.reportSchemas ?? []) {
-      if (Object.hasOwn(out, report.schemaName)) {
-        throw new Error(`duplicate report schema '${report.schemaName}' registered (flow ${pkg.id})`);
-      }
-      out[report.schemaName] = report.schema;
-    }
-    for (const report of pkg.relayReports) {
-      if (Object.hasOwn(out, report.schemaName)) {
-        throw new Error(`duplicate relay report schema '${report.schemaName}' registered (flow ${pkg.id})`);
-      }
-      out[report.schemaName] = report.schema;
-    }
-  }
-  return Object.freeze(out);
-}
-var REGISTRY7 = buildReportValidationRegistry();
+var REGISTRY7 = buildReportSchemaRegistry(flowPackages, {
+  channels: "relay+report",
+  fixtures: BUILTIN_REPORT_SCHEMAS
+});
 var validateReportValue = (schemaName, value) => {
   if (!Object.hasOwn(REGISTRY7, schemaName)) {
     throw new Error(`report schema '${schemaName}' is not registered in the report-schema registry (fail-closed default)`);
