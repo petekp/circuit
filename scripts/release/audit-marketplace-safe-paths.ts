@@ -45,7 +45,13 @@ type Finding = {
 };
 
 function listSrcFiles(): string[] {
-  const out = execSync('git ls-files src', { cwd: REPO_ROOT, encoding: 'utf8' });
+  // --cached + --others (with standard excludes) so untracked-but-present
+  // files are audited too. With tracked-only listing, a new file passed
+  // local verify until it was git-added and then failed in CI.
+  const out = execSync('git ls-files --cached --others --exclude-standard src', {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+  });
   return out
     .split('\n')
     .filter((line) => line.endsWith('.ts') && !line.endsWith('.d.ts'))
