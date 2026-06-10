@@ -1,14 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { Config, ProjectId } from '../schemas/index.js';
 import { writeJsonAtomic } from '../shared/atomic-io.js';
 import { sha256Hex } from '../shared/connector-relay.js';
-import {
-  CONTROL_PLANE_RUNS_DIR,
-  PROJECT_CONFIG_RELATIVE_SEGMENTS,
-} from '../shared/control-plane-paths.js';
+import { projectConfigPath, runsRoot } from '../shared/control-plane-paths.js';
 import {
   MEMORY_MANIFEST_FILE,
   type ProjectStoreOptions,
@@ -76,7 +72,7 @@ export function normalizeGitRemoteUrl(url: string): string {
 }
 
 function readConfigProjectId(repoRoot: string): string | undefined {
-  const configPath = resolve(repoRoot, ...PROJECT_CONFIG_RELATIVE_SEGMENTS);
+  const configPath = projectConfigPath(repoRoot);
   if (!existsSync(configPath)) return undefined;
   let raw: unknown;
   try {
@@ -131,7 +127,7 @@ export function resolveProjectId(options: ResolveProjectIdOptions = {}): Resolve
   }
 
   // 3. Runs-base fallback, with a loud instability warning.
-  const runsBase = resolve(repoRoot, CONTROL_PLANE_RUNS_DIR);
+  const runsBase = runsRoot(repoRoot);
   return {
     projectId: hashedId('p', runsBase),
     source: 'runs_base',

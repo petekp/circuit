@@ -37,10 +37,7 @@ const syntheticBuilder: CloseBuilder = {
   resultSchemaName: SYNTHETIC_RESULT_SCHEMA_NAME,
   reads: [{ name: 'brief', schema: 'synthetic.brief@v1', required: true }],
   build(context) {
-    const brief = z
-      .object({ subject: z.string().min(1) })
-      .passthrough()
-      .parse(context.inputs.brief);
+    const brief = z.looseObject({ subject: z.string().min(1) }).parse(context.inputs.brief);
     return SyntheticResult.parse({
       summary: `Synthetic close for: ${brief.subject}`,
       answer: 'forty-two',
@@ -50,7 +47,7 @@ const syntheticBuilder: CloseBuilder = {
 
 function syntheticCloseCompiledFlow(): CompiledFlow {
   return CompiledFlow.parse({
-    schema_version: '2',
+    schema_version: '3',
     id: 'synthetic-close-test',
     version: '0.1.0',
     purpose: 'Synthetic flow that exercises the close-builder registry contract.',

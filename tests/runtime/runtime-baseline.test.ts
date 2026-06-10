@@ -89,7 +89,7 @@ function validFlow(): ExecutableFlow {
 function compiledFlowBytesForSnapshot(flowId = 'baseline'): Buffer {
   return Buffer.from(
     JSON.stringify({
-      schema_version: '2',
+      schema_version: '3',
       id: flowId,
       version: '0.1.0',
       purpose: 'runtime manifest snapshot fixture',

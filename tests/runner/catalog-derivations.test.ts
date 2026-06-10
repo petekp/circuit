@@ -335,11 +335,34 @@ describe('catalog-derivations: report schema registry', () => {
           relayReports: [{ schemaName: 'a.one@v1', schema: real }],
         }),
       ],
-      { 'fixture@v1': fixture },
+      { channels: 'relay', fixtures: { 'fixture@v1': fixture } },
     );
     expect(Object.hasOwn(registry, 'fixture@v1')).toBe(true);
     expect(Object.hasOwn(registry, 'a.one@v1')).toBe(true);
     expect(registry['a.one@v1']).toBe(real);
+  });
+
+  it("channels:'relay' excludes channel:'report' schemas; 'relay+report' includes them", () => {
+    // The coverage difference IS the contract: parseReport's registry
+    // must fail closed on channel:'report' names, while the run-file
+    // validator must admit them.
+    const relaySchema = z.object({ verdict: z.string() });
+    const reportSchema = z.object({ summary: z.string() });
+    const packages = [
+      fakePackage({
+        id: 'a',
+        relayReports: [{ schemaName: 'a.relay@v1', schema: relaySchema }],
+        reportSchemas: [{ schemaName: 'a.report@v1', schema: reportSchema }],
+      }),
+    ];
+
+    const relayOnly = buildReportSchemaRegistry(packages, { channels: 'relay' });
+    expect(Object.hasOwn(relayOnly, 'a.relay@v1')).toBe(true);
+    expect(Object.hasOwn(relayOnly, 'a.report@v1')).toBe(false);
+
+    const both = buildReportSchemaRegistry(packages, { channels: 'relay+report' });
+    expect(Object.hasOwn(both, 'a.relay@v1')).toBe(true);
+    expect(both['a.report@v1']).toBe(reportSchema);
   });
 
   it('throws on duplicate schema between two packages', () => {
@@ -354,8 +377,22 @@ describe('catalog-derivations: report schema registry', () => {
         relayReports: [{ schemaName: 'shared@v1', schema }],
       }),
     ];
-    expect(() => buildReportSchemaRegistry(packages, {})).toThrow(
-      /duplicate relay report schema 'shared@v1' registered \(flow b\)/,
+    expect(() => buildReportSchemaRegistry(packages, { channels: 'relay' })).toThrow(
+      /duplicate report schema 'shared@v1' registered \(flow b\)/,
+    );
+  });
+
+  it("throws on duplicate between a relay schema and a channel:'report' schema", () => {
+    const schema = z.object({ verdict: z.string() });
+    const packages = [
+      fakePackage({
+        id: 'a',
+        relayReports: [{ schemaName: 'shared@v1', schema }],
+        reportSchemas: [{ schemaName: 'shared@v1', schema }],
+      }),
+    ];
+    expect(() => buildReportSchemaRegistry(packages, { channels: 'relay+report' })).toThrow(
+      /duplicate report schema 'shared@v1' registered \(flow a\)/,
     );
   });
 
@@ -369,13 +406,13 @@ describe('catalog-derivations: report schema registry', () => {
             relayReports: [{ schemaName: 'fixture@v1', schema }],
           }),
         ],
-        { 'fixture@v1': schema },
+        { channels: 'relay', fixtures: { 'fixture@v1': schema } },
       ),
-    ).toThrow(/duplicate relay report schema 'fixture@v1'/);
+    ).toThrow(/duplicate report schema 'fixture@v1'/);
   });
 
   it('returns a frozen map', () => {
-    const registry = buildReportSchemaRegistry([], {});
+    const registry = buildReportSchemaRegistry([], { channels: 'relay' });
     expect(Object.isFrozen(registry)).toBe(true);
   });
 });
@@ -445,12 +482,14 @@ describe('catalog-derivations: real catalog invariants', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('the live catalog has no duplicate relay report schema names', async () => {
+  it('the live catalog has no duplicate report schema names across both channels', async () => {
     const { flowPackages } = await import('../../src/flows/catalog.js');
     // buildReportSchemaRegistry would throw if there were duplicates.
     // This is a smoke that the live state hasn't drifted into a broken
     // shape.
-    expect(() => buildReportSchemaRegistry(flowPackages, {})).not.toThrow();
+    expect(() =>
+      buildReportSchemaRegistry(flowPackages, { channels: 'relay+report' }),
+    ).not.toThrow();
   });
 
   it('every catalog writer resolves through its registry by resultSchemaName', async () => {

@@ -1,5 +1,5 @@
 {
-  "schema_version": "1",
+  "schema_version": "2",
   "id": "fix",
   "title": "Fix Schematic",
   "purpose": "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at standard depth, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Lite mode skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they are unreachable at compile time and omitted from compiled flows.",

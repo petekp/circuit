@@ -389,7 +389,7 @@ function assertCatalogInvariants(packages: readonly CompiledFlowPackage[]): void
   buildCloseRegistry(packages);
   buildVerificationRegistry(packages);
   buildCheckpointRegistry(packages);
-  buildReportSchemaRegistry(packages);
+  buildReportSchemaRegistry(packages, { channels: 'relay+report' });
   buildSchemaHintMap(packages);
   buildStructuralHintList(packages);
   buildCrossReportValidatorRegistry(packages);

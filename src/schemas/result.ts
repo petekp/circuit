@@ -46,7 +46,7 @@ export const RunResult = z
     why: z.string().min(1).optional(),
     outcome: RunClosedOutcome,
     summary: z.string().min(1),
-    closed_at: z.string().datetime(),
+    closed_at: z.iso.datetime(),
     trace_entries_observed: z.number().int().nonnegative(),
     manifest_hash: z.string().min(1),
     reason: z.string().min(1).optional(),

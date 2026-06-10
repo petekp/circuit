@@ -64,7 +64,7 @@ function parentFlow(
 function childFlowBytes(): Buffer {
   return Buffer.from(
     JSON.stringify({
-      schema_version: '2',
+      schema_version: '3',
       id: 'child-test',
       version: '0.1.0',
       purpose: 'runtime sub-run child',

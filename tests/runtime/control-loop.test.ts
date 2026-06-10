@@ -75,7 +75,7 @@ function relayFlowBytes(options: readonly string[] | RelayFlowFixtureOptions = [
 
   return Buffer.from(
     JSON.stringify({
-      schema_version: '2',
+      schema_version: '3',
       id: 'runtime-relay-check',
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for relay check admission.',
@@ -130,7 +130,7 @@ function relayFlowBytes(options: readonly string[] | RelayFlowFixtureOptions = [
 function multiRelayVerdictFlowBytes(): Buffer {
   return Buffer.from(
     JSON.stringify({
-      schema_version: '2',
+      schema_version: '3',
       id: 'runtime-multi-relay-verdict',
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for terminal verdict derivation.',
@@ -219,7 +219,7 @@ function checkpointRouteFlowBytes(selection: RichCheckpointRoute): Buffer {
 
   return Buffer.from(
     JSON.stringify({
-      schema_version: '2',
+      schema_version: '3',
       id: 'runtime-checkpoint-routes',
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for checkpoint route labels.',
@@ -282,7 +282,7 @@ function checkpointRouteFlowBytes(selection: RichCheckpointRoute): Buffer {
 function checkpointRetryLoopFlowBytes(): Buffer {
   return Buffer.from(
     JSON.stringify({
-      schema_version: '2',
+      schema_version: '3',
       id: 'runtime-checkpoint-retry-loop',
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for bounded checkpoint retry routes.',
@@ -348,7 +348,7 @@ function checkpointMissingSafeChoiceFlowBytes(input: {
   }
   return Buffer.from(
     JSON.stringify({
-      schema_version: '2',
+      schema_version: '3',
       id: `runtime-checkpoint-missing-${input.depth}`,
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for checkpoint auto-resolution failure.',
@@ -405,7 +405,7 @@ function checkpointMissingSafeChoiceFlowBytes(input: {
 function verificationFlowBytes(reportSchema = 'never-registered.verification@v1'): Buffer {
   return Buffer.from(
     JSON.stringify({
-      schema_version: '2',
+      schema_version: '3',
       id: 'runtime-verification-failure',
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for verification pre-write failure evidence.',

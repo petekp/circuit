@@ -54,7 +54,7 @@ function flowBytes(
 ): Buffer {
   return Buffer.from(
     JSON.stringify({
-      schema_version: '2',
+      schema_version: '3',
       id: 'skill-loading-fixture',
       version: '0.0.0-test',
       purpose: 'Exercise user skill loading.',

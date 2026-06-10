@@ -57,8 +57,8 @@ describe('responseJsonSchemaFromZod', () => {
     expect(serialized).not.toContain('definitions');
   });
 
-  it('keeps passthrough objects open while plain objects stay closed', () => {
-    const out = responseJsonSchemaFromZod(z.object({ value: z.string() }).passthrough());
+  it('keeps loose objects open while plain objects stay closed', () => {
+    const out = responseJsonSchemaFromZod(z.looseObject({ value: z.string() }));
     expect(out.type).toBe('object');
     expect(out.additionalProperties).toBe(true);
   });

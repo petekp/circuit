@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/prototype/circuit.work-contract.v0.json",
-    "sha256": "08bbffaf3febb8fa7d210e7cda70ec6d231313fa264c37caa3c6102f4532ed64",
+    "sha256": "968caffc7d60651b22a17877f291015518e7e6e35d2744dd2e919462fc30ac2b",
     "flow_id": "prototype"
   },
   "work_contract": {
@@ -501,7 +501,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "b57b237d59354056ad257e6f1d2d5483040714a8011edfb05c7b536e99f7cb94",
+          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
           "flow_id": "prototype"
         }
       },
@@ -532,7 +532,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/stop",
-          "sha256": "b57b237d59354056ad257e6f1d2d5483040714a8011edfb05c7b536e99f7cb94",
+          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
           "flow_id": "prototype"
         }
       },
@@ -563,7 +563,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/act-step/routes/stop",
-          "sha256": "b57b237d59354056ad257e6f1d2d5483040714a8011edfb05c7b536e99f7cb94",
+          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
           "flow_id": "prototype"
         }
       },
@@ -594,7 +594,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/stop",
-          "sha256": "b57b237d59354056ad257e6f1d2d5483040714a8011edfb05c7b536e99f7cb94",
+          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
           "flow_id": "prototype"
         }
       },
@@ -625,7 +625,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/prototype-checkpoint-step/routes/stop",
-          "sha256": "b57b237d59354056ad257e6f1d2d5483040714a8011edfb05c7b536e99f7cb94",
+          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
           "flow_id": "prototype"
         }
       },
@@ -656,7 +656,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/stop",
-          "sha256": "b57b237d59354056ad257e6f1d2d5483040714a8011edfb05c7b536e99f7cb94",
+          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
           "flow_id": "prototype"
         }
       }
@@ -673,7 +673,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/prototype-checkpoint-step/policy/safe_default_choice",
-        "sha256": "b57b237d59354056ad257e6f1d2d5483040714a8011edfb05c7b536e99f7cb94",
+        "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
         "flow_id": "prototype"
       }
     ],

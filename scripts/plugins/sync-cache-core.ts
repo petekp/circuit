@@ -2,6 +2,7 @@ import { cpSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { Command, CommanderError } from 'commander';
+import { pathEndsWithSegments } from '../shared/path-suffix.ts';
 import { listCommandIds, listPackageDirs, packageTreeStatus } from './package-tree.ts';
 
 // Shared skeleton for the per-host plugin-cache sync scripts. The Claude and
@@ -96,14 +97,6 @@ function assertSafePathSegment(config: SyncHostCacheConfig, value: string, label
       `${label} must use the canonical Circuit package name; legacy circuit-next cache names are not supported`,
     );
   }
-}
-
-function pathEndsWithSegments(path: string, suffix: readonly string[]): boolean {
-  const parts = resolve(path)
-    .split(/[\\/]+/)
-    .filter(Boolean);
-  if (parts.length < suffix.length) return false;
-  return suffix.every((segment, index) => parts[parts.length - suffix.length + index] === segment);
 }
 
 function isPathInside(parent: string, child: string): boolean {

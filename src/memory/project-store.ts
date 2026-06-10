@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { type MemoryInputV0, MemoryInputV0 as MemoryInputV0Schema } from '../schemas/index.js';
 import { writeTextAtomic } from '../shared/atomic-io.js';
-import { CONTROL_PLANE_MEMORY_DIR } from '../shared/control-plane-paths.js';
+import { CONTROL_PLANE_MEMORY_DIR, memoryRoot } from '../shared/control-plane-paths.js';
 
 // The local, physically-per-project store for self-auditing project facts
 // (Slice 5). It holds line-delimited `MemoryInputV0` records with
@@ -59,7 +59,8 @@ export interface ReadProjectFactsResult {
 
 export function resolveProjectStorePaths(options: ProjectStoreOptions = {}): ProjectStorePaths {
   const repoRoot = resolve(options.repoRoot ?? process.cwd());
-  const memoryDir = resolve(repoRoot, options.memoryDir ?? MEMORY_DIR_RELATIVE_PATH);
+  const memoryDir =
+    options.memoryDir === undefined ? memoryRoot(repoRoot) : resolve(repoRoot, options.memoryDir);
   return {
     repoRoot,
     memoryDir,

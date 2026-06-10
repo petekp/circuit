@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
-  DEFAULT_RUNS_BASE,
   HistoryCommandError,
   computeRunFolderNamesHash,
   listCandidateRunFolders,
@@ -16,7 +15,11 @@ import {
   HistoryStatusV1,
   type HistoryWarningV1,
 } from '../../schemas/index.js';
-import { CONTROL_PLANE_HISTORY_DIR } from '../../shared/control-plane-paths.js';
+import {
+  CONTROL_PLANE_HISTORY_DIR,
+  historyRoot,
+  runsRoot,
+} from '../../shared/control-plane-paths.js';
 import { mtimeMs } from '../../shared/run-artifact-io.js';
 import { extractRunHistoryDocuments } from './extract.js';
 import { collectRunSourceFiles } from './run-source-files.js';
@@ -54,8 +57,10 @@ export interface HistoryIndex {
 
 export function resolveHistoryPaths(options: HistoryPathOptions = {}): HistoryPaths {
   const repoRoot = resolve(options.repoRoot ?? process.cwd());
-  const runsBase = resolve(repoRoot, options.runsBase ?? DEFAULT_RUNS_BASE);
-  const indexDir = resolve(repoRoot, options.indexDir ?? DEFAULT_INDEX_DIR);
+  const runsBase =
+    options.runsBase === undefined ? runsRoot(repoRoot) : resolve(repoRoot, options.runsBase);
+  const indexDir =
+    options.indexDir === undefined ? historyRoot(repoRoot) : resolve(repoRoot, options.indexDir);
   return {
     repoRoot,
     runsBase,

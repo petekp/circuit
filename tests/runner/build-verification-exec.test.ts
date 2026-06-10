@@ -77,7 +77,7 @@ function verificationCompiledFlow(options: { verifyRoutes?: Record<string, strin
   bytes: Buffer;
 } {
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: 'build-verification-exec-test',
     version: '0.1.0',
     purpose: 'test Build verification execution',

@@ -6,6 +6,7 @@ import { homedir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command, CommanderError } from 'commander';
+import { pathEndsWithSegments } from '../shared/path-suffix.ts';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const SCRIPT_DIR = dirname(SCRIPT_PATH);
@@ -58,14 +59,6 @@ function parseArgs(argv: readonly string[]): { help: boolean } {
     }
     throw err;
   }
-}
-
-function pathEndsWithSegments(path: string, suffix: readonly string[]): boolean {
-  const parts = resolve(path)
-    .split(/[\\/]+/)
-    .filter(Boolean);
-  if (parts.length < suffix.length) return false;
-  return suffix.every((segment, index) => parts[parts.length - suffix.length + index] === segment);
 }
 
 function commandEnv(options: RefreshOptions): NodeJS.ProcessEnv {

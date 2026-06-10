@@ -14,7 +14,7 @@ import {
   type Ref,
   Ref as RefSchema,
 } from '../schemas/index.js';
-import { CONTROL_PLANE_RUNS_DIR } from '../shared/control-plane-paths.js';
+import { runsRoot } from '../shared/control-plane-paths.js';
 
 // `circuit memory note|list|forget` — the operator-filed core of the cited-fact
 // producer (Slice 5, phase 1). A note writes a `kind:"project"` MemoryInputV0
@@ -399,7 +399,7 @@ export async function runMemoryCommand(
 // indexer's ordering); the last entry is the most recent. Returns undefined
 // when there is no runs base or no run folder.
 function latestRunFolder(runsBase: string | undefined): string | undefined {
-  const base = runsBase ?? join(process.cwd(), CONTROL_PLANE_RUNS_DIR);
+  const base = runsBase ?? runsRoot(process.cwd());
   try {
     const folders = listCandidateRunFolders(base);
     return folders.length === 0 ? undefined : folders[folders.length - 1];

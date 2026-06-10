@@ -30,7 +30,7 @@ export const ManifestSnapshot = z
     schema_version: z.literal(1),
     run_id: RunId,
     flow_id: CompiledFlowId,
-    captured_at: z.string().datetime(),
+    captured_at: z.iso.datetime(),
     algorithm: z.literal('sha256-raw'),
     hash: ManifestHash,
     bytes_base64: z.string().regex(BASE64, {

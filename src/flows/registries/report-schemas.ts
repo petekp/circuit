@@ -25,7 +25,15 @@ import { BUILTIN_REPORT_SCHEMAS } from '../../schemas/builtin-report-schemas.js'
 import { buildReportSchemaRegistry } from '../catalog-derivations.js';
 import { flowPackages } from '../catalog.js';
 
-const REGISTRY = buildReportSchemaRegistry(flowPackages, BUILTIN_REPORT_SCHEMAS);
+// channels:'relay' on purpose — this registry only parses connector
+// relay result bodies. channel:'report' schemas (compose/close/
+// verification/checkpoint/sub-run reports) are validated by the
+// run-file validator instead; keeping them out of this registry is
+// what makes a channel:'report' name on a relay step fail closed.
+const REGISTRY = buildReportSchemaRegistry(flowPackages, {
+  channels: 'relay',
+  fixtures: BUILTIN_REPORT_SCHEMAS,
+});
 
 export type ReportParseResult =
   | { readonly kind: 'ok' }

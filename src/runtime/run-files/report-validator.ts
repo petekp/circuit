@@ -1,38 +1,19 @@
 import type { z } from 'zod';
+import { buildReportSchemaRegistry } from '../../flows/catalog-derivations.js';
 import { flowPackages } from '../../flows/catalog.js';
 import { BUILTIN_REPORT_SCHEMAS } from '../../schemas/builtin-report-schemas.js';
 
 export type ReportValidator = (schemaName: string, value: unknown) => void;
 
-// NOTE: deliberately NOT buildReportSchemaRegistry from
-// src/flows/catalog-derivations.ts — that registry covers only
-// pkg.relayReports. This validator also admits the channel:'report'
-// schemas (pkg.reportSchemas), which live flows declare, and uses a
-// distinct duplicate message for that branch.
-function buildReportValidationRegistry(): Readonly<Record<string, z.ZodType<unknown>>> {
-  const out: Record<string, z.ZodType<unknown>> = { ...BUILTIN_REPORT_SCHEMAS };
-  for (const pkg of flowPackages) {
-    for (const report of pkg.reportSchemas ?? []) {
-      if (Object.hasOwn(out, report.schemaName)) {
-        throw new Error(
-          `duplicate report schema '${report.schemaName}' registered (flow ${pkg.id})`,
-        );
-      }
-      out[report.schemaName] = report.schema;
-    }
-    for (const report of pkg.relayReports) {
-      if (Object.hasOwn(out, report.schemaName)) {
-        throw new Error(
-          `duplicate relay report schema '${report.schemaName}' registered (flow ${pkg.id})`,
-        );
-      }
-      out[report.schemaName] = report.schema;
-    }
-  }
-  return Object.freeze(out);
-}
-
-const REGISTRY = buildReportValidationRegistry();
+// channels:'relay+report' on purpose — run-file validation covers
+// EVERY report written into a run dir: compose / close / verification
+// / checkpoint / sub-run reports (channel:'report') as well as
+// materialized relay reports. parseReport's registry
+// (src/flows/registries/report-schemas.ts) stays channels:'relay'.
+const REGISTRY = buildReportSchemaRegistry(flowPackages, {
+  channels: 'relay+report',
+  fixtures: BUILTIN_REPORT_SCHEMAS,
+});
 
 export const validateReportValue: ReportValidator = (schemaName, value) => {
   if (!Object.hasOwn(REGISTRY, schemaName)) {

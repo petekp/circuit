@@ -672,12 +672,16 @@ describe('release truth infrastructure', () => {
       slug: 'release-note-flow',
     });
     // The proof run is a frozen record captured before the dead `entry`
-    // routing metadata was removed from CompiledFlow; drop that legacy key
-    // instead of editing the frozen file.
+    // routing metadata was removed from CompiledFlow (schema_version '2');
+    // drop the legacy key and pin the current schema_version at the parse
+    // site instead of editing the frozen file. See
+    // docs/contracts/schema-versioning.md.
     const { entry: _legacyEntry, ...customFlowProof } = jsonFile(
       'docs/release/proofs/runs/customization/custom-home/flows/release-note-flow/circuit.json',
     ) as Record<string, unknown>;
-    expect(CompiledFlow.parse(customFlowProof).id).toBe('release-note-flow');
+    expect(CompiledFlow.parse({ ...customFlowProof, schema_version: '3' }).id).toBe(
+      'release-note-flow',
+    );
 
     for (const file of filesUnder('docs/release/proofs/runs')) {
       const text = readFileSync(file, 'utf8');

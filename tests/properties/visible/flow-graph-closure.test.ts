@@ -91,7 +91,7 @@ function buildStep(id: string, passTarget: string): Record<string, unknown> {
 
 function buildCompiledFlow(spec: GraphSpec): Record<string, unknown> {
   return {
-    schema_version: '2',
+    schema_version: '3',
     id: 'build',
     version: '2026-04-27',
     purpose: 'CompiledFlow graph closure property fixture.',

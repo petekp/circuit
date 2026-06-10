@@ -21,27 +21,23 @@ import {
   PrototypeVerification,
 } from '../reports.js';
 
-const CheckpointResponse = z
-  .object({
-    schema_version: z.literal(1),
-    step_id: z.literal('prototype-checkpoint-step'),
-    selection: PrototypeCheckpointSelection,
-    route_id: z.string().min(1).optional(),
-    resolution_source: z.enum(['operator', 'declared-default', 'policy']),
-  })
-  .passthrough();
+const CheckpointResponse = z.looseObject({
+  schema_version: z.literal(1),
+  step_id: z.literal('prototype-checkpoint-step'),
+  selection: PrototypeCheckpointSelection,
+  route_id: z.string().min(1).optional(),
+  resolution_source: z.enum(['operator', 'declared-default', 'policy']),
+});
 
 type CheckpointResponse = z.infer<typeof CheckpointResponse>;
 
-const VariantCheckpointResponse = z
-  .object({
-    schema_version: z.literal(1),
-    step_id: z.literal('prototype-variant-checkpoint-step'),
-    selection: PrototypeVariantId,
-    route_id: z.string().min(1).optional(),
-    resolution_source: z.enum(['operator', 'declared-default', 'policy']),
-  })
-  .passthrough();
+const VariantCheckpointResponse = z.looseObject({
+  schema_version: z.literal(1),
+  step_id: z.literal('prototype-variant-checkpoint-step'),
+  selection: PrototypeVariantId,
+  route_id: z.string().min(1).optional(),
+  resolution_source: z.enum(['operator', 'declared-default', 'policy']),
+});
 
 type VariantCheckpointResponse = z.infer<typeof VariantCheckpointResponse>;
 

@@ -37,7 +37,7 @@ export const prototypeFlowData = {
     contract: 'src/flows/prototype/contract.md',
   },
   schematic: {
-    schema_version: '1',
+    schema_version: '2',
     id: 'prototype',
     title: 'Prototype Schematic',
     purpose:

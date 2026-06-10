@@ -30,7 +30,7 @@ describe('CompiledFlow graph closure', () => {
   };
 
   const okCompiledFlow = (overrides: Record<string, unknown> = {}) => ({
-    schema_version: '2',
+    schema_version: '3',
     id: 'build',
     version: '2026-04-18',
     purpose: 'Build features.',
@@ -118,9 +118,20 @@ describe('CompiledFlow graph closure', () => {
     ).toBe(false);
   });
 
-  it('WF-I7: rejects schema_version other than the literal "2"', () => {
+  it('WF-I7: rejects schema_version other than the literal "3"', () => {
     expect(CompiledFlow.safeParse(okCompiledFlow({ schema_version: '1' })).success).toBe(false);
-    expect(CompiledFlow.safeParse(okCompiledFlow({ schema_version: 2 })).success).toBe(false);
+    expect(CompiledFlow.safeParse(okCompiledFlow({ schema_version: 3 })).success).toBe(false);
+  });
+
+  it('WF-I7: a retired schema_version fails with an issue at the schema_version path', () => {
+    // Version-mismatch legibility (docs/contracts/schema-versioning.md):
+    // a pre-bump artifact must fail with an error that names
+    // schema_version, not just an unrecognized-key puzzle.
+    const result = CompiledFlow.safeParse(okCompiledFlow({ schema_version: '2' }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.path[0] === 'schema_version')).toBe(true);
+    }
   });
 
   it('WF-I8: rejects a flow with a step that cannot reach a terminal route target', () => {

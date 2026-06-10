@@ -45,7 +45,7 @@ const CASES: Array<{
 
 function terminalCompiledFlow(route: TerminalRoute): { bytes: Buffer } {
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: 'terminal-outcome-flow',
     version: '0.1.0',
     purpose: 'Runtime regression fixture for terminal route outcome mapping.',
@@ -125,7 +125,7 @@ function richCheckpointRouteCompiledFlow(route: RichRoute): { bytes: Buffer } {
     },
   }));
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: 'rich-route-flow',
     version: '0.1.0',
     purpose: 'Runtime regression fixture for rich checkpoint route labels.',
@@ -196,7 +196,7 @@ function richCheckpointRouteCompiledFlow(route: RichRoute): { bytes: Buffer } {
 
 function retryLoopCompiledFlow(): { bytes: Buffer } {
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: 'retry-loop-flow',
     version: '0.1.0',
     purpose: 'Runtime regression fixture for bounded retry routes.',
@@ -252,7 +252,7 @@ function retryLoopCompiledFlow(): { bytes: Buffer } {
 
 function relayFailureRecoveryCompiledFlow(): { bytes: Buffer } {
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: 'relay-failure-recovery-flow',
     version: '0.1.0',
     purpose: 'Runtime regression fixture for failed relay recovery routes.',

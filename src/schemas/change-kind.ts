@@ -18,14 +18,14 @@ const ChangeKindBase = z.object({
 
 export const MigrationEscrowChangeKind = ChangeKindBase.extend({
   change_kind: z.literal('migration-escrow'),
-  expires_at: z.string().datetime(),
+  expires_at: z.iso.datetime(),
   restoration_plan: z.string().min(1),
 }).strict();
 export type MigrationEscrowChangeKind = z.infer<typeof MigrationEscrowChangeKind>;
 
 export const BreakGlassChangeKind = ChangeKindBase.extend({
   change_kind: z.literal('break-glass'),
-  post_hoc_adr_deadline_at: z.string().datetime(),
+  post_hoc_adr_deadline_at: z.iso.datetime(),
 }).strict();
 export type BreakGlassChangeKind = z.infer<typeof BreakGlassChangeKind>;
 

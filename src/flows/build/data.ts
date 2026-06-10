@@ -31,7 +31,7 @@ export const buildFlowData = {
     contract: 'src/flows/build/contract.md',
   },
   schematic: {
-    schema_version: '1',
+    schema_version: '2',
     id: 'build',
     title: 'Build Schematic',
     purpose:

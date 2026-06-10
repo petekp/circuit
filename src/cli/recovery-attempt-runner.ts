@@ -25,7 +25,7 @@ import {
   defaultChildCompiledFlowResolver,
   loadFixture,
   resolveFixturePath,
-} from './run.js';
+} from './flow-fixtures.js';
 
 // The autonomous continuation loop's live flow runner, extracted from
 // runExecutionCommand (src/cli/run.ts). Attempt 1 reuses the primary run's

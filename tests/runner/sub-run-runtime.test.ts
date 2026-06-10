@@ -33,7 +33,7 @@ const CHILD_WORKFLOW_ID = 'child-test';
 
 function buildParentCompiledFlow(parentCheckPass: readonly string[]): CompiledFlow {
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: PARENT_WORKFLOW_ID as unknown as string,
     version: '0.1.0',
     purpose: 'sub-run runtime test parent — exercises one sub-run step end-to-end',
@@ -89,7 +89,7 @@ function buildChildCompiledFlow(): CompiledFlow {
   // shape only has to type-check through CompiledFlow.parse — the stub
   // childRunner produces a synthetic result.json.
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: CHILD_WORKFLOW_ID as unknown as string,
     version: '0.1.0',
     purpose: 'sub-run runtime test child — single compose step.',

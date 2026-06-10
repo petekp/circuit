@@ -18,7 +18,7 @@
 
 import { z } from 'zod';
 
-const MinimalVerdictShape = z.object({ verdict: z.string().min(1) }).passthrough();
+const MinimalVerdictShape = z.looseObject({ verdict: z.string().min(1) });
 
 const StrictPayloadShape = z
   .object({
@@ -27,27 +27,23 @@ const StrictPayloadShape = z
   })
   .strict();
 
-const FanoutAggregateFixtureBranchShape = z
-  .object({
-    branch_id: z.string().min(1),
-    child_run_id: z.string().min(1),
-    child_outcome: z.string().min(1),
-    verdict: z.string().min(1),
-    admitted: z.boolean(),
-    result_path: z.string().min(1),
-    duration_ms: z.number().nonnegative(),
-  })
-  .passthrough();
+const FanoutAggregateFixtureBranchShape = z.looseObject({
+  branch_id: z.string().min(1),
+  child_run_id: z.string().min(1),
+  child_outcome: z.string().min(1),
+  verdict: z.string().min(1),
+  admitted: z.boolean(),
+  result_path: z.string().min(1),
+  duration_ms: z.number().nonnegative(),
+});
 
-const FanoutAggregateFixtureShape = z
-  .object({
-    schema_version: z.literal(1),
-    join_policy: z.enum(['pick-winner', 'disjoint-merge', 'aggregate-only', 'aggregate-survivors']),
-    branch_count: z.number().int().nonnegative(),
-    winner_branch_id: z.string().min(1).optional(),
-    branches: z.array(FanoutAggregateFixtureBranchShape),
-  })
-  .passthrough();
+const FanoutAggregateFixtureShape = z.looseObject({
+  schema_version: z.literal(1),
+  join_policy: z.enum(['pick-winner', 'disjoint-merge', 'aggregate-only', 'aggregate-survivors']),
+  branch_count: z.number().int().nonnegative(),
+  winner_branch_id: z.string().min(1).optional(),
+  branches: z.array(FanoutAggregateFixtureBranchShape),
+});
 
 export const BUILTIN_REPORT_SCHEMAS: Readonly<Record<string, z.ZodType<unknown>>> = Object.freeze({
   'runtime-proof-canonical@v1': MinimalVerdictShape,

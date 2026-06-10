@@ -57,7 +57,7 @@ function checkpointFixtureFlow(
     stop: '@stop',
   };
   return {
-    schema_version: '2',
+    schema_version: '3',
     id: 'checkpoint-fixture',
     version: '0.1.0',
     purpose: 'Dedicated runtime checkpoint pause/resume fixture.',

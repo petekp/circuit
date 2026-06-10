@@ -14,8 +14,8 @@ import { basename, join, resolve } from 'node:path';
 import { ContinuityIndex, ContinuityRecord } from '../../schemas/continuity.js';
 import type { ControlPlaneFileStem } from '../../schemas/scalars.js';
 import { writeJsonAtomic } from '../../shared/atomic-io.js';
+import { controlPlaneRoot } from '../../shared/control-plane-paths.js';
 import {
-  DEFAULT_CONTROL_PLANE,
   continuityRoot,
   indexPath,
   readContinuityIndexOrNull,
@@ -619,9 +619,7 @@ function composeAmbientStateMarkdown(
 export function harvestAmbientContinuity(input: AmbientHarvestInput): AmbientHarvestResult {
   const projectRoot = resolve(input.projectRoot);
   const controlPlane =
-    input.controlPlane === undefined
-      ? resolve(projectRoot, DEFAULT_CONTROL_PLANE)
-      : resolve(input.controlPlane);
+    input.controlPlane === undefined ? controlPlaneRoot(projectRoot) : resolve(input.controlPlane);
   const skip = (
     reason: 'no_transcript' | 'transcript_unreadable' | 'nothing_to_harvest' | 'cleared',
   ): AmbientHarvestResult => ({
