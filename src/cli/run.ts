@@ -5,11 +5,10 @@ import { Command } from 'commander';
 
 import type { ExecutorRegistry } from '../runtime/executors/index.js';
 import { isRuntimeRunFolder, resumeCompiledFlow } from '../runtime/run/checkpoint-resume.js';
-import type { ChildCompiledFlowResolver } from '../runtime/run/child-runner.js';
 import { runCompiledFlowWithWaiting } from '../runtime/run/compiled-flow-runner.js';
 import { isGraphCheckpointWaitingResult } from '../runtime/run/graph-runner.js';
 import { Axes, type Axes as AxesValue, TournamentN } from '../schemas/axes.js';
-import { CompiledFlow } from '../schemas/compiled-flow.js';
+import type { CompiledFlow } from '../schemas/compiled-flow.js';
 import type { LayeredConfig } from '../schemas/config.js';
 import { HostKind, type HostKind as HostKindValue } from '../schemas/host.js';
 import { CompiledFlowId, RunId } from '../schemas/ids.js';
@@ -28,13 +27,20 @@ import {
   projectClosedProcessEvidence,
 } from '../app/process-evidence/projection.js';
 import { runAutonomousContinuation } from '../app/run-envelope/autonomous-run.js';
-import { validateCompiledFlowKindPolicy } from '../flows/canonical-stage-policy.js';
 import { findCompiledFlowPackageById, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { CONTROL_PLANE_RUNS_DIR } from '../shared/control-plane-paths.js';
 import { progressDisplay, progressPresentation } from '../shared/progress-output.js';
 import type { ComposeWriterFn, RelayFn } from '../shared/relay-runtime-types.js';
 import { parseCommanderOrThrow } from './commander-support.js';
+import {
+  type AxisSupport,
+  axisSupportFromFlow,
+  defaultChildCompiledFlowResolver,
+  fixtureSelectionNameForAxes,
+  loadFixture,
+  resolveFixturePath,
+} from './flow-fixtures.js';
 import { codexInstallAssurance } from './handoff-codex-hooks.js';
 import {
   type PostRunArtifactContext,
@@ -90,12 +96,6 @@ interface ResolvedEntryModeSelection {
   entryModeName?: string;
   source?: 'explicit';
   reason?: string;
-}
-
-interface AxisSupport {
-  allowedRigors: readonly RigorValue[];
-  supportsTournament: boolean;
-  supportsAutonomous: boolean;
 }
 
 export interface RunCommandOptions {
@@ -275,25 +275,6 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   return result;
 }
 
-export function resolveFixturePath(
-  flowName: string,
-  modeName: string | undefined,
-  override: string | undefined,
-  flowRoot: string | undefined,
-): string {
-  if (override !== undefined) return resolve(override);
-  const root = resolve(flowRoot ?? 'generated/flows');
-  // When a mode is explicitly requested, prefer the per-mode file if the
-  // schematic author emitted one. Schematics with route_overrides produce
-  // <mode>.json siblings of circuit.json — see scripts/flows/emit.ts.
-  // Falls back to circuit.json otherwise.
-  if (modeName !== undefined) {
-    const perMode = resolve(root, flowName, `${modeName}.json`);
-    if (existsSync(perMode)) return perMode;
-  }
-  return resolve(root, flowName, 'circuit.json');
-}
-
 function progressReporter(enabled: boolean): ((event: ProgressEventValue) => void) | undefined {
   if (!enabled) return undefined;
   return (event) => {
@@ -334,13 +315,6 @@ function axisSelectionNameForAxes(axes: AxesValue): string {
   return 'default';
 }
 
-function fixtureSelectionNameForAxes(axes: AxesValue): string {
-  if (axes.tournament) return 'tournament';
-  if (axes.autonomous) return 'autonomous';
-  if (axes.rigor === 'lite' || axes.rigor === 'deep') return axes.rigor;
-  return 'default';
-}
-
 function runtimeDepthForAxes(axes: AxesValue): string {
   if (axes.autonomous) return 'autonomous';
   if (axes.tournament) return 'tournament';
@@ -362,20 +336,6 @@ function resolveEntryModeSelection(args: ParsedArgs): ResolvedEntryModeSelection
 
 function progressSurfaceForFlowId(flowId: string) {
   return findFlowRuntimeSurfaceById(flowId)?.progress;
-}
-
-function axisSupportFromAxes(axes: CompiledFlow['axes']): AxisSupport {
-  return {
-    allowedRigors: axes.allowed_rigors,
-    supportsTournament: axes.supports_tournament,
-    supportsAutonomous: axes.supports_autonomous,
-  };
-}
-
-export function axisSupportFromFlow(input: {
-  readonly flow: CompiledFlow;
-}): AxisSupport {
-  return axisSupportFromAxes(input.flow.axes);
 }
 
 function axisAllowListText(flowId: string, support: AxisSupport): string {
@@ -444,32 +404,6 @@ function validateFlowConfigRequirements(input: {
       throw new Error(requirement.message);
     }
   }
-}
-
-export function loadFixture(fixturePath: string): { flow: CompiledFlow; bytes: Buffer } {
-  if (!existsSync(fixturePath)) {
-    throw new Error(`flow fixture not found: ${fixturePath}`);
-  }
-  const bytes = readFileSync(fixturePath);
-  const raw: unknown = JSON.parse(bytes.toString('utf8'));
-  const flow = CompiledFlow.parse(raw);
-  // Enforce flow-kind canonical stage-set policy at fixture load.
-  // Validator: src/shared/flow-kind-policy.ts.
-  const policy = validateCompiledFlowKindPolicy(flow);
-  if (!policy.ok) {
-    throw new Error(`flow fixture policy violation (${fixturePath}):\n  ${policy.reason}`);
-  }
-  return { flow, bytes };
-}
-
-export function defaultChildCompiledFlowResolver(
-  flowRoot: string | undefined,
-): ChildCompiledFlowResolver {
-  return (ref) => {
-    const fixturePath = resolveFixturePath(ref.flowId, ref.entryMode, undefined, flowRoot);
-    const { bytes } = loadFixture(fixturePath);
-    return { flowBytes: bytes };
-  };
 }
 
 function assertFixtureMatchesRoute(flow: CompiledFlow, route: ResolvedCompiledFlowRoute): void {

@@ -10766,8 +10766,8 @@ var require_dist = __commonJS({
 });
 
 // dist/cli/circuit.js
-import { readFileSync as readFileSync51 } from "node:fs";
-import { dirname as dirname15, resolve as resolve23 } from "node:path";
+import { readFileSync as readFileSync52 } from "node:fs";
+import { dirname as dirname15, resolve as resolve24 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -52402,8 +52402,8 @@ function latestRunFolder(runsBase) {
 
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync34, mkdirSync as mkdirSync10, readFileSync as readFileSync50, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname14, join as join35, resolve as resolve22 } from "node:path";
+import { existsSync as existsSync35, mkdirSync as mkdirSync10, readFileSync as readFileSync51, writeFileSync as writeFileSync11 } from "node:fs";
+import { dirname as dirname14, join as join35, resolve as resolve23 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
 import { readFileSync as readFileSync44 } from "node:fs";
@@ -55765,7 +55765,7 @@ function parseNdjsonObjects(stdout, label) {
 }
 async function runConnectorSubprocess(input) {
   const start = performance.now();
-  return await new Promise((resolve24, reject) => {
+  return await new Promise((resolve25, reject) => {
     let child;
     try {
       child = spawn(input.executable, [...input.args], {
@@ -55838,7 +55838,7 @@ async function runConnectorSubprocess(input) {
     });
     child.on("close", (code, signal) => {
       clearAllTimers();
-      resolve24({
+      resolve25({
         stdout,
         stderr,
         stdoutCapped,
@@ -64444,6 +64444,61 @@ function discoverRuntimeConfigLayers(options = {}) {
   return { selectionConfigLayers, policyLayers };
 }
 
+// dist/cli/flow-fixtures.js
+import { existsSync as existsSync34, readFileSync as readFileSync49 } from "node:fs";
+import { resolve as resolve22 } from "node:path";
+function resolveFixturePath(flowName, modeName, override, flowRoot2) {
+  if (override !== void 0)
+    return resolve22(override);
+  const root = resolve22(flowRoot2 ?? "generated/flows");
+  if (modeName !== void 0) {
+    const perMode = resolve22(root, flowName, `${modeName}.json`);
+    if (existsSync34(perMode))
+      return perMode;
+  }
+  return resolve22(root, flowName, "circuit.json");
+}
+function fixtureSelectionNameForAxes(axes) {
+  if (axes.tournament)
+    return "tournament";
+  if (axes.autonomous)
+    return "autonomous";
+  if (axes.rigor === "lite" || axes.rigor === "deep")
+    return axes.rigor;
+  return "default";
+}
+function axisSupportFromAxes(axes) {
+  return {
+    allowedRigors: axes.allowed_rigors,
+    supportsTournament: axes.supports_tournament,
+    supportsAutonomous: axes.supports_autonomous
+  };
+}
+function axisSupportFromFlow(input) {
+  return axisSupportFromAxes(input.flow.axes);
+}
+function loadFixture(fixturePath) {
+  if (!existsSync34(fixturePath)) {
+    throw new Error(`flow fixture not found: ${fixturePath}`);
+  }
+  const bytes = readFileSync49(fixturePath);
+  const raw = JSON.parse(bytes.toString("utf8"));
+  const flow = CompiledFlow.parse(raw);
+  const policy2 = validateCompiledFlowKindPolicy(flow);
+  if (!policy2.ok) {
+    throw new Error(`flow fixture policy violation (${fixturePath}):
+  ${policy2.reason}`);
+  }
+  return { flow, bytes };
+}
+function defaultChildCompiledFlowResolver(flowRoot2) {
+  return (ref) => {
+    const fixturePath = resolveFixturePath(ref.flowId, ref.entryMode, void 0, flowRoot2);
+    const { bytes } = loadFixture(fixturePath);
+    return { flowBytes: bytes };
+  };
+}
+
 // dist/app/run-envelope/shadow-record.js
 import { mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
 import { dirname as dirname13, join as join32 } from "node:path";
@@ -64594,7 +64649,7 @@ function emitPostRunArtifacts(input) {
 
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { readFileSync as readFileSync49 } from "node:fs";
+import { readFileSync as readFileSync50 } from "node:fs";
 import { join as join33 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
@@ -64657,7 +64712,7 @@ function createRecoveryAttemptRunner(deps) {
         })
       };
     }
-    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync49(recoveryResult.resultPath, "utf8")));
+    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync50(recoveryResult.resultPath, "utf8")));
     return {
       projection: projectClosedProcessEvidence({
         runFolder: attemptFolder,
@@ -64889,17 +64944,6 @@ function parseExecutionArgs(command, argv) {
     result.progress = progress;
   return result;
 }
-function resolveFixturePath(flowName, modeName, override, flowRoot2) {
-  if (override !== void 0)
-    return resolve22(override);
-  const root = resolve22(flowRoot2 ?? "generated/flows");
-  if (modeName !== void 0) {
-    const perMode = resolve22(root, flowName, `${modeName}.json`);
-    if (existsSync34(perMode))
-      return perMode;
-  }
-  return resolve22(root, flowName, "circuit.json");
-}
 function progressReporter(enabled) {
   if (!enabled)
     return void 0;
@@ -64934,15 +64978,6 @@ function axisSelectionNameForAxes(axes) {
     return axes.rigor;
   return "default";
 }
-function fixtureSelectionNameForAxes(axes) {
-  if (axes.tournament)
-    return "tournament";
-  if (axes.autonomous)
-    return "autonomous";
-  if (axes.rigor === "lite" || axes.rigor === "deep")
-    return axes.rigor;
-  return "default";
-}
 function runtimeDepthForAxes(axes) {
   if (axes.autonomous)
     return "autonomous";
@@ -64962,16 +64997,6 @@ function resolveEntryModeSelection(args) {
 }
 function progressSurfaceForFlowId(flowId) {
   return findFlowRuntimeSurfaceById(flowId)?.progress;
-}
-function axisSupportFromAxes(axes) {
-  return {
-    allowedRigors: axes.allowed_rigors,
-    supportsTournament: axes.supports_tournament,
-    supportsAutonomous: axes.supports_autonomous
-  };
-}
-function axisSupportFromFlow(input) {
-  return axisSupportFromAxes(input.flow.axes);
 }
 function axisAllowListText(flowId, support) {
   const rigors = support.allowedRigors.join(", ");
@@ -65022,27 +65047,6 @@ function validateFlowConfigRequirements(input) {
     }
   }
 }
-function loadFixture(fixturePath) {
-  if (!existsSync34(fixturePath)) {
-    throw new Error(`flow fixture not found: ${fixturePath}`);
-  }
-  const bytes = readFileSync50(fixturePath);
-  const raw = JSON.parse(bytes.toString("utf8"));
-  const flow = CompiledFlow.parse(raw);
-  const policy2 = validateCompiledFlowKindPolicy(flow);
-  if (!policy2.ok) {
-    throw new Error(`flow fixture policy violation (${fixturePath}):
-  ${policy2.reason}`);
-  }
-  return { flow, bytes };
-}
-function defaultChildCompiledFlowResolver(flowRoot2) {
-  return (ref) => {
-    const fixturePath = resolveFixturePath(ref.flowId, ref.entryMode, void 0, flowRoot2);
-    const { bytes } = loadFixture(fixturePath);
-    return { flowBytes: bytes };
-  };
-}
 function assertFixtureMatchesRoute(flow, route) {
   const flowId = flow.id;
   if (flowId !== route.flowName) {
@@ -65087,7 +65091,7 @@ function shouldPrepareHistoryRecall(options) {
 }
 async function runResumeCommand(args, options) {
   if (args.command === "resume" && args.runFolder !== void 0 && args.checkpointChoice !== void 0) {
-    const runFolder = resolve22(args.runFolder);
+    const runFolder = resolve23(args.runFolder);
     const progress = progressReporter(args.progress === "jsonl");
     const hostKind = runtimeHostKind(options);
     if (await isRuntimeRunFolder(runFolder)) {
@@ -65102,7 +65106,7 @@ async function runResumeCommand(args, options) {
         ...progress === void 0 ? {} : { progress },
         progressSurfaceForFlowId
       });
-      const runResult = RunResult.parse(JSON.parse(readFileSync50(runtimeResult.resultPath, "utf8")));
+      const runResult = RunResult.parse(JSON.parse(readFileSync51(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
       const postRunArtifactContext = {
@@ -65189,7 +65193,7 @@ async function runExecutionCommand(args, options) {
   const entryModeSelection = resolveEntryModeSelection(args);
   const fixtureSelectionName = fixtureSelectionNameForAxes(args.axes);
   const fixturePath = resolveFixturePath(route.flowName, fixtureSelectionName, args.fixturePath, args.flowRoot);
-  if (!existsSync34(fixturePath)) {
+  if (!existsSync35(fixturePath)) {
     const pkg = findCompiledFlowPackageById(route.flowName);
     if (pkg?.visibility === "internal") {
       process.stderr.write(`error: ${route.flowName} is an internal flow and is not available through the host run surface.
@@ -65231,7 +65235,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = resolve22(args.runFolder ?? `${DEFAULT_RUNS_BASE2}/${runId}`);
+  const runFolder = resolve23(args.runFolder ?? `${DEFAULT_RUNS_BASE2}/${runId}`);
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...options.configHomeDir !== void 0 ? { homeDir: options.configHomeDir } : {},
     ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {}
@@ -65245,7 +65249,7 @@ async function runExecutionCommand(args, options) {
     return 2;
   }
   const hostKind = runtimeHostKind(options);
-  const projectRoot = resolve22(options.configCwd ?? process.cwd());
+  const projectRoot = resolve23(options.configCwd ?? process.cwd());
   if (hostKind === "codex") {
     try {
       const assurance = codexInstallAssurance({ projectRoot, now });
@@ -65401,7 +65405,7 @@ async function runExecutionCommand(args, options) {
 `);
       return 0;
     }
-    const runResult = RunResult.parse(JSON.parse(readFileSync50(runtimeResult.resultPath, "utf8")));
+    const runResult = RunResult.parse(JSON.parse(readFileSync51(runtimeResult.resultPath, "utf8")));
     const selectedProcess = selectedProcessFields({
       processId: flow.id,
       routedBy: route.source,
@@ -65614,12 +65618,12 @@ function readSourceVersion() {
   if (true)
     return "0.1.0-alpha.7";
   const candidates = [
-    resolve23(dirname15(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
-    resolve23(process.cwd(), "plugins/version.json")
+    resolve24(dirname15(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
+    resolve24(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync51(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync52(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {
