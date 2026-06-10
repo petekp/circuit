@@ -2,11 +2,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command, CommanderError } from 'commander';
+import type { BriefGitProbe } from '../app/continuity/brief.js';
 
 import { CLI_COMMAND_NAMES, type CliCommandName } from './command-vocabulary.js';
 import { parseCommanderOrThrow } from './commander-support.js';
 import { runCreateCommand } from './create.js';
-import { type BriefGitProbe, runHandoffCommand } from './handoff.js';
+import { runHandoffCommand } from './handoff.js';
 import { runHistoryCommand } from './history.js';
 import { runMemoryCommand } from './memory.js';
 import {

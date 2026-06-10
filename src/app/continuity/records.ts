@@ -24,6 +24,14 @@ export function resolveProjectRootArg(args: { readonly projectRoot?: string }): 
   return resolve(args.projectRoot ?? process.cwd());
 }
 
+export function resolveControlPlaneArg(args: {
+  readonly projectRoot?: string;
+  readonly controlPlane?: string;
+}): string {
+  if (args.controlPlane !== undefined) return resolve(args.controlPlane);
+  return resolve(resolveProjectRootArg(args), DEFAULT_CONTROL_PLANE);
+}
+
 /** The slice of the handoff CLI arguments that record construction reads. */
 export interface BuildRecordArgs {
   readonly goal?: string;

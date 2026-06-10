@@ -10766,8 +10766,8 @@ var require_dist = __commonJS({
 });
 
 // dist/cli/circuit.js
-import { readFileSync as readFileSync52 } from "node:fs";
-import { dirname as dirname15, resolve as resolve24 } from "node:path";
+import { readFileSync as readFileSync53 } from "node:fs";
+import { dirname as dirname15, resolve as resolve25 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -44221,15 +44221,13 @@ async function runCreateCommand(argv, options = {}) {
 }
 
 // dist/cli/handoff.js
-import { execFileSync as execFileSync2 } from "node:child_process";
-import { existsSync as existsSync15, readFileSync as readFileSync31 } from "node:fs";
-import { basename as basename2, resolve as resolve12 } from "node:path";
+import { existsSync as existsSync16, readFileSync as readFileSync32 } from "node:fs";
+import { resolve as resolve13 } from "node:path";
 
-// dist/app/continuity/harvest.js
+// dist/app/continuity/brief.js
 import { execFileSync } from "node:child_process";
-import { createHash as createHash4 } from "node:crypto";
-import { closeSync as closeSync2, existsSync as existsSync13, openSync as openSync2, readFileSync as readFileSync29, readSync as readSync2, readdirSync, rmSync as rmSync3, statSync as statSync2 } from "node:fs";
-import { basename, join as join10, resolve as resolve10 } from "node:path";
+import { existsSync as existsSync13, readFileSync as readFileSync28 } from "node:fs";
+import { basename, resolve as resolve10 } from "node:path";
 
 // dist/schemas/snapshot.js
 var StepStatus = external_exports.enum(["pending", "in_progress", "check_failed", "complete", "aborted"]);
@@ -44381,34 +44379,13 @@ var indexOwnPropertyGuard = external_exports.custom((raw) => {
 }, "continuity index has inherited (not own) required field; prototype-chain smuggle rejected");
 var ContinuityIndex = indexOwnPropertyGuard.pipe(ContinuityIndexBody);
 
-// dist/shared/atomic-io.js
-import { randomUUID as randomUUID3 } from "node:crypto";
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync25, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { dirname as dirname3 } from "node:path";
-function writeTextAtomic(path, contents, options = {}) {
-  mkdirSync2(dirname3(path), { recursive: true });
-  const staging = `${path}.${randomUUID3()}.tmp`;
-  writeFileSync2(staging, contents);
-  try {
-    options.validate?.(readFileSync25(staging, "utf8"));
-    renameSync(staging, path);
-  } catch (error51) {
-    rmSync2(staging, { force: true });
-    throw error51;
-  }
-}
-function writeJsonAtomic(path, value, options = {}) {
-  writeTextAtomic(path, `${JSON.stringify(value, null, 2)}
-`, options);
-}
-
 // dist/app/continuity/records.js
-import { randomUUID as randomUUID4 } from "node:crypto";
-import { existsSync as existsSync12, mkdirSync as mkdirSync3, readFileSync as readFileSync28, writeFileSync as writeFileSync4 } from "node:fs";
-import { dirname as dirname4, join as join9, resolve as resolve9 } from "node:path";
+import { randomUUID as randomUUID3 } from "node:crypto";
+import { existsSync as existsSync12, mkdirSync as mkdirSync2, readFileSync as readFileSync27, writeFileSync as writeFileSync3 } from "node:fs";
+import { dirname as dirname3, join as join9, resolve as resolve9 } from "node:path";
 
 // dist/shared/manifest-snapshot.js
-import { readFileSync as readFileSync26, writeFileSync as writeFileSync3 } from "node:fs";
+import { readFileSync as readFileSync25, writeFileSync as writeFileSync2 } from "node:fs";
 import { join as join5 } from "node:path";
 
 // dist/schemas/manifest.js
@@ -44455,7 +44432,7 @@ function manifestSnapshotPath(runFolder) {
   return join5(runFolder, "manifest.snapshot.json");
 }
 function readManifestSnapshot(runFolder) {
-  const text = readFileSync26(manifestSnapshotPath(runFolder), "utf8");
+  const text = readFileSync25(manifestSnapshotPath(runFolder), "utf8");
   const raw = JSON.parse(text);
   return ManifestSnapshot.parse(raw);
 }
@@ -44654,7 +44631,7 @@ function stepMetadata(flow, stepId) {
 }
 
 // dist/app/run-status/runtime-run-folder.js
-import { readFileSync as readFileSync27 } from "node:fs";
+import { readFileSync as readFileSync26 } from "node:fs";
 import { join as join8 } from "node:path";
 
 // dist/runtime/projections/tournament-checkpoint-context.js
@@ -44854,7 +44831,7 @@ function isRecord2(value) {
 }
 function readRawTraceEntries(runFolder) {
   const tracePath = join8(runFolder, "trace.ndjson");
-  const text = readFileSync27(tracePath, "utf8");
+  const text = readFileSync26(tracePath, "utf8");
   const trimmed = text.trim();
   if (trimmed.length === 0)
     return [];
@@ -45035,7 +45012,7 @@ function runtimeWaitingCheckpointProjection(input) {
   let requestAbs;
   try {
     requestAbs = resolveRunFilePath(input.runFolder, requestPath);
-    requestText = readFileSync27(requestAbs, "utf8");
+    requestText = readFileSync26(requestAbs, "utf8");
   } catch (err) {
     return invalidProjection({
       runFolder: input.runFolder,
@@ -45096,7 +45073,7 @@ function runtimeWaitingCheckpointProjection(input) {
   const presentation = tournamentCheckpointPresentation({
     readJson: (path) => {
       try {
-        return JSON.parse(readFileSync27(join8(input.runFolder, path), "utf8"));
+        return JSON.parse(readFileSync26(join8(input.runFolder, path), "utf8"));
       } catch {
         return void 0;
       }
@@ -45333,6 +45310,11 @@ var DEFAULT_CONTROL_PLANE = CONTROL_PLANE_DIR;
 function resolveProjectRootArg(args) {
   return resolve9(args.projectRoot ?? process.cwd());
 }
+function resolveControlPlaneArg(args) {
+  if (args.controlPlane !== void 0)
+    return resolve9(args.controlPlane);
+  return resolve9(resolveProjectRootArg(args), DEFAULT_CONTROL_PLANE);
+}
 function continuityRoot(controlPlane) {
   return resolve9(controlPlane, "continuity");
 }
@@ -45358,13 +45340,13 @@ function activeRunPath(controlPlane) {
   return join9(controlPlane, "active-run.md");
 }
 function writeJson2(path, value) {
-  mkdirSync3(dirname4(path), { recursive: true });
-  writeFileSync4(path, `${JSON.stringify(value, null, 2)}
+  mkdirSync2(dirname3(path), { recursive: true });
+  writeFileSync3(path, `${JSON.stringify(value, null, 2)}
 `);
 }
 function writeMarkdown(path, value) {
-  mkdirSync3(dirname4(path), { recursive: true });
-  writeFileSync4(path, value.endsWith("\n") ? value : `${value}
+  mkdirSync2(dirname3(path), { recursive: true });
+  writeFileSync3(path, value.endsWith("\n") ? value : `${value}
 `);
 }
 function stageForCurrentStep(flow, currentStep) {
@@ -45418,7 +45400,7 @@ function buildRecord(args, now) {
   }
   const projectRoot = resolveProjectRootArg(args);
   const createdAt = args.createdAt ?? now().toISOString();
-  const recordId = args.recordId ?? `continuity-${randomUUID4()}`;
+  const recordId = args.recordId ?? `continuity-${randomUUID3()}`;
   const base = {
     schema_version: 1,
     record_id: recordId,
@@ -45505,7 +45487,7 @@ function writeActiveRun(controlPlane, record2) {
 }
 function readJsonSafely(path) {
   try {
-    return { ok: true, value: JSON.parse(readFileSync28(path, "utf8")) };
+    return { ok: true, value: JSON.parse(readFileSync27(path, "utf8")) };
   } catch {
     return { ok: false };
   }
@@ -45521,939 +45503,10 @@ function readContinuityIndexOrNull(controlPlane) {
   return parsed.success ? parsed.data : null;
 }
 
-// dist/app/continuity/harvest.js
-var DEFAULT_AMBIENT_RECORD_STEM = "ambient-latest";
-var AMBIENT_INTENT_MAX_CHARS = 280;
-var AMBIENT_MAX_INTENTS = 4;
-var AMBIENT_HOST_TAG_PREFIX = /^<(command-name|command-message|command-args|local-command|system-reminder|task-notification|bash-input|bash-stdout|bash-stderr)/;
-var AMBIENT_DROP_LINE_PREFIX = /^(# \/|# Warm continuity record|Caveat:|\[SESSION CONTINUITY\]|Base directory for this skill:)/;
-var AMBIENT_INTERRUPT_MARKER = /Request interrupted/;
-function collapseWhitespace(value) {
-  return value.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
-}
-function isDroppedIntent(text) {
-  return text.length === 0 || AMBIENT_HOST_TAG_PREFIX.test(text) || AMBIENT_DROP_LINE_PREFIX.test(text) || AMBIENT_INTERRUPT_MARKER.test(text);
-}
-function textBlocks(content) {
-  if (!Array.isArray(content))
-    return [];
-  const blocks = [];
-  for (const block of content) {
-    if (typeof block === "object" && block !== null && block.type === "text" && typeof block.text === "string") {
-      blocks.push(block.text);
-    }
-  }
-  return blocks;
-}
-function userMessageText(content) {
-  if (typeof content === "string") {
-    const collapsed = collapseWhitespace(content);
-    return collapsed.length === 0 ? void 0 : collapsed;
-  }
-  if (Array.isArray(content)) {
-    const collapsed = collapseWhitespace(textBlocks(content).join(" "));
-    return collapsed.length === 0 ? void 0 : collapsed;
-  }
-  return void 0;
-}
-function compactSummaryText(content) {
-  const raw = typeof content === "string" ? content : textBlocks(content).join("\n");
-  const trimmed = raw.trim();
-  return trimmed.length === 0 ? void 0 : trimmed;
-}
-function parseTranscriptContent(raw) {
-  const intents = [];
-  let summary;
-  for (const line of raw.split("\n")) {
-    if (line.trim().length === 0)
-      continue;
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (typeof parsed !== "object" || parsed === null)
-      continue;
-    const entry = parsed;
-    const content = entry.message?.content;
-    if (entry.isCompactSummary === true) {
-      const text2 = compactSummaryText(content);
-      if (text2 !== void 0)
-        summary = text2;
-      continue;
-    }
-    if (entry.type !== "user")
-      continue;
-    const text = userMessageText(content);
-    if (text === void 0 || isDroppedIntent(text))
-      continue;
-    intents.push(text.slice(0, AMBIENT_INTENT_MAX_CHARS));
-  }
-  return { intents: intents.slice(-AMBIENT_MAX_INTENTS), summary };
-}
-var HEAD_FINGERPRINT_BYTES = 4096;
-function cursorsRoot(controlPlane) {
-  return join10(continuityRoot(controlPlane), "cursors");
-}
-function cursorPath(controlPlane, recordId) {
-  return join10(cursorsRoot(controlPlane), `${recordId}.json`);
-}
-function isSafeControlPlaneStem(value) {
-  return /^[a-z0-9][a-z0-9._-]*$/.test(value) && !value.includes("..") && value.length <= 128;
-}
-function sha256Hex(buf) {
-  return createHash4("sha256").update(buf).digest("hex");
-}
-function readByteRange(path, start, length) {
-  if (length <= 0)
-    return Buffer.alloc(0);
-  let fd;
-  try {
-    fd = openSync2(path, "r");
-    const buf = Buffer.allocUnsafe(length);
-    const read = readSync2(fd, buf, 0, length, start);
-    return buf.subarray(0, read);
-  } catch {
-    return void 0;
-  } finally {
-    if (fd !== void 0)
-      closeSync2(fd);
-  }
-}
-function readHarvestCursor(path) {
-  if (!existsSync13(path))
-    return void 0;
-  const raw = readJsonSafely(path);
-  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
-    return void 0;
-  const o = raw.value;
-  if (typeof o.transcript_path !== "string")
-    return void 0;
-  if (typeof o.byte_offset !== "number" || !Number.isFinite(o.byte_offset) || o.byte_offset < 0) {
-    return void 0;
-  }
-  if (typeof o.head_fingerprint !== "string")
-    return void 0;
-  if (!Array.isArray(o.intents) || !o.intents.every((i) => typeof i === "string"))
-    return void 0;
-  if (o.summary !== void 0 && typeof o.summary !== "string")
-    return void 0;
-  return {
-    transcript_path: o.transcript_path,
-    byte_offset: o.byte_offset,
-    head_fingerprint: o.head_fingerprint,
-    intents: o.intents,
-    ...typeof o.summary === "string" ? { summary: o.summary } : {}
-  };
-}
-function tombstonesRoot(controlPlane) {
-  return join10(continuityRoot(controlPlane), "tombstones");
-}
-function tombstonePath(controlPlane, recordId) {
-  return join10(tombstonesRoot(controlPlane), `${recordId}.json`);
-}
-function readTombstone(path) {
-  if (!existsSync13(path))
-    return void 0;
-  const raw = readJsonSafely(path);
-  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
-    return void 0;
-  const o = raw.value;
-  if (o.schema_version !== 1)
-    return void 0;
-  if (typeof o.record_id !== "string")
-    return void 0;
-  if (typeof o.transcript_path !== "string")
-    return void 0;
-  if (typeof o.position !== "number" || !Number.isFinite(o.position) || o.position < 0)
-    return void 0;
-  if (typeof o.cleared_at !== "string")
-    return void 0;
-  return {
-    schema_version: 1,
-    record_id: o.record_id,
-    transcript_path: o.transcript_path,
-    position: o.position,
-    cleared_at: o.cleared_at
-  };
-}
-function readAmbientTranscriptPath(controlPlane, recordId) {
-  const raw = readJsonSafely(recordPath(controlPlane, recordId));
-  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
-    return void 0;
-  const prov = raw.value.ambient_provenance;
-  if (!prov || typeof prov.transcript_path !== "string" || prov.transcript_path.length === 0) {
-    return void 0;
-  }
-  return prov.transcript_path;
-}
-function tombstoneAmbientRecord(controlPlane, recordId, now) {
-  const transcriptPath = readAmbientTranscriptPath(controlPlane, recordId);
-  if (transcriptPath === void 0)
-    return;
-  let position;
-  try {
-    position = statSync2(transcriptPath).size;
-  } catch {
-    position = readHarvestCursor(cursorPath(controlPlane, recordId))?.byte_offset;
-  }
-  if (position === void 0)
-    return;
-  const tombstone = {
-    schema_version: 1,
-    record_id: recordId,
-    transcript_path: transcriptPath,
-    position,
-    cleared_at: now().toISOString()
-  };
-  writeJsonAtomic(tombstonePath(controlPlane, recordId), tombstone);
-}
-function parseTranscriptForHarvest(transcriptPath, cursor) {
-  let size;
-  try {
-    size = statSync2(transcriptPath).size;
-  } catch {
-    return void 0;
-  }
-  if (cursor !== void 0 && cursor.transcript_path === transcriptPath && cursor.byte_offset >= HEAD_FINGERPRINT_BYTES && cursor.byte_offset <= size) {
-    const head = readByteRange(transcriptPath, 0, HEAD_FINGERPRINT_BYTES);
-    if (head !== void 0 && sha256Hex(head) === cursor.head_fingerprint) {
-      const tail = readByteRange(transcriptPath, cursor.byte_offset, size - cursor.byte_offset);
-      if (tail !== void 0) {
-        const tailParsed = parseTranscriptContent(tail.toString("utf8"));
-        const intents = [...cursor.intents, ...tailParsed.intents].slice(-AMBIENT_MAX_INTENTS);
-        const summary = tailParsed.summary ?? cursor.summary;
-        const tailLastNewline = tail.lastIndexOf(10);
-        const byteOffset2 = tailLastNewline === -1 ? cursor.byte_offset : cursor.byte_offset + tailLastNewline + 1;
-        return {
-          parsed: { intents, summary },
-          nextCursor: {
-            transcript_path: transcriptPath,
-            byte_offset: byteOffset2,
-            // Head region is unchanged and stays >= window, so the fingerprint
-            // is still valid for the next harvest.
-            head_fingerprint: cursor.head_fingerprint,
-            intents,
-            ...summary === void 0 ? {} : { summary }
-          }
-        };
-      }
-    }
-  }
-  let buf;
-  try {
-    buf = readFileSync29(transcriptPath);
-  } catch {
-    return void 0;
-  }
-  const parsed = parseTranscriptContent(buf.toString("utf8"));
-  const lastNewline = buf.lastIndexOf(10);
-  const byteOffset = lastNewline === -1 ? 0 : lastNewline + 1;
-  const headLength = Math.min(byteOffset, HEAD_FINGERPRINT_BYTES);
-  return {
-    parsed,
-    nextCursor: {
-      transcript_path: transcriptPath,
-      byte_offset: byteOffset,
-      head_fingerprint: sha256Hex(buf.subarray(0, headLength)),
-      intents: parsed.intents,
-      ...parsed.summary === void 0 ? {} : { summary: parsed.summary }
-    }
-  };
-}
-var AMBIENT_RECORDS_KEPT = 10;
-function sanitizeStemPart(raw) {
-  if (raw === void 0)
-    return void 0;
-  const cleaned = raw.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/\.{2,}/g, ".").replace(/^[^a-z0-9]+/, "").slice(0, 100);
-  return cleaned.length === 0 ? void 0 : cleaned;
-}
-function deriveAmbientStem(sessionId, transcriptPath) {
-  const fromSession = sanitizeStemPart(sessionId);
-  if (fromSession !== void 0)
-    return `ambient-${fromSession}`;
-  const base = basename(transcriptPath).replace(/\.jsonl$/i, "");
-  const fromTranscript = sanitizeStemPart(base);
-  if (fromTranscript !== void 0)
-    return `ambient-${fromTranscript}`;
-  return DEFAULT_AMBIENT_RECORD_STEM;
-}
-function listAmbientRecords(controlPlane) {
-  let names;
-  try {
-    names = readdirSync(recordsRoot(controlPlane));
-  } catch {
-    return [];
-  }
-  const entries = [];
-  for (const name of names) {
-    if (!name.startsWith("ambient-") || !name.endsWith(".json"))
-      continue;
-    const recordId = name.slice(0, -".json".length);
-    const raw = readJsonSafely(join10(recordsRoot(controlPlane), name));
-    const createdAt = raw.ok && typeof raw.value === "object" && raw.value !== null && typeof raw.value.created_at === "string" ? raw.value.created_at : "";
-    entries.push({ record_id: recordId, created_at: createdAt });
-  }
-  return entries;
-}
-function removeFileQuietly(path) {
-  try {
-    rmSync3(path, { force: true });
-  } catch {
-  }
-}
-function removeAllAmbientRecords(controlPlane) {
-  for (const entry of listAmbientRecords(controlPlane)) {
-    removeFileQuietly(recordPath(controlPlane, entry.record_id));
-    if (isSafeControlPlaneStem(entry.record_id)) {
-      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
-    }
-  }
-}
-function reconcileAmbientRecords(controlPlane, current) {
-  const entries = listAmbientRecords(controlPlane);
-  let pointer = current;
-  for (const entry of entries) {
-    if (entry.created_at > pointer.created_at)
-      pointer = entry;
-  }
-  const sorted = [...entries].sort((a, b) => a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0);
-  for (const entry of sorted.slice(AMBIENT_RECORDS_KEPT)) {
-    if (entry.record_id === pointer.record_id || entry.record_id === current.record_id)
-      continue;
-    removeFileQuietly(recordPath(controlPlane, entry.record_id));
-    if (isSafeControlPlaneStem(entry.record_id)) {
-      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
-    }
-  }
-  return pointer;
-}
-function realAmbientGitProbe(projectRoot) {
-  const git = (gitArgs) => {
-    try {
-      return execFileSync("git", ["-C", projectRoot, ...gitArgs], {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"]
-      }).trim();
-    } catch {
-      return void 0;
-    }
-  };
-  if (git(["rev-parse", "--is-inside-work-tree"]) !== "true")
-    return {};
-  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
-  const head = git(["rev-parse", "--short", "HEAD"]);
-  const status = git(["status", "--porcelain=v1"]);
-  const statusPorcelain = status === void 0 || status.length === 0 ? void 0 : status.split("\n").slice(0, 40).join("\n");
-  return {
-    ...branch ? { branch } : {},
-    ...head ? { head } : {},
-    ...statusPorcelain ? { statusPorcelain } : {}
-  };
-}
-function composeAmbientStateMarkdown(intents, summary, git, transcriptPath) {
-  const summarySection = () => [
-    "## Structured summary (harvested from the last compaction)",
-    summary ?? "None captured this session. Full history is in the transcript below."
-  ];
-  const intentSection = () => {
-    const out = ["## Recent intent (your last requests, newest last)"];
-    if (intents.length > 0) {
-      for (const intent of intents)
-        out.push(`- ${intent}`);
-    } else {
-      out.push("- (none captured; see the transcript below)");
-    }
-    return out;
-  };
-  const treeSection = () => {
-    const out = ["## Working tree (uncommitted)"];
-    if (git.statusPorcelain !== void 0) {
-      out.push("```", git.statusPorcelain, "```");
-    } else {
-      out.push("clean, or not a git repo");
-    }
-    return out;
-  };
-  const lines = summary !== void 0 ? [...summarySection(), "", ...intentSection(), "", ...treeSection()] : [...intentSection(), "", ...treeSection(), "", ...summarySection()];
-  lines.push("", "## Full detail", `Transcript: ${transcriptPath}`);
-  return lines.join("\n");
-}
-function harvestAmbientContinuity(input) {
-  const projectRoot = resolve10(input.projectRoot);
-  const controlPlane = input.controlPlane === void 0 ? resolve10(projectRoot, DEFAULT_CONTROL_PLANE) : resolve10(input.controlPlane);
-  const skip = (reason) => ({
-    schema_version: 1,
-    action: "harvest",
-    status: "skipped",
-    reason,
-    index_path: indexPath(controlPlane)
-  });
-  if (!existsSync13(input.transcriptPath))
-    return skip("no_transcript");
-  const recordId = input.recordId ?? deriveAmbientStem(input.sessionId, input.transcriptPath);
-  const stemSafe = isSafeControlPlaneStem(recordId);
-  const cursorAbs = stemSafe ? cursorPath(controlPlane, recordId) : void 0;
-  const priorCursor = cursorAbs === void 0 ? void 0 : readHarvestCursor(cursorAbs);
-  const tombstoneAbs = stemSafe ? tombstonePath(controlPlane, recordId) : void 0;
-  if (tombstoneAbs !== void 0) {
-    const tombstone = readTombstone(tombstoneAbs);
-    if (tombstone !== void 0 && tombstone.transcript_path === input.transcriptPath) {
-      let size;
-      try {
-        size = statSync2(input.transcriptPath).size;
-      } catch {
-        size = 0;
-      }
-      if (size <= tombstone.position)
-        return skip("cleared");
-      const tail = readByteRange(input.transcriptPath, tombstone.position, size - tombstone.position);
-      const tailIntents = tail === void 0 ? [] : parseTranscriptContent(tail.toString("utf8")).intents;
-      if (tailIntents.length === 0)
-        return skip("cleared");
-      removeFileQuietly(tombstoneAbs);
-    }
-  }
-  const harvested = parseTranscriptForHarvest(input.transcriptPath, priorCursor);
-  if (harvested === void 0)
-    return skip("transcript_unreadable");
-  const parsed = harvested.parsed;
-  const git = (input.gitProbe ?? (() => ({})))(projectRoot);
-  if (parsed.intents.length === 0 && parsed.summary === void 0 && git.statusPorcelain === void 0) {
-    return skip("nothing_to_harvest");
-  }
-  const createdAt = input.createdAt ?? input.now().toISOString();
-  const latestIntent = parsed.intents[parsed.intents.length - 1];
-  const goal = latestIntent ?? `Resume the mechanically captured session in ${basename(projectRoot) || projectRoot}`;
-  const record2 = ContinuityRecord.parse({
-    schema_version: 1,
-    record_id: recordId,
-    project_root: projectRoot,
-    created_at: createdAt,
-    git: {
-      cwd: projectRoot,
-      ...git.branch ? { branch: git.branch } : {},
-      ...git.head ? { head: git.head } : {}
-    },
-    narrative: {
-      goal,
-      next: "Review the recent intents and harvested summary below, then continue. This record was captured automatically, not saved by you, so confirm before acting.",
-      state_markdown: composeAmbientStateMarkdown(parsed.intents, parsed.summary, git, input.transcriptPath),
-      debt_markdown: `- Mechanically harvested from the live transcript at ${createdAt}. Treat it as a hint, not a verified plan.`
-    },
-    continuity_kind: "ambient",
-    ambient_provenance: {
-      transcript_path: input.transcriptPath,
-      ...input.sessionId ? { session_id: input.sessionId } : {},
-      source: input.source
-    },
-    resume_contract: {
-      mode: "resume_ambient",
-      auto_resume: false,
-      requires_explicit_resume: true
-    }
-  });
-  const recordAbs = recordPath(controlPlane, record2.record_id);
-  writeJsonAtomic(recordAbs, record2);
-  if (cursorAbs !== void 0)
-    writeJsonAtomic(cursorAbs, harvested.nextCursor);
-  const pointer = reconcileAmbientRecords(controlPlane, {
-    record_id: record2.record_id,
-    created_at: record2.created_at
-  });
-  const existing = readContinuityIndexOrNull(controlPlane);
-  const index = ContinuityIndex.parse({
-    schema_version: 1,
-    project_root: existing?.project_root ?? projectRoot,
-    pending_record: existing?.pending_record ?? null,
-    current_run: existing?.current_run ?? null,
-    ambient_record: {
-      record_id: pointer.record_id,
-      continuity_kind: "ambient",
-      created_at: pointer.created_at
-    }
-  });
-  writeJsonAtomic(indexPath(controlPlane), index);
-  return {
-    schema_version: 1,
-    action: "harvest",
-    status: "harvested",
-    record_id: record2.record_id,
-    continuity_path: recordAbs,
-    index_path: indexPath(controlPlane),
-    intents_captured: parsed.intents.length,
-    summary_captured: parsed.summary !== void 0
-  };
-}
-function ambientSourceFrom(value, hookEventName) {
-  if (value === "session-end")
-    return "session-end";
-  if (value === "pre-compact")
-    return "pre-compact";
-  if (value === "stop")
-    return "stop";
-  if (typeof hookEventName === "string" && hookEventName === "SessionEnd")
-    return "session-end";
-  if (typeof hookEventName === "string" && hookEventName === "PreCompact")
-    return "pre-compact";
-  return "stop";
-}
-
-// dist/cli/handoff-codex-hooks.js
-import { copyFileSync, existsSync as existsSync14, mkdirSync as mkdirSync4, readFileSync as readFileSync30, writeFileSync as writeFileSync5 } from "node:fs";
-import { homedir as homedir2 } from "node:os";
-import { dirname as dirname5, join as join11, resolve as resolve11 } from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-var HANDOFF_HOOKS_API_VERSION = "handoff-hooks-v1";
-var HANDOFF_HOOKS_SCHEMA_VERSION = 1;
-var CIRCUIT_HOOK_MARKER = "CIRCUIT_HANDOFF_HOOK=1";
-function defaultCodexHooksFile() {
-  const codexHome = process.env.CODEX_HOME ?? resolve11(homedir2(), ".codex");
-  return resolve11(codexHome, "hooks.json");
-}
-function resolveDefaultLauncher(pluginRoot, moduleDir) {
-  if (pluginRoot !== void 0 && pluginRoot.length > 0) {
-    return resolve11(pluginRoot, "scripts/circuit.ts");
-  }
-  return resolve11(moduleDir, "../..", "bin/circuit");
-}
-function missingDefaultLauncherMessage(launcher) {
-  return [
-    "CIRCUIT_PLUGIN_ROOT is unset and no wrapper was detected.",
-    "Either set CIRCUIT_PLUGIN_ROOT or invoke through plugins/<host>/scripts/circuit.ts.",
-    `Tried source-tree fallback launcher: ${launcher}`
-  ].join(" ");
-}
-function defaultLauncherPath() {
-  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname5(fileURLToPath2(import.meta.url)));
-}
-function parseCodexHooksHost(args) {
-  if (args.host === "codex")
-    return "codex";
-  throw new Error("handoff hooks requires --host codex");
-}
-function resolveHooksFileArg(args) {
-  return resolve11(args.hooksFile ?? defaultCodexHooksFile());
-}
-function resolveLauncherArg(args) {
-  const launcher = resolve11(args.launcher ?? defaultLauncherPath());
-  if (!existsSync14(launcher)) {
-    if (args.launcher === void 0 && (process.env.CIRCUIT_PLUGIN_ROOT ?? "").length === 0) {
-      throw new Error(missingDefaultLauncherMessage(launcher));
-    }
-    throw new Error(`Circuit launcher not found: ${launcher}`);
-  }
-  return launcher;
-}
-function shellQuote(value) {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-function codexHookCommand(launcher) {
-  return [
-    CIRCUIT_HOOK_MARKER,
-    shellQuote(process.execPath),
-    shellQuote(launcher),
-    "handoff",
-    "hook",
-    "--host",
-    "codex"
-  ].join(" ");
-}
-function defaultHooksConfig() {
-  return { hooks: {} };
-}
-function readHooksConfig(path) {
-  if (!existsSync14(path))
-    return defaultHooksConfig();
-  const parsed = JSON.parse(readFileSync30(path, "utf8"));
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("hooks file must contain a JSON object");
-  }
-  return parsed;
-}
-function hooksObject(config2) {
-  const hooks = config2.hooks;
-  if (hooks === void 0) {
-    const next = {};
-    config2.hooks = next;
-    return next;
-  }
-  if (typeof hooks !== "object" || hooks === null || Array.isArray(hooks)) {
-    throw new Error("hooks file has invalid hooks object");
-  }
-  return hooks;
-}
-function sessionStartEntries(config2) {
-  const entries = hooksObject(config2).SessionStart;
-  if (entries === void 0)
-    return [];
-  if (!Array.isArray(entries)) {
-    throw new Error("hooks.SessionStart must be an array");
-  }
-  return entries;
-}
-function setSessionStartEntries(config2, entries) {
-  hooksObject(config2).SessionStart = entries;
-}
-function circuitCodexHookEntry(command) {
-  return {
-    matcher: "startup|resume|clear",
-    hooks: [
-      {
-        type: "command",
-        command,
-        timeout: 3
-      }
-    ]
-  };
-}
-function isCircuitCodexHookEntry(entry) {
-  return JSON.stringify(entry).includes("handoff hook --host codex");
-}
-function splitShellWords(command) {
-  const words = [];
-  let current = "";
-  let inSingle = false;
-  for (let i = 0; i < command.length; i++) {
-    const char = command[i];
-    if (char === "'") {
-      inSingle = !inSingle;
-      continue;
-    }
-    if (!inSingle && char === "\\" && i + 1 < command.length) {
-      current += command[i + 1];
-      i += 1;
-      continue;
-    }
-    if (!inSingle && /\s/.test(char ?? "")) {
-      if (current.length > 0) {
-        words.push(current);
-        current = "";
-      }
-      continue;
-    }
-    current += char;
-  }
-  if (current.length > 0)
-    words.push(current);
-  return words;
-}
-function commandFromHookHandler(value) {
-  if (typeof value === "object" && value !== null && "command" in value && typeof value.command === "string") {
-    return value.command;
-  }
-  return void 0;
-}
-function circuitHookCommands(entries) {
-  const commands = [];
-  for (const entry of entries) {
-    if (typeof entry !== "object" || entry === null || !("hooks" in entry) || !Array.isArray(entry.hooks)) {
-      continue;
-    }
-    for (const hook of entry.hooks) {
-      const command = commandFromHookHandler(hook);
-      if (command?.includes("handoff hook --host codex")) {
-        commands.push(command);
-      }
-    }
-  }
-  return commands;
-}
-function circuitHookEntryCount(entries) {
-  return entries.filter(isCircuitCodexHookEntry).length;
-}
-function launcherPathFromCircuitHookCommand(command) {
-  const words = splitShellWords(command);
-  const handoffIndex = words.findIndex((word, index) => word === "handoff" && words[index + 1] === "hook" && words[index + 2] === "--host" && words[index + 3] === "codex");
-  if (handoffIndex < 1)
-    return void 0;
-  const launcher = words[handoffIndex - 1];
-  if (launcher === void 0 || launcher.length === 0)
-    return void 0;
-  return launcher;
-}
-function writeHooksConfig(path, config2) {
-  mkdirSync4(dirname5(path), { recursive: true });
-  let backupPath;
-  if (existsSync14(path)) {
-    const candidate = `${path}.circuit-backup`;
-    if (!existsSync14(candidate)) {
-      copyFileSync(path, candidate);
-      backupPath = candidate;
-    }
-  }
-  writeFileSync5(path, `${JSON.stringify(config2, null, 2)}
-`);
-  return backupPath === void 0 ? {} : { backupPath };
-}
-function installCodexHandoffHook(args) {
-  parseCodexHooksHost(args);
-  const hooksPath = resolveHooksFileArg(args);
-  const launcher = resolveLauncherArg(args);
-  const command = codexHookCommand(launcher);
-  const config2 = readHooksConfig(hooksPath);
-  const entry = circuitCodexHookEntry(command);
-  const entries = sessionStartEntries(config2);
-  const existingCircuitEntries = entries.filter(isCircuitCodexHookEntry);
-  const alreadyInstalled = existingCircuitEntries.length === 1 && JSON.stringify(existingCircuitEntries[0]) === JSON.stringify(entry);
-  if (alreadyInstalled) {
-    return {
-      api_version: HANDOFF_HOOKS_API_VERSION,
-      schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
-      host: "codex",
-      action: "install",
-      status: "already_installed",
-      hooks_path: hooksPath,
-      launcher,
-      command
-    };
-  }
-  setSessionStartEntries(config2, [
-    ...entries.filter((item) => !isCircuitCodexHookEntry(item)),
-    entry
-  ]);
-  const { backupPath } = writeHooksConfig(hooksPath, config2);
-  return {
-    api_version: HANDOFF_HOOKS_API_VERSION,
-    schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
-    host: "codex",
-    action: "install",
-    status: "installed",
-    hooks_path: hooksPath,
-    launcher,
-    command,
-    ...backupPath === void 0 ? {} : { backup_path: backupPath }
-  };
-}
-function uninstallCodexHandoffHook(args) {
-  parseCodexHooksHost(args);
-  const hooksPath = resolveHooksFileArg(args);
-  if (!existsSync14(hooksPath)) {
-    return {
-      api_version: HANDOFF_HOOKS_API_VERSION,
-      schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
-      host: "codex",
-      action: "uninstall",
-      status: "not_installed",
-      hooks_path: hooksPath
-    };
-  }
-  const config2 = readHooksConfig(hooksPath);
-  const entries = sessionStartEntries(config2);
-  const nextEntries = entries.filter((item) => !isCircuitCodexHookEntry(item));
-  if (nextEntries.length === entries.length) {
-    return {
-      api_version: HANDOFF_HOOKS_API_VERSION,
-      schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
-      host: "codex",
-      action: "uninstall",
-      status: "not_installed",
-      hooks_path: hooksPath
-    };
-  }
-  setSessionStartEntries(config2, nextEntries);
-  const { backupPath } = writeHooksConfig(hooksPath, config2);
-  return {
-    api_version: HANDOFF_HOOKS_API_VERSION,
-    schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
-    host: "codex",
-    action: "uninstall",
-    status: "uninstalled",
-    hooks_path: hooksPath,
-    ...backupPath === void 0 ? {} : { backup_path: backupPath }
-  };
-}
-function doctorCodexHandoffHook(args) {
-  parseCodexHooksHost(args);
-  const hooksPath = resolveHooksFileArg(args);
-  const checks = [];
-  checks.push({ name: "hooks_file_exists", ok: existsSync14(hooksPath), detail: hooksPath });
-  let config2;
-  try {
-    config2 = readHooksConfig(hooksPath);
-    checks.push({ name: "hooks_file_parseable", ok: true, detail: hooksPath });
-  } catch (err) {
-    checks.push({
-      name: "hooks_file_parseable",
-      ok: false,
-      detail: err instanceof Error ? err.message : String(err)
-    });
-  }
-  if (config2 !== void 0) {
-    try {
-      const entries = sessionStartEntries(config2);
-      const circuitEntryCount = circuitHookEntryCount(entries);
-      const commands = circuitHookCommands(entries);
-      const launchers = commands.map(launcherPathFromCircuitHookCommand).filter((item) => item !== void 0);
-      checks.push({ name: "session_start_array", ok: true, detail: `${entries.length} entries` });
-      checks.push({
-        name: "circuit_handoff_hook_installed",
-        ok: circuitEntryCount > 0,
-        detail: `${circuitEntryCount} Circuit hooks in ${hooksPath}`
-      });
-      checks.push({
-        name: "circuit_handoff_hook_single",
-        ok: circuitEntryCount === 1 && commands.length === 1,
-        detail: `${circuitEntryCount} Circuit entries, ${commands.length} Circuit commands`
-      });
-      checks.push({
-        name: "circuit_handoff_hook_launcher_exists",
-        ok: launchers.length > 0 && launchers.every((launcher) => existsSync14(launcher)),
-        detail: launchers.length > 0 ? launchers.join(", ") : "launcher not found in hook command"
-      });
-    } catch (err) {
-      checks.push({
-        name: "session_start_array",
-        ok: false,
-        detail: err instanceof Error ? err.message : String(err)
-      });
-      checks.push({
-        name: "circuit_handoff_hook_installed",
-        ok: false,
-        detail: hooksPath
-      });
-      checks.push({
-        name: "circuit_handoff_hook_launcher_exists",
-        ok: false,
-        detail: "launcher not found in hook command"
-      });
-    }
-  }
-  const failed = checks.filter((item) => !item.ok && item.severity !== "warning");
-  const installedCheck = checks.find((item) => item.name === "circuit_handoff_hook_installed");
-  const structuralFailure = failed.some((item) => item.name === "hooks_file_parseable" || item.name === "session_start_array");
-  const status = !existsSync14(hooksPath) ? "missing" : structuralFailure ? "invalid" : installedCheck?.ok === false ? "missing" : failed.length === 0 ? "ok" : "invalid";
-  return {
-    api_version: HANDOFF_HOOKS_API_VERSION,
-    schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
-    host: "codex",
-    action: "doctor",
-    status,
-    hooks_path: hooksPath,
-    checks
-  };
-}
-function runHandoffHooksCommand(args) {
-  if (args.hooksAction === "install")
-    return installCodexHandoffHook(args);
-  if (args.hooksAction === "uninstall")
-    return uninstallCodexHandoffHook(args);
-  if (args.hooksAction === "doctor")
-    return doctorCodexHandoffHook(args);
-  throw new Error("handoff hooks requires install, uninstall, or doctor");
-}
-var CODEX_INSTALL_NUDGE_MARKER = ".codex-install-nudged";
-var CODEX_INSTALL_NUDGE_NOTICE = "Circuit restores this repo automatically on Claude, but on Codex it needs a one-time hook install before each new session can restore your continuity. Run: circuit handoff hooks install --host codex (this notice shows once per repo).";
-function codexInstallNudgeMarkerPath(controlPlane) {
-  return join11(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
-}
-function isCodexHandoffHookInstalled(hooksPath) {
-  if (!existsSync14(hooksPath))
-    return false;
-  let config2;
-  try {
-    config2 = readHooksConfig(hooksPath);
-  } catch {
-    return false;
-  }
-  try {
-    return circuitHookEntryCount(sessionStartEntries(config2)) > 0;
-  } catch {
-    return false;
-  }
-}
-function codexInstallAssurance(input) {
-  const controlPlane = input.controlPlane ?? resolve11(input.projectRoot, DEFAULT_CONTROL_PLANE);
-  const markerPath = codexInstallNudgeMarkerPath(controlPlane);
-  const hooksPath = input.hooksFile ?? defaultCodexHooksFile();
-  if (isCodexHandoffHookInstalled(hooksPath))
-    return { status: "ok", marker_path: markerPath };
-  if (existsSync14(markerPath))
-    return { status: "already_nudged", marker_path: markerPath };
-  const stampedAt = (input.now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
-  try {
-    mkdirSync4(dirname5(markerPath), { recursive: true });
-    writeFileSync5(markerPath, `nudged at ${stampedAt}
-`);
-  } catch {
-  }
-  return { status: "nudge", notice: CODEX_INSTALL_NUDGE_NOTICE, marker_path: markerPath };
-}
-
-// dist/cli/handoff.js
+// dist/app/continuity/brief.js
 var HANDOFF_BRIEF_API_VERSION = "handoff-brief-v1";
 var HANDOFF_BRIEF_SCHEMA_VERSION = 1;
 var HANDOFF_BRIEF_MAX_CHARS = 3e3;
-function addHandoffOptions(program2) {
-  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--source <stop|session-end|pre-compact>").option("--clear-ambient").option("--progress <format>").option("--json");
-}
-function parseArgs2(argv) {
-  let parsed;
-  const program2 = addHandoffOptions(new Command("circuit handoff").exitOverride().configureOutput({ writeErr: () => {
-  } }).enablePositionalOptions());
-  program2.action(() => {
-    parsed = { action: "save", opts: program2.opts() };
-  });
-  const addAction = (action2) => {
-    const command = addHandoffOptions(program2.command(action2));
-    command.action(() => {
-      parsed = { action: action2, opts: command.opts() };
-    });
-  };
-  addAction("save");
-  addAction("resume");
-  addAction("done");
-  addAction("brief");
-  addAction("hook");
-  addAction("harvest");
-  const hooks = program2.command("hooks").action(() => {
-    throw new Error("handoff hooks requires install, uninstall, or doctor");
-  });
-  const addHooksAction = (hooksAction2) => {
-    const command = addHandoffOptions(hooks.command(hooksAction2));
-    command.action(() => {
-      parsed = { action: "hooks", hooksAction: hooksAction2, opts: command.opts() };
-    });
-  };
-  addHooksAction("install");
-  addHooksAction("uninstall");
-  addHooksAction("doctor");
-  parseCommanderOrThrow(program2, argv);
-  if (parsed === void 0)
-    throw new Error("handoff requires a subcommand");
-  const { action, hooksAction, opts } = parsed;
-  if (opts.progress !== void 0 && opts.progress !== "jsonl") {
-    throw new Error("--progress only supports 'jsonl'");
-  }
-  return {
-    action,
-    ...hooksAction === void 0 ? {} : { hooksAction },
-    ...opts.host === void 0 ? {} : { host: opts.host },
-    progress: opts.progress === "jsonl",
-    json: opts.json === true,
-    clearAmbient: opts.clearAmbient === true,
-    ...opts.goal === void 0 ? {} : { goal: opts.goal },
-    ...opts.next === void 0 ? {} : { next: opts.next },
-    ...opts.stateMarkdown === void 0 ? {} : { stateMarkdown: opts.stateMarkdown },
-    ...opts.debtMarkdown === void 0 ? {} : { debtMarkdown: opts.debtMarkdown },
-    ...opts.runFolder === void 0 ? {} : { runFolder: opts.runFolder },
-    ...opts.controlPlane === void 0 ? {} : { controlPlane: opts.controlPlane },
-    ...opts.projectRoot === void 0 ? {} : { projectRoot: opts.projectRoot },
-    ...opts.hooksFile === void 0 ? {} : { hooksFile: opts.hooksFile },
-    ...opts.launcher === void 0 ? {} : { launcher: opts.launcher },
-    ...opts.recordId === void 0 ? {} : { recordId: opts.recordId },
-    ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt },
-    ...opts.transcriptPath === void 0 ? {} : { transcriptPath: opts.transcriptPath },
-    ...opts.sessionId === void 0 ? {} : { sessionId: opts.sessionId },
-    ...opts.source === void 0 ? {} : { source: opts.source }
-  };
-}
-function resolveControlPlaneArg(args) {
-  if (args.controlPlane !== void 0)
-    return resolve12(args.controlPlane);
-  return resolve12(resolveProjectRootArg(args), DEFAULT_CONTROL_PLANE);
-}
 function runBackedStatusNote(record2) {
   if (record2.continuity_kind !== "run-backed")
     return void 0;
@@ -46543,7 +45596,7 @@ function stalenessBlockLines(record2, staleness) {
   return lines.length > 1 ? lines : [];
 }
 function composeAmbientBrief(record2, state, debt, ageLabel, staleness) {
-  const repo = basename2(record2.git.cwd) || record2.git.cwd;
+  const repo = basename(record2.git.cwd) || record2.git.cwd;
   const capturedSuffix = ageLabel === void 0 ? "" : ` (captured ${ageLabel})`;
   const stalenessLines = stalenessBlockLines(record2, staleness);
   const boundary = staleness !== void 0 && stalenessDiverged(staleness) ? AMBIENT_BOUNDARY_ADVANCED : AMBIENT_BOUNDARY_DEFAULT;
@@ -46689,19 +45742,19 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now, gitProbe)
   const projectRoot = resolveProjectRootArg(args);
   const indexAbs = indexPath(controlPlane);
   const recordAbs = recordPath(controlPlane, pointer.record_id);
-  if (!existsSync15(recordAbs)) {
+  if (!existsSync13(recordAbs)) {
     return invalidBrief(args, "record_missing", "Continuity index points at a missing record.", pointer.record_id);
   }
   let record2;
   try {
-    record2 = ContinuityRecord.parse(JSON.parse(readFileSync31(recordAbs, "utf8")));
+    record2 = ContinuityRecord.parse(JSON.parse(readFileSync28(recordAbs, "utf8")));
   } catch {
     return invalidBrief(args, "record_invalid", "Continuity record is malformed.", pointer.record_id);
   }
   if (record2.continuity_kind !== pointer.continuity_kind) {
     return invalidBrief(args, "record_kind_mismatch", "Continuity index kind disagrees with the pointed record.", pointer.record_id);
   }
-  const staleness = record2.continuity_kind === "ambient" && resolve12(record2.git.cwd) === resolve12(projectRoot) ? gitProbe({
+  const staleness = record2.continuity_kind === "ambient" && resolve10(record2.git.cwd) === resolve10(projectRoot) ? gitProbe({
     projectRoot,
     ...record2.git.head === void 0 ? {} : { capturedHead: record2.git.head },
     ...record2.git.branch === void 0 ? {} : { capturedBranch: record2.git.branch }
@@ -46729,11 +45782,11 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now, gitProbe)
 function handoffBrief(args, now = () => /* @__PURE__ */ new Date(), gitProbe = realBriefGitProbe) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync15(indexAbs))
+  if (!existsSync13(indexAbs))
     return emptyBrief(args, "no_index");
   let index;
   try {
-    index = ContinuityIndex.parse(JSON.parse(readFileSync31(indexAbs, "utf8")));
+    index = ContinuityIndex.parse(JSON.parse(readFileSync28(indexAbs, "utf8")));
   } catch {
     return invalidBrief(args, "index_invalid", "Continuity index is malformed.");
   }
@@ -46765,6 +45818,1020 @@ function briefErrorOf(brief) {
   const message = typeof error51 === "object" && error51 !== null && "message" in error51 ? String(error51.message ?? "Continuity record could not be loaded.") : "Continuity record could not be loaded.";
   return { code, message };
 }
+function realBriefGitProbe(input) {
+  const { projectRoot, capturedHead, capturedBranch } = input;
+  const git = (gitArgs) => {
+    try {
+      return execFileSync("git", ["-C", projectRoot, ...gitArgs], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 2e3
+      }).trim();
+    } catch {
+      return void 0;
+    }
+  };
+  const gitBool = (gitArgs) => {
+    try {
+      execFileSync("git", ["-C", projectRoot, ...gitArgs], {
+        stdio: ["ignore", "ignore", "ignore"],
+        timeout: 2e3
+      });
+      return true;
+    } catch (err) {
+      return err.status === 1 ? false : void 0;
+    }
+  };
+  try {
+    if (git(["rev-parse", "--is-inside-work-tree"]) !== "true")
+      return {};
+    const facts = {};
+    const headFull = git(["rev-parse", "HEAD"]);
+    const capturedFull = capturedHead === void 0 ? void 0 : git(["rev-parse", "--verify", `${capturedHead}^{commit}`]);
+    const status = git(["status", "--porcelain=v1"]);
+    if (status !== void 0)
+      facts.tree_clean = status.length === 0;
+    const currentShort = git(["rev-parse", "--short", "HEAD"]);
+    if (currentShort !== void 0)
+      facts.current_head = currentShort;
+    if (headFull !== void 0 && capturedFull !== void 0) {
+      facts.head_advanced = headFull !== capturedFull;
+    }
+    if (capturedHead !== void 0) {
+      const reachable = gitBool(["merge-base", "--is-ancestor", capturedHead, "HEAD"]);
+      if (reachable !== void 0)
+        facts.capture_head_reachable = reachable;
+      const countRaw = git(["rev-list", "--count", `${capturedHead}..HEAD`]);
+      if (countRaw !== void 0) {
+        const n = Number.parseInt(countRaw, 10);
+        if (Number.isFinite(n))
+          facts.commits_since = n;
+      }
+    }
+    if (capturedBranch !== void 0 && capturedBranch.length > 0 && capturedBranch !== "HEAD") {
+      const branchSha = git(["rev-parse", "--verify", "--quiet", `refs/heads/${capturedBranch}`]);
+      if (branchSha === void 0) {
+        facts.branch_gone = true;
+      }
+    }
+    return facts;
+  } catch {
+    return {};
+  }
+}
+
+// dist/app/continuity/harvest.js
+import { execFileSync as execFileSync2 } from "node:child_process";
+import { createHash as createHash4 } from "node:crypto";
+import { closeSync as closeSync2, existsSync as existsSync14, openSync as openSync2, readFileSync as readFileSync30, readSync as readSync2, readdirSync, rmSync as rmSync3, statSync as statSync2 } from "node:fs";
+import { basename as basename2, join as join10, resolve as resolve11 } from "node:path";
+
+// dist/shared/atomic-io.js
+import { randomUUID as randomUUID4 } from "node:crypto";
+import { mkdirSync as mkdirSync3, readFileSync as readFileSync29, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync4 } from "node:fs";
+import { dirname as dirname4 } from "node:path";
+function writeTextAtomic(path, contents, options = {}) {
+  mkdirSync3(dirname4(path), { recursive: true });
+  const staging = `${path}.${randomUUID4()}.tmp`;
+  writeFileSync4(staging, contents);
+  try {
+    options.validate?.(readFileSync29(staging, "utf8"));
+    renameSync(staging, path);
+  } catch (error51) {
+    rmSync2(staging, { force: true });
+    throw error51;
+  }
+}
+function writeJsonAtomic(path, value, options = {}) {
+  writeTextAtomic(path, `${JSON.stringify(value, null, 2)}
+`, options);
+}
+
+// dist/app/continuity/harvest.js
+var DEFAULT_AMBIENT_RECORD_STEM = "ambient-latest";
+var AMBIENT_INTENT_MAX_CHARS = 280;
+var AMBIENT_MAX_INTENTS = 4;
+var AMBIENT_HOST_TAG_PREFIX = /^<(command-name|command-message|command-args|local-command|system-reminder|task-notification|bash-input|bash-stdout|bash-stderr)/;
+var AMBIENT_DROP_LINE_PREFIX = /^(# \/|# Warm continuity record|Caveat:|\[SESSION CONTINUITY\]|Base directory for this skill:)/;
+var AMBIENT_INTERRUPT_MARKER = /Request interrupted/;
+function collapseWhitespace(value) {
+  return value.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function isDroppedIntent(text) {
+  return text.length === 0 || AMBIENT_HOST_TAG_PREFIX.test(text) || AMBIENT_DROP_LINE_PREFIX.test(text) || AMBIENT_INTERRUPT_MARKER.test(text);
+}
+function textBlocks(content) {
+  if (!Array.isArray(content))
+    return [];
+  const blocks = [];
+  for (const block of content) {
+    if (typeof block === "object" && block !== null && block.type === "text" && typeof block.text === "string") {
+      blocks.push(block.text);
+    }
+  }
+  return blocks;
+}
+function userMessageText(content) {
+  if (typeof content === "string") {
+    const collapsed = collapseWhitespace(content);
+    return collapsed.length === 0 ? void 0 : collapsed;
+  }
+  if (Array.isArray(content)) {
+    const collapsed = collapseWhitespace(textBlocks(content).join(" "));
+    return collapsed.length === 0 ? void 0 : collapsed;
+  }
+  return void 0;
+}
+function compactSummaryText(content) {
+  const raw = typeof content === "string" ? content : textBlocks(content).join("\n");
+  const trimmed = raw.trim();
+  return trimmed.length === 0 ? void 0 : trimmed;
+}
+function parseTranscriptContent(raw) {
+  const intents = [];
+  let summary;
+  for (const line of raw.split("\n")) {
+    if (line.trim().length === 0)
+      continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof parsed !== "object" || parsed === null)
+      continue;
+    const entry = parsed;
+    const content = entry.message?.content;
+    if (entry.isCompactSummary === true) {
+      const text2 = compactSummaryText(content);
+      if (text2 !== void 0)
+        summary = text2;
+      continue;
+    }
+    if (entry.type !== "user")
+      continue;
+    const text = userMessageText(content);
+    if (text === void 0 || isDroppedIntent(text))
+      continue;
+    intents.push(text.slice(0, AMBIENT_INTENT_MAX_CHARS));
+  }
+  return { intents: intents.slice(-AMBIENT_MAX_INTENTS), summary };
+}
+var HEAD_FINGERPRINT_BYTES = 4096;
+function cursorsRoot(controlPlane) {
+  return join10(continuityRoot(controlPlane), "cursors");
+}
+function cursorPath(controlPlane, recordId) {
+  return join10(cursorsRoot(controlPlane), `${recordId}.json`);
+}
+function isSafeControlPlaneStem(value) {
+  return /^[a-z0-9][a-z0-9._-]*$/.test(value) && !value.includes("..") && value.length <= 128;
+}
+function sha256Hex(buf) {
+  return createHash4("sha256").update(buf).digest("hex");
+}
+function readByteRange(path, start, length) {
+  if (length <= 0)
+    return Buffer.alloc(0);
+  let fd;
+  try {
+    fd = openSync2(path, "r");
+    const buf = Buffer.allocUnsafe(length);
+    const read = readSync2(fd, buf, 0, length, start);
+    return buf.subarray(0, read);
+  } catch {
+    return void 0;
+  } finally {
+    if (fd !== void 0)
+      closeSync2(fd);
+  }
+}
+function readHarvestCursor(path) {
+  if (!existsSync14(path))
+    return void 0;
+  const raw = readJsonSafely(path);
+  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
+    return void 0;
+  const o = raw.value;
+  if (typeof o.transcript_path !== "string")
+    return void 0;
+  if (typeof o.byte_offset !== "number" || !Number.isFinite(o.byte_offset) || o.byte_offset < 0) {
+    return void 0;
+  }
+  if (typeof o.head_fingerprint !== "string")
+    return void 0;
+  if (!Array.isArray(o.intents) || !o.intents.every((i) => typeof i === "string"))
+    return void 0;
+  if (o.summary !== void 0 && typeof o.summary !== "string")
+    return void 0;
+  return {
+    transcript_path: o.transcript_path,
+    byte_offset: o.byte_offset,
+    head_fingerprint: o.head_fingerprint,
+    intents: o.intents,
+    ...typeof o.summary === "string" ? { summary: o.summary } : {}
+  };
+}
+function tombstonesRoot(controlPlane) {
+  return join10(continuityRoot(controlPlane), "tombstones");
+}
+function tombstonePath(controlPlane, recordId) {
+  return join10(tombstonesRoot(controlPlane), `${recordId}.json`);
+}
+function readTombstone(path) {
+  if (!existsSync14(path))
+    return void 0;
+  const raw = readJsonSafely(path);
+  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
+    return void 0;
+  const o = raw.value;
+  if (o.schema_version !== 1)
+    return void 0;
+  if (typeof o.record_id !== "string")
+    return void 0;
+  if (typeof o.transcript_path !== "string")
+    return void 0;
+  if (typeof o.position !== "number" || !Number.isFinite(o.position) || o.position < 0)
+    return void 0;
+  if (typeof o.cleared_at !== "string")
+    return void 0;
+  return {
+    schema_version: 1,
+    record_id: o.record_id,
+    transcript_path: o.transcript_path,
+    position: o.position,
+    cleared_at: o.cleared_at
+  };
+}
+function readAmbientTranscriptPath(controlPlane, recordId) {
+  const raw = readJsonSafely(recordPath(controlPlane, recordId));
+  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
+    return void 0;
+  const prov = raw.value.ambient_provenance;
+  if (!prov || typeof prov.transcript_path !== "string" || prov.transcript_path.length === 0) {
+    return void 0;
+  }
+  return prov.transcript_path;
+}
+function tombstoneAmbientRecord(controlPlane, recordId, now) {
+  const transcriptPath = readAmbientTranscriptPath(controlPlane, recordId);
+  if (transcriptPath === void 0)
+    return;
+  let position;
+  try {
+    position = statSync2(transcriptPath).size;
+  } catch {
+    position = readHarvestCursor(cursorPath(controlPlane, recordId))?.byte_offset;
+  }
+  if (position === void 0)
+    return;
+  const tombstone = {
+    schema_version: 1,
+    record_id: recordId,
+    transcript_path: transcriptPath,
+    position,
+    cleared_at: now().toISOString()
+  };
+  writeJsonAtomic(tombstonePath(controlPlane, recordId), tombstone);
+}
+function parseTranscriptForHarvest(transcriptPath, cursor) {
+  let size;
+  try {
+    size = statSync2(transcriptPath).size;
+  } catch {
+    return void 0;
+  }
+  if (cursor !== void 0 && cursor.transcript_path === transcriptPath && cursor.byte_offset >= HEAD_FINGERPRINT_BYTES && cursor.byte_offset <= size) {
+    const head = readByteRange(transcriptPath, 0, HEAD_FINGERPRINT_BYTES);
+    if (head !== void 0 && sha256Hex(head) === cursor.head_fingerprint) {
+      const tail = readByteRange(transcriptPath, cursor.byte_offset, size - cursor.byte_offset);
+      if (tail !== void 0) {
+        const tailParsed = parseTranscriptContent(tail.toString("utf8"));
+        const intents = [...cursor.intents, ...tailParsed.intents].slice(-AMBIENT_MAX_INTENTS);
+        const summary = tailParsed.summary ?? cursor.summary;
+        const tailLastNewline = tail.lastIndexOf(10);
+        const byteOffset2 = tailLastNewline === -1 ? cursor.byte_offset : cursor.byte_offset + tailLastNewline + 1;
+        return {
+          parsed: { intents, summary },
+          nextCursor: {
+            transcript_path: transcriptPath,
+            byte_offset: byteOffset2,
+            // Head region is unchanged and stays >= window, so the fingerprint
+            // is still valid for the next harvest.
+            head_fingerprint: cursor.head_fingerprint,
+            intents,
+            ...summary === void 0 ? {} : { summary }
+          }
+        };
+      }
+    }
+  }
+  let buf;
+  try {
+    buf = readFileSync30(transcriptPath);
+  } catch {
+    return void 0;
+  }
+  const parsed = parseTranscriptContent(buf.toString("utf8"));
+  const lastNewline = buf.lastIndexOf(10);
+  const byteOffset = lastNewline === -1 ? 0 : lastNewline + 1;
+  const headLength = Math.min(byteOffset, HEAD_FINGERPRINT_BYTES);
+  return {
+    parsed,
+    nextCursor: {
+      transcript_path: transcriptPath,
+      byte_offset: byteOffset,
+      head_fingerprint: sha256Hex(buf.subarray(0, headLength)),
+      intents: parsed.intents,
+      ...parsed.summary === void 0 ? {} : { summary: parsed.summary }
+    }
+  };
+}
+var AMBIENT_RECORDS_KEPT = 10;
+function sanitizeStemPart(raw) {
+  if (raw === void 0)
+    return void 0;
+  const cleaned = raw.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/\.{2,}/g, ".").replace(/^[^a-z0-9]+/, "").slice(0, 100);
+  return cleaned.length === 0 ? void 0 : cleaned;
+}
+function deriveAmbientStem(sessionId, transcriptPath) {
+  const fromSession = sanitizeStemPart(sessionId);
+  if (fromSession !== void 0)
+    return `ambient-${fromSession}`;
+  const base = basename2(transcriptPath).replace(/\.jsonl$/i, "");
+  const fromTranscript = sanitizeStemPart(base);
+  if (fromTranscript !== void 0)
+    return `ambient-${fromTranscript}`;
+  return DEFAULT_AMBIENT_RECORD_STEM;
+}
+function listAmbientRecords(controlPlane) {
+  let names;
+  try {
+    names = readdirSync(recordsRoot(controlPlane));
+  } catch {
+    return [];
+  }
+  const entries = [];
+  for (const name of names) {
+    if (!name.startsWith("ambient-") || !name.endsWith(".json"))
+      continue;
+    const recordId = name.slice(0, -".json".length);
+    const raw = readJsonSafely(join10(recordsRoot(controlPlane), name));
+    const createdAt = raw.ok && typeof raw.value === "object" && raw.value !== null && typeof raw.value.created_at === "string" ? raw.value.created_at : "";
+    entries.push({ record_id: recordId, created_at: createdAt });
+  }
+  return entries;
+}
+function removeFileQuietly(path) {
+  try {
+    rmSync3(path, { force: true });
+  } catch {
+  }
+}
+function removeAllAmbientRecords(controlPlane) {
+  for (const entry of listAmbientRecords(controlPlane)) {
+    removeFileQuietly(recordPath(controlPlane, entry.record_id));
+    if (isSafeControlPlaneStem(entry.record_id)) {
+      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
+    }
+  }
+}
+function reconcileAmbientRecords(controlPlane, current) {
+  const entries = listAmbientRecords(controlPlane);
+  let pointer = current;
+  for (const entry of entries) {
+    if (entry.created_at > pointer.created_at)
+      pointer = entry;
+  }
+  const sorted = [...entries].sort((a, b) => a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0);
+  for (const entry of sorted.slice(AMBIENT_RECORDS_KEPT)) {
+    if (entry.record_id === pointer.record_id || entry.record_id === current.record_id)
+      continue;
+    removeFileQuietly(recordPath(controlPlane, entry.record_id));
+    if (isSafeControlPlaneStem(entry.record_id)) {
+      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
+    }
+  }
+  return pointer;
+}
+function realAmbientGitProbe(projectRoot) {
+  const git = (gitArgs) => {
+    try {
+      return execFileSync2("git", ["-C", projectRoot, ...gitArgs], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"]
+      }).trim();
+    } catch {
+      return void 0;
+    }
+  };
+  if (git(["rev-parse", "--is-inside-work-tree"]) !== "true")
+    return {};
+  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const head = git(["rev-parse", "--short", "HEAD"]);
+  const status = git(["status", "--porcelain=v1"]);
+  const statusPorcelain = status === void 0 || status.length === 0 ? void 0 : status.split("\n").slice(0, 40).join("\n");
+  return {
+    ...branch ? { branch } : {},
+    ...head ? { head } : {},
+    ...statusPorcelain ? { statusPorcelain } : {}
+  };
+}
+function composeAmbientStateMarkdown(intents, summary, git, transcriptPath) {
+  const summarySection = () => [
+    "## Structured summary (harvested from the last compaction)",
+    summary ?? "None captured this session. Full history is in the transcript below."
+  ];
+  const intentSection = () => {
+    const out = ["## Recent intent (your last requests, newest last)"];
+    if (intents.length > 0) {
+      for (const intent of intents)
+        out.push(`- ${intent}`);
+    } else {
+      out.push("- (none captured; see the transcript below)");
+    }
+    return out;
+  };
+  const treeSection = () => {
+    const out = ["## Working tree (uncommitted)"];
+    if (git.statusPorcelain !== void 0) {
+      out.push("```", git.statusPorcelain, "```");
+    } else {
+      out.push("clean, or not a git repo");
+    }
+    return out;
+  };
+  const lines = summary !== void 0 ? [...summarySection(), "", ...intentSection(), "", ...treeSection()] : [...intentSection(), "", ...treeSection(), "", ...summarySection()];
+  lines.push("", "## Full detail", `Transcript: ${transcriptPath}`);
+  return lines.join("\n");
+}
+function harvestAmbientContinuity(input) {
+  const projectRoot = resolve11(input.projectRoot);
+  const controlPlane = input.controlPlane === void 0 ? resolve11(projectRoot, DEFAULT_CONTROL_PLANE) : resolve11(input.controlPlane);
+  const skip = (reason) => ({
+    schema_version: 1,
+    action: "harvest",
+    status: "skipped",
+    reason,
+    index_path: indexPath(controlPlane)
+  });
+  if (!existsSync14(input.transcriptPath))
+    return skip("no_transcript");
+  const recordId = input.recordId ?? deriveAmbientStem(input.sessionId, input.transcriptPath);
+  const stemSafe = isSafeControlPlaneStem(recordId);
+  const cursorAbs = stemSafe ? cursorPath(controlPlane, recordId) : void 0;
+  const priorCursor = cursorAbs === void 0 ? void 0 : readHarvestCursor(cursorAbs);
+  const tombstoneAbs = stemSafe ? tombstonePath(controlPlane, recordId) : void 0;
+  if (tombstoneAbs !== void 0) {
+    const tombstone = readTombstone(tombstoneAbs);
+    if (tombstone !== void 0 && tombstone.transcript_path === input.transcriptPath) {
+      let size;
+      try {
+        size = statSync2(input.transcriptPath).size;
+      } catch {
+        size = 0;
+      }
+      if (size <= tombstone.position)
+        return skip("cleared");
+      const tail = readByteRange(input.transcriptPath, tombstone.position, size - tombstone.position);
+      const tailIntents = tail === void 0 ? [] : parseTranscriptContent(tail.toString("utf8")).intents;
+      if (tailIntents.length === 0)
+        return skip("cleared");
+      removeFileQuietly(tombstoneAbs);
+    }
+  }
+  const harvested = parseTranscriptForHarvest(input.transcriptPath, priorCursor);
+  if (harvested === void 0)
+    return skip("transcript_unreadable");
+  const parsed = harvested.parsed;
+  const git = (input.gitProbe ?? (() => ({})))(projectRoot);
+  if (parsed.intents.length === 0 && parsed.summary === void 0 && git.statusPorcelain === void 0) {
+    return skip("nothing_to_harvest");
+  }
+  const createdAt = input.createdAt ?? input.now().toISOString();
+  const latestIntent = parsed.intents[parsed.intents.length - 1];
+  const goal = latestIntent ?? `Resume the mechanically captured session in ${basename2(projectRoot) || projectRoot}`;
+  const record2 = ContinuityRecord.parse({
+    schema_version: 1,
+    record_id: recordId,
+    project_root: projectRoot,
+    created_at: createdAt,
+    git: {
+      cwd: projectRoot,
+      ...git.branch ? { branch: git.branch } : {},
+      ...git.head ? { head: git.head } : {}
+    },
+    narrative: {
+      goal,
+      next: "Review the recent intents and harvested summary below, then continue. This record was captured automatically, not saved by you, so confirm before acting.",
+      state_markdown: composeAmbientStateMarkdown(parsed.intents, parsed.summary, git, input.transcriptPath),
+      debt_markdown: `- Mechanically harvested from the live transcript at ${createdAt}. Treat it as a hint, not a verified plan.`
+    },
+    continuity_kind: "ambient",
+    ambient_provenance: {
+      transcript_path: input.transcriptPath,
+      ...input.sessionId ? { session_id: input.sessionId } : {},
+      source: input.source
+    },
+    resume_contract: {
+      mode: "resume_ambient",
+      auto_resume: false,
+      requires_explicit_resume: true
+    }
+  });
+  const recordAbs = recordPath(controlPlane, record2.record_id);
+  writeJsonAtomic(recordAbs, record2);
+  if (cursorAbs !== void 0)
+    writeJsonAtomic(cursorAbs, harvested.nextCursor);
+  const pointer = reconcileAmbientRecords(controlPlane, {
+    record_id: record2.record_id,
+    created_at: record2.created_at
+  });
+  const existing = readContinuityIndexOrNull(controlPlane);
+  const index = ContinuityIndex.parse({
+    schema_version: 1,
+    project_root: existing?.project_root ?? projectRoot,
+    pending_record: existing?.pending_record ?? null,
+    current_run: existing?.current_run ?? null,
+    ambient_record: {
+      record_id: pointer.record_id,
+      continuity_kind: "ambient",
+      created_at: pointer.created_at
+    }
+  });
+  writeJsonAtomic(indexPath(controlPlane), index);
+  return {
+    schema_version: 1,
+    action: "harvest",
+    status: "harvested",
+    record_id: record2.record_id,
+    continuity_path: recordAbs,
+    index_path: indexPath(controlPlane),
+    intents_captured: parsed.intents.length,
+    summary_captured: parsed.summary !== void 0
+  };
+}
+function ambientSourceFrom(value, hookEventName) {
+  if (value === "session-end")
+    return "session-end";
+  if (value === "pre-compact")
+    return "pre-compact";
+  if (value === "stop")
+    return "stop";
+  if (typeof hookEventName === "string" && hookEventName === "SessionEnd")
+    return "session-end";
+  if (typeof hookEventName === "string" && hookEventName === "PreCompact")
+    return "pre-compact";
+  return "stop";
+}
+
+// dist/cli/handoff-codex-hooks.js
+import { copyFileSync, existsSync as existsSync15, mkdirSync as mkdirSync4, readFileSync as readFileSync31, writeFileSync as writeFileSync5 } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { dirname as dirname5, join as join11, resolve as resolve12 } from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+var HANDOFF_HOOKS_API_VERSION = "handoff-hooks-v1";
+var HANDOFF_HOOKS_SCHEMA_VERSION = 1;
+var CIRCUIT_HOOK_MARKER = "CIRCUIT_HANDOFF_HOOK=1";
+function defaultCodexHooksFile() {
+  const codexHome = process.env.CODEX_HOME ?? resolve12(homedir2(), ".codex");
+  return resolve12(codexHome, "hooks.json");
+}
+function resolveDefaultLauncher(pluginRoot, moduleDir) {
+  if (pluginRoot !== void 0 && pluginRoot.length > 0) {
+    return resolve12(pluginRoot, "scripts/circuit.ts");
+  }
+  return resolve12(moduleDir, "../..", "bin/circuit");
+}
+function missingDefaultLauncherMessage(launcher) {
+  return [
+    "CIRCUIT_PLUGIN_ROOT is unset and no wrapper was detected.",
+    "Either set CIRCUIT_PLUGIN_ROOT or invoke through plugins/<host>/scripts/circuit.ts.",
+    `Tried source-tree fallback launcher: ${launcher}`
+  ].join(" ");
+}
+function defaultLauncherPath() {
+  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname5(fileURLToPath2(import.meta.url)));
+}
+function parseCodexHooksHost(args) {
+  if (args.host === "codex")
+    return "codex";
+  throw new Error("handoff hooks requires --host codex");
+}
+function resolveHooksFileArg(args) {
+  return resolve12(args.hooksFile ?? defaultCodexHooksFile());
+}
+function resolveLauncherArg(args) {
+  const launcher = resolve12(args.launcher ?? defaultLauncherPath());
+  if (!existsSync15(launcher)) {
+    if (args.launcher === void 0 && (process.env.CIRCUIT_PLUGIN_ROOT ?? "").length === 0) {
+      throw new Error(missingDefaultLauncherMessage(launcher));
+    }
+    throw new Error(`Circuit launcher not found: ${launcher}`);
+  }
+  return launcher;
+}
+function shellQuote(value) {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+function codexHookCommand(launcher) {
+  return [
+    CIRCUIT_HOOK_MARKER,
+    shellQuote(process.execPath),
+    shellQuote(launcher),
+    "handoff",
+    "hook",
+    "--host",
+    "codex"
+  ].join(" ");
+}
+function defaultHooksConfig() {
+  return { hooks: {} };
+}
+function readHooksConfig(path) {
+  if (!existsSync15(path))
+    return defaultHooksConfig();
+  const parsed = JSON.parse(readFileSync31(path, "utf8"));
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("hooks file must contain a JSON object");
+  }
+  return parsed;
+}
+function hooksObject(config2) {
+  const hooks = config2.hooks;
+  if (hooks === void 0) {
+    const next = {};
+    config2.hooks = next;
+    return next;
+  }
+  if (typeof hooks !== "object" || hooks === null || Array.isArray(hooks)) {
+    throw new Error("hooks file has invalid hooks object");
+  }
+  return hooks;
+}
+function sessionStartEntries(config2) {
+  const entries = hooksObject(config2).SessionStart;
+  if (entries === void 0)
+    return [];
+  if (!Array.isArray(entries)) {
+    throw new Error("hooks.SessionStart must be an array");
+  }
+  return entries;
+}
+function setSessionStartEntries(config2, entries) {
+  hooksObject(config2).SessionStart = entries;
+}
+function circuitCodexHookEntry(command) {
+  return {
+    matcher: "startup|resume|clear",
+    hooks: [
+      {
+        type: "command",
+        command,
+        timeout: 3
+      }
+    ]
+  };
+}
+function isCircuitCodexHookEntry(entry) {
+  return JSON.stringify(entry).includes("handoff hook --host codex");
+}
+function splitShellWords(command) {
+  const words = [];
+  let current = "";
+  let inSingle = false;
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i];
+    if (char === "'") {
+      inSingle = !inSingle;
+      continue;
+    }
+    if (!inSingle && char === "\\" && i + 1 < command.length) {
+      current += command[i + 1];
+      i += 1;
+      continue;
+    }
+    if (!inSingle && /\s/.test(char ?? "")) {
+      if (current.length > 0) {
+        words.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (current.length > 0)
+    words.push(current);
+  return words;
+}
+function commandFromHookHandler(value) {
+  if (typeof value === "object" && value !== null && "command" in value && typeof value.command === "string") {
+    return value.command;
+  }
+  return void 0;
+}
+function circuitHookCommands(entries) {
+  const commands = [];
+  for (const entry of entries) {
+    if (typeof entry !== "object" || entry === null || !("hooks" in entry) || !Array.isArray(entry.hooks)) {
+      continue;
+    }
+    for (const hook of entry.hooks) {
+      const command = commandFromHookHandler(hook);
+      if (command?.includes("handoff hook --host codex")) {
+        commands.push(command);
+      }
+    }
+  }
+  return commands;
+}
+function circuitHookEntryCount(entries) {
+  return entries.filter(isCircuitCodexHookEntry).length;
+}
+function launcherPathFromCircuitHookCommand(command) {
+  const words = splitShellWords(command);
+  const handoffIndex = words.findIndex((word, index) => word === "handoff" && words[index + 1] === "hook" && words[index + 2] === "--host" && words[index + 3] === "codex");
+  if (handoffIndex < 1)
+    return void 0;
+  const launcher = words[handoffIndex - 1];
+  if (launcher === void 0 || launcher.length === 0)
+    return void 0;
+  return launcher;
+}
+function writeHooksConfig(path, config2) {
+  mkdirSync4(dirname5(path), { recursive: true });
+  let backupPath;
+  if (existsSync15(path)) {
+    const candidate = `${path}.circuit-backup`;
+    if (!existsSync15(candidate)) {
+      copyFileSync(path, candidate);
+      backupPath = candidate;
+    }
+  }
+  writeFileSync5(path, `${JSON.stringify(config2, null, 2)}
+`);
+  return backupPath === void 0 ? {} : { backupPath };
+}
+function installCodexHandoffHook(args) {
+  parseCodexHooksHost(args);
+  const hooksPath = resolveHooksFileArg(args);
+  const launcher = resolveLauncherArg(args);
+  const command = codexHookCommand(launcher);
+  const config2 = readHooksConfig(hooksPath);
+  const entry = circuitCodexHookEntry(command);
+  const entries = sessionStartEntries(config2);
+  const existingCircuitEntries = entries.filter(isCircuitCodexHookEntry);
+  const alreadyInstalled = existingCircuitEntries.length === 1 && JSON.stringify(existingCircuitEntries[0]) === JSON.stringify(entry);
+  if (alreadyInstalled) {
+    return {
+      api_version: HANDOFF_HOOKS_API_VERSION,
+      schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
+      host: "codex",
+      action: "install",
+      status: "already_installed",
+      hooks_path: hooksPath,
+      launcher,
+      command
+    };
+  }
+  setSessionStartEntries(config2, [
+    ...entries.filter((item) => !isCircuitCodexHookEntry(item)),
+    entry
+  ]);
+  const { backupPath } = writeHooksConfig(hooksPath, config2);
+  return {
+    api_version: HANDOFF_HOOKS_API_VERSION,
+    schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
+    host: "codex",
+    action: "install",
+    status: "installed",
+    hooks_path: hooksPath,
+    launcher,
+    command,
+    ...backupPath === void 0 ? {} : { backup_path: backupPath }
+  };
+}
+function uninstallCodexHandoffHook(args) {
+  parseCodexHooksHost(args);
+  const hooksPath = resolveHooksFileArg(args);
+  if (!existsSync15(hooksPath)) {
+    return {
+      api_version: HANDOFF_HOOKS_API_VERSION,
+      schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
+      host: "codex",
+      action: "uninstall",
+      status: "not_installed",
+      hooks_path: hooksPath
+    };
+  }
+  const config2 = readHooksConfig(hooksPath);
+  const entries = sessionStartEntries(config2);
+  const nextEntries = entries.filter((item) => !isCircuitCodexHookEntry(item));
+  if (nextEntries.length === entries.length) {
+    return {
+      api_version: HANDOFF_HOOKS_API_VERSION,
+      schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
+      host: "codex",
+      action: "uninstall",
+      status: "not_installed",
+      hooks_path: hooksPath
+    };
+  }
+  setSessionStartEntries(config2, nextEntries);
+  const { backupPath } = writeHooksConfig(hooksPath, config2);
+  return {
+    api_version: HANDOFF_HOOKS_API_VERSION,
+    schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
+    host: "codex",
+    action: "uninstall",
+    status: "uninstalled",
+    hooks_path: hooksPath,
+    ...backupPath === void 0 ? {} : { backup_path: backupPath }
+  };
+}
+function doctorCodexHandoffHook(args) {
+  parseCodexHooksHost(args);
+  const hooksPath = resolveHooksFileArg(args);
+  const checks = [];
+  checks.push({ name: "hooks_file_exists", ok: existsSync15(hooksPath), detail: hooksPath });
+  let config2;
+  try {
+    config2 = readHooksConfig(hooksPath);
+    checks.push({ name: "hooks_file_parseable", ok: true, detail: hooksPath });
+  } catch (err) {
+    checks.push({
+      name: "hooks_file_parseable",
+      ok: false,
+      detail: err instanceof Error ? err.message : String(err)
+    });
+  }
+  if (config2 !== void 0) {
+    try {
+      const entries = sessionStartEntries(config2);
+      const circuitEntryCount = circuitHookEntryCount(entries);
+      const commands = circuitHookCommands(entries);
+      const launchers = commands.map(launcherPathFromCircuitHookCommand).filter((item) => item !== void 0);
+      checks.push({ name: "session_start_array", ok: true, detail: `${entries.length} entries` });
+      checks.push({
+        name: "circuit_handoff_hook_installed",
+        ok: circuitEntryCount > 0,
+        detail: `${circuitEntryCount} Circuit hooks in ${hooksPath}`
+      });
+      checks.push({
+        name: "circuit_handoff_hook_single",
+        ok: circuitEntryCount === 1 && commands.length === 1,
+        detail: `${circuitEntryCount} Circuit entries, ${commands.length} Circuit commands`
+      });
+      checks.push({
+        name: "circuit_handoff_hook_launcher_exists",
+        ok: launchers.length > 0 && launchers.every((launcher) => existsSync15(launcher)),
+        detail: launchers.length > 0 ? launchers.join(", ") : "launcher not found in hook command"
+      });
+    } catch (err) {
+      checks.push({
+        name: "session_start_array",
+        ok: false,
+        detail: err instanceof Error ? err.message : String(err)
+      });
+      checks.push({
+        name: "circuit_handoff_hook_installed",
+        ok: false,
+        detail: hooksPath
+      });
+      checks.push({
+        name: "circuit_handoff_hook_launcher_exists",
+        ok: false,
+        detail: "launcher not found in hook command"
+      });
+    }
+  }
+  const failed = checks.filter((item) => !item.ok && item.severity !== "warning");
+  const installedCheck = checks.find((item) => item.name === "circuit_handoff_hook_installed");
+  const structuralFailure = failed.some((item) => item.name === "hooks_file_parseable" || item.name === "session_start_array");
+  const status = !existsSync15(hooksPath) ? "missing" : structuralFailure ? "invalid" : installedCheck?.ok === false ? "missing" : failed.length === 0 ? "ok" : "invalid";
+  return {
+    api_version: HANDOFF_HOOKS_API_VERSION,
+    schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
+    host: "codex",
+    action: "doctor",
+    status,
+    hooks_path: hooksPath,
+    checks
+  };
+}
+function runHandoffHooksCommand(args) {
+  if (args.hooksAction === "install")
+    return installCodexHandoffHook(args);
+  if (args.hooksAction === "uninstall")
+    return uninstallCodexHandoffHook(args);
+  if (args.hooksAction === "doctor")
+    return doctorCodexHandoffHook(args);
+  throw new Error("handoff hooks requires install, uninstall, or doctor");
+}
+var CODEX_INSTALL_NUDGE_MARKER = ".codex-install-nudged";
+var CODEX_INSTALL_NUDGE_NOTICE = "Circuit restores this repo automatically on Claude, but on Codex it needs a one-time hook install before each new session can restore your continuity. Run: circuit handoff hooks install --host codex (this notice shows once per repo).";
+function codexInstallNudgeMarkerPath(controlPlane) {
+  return join11(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
+}
+function isCodexHandoffHookInstalled(hooksPath) {
+  if (!existsSync15(hooksPath))
+    return false;
+  let config2;
+  try {
+    config2 = readHooksConfig(hooksPath);
+  } catch {
+    return false;
+  }
+  try {
+    return circuitHookEntryCount(sessionStartEntries(config2)) > 0;
+  } catch {
+    return false;
+  }
+}
+function codexInstallAssurance(input) {
+  const controlPlane = input.controlPlane ?? resolve12(input.projectRoot, DEFAULT_CONTROL_PLANE);
+  const markerPath = codexInstallNudgeMarkerPath(controlPlane);
+  const hooksPath = input.hooksFile ?? defaultCodexHooksFile();
+  if (isCodexHandoffHookInstalled(hooksPath))
+    return { status: "ok", marker_path: markerPath };
+  if (existsSync15(markerPath))
+    return { status: "already_nudged", marker_path: markerPath };
+  const stampedAt = (input.now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
+  try {
+    mkdirSync4(dirname5(markerPath), { recursive: true });
+    writeFileSync5(markerPath, `nudged at ${stampedAt}
+`);
+  } catch {
+  }
+  return { status: "nudge", notice: CODEX_INSTALL_NUDGE_NOTICE, marker_path: markerPath };
+}
+
+// dist/cli/handoff.js
+function addHandoffOptions(program2) {
+  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--source <stop|session-end|pre-compact>").option("--clear-ambient").option("--progress <format>").option("--json");
+}
+function parseArgs2(argv) {
+  let parsed;
+  const program2 = addHandoffOptions(new Command("circuit handoff").exitOverride().configureOutput({ writeErr: () => {
+  } }).enablePositionalOptions());
+  program2.action(() => {
+    parsed = { action: "save", opts: program2.opts() };
+  });
+  const addAction = (action2) => {
+    const command = addHandoffOptions(program2.command(action2));
+    command.action(() => {
+      parsed = { action: action2, opts: command.opts() };
+    });
+  };
+  addAction("save");
+  addAction("resume");
+  addAction("done");
+  addAction("brief");
+  addAction("hook");
+  addAction("harvest");
+  const hooks = program2.command("hooks").action(() => {
+    throw new Error("handoff hooks requires install, uninstall, or doctor");
+  });
+  const addHooksAction = (hooksAction2) => {
+    const command = addHandoffOptions(hooks.command(hooksAction2));
+    command.action(() => {
+      parsed = { action: "hooks", hooksAction: hooksAction2, opts: command.opts() };
+    });
+  };
+  addHooksAction("install");
+  addHooksAction("uninstall");
+  addHooksAction("doctor");
+  parseCommanderOrThrow(program2, argv);
+  if (parsed === void 0)
+    throw new Error("handoff requires a subcommand");
+  const { action, hooksAction, opts } = parsed;
+  if (opts.progress !== void 0 && opts.progress !== "jsonl") {
+    throw new Error("--progress only supports 'jsonl'");
+  }
+  return {
+    action,
+    ...hooksAction === void 0 ? {} : { hooksAction },
+    ...opts.host === void 0 ? {} : { host: opts.host },
+    progress: opts.progress === "jsonl",
+    json: opts.json === true,
+    clearAmbient: opts.clearAmbient === true,
+    ...opts.goal === void 0 ? {} : { goal: opts.goal },
+    ...opts.next === void 0 ? {} : { next: opts.next },
+    ...opts.stateMarkdown === void 0 ? {} : { stateMarkdown: opts.stateMarkdown },
+    ...opts.debtMarkdown === void 0 ? {} : { debtMarkdown: opts.debtMarkdown },
+    ...opts.runFolder === void 0 ? {} : { runFolder: opts.runFolder },
+    ...opts.controlPlane === void 0 ? {} : { controlPlane: opts.controlPlane },
+    ...opts.projectRoot === void 0 ? {} : { projectRoot: opts.projectRoot },
+    ...opts.hooksFile === void 0 ? {} : { hooksFile: opts.hooksFile },
+    ...opts.launcher === void 0 ? {} : { launcher: opts.launcher },
+    ...opts.recordId === void 0 ? {} : { recordId: opts.recordId },
+    ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt },
+    ...opts.transcriptPath === void 0 ? {} : { transcriptPath: opts.transcriptPath },
+    ...opts.sessionId === void 0 ? {} : { sessionId: opts.sessionId },
+    ...opts.source === void 0 ? {} : { source: opts.source }
+  };
+}
 function debugHook(message) {
   if (process.env.CIRCUIT_HANDOFF_HOOK_DEBUG === "1") {
     process.stderr.write(`Circuit handoff hook: ${message}
@@ -46774,7 +46841,7 @@ function debugHook(message) {
 function readHookInput() {
   if (process.stdin.isTTY)
     return {};
-  const raw = readFileSync31(0, "utf8");
+  const raw = readFileSync32(0, "utf8");
   if (raw.trim().length === 0)
     return {};
   return JSON.parse(raw);
@@ -46842,13 +46909,7 @@ function runHandoffHook(args, now = () => /* @__PURE__ */ new Date()) {
     return 0;
   }
   try {
-    const brief = handoffBrief({
-      action: "brief",
-      projectRoot,
-      progress: false,
-      json: true,
-      clearAmbient: false
-    }, now);
+    const brief = handoffBrief({ projectRoot }, now);
     if (brief.status === "invalid") {
       const notice = typeof brief.operator_notice === "string" ? brief.operator_notice : briefInvalidNotice(brief.error?.code ?? "unknown");
       debugHook(`brief state is invalid: ${brief.error?.code ?? "unknown"}`);
@@ -46930,7 +46991,7 @@ Saved continuity record could not be resumed: ${message}`);
 function resumeContinuity(args) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync15(indexAbs)) {
+  if (!existsSync16(indexAbs)) {
     const summaryPath3 = operatorSummaryPath(controlPlane);
     writeMarkdown(summaryPath3, "# Circuit Handoff\n\nNo saved continuity found.");
     const result2 = {
@@ -46968,7 +47029,7 @@ function resumeContinuity(args) {
     return { ...result2, result_path: resultPath3 };
   }
   const recordAbs = recordPath(controlPlane, index.pending_record.record_id);
-  if (!existsSync15(recordAbs)) {
+  if (!existsSync16(recordAbs)) {
     return invalidResumeResult(controlPlane, "record_missing", "Continuity index points at a missing record.", index.pending_record.record_id);
   }
   const recordRaw = readJsonSafely(recordAbs);
@@ -47037,67 +47098,6 @@ function clearContinuity(args, now) {
   writeJson2(resultPath2, result);
   return { ...result, result_path: resultPath2 };
 }
-function realBriefGitProbe(input) {
-  const { projectRoot, capturedHead, capturedBranch } = input;
-  const git = (gitArgs) => {
-    try {
-      return execFileSync2("git", ["-C", projectRoot, ...gitArgs], {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-        timeout: 2e3
-      }).trim();
-    } catch {
-      return void 0;
-    }
-  };
-  const gitBool = (gitArgs) => {
-    try {
-      execFileSync2("git", ["-C", projectRoot, ...gitArgs], {
-        stdio: ["ignore", "ignore", "ignore"],
-        timeout: 2e3
-      });
-      return true;
-    } catch (err) {
-      return err.status === 1 ? false : void 0;
-    }
-  };
-  try {
-    if (git(["rev-parse", "--is-inside-work-tree"]) !== "true")
-      return {};
-    const facts = {};
-    const headFull = git(["rev-parse", "HEAD"]);
-    const capturedFull = capturedHead === void 0 ? void 0 : git(["rev-parse", "--verify", `${capturedHead}^{commit}`]);
-    const status = git(["status", "--porcelain=v1"]);
-    if (status !== void 0)
-      facts.tree_clean = status.length === 0;
-    const currentShort = git(["rev-parse", "--short", "HEAD"]);
-    if (currentShort !== void 0)
-      facts.current_head = currentShort;
-    if (headFull !== void 0 && capturedFull !== void 0) {
-      facts.head_advanced = headFull !== capturedFull;
-    }
-    if (capturedHead !== void 0) {
-      const reachable = gitBool(["merge-base", "--is-ancestor", capturedHead, "HEAD"]);
-      if (reachable !== void 0)
-        facts.capture_head_reachable = reachable;
-      const countRaw = git(["rev-list", "--count", `${capturedHead}..HEAD`]);
-      if (countRaw !== void 0) {
-        const n = Number.parseInt(countRaw, 10);
-        if (Number.isFinite(n))
-          facts.commits_since = n;
-      }
-    }
-    if (capturedBranch !== void 0 && capturedBranch.length > 0 && capturedBranch !== "HEAD") {
-      const branchSha = git(["rev-parse", "--verify", "--quiet", `refs/heads/${capturedBranch}`]);
-      if (branchSha === void 0) {
-        facts.branch_gone = true;
-      }
-    }
-    return facts;
-  } catch {
-    return {};
-  }
-}
 function runHandoffHarvest(args, now) {
   let transcriptPath = args.transcriptPath;
   let projectRoot = args.projectRoot;
@@ -47124,8 +47124,8 @@ function runHandoffHarvest(args, now) {
   }
   const resolvedProjectRoot = projectRoot ?? process.cwd();
   const source = ambientSourceFrom(args.source, hookEventName);
-  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve12(args.controlPlane);
-  const fallbackIndexPath = indexPath(controlPlane ?? resolve12(resolvedProjectRoot, DEFAULT_CONTROL_PLANE));
+  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve13(args.controlPlane);
+  const fallbackIndexPath = indexPath(controlPlane ?? resolve13(resolvedProjectRoot, DEFAULT_CONTROL_PLANE));
   if (transcriptPath === void 0) {
     const result = {
       schema_version: 1,
@@ -47273,11 +47273,11 @@ async function runHandoffCommand(argv, options = {}) {
 import { basename as basename5 } from "node:path";
 
 // dist/app/history/indexer.js
-import { existsSync as existsSync19, mkdirSync as mkdirSync5, readFileSync as readFileSync33, renameSync as renameSync2, writeFileSync as writeFileSync6 } from "node:fs";
-import { join as join13, resolve as resolve15 } from "node:path";
+import { existsSync as existsSync20, mkdirSync as mkdirSync5, readFileSync as readFileSync34, renameSync as renameSync2, writeFileSync as writeFileSync6 } from "node:fs";
+import { join as join13, resolve as resolve16 } from "node:path";
 
 // dist/history/run-corpus.js
-import { existsSync as existsSync16, readdirSync as readdirSync2, statSync as statSync3 } from "node:fs";
+import { existsSync as existsSync17, readdirSync as readdirSync2, statSync as statSync3 } from "node:fs";
 import { basename as basename3, join as join12 } from "node:path";
 var DEFAULT_RUNS_BASE = CONTROL_PLANE_RUNS_DIR;
 var HistoryCommandError = class extends Error {
@@ -47290,10 +47290,10 @@ var HistoryCommandError = class extends Error {
   }
 };
 function isCandidateRunFolder(runFolder) {
-  return existsSync16(join12(runFolder, "manifest.snapshot.json")) || existsSync16(join12(runFolder, "trace.ndjson")) || existsSync16(join12(runFolder, "reports/result.json"));
+  return existsSync17(join12(runFolder, "manifest.snapshot.json")) || existsSync17(join12(runFolder, "trace.ndjson")) || existsSync17(join12(runFolder, "reports/result.json"));
 }
 function listCandidateRunFolders(runsBase) {
-  if (!existsSync16(runsBase)) {
+  if (!existsSync17(runsBase)) {
     throw new HistoryCommandError("runs_base_not_found", `runs base not found: ${runsBase}`, {
       runsBase
     });
@@ -49797,8 +49797,8 @@ function mtimeMs(path) {
 }
 
 // dist/app/history/extract.js
-import { existsSync as existsSync18, lstatSync as lstatSync6, readFileSync as readFileSync32, readdirSync as readdirSync4, realpathSync as realpathSync5 } from "node:fs";
-import { basename as basename4, isAbsolute as isAbsolute11, relative as relative12, resolve as resolve14 } from "node:path";
+import { existsSync as existsSync19, lstatSync as lstatSync6, readFileSync as readFileSync33, readdirSync as readdirSync4, realpathSync as realpathSync5 } from "node:fs";
+import { basename as basename4, isAbsolute as isAbsolute11, relative as relative12, resolve as resolve15 } from "node:path";
 
 // dist/shared/outcome.js
 var FAILURE_OUTCOMES = /* @__PURE__ */ new Set([
@@ -49812,19 +49812,19 @@ function isFailureOutcome(outcome) {
 }
 
 // dist/app/history/run-source-files.js
-import { existsSync as existsSync17, lstatSync as lstatSync5, readdirSync as readdirSync3, realpathSync as realpathSync4 } from "node:fs";
-import { isAbsolute as isAbsolute10, relative as relative11, resolve as resolve13 } from "node:path";
+import { existsSync as existsSync18, lstatSync as lstatSync5, readdirSync as readdirSync3, realpathSync as realpathSync4 } from "node:fs";
+import { isAbsolute as isAbsolute10, relative as relative11, resolve as resolve14 } from "node:path";
 function collectRunSourceFiles(runFolder) {
-  const runFolderAbs = resolve13(runFolder);
+  const runFolderAbs = resolve14(runFolder);
   const files = /* @__PURE__ */ new Set();
   for (const candidate of [
-    resolve13(runFolderAbs, "manifest.snapshot.json"),
-    resolve13(runFolderAbs, "trace.ndjson")
+    resolve14(runFolderAbs, "manifest.snapshot.json"),
+    resolve14(runFolderAbs, "trace.ndjson")
   ]) {
-    if (existsSync17(candidate) && !isSymlink(candidate))
+    if (existsSync18(candidate) && !isSymlink(candidate))
       files.add(candidate);
   }
-  const reportsRoot2 = resolve13(runFolderAbs, "reports");
+  const reportsRoot2 = resolve14(runFolderAbs, "reports");
   for (const absPath of walkReportJsonFiles(reportsRoot2)) {
     files.add(absPath);
   }
@@ -49842,7 +49842,7 @@ function isInside3(root, target) {
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute10(fromRoot);
 }
 function walkReportJsonFiles(reportsRoot2) {
-  if (!existsSync17(reportsRoot2))
+  if (!existsSync18(reportsRoot2))
     return [];
   const rootReal = realpathSync4.native(reportsRoot2);
   const out = [];
@@ -49852,7 +49852,7 @@ function walkReportJsonFiles(reportsRoot2) {
     if (current === void 0)
       continue;
     for (const entry of readdirSync3(current, { withFileTypes: true })) {
-      const absPath = resolve13(current, entry.name);
+      const absPath = resolve14(current, entry.name);
       if (entry.isSymbolicLink() || lstatSync5(absPath).isSymbolicLink())
         continue;
       const real = realpathSync4.native(absPath);
@@ -49916,7 +49916,7 @@ function safeDateString(value) {
   return Number.isNaN(Date.parse(raw)) ? void 0 : new Date(raw).toISOString();
 }
 function readJson2(path) {
-  return JSON.parse(readFileSync32(path, "utf8"));
+  return JSON.parse(readFileSync33(path, "utf8"));
 }
 function readJsonRecord(path) {
   try {
@@ -49927,21 +49927,21 @@ function readJsonRecord(path) {
   }
 }
 function sha256File(path) {
-  return sha256OfString(readFileSync32(path, "utf8"));
+  return sha256OfString(readFileSync33(path, "utf8"));
 }
 function isInside4(root, target) {
   const fromRoot = relative12(root, target);
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute11(fromRoot);
 }
 function listFiles(root, prefix = "") {
-  const absRoot = resolve14(root);
-  if (!existsSync18(absRoot))
+  const absRoot = resolve15(root);
+  if (!existsSync19(absRoot))
     return [];
   const rootReal = realpathSync5.native(absRoot);
   const out = [];
   function walk(absDir, relDir) {
     for (const entry of readdirSync4(absDir, { withFileTypes: true })) {
-      const absPath = resolve14(absDir, entry.name);
+      const absPath = resolve15(absDir, entry.name);
       if (lstatSync6(absPath).isSymbolicLink())
         continue;
       const real = realpathSync5.native(absPath);
@@ -49979,13 +49979,13 @@ function validStepId(value) {
   return StepId.safeParse(value).success ? value : void 0;
 }
 function parseTrace(runFolder, runFolderName) {
-  const tracePath = resolve14(runFolder, "trace.ndjson");
-  if (!existsSync18(tracePath)) {
+  const tracePath = resolve15(runFolder, "trace.ndjson");
+  if (!existsSync19(tracePath)) {
     return { entries: [], reportWrites: /* @__PURE__ */ new Map(), traceValidForDocs: false };
   }
   let entries = [];
   try {
-    entries = readFileSync32(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
+    entries = readFileSync33(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
   } catch (error51) {
     return {
       entries: [],
@@ -50204,8 +50204,8 @@ function resolveRunIdentity(input) {
 }
 function makeRunDocument(input) {
   const sourcePath = input.resultPath ?? "trace.ndjson";
-  const sourceAbs = resolve14(input.runFolder, sourcePath);
-  if (!existsSync18(sourceAbs))
+  const sourceAbs = resolve15(input.runFolder, sourcePath);
+  if (!existsSync19(sourceAbs))
     return void 0;
   const sourceSha = input.resultPath === void 0 ? input.traceSha : sha256File(sourceAbs);
   if (sourceSha === void 0)
@@ -50421,19 +50421,19 @@ function makeTraceDocument(input) {
   });
 }
 function extractRunHistoryDocuments(runFolder) {
-  const runFolderAbs = resolve14(runFolder);
+  const runFolderAbs = resolve15(runFolder);
   const runFolderName = basename4(runFolderAbs);
   const warnings = [];
   const documents = [];
-  const manifestPath2 = resolve14(runFolderAbs, "manifest.snapshot.json");
-  const resultPath2 = resolve14(runFolderAbs, "reports/result.json");
-  const manifest = existsSync18(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
-  const result = existsSync18(resultPath2) ? readJsonRecord(resultPath2) : void 0;
+  const manifestPath2 = resolve15(runFolderAbs, "manifest.snapshot.json");
+  const resultPath2 = resolve15(runFolderAbs, "reports/result.json");
+  const manifest = existsSync19(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
+  const result = existsSync19(resultPath2) ? readJsonRecord(resultPath2) : void 0;
   const trace = parseTrace(runFolderAbs, runFolderName);
   if (trace.warning !== void 0)
     warnings.push(trace.warning);
-  const tracePath = resolve14(runFolderAbs, "trace.ndjson");
-  const traceExists = existsSync18(tracePath);
+  const tracePath = resolve15(runFolderAbs, "trace.ndjson");
+  const traceExists = existsSync19(tracePath);
   const traceSha = traceExists ? sha256File(tracePath) : void 0;
   const traceMtime = traceExists ? mtimeMs(tracePath) : void 0;
   const identity = resolveRunIdentity({
@@ -50445,7 +50445,7 @@ function extractRunHistoryDocuments(runFolder) {
   const runDocument = makeRunDocument({
     runFolder: runFolderAbs,
     identity,
-    ...existsSync18(resultPath2) ? { resultPath: "reports/result.json" } : {},
+    ...existsSync19(resultPath2) ? { resultPath: "reports/result.json" } : {},
     result,
     traceEntries: trace.entries,
     traceSha,
@@ -50453,9 +50453,9 @@ function extractRunHistoryDocuments(runFolder) {
   });
   if (runDocument !== void 0)
     documents.push(runDocument);
-  const reportRoot = resolve14(runFolderAbs, "reports");
+  const reportRoot = resolve15(runFolderAbs, "reports");
   for (const relPath of listFiles(reportRoot, "reports")) {
-    const absPath = resolve14(runFolderAbs, relPath);
+    const absPath = resolve15(runFolderAbs, relPath);
     if (absPath !== resolveRunFilePath(runFolderAbs, relPath))
       continue;
     if (skipReport(relPath))
@@ -50526,9 +50526,9 @@ var HISTORY_MANIFEST_FILE = "manifest.v1.json";
 var HISTORY_MEMORY_MERGE_FILE = "memory-merge.v1.json";
 var HISTORY_MEMORY_EFFECT_FILE = "memory-effect.v1.json";
 function resolveHistoryPaths(options = {}) {
-  const repoRoot = resolve15(options.repoRoot ?? process.cwd());
-  const runsBase = resolve15(repoRoot, options.runsBase ?? DEFAULT_RUNS_BASE);
-  const indexDir = resolve15(repoRoot, options.indexDir ?? DEFAULT_INDEX_DIR);
+  const repoRoot = resolve16(options.repoRoot ?? process.cwd());
+  const runsBase = resolve16(repoRoot, options.runsBase ?? DEFAULT_RUNS_BASE);
+  const indexDir = resolve16(repoRoot, options.indexDir ?? DEFAULT_INDEX_DIR);
   return {
     repoRoot,
     runsBase,
@@ -50618,8 +50618,8 @@ function rebuildHistoryIndex(options = {}) {
   const manifestTmp = `${paths.manifestPath}.tmp-${process.pid}`;
   writeFileSync6(documentsTmp, documentsJsonl, "utf8");
   writeFileSync6(manifestTmp, manifestJson, "utf8");
-  HistoryManifestV1.parse(JSON.parse(readFileSync33(manifestTmp, "utf8")));
-  for (const line of readFileSync33(documentsTmp, "utf8").split("\n")) {
+  HistoryManifestV1.parse(JSON.parse(readFileSync34(manifestTmp, "utf8")));
+  for (const line of readFileSync34(documentsTmp, "utf8").split("\n")) {
     if (line.trim().length === 0)
       continue;
     HistoryDocumentV1.parse(JSON.parse(line));
@@ -50632,7 +50632,7 @@ function rebuildHistoryIndex(options = {}) {
   };
 }
 function readHistoryManifest(paths) {
-  if (!existsSync19(paths.manifestPath) || !existsSync19(paths.documentsPath)) {
+  if (!existsSync20(paths.manifestPath) || !existsSync20(paths.documentsPath)) {
     throw new HistoryCommandError("index_missing", `history index missing: ${paths.indexDir}`, {
       runsBase: paths.runsBase,
       indexDir: paths.indexDir
@@ -50640,7 +50640,7 @@ function readHistoryManifest(paths) {
   }
   let raw;
   try {
-    raw = JSON.parse(readFileSync33(paths.manifestPath, "utf8"));
+    raw = JSON.parse(readFileSync34(paths.manifestPath, "utf8"));
   } catch (error51) {
     throw new HistoryCommandError("index_corrupt", `history manifest corrupt: ${error51 instanceof Error ? error51.message : String(error51)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -50664,7 +50664,7 @@ function readHistoryIndex(options = {}) {
   const manifest = readHistoryManifest(paths);
   let documentsRaw = "";
   try {
-    documentsRaw = readFileSync33(paths.documentsPath, "utf8");
+    documentsRaw = readFileSync34(paths.documentsPath, "utf8");
   } catch (error51) {
     throw new HistoryCommandError("index_corrupt", `history documents unreadable: ${error51 instanceof Error ? error51.message : String(error51)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -50734,11 +50734,11 @@ function historyStatus(options = {}) {
 }
 
 // dist/app/history/memory-effect-read.js
-import { existsSync as existsSync20, readFileSync as readFileSync34 } from "node:fs";
+import { existsSync as existsSync21, readFileSync as readFileSync35 } from "node:fs";
 import { join as join14 } from "node:path";
 function loadMemoryEffectReport(paths) {
   const effectPath = join14(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
-  if (!existsSync20(effectPath)) {
+  if (!existsSync21(effectPath)) {
     return {
       warnings: [
         {
@@ -50750,7 +50750,7 @@ function loadMemoryEffectReport(paths) {
     };
   }
   try {
-    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync34(effectPath, "utf8")));
+    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync35(effectPath, "utf8")));
     return { report, warnings: [] };
   } catch (error51) {
     return {
@@ -50769,7 +50769,7 @@ function loadMemoryEffectReport(paths) {
 import { join as join16 } from "node:path";
 
 // dist/app/history/memory-merge.js
-import { existsSync as existsSync21, readFileSync as readFileSync35 } from "node:fs";
+import { existsSync as existsSync22, readFileSync as readFileSync36 } from "node:fs";
 import { join as join15 } from "node:path";
 
 // dist/app/history/memory-identity.js
@@ -50798,7 +50798,7 @@ function deriveAbortReason(envelope) {
 }
 function readRecallInputs(runFolder, warnings) {
   const recallPath = join15(runFolder, RECALL_REPORT_RELATIVE_PATH);
-  if (!existsSync21(recallPath)) {
+  if (!existsSync22(recallPath)) {
     warnings.push({
       code: "recall_report_missing",
       message: "memory was used but no recall report was found; content identity is unavailable",
@@ -50808,7 +50808,7 @@ function readRecallInputs(runFolder, warnings) {
     return void 0;
   }
   try {
-    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync35(recallPath, "utf8")));
+    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync36(recallPath, "utf8")));
     return new Map(recall.memory_inputs.map((memory) => [memory.memory_id, memory]));
   } catch (error51) {
     warnings.push({
@@ -50854,7 +50854,7 @@ function resolveInput(memoryInputId, recallInputs, runFolder, warnings) {
 function extractRunMemoryLinkage(runFolder) {
   const warnings = [];
   const envelopePath = join15(runFolder, RUN_ENVELOPE_RELATIVE_PATH);
-  if (!existsSync21(envelopePath)) {
+  if (!existsSync22(envelopePath)) {
     warnings.push({
       code: "envelope_missing",
       message: "no run.envelope@v0 record (resume or non-source run); skipped from linkage",
@@ -50865,7 +50865,7 @@ function extractRunMemoryLinkage(runFolder) {
   }
   let envelope;
   try {
-    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync35(envelopePath, "utf8")));
+    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync36(envelopePath, "utf8")));
   } catch (error51) {
     warnings.push({
       code: "source_invalid",
@@ -51251,7 +51251,7 @@ function historyMemoryInputPreview(input) {
 }
 
 // dist/app/history/pull-log.js
-import { existsSync as existsSync22, readFileSync as readFileSync36 } from "node:fs";
+import { existsSync as existsSync23, readFileSync as readFileSync37 } from "node:fs";
 import { join as join17 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error51) {
@@ -51264,10 +51264,10 @@ function pullLogUnavailable(runFolder, error51) {
 }
 function readPullLog(runFolder) {
   const path = join17(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
-  if (!existsSync22(path))
+  if (!existsSync23(path))
     return void 0;
   try {
-    return HistoryPullLogV1.parse(JSON.parse(readFileSync36(path, "utf8")));
+    return HistoryPullLogV1.parse(JSON.parse(readFileSync37(path, "utf8")));
   } catch {
     return void 0;
   }
@@ -51277,8 +51277,8 @@ function appendPullLogEntry(runFolder, input) {
   const warnings = [];
   let existing;
   try {
-    if (existsSync22(outPath)) {
-      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync36(outPath, "utf8")));
+    if (existsSync23(outPath)) {
+      existing = HistoryPullLogV1.parse(JSON.parse(readFileSync37(outPath, "utf8")));
     }
   } catch (error51) {
     warnings.push(pullLogUnavailable(runFolder, error51));
@@ -51335,7 +51335,7 @@ function suppressMeasuredNegative(input) {
 }
 
 // dist/app/history/query.js
-import { existsSync as existsSync23, readFileSync as readFileSync37 } from "node:fs";
+import { existsSync as existsSync24, readFileSync as readFileSync38 } from "node:fs";
 var STOPWORDS = /* @__PURE__ */ new Set([
   "the",
   "and",
@@ -51520,14 +51520,14 @@ function sourceStaleness(doc, checkedAt) {
   }
   try {
     const sourcePath = resolveRunFilePath(doc.run_folder, doc.source_path);
-    if (!existsSync23(sourcePath)) {
+    if (!existsSync24(sourcePath)) {
       return {
         status: "stale",
         reason_codes: ["memory_stale"],
         checked_at: checkedAt
       };
     }
-    const currentHash = sha256OfString(readFileSync37(sourcePath, "utf8"));
+    const currentHash = sha256OfString(readFileSync38(sourcePath, "utf8"));
     return currentHash === doc.source_sha256 ? {
       status: "fresh",
       reason_codes: ["source_hash_verified"],
@@ -51941,24 +51941,24 @@ async function runHistoryCommand(argv) {
 
 // dist/cli/memory.js
 import { createHash as createHash5 } from "node:crypto";
-import { existsSync as existsSync26, readFileSync as readFileSync40 } from "node:fs";
+import { existsSync as existsSync27, readFileSync as readFileSync41 } from "node:fs";
 import { basename as basename6, join as join19 } from "node:path";
 
 // dist/memory/project-identity.js
 var import_yaml2 = __toESM(require_dist(), 1);
 import { execFileSync as execFileSync3 } from "node:child_process";
-import { existsSync as existsSync25, readFileSync as readFileSync39 } from "node:fs";
-import { resolve as resolve17 } from "node:path";
+import { existsSync as existsSync26, readFileSync as readFileSync40 } from "node:fs";
+import { resolve as resolve18 } from "node:path";
 
 // dist/memory/project-store.js
-import { existsSync as existsSync24, readFileSync as readFileSync38 } from "node:fs";
-import { join as join18, resolve as resolve16 } from "node:path";
+import { existsSync as existsSync25, readFileSync as readFileSync39 } from "node:fs";
+import { join as join18, resolve as resolve17 } from "node:path";
 var MEMORY_DIR_RELATIVE_PATH = CONTROL_PLANE_MEMORY_DIR;
 var PROJECT_FACTS_FILE = "project.v1.jsonl";
 var MEMORY_MANIFEST_FILE = "manifest.json";
 function resolveProjectStorePaths(options = {}) {
-  const repoRoot = resolve16(options.repoRoot ?? process.cwd());
-  const memoryDir = resolve16(repoRoot, options.memoryDir ?? MEMORY_DIR_RELATIVE_PATH);
+  const repoRoot = resolve17(options.repoRoot ?? process.cwd());
+  const memoryDir = resolve17(repoRoot, options.memoryDir ?? MEMORY_DIR_RELATIVE_PATH);
   return {
     repoRoot,
     memoryDir,
@@ -51968,12 +51968,12 @@ function resolveProjectStorePaths(options = {}) {
 }
 function readProjectFacts(options = {}) {
   const paths = resolveProjectStorePaths(options);
-  if (!existsSync24(paths.factsPath)) {
+  if (!existsSync25(paths.factsPath)) {
     return { facts: [], warnings: [] };
   }
   let raw = "";
   try {
-    raw = readFileSync38(paths.factsPath, "utf8");
+    raw = readFileSync39(paths.factsPath, "utf8");
   } catch (error51) {
     return {
       facts: [],
@@ -52072,12 +52072,12 @@ function normalizeGitRemoteUrl(url2) {
   return normalized;
 }
 function readConfigProjectId(repoRoot) {
-  const configPath = resolve17(repoRoot, ...PROJECT_CONFIG_RELATIVE_SEGMENTS);
-  if (!existsSync25(configPath))
+  const configPath = resolve18(repoRoot, ...PROJECT_CONFIG_RELATIVE_SEGMENTS);
+  if (!existsSync26(configPath))
     return void 0;
   let raw;
   try {
-    raw = (0, import_yaml2.parse)(readFileSync39(configPath, "utf8"));
+    raw = (0, import_yaml2.parse)(readFileSync40(configPath, "utf8"));
   } catch {
     return void 0;
   }
@@ -52117,7 +52117,7 @@ function resolveProjectId(options = {}) {
       warnings: []
     };
   }
-  const runsBase = resolve17(repoRoot, CONTROL_PLANE_RUNS_DIR);
+  const runsBase = resolve18(repoRoot, CONTROL_PLANE_RUNS_DIR);
   return {
     projectId: hashedId("p", runsBase),
     source: "runs_base",
@@ -52219,9 +52219,9 @@ function resolveNoteSource(input) {
   ];
   for (const candidate of candidates) {
     const abs = join19(input.runFolder, candidate.rel);
-    if (!existsSync26(abs))
+    if (!existsSync27(abs))
       continue;
-    const sha2564 = sha256Text(readFileSync40(abs, "utf8"));
+    const sha2564 = sha256Text(readFileSync41(abs, "utf8"));
     const ref = Ref.parse({
       kind: candidate.kind,
       ref: candidate.rel,
@@ -52231,9 +52231,9 @@ function resolveNoteSource(input) {
     return { ref, sha256: sha2564 };
   }
   const tracePath = join19(input.runFolder, "trace.ndjson");
-  if (existsSync26(tracePath)) {
+  if (existsSync27(tracePath)) {
     const runId = basename6(input.runFolder);
-    const sha2564 = sha256Text(readFileSync40(tracePath, "utf8"));
+    const sha2564 = sha256Text(readFileSync41(tracePath, "utf8"));
     const trace = Ref.safeParse({
       kind: "trace",
       ref: "trace.ndjson#sequence=0",
@@ -52402,11 +52402,11 @@ function latestRunFolder(runsBase) {
 
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync35, mkdirSync as mkdirSync10, readFileSync as readFileSync51, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname14, join as join35, resolve as resolve23 } from "node:path";
+import { existsSync as existsSync36, mkdirSync as mkdirSync10, readFileSync as readFileSync52, writeFileSync as writeFileSync11 } from "node:fs";
+import { dirname as dirname14, join as join35, resolve as resolve24 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
-import { readFileSync as readFileSync44 } from "node:fs";
+import { readFileSync as readFileSync45 } from "node:fs";
 
 // dist/flows/registries/checkpoint-writers/registry.js
 var REGISTRY = buildCheckpointRegistry(flowPackages);
@@ -53766,9 +53766,9 @@ function expandTemplate(template, item) {
 
 // dist/shared/user-skill-registry.js
 var import_yaml3 = __toESM(require_dist(), 1);
-import { existsSync as existsSync27, readFileSync as readFileSync41, readdirSync as readdirSync5 } from "node:fs";
+import { existsSync as existsSync28, readFileSync as readFileSync42, readdirSync as readdirSync5 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { join as join21, resolve as resolve18 } from "node:path";
+import { join as join21, resolve as resolve19 } from "node:path";
 var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
 var UserSkillFrontmatter = UserSkillEntry.pick({
   name: true,
@@ -53807,8 +53807,8 @@ function parseSkillMarkdown(text, skillPath) {
 function discoverCandidates(roots) {
   const candidates = /* @__PURE__ */ new Map();
   for (const root of roots) {
-    const rootAbs = resolve18(root);
-    if (!existsSync27(rootAbs))
+    const rootAbs = resolve19(root);
+    if (!existsSync28(rootAbs))
       continue;
     for (const entry of readdirSync5(rootAbs, { withFileTypes: true })) {
       if (!entry.isDirectory())
@@ -53820,7 +53820,7 @@ function discoverCandidates(roots) {
       if (candidates.has(key))
         continue;
       const skillPath = join21(rootAbs, entry.name, "SKILL.md");
-      if (!existsSync27(skillPath))
+      if (!existsSync28(skillPath))
         continue;
       candidates.set(key, {
         id: id.data,
@@ -53834,7 +53834,7 @@ function discoverCandidates(roots) {
 function loadCandidate(candidate) {
   let text;
   try {
-    text = readFileSync41(candidate.path, "utf8");
+    text = readFileSync42(candidate.path, "utf8");
   } catch (err) {
     throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
   }
@@ -53852,7 +53852,7 @@ function loadCandidate(candidate) {
 function createUserSkillRegistry(options = {}) {
   const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
   const candidates = discoverCandidates(roots);
-  const searchedRoots = roots.map((root) => resolve18(root));
+  const searchedRoots = roots.map((root) => resolve19(root));
   const cache = /* @__PURE__ */ new Map();
   const loadCached = (key, candidate) => {
     const cached2 = cache.get(key);
@@ -55765,7 +55765,7 @@ function parseNdjsonObjects(stdout, label) {
 }
 async function runConnectorSubprocess(input) {
   const start = performance.now();
-  return await new Promise((resolve25, reject) => {
+  return await new Promise((resolve26, reject) => {
     let child;
     try {
       child = spawn(input.executable, [...input.args], {
@@ -55838,7 +55838,7 @@ async function runConnectorSubprocess(input) {
     });
     child.on("close", (code, signal) => {
       clearAllTimers();
-      resolve25({
+      resolve26({
         stdout,
         stderr,
         stdoutCapped,
@@ -57248,7 +57248,7 @@ function planRelayGuidanceDecision(input) {
 }
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync28, readFileSync as readFileSync42 } from "node:fs";
+import { existsSync as existsSync29, readFileSync as readFileSync43 } from "node:fs";
 
 // dist/flows/registries/shape-hints/registry.js
 var SCHEMA_HINTS = buildSchemaHintMap(flowPackages);
@@ -57410,10 +57410,10 @@ function currentSliceSection(activeSlice) {
 function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, rigor, activeSlice, operatorWhy) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
-    if (!existsSync28(abs))
+    if (!existsSync29(abs))
       return `[reads unavailable: ${path}]`;
     return `--- ${path} ---
-${readFileSync42(abs, "utf8")}`;
+${readFileSync43(abs, "utf8")}`;
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
   const sliceSection = currentSliceSection(activeSlice);
@@ -59655,7 +59655,7 @@ function corridorCause(active, binding) {
 }
 
 // dist/runtime/run/run-boundary.js
-import { readFileSync as readFileSync43 } from "node:fs";
+import { readFileSync as readFileSync44 } from "node:fs";
 import { lstat, mkdir as mkdir4, readdir } from "node:fs/promises";
 
 // dist/runtime/projections/progress.js
@@ -60426,7 +60426,7 @@ async function openRunBoundary(options) {
     files: {
       readText(path) {
         try {
-          return readFileSync43(path, "utf8");
+          return readFileSync44(path, "utf8");
         } catch {
           return void 0;
         }
@@ -61516,7 +61516,7 @@ function readCheckpointRequestContextResult(input) {
   const requestAbs = resolveRunFilePath(input.runDir, input.requestPath);
   let requestText;
   try {
-    requestText = readFileSync44(requestAbs, "utf8");
+    requestText = readFileSync45(requestAbs, "utf8");
   } catch (error51) {
     return checkpointResumeRejectedFrom(error51);
   }
@@ -61855,8 +61855,8 @@ async function resumeCompiledFlow(options) {
 }
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync29, readFileSync as readFileSync45 } from "node:fs";
-import { join as join27, resolve as resolve19 } from "node:path";
+import { existsSync as existsSync30, readFileSync as readFileSync46 } from "node:fs";
+import { join as join27, resolve as resolve20 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -61866,10 +61866,10 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
   try {
     const relPath = fact.source.ref.ref.split("#")[0] ?? fact.source.ref.ref;
     const abs = join27(runsBase, runId, relPath);
-    if (!existsSync29(abs)) {
+    if (!existsSync30(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
-    const currentHash = sha256OfString(readFileSync45(abs, "utf8"));
+    const currentHash = sha256OfString(readFileSync46(abs, "utf8"));
     return currentHash === sourceSha ? { status: "fresh", checked_at: checkedAt, reason_codes: ["source_hash_verified"] } : { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
   } catch {
     return { status: "unknown", checked_at: checkedAt, reason_codes: ["memory_unverified"] };
@@ -61879,7 +61879,7 @@ function loadProjectFactCandidates(options) {
   if (options.flowId === void 0) {
     return { candidates: [] };
   }
-  const runsBase = resolve19(options.runsBase ?? join27(resolve19(options.repoRoot), CONTROL_PLANE_RUNS_DIR));
+  const runsBase = resolve20(options.runsBase ?? join27(resolve20(options.repoRoot), CONTROL_PLANE_RUNS_DIR));
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const checkedAt = now().toISOString();
   const { facts } = readProjectFacts({
@@ -62104,19 +62104,19 @@ function prepareRunStartHistoryRecall(options) {
 }
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync31, mkdirSync as mkdirSync6, readFileSync as readFileSync47, rmSync as rmSync4, writeFileSync as writeFileSync7 } from "node:fs";
-import { dirname as dirname10, isAbsolute as isAbsolute12, join as join28, relative as relative13, resolve as resolve20 } from "node:path";
+import { existsSync as existsSync32, mkdirSync as mkdirSync6, readFileSync as readFileSync48, rmSync as rmSync4, writeFileSync as writeFileSync7 } from "node:fs";
+import { dirname as dirname10, isAbsolute as isAbsolute12, join as join28, relative as relative13, resolve as resolve21 } from "node:path";
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync30, readFileSync as readFileSync46 } from "node:fs";
+import { existsSync as existsSync31, readFileSync as readFileSync47 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
-  if (!existsSync30(path))
+  if (!existsSync31(path))
     return void 0;
-  const parsed = JSON.parse(readFileSync46(path, "utf8"));
+  const parsed = JSON.parse(readFileSync47(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
 }
 function stringField2(report, key) {
@@ -62715,10 +62715,10 @@ function projectSummary(input) {
 // dist/app/operator-summary/writer.js
 function readPriorRoute(runFolder) {
   const path = join28(runFolder, "reports", "operator-summary.json");
-  if (!existsSync31(path))
+  if (!existsSync32(path))
     return {};
   try {
-    const raw = JSON.parse(readFileSync47(path, "utf8"));
+    const raw = JSON.parse(readFileSync48(path, "utf8"));
     if (!isObject4(raw))
       return {};
     const routedBy = raw.routed_by;
@@ -62750,16 +62750,16 @@ function isInsideOrSame4(root, target) {
 function readCheckpointRequest(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute12(checkpoint.request_path) ? resolve20(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute12(checkpoint.request_path) ? resolve21(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     return void 0;
   }
-  if (!isInsideOrSame4(resolve20(runFolder), requestPath))
+  if (!isInsideOrSame4(resolve21(runFolder), requestPath))
     return void 0;
-  if (!existsSync31(requestPath))
+  if (!existsSync32(requestPath))
     return void 0;
   try {
-    const parsed = JSON.parse(readFileSync47(requestPath, "utf8"));
+    const parsed = JSON.parse(readFileSync48(requestPath, "utf8"));
     return isObject4(parsed) ? parsed : void 0;
   } catch {
     return void 0;
@@ -63136,10 +63136,10 @@ function evidenceLinks2(runFolder, report) {
 }
 function readAutoResolutions(runFolder) {
   const tracePath = join28(runFolder, "trace.ndjson");
-  if (!existsSync31(tracePath))
+  if (!existsSync32(tracePath))
     return [];
   const records = [];
-  for (const line of readFileSync47(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync48(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -63179,12 +63179,12 @@ function skillHookSourceLabel(source) {
 }
 function readSkillHookSummary(runFolder) {
   const tracePath = join28(runFolder, "trace.ndjson");
-  if (!existsSync31(tracePath))
+  if (!existsSync32(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
   const warnings = [];
-  for (const line of readFileSync47(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync48(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -63389,14 +63389,14 @@ function writeOperatorSummary(input) {
     }
   }
   if (renderedHtml === void 0) {
-    if (existsSync31(candidateHtmlPath))
+    if (existsSync32(candidateHtmlPath))
       rmSync4(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
       writeFileSync7(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
-      if (existsSync31(candidateHtmlPath))
+      if (existsSync32(candidateHtmlPath))
         rmSync4(candidateHtmlPath, { force: true, recursive: true });
       htmlEmitWarning = {
         kind: "html_write_failed",
@@ -63493,7 +63493,7 @@ function writeOperatorSummary(input) {
 }
 
 // dist/app/process-evidence/projection.js
-import { existsSync as existsSync32, mkdirSync as mkdirSync7, writeFileSync as writeFileSync8 } from "node:fs";
+import { existsSync as existsSync33, mkdirSync as mkdirSync7, writeFileSync as writeFileSync8 } from "node:fs";
 import { dirname as dirname11, join as join29 } from "node:path";
 function traceRef2(runId) {
   return {
@@ -63551,7 +63551,7 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync32(join29(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync33(join29(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
     path: join29(input.runFolder, path),
     runId: input.runResult.run_id,
@@ -64365,9 +64365,9 @@ async function runAutonomousContinuation(input) {
 
 // dist/shared/config-loader.js
 var import_yaml4 = __toESM(require_dist(), 1);
-import { existsSync as existsSync33, readFileSync as readFileSync48 } from "node:fs";
+import { existsSync as existsSync34, readFileSync as readFileSync49 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
-import { join as join31, resolve as resolve21 } from "node:path";
+import { join as join31, resolve as resolve22 } from "node:path";
 var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
 var PROJECT_CONFIG_RELATIVE_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS;
 function userGlobalConfigPath(homeDir = homedir4()) {
@@ -64384,10 +64384,10 @@ function parseConfigYaml(text, sourcePath) {
   }
 }
 function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
-  const abs = resolve21(sourcePath);
-  if (!existsSync33(abs))
+  const abs = resolve22(sourcePath);
+  if (!existsSync34(abs))
     return void 0;
-  const raw = parseConfigYaml(readFileSync48(abs, "utf8"), abs);
+  const raw = parseConfigYaml(readFileSync49(abs, "utf8"), abs);
   if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
     const schemaVersion = raw.schema_version;
     if (schemaVersion === 2) {
@@ -64445,18 +64445,18 @@ function discoverRuntimeConfigLayers(options = {}) {
 }
 
 // dist/cli/flow-fixtures.js
-import { existsSync as existsSync34, readFileSync as readFileSync49 } from "node:fs";
-import { resolve as resolve22 } from "node:path";
+import { existsSync as existsSync35, readFileSync as readFileSync50 } from "node:fs";
+import { resolve as resolve23 } from "node:path";
 function resolveFixturePath(flowName, modeName, override, flowRoot2) {
   if (override !== void 0)
-    return resolve22(override);
-  const root = resolve22(flowRoot2 ?? "generated/flows");
+    return resolve23(override);
+  const root = resolve23(flowRoot2 ?? "generated/flows");
   if (modeName !== void 0) {
-    const perMode = resolve22(root, flowName, `${modeName}.json`);
-    if (existsSync34(perMode))
+    const perMode = resolve23(root, flowName, `${modeName}.json`);
+    if (existsSync35(perMode))
       return perMode;
   }
-  return resolve22(root, flowName, "circuit.json");
+  return resolve23(root, flowName, "circuit.json");
 }
 function fixtureSelectionNameForAxes(axes) {
   if (axes.tournament)
@@ -64478,10 +64478,10 @@ function axisSupportFromFlow(input) {
   return axisSupportFromAxes(input.flow.axes);
 }
 function loadFixture(fixturePath) {
-  if (!existsSync34(fixturePath)) {
+  if (!existsSync35(fixturePath)) {
     throw new Error(`flow fixture not found: ${fixturePath}`);
   }
-  const bytes = readFileSync49(fixturePath);
+  const bytes = readFileSync50(fixturePath);
   const raw = JSON.parse(bytes.toString("utf8"));
   const flow = CompiledFlow.parse(raw);
   const policy2 = validateCompiledFlowKindPolicy(flow);
@@ -64649,7 +64649,7 @@ function emitPostRunArtifacts(input) {
 
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { readFileSync as readFileSync50 } from "node:fs";
+import { readFileSync as readFileSync51 } from "node:fs";
 import { join as join33 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
@@ -64712,7 +64712,7 @@ function createRecoveryAttemptRunner(deps) {
         })
       };
     }
-    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync50(recoveryResult.resultPath, "utf8")));
+    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync51(recoveryResult.resultPath, "utf8")));
     return {
       projection: projectClosedProcessEvidence({
         runFolder: attemptFolder,
@@ -65091,7 +65091,7 @@ function shouldPrepareHistoryRecall(options) {
 }
 async function runResumeCommand(args, options) {
   if (args.command === "resume" && args.runFolder !== void 0 && args.checkpointChoice !== void 0) {
-    const runFolder = resolve23(args.runFolder);
+    const runFolder = resolve24(args.runFolder);
     const progress = progressReporter(args.progress === "jsonl");
     const hostKind = runtimeHostKind(options);
     if (await isRuntimeRunFolder(runFolder)) {
@@ -65106,7 +65106,7 @@ async function runResumeCommand(args, options) {
         ...progress === void 0 ? {} : { progress },
         progressSurfaceForFlowId
       });
-      const runResult = RunResult.parse(JSON.parse(readFileSync51(runtimeResult.resultPath, "utf8")));
+      const runResult = RunResult.parse(JSON.parse(readFileSync52(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
       const postRunArtifactContext = {
@@ -65193,7 +65193,7 @@ async function runExecutionCommand(args, options) {
   const entryModeSelection = resolveEntryModeSelection(args);
   const fixtureSelectionName = fixtureSelectionNameForAxes(args.axes);
   const fixturePath = resolveFixturePath(route.flowName, fixtureSelectionName, args.fixturePath, args.flowRoot);
-  if (!existsSync35(fixturePath)) {
+  if (!existsSync36(fixturePath)) {
     const pkg = findCompiledFlowPackageById(route.flowName);
     if (pkg?.visibility === "internal") {
       process.stderr.write(`error: ${route.flowName} is an internal flow and is not available through the host run surface.
@@ -65235,7 +65235,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = resolve23(args.runFolder ?? `${DEFAULT_RUNS_BASE2}/${runId}`);
+  const runFolder = resolve24(args.runFolder ?? `${DEFAULT_RUNS_BASE2}/${runId}`);
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...options.configHomeDir !== void 0 ? { homeDir: options.configHomeDir } : {},
     ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {}
@@ -65249,7 +65249,7 @@ async function runExecutionCommand(args, options) {
     return 2;
   }
   const hostKind = runtimeHostKind(options);
-  const projectRoot = resolve23(options.configCwd ?? process.cwd());
+  const projectRoot = resolve24(options.configCwd ?? process.cwd());
   if (hostKind === "codex") {
     try {
       const assurance = codexInstallAssurance({ projectRoot, now });
@@ -65405,7 +65405,7 @@ async function runExecutionCommand(args, options) {
 `);
       return 0;
     }
-    const runResult = RunResult.parse(JSON.parse(readFileSync51(runtimeResult.resultPath, "utf8")));
+    const runResult = RunResult.parse(JSON.parse(readFileSync52(runtimeResult.resultPath, "utf8")));
     const selectedProcess = selectedProcessFields({
       processId: flow.id,
       routedBy: route.source,
@@ -65618,12 +65618,12 @@ function readSourceVersion() {
   if (true)
     return "0.1.0-alpha.7";
   const candidates = [
-    resolve24(dirname15(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
-    resolve24(process.cwd(), "plugins/version.json")
+    resolve25(dirname15(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
+    resolve25(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync52(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync53(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {
