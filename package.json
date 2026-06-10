@@ -15,7 +15,7 @@
     "check": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "test:fast": "vitest run --exclude 'tests/runner/cli-router.test.ts'",
+    "test:fast": "vitest run --exclude 'tests/runner/cli-router.test.ts' --exclude 'tests/unit/emit-flows-drift.test.ts'",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "emit-yaml-schemas": "npm run build && node scripts/schemas/emit-yaml-schemas.ts",
