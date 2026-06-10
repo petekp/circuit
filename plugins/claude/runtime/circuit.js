@@ -10766,7 +10766,7 @@ var require_dist = __commonJS({
 });
 
 // dist/cli/circuit.js
-import { readFileSync as readFileSync50 } from "node:fs";
+import { readFileSync as readFileSync51 } from "node:fs";
 import { dirname as dirname15, resolve as resolve23 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
@@ -52363,9 +52363,9 @@ function latestRunFolder(runsBase) {
 }
 
 // dist/cli/run.js
-import { randomUUID as randomUUID7 } from "node:crypto";
-import { existsSync as existsSync34, mkdirSync as mkdirSync14, readFileSync as readFileSync49, writeFileSync as writeFileSync15 } from "node:fs";
-import { dirname as dirname14, join as join33, resolve as resolve22 } from "node:path";
+import { randomUUID as randomUUID8 } from "node:crypto";
+import { existsSync as existsSync34, mkdirSync as mkdirSync14, readFileSync as readFileSync50, writeFileSync as writeFileSync15 } from "node:fs";
+import { dirname as dirname14, join as join35, resolve as resolve22 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
 import { readFileSync as readFileSync44 } from "node:fs";
@@ -64606,6 +64606,82 @@ function emitPostRunArtifacts(input) {
   return { operatorSummary, processEvidence, runEnvelope };
 }
 
+// dist/cli/recovery-attempt-runner.js
+import { randomUUID as randomUUID7 } from "node:crypto";
+import { readFileSync as readFileSync49 } from "node:fs";
+import { join as join33 } from "node:path";
+function createRecoveryAttemptRunner(deps) {
+  const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
+  const recoveryFlowCache = /* @__PURE__ */ new Map();
+  return async ({ processId, attemptNumber }) => {
+    if (attemptNumber === 1) {
+      return { projection: primaryProjection };
+    }
+    let recoveryFlow = recoveryFlowCache.get(processId);
+    if (recoveryFlow === void 0) {
+      const path = resolveFixturePath(processId, fixtureSelectionName, void 0, flowRoot2);
+      const loaded = loadFixture(path);
+      const loadedFlowId = loaded.flow.id;
+      if (loadedFlowId !== processId) {
+        throw new Error(`recovery flow fixture id mismatch: routed to '${processId}' but fixture declares '${loadedFlowId}'`);
+      }
+      recoveryFlow = { flow: loaded.flow, bytes: loaded.bytes, path };
+      recoveryFlowCache.set(processId, recoveryFlow);
+    }
+    const support = axisSupportFromFlow({ flow: recoveryFlow.flow });
+    const recoveryAxes = Axes.parse({
+      // Keep the parent's rigor only if the recovery flow allows it;
+      // otherwise fall back to the recovery flow's own default rigor,
+      // which the axes schema guarantees is in its allowed set (never a
+      // hardcoded value the flow might not declare).
+      rigor: support.allowedRigors.includes(parentAxes.rigor) ? parentAxes.rigor : recoveryFlow.flow.axes.default.rigor,
+      tournament: false,
+      autonomous: parentAxes.autonomous && support.supportsAutonomous
+    });
+    const attemptFolder = join33(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
+    const recoveryResult = await runCompiledFlowWithWaiting({
+      flowBytes: recoveryFlow.bytes,
+      compiledFlowPath: recoveryFlow.path,
+      runDir: attemptFolder,
+      runId: RunId.parse(randomUUID7()),
+      goal: operatorGoal,
+      now,
+      projectRoot,
+      childCompiledFlowResolver: defaultChildCompiledFlowResolver(flowRoot2),
+      axes: recoveryAxes,
+      ...relayer === void 0 ? {} : { relayer },
+      ...runtimeExecutors === void 0 ? {} : { executors: runtimeExecutors },
+      ...hostKind === void 0 ? {} : { hostKind },
+      ...selectionConfigLayers.length === 0 ? {} : { selectionConfigLayers },
+      ...policyLayers.length === 0 ? {} : { policyLayers }
+    });
+    if (isGraphCheckpointWaitingResult(recoveryResult)) {
+      return {
+        projection: projectCheckpointWaitingProcessEvidence({
+          runFolder: attemptFolder,
+          runId: RunId.parse(recoveryResult.runId),
+          flowId: recoveryResult.flowId,
+          traceEntriesObserved: recoveryResult.traceEntriesObserved,
+          manifestHash: computeManifestHash(recoveryFlow.bytes),
+          checkpoint: {
+            stepId: recoveryResult.checkpoint.stepId,
+            requestPath: recoveryResult.checkpoint.requestPath,
+            allowedChoices: recoveryResult.checkpoint.allowedChoices
+          }
+        })
+      };
+    }
+    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync49(recoveryResult.resultPath, "utf8")));
+    return {
+      projection: projectClosedProcessEvidence({
+        runFolder: attemptFolder,
+        runResult: recoveryRunResult,
+        resultPath: recoveryResult.resultPath
+      })
+    };
+  };
+}
+
 // dist/cli/run-output.js
 function routeOutputFields(input) {
   return {
@@ -64640,6 +64716,64 @@ function runEnvelopeOutputFields(input) {
     run_surface_markdown_path: input.runEnvelope.surfacePath,
     run_surface_status_text: input.runEnvelope.record.surface_output.status_text,
     ...input.runEnvelope.decisionPacketPaths.length === 0 ? {} : { run_decision_packet_paths: input.runEnvelope.decisionPacketPaths }
+  };
+}
+
+// dist/cli/run-stdout-envelope.js
+import { join as join34 } from "node:path";
+function historyRecallOutputFields(input) {
+  return {
+    history_recall: {
+      status: input.report.status,
+      memory_input_count: input.report.memory_input_count,
+      report_path: join34(input.runFolder, HISTORY_RECALL_REPORT_PATH),
+      rebuilt: input.report.rebuilt,
+      ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
+      warnings: input.report.warnings.map((warning) => ({
+        code: warning.code,
+        message: warning.message
+      }))
+    }
+  };
+}
+function composeRunStdoutEnvelope(input) {
+  return {
+    schema_version: 1,
+    run_id: input.runId,
+    flow_id: input.flowId,
+    ...input.resolvedAxes === void 0 ? {} : {
+      resolved_axes: {
+        rigor: input.resolvedAxes.rigor,
+        tournament: input.resolvedAxes.tournament,
+        autonomous: input.resolvedAxes.autonomous
+      }
+    },
+    ...input.route === void 0 ? {} : routeOutputFields(input.route),
+    run_folder: input.runFolder,
+    outcome: input.outcome,
+    // Copy the abort reason onto the final envelope so a non-streaming
+    // host (and the present no-blocks branch) renders the specific reason
+    // rather than a generic fallback (F-H-2). result.json carries it too.
+    // A resumed run can also abort; surface its reason the same way (F-H-2).
+    ...input.reason === void 0 ? {} : { reason: input.reason },
+    trace_entries_observed: input.traceEntriesObserved,
+    result_path: input.resultPath,
+    ...input.runtimeFields,
+    ...input.historyRecallReport === void 0 ? {} : historyRecallOutputFields({
+      runFolder: input.runFolder,
+      report: input.historyRecallReport
+    }),
+    ...postRunArtifactWarningOutputFields(input.postRunArtifactWarnings),
+    ...input.operatorSummary === void 0 ? {} : operatorSummaryOutputFields({ operatorSummary: input.operatorSummary }),
+    ...input.runEnvelope === void 0 ? {} : runEnvelopeOutputFields({ runEnvelope: input.runEnvelope }),
+    ...input.autonomousLoop === void 0 ? {} : {
+      autonomous_loop: {
+        outcome: input.autonomousLoop.outcome,
+        attempts: input.autonomousLoop.attempts.length,
+        stop_reason: input.autonomousLoop.stopReason,
+        path: input.autonomousLoop.path
+      }
+    }
   };
 }
 
@@ -64906,7 +65040,7 @@ function loadFixture(fixturePath) {
   if (!existsSync34(fixturePath)) {
     throw new Error(`flow fixture not found: ${fixturePath}`);
   }
-  const bytes = readFileSync49(fixturePath);
+  const bytes = readFileSync50(fixturePath);
   const raw = JSON.parse(bytes.toString("utf8"));
   const flow = CompiledFlow.parse(raw);
   const policy2 = validateCompiledFlowKindPolicy(flow);
@@ -64949,21 +65083,6 @@ function classifyRuntimeSupport(input) {
     reason: `runtime supports fresh ${flowId} axis selection '${entryModeName}' at depth '${depth}'`
   };
 }
-function historyRecallOutputFields(input) {
-  return {
-    history_recall: {
-      status: input.report.status,
-      memory_input_count: input.report.memory_input_count,
-      report_path: join33(input.runFolder, HISTORY_RECALL_REPORT_PATH),
-      rebuilt: input.report.rebuilt,
-      ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
-      warnings: input.report.warnings.map((warning) => ({
-        code: warning.code,
-        message: warning.message
-      }))
-    }
-  };
-}
 function runEnvelopeMemoryContext(recall) {
   if (recall === void 0)
     return void 0;
@@ -64997,7 +65116,7 @@ async function runResumeCommand(args, options) {
         ...progress === void 0 ? {} : { progress },
         progressSurfaceForFlowId
       });
-      const runResult = RunResult.parse(JSON.parse(readFileSync49(runtimeResult.resultPath, "utf8")));
+      const runResult = RunResult.parse(JSON.parse(readFileSync50(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
       const postRunArtifactContext = {
@@ -65041,21 +65160,25 @@ async function runResumeCommand(args, options) {
       const resumeRuntimeFields = showRuntimeDecision() ? {
         runtime_reason: RUNTIME_POLICY_REASONS.checkpointResume
       } : {};
-      process.stdout.write(`${JSON.stringify({
-        schema_version: 1,
-        run_id: runResult.run_id,
-        flow_id: runResult.flow_id,
-        run_folder: runFolder,
+      process.stdout.write(`${JSON.stringify(composeRunStdoutEnvelope({
+        runId: runResult.run_id,
+        flowId: runResult.flow_id,
+        // Resume reuses the saved run's route and axes, so the envelope
+        // carries no resolved_axes or route facets.
+        resolvedAxes: void 0,
+        route: void 0,
+        runFolder,
         outcome: runResult.outcome,
-        // A resumed run can also abort; surface its reason the same way (F-H-2).
-        ...runResult.reason === void 0 ? {} : { reason: runResult.reason },
-        trace_entries_observed: runResult.trace_entries_observed,
-        result_path: runtimeResult.resultPath,
-        ...resumeRuntimeFields,
-        ...postRunArtifactWarningOutputFields(postRunArtifactWarnings),
-        ...operatorSummary === void 0 ? {} : operatorSummaryOutputFields({ operatorSummary }),
-        ...runEnvelope === void 0 ? {} : runEnvelopeOutputFields({ runEnvelope })
-      }, null, 2)}
+        reason: runResult.reason,
+        traceEntriesObserved: runResult.trace_entries_observed,
+        resultPath: runtimeResult.resultPath,
+        runtimeFields: resumeRuntimeFields,
+        historyRecallReport: void 0,
+        postRunArtifactWarnings,
+        operatorSummary,
+        runEnvelope,
+        autonomousLoop: void 0
+      }), null, 2)}
 `);
       return 0;
     }
@@ -65097,7 +65220,7 @@ async function runExecutionCommand(args, options) {
 `);
     return 2;
   }
-  const runId = RunId.parse(options.runId ?? randomUUID7());
+  const runId = RunId.parse(options.runId ?? randomUUID8());
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const progress = progressReporter(args.progress === "jsonl");
   const selectedStatusText = routeSelectedStatusText(flow.id, entryModeSelection.entryModeName);
@@ -65292,7 +65415,7 @@ async function runExecutionCommand(args, options) {
 `);
       return 0;
     }
-    const runResult = RunResult.parse(JSON.parse(readFileSync49(runtimeResult.resultPath, "utf8")));
+    const runResult = RunResult.parse(JSON.parse(readFileSync50(runtimeResult.resultPath, "utf8")));
     const selectedProcess = selectedProcessFields({
       processId: flow.id,
       routedBy: route.source,
@@ -65338,80 +65461,27 @@ async function runExecutionCommand(args, options) {
       const primaryProjection = processEvidence.projection;
       const contract = runEnvelope.record.goal_contract;
       const parentAxes = args.axes;
-      const recoveryFlowCache = /* @__PURE__ */ new Map();
       try {
         autonomousLoop = await runAutonomousContinuation({
           contract,
           primaryProcessId: flow.id,
-          runFlow: async ({ processId, attemptNumber }) => {
-            if (attemptNumber === 1) {
-              return { projection: primaryProjection };
-            }
-            let recoveryFlow = recoveryFlowCache.get(processId);
-            if (recoveryFlow === void 0) {
-              const path = resolveFixturePath(processId, fixtureSelectionName, void 0, args.flowRoot);
-              const loaded = loadFixture(path);
-              const loadedFlowId = loaded.flow.id;
-              if (loadedFlowId !== processId) {
-                throw new Error(`recovery flow fixture id mismatch: routed to '${processId}' but fixture declares '${loadedFlowId}'`);
-              }
-              recoveryFlow = { flow: loaded.flow, bytes: loaded.bytes, path };
-              recoveryFlowCache.set(processId, recoveryFlow);
-            }
-            const support = axisSupportFromFlow({ flow: recoveryFlow.flow });
-            const recoveryAxes = Axes.parse({
-              // Keep the parent's rigor only if the recovery flow allows it;
-              // otherwise fall back to the recovery flow's own default rigor,
-              // which the axes schema guarantees is in its allowed set (never a
-              // hardcoded value the flow might not declare).
-              rigor: support.allowedRigors.includes(parentAxes.rigor) ? parentAxes.rigor : recoveryFlow.flow.axes.default.rigor,
-              tournament: false,
-              autonomous: parentAxes.autonomous && support.supportsAutonomous
-            });
-            const attemptFolder = join33(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
-            const recoveryResult = await runCompiledFlowWithWaiting({
-              flowBytes: recoveryFlow.bytes,
-              compiledFlowPath: recoveryFlow.path,
-              runDir: attemptFolder,
-              runId: RunId.parse(randomUUID7()),
-              goal: operatorGoal,
-              now,
-              projectRoot,
-              childCompiledFlowResolver: defaultChildCompiledFlowResolver(args.flowRoot),
-              axes: recoveryAxes,
-              ...options.relayer === void 0 ? {} : { relayer: options.relayer },
-              ...options.runtimeExecutors === void 0 ? {} : { executors: options.runtimeExecutors },
-              ...hostKind === void 0 ? {} : { hostKind },
-              ...selectionConfigLayers.length === 0 ? {} : { selectionConfigLayers },
-              ...policyLayers.length === 0 ? {} : { policyLayers }
-            });
-            if (isGraphCheckpointWaitingResult(recoveryResult)) {
-              return {
-                projection: projectCheckpointWaitingProcessEvidence({
-                  runFolder: attemptFolder,
-                  runId: RunId.parse(recoveryResult.runId),
-                  flowId: recoveryResult.flowId,
-                  traceEntriesObserved: recoveryResult.traceEntriesObserved,
-                  manifestHash: computeManifestHash(recoveryFlow.bytes),
-                  checkpoint: {
-                    stepId: recoveryResult.checkpoint.stepId,
-                    requestPath: recoveryResult.checkpoint.requestPath,
-                    allowedChoices: recoveryResult.checkpoint.allowedChoices
-                  }
-                })
-              };
-            }
-            const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync49(recoveryResult.resultPath, "utf8")));
-            return {
-              projection: projectClosedProcessEvidence({
-                runFolder: attemptFolder,
-                runResult: recoveryRunResult,
-                resultPath: recoveryResult.resultPath
-              })
-            };
-          }
+          runFlow: createRecoveryAttemptRunner({
+            primaryProjection,
+            fixtureSelectionName,
+            flowRoot: args.flowRoot,
+            parentAxes,
+            runFolder,
+            operatorGoal,
+            now,
+            projectRoot,
+            relayer: options.relayer,
+            runtimeExecutors: options.runtimeExecutors,
+            hostKind,
+            selectionConfigLayers,
+            policyLayers
+          })
         });
-        const autonomousLoopPath = join33(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
+        const autonomousLoopPath = join35(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
         mkdirSync14(dirname14(autonomousLoopPath), { recursive: true });
         writeFileSync15(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
@@ -65426,47 +65496,32 @@ async function runExecutionCommand(args, options) {
       }
     }
     const resolvedAxes = args.axes;
-    process.stdout.write(`${JSON.stringify({
-      schema_version: 1,
-      run_id: runResult.run_id,
-      flow_id: runResult.flow_id,
-      resolved_axes: {
-        rigor: resolvedAxes.rigor,
-        tournament: resolvedAxes.tournament,
-        autonomous: resolvedAxes.autonomous
-      },
-      ...routeOutputFields({
+    process.stdout.write(`${JSON.stringify(composeRunStdoutEnvelope({
+      runId: runResult.run_id,
+      flowId: runResult.flow_id,
+      resolvedAxes,
+      route: {
         selectedFlow: route.flowName,
         routedBy: route.source,
         routerReason: route.reason,
         ...entryModeSelection.entryModeName === void 0 ? {} : { entryMode: entryModeSelection.entryModeName },
         ...entryModeSelection.source === void 0 ? {} : { entryModeSource: entryModeSelection.source }
-      }),
-      run_folder: runFolder,
+      },
+      runFolder,
       outcome: runResult.outcome,
-      // Copy the abort reason onto the final envelope so a non-streaming
-      // host (and the present no-blocks branch) renders the specific reason
-      // rather than a generic fallback (F-H-2). result.json carries it too.
-      ...runResult.reason === void 0 ? {} : { reason: runResult.reason },
-      trace_entries_observed: runResult.trace_entries_observed,
-      result_path: runtimeResult.resultPath,
-      ...runtimeOutputFields({
+      reason: runResult.reason,
+      traceEntriesObserved: runResult.trace_entries_observed,
+      resultPath: runtimeResult.resultPath,
+      runtimeFields: runtimeOutputFields({
         include: runtimeDecisionDiagnostics,
         decision: defaultRuntimeSupport
       }),
-      ...historyRecall === void 0 ? {} : historyRecallOutputFields({ runFolder, report: historyRecall.report }),
-      ...postRunArtifactWarningOutputFields(postRunArtifactWarnings),
-      ...operatorSummary === void 0 ? {} : operatorSummaryOutputFields({ operatorSummary }),
-      ...runEnvelope === void 0 ? {} : runEnvelopeOutputFields({ runEnvelope }),
-      ...autonomousLoop === void 0 ? {} : {
-        autonomous_loop: {
-          outcome: autonomousLoop.outcome,
-          attempts: autonomousLoop.attempts.length,
-          stop_reason: autonomousLoop.stopReason,
-          path: join33(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH)
-        }
-      }
-    }, null, 2)}
+      historyRecallReport: historyRecall?.report,
+      postRunArtifactWarnings,
+      operatorSummary,
+      runEnvelope,
+      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join35(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
+    }), null, 2)}
 `);
     return 0;
   }
@@ -65578,7 +65633,7 @@ function readSourceVersion() {
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync50(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync51(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {
