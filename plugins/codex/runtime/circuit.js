@@ -44228,7 +44228,7 @@ import { basename as basename2, resolve as resolve12 } from "node:path";
 // dist/app/continuity/harvest.js
 import { execFileSync } from "node:child_process";
 import { createHash as createHash4 } from "node:crypto";
-import { closeSync as closeSync2, existsSync as existsSync13, openSync as openSync2, readFileSync as readFileSync29, readSync as readSync2, readdirSync, rmSync as rmSync2, statSync as statSync2 } from "node:fs";
+import { closeSync as closeSync2, existsSync as existsSync13, openSync as openSync2, readFileSync as readFileSync29, readSync as readSync2, readdirSync, rmSync as rmSync3, statSync as statSync2 } from "node:fs";
 import { basename, join as join10, resolve as resolve10 } from "node:path";
 
 // dist/schemas/snapshot.js
@@ -44383,14 +44383,19 @@ var ContinuityIndex = indexOwnPropertyGuard.pipe(ContinuityIndexBody);
 
 // dist/shared/atomic-io.js
 import { randomUUID as randomUUID3 } from "node:crypto";
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync25, renameSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync25, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync2 } from "node:fs";
 import { dirname as dirname3 } from "node:path";
 function writeTextAtomic(path, contents, options = {}) {
   mkdirSync2(dirname3(path), { recursive: true });
   const staging = `${path}.${randomUUID3()}.tmp`;
   writeFileSync2(staging, contents);
-  options.validate?.(readFileSync25(staging, "utf8"));
-  renameSync(staging, path);
+  try {
+    options.validate?.(readFileSync25(staging, "utf8"));
+    renameSync(staging, path);
+  } catch (error51) {
+    rmSync2(staging, { force: true });
+    throw error51;
+  }
 }
 function writeJsonAtomic(path, value, options = {}) {
   writeTextAtomic(path, `${JSON.stringify(value, null, 2)}
@@ -45794,7 +45799,7 @@ function listAmbientRecords(controlPlane) {
 }
 function removeFileQuietly(path) {
   try {
-    rmSync2(path, { force: true });
+    rmSync3(path, { force: true });
   } catch {
   }
 }
@@ -62099,7 +62104,7 @@ function prepareRunStartHistoryRecall(options) {
 }
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync31, mkdirSync as mkdirSync6, readFileSync as readFileSync47, rmSync as rmSync3, writeFileSync as writeFileSync7 } from "node:fs";
+import { existsSync as existsSync31, mkdirSync as mkdirSync6, readFileSync as readFileSync47, rmSync as rmSync4, writeFileSync as writeFileSync7 } from "node:fs";
 import { dirname as dirname10, isAbsolute as isAbsolute12, join as join28, relative as relative13, resolve as resolve20 } from "node:path";
 
 // dist/shared/operator-summary/json.js
@@ -63385,14 +63390,14 @@ function writeOperatorSummary(input) {
   }
   if (renderedHtml === void 0) {
     if (existsSync31(candidateHtmlPath))
-      rmSync3(candidateHtmlPath, { force: true, recursive: true });
+      rmSync4(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
       writeFileSync7(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
       if (existsSync31(candidateHtmlPath))
-        rmSync3(candidateHtmlPath, { force: true, recursive: true });
+        rmSync4(candidateHtmlPath, { force: true, recursive: true });
       htmlEmitWarning = {
         kind: "html_write_failed",
         message: err instanceof Error ? err.message : String(err),

@@ -6,7 +6,7 @@
 // so a serialization defect can never land on disk.
 
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 export interface AtomicWriteOptions {
@@ -25,8 +25,15 @@ export function writeTextAtomic(
   mkdirSync(dirname(path), { recursive: true });
   const staging = `${path}.${randomUUID()}.tmp`;
   writeFileSync(staging, contents);
-  options.validate?.(readFileSync(staging, 'utf8'));
-  renameSync(staging, path);
+  try {
+    options.validate?.(readFileSync(staging, 'utf8'));
+    renameSync(staging, path);
+  } catch (error) {
+    // Failed writes must not accumulate orphaned staging files next to the
+    // target; nothing globs or cleans them up later.
+    rmSync(staging, { force: true });
+    throw error;
+  }
 }
 
 /** Atomic write of `JSON.stringify(value, null, 2)` plus a trailing newline. */
