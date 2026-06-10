@@ -7,7 +7,7 @@ import {
   codexInstallAssurance,
   missingDefaultLauncherMessage,
   resolveDefaultLauncher,
-} from '../../src/cli/handoff.js';
+} from '../../src/cli/handoff-codex-hooks.js';
 import { CUSTOM_FLOW_ROOT_RUNTIME_POLICY } from '../../src/cli/runtime-routing-policy.js';
 import {
   CompiledFlow,

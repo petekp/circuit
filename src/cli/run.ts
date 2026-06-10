@@ -37,7 +37,7 @@ import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { progressDisplay, progressPresentation } from '../shared/progress-output.js';
 import type { ComposeWriterFn, RelayFn } from '../shared/relay-runtime-types.js';
 import { parseCommanderOrThrow } from './commander-support.js';
-import { codexInstallAssurance } from './handoff.js';
+import { codexInstallAssurance } from './handoff-codex-hooks.js';
 import {
   type PostRunArtifactContext,
   type PostRunArtifactWarning,
