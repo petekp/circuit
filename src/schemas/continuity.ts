@@ -49,7 +49,7 @@ export const RunAttachedProvenance = z
     current_stage: StageId,
     current_step: StepId,
     runtime_status: SnapshotStatus,
-    runtime_updated_at: z.string().datetime(),
+    runtime_updated_at: z.iso.datetime(),
   })
   .strict();
 export type RunAttachedProvenance = z.infer<typeof RunAttachedProvenance>;
@@ -121,7 +121,7 @@ const ContinuityBase = z.object({
   schema_version: z.literal(1),
   record_id: ControlPlaneFileStem,
   project_root: z.string().min(1),
-  created_at: z.string().datetime(),
+  created_at: z.iso.datetime(),
   git: GitState,
   narrative: ContinuityNarrative,
 });
@@ -206,7 +206,7 @@ export const PendingRecordPointer = z
   .object({
     record_id: ControlPlaneFileStem,
     continuity_kind: z.union([z.literal('standalone'), z.literal('run-backed')]),
-    created_at: z.string().datetime(),
+    created_at: z.iso.datetime(),
   })
   .strict();
 export type PendingRecordPointer = z.infer<typeof PendingRecordPointer>;
@@ -217,8 +217,8 @@ export const AttachedRunPointer = z
     current_stage: StageId,
     current_step: StepId,
     runtime_status: SnapshotStatus,
-    attached_at: z.string().datetime(),
-    last_validated_at: z.string().datetime(),
+    attached_at: z.iso.datetime(),
+    last_validated_at: z.iso.datetime(),
   })
   .strict();
 export type AttachedRunPointer = z.infer<typeof AttachedRunPointer>;
@@ -234,7 +234,7 @@ export const AmbientRecordPointer = z
   .object({
     record_id: ControlPlaneFileStem,
     continuity_kind: z.literal('ambient'),
-    created_at: z.string().datetime(),
+    created_at: z.iso.datetime(),
   })
   .strict();
 export type AmbientRecordPointer = z.infer<typeof AmbientRecordPointer>;

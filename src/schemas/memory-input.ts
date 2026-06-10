@@ -31,8 +31,8 @@ export type MemoryStalenessStatus = z.infer<typeof MemoryStalenessStatus>;
 const MemorySource = z
   .object({
     ref: Ref,
-    captured_at: z.string().datetime(),
-    source_updated_at: z.string().datetime().optional(),
+    captured_at: z.iso.datetime(),
+    source_updated_at: z.iso.datetime().optional(),
     sha256: Sha256.optional(),
   })
   .strict();
@@ -48,7 +48,7 @@ const MemoryHint = z
 const MemoryStaleness = z
   .object({
     status: MemoryStalenessStatus,
-    checked_at: z.string().datetime(),
+    checked_at: z.iso.datetime(),
     reason_codes: z.array(ReasonCode).min(1),
   })
   .strict();

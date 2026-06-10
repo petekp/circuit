@@ -41,7 +41,7 @@ export const Snapshot = z
     steps: z.array(StepState),
     trace_entries_consumed: z.number().int().nonnegative(),
     manifest_hash: z.string().min(1),
-    updated_at: z.string().datetime(),
+    updated_at: z.iso.datetime(),
   })
   .strict();
 export type Snapshot = z.infer<typeof Snapshot>;

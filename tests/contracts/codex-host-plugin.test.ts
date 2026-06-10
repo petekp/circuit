@@ -44,24 +44,22 @@ const COMMAND_SOURCE_PATHS: Record<string, string> = {
   pursue: 'src/flows/pursue/command.md',
 };
 
-const PluginManifest = z
-  .object({
-    name: z.literal('circuit'),
-    version: z.string().min(1),
-    description: z.string().min(1),
-    homepage: z.literal('https://github.com/petekp/circuit'),
-    repository: z.literal('https://github.com/petekp/circuit'),
-    skills: z.literal('./skills/'),
-    interface: z.object({
-      displayName: z.literal('Circuit'),
-      shortDescription: z.string().min(1),
-      longDescription: z.string().min(1),
-      category: z.literal('Coding'),
-      capabilities: z.array(z.string()).min(1),
-      defaultPrompt: z.array(z.string().max(128)).max(3),
-    }),
-  })
-  .passthrough();
+const PluginManifest = z.looseObject({
+  name: z.literal('circuit'),
+  version: z.string().min(1),
+  description: z.string().min(1),
+  homepage: z.literal('https://github.com/petekp/circuit'),
+  repository: z.literal('https://github.com/petekp/circuit'),
+  skills: z.literal('./skills/'),
+  interface: z.object({
+    displayName: z.literal('Circuit'),
+    shortDescription: z.string().min(1),
+    longDescription: z.string().min(1),
+    category: z.literal('Coding'),
+    capabilities: z.array(z.string()).min(1),
+    defaultPrompt: z.array(z.string().max(128)).max(3),
+  }),
+});
 
 function sourceCommandPath(command: string): string {
   return resolve(REPO_ROOT, COMMAND_SOURCE_PATHS[command] ?? `src/commands/${command}.md`);

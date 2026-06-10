@@ -65,7 +65,7 @@ const LastRunStatusEvent = z
   .object({
     sequence: z.number().int().nonnegative(),
     type: z.string().min(1),
-    timestamp: z.string().datetime(),
+    timestamp: z.iso.datetime(),
   })
   .strict();
 export type LastRunStatusEvent = z.infer<typeof LastRunStatusEvent>;

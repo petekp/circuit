@@ -224,7 +224,7 @@ export const GuidanceDecisionTraceEntryBody = z
   .object({
     schema_version: z.literal(1),
     sequence: z.number().int().nonnegative(),
-    recorded_at: z.string().datetime(),
+    recorded_at: z.iso.datetime(),
     run_id: RunId,
     kind: z.literal('guidance.decision'),
     decision_id: GuidanceDecisionId,

@@ -27241,12 +27241,12 @@ var ChangeKindBase = external_exports.object({
 });
 var MigrationEscrowChangeKind = ChangeKindBase.extend({
   change_kind: external_exports.literal("migration-escrow"),
-  expires_at: external_exports.string().datetime(),
+  expires_at: external_exports.iso.datetime(),
   restoration_plan: external_exports.string().min(1)
 }).strict();
 var BreakGlassChangeKind = ChangeKindBase.extend({
   change_kind: external_exports.literal("break-glass"),
-  post_hoc_adr_deadline_at: external_exports.string().datetime()
+  post_hoc_adr_deadline_at: external_exports.iso.datetime()
 }).strict();
 var StandardChangeKind = ChangeKindBase.extend({
   change_kind: external_exports.enum(["ratchet-advance", "equivalence-refactor", "discovery", "disposable"])
@@ -35913,7 +35913,7 @@ function addScopedRefIssues(ctx, path, label, ref, entry) {
 var GuidanceDecisionTraceEntryBody = external_exports.object({
   schema_version: external_exports.literal(1),
   sequence: external_exports.number().int().nonnegative(),
-  recorded_at: external_exports.string().datetime(),
+  recorded_at: external_exports.iso.datetime(),
   run_id: RunId,
   kind: external_exports.literal("guidance.decision"),
   decision_id: GuidanceDecisionId,
@@ -36540,7 +36540,7 @@ var ProofAssessment = external_exports.object({
 var TraceEntryBase = external_exports.object({
   schema_version: external_exports.literal(1),
   sequence: external_exports.number().int().nonnegative(),
-  recorded_at: external_exports.string().datetime(),
+  recorded_at: external_exports.iso.datetime(),
   run_id: RunId
 });
 var ContentHash = Sha256;
@@ -37063,7 +37063,7 @@ var RunResult = external_exports.object({
   why: external_exports.string().min(1).optional(),
   outcome: RunClosedOutcome,
   summary: external_exports.string().min(1),
-  closed_at: external_exports.string().datetime(),
+  closed_at: external_exports.iso.datetime(),
   trace_entries_observed: external_exports.number().int().nonnegative(),
   manifest_hash: external_exports.string().min(1),
   reason: external_exports.string().min(1).optional(),
@@ -39422,20 +39422,20 @@ var prototypeBriefComposeBuilder = {
 
 // dist/flows/prototype/writers/close.js
 import { existsSync as existsSync7, readFileSync as readFileSync17 } from "node:fs";
-var CheckpointResponse = external_exports.object({
+var CheckpointResponse = external_exports.looseObject({
   schema_version: external_exports.literal(1),
   step_id: external_exports.literal("prototype-checkpoint-step"),
   selection: PrototypeCheckpointSelection,
   route_id: external_exports.string().min(1).optional(),
   resolution_source: external_exports.enum(["operator", "declared-default", "policy"])
-}).passthrough();
-var VariantCheckpointResponse = external_exports.object({
+});
+var VariantCheckpointResponse = external_exports.looseObject({
   schema_version: external_exports.literal(1),
   step_id: external_exports.literal("prototype-variant-checkpoint-step"),
   selection: PrototypeVariantId,
   route_id: external_exports.string().min(1).optional(),
   resolution_source: external_exports.enum(["operator", "declared-default", "policy"])
-}).passthrough();
+});
 var BASE_SINGLE_POINTERS = [
   { report_id: "prototype.brief", schema: "prototype.brief@v1" },
   { report_id: "prototype.plan", schema: "prototype.plan@v1" },
@@ -43551,7 +43551,7 @@ var ProgressEventBase = external_exports.object({
   type: external_exports.string().min(1),
   run_id: RunId,
   flow_id: CompiledFlowId,
-  recorded_at: external_exports.string().datetime(),
+  recorded_at: external_exports.iso.datetime(),
   label: external_exports.string().min(1),
   display: ProgressDisplay,
   presentation: ProgressPresentation.optional()
@@ -44283,7 +44283,7 @@ var Snapshot = external_exports.object({
   steps: external_exports.array(StepState),
   trace_entries_consumed: external_exports.number().int().nonnegative(),
   manifest_hash: external_exports.string().min(1),
-  updated_at: external_exports.string().datetime()
+  updated_at: external_exports.iso.datetime()
 }).strict();
 
 // dist/schemas/continuity.js
@@ -44305,7 +44305,7 @@ var RunAttachedProvenance = external_exports.object({
   current_stage: StageId,
   current_step: StepId,
   runtime_status: SnapshotStatus,
-  runtime_updated_at: external_exports.string().datetime()
+  runtime_updated_at: external_exports.iso.datetime()
 }).strict();
 var AmbientProvenance = external_exports.object({
   session_id: external_exports.string().min(1).optional(),
@@ -44335,7 +44335,7 @@ var ContinuityBase = external_exports.object({
   schema_version: external_exports.literal(1),
   record_id: ControlPlaneFileStem,
   project_root: external_exports.string().min(1),
-  created_at: external_exports.string().datetime(),
+  created_at: external_exports.iso.datetime(),
   git: GitState,
   narrative: ContinuityNarrative
 });
@@ -44370,20 +44370,20 @@ var ContinuityRecord = recordOwnPropertyGuard.pipe(external_exports.discriminate
 var PendingRecordPointer = external_exports.object({
   record_id: ControlPlaneFileStem,
   continuity_kind: external_exports.union([external_exports.literal("standalone"), external_exports.literal("run-backed")]),
-  created_at: external_exports.string().datetime()
+  created_at: external_exports.iso.datetime()
 }).strict();
 var AttachedRunPointer = external_exports.object({
   run_id: RunId,
   current_stage: StageId,
   current_step: StepId,
   runtime_status: SnapshotStatus,
-  attached_at: external_exports.string().datetime(),
-  last_validated_at: external_exports.string().datetime()
+  attached_at: external_exports.iso.datetime(),
+  last_validated_at: external_exports.iso.datetime()
 }).strict();
 var AmbientRecordPointer = external_exports.object({
   record_id: ControlPlaneFileStem,
   continuity_kind: external_exports.literal("ambient"),
-  created_at: external_exports.string().datetime()
+  created_at: external_exports.iso.datetime()
 }).strict();
 var ContinuityIndexBody = external_exports.object({
   schema_version: external_exports.literal(1),
@@ -44420,7 +44420,7 @@ var ManifestSnapshot = external_exports.object({
   schema_version: external_exports.literal(1),
   run_id: RunId,
   flow_id: CompiledFlowId,
-  captured_at: external_exports.string().datetime(),
+  captured_at: external_exports.iso.datetime(),
   algorithm: external_exports.literal("sha256-raw"),
   hash: ManifestHash,
   bytes_base64: external_exports.string().regex(BASE64, {
@@ -44515,7 +44515,7 @@ var WaitingCheckpointStatus = external_exports.object({
 var LastRunStatusEvent = external_exports.object({
   sequence: external_exports.number().int().nonnegative(),
   type: external_exports.string().min(1),
-  timestamp: external_exports.string().datetime()
+  timestamp: external_exports.iso.datetime()
 }).strict();
 var RunStatusError = external_exports.object({
   code: external_exports.string().min(1),
@@ -47342,12 +47342,12 @@ function computeRunFolderNamesHash(runFolders) {
 }
 
 // dist/schemas/builtin-report-schemas.js
-var MinimalVerdictShape = external_exports.object({ verdict: external_exports.string().min(1) }).passthrough();
+var MinimalVerdictShape = external_exports.looseObject({ verdict: external_exports.string().min(1) });
 var StrictPayloadShape = external_exports.object({
   verdict: external_exports.string().min(1),
   rationale: external_exports.string().min(1)
 }).strict();
-var FanoutAggregateFixtureBranchShape = external_exports.object({
+var FanoutAggregateFixtureBranchShape = external_exports.looseObject({
   branch_id: external_exports.string().min(1),
   child_run_id: external_exports.string().min(1),
   child_outcome: external_exports.string().min(1),
@@ -47355,14 +47355,14 @@ var FanoutAggregateFixtureBranchShape = external_exports.object({
   admitted: external_exports.boolean(),
   result_path: external_exports.string().min(1),
   duration_ms: external_exports.number().nonnegative()
-}).passthrough();
-var FanoutAggregateFixtureShape = external_exports.object({
+});
+var FanoutAggregateFixtureShape = external_exports.looseObject({
   schema_version: external_exports.literal(1),
   join_policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
   branch_count: external_exports.number().int().nonnegative(),
   winner_branch_id: external_exports.string().min(1).optional(),
   branches: external_exports.array(FanoutAggregateFixtureBranchShape)
-}).passthrough();
+});
 var BUILTIN_REPORT_SCHEMAS = Object.freeze({
   "runtime-proof-canonical@v1": MinimalVerdictShape,
   "runtime-proof-strict@v1": StrictPayloadShape,
@@ -47855,8 +47855,8 @@ var MemoryHintAppliesTo = external_exports.enum([
 var MemoryStalenessStatus = external_exports.enum(["fresh", "stale", "unknown"]);
 var MemorySource = external_exports.object({
   ref: Ref,
-  captured_at: external_exports.string().datetime(),
-  source_updated_at: external_exports.string().datetime().optional(),
+  captured_at: external_exports.iso.datetime(),
+  source_updated_at: external_exports.iso.datetime().optional(),
   sha256: Sha256.optional()
 }).strict();
 var MemoryHint = external_exports.object({
@@ -47866,7 +47866,7 @@ var MemoryHint = external_exports.object({
 }).strict();
 var MemoryStaleness = external_exports.object({
   status: MemoryStalenessStatus,
-  checked_at: external_exports.string().datetime(),
+  checked_at: external_exports.iso.datetime(),
   reason_codes: external_exports.array(ReasonCode2).min(1)
 }).strict();
 var MemoryInputV0 = external_exports.object({
@@ -48768,8 +48768,8 @@ var RunProcessAttempt = external_exports.object({
   attempt_id: external_exports.string().min(1),
   process_id: CompiledFlowId,
   goal: external_exports.string().min(1),
-  started_at: external_exports.string().datetime(),
-  completed_at: external_exports.string().datetime().optional(),
+  started_at: external_exports.iso.datetime(),
+  completed_at: external_exports.iso.datetime().optional(),
   outcome: external_exports.enum([
     "complete",
     "needs_attention",
@@ -48907,7 +48907,7 @@ var RunDecisionPacket = external_exports.object({
 var RunMemoryUpdateReasonCode = external_exports.string().regex(/^[a-z][a-z0-9_]*$/);
 var RunMemoryUpdateStaleness = external_exports.object({
   status: external_exports.enum(["fresh", "stale", "unknown"]),
-  checked_at: external_exports.string().datetime(),
+  checked_at: external_exports.iso.datetime(),
   reason_codes: external_exports.array(RunMemoryUpdateReasonCode).min(1)
 }).strict().superRefine((staleness, ctx) => {
   if (staleness.status === "unknown" && !staleness.reason_codes.includes("memory_unverified")) {
@@ -48968,7 +48968,7 @@ var RunEnvelopeShadowRecord = external_exports.object({
   shadow_reason: external_exports.literal("source-owned-run-not-active"),
   run_id: RunId,
   operator_intent: external_exports.string().min(1),
-  recorded_at: external_exports.string().datetime(),
+  recorded_at: external_exports.iso.datetime(),
   selected_process: external_exports.object({
     process_id: CompiledFlowId,
     routed_by: external_exports.literal("explicit").optional(),
@@ -49310,7 +49310,7 @@ var HistoryWarningV1 = external_exports.object({
 var HistoryManifestV1 = external_exports.object({
   api_version: external_exports.literal("history-index-v1"),
   schema_version: external_exports.literal(1),
-  created_at: external_exports.string().datetime(),
+  created_at: external_exports.iso.datetime(),
   repo_root: external_exports.string().min(1),
   runs_base: external_exports.string().min(1),
   index_dir: external_exports.string().min(1),
@@ -49340,7 +49340,7 @@ var HistoryDocumentV1 = external_exports.object({
   step_id: external_exports.string().min(1).optional(),
   attempt: external_exports.number().int().positive().optional(),
   sequence: external_exports.number().int().nonnegative().optional(),
-  recorded_at: external_exports.string().datetime().optional(),
+  recorded_at: external_exports.iso.datetime().optional(),
   outcome: external_exports.string().min(1).optional(),
   title: external_exports.string().min(1),
   summary: external_exports.string().min(1),
@@ -49355,7 +49355,7 @@ var HistoryDocumentV1 = external_exports.object({
 var HistoryStalenessV1 = external_exports.object({
   status: external_exports.enum(["fresh", "stale", "unknown"]),
   reason_codes: external_exports.array(external_exports.string().regex(/^[a-z][a-z0-9_]*$/)).min(1),
-  checked_at: external_exports.string().datetime()
+  checked_at: external_exports.iso.datetime()
 }).strict().superRefine((staleness, ctx) => {
   if (staleness.status === "unknown" && !staleness.reason_codes.includes("memory_unverified")) {
     ctx.addIssue({
@@ -49551,7 +49551,7 @@ var MemoryMergeItemV1 = external_exports.object({
 var HistoryMemoryMergeV1 = external_exports.object({
   api_version: external_exports.literal("history-memory-merge-v1"),
   schema_version: external_exports.literal(1),
-  generated_at: external_exports.string().datetime(),
+  generated_at: external_exports.iso.datetime(),
   runs_base: external_exports.string().min(1),
   authority_notice: external_exports.literal(HISTORY_AUTHORITY_NOTICE),
   run_count: external_exports.number().int().nonnegative(),
@@ -49652,7 +49652,7 @@ var MemoryEffectSummaryV1 = external_exports.object({
 var HistoryMemoryEffectV1 = external_exports.object({
   api_version: external_exports.literal("history-memory-effect-v1"),
   schema_version: external_exports.literal(1),
-  generated_at: external_exports.string().datetime(),
+  generated_at: external_exports.iso.datetime(),
   runs_base: external_exports.string().min(1),
   authority_notice: external_exports.literal(HISTORY_AUTHORITY_NOTICE),
   // The Q2 sample gate in effect (default 2), echoed so the artifact states
@@ -49744,10 +49744,10 @@ var RecallPrecisionDecisionV1 = external_exports.object({
 var HistoryRecallPrecisionV1 = external_exports.object({
   api_version: external_exports.literal("history-recall-precision-v1"),
   schema_version: external_exports.literal(1),
-  generated_at: external_exports.string().datetime(),
+  generated_at: external_exports.iso.datetime(),
   flow_id: external_exports.string().min(1).optional(),
   effect_report_available: external_exports.boolean(),
-  effect_report_generated_at: external_exports.string().datetime().optional(),
+  effect_report_generated_at: external_exports.iso.datetime().optional(),
   authority_notice: external_exports.literal(HISTORY_AUTHORITY_NOTICE),
   budget: external_exports.number().int().nonnegative(),
   indicator: external_exports.string().min(1),
@@ -49780,14 +49780,14 @@ var PullLogResultV1 = external_exports.object({
 }).strict();
 var PullLogEntryV1 = external_exports.object({
   pull_id: external_exports.string().min(1),
-  recorded_at: external_exports.string().datetime(),
+  recorded_at: external_exports.iso.datetime(),
   decision_point: external_exports.string().min(1),
   query: external_exports.string(),
   flow_id: external_exports.string().min(1),
   result_count: external_exports.number().int().nonnegative(),
   suppressed_count: external_exports.number().int().nonnegative(),
   effect_report_available: external_exports.boolean(),
-  effect_report_generated_at: external_exports.string().datetime().optional(),
+  effect_report_generated_at: external_exports.iso.datetime().optional(),
   results: external_exports.array(PullLogResultV1),
   authority: external_exports.literal("hint_only")
 }).strict().superRefine((entry, ctx) => {
@@ -53793,7 +53793,7 @@ var UserSkillFrontmatter = UserSkillEntry.pick({
   name: true,
   description: true,
   trigger: true
-}).passthrough();
+}).loose();
 function defaultUserSkillRoots(homeDir = homedir3()) {
   return [join21(homeDir, ".agents", "skills"), join21(homeDir, ".claude", "skills")];
 }

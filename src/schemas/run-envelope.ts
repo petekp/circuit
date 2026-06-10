@@ -172,8 +172,8 @@ export const RunProcessAttempt = z
     attempt_id: z.string().min(1),
     process_id: CompiledFlowId,
     goal: z.string().min(1),
-    started_at: z.string().datetime(),
-    completed_at: z.string().datetime().optional(),
+    started_at: z.iso.datetime(),
+    completed_at: z.iso.datetime().optional(),
     outcome: z.enum([
       'complete',
       'needs_attention',
@@ -364,7 +364,7 @@ const RunMemoryUpdateReasonCode = z.string().regex(/^[a-z][a-z0-9_]*$/);
 export const RunMemoryUpdateStaleness = z
   .object({
     status: z.enum(['fresh', 'stale', 'unknown']),
-    checked_at: z.string().datetime(),
+    checked_at: z.iso.datetime(),
     reason_codes: z.array(RunMemoryUpdateReasonCode).min(1),
   })
   .strict()
@@ -442,7 +442,7 @@ export const RunEnvelopeShadowRecord = z
     shadow_reason: z.literal('source-owned-run-not-active'),
     run_id: RunId,
     operator_intent: z.string().min(1),
-    recorded_at: z.string().datetime(),
+    recorded_at: z.iso.datetime(),
     selected_process: z
       .object({
         process_id: CompiledFlowId,

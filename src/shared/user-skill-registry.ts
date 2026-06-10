@@ -28,7 +28,7 @@ const UserSkillFrontmatter = UserSkillEntry.pick({
   name: true,
   description: true,
   trigger: true,
-}).passthrough();
+}).loose();
 
 export function defaultUserSkillRoots(homeDir = homedir()): readonly string[] {
   return [join(homeDir, '.agents', 'skills'), join(homeDir, '.claude', 'skills')];

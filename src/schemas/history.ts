@@ -36,7 +36,7 @@ export const HistoryManifestV1 = z
   .object({
     api_version: z.literal('history-index-v1'),
     schema_version: z.literal(1),
-    created_at: z.string().datetime(),
+    created_at: z.iso.datetime(),
     repo_root: z.string().min(1),
     runs_base: z.string().min(1),
     index_dir: z.string().min(1),
@@ -74,7 +74,7 @@ export const HistoryDocumentV1 = z
     step_id: z.string().min(1).optional(),
     attempt: z.number().int().positive().optional(),
     sequence: z.number().int().nonnegative().optional(),
-    recorded_at: z.string().datetime().optional(),
+    recorded_at: z.iso.datetime().optional(),
     outcome: z.string().min(1).optional(),
     title: z.string().min(1),
     summary: z.string().min(1),
@@ -97,7 +97,7 @@ export const HistoryStalenessV1 = z
   .object({
     status: z.enum(['fresh', 'stale', 'unknown']),
     reason_codes: z.array(z.string().regex(/^[a-z][a-z0-9_]*$/)).min(1),
-    checked_at: z.string().datetime(),
+    checked_at: z.iso.datetime(),
   })
   .strict()
   .superRefine((staleness, ctx) => {
@@ -371,7 +371,7 @@ export const HistoryMemoryMergeV1 = z
   .object({
     api_version: z.literal('history-memory-merge-v1'),
     schema_version: z.literal(1),
-    generated_at: z.string().datetime(),
+    generated_at: z.iso.datetime(),
     runs_base: z.string().min(1),
     authority_notice: z.literal(HISTORY_AUTHORITY_NOTICE),
     run_count: z.number().int().nonnegative(),
@@ -525,7 +525,7 @@ export const HistoryMemoryEffectV1 = z
   .object({
     api_version: z.literal('history-memory-effect-v1'),
     schema_version: z.literal(1),
-    generated_at: z.string().datetime(),
+    generated_at: z.iso.datetime(),
     runs_base: z.string().min(1),
     authority_notice: z.literal(HISTORY_AUTHORITY_NOTICE),
     // The Q2 sample gate in effect (default 2), echoed so the artifact states
@@ -635,10 +635,10 @@ export const HistoryRecallPrecisionV1 = z
   .object({
     api_version: z.literal('history-recall-precision-v1'),
     schema_version: z.literal(1),
-    generated_at: z.string().datetime(),
+    generated_at: z.iso.datetime(),
     flow_id: z.string().min(1).optional(),
     effect_report_available: z.boolean(),
-    effect_report_generated_at: z.string().datetime().optional(),
+    effect_report_generated_at: z.iso.datetime().optional(),
     authority_notice: z.literal(HISTORY_AUTHORITY_NOTICE),
     budget: z.number().int().nonnegative(),
     indicator: z.string().min(1),
@@ -699,14 +699,14 @@ export type PullLogResultV1 = z.infer<typeof PullLogResultV1>;
 export const PullLogEntryV1 = z
   .object({
     pull_id: z.string().min(1),
-    recorded_at: z.string().datetime(),
+    recorded_at: z.iso.datetime(),
     decision_point: z.string().min(1),
     query: z.string(),
     flow_id: z.string().min(1),
     result_count: z.number().int().nonnegative(),
     suppressed_count: z.number().int().nonnegative(),
     effect_report_available: z.boolean(),
-    effect_report_generated_at: z.string().datetime().optional(),
+    effect_report_generated_at: z.iso.datetime().optional(),
     results: z.array(PullLogResultV1),
     authority: z.literal('hint_only'),
   })

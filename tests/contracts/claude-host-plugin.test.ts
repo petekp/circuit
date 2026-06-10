@@ -32,13 +32,11 @@ const EXPECTED_CLAUDE_COMMANDS = ['handoff', 'pursue', 'run'];
 const RAW_PROGRESS_INVOCATION =
   /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/circuit\.ts" (?!present\b)[^\n]*--progress jsonl/;
 
-const PluginManifest = z
-  .object({
-    name: z.literal('circuit'),
-    version: z.string().min(1),
-    description: z.string().min(1),
-  })
-  .passthrough();
+const PluginManifest = z.looseObject({
+  name: z.literal('circuit'),
+  version: z.string().min(1),
+  description: z.string().min(1),
+});
 
 const MarketplaceManifest = z.object({
   name: z.literal('circuit'),

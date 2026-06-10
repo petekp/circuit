@@ -59,7 +59,8 @@ function enumValues(def: ZodDef): readonly (string | number)[] {
   if (Array.isArray(raw)) return raw;
   if (raw === undefined || raw === null || typeof raw !== 'object') return [];
 
-  // `z.nativeEnum()` numeric enums carry TypeScript's reverse-mapped form
+  // `z.enum()` over numeric TS enums (formerly `z.nativeEnum()`) carries
+  // TypeScript's reverse-mapped form
   // ({0:'Low',1:'High',Low:0,High:1}); Zod accepts the numeric value side.
   const values = Object.values(raw as Record<string, string | number>);
   const isReverseMapped = values.some(

@@ -135,13 +135,13 @@ describe('renderShapeSkeleton', () => {
 
   // Regression: numeric native enums used to render their reverse-mapped
   // KEY names ("A|B"), but Zod only accepts the numeric VALUES.
-  it('renders numeric nativeEnum values, not reverse-mapped names', () => {
+  it('renders numeric enum-object values, not reverse-mapped names', () => {
     enum Priority {
       Low = 0,
       High = 1,
     }
     const schema = z.object({
-      priority: z.nativeEnum(Priority),
+      priority: z.enum(Priority),
     });
     const out = renderShapeSkeleton(schema);
     expect(out).toContain('"<0|1>"');
@@ -149,13 +149,13 @@ describe('renderShapeSkeleton', () => {
     expect(out).not.toContain('High');
   });
 
-  it('renders string nativeEnum values as the accepted string values', () => {
+  it('renders string enum-object values as the accepted string values', () => {
     enum Color {
       Red = 'red',
       Blue = 'blue',
     }
     const schema = z.object({
-      color: z.nativeEnum(Color),
+      color: z.enum(Color),
     });
     const out = renderShapeSkeleton(schema);
     expect(out).toContain('"<red|blue>"');

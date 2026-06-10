@@ -69,7 +69,7 @@ const ProgressEventBase = z
     type: z.string().min(1),
     run_id: RunId,
     flow_id: CompiledFlowId,
-    recorded_at: z.string().datetime(),
+    recorded_at: z.iso.datetime(),
     label: z.string().min(1),
     display: ProgressDisplay,
     presentation: ProgressPresentation.optional(),

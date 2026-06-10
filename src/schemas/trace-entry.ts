@@ -24,7 +24,7 @@ import { FanoutFailurePolicy, RelayRole } from './step.js';
 const TraceEntryBase = z.object({
   schema_version: z.literal(1),
   sequence: z.number().int().nonnegative(),
-  recorded_at: z.string().datetime(),
+  recorded_at: z.iso.datetime(),
   run_id: RunId,
 });
 
