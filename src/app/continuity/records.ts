@@ -14,7 +14,7 @@ import {
 } from '../../schemas/continuity.js';
 import type { ControlPlaneFileStem } from '../../schemas/scalars.js';
 import type { Snapshot, SnapshotStatus } from '../../schemas/snapshot.js';
-import { CONTROL_PLANE_DIR } from '../../shared/control-plane-paths.js';
+import { CONTROL_PLANE_DIR, controlPlaneRoot } from '../../shared/control-plane-paths.js';
 import { readManifestSnapshot } from '../../shared/manifest-snapshot.js';
 import { projectRunStatusFromRunFolder } from '../run-status/run-folder-projector.js';
 
@@ -29,7 +29,7 @@ export function resolveControlPlaneArg(args: {
   readonly controlPlane?: string;
 }): string {
   if (args.controlPlane !== undefined) return resolve(args.controlPlane);
-  return resolve(resolveProjectRootArg(args), DEFAULT_CONTROL_PLANE);
+  return controlPlaneRoot(resolveProjectRootArg(args));
 }
 
 /** The slice of the handoff CLI arguments that record construction reads. */

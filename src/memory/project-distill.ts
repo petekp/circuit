@@ -11,7 +11,7 @@ import {
   StepAbortedTraceEntry,
 } from '../schemas/index.js';
 import { sha256Hex } from '../shared/connector-relay.js';
-import { CONTROL_PLANE_RUNS_DIR } from '../shared/control-plane-paths.js';
+import { runsRoot } from '../shared/control-plane-paths.js';
 
 // The deterministic, propose-first project-fact distiller (Slice 5). It mines
 // the ONE grounded auto-signal the typed corpus supports today (D4): a
@@ -188,7 +188,7 @@ function readRunCluster(runFolder: string):
 export function distillProjectFacts(
   options: DistillProjectFactsOptions,
 ): DistillProjectFactsResult {
-  const runsBase = options.runsBase ?? join(options.repoRoot, CONTROL_PLANE_RUNS_DIR);
+  const runsBase = options.runsBase ?? runsRoot(options.repoRoot);
   const minDistinctRuns = options.minDistinctRuns ?? DEFAULT_MIN_DISTINCT_RUNS;
   const now = options.now ?? (() => new Date());
   const capturedAt = now().toISOString();

@@ -7,7 +7,8 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_CONTROL_PLANE, continuityRoot } from '../app/continuity/records.js';
+import { continuityRoot } from '../app/continuity/records.js';
+import { controlPlaneRoot } from '../shared/control-plane-paths.js';
 
 export type HandoffHookHost = 'codex';
 export type HandoffHooksAction = 'install' | 'uninstall' | 'doctor';
@@ -481,7 +482,7 @@ export interface CodexInstallAssuranceResult {
 export function codexInstallAssurance(
   input: CodexInstallAssuranceInput,
 ): CodexInstallAssuranceResult {
-  const controlPlane = input.controlPlane ?? resolve(input.projectRoot, DEFAULT_CONTROL_PLANE);
+  const controlPlane = input.controlPlane ?? controlPlaneRoot(input.projectRoot);
   const markerPath = codexInstallNudgeMarkerPath(controlPlane);
   const hooksPath = input.hooksFile ?? defaultCodexHooksFile();
 

@@ -18,7 +18,6 @@ import {
   tombstoneAmbientRecord,
 } from '../app/continuity/harvest.js';
 import {
-  DEFAULT_CONTROL_PLANE,
   buildRecord,
   handoffResultPath,
   indexPath,
@@ -35,6 +34,7 @@ import {
 } from '../app/continuity/records.js';
 import { ContinuityIndex, ContinuityRecord } from '../schemas/continuity.js';
 import type { ControlPlaneFileStem } from '../schemas/scalars.js';
+import { controlPlaneRoot } from '../shared/control-plane-paths.js';
 import { progressPresentation } from '../shared/progress-output.js';
 import { parseCommanderOrThrow } from './commander-support.js';
 import {
@@ -583,9 +583,7 @@ function runHandoffHarvest(args: HandoffArgs, now: () => Date): number {
   const resolvedProjectRoot = projectRoot ?? process.cwd();
   const source = ambientSourceFrom(args.source, hookEventName);
   const controlPlane = args.controlPlane === undefined ? undefined : resolve(args.controlPlane);
-  const fallbackIndexPath = indexPath(
-    controlPlane ?? resolve(resolvedProjectRoot, DEFAULT_CONTROL_PLANE),
-  );
+  const fallbackIndexPath = indexPath(controlPlane ?? controlPlaneRoot(resolvedProjectRoot));
 
   if (transcriptPath === undefined) {
     const result: AmbientHarvestResult = {

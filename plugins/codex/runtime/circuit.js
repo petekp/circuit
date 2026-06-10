@@ -10825,7 +10825,7 @@ function parseCommanderOrThrow(program2, argv) {
 import { randomUUID as randomUUID2 } from "node:crypto";
 import { existsSync as existsSync9, mkdirSync, readFileSync as readFileSync24, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname as dirname2, join as join4, resolve as resolve6 } from "node:path";
+import { dirname as dirname2, join as join4, resolve as resolve7 } from "node:path";
 var import_yaml = __toESM(require_dist(), 1);
 
 // dist/policy/flow-kind-policy-core.js
@@ -39349,12 +39349,28 @@ import { createHash as createHash2 } from "node:crypto";
 import { isAbsolute as isAbsolute5, relative as relative5 } from "node:path";
 
 // dist/shared/control-plane-paths.js
+import { resolve as resolve3 } from "node:path";
 var CONTROL_PLANE_DIR = ".circuit";
 var CONTROL_PLANE_RUNS_DIR = `${CONTROL_PLANE_DIR}/runs`;
 var CONTROL_PLANE_HISTORY_DIR = `${CONTROL_PLANE_DIR}/history`;
 var CONTROL_PLANE_MEMORY_DIR = `${CONTROL_PLANE_DIR}/memory`;
 var CONTROL_PLANE_PROTOTYPES_DIR = `${CONTROL_PLANE_DIR}/prototypes`;
 var PROJECT_CONFIG_RELATIVE_SEGMENTS = [CONTROL_PLANE_DIR, "config.yaml"];
+function controlPlaneRoot(projectRoot) {
+  return resolve3(projectRoot, CONTROL_PLANE_DIR);
+}
+function runsRoot(projectRoot) {
+  return resolve3(projectRoot, CONTROL_PLANE_RUNS_DIR);
+}
+function historyRoot(projectRoot) {
+  return resolve3(projectRoot, CONTROL_PLANE_HISTORY_DIR);
+}
+function memoryRoot(projectRoot) {
+  return resolve3(projectRoot, CONTROL_PLANE_MEMORY_DIR);
+}
+function projectConfigPath(projectRoot) {
+  return resolve3(projectRoot, ...PROJECT_CONFIG_RELATIVE_SEGMENTS);
+}
 
 // dist/flows/prototype/writers/brief.js
 function normalizeSlashes(value) {
@@ -40891,7 +40907,7 @@ var prototypeFlowData = {
 var prototypeFlowDefinition = defineFlowData(prototypeFlowData);
 
 // dist/shared/html/multi-variant.js
-import { isAbsolute as isAbsolute6, relative as relative6, resolve as resolve3 } from "node:path";
+import { isAbsolute as isAbsolute6, relative as relative6, resolve as resolve4 } from "node:path";
 import { pathToFileURL } from "node:url";
 var PREVIEWABLE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".gif",
@@ -40930,16 +40946,16 @@ function isInside2(root, target) {
   return fromRoot !== "" && !fromRoot.startsWith("..") && !isAbsolute6(fromRoot);
 }
 function runIdFromFolder(runFolder) {
-  const parts = toBrowserPath(resolve3(runFolder)).split("/").filter((part) => part.length > 0);
+  const parts = toBrowserPath(resolve4(runFolder)).split("/").filter((part) => part.length > 0);
   return parts.at(-1);
 }
 function runArtifactPreviewHref(input) {
   if (!isPreviewableArtifactPath(input.entryPath))
     return void 0;
-  const reportsDir = resolve3(input.runFolder, "reports");
-  const runRoot = resolve3(input.runFolder);
+  const reportsDir = resolve4(input.runFolder, "reports");
+  const runRoot = resolve4(input.runFolder);
   if (isAbsolute6(input.entryPath)) {
-    const absoluteEntry = resolve3(input.entryPath);
+    const absoluteEntry = resolve4(input.entryPath);
     if (!isInside2(runRoot, absoluteEntry))
       return void 0;
     return encodeUrlPath(toBrowserPath(relative6(reportsDir, absoluteEntry)));
@@ -40955,8 +40971,8 @@ function runArtifactPreviewHref(input) {
     return encodeUrlPath(`../${normalized.slice(currentRunPrefix.length)}`);
   }
   if (input.projectRoot !== void 0) {
-    const projectRoot = resolve3(input.projectRoot);
-    const absoluteEntry = resolve3(projectRoot, normalized);
+    const projectRoot = resolve4(input.projectRoot);
+    const absoluteEntry = resolve4(projectRoot, normalized);
     if (!isInside2(projectRoot, absoluteEntry))
       return void 0;
     return pathToFileURL(absoluteEntry).href;
@@ -42672,7 +42688,7 @@ var ReviewRelayResult = external_exports.object({
 // dist/flows/review/writers/intake.js
 import { spawnSync as spawnSync2 } from "node:child_process";
 import { closeSync, lstatSync as lstatSync3, openSync, readSync } from "node:fs";
-import { isAbsolute as isAbsolute7, relative as relative7, resolve as resolve4 } from "node:path";
+import { isAbsolute as isAbsolute7, relative as relative7, resolve as resolve5 } from "node:path";
 
 // dist/flows/review/writers/intake-projection.js
 function gitCommandFailed(text) {
@@ -42828,7 +42844,7 @@ function insideProject(projectRoot, path) {
   return rel === "" || !rel.startsWith("..") && !isAbsolute7(rel);
 }
 function readUntrackedFile(projectRoot, path, contentPolicy) {
-  const abs = resolve4(projectRoot, path);
+  const abs = resolve5(projectRoot, path);
   if (!insideProject(projectRoot, abs)) {
     return { path, byte_length: 0, skipped_reason: "path resolves outside project root" };
   }
@@ -43752,7 +43768,7 @@ function progressPresentation(input) {
 
 // dist/cli/runtime-routing-policy.js
 import { readFileSync as readFileSync23 } from "node:fs";
-import { dirname, relative as relative8, resolve as resolve5 } from "node:path";
+import { dirname, relative as relative8, resolve as resolve6 } from "node:path";
 var GENERATED_FLOW_MIRROR_ROOT_ENV = "CIRCUIT_GENERATED_FLOW_MIRROR_ROOT";
 var COMPOSE_WRITER_UNSUPPORTED_REASON = "programmatic composeWriter injections are not supported by the CLI runtime; use executor injection or generated reports";
 var RUNTIME_POLICY_REASONS = {
@@ -43769,8 +43785,8 @@ function pathIsInside(parent, child) {
 function fixtureEligibleForRuntime(input) {
   if (input.args.fixturePath === void 0 && input.args.flowRoot === void 0)
     return true;
-  const fixturePath = resolve5(input.fixturePath);
-  if (pathIsInside(resolve5(input.generatedFlowsRoot ?? "generated/flows"), fixturePath)) {
+  const fixturePath = resolve6(input.fixturePath);
+  if (pathIsInside(resolve6(input.generatedFlowsRoot ?? "generated/flows"), fixturePath)) {
     return true;
   }
   if (input.args.flowRoot !== void 0 && publishedCustomFlowMatches(input.args.flowRoot, fixturePath)) {
@@ -43780,12 +43796,12 @@ function fixtureEligibleForRuntime(input) {
   if (mirrorRoot === void 0 || mirrorRoot.length === 0 || input.args.flowRoot === void 0) {
     return false;
   }
-  const trustedMirrorRoot = resolve5(mirrorRoot);
-  return resolve5(input.args.flowRoot) === trustedMirrorRoot && pathIsInside(trustedMirrorRoot, fixturePath);
+  const trustedMirrorRoot = resolve6(mirrorRoot);
+  return resolve6(input.args.flowRoot) === trustedMirrorRoot && pathIsInside(trustedMirrorRoot, fixturePath);
 }
 function publishedCustomFlowMatches(flowRoot2, fixturePath) {
   try {
-    const manifest = JSON.parse(readFileSync23(resolve5(dirname(resolve5(flowRoot2)), "manifest.json"), "utf8"));
+    const manifest = JSON.parse(readFileSync23(resolve6(dirname(resolve6(flowRoot2)), "manifest.json"), "utf8"));
     if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest))
       return false;
     const customFlows = manifest.custom_flows;
@@ -43796,7 +43812,7 @@ function publishedCustomFlowMatches(flowRoot2, fixturePath) {
         return false;
       }
       const flowPath = candidate.flow_path;
-      return typeof flowPath === "string" && resolve5(flowPath) === fixturePath;
+      return typeof flowPath === "string" && resolve6(flowPath) === fixturePath;
     });
   } catch {
     return false;
@@ -43892,7 +43908,7 @@ function assertValidSlug(slug) {
   }
 }
 function customHome(args) {
-  return resolve6(args.home ?? join4(homedir(), ".config", "circuit", "custom"));
+  return resolve7(args.home ?? join4(homedir(), ".config", "circuit", "custom"));
 }
 function draftRoot(home, slug) {
   return join4(home, "drafts", slug);
@@ -43940,7 +43956,7 @@ function validateCustomFlow(slug, flow, source) {
 }
 function candidateTemplatePaths(args) {
   const roots = [args.templateFlowRoot, "generated/flows", "plugins/codex/flows"].filter((root) => root !== void 0);
-  return roots.map((root) => resolve6(root, "build", "circuit.json"));
+  return roots.map((root) => resolve7(root, "build", "circuit.json"));
 }
 function loadTemplateFlow(args) {
   for (const candidate of candidateTemplatePaths(args)) {
@@ -44230,12 +44246,12 @@ async function runCreateCommand(argv, options = {}) {
 
 // dist/cli/handoff.js
 import { existsSync as existsSync16, readFileSync as readFileSync32 } from "node:fs";
-import { resolve as resolve13 } from "node:path";
+import { resolve as resolve14 } from "node:path";
 
 // dist/app/continuity/brief.js
 import { execFileSync } from "node:child_process";
 import { existsSync as existsSync13, readFileSync as readFileSync28 } from "node:fs";
-import { basename, resolve as resolve10 } from "node:path";
+import { basename, resolve as resolve11 } from "node:path";
 
 // dist/schemas/snapshot.js
 var StepStatus = external_exports.enum(["pending", "in_progress", "check_failed", "complete", "aborted"]);
@@ -44390,7 +44406,7 @@ var ContinuityIndex = indexOwnPropertyGuard.pipe(ContinuityIndexBody);
 // dist/app/continuity/records.js
 import { randomUUID as randomUUID3 } from "node:crypto";
 import { existsSync as existsSync12, mkdirSync as mkdirSync2, readFileSync as readFileSync27, writeFileSync as writeFileSync3 } from "node:fs";
-import { dirname as dirname3, join as join9, resolve as resolve9 } from "node:path";
+import { dirname as dirname3, join as join9, resolve as resolve10 } from "node:path";
 
 // dist/shared/manifest-snapshot.js
 import { readFileSync as readFileSync25, writeFileSync as writeFileSync2 } from "node:fs";
@@ -44450,7 +44466,7 @@ function verifyManifestSnapshotBytes(runFolder) {
 
 // dist/app/run-status/run-folder-projector.js
 import { constants, accessSync, statSync } from "node:fs";
-import { resolve as resolve8 } from "node:path";
+import { resolve as resolve9 } from "node:path";
 
 // dist/app/run-status/projection-common.js
 import { existsSync as existsSync10 } from "node:fs";
@@ -44769,7 +44785,7 @@ function fanoutBranchKind(value) {
 
 // dist/shared/run-file-paths.js
 import { existsSync as existsSync11, lstatSync as lstatSync4, realpathSync as realpathSync3 } from "node:fs";
-import { isAbsolute as isAbsolute8, relative as relative9, resolve as resolve7, sep } from "node:path";
+import { isAbsolute as isAbsolute8, relative as relative9, resolve as resolve8, sep } from "node:path";
 function isInsideOrSame3(root, target) {
   const fromRoot = relative9(root, target);
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute8(fromRoot);
@@ -44800,8 +44816,8 @@ function resolveRunFilePath(runDir, runRelativePath2) {
   if (isAbsolute8(runRelativePath2)) {
     throw new Error(`run file path must be relative: ${runRelativePath2}`);
   }
-  const root = resolve7(runDir);
-  const fullPath = resolve7(root, runRelativePath2);
+  const root = resolve8(runDir);
+  const fullPath = resolve8(root, runRelativePath2);
   if (fullPath !== root && !fullPath.startsWith(`${root}${sep}`)) {
     throw new Error(`run file path escapes run directory: ${runRelativePath2}`);
   }
@@ -44819,7 +44835,7 @@ function resolveRunFilePath(runDir, runRelativePath2) {
     const rootReal = realpathSync3.native(root);
     let cursor = root;
     for (const segment of runRelativePath2.split("/")) {
-      cursor = resolve7(cursor, segment);
+      cursor = resolve8(cursor, segment);
       if (!existsSync11(cursor))
         break;
       if (lstatSync4(cursor).isSymbolicLink()) {
@@ -45285,7 +45301,7 @@ function assertReadableRunFolder(runFolder) {
   }
 }
 function projectRunStatusFromRunFolder(runFolder) {
-  const resolvedRunFolder = resolve8(runFolder);
+  const resolvedRunFolder = resolve9(runFolder);
   assertReadableRunFolder(resolvedRunFolder);
   let manifest;
   try {
@@ -45314,17 +45330,16 @@ function projectRunStatusFromRunFolder(runFolder) {
 }
 
 // dist/app/continuity/records.js
-var DEFAULT_CONTROL_PLANE = CONTROL_PLANE_DIR;
 function resolveProjectRootArg(args) {
-  return resolve9(args.projectRoot ?? process.cwd());
+  return resolve10(args.projectRoot ?? process.cwd());
 }
 function resolveControlPlaneArg(args) {
   if (args.controlPlane !== void 0)
-    return resolve9(args.controlPlane);
-  return resolve9(resolveProjectRootArg(args), DEFAULT_CONTROL_PLANE);
+    return resolve10(args.controlPlane);
+  return controlPlaneRoot(resolveProjectRootArg(args));
 }
 function continuityRoot(controlPlane) {
-  return resolve9(controlPlane, "continuity");
+  return resolve10(controlPlane, "continuity");
 }
 function recordsRoot(controlPlane) {
   return join9(continuityRoot(controlPlane), "records");
@@ -45433,7 +45448,7 @@ function buildRecord(args, now) {
       }
     });
   }
-  const runFolder = resolve9(args.runFolder);
+  const runFolder = resolve10(args.runFolder);
   const { snapshot, currentStage } = loadRunBackedSnapshot(runFolder);
   if (snapshot.current_step === void 0) {
     throw new Error(`cannot save run-backed continuity: ${runFolder} has no current step`);
@@ -45762,7 +45777,7 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now, gitProbe)
   if (record2.continuity_kind !== pointer.continuity_kind) {
     return invalidBrief(args, "record_kind_mismatch", "Continuity index kind disagrees with the pointed record.", pointer.record_id);
   }
-  const staleness = record2.continuity_kind === "ambient" && resolve10(record2.git.cwd) === resolve10(projectRoot) ? gitProbe({
+  const staleness = record2.continuity_kind === "ambient" && resolve11(record2.git.cwd) === resolve11(projectRoot) ? gitProbe({
     projectRoot,
     ...record2.git.head === void 0 ? {} : { capturedHead: record2.git.head },
     ...record2.git.branch === void 0 ? {} : { capturedBranch: record2.git.branch }
@@ -45892,7 +45907,7 @@ function realBriefGitProbe(input) {
 import { execFileSync as execFileSync2 } from "node:child_process";
 import { createHash as createHash4 } from "node:crypto";
 import { closeSync as closeSync2, existsSync as existsSync14, openSync as openSync2, readFileSync as readFileSync30, readSync as readSync2, readdirSync, rmSync as rmSync3, statSync as statSync2 } from "node:fs";
-import { basename as basename2, join as join10, resolve as resolve11 } from "node:path";
+import { basename as basename2, join as join10, resolve as resolve12 } from "node:path";
 
 // dist/shared/atomic-io.js
 import { randomUUID as randomUUID4 } from "node:crypto";
@@ -46275,8 +46290,8 @@ function composeAmbientStateMarkdown(intents, summary, git, transcriptPath) {
   return lines.join("\n");
 }
 function harvestAmbientContinuity(input) {
-  const projectRoot = resolve11(input.projectRoot);
-  const controlPlane = input.controlPlane === void 0 ? resolve11(projectRoot, DEFAULT_CONTROL_PLANE) : resolve11(input.controlPlane);
+  const projectRoot = resolve12(input.projectRoot);
+  const controlPlane = input.controlPlane === void 0 ? controlPlaneRoot(projectRoot) : resolve12(input.controlPlane);
   const skip = (reason) => ({
     schema_version: 1,
     action: "harvest",
@@ -46397,20 +46412,20 @@ function ambientSourceFrom(value, hookEventName) {
 // dist/cli/handoff-codex-hooks.js
 import { copyFileSync, existsSync as existsSync15, mkdirSync as mkdirSync4, readFileSync as readFileSync31, writeFileSync as writeFileSync5 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname5, join as join11, resolve as resolve12 } from "node:path";
+import { dirname as dirname5, join as join11, resolve as resolve13 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var HANDOFF_HOOKS_API_VERSION = "handoff-hooks-v1";
 var HANDOFF_HOOKS_SCHEMA_VERSION = 1;
 var CIRCUIT_HOOK_MARKER = "CIRCUIT_HANDOFF_HOOK=1";
 function defaultCodexHooksFile() {
-  const codexHome = process.env.CODEX_HOME ?? resolve12(homedir2(), ".codex");
-  return resolve12(codexHome, "hooks.json");
+  const codexHome = process.env.CODEX_HOME ?? resolve13(homedir2(), ".codex");
+  return resolve13(codexHome, "hooks.json");
 }
 function resolveDefaultLauncher(pluginRoot, moduleDir) {
   if (pluginRoot !== void 0 && pluginRoot.length > 0) {
-    return resolve12(pluginRoot, "scripts/circuit.ts");
+    return resolve13(pluginRoot, "scripts/circuit.ts");
   }
-  return resolve12(moduleDir, "../..", "bin/circuit");
+  return resolve13(moduleDir, "../..", "bin/circuit");
 }
 function missingDefaultLauncherMessage(launcher) {
   return [
@@ -46428,10 +46443,10 @@ function parseCodexHooksHost(args) {
   throw new Error("handoff hooks requires --host codex");
 }
 function resolveHooksFileArg(args) {
-  return resolve12(args.hooksFile ?? defaultCodexHooksFile());
+  return resolve13(args.hooksFile ?? defaultCodexHooksFile());
 }
 function resolveLauncherArg(args) {
-  const launcher = resolve12(args.launcher ?? defaultLauncherPath());
+  const launcher = resolve13(args.launcher ?? defaultLauncherPath());
   if (!existsSync15(launcher)) {
     if (args.launcher === void 0 && (process.env.CIRCUIT_PLUGIN_ROOT ?? "").length === 0) {
       throw new Error(missingDefaultLauncherMessage(launcher));
@@ -46758,7 +46773,7 @@ function isCodexHandoffHookInstalled(hooksPath) {
   }
 }
 function codexInstallAssurance(input) {
-  const controlPlane = input.controlPlane ?? resolve12(input.projectRoot, DEFAULT_CONTROL_PLANE);
+  const controlPlane = input.controlPlane ?? controlPlaneRoot(input.projectRoot);
   const markerPath = codexInstallNudgeMarkerPath(controlPlane);
   const hooksPath = input.hooksFile ?? defaultCodexHooksFile();
   if (isCodexHandoffHookInstalled(hooksPath))
@@ -47132,8 +47147,8 @@ function runHandoffHarvest(args, now) {
   }
   const resolvedProjectRoot = projectRoot ?? process.cwd();
   const source = ambientSourceFrom(args.source, hookEventName);
-  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve13(args.controlPlane);
-  const fallbackIndexPath = indexPath(controlPlane ?? resolve13(resolvedProjectRoot, DEFAULT_CONTROL_PLANE));
+  const controlPlane = args.controlPlane === void 0 ? void 0 : resolve14(args.controlPlane);
+  const fallbackIndexPath = indexPath(controlPlane ?? controlPlaneRoot(resolvedProjectRoot));
   if (transcriptPath === void 0) {
     const result = {
       schema_version: 1,
@@ -47282,12 +47297,11 @@ import { basename as basename5 } from "node:path";
 
 // dist/app/history/indexer.js
 import { existsSync as existsSync20, mkdirSync as mkdirSync5, readFileSync as readFileSync34, renameSync as renameSync2, writeFileSync as writeFileSync6 } from "node:fs";
-import { join as join13, resolve as resolve16 } from "node:path";
+import { join as join13, resolve as resolve17 } from "node:path";
 
 // dist/history/run-corpus.js
 import { existsSync as existsSync17, readdirSync as readdirSync2, statSync as statSync3 } from "node:fs";
 import { basename as basename3, join as join12 } from "node:path";
-var DEFAULT_RUNS_BASE = CONTROL_PLANE_RUNS_DIR;
 var HistoryCommandError = class extends Error {
   code;
   paths;
@@ -49806,7 +49820,7 @@ function mtimeMs(path) {
 
 // dist/app/history/extract.js
 import { existsSync as existsSync19, lstatSync as lstatSync6, readFileSync as readFileSync33, readdirSync as readdirSync4, realpathSync as realpathSync5 } from "node:fs";
-import { basename as basename4, isAbsolute as isAbsolute11, relative as relative12, resolve as resolve15 } from "node:path";
+import { basename as basename4, isAbsolute as isAbsolute11, relative as relative12, resolve as resolve16 } from "node:path";
 
 // dist/shared/outcome.js
 var FAILURE_OUTCOMES = /* @__PURE__ */ new Set([
@@ -49821,18 +49835,18 @@ function isFailureOutcome(outcome) {
 
 // dist/app/history/run-source-files.js
 import { existsSync as existsSync18, lstatSync as lstatSync5, readdirSync as readdirSync3, realpathSync as realpathSync4 } from "node:fs";
-import { isAbsolute as isAbsolute10, relative as relative11, resolve as resolve14 } from "node:path";
+import { isAbsolute as isAbsolute10, relative as relative11, resolve as resolve15 } from "node:path";
 function collectRunSourceFiles(runFolder) {
-  const runFolderAbs = resolve14(runFolder);
+  const runFolderAbs = resolve15(runFolder);
   const files = /* @__PURE__ */ new Set();
   for (const candidate of [
-    resolve14(runFolderAbs, "manifest.snapshot.json"),
-    resolve14(runFolderAbs, "trace.ndjson")
+    resolve15(runFolderAbs, "manifest.snapshot.json"),
+    resolve15(runFolderAbs, "trace.ndjson")
   ]) {
     if (existsSync18(candidate) && !isSymlink(candidate))
       files.add(candidate);
   }
-  const reportsRoot2 = resolve14(runFolderAbs, "reports");
+  const reportsRoot2 = resolve15(runFolderAbs, "reports");
   for (const absPath of walkReportJsonFiles(reportsRoot2)) {
     files.add(absPath);
   }
@@ -49860,7 +49874,7 @@ function walkReportJsonFiles(reportsRoot2) {
     if (current === void 0)
       continue;
     for (const entry of readdirSync3(current, { withFileTypes: true })) {
-      const absPath = resolve14(current, entry.name);
+      const absPath = resolve15(current, entry.name);
       if (entry.isSymbolicLink() || lstatSync5(absPath).isSymbolicLink())
         continue;
       const real = realpathSync4.native(absPath);
@@ -49942,14 +49956,14 @@ function isInside4(root, target) {
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute11(fromRoot);
 }
 function listFiles(root, prefix = "") {
-  const absRoot = resolve15(root);
+  const absRoot = resolve16(root);
   if (!existsSync19(absRoot))
     return [];
   const rootReal = realpathSync5.native(absRoot);
   const out = [];
   function walk(absDir, relDir) {
     for (const entry of readdirSync4(absDir, { withFileTypes: true })) {
-      const absPath = resolve15(absDir, entry.name);
+      const absPath = resolve16(absDir, entry.name);
       if (lstatSync6(absPath).isSymbolicLink())
         continue;
       const real = realpathSync5.native(absPath);
@@ -49987,7 +50001,7 @@ function validStepId(value) {
   return StepId.safeParse(value).success ? value : void 0;
 }
 function parseTrace(runFolder, runFolderName) {
-  const tracePath = resolve15(runFolder, "trace.ndjson");
+  const tracePath = resolve16(runFolder, "trace.ndjson");
   if (!existsSync19(tracePath)) {
     return { entries: [], reportWrites: /* @__PURE__ */ new Map(), traceValidForDocs: false };
   }
@@ -50212,7 +50226,7 @@ function resolveRunIdentity(input) {
 }
 function makeRunDocument(input) {
   const sourcePath = input.resultPath ?? "trace.ndjson";
-  const sourceAbs = resolve15(input.runFolder, sourcePath);
+  const sourceAbs = resolve16(input.runFolder, sourcePath);
   if (!existsSync19(sourceAbs))
     return void 0;
   const sourceSha = input.resultPath === void 0 ? input.traceSha : sha256File(sourceAbs);
@@ -50429,18 +50443,18 @@ function makeTraceDocument(input) {
   });
 }
 function extractRunHistoryDocuments(runFolder) {
-  const runFolderAbs = resolve15(runFolder);
+  const runFolderAbs = resolve16(runFolder);
   const runFolderName = basename4(runFolderAbs);
   const warnings = [];
   const documents = [];
-  const manifestPath2 = resolve15(runFolderAbs, "manifest.snapshot.json");
-  const resultPath2 = resolve15(runFolderAbs, "reports/result.json");
+  const manifestPath2 = resolve16(runFolderAbs, "manifest.snapshot.json");
+  const resultPath2 = resolve16(runFolderAbs, "reports/result.json");
   const manifest = existsSync19(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
   const result = existsSync19(resultPath2) ? readJsonRecord(resultPath2) : void 0;
   const trace = parseTrace(runFolderAbs, runFolderName);
   if (trace.warning !== void 0)
     warnings.push(trace.warning);
-  const tracePath = resolve15(runFolderAbs, "trace.ndjson");
+  const tracePath = resolve16(runFolderAbs, "trace.ndjson");
   const traceExists = existsSync19(tracePath);
   const traceSha = traceExists ? sha256File(tracePath) : void 0;
   const traceMtime = traceExists ? mtimeMs(tracePath) : void 0;
@@ -50461,9 +50475,9 @@ function extractRunHistoryDocuments(runFolder) {
   });
   if (runDocument !== void 0)
     documents.push(runDocument);
-  const reportRoot = resolve15(runFolderAbs, "reports");
+  const reportRoot = resolve16(runFolderAbs, "reports");
   for (const relPath of listFiles(reportRoot, "reports")) {
-    const absPath = resolve15(runFolderAbs, relPath);
+    const absPath = resolve16(runFolderAbs, relPath);
     if (absPath !== resolveRunFilePath(runFolderAbs, relPath))
       continue;
     if (skipReport(relPath))
@@ -50528,15 +50542,14 @@ function extractRunHistoryDocuments(runFolder) {
 }
 
 // dist/app/history/indexer.js
-var DEFAULT_INDEX_DIR = CONTROL_PLANE_HISTORY_DIR;
 var HISTORY_DOCUMENTS_FILE = "documents.v1.jsonl";
 var HISTORY_MANIFEST_FILE = "manifest.v1.json";
 var HISTORY_MEMORY_MERGE_FILE = "memory-merge.v1.json";
 var HISTORY_MEMORY_EFFECT_FILE = "memory-effect.v1.json";
 function resolveHistoryPaths(options = {}) {
-  const repoRoot = resolve16(options.repoRoot ?? process.cwd());
-  const runsBase = resolve16(repoRoot, options.runsBase ?? DEFAULT_RUNS_BASE);
-  const indexDir = resolve16(repoRoot, options.indexDir ?? DEFAULT_INDEX_DIR);
+  const repoRoot = resolve17(options.repoRoot ?? process.cwd());
+  const runsBase = options.runsBase === void 0 ? runsRoot(repoRoot) : resolve17(repoRoot, options.runsBase);
+  const indexDir = options.indexDir === void 0 ? historyRoot(repoRoot) : resolve17(repoRoot, options.indexDir);
   return {
     repoRoot,
     runsBase,
@@ -51956,17 +51969,15 @@ import { basename as basename6, join as join19 } from "node:path";
 var import_yaml2 = __toESM(require_dist(), 1);
 import { execFileSync as execFileSync3 } from "node:child_process";
 import { existsSync as existsSync26, readFileSync as readFileSync40 } from "node:fs";
-import { resolve as resolve18 } from "node:path";
 
 // dist/memory/project-store.js
 import { existsSync as existsSync25, readFileSync as readFileSync39 } from "node:fs";
-import { join as join18, resolve as resolve17 } from "node:path";
-var MEMORY_DIR_RELATIVE_PATH = CONTROL_PLANE_MEMORY_DIR;
+import { join as join18, resolve as resolve18 } from "node:path";
 var PROJECT_FACTS_FILE = "project.v1.jsonl";
 var MEMORY_MANIFEST_FILE = "manifest.json";
 function resolveProjectStorePaths(options = {}) {
-  const repoRoot = resolve17(options.repoRoot ?? process.cwd());
-  const memoryDir = resolve17(repoRoot, options.memoryDir ?? MEMORY_DIR_RELATIVE_PATH);
+  const repoRoot = resolve18(options.repoRoot ?? process.cwd());
+  const memoryDir = options.memoryDir === void 0 ? memoryRoot(repoRoot) : resolve18(repoRoot, options.memoryDir);
   return {
     repoRoot,
     memoryDir,
@@ -52080,7 +52091,7 @@ function normalizeGitRemoteUrl(url2) {
   return normalized;
 }
 function readConfigProjectId(repoRoot) {
-  const configPath = resolve18(repoRoot, ...PROJECT_CONFIG_RELATIVE_SEGMENTS);
+  const configPath = projectConfigPath(repoRoot);
   if (!existsSync26(configPath))
     return void 0;
   let raw;
@@ -52125,7 +52136,7 @@ function resolveProjectId(options = {}) {
       warnings: []
     };
   }
-  const runsBase = resolve18(repoRoot, CONTROL_PLANE_RUNS_DIR);
+  const runsBase = runsRoot(repoRoot);
   return {
     projectId: hashedId("p", runsBase),
     source: "runs_base",
@@ -52399,7 +52410,7 @@ async function runMemoryCommand(argv, options = {}) {
   }
 }
 function latestRunFolder(runsBase) {
-  const base = runsBase ?? join19(process.cwd(), CONTROL_PLANE_RUNS_DIR);
+  const base = runsBase ?? runsRoot(process.cwd());
   try {
     const folders = listCandidateRunFolders(base);
     return folders.length === 0 ? void 0 : folders[folders.length - 1];
@@ -58751,7 +58762,7 @@ async function executeFanoutInternal(step, context, relayConnector) {
         if (context.projectRoot === void 0) {
           throw new Error(`fanout step '${step.id}': projectRoot is required to anchor per-branch worktrees`);
         }
-        const worktreePath = joinPath2(context.projectRoot, CONTROL_PLANE_DIR, "worktrees", context.runId, step.id, branch.branch_id);
+        const worktreePath = joinPath2(controlPlaneRoot(context.projectRoot), "worktrees", context.runId, step.id, branch.branch_id);
         if (branchNeedsWorktree(branch))
           provisioned.push(worktreePath);
         outcome = await executeSubRunFanoutBranch(step, context, branch, worktreeRunner, branchDirRel, worktreePath);
@@ -61875,7 +61886,7 @@ function loadProjectFactCandidates(options) {
   if (options.flowId === void 0) {
     return { candidates: [] };
   }
-  const runsBase = resolve20(options.runsBase ?? join27(resolve20(options.repoRoot), CONTROL_PLANE_RUNS_DIR));
+  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve20(options.runsBase);
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const checkedAt = now().toISOString();
   const { facts } = readProjectFacts({
@@ -64369,7 +64380,7 @@ var PROJECT_CONFIG_RELATIVE_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS;
 function userGlobalConfigPath(homeDir = homedir4()) {
   return join31(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
 }
-function projectConfigPath(cwd = process.cwd()) {
+function projectConfigPath2(cwd = process.cwd()) {
   return join31(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
 }
 function parseConfigYaml(text, sourcePath) {
@@ -64417,7 +64428,7 @@ function discoverRuntimeConfigLayers(options = {}) {
   const policyLayers = [];
   for (const [layer, path] of [
     ["user-global", userGlobalConfigPath(options.homeDir)],
-    ["project", projectConfigPath(options.cwd)]
+    ["project", projectConfigPath2(options.cwd)]
   ]) {
     const loaded = loadRuntimeConfigLayerFromPath(layer, path);
     if (loaded?.selection !== void 0)
@@ -64815,7 +64826,6 @@ function composeRunStdoutEnvelope(input) {
 }
 
 // dist/cli/run.js
-var DEFAULT_RUNS_BASE2 = CONTROL_PLANE_RUNS_DIR;
 var AUTONOMOUS_LOOP_RELATIVE_PATH = "reports/autonomous-loop.json";
 var CIRCUIT_HOST_KIND_ENV = "CIRCUIT_HOST_KIND";
 function runtimeHostKind(options) {
@@ -65231,7 +65241,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = resolve24(args.runFolder ?? `${DEFAULT_RUNS_BASE2}/${runId}`);
+  const runFolder = args.runFolder === void 0 ? join35(runsRoot(process.cwd()), runId) : resolve24(args.runFolder);
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...options.configHomeDir !== void 0 ? { homeDir: options.configHomeDir } : {},
     ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {}
