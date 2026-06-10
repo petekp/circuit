@@ -1,3 +1,4 @@
+import type { GitStateHelperOutput } from '../../../shared/git-state-command.js';
 import { projectRuntimeTouchedFiles } from '../../../shared/runtime-touched-files.js';
 import {
   type FixBaselineSnapshot,
@@ -5,7 +6,6 @@ import {
   FixChangeSet,
   type FixHiddenIndexFlag,
 } from '../reports.js';
-import type { GitStateHelperOutput } from './baseline-snapshot.js';
 
 export type FixChangeSetProjectorInputs = {
   readonly baseline: FixBaselineSnapshot;

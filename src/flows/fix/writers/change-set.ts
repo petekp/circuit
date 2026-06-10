@@ -27,6 +27,7 @@
 
 import { readFileSync } from 'node:fs';
 import { isAbsolute, relative } from 'node:path';
+import { gitStateCommand, parseGitStateObservation } from '../../../shared/git-state-command.js';
 import { resolveRunRelative } from '../../../shared/run-relative-path.js';
 import { reportPathForSchemaInRuntimeFlow } from '../../registries/runtime-index.js';
 import type {
@@ -36,7 +37,6 @@ import type {
   VerificationCommandObservation,
 } from '../../registries/verification-writers/types.js';
 import { FixBaselineSnapshot, FixChange } from '../reports.js';
-import { fixGitStateCommand, parseGitStateObservation } from './baseline-snapshot.js';
 import { projectFixChangeSet } from './change-set-projection.js';
 
 function runFolderPrefix(input: { readonly projectRoot?: string; readonly runFolder: string }) {
@@ -63,7 +63,7 @@ export const fixChangeSetWriter: VerificationBuilder = {
     if (!context.step.reads.includes(changePath as never)) {
       throw new Error(`fix.change-set@v1 requires step '${context.step.id}' to read ${changePath}`);
     }
-    return [fixGitStateCommand('fix-change-set-git-state')];
+    return [gitStateCommand('fix-change-set-git-state')];
   },
   buildResult(
     observations: readonly VerificationCommandObservation[],

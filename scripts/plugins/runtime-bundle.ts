@@ -14,29 +14,19 @@ const versionManifestPath = resolve(repoRoot, 'plugins/version.json');
 const outputPaths = ['plugins/claude/runtime/circuit.js', 'plugins/codex/runtime/circuit.js'];
 
 // The bundled CLI resolves git-state.ts via `new URL('./git-state.ts',
-// import.meta.url)`, so the helper must live next to circuit.js in
-// every plugin runtime directory. tsc -p tsconfig.build.json does not copy
-// .ts assets, so we also mirror the helper into dist/ so source-tree CLI
-// runs (used by npm test and by `node dist/cli/circuit.js`) find it.
+// import.meta.url)` from src/shared/git-state-command.ts, so the helper must
+// live next to circuit.js in every plugin runtime directory. tsc -p
+// tsconfig.build.json does not copy .ts assets, so we also mirror the helper
+// into dist/shared/ so source-tree CLI runs (used by npm test and by
+// `node dist/cli/circuit.js`) find it.
 const ASSET_SIDECARS: Array<{ src: string; outs: readonly string[] }> = [
   {
-    src: 'src/flows/fix/writers/git-state.ts',
+    src: 'src/shared/git-state.ts',
     outs: [
       'plugins/claude/runtime/git-state.ts',
       'plugins/codex/runtime/git-state.ts',
-      'dist/flows/fix/writers/git-state.ts',
+      'dist/shared/git-state.ts',
     ],
-  },
-  // Build's touch-area gate runs the same git-state helper. Build cannot import
-  // Fix's copy (the engine<->flow boundary forbids cross-flow imports), so it
-  // keeps a byte-identical sibling, held in lockstep by a drift-guard test
-  // (tests/contracts/build-git-state-drift.test.ts). In the bundle both flows'
-  // inlined code resolves `./git-state.ts` to the single runtime/git-state.ts
-  // Fix already emits above, so only the dist sidecar is Build-specific. Unify
-  // into src/shared/git-state/ to drop the duplication (tracked follow-up).
-  {
-    src: 'src/flows/build/writers/git-state.ts',
-    outs: ['dist/flows/build/writers/git-state.ts'],
   },
   // The host wrappers (plugins/{claude,codex}/scripts/circuit.ts) import the
   // shared launcher core relatively at runtime, the same way the Claude wrapper

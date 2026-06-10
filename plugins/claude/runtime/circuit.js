@@ -10768,7 +10768,7 @@ var require_dist = __commonJS({
 // dist/cli/circuit.js
 import { readFileSync as readFileSync47 } from "node:fs";
 import { dirname as dirname14, resolve as resolve20 } from "node:path";
-import { fileURLToPath as fileURLToPath4 } from "node:url";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
 var import_index = __toESM(require_commander(), 1);
@@ -29747,7 +29747,36 @@ var BuildResult = external_exports.object({
 
 // dist/flows/build/writers/baseline-snapshot.js
 import { readFileSync } from "node:fs";
+
+// dist/shared/git-state-command.js
 import { fileURLToPath } from "node:url";
+var GIT_TIMEOUT_MS = 6e4;
+var GIT_MAX_OUTPUT_BYTES = 5e6;
+var GIT_STATE_HELPER_PATH = fileURLToPath(new URL("./git-state.ts", import.meta.url));
+var GitStateHelperOutput = RuntimeGitStateSnapshot;
+function gitStateCommand(id) {
+  return {
+    id,
+    cwd: ".",
+    argv: [process.execPath, GIT_STATE_HELPER_PATH],
+    timeout_ms: GIT_TIMEOUT_MS,
+    max_output_bytes: GIT_MAX_OUTPUT_BYTES,
+    env: {}
+  };
+}
+function parseGitStateObservation(observation, schemaName) {
+  if (observation.status !== "passed") {
+    throw new Error(`${schemaName}: git-state helper failed (exit ${observation.exit_code}): ${observation.stderr_summary}`);
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(observation.stdout_summary);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(`${schemaName}: git-state helper stdout was not valid JSON: ${reason}`);
+  }
+  return GitStateHelperOutput.parse(parsed);
+}
 
 // dist/shared/run-relative-path.js
 import { existsSync, lstatSync, realpathSync } from "node:fs";
@@ -29814,20 +29843,6 @@ function flowHasReportSchemaInRuntimeFlow(flow, schemaName) {
 }
 
 // dist/flows/build/writers/baseline-snapshot.js
-var GIT_TIMEOUT_MS = 6e4;
-var GIT_MAX_OUTPUT_BYTES = 5e6;
-var GIT_STATE_HELPER_PATH = fileURLToPath(new URL("./git-state.ts", import.meta.url));
-var GitStateHelperOutput = RuntimeGitStateSnapshot;
-function buildGitStateCommand(id) {
-  return {
-    id,
-    cwd: ".",
-    argv: [process.execPath, GIT_STATE_HELPER_PATH],
-    timeout_ms: GIT_TIMEOUT_MS,
-    max_output_bytes: GIT_MAX_OUTPUT_BYTES,
-    env: {}
-  };
-}
 function planDeclaresTouchArea(context) {
   const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
   if (!context.step.reads.includes(planPath)) {
@@ -29836,25 +29851,12 @@ function planDeclaresTouchArea(context) {
   const plan = BuildPlan.parse(JSON.parse(readFileSync(resolveRunRelative(context.runFolder, planPath), "utf8")));
   return plan.allowed_touch_area.length > 0;
 }
-function parseGitStateObservation(observation, schemaName) {
-  if (observation.status !== "passed") {
-    throw new Error(`${schemaName}: git-state helper failed (exit ${observation.exit_code}): ${observation.stderr_summary}`);
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(observation.stdout_summary);
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    throw new Error(`${schemaName}: git-state helper stdout was not valid JSON: ${reason}`);
-  }
-  return GitStateHelperOutput.parse(parsed);
-}
 var buildBaselineSnapshotWriter = {
   resultSchemaName: "build.baseline-snapshot@v1",
   loadCommands(context) {
     if (!planDeclaresTouchArea(context))
       return [];
-    return [buildGitStateCommand("build-baseline-snapshot-git-state")];
+    return [gitStateCommand("build-baseline-snapshot-git-state")];
   },
   buildResult(observations) {
     if (observations.length === 0) {
@@ -30713,7 +30715,7 @@ var buildTouchAreaWriter = {
     }
     if (!planDeclaresTouchArea(context))
       return [];
-    return [buildGitStateCommand("build-touch-area-git-state")];
+    return [gitStateCommand("build-touch-area-git-state")];
   },
   buildResult(observations, context) {
     if (observations.length === 0) {
@@ -34152,38 +34154,10 @@ var fixReviewShapeHint = {
 };
 
 // dist/flows/fix/writers/baseline-snapshot.js
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-var GIT_TIMEOUT_MS2 = 6e4;
-var GIT_MAX_OUTPUT_BYTES2 = 5e6;
-var GIT_STATE_HELPER_PATH2 = fileURLToPath2(new URL("./git-state.ts", import.meta.url));
-var GitStateHelperOutput2 = RuntimeGitStateSnapshot;
-function fixGitStateCommand(id) {
-  return {
-    id,
-    cwd: ".",
-    argv: [process.execPath, GIT_STATE_HELPER_PATH2],
-    timeout_ms: GIT_TIMEOUT_MS2,
-    max_output_bytes: GIT_MAX_OUTPUT_BYTES2,
-    env: {}
-  };
-}
-function parseGitStateObservation2(observation, schemaName) {
-  if (observation.status !== "passed") {
-    throw new Error(`${schemaName}: git-state helper failed (exit ${observation.exit_code}): ${observation.stderr_summary}`);
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(observation.stdout_summary);
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    throw new Error(`${schemaName}: git-state helper stdout was not valid JSON: ${reason}`);
-  }
-  return GitStateHelperOutput2.parse(parsed);
-}
 var fixBaselineSnapshotWriter = {
   resultSchemaName: "fix.baseline-snapshot@v1",
   loadCommands(_context) {
-    return [fixGitStateCommand("fix-baseline-snapshot-git-state")];
+    return [gitStateCommand("fix-baseline-snapshot-git-state")];
   },
   buildResult(observations) {
     if (observations.length !== 1) {
@@ -34193,7 +34167,7 @@ var fixBaselineSnapshotWriter = {
     if (observation === void 0) {
       throw new Error("fix.baseline-snapshot@v1: git-state observation missing");
     }
-    const state = parseGitStateObservation2(observation, "fix.baseline-snapshot@v1");
+    const state = parseGitStateObservation(observation, "fix.baseline-snapshot@v1");
     return FixBaselineSnapshot.parse({
       overall_status: "passed",
       head_sha: state.head_sha,
@@ -34452,7 +34426,7 @@ var fixChangeSetWriter = {
     if (!context.step.reads.includes(changePath)) {
       throw new Error(`fix.change-set@v1 requires step '${context.step.id}' to read ${changePath}`);
     }
-    return [fixGitStateCommand("fix-change-set-git-state")];
+    return [gitStateCommand("fix-change-set-git-state")];
   },
   buildResult(observations, context) {
     if (observations.length !== 1) {
@@ -34462,7 +34436,7 @@ var fixChangeSetWriter = {
     if (observation === void 0) {
       throw new Error("fix.change-set@v1: git-state observation missing");
     }
-    const post = parseGitStateObservation2(observation, "fix.change-set@v1");
+    const post = parseGitStateObservation(observation, "fix.change-set@v1");
     const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.baseline-snapshot@v1");
     const changePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.change@v1");
     const baseline = FixBaselineSnapshot.parse(JSON.parse(readFileSync10(resolveRunRelative(context.runFolder, baselinePath), "utf8")));
@@ -44242,7 +44216,7 @@ import { createHash as createHash4, randomUUID as randomUUID3 } from "node:crypt
 import { closeSync as closeSync2, copyFileSync, existsSync as existsSync12, mkdirSync as mkdirSync2, openSync as openSync2, readFileSync as readFileSync27, readSync as readSync2, readdirSync, renameSync, rmSync as rmSync2, statSync as statSync2, writeFileSync as writeFileSync3 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { basename, dirname as dirname3, join as join9, resolve as resolve9 } from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // dist/app/run-status/run-folder-projector.js
 import { constants, accessSync, statSync } from "node:fs";
@@ -45867,7 +45841,7 @@ function missingDefaultLauncherMessage(launcher) {
   ].join(" ");
 }
 function defaultLauncherPath() {
-  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname3(fileURLToPath3(import.meta.url)));
+  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname3(fileURLToPath2(import.meta.url)));
 }
 function parseCodexHooksHost(args) {
   if (args.host === "codex")
@@ -65564,7 +65538,7 @@ function readSourceVersion() {
   if (true)
     return "0.1.0-alpha.7";
   const candidates = [
-    resolve20(dirname14(fileURLToPath4(import.meta.url)), "../../plugins/version.json"),
+    resolve20(dirname14(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
     resolve20(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
