@@ -47,6 +47,24 @@ export function classifyRouteDeclarationTransition(input: {
   return { kind: 'declared_route', target: input.target };
 }
 
+// Shared abort predicate for re-entering an already completed step: re-entry
+// is allowed only while a recovery route still has attempts left, and never
+// counts the corridor's sanctioned return-to-origin hop. graph-runner applies
+// the same rule at step entry (with a resume-checkpoint exemption);
+// classifyRouteTargetTransition applies it at route selection.
+export function isCompletedStepReentryAbort(input: {
+  readonly completedCount: number;
+  readonly isRecoveryReturnToOrigin: boolean;
+  readonly routeHasRecoveryMechanics: boolean;
+  readonly maxAttempts: number;
+}): boolean {
+  return (
+    input.completedCount > 0 &&
+    !input.isRecoveryReturnToOrigin &&
+    (!input.routeHasRecoveryMechanics || input.completedCount >= input.maxAttempts)
+  );
+}
+
 export function classifyRouteTargetTransition(input: {
   readonly stepId: string;
   readonly route: string;
@@ -69,9 +87,12 @@ export function classifyRouteTargetTransition(input: {
   }
 
   if (
-    input.targetCompletedCount > 0 &&
-    !input.isRecoveryReturnToOrigin &&
-    (!input.routeHasRecoveryMechanics || input.targetCompletedCount >= input.targetMaxAttempts)
+    isCompletedStepReentryAbort({
+      completedCount: input.targetCompletedCount,
+      isRecoveryReturnToOrigin: input.isRecoveryReturnToOrigin,
+      routeHasRecoveryMechanics: input.routeHasRecoveryMechanics,
+      maxAttempts: input.targetMaxAttempts,
+    })
   ) {
     if (input.routeHasRecoveryMechanics) {
       return {

@@ -49,6 +49,7 @@ import type { RunContext } from './run-context.js';
 import {
   classifyRouteDeclarationTransition,
   classifyRouteTargetTransition,
+  isCompletedStepReentryAbort,
   isRouteTargetAbort,
 } from './run-transition.js';
 import { SliceCorridor } from './slice-corridor.js';
@@ -787,9 +788,12 @@ async function executeExecutableFlowOutcomeUnsafe(
     const attempt = isResumedCheckpoint ? options.resumeCheckpoint.attempt : completedCount + 1;
     if (
       !isResumedCheckpoint &&
-      completedCount > 0 &&
-      !isRecoveryOriginReentry &&
-      (!incomingIsActiveRecovery || completedCount >= maxAttempts)
+      isCompletedStepReentryAbort({
+        completedCount,
+        isRecoveryReturnToOrigin: isRecoveryOriginReentry,
+        routeHasRecoveryMechanics: incomingIsActiveRecovery,
+        maxAttempts,
+      })
     ) {
       const recoverySuffix = corridor.lastReasonSuffix();
       const reason =
