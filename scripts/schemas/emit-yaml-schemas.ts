@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { z } from 'zod';
 import { formatWithBiome, stableJson } from '../shared/format.ts';
+import { writeOrCheck } from '../shared/write-or-check.ts';
 import {
   type YamlEditorSchemaTarget,
   loadYamlEditorSchemaTargets,
@@ -30,25 +30,6 @@ function generatedSchemaFor(target: YamlEditorSchemaTarget): Record<string, unkn
   };
 }
 
-function writeOrCheck(relPath: string, content: string, check: boolean): void {
-  const abs = resolve(projectRoot, relPath);
-  if (check) {
-    if (!existsSync(abs)) {
-      throw new Error(`${relPath} is missing; run npm run emit-yaml-schemas`);
-    }
-    const current = readFileSync(abs, 'utf8');
-    if (current !== content) {
-      throw new Error(`${relPath} drifted; run npm run emit-yaml-schemas`);
-    }
-    console.log(`✓ ${relPath} is in sync`);
-    return;
-  }
-
-  mkdirSync(dirname(abs), { recursive: true });
-  writeFileSync(abs, content);
-  console.log(`emitted ${relPath}`);
-}
-
 export async function emitYamlSchemas(options: { readonly check?: boolean } = {}): Promise<void> {
   const check = options.check === true;
   for (const target of await loadYamlEditorSchemaTargets()) {
@@ -56,6 +37,7 @@ export async function emitYamlSchemas(options: { readonly check?: boolean } = {}
       target.schemaPath,
       formatWithBiome(target.schemaPath, stableJson(generatedSchemaFor(target)), projectRoot),
       check,
+      { projectRoot, regenerateHint: 'run npm run emit-yaml-schemas' },
     );
   }
 }
