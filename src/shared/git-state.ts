@@ -1,9 +1,11 @@
 #!/usr/bin/env node
-// Snapshot the git working tree for the proof-carrying Fix change-set chain.
+// Snapshot the git working tree for proof-carrying change tracking.
 //
-// Used by both fix-baseline-snapshot (pre-fix) and fix-change-set (post-fix).
-// The two writers compare snapshots to determine which paths fix-act actually
-// touched, which is the spine of the Fix change-set verdict.
+// Serves two flows: Fix's change-set chain (fix-baseline-snapshot pre-fix,
+// fix-change-set post-fix) and Build's touch-area gate (build-baseline-snapshot
+// pre-act, build-touch-area post-verify). In each, a pre/post writer pair
+// compares snapshots to determine which paths the acting agent actually
+// touched, which is the spine of the change-set / touch-area verdict.
 //
 // Why a helper script instead of letting the writer call git directly?
 // Verification writers are limited to a fixed list of VerificationCommand

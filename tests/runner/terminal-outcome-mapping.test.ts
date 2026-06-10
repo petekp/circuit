@@ -49,10 +49,6 @@ function terminalCompiledFlow(route: TerminalRoute): { bytes: Buffer } {
     id: 'terminal-outcome-flow',
     version: '0.1.0',
     purpose: 'Runtime regression fixture for terminal route outcome mapping.',
-    entry: {
-      signals: { include: ['terminal-outcome'], exclude: [] },
-      intent_prefixes: ['terminal-outcome'],
-    },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
@@ -133,10 +129,6 @@ function richCheckpointRouteCompiledFlow(route: RichRoute): { bytes: Buffer } {
     id: 'rich-route-flow',
     version: '0.1.0',
     purpose: 'Runtime regression fixture for rich checkpoint route labels.',
-    entry: {
-      signals: { include: ['rich-route'], exclude: [] },
-      intent_prefixes: ['rich-route'],
-    },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
@@ -208,10 +200,6 @@ function retryLoopCompiledFlow(): { bytes: Buffer } {
     id: 'retry-loop-flow',
     version: '0.1.0',
     purpose: 'Runtime regression fixture for bounded retry routes.',
-    entry: {
-      signals: { include: ['retry-loop'], exclude: [] },
-      intent_prefixes: ['retry-loop'],
-    },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
@@ -268,10 +256,6 @@ function relayFailureRecoveryCompiledFlow(): { bytes: Buffer } {
     id: 'relay-failure-recovery-flow',
     version: '0.1.0',
     purpose: 'Runtime regression fixture for failed relay recovery routes.',
-    entry: {
-      signals: { include: ['relay-recovery'], exclude: [] },
-      intent_prefixes: ['relay-recovery'],
-    },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

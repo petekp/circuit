@@ -8,24 +8,12 @@ import { Step } from './step.js';
 
 const TERMINAL_ROUTE_TARGETS = new Set(['@complete', '@stop', '@escalate', '@handoff']);
 
-export const EntrySignals = z.object({
-  include: z.array(z.string()).default([]),
-  exclude: z.array(z.string()).default([]),
-});
-export type EntrySignals = z.infer<typeof EntrySignals>;
-
 const CompiledFlowBody = z
   .object({
     schema_version: z.literal('2'),
     id: CompiledFlowId,
     version: z.string().min(1),
     purpose: z.string().min(1),
-    entry: z
-      .object({
-        signals: EntrySignals,
-        intent_prefixes: z.array(z.string()).default([]),
-      })
-      .strict(),
     axes: FlowAxes,
     starts_at: StepId,
     stages: z.array(Stage).min(1),

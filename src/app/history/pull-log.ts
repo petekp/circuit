@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   HISTORY_AUTHORITY_NOTICE,
   type HistoryPullLogV1 as HistoryPullLog,
@@ -7,6 +7,7 @@ import {
   type HistoryWarningV1,
   type PullLogEntryV1,
 } from '../../schemas/index.js';
+import { writeJsonAtomic } from '../../shared/atomic-io.js';
 
 // Stable on-disk contract path. Held as a local constant (the Slice 1 discipline)
 // so this writer targets the run-folder layout convention reports/history/*.json
@@ -103,11 +104,9 @@ export function appendPullLogEntry(
   }
 
   try {
-    mkdirSync(dirname(outPath), { recursive: true });
-    const tmpPath = `${outPath}.tmp-${process.pid}`;
-    writeFileSync(tmpPath, `${JSON.stringify(log, null, 2)}\n`, 'utf8');
-    HistoryPullLogV1.parse(JSON.parse(readFileSync(tmpPath, 'utf8')) as unknown);
-    renameSync(tmpPath, outPath);
+    writeJsonAtomic(outPath, log, {
+      validate: (raw) => HistoryPullLogV1.parse(JSON.parse(raw) as unknown),
+    });
     return { path: outPath, warnings };
   } catch (error) {
     return { warnings: [...warnings, pullLogUnavailable(runFolder, error)] };

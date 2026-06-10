@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { VerificationCommand } from '../schemas/verification.js';
 import { ProofPlanBlockedError } from './proof-plan.js';
-export { ProofPlanBlockedError, isProofPlanBlockedError } from './proof-plan.js';
 
 export type VerificationNeed = 'build' | 'lint' | 'general';
 

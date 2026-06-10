@@ -9,7 +9,7 @@ import type {
 import type { ExecutorRegistry } from '../executors/index.js';
 import type { RelayConnector } from '../executors/relay.js';
 import type { ExternalFileReader } from './external-files.js';
-import type { GraphRunResult } from './graph-runner.js';
+import type { GraphRunResult } from './run-close.js';
 
 export interface ChildFlowRef {
   readonly flowId: string;

@@ -104,13 +104,6 @@ export const prototypeFlowData = {
         actual: 'prototype.result@v1',
       },
     ],
-    entry: {
-      signals: {
-        include: ['prototype', 'mock up', 'sketch'],
-        exclude: ['production', 'deploy', 'ship'],
-      },
-      intent_prefixes: ['prototype'],
-    },
     axes: {
       allowed_rigors: ['standard', 'deep'],
       supports_tournament: true,

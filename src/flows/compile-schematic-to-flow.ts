@@ -1,5 +1,5 @@
 // Pure compiler: FlowSchematic → CompiledFlow(s). Takes a fully-populated schematic
-// (schematic-level entry/axes/stage_path_policy/stages/version present;
+// (schematic-level axes/stage_path_policy/stages/version present;
 // per-item protocol/writes/check present) and produces compiled CompiledFlow
 // objects shaped like the existing committed `generated/flows/<id>/`
 // fixtures.
@@ -485,10 +485,6 @@ interface SchematicFrame {
   schematicId: string;
   version: string;
   purpose: string;
-  entry: {
-    signals: { include: readonly string[]; exclude: readonly string[] };
-    intent_prefixes: readonly string[];
-  };
   axes: NonNullable<FlowSchematic['axes']>;
   startsAt: string;
   initialContracts: Set<FlowContractRef>;
@@ -501,7 +497,6 @@ interface SchematicFrame {
 function frameSchematic(schematic: FlowSchematic): SchematicFrame {
   const schematicId = schematic.id as unknown as string;
   const version = requireSchematicField(schematic.version, 'version', schematicId);
-  const entry = requireSchematicField(schematic.entry, 'entry', schematicId);
   const stageEntries = requireSchematicField(schematic.stages, 'stages', schematicId);
   const stagePathPolicy = requireSchematicField(
     schematic.stage_path_policy,
@@ -512,13 +507,6 @@ function frameSchematic(schematic: FlowSchematic): SchematicFrame {
     schematicId,
     version,
     purpose: schematic.purpose,
-    entry: {
-      signals: {
-        include: entry.signals.include,
-        exclude: entry.signals.exclude,
-      },
-      intent_prefixes: entry.intent_prefixes,
-    },
     axes: requireSchematicField(schematic.axes, 'axes', schematicId),
     startsAt: schematic.starts_at as unknown as string,
     initialContracts: new Set(schematic.initial_contracts),
@@ -611,13 +599,6 @@ function compileForMode(
     id: schematic.id,
     version: frame.version,
     purpose: frame.purpose,
-    entry: {
-      signals: {
-        include: frame.entry.signals.include,
-        exclude: frame.entry.signals.exclude,
-      },
-      intent_prefixes: frame.entry.intent_prefixes,
-    },
     axes: frame.axes,
     starts_at: frame.startsAt,
     stages,

@@ -93,7 +93,6 @@ function compiledFlowBytesForSnapshot(flowId = 'baseline'): Buffer {
       id: flowId,
       version: '0.1.0',
       purpose: 'runtime manifest snapshot fixture',
-      entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,

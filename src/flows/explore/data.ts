@@ -92,13 +92,6 @@ export const exploreFlowData = {
         actual: 'explore.result@v1',
       },
     ],
-    entry: {
-      signals: {
-        include: ['explore', 'investigate', 'research', 'understand'],
-        exclude: [],
-      },
-      intent_prefixes: ['explore', 'investigate', 'decide'],
-    },
     axes: {
       allowed_rigors: ['lite', 'standard', 'deep'],
       supports_tournament: true,

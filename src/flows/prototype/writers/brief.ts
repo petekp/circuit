@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { isAbsolute, relative } from 'node:path';
+import { CONTROL_PLANE_PROTOTYPES_DIR } from '../../../shared/control-plane-paths.js';
 import type {
   ComposeBuildContext,
   ComposeBuilder,
@@ -25,7 +26,7 @@ function prototypeRoot(context: ComposeBuildContext): string {
       return `${normalizeSlashes(relativeRunFolder)}/prototype-files`;
     }
   }
-  return `.circuit/prototypes/${hashRunFolder(context.runFolder)}`;
+  return `${CONTROL_PLANE_PROTOTYPES_DIR}/${hashRunFolder(context.runFolder)}`;
 }
 
 function cleanGoal(goal: string): string {

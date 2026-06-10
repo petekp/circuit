@@ -21,10 +21,7 @@ import {
 import { RunResult } from '../schemas/result.js';
 import { Rigor, type Rigor as RigorValue } from '../schemas/rigor.js';
 
-import {
-  HISTORY_RECALL_REPORT_PATH,
-  prepareRunStartHistoryRecall,
-} from '../app/history/run-start-recall.js';
+import { prepareRunStartHistoryRecall } from '../app/history/run-start-recall.js';
 import { readPriorRoute, writeOperatorSummary } from '../app/operator-summary/writer.js';
 import {
   projectCheckpointWaitingProcessEvidence,
@@ -34,22 +31,25 @@ import { runAutonomousContinuation } from '../app/run-envelope/autonomous-run.js
 import { validateCompiledFlowKindPolicy } from '../flows/canonical-stage-policy.js';
 import { findCompiledFlowPackageById, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
+import { CONTROL_PLANE_RUNS_DIR } from '../shared/control-plane-paths.js';
 import { progressDisplay, progressPresentation } from '../shared/progress-output.js';
 import type { ComposeWriterFn, RelayFn } from '../shared/relay-runtime-types.js';
 import { parseCommanderOrThrow } from './commander-support.js';
-import { codexInstallAssurance } from './handoff.js';
+import { codexInstallAssurance } from './handoff-codex-hooks.js';
 import {
   type PostRunArtifactContext,
   type PostRunArtifactWarning,
   emitPostRunArtifacts,
   postRunArtifactWarningOutputFields,
 } from './post-run-artifacts.js';
+import { createRecoveryAttemptRunner } from './recovery-attempt-runner.js';
 import {
   operatorSummaryOutputFields,
   routeOutputFields,
   runEnvelopeOutputFields,
   selectedProcessFields,
 } from './run-output.js';
+import { composeRunStdoutEnvelope, historyRecallOutputFields } from './run-stdout-envelope.js';
 import {
   RUNTIME_POLICY_REASONS,
   type RuntimeSupportDecision,
@@ -59,7 +59,7 @@ import {
   showRuntimeDecision,
 } from './runtime-routing-policy.js';
 
-const DEFAULT_RUNS_BASE = '.circuit/runs';
+const DEFAULT_RUNS_BASE = CONTROL_PLANE_RUNS_DIR;
 const AUTONOMOUS_LOOP_RELATIVE_PATH = 'reports/autonomous-loop.json';
 
 export interface ParsedArgs {
@@ -275,7 +275,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   return result;
 }
 
-function resolveFixturePath(
+export function resolveFixturePath(
   flowName: string,
   modeName: string | undefined,
   override: string | undefined,
@@ -372,7 +372,7 @@ function axisSupportFromAxes(axes: CompiledFlow['axes']): AxisSupport {
   };
 }
 
-function axisSupportFromFlow(input: {
+export function axisSupportFromFlow(input: {
   readonly flow: CompiledFlow;
 }): AxisSupport {
   return axisSupportFromAxes(input.flow.axes);
@@ -446,7 +446,7 @@ function validateFlowConfigRequirements(input: {
   }
 }
 
-function loadFixture(fixturePath: string): { flow: CompiledFlow; bytes: Buffer } {
+export function loadFixture(fixturePath: string): { flow: CompiledFlow; bytes: Buffer } {
   if (!existsSync(fixturePath)) {
     throw new Error(`flow fixture not found: ${fixturePath}`);
   }
@@ -462,7 +462,9 @@ function loadFixture(fixturePath: string): { flow: CompiledFlow; bytes: Buffer }
   return { flow, bytes };
 }
 
-function defaultChildCompiledFlowResolver(flowRoot: string | undefined): ChildCompiledFlowResolver {
+export function defaultChildCompiledFlowResolver(
+  flowRoot: string | undefined,
+): ChildCompiledFlowResolver {
   return (ref) => {
     const fixturePath = resolveFixturePath(ref.flowId, ref.entryMode, undefined, flowRoot);
     const { bytes } = loadFixture(fixturePath);
@@ -511,25 +513,6 @@ function classifyRuntimeSupport(input: {
     entryModeName,
     depth,
     reason: `runtime supports fresh ${flowId} axis selection '${entryModeName}' at depth '${depth}'`,
-  };
-}
-
-function historyRecallOutputFields(input: {
-  readonly runFolder: string;
-  readonly report: ReturnType<typeof prepareRunStartHistoryRecall>['report'];
-}) {
-  return {
-    history_recall: {
-      status: input.report.status,
-      memory_input_count: input.report.memory_input_count,
-      report_path: join(input.runFolder, HISTORY_RECALL_REPORT_PATH),
-      rebuilt: input.report.rebuilt,
-      ...(input.report.index_state === undefined ? {} : { index_state: input.report.index_state }),
-      warnings: input.report.warnings.map((warning) => ({
-        code: warning.code,
-        message: warning.message,
-      })),
-    },
   };
 }
 
@@ -630,23 +613,25 @@ export async function runResumeCommand(
         : {};
       process.stdout.write(
         `${JSON.stringify(
-          {
-            schema_version: 1,
-            run_id: runResult.run_id,
-            flow_id: runResult.flow_id,
-            run_folder: runFolder,
+          composeRunStdoutEnvelope({
+            runId: runResult.run_id,
+            flowId: runResult.flow_id,
+            // Resume reuses the saved run's route and axes, so the envelope
+            // carries no resolved_axes or route facets.
+            resolvedAxes: undefined,
+            route: undefined,
+            runFolder,
             outcome: runResult.outcome,
-            // A resumed run can also abort; surface its reason the same way (F-H-2).
-            ...(runResult.reason === undefined ? {} : { reason: runResult.reason }),
-            trace_entries_observed: runResult.trace_entries_observed,
-            result_path: runtimeResult.resultPath,
-            ...resumeRuntimeFields,
-            ...postRunArtifactWarningOutputFields(postRunArtifactWarnings),
-            ...(operatorSummary === undefined
-              ? {}
-              : operatorSummaryOutputFields({ operatorSummary })),
-            ...(runEnvelope === undefined ? {} : runEnvelopeOutputFields({ runEnvelope })),
-          },
+            reason: runResult.reason,
+            traceEntriesObserved: runResult.trace_entries_observed,
+            resultPath: runtimeResult.resultPath,
+            runtimeFields: resumeRuntimeFields,
+            historyRecallReport: undefined,
+            postRunArtifactWarnings,
+            operatorSummary,
+            runEnvelope,
+            autonomousLoop: undefined,
+          }),
           null,
           2,
         )}\n`,
@@ -998,111 +983,25 @@ export async function runExecutionCommand(
       const primaryProjection = processEvidence.projection;
       const contract = runEnvelope.record.goal_contract;
       const parentAxes = args.axes;
-      // Cache each routed recovery flow so a repeated route does not re-read and
-      // re-parse the same compiled flow from disk on every attempt.
-      const recoveryFlowCache = new Map<
-        string,
-        { flow: CompiledFlow; bytes: Buffer; path: string }
-      >();
       try {
         autonomousLoop = await runAutonomousContinuation({
           contract,
           primaryProcessId: flow.id,
-          runFlow: async ({ processId, attemptNumber }) => {
-            if (attemptNumber === 1) {
-              return { projection: primaryProjection };
-            }
-            let recoveryFlow = recoveryFlowCache.get(processId);
-            if (recoveryFlow === undefined) {
-              const path = resolveFixturePath(
-                processId,
-                fixtureSelectionName,
-                undefined,
-                args.flowRoot,
-              );
-              const loaded = loadFixture(path);
-              // Guard the routed recovery flow the same way the primary run is
-              // guarded: the loaded fixture's declared id must match the routed
-              // process, so the loop can never silently run a different flow than
-              // it routed to. A mismatch degrades the loop to the single-shot
-              // result via the surrounding catch.
-              const loadedFlowId = loaded.flow.id as unknown as string;
-              if (loadedFlowId !== processId) {
-                throw new Error(
-                  `recovery flow fixture id mismatch: routed to '${processId}' but fixture declares '${loadedFlowId}'`,
-                );
-              }
-              recoveryFlow = { flow: loaded.flow, bytes: loaded.bytes, path };
-              recoveryFlowCache.set(processId, recoveryFlow);
-            }
-            // A recovery attempt is a single bounded child run inside the parent
-            // loop, not itself an autonomous loop. Run it with axes the recovery
-            // flow actually supports: a routed recovery flow may differ from the
-            // parent (for example review does not support --autonomous), and the
-            // parent's up-front validateFlowAxes does not cover it. Never pass an
-            // axis the flow does not declare.
-            const support = axisSupportFromFlow({ flow: recoveryFlow.flow });
-            const recoveryAxes = Axes.parse({
-              // Keep the parent's rigor only if the recovery flow allows it;
-              // otherwise fall back to the recovery flow's own default rigor,
-              // which the axes schema guarantees is in its allowed set (never a
-              // hardcoded value the flow might not declare).
-              rigor: support.allowedRigors.includes(parentAxes.rigor)
-                ? parentAxes.rigor
-                : recoveryFlow.flow.axes.default.rigor,
-              tournament: false,
-              autonomous: parentAxes.autonomous && support.supportsAutonomous,
-            });
-            const attemptFolder = join(
-              runFolder,
-              'attempts',
-              `attempt-${attemptNumber}-${processId}`,
-            );
-            const recoveryResult = await runCompiledFlowWithWaiting({
-              flowBytes: recoveryFlow.bytes,
-              compiledFlowPath: recoveryFlow.path,
-              runDir: attemptFolder,
-              runId: RunId.parse(randomUUID()),
-              goal: operatorGoal,
-              now,
-              projectRoot,
-              childCompiledFlowResolver: defaultChildCompiledFlowResolver(args.flowRoot),
-              axes: recoveryAxes,
-              ...(options.relayer === undefined ? {} : { relayer: options.relayer }),
-              ...(options.runtimeExecutors === undefined
-                ? {}
-                : { executors: options.runtimeExecutors }),
-              ...(hostKind === undefined ? {} : { hostKind }),
-              ...(selectionConfigLayers.length === 0 ? {} : { selectionConfigLayers }),
-              ...(policyLayers.length === 0 ? {} : { policyLayers }),
-            });
-            if (isGraphCheckpointWaitingResult(recoveryResult)) {
-              return {
-                projection: projectCheckpointWaitingProcessEvidence({
-                  runFolder: attemptFolder,
-                  runId: RunId.parse(recoveryResult.runId),
-                  flowId: recoveryResult.flowId,
-                  traceEntriesObserved: recoveryResult.traceEntriesObserved,
-                  manifestHash: computeManifestHash(recoveryFlow.bytes),
-                  checkpoint: {
-                    stepId: recoveryResult.checkpoint.stepId,
-                    requestPath: recoveryResult.checkpoint.requestPath,
-                    allowedChoices: recoveryResult.checkpoint.allowedChoices,
-                  },
-                }),
-              };
-            }
-            const recoveryRunResult = RunResult.parse(
-              JSON.parse(readFileSync(recoveryResult.resultPath, 'utf8')),
-            );
-            return {
-              projection: projectClosedProcessEvidence({
-                runFolder: attemptFolder,
-                runResult: recoveryRunResult,
-                resultPath: recoveryResult.resultPath,
-              }),
-            };
-          },
+          runFlow: createRecoveryAttemptRunner({
+            primaryProjection,
+            fixtureSelectionName,
+            flowRoot: args.flowRoot,
+            parentAxes,
+            runFolder,
+            operatorGoal,
+            now,
+            projectRoot,
+            relayer: options.relayer,
+            runtimeExecutors: options.runtimeExecutors,
+            hostKind,
+            selectionConfigLayers,
+            policyLayers,
+          }),
         });
         const autonomousLoopPath = join(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
         mkdirSync(dirname(autonomousLoopPath), { recursive: true });
@@ -1122,16 +1021,11 @@ export async function runExecutionCommand(
     const resolvedAxes = args.axes;
     process.stdout.write(
       `${JSON.stringify(
-        {
-          schema_version: 1,
-          run_id: runResult.run_id,
-          flow_id: runResult.flow_id,
-          resolved_axes: {
-            rigor: resolvedAxes.rigor,
-            tournament: resolvedAxes.tournament,
-            autonomous: resolvedAxes.autonomous,
-          },
-          ...routeOutputFields({
+        composeRunStdoutEnvelope({
+          runId: runResult.run_id,
+          flowId: runResult.flow_id,
+          resolvedAxes,
+          route: {
             selectedFlow: route.flowName,
             routedBy: route.source,
             routerReason: route.reason,
@@ -1141,38 +1035,25 @@ export async function runExecutionCommand(
             ...(entryModeSelection.source === undefined
               ? {}
               : { entryModeSource: entryModeSelection.source }),
-          }),
-          run_folder: runFolder,
+          },
+          runFolder,
           outcome: runResult.outcome,
-          // Copy the abort reason onto the final envelope so a non-streaming
-          // host (and the present no-blocks branch) renders the specific reason
-          // rather than a generic fallback (F-H-2). result.json carries it too.
-          ...(runResult.reason === undefined ? {} : { reason: runResult.reason }),
-          trace_entries_observed: runResult.trace_entries_observed,
-          result_path: runtimeResult.resultPath,
-          ...runtimeOutputFields({
+          reason: runResult.reason,
+          traceEntriesObserved: runResult.trace_entries_observed,
+          resultPath: runtimeResult.resultPath,
+          runtimeFields: runtimeOutputFields({
             include: runtimeDecisionDiagnostics,
             decision: defaultRuntimeSupport,
           }),
-          ...(historyRecall === undefined
-            ? {}
-            : historyRecallOutputFields({ runFolder, report: historyRecall.report })),
-          ...postRunArtifactWarningOutputFields(postRunArtifactWarnings),
-          ...(operatorSummary === undefined
-            ? {}
-            : operatorSummaryOutputFields({ operatorSummary })),
-          ...(runEnvelope === undefined ? {} : runEnvelopeOutputFields({ runEnvelope })),
-          ...(autonomousLoop === undefined
-            ? {}
-            : {
-                autonomous_loop: {
-                  outcome: autonomousLoop.outcome,
-                  attempts: autonomousLoop.attempts.length,
-                  stop_reason: autonomousLoop.stopReason,
-                  path: join(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH),
-                },
-              }),
-        },
+          historyRecallReport: historyRecall?.report,
+          postRunArtifactWarnings,
+          operatorSummary,
+          runEnvelope,
+          autonomousLoop:
+            autonomousLoop === undefined
+              ? undefined
+              : { ...autonomousLoop, path: join(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) },
+        }),
         null,
         2,
       )}\n`,

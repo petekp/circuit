@@ -12,22 +12,18 @@
 // a Build run that never opted into the gate carries no git dependency at all,
 // exactly as before the gate existed.
 //
-// When the gate is on, one command runs the git-state helper (git rev-parse +
-// git status porcelain v1 -z --untracked-files=all + per-dirty-path `git
-// hash-object` + git ls-files -v for assume-unchanged / skip-worktree
-// detection), emitting a single JSON document. The helper is a Build-local
-// byte-identical copy of Fix's git-state.ts (the engine<->flow boundary forbids
-// importing Fix's), held in lockstep by
-// tests/contracts/build-git-state-drift.test.ts. Unify into src/shared/git-state/
-// to drop the duplication (tracked follow-up).
+// When the gate is on, one command runs the shared git-state helper
+// (src/shared/git-state.ts, invoked via src/shared/git-state-command.ts): git
+// rev-parse + git status porcelain v1 -z --untracked-files=all +
+// per-dirty-path `git hash-object` + git ls-files -v for assume-unchanged /
+// skip-worktree detection, emitting a single JSON document.
 //
 // overall_status is always 'passed' — the snapshot records state, it does not
 // gate routing. When the gate is on, git failures (git missing, not a repo)
 // abort via the runner's error path because the helper exits non-zero.
 
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { RuntimeGitStateSnapshot } from '../../../schemas/runtime-evidence.js';
+import { gitStateCommand, parseGitStateObservation } from '../../../shared/git-state-command.js';
 import { resolveRunRelative } from '../../../shared/run-relative-path.js';
 import { reportPathForSchemaInRuntimeFlow } from '../../registries/runtime-index.js';
 import type {
@@ -37,33 +33,6 @@ import type {
   VerificationCommandObservation,
 } from '../../registries/verification-writers/types.js';
 import { BuildBaselineSnapshot, BuildPlan } from '../reports.js';
-
-const GIT_TIMEOUT_MS = 60_000;
-const GIT_MAX_OUTPUT_BYTES = 5_000_000;
-
-// Marketplace-safe by build-pipeline emission: git-state.ts runs as a sibling
-// of the bundled CLI, not the source file. scripts/plugins/runtime-bundle.ts
-// emits the helper as a sidecar to every bundle target (the bundle flattens it
-// to plugins/<host>/runtime/git-state.ts, shared with Fix's identical copy; the
-// dist sidecar emits dist/flows/build/writers/git-state.ts for source-tree CLI
-// runs), and --check mode fails if any sidecar is missing or drifts from src/.
-// Sibling-of-bundle resolution is correct in every install layout because the
-// build pipeline puts a sibling there.
-const GIT_STATE_HELPER_PATH = fileURLToPath(new URL('./git-state.ts', import.meta.url));
-
-const GitStateHelperOutput = RuntimeGitStateSnapshot;
-export type GitStateHelperOutput = RuntimeGitStateSnapshot;
-
-export function buildGitStateCommand(id: string): VerificationCommand {
-  return {
-    id,
-    cwd: '.',
-    argv: [process.execPath, GIT_STATE_HELPER_PATH],
-    timeout_ms: GIT_TIMEOUT_MS,
-    max_output_bytes: GIT_MAX_OUTPUT_BYTES,
-    env: {},
-  };
-}
 
 // The touch-area gate is opt-in: it only enforces when the plan declares an
 // allowed_touch_area. Both the baseline and the touch-area steps read the plan
@@ -80,32 +49,13 @@ export function planDeclaresTouchArea(context: VerificationBuildContext): boolea
   return plan.allowed_touch_area.length > 0;
 }
 
-export function parseGitStateObservation(
-  observation: VerificationCommandObservation,
-  schemaName: string,
-): GitStateHelperOutput {
-  if (observation.status !== 'passed') {
-    throw new Error(
-      `${schemaName}: git-state helper failed (exit ${observation.exit_code}): ${observation.stderr_summary}`,
-    );
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(observation.stdout_summary);
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    throw new Error(`${schemaName}: git-state helper stdout was not valid JSON: ${reason}`);
-  }
-  return GitStateHelperOutput.parse(parsed);
-}
-
 export const buildBaselineSnapshotWriter: VerificationBuilder = {
   resultSchemaName: 'build.baseline-snapshot@v1',
   loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
     // Opt-in: no declared area means no gate to back, so capture no git state.
     // The buildResult below then records the inert `captured: false` baseline.
     if (!planDeclaresTouchArea(context)) return [];
-    return [buildGitStateCommand('build-baseline-snapshot-git-state')];
+    return [gitStateCommand('build-baseline-snapshot-git-state')];
   },
   buildResult(observations: readonly VerificationCommandObservation[]): unknown {
     // No observations means loadCommands skipped git because the gate is off.

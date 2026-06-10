@@ -47,16 +47,6 @@ function normalizeStatusText(text: string): string {
   return truncateStatusText(withoutChrome);
 }
 
-// Used when projecting an operator-summary headline (already chrome'd with
-// `Circuit:`) into a status_text field. Strips the prefix, ensures sentence-
-// final punctuation, then truncates. Co-located with normalizeStatusText so
-// the shared cap and the chrome-strip rules stay synchronized.
-export function statusTextFromHeadline(headline: string): string {
-  const stripped = headline.replace(/^Circuit:\s*/i, '').trim();
-  const withSentence = /[.!?]$/.test(stripped) ? stripped : `${stripped}.`;
-  return truncateStatusText(withSentence);
-}
-
 export function progressPresentation(input: {
   readonly blockId: string;
   readonly lineMode?: ProgressPresentation['line_mode'];

@@ -106,13 +106,6 @@ export const fixFlowData = {
         actual: 'fix.result@v1',
       },
     ],
-    entry: {
-      signals: {
-        include: ['fix', 'bug', 'broken', 'regression', 'incident', 'outage', 'diagnose'],
-        exclude: [],
-      },
-      intent_prefixes: ['fix', 'diagnose'],
-    },
     axes: {
       allowed_rigors: ['lite', 'standard', 'deep'],
       supports_tournament: false,

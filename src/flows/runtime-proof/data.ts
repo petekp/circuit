@@ -17,13 +17,6 @@ const runtimeProofSchematic = {
   starts_at: 'compose-step',
   initial_contracts: ['flow.brief@v1'],
   contract_aliases: [],
-  entry: {
-    signals: {
-      include: ['runtime-proof', 'alpha-proof'],
-      exclude: [],
-    },
-    intent_prefixes: ['runtime-proof'],
-  },
   axes: {
     allowed_rigors: ['standard'],
     supports_tournament: false,

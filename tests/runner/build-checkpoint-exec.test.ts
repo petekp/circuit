@@ -21,9 +21,9 @@ import {
 } from '../../src/runtime/run/compiled-flow-runner.js';
 import {
   type GraphExecutionResult,
-  type GraphRunResult,
   isGraphCheckpointWaitingResult,
 } from '../../src/runtime/run/graph-runner.js';
+import type { GraphRunResult } from '../../src/runtime/run/run-close.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import type { ChangeKindDeclaration } from '../../src/schemas/change-kind.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
@@ -176,7 +176,6 @@ function checkpointCompiledFlow(options: {
     id: 'build-checkpoint-exec-test',
     version: '0.1.0',
     purpose: 'test Build checkpoint execution',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
@@ -249,7 +248,6 @@ function checkpointToRelayCompiledFlow(): { flow: CompiledFlow; bytes: Buffer } 
     id: 'build-checkpoint-relay-test',
     version: '0.1.0',
     purpose: 'test checkpoint resume context for relay',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
@@ -339,7 +337,6 @@ function checkpointToVerificationCompiledFlow(commandCwd = '.'): {
     id: 'build-checkpoint-verification-test',
     version: '0.1.0',
     purpose: 'test checkpoint resume context for verification',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

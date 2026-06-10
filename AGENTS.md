@@ -50,7 +50,7 @@ during iteration when you need a faster broad check.
 npm run check        # tsc --noEmit
 npm run lint         # biome check
 npm run test         # vitest (full suite)
-npm run test:fast    # vitest excluding tests/runner/cli-router.test.ts (only true outlier; ~10s of subprocess-driven CLI integration)
+npm run test:fast    # vitest excluding the two subprocess-driven outliers: tests/runner/cli-router.test.ts (~10s CLI integration) and tests/unit/emit-flows-drift.test.ts (~30s build+emit subprocesses)
 npm run test:coverage # vitest run --coverage (info, no thresholds)
 npm run build        # tsc -p tsconfig.build.json
 npm run verify       # full canonical check; CI runs this

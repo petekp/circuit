@@ -149,7 +149,6 @@ export const WorkContractProjectionV0 = z
             id: CompiledFlowId,
             version: z.string().min(1),
             purpose: z.string().min(1),
-            entry: JsonObject,
             axes: FlowAxes,
             starts_at: StepId,
           })

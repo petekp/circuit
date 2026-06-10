@@ -525,7 +525,6 @@ describe('flow schematic compiler-required metadata', () => {
       ...baseSchematic(items),
       status: 'active',
       version: '0.1.0',
-      entry: { signals: { include: ['demo'], exclude: [] }, intent_prefixes: ['demo'] },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,
@@ -632,7 +631,6 @@ describe('flow schematic compiler-required metadata', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.message).toMatch(/active schematic requires version/);
-      expect(result.error.message).toMatch(/active schematic requires entry/);
       expect(result.error.message).toMatch(/active schematic requires axes/);
       expect(result.error.message).toMatch(/active schematic requires stage_path_policy/);
       expect(result.error.message).toMatch(/active schematic requires stages/);
@@ -818,7 +816,6 @@ describe('flow schematic compiler-required metadata', () => {
         }),
       ]),
       version: '0.1.0',
-      entry: { signals: { include: ['demo'], exclude: [] }, intent_prefixes: ['demo'] },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,

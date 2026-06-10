@@ -95,10 +95,6 @@ function buildCompiledFlow(spec: GraphSpec): Record<string, unknown> {
     id: 'build',
     version: '2026-04-27',
     purpose: 'CompiledFlow graph closure property fixture.',
-    entry: {
-      signals: { include: ['feature'], exclude: [] },
-      intent_prefixes: ['develop:'],
-    },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import YAML from 'yaml';
 import type { z } from 'zod';
 // Type-only imports of the source modules whose compiled output is loaded
@@ -12,6 +12,7 @@ import type { z } from 'zod';
 import type * as ReleaseChecksModule from '../../src/release/checks.js';
 import type * as ReleaseSchemasModule from '../../src/release/schemas.js';
 import { formatWithBiome as formatWithBiomeShared, stableJson } from '../shared/format.ts';
+import { writeOrCheck as writeOrCheckShared } from '../shared/write-or-check.ts';
 
 export const projectRoot = resolve(new URL('../..', import.meta.url).pathname);
 
@@ -75,22 +76,14 @@ export function formatWithBiome(relPath: string, content: string): string {
   return formatWithBiomeShared(relPath, content, projectRoot);
 }
 
+// Thin wrapper over the shared primitive (scripts/shared/write-or-check.ts),
+// kept exported here so the release scripts that already import it from
+// './shared.ts' need no change. Same pattern as formatWithBiome above.
 export function writeOrCheck(relPath: string, content: string, check: boolean): void {
-  const abs = resolve(projectRoot, relPath);
-  if (check) {
-    if (!existsSync(abs)) {
-      throw new Error(`${relPath} is missing; run the matching emit command`);
-    }
-    const current = readFileSync(abs, 'utf8');
-    if (current !== content) {
-      throw new Error(`${relPath} drifted; run the matching emit command`);
-    }
-    console.log(`✓ ${relPath} is in sync`);
-    return;
-  }
-  mkdirSync(dirname(abs), { recursive: true });
-  writeFileSync(abs, content);
-  console.log(`emitted ${relPath}`);
+  writeOrCheckShared(relPath, content, check, {
+    projectRoot,
+    regenerateHint: 'run the matching emit command',
+  });
 }
 
 export function formatMarkdown(content: string): string {

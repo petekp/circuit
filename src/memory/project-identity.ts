@@ -1,9 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { Config, ProjectId } from '../schemas/index.js';
+import { writeJsonAtomic } from '../shared/atomic-io.js';
 import { sha256Hex } from '../shared/connector-relay.js';
+import {
+  CONTROL_PLANE_RUNS_DIR,
+  PROJECT_CONFIG_RELATIVE_SEGMENTS,
+} from '../shared/control-plane-paths.js';
 import {
   MEMORY_MANIFEST_FILE,
   type ProjectStoreOptions,
@@ -71,7 +76,7 @@ export function normalizeGitRemoteUrl(url: string): string {
 }
 
 function readConfigProjectId(repoRoot: string): string | undefined {
-  const configPath = resolve(repoRoot, '.circuit', 'config.yaml');
+  const configPath = resolve(repoRoot, ...PROJECT_CONFIG_RELATIVE_SEGMENTS);
   if (!existsSync(configPath)) return undefined;
   let raw: unknown;
   try {
@@ -126,7 +131,7 @@ export function resolveProjectId(options: ResolveProjectIdOptions = {}): Resolve
   }
 
   // 3. Runs-base fallback, with a loud instability warning.
-  const runsBase = resolve(repoRoot, '.circuit/runs');
+  const runsBase = resolve(repoRoot, CONTROL_PLANE_RUNS_DIR);
   return {
     projectId: hashedId('p', runsBase),
     source: 'runs_base',
@@ -155,13 +160,9 @@ export function stampMemoryManifest(
   options: ProjectStoreOptions = {},
 ): string {
   const paths = resolveProjectStorePaths(options);
-  mkdirSync(paths.memoryDir, { recursive: true });
   const manifest: MemoryManifest = { project_id: resolved.projectId, source: resolved.source };
-  const tmpPath = `${paths.manifestPath}.tmp-${process.pid}`;
-  writeFileSync(tmpPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   // Re-read to confirm the bytes round-trip before the rename commits.
-  JSON.parse(readFileSync(tmpPath, 'utf8'));
-  renameSync(tmpPath, paths.manifestPath);
+  writeJsonAtomic(paths.manifestPath, manifest, { validate: (raw) => JSON.parse(raw) });
   return paths.manifestPath;
 }
 

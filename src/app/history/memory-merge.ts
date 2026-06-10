@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   HISTORY_AUTHORITY_NOTICE,
@@ -13,6 +13,7 @@ import {
   type RunEnvelopeOutcome,
   RunEnvelopeRecord,
 } from '../../schemas/index.js';
+import { writeJsonAtomic } from '../../shared/atomic-io.js';
 import { isFailureOutcome } from '../../shared/outcome.js';
 import {
   HISTORY_MEMORY_MERGE_FILE,
@@ -278,12 +279,10 @@ export function buildMemoryMergeReport(
 // Persist a report under <index-dir>/memory-merge.v1.json (atomic tmp+rename,
 // re-parsed to validate before the rename commits).
 export function writeMemoryMergeReport(report: HistoryMemoryMerge, paths: HistoryPaths): string {
-  mkdirSync(paths.indexDir, { recursive: true });
   const outPath = join(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
-  const tmpPath = `${outPath}.tmp-${process.pid}`;
-  writeFileSync(tmpPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-  HistoryMemoryMergeV1.parse(JSON.parse(readFileSync(tmpPath, 'utf8')) as unknown);
-  renameSync(tmpPath, outPath);
+  writeJsonAtomic(outPath, report, {
+    validate: (raw) => HistoryMemoryMergeV1.parse(JSON.parse(raw) as unknown),
+  });
   return outPath;
 }
 

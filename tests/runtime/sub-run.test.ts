@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createStubRelayConnector } from '../../src/runtime/executors/relay.js';
 import type { ExecutableFlow } from '../../src/runtime/manifest/executable-flow.js';
 import type { CompiledFlowRunOptions } from '../../src/runtime/run/child-runner.js';
-import type { GraphRunResult } from '../../src/runtime/run/graph-runner.js';
 import { executeExecutableFlow } from '../../src/runtime/run/graph-runner.js';
+import type { GraphRunResult } from '../../src/runtime/run/run-close.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { LayeredConfig } from '../../src/schemas/config.js';
 import { RunResult } from '../../src/schemas/result.js';
@@ -68,7 +68,6 @@ function childFlowBytes(): Buffer {
       id: 'child-test',
       version: '0.1.0',
       purpose: 'runtime sub-run child',
-      entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,

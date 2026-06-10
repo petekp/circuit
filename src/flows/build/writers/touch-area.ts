@@ -16,6 +16,7 @@
 
 import { readFileSync } from 'node:fs';
 import { isAbsolute, relative } from 'node:path';
+import { gitStateCommand, parseGitStateObservation } from '../../../shared/git-state-command.js';
 import { resolveRunRelative } from '../../../shared/run-relative-path.js';
 import { projectRuntimeTouchedFiles } from '../../../shared/runtime-touched-files.js';
 import { reportPathForSchemaInRuntimeFlow } from '../../registries/runtime-index.js';
@@ -26,11 +27,7 @@ import type {
   VerificationCommandObservation,
 } from '../../registries/verification-writers/types.js';
 import { BuildBaselineSnapshot, BuildImplementation, BuildPlan } from '../reports.js';
-import {
-  buildGitStateCommand,
-  parseGitStateObservation,
-  planDeclaresTouchArea,
-} from './baseline-snapshot.js';
+import { planDeclaresTouchArea } from './baseline-snapshot.js';
 import { inertBuildTouchArea, projectBuildTouchArea } from './touch-area-projection.js';
 
 const SCHEMA_NAME = 'build.touch-area@v1';
@@ -68,7 +65,7 @@ export const buildTouchAreaWriter: VerificationBuilder = {
     // baseline step skipped git too, so there is nothing to diff; buildResult
     // returns the inert not_enforced verdict.
     if (!planDeclaresTouchArea(context)) return [];
-    return [buildGitStateCommand('build-touch-area-git-state')];
+    return [gitStateCommand('build-touch-area-git-state')];
   },
   buildResult(
     observations: readonly VerificationCommandObservation[],

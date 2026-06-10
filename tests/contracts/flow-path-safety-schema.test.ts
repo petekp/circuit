@@ -86,7 +86,6 @@ describe('CompiledFlow stage_path_policy (stage-I4)', () => {
     id: 'build',
     version: '2026-04-18',
     purpose: 'Build features.',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

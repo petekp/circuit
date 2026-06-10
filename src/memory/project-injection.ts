@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import type { MemoryInputV0 } from '../schemas/index.js';
 import { MemoryInputV0 as MemoryInputV0Schema } from '../schemas/index.js';
 import { sha256Hex } from '../shared/connector-relay.js';
+import { CONTROL_PLANE_RUNS_DIR } from '../shared/control-plane-paths.js';
 import { type ReadProjectFactsOptions, readProjectFacts } from './project-store.js';
 
 // Load stored project facts for (project, flow) and re-verify each fact's
@@ -68,7 +69,9 @@ export function loadProjectFactCandidates(
   if (options.flowId === undefined) {
     return { candidates: [] };
   }
-  const runsBase = resolve(options.runsBase ?? join(resolve(options.repoRoot), '.circuit/runs'));
+  const runsBase = resolve(
+    options.runsBase ?? join(resolve(options.repoRoot), CONTROL_PLANE_RUNS_DIR),
+  );
   const now = options.now ?? (() => new Date());
   const checkedAt = now().toISOString();
   const { facts } = readProjectFacts({

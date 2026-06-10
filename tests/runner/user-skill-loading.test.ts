@@ -58,7 +58,6 @@ function flowBytes(
       id: 'skill-loading-fixture',
       version: '0.0.0-test',
       purpose: 'Exercise user skill loading.',
-      entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,

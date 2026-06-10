@@ -146,15 +146,27 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  it('detects and removes stale generated siblings and host surfaces', () => {
-    cleanupPlantedFixtures();
-
+  // All fixture classes are planted together and exercised with one --check
+  // spawn and one emit spawn. The emit script aggregates every violation
+  // before exiting (`drifted` flag, single exit at the end), so batching
+  // loses no coverage, and each spawn pays a full flow compile, so spawn
+  // count dominates this suite's wall time.
+  function plantAllFixtures() {
     plantStaleSibling(stalePath);
     plantStaleSibling(staleContractPath);
     plantStaleSibling(claudeStalePath);
     plantStaleSibling(claudeStaleContractPath);
     plantStaleSibling(codexStalePath);
     plantStaleSibling(codexStaleContractPath);
+    plantInternalHostMirror(runtimeProofClaudeDir);
+    plantInternalHostMirror(runtimeProofCodexDir);
+    plantStaleSibling(rootClaudeObsoleteManifestPath);
+  }
+
+  it('detects and removes stale generated siblings and host surfaces', () => {
+    cleanupPlantedFixtures();
+
+    plantAllFixtures();
     const staleCheck = runEmitScript(['--check']);
     expect(staleCheck.status).toBe(1);
     const staleCheckOutput = `${staleCheck.stdout ?? ''}\n${staleCheck.stderr ?? ''}`;
@@ -169,20 +181,23 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
       'plugins/codex/flows/build/never-a-mode.work-contract.v0.json',
     );
     expect(staleCheckOutput).toContain('not in the emit plan');
+    expect(staleCheckOutput).toContain('plugins/claude/skills/runtime-proof');
+    expect(staleCheckOutput).toContain('plugins/codex/flows/runtime-proof');
+    expect(staleCheckOutput).toContain('stale host mirror for internal flow');
+    expect(staleCheckOutput).toContain('obsolete root host surface');
 
     cleanupPlantedFixtures();
-    plantStaleSibling(stalePath);
-    plantStaleSibling(staleContractPath);
-    plantStaleSibling(claudeStalePath);
-    plantStaleSibling(claudeStaleContractPath);
-    plantStaleSibling(codexStalePath);
-    plantStaleSibling(codexStaleContractPath);
+    plantAllFixtures();
     expect(planted(stalePath)).toBe(true);
     expect(planted(staleContractPath)).toBe(true);
     expect(planted(claudeStalePath)).toBe(true);
     expect(planted(claudeStaleContractPath)).toBe(true);
     expect(planted(codexStalePath)).toBe(true);
     expect(planted(codexStaleContractPath)).toBe(true);
+    expect(planted(runtimeProofClaudeDir)).toBe(true);
+    expect(planted(runtimeProofCodexDir)).toBe(true);
+    expect(planted(rootClaudeObsoleteManifestPath)).toBe(true);
+    const marketplaceBefore = readFileSync(rootClaudeMarketplacePath, 'utf8');
     const staleEmit = runEmitScript([]);
     expect(staleEmit.status).toBe(0);
     expect(planted(stalePath)).toBe(false);
@@ -191,6 +206,10 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     expect(planted(claudeStaleContractPath)).toBe(false);
     expect(planted(codexStalePath)).toBe(false);
     expect(planted(codexStaleContractPath)).toBe(false);
+    expect(planted(runtimeProofClaudeDir)).toBe(false);
+    expect(planted(runtimeProofCodexDir)).toBe(false);
+    expect(planted(rootClaudeObsoleteManifestPath)).toBe(false);
+    expect(readFileSync(rootClaudeMarketplacePath, 'utf8')).toBe(marketplaceBefore);
     expect(staleEmit.stdout ?? '').toContain(
       'removed stale generated/flows/build/never-a-mode.json',
     );
@@ -209,38 +228,13 @@ describe('emit-flows.ts — stale per-mode sibling guard', () => {
     expect(staleEmit.stdout ?? '').toContain(
       'removed stale plugins/codex/flows/build/never-a-mode.work-contract.v0.json',
     );
-
-    cleanupPlantedFixtures();
-    plantInternalHostMirror(runtimeProofClaudeDir);
-    plantInternalHostMirror(runtimeProofCodexDir);
-    const internalMirrorCheck = runEmitScript(['--check']);
-    expect(internalMirrorCheck.status).toBe(1);
-    const internalMirrorOutput = `${internalMirrorCheck.stdout ?? ''}\n${
-      internalMirrorCheck.stderr ?? ''
-    }`;
-    expect(internalMirrorOutput).toContain('plugins/claude/skills/runtime-proof');
-    expect(internalMirrorOutput).toContain('plugins/codex/flows/runtime-proof');
-    expect(internalMirrorOutput).toContain('stale host mirror for internal flow');
-
-    const internalMirrorEmit = runEmitScript([]);
-    expect(internalMirrorEmit.status).toBe(0);
-    expect(planted(runtimeProofClaudeDir)).toBe(false);
-    expect(planted(runtimeProofCodexDir)).toBe(false);
-    expect(internalMirrorEmit.stdout ?? '').toContain(
+    expect(staleEmit.stdout ?? '').toContain(
       'removed internal host mirror plugins/claude/skills/runtime-proof',
     );
-    expect(internalMirrorEmit.stdout ?? '').toContain(
+    expect(staleEmit.stdout ?? '').toContain(
       'removed internal host mirror plugins/codex/flows/runtime-proof',
     );
-
-    cleanupPlantedFixtures();
-    const marketplaceBefore = readFileSync(rootClaudeMarketplacePath, 'utf8');
-    plantStaleSibling(rootClaudeObsoleteManifestPath);
-    const rootEmit = runEmitScript([]);
-    expect(rootEmit.status).toBe(0);
-    expect(planted(rootClaudeObsoleteManifestPath)).toBe(false);
-    expect(readFileSync(rootClaudeMarketplacePath, 'utf8')).toBe(marketplaceBefore);
-    expect(rootEmit.stdout ?? '').toContain(
+    expect(staleEmit.stdout ?? '').toContain(
       'removed obsolete root host surface .claude-plugin/plugin.json',
     );
 

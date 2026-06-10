@@ -75,13 +75,6 @@ export const buildFlowData = {
         actual: 'build.result@v1',
       },
     ],
-    entry: {
-      signals: {
-        include: ['build', 'implement', 'develop', 'change', 'fix', 'add'],
-        exclude: [],
-      },
-      intent_prefixes: ['build', 'implement', 'develop'],
-    },
     axes: {
       allowed_rigors: ['lite', 'standard', 'deep'],
       supports_tournament: false,

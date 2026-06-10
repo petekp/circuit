@@ -2,8 +2,9 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { HistoryErrorCodeV1 } from '../schemas/index.js';
 import { sha256Hex } from '../shared/connector-relay.js';
+import { CONTROL_PLANE_RUNS_DIR } from '../shared/control-plane-paths.js';
 
-export const DEFAULT_RUNS_BASE = '.circuit/runs';
+export const DEFAULT_RUNS_BASE = CONTROL_PLANE_RUNS_DIR;
 
 export class HistoryCommandError extends Error {
   constructor(

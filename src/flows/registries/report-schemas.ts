@@ -1,7 +1,8 @@
 // Relay-report schema registry + parse helper.
 //
 // The REGISTRY is built from src/flows/catalog.ts via
-// buildReportSchemaRegistry, plus the test-only fixtures below.
+// buildReportSchemaRegistry, plus the engine-built-in schemas from
+// src/schemas/builtin-report-schemas.ts.
 //
 // Fail-closed default. When `writes.report.schema` names a schema
 // that is NOT present in the registry below, `parseReport` returns
@@ -19,52 +20,12 @@
 //   → run.closed outcome=aborted (reason byte-identical)
 //   → RunResult.reason mirrors the close reason.
 
-import { z } from 'zod';
+import type { z } from 'zod';
+import { BUILTIN_REPORT_SCHEMAS } from '../../schemas/builtin-report-schemas.js';
 import { buildReportSchemaRegistry } from '../catalog-derivations.js';
 import { flowPackages } from '../catalog.js';
 
-const MinimalVerdictShape = z.object({ verdict: z.string().min(1) }).passthrough();
-
-const StrictPayloadShape = z
-  .object({
-    verdict: z.string().min(1),
-    rationale: z.string().min(1),
-  })
-  .strict();
-
-const FanoutAggregateFixtureBranchShape = z
-  .object({
-    branch_id: z.string().min(1),
-    child_run_id: z.string().min(1),
-    child_outcome: z.string().min(1),
-    verdict: z.string().min(1),
-    admitted: z.boolean(),
-    result_path: z.string().min(1),
-    duration_ms: z.number().nonnegative(),
-  })
-  .passthrough();
-
-const FanoutAggregateFixtureShape = z
-  .object({
-    schema_version: z.literal(1),
-    join_policy: z.enum(['pick-winner', 'disjoint-merge', 'aggregate-only', 'aggregate-survivors']),
-    branch_count: z.number().int().nonnegative(),
-    winner_branch_id: z.string().min(1).optional(),
-    branches: z.array(FanoutAggregateFixtureBranchShape),
-  })
-  .passthrough();
-
-// Test-only fixtures live inline because they are not part of any
-// real flow. `runtime-proof-canonical@v1` is the minimal-shape positive
-// case; `runtime-proof-strict@v1` is used by tests/runner/materializer-
-// schema-parse.test.ts to exercise the check-pass + schema-fail mode.
-const TEST_FIXTURE_SCHEMAS: Readonly<Record<string, z.ZodType<unknown>>> = Object.freeze({
-  'runtime-proof-canonical@v1': MinimalVerdictShape,
-  'runtime-proof-strict@v1': StrictPayloadShape,
-  'fanout-aggregate@v1': FanoutAggregateFixtureShape,
-});
-
-const REGISTRY = buildReportSchemaRegistry(flowPackages, TEST_FIXTURE_SCHEMAS);
+const REGISTRY = buildReportSchemaRegistry(flowPackages, BUILTIN_REPORT_SCHEMAS);
 
 export type ReportParseResult =
   | { readonly kind: 'ok' }

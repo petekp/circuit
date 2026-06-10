@@ -273,13 +273,6 @@
     }
   ],
   "version": "0.1.0",
-  "entry": {
-    "signals": {
-      "include": ["pursue", "pursuit", "coordinate pursuits", "multiple autonomous goals"],
-      "exclude": []
-    },
-    "intent_prefixes": ["pursue"]
-  },
   "axes": {
     "allowed_rigors": ["standard"],
     "supports_tournament": false,

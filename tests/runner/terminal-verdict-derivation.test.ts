@@ -106,7 +106,6 @@ describe('deriveTerminalVerdict — fix #2 coverage', () => {
       id: 'multi-relay-fixture',
       version: '0.1.0',
       purpose: 'Test fixture for multi-relay terminal verdict derivation.',
-      entry: { signals: { include: ['multi'], exclude: [] }, intent_prefixes: ['multi'] },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,
@@ -219,7 +218,6 @@ describe('deriveTerminalVerdict — fix #2 coverage', () => {
       id: 'compose-only-fixture',
       version: '0.1.0',
       purpose: 'Test fixture: a flow with no verdict-bearing steps.',
-      entry: { signals: { include: ['syn'], exclude: [] }, intent_prefixes: ['syn'] },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,

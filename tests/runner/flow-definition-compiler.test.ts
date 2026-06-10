@@ -136,10 +136,6 @@ function minimalDefinition(id: string) {
       starts_at: 'compose-step',
       initial_contracts: [],
       contract_aliases: [],
-      entry: {
-        signals: { include: [id], exclude: [] },
-        intent_prefixes: [id],
-      },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,

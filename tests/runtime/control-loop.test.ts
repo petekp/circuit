@@ -79,10 +79,6 @@ function relayFlowBytes(options: readonly string[] | RelayFlowFixtureOptions = [
       id: 'runtime-relay-check',
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for relay check admission.',
-      entry: {
-        signals: { include: ['runtime-relay-check'], exclude: [] },
-        intent_prefixes: ['runtime-relay-check'],
-      },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,
@@ -138,10 +134,6 @@ function multiRelayVerdictFlowBytes(): Buffer {
       id: 'runtime-multi-relay-verdict',
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for terminal verdict derivation.',
-      entry: {
-        signals: { include: ['runtime-multi-relay-verdict'], exclude: [] },
-        intent_prefixes: ['runtime-multi-relay-verdict'],
-      },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,
@@ -231,10 +223,6 @@ function checkpointRouteFlowBytes(selection: RichCheckpointRoute): Buffer {
       id: 'runtime-checkpoint-routes',
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for checkpoint route labels.',
-      entry: {
-        signals: { include: ['runtime-checkpoint-routes'], exclude: [] },
-        intent_prefixes: ['runtime-checkpoint-routes'],
-      },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,
@@ -298,10 +286,6 @@ function checkpointRetryLoopFlowBytes(): Buffer {
       id: 'runtime-checkpoint-retry-loop',
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for bounded checkpoint retry routes.',
-      entry: {
-        signals: { include: ['runtime-checkpoint-retry-loop'], exclude: [] },
-        intent_prefixes: ['runtime-checkpoint-retry-loop'],
-      },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,
@@ -368,10 +352,6 @@ function checkpointMissingSafeChoiceFlowBytes(input: {
       id: `runtime-checkpoint-missing-${input.depth}`,
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for checkpoint auto-resolution failure.',
-      entry: {
-        signals: { include: ['runtime-checkpoint-missing-safe-choice'], exclude: [] },
-        intent_prefixes: ['runtime-checkpoint-missing-safe-choice'],
-      },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,
@@ -429,10 +409,6 @@ function verificationFlowBytes(reportSchema = 'never-registered.verification@v1'
       id: 'runtime-verification-failure',
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for verification pre-write failure evidence.',
-      entry: {
-        signals: { include: ['runtime-verification-failure'], exclude: [] },
-        intent_prefixes: ['runtime-verification-failure'],
-      },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,

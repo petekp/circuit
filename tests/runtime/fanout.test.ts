@@ -8,8 +8,8 @@ import type { RelayConnector } from '../../src/runtime/executors/relay.js';
 import type { ExecutableFlow } from '../../src/runtime/manifest/executable-flow.js';
 import { fromCompiledFlow } from '../../src/runtime/manifest/from-compiled-flow.js';
 import type { CompiledFlowRunOptions } from '../../src/runtime/run/child-runner.js';
-import type { GraphRunResult } from '../../src/runtime/run/graph-runner.js';
 import { executeExecutableFlow } from '../../src/runtime/run/graph-runner.js';
+import type { GraphRunResult } from '../../src/runtime/run/run-close.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import { CustomConnectorDescriptor } from '../../src/schemas/connector.js';
@@ -184,10 +184,6 @@ function compiledRelayFanoutFlow(
     id: 'explore',
     version: '0.1.0',
     purpose: 'runtime relay fanout production parity test',
-    entry: {
-      signals: { include: ['fanout-relay-runtime'], exclude: [] },
-      intent_prefixes: ['fanout-relay-runtime'],
-    },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
@@ -306,7 +302,6 @@ function childFlowBytes(): Buffer {
       id: 'child-test',
       version: '0.1.0',
       purpose: 'fanout child',
-      entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,
