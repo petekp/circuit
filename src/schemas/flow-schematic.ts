@@ -488,21 +488,6 @@ export const SchematicStage = z
   .strict();
 export type SchematicStage = z.infer<typeof SchematicStage>;
 
-// Schematic-level entry classification — matches CompiledFlow.entry shape so the
-// compiler can pass it through directly.
-export const FlowSchematicEntry = z
-  .object({
-    signals: z
-      .object({
-        include: z.array(z.string()).default([]),
-        exclude: z.array(z.string()).default([]),
-      })
-      .strict(),
-    intent_prefixes: z.array(z.string()).default([]),
-  })
-  .strict();
-export type FlowSchematicEntry = z.infer<typeof FlowSchematicEntry>;
-
 const TOURNAMENT_FANOUT_CONTRACT_MESSAGE =
   'tournament fanout requires on_child_failure: continue-others and join.policy: aggregate-survivors';
 
@@ -520,7 +505,6 @@ export const FlowSchematic = z
     // Compiler-required metadata. Optional for candidate schematics; required
     // at parse time once a schematic is active.
     version: z.string().min(1).optional(),
-    entry: FlowSchematicEntry.optional(),
     axes: FlowAxes.optional(),
     stage_path_policy: SpinePolicy.optional(),
     stages: z.array(SchematicStage).optional(),
@@ -705,7 +689,7 @@ export type FlowSchematic = z.infer<typeof FlowSchematic>;
 function validateActiveSchematicCompleteness(schematic: FlowSchematic, ctx: z.RefinementCtx): void {
   if (schematic.status !== 'active') return;
 
-  const requireField = (field: 'version' | 'entry' | 'axes' | 'stage_path_policy' | 'stages') => {
+  const requireField = (field: 'version' | 'axes' | 'stage_path_policy' | 'stages') => {
     if (schematic[field] !== undefined) return;
     ctx.addIssue({
       code: 'custom',
@@ -715,7 +699,6 @@ function validateActiveSchematicCompleteness(schematic: FlowSchematic, ctx: z.Re
   };
 
   requireField('version');
-  requireField('entry');
   requireField('axes');
   requireField('stage_path_policy');
   requireField('stages');

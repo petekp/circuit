@@ -81,7 +81,6 @@ function verificationCompiledFlow(options: { verifyRoutes?: Record<string, strin
     id: 'build-verification-exec-test',
     version: '0.1.0',
     purpose: 'test Build verification execution',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

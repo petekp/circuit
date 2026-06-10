@@ -671,13 +671,13 @@ describe('release truth infrastructure', () => {
       status: 'published',
       slug: 'release-note-flow',
     });
-    expect(
-      CompiledFlow.parse(
-        jsonFile(
-          'docs/release/proofs/runs/customization/custom-home/flows/release-note-flow/circuit.json',
-        ),
-      ).id,
-    ).toBe('release-note-flow');
+    // The proof run is a frozen record captured before the dead `entry`
+    // routing metadata was removed from CompiledFlow; drop that legacy key
+    // instead of editing the frozen file.
+    const { entry: _legacyEntry, ...customFlowProof } = jsonFile(
+      'docs/release/proofs/runs/customization/custom-home/flows/release-note-flow/circuit.json',
+    ) as Record<string, unknown>;
+    expect(CompiledFlow.parse(customFlowProof).id).toBe('release-note-flow');
 
     for (const file of filesUnder('docs/release/proofs/runs')) {
       const text = readFileSync(file, 'utf8');

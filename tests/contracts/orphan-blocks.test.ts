@@ -128,7 +128,6 @@ function schematicShell(overrides: {
     contract_aliases: overrides.contract_aliases ?? [],
     items: overrides.items,
     version: '0.0.1',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

@@ -79,13 +79,6 @@ export const pursueFlowData = {
         actual: 'pursuit.result@v1',
       },
     ],
-    entry: {
-      signals: {
-        include: ['pursue', 'pursuit', 'coordinate pursuits', 'multiple autonomous goals'],
-        exclude: [],
-      },
-      intent_prefixes: ['pursue'],
-    },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

@@ -37,10 +37,6 @@ function buildParentCompiledFlow(parentCheckPass: readonly string[]): CompiledFl
     id: PARENT_WORKFLOW_ID as unknown as string,
     version: '0.1.0',
     purpose: 'sub-run runtime test parent — exercises one sub-run step end-to-end',
-    entry: {
-      signals: { include: ['sub-run-test'], exclude: [] },
-      intent_prefixes: ['sub-run-test'],
-    },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
@@ -97,7 +93,6 @@ function buildChildCompiledFlow(): CompiledFlow {
     id: CHILD_WORKFLOW_ID as unknown as string,
     version: '0.1.0',
     purpose: 'sub-run runtime test child — single compose step.',
-    entry: { signals: { include: ['child-test'], exclude: [] }, intent_prefixes: ['child-test'] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

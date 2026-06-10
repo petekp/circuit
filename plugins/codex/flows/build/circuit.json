@@ -3,13 +3,6 @@
   "id": "build",
   "version": "0.1.0",
   "purpose": "Build flow. Circuit frames a requested change, plans it, relays implementation to a worker, runs verification, relays review to a separate worker, and closes with a Build result file plus evidence.",
-  "entry": {
-    "signals": {
-      "include": ["build", "implement", "develop", "change", "fix", "add"],
-      "exclude": []
-    },
-    "intent_prefixes": ["build", "implement", "develop"]
-  },
   "axes": {
     "allowed_rigors": ["lite", "standard", "deep"],
     "supports_tournament": false,

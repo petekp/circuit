@@ -42,7 +42,6 @@ function syntheticComposeCompiledFlow(): CompiledFlow {
     id: 'synthetic-compose-test',
     version: '0.1.0',
     purpose: 'Synthetic flow that exercises the compose-writer registry contract.',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

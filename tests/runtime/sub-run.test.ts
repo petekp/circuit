@@ -68,7 +68,6 @@ function childFlowBytes(): Buffer {
       id: 'child-test',
       version: '0.1.0',
       purpose: 'runtime sub-run child',
-      entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,

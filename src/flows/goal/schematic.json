@@ -650,13 +650,6 @@
     }
   ],
   "version": "0.1.0",
-  "entry": {
-    "signals": {
-      "include": ["goal", "supervise"],
-      "exclude": []
-    },
-    "intent_prefixes": ["goal", "supervise"]
-  },
   "axes": {
     "allowed_rigors": ["lite", "standard", "deep"],
     "supports_tournament": false,

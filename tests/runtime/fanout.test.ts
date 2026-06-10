@@ -184,10 +184,6 @@ function compiledRelayFanoutFlow(
     id: 'explore',
     version: '0.1.0',
     purpose: 'runtime relay fanout production parity test',
-    entry: {
-      signals: { include: ['fanout-relay-runtime'], exclude: [] },
-      intent_prefixes: ['fanout-relay-runtime'],
-    },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
@@ -306,7 +302,6 @@ function childFlowBytes(): Buffer {
       id: 'child-test',
       version: '0.1.0',
       purpose: 'fanout child',
-      entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
       axes: {
         allowed_rigors: ['standard'],
         supports_tournament: false,

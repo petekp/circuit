@@ -105,13 +105,6 @@ export const goalFlowData = {
       { generic: 'goal.contract@v1', actual: 'goal.gate@v1' },
       { generic: 'goal.contract@v1', actual: 'goal.result@v1' },
     ],
-    entry: {
-      signals: {
-        include: ['goal', 'supervise'],
-        exclude: [],
-      },
-      intent_prefixes: ['goal', 'supervise'],
-    },
     axes: {
       allowed_rigors: ['lite', 'standard', 'deep'],
       supports_tournament: false,

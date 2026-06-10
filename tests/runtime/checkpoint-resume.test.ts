@@ -61,10 +61,6 @@ function checkpointFixtureFlow(
     id: 'checkpoint-fixture',
     version: '0.1.0',
     purpose: 'Dedicated runtime checkpoint pause/resume fixture.',
-    entry: {
-      signals: { include: [], exclude: [] },
-      intent_prefixes: [],
-    },
     axes: {
       allowed_rigors: ['deep'],
       supports_tournament: false,

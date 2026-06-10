@@ -3,13 +3,6 @@
   "id": "runtime-proof",
   "version": "0.1.0",
   "purpose": "Runtime Proof flow: exercise one compose step and one relay step end-to-end so the runtime boundary can be observed closing a real run.",
-  "entry": {
-    "signals": {
-      "include": ["runtime-proof", "alpha-proof"],
-      "exclude": []
-    },
-    "intent_prefixes": ["runtime-proof"]
-  },
   "axes": {
     "allowed_rigors": ["standard"],
     "supports_tournament": false,

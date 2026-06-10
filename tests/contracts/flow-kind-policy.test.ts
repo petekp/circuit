@@ -122,7 +122,6 @@ function validExploreFixture(overrides: Record<string, unknown> = {}): Record<st
     id: 'explore',
     version: '0.1.0',
     purpose: 'test fixture',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

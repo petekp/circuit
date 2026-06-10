@@ -3,13 +3,6 @@
   "id": "pursue",
   "version": "0.1.0",
   "purpose": "Pursue flow: turn one or more rough operator ideas into pursuit contracts, coordinate their order, execute code-changing work serially, verify, review for interference, and close with evidence.",
-  "entry": {
-    "signals": {
-      "include": ["pursue", "pursuit", "coordinate pursuits", "multiple autonomous goals"],
-      "exclude": []
-    },
-    "intent_prefixes": ["pursue"]
-  },
   "axes": {
     "allowed_rigors": ["standard"],
     "supports_tournament": false,

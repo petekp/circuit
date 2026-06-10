@@ -26953,19 +26953,11 @@ var RouteMap = StepBase.shape.routes;
 
 // dist/schemas/compiled-flow.js
 var TERMINAL_ROUTE_TARGETS = /* @__PURE__ */ new Set(["@complete", "@stop", "@escalate", "@handoff"]);
-var EntrySignals = external_exports.object({
-  include: external_exports.array(external_exports.string()).default([]),
-  exclude: external_exports.array(external_exports.string()).default([])
-});
 var CompiledFlowBody = external_exports.object({
   schema_version: external_exports.literal("2"),
   id: CompiledFlowId,
   version: external_exports.string().min(1),
   purpose: external_exports.string().min(1),
-  entry: external_exports.object({
-    signals: EntrySignals,
-    intent_prefixes: external_exports.array(external_exports.string()).default([])
-  }).strict(),
   axes: FlowAxes,
   starts_at: StepId,
   stages: external_exports.array(Stage).min(1),
@@ -28382,13 +28374,6 @@ var SchematicStage = external_exports.object({
   id: StageId,
   title: external_exports.string().min(1)
 }).strict();
-var FlowSchematicEntry = external_exports.object({
-  signals: external_exports.object({
-    include: external_exports.array(external_exports.string()).default([]),
-    exclude: external_exports.array(external_exports.string()).default([])
-  }).strict(),
-  intent_prefixes: external_exports.array(external_exports.string()).default([])
-}).strict();
 var TOURNAMENT_FANOUT_CONTRACT_MESSAGE2 = "tournament fanout requires on_child_failure: continue-others and join.policy: aggregate-survivors";
 var FlowSchematic = external_exports.object({
   schema_version: external_exports.literal("1"),
@@ -28403,7 +28388,6 @@ var FlowSchematic = external_exports.object({
   // Compiler-required metadata. Optional for candidate schematics; required
   // at parse time once a schematic is active.
   version: external_exports.string().min(1).optional(),
-  entry: FlowSchematicEntry.optional(),
   axes: FlowAxes.optional(),
   stage_path_policy: SpinePolicy.optional(),
   stages: external_exports.array(SchematicStage).optional(),
@@ -28572,7 +28556,6 @@ function validateActiveSchematicCompleteness(schematic, ctx) {
     });
   };
   requireField("version");
-  requireField("entry");
   requireField("axes");
   requireField("stage_path_policy");
   requireField("stages");
@@ -30872,13 +30855,6 @@ var buildFlowData = {
         actual: "build.result@v1"
       }
     ],
-    entry: {
-      signals: {
-        include: ["build", "implement", "develop", "change", "fix", "add"],
-        exclude: []
-      },
-      intent_prefixes: ["build", "implement", "develop"]
-    },
     axes: {
       allowed_rigors: ["lite", "standard", "deep"],
       supports_tournament: false,
@@ -32581,13 +32557,6 @@ var exploreFlowData = {
         actual: "explore.result@v1"
       }
     ],
-    entry: {
-      signals: {
-        include: ["explore", "investigate", "research", "understand"],
-        exclude: []
-      },
-      intent_prefixes: ["explore", "investigate", "decide"]
-    },
     axes: {
       allowed_rigors: ["lite", "standard", "deep"],
       supports_tournament: true,
@@ -34842,13 +34811,6 @@ var fixFlowData = {
         actual: "fix.result@v1"
       }
     ],
-    entry: {
-      signals: {
-        include: ["fix", "bug", "broken", "regression", "incident", "outage", "diagnose"],
-        exclude: []
-      },
-      intent_prefixes: ["fix", "diagnose"]
-    },
     axes: {
       allowed_rigors: ["lite", "standard", "deep"],
       supports_tournament: false,
@@ -38090,13 +38052,6 @@ var goalFlowData = {
       { generic: "goal.contract@v1", actual: "goal.gate@v1" },
       { generic: "goal.contract@v1", actual: "goal.result@v1" }
     ],
-    entry: {
-      signals: {
-        include: ["goal", "supervise"],
-        exclude: []
-      },
-      intent_prefixes: ["goal", "supervise"]
-    },
     axes: {
       allowed_rigors: ["lite", "standard", "deep"],
       supports_tournament: false,
@@ -40305,13 +40260,6 @@ var prototypeFlowData = {
         actual: "prototype.result@v1"
       }
     ],
-    entry: {
-      signals: {
-        include: ["prototype", "mock up", "sketch"],
-        exclude: ["production", "deploy", "ship"]
-      },
-      intent_prefixes: ["prototype"]
-    },
     axes: {
       allowed_rigors: ["standard", "deep"],
       supports_tournament: true,
@@ -42267,13 +42215,6 @@ var pursueFlowData = {
         actual: "pursuit.result@v1"
       }
     ],
-    entry: {
-      signals: {
-        include: ["pursue", "pursuit", "coordinate pursuits", "multiple autonomous goals"],
-        exclude: []
-      },
-      intent_prefixes: ["pursue"]
-    },
     axes: {
       allowed_rigors: ["standard"],
       supports_tournament: false,
@@ -43091,13 +43032,6 @@ var reviewFlowData = {
         actual: "review.result@v1"
       }
     ],
-    entry: {
-      signals: {
-        include: ["review", "audit", "check"],
-        exclude: []
-      },
-      intent_prefixes: ["review"]
-    },
     axes: {
       allowed_rigors: ["standard"],
       supports_tournament: false,
@@ -43388,13 +43322,6 @@ var runtimeProofSchematic = {
   starts_at: "compose-step",
   initial_contracts: ["flow.brief@v1"],
   contract_aliases: [],
-  entry: {
-    signals: {
-      include: ["runtime-proof", "alpha-proof"],
-      exclude: []
-    },
-    intent_prefixes: ["runtime-proof"]
-  },
   axes: {
     allowed_rigors: ["standard"],
     supports_tournament: false,
@@ -44031,22 +43958,11 @@ function loadTemplateFlow(args) {
   }
   throw new Error("could not find the Build template flow; pass --template-flow-root with a root containing build/circuit.json");
 }
-function descriptionSignals(slug, description) {
-  const words = description.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length >= 3 && !["the", "and", "for", "with"].includes(word));
-  return [.../* @__PURE__ */ new Set([slug, ...words])].slice(0, 6);
-}
 function customizeTemplateFlow(input) {
   const candidate = {
     ...input.template,
     id: input.slug,
-    purpose: input.description,
-    entry: {
-      signals: {
-        include: descriptionSignals(input.slug, input.description),
-        exclude: []
-      },
-      intent_prefixes: [input.slug]
-    }
+    purpose: input.description
   };
   const parsed = CompiledFlow.parse(candidate);
   validateCustomFlow(input.slug, parsed, "custom flow");
@@ -49229,7 +49145,6 @@ var WorkContractProjectionV0 = external_exports.object({
       id: CompiledFlowId,
       version: external_exports.string().min(1),
       purpose: external_exports.string().min(1),
-      entry: JsonObject,
       axes: FlowAxes,
       starts_at: StepId
     }).strict(),
@@ -52957,7 +52872,6 @@ var FLOW_KEYS = /* @__PURE__ */ new Set([
   "id",
   "version",
   "purpose",
-  "entry",
   "axes",
   "starts_at",
   "stages",
@@ -53331,7 +53245,6 @@ function projectWorkContractProjectionV0(input) {
       id: flow.id,
       version: flow.version,
       purpose: flow.purpose,
-      entry: asJsonObject(flow.entry),
       axes: flow.axes,
       starts_at: flow.starts_at
     },

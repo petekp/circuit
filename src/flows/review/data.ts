@@ -36,13 +36,6 @@ export const reviewFlowData = {
         actual: 'review.result@v1',
       },
     ],
-    entry: {
-      signals: {
-        include: ['review', 'audit', 'check'],
-        exclude: [],
-      },
-      intent_prefixes: ['review'],
-    },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

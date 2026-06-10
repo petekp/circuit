@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/prototype/tournament.work-contract.v0.json",
-    "sha256": "50caf97adc9bb287d0d882aa4a06ec73938b25eb33259dd017368b753a4557c3",
+    "sha256": "7a4826109d13cd829f12a9855938b27bc4b47ceb77d7a8f930130745a0d72f79",
     "flow_id": "prototype"
   },
   "work_contract": {
@@ -11,13 +11,6 @@
       "id": "prototype",
       "version": "0.1.0",
       "purpose": "Prototype flow. Circuit frames a disposable artifact, plans its local prototype files, either relays one artifact or fans out configured model variants, verifies reported files under prototype_root, asks which local prototype evidence to keep, and closes with evidence. Prototype does not edit production code outside prototype_root or claim deployment, branch previews, screenshots, provider behavior, model behavior, or production readiness.",
-      "entry": {
-        "signals": {
-          "include": ["prototype", "mock up", "sketch"],
-          "exclude": ["production", "deploy", "ship"]
-        },
-        "intent_prefixes": ["prototype"]
-      },
       "axes": {
         "allowed_rigors": ["standard", "deep"],
         "supports_tournament": true,
@@ -797,7 +790,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+          "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
           "flow_id": "prototype"
         }
       },
@@ -828,7 +821,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/stop",
-          "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+          "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
           "flow_id": "prototype"
         }
       },
@@ -859,7 +852,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-options-step/routes/stop",
-          "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+          "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
           "flow_id": "prototype"
         }
       },
@@ -890,7 +883,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-fanout-step/routes/stop",
-          "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+          "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
           "flow_id": "prototype"
         }
       },
@@ -921,7 +914,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-provider-evidence-step/routes/stop",
-          "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+          "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
           "flow_id": "prototype"
         }
       },
@@ -952,7 +945,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-verification-step/routes/stop",
-          "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+          "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
           "flow_id": "prototype"
         }
       },
@@ -983,7 +976,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-review-step/routes/stop",
-          "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+          "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
           "flow_id": "prototype"
         }
       },
@@ -1014,7 +1007,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/variant-choice-options-step/routes/stop",
-          "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+          "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
           "flow_id": "prototype"
         }
       },
@@ -1045,7 +1038,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/prototype-variant-checkpoint-step/routes/stop",
-          "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+          "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
           "flow_id": "prototype"
         }
       },
@@ -1076,7 +1069,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-model-comparison-step/routes/stop",
-          "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+          "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
           "flow_id": "prototype"
         }
       }
@@ -1090,7 +1083,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/variant-fanout-step/branches/template/selection",
-        "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+        "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
         "flow_id": "prototype"
       }
     ],
@@ -1098,7 +1091,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/variant-fanout-step/branches/template/connector",
-        "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+        "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
         "flow_id": "prototype"
       }
     ],
@@ -1114,7 +1107,7 @@
       "source_ref": {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/prototype-variant-checkpoint-step/policy/auto_resolution",
-        "sha256": "b3f8c228e7d42630fa59e5808b193a3ca4e6355666b9d9c8d3d14b1e036d00ee",
+        "sha256": "5e751e0c5327de0d16e4a4c00f14e67647f1a378d9a117867710bcc032685b30",
         "flow_id": "prototype"
       }
     }

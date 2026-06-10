@@ -173,14 +173,6 @@ function loadTemplateFlow(args: CreateArgs): CompiledFlow {
   );
 }
 
-function descriptionSignals(slug: string, description: string): string[] {
-  const words = description
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((word) => word.length >= 3 && !['the', 'and', 'for', 'with'].includes(word));
-  return [...new Set([slug, ...words])].slice(0, 6);
-}
-
 function customizeTemplateFlow(input: {
   readonly slug: string;
   readonly description: string;
@@ -190,13 +182,6 @@ function customizeTemplateFlow(input: {
     ...input.template,
     id: input.slug,
     purpose: input.description,
-    entry: {
-      signals: {
-        include: descriptionSignals(input.slug, input.description),
-        exclude: [],
-      },
-      intent_prefixes: [input.slug],
-    },
   };
   const parsed = CompiledFlow.parse(candidate);
   validateCustomFlow(input.slug, parsed, 'custom flow');

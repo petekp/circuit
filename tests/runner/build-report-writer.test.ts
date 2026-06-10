@@ -40,7 +40,6 @@ function planCompiledFlow(options: { omitBriefRead?: boolean } = {}): {
     id: 'build-plan-writer-test',
     version: '0.1.0',
     purpose: 'test Build plan writer',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
@@ -234,7 +233,6 @@ function closeCompiledFlow(
     id: 'build-result-writer-test',
     version: '0.1.0',
     purpose: 'test Build result writer',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

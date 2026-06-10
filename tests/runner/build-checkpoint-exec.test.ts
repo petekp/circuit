@@ -176,7 +176,6 @@ function checkpointCompiledFlow(options: {
     id: 'build-checkpoint-exec-test',
     version: '0.1.0',
     purpose: 'test Build checkpoint execution',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
@@ -249,7 +248,6 @@ function checkpointToRelayCompiledFlow(): { flow: CompiledFlow; bytes: Buffer } 
     id: 'build-checkpoint-relay-test',
     version: '0.1.0',
     purpose: 'test checkpoint resume context for relay',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
@@ -339,7 +337,6 @@ function checkpointToVerificationCompiledFlow(commandCwd = '.'): {
     id: 'build-checkpoint-verification-test',
     version: '0.1.0',
     purpose: 'test checkpoint resume context for verification',
-    entry: { signals: { include: [], exclude: [] }, intent_prefixes: [] },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,

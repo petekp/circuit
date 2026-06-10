@@ -34,10 +34,6 @@ describe('CompiledFlow graph closure', () => {
     id: 'build',
     version: '2026-04-18',
     purpose: 'Build features.',
-    entry: {
-      signals: { include: ['feature'], exclude: ['bug'] },
-      intent_prefixes: ['develop:'],
-    },
     axes: {
       allowed_rigors: ['standard'],
       supports_tournament: false,
