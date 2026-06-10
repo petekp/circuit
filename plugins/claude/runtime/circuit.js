@@ -47295,6 +47295,34 @@ function computeRunFolderNamesHash(runFolders) {
   return sha256OfString(runFolders.map((folder) => basename3(folder)).sort().join("\n"));
 }
 
+// dist/schemas/builtin-report-schemas.js
+var MinimalVerdictShape = external_exports.object({ verdict: external_exports.string().min(1) }).passthrough();
+var StrictPayloadShape = external_exports.object({
+  verdict: external_exports.string().min(1),
+  rationale: external_exports.string().min(1)
+}).strict();
+var FanoutAggregateFixtureBranchShape = external_exports.object({
+  branch_id: external_exports.string().min(1),
+  child_run_id: external_exports.string().min(1),
+  child_outcome: external_exports.string().min(1),
+  verdict: external_exports.string().min(1),
+  admitted: external_exports.boolean(),
+  result_path: external_exports.string().min(1),
+  duration_ms: external_exports.number().nonnegative()
+}).passthrough();
+var FanoutAggregateFixtureShape = external_exports.object({
+  schema_version: external_exports.literal(1),
+  join_policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
+  branch_count: external_exports.number().int().nonnegative(),
+  winner_branch_id: external_exports.string().min(1).optional(),
+  branches: external_exports.array(FanoutAggregateFixtureBranchShape)
+}).passthrough();
+var BUILTIN_REPORT_SCHEMAS = Object.freeze({
+  "runtime-proof-canonical@v1": MinimalVerdictShape,
+  "runtime-proof-strict@v1": StrictPayloadShape,
+  "fanout-aggregate@v1": FanoutAggregateFixtureShape
+});
+
 // dist/schemas/checkpoint-boundary.js
 var CheckpointReasonCode = external_exports.enum([
   "scope_expansion",
@@ -55582,33 +55610,7 @@ function runCrossReportValidator(schemaName, flow, runFolder, resultBody) {
 }
 
 // dist/flows/registries/report-schemas.js
-var MinimalVerdictShape = external_exports.object({ verdict: external_exports.string().min(1) }).passthrough();
-var StrictPayloadShape = external_exports.object({
-  verdict: external_exports.string().min(1),
-  rationale: external_exports.string().min(1)
-}).strict();
-var FanoutAggregateFixtureBranchShape = external_exports.object({
-  branch_id: external_exports.string().min(1),
-  child_run_id: external_exports.string().min(1),
-  child_outcome: external_exports.string().min(1),
-  verdict: external_exports.string().min(1),
-  admitted: external_exports.boolean(),
-  result_path: external_exports.string().min(1),
-  duration_ms: external_exports.number().nonnegative()
-}).passthrough();
-var FanoutAggregateFixtureShape = external_exports.object({
-  schema_version: external_exports.literal(1),
-  join_policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
-  branch_count: external_exports.number().int().nonnegative(),
-  winner_branch_id: external_exports.string().min(1).optional(),
-  branches: external_exports.array(FanoutAggregateFixtureBranchShape)
-}).passthrough();
-var TEST_FIXTURE_SCHEMAS = Object.freeze({
-  "runtime-proof-canonical@v1": MinimalVerdictShape,
-  "runtime-proof-strict@v1": StrictPayloadShape,
-  "fanout-aggregate@v1": FanoutAggregateFixtureShape
-});
-var REGISTRY5 = buildReportSchemaRegistry(flowPackages, TEST_FIXTURE_SCHEMAS);
+var REGISTRY5 = buildReportSchemaRegistry(flowPackages, BUILTIN_REPORT_SCHEMAS);
 function findReportZodSchema(schemaName) {
   if (!Object.hasOwn(REGISTRY5, schemaName))
     return void 0;
@@ -60278,34 +60280,8 @@ function createProgressProjector(input) {
 }
 
 // dist/runtime/run-files/report-validator.js
-var MinimalVerdictShape2 = external_exports.object({ verdict: external_exports.string().min(1) }).passthrough();
-var StrictPayloadShape2 = external_exports.object({
-  verdict: external_exports.string().min(1),
-  rationale: external_exports.string().min(1)
-}).strict();
-var FanoutAggregateFixtureBranchShape2 = external_exports.object({
-  branch_id: external_exports.string().min(1),
-  child_run_id: external_exports.string().min(1),
-  child_outcome: external_exports.string().min(1),
-  verdict: external_exports.string().min(1),
-  admitted: external_exports.boolean(),
-  result_path: external_exports.string().min(1),
-  duration_ms: external_exports.number().nonnegative()
-}).passthrough();
-var FanoutAggregateFixtureShape2 = external_exports.object({
-  schema_version: external_exports.literal(1),
-  join_policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
-  branch_count: external_exports.number().int().nonnegative(),
-  winner_branch_id: external_exports.string().min(1).optional(),
-  branches: external_exports.array(FanoutAggregateFixtureBranchShape2)
-}).passthrough();
-var TEST_FIXTURE_SCHEMAS2 = Object.freeze({
-  "runtime-proof-canonical@v1": MinimalVerdictShape2,
-  "runtime-proof-strict@v1": StrictPayloadShape2,
-  "fanout-aggregate@v1": FanoutAggregateFixtureShape2
-});
 function buildReportValidationRegistry() {
-  const out = { ...TEST_FIXTURE_SCHEMAS2 };
+  const out = { ...BUILTIN_REPORT_SCHEMAS };
   for (const pkg of flowPackages) {
     for (const report of pkg.reportSchemas ?? []) {
       if (Object.hasOwn(out, report.schemaName)) {
