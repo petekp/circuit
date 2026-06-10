@@ -10,7 +10,7 @@ const TERMINAL_ROUTE_TARGETS = new Set(['@complete', '@stop', '@escalate', '@han
 
 const CompiledFlowBody = z
   .object({
-    schema_version: z.literal('2'),
+    schema_version: z.literal('3'),
     id: CompiledFlowId,
     version: z.string().min(1),
     purpose: z.string().min(1),

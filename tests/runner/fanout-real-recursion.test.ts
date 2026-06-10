@@ -60,7 +60,7 @@ function stubWorktreeRunner(): WorktreeRunner {
 
 function buildChildCompiledFlow(): CompiledFlow {
   return CompiledFlow.parse({
-    schema_version: '2',
+    schema_version: '3',
     id: CHILD_WORKFLOW_ID as unknown as string,
     version: '0.1.0',
     purpose:
@@ -104,7 +104,7 @@ function buildChildCompiledFlow(): CompiledFlow {
 
 function buildParentCompiledFlow(): CompiledFlow {
   return CompiledFlow.parse({
-    schema_version: '2',
+    schema_version: '3',
     id: PARENT_WORKFLOW_ID as unknown as string,
     version: '0.1.0',
     purpose:

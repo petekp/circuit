@@ -33,7 +33,7 @@ export const exploreFlowData = {
     contract: 'src/flows/explore/contract.md',
   },
   schematic: {
-    schema_version: '1',
+    schema_version: '2',
     id: 'explore',
     title: 'Explore Schematic',
     purpose:

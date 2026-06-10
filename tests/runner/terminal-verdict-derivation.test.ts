@@ -102,7 +102,7 @@ describe('deriveTerminalVerdict — fix #2 coverage', () => {
     // verdict. Walk-backward must return the second relay's
     // verdict — the one on the segment that reached @complete.
     const flow = CompiledFlow.parse({
-      schema_version: '2',
+      schema_version: '3',
       id: 'multi-relay-fixture',
       version: '0.1.0',
       purpose: 'Test fixture for multi-relay terminal verdict derivation.',
@@ -214,7 +214,7 @@ describe('deriveTerminalVerdict — fix #2 coverage', () => {
     // ever fires with kind='result_verdict'. The walk finds nothing
     // and returns undefined.
     const flow = CompiledFlow.parse({
-      schema_version: '2',
+      schema_version: '3',
       id: 'compose-only-fixture',
       version: '0.1.0',
       purpose: 'Test fixture: a flow with no verdict-bearing steps.',

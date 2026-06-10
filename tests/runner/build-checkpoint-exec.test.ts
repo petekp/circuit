@@ -172,7 +172,7 @@ function checkpointCompiledFlow(options: {
   safeDefault?: string;
 }): { flow: CompiledFlow; bytes: Buffer } {
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: 'build-checkpoint-exec-test',
     version: '0.1.0',
     purpose: 'test Build checkpoint execution',
@@ -244,7 +244,7 @@ function checkpointCompiledFlow(options: {
 
 function checkpointToRelayCompiledFlow(): { flow: CompiledFlow; bytes: Buffer } {
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: 'build-checkpoint-relay-test',
     version: '0.1.0',
     purpose: 'test checkpoint resume context for relay',
@@ -333,7 +333,7 @@ function checkpointToVerificationCompiledFlow(commandCwd = '.'): {
   bytes: Buffer;
 } {
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: 'build-checkpoint-verification-test',
     version: '0.1.0',
     purpose: 'test checkpoint resume context for verification',

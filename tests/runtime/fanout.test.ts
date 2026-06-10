@@ -180,7 +180,7 @@ function compiledRelayFanoutFlow(
   };
   const steps = [fanoutStep];
   return CompiledFlow.parse({
-    schema_version: '2',
+    schema_version: '3',
     id: 'explore',
     version: '0.1.0',
     purpose: 'runtime relay fanout production parity test',
@@ -298,7 +298,7 @@ function subRunFanoutFlow(
 function childFlowBytes(): Buffer {
   return Buffer.from(
     JSON.stringify({
-      schema_version: '2',
+      schema_version: '3',
       id: 'child-test',
       version: '0.1.0',
       purpose: 'fanout child',

@@ -47,7 +47,7 @@ const syntheticBuilder: CloseBuilder = {
 
 function syntheticCloseCompiledFlow(): CompiledFlow {
   return CompiledFlow.parse({
-    schema_version: '2',
+    schema_version: '3',
     id: 'synthetic-close-test',
     version: '0.1.0',
     purpose: 'Synthetic flow that exercises the close-builder registry contract.',

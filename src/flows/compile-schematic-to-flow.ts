@@ -595,7 +595,7 @@ function compileForMode(
         };
 
   const flow: unknown = {
-    schema_version: '2',
+    schema_version: '3',
     id: schematic.id,
     version: frame.version,
     purpose: frame.purpose,

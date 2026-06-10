@@ -118,7 +118,7 @@ function schematicShell(overrides: {
   stage_path_rationale?: string;
 }): unknown {
   return {
-    schema_version: '1',
+    schema_version: '2',
     id: overrides.id,
     title: `Orphan scalar exerciser: ${overrides.id}`,
     purpose: `Synthetic schematic that exercises a single orphan scalar (${overrides.id}) so its contract is forced through validate → compile → run.`,

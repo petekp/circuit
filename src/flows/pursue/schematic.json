@@ -1,5 +1,5 @@
 {
-  "schema_version": "1",
+  "schema_version": "2",
   "id": "pursue",
   "title": "Pursue Schematic",
   "purpose": "Pursue flow: turn one or more rough operator ideas into pursuit contracts, coordinate their order, execute code-changing work serially, verify, review for interference, and close with evidence.",

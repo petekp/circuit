@@ -82,7 +82,7 @@ export const goalFlowData = {
     schematic: 'src/flows/goal/schematic.json',
   },
   schematic: {
-    schema_version: '1',
+    schema_version: '2',
     id: 'goal',
     title: 'Goal Schematic',
     purpose:

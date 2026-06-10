@@ -13,7 +13,7 @@ export const reviewFlowData = {
     contract: 'src/flows/review/contract.md',
   },
   schematic: {
-    schema_version: '1',
+    schema_version: '2',
     id: 'review',
     title: 'Review Schematic',
     purpose:

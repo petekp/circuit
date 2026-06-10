@@ -7,7 +7,7 @@ type StepStub = Record<string, unknown>;
 
 function reviewPolicyPayload(steps: StepStub[]): Record<string, unknown> {
   return {
-    schema_version: '2',
+    schema_version: '3',
     id: 'review',
     stages: [
       { title: 'Intake', canonical: 'frame', steps: ['intake-step'] },

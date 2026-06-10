@@ -118,7 +118,7 @@ function validExploreSteps(): ReadonlyArray<Record<string, unknown>> {
 
 function validExploreFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schema_version: '2',
+    schema_version: '3',
     id: 'explore',
     version: '0.1.0',
     purpose: 'test fixture',
@@ -183,7 +183,7 @@ function validExploreTournamentFixture(
 
 function reviewPolicyOnlyPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schema_version: '2',
+    schema_version: '3',
     id: 'review',
     // Policy fixture only; review flow tests cover the real fixture and runtime compose behavior.
     stages: [
@@ -213,7 +213,7 @@ function reviewPolicyOnlyPayload(overrides: Record<string, unknown> = {}): Recor
 
 function buildPolicyOnlyPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schema_version: '2',
+    schema_version: '3',
     id: 'build',
     // Policy fixture only; the real Build fixture waits for checkpoint and relay slices.
     // Build now uses every canonical stage (analyze re-opened for the grounding relay)
@@ -245,7 +245,7 @@ function buildPolicyOnlyPayload(overrides: Record<string, unknown> = {}): Record
 
 function fixPolicyOnlyPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schema_version: '2',
+    schema_version: '3',
     id: 'fix',
     // Policy fixture only; the real Fix fixture waits for report schemas and runtime support changes.
     stages: [
@@ -369,7 +369,7 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
     expect(
       checkCompiledFlowKindCanonicalPolicyWithTable(
         {
-          schema_version: '2',
+          schema_version: '3',
           id: 'runtime-proof',
           stages: [],
           stage_path_policy: { mode: 'partial', omits: [] },
@@ -380,7 +380,7 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
     expect(
       checkCompiledFlowKindCanonicalPolicyWithTable(
         {
-          schema_version: '2',
+          schema_version: '3',
           id: 'future-kind',
           stages: [],
           stage_path_policy: { mode: 'partial', omits: [] },
@@ -422,7 +422,7 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
 
   it('returns exempt on runtime-proof fixture', () => {
     const result = checkCompiledFlowKindCanonicalPolicy({
-      schema_version: '2',
+      schema_version: '3',
       id: 'runtime-proof',
       stages: [],
       stage_path_policy: { mode: 'partial', omits: [] },
@@ -433,7 +433,7 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
 
   it('returns pass_through on unknown flow-kind ids', () => {
     const result = checkCompiledFlowKindCanonicalPolicy({
-      schema_version: '2',
+      schema_version: '3',
       id: 'future-kind',
       stages: [],
       stage_path_policy: { mode: 'partial', omits: [] },
@@ -610,7 +610,7 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
   });
 
   it('returns red when `id` field is missing', () => {
-    const result = checkCompiledFlowKindCanonicalPolicy({ schema_version: '2' });
+    const result = checkCompiledFlowKindCanonicalPolicy({ schema_version: '3' });
     expect(result.kind).toBe('red');
     expect(result.detail).toMatch(/missing top-level `id`/);
   });

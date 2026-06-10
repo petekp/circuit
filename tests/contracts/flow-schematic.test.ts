@@ -26,7 +26,7 @@ function parseFixSchematic() {
 describe('flow schematic schema — active Fix schematic', () => {
   it('parses the active Fix schematic', () => {
     const schematic = parseFixSchematic();
-    expect(schematic.schema_version).toBe('1');
+    expect(schematic.schema_version).toBe('2');
     expect(schematic.id as unknown as string).toBe('fix');
     expect(schematic.status).toBe('active');
     expect(schematic.starts_at as unknown as string).toBe('fix-frame');
@@ -508,7 +508,7 @@ describe('flow schematic compiler-required metadata', () => {
 
   function baseSchematic(items: Array<Record<string, unknown>>): Record<string, unknown> {
     return {
-      schema_version: '1',
+      schema_version: '2',
       id: 'demo',
       title: 'Demo',
       purpose: 'demo',

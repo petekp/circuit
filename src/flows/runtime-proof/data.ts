@@ -7,7 +7,7 @@ const runtimeProofPaths = {
 } satisfies FlowData['paths'];
 
 const runtimeProofSchematic = {
-  schema_version: '1',
+  schema_version: '2',
   id: 'runtime-proof',
   title: 'Runtime Proof Schematic',
   purpose:

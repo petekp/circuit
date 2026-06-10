@@ -36,7 +36,7 @@ function planCompiledFlow(options: { omitBriefRead?: boolean } = {}): {
   bytes: Buffer;
 } {
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: 'build-plan-writer-test',
     version: '0.1.0',
     purpose: 'test Build plan writer',
@@ -229,7 +229,7 @@ function closeCompiledFlow(
     seedStep.routes = { pass: seedSteps[index + 1]?.id ?? 'close-step' };
   }
   const raw = {
-    schema_version: '2',
+    schema_version: '3',
     id: 'build-result-writer-test',
     version: '0.1.0',
     purpose: 'test Build result writer',

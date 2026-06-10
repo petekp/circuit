@@ -127,7 +127,7 @@ function minimalDefinition(id: string) {
     id,
     visibility: 'public',
     schematic: {
-      schema_version: '1',
+      schema_version: '2',
       id,
       title: `${id} test flow`,
       purpose: `${id} test purpose`,

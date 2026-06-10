@@ -493,7 +493,7 @@ const TOURNAMENT_FANOUT_CONTRACT_MESSAGE =
 
 export const FlowSchematic = z
   .object({
-    schema_version: z.literal('1'),
+    schema_version: z.literal('2'),
     id: CompiledFlowId,
     title: z.string().min(1),
     purpose: z.string().min(1),

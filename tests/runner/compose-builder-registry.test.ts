@@ -38,7 +38,7 @@ const syntheticBriefBuilder: ComposeBuilder = {
 
 function syntheticComposeCompiledFlow(): CompiledFlow {
   return CompiledFlow.parse({
-    schema_version: '2',
+    schema_version: '3',
     id: 'synthetic-compose-test',
     version: '0.1.0',
     purpose: 'Synthetic flow that exercises the compose-writer registry contract.',

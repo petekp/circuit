@@ -26954,7 +26954,7 @@ var RouteMap = StepBase.shape.routes;
 // dist/schemas/compiled-flow.js
 var TERMINAL_ROUTE_TARGETS = /* @__PURE__ */ new Set(["@complete", "@stop", "@escalate", "@handoff"]);
 var CompiledFlowBody = external_exports.object({
-  schema_version: external_exports.literal("2"),
+  schema_version: external_exports.literal("3"),
   id: CompiledFlowId,
   version: external_exports.string().min(1),
   purpose: external_exports.string().min(1),
@@ -28376,7 +28376,7 @@ var SchematicStage = external_exports.object({
 }).strict();
 var TOURNAMENT_FANOUT_CONTRACT_MESSAGE2 = "tournament fanout requires on_child_failure: continue-others and join.policy: aggregate-survivors";
 var FlowSchematic = external_exports.object({
-  schema_version: external_exports.literal("1"),
+  schema_version: external_exports.literal("2"),
   id: CompiledFlowId,
   title: external_exports.string().min(1),
   purpose: external_exports.string().min(1),
@@ -30822,7 +30822,7 @@ var buildFlowData = {
     contract: "src/flows/build/contract.md"
   },
   schematic: {
-    schema_version: "1",
+    schema_version: "2",
     id: "build",
     title: "Build Schematic",
     purpose: "Build flow. Circuit frames a requested change, plans it, relays implementation to a worker, runs verification, relays review to a separate worker, and closes with a Build result file plus evidence.",
@@ -32509,7 +32509,7 @@ var exploreFlowData = {
     contract: "src/flows/explore/contract.md"
   },
   schematic: {
-    schema_version: "1",
+    schema_version: "2",
     id: "explore",
     title: "Explore Schematic",
     purpose: "Explore flow: frame the investigation, analyze the subject, either synthesize and critique findings or run a decision tournament, then close with findings plus evidence. All modes use Frame, Analyze, Plan or Decision, and Close; critique is embedded inside the Plan/Decision stage rather than exposed as a separate canonical Review stage.",
@@ -34724,7 +34724,7 @@ var fixFlowData = {
     contract: "src/flows/fix/contract.md"
   },
   schematic: {
-    schema_version: "1",
+    schema_version: "2",
     id: "fix",
     title: "Fix Schematic",
     purpose: "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at standard depth, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Lite mode skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they are unreachable at compile time and omitted from compiled flows.",
@@ -38012,7 +38012,7 @@ var goalFlowData = {
     schematic: "src/flows/goal/schematic.json"
   },
   schematic: {
-    schema_version: "1",
+    schema_version: "2",
     id: "goal",
     title: "Goal Schematic",
     purpose: "Goal flow. Circuit writes a bounded goal contract, runs one statically authored child flow target, evaluates evidence, runs a two-pass safety review, and closes from typed Goal reports.",
@@ -40202,7 +40202,7 @@ var prototypeFlowData = {
     contract: "src/flows/prototype/contract.md"
   },
   schematic: {
-    schema_version: "1",
+    schema_version: "2",
     id: "prototype",
     title: "Prototype Schematic",
     purpose: "Prototype flow. Circuit frames a disposable artifact, plans its local prototype files, either relays one artifact or fans out configured model variants, verifies reported files under prototype_root, asks which local prototype evidence to keep, and closes with evidence. Prototype does not edit production code outside prototype_root or claim deployment, branch previews, screenshots, provider behavior, model behavior, or production readiness.",
@@ -42181,7 +42181,7 @@ var pursueFlowData = {
     command: "src/flows/pursue/command.md"
   },
   schematic: {
-    schema_version: "1",
+    schema_version: "2",
     id: "pursue",
     title: "Pursue Schematic",
     purpose: "Pursue flow: turn one or more rough operator ideas into pursuit contracts, coordinate their order, execute code-changing work serially, verify, review for interference, and close with evidence.",
@@ -43018,7 +43018,7 @@ var reviewFlowData = {
     contract: "src/flows/review/contract.md"
   },
   schematic: {
-    schema_version: "1",
+    schema_version: "2",
     id: "review",
     title: "Review Schematic",
     purpose: "Review flow: frame the audit scope, relay independent review to a reviewer, and close with a verdict report. The schematic uses a compact Intake, Independent Audit, and Verdict shape because Review is audit-only and does not implement or verify a change.",
@@ -43321,7 +43321,7 @@ var runtimeProofPaths = {
   schematic: "src/flows/runtime-proof/schematic.json"
 };
 var runtimeProofSchematic = {
-  schema_version: "1",
+  schema_version: "2",
   id: "runtime-proof",
   title: "Runtime Proof Schematic",
   purpose: "Runtime Proof flow: exercise one compose step and one relay step end-to-end so the runtime boundary can be observed closing a real run.",

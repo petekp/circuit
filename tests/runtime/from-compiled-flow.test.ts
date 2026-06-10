@@ -40,7 +40,7 @@ describe('fromCompiledFlow', () => {
       expect(manifest.steps.length).toBeGreaterThan(0);
       expect(manifest.metadata).toMatchObject({
         source: 'compiled-flow-v1',
-        schema_version: '2',
+        schema_version: '3',
       });
     }
 

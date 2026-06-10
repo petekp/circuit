@@ -1,9 +1,9 @@
 ---
 contract: flow
 status: draft
-version: 0.5
+version: 0.6
 schema_source: src/schemas/compiled-flow.ts
-last_updated: 2026-05-20
+last_updated: 2026-06-10
 depends_on: [step, stage, axes, rigor, change_kind, selection-policy, skill, acceptance-criteria]
 report_ids:
   - flow.definition
@@ -43,9 +43,10 @@ inside `CompiledFlow.superRefine` — and tested in
 - **WF-I5 — No `entry_modes` array.** `CompiledFlow` declares `axes` plus
   `starts_at`; an `entry_modes` array is rejected by the strict schema.
 - **WF-I6 — Unique stage ids.** No two `Stage`s share an `id`.
-- **WF-I7 — Schema version is 2.** The literal `schema_version: '2'` is
-  required. v1 manifests are not accepted; migration is a future Stage 2
-  concern.
+- **WF-I7 — Schema version is 3.** The literal `schema_version: '3'` is
+  required. Older manifests are not accepted; there is no migration
+  layer. Regenerate or recreate the artifact. Bump rules live in
+  [docs/contracts/schema-versioning.md](schema-versioning.md).
 - **WF-I8 — Terminal reachability.** For every step in `CompiledFlow.steps`,
   at least one chain of `routes` starting at that step eventually reaches
   a terminal route target (`@complete`, `@stop`, `@escalate`, `@handoff`).
@@ -237,9 +238,16 @@ STEP-I4.
   Public built-ins must not name concrete local skills in
   `default_selection.skills` or step `selection.skills`; user-authored
   flows may still select concrete skills directly.
-- **v0.5 (per-step acceptance criteria slice, this version)**: adds optional
+- **v0.5 (per-step acceptance criteria slice)**: adds optional
   relay `acceptance_criteria` pass-through from schematic to compiled flow.
   The field is additive on `schema_version: '2'` manifests and remains
   deterministic-only in V1.
+- **v0.6 (schema versioning slice, this version)**: bumps
+  `schema_version` to `'3'` after the dead `entry` routing metadata was
+  removed from the strict schema. The removal changed what the schema
+  accepts, so the version moves with it per
+  [docs/contracts/schema-versioning.md](schema-versioning.md). A
+  pre-bump artifact now fails with a `schema_version` mismatch instead
+  of an unrecognized-key error.
 - **v1.0 (Stage 2)**: ratified invariants + property tests + operator
   documentation.

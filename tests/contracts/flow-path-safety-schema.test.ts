@@ -82,7 +82,7 @@ describe('CompiledFlow stage_path_policy (stage-I4)', () => {
   ];
 
   const flowBase = {
-    schema_version: '2',
+    schema_version: '3',
     id: 'build',
     version: '2026-04-18',
     purpose: 'Build features.',
