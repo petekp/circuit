@@ -10,26 +10,18 @@ import { findCompiledFlowPackageById } from '../../flows/catalog.js';
 import type { SliceLoopEngineFlag } from '../../flows/types.js';
 import type { Axes } from '../../schemas/axes.js';
 import type { ChangeKindDeclaration, StandardChangeKind } from '../../schemas/change-kind.js';
-import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
-import { CompiledFlowId, RunId, StepId } from '../../schemas/ids.js';
 import { computeManifestHash } from '../../schemas/manifest.js';
 import type { RecoveryRouteBindingV0 } from '../../schemas/recovery-route-kind.js';
 import type { Ref } from '../../schemas/ref.js';
-import type { ProofAssessedTraceEntry } from '../../schemas/trace-entry.js';
 import { resolveDottedPath } from '../../shared/fanout-branch-template.js';
 import { isProofPlanBlockedError } from '../../shared/proof-plan.js';
 import { createUserSkillRegistry } from '../../shared/user-skill-registry.js';
 import { dispatchSkillHooks } from '../../skill-hooks/dispatch.js';
-import {
-  type SkillHookInjectionChannel,
-  createSkillHookInjectionChannel,
-} from '../../skill-hooks/injection.js';
+import { createSkillHookInjectionChannel } from '../../skill-hooks/injection.js';
 import { surfaceSourcesFromDeclarations } from '../../skill-hooks/surface-sources.js';
 import { isAcceptanceRetryFeedback } from '../acceptance-criteria.js';
-import type { RouteTarget, TerminalTarget } from '../domain/route.js';
-import type { RunClosedOutcome } from '../domain/run.js';
+import type { RouteTarget } from '../domain/route.js';
 import { isWaitingCheckpointStepOutcome } from '../domain/step.js';
-import type { TraceEntry } from '../domain/trace.js';
 import { type ExecutorRegistry, createDefaultExecutors } from '../executors/index.js';
 import type { ExecutableFlow, ExecutableStep } from '../manifest/executable-flow.js';
 import { buildRuntimePackageIndex } from '../manifest/runtime-package-index.js';
@@ -37,14 +29,15 @@ import { assertExecutableFlow } from '../manifest/validate-executable-flow.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
 import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guidance.js';
 import { writeRuntimeManifestSnapshot } from './manifest-snapshot.js';
-import {
-  type RecoveryFailureEvidence,
-  recoveryBindingVerdict,
-  recoveryCauseAllowed,
-} from './recovery-binding-verdict.js';
+import { recoveryBindingVerdict, recoveryCauseAllowed } from './recovery-binding-verdict.js';
 import { RecoveryCorridor } from './recovery-corridor.js';
-import { type RuntimeRunResult, writeRuntimeRunResult } from './result-writer.js';
 import { openRunBoundary } from './run-boundary.js';
+import {
+  type GraphClosedOutcome,
+  type GraphRunResult,
+  closeRun,
+  outcomeForTerminal,
+} from './run-close.js';
 import type { RunContext } from './run-context.js';
 import {
   classifyRouteDeclarationTransition,
@@ -53,6 +46,13 @@ import {
   isRouteTargetAbort,
 } from './run-transition.js';
 import { SliceCorridor } from './slice-corridor.js';
+import {
+  completedStepCountsFromTrace,
+  latestRecoveryFailureEvidence,
+  latestStepReportOrRelayRef,
+  reportSelectedCheckpointBoundaryEvidence,
+  seedSkillHookInjectionsFromTrace,
+} from './trace-evidence.js';
 
 export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   readonly runDir: string;
@@ -72,15 +72,6 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
     readonly attempt: number;
     readonly selection: string;
   };
-}
-
-export interface GraphRunResult extends RuntimeRunResult {
-  readonly resultPath: string;
-}
-
-export interface GraphClosedOutcome {
-  readonly kind: 'closed';
-  readonly result: GraphRunResult;
 }
 
 export interface GraphCheckpointWaitingResult {
@@ -128,85 +119,6 @@ function defaultManifestHash(flow: ExecutableFlow): string {
   return `runtime:${flow.id}@${flow.version}`;
 }
 
-function resultSummary(outcome: RunClosedOutcome, terminalTarget?: TerminalTarget): string {
-  if (terminalTarget === undefined) return `Run closed with outcome ${outcome}.`;
-  return `Run closed with outcome ${outcome} via ${terminalTarget}.`;
-}
-
-function outcomeForTerminal(target: TerminalTarget): RunClosedOutcome {
-  if (target === '@complete') return 'complete';
-  if (target === '@stop') return 'stopped';
-  if (target === '@handoff') return 'handoff';
-  return 'escalated';
-}
-
-function runOutcomeForPrimaryResultOutcome(outcome: string): RunClosedOutcome | undefined {
-  if (outcome === 'complete') return undefined;
-  if (outcome === 'handoff') return 'handoff';
-  return 'stopped';
-}
-
-// Exported for characterization (terminal-outcome-bound-primary-result.test.ts):
-// the close-time bound read must fail open (return undefined, never throw) so a
-// missing or corrupt primary result falls through to the proof-derived outcome.
-export async function terminalOutcomeBoundToPrimaryResult(
-  context: RunContext,
-  outcome: RunClosedOutcome,
-): Promise<{ readonly outcome: RunClosedOutcome; readonly reason: string } | undefined> {
-  if (outcome !== 'complete') return undefined;
-  const pkg = findCompiledFlowPackageById(context.flow.id);
-  if (pkg?.engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true) return undefined;
-  const primaryResultPath = pkg.runtimeSurface?.primaryResult?.path;
-  if (primaryResultPath === undefined) return undefined;
-
-  // The primary result is read at close time to bind the run outcome. Reading it
-  // can throw (the file may be absent, or hold malformed JSON), and a throw here
-  // would turn an otherwise-successful @complete close into a runtime exception.
-  // Fail open: if the bound read cannot be completed, fall through to the
-  // proof-derived outcome rather than crashing the close path.
-  let primaryResult: unknown;
-  try {
-    primaryResult = await context.files.readJson(primaryResultPath);
-  } catch {
-    return undefined;
-  }
-  if (typeof primaryResult !== 'object' || primaryResult === null) return undefined;
-  const primaryOutcome = (primaryResult as { readonly outcome?: unknown }).outcome;
-  if (typeof primaryOutcome !== 'string') return undefined;
-
-  const boundOutcome = runOutcomeForPrimaryResultOutcome(primaryOutcome);
-  if (boundOutcome === undefined) return undefined;
-  return {
-    outcome: boundOutcome,
-    reason: `primary result '${primaryResultPath}' reported outcome '${primaryOutcome}'`,
-  };
-}
-
-function latestAdmittedVerdict(context: RunContext): string | undefined {
-  const entries = context.trace.getAll();
-  const admitted = new Set<string>();
-  for (const entry of entries) {
-    if (
-      entry.kind === 'check.evaluated' &&
-      entry.check_kind === 'result_verdict' &&
-      entry.outcome === 'pass' &&
-      entry.step_id !== undefined &&
-      entry.attempt !== undefined
-    ) {
-      admitted.add(`${entry.step_id}:${entry.attempt}`);
-    }
-  }
-  for (const entry of [...entries].reverse()) {
-    if (entry.kind !== 'relay.completed' && entry.kind !== 'sub_run.completed') continue;
-    if (typeof entry.verdict !== 'string' || entry.verdict.length === 0) continue;
-    if (entry.step_id === undefined || entry.attempt === undefined) continue;
-    if (!admitted.has(`${entry.step_id}:${entry.attempt}`)) continue;
-    if (entry.kind === 'sub_run.completed' && entry.child_outcome !== 'complete') continue;
-    return entry.verdict;
-  }
-  return undefined;
-}
-
 function routeTargetKey(target: RouteTarget): string {
   return target.kind === 'terminal' ? target.target : target.stepId;
 }
@@ -252,110 +164,6 @@ function isRecoveryRouteForMechanics(input: {
   return hasRecoveryBindingForRoute(input);
 }
 
-function traceRefForEntry(input: {
-  readonly context: RunContext;
-  readonly stepId: string;
-  readonly attempt: number;
-  readonly sequence: number;
-}): Ref {
-  return {
-    kind: 'trace',
-    ref: `trace.ndjson#sequence=${input.sequence}`,
-    run_id: RunId.parse(input.context.runId),
-    flow_id: CompiledFlowId.parse(input.context.flow.id),
-    step_id: StepId.parse(input.stepId),
-    attempt: input.attempt,
-    sequence: input.sequence,
-  };
-}
-
-function latestRecoveryFailureEvidence(input: {
-  readonly context: RunContext;
-  readonly stepId: string;
-  readonly attempt: number;
-  readonly details: Record<string, unknown>;
-  // The active slice index for loop-body steps. Under the slice loop a step's
-  // attempt number resets per slice, so (step_id, attempt) collides across
-  // slices; without this filter the resolver would attribute an earlier
-  // slice's failed check to a later slice's clean attempt. Undefined for
-  // non-loop steps (no filtering, unchanged behavior).
-  readonly sliceIndex?: number;
-}): RecoveryFailureEvidence | undefined {
-  for (const entry of [...input.context.trace.getAll()].reverse()) {
-    if (entry.kind !== 'check.evaluated' && entry.kind !== 'relay.failed') continue;
-    if (entry.step_id !== input.stepId || entry.attempt !== input.attempt) continue;
-    if (
-      input.sliceIndex !== undefined &&
-      'slice_index' in entry &&
-      entry.slice_index !== input.sliceIndex
-    ) {
-      continue;
-    }
-    if (entry.kind === 'check.evaluated') {
-      if (entry.outcome !== 'fail') continue;
-      return {
-        ref: traceRefForEntry({
-          context: input.context,
-          stepId: input.stepId,
-          attempt: input.attempt,
-          sequence: entry.sequence,
-        }),
-        cause: isAcceptanceRetryFeedback(input.details.acceptance_feedback)
-          ? 'failed_acceptance_criteria'
-          : 'failed_check',
-      };
-    }
-    return {
-      ref: traceRefForEntry({
-        context: input.context,
-        stepId: input.stepId,
-        attempt: input.attempt,
-        sequence: entry.sequence,
-      }),
-      cause: 'relay_connector_failed',
-    };
-  }
-  return undefined;
-}
-
-// Unlike latestRecoveryFailureEvidence, this needs no slice filter: every
-// loop-body execution writes a report/result, so under the slice loop the
-// current slice's entry is always the latest-by-sequence match for
-// (step_id, attempt) and reverse iteration returns it. (A clean slice has no
-// failure entry of its own, which is why the failure resolver — not this one —
-// must filter by slice to avoid crossing an earlier slice's failure.)
-function latestStepReportOrRelayRef(input: {
-  readonly context: RunContext;
-  readonly stepId: string;
-  readonly attempt: number;
-}): Ref | undefined {
-  for (const entry of [...input.context.trace.getAll()].reverse()) {
-    if (entry.kind !== 'step.report_written' && entry.kind !== 'relay.result') continue;
-    if (entry.step_id !== input.stepId || entry.attempt !== input.attempt) continue;
-    return traceRefForEntry({
-      context: input.context,
-      stepId: input.stepId,
-      attempt: input.attempt,
-      sequence: entry.sequence,
-    });
-  }
-  return undefined;
-}
-
-function reportSelectedCheckpointBoundaryEvidence(input: {
-  readonly context: RunContext;
-  readonly stepId: string;
-  readonly attempt: number;
-  readonly details: Record<string, unknown>;
-  readonly binding: RecoveryRouteBindingV0 | undefined;
-}): RecoveryFailureEvidence | undefined {
-  if (!routeSelectedFromReport(input.details)) return undefined;
-  if (input.binding?.kind !== 'checkpoint_authority') return undefined;
-  if (!input.binding.allowed_failure_causes.includes('checkpoint_boundary')) return undefined;
-  const ref = latestStepReportOrRelayRef(input);
-  return ref === undefined ? undefined : { ref, cause: 'checkpoint_boundary' };
-}
-
 function configuredMaxAttempts(step: ExecutableStep): number | undefined {
   const budgets = step.budgets;
   if (budgets === undefined || budgets === null || typeof budgets !== 'object') return undefined;
@@ -398,50 +206,6 @@ function bootstrapChangeKind(input: {
   return standardChangeKindDeclaration(defaultKind);
 }
 
-// On checkpoint resume the injection channel is recreated empty, but `auto`
-// hooks that fired in the PRIOR process recorded their injections durably as
-// run.skill-hook events. Re-seed the channel from those events so a later
-// implementer step in the resumed process sees the same injected skill set a
-// single-process run would. Without this, an injection from a step that is not
-// re-executed on resume is silently lost and the resumed run can feed a later
-// step a different skill set (and different check outcomes) than a single-process
-// run. Mirrors the live actuator gate exactly: auto policy, no pending decision
-// packet, at least one resolved skill.
-function seedSkillHookInjectionsFromTrace(
-  entries: readonly TraceEntry[],
-  channel: SkillHookInjectionChannel | undefined,
-): void {
-  if (channel === undefined) return;
-  for (const entry of entries) {
-    if (entry.kind !== 'run.skill-hook') continue;
-    const event = entry.event;
-    if (
-      event.policy.mode === 'auto' &&
-      event.decision_packet_id === undefined &&
-      event.triggered_skills.length > 0
-    ) {
-      channel.add(event.triggered_skills.map((skill) => skill.id));
-    }
-  }
-}
-
-function completedStepCountsFromTrace(
-  entries: readonly TraceEntry[],
-  corridor: SliceCorridor,
-): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const entry of entries) {
-    if (entry.kind !== 'step.completed' || entry.step_id === undefined) continue;
-    // Loop-body completions are keyed per slice so a resumed run restarts the
-    // next slice at attempt 1 (matching the live keying below). The recorded
-    // slice_index is load-bearing here; non-loop steps key on the bare id.
-    const sliceIndex = typeof entry.slice_index === 'number' ? entry.slice_index : 0;
-    const key = corridor.countKey(entry.step_id, sliceIndex);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
-}
-
 // A slice loop re-enters its body once per slice. The resume path
 // reconstructs slice progress from the trace, which only holds completed
 // steps, so a checkpoint pausing mid-loop would lose the live slice index.
@@ -475,108 +239,6 @@ function resolveManifestHash(flow: ExecutableFlow, options: GraphRunnerOptions):
     throw new Error('manifest bytes hash differs from run manifest_hash');
   }
   return computed;
-}
-
-function recordValue(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function routeSelectedFromReport(details: Record<string, unknown>): boolean {
-  return details.route_source === 'report';
-}
-
-function traceScope(
-  entry: GuidanceDecisionTraceEntryBody | ProofAssessedTraceEntry,
-): Record<string, unknown> {
-  return recordValue(entry.scope);
-}
-
-function proofPolicyRequirementKey(entry: GuidanceDecisionTraceEntryBody): string {
-  const scope = traceScope(entry);
-  const selected = recordValue(entry.selected);
-  return JSON.stringify({
-    flow_id: scope.flow_id,
-    step_id: scope.step_id,
-    proof_profile: selected.proof_profile,
-    required_claim_kinds: selected.required_claim_kinds,
-    required_evidence_kinds: selected.required_evidence_kinds,
-  });
-}
-
-function completeCloseProofGap(context: RunContext): string | undefined {
-  const entries = context.trace.getAll();
-  const latestRequiredProofByRequirement = new Map<
-    string,
-    { readonly entry: GuidanceDecisionTraceEntryBody; readonly index: number }
-  >();
-  for (const [index, entry] of entries.entries()) {
-    if (entry.kind !== 'guidance.decision' || entry.subject !== 'proof_policy') continue;
-    const selected = recordValue(entry.selected);
-    if (selected.close_requires_proven !== true) continue;
-    latestRequiredProofByRequirement.set(proofPolicyRequirementKey(entry), { entry, index });
-  }
-  for (const { entry, index } of latestRequiredProofByRequirement.values()) {
-    const guidanceScope = traceScope(entry);
-    const hasPassingProof = entries.some((candidate, proofIndex) => {
-      if (proofIndex <= index || candidate.kind !== 'proof.assessed') return false;
-      const proofScope = traceScope(candidate);
-      return (
-        candidate.proof_policy_decision_id === entry.decision_id &&
-        candidate.overall_status === 'proven' &&
-        candidate.close_allowed === true &&
-        proofScope.flow_id === guidanceScope.flow_id &&
-        proofScope.step_id === guidanceScope.step_id &&
-        proofScope.attempt === guidanceScope.attempt
-      );
-    });
-    if (!hasPassingProof) {
-      return `run.closed complete requires passing proof.assessed for proof_policy decision '${String(entry.decision_id)}'`;
-    }
-  }
-  return undefined;
-}
-
-async function closeRun(
-  context: RunContext,
-  outcome: RunClosedOutcome,
-  terminalTarget?: TerminalTarget,
-  reason?: string,
-): Promise<GraphClosedOutcome> {
-  const proofGap = outcome === 'complete' ? completeCloseProofGap(context) : undefined;
-  const proofOutcome: RunClosedOutcome = proofGap === undefined ? outcome : 'aborted';
-  const primaryResultOutcome =
-    proofGap === undefined
-      ? await terminalOutcomeBoundToPrimaryResult(context, proofOutcome)
-      : undefined;
-  const finalOutcome: RunClosedOutcome = primaryResultOutcome?.outcome ?? proofOutcome;
-  const finalReason = proofGap ?? primaryResultOutcome?.reason ?? reason;
-  const finalTerminalTarget =
-    proofGap === undefined && primaryResultOutcome === undefined ? terminalTarget : undefined;
-  await context.trace.append({
-    run_id: context.runId,
-    kind: 'run.closed',
-    outcome: finalOutcome,
-    ...(finalReason === undefined ? {} : { reason: finalReason }),
-  });
-  const verdict = finalOutcome === 'complete' ? latestAdmittedVerdict(context) : undefined;
-  const result: RuntimeRunResult = {
-    schema_version: 1,
-    run_id: context.runId,
-    flow_id: context.flow.id,
-    goal: context.goal,
-    ...(context.why === undefined ? {} : { why: context.why }),
-    outcome: finalOutcome,
-    summary: resultSummary(finalOutcome, finalTerminalTarget),
-    closed_at: context.now().toISOString(),
-    trace_entries_observed: context.trace.getAll().length,
-    manifest_hash: context.manifestHash,
-    ...(finalReason === undefined ? {} : { reason: finalReason }),
-    ...(verdict === undefined ? {} : { verdict }),
-  };
-  const resultPath = await writeRuntimeRunResult(context.files, result);
-  return { kind: 'closed', result: { ...result, resultPath } };
 }
 
 async function executeExecutableFlowOutcomeUnsafe(

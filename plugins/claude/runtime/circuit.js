@@ -59642,11 +59642,6 @@ function corridorCause(active, binding) {
   return active.failure?.cause ?? "unknown_failure";
 }
 
-// dist/runtime/run/result-writer.js
-async function writeRuntimeRunResult(files, result) {
-  return await files.writeJson(RUN_RESULT_RELATIVE_PATH, result);
-}
-
 // dist/runtime/run/run-boundary.js
 import { readFileSync as readFileSync43 } from "node:fs";
 import { lstat, mkdir as mkdir4, readdir } from "node:fs/promises";
@@ -60483,6 +60478,256 @@ async function openRunBoundary(options) {
   };
 }
 
+// dist/runtime/run/result-writer.js
+async function writeRuntimeRunResult(files, result) {
+  return await files.writeJson(RUN_RESULT_RELATIVE_PATH, result);
+}
+
+// dist/runtime/run/trace-evidence.js
+function traceRefForEntry(input) {
+  return {
+    kind: "trace",
+    ref: `trace.ndjson#sequence=${input.sequence}`,
+    run_id: RunId.parse(input.context.runId),
+    flow_id: CompiledFlowId.parse(input.context.flow.id),
+    step_id: StepId.parse(input.stepId),
+    attempt: input.attempt,
+    sequence: input.sequence
+  };
+}
+function latestRecoveryFailureEvidence(input) {
+  for (const entry of [...input.context.trace.getAll()].reverse()) {
+    if (entry.kind !== "check.evaluated" && entry.kind !== "relay.failed")
+      continue;
+    if (entry.step_id !== input.stepId || entry.attempt !== input.attempt)
+      continue;
+    if (input.sliceIndex !== void 0 && "slice_index" in entry && entry.slice_index !== input.sliceIndex) {
+      continue;
+    }
+    if (entry.kind === "check.evaluated") {
+      if (entry.outcome !== "fail")
+        continue;
+      return {
+        ref: traceRefForEntry({
+          context: input.context,
+          stepId: input.stepId,
+          attempt: input.attempt,
+          sequence: entry.sequence
+        }),
+        cause: isAcceptanceRetryFeedback(input.details.acceptance_feedback) ? "failed_acceptance_criteria" : "failed_check"
+      };
+    }
+    return {
+      ref: traceRefForEntry({
+        context: input.context,
+        stepId: input.stepId,
+        attempt: input.attempt,
+        sequence: entry.sequence
+      }),
+      cause: "relay_connector_failed"
+    };
+  }
+  return void 0;
+}
+function latestStepReportOrRelayRef(input) {
+  for (const entry of [...input.context.trace.getAll()].reverse()) {
+    if (entry.kind !== "step.report_written" && entry.kind !== "relay.result")
+      continue;
+    if (entry.step_id !== input.stepId || entry.attempt !== input.attempt)
+      continue;
+    return traceRefForEntry({
+      context: input.context,
+      stepId: input.stepId,
+      attempt: input.attempt,
+      sequence: entry.sequence
+    });
+  }
+  return void 0;
+}
+function reportSelectedCheckpointBoundaryEvidence(input) {
+  if (!routeSelectedFromReport(input.details))
+    return void 0;
+  if (input.binding?.kind !== "checkpoint_authority")
+    return void 0;
+  if (!input.binding.allowed_failure_causes.includes("checkpoint_boundary"))
+    return void 0;
+  const ref = latestStepReportOrRelayRef(input);
+  return ref === void 0 ? void 0 : { ref, cause: "checkpoint_boundary" };
+}
+function seedSkillHookInjectionsFromTrace(entries, channel) {
+  if (channel === void 0)
+    return;
+  for (const entry of entries) {
+    if (entry.kind !== "run.skill-hook")
+      continue;
+    const event = entry.event;
+    if (event.policy.mode === "auto" && event.decision_packet_id === void 0 && event.triggered_skills.length > 0) {
+      channel.add(event.triggered_skills.map((skill) => skill.id));
+    }
+  }
+}
+function completedStepCountsFromTrace(entries, corridor) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const entry of entries) {
+    if (entry.kind !== "step.completed" || entry.step_id === void 0)
+      continue;
+    const sliceIndex = typeof entry.slice_index === "number" ? entry.slice_index : 0;
+    const key = corridor.countKey(entry.step_id, sliceIndex);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+function recordValue(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function routeSelectedFromReport(details) {
+  return details.route_source === "report";
+}
+function traceScope(entry) {
+  return recordValue(entry.scope);
+}
+function proofPolicyRequirementKey(entry) {
+  const scope = traceScope(entry);
+  const selected = recordValue(entry.selected);
+  return JSON.stringify({
+    flow_id: scope.flow_id,
+    step_id: scope.step_id,
+    proof_profile: selected.proof_profile,
+    required_claim_kinds: selected.required_claim_kinds,
+    required_evidence_kinds: selected.required_evidence_kinds
+  });
+}
+
+// dist/runtime/run/run-close.js
+function resultSummary(outcome, terminalTarget) {
+  if (terminalTarget === void 0)
+    return `Run closed with outcome ${outcome}.`;
+  return `Run closed with outcome ${outcome} via ${terminalTarget}.`;
+}
+function outcomeForTerminal(target) {
+  if (target === "@complete")
+    return "complete";
+  if (target === "@stop")
+    return "stopped";
+  if (target === "@handoff")
+    return "handoff";
+  return "escalated";
+}
+function runOutcomeForPrimaryResultOutcome(outcome) {
+  if (outcome === "complete")
+    return void 0;
+  if (outcome === "handoff")
+    return "handoff";
+  return "stopped";
+}
+async function terminalOutcomeBoundToPrimaryResult(context, outcome) {
+  if (outcome !== "complete")
+    return void 0;
+  const pkg = findCompiledFlowPackageById(context.flow.id);
+  if (pkg?.engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true)
+    return void 0;
+  const primaryResultPath = pkg.runtimeSurface?.primaryResult?.path;
+  if (primaryResultPath === void 0)
+    return void 0;
+  let primaryResult;
+  try {
+    primaryResult = await context.files.readJson(primaryResultPath);
+  } catch {
+    return void 0;
+  }
+  if (typeof primaryResult !== "object" || primaryResult === null)
+    return void 0;
+  const primaryOutcome = primaryResult.outcome;
+  if (typeof primaryOutcome !== "string")
+    return void 0;
+  const boundOutcome = runOutcomeForPrimaryResultOutcome(primaryOutcome);
+  if (boundOutcome === void 0)
+    return void 0;
+  return {
+    outcome: boundOutcome,
+    reason: `primary result '${primaryResultPath}' reported outcome '${primaryOutcome}'`
+  };
+}
+function latestAdmittedVerdict(context) {
+  const entries = context.trace.getAll();
+  const admitted = /* @__PURE__ */ new Set();
+  for (const entry of entries) {
+    if (entry.kind === "check.evaluated" && entry.check_kind === "result_verdict" && entry.outcome === "pass" && entry.step_id !== void 0 && entry.attempt !== void 0) {
+      admitted.add(`${entry.step_id}:${entry.attempt}`);
+    }
+  }
+  for (const entry of [...entries].reverse()) {
+    if (entry.kind !== "relay.completed" && entry.kind !== "sub_run.completed")
+      continue;
+    if (typeof entry.verdict !== "string" || entry.verdict.length === 0)
+      continue;
+    if (entry.step_id === void 0 || entry.attempt === void 0)
+      continue;
+    if (!admitted.has(`${entry.step_id}:${entry.attempt}`))
+      continue;
+    if (entry.kind === "sub_run.completed" && entry.child_outcome !== "complete")
+      continue;
+    return entry.verdict;
+  }
+  return void 0;
+}
+function completeCloseProofGap(context) {
+  const entries = context.trace.getAll();
+  const latestRequiredProofByRequirement = /* @__PURE__ */ new Map();
+  for (const [index, entry] of entries.entries()) {
+    if (entry.kind !== "guidance.decision" || entry.subject !== "proof_policy")
+      continue;
+    const selected = recordValue(entry.selected);
+    if (selected.close_requires_proven !== true)
+      continue;
+    latestRequiredProofByRequirement.set(proofPolicyRequirementKey(entry), { entry, index });
+  }
+  for (const { entry, index } of latestRequiredProofByRequirement.values()) {
+    const guidanceScope = traceScope(entry);
+    const hasPassingProof = entries.some((candidate, proofIndex) => {
+      if (proofIndex <= index || candidate.kind !== "proof.assessed")
+        return false;
+      const proofScope = traceScope(candidate);
+      return candidate.proof_policy_decision_id === entry.decision_id && candidate.overall_status === "proven" && candidate.close_allowed === true && proofScope.flow_id === guidanceScope.flow_id && proofScope.step_id === guidanceScope.step_id && proofScope.attempt === guidanceScope.attempt;
+    });
+    if (!hasPassingProof) {
+      return `run.closed complete requires passing proof.assessed for proof_policy decision '${String(entry.decision_id)}'`;
+    }
+  }
+  return void 0;
+}
+async function closeRun(context, outcome, terminalTarget, reason) {
+  const proofGap = outcome === "complete" ? completeCloseProofGap(context) : void 0;
+  const proofOutcome = proofGap === void 0 ? outcome : "aborted";
+  const primaryResultOutcome = proofGap === void 0 ? await terminalOutcomeBoundToPrimaryResult(context, proofOutcome) : void 0;
+  const finalOutcome = primaryResultOutcome?.outcome ?? proofOutcome;
+  const finalReason = proofGap ?? primaryResultOutcome?.reason ?? reason;
+  const finalTerminalTarget = proofGap === void 0 && primaryResultOutcome === void 0 ? terminalTarget : void 0;
+  await context.trace.append({
+    run_id: context.runId,
+    kind: "run.closed",
+    outcome: finalOutcome,
+    ...finalReason === void 0 ? {} : { reason: finalReason }
+  });
+  const verdict = finalOutcome === "complete" ? latestAdmittedVerdict(context) : void 0;
+  const result = {
+    schema_version: 1,
+    run_id: context.runId,
+    flow_id: context.flow.id,
+    goal: context.goal,
+    ...context.why === void 0 ? {} : { why: context.why },
+    outcome: finalOutcome,
+    summary: resultSummary(finalOutcome, finalTerminalTarget),
+    closed_at: context.now().toISOString(),
+    trace_entries_observed: context.trace.getAll().length,
+    manifest_hash: context.manifestHash,
+    ...finalReason === void 0 ? {} : { reason: finalReason },
+    ...verdict === void 0 ? {} : { verdict }
+  };
+  const resultPath2 = await writeRuntimeRunResult(context.files, result);
+  return { kind: "closed", result: { ...result, resultPath: resultPath2 } };
+}
+
 // dist/runtime/run/run-transition.js
 function isRouteTargetAbort(transition) {
   return "reason" in transition;
@@ -60620,78 +60865,6 @@ function isGraphRejectedOutcome(result) {
 function defaultManifestHash(flow) {
   return `runtime:${flow.id}@${flow.version}`;
 }
-function resultSummary(outcome, terminalTarget) {
-  if (terminalTarget === void 0)
-    return `Run closed with outcome ${outcome}.`;
-  return `Run closed with outcome ${outcome} via ${terminalTarget}.`;
-}
-function outcomeForTerminal(target) {
-  if (target === "@complete")
-    return "complete";
-  if (target === "@stop")
-    return "stopped";
-  if (target === "@handoff")
-    return "handoff";
-  return "escalated";
-}
-function runOutcomeForPrimaryResultOutcome(outcome) {
-  if (outcome === "complete")
-    return void 0;
-  if (outcome === "handoff")
-    return "handoff";
-  return "stopped";
-}
-async function terminalOutcomeBoundToPrimaryResult(context, outcome) {
-  if (outcome !== "complete")
-    return void 0;
-  const pkg = findCompiledFlowPackageById(context.flow.id);
-  if (pkg?.engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true)
-    return void 0;
-  const primaryResultPath = pkg.runtimeSurface?.primaryResult?.path;
-  if (primaryResultPath === void 0)
-    return void 0;
-  let primaryResult;
-  try {
-    primaryResult = await context.files.readJson(primaryResultPath);
-  } catch {
-    return void 0;
-  }
-  if (typeof primaryResult !== "object" || primaryResult === null)
-    return void 0;
-  const primaryOutcome = primaryResult.outcome;
-  if (typeof primaryOutcome !== "string")
-    return void 0;
-  const boundOutcome = runOutcomeForPrimaryResultOutcome(primaryOutcome);
-  if (boundOutcome === void 0)
-    return void 0;
-  return {
-    outcome: boundOutcome,
-    reason: `primary result '${primaryResultPath}' reported outcome '${primaryOutcome}'`
-  };
-}
-function latestAdmittedVerdict(context) {
-  const entries = context.trace.getAll();
-  const admitted = /* @__PURE__ */ new Set();
-  for (const entry of entries) {
-    if (entry.kind === "check.evaluated" && entry.check_kind === "result_verdict" && entry.outcome === "pass" && entry.step_id !== void 0 && entry.attempt !== void 0) {
-      admitted.add(`${entry.step_id}:${entry.attempt}`);
-    }
-  }
-  for (const entry of [...entries].reverse()) {
-    if (entry.kind !== "relay.completed" && entry.kind !== "sub_run.completed")
-      continue;
-    if (typeof entry.verdict !== "string" || entry.verdict.length === 0)
-      continue;
-    if (entry.step_id === void 0 || entry.attempt === void 0)
-      continue;
-    if (!admitted.has(`${entry.step_id}:${entry.attempt}`))
-      continue;
-    if (entry.kind === "sub_run.completed" && entry.child_outcome !== "complete")
-      continue;
-    return entry.verdict;
-  }
-  return void 0;
-}
 function routeTargetKey2(target) {
   return target.kind === "terminal" ? target.target : target.stepId;
 }
@@ -60715,76 +60888,6 @@ function isRecoveryRouteForMechanics(input) {
   if (input.bindings === void 0)
     return false;
   return hasRecoveryBindingForRoute(input);
-}
-function traceRefForEntry(input) {
-  return {
-    kind: "trace",
-    ref: `trace.ndjson#sequence=${input.sequence}`,
-    run_id: RunId.parse(input.context.runId),
-    flow_id: CompiledFlowId.parse(input.context.flow.id),
-    step_id: StepId.parse(input.stepId),
-    attempt: input.attempt,
-    sequence: input.sequence
-  };
-}
-function latestRecoveryFailureEvidence(input) {
-  for (const entry of [...input.context.trace.getAll()].reverse()) {
-    if (entry.kind !== "check.evaluated" && entry.kind !== "relay.failed")
-      continue;
-    if (entry.step_id !== input.stepId || entry.attempt !== input.attempt)
-      continue;
-    if (input.sliceIndex !== void 0 && "slice_index" in entry && entry.slice_index !== input.sliceIndex) {
-      continue;
-    }
-    if (entry.kind === "check.evaluated") {
-      if (entry.outcome !== "fail")
-        continue;
-      return {
-        ref: traceRefForEntry({
-          context: input.context,
-          stepId: input.stepId,
-          attempt: input.attempt,
-          sequence: entry.sequence
-        }),
-        cause: isAcceptanceRetryFeedback(input.details.acceptance_feedback) ? "failed_acceptance_criteria" : "failed_check"
-      };
-    }
-    return {
-      ref: traceRefForEntry({
-        context: input.context,
-        stepId: input.stepId,
-        attempt: input.attempt,
-        sequence: entry.sequence
-      }),
-      cause: "relay_connector_failed"
-    };
-  }
-  return void 0;
-}
-function latestStepReportOrRelayRef(input) {
-  for (const entry of [...input.context.trace.getAll()].reverse()) {
-    if (entry.kind !== "step.report_written" && entry.kind !== "relay.result")
-      continue;
-    if (entry.step_id !== input.stepId || entry.attempt !== input.attempt)
-      continue;
-    return traceRefForEntry({
-      context: input.context,
-      stepId: input.stepId,
-      attempt: input.attempt,
-      sequence: entry.sequence
-    });
-  }
-  return void 0;
-}
-function reportSelectedCheckpointBoundaryEvidence(input) {
-  if (!routeSelectedFromReport(input.details))
-    return void 0;
-  if (input.binding?.kind !== "checkpoint_authority")
-    return void 0;
-  if (!input.binding.allowed_failure_causes.includes("checkpoint_boundary"))
-    return void 0;
-  const ref = latestStepReportOrRelayRef(input);
-  return ref === void 0 ? void 0 : { ref, cause: "checkpoint_boundary" };
 }
 function configuredMaxAttempts(step) {
   const budgets = step.budgets;
@@ -60815,29 +60918,6 @@ function bootstrapChangeKind(input) {
   }
   return standardChangeKindDeclaration(defaultKind);
 }
-function seedSkillHookInjectionsFromTrace(entries, channel) {
-  if (channel === void 0)
-    return;
-  for (const entry of entries) {
-    if (entry.kind !== "run.skill-hook")
-      continue;
-    const event = entry.event;
-    if (event.policy.mode === "auto" && event.decision_packet_id === void 0 && event.triggered_skills.length > 0) {
-      channel.add(event.triggered_skills.map((skill) => skill.id));
-    }
-  }
-}
-function completedStepCountsFromTrace(entries, corridor) {
-  const counts = /* @__PURE__ */ new Map();
-  for (const entry of entries) {
-    if (entry.kind !== "step.completed" || entry.step_id === void 0)
-      continue;
-    const sliceIndex = typeof entry.slice_index === "number" ? entry.slice_index : 0;
-    const key = corridor.countKey(entry.step_id, sliceIndex);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
-}
 function assertNoCheckpointInSliceLoop(flow, flag) {
   const steps = new Map(flow.steps.map((step) => [step.id, step]));
   const visited = /* @__PURE__ */ new Set();
@@ -60865,82 +60945,6 @@ function resolveManifestHash(flow, options) {
     throw new Error("manifest bytes hash differs from run manifest_hash");
   }
   return computed;
-}
-function recordValue(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-function routeSelectedFromReport(details) {
-  return details.route_source === "report";
-}
-function traceScope(entry) {
-  return recordValue(entry.scope);
-}
-function proofPolicyRequirementKey(entry) {
-  const scope = traceScope(entry);
-  const selected = recordValue(entry.selected);
-  return JSON.stringify({
-    flow_id: scope.flow_id,
-    step_id: scope.step_id,
-    proof_profile: selected.proof_profile,
-    required_claim_kinds: selected.required_claim_kinds,
-    required_evidence_kinds: selected.required_evidence_kinds
-  });
-}
-function completeCloseProofGap(context) {
-  const entries = context.trace.getAll();
-  const latestRequiredProofByRequirement = /* @__PURE__ */ new Map();
-  for (const [index, entry] of entries.entries()) {
-    if (entry.kind !== "guidance.decision" || entry.subject !== "proof_policy")
-      continue;
-    const selected = recordValue(entry.selected);
-    if (selected.close_requires_proven !== true)
-      continue;
-    latestRequiredProofByRequirement.set(proofPolicyRequirementKey(entry), { entry, index });
-  }
-  for (const { entry, index } of latestRequiredProofByRequirement.values()) {
-    const guidanceScope = traceScope(entry);
-    const hasPassingProof = entries.some((candidate, proofIndex) => {
-      if (proofIndex <= index || candidate.kind !== "proof.assessed")
-        return false;
-      const proofScope = traceScope(candidate);
-      return candidate.proof_policy_decision_id === entry.decision_id && candidate.overall_status === "proven" && candidate.close_allowed === true && proofScope.flow_id === guidanceScope.flow_id && proofScope.step_id === guidanceScope.step_id && proofScope.attempt === guidanceScope.attempt;
-    });
-    if (!hasPassingProof) {
-      return `run.closed complete requires passing proof.assessed for proof_policy decision '${String(entry.decision_id)}'`;
-    }
-  }
-  return void 0;
-}
-async function closeRun(context, outcome, terminalTarget, reason) {
-  const proofGap = outcome === "complete" ? completeCloseProofGap(context) : void 0;
-  const proofOutcome = proofGap === void 0 ? outcome : "aborted";
-  const primaryResultOutcome = proofGap === void 0 ? await terminalOutcomeBoundToPrimaryResult(context, proofOutcome) : void 0;
-  const finalOutcome = primaryResultOutcome?.outcome ?? proofOutcome;
-  const finalReason = proofGap ?? primaryResultOutcome?.reason ?? reason;
-  const finalTerminalTarget = proofGap === void 0 && primaryResultOutcome === void 0 ? terminalTarget : void 0;
-  await context.trace.append({
-    run_id: context.runId,
-    kind: "run.closed",
-    outcome: finalOutcome,
-    ...finalReason === void 0 ? {} : { reason: finalReason }
-  });
-  const verdict = finalOutcome === "complete" ? latestAdmittedVerdict(context) : void 0;
-  const result = {
-    schema_version: 1,
-    run_id: context.runId,
-    flow_id: context.flow.id,
-    goal: context.goal,
-    ...context.why === void 0 ? {} : { why: context.why },
-    outcome: finalOutcome,
-    summary: resultSummary(finalOutcome, finalTerminalTarget),
-    closed_at: context.now().toISOString(),
-    trace_entries_observed: context.trace.getAll().length,
-    manifest_hash: context.manifestHash,
-    ...finalReason === void 0 ? {} : { reason: finalReason },
-    ...verdict === void 0 ? {} : { verdict }
-  };
-  const resultPath2 = await writeRuntimeRunResult(context.files, result);
-  return { kind: "closed", result: { ...result, resultPath: resultPath2 } };
 }
 async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   assertExecutableFlow(flow);

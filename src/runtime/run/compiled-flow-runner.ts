@@ -18,10 +18,10 @@ import { fromCompiledFlow } from '../manifest/from-compiled-flow.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
 import {
   type GraphExecutionResult,
-  type GraphRunResult,
   executeExecutableFlowWithWaiting,
   isGraphCheckpointWaitingResult,
 } from './graph-runner.js';
+import type { GraphRunResult } from './run-close.js';
 
 export interface CompiledFlowRunOptions extends RuntimeExecutionCapabilities {
   readonly flowBytes: Uint8Array;

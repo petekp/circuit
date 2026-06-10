@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { terminalOutcomeBoundToPrimaryResult } from '../../src/runtime/run/graph-runner.js';
+import { terminalOutcomeBoundToPrimaryResult } from '../../src/runtime/run/run-close.js';
 import type { RunContext } from '../../src/runtime/run/run-context.js';
 
 // Characterizes the close-time outcome binding for flows that declare

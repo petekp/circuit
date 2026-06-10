@@ -47,12 +47,12 @@ import type {
 import { runCompiledFlow } from './compiled-flow-runner.js';
 import type { ExternalFileReader } from './external-files.js';
 import {
-  type GraphRunResult,
   executeExecutableFlowOutcome,
   isGraphCheckpointWaitingResult,
   isGraphRejectedOutcome,
 } from './graph-runner.js';
 import { readRuntimeCompiledFlowManifestSnapshot } from './manifest-snapshot.js';
+import type { GraphRunResult } from './run-close.js';
 
 export interface ResumeCompiledFlowOptions {
   readonly runDir: string;

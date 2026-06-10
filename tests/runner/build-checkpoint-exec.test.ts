@@ -21,9 +21,9 @@ import {
 } from '../../src/runtime/run/compiled-flow-runner.js';
 import {
   type GraphExecutionResult,
-  type GraphRunResult,
   isGraphCheckpointWaitingResult,
 } from '../../src/runtime/run/graph-runner.js';
+import type { GraphRunResult } from '../../src/runtime/run/run-close.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import type { ChangeKindDeclaration } from '../../src/schemas/change-kind.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';

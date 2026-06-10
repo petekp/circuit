@@ -10,7 +10,7 @@ import type {
   CompiledFlowRunner,
 } from '../../src/runtime/run/child-runner.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
-import type { GraphRunResult } from '../../src/runtime/run/graph-runner.js';
+import type { GraphRunResult } from '../../src/runtime/run/run-close.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import { RunResult } from '../../src/schemas/result.js';
