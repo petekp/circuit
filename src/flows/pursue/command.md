@@ -53,6 +53,10 @@ metacharacters:
      starts a new single-quoted string).
    - Then invoke the CLI's explicit pursue flow, passing the escaped,
      single-quoted goals as the value of `--goal`.
+   - If the user stated a reason behind the goals — the stakes, what it
+     unblocks, why now — pass it as `--why` after the goal, escaped and
+     single-quoted the same way. Omit the flag when no reason was stated;
+     never invent one.
 
    Example for a multi-goal pursuit:
 

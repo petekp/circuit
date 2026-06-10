@@ -16,7 +16,9 @@ import { RunClosedOutcome } from './trace-entry.js';
 // RESULT-I3 — `goal` is the original operator-facing goal string from
 // bootstrap; `summary` is a short model-authored or runtime-authored
 // narrative of what the run produced. Both are user-visible strings;
-// neither is a relay sink.
+// neither is a relay sink. `why` is the operator-stated reason behind
+// the goal (--why) and is OPTIONAL: absent on runs invoked without the
+// flag, so prior results parse unchanged.
 //
 // RESULT-I4 — `reason` mirrors
 // `RunClosedTraceEntry.reason` and is OPTIONAL. When `outcome` is
@@ -41,6 +43,7 @@ export const RunResult = z
     run_id: RunId,
     flow_id: CompiledFlowId,
     goal: z.string().min(1),
+    why: z.string().min(1).optional(),
     outcome: RunClosedOutcome,
     summary: z.string().min(1),
     closed_at: z.string().datetime(),

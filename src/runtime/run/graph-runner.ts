@@ -57,6 +57,7 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   readonly runDir: string;
   readonly runId?: string;
   readonly goal?: string;
+  readonly why?: string;
   readonly manifestHash?: string;
   readonly manifestBytes?: Uint8Array;
   readonly workContractRef?: Ref;
@@ -564,6 +565,7 @@ async function closeRun(
     run_id: context.runId,
     flow_id: context.flow.id,
     goal: context.goal,
+    ...(context.why === undefined ? {} : { why: context.why }),
     outcome: finalOutcome,
     summary: resultSummary(finalOutcome, finalTerminalTarget),
     closed_at: context.now().toISOString(),
@@ -605,6 +607,7 @@ async function executeExecutableFlowOutcomeUnsafe(
     runId,
     runDir,
     goal: options.goal ?? `Run ${flow.id}`,
+    ...(options.why === undefined || options.why.length === 0 ? {} : { why: options.why }),
     manifestHash: resolveManifestHash(flow, options),
     ...(options.workContractRef === undefined ? {} : { workContractRef: options.workContractRef }),
     ...(options.recoveryRouteBindings === undefined

@@ -95,6 +95,10 @@ describe('host experience docs', () => {
     // The decider owns the why: when the host picks the flow it states its
     // one-line reason before invoking, so the operator can redirect in-thread.
     expect(doc).toContain('state the recommended flow and your one-line reason');
+    // The operator's own stated reason travels separately, as --why on the
+    // invocation, and is never invented by the host.
+    expect(doc).toContain('pass it as `--why` after the goal');
+    expect(doc).toContain('never invent one');
 
     // The Codex run skill renders output itself (no present wrapper), so it
     // parses the JSON. Routing is model-only, so it must treat router_reason as

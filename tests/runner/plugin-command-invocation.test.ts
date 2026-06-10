@@ -141,6 +141,15 @@ describe('plugin command invocation binding', () => {
     it('run command documents the single-quote-with-escape rule for apostrophes', () => {
       expect(runBody).toMatch(/'\\''/);
     });
+
+    it('all fenced bash invocation blocks in plugins/claude/commands/run.md use single-quoted --why values', () => {
+      const blocks = extractBashBlocks(runBody).filter((b) => /--why/.test(b));
+      expect(blocks.length).toBeGreaterThan(0);
+      for (const block of blocks) {
+        expect(block).toMatch(/--why\s+'/);
+        expect(block).not.toMatch(/--why\s+"/);
+      }
+    });
   });
 
   describe('MED 1 negative fixtures: prose-only / classifier-pointer-only / negated bodies', () => {

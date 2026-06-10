@@ -19,6 +19,9 @@ export interface RunContext
   readonly runId: RunId;
   readonly runDir: string;
   readonly goal: string;
+  // Operator-stated reason behind the goal (--why). Optional, unlike goal:
+  // when absent, relay prompts are byte-identical to runs before the flag.
+  readonly why?: string;
   readonly manifestHash: string;
   readonly workContractRef?: Ref;
   readonly recoveryRouteBindings?: readonly RecoveryRouteBindingV0[];

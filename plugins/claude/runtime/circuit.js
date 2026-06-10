@@ -37116,6 +37116,7 @@ var RunResult = external_exports.object({
   run_id: RunId,
   flow_id: CompiledFlowId,
   goal: external_exports.string().min(1),
+  why: external_exports.string().min(1).optional(),
   outcome: RunClosedOutcome,
   summary: external_exports.string().min(1),
   closed_at: external_exports.string().datetime(),
@@ -57489,7 +57490,7 @@ function currentSliceSection(activeSlice) {
     ...exts.length === 0 ? [] : [`- anticipated file extensions: ${exts.join(", ")}`]
   ].join("\n");
 }
-function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, rigor, activeSlice) {
+function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, rigor, activeSlice, operatorWhy) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
     if (!existsSync25(abs))
@@ -57515,7 +57516,14 @@ ${readFileSync39(abs, "utf8")}`;
       `Rigor: ${rigor}. Tune your thoroughness and effort to this level; it does not change which steps run.`
     ],
     "",
-    ...operatorGoal === void 0 || operatorGoal.length === 0 ? [] : ["Operator Goal:", operatorGoal, ""],
+    ...operatorGoal === void 0 || operatorGoal.length === 0 ? [] : [
+      "Operator Goal:",
+      operatorGoal,
+      // The operator's stated reason qualifies the goal, so it renders only
+      // inside the goal block; without a goal there is nothing to qualify.
+      ...operatorWhy === void 0 || operatorWhy.length === 0 ? [] : [`Why: ${operatorWhy}`],
+      ""
+    ],
     ...memorySection === void 0 ? [] : [memorySection, ""],
     ...sliceSection === void 0 ? [] : [sliceSection, ""],
     pullSection,
@@ -57820,7 +57828,9 @@ async function executeProductionRelayAttempt(input) {
     context.axes?.rigor,
     // Slice loop: when this relay runs one slice of a slice loop, scope the
     // worker to that slice's unit of work. Undefined on single-pass runs.
-    context.activeSlice
+    context.activeSlice,
+    // Operator-stated reason behind the goal (--why); renders under the goal.
+    context.why
   );
   const request = step.writes?.request;
   const receipt = step.writes?.receipt;
@@ -61007,6 +61017,7 @@ async function closeRun(context, outcome, terminalTarget, reason) {
     run_id: context.runId,
     flow_id: context.flow.id,
     goal: context.goal,
+    ...context.why === void 0 ? {} : { why: context.why },
     outcome: finalOutcome,
     summary: resultSummary(finalOutcome, finalTerminalTarget),
     closed_at: context.now().toISOString(),
@@ -61042,6 +61053,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     runId,
     runDir,
     goal: options.goal ?? `Run ${flow.id}`,
+    ...options.why === void 0 || options.why.length === 0 ? {} : { why: options.why },
     manifestHash: resolveManifestHash(flow, options),
     ...options.workContractRef === void 0 ? {} : { workContractRef: options.workContractRef },
     ...options.recoveryRouteBindings === void 0 ? {} : { recoveryRouteBindings: options.recoveryRouteBindings },
@@ -61479,6 +61491,7 @@ async function runCompiledFlowWithWaiting(options) {
     runDir: options.runDir,
     ...options.runId === void 0 ? {} : { runId: options.runId },
     goal: options.goal,
+    ...options.why === void 0 ? {} : { why: options.why },
     manifestHash: computeManifestHash(options.flowBytes),
     manifestBytes: options.flowBytes,
     workContractRef: tracedWorkContractRef,
@@ -64721,7 +64734,7 @@ function runtimeHostKind(options) {
   return HostKind.parse(raw);
 }
 function addExecutionOptions(program2) {
-  return program2.option("--goal <goal>").option("--rigor <lite|standard|deep>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
+  return program2.option("--goal <goal>").option("--why <why>").option("--rigor <lite|standard|deep>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
 }
 function parseExecutionArgs(command, argv) {
   const program2 = addExecutionOptions(new Command(`circuit ${command}`).argument("[flow-name]"));
@@ -64755,6 +64768,10 @@ function parseExecutionArgs(command, argv) {
     throw new Error("--progress only supports 'jsonl'");
   }
   const goal = opts.goal;
+  const why = opts.why;
+  if (why !== void 0 && why.length === 0) {
+    throw new Error("--why must be non-empty when provided");
+  }
   const runFolder = opts.runFolder;
   const fixturePath = opts.fixture;
   const flowRoot2 = opts.flowRoot;
@@ -64775,6 +64792,9 @@ function parseExecutionArgs(command, argv) {
     }
     if (goal !== void 0) {
       throw new Error("checkpoint resume reuses the saved run goal; omit --goal");
+    }
+    if (why !== void 0) {
+      throw new Error("checkpoint resume reuses the saved run goal; omit --why");
     }
     if (fixturePath !== void 0) {
       throw new Error("checkpoint resume loads the saved flow manifest; omit --fixture");
@@ -64811,6 +64831,8 @@ function parseExecutionArgs(command, argv) {
   };
   if (goal !== void 0)
     result.goal = goal;
+  if (why !== void 0)
+    result.why = why;
   if (flowName !== void 0)
     result.flowName = flowName;
   if (runFolder !== void 0)
@@ -65232,6 +65254,7 @@ async function runExecutionCommand(args, options) {
       runDir: runFolder,
       runId,
       goal: operatorGoal,
+      ...args.why === void 0 ? {} : { why: args.why },
       now,
       projectRoot,
       childCompiledFlowResolver: defaultChildCompiledFlowResolver(args.flowRoot),

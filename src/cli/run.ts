@@ -66,6 +66,7 @@ export interface ParsedArgs {
   command: 'run' | 'resume';
   flowName?: string;
   goal?: string;
+  why?: string;
   axes: AxesValue;
   rigorProvided: boolean;
   tournamentProvided: boolean;
@@ -121,6 +122,7 @@ function runtimeHostKind(options: RunCommandOptions): HostKindValue | undefined 
 function addExecutionOptions(program: Command): Command {
   return program
     .option('--goal <goal>')
+    .option('--why <why>')
     .option('--rigor <lite|standard|deep>')
     .option('--tournament')
     .option('--tournament-n <2|3|4>')
@@ -140,6 +142,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
 
   const opts = program.opts<{
     goal?: string;
+    why?: string;
     rigor?: string;
     tournament?: boolean;
     tournamentN?: string;
@@ -193,6 +196,10 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   }
 
   const goal = opts.goal;
+  const why = opts.why;
+  if (why !== undefined && why.length === 0) {
+    throw new Error('--why must be non-empty when provided');
+  }
   const runFolder = opts.runFolder;
   const fixturePath = opts.fixture;
   const flowRoot = opts.flowRoot;
@@ -213,6 +220,9 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     }
     if (goal !== undefined) {
       throw new Error('checkpoint resume reuses the saved run goal; omit --goal');
+    }
+    if (why !== undefined) {
+      throw new Error('checkpoint resume reuses the saved run goal; omit --why');
     }
     if (fixturePath !== undefined) {
       throw new Error('checkpoint resume loads the saved flow manifest; omit --fixture');
@@ -255,6 +265,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     includeUntrackedContent,
   };
   if (goal !== undefined) result.goal = goal;
+  if (why !== undefined) result.why = why;
   if (flowName !== undefined) result.flowName = flowName;
   if (runFolder !== undefined) result.runFolder = runFolder;
   if (fixturePath !== undefined) result.fixturePath = fixturePath;
@@ -792,6 +803,7 @@ export async function runExecutionCommand(
       runDir: runFolder,
       runId,
       goal: operatorGoal,
+      ...(args.why === undefined ? {} : { why: args.why }),
       now,
       projectRoot,
       childCompiledFlowResolver: defaultChildCompiledFlowResolver(args.flowRoot),

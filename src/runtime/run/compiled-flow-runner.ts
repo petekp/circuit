@@ -29,6 +29,7 @@ export interface CompiledFlowRunOptions extends RuntimeExecutionCapabilities {
   readonly runDir: string;
   readonly runId?: string;
   readonly goal: string;
+  readonly why?: string;
   readonly entryModeName?: string;
   readonly depth?: string;
   readonly axes?: Axes;
@@ -86,6 +87,7 @@ export async function runCompiledFlowWithWaiting(
       runDir: options.runDir,
       ...(options.runId === undefined ? {} : { runId: options.runId }),
       goal: options.goal,
+      ...(options.why === undefined ? {} : { why: options.why }),
       manifestHash: computeManifestHash(options.flowBytes),
       manifestBytes: options.flowBytes,
       workContractRef: tracedWorkContractRef,

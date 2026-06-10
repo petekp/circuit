@@ -73,11 +73,15 @@ metacharacters:
      starts a new single-quoted string).
    - Then invoke the CLI with the selected explicit flow name, passing the
      escaped, single-quoted task as the value of `--goal`.
+   - If the user stated a reason behind the task — the stakes, what it
+     unblocks, why now — pass it as `--why` after the goal, escaped and
+     single-quoted the same way. Omit the flag when no reason was stated;
+     never invent one.
 
-   Example for a Fix task:
+   Example for a Fix task with a stated reason:
 
    ```bash
-   ./bin/circuit run fix --goal 'the checkout total is wrong when discounts and tax both apply' --progress jsonl
+   ./bin/circuit run fix --goal 'the checkout total is wrong when discounts and tax both apply' --why 'totals are blocking the release cut' --progress jsonl
    ```
 
    Example for a Review task:

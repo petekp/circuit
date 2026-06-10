@@ -477,6 +477,8 @@ export async function executeProductionRelayAttempt(input: {
     // Slice loop: when this relay runs one slice of a slice loop, scope the
     // worker to that slice's unit of work. Undefined on single-pass runs.
     context.activeSlice,
+    // Operator-stated reason behind the goal (--why); renders under the goal.
+    context.why,
   );
 
   const request = step.writes?.request;

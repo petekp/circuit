@@ -216,6 +216,7 @@ export function composeRelayPrompt(
   flowId?: string,
   rigor?: string,
   activeSlice?: unknown,
+  operatorWhy?: string,
 ): string {
   const readsBody =
     step.reads.length === 0
@@ -251,7 +252,14 @@ export function composeRelayPrompt(
     '',
     ...(operatorGoal === undefined || operatorGoal.length === 0
       ? []
-      : ['Operator Goal:', operatorGoal, '']),
+      : [
+          'Operator Goal:',
+          operatorGoal,
+          // The operator's stated reason qualifies the goal, so it renders only
+          // inside the goal block; without a goal there is nothing to qualify.
+          ...(operatorWhy === undefined || operatorWhy.length === 0 ? [] : [`Why: ${operatorWhy}`]),
+          '',
+        ]),
     ...(memorySection === undefined ? [] : [memorySection, '']),
     ...(sliceSection === undefined ? [] : [sliceSection, '']),
     pullSection,
