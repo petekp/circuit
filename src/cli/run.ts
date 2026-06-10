@@ -31,6 +31,7 @@ import { runAutonomousContinuation } from '../app/run-envelope/autonomous-run.js
 import { validateCompiledFlowKindPolicy } from '../flows/canonical-stage-policy.js';
 import { findCompiledFlowPackageById, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
+import { CONTROL_PLANE_RUNS_DIR } from '../shared/control-plane-paths.js';
 import { progressDisplay, progressPresentation } from '../shared/progress-output.js';
 import type { ComposeWriterFn, RelayFn } from '../shared/relay-runtime-types.js';
 import { parseCommanderOrThrow } from './commander-support.js';
@@ -58,7 +59,7 @@ import {
   showRuntimeDecision,
 } from './runtime-routing-policy.js';
 
-const DEFAULT_RUNS_BASE = '.circuit/runs';
+const DEFAULT_RUNS_BASE = CONTROL_PLANE_RUNS_DIR;
 const AUTONOMOUS_LOOP_RELATIVE_PATH = 'reports/autonomous-loop.json';
 
 export interface ParsedArgs {

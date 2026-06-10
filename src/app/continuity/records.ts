@@ -3,7 +3,7 @@
 // and call into this module.
 
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { CompiledFlow } from '../../schemas/compiled-flow.js';
 import {
@@ -14,10 +14,11 @@ import {
 } from '../../schemas/continuity.js';
 import type { ControlPlaneFileStem } from '../../schemas/scalars.js';
 import type { Snapshot, SnapshotStatus } from '../../schemas/snapshot.js';
+import { CONTROL_PLANE_DIR } from '../../shared/control-plane-paths.js';
 import { readManifestSnapshot } from '../../shared/manifest-snapshot.js';
 import { projectRunStatusFromRunFolder } from '../run-status/run-folder-projector.js';
 
-export const DEFAULT_CONTROL_PLANE = '.circuit';
+export const DEFAULT_CONTROL_PLANE = CONTROL_PLANE_DIR;
 
 export function resolveProjectRootArg(args: { readonly projectRoot?: string }): string {
   return resolve(args.projectRoot ?? process.cwd());
@@ -70,19 +71,6 @@ function activeRunPath(controlPlane: string): string {
 export function writeJson(path: string, value: unknown): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-/**
- * Atomic JSON write: stage to a sibling temp file, then rename over the
- * target. Rename is atomic within a filesystem, so a concurrent reader sees
- * either the old file or the new one, never a torn half-write. The ambient
- * harvest fires on every Stop, so torn writes are a real risk without this.
- */
-export function writeJsonAtomic(path: string, value: unknown): void {
-  mkdirSync(dirname(path), { recursive: true });
-  const staging = `${path}.${randomUUID()}.tmp`;
-  writeFileSync(staging, `${JSON.stringify(value, null, 2)}\n`);
-  renameSync(staging, path);
 }
 
 export function writeMarkdown(path: string, value: string): void {

@@ -7,6 +7,7 @@
 
 import { isAbsolute, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { CONTROL_PLANE_RUNS_DIR } from '../control-plane-paths.js';
 import { type Intent, chip, verdictBanner } from './components.js';
 import { MAX_BULLET_LEN, MAX_PROMPT_LEN, escapeHtml, renderPage, truncate } from './page.js';
 
@@ -128,7 +129,7 @@ export function runArtifactPreviewHref(input: {
   if (normalized.startsWith('prototype-files/')) return encodeUrlPath(`../${normalized}`);
 
   const runId = runIdFromFolder(input.runFolder);
-  const currentRunPrefix = runId === undefined ? undefined : `.circuit/runs/${runId}/`;
+  const currentRunPrefix = runId === undefined ? undefined : `${CONTROL_PLANE_RUNS_DIR}/${runId}/`;
   if (currentRunPrefix !== undefined && normalized.startsWith(currentRunPrefix)) {
     return encodeUrlPath(`../${normalized.slice(currentRunPrefix.length)}`);
   }

@@ -1,6 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { type MemoryInputV0, MemoryInputV0 as MemoryInputV0Schema } from '../schemas/index.js';
+import { writeTextAtomic } from '../shared/atomic-io.js';
+import { CONTROL_PLANE_MEMORY_DIR } from '../shared/control-plane-paths.js';
 
 // The local, physically-per-project store for self-auditing project facts
 // (Slice 5). It holds line-delimited `MemoryInputV0` records with
@@ -15,8 +17,9 @@ import { type MemoryInputV0, MemoryInputV0 as MemoryInputV0Schema } from '../sch
 // Held as local constants (not imported from the history/run-envelope modules)
 // so this writer does not couple to the in-flight architecture-hardening file
 // layout; the design's rule is "target stable contracts, not current file
-// locations".
-export const MEMORY_DIR_RELATIVE_PATH = '.circuit/memory';
+// locations". The control-plane spelling itself comes from the shared
+// canonical constants.
+export const MEMORY_DIR_RELATIVE_PATH = CONTROL_PLANE_MEMORY_DIR;
 export const PROJECT_FACTS_FILE = 'project.v1.jsonl';
 export const MEMORY_MANIFEST_FILE = 'manifest.json';
 
@@ -131,10 +134,10 @@ export function readProjectFacts(options: ReadProjectFactsOptions = {}): ReadPro
   return { facts: [...byId.values()], warnings };
 }
 
-// Atomically rewrite the full fact set (eviction/forget is a rewrite). Writes a
-// pid-scoped tmp file, re-parses every line through the schema before the rename
-// commits, then renames into place — the Slice 1 write discipline. A record that
-// is not a valid `kind:"project"` fact throws before any file is touched.
+// Atomically rewrite the full fact set (eviction/forget is a rewrite). Stages a
+// tmp file, re-parses every line through the schema before the rename commits,
+// then renames into place — the Slice 1 write discipline. A record that is not
+// a valid `kind:"project"` fact throws before any file is touched.
 export function rewriteProjectFacts(
   records: readonly MemoryInputV0[],
   options: ProjectStoreOptions = {},
@@ -147,17 +150,17 @@ export function rewriteProjectFacts(
     }
     return parsed;
   });
-  mkdirSync(paths.memoryDir, { recursive: true });
   const body = validated.map((record) => JSON.stringify(record)).join('\n');
   const out = body.length === 0 ? '' : `${body}\n`;
-  const tmpPath = `${paths.factsPath}.tmp-${process.pid}`;
-  writeFileSync(tmpPath, out, 'utf8');
-  // Re-parse the bytes that will land, so a serialization defect cannot commit.
-  for (const line of readFileSync(tmpPath, 'utf8').split('\n')) {
-    if (line.trim().length === 0) continue;
-    MemoryInputV0Schema.parse(JSON.parse(line) as unknown);
-  }
-  renameSync(tmpPath, paths.factsPath);
+  writeTextAtomic(paths.factsPath, out, {
+    // Re-parse the bytes that will land, so a serialization defect cannot commit.
+    validate: (raw) => {
+      for (const line of raw.split('\n')) {
+        if (line.trim().length === 0) continue;
+        MemoryInputV0Schema.parse(JSON.parse(line) as unknown);
+      }
+    },
+  });
   return paths.factsPath;
 }
 

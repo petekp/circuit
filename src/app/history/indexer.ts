@@ -16,11 +16,12 @@ import {
   HistoryStatusV1,
   type HistoryWarningV1,
 } from '../../schemas/index.js';
+import { CONTROL_PLANE_HISTORY_DIR } from '../../shared/control-plane-paths.js';
 import { mtimeMs } from '../../shared/run-artifact-io.js';
 import { extractRunHistoryDocuments } from './extract.js';
 import { collectRunSourceFiles } from './run-source-files.js';
 
-export const DEFAULT_INDEX_DIR = '.circuit/history';
+export const DEFAULT_INDEX_DIR = CONTROL_PLANE_HISTORY_DIR;
 export const HISTORY_DOCUMENTS_FILE = 'documents.v1.jsonl';
 export const HISTORY_MANIFEST_FILE = 'manifest.v1.json';
 export const HISTORY_MEMORY_MERGE_FILE = 'memory-merge.v1.json';

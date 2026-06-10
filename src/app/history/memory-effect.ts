@@ -1,4 +1,3 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   HISTORY_AUTHORITY_NOTICE,
@@ -15,6 +14,7 @@ import {
   type MemoryMergeRunLinkageV1,
   type RunEnvelopeOutcome,
 } from '../../schemas/index.js';
+import { writeJsonAtomic } from '../../shared/atomic-io.js';
 import { isFailureOutcome } from '../../shared/outcome.js';
 import { HISTORY_MEMORY_EFFECT_FILE, type HistoryPaths } from './indexer.js';
 import { type BuildMemoryMergeReportOptions, buildMemoryMergeReport } from './memory-merge.js';
@@ -318,11 +318,9 @@ export function buildMemoryEffectReport(
 // Persist under <index-dir>/memory-effect.v1.json (atomic tmp+rename, re-parsed
 // to validate before the rename commits) — identical discipline to Slice 1.
 export function writeMemoryEffectReport(report: HistoryMemoryEffect, paths: HistoryPaths): string {
-  mkdirSync(paths.indexDir, { recursive: true });
   const outPath = join(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
-  const tmpPath = `${outPath}.tmp-${process.pid}`;
-  writeFileSync(tmpPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-  HistoryMemoryEffectV1.parse(JSON.parse(readFileSync(tmpPath, 'utf8')) as unknown);
-  renameSync(tmpPath, outPath);
+  writeJsonAtomic(outPath, report, {
+    validate: (raw) => HistoryMemoryEffectV1.parse(JSON.parse(raw) as unknown),
+  });
   return outPath;
 }

@@ -13,6 +13,7 @@ import {
 import { basename, join, resolve } from 'node:path';
 import { ContinuityIndex, ContinuityRecord } from '../../schemas/continuity.js';
 import type { ControlPlaneFileStem } from '../../schemas/scalars.js';
+import { writeJsonAtomic } from '../../shared/atomic-io.js';
 import {
   DEFAULT_CONTROL_PLANE,
   continuityRoot,
@@ -21,7 +22,6 @@ import {
   readJsonSafely,
   recordPath,
   recordsRoot,
-  writeJsonAtomic,
 } from './records.js';
 
 export type AmbientSource = 'stop' | 'session-end' | 'pre-compact';

@@ -39339,6 +39339,16 @@ var PrototypeResult = external_exports.union([
 // dist/flows/prototype/writers/brief.js
 import { createHash as createHash2 } from "node:crypto";
 import { isAbsolute as isAbsolute5, relative as relative5 } from "node:path";
+
+// dist/shared/control-plane-paths.js
+var CONTROL_PLANE_DIR = ".circuit";
+var CONTROL_PLANE_RUNS_DIR = `${CONTROL_PLANE_DIR}/runs`;
+var CONTROL_PLANE_HISTORY_DIR = `${CONTROL_PLANE_DIR}/history`;
+var CONTROL_PLANE_MEMORY_DIR = `${CONTROL_PLANE_DIR}/memory`;
+var CONTROL_PLANE_PROTOTYPES_DIR = `${CONTROL_PLANE_DIR}/prototypes`;
+var PROJECT_CONFIG_RELATIVE_SEGMENTS = [CONTROL_PLANE_DIR, "config.yaml"];
+
+// dist/flows/prototype/writers/brief.js
 function normalizeSlashes(value) {
   return value.replace(/\\/g, "/");
 }
@@ -39355,7 +39365,7 @@ function prototypeRoot(context) {
       return `${normalizeSlashes(relativeRunFolder)}/prototype-files`;
     }
   }
-  return `.circuit/prototypes/${hashRunFolder(context.runFolder)}`;
+  return `${CONTROL_PLANE_PROTOTYPES_DIR}/${hashRunFolder(context.runFolder)}`;
 }
 function cleanGoal(goal) {
   return goal.replace(/^\s*prototype\s*:\s*/i, "").trim() || goal.trim();
@@ -40932,7 +40942,7 @@ function runArtifactPreviewHref(input) {
   if (normalized.startsWith("prototype-files/"))
     return encodeUrlPath(`../${normalized}`);
   const runId = runIdFromFolder(input.runFolder);
-  const currentRunPrefix = runId === void 0 ? void 0 : `.circuit/runs/${runId}/`;
+  const currentRunPrefix = runId === void 0 ? void 0 : `${CONTROL_PLANE_RUNS_DIR}/${runId}/`;
   if (currentRunPrefix !== void 0 && normalized.startsWith(currentRunPrefix)) {
     return encodeUrlPath(`../${normalized.slice(currentRunPrefix.length)}`);
   }
@@ -44212,13 +44222,13 @@ async function runCreateCommand(argv, options = {}) {
 
 // dist/cli/handoff.js
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { existsSync as existsSync15, readFileSync as readFileSync30 } from "node:fs";
+import { existsSync as existsSync15, readFileSync as readFileSync31 } from "node:fs";
 import { basename as basename2, resolve as resolve12 } from "node:path";
 
 // dist/app/continuity/harvest.js
 import { execFileSync } from "node:child_process";
 import { createHash as createHash4 } from "node:crypto";
-import { closeSync as closeSync2, existsSync as existsSync13, openSync as openSync2, readFileSync as readFileSync28, readSync as readSync2, readdirSync, rmSync as rmSync2, statSync as statSync2 } from "node:fs";
+import { closeSync as closeSync2, existsSync as existsSync13, openSync as openSync2, readFileSync as readFileSync29, readSync as readSync2, readdirSync, rmSync as rmSync2, statSync as statSync2 } from "node:fs";
 import { basename, join as join10, resolve as resolve10 } from "node:path";
 
 // dist/schemas/snapshot.js
@@ -44371,13 +44381,29 @@ var indexOwnPropertyGuard = external_exports.custom((raw) => {
 }, "continuity index has inherited (not own) required field; prototype-chain smuggle rejected");
 var ContinuityIndex = indexOwnPropertyGuard.pipe(ContinuityIndexBody);
 
-// dist/app/continuity/records.js
+// dist/shared/atomic-io.js
 import { randomUUID as randomUUID3 } from "node:crypto";
-import { existsSync as existsSync12, mkdirSync as mkdirSync2, readFileSync as readFileSync27, renameSync, writeFileSync as writeFileSync3 } from "node:fs";
-import { dirname as dirname3, join as join9, resolve as resolve9 } from "node:path";
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync25, renameSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { dirname as dirname3 } from "node:path";
+function writeTextAtomic(path, contents, options = {}) {
+  mkdirSync2(dirname3(path), { recursive: true });
+  const staging = `${path}.${randomUUID3()}.tmp`;
+  writeFileSync2(staging, contents);
+  options.validate?.(readFileSync25(staging, "utf8"));
+  renameSync(staging, path);
+}
+function writeJsonAtomic(path, value, options = {}) {
+  writeTextAtomic(path, `${JSON.stringify(value, null, 2)}
+`, options);
+}
+
+// dist/app/continuity/records.js
+import { randomUUID as randomUUID4 } from "node:crypto";
+import { existsSync as existsSync12, mkdirSync as mkdirSync3, readFileSync as readFileSync28, writeFileSync as writeFileSync4 } from "node:fs";
+import { dirname as dirname4, join as join9, resolve as resolve9 } from "node:path";
 
 // dist/shared/manifest-snapshot.js
-import { readFileSync as readFileSync25, writeFileSync as writeFileSync2 } from "node:fs";
+import { readFileSync as readFileSync26, writeFileSync as writeFileSync3 } from "node:fs";
 import { join as join5 } from "node:path";
 
 // dist/schemas/manifest.js
@@ -44424,7 +44450,7 @@ function manifestSnapshotPath(runFolder) {
   return join5(runFolder, "manifest.snapshot.json");
 }
 function readManifestSnapshot(runFolder) {
-  const text = readFileSync25(manifestSnapshotPath(runFolder), "utf8");
+  const text = readFileSync26(manifestSnapshotPath(runFolder), "utf8");
   const raw = JSON.parse(text);
   return ManifestSnapshot.parse(raw);
 }
@@ -44623,7 +44649,7 @@ function stepMetadata(flow, stepId) {
 }
 
 // dist/app/run-status/runtime-run-folder.js
-import { readFileSync as readFileSync26 } from "node:fs";
+import { readFileSync as readFileSync27 } from "node:fs";
 import { join as join8 } from "node:path";
 
 // dist/runtime/projections/tournament-checkpoint-context.js
@@ -44823,7 +44849,7 @@ function isRecord2(value) {
 }
 function readRawTraceEntries(runFolder) {
   const tracePath = join8(runFolder, "trace.ndjson");
-  const text = readFileSync26(tracePath, "utf8");
+  const text = readFileSync27(tracePath, "utf8");
   const trimmed = text.trim();
   if (trimmed.length === 0)
     return [];
@@ -45004,7 +45030,7 @@ function runtimeWaitingCheckpointProjection(input) {
   let requestAbs;
   try {
     requestAbs = resolveRunFilePath(input.runFolder, requestPath);
-    requestText = readFileSync26(requestAbs, "utf8");
+    requestText = readFileSync27(requestAbs, "utf8");
   } catch (err) {
     return invalidProjection({
       runFolder: input.runFolder,
@@ -45065,7 +45091,7 @@ function runtimeWaitingCheckpointProjection(input) {
   const presentation = tournamentCheckpointPresentation({
     readJson: (path) => {
       try {
-        return JSON.parse(readFileSync26(join8(input.runFolder, path), "utf8"));
+        return JSON.parse(readFileSync27(join8(input.runFolder, path), "utf8"));
       } catch {
         return void 0;
       }
@@ -45298,7 +45324,7 @@ function projectRunStatusFromRunFolder(runFolder) {
 }
 
 // dist/app/continuity/records.js
-var DEFAULT_CONTROL_PLANE = ".circuit";
+var DEFAULT_CONTROL_PLANE = CONTROL_PLANE_DIR;
 function resolveProjectRootArg(args) {
   return resolve9(args.projectRoot ?? process.cwd());
 }
@@ -45327,20 +45353,13 @@ function activeRunPath(controlPlane) {
   return join9(controlPlane, "active-run.md");
 }
 function writeJson2(path, value) {
-  mkdirSync2(dirname3(path), { recursive: true });
-  writeFileSync3(path, `${JSON.stringify(value, null, 2)}
+  mkdirSync3(dirname4(path), { recursive: true });
+  writeFileSync4(path, `${JSON.stringify(value, null, 2)}
 `);
-}
-function writeJsonAtomic(path, value) {
-  mkdirSync2(dirname3(path), { recursive: true });
-  const staging = `${path}.${randomUUID3()}.tmp`;
-  writeFileSync3(staging, `${JSON.stringify(value, null, 2)}
-`);
-  renameSync(staging, path);
 }
 function writeMarkdown(path, value) {
-  mkdirSync2(dirname3(path), { recursive: true });
-  writeFileSync3(path, value.endsWith("\n") ? value : `${value}
+  mkdirSync3(dirname4(path), { recursive: true });
+  writeFileSync4(path, value.endsWith("\n") ? value : `${value}
 `);
 }
 function stageForCurrentStep(flow, currentStep) {
@@ -45394,7 +45413,7 @@ function buildRecord(args, now) {
   }
   const projectRoot = resolveProjectRootArg(args);
   const createdAt = args.createdAt ?? now().toISOString();
-  const recordId = args.recordId ?? `continuity-${randomUUID3()}`;
+  const recordId = args.recordId ?? `continuity-${randomUUID4()}`;
   const base = {
     schema_version: 1,
     record_id: recordId,
@@ -45481,7 +45500,7 @@ function writeActiveRun(controlPlane, record2) {
 }
 function readJsonSafely(path) {
   try {
-    return { ok: true, value: JSON.parse(readFileSync27(path, "utf8")) };
+    return { ok: true, value: JSON.parse(readFileSync28(path, "utf8")) };
   } catch {
     return { ok: false };
   }
@@ -45719,7 +45738,7 @@ function parseTranscriptForHarvest(transcriptPath, cursor) {
   }
   let buf;
   try {
-    buf = readFileSync28(transcriptPath);
+    buf = readFileSync29(transcriptPath);
   } catch {
     return void 0;
   }
@@ -45977,9 +45996,9 @@ function ambientSourceFrom(value, hookEventName) {
 }
 
 // dist/cli/handoff-codex-hooks.js
-import { copyFileSync, existsSync as existsSync14, mkdirSync as mkdirSync3, readFileSync as readFileSync29, writeFileSync as writeFileSync4 } from "node:fs";
+import { copyFileSync, existsSync as existsSync14, mkdirSync as mkdirSync4, readFileSync as readFileSync30, writeFileSync as writeFileSync5 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname4, join as join11, resolve as resolve11 } from "node:path";
+import { dirname as dirname5, join as join11, resolve as resolve11 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var HANDOFF_HOOKS_API_VERSION = "handoff-hooks-v1";
 var HANDOFF_HOOKS_SCHEMA_VERSION = 1;
@@ -46002,7 +46021,7 @@ function missingDefaultLauncherMessage(launcher) {
   ].join(" ");
 }
 function defaultLauncherPath() {
-  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname4(fileURLToPath2(import.meta.url)));
+  return resolveDefaultLauncher(process.env.CIRCUIT_PLUGIN_ROOT, dirname5(fileURLToPath2(import.meta.url)));
 }
 function parseCodexHooksHost(args) {
   if (args.host === "codex")
@@ -46042,7 +46061,7 @@ function defaultHooksConfig() {
 function readHooksConfig(path) {
   if (!existsSync14(path))
     return defaultHooksConfig();
-  const parsed = JSON.parse(readFileSync29(path, "utf8"));
+  const parsed = JSON.parse(readFileSync30(path, "utf8"));
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error("hooks file must contain a JSON object");
   }
@@ -46150,7 +46169,7 @@ function launcherPathFromCircuitHookCommand(command) {
   return launcher;
 }
 function writeHooksConfig(path, config2) {
-  mkdirSync3(dirname4(path), { recursive: true });
+  mkdirSync4(dirname5(path), { recursive: true });
   let backupPath;
   if (existsSync14(path)) {
     const candidate = `${path}.circuit-backup`;
@@ -46159,7 +46178,7 @@ function writeHooksConfig(path, config2) {
       backupPath = candidate;
     }
   }
-  writeFileSync4(path, `${JSON.stringify(config2, null, 2)}
+  writeFileSync5(path, `${JSON.stringify(config2, null, 2)}
 `);
   return backupPath === void 0 ? {} : { backupPath };
 }
@@ -46349,8 +46368,8 @@ function codexInstallAssurance(input) {
     return { status: "already_nudged", marker_path: markerPath };
   const stampedAt = (input.now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
   try {
-    mkdirSync3(dirname4(markerPath), { recursive: true });
-    writeFileSync4(markerPath, `nudged at ${stampedAt}
+    mkdirSync4(dirname5(markerPath), { recursive: true });
+    writeFileSync5(markerPath, `nudged at ${stampedAt}
 `);
   } catch {
   }
@@ -46670,7 +46689,7 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now, gitProbe)
   }
   let record2;
   try {
-    record2 = ContinuityRecord.parse(JSON.parse(readFileSync30(recordAbs, "utf8")));
+    record2 = ContinuityRecord.parse(JSON.parse(readFileSync31(recordAbs, "utf8")));
   } catch {
     return invalidBrief(args, "record_invalid", "Continuity record is malformed.", pointer.record_id);
   }
@@ -46709,7 +46728,7 @@ function handoffBrief(args, now = () => /* @__PURE__ */ new Date(), gitProbe = r
     return emptyBrief(args, "no_index");
   let index;
   try {
-    index = ContinuityIndex.parse(JSON.parse(readFileSync30(indexAbs, "utf8")));
+    index = ContinuityIndex.parse(JSON.parse(readFileSync31(indexAbs, "utf8")));
   } catch {
     return invalidBrief(args, "index_invalid", "Continuity index is malformed.");
   }
@@ -46750,7 +46769,7 @@ function debugHook(message) {
 function readHookInput() {
   if (process.stdin.isTTY)
     return {};
-  const raw = readFileSync30(0, "utf8");
+  const raw = readFileSync31(0, "utf8");
   if (raw.trim().length === 0)
     return {};
   return JSON.parse(raw);
@@ -47249,13 +47268,13 @@ async function runHandoffCommand(argv, options = {}) {
 import { basename as basename5 } from "node:path";
 
 // dist/app/history/indexer.js
-import { existsSync as existsSync19, mkdirSync as mkdirSync4, readFileSync as readFileSync32, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync19, mkdirSync as mkdirSync5, readFileSync as readFileSync33, renameSync as renameSync2, writeFileSync as writeFileSync6 } from "node:fs";
 import { join as join13, resolve as resolve15 } from "node:path";
 
 // dist/history/run-corpus.js
 import { existsSync as existsSync16, readdirSync as readdirSync2, statSync as statSync3 } from "node:fs";
 import { basename as basename3, join as join12 } from "node:path";
-var DEFAULT_RUNS_BASE = ".circuit/runs";
+var DEFAULT_RUNS_BASE = CONTROL_PLANE_RUNS_DIR;
 var HistoryCommandError = class extends Error {
   code;
   paths;
@@ -49773,7 +49792,7 @@ function mtimeMs(path) {
 }
 
 // dist/app/history/extract.js
-import { existsSync as existsSync18, lstatSync as lstatSync6, readFileSync as readFileSync31, readdirSync as readdirSync4, realpathSync as realpathSync5 } from "node:fs";
+import { existsSync as existsSync18, lstatSync as lstatSync6, readFileSync as readFileSync32, readdirSync as readdirSync4, realpathSync as realpathSync5 } from "node:fs";
 import { basename as basename4, isAbsolute as isAbsolute11, relative as relative12, resolve as resolve14 } from "node:path";
 
 // dist/shared/outcome.js
@@ -49892,7 +49911,7 @@ function safeDateString(value) {
   return Number.isNaN(Date.parse(raw)) ? void 0 : new Date(raw).toISOString();
 }
 function readJson2(path) {
-  return JSON.parse(readFileSync31(path, "utf8"));
+  return JSON.parse(readFileSync32(path, "utf8"));
 }
 function readJsonRecord(path) {
   try {
@@ -49903,7 +49922,7 @@ function readJsonRecord(path) {
   }
 }
 function sha256File(path) {
-  return sha256OfString(readFileSync31(path, "utf8"));
+  return sha256OfString(readFileSync32(path, "utf8"));
 }
 function isInside4(root, target) {
   const fromRoot = relative12(root, target);
@@ -49961,7 +49980,7 @@ function parseTrace(runFolder, runFolderName) {
   }
   let entries = [];
   try {
-    entries = readFileSync31(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
+    entries = readFileSync32(tracePath, "utf8").split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line)).filter(isObject3);
   } catch (error51) {
     return {
       entries: [],
@@ -50496,7 +50515,7 @@ function extractRunHistoryDocuments(runFolder) {
 }
 
 // dist/app/history/indexer.js
-var DEFAULT_INDEX_DIR = ".circuit/history";
+var DEFAULT_INDEX_DIR = CONTROL_PLANE_HISTORY_DIR;
 var HISTORY_DOCUMENTS_FILE = "documents.v1.jsonl";
 var HISTORY_MANIFEST_FILE = "manifest.v1.json";
 var HISTORY_MEMORY_MERGE_FILE = "memory-merge.v1.json";
@@ -50585,17 +50604,17 @@ function rebuildHistoryIndex(options = {}) {
     },
     warnings
   });
-  mkdirSync4(paths.indexDir, { recursive: true });
+  mkdirSync5(paths.indexDir, { recursive: true });
   const documentsJsonl = `${documents.map((doc) => JSON.stringify(HistoryDocumentV1.parse(doc))).join("\n")}
 `;
   const manifestJson = `${JSON.stringify(manifest, null, 2)}
 `;
   const documentsTmp = `${paths.documentsPath}.tmp-${process.pid}`;
   const manifestTmp = `${paths.manifestPath}.tmp-${process.pid}`;
-  writeFileSync5(documentsTmp, documentsJsonl, "utf8");
-  writeFileSync5(manifestTmp, manifestJson, "utf8");
-  HistoryManifestV1.parse(JSON.parse(readFileSync32(manifestTmp, "utf8")));
-  for (const line of readFileSync32(documentsTmp, "utf8").split("\n")) {
+  writeFileSync6(documentsTmp, documentsJsonl, "utf8");
+  writeFileSync6(manifestTmp, manifestJson, "utf8");
+  HistoryManifestV1.parse(JSON.parse(readFileSync33(manifestTmp, "utf8")));
+  for (const line of readFileSync33(documentsTmp, "utf8").split("\n")) {
     if (line.trim().length === 0)
       continue;
     HistoryDocumentV1.parse(JSON.parse(line));
@@ -50616,7 +50635,7 @@ function readHistoryManifest(paths) {
   }
   let raw;
   try {
-    raw = JSON.parse(readFileSync32(paths.manifestPath, "utf8"));
+    raw = JSON.parse(readFileSync33(paths.manifestPath, "utf8"));
   } catch (error51) {
     throw new HistoryCommandError("index_corrupt", `history manifest corrupt: ${error51 instanceof Error ? error51.message : String(error51)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -50640,7 +50659,7 @@ function readHistoryIndex(options = {}) {
   const manifest = readHistoryManifest(paths);
   let documentsRaw = "";
   try {
-    documentsRaw = readFileSync32(paths.documentsPath, "utf8");
+    documentsRaw = readFileSync33(paths.documentsPath, "utf8");
   } catch (error51) {
     throw new HistoryCommandError("index_corrupt", `history documents unreadable: ${error51 instanceof Error ? error51.message : String(error51)}`, { runsBase: paths.runsBase, indexDir: paths.indexDir });
   }
@@ -50710,7 +50729,7 @@ function historyStatus(options = {}) {
 }
 
 // dist/app/history/memory-effect-read.js
-import { existsSync as existsSync20, readFileSync as readFileSync33 } from "node:fs";
+import { existsSync as existsSync20, readFileSync as readFileSync34 } from "node:fs";
 import { join as join14 } from "node:path";
 function loadMemoryEffectReport(paths) {
   const effectPath = join14(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
@@ -50726,7 +50745,7 @@ function loadMemoryEffectReport(paths) {
     };
   }
   try {
-    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync33(effectPath, "utf8")));
+    const report = HistoryMemoryEffectV1.parse(JSON.parse(readFileSync34(effectPath, "utf8")));
     return { report, warnings: [] };
   } catch (error51) {
     return {
@@ -50742,11 +50761,10 @@ function loadMemoryEffectReport(paths) {
 }
 
 // dist/app/history/memory-effect.js
-import { mkdirSync as mkdirSync6, readFileSync as readFileSync35, renameSync as renameSync4, writeFileSync as writeFileSync7 } from "node:fs";
 import { join as join16 } from "node:path";
 
 // dist/app/history/memory-merge.js
-import { existsSync as existsSync21, mkdirSync as mkdirSync5, readFileSync as readFileSync34, renameSync as renameSync3, writeFileSync as writeFileSync6 } from "node:fs";
+import { existsSync as existsSync21, readFileSync as readFileSync35 } from "node:fs";
 import { join as join15 } from "node:path";
 
 // dist/app/history/memory-identity.js
@@ -50785,7 +50803,7 @@ function readRecallInputs(runFolder, warnings) {
     return void 0;
   }
   try {
-    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync34(recallPath, "utf8")));
+    const recall = HistoryRecallReportV1.parse(JSON.parse(readFileSync35(recallPath, "utf8")));
     return new Map(recall.memory_inputs.map((memory) => [memory.memory_id, memory]));
   } catch (error51) {
     warnings.push({
@@ -50842,7 +50860,7 @@ function extractRunMemoryLinkage(runFolder) {
   }
   let envelope;
   try {
-    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync34(envelopePath, "utf8")));
+    envelope = RunEnvelopeRecord.parse(JSON.parse(readFileSync35(envelopePath, "utf8")));
   } catch (error51) {
     warnings.push({
       code: "source_invalid",
@@ -50940,13 +50958,10 @@ function buildMemoryMergeReport(options = {}) {
   });
 }
 function writeMemoryMergeReport(report, paths) {
-  mkdirSync5(paths.indexDir, { recursive: true });
   const outPath = join15(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
-  const tmpPath = `${outPath}.tmp-${process.pid}`;
-  writeFileSync6(tmpPath, `${JSON.stringify(report, null, 2)}
-`, "utf8");
-  HistoryMemoryMergeV1.parse(JSON.parse(readFileSync34(tmpPath, "utf8")));
-  renameSync3(tmpPath, outPath);
+  writeJsonAtomic(outPath, report, {
+    validate: (raw) => HistoryMemoryMergeV1.parse(JSON.parse(raw))
+  });
   return outPath;
 }
 
@@ -51140,13 +51155,10 @@ function buildMemoryEffectReport(options = {}) {
   });
 }
 function writeMemoryEffectReport(report, paths) {
-  mkdirSync6(paths.indexDir, { recursive: true });
   const outPath = join16(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
-  const tmpPath = `${outPath}.tmp-${process.pid}`;
-  writeFileSync7(tmpPath, `${JSON.stringify(report, null, 2)}
-`, "utf8");
-  HistoryMemoryEffectV1.parse(JSON.parse(readFileSync35(tmpPath, "utf8")));
-  renameSync4(tmpPath, outPath);
+  writeJsonAtomic(outPath, report, {
+    validate: (raw) => HistoryMemoryEffectV1.parse(JSON.parse(raw))
+  });
   return outPath;
 }
 
@@ -51234,8 +51246,8 @@ function historyMemoryInputPreview(input) {
 }
 
 // dist/app/history/pull-log.js
-import { existsSync as existsSync22, mkdirSync as mkdirSync7, readFileSync as readFileSync36, renameSync as renameSync5, writeFileSync as writeFileSync8 } from "node:fs";
-import { dirname as dirname5, join as join17 } from "node:path";
+import { existsSync as existsSync22, readFileSync as readFileSync36 } from "node:fs";
+import { join as join17 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error51) {
   return {
@@ -51285,12 +51297,9 @@ function appendPullLogEntry(runFolder, input) {
     return { warnings: [pullLogUnavailable(runFolder, error51)] };
   }
   try {
-    mkdirSync7(dirname5(outPath), { recursive: true });
-    const tmpPath = `${outPath}.tmp-${process.pid}`;
-    writeFileSync8(tmpPath, `${JSON.stringify(log, null, 2)}
-`, "utf8");
-    HistoryPullLogV1.parse(JSON.parse(readFileSync36(tmpPath, "utf8")));
-    renameSync5(tmpPath, outPath);
+    writeJsonAtomic(outPath, log, {
+      validate: (raw) => HistoryPullLogV1.parse(JSON.parse(raw))
+    });
     return { path: outPath, warnings };
   } catch (error51) {
     return { warnings: [...warnings, pullLogUnavailable(runFolder, error51)] };
@@ -51933,13 +51942,13 @@ import { basename as basename6, join as join19 } from "node:path";
 // dist/memory/project-identity.js
 var import_yaml2 = __toESM(require_dist(), 1);
 import { execFileSync as execFileSync3 } from "node:child_process";
-import { existsSync as existsSync25, mkdirSync as mkdirSync9, readFileSync as readFileSync39, renameSync as renameSync7, writeFileSync as writeFileSync10 } from "node:fs";
+import { existsSync as existsSync25, readFileSync as readFileSync39 } from "node:fs";
 import { resolve as resolve17 } from "node:path";
 
 // dist/memory/project-store.js
-import { existsSync as existsSync24, mkdirSync as mkdirSync8, readFileSync as readFileSync38, renameSync as renameSync6, writeFileSync as writeFileSync9 } from "node:fs";
+import { existsSync as existsSync24, readFileSync as readFileSync38 } from "node:fs";
 import { join as join18, resolve as resolve16 } from "node:path";
-var MEMORY_DIR_RELATIVE_PATH = ".circuit/memory";
+var MEMORY_DIR_RELATIVE_PATH = CONTROL_PLANE_MEMORY_DIR;
 var PROJECT_FACTS_FILE = "project.v1.jsonl";
 var MEMORY_MANIFEST_FILE = "manifest.json";
 function resolveProjectStorePaths(options = {}) {
@@ -52016,18 +52025,19 @@ function rewriteProjectFacts(records, options = {}) {
     }
     return parsed;
   });
-  mkdirSync8(paths.memoryDir, { recursive: true });
   const body = validated.map((record2) => JSON.stringify(record2)).join("\n");
   const out = body.length === 0 ? "" : `${body}
 `;
-  const tmpPath = `${paths.factsPath}.tmp-${process.pid}`;
-  writeFileSync9(tmpPath, out, "utf8");
-  for (const line of readFileSync38(tmpPath, "utf8").split("\n")) {
-    if (line.trim().length === 0)
-      continue;
-    MemoryInputV0.parse(JSON.parse(line));
-  }
-  renameSync6(tmpPath, paths.factsPath);
+  writeTextAtomic(paths.factsPath, out, {
+    // Re-parse the bytes that will land, so a serialization defect cannot commit.
+    validate: (raw) => {
+      for (const line of raw.split("\n")) {
+        if (line.trim().length === 0)
+          continue;
+        MemoryInputV0.parse(JSON.parse(line));
+      }
+    }
+  });
   return paths.factsPath;
 }
 function appendProjectFact(record2, options = {}) {
@@ -52057,7 +52067,7 @@ function normalizeGitRemoteUrl(url2) {
   return normalized;
 }
 function readConfigProjectId(repoRoot) {
-  const configPath = resolve17(repoRoot, ".circuit", "config.yaml");
+  const configPath = resolve17(repoRoot, ...PROJECT_CONFIG_RELATIVE_SEGMENTS);
   if (!existsSync25(configPath))
     return void 0;
   let raw;
@@ -52102,7 +52112,7 @@ function resolveProjectId(options = {}) {
       warnings: []
     };
   }
-  const runsBase = resolve17(repoRoot, ".circuit/runs");
+  const runsBase = resolve17(repoRoot, CONTROL_PLANE_RUNS_DIR);
   return {
     projectId: hashedId("p", runsBase),
     source: "runs_base",
@@ -52116,13 +52126,8 @@ function resolveProjectId(options = {}) {
 }
 function stampMemoryManifest(resolved, options = {}) {
   const paths = resolveProjectStorePaths(options);
-  mkdirSync9(paths.memoryDir, { recursive: true });
   const manifest = { project_id: resolved.projectId, source: resolved.source };
-  const tmpPath = `${paths.manifestPath}.tmp-${process.pid}`;
-  writeFileSync10(tmpPath, `${JSON.stringify(manifest, null, 2)}
-`, "utf8");
-  JSON.parse(readFileSync39(tmpPath, "utf8"));
-  renameSync7(tmpPath, paths.manifestPath);
+  writeJsonAtomic(paths.manifestPath, manifest, { validate: (raw) => JSON.parse(raw) });
   return paths.manifestPath;
 }
 
@@ -52381,7 +52386,7 @@ async function runMemoryCommand(argv, options = {}) {
   }
 }
 function latestRunFolder(runsBase) {
-  const base = runsBase ?? join19(process.cwd(), ".circuit/runs");
+  const base = runsBase ?? join19(process.cwd(), CONTROL_PLANE_RUNS_DIR);
   try {
     const folders = listCandidateRunFolders(base);
     return folders.length === 0 ? void 0 : folders[folders.length - 1];
@@ -52391,8 +52396,8 @@ function latestRunFolder(runsBase) {
 }
 
 // dist/cli/run.js
-import { randomUUID as randomUUID8 } from "node:crypto";
-import { existsSync as existsSync34, mkdirSync as mkdirSync14, readFileSync as readFileSync50, writeFileSync as writeFileSync15 } from "node:fs";
+import { randomUUID as randomUUID9 } from "node:crypto";
+import { existsSync as existsSync34, mkdirSync as mkdirSync10, readFileSync as readFileSync50, writeFileSync as writeFileSync11 } from "node:fs";
 import { dirname as dirname14, join as join35, resolve as resolve22 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
@@ -53696,7 +53701,7 @@ var TraceStore = class {
 };
 
 // dist/runtime/run/graph-runner.js
-import { randomUUID as randomUUID6 } from "node:crypto";
+import { randomUUID as randomUUID7 } from "node:crypto";
 
 // dist/shared/fanout-branch-template.js
 function resolveDottedPath(root, path) {
@@ -55597,7 +55602,7 @@ function isRubricJudgment(value) {
 }
 
 // dist/runtime/fanout/branch-execution.js
-import { randomUUID as randomUUID4 } from "node:crypto";
+import { randomUUID as randomUUID5 } from "node:crypto";
 import { dirname as dirname6, join as join23 } from "node:path";
 
 // dist/flows/registries/cross-report-validators.js
@@ -58225,7 +58230,7 @@ function planRelayFanoutBranchGuidanceDecision(input) {
 async function executeRelayFanoutBranch(step, context, branch, relayConnector, branchDirRel, branchDirAbs) {
   const startMs = Date.now();
   const attempt = context.activeStepAttempt ?? 1;
-  const childRunId = randomUUID4();
+  const childRunId = randomUUID5();
   const resultPath2 = `${branchDirRel}/result.json`;
   const reportPath = `${branchDirRel}/report.json`;
   await appendFanoutBranchStarted(context, {
@@ -58367,7 +58372,7 @@ async function executeRelayFanoutBranch(step, context, branch, relayConnector, b
 async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, branchDirRel, worktreePath) {
   const startMs = Date.now();
   const attempt = context.activeStepAttempt ?? 1;
-  const childRunId = randomUUID4();
+  const childRunId = randomUUID5();
   const resultPath2 = `${branchDirRel}/result.json`;
   await appendFanoutBranchStarted(context, {
     step_id: step.id,
@@ -58730,7 +58735,7 @@ async function executeFanoutInternal(step, context, relayConnector) {
         if (context.projectRoot === void 0) {
           throw new Error(`fanout step '${step.id}': projectRoot is required to anchor per-branch worktrees`);
         }
-        const worktreePath = joinPath2(context.projectRoot, ".circuit", "worktrees", context.runId, step.id, branch.branch_id);
+        const worktreePath = joinPath2(context.projectRoot, CONTROL_PLANE_DIR, "worktrees", context.runId, step.id, branch.branch_id);
         if (branchNeedsWorktree(branch))
           provisioned.push(worktreePath);
         outcome = await executeSubRunFanoutBranch(step, context, branch, worktreeRunner, branchDirRel, worktreePath);
@@ -58831,7 +58836,7 @@ async function executeFanout(step, context, relayConnector) {
 }
 
 // dist/runtime/executors/sub-run.js
-import { randomUUID as randomUUID5 } from "node:crypto";
+import { randomUUID as randomUUID6 } from "node:crypto";
 import { dirname as dirname7, join as join24 } from "node:path";
 function checkPassVerdicts(step) {
   const pass = step.check.pass;
@@ -58925,7 +58930,7 @@ async function executeSubRunInternal(step, context) {
   if (childFlow.id !== step.flowRef) {
     return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': resolver returned flow id '${childFlow.id}' but flow_ref names '${step.flowRef}'`);
   }
-  const childRunId = randomUUID5();
+  const childRunId = randomUUID6();
   const childRunDir = join24(dirname7(context.runDir), childRunId);
   await context.trace.append({
     run_id: context.runId,
@@ -60925,7 +60930,7 @@ function resolveManifestHash(flow, options) {
 async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   assertExecutableFlow(flow);
   const isResume = options.resumeCheckpoint !== void 0;
-  const runId = options.runId ?? randomUUID6();
+  const runId = options.runId ?? randomUUID7();
   const boundary = await openRunBoundary({
     runDir: options.runDir,
     isResume,
@@ -61869,7 +61874,7 @@ function loadProjectFactCandidates(options) {
   if (options.flowId === void 0) {
     return { candidates: [] };
   }
-  const runsBase = resolve19(options.runsBase ?? join27(resolve19(options.repoRoot), ".circuit/runs"));
+  const runsBase = resolve19(options.runsBase ?? join27(resolve19(options.repoRoot), CONTROL_PLANE_RUNS_DIR));
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const checkedAt = now().toISOString();
   const { facts } = readProjectFacts({
@@ -62094,7 +62099,7 @@ function prepareRunStartHistoryRecall(options) {
 }
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync31, mkdirSync as mkdirSync10, readFileSync as readFileSync47, rmSync as rmSync3, writeFileSync as writeFileSync11 } from "node:fs";
+import { existsSync as existsSync31, mkdirSync as mkdirSync6, readFileSync as readFileSync47, rmSync as rmSync3, writeFileSync as writeFileSync7 } from "node:fs";
 import { dirname as dirname10, isAbsolute as isAbsolute12, join as join28, relative as relative13, resolve as resolve20 } from "node:path";
 
 // dist/shared/operator-summary/json.js
@@ -63348,7 +63353,7 @@ function writeOperatorSummary(input) {
   const skillHookSummary = readSkillHookSummary(input.runFolder);
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
-  mkdirSync10(dirname10(outJsonPath), { recursive: true });
+  mkdirSync6(dirname10(outJsonPath), { recursive: true });
   const projector = getHtmlProjector(flowId);
   const candidateHtmlPath = htmlPath(input.runFolder);
   let outHtmlPath;
@@ -63383,7 +63388,7 @@ function writeOperatorSummary(input) {
       rmSync3(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
-      writeFileSync11(candidateHtmlPath, renderedHtml);
+      writeFileSync7(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
       if (existsSync31(candidateHtmlPath))
@@ -63471,9 +63476,9 @@ function writeOperatorSummary(input) {
     ...skillHookSummary.activations.length === 0 ? {} : { skill_hook_activations: skillHookSummary.activations },
     ...input.runResult.outcome === "checkpoint_waiting" ? { checkpoint: input.runResult.checkpoint } : {}
   });
-  writeFileSync11(outJsonPath, `${JSON.stringify(candidate, null, 2)}
+  writeFileSync7(outJsonPath, `${JSON.stringify(candidate, null, 2)}
 `);
-  writeFileSync11(outMarkdownPath, renderMarkdown(candidate));
+  writeFileSync7(outMarkdownPath, renderMarkdown(candidate));
   return outHtmlPath === void 0 ? { summary: candidate, jsonPath: outJsonPath, markdownPath: outMarkdownPath } : {
     summary: candidate,
     jsonPath: outJsonPath,
@@ -63483,7 +63488,7 @@ function writeOperatorSummary(input) {
 }
 
 // dist/app/process-evidence/projection.js
-import { existsSync as existsSync32, mkdirSync as mkdirSync11, writeFileSync as writeFileSync12 } from "node:fs";
+import { existsSync as existsSync32, mkdirSync as mkdirSync7, writeFileSync as writeFileSync8 } from "node:fs";
 import { dirname as dirname11, join as join29 } from "node:path";
 function traceRef2(runId) {
   return {
@@ -63606,8 +63611,8 @@ function projectCheckpointWaitingProcessEvidence(input) {
 function writeProcessEvidenceProjection(input) {
   const projection = ProcessEvidenceProjection.parse(input.projection);
   const outPath = join29(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
-  mkdirSync11(dirname11(outPath), { recursive: true });
-  writeFileSync12(outPath, `${JSON.stringify(projection, null, 2)}
+  mkdirSync7(dirname11(outPath), { recursive: true });
+  writeFileSync8(outPath, `${JSON.stringify(projection, null, 2)}
 `);
   return { path: outPath, projection };
 }
@@ -63685,7 +63690,7 @@ function detectNoProgress(attempts) {
 }
 
 // dist/app/run-envelope/source-record.js
-import { mkdirSync as mkdirSync12, writeFileSync as writeFileSync13 } from "node:fs";
+import { mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
 import { dirname as dirname12, join as join30 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RUN_SURFACE_RELATIVE_PATH = "reports/run-surface.md";
@@ -64230,17 +64235,17 @@ function writeRunEnvelopeRecord(input) {
     outcome
   });
   const outPath = join30(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
-  mkdirSync12(dirname12(outPath), { recursive: true });
+  mkdirSync8(dirname12(outPath), { recursive: true });
   const decisionPacketPaths = decisionArtifacts.map((artifact) => {
     const path = join30(input.runFolder, artifact.ref.ref);
-    mkdirSync12(dirname12(path), { recursive: true });
-    writeFileSync13(path, artifact.body);
+    mkdirSync8(dirname12(path), { recursive: true });
+    writeFileSync9(path, artifact.body);
     return path;
   });
-  writeFileSync13(outPath, `${JSON.stringify(record2, null, 2)}
+  writeFileSync9(outPath, `${JSON.stringify(record2, null, 2)}
 `);
   const surfacePath = join30(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
-  writeFileSync13(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
+  writeFileSync9(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
   return {
     path: outPath,
     processEvidencePath,
@@ -64359,7 +64364,7 @@ import { existsSync as existsSync33, readFileSync as readFileSync48 } from "node
 import { homedir as homedir4 } from "node:os";
 import { join as join31, resolve as resolve21 } from "node:path";
 var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
-var PROJECT_CONFIG_RELATIVE_PATH = [".circuit", "config.yaml"];
+var PROJECT_CONFIG_RELATIVE_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS;
 function userGlobalConfigPath(homeDir = homedir4()) {
   return join31(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
 }
@@ -64435,7 +64440,7 @@ function discoverRuntimeConfigLayers(options = {}) {
 }
 
 // dist/app/run-envelope/shadow-record.js
-import { mkdirSync as mkdirSync13, writeFileSync as writeFileSync14 } from "node:fs";
+import { mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
 import { dirname as dirname13, join as join32 } from "node:path";
 var RUN_ENVELOPE_SHADOW_RELATIVE_PATH = "reports/run-envelope-shadow.json";
 function reportRef2(input) {
@@ -64526,8 +64531,8 @@ function writeRunEnvelopeShadowRecord(input) {
     artifact_links: artifactLinks
   });
   const outPath = join32(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
-  mkdirSync13(dirname13(outPath), { recursive: true });
-  writeFileSync14(outPath, `${JSON.stringify(record2, null, 2)}
+  mkdirSync9(dirname13(outPath), { recursive: true });
+  writeFileSync10(outPath, `${JSON.stringify(record2, null, 2)}
 `);
   return { path: outPath, record: record2 };
 }
@@ -64583,7 +64588,7 @@ function emitPostRunArtifacts(input) {
 }
 
 // dist/cli/recovery-attempt-runner.js
-import { randomUUID as randomUUID7 } from "node:crypto";
+import { randomUUID as randomUUID8 } from "node:crypto";
 import { readFileSync as readFileSync49 } from "node:fs";
 import { join as join33 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
@@ -64619,7 +64624,7 @@ function createRecoveryAttemptRunner(deps) {
       flowBytes: recoveryFlow.bytes,
       compiledFlowPath: recoveryFlow.path,
       runDir: attemptFolder,
-      runId: RunId.parse(randomUUID7()),
+      runId: RunId.parse(randomUUID8()),
       goal: operatorGoal,
       now,
       projectRoot,
@@ -64754,7 +64759,7 @@ function composeRunStdoutEnvelope(input) {
 }
 
 // dist/cli/run.js
-var DEFAULT_RUNS_BASE2 = ".circuit/runs";
+var DEFAULT_RUNS_BASE2 = CONTROL_PLANE_RUNS_DIR;
 var AUTONOMOUS_LOOP_RELATIVE_PATH = "reports/autonomous-loop.json";
 var CIRCUIT_HOST_KIND_ENV = "CIRCUIT_HOST_KIND";
 function runtimeHostKind(options) {
@@ -65196,7 +65201,7 @@ async function runExecutionCommand(args, options) {
 `);
     return 2;
   }
-  const runId = RunId.parse(options.runId ?? randomUUID8());
+  const runId = RunId.parse(options.runId ?? randomUUID9());
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const progress = progressReporter(args.progress === "jsonl");
   const selectedStatusText = routeSelectedStatusText(flow.id, entryModeSelection.entryModeName);
@@ -65458,8 +65463,8 @@ async function runExecutionCommand(args, options) {
           })
         });
         const autonomousLoopPath = join35(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
-        mkdirSync14(dirname14(autonomousLoopPath), { recursive: true });
-        writeFileSync15(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
+        mkdirSync10(dirname14(autonomousLoopPath), { recursive: true });
+        writeFileSync11(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

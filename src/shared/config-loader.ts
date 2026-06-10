@@ -8,9 +8,10 @@ import {
   PolicyLayer,
   type PolicyLayer as PolicyLayerValue,
 } from '../schemas/policy-envelope.js';
+import { PROJECT_CONFIG_RELATIVE_SEGMENTS } from './control-plane-paths.js';
 
 const USER_GLOBAL_CONFIG_RELATIVE_PATH = ['.config', 'circuit', 'config.yaml'] as const;
-const PROJECT_CONFIG_RELATIVE_PATH = ['.circuit', 'config.yaml'] as const;
+const PROJECT_CONFIG_RELATIVE_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS;
 
 interface DiscoverConfigLayersOptions {
   readonly homeDir?: string;

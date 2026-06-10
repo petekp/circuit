@@ -2,6 +2,7 @@ import { join as joinPath } from 'node:path';
 import { connectorCapabilities } from '../../connectors/resolver.js';
 import { evaluateFanoutJoinPolicy } from '../../policy/fanout-join-policy.js';
 import { FanoutFailurePolicy } from '../../schemas/step.js';
+import { CONTROL_PLANE_DIR } from '../../shared/control-plane-paths.js';
 import { buildFanoutAggregate } from '../../shared/fanout-aggregate-report.js';
 import type { RunFileRef } from '../domain/run-file.js';
 import type { StepOutcome } from '../domain/step.js';
@@ -240,7 +241,7 @@ async function executeFanoutInternal(
           }
           const worktreePath = joinPath(
             context.projectRoot,
-            '.circuit',
+            CONTROL_PLANE_DIR,
             'worktrees',
             context.runId,
             step.id,
