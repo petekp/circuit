@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import {
   HISTORY_AUTHORITY_NOTICE,
   type HistoryDocumentV1 as HistoryDocument,
@@ -398,8 +397,4 @@ export function queryHistory(options: HistoryQueryOptions): HistoryQueryResult {
     warnings,
     results: hits,
   });
-}
-
-export function maybeResolveSourcePath(doc: HistoryDocument): string {
-  return resolve(doc.run_folder, doc.source_path);
 }

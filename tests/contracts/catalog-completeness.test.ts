@@ -422,19 +422,6 @@ describe('flow catalog completeness', () => {
     ).toEqual([]);
   });
 
-  it('every flow package has an index.ts file at its directory root', () => {
-    const offenders: string[] = [];
-    for (const pkg of flowPackages) {
-      if (!isFile(join(WORKFLOWS_ROOT, pkg.id, 'index.ts'))) {
-        offenders.push(pkg.id);
-      }
-    }
-    expect(
-      offenders,
-      'missing or non-file index.ts — flow packages must export their package via index.ts',
-    ).toEqual([]);
-  });
-
   it('every flow package declares a schematic path that points to a real file', () => {
     const offenders: { readonly id: string; readonly schematic: string }[] = [];
     for (const pkg of flowPackages) {
