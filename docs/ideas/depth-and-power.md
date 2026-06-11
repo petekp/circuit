@@ -1,6 +1,16 @@
 # Depth and Power: The Two-Dial Model for What a Run Spends
 
-Status: proposal (2026-06-10). Design-only, not built. This doc supersedes a
+Status: BUILT (2026-06-11). The phased plan below shipped: phase 0 vocab
+rename (PR #56), phase 1 receipt (PR #57), phase 2 power dial with the
+default-on flip (PR #59), phase 3 local worker lane (PR #60), plus an `auto`
+dial position the proposal did not anticipate (PR #62: the researcher
+recommends the run's tier, the engine clamps it to `power_auto`
+floor/ceiling and resolves it once; depth stays manual). Current behavior
+lives in `docs/configuration.md` (Power Dial, Auto power, Local Workers) and
+`docs/contracts/selection.md` v0.5; this doc is the design rationale and is
+NOT updated as the implementation evolves. Original status follows.
+
+Proposal (2026-06-10). This doc supersedes a
 same-day "spend profiles" draft after an operator design pass rejected
 profiles-first framing in favor of the journey-led design below. Code seams
 were verified against source on 2026-06-10; re-verify before building.

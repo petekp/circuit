@@ -73,3 +73,10 @@ relay populates it on `build.context@v1`; the plan writer surfaces the same
 list onto `build.plan@v1`, where the implementer reads it as an advisory
 starting scope. It is not a hard limit and defaults to an empty array when the
 read makes no confident prediction.
+
+`build.context@v1` also accepts an optional `recommended_power
+{value, rationale}`. The `gather-context` relay includes it only when its
+prompt states the power dial is `auto`; the engine (not this flow) consumes
+it to resolve the run's power tier, clamped to the operator's `power_auto`
+bounds. The field never appears under a fixed dial, and a stray value under
+a fixed dial is ignored. See `docs/contracts/selection.md` (rule 2a).

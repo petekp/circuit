@@ -14,7 +14,7 @@ then read that layer's local README if you need more detail.
 | `src/policy/` | Flow-domain policy: flow-kind rules, fanout join, terminal verdict, policy envelope, rubric scoring. |
 | `src/runtime/` | Engine mechanics for running compiled flows. |
 | `src/schemas/` | Zod contracts for config, traces, reports, flows, and host surfaces. |
-| `src/selection/` | Flow-safe relay and connector planning contracts used before runtime connector resolution. |
+| `src/selection/` | Flow-safe relay and connector planning contracts used before runtime connector resolution, plus the Power dial: tier materialization (`power-tiers.ts`) and the auto-dial power inference (`power-inference.ts`). |
 | `src/shared/` | Helpers used by more than one source layer. |
 | `src/skill-hooks/` | Skill Hook matching, actuation policy, and loaded-skill projection. |
 | `src/app/` | Application services that compose the engine for the CLI (run envelope, run status, history, process evidence). |
