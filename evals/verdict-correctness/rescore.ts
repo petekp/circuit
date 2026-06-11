@@ -10,9 +10,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DEFECT_IDS } from './defect-taxonomy.ts';
-import { summarizeSourcePool } from './reporting.ts';
 import { scoreDefect } from './scorer.ts';
-import type { DefectId, EvalCaseResult, EvalSummary } from './types.ts';
+import { summarize } from './summary.ts';
+import type { DefectId, EvalCaseResult } from './types.ts';
 
 function isDefectId(value: unknown): value is DefectId {
   return typeof value === 'string' && (DEFECT_IDS as readonly string[]).includes(value);
@@ -33,83 +33,6 @@ function rescore(results: EvalCaseResult[]): EvalCaseResult[] {
   });
 }
 
-function summarize(results: readonly EvalCaseResult[]): EvalSummary {
-  const perDefect = Object.fromEntries(
-    DEFECT_IDS.map((id) => [id, { catches: 0, misses: 0, errors: 0, cases: 0 }]),
-  ) as EvalSummary['per_defect'];
-  const controls = { passes: 0, fails: 0, errors: 0, cases: 0 };
-  let successfulCalls = 0;
-  let catches = 0;
-  let misses = 0;
-  let errors = 0;
-  const durations: number[] = [];
-
-  for (const r of results) {
-    if (r.case.defect_id === 'control') {
-      controls.cases += 1;
-      if (r.outcome.kind === 'success') {
-        successfulCalls += 1;
-        durations.push(r.outcome.result.duration_ms);
-        controls.passes += 1;
-      } else {
-        controls.errors += 1;
-        errors += 1;
-      }
-      continue;
-    }
-    if (!isDefectId(r.case.defect_id)) continue;
-    const bucket = perDefect[r.case.defect_id];
-    bucket.cases += 1;
-    if (r.outcome.kind !== 'success') {
-      bucket.errors += 1;
-      errors += 1;
-      continue;
-    }
-    successfulCalls += 1;
-    durations.push(r.outcome.result.duration_ms);
-    if (r.score.kind === 'caught') {
-      bucket.catches += 1;
-      catches += 1;
-    } else if (r.score.kind === 'missed') {
-      bucket.misses += 1;
-      misses += 1;
-    }
-  }
-
-  durations.sort((a, b) => a - b);
-  const middle = Math.floor(durations.length / 2);
-  const upperMiddle = durations[middle];
-  const lowerMiddle = durations[middle - 1];
-  const median =
-    durations.length === 0 || upperMiddle === undefined
-      ? 0
-      : durations.length % 2 === 1
-        ? upperMiddle
-        : ((lowerMiddle ?? upperMiddle) + upperMiddle) / 2;
-  const total = durations.reduce((a, b) => a + b, 0);
-  const totalScored = catches + misses;
-
-  return {
-    started_at: new Date().toISOString(),
-    finished_at: new Date().toISOString(),
-    judge: 'codex',
-    wallclock_ms: 0,
-    source_pool: summarizeSourcePool(results),
-    per_defect: perDefect,
-    controls,
-    overall: {
-      cases: results.length,
-      successful_calls: successfulCalls,
-      catches,
-      misses,
-      errors,
-      catch_rate: totalScored === 0 ? 0 : catches / totalScored,
-      total_duration_ms: total,
-      median_duration_ms: median,
-    },
-  };
-}
-
 function main(): void {
   const path = process.argv[2];
   if (!path) {
@@ -119,7 +42,10 @@ function main(): void {
   const resolved = resolve(path);
   const original = JSON.parse(readFileSync(resolved, 'utf8')) as EvalCaseResult[];
   const rescored = rescore(original);
-  const summary = summarize(rescored);
+  // results.json carries no judge/model (that lives in summary.json), and
+  // wallclock is meaningless on a re-score. The catch/error accounting —
+  // what re-scoring exists to recompute — is fully determined by results.
+  const summary = summarize(rescored, 0, 'codex', null);
 
   const outDir = dirname(resolved);
   writeFileSync(resolve(outDir, 'rescored-results.json'), JSON.stringify(rescored, null, 2));
@@ -131,7 +57,9 @@ function main(): void {
     `Catches: ${summary.overall.catches} / ${summary.overall.catches + summary.overall.misses}`,
   );
   console.log(`Catch rate: ${(summary.overall.catch_rate * 100).toFixed(1)}%`);
-  console.log(`Errors: ${summary.overall.errors}`);
+  console.log(
+    `Protocol-failure rate: ${(summary.overall.protocol_failure_rate * 100).toFixed(1)}% (${summary.overall.errors}/${summary.overall.attempted})`,
+  );
   console.log('');
   console.log('Per-defect:');
   for (const id of DEFECT_IDS) {

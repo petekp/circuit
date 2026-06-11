@@ -86,11 +86,24 @@ export interface EvalSummary {
   readonly controls: { passes: number; fails: number; errors: number; cases: number };
   readonly overall: {
     cases: number;
+    // Cases where the judge was actually invoked: total cases minus the
+    // ones the planter could not apply to (harness skips).
+    attempted: number;
+    // Cases the planter could not apply to (target field absent). The judge
+    // was never invoked, so these leave the protocol-failure denominator
+    // instead of flattering or deflating the rate.
+    harness_skipped: number;
     successful_calls: number;
     catches: number;
     misses: number;
+    // Attempted cases that produced no valid verdict (connector/timeout,
+    // unparseable output, or schema-invalid JSON). Excludes harness skips.
     errors: number;
+    error_kinds: { connector_error: number; parse_error: number; schema_error: number };
     catch_rate: number;
+    // errors / attempted. The class the production schema gate converts into
+    // retries; the tier-separating signal at cheap judge tiers.
+    protocol_failure_rate: number;
     total_duration_ms: number;
     median_duration_ms: number;
   };

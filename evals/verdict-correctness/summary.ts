@@ -17,6 +17,9 @@ export function summarize(
     DEFECT_IDS.map((id) => [id, { catches: 0, misses: 0, errors: 0, cases: 0 }]),
   ) as EvalSummary['per_defect'];
   const controls = { passes: 0, fails: 0, errors: 0, cases: 0 };
+  const errorKinds = { connector_error: 0, parse_error: 0, schema_error: 0 };
+  let attempted = 0;
+  let harnessSkipped = 0;
   let successfulCalls = 0;
   let catches = 0;
   let misses = 0;
@@ -24,7 +27,17 @@ export function summarize(
   const durations: number[] = [];
 
   for (const r of results) {
+    // Harness skip: the planter could not apply (target field absent), so
+    // runCase never invoked the judge. The canonical marker is a
+    // mutation_summary starting with "SKIPPED" — the same gate runCase uses.
+    // These are neither attempts nor errors; counting them either way would
+    // corrupt the protocol-failure rate.
+    if (r.case.mutation_summary.startsWith('SKIPPED')) {
+      harnessSkipped += 1;
+      continue;
+    }
     if (r.case.defect_id === 'control') {
+      attempted += 1;
       controls.cases += 1;
       if (r.outcome.kind === 'success') {
         successfulCalls += 1;
@@ -33,14 +46,20 @@ export function summarize(
       } else {
         controls.errors += 1;
         errors += 1;
+        errorKinds[r.outcome.kind] += 1;
       }
       continue;
     }
     const bucket = perDefect[r.case.defect_id];
+    // Unknown/retired defect id (only reachable when rescoring a historical
+    // results file). Leave it out of the accounting rather than crashing.
+    if (bucket === undefined) continue;
+    attempted += 1;
     bucket.cases += 1;
     if (r.outcome.kind !== 'success') {
       bucket.errors += 1;
       errors += 1;
+      errorKinds[r.outcome.kind] += 1;
       continue;
     }
     successfulCalls += 1;
@@ -78,11 +97,15 @@ export function summarize(
     controls,
     overall: {
       cases: results.length,
+      attempted,
+      harness_skipped: harnessSkipped,
       successful_calls: successfulCalls,
       catches,
       misses,
       errors,
+      error_kinds: errorKinds,
       catch_rate: totalScored === 0 ? 0 : catches / totalScored,
+      protocol_failure_rate: attempted === 0 ? 0 : errors / attempted,
       total_duration_ms: totalDuration,
       median_duration_ms: median,
     },

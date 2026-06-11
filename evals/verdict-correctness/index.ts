@@ -68,13 +68,22 @@ function renderMarkdownReport(results: readonly EvalCaseResult[], summary: EvalS
   lines.push('');
   lines.push('## Overall');
   lines.push('');
+  const ek = summary.overall.error_kinds;
   lines.push(`- Cases: ${summary.overall.cases}`);
+  lines.push(`- Attempted (judge invoked): ${summary.overall.attempted}`);
+  lines.push(`- Harness-skipped (planter could not apply): ${summary.overall.harness_skipped}`);
   lines.push(`- Successful LLM calls: ${summary.overall.successful_calls}`);
   lines.push(`- Defects caught: ${summary.overall.catches}`);
   lines.push(`- Defects missed: ${summary.overall.misses}`);
-  lines.push(`- Errors: ${summary.overall.errors}`);
+  lines.push(`- Protocol failures (no valid verdict): ${summary.overall.errors}`);
   lines.push(
-    `- Catch rate: ${(summary.overall.catch_rate * 100).toFixed(1)}% (catches / (catches + misses))`,
+    `  - by kind: connector/timeout ${ek.connector_error}, parse ${ek.parse_error}, schema ${ek.schema_error}`,
+  );
+  lines.push(
+    `- Protocol-failure rate: ${(summary.overall.protocol_failure_rate * 100).toFixed(1)}% (errors / attempted)`,
+  );
+  lines.push(
+    `- Catch rate: ${(summary.overall.catch_rate * 100).toFixed(1)}% (catches / (catches + misses); protocol failures excluded from this denominator)`,
   );
   lines.push(
     `- Median per-call duration: ${(summary.overall.median_duration_ms / 1000).toFixed(1)}s`,
@@ -217,7 +226,9 @@ async function main(): Promise<void> {
     `Catches: ${summary.overall.catches} / ${summary.overall.catches + summary.overall.misses}`,
   );
   console.error(`Catch rate: ${(summary.overall.catch_rate * 100).toFixed(1)}%`);
-  console.error(`Errors: ${summary.overall.errors}`);
+  console.error(
+    `Protocol-failure rate: ${(summary.overall.protocol_failure_rate * 100).toFixed(1)}% (${summary.overall.errors}/${summary.overall.attempted})`,
+  );
   console.error(`Wallclock: ${(wallclockMs / 1000).toFixed(1)}s`);
   console.error(`Results: ${args.resultsDir}`);
 }
