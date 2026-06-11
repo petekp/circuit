@@ -2702,7 +2702,7 @@ describe('operator summary writer — run receipt', () => {
     });
 
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('Receipt: depth medium · 2 worker runs · all checks passed');
+    expect(markdown).toContain('⎿ depth medium · 2 worker runs · all checks passed');
     // Phase 1 makes no model-tier claims: model ids stay in the run record.
     expect(markdown).not.toContain('claude-haiku-4-5');
     expect(markdown).not.toContain('claude-opus-4-8');
@@ -2719,7 +2719,7 @@ describe('operator summary writer — run receipt', () => {
     });
 
     expect(readFileSync(written.markdownPath, 'utf8')).toContain(
-      'Receipt: depth low · 1 worker run · all checks passed',
+      '⎿ depth low · 1 worker run · all checks passed',
     );
   });
 
@@ -2740,7 +2740,7 @@ describe('operator summary writer — run receipt', () => {
 
     expect(written.summary.receipt).toMatchObject({ checks_evaluated: 3, checks_failed: 1 });
     const markdown = readFileSync(written.markdownPath, 'utf8');
-    expect(markdown).toContain('Receipt: depth high · 1 worker run · 2 of 3 checks passed');
+    expect(markdown).toContain('⎿ depth high · 1 worker run · 2 of 3 checks passed');
     expect(markdown).not.toContain('all checks passed');
   });
 
@@ -2753,9 +2753,7 @@ describe('operator summary writer — run receipt', () => {
       route: { selectedFlow: 'fix' },
     });
 
-    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
-      'Receipt: depth medium · 1 worker run\n',
-    );
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain('⎿ depth medium · 1 worker run\n');
   });
 
   it('omits the receipt entirely when the trace has no run.bootstrapped entry', () => {
@@ -2768,7 +2766,7 @@ describe('operator summary writer — run receipt', () => {
     });
 
     expect(written.summary.receipt).toBeUndefined();
-    expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('Receipt:');
+    expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('⎿');
   });
 
   it('omits the receipt when the trace file is missing', () => {
@@ -2779,7 +2777,7 @@ describe('operator summary writer — run receipt', () => {
     });
 
     expect(written.summary.receipt).toBeUndefined();
-    expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('Receipt:');
+    expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('⎿');
   });
 
   it('skips relay.started entries whose resolved_selection carries no model without losing the run count', () => {

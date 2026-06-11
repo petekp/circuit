@@ -63238,7 +63238,7 @@ function receiptLine(receipt) {
   if (receipt.checks_evaluated > 0) {
     parts.push(receipt.checks_failed === 0 ? "all checks passed" : `${receipt.checks_evaluated - receipt.checks_failed} of ${receipt.checks_evaluated} checks passed`);
   }
-  return `Receipt: ${parts.join(" \xB7 ")}`;
+  return `\u23BF ${parts.join(" \xB7 ")}`;
 }
 function firstLine(text) {
   const head = text.split(/\r?\n/)[0]?.trim() ?? "";

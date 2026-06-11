@@ -653,9 +653,11 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
   };
 }
 
-// The receipt line speaks plain words only: depth, how many worker runs, and
-// what the checks proved. No model ids and no tier claims here — those live in
-// the JSON receipt and the run record.
+// The receipt trailer speaks plain words only: depth, how many worker runs,
+// and what the checks proved. No model ids and no tier claims here — those
+// live in the JSON receipt and the run record. The ⎿ glyph is the CIRCUIT
+// status-block grammar: the trailer reads as machine truth at the end of the
+// model-written digest, with no feature-name label.
 function receiptLine(receipt: OperatorRunReceipt): string {
   const runsWord = receipt.worker_runs === 1 ? 'worker run' : 'worker runs';
   const parts = [`depth ${receipt.depth}`, `${receipt.worker_runs} ${runsWord}`];
@@ -666,7 +668,7 @@ function receiptLine(receipt: OperatorRunReceipt): string {
         : `${receipt.checks_evaluated - receipt.checks_failed} of ${receipt.checks_evaluated} checks passed`,
     );
   }
-  return `Receipt: ${parts.join(' · ')}`;
+  return `⎿ ${parts.join(' · ')}`;
 }
 
 // The registry's "could not find skill" error is multi-line (it lists every
