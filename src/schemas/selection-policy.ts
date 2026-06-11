@@ -85,6 +85,10 @@ export const ResolvedSelection = z
     // up. A retry whose role was already at the top tier records no
     // escalation — the receipt counts real bumps, not retries.
     power_escalated: z.boolean().optional(),
+    // Present only when the dial setting was `auto`: the dial value above came
+    // from the run's clamped researcher inference (or the medium fallback when
+    // no inference had resolved yet), not from a fixed operator setting.
+    power_source: z.literal('auto').optional(),
   })
   .strict();
 export type ResolvedSelection = z.infer<typeof ResolvedSelection>;

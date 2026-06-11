@@ -2,6 +2,7 @@ import type { RuntimePackageIndex } from '../../flows/registries/runtime-index.j
 import type { Axes } from '../../schemas/axes.js';
 import type { RecoveryRouteBindingV0 } from '../../schemas/recovery-route-kind.js';
 import type { Ref } from '../../schemas/ref.js';
+import type { PowerInferenceChannel } from '../../selection/power-inference.js';
 import type { UserSkillRegistry } from '../../shared/user-skill-registry.js';
 import type { SkillHookInjectionChannel } from '../../skill-hooks/injection.js';
 import type { AcceptanceRetryFeedback } from '../acceptance-criteria.js';
@@ -50,6 +51,12 @@ export interface RunContext
   // spread, so writes between steps are visible to later steps. See
   // src/skill-hooks/injection.ts.
   readonly skillHookInjections?: SkillHookInjectionChannel;
+  // Run-scoped resolution of an `auto` power dial: the post-step seam writes
+  // the first accepted researcher recommendation here (clamped to operator
+  // bounds), and planRelayGuidanceDecision reads it when materializing the
+  // dial. Same mutable-container-on-readonly-context pattern as
+  // skillHookInjections; first write wins. See src/selection/power-inference.ts.
+  readonly powerInference?: PowerInferenceChannel;
   // One skill registry per run, created at run start. Shared by the skill-hook
   // dispatcher (which resolves an event's triggered/unavailable skills) and the
   // relay skill loader (which loads selection, slot, and injected skills), so the

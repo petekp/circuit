@@ -19,6 +19,7 @@ import {
 import { ResolvedSelection } from '../../schemas/selection-policy.js';
 import { RelayRole } from '../../schemas/step.js';
 import { CheckEvaluatedTraceEntry } from '../../schemas/trace-entry.js';
+import { resolvePowerDialSetting } from '../../selection/power-tiers.js';
 import type { ConnectorRelayInput } from '../../shared/connector-relay.js';
 import type { RelayResult } from '../../shared/connector-relay.js';
 import { evidenceFromAcceptanceCriteriaTrace } from '../../shared/proof-assessment.js';
@@ -479,6 +480,11 @@ export async function executeProductionRelayAttempt(input: {
     context.activeSlice,
     // Operator-stated reason behind the goal (--why); renders under the goal.
     context.why,
+    // Auto-power: tell a researcher relay to include recommended_power when
+    // the dial setting is auto and the run's tier has not resolved yet.
+    relayExecution.role === 'researcher' &&
+      context.powerInference?.get() === undefined &&
+      resolvePowerDialSetting(context.selectionConfigLayers ?? []).kind === 'auto',
   );
 
   const request = step.writes?.request;

@@ -25682,7 +25682,11 @@ var ResolvedSelection = external_exports.object({
   // True only when a retry (attempt > 1) actually bumped the allocated tier
   // up. A retry whose role was already at the top tier records no
   // escalation — the receipt counts real bumps, not retries.
-  power_escalated: external_exports.boolean().optional()
+  power_escalated: external_exports.boolean().optional(),
+  // Present only when the dial setting was `auto`: the dial value above came
+  // from the run's clamped researcher inference (or the medium fallback when
+  // no inference had resolved yet), not from a fixed operator setting.
+  power_source: external_exports.literal("auto").optional()
 }).strict();
 var SelectionSource = external_exports.enum([
   "default",
@@ -36920,6 +36924,19 @@ var RunSkillHookErrorTraceEntry = TraceEntryBase.extend({
   step_id: StepId.optional(),
   message: external_exports.string().min(1)
 }).strict();
+var PowerInferenceResolvedTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.power-inference"),
+  step_id: StepId,
+  // What the researcher recommended, verbatim.
+  recommended: Power,
+  rationale: external_exports.string().min(1).max(280),
+  // The operator bounds in force when the recommendation resolved.
+  floor: Power,
+  ceiling: Power,
+  // The post-clamp tier the rest of the run materializes against.
+  resolved: Power,
+  clamped: external_exports.boolean()
+}).strict();
 var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunBootstrappedTraceEntry,
   StepEnteredTraceEntry,
@@ -36948,6 +36965,7 @@ var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunClosedTraceEntry,
   RunSkillHookTraceEntry,
   RunSkillHookErrorTraceEntry,
+  PowerInferenceResolvedTraceEntry,
   GuidanceDecisionTraceEntryBody
 ]).superRefine((ev, ctx) => {
   if (ev.kind === "guidance.decision") {
@@ -53781,6 +53799,128 @@ var TraceStore = class {
 // dist/runtime/run/graph-runner.js
 import { randomUUID as randomUUID7 } from "node:crypto";
 
+// dist/selection/power-inference.js
+function createPowerInferenceChannel() {
+  let resolved;
+  return {
+    set(inference) {
+      if (resolved === void 0)
+        resolved = inference;
+    },
+    get() {
+      return resolved;
+    }
+  };
+}
+function clampPowerToBounds(tier, bounds) {
+  if (powerIndex(tier) < powerIndex(bounds.floor))
+    return bounds.floor;
+  if (powerIndex(tier) > powerIndex(bounds.ceiling))
+    return bounds.ceiling;
+  return tier;
+}
+function extractPowerRecommendation(report) {
+  if (report === null || typeof report !== "object")
+    return void 0;
+  const candidate = report.recommended_power;
+  if (candidate === void 0)
+    return void 0;
+  const parsed = PowerRecommendation.safeParse(candidate);
+  return parsed.success ? parsed.data : void 0;
+}
+function seedPowerInferenceFromTrace(entries, channel) {
+  if (channel === void 0)
+    return;
+  for (const entry of entries) {
+    if (entry.kind !== "run.power-inference")
+      continue;
+    channel.set({
+      recommended: entry.recommended,
+      rationale: entry.rationale,
+      resolved: entry.resolved,
+      clamped: entry.clamped
+    });
+    return;
+  }
+}
+
+// dist/selection/power-tiers.js
+var DEFAULT_POWER_TIERS = {
+  "claude-code": {
+    low: { model: { provider: "anthropic", model: "haiku" } },
+    medium: { model: { provider: "anthropic", model: "sonnet" } },
+    high: { model: { provider: "anthropic", model: "opus" } }
+  },
+  codex: {
+    low: { effort: "low" },
+    medium: { effort: "medium" },
+    high: { effort: "high" }
+  }
+};
+var ROLE_POWER_ALLOCATION = {
+  high: { researcher: "high", implementer: "high", reviewer: "high" },
+  medium: { researcher: "high", implementer: "medium", reviewer: "medium" },
+  low: { researcher: "high", implementer: "low", reviewer: "medium" }
+};
+function bumpOneTier(tier) {
+  return POWER_ORDER[Math.min(powerIndex(tier) + 1, POWER_ORDER.length - 1)];
+}
+var LAYER_PRECEDENCE = ["default", "user-global", "project", "invocation"];
+function layersInPrecedenceOrder(layers) {
+  return LAYER_PRECEDENCE.flatMap((name) => layers.filter((layer) => layer.layer === name));
+}
+function resolvePowerDialSetting(layers) {
+  let dial = "medium";
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const power = layer.config.defaults?.power;
+    if (power !== void 0)
+      dial = power;
+  }
+  if (dial !== "auto")
+    return { kind: "fixed", value: dial };
+  let floor = "low";
+  let ceiling = "high";
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const bounds = layer.config.power_auto;
+    if (bounds?.floor !== void 0)
+      floor = bounds.floor;
+    if (bounds?.ceiling !== void 0)
+      ceiling = bounds.ceiling;
+  }
+  if (powerIndex(floor) > powerIndex(ceiling))
+    floor = ceiling;
+  return { kind: "auto", floor, ceiling };
+}
+function tierSpec(layers, connectorName, tier) {
+  let spec = DEFAULT_POWER_TIERS[connectorName]?.[tier];
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const candidate = layer.config.power_tiers?.[connectorName]?.[tier];
+    if (candidate !== void 0)
+      spec = candidate;
+  }
+  return spec;
+}
+function materializePowerSelection(input) {
+  if (input.resolved.model !== void 0)
+    return input.resolved;
+  const layers = input.configLayers ?? [];
+  const setting = resolvePowerDialSetting(layers);
+  const dial = setting.kind === "fixed" ? setting.value : input.inferredPower ?? "medium";
+  const allocated = ROLE_POWER_ALLOCATION[dial][input.role];
+  const tier = input.attempt > 1 ? bumpOneTier(allocated) : allocated;
+  const spec = tierSpec(layers, input.connectorName, tier);
+  if (spec === void 0)
+    return input.resolved;
+  return {
+    ...input.resolved,
+    ...spec.model === void 0 ? {} : { model: spec.model },
+    ...input.resolved.effort === void 0 && spec.effort !== void 0 ? { effort: spec.effort } : {},
+    power: dial,
+    ...tier === allocated ? {} : { power_escalated: true },
+    ...setting.kind === "auto" ? { power_source: "auto" } : {}
+  };
+}
+
 // dist/shared/fanout-branch-template.js
 function resolveDottedPath(root, path) {
   let cursor = root;
@@ -56845,85 +56985,6 @@ function recoveryRouteForFailure(input) {
   return recoveryBindingForFailure(input)?.route_id;
 }
 
-// dist/selection/power-tiers.js
-var DEFAULT_POWER_TIERS = {
-  "claude-code": {
-    low: { model: { provider: "anthropic", model: "haiku" } },
-    medium: { model: { provider: "anthropic", model: "sonnet" } },
-    high: { model: { provider: "anthropic", model: "opus" } }
-  },
-  codex: {
-    low: { effort: "low" },
-    medium: { effort: "medium" },
-    high: { effort: "high" }
-  }
-};
-var ROLE_POWER_ALLOCATION = {
-  high: { researcher: "high", implementer: "high", reviewer: "high" },
-  medium: { researcher: "high", implementer: "medium", reviewer: "medium" },
-  low: { researcher: "high", implementer: "low", reviewer: "medium" }
-};
-function bumpOneTier(tier) {
-  return POWER_ORDER[Math.min(powerIndex(tier) + 1, POWER_ORDER.length - 1)];
-}
-var LAYER_PRECEDENCE = ["default", "user-global", "project", "invocation"];
-function layersInPrecedenceOrder(layers) {
-  return LAYER_PRECEDENCE.flatMap((name) => layers.filter((layer) => layer.layer === name));
-}
-function resolvePowerDialSetting(layers) {
-  let dial = "medium";
-  for (const layer of layersInPrecedenceOrder(layers)) {
-    const power = layer.config.defaults?.power;
-    if (power !== void 0)
-      dial = power;
-  }
-  if (dial !== "auto")
-    return { kind: "fixed", value: dial };
-  let floor = "low";
-  let ceiling = "high";
-  for (const layer of layersInPrecedenceOrder(layers)) {
-    const bounds = layer.config.power_auto;
-    if (bounds?.floor !== void 0)
-      floor = bounds.floor;
-    if (bounds?.ceiling !== void 0)
-      ceiling = bounds.ceiling;
-  }
-  if (powerIndex(floor) > powerIndex(ceiling))
-    floor = ceiling;
-  return { kind: "auto", floor, ceiling };
-}
-function resolvePowerDial(layers) {
-  const setting = resolvePowerDialSetting(layers);
-  return setting.kind === "fixed" ? setting.value : "medium";
-}
-function tierSpec(layers, connectorName, tier) {
-  let spec = DEFAULT_POWER_TIERS[connectorName]?.[tier];
-  for (const layer of layersInPrecedenceOrder(layers)) {
-    const candidate = layer.config.power_tiers?.[connectorName]?.[tier];
-    if (candidate !== void 0)
-      spec = candidate;
-  }
-  return spec;
-}
-function materializePowerSelection(input) {
-  if (input.resolved.model !== void 0)
-    return input.resolved;
-  const layers = input.configLayers ?? [];
-  const dial = resolvePowerDial(layers);
-  const allocated = ROLE_POWER_ALLOCATION[dial][input.role];
-  const tier = input.attempt > 1 ? bumpOneTier(allocated) : allocated;
-  const spec = tierSpec(layers, input.connectorName, tier);
-  if (spec === void 0)
-    return input.resolved;
-  return {
-    ...input.resolved,
-    ...spec.model === void 0 ? {} : { model: spec.model },
-    ...input.resolved.effort === void 0 && spec.effort !== void 0 ? { effort: spec.effort } : {},
-    power: dial,
-    ...tier === allocated ? {} : { power_escalated: true }
-  };
-}
-
 // dist/selection/selection-resolver.js
 var PRE_FLOW_CONFIG_SOURCES = ["default", "user-global", "project"];
 function overrideContributes2(o) {
@@ -57391,12 +57452,14 @@ function planRelayGuidanceDecision(input) {
     ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers },
     bindsExecutionDepthToGuidanceSelection: context.guidanceSelection?.bindsExecutionDepthToGuidanceSelection === true
   }, flow, compiledStep, input.depth);
+  const inferredPower = context.powerInference?.get()?.resolved;
   const resolvedSelection = materializePowerSelection({
     resolved: stackSelection,
     role: RelayRole.parse(relayExecution.role),
     connectorName: relayExecution.connectorName,
     attempt: context.activeStepAttempt ?? 1,
-    ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers }
+    ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers },
+    ...inferredPower === void 0 ? {} : { inferredPower }
   });
   assertConnectorSelectionCompatible(relayExecution.connectorName, resolvedSelection);
   const injectedSkillIds = relayExecution.role === "implementer" ? context.skillHookInjections?.ids() ?? [] : [];
@@ -57582,7 +57645,7 @@ function currentSliceSection(activeSlice) {
     ...exts.length === 0 ? [] : [`- anticipated file extensions: ${exts.join(", ")}`]
   ].join("\n");
 }
-function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy) {
+function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy, powerDialAuto) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
     if (!existsSync29(abs))
@@ -57607,6 +57670,9 @@ ${readFileSync43(abs, "utf8")}`;
     ...depth === void 0 || depth.length === 0 ? [] : [
       `Depth: ${depth}. Tune your thoroughness and effort to this level; it does not change which steps run.`
     ],
+    ...powerDialAuto === true ? [
+      "Power dial: auto. Include recommended_power in your report: judge from what you read which model tier (low, medium, or high) the downstream implementation and review need, with one short rationale sentence."
+    ] : [],
     "",
     ...operatorGoal === void 0 || operatorGoal.length === 0 ? [] : [
       "Operator Goal:",
@@ -57922,7 +57988,10 @@ async function executeProductionRelayAttempt(input) {
     // worker to that slice's unit of work. Undefined on single-pass runs.
     context.activeSlice,
     // Operator-stated reason behind the goal (--why); renders under the goal.
-    context.why
+    context.why,
+    // Auto-power: tell a researcher relay to include recommended_power when
+    // the dial setting is auto and the run's tier has not resolved yet.
+    relayExecution.role === "researcher" && context.powerInference?.get() === void 0 && resolvePowerDialSetting(context.selectionConfigLayers ?? []).kind === "auto"
   );
   const request = step.writes?.request;
   const receipt = step.writes?.receipt;
@@ -61132,6 +61201,10 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     // event's skills and the next relay step picks them up. Empty on runs with
     // no skill_hooks config, so it has no observable effect there.
     skillHookInjections: createSkillHookInjectionChannel(),
+    // Run-scoped auto-power resolution, same lifecycle as the injection
+    // channel: created once, written at most once by the post-step seam,
+    // read by relay planning. Inert when the dial setting is not `auto`.
+    powerInference: createPowerInferenceChannel(),
     // One filesystem snapshot of the user skill registry for the whole run,
     // shared by the skill-hook dispatcher and the relay skill loader so they
     // never disagree about which skills resolve (see RunContext.skillRegistry).
@@ -61185,6 +61258,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const completedStepCounts = isResume ? completedStepCountsFromTrace(existingTrace, sliceCorridor) : /* @__PURE__ */ new Map();
   if (isResume) {
     seedSkillHookInjectionsFromTrace(existingTrace, context.skillHookInjections);
+    seedPowerInferenceFromTrace(existingTrace, context.powerInference);
   }
   const defaultMaxSteps = Math.max(flow.steps.length * 4, 8);
   const maxSteps = options.maxSteps ?? (sliceFlag !== void 0 && sliceCorridor.isActive() ? defaultMaxSteps + sliceFlag.maxSlices * 6 : defaultMaxSteps);
@@ -61481,6 +61555,41 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         });
       } catch {
       }
+    }
+    try {
+      if (context.powerInference !== void 0 && context.powerInference.get() === void 0) {
+        const setting = resolvePowerDialSetting(context.selectionConfigLayers ?? []);
+        if (setting.kind === "auto") {
+          const stepEntries = trace.getAll().slice(traceLengthBeforeStep);
+          const researcherRelayed = stepEntries.some((entry) => entry.kind === "relay.started" && entry.role === "researcher");
+          const completed = researcherRelayed ? [...stepEntries].reverse().find((entry) => entry.kind === "relay.completed") : void 0;
+          if (completed !== void 0) {
+            const body = await context.files.readJson(completed.result_path);
+            const recommendation = extractPowerRecommendation(body);
+            if (recommendation !== void 0) {
+              const resolved = clampPowerToBounds(recommendation.value, setting);
+              await trace.append({
+                run_id: runId,
+                kind: "run.power-inference",
+                step_id: step.id,
+                recommended: recommendation.value,
+                rationale: recommendation.rationale,
+                floor: setting.floor,
+                ceiling: setting.ceiling,
+                resolved,
+                clamped: resolved !== recommendation.value
+              });
+              context.powerInference.set({
+                recommended: recommendation.value,
+                rationale: recommendation.rationale,
+                resolved,
+                clamped: resolved !== recommendation.value
+              });
+            }
+          }
+        }
+      }
+    } catch {
     }
     if (targetTransition.kind === "terminal_close") {
       return await closeRun(context, outcomeForTerminal(targetTransition.terminalTarget), targetTransition.terminalTarget);

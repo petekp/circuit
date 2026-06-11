@@ -14,6 +14,7 @@ import {
   refineGuidanceDecisionTraceEntry,
 } from './guidance-decision.js';
 import { CompiledFlowId, InvocationId, RunId, SkillId, SkillSlotId, StepId } from './ids.js';
+import { Power } from './power.js';
 import { ProofAssessmentId, ProofStatus } from './proof-assessment.js';
 import { Ref, Sha256 } from './ref.js';
 import { RuntimeTouchedFilesEvidenceRef } from './runtime-evidence.js';
@@ -548,6 +549,26 @@ export const RunSkillHookErrorTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type RunSkillHookErrorTraceEntry = z.infer<typeof RunSkillHookErrorTraceEntry>;
 
+// The run's one auto-power resolution: when the dial setting is `auto`, the
+// first accepted researcher report carrying a recommended_power resolves the
+// run's effective dial — clamped to the operator's power_auto bounds — and
+// this entry is the durable record. Written at most once per run; resume
+// reseeds the in-memory channel from this entry instead of re-inferring.
+export const PowerInferenceResolvedTraceEntry = TraceEntryBase.extend({
+  kind: z.literal('run.power-inference'),
+  step_id: StepId,
+  // What the researcher recommended, verbatim.
+  recommended: Power,
+  rationale: z.string().min(1).max(280),
+  // The operator bounds in force when the recommendation resolved.
+  floor: Power,
+  ceiling: Power,
+  // The post-clamp tier the rest of the run materializes against.
+  resolved: Power,
+  clamped: z.boolean(),
+}).strict();
+export type PowerInferenceResolvedTraceEntry = z.infer<typeof PowerInferenceResolvedTraceEntry>;
+
 // Cross-variant superRefine enforces the
 // `RelayStartedTraceEntry.role === resolved_from.role` binding when
 // `resolved_from.source === 'role'`. Mirrors the Step pattern: keep each
@@ -582,6 +603,7 @@ export const TraceEntry = z
     RunClosedTraceEntry,
     RunSkillHookTraceEntry,
     RunSkillHookErrorTraceEntry,
+    PowerInferenceResolvedTraceEntry,
     GuidanceDecisionTraceEntryBody,
   ])
   .superRefine((ev, ctx) => {

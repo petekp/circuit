@@ -120,11 +120,17 @@ export function materializePowerSelection(input: {
   readonly connectorName: string;
   readonly attempt: number;
   readonly configLayers?: readonly LayeredConfig[];
+  // The run's resolved auto-power tier (already clamped), when one exists.
+  // Consulted only when the dial setting is `auto`; a fixed setting ignores it.
+  readonly inferredPower?: Power;
 }): ResolvedSelection {
   // Explicit model config wins outright; the dial never overrides it.
   if (input.resolved.model !== undefined) return input.resolved;
   const layers = input.configLayers ?? [];
-  const dial = resolvePowerDial(layers);
+  const setting = resolvePowerDialSetting(layers);
+  // Auto before its inference resolves (the researcher's own relay, or a run
+  // whose researcher never recommended) materializes the default-on medium.
+  const dial = setting.kind === 'fixed' ? setting.value : (input.inferredPower ?? 'medium');
   const allocated = ROLE_POWER_ALLOCATION[dial][input.role];
   const tier = input.attempt > 1 ? bumpOneTier(allocated) : allocated;
   const spec = tierSpec(layers, input.connectorName, tier);
@@ -137,5 +143,6 @@ export function materializePowerSelection(input: {
       : {}),
     power: dial,
     ...(tier === allocated ? {} : { power_escalated: true }),
+    ...(setting.kind === 'auto' ? { power_source: 'auto' as const } : {}),
   };
 }
