@@ -124,6 +124,45 @@ const DEFECT_PATTERNS: Record<DefectId, ScorePatterns> = {
       /\b(?:final|last|trailing|appended)\s+sentence\b.*\b(?:contradict|negate|undermine|reverse|reject)/i,
     ],
   },
+  // Subtle suite. Plausible defects, so the reviewer's objection is subtler;
+  // patterns include literal fragments of the planted text (which a control
+  // verdict cannot contain) plus the same groundedness/calibration/vacuity
+  // framings as the standard counterparts.
+  'plausible-missing-evidence-ref': {
+    anyOf: [
+      /-appendix\.json/i,
+      /(?:nonexistent|non-existent|missing|invalid|unverifiable|cannot\s+(?:find|verify|locate|resolve))\s+(?:evidence|citation|reference|ref|file|path|report|artifact)/i,
+      /evidence_ref(?:s)?\b.*\b(?:not\s+found|cannot\s+resolve|does\s+not\s+exist|missing|unverifiable|no\s+such\s+file)/i,
+      /\b(?:cannot|unable\s+to)\s+(?:find|verify|locate|resolve)\b.*(?:reports\/|evidence|citation|\.json)/i,
+      /\b(?:cite|cited|cites|citation|reference)\s+(?:a|an|the)?\s*(?:nonexistent|missing|unverifiable|wrong|incorrect)/i,
+      /\breports\/[\w.-]+\b.*\b(?:does\s+not\s+exist|not\s+(?:found|present)|missing|unverifiable)/i,
+    ],
+  },
+  'generic-success-condition-alignment': {
+    anyOf: [
+      /\btying\s+the\s+main\s+findings\s+back/i,
+      /\b(?:success.condition|alignment)\b.*\b(?:generic|boilerplate|template|vague|vacuous|non-specific|formulaic|reusable|could\s+(?:apply|describe)|not\s+specific|says\s+nothing)/i,
+      /\b(?:generic|boilerplate|template|formulaic|vacuous|non-specific)\s+(?:alignment|justification|statement|claim|language|text|wording)/i,
+      /\bdoes\s+not\s+(?:actually\s+)?(?:explain|justify|substantiate|reference)\b.*\b(?:alignment|success.condition|how|which|specific)/i,
+      /\bcould\s+(?:apply|describe|be\s+(?:said|written))\b.*\b(?:any|almost\s+any|virtually\s+any|every)/i,
+      /\balignment\s+(?:claim|statement|field|sentence|text)\s+(?:is\s+)?(?:generic|boilerplate|vague|vacuous|non-specific|formulaic|a\s+restatement|says\s+nothing)/i,
+    ],
+  },
+  'soft-false-certainty': {
+    anyOf: [
+      /\bproceed\s+confidently\b/i,
+      /\bfollow[-\s]?up\s+investigation\b/i,
+      /\boverclaim\w*/i,
+      /\bover[-\s]?confiden\w*/i,
+      /\bunsupported\s+(?:readiness|certainty|confidence|claim|assertion)/i,
+      /\bunwarranted\s+(?:readiness|certainty|confidence|assurance|claim)/i,
+      /\b(?:readiness|confidence|certainty)\s+(?:claim|assertion|statement)\b.*\b(?:unsupported|not\s+(?:supported|justified|warranted)|overstat)/i,
+      /\b(?:remove|rewrite|drop|delete|soften|temper|qualify|hedge|caveat|walk\s+back|tone\s+down)\s+(?:the|that)\s+(?:final|last|trailing|appended|closing|added)\s+(?:sentence|claim|assertion|line|statement)/i,
+      /\bshould\s+(?:hedge|qualify|caveat|temper|soften|tone\s+down|walk\s+back)/i,
+      /\bevidence\b.*\b(?:does\s+not\s+(?:support|justify|warrant)|is\s+insufficient)/i,
+      /\benough\s+to\s+proceed\b/i,
+    ],
+  },
 };
 
 export interface ScoreSignal {

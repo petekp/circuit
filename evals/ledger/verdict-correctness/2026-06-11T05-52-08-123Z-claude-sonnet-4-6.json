@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "eval_id": "verdict-correctness",
+  "ran_at": "2026-06-11T05:52:08.123Z",
+  "repo_commit": "f361e5f538568d642586a86c345045e4dad1db3f",
+  "model": "claude-sonnet-4-6",
+  "descriptors": {
+    "judge": "claude-code",
+    "suite": "standard"
+  },
+  "metrics": {
+    "catch_rate": 1,
+    "cases": 54,
+    "catches": 42,
+    "misses": 0,
+    "errors": 3,
+    "control_passes": 9,
+    "control_fails": 0
+  }
+}

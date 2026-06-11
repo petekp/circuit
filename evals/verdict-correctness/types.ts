@@ -10,11 +10,21 @@
 import type { ExploreReviewVerdict } from '../../src/flows/explore/reports.js';
 
 export type DefectId =
+  // Standard suite: blunt, near-ceiling defects (sanity floor).
   | 'fabricated-evidence-ref'
   | 'stripped-success-condition-alignment'
   | 'wrong-subject'
   | 'added-false-certainty'
-  | 'internal-contradiction';
+  | 'internal-contradiction'
+  // Subtle suite: plausible-looking defects that leave real headroom and
+  // are the tracked regression baseline.
+  | 'plausible-missing-evidence-ref'
+  | 'generic-success-condition-alignment'
+  | 'soft-false-certainty';
+
+// Named groups of defects a run can select with --suite. 'custom' is the
+// recorded label when --defects overrides the set explicitly.
+export type SuiteId = 'standard' | 'subtle' | 'all';
 
 // Connector used as the reviewer-under-test. Same prompt, different
 // model family, lets us check whether catch-rate findings survive a
@@ -73,7 +83,12 @@ export interface EvalCaseResult {
 export interface EvalSummary {
   readonly started_at: string;
   readonly finished_at: string;
+  // Which defect group ran. 'custom' when --defects overrode the suite.
+  readonly suite: SuiteId | 'custom';
   readonly judge: JudgeId;
+  // The Anthropic model the judge was pinned to, or null when the connector
+  // ran its host default (e.g. the codex judge, which the eval does not pin).
+  readonly judge_model: string | null;
   readonly wallclock_ms: number;
   readonly source_pool: EvalSourcePoolSummary;
   readonly per_defect: Record<
@@ -83,11 +98,24 @@ export interface EvalSummary {
   readonly controls: { passes: number; fails: number; errors: number; cases: number };
   readonly overall: {
     cases: number;
+    // Cases where the judge was actually invoked: total cases minus the
+    // ones the planter could not apply to (harness skips).
+    attempted: number;
+    // Cases the planter could not apply to (target field absent). The judge
+    // was never invoked, so these leave the protocol-failure denominator
+    // instead of flattering or deflating the rate.
+    harness_skipped: number;
     successful_calls: number;
     catches: number;
     misses: number;
+    // Attempted cases that produced no valid verdict (connector/timeout,
+    // unparseable output, or schema-invalid JSON). Excludes harness skips.
     errors: number;
+    error_kinds: { connector_error: number; parse_error: number; schema_error: number };
     catch_rate: number;
+    // errors / attempted. The class the production schema gate converts into
+    // retries; the tier-separating signal at cheap judge tiers.
+    protocol_failure_rate: number;
     total_duration_ms: number;
     median_duration_ms: number;
   };

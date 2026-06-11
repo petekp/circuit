@@ -22,6 +22,12 @@ import {
 } from '../../scripts/evals/shared/process.ts';
 import { createClaudeCodeWrapper, vanillaClaudeArgs } from '../../scripts/evals/shared/providers.ts';
 import { readJson, safeSegment, writeJson } from '../../scripts/evals/shared/json.ts';
+import {
+  CIRCUIT_MODES,
+  type CircuitMode,
+  circuitModeArgs,
+  isCircuitMode,
+} from '../../scripts/evals/fix-vs-vanilla/circuit-mode.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,7 +38,6 @@ const DEFAULT_RESULTS_ROOT = resolve(__dirname, 'results');
 type JsonRecord = Record<string, any>;
 type TaskSet = 'discovery' | 'regression' | 'held-out';
 type RequestedTaskSet = TaskSet | 'all';
-type CircuitMode = 'default' | 'lite' | 'deep' | 'autonomous';
 type CheckDefinition = {
   id: string;
   argv: string[];
@@ -102,7 +107,7 @@ function usage(): string {
     [--model <model-id>] \\
     [--effort low|medium|high|xhigh] \\
     [--timeout-ms 900000] \\
-    [--circuit-mode default|lite|deep|autonomous] \\
+    [--circuit-mode default|low|medium|high|autonomous] \\
     [--out-dir evals/fix-vs-vanilla/results] \\
     [--skip-build] \\
     [--dry-run]
@@ -176,8 +181,8 @@ function parseArgs(argv: string[]): { args: FixArgs; manifest: FixManifest } {
   if (!['low', 'medium', 'high', 'xhigh'].includes(args.effort)) {
     throw new Error('--effort must be one of low, medium, high, or xhigh');
   }
-  if (!['default', 'lite', 'deep', 'autonomous'].includes(args.circuitMode)) {
-    throw new Error('--circuit-mode must be one of default, lite, deep, or autonomous');
+  if (!isCircuitMode(args.circuitMode)) {
+    throw new Error(`--circuit-mode must be one of ${CIRCUIT_MODES.join(', ')}`);
   }
   if (!Number.isFinite(args.timeoutMs) || args.timeoutMs <= 0) {
     throw new Error('--timeout-ms must be a positive integer');
@@ -361,12 +366,6 @@ function fixRunMetadata(
 ): Omit<RunCommandMetadata, 'stdout_path' | 'stderr_path'> {
   const { stdout_path: _stdoutPath, stderr_path: _stderrPath, ...metadata } = metadataBase;
   return metadata;
-}
-
-function circuitModeArgs(mode: CircuitMode): string[] {
-  if (mode === 'default') return [];
-  if (mode === 'autonomous') return ['--autonomous'];
-  return ['--rigor', mode];
 }
 
 async function runTask({

@@ -5,73 +5,18 @@ import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'n
 import { dirname, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from './cli-args.ts';
 import { DEFECT_IDS } from './defect-taxonomy.ts';
-import { summarizeCaseSourcePool, summarizeSourcePool } from './reporting.ts';
+import { summarizeCaseSourcePool } from './reporting.ts';
 import { buildCases, runCase } from './runner.ts';
-import type { DefectId, EvalCaseResult, EvalSummary, JudgeId } from './types.ts';
-
-const SUPPORTED_JUDGES: readonly JudgeId[] = ['codex', 'claude-code'];
+import { summarize } from './summary.ts';
+import type { EvalCaseResult, EvalSummary } from './types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const REPO_ROOT = resolve(__dirname, '../..');
 const RUNS_ROOT = resolve(REPO_ROOT, '.circuit/runs');
 
-interface CliArgs {
-  readonly maxComposes: number;
-  readonly defects: readonly DefectId[];
-  readonly includeControl: boolean;
-  readonly dryRun: boolean;
-  readonly judge: JudgeId;
-  readonly resultsDir: string;
-}
-
-function parseArgs(argv: readonly string[]): CliArgs {
-  let maxComposes = Number.POSITIVE_INFINITY;
-  let defects: readonly DefectId[] = DEFECT_IDS;
-  let includeControl = true;
-  let dryRun = false;
-  let judge: JudgeId = 'codex';
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === undefined) continue;
-    if (arg === '--max-composes') {
-      const next = argv[i + 1];
-      if (!next) throw new Error('--max-composes requires a number');
-      maxComposes = Number.parseInt(next, 10);
-      i += 1;
-    } else if (arg === '--defects') {
-      const next = argv[i + 1];
-      if (!next) throw new Error('--defects requires comma-separated ids');
-      const requested = next.split(',') as DefectId[];
-      const unknown = requested.filter((d) => !DEFECT_IDS.includes(d));
-      if (unknown.length > 0) {
-        throw new Error(`unknown defect ids: ${unknown.join(', ')}`);
-      }
-      defects = requested;
-      i += 1;
-    } else if (arg === '--no-control') {
-      includeControl = false;
-    } else if (arg === '--dry-run') {
-      dryRun = true;
-    } else if (arg === '--judge') {
-      const next = argv[i + 1];
-      if (!next) throw new Error('--judge requires a connector name');
-      if (!(SUPPORTED_JUDGES as readonly string[]).includes(next)) {
-        throw new Error(`unknown judge '${next}'; supported: ${SUPPORTED_JUDGES.join(', ')}`);
-      }
-      judge = next as JudgeId;
-      i += 1;
-    } else {
-      throw new Error(`unknown arg: ${arg}`);
-    }
-  }
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  // Tag results dir with judge so cross-judge runs are easy to compare side
-  // by side without overwriting each other's output.
-  const resultsDir = resolve(__dirname, 'results', `${timestamp}-${judge}`);
-  return { maxComposes, defects, includeControl, dryRun, judge, resultsDir };
-}
 
 function findReviewRequests(maxComposes: number): string[] {
   const runDirs = readdirSync(RUNS_ROOT)
@@ -110,91 +55,13 @@ function findReviewRequests(maxComposes: number): string[] {
   return requests.slice(0, maxComposes);
 }
 
-function summarize(
-  results: readonly EvalCaseResult[],
-  wallclockMs: number,
-  judge: JudgeId,
-): EvalSummary {
-  const perDefect = Object.fromEntries(
-    DEFECT_IDS.map((id) => [id, { catches: 0, misses: 0, errors: 0, cases: 0 }]),
-  ) as EvalSummary['per_defect'];
-  const controls = { passes: 0, fails: 0, errors: 0, cases: 0 };
-  let successfulCalls = 0;
-  let catches = 0;
-  let misses = 0;
-  let errors = 0;
-  const durations: number[] = [];
-
-  for (const r of results) {
-    if (r.case.defect_id === 'control') {
-      controls.cases += 1;
-      if (r.outcome.kind === 'success') {
-        successfulCalls += 1;
-        durations.push(r.outcome.result.duration_ms);
-        controls.passes += 1;
-      } else {
-        controls.errors += 1;
-        errors += 1;
-      }
-      continue;
-    }
-    const bucket = perDefect[r.case.defect_id];
-    bucket.cases += 1;
-    if (r.outcome.kind !== 'success') {
-      bucket.errors += 1;
-      errors += 1;
-      continue;
-    }
-    successfulCalls += 1;
-    durations.push(r.outcome.result.duration_ms);
-    if (r.score.kind === 'caught') {
-      bucket.catches += 1;
-      catches += 1;
-    } else if (r.score.kind === 'missed') {
-      bucket.misses += 1;
-      misses += 1;
-    }
-  }
-
-  durations.sort((a, b) => a - b);
-  const middle = Math.floor(durations.length / 2);
-  const upperMiddle = durations[middle];
-  const lowerMiddle = durations[middle - 1];
-  const median =
-    durations.length === 0 || upperMiddle === undefined
-      ? 0
-      : durations.length % 2 === 1
-        ? upperMiddle
-        : ((lowerMiddle ?? upperMiddle) + upperMiddle) / 2;
-  const totalDuration = durations.reduce((acc, d) => acc + d, 0);
-  const totalScored = catches + misses;
-
-  return {
-    started_at: new Date(Date.now() - wallclockMs).toISOString(),
-    finished_at: new Date().toISOString(),
-    judge,
-    wallclock_ms: wallclockMs,
-    source_pool: summarizeSourcePool(results),
-    per_defect: perDefect,
-    controls,
-    overall: {
-      cases: results.length,
-      successful_calls: successfulCalls,
-      catches,
-      misses,
-      errors,
-      catch_rate: totalScored === 0 ? 0 : catches / totalScored,
-      total_duration_ms: totalDuration,
-      median_duration_ms: median,
-    },
-  };
-}
-
 function renderMarkdownReport(results: readonly EvalCaseResult[], summary: EvalSummary): string {
   const lines: string[] = [];
   lines.push('# Verdict-Correctness Eval — Results');
   lines.push('');
+  lines.push(`Suite: ${summary.suite}`);
   lines.push(`Judge: ${summary.judge}`);
+  lines.push(`Judge model: ${summary.judge_model ?? 'host default'}`);
   lines.push(`Run started: ${summary.started_at}`);
   lines.push(`Run finished: ${summary.finished_at}`);
   lines.push(`Wallclock: ${(summary.wallclock_ms / 1000).toFixed(1)}s`);
@@ -203,13 +70,22 @@ function renderMarkdownReport(results: readonly EvalCaseResult[], summary: EvalS
   lines.push('');
   lines.push('## Overall');
   lines.push('');
+  const ek = summary.overall.error_kinds;
   lines.push(`- Cases: ${summary.overall.cases}`);
+  lines.push(`- Attempted (judge invoked): ${summary.overall.attempted}`);
+  lines.push(`- Harness-skipped (planter could not apply): ${summary.overall.harness_skipped}`);
   lines.push(`- Successful LLM calls: ${summary.overall.successful_calls}`);
   lines.push(`- Defects caught: ${summary.overall.catches}`);
   lines.push(`- Defects missed: ${summary.overall.misses}`);
-  lines.push(`- Errors: ${summary.overall.errors}`);
+  lines.push(`- Protocol failures (no valid verdict): ${summary.overall.errors}`);
   lines.push(
-    `- Catch rate: ${(summary.overall.catch_rate * 100).toFixed(1)}% (catches / (catches + misses))`,
+    `  - by kind: connector/timeout ${ek.connector_error}, parse ${ek.parse_error}, schema ${ek.schema_error}`,
+  );
+  lines.push(
+    `- Protocol-failure rate: ${(summary.overall.protocol_failure_rate * 100).toFixed(1)}% (errors / attempted)`,
+  );
+  lines.push(
+    `- Catch rate: ${(summary.overall.catch_rate * 100).toFixed(1)}% (catches / (catches + misses); protocol failures excluded from this denominator)`,
   );
   lines.push(
     `- Median per-call duration: ${(summary.overall.median_duration_ms / 1000).toFixed(1)}s`,
@@ -233,6 +109,8 @@ function renderMarkdownReport(results: readonly EvalCaseResult[], summary: EvalS
   lines.push('| --- | --- | --- | --- | --- | --- |');
   for (const id of DEFECT_IDS) {
     const b = summary.per_defect[id];
+    // Only the selected suite's defects ran; skip the other suite's empty rows.
+    if (b.cases === 0) continue;
     const scored = b.catches + b.misses;
     const rate = scored === 0 ? 'n/a' : `${((b.catches / scored) * 100).toFixed(0)}%`;
     lines.push(`| ${id} | ${b.cases} | ${b.catches} | ${b.misses} | ${b.errors} | ${rate} |`);
@@ -297,7 +175,7 @@ async function main(): Promise<void> {
     includeControl: args.includeControl,
   });
   console.error(
-    `Built ${cases.length} cases from ${requestPaths.length} composes. Judge: ${args.judge}. Defects: ${args.defects.join(', ')}. Controls: ${args.includeControl}.`,
+    `Built ${cases.length} cases from ${requestPaths.length} composes. Suite: ${args.suite}. Judge: ${args.judge}. Model: ${args.model ?? 'host default'}. Defects: ${args.defects.join(', ')}. Controls: ${args.includeControl}.`,
   );
   if (args.dryRun) {
     const sourcePool = summarizeCaseSourcePool(cases);
@@ -319,7 +197,7 @@ async function main(): Promise<void> {
     const caseDef = cases[i];
     if (caseDef === undefined) continue;
     const startCase = performance.now();
-    const result = await runCase(caseDef, { judge: args.judge });
+    const result = await runCase(caseDef, { judge: args.judge, model: args.model });
     const ms = performance.now() - startCase;
     results.push(result);
     const status =
@@ -339,19 +217,23 @@ async function main(): Promise<void> {
     );
   }
   const wallclockMs = performance.now() - start;
-  const summary = summarize(results, wallclockMs, args.judge);
+  const summary = summarize(results, wallclockMs, args.judge, args.model, args.suite);
   writeFileSync(resolve(args.resultsDir, 'summary.json'), JSON.stringify(summary, null, 2));
   writeFileSync(resolve(args.resultsDir, 'results.json'), JSON.stringify(results, null, 2));
   writeFileSync(resolve(args.resultsDir, 'report.md'), renderMarkdownReport(results, summary));
   console.error('');
   console.error('=== SUMMARY ===');
+  console.error(`Suite: ${summary.suite}`);
   console.error(`Judge: ${summary.judge}`);
+  console.error(`Model: ${summary.judge_model ?? 'host default'}`);
   console.error(`Cases: ${summary.overall.cases}`);
   console.error(
     `Catches: ${summary.overall.catches} / ${summary.overall.catches + summary.overall.misses}`,
   );
   console.error(`Catch rate: ${(summary.overall.catch_rate * 100).toFixed(1)}%`);
-  console.error(`Errors: ${summary.overall.errors}`);
+  console.error(
+    `Protocol-failure rate: ${(summary.overall.protocol_failure_rate * 100).toFixed(1)}% (${summary.overall.errors}/${summary.overall.attempted})`,
+  );
   console.error(`Wallclock: ${(wallclockMs / 1000).toFixed(1)}s`);
   console.error(`Results: ${args.resultsDir}`);
 }

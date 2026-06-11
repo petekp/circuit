@@ -75,7 +75,8 @@
       "primary_metric": "defect_catch_rate",
       "secondary_metrics": [
         "control_false_positive_rate",
-        "connector_error_rate"
+        "connector_error_rate",
+        "protocol_failure_rate"
       ],
       "default_command": [
         "node",
