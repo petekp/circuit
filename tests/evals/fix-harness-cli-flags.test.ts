@@ -1,0 +1,46 @@
+import { describe, expect, it } from 'vitest';
+
+import { parseExecutionArgs } from '../../src/cli/run.js';
+import {
+  CIRCUIT_MODES,
+  circuitModeArgs,
+} from '../../scripts/evals/fix-vs-vanilla/circuit-mode.ts';
+
+// The fix harness emits CLI flags for `circuit run fix` based on its
+// `--circuit-mode`. If the run CLI renames or drops an option (it renamed the
+// rigor axis to `--depth` in PR #56), the harness silently emits a flag the CLI
+// rejects, and live runs only fail mid-flight. This test is the drift guard:
+// every flag set the harness can emit must parse against the *actual* commander
+// definition in src/cli/run.ts.
+//
+// The harness always supplies a flow-name and --goal alongside the mode flags,
+// so we wrap them the same way; that isolates the assertion to the mode flags
+// rather than the unrelated required-argument checks.
+function parseModeArgs(mode: (typeof CIRCUIT_MODES)[number]) {
+  return parseExecutionArgs('run', ['fix', '--goal', 'fix the regression', ...circuitModeArgs(mode)]);
+}
+
+describe('fix harness circuit-mode flags', () => {
+  for (const mode of CIRCUIT_MODES) {
+    it(`emits flags the run CLI accepts for mode "${mode}"`, () => {
+      expect(() => parseModeArgs(mode)).not.toThrow();
+    });
+  }
+
+  it('maps depth modes to the --depth axis the CLI declares', () => {
+    for (const mode of ['low', 'medium', 'high'] as const) {
+      expect(circuitModeArgs(mode)).toEqual(['--depth', mode]);
+      expect(parseModeArgs(mode).depthProvided).toBe(true);
+    }
+  });
+
+  it('maps autonomous to the --autonomous flag and default to no flags', () => {
+    expect(circuitModeArgs('autonomous')).toEqual(['--autonomous']);
+    expect(parseModeArgs('autonomous').autonomousProvided).toBe(true);
+
+    expect(circuitModeArgs('default')).toEqual([]);
+    const parsedDefault = parseModeArgs('default');
+    expect(parsedDefault.depthProvided).toBe(false);
+    expect(parsedDefault.autonomousProvided).toBe(false);
+  });
+});
