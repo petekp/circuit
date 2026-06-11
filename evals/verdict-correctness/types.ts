@@ -74,6 +74,9 @@ export interface EvalSummary {
   readonly started_at: string;
   readonly finished_at: string;
   readonly judge: JudgeId;
+  // The Anthropic model the judge was pinned to, or null when the connector
+  // ran its host default (e.g. the codex judge, which the eval does not pin).
+  readonly judge_model: string | null;
   readonly wallclock_ms: number;
   readonly source_pool: EvalSourcePoolSummary;
   readonly per_defect: Record<

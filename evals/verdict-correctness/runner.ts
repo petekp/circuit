@@ -12,6 +12,7 @@ import { relayClaudeCode } from '../../dist/connectors/claude-code.js';
 import { relayCodex } from '../../dist/connectors/codex.js';
 import { ExploreReviewVerdict } from '../../dist/flows/explore/reports.js';
 import { extractJsonObject } from '../../dist/shared/json-extraction.js';
+import type { ResolvedSelection } from '../../src/schemas/selection-policy.js';
 import { DEFECT_DESCRIPTIONS, DEFECT_IDS, DEFECT_PLANTERS } from './defect-taxonomy.ts';
 import { parseRequest, rebuildRequest, upgradeShapeHintInstruction } from './prompt-mutation.ts';
 import { scoreDefect } from './scorer.ts';
@@ -28,9 +29,16 @@ const DEFAULT_TIMEOUT_MS = 2 * 60 * 1000;
 
 // Connector dispatch. Same input shape, same RelayResult shape; only the
 // model family differs. Adding a new judge is a one-line addition here.
+// `resolvedSelection` is how the claude-code connector receives a pinned
+// model (provider 'anthropic'); the connector adds `--model` when present.
+interface JudgeRelayInput {
+  prompt: string;
+  timeoutMs?: number;
+  resolvedSelection?: ResolvedSelection;
+}
 const RELAY_BY_JUDGE: Record<
   JudgeId,
-  (input: { prompt: string; timeoutMs?: number }) => Promise<{
+  (input: JudgeRelayInput) => Promise<{
     result_body: string;
     duration_ms: number;
     cli_version: string;
@@ -101,6 +109,9 @@ export function buildCases(input: BuildCasesInput): EvalCase[] {
 export interface RunOptions {
   readonly timeoutMs?: number;
   readonly judge?: JudgeId;
+  // Anthropic model id to pin the claude-code judge to. Ignored for codex
+  // (cli-args.ts rejects --model with any non-claude-code judge upstream).
+  readonly model?: string | null;
   readonly onProgress?: (
     index: number,
     total: number,
@@ -123,9 +134,21 @@ export async function runCase(
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const judge: JudgeId = options.judge ?? 'codex';
   const relay = RELAY_BY_JUDGE[judge];
+  // Only the claude-code connector honors a pinned model via resolvedSelection;
+  // upstream validation guarantees model is unset for other judges. The
+  // connector reads only `.model`/`.effort`; `skills`/`invocation_options` are
+  // the schema defaults a fully resolved selection always carries.
+  const resolvedSelection: ResolvedSelection | undefined =
+    judge === 'claude-code' && options.model
+      ? { skills: [], invocation_options: {}, model: { provider: 'anthropic', model: options.model } }
+      : undefined;
   let raw: { result_body: string; duration_ms: number; cli_version: string };
   try {
-    raw = await relay({ prompt: caseDef.prompt, timeoutMs });
+    raw = await relay({
+      prompt: caseDef.prompt,
+      timeoutMs,
+      ...(resolvedSelection ? { resolvedSelection } : {}),
+    });
   } catch (err) {
     return {
       case: caseDef,
