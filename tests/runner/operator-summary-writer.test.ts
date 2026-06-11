@@ -2601,3 +2601,201 @@ describe('operator summary writer — skill hook activations', () => {
     expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('Skill hooks:');
   });
 });
+
+describe('operator summary writer — run receipt', () => {
+  const RUN = '87000000-0000-0000-0000-000000000001';
+
+  function traceEntry(
+    sequence: number,
+    kind: string,
+    fields: Record<string, unknown>,
+  ): Record<string, unknown> {
+    return {
+      schema_version: 1,
+      sequence,
+      recorded_at: '2026-06-10T12:00:00.000Z',
+      run_id: RUN,
+      kind,
+      ...fields,
+    };
+  }
+
+  function bootstrapped(depth: string): Record<string, unknown> {
+    return traceEntry(1, 'run.bootstrapped', {
+      flow_id: 'fix',
+      depth,
+      goal: 'run fix',
+      change_kind: 'behavioral',
+      manifest_hash: 'abc123',
+    });
+  }
+
+  function relayStarted(
+    sequence: number,
+    stepId: string,
+    attempt: number,
+    model?: { provider: string; model: string },
+  ): Record<string, unknown> {
+    return traceEntry(sequence, 'relay.started', {
+      step_id: stepId,
+      attempt,
+      connector: 'claude-code-task',
+      role: 'implementer',
+      resolved_selection: {
+        ...(model === undefined ? {} : { model }),
+        skills: [],
+        invocation_options: {},
+      },
+      resolved_from: { source: 'role', role: 'implementer' },
+    });
+  }
+
+  function checkEvaluated(sequence: number, outcome: 'pass' | 'fail'): Record<string, unknown> {
+    return traceEntry(sequence, 'check.evaluated', {
+      step_id: 'apply-step',
+      attempt: 1,
+      check_kind: 'schema_sections',
+      outcome,
+    });
+  }
+
+  it('aggregates depth, worker runs, distinct models, and check counts from the trace', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(2, 'diagnose-step', 1, { provider: 'anthropic', model: 'claude-haiku-4-5' }),
+      relayStarted(3, 'apply-step', 1, { provider: 'anthropic', model: 'claude-haiku-4-5' }),
+      relayStarted(4, 'review-step', 1, { provider: 'anthropic', model: 'claude-opus-4-8' }),
+      checkEvaluated(5, 'pass'),
+      checkEvaluated(6, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt).toEqual({
+      depth: 'medium',
+      worker_runs: 3,
+      models: [
+        { provider: 'anthropic', model: 'claude-haiku-4-5' },
+        { provider: 'anthropic', model: 'claude-opus-4-8' },
+      ],
+      checks_evaluated: 2,
+      checks_failed: 0,
+    });
+  });
+
+  it('renders the receipt line in plain words with no model ids and no "power" claim', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(2, 'diagnose-step', 1, { provider: 'anthropic', model: 'claude-haiku-4-5' }),
+      relayStarted(3, 'apply-step', 1, { provider: 'anthropic', model: 'claude-opus-4-8' }),
+      checkEvaluated(4, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('⎿ depth medium · 2 worker runs · all checks passed');
+    // Phase 1 makes no model-tier claims: model ids stay in the run record.
+    expect(markdown).not.toContain('claude-haiku-4-5');
+    expect(markdown).not.toContain('claude-opus-4-8');
+    expect(markdown).not.toMatch(/power/i);
+  });
+
+  it('uses the singular form for a single worker run', () => {
+    writeTrace([bootstrapped('low'), relayStarted(2, 'apply-step', 1), checkEvaluated(3, 'pass')]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      '⎿ depth low · 1 worker run · all checks passed',
+    );
+  });
+
+  it('reports the passed-of-evaluated count instead of claiming all checks passed when any check failed', () => {
+    writeTrace([
+      bootstrapped('high'),
+      relayStarted(2, 'apply-step', 1),
+      checkEvaluated(3, 'fail'),
+      checkEvaluated(4, 'pass'),
+      checkEvaluated(5, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt).toMatchObject({ checks_evaluated: 3, checks_failed: 1 });
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('⎿ depth high · 1 worker run · 2 of 3 checks passed');
+    expect(markdown).not.toContain('all checks passed');
+  });
+
+  it('omits the checks clause when the run evaluated no checks', () => {
+    writeTrace([bootstrapped('medium'), relayStarted(2, 'apply-step', 1)]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain('⎿ depth medium · 1 worker run\n');
+  });
+
+  it('omits the receipt entirely when the trace has no run.bootstrapped entry', () => {
+    writeTrace([relayStarted(2, 'apply-step', 1), checkEvaluated(3, 'pass')]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt).toBeUndefined();
+    expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('⎿');
+  });
+
+  it('omits the receipt when the trace file is missing', () => {
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt).toBeUndefined();
+    expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('⎿');
+  });
+
+  it('skips relay.started entries whose resolved_selection carries no model without losing the run count', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(2, 'diagnose-step', 1),
+      relayStarted(3, 'apply-step', 1, { provider: 'openai', model: 'gpt-5.2-codex' }),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt).toMatchObject({
+      worker_runs: 2,
+      models: [{ provider: 'openai', model: 'gpt-5.2-codex' }],
+    });
+  });
+});

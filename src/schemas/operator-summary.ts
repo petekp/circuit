@@ -1,7 +1,9 @@
 import { z } from 'zod';
+import { CompiledDepth } from './depth.js';
 import { CompiledFlowId, RunId } from './ids.js';
 import { MAX_STATUS_TEXT_CHARS } from './progress-event.js';
 import { RubricResult } from './rubric.js';
+import { ProviderScopedModel } from './selection-policy.js';
 import { RunClosedOutcome } from './trace-entry.js';
 
 export const OperatorSummaryWarning = z
@@ -91,6 +93,25 @@ export const OperatorSkillHookActivation = z
   .strict();
 export type OperatorSkillHookActivation = z.infer<typeof OperatorSkillHookActivation>;
 
+// End-of-run receipt: what the run actually spent and proved, aggregated from
+// the trace. `depth` comes from `run.bootstrapped`, `worker_runs` and `models`
+// from `relay.started` (distinct models in first-seen order; entries without a
+// resolved model still count as runs), and the check counts from every
+// `check.evaluated` entry across all attempts. The rendered digest line uses
+// plain words only — model ids stay here and in the run record. Deliberately
+// no retry count: relay attempt numbers also increment per slice in slice
+// loops, so a retry count derived from them would overstate failures.
+export const OperatorRunReceipt = z
+  .object({
+    depth: CompiledDepth,
+    worker_runs: z.number().int().nonnegative(),
+    models: z.array(ProviderScopedModel),
+    checks_evaluated: z.number().int().nonnegative(),
+    checks_failed: z.number().int().nonnegative(),
+  })
+  .strict();
+export type OperatorRunReceipt = z.infer<typeof OperatorRunReceipt>;
+
 export const OperatorSummary = z
   .object({
     schema_version: z.literal(1),
@@ -111,6 +132,7 @@ export const OperatorSummary = z
     report_paths: z.array(OperatorSummaryReportLink),
     auto_resolutions: z.array(OperatorAutoResolution).optional(),
     skill_hook_activations: z.array(OperatorSkillHookActivation).optional(),
+    receipt: OperatorRunReceipt.optional(),
     checkpoint: z
       .object({
         step_id: z.string().min(1),
