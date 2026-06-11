@@ -102,15 +102,26 @@ export type OperatorSkillHookActivation = z.infer<typeof OperatorSkillHookActiva
 // plain words only — model ids stay here and in the run record. Deliberately
 // no retry count: relay attempt numbers also increment per slice in slice
 // loops, so a retry count derived from them would overstate failures.
-// `power` is the run's dial position (the first one a relay selection carried;
-// the dial is run-level so they all agree) and is absent when the dial was
-// off. `escalations` counts relays that ran one tier above their allocation —
+// `power` is the run's dial position and is absent when the dial was off. On
+// a fixed dial it is the first power a relay selection carried (the dial is
+// run-level so they all agree); under an auto setting it is the run's
+// resolved inference — NOT the first selection, which materialized the
+// medium fallback before the researcher's recommendation landed.
+// `escalations` counts relays that ran one tier above their allocation —
 // it is dial-provenance (power_escalated), not an attempt count, so it does
 // not reintroduce the retry-count overstatement above.
 export const OperatorRunReceipt = z
   .object({
     depth: CompiledDepth,
     power: Power.optional(),
+    // Present only when the dial setting was `auto` (any relay selection
+    // carried power_source 'auto'). The three companion fields below are
+    // present only when a researcher recommendation actually resolved;
+    // their absence under `auto` means the run stayed on the medium fallback.
+    power_source: z.literal('auto').optional(),
+    power_recommended: Power.optional(),
+    power_rationale: z.string().min(1).optional(),
+    power_clamped: z.boolean().optional(),
     worker_runs: z.number().int().nonnegative(),
     escalations: z.number().int().nonnegative(),
     models: z.array(ProviderScopedModel),

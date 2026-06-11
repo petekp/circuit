@@ -48047,6 +48047,14 @@ var OperatorSkillHookActivation = external_exports.object({
 var OperatorRunReceipt = external_exports.object({
   depth: CompiledDepth,
   power: Power.optional(),
+  // Present only when the dial setting was `auto` (any relay selection
+  // carried power_source 'auto'). The three companion fields below are
+  // present only when a researcher recommendation actually resolved;
+  // their absence under `auto` means the run stayed on the medium fallback.
+  power_source: external_exports.literal("auto").optional(),
+  power_recommended: Power.optional(),
+  power_rationale: external_exports.string().min(1).optional(),
+  power_clamped: external_exports.boolean().optional(),
   worker_runs: external_exports.number().int().nonnegative(),
   escalations: external_exports.number().int().nonnegative(),
   models: external_exports.array(ProviderScopedModel),
@@ -63438,6 +63446,8 @@ function readRunReceipt(runFolder) {
     return void 0;
   let depth;
   let power;
+  let powerAuto = false;
+  let inference;
   let workerRuns = 0;
   let escalations = 0;
   let checksEvaluated = 0;
@@ -63470,6 +63480,8 @@ function readRunReceipt(runFolder) {
           if (parsedPower.success)
             power = parsedPower.data;
         }
+        if (selection.power_source === "auto")
+          powerAuto = true;
         if (selection.power_escalated === true)
           escalations += 1;
       }
@@ -63483,6 +63495,20 @@ function readRunReceipt(runFolder) {
       }
       continue;
     }
+    if (entry.kind === "run.power-inference" && inference === void 0) {
+      const recommended = Power.safeParse(entry.recommended);
+      const resolved = Power.safeParse(entry.resolved);
+      const rationale = stringField2(entry, "rationale");
+      if (recommended.success && resolved.success && rationale !== void 0) {
+        inference = {
+          recommended: recommended.data,
+          rationale,
+          resolved: resolved.data,
+          clamped: entry.clamped === true
+        };
+      }
+      continue;
+    }
     if (entry.kind === "check.evaluated") {
       checksEvaluated += 1;
       if (entry.outcome === "fail")
@@ -63491,9 +63517,16 @@ function readRunReceipt(runFolder) {
   }
   if (depth === void 0)
     return void 0;
+  const effectivePower = inference?.resolved ?? power;
   return {
     depth,
-    ...power === void 0 ? {} : { power },
+    ...effectivePower === void 0 ? {} : { power: effectivePower },
+    ...powerAuto ? { power_source: "auto" } : {},
+    ...powerAuto && inference !== void 0 ? {
+      power_recommended: inference.recommended,
+      power_rationale: inference.rationale,
+      power_clamped: inference.clamped
+    } : {},
     worker_runs: workerRuns,
     escalations,
     models,
@@ -63504,8 +63537,10 @@ function readRunReceipt(runFolder) {
 function receiptLine(receipt) {
   const runsWord = receipt.worker_runs === 1 ? "worker run" : "worker runs";
   const parts = [`depth ${receipt.depth}`];
-  if (receipt.power !== void 0)
-    parts.push(`power ${receipt.power}`);
+  if (receipt.power !== void 0) {
+    const autoQualifier = receipt.power_source !== "auto" ? "" : receipt.power_rationale === void 0 ? " (auto, no recommendation)" : receipt.power_clamped === true ? " (auto, capped)" : " (auto)";
+    parts.push(`power ${receipt.power}${autoQualifier}`);
+  }
   parts.push(`${receipt.worker_runs} ${runsWord}`);
   if (receipt.escalations > 0) {
     parts.push(`${receipt.escalations} ${receipt.escalations === 1 ? "escalation" : "escalations"}`);
@@ -63804,6 +63839,10 @@ function writeOperatorSummary(input) {
   }
   if (input.runResult.outcome === "escalated" && input.runResult.reason !== void 0) {
     details.push(`Escalation reason: ${input.runResult.reason}`);
+  }
+  if (receipt?.power_source === "auto" && receipt.power_rationale !== void 0) {
+    const capped = receipt.power_clamped === true && receipt.power_recommended !== void 0 ? ` (recommended ${receipt.power_recommended}, held to the configured bounds)` : "";
+    details.push(`Power dial: auto chose ${receipt.power}${capped}. Reason: ${receipt.power_rationale}`);
   }
   const warnings = [
     ...warningRecords(flowReport),

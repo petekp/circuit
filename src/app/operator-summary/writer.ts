@@ -606,6 +606,10 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
   if (!existsSync(tracePath)) return undefined;
   let depth: OperatorRunReceipt['depth'] | undefined;
   let power: OperatorRunReceipt['power'] | undefined;
+  let powerAuto = false;
+  let inference:
+    | { recommended: Power; rationale: string; resolved: Power; clamped: boolean }
+    | undefined;
   let workerRuns = 0;
   let escalations = 0;
   let checksEvaluated = 0;
@@ -636,6 +640,7 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
           const parsedPower = Power.safeParse(selection.power);
           if (parsedPower.success) power = parsedPower.data;
         }
+        if (selection.power_source === 'auto') powerAuto = true;
         if (selection.power_escalated === true) escalations += 1;
       }
       const model = isObject(selection)
@@ -650,15 +655,40 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
       }
       continue;
     }
+    if (entry.kind === 'run.power-inference' && inference === undefined) {
+      const recommended = Power.safeParse(entry.recommended);
+      const resolved = Power.safeParse(entry.resolved);
+      const rationale = stringField(entry, 'rationale');
+      if (recommended.success && resolved.success && rationale !== undefined) {
+        inference = {
+          recommended: recommended.data,
+          rationale,
+          resolved: resolved.data,
+          clamped: entry.clamped === true,
+        };
+      }
+      continue;
+    }
     if (entry.kind === 'check.evaluated') {
       checksEvaluated += 1;
       if (entry.outcome === 'fail') checksFailed += 1;
     }
   }
   if (depth === undefined) return undefined;
+  // Under auto, the run's dial is the resolved inference; the first relay
+  // selection materialized the medium fallback before the inference landed.
+  const effectivePower = inference?.resolved ?? power;
   return {
     depth,
-    ...(power === undefined ? {} : { power }),
+    ...(effectivePower === undefined ? {} : { power: effectivePower }),
+    ...(powerAuto ? { power_source: 'auto' as const } : {}),
+    ...(powerAuto && inference !== undefined
+      ? {
+          power_recommended: inference.recommended,
+          power_rationale: inference.rationale,
+          power_clamped: inference.clamped,
+        }
+      : {}),
     worker_runs: workerRuns,
     escalations,
     models,
@@ -675,7 +705,20 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
 function receiptLine(receipt: OperatorRunReceipt): string {
   const runsWord = receipt.worker_runs === 1 ? 'worker run' : 'worker runs';
   const parts = [`depth ${receipt.depth}`];
-  if (receipt.power !== undefined) parts.push(`power ${receipt.power}`);
+  if (receipt.power !== undefined) {
+    // Under an auto dial, say so — and say which kind of auto: a resolved
+    // recommendation (possibly capped to the operator bounds) or the medium
+    // fallback a run lands on when its researcher never recommended.
+    const autoQualifier =
+      receipt.power_source !== 'auto'
+        ? ''
+        : receipt.power_rationale === undefined
+          ? ' (auto, no recommendation)'
+          : receipt.power_clamped === true
+            ? ' (auto, capped)'
+            : ' (auto)';
+    parts.push(`power ${receipt.power}${autoQualifier}`);
+  }
   parts.push(`${receipt.worker_runs} ${runsWord}`);
   if (receipt.escalations > 0) {
     parts.push(
@@ -1039,6 +1082,18 @@ export function writeOperatorSummary(input: {
   // sees the failure, not a false "complete".
   if (input.runResult.outcome === 'escalated' && input.runResult.reason !== undefined) {
     details.push(`Escalation reason: ${input.runResult.reason}`);
+  }
+  // Auto-power transparency: when the dial resolved from a researcher
+  // recommendation, the digest says what was chosen and why. The receipt
+  // trailer carries the tier; this line carries the reasoning.
+  if (receipt?.power_source === 'auto' && receipt.power_rationale !== undefined) {
+    const capped =
+      receipt.power_clamped === true && receipt.power_recommended !== undefined
+        ? ` (recommended ${receipt.power_recommended}, held to the configured bounds)`
+        : '';
+    details.push(
+      `Power dial: auto chose ${receipt.power}${capped}. Reason: ${receipt.power_rationale}`,
+    );
   }
 
   const warnings = [
