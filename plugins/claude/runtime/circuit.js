@@ -47980,6 +47980,13 @@ var OperatorSkillHookActivation = external_exports.object({
     reason: external_exports.string().min(1).optional()
   }).strict())
 }).strict();
+var OperatorRunReceipt = external_exports.object({
+  depth: CompiledDepth,
+  worker_runs: external_exports.number().int().nonnegative(),
+  models: external_exports.array(ProviderScopedModel),
+  checks_evaluated: external_exports.number().int().nonnegative(),
+  checks_failed: external_exports.number().int().nonnegative()
+}).strict();
 var OperatorSummary = external_exports.object({
   schema_version: external_exports.literal(1),
   run_id: RunId,
@@ -47999,6 +48006,7 @@ var OperatorSummary = external_exports.object({
   report_paths: external_exports.array(OperatorSummaryReportLink),
   auto_resolutions: external_exports.array(OperatorAutoResolution).optional(),
   skill_hook_activations: external_exports.array(OperatorSkillHookActivation).optional(),
+  receipt: OperatorRunReceipt.optional(),
   checkpoint: external_exports.object({
     step_id: external_exports.string().min(1),
     request_path: external_exports.string().min(1),
@@ -63168,6 +63176,70 @@ function readAutoResolutions(runFolder) {
   }
   return records;
 }
+function readRunReceipt(runFolder) {
+  const tracePath = join28(runFolder, "trace.ndjson");
+  if (!existsSync32(tracePath))
+    return void 0;
+  let depth;
+  let workerRuns = 0;
+  let checksEvaluated = 0;
+  let checksFailed = 0;
+  const models = [];
+  const seenModels = /* @__PURE__ */ new Set();
+  for (const line of readFileSync48(tracePath, "utf8").split(/\r?\n/)) {
+    if (line.trim().length === 0)
+      continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObject4(entry))
+      continue;
+    if (entry.kind === "run.bootstrapped") {
+      const parsed = CompiledDepth.safeParse(entry.depth);
+      if (parsed.success)
+        depth = parsed.data;
+      continue;
+    }
+    if (entry.kind === "relay.started") {
+      workerRuns += 1;
+      const selection = entry.resolved_selection;
+      const model = isObject4(selection) ? ProviderScopedModel.safeParse(selection.model) : void 0;
+      if (model?.success) {
+        const key = `${model.data.provider}:${model.data.model}`;
+        if (!seenModels.has(key)) {
+          seenModels.add(key);
+          models.push(model.data);
+        }
+      }
+      continue;
+    }
+    if (entry.kind === "check.evaluated") {
+      checksEvaluated += 1;
+      if (entry.outcome === "fail")
+        checksFailed += 1;
+    }
+  }
+  if (depth === void 0)
+    return void 0;
+  return {
+    depth,
+    worker_runs: workerRuns,
+    models,
+    checks_evaluated: checksEvaluated,
+    checks_failed: checksFailed
+  };
+}
+function receiptLine(receipt) {
+  const runsWord = receipt.worker_runs === 1 ? "worker run" : "worker runs";
+  const parts = [`depth ${receipt.depth}`, `${receipt.worker_runs} ${runsWord}`];
+  if (receipt.checks_evaluated > 0) {
+    parts.push(receipt.checks_failed === 0 ? "all checks passed" : `${receipt.checks_evaluated - receipt.checks_failed} of ${receipt.checks_evaluated} checks passed`);
+  }
+  return `Receipt: ${parts.join(" \xB7 ")}`;
+}
 function firstLine(text) {
   const head = text.split(/\r?\n/)[0]?.trim() ?? "";
   return head.length > 0 ? head : text.trim();
@@ -63309,6 +63381,9 @@ function renderMarkdown(summary) {
         lines2.push(`- ${skillHookActivationLine(activation)}`);
       }
     }
+    if (summary.receipt !== void 0) {
+      lines2.push("", receiptLine(summary.receipt));
+    }
     if (summary.html_path !== void 0) {
       lines2.push("", `Rich summary: ${summary.html_path}`);
     }
@@ -63347,6 +63422,9 @@ function renderMarkdown(summary) {
       lines.push(`- ${warning.kind}${path}: ${warning.message}`);
     }
   }
+  if (summary.receipt !== void 0) {
+    lines.push("", receiptLine(summary.receipt));
+  }
   if (summary.html_path !== void 0) {
     lines.push("", `Rich summary: ${summary.html_path}`);
   }
@@ -63361,6 +63439,7 @@ function writeOperatorSummary(input) {
   const resultPath2 = input.runResult.outcome === "checkpoint_waiting" ? void 0 : resolveRunRelative(input.runFolder, resultRelPath);
   const autoResolutions = readAutoResolutions(input.runFolder);
   const skillHookSummary = readSkillHookSummary(input.runFolder);
+  const receipt = readRunReceipt(input.runFolder);
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
   mkdirSync6(dirname10(outJsonPath), { recursive: true });
@@ -63484,6 +63563,7 @@ function writeOperatorSummary(input) {
     report_paths: reportPaths,
     ...autoResolutions.length === 0 ? {} : { auto_resolutions: autoResolutions },
     ...skillHookSummary.activations.length === 0 ? {} : { skill_hook_activations: skillHookSummary.activations },
+    ...receipt === void 0 ? {} : { receipt },
     ...input.runResult.outcome === "checkpoint_waiting" ? { checkpoint: input.runResult.checkpoint } : {}
   });
   writeFileSync7(outJsonPath, `${JSON.stringify(candidate, null, 2)}

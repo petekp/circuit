@@ -5,10 +5,12 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { findFlowRuntimeSurfaceById } from '../../flows/catalog.js';
+import { CompiledDepth } from '../../schemas/depth.js';
 import {
   OperatorAutoResolution,
   type OperatorAutoResolution as OperatorAutoResolutionValue,
   type OperatorBriefSlots,
+  type OperatorRunReceipt,
   OperatorSkillHookActivation,
   type OperatorSkillHookActivation as OperatorSkillHookActivationValue,
   OperatorSummary,
@@ -16,6 +18,7 @@ import {
   type OperatorSummaryWarning,
 } from '../../schemas/operator-summary.js';
 import type { RunResult } from '../../schemas/result.js';
+import { ProviderScopedModel } from '../../schemas/selection-policy.js';
 import { RunSkillHookEvent } from '../../schemas/skill-hook.js';
 import { type HtmlProjectorContext, getHtmlProjector } from '../../shared/html/index.js';
 import {
@@ -592,6 +595,80 @@ function readAutoResolutions(runFolder: string): OperatorAutoResolutionValue[] {
   return records;
 }
 
+// Aggregate the run receipt out of the trace: depth from `run.bootstrapped`,
+// worker-run count and distinct models from `relay.started`, check totals from
+// `check.evaluated`. One pass, field-tolerant like the other trace readers —
+// a malformed line is skipped, never fatal. Returns undefined when the trace
+// is missing or never bootstrapped (nothing truthful to report).
+function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
+  const tracePath = join(runFolder, 'trace.ndjson');
+  if (!existsSync(tracePath)) return undefined;
+  let depth: OperatorRunReceipt['depth'] | undefined;
+  let workerRuns = 0;
+  let checksEvaluated = 0;
+  let checksFailed = 0;
+  const models: ProviderScopedModel[] = [];
+  const seenModels = new Set<string>();
+  for (const line of readFileSync(tracePath, 'utf8').split(/\r?\n/)) {
+    if (line.trim().length === 0) continue;
+    let entry: unknown;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObject(entry)) continue;
+    if (entry.kind === 'run.bootstrapped') {
+      const parsed = CompiledDepth.safeParse(entry.depth);
+      if (parsed.success) depth = parsed.data;
+      continue;
+    }
+    if (entry.kind === 'relay.started') {
+      workerRuns += 1;
+      const selection = entry.resolved_selection;
+      const model = isObject(selection)
+        ? ProviderScopedModel.safeParse(selection.model)
+        : undefined;
+      if (model?.success) {
+        const key = `${model.data.provider}:${model.data.model}`;
+        if (!seenModels.has(key)) {
+          seenModels.add(key);
+          models.push(model.data);
+        }
+      }
+      continue;
+    }
+    if (entry.kind === 'check.evaluated') {
+      checksEvaluated += 1;
+      if (entry.outcome === 'fail') checksFailed += 1;
+    }
+  }
+  if (depth === undefined) return undefined;
+  return {
+    depth,
+    worker_runs: workerRuns,
+    models,
+    checks_evaluated: checksEvaluated,
+    checks_failed: checksFailed,
+  };
+}
+
+// The receipt line speaks plain words only: depth, how many worker runs, and
+// what the checks proved. No model ids and no tier claims here — those live in
+// the JSON receipt and the run record.
+function receiptLine(receipt: OperatorRunReceipt): string {
+  const runsWord = receipt.worker_runs === 1 ? 'worker run' : 'worker runs';
+  const parts = [`depth ${receipt.depth}`, `${receipt.worker_runs} ${runsWord}`];
+  if (receipt.checks_evaluated > 0) {
+    parts.push(
+      receipt.checks_failed === 0
+        ? 'all checks passed'
+        : `${receipt.checks_evaluated - receipt.checks_failed} of ${receipt.checks_evaluated} checks passed`,
+    );
+  }
+  return `Receipt: ${parts.join(' · ')}`;
+}
+
 // The registry's "could not find skill" error is multi-line (it lists every
 // searched path). The digest wants the headline only.
 function firstLine(text: string): string {
@@ -743,6 +820,9 @@ function renderMarkdown(summary: OperatorSummary): string {
         lines.push(`- ${skillHookActivationLine(activation)}`);
       }
     }
+    if (summary.receipt !== undefined) {
+      lines.push('', receiptLine(summary.receipt));
+    }
     if (summary.html_path !== undefined) {
       lines.push('', `Rich summary: ${summary.html_path}`);
     }
@@ -786,6 +866,10 @@ function renderMarkdown(summary: OperatorSummary): string {
     }
   }
 
+  if (summary.receipt !== undefined) {
+    lines.push('', receiptLine(summary.receipt));
+  }
+
   if (summary.html_path !== undefined) {
     lines.push('', `Rich summary: ${summary.html_path}`);
   }
@@ -811,6 +895,7 @@ export function writeOperatorSummary(input: {
       : resolveRunRelative(input.runFolder, resultRelPath);
   const autoResolutions = readAutoResolutions(input.runFolder);
   const skillHookSummary = readSkillHookSummary(input.runFolder);
+  const receipt = readRunReceipt(input.runFolder);
 
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
@@ -969,6 +1054,7 @@ export function writeOperatorSummary(input: {
     ...(skillHookSummary.activations.length === 0
       ? {}
       : { skill_hook_activations: skillHookSummary.activations }),
+    ...(receipt === undefined ? {} : { receipt }),
     ...(input.runResult.outcome === 'checkpoint_waiting'
       ? { checkpoint: input.runResult.checkpoint }
       : {}),
