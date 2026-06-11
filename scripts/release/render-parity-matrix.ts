@@ -182,9 +182,9 @@ function renderOtherRows(
 function axisSelectionsFor(axes: FlowAxisSupportRecord): string[] {
   const selections = new Set<string>();
   const allowedDepths = axes.allowed_depths;
-  if (allowedDepths.includes('standard')) selections.add('default');
-  if (allowedDepths.includes('lite')) selections.add('lite');
-  if (allowedDepths.includes('deep')) selections.add('deep');
+  if (allowedDepths.includes('medium')) selections.add('default');
+  if (allowedDepths.includes('low')) selections.add('low');
+  if (allowedDepths.includes('high')) selections.add('high');
   if (axes.supports_tournament) selections.add('tournament');
   if (axes.supports_autonomous) selections.add('autonomous');
   return [...selections].sort();

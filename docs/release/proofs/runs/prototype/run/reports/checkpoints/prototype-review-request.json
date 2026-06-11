@@ -10,7 +10,7 @@
   "safe_default_choice": "keep-prototype",
   "execution_context": {
     "axes": {
-      "depth": "deep",
+      "depth": "high",
       "tournament": false,
       "tournament_n": 3,
       "autonomous": false

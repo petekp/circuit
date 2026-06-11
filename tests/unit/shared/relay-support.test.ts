@@ -70,9 +70,9 @@ describe('composeRelayPrompt', () => {
       undefined,
       [],
       'build',
-      'lite',
+      'low',
     );
-    expect(withDepth).toContain('Depth: lite');
+    expect(withDepth).toContain('Depth: low');
 
     // Direct callers that pass no depth (the "direct callers unchanged" invariant)
     // or an empty string get no Depth line at all.

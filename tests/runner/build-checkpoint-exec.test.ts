@@ -177,7 +177,7 @@ function checkpointCompiledFlow(options: {
     version: '0.1.0',
     purpose: 'test Build checkpoint execution',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -249,7 +249,7 @@ function checkpointToRelayCompiledFlow(): { flow: CompiledFlow; bytes: Buffer } 
     version: '0.1.0',
     purpose: 'test checkpoint resume context for relay',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -338,7 +338,7 @@ function checkpointToVerificationCompiledFlow(commandCwd = '.'): {
     version: '0.1.0',
     purpose: 'test checkpoint resume context for verification',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -471,7 +471,7 @@ async function startPausedBuildCheckpoint(input: {
     projectRoot: process.cwd(),
     runId: RunId.parse(input.runId),
     goal: input.goal,
-    depth: 'deep',
+    depth: 'high',
     change_kind: change_kind(),
     now: deterministicNow(Date.UTC(2026, 3, 25, 5, 0, 0)),
   });
@@ -499,7 +499,7 @@ function writeInvalidCheckpointFolder(input: {
       run_id: input.runId,
       kind: 'run.bootstrapped',
       flow_id: 'build-checkpoint-exec-test',
-      depth: 'deep',
+      depth: 'high',
       goal: input.goal,
       manifest_hash: manifest.hash,
     })}\n`,
@@ -518,7 +518,7 @@ describe('Build checkpoint execution substrate', () => {
       projectRoot: process.cwd(),
       runId: RunId.parse('b3000000-0000-0000-0000-000000000000'),
       goal: 'Frame a Build run',
-      depth: 'standard',
+      depth: 'medium',
       change_kind: change_kind(),
       now: deterministicNow(Date.UTC(2026, 3, 25, 3, 0, 0)),
     });
@@ -575,7 +575,7 @@ describe('Build checkpoint execution substrate', () => {
       projectRoot: process.cwd(),
       runId: RunId.parse('b3000000-0000-0000-0000-000000000001'),
       goal: 'Frame a deep Build run',
-      depth: 'deep',
+      depth: 'high',
       change_kind: change_kind(),
       now: deterministicNow(Date.UTC(2026, 3, 25, 3, 5, 0)),
     });
@@ -629,7 +629,7 @@ describe('Build checkpoint execution substrate', () => {
       projectRoot: process.cwd(),
       runId: RunId.parse('b3000000-0000-0000-0000-000000000004'),
       goal: 'Resume a deep Build run',
-      depth: 'deep',
+      depth: 'high',
       change_kind: change_kind(),
       now: deterministicNow(Date.UTC(2026, 3, 25, 3, 20, 0)),
     });
@@ -742,7 +742,7 @@ describe('Build checkpoint execution substrate', () => {
       projectRoot: process.cwd(),
       runId: RunId.parse('b3000000-0000-0000-0000-000000000005'),
       goal: 'Reject bad resume choice',
-      depth: 'deep',
+      depth: 'high',
       change_kind: change_kind(),
       now: deterministicNow(Date.UTC(2026, 3, 25, 3, 30, 0)),
     });
@@ -867,7 +867,7 @@ describe('Build checkpoint execution substrate', () => {
       projectRoot: process.cwd(),
       runId: RunId.parse('b3000000-0000-0000-0000-000000000006'),
       goal: 'Reject missing brief on resume',
-      depth: 'deep',
+      depth: 'high',
       change_kind: change_kind(),
       now: deterministicNow(Date.UTC(2026, 3, 25, 3, 40, 0)),
     });
@@ -895,7 +895,7 @@ describe('Build checkpoint execution substrate', () => {
       projectRoot: process.cwd(),
       runId: RunId.parse('b3000000-0000-0000-0000-000000000009'),
       goal: 'Reject tampered brief on resume',
-      depth: 'deep',
+      depth: 'high',
       change_kind: change_kind(),
       now: deterministicNow(Date.UTC(2026, 3, 25, 4, 10, 0)),
     });
@@ -948,7 +948,7 @@ describe('Build checkpoint execution substrate', () => {
       projectRoot: process.cwd(),
       runId: RunId.parse('b3000000-0000-0000-0000-000000000012'),
       goal: 'Reject tampered request and brief on resume',
-      depth: 'deep',
+      depth: 'high',
       change_kind: change_kind(),
       now: deterministicNow(Date.UTC(2026, 3, 25, 4, 40, 0)),
     });
@@ -1026,7 +1026,7 @@ describe('Build checkpoint execution substrate', () => {
       projectRoot: process.cwd(),
       runId: RunId.parse('b3000000-0000-0000-0000-000000000007'),
       goal: 'Resume relay with original config',
-      depth: 'deep',
+      depth: 'high',
       change_kind: change_kind(),
       now: deterministicNow(Date.UTC(2026, 3, 25, 3, 50, 0)),
       selectionConfigLayers: [
@@ -1109,7 +1109,7 @@ describe('Build checkpoint execution substrate', () => {
       projectRoot: process.cwd(),
       runId: RunId.parse('b3000000-0000-0000-0000-000000000010'),
       goal: 'Resume relay with original empty config',
-      depth: 'deep',
+      depth: 'high',
       change_kind: change_kind(),
       now: deterministicNow(Date.UTC(2026, 3, 25, 4, 20, 0)),
     });
@@ -1173,7 +1173,7 @@ describe('Build checkpoint execution substrate', () => {
       projectRoot: originalProjectRoot,
       runId: RunId.parse('b3000000-0000-0000-0000-000000000008'),
       goal: 'Resume verification with original project root',
-      depth: 'deep',
+      depth: 'high',
       change_kind: change_kind(),
       now: deterministicNow(Date.UTC(2026, 3, 25, 4, 0, 0)),
     });
@@ -1205,7 +1205,7 @@ describe('Build checkpoint execution substrate', () => {
       flowBytes: bytes,
       runId: RunId.parse('b3000000-0000-0000-0000-000000000011'),
       goal: 'Resume verification without borrowing project root',
-      depth: 'deep',
+      depth: 'high',
       change_kind: change_kind(),
       now: deterministicNow(Date.UTC(2026, 3, 25, 4, 30, 0)),
     });

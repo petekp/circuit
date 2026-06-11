@@ -159,7 +159,7 @@ describe('runtime connector safety', () => {
       context,
       step,
       compiledStep,
-      depth: CompiledDepth.parse('standard'),
+      depth: CompiledDepth.parse('medium'),
       ...(input.suppliedConnector === undefined
         ? {}
         : { suppliedConnector: input.suppliedConnector }),

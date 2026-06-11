@@ -9,7 +9,7 @@ const FLAG: SliceLoopEngineFlag = {
   advanceRoute: 'advance',
   slicesFrom: { report: 'reports/build/plan.json', itemsPath: 'slices' },
   maxSlices: 8,
-  activateWhenDepthAtLeast: 'deep',
+  activateWhenDepthAtLeast: 'high',
 };
 
 const SLICES = [
@@ -25,7 +25,7 @@ function corridor(input: {
 }): SliceCorridor {
   return new SliceCorridor({
     flag: 'flag' in input ? input.flag : FLAG,
-    depth: 'depth' in input ? input.depth : 'deep',
+    depth: 'depth' in input ? input.depth : 'high',
     readSlices: async () => input.slices ?? SLICES,
   });
 }
@@ -39,7 +39,7 @@ describe('SliceCorridor activation', () => {
   });
 
   it('is inert below the depth floor (standard < deep)', () => {
-    const c = corridor({ depth: 'standard' });
+    const c = corridor({ depth: 'medium' });
     expect(c.isActive()).toBe(false);
     expect(c.countKey('act-step', 2)).toBe('act-step');
   });
@@ -50,7 +50,7 @@ describe('SliceCorridor activation', () => {
   });
 
   it('activates at the floor (deep) and above (autonomous)', () => {
-    expect(corridor({ depth: 'deep' }).isActive()).toBe(true);
+    expect(corridor({ depth: 'high' }).isActive()).toBe(true);
     expect(corridor({ depth: 'autonomous' }).isActive()).toBe(true);
   });
 });
@@ -60,7 +60,7 @@ describe('SliceCorridor slice list', () => {
     let reads = 0;
     const c = new SliceCorridor({
       flag: FLAG,
-      depth: 'deep',
+      depth: 'high',
       readSlices: async () => {
         reads += 1;
         return SLICES;
@@ -85,7 +85,7 @@ describe('SliceCorridor slice list', () => {
     let reads = 0;
     const c = new SliceCorridor({
       flag: FLAG,
-      depth: 'standard',
+      depth: 'medium',
       readSlices: async () => {
         reads += 1;
         return SLICES;
@@ -142,7 +142,7 @@ describe('SliceCorridor advance', () => {
   });
 
   it('never advances when inert', async () => {
-    const c = corridor({ depth: 'standard' });
+    const c = corridor({ depth: 'medium' });
     await c.ensureInitialized();
     expect(c.shouldAdvance({ stepId: 'verify-step', targetStepId: 'review-step' })).toBe(false);
   });

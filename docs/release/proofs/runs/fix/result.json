@@ -3,7 +3,7 @@
   "run_id": "44444444-4444-4444-4444-444444444407",
   "flow_id": "fix",
   "resolved_axes": {
-    "depth": "standard",
+    "depth": "medium",
     "tournament": false,
     "autonomous": false
   },

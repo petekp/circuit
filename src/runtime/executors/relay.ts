@@ -460,7 +460,7 @@ export async function executeProductionRelayAttempt(input: {
     context,
     step,
     compiledStep,
-    depth: CompiledDepth.parse(context.depth ?? 'standard'),
+    depth: CompiledDepth.parse(context.depth ?? 'medium'),
   });
   const prompt = composeRelayPrompt(
     compiledStep,
@@ -761,7 +761,7 @@ async function executeRelayInternal(
     context,
     step,
     compiledStep,
-    depth: CompiledDepth.parse(context.depth ?? 'standard'),
+    depth: CompiledDepth.parse(context.depth ?? 'medium'),
     suppliedConnector: connector,
   });
 

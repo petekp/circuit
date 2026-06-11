@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/runtime-proof/circuit.work-contract.v0.json",
-    "sha256": "50178dbdaf56c66edff32eb2df209c9e176768a1491081c6b34aaa9705233fd7",
+    "sha256": "8abaf0b454619b1472cd87242e80e997e23837a58aa5b83cd3d85cd11db57cf0",
     "flow_id": "runtime-proof"
   },
   "work_contract": {
@@ -12,11 +12,11 @@
       "version": "0.1.0",
       "purpose": "Runtime Proof flow: exercise one compose step and one relay step end-to-end so the runtime boundary can be observed closing a real run.",
       "axes": {
-        "allowed_depths": ["standard"],
+        "allowed_depths": ["medium"],
         "supports_tournament": false,
         "supports_autonomous": false,
         "default": {
-          "depth": "standard",
+          "depth": "medium",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false

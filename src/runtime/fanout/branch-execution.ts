@@ -240,7 +240,7 @@ export function planRelayFanoutBranchGuidanceDecision(input: {
     context: input.context,
     step: relayStep,
     compiledStep: syntheticCompiledRelayStepV1(input.step, input.branch, input.branchDirRel),
-    depth: CompiledDepth.parse(input.context.depth ?? 'standard'),
+    depth: CompiledDepth.parse(input.context.depth ?? 'medium'),
     ...(input.relayConnector === undefined ? {} : { suppliedConnector: input.relayConnector }),
   });
 }

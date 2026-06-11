@@ -52,7 +52,7 @@ function syntheticCloseCompiledFlow(): CompiledFlow {
     version: '0.1.0',
     purpose: 'Synthetic flow that exercises the close-builder registry contract.',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -144,7 +144,7 @@ describe('close-with-evidence registry', () => {
       flowBytes: Buffer.from(JSON.stringify(flow)),
       runId: '00000000-0000-0000-0000-0000aaaa1234',
       goal: 'synthetic registry test',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 26, 13, 0, 0)),
       executors: {
         compose: async (step, context) => {

@@ -3,6 +3,6 @@ import { CompiledDepth } from '../../src/index.js';
 
 describe('smoke', () => {
   it('vitest runs and schemas import cleanly', () => {
-    expect(CompiledDepth.options).toContain('deep');
+    expect(CompiledDepth.options).toContain('high');
   });
 });

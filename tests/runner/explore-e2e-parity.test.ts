@@ -223,7 +223,7 @@ describe('explore fixture static declarations (ratchet-floor contribution)', () 
         flowBytes: bytes,
         runId: '93000000-0000-0000-0000-000000000001',
         goal: 'explore: deterministic close-result parity run',
-        depth: 'standard',
+        depth: 'medium',
         now: () => new Date('2026-04-24T19:30:00.000Z'),
         relayer: deterministicRelayer(),
       });
@@ -265,7 +265,7 @@ describe('explore fixture static declarations (ratchet-floor contribution)', () 
         flowBytes: bytes,
         runId: '33333333-3333-3333-3333-333333333333',
         goal: 'explore: AGENT_SMOKE end-to-end parity run',
-        depth: 'standard',
+        depth: 'medium',
         now: () => new Date(),
       });
 

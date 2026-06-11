@@ -40,7 +40,7 @@ function writePriorRun(projectRoot: string, runId: string, flowId: string): void
       run_id: runId,
       kind: 'run.bootstrapped',
       flow_id: flowId,
-      depth: 'standard',
+      depth: 'medium',
       goal: 'Prior dashboard filter work',
       change_kind: {
         change_kind: 'discovery',

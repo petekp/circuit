@@ -38,7 +38,7 @@ function buildParentCompiledFlow(parentCheckPass: readonly string[]): CompiledFl
     version: '0.1.0',
     purpose: 'sub-run runtime test parent — exercises one sub-run step end-to-end',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -70,7 +70,7 @@ function buildParentCompiledFlow(parentCheckPass: readonly string[]): CompiledFl
           entry_mode: 'default',
         },
         goal: 'child run goal',
-        depth: 'standard',
+        depth: 'medium',
         writes: { result: 'reports/child-result.json' },
         check: {
           kind: 'result_verdict',
@@ -94,7 +94,7 @@ function buildChildCompiledFlow(): CompiledFlow {
     version: '0.1.0',
     purpose: 'sub-run runtime test child — single compose step.',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -214,7 +214,7 @@ describe('sub-run runtime', () => {
       flowBytes: parentBytes,
       runId: parentRunId,
       goal: 'parent run goal',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 27, 0, 0, 0)),
       childCompiledFlowResolver: childResolver,
       childRunner: stubChildRunner,
@@ -289,7 +289,7 @@ describe('sub-run runtime', () => {
       flowBytes: parentBytes,
       runId: parentRunId,
       goal: 'parent check-rejection test',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 27, 0, 30, 0)),
       childCompiledFlowResolver: childResolver,
       childRunner: stubChildRunner,
@@ -325,7 +325,7 @@ describe('sub-run runtime', () => {
       flowBytes: parentBytes,
       runId: parentRunId,
       goal: 'missing-resolver test',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 27, 1, 0, 0)),
     });
 

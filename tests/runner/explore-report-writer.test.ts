@@ -110,7 +110,7 @@ async function runExploreCase(input: {
     flowBytes: input.bytes,
     runId: input.runId,
     goal: input.goal,
-    depth: 'standard',
+    depth: 'medium',
     now: input.now,
     relayer: input.relayer,
   });

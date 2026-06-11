@@ -406,7 +406,7 @@ describe('CLI runtime', () => {
         '--goal',
         'Add a small feature',
         '--depth',
-        'deep',
+        'high',
         '--run-folder',
         runFolder,
       ],

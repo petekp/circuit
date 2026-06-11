@@ -27,7 +27,7 @@ describe('TraceEntry has change_kind + manifest_hash at bootstrap', () => {
       run_id: '0191d2f0-aaaa-7fff-8aaa-000000000000',
       kind: 'run.bootstrapped',
       flow_id: 'explore',
-      depth: 'deep',
+      depth: 'high',
       goal: 'Test',
       manifest_hash: 'abc',
     });
@@ -42,7 +42,7 @@ describe('TraceEntry has change_kind + manifest_hash at bootstrap', () => {
       run_id: '0191d2f0-aaaa-7fff-8aaa-000000000000',
       kind: 'run.bootstrapped',
       flow_id: 'explore',
-      depth: 'deep',
+      depth: 'high',
       goal: 'Test',
       manifest_hash: 'abc',
       change_kind: {
@@ -231,7 +231,7 @@ describe('Snapshot requires change_kind + manifest_hash', () => {
       schema_version: 1,
       run_id: '0191d2f0-aaaa-7fff-8aaa-000000000000',
       flow_id: 'explore',
-      depth: 'deep',
+      depth: 'high',
       change_kind: validChangeKind,
       status: 'in_progress',
       steps: [{ step_id: 'frame', status: 'complete', attempts: 1 }],
@@ -247,7 +247,7 @@ describe('Snapshot requires change_kind + manifest_hash', () => {
       schema_version: 1,
       run_id: '0191d2f0-aaaa-7fff-8aaa-000000000000',
       flow_id: 'explore',
-      depth: 'deep',
+      depth: 'high',
       status: 'in_progress',
       steps: [],
       trace_entries_consumed: 0,
@@ -506,7 +506,7 @@ function proofPolicyGuidanceAt(sequence: number, overrides: Record<string, unkno
     },
     source: 'deterministic',
     selected: {
-      proof_profile: 'standard',
+      proof_profile: 'medium',
       required_claim_kinds: ['verification_passed'],
       required_evidence_kinds: ['command'],
       close_requires_proven: true,
@@ -791,7 +791,7 @@ describe('GuidanceDecision trace invariants', () => {
       TraceEntry.safeParse(
         proofPolicyGuidanceAt(3, {
           selected: {
-            proof_profile: 'standard',
+            proof_profile: 'medium',
           },
         }),
       ).success,
@@ -1279,7 +1279,7 @@ describe('TraceEntry + Snapshot strict mode (RUN-I8)', () => {
       schema_version: 1,
       run_id: RUN_A,
       flow_id: 'explore',
-      depth: 'deep',
+      depth: 'high',
       change_kind,
       status: 'in_progress',
       steps: [],
@@ -1296,7 +1296,7 @@ describe('TraceEntry + Snapshot strict mode (RUN-I8)', () => {
       schema_version: 1,
       run_id: RUN_A,
       flow_id: 'explore',
-      depth: 'deep',
+      depth: 'high',
       change_kind,
       status: 'in_progress',
       steps: [{ step_id: 'frame', status: 'complete', attempts: 1, extra: 'surplus' }],
@@ -1359,7 +1359,7 @@ describe('RunProjection binding (RUN-I6, RUN-I7)', () => {
     schema_version: 1,
     run_id: RUN_A,
     flow_id: 'explore',
-    depth: 'deep' as const,
+    depth: 'high' as const,
     change_kind,
     status: 'in_progress' as const,
     steps: [{ step_id: 'frame', status: 'in_progress' as const, attempts: 1 }],
@@ -1406,7 +1406,7 @@ describe('RunProjection binding (RUN-I6, RUN-I7)', () => {
   it('RUN-I6: mismatched depth rejects projection', () => {
     const bad = RunProjection.safeParse({
       log: validLog,
-      snapshot: { ...snapshotBase, depth: 'standard' },
+      snapshot: { ...snapshotBase, depth: 'medium' },
     });
     expect(bad.success).toBe(false);
   });
@@ -1620,7 +1620,7 @@ describe('TraceEntry variants reject top-level surplus keys (RUN-I8 coverage exp
         sequence: 0,
         kind: 'run.bootstrapped',
         flow_id: 'explore',
-        depth: 'deep',
+        depth: 'high',
         goal: 'Test',
         manifest_hash: 'abc',
         change_kind,
@@ -1995,7 +1995,7 @@ describe('Nested schemas reject surplus keys transitively (RUN-I8 transitivity)'
       schema_version: 1,
       run_id: RUN_A,
       flow_id: 'explore',
-      depth: 'deep',
+      depth: 'high',
       change_kind: { ...change_kind, smuggled: 'x' },
       status: 'in_progress',
       steps: [],
@@ -2061,7 +2061,7 @@ describe('Nested schemas reject surplus keys transitively (RUN-I8 transitivity)'
   });
 
   it('SelectionOverride rejects surplus top-level key', () => {
-    const bad = SelectionOverride.safeParse({ depth: 'standard', smuggled: 'x' });
+    const bad = SelectionOverride.safeParse({ depth: 'medium', smuggled: 'x' });
     expect(bad.success).toBe(false);
   });
 });

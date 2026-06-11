@@ -819,7 +819,7 @@ describe('Codex host plugin package', () => {
   });
 
   it('does not publish mode/depth pairs rejected by the wrapper', () => {
-    const rejectedPair = '--entry-mode deep --depth standard';
+    const rejectedPair = '--entry-mode deep --depth medium';
     const surfaces = [
       resolve(PLUGIN_ROOT, 'skills/run/SKILL.md'),
       resolve(PLUGIN_ROOT, 'commands/run.md'),

@@ -36,7 +36,7 @@ async function runHandlerThrowCase(input: {
     runDir: input.runFolder,
     runId: input.runId,
     goal: 'prove handler throws fall through to a graceful aborted run',
-    depth: 'standard',
+    depth: 'medium',
     now: deterministicNow(Date.UTC(2026, 3, 26, 12, 0, 0)),
     ...(input.executors === undefined ? {} : { executors: input.executors }),
   });

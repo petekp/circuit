@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "purpose": "Goal flow. Circuit writes a bounded goal contract, runs one statically authored child flow target, evaluates evidence, runs a two-pass safety review, and closes from typed Goal reports.",
   "axes": {
-    "allowed_depths": ["lite", "standard", "deep"],
+    "allowed_depths": ["low", "medium", "high"],
     "supports_tournament": false,
     "supports_autonomous": true,
     "default": {
-      "depth": "standard",
+      "depth": "medium",
       "tournament": false,
       "tournament_n": 3,
       "autonomous": false
@@ -148,7 +148,7 @@
         "entry_mode": "default"
       },
       "goal": "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.",
-      "depth": "standard",
+      "depth": "medium",
       "writes": {
         "result": "reports/goal/child-results/fix-result.json",
         "report": {
@@ -191,7 +191,7 @@
         "entry_mode": "default"
       },
       "goal": "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.",
-      "depth": "standard",
+      "depth": "medium",
       "writes": {
         "result": "reports/goal/child-results/build-result.json",
         "report": {
@@ -234,7 +234,7 @@
         "entry_mode": "default"
       },
       "goal": "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.",
-      "depth": "standard",
+      "depth": "medium",
       "writes": {
         "result": "reports/goal/child-results/review-result.json",
         "report": {
@@ -277,7 +277,7 @@
         "entry_mode": "default"
       },
       "goal": "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.",
-      "depth": "standard",
+      "depth": "medium",
       "writes": {
         "result": "reports/goal/child-results/explore-result.json",
         "report": {
@@ -320,7 +320,7 @@
         "entry_mode": "default"
       },
       "goal": "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.",
-      "depth": "standard",
+      "depth": "medium",
       "writes": {
         "result": "reports/goal/child-results/pursue-result.json",
         "report": {

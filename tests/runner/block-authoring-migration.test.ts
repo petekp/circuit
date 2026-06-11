@@ -7,7 +7,7 @@ const SLICE_2_4_TARGETS = new Map<string, readonly string[]>([
   ['review', ['intake-step', 'verdict-step']],
   ['pursue', ['contract-step', 'graph-step', 'wave-plan-step', 'close-step']],
   ['build', ['close-step']],
-  ['fix', ['fix-close-lite', 'fix-close']],
+  ['fix', ['fix-close-low', 'fix-close']],
 ]);
 
 const SLICE_2_5_TARGETS = new Map<string, readonly string[]>([

@@ -19,12 +19,12 @@ capabilities:
     summary: Investigate, decide among options, and shape execution plans.
     axes:
       invocation: "/circuit:explore"
-      modes: [lite, default, deep, tournament, autonomous]
+      modes: [low, default, high, tournament, autonomous]
       stage_path: [Frame, Analyze, Plan or Decision, Close]
       outputs: [brief.md, analysis.md, plan.md, decision.md, result.md]
       checkpoint: One tradeoff checkpoint for tournament decisions; autonomous carries ambiguity forward.
       review: Embedded critique/stress testing in tournament and decision modes.
-      verification: Seam proof in deep mode when a plan has a risky assumption.
+      verification: Seam proof in high-depth mode when a plan has a risky assumption.
       worker_handoff: Evidence probes and tournament proposal/review rounds.
       continuity: Produces plan/decision output that can transfer to doing work.
       proof: Golden decision or tournament run.
@@ -35,11 +35,11 @@ capabilities:
     summary: Build features, scoped refactors, docs, tests, and mixed changes.
     axes:
       invocation: "/circuit:build"
-      modes: [lite, default, deep, autonomous]
+      modes: [low, default, high, autonomous]
       stage_path: [Frame, Plan, Act, Verify, Review, Close]
       outputs: [brief.md, plan.md, review.md, result.md]
       checkpoint: Scope and high-risk choices pause unless autonomous policy can resolve safely.
-      review: Independent fresh-context review for standard and above; original docs record Build Lite review behavior as a known drift point.
+      review: Independent fresh-context review for medium depth and above; original docs record Build low-depth review behavior as a known drift point.
       verification: Verification commands rerun and recorded before close.
       worker_handoff: Implementation worker plus independent reviewer.
       continuity: Active run state survives session boundary.
@@ -51,11 +51,11 @@ capabilities:
     summary: Fix bugs, regressions, flaky behavior, and incidents with regression discipline.
     axes:
       invocation: "/circuit:fix"
-      modes: [lite, default, deep, autonomous]
+      modes: [low, default, high, autonomous]
       stage_path: [Frame, Analyze, Fix, Verify, Review, Close]
       outputs: [brief.md, analysis.md, review.md, result.md]
       checkpoint: Escalates after bounded no-repro or root-cause search.
-      review: Lite skips independent review; standard and above run it.
+      review: Low depth skips independent review; medium and above run it.
       verification: Regression test or diagnostic proof is required where reproducible.
       worker_handoff: Diagnosis and fix may use worker sessions by mode.
       continuity: Active run and handoff support.
@@ -96,16 +96,16 @@ capabilities:
   - id: router:intent:fix
     kind: router_intent
     title: "fix: intent"
-    summary: Routes a quick bug-fix request to Fix Lite.
+    summary: Routes a quick bug-fix request to low-depth Fix.
     axes:
       invocation: "/circuit:run fix: <bug>"
       intent_hints: ["fix:"]
-      modes: [lite]
+      modes: [low]
     source_refs: [legacy-run-command]
   - id: router:intent:develop
     kind: router_intent
     title: "develop: intent"
-    summary: Routes implementation work to Build Standard.
+    summary: Routes implementation work to medium-depth Build.
     axes:
       invocation: "/circuit:run develop: <feature>"
       intent_hints: ["develop:"]

@@ -80,7 +80,7 @@ function relayFlowBytes(options: readonly string[] | RelayFlowFixtureOptions = [
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for relay check admission.',
       axes: {
-        allowed_depths: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -135,7 +135,7 @@ function multiRelayVerdictFlowBytes(): Buffer {
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for terminal verdict derivation.',
       axes: {
-        allowed_depths: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -224,7 +224,7 @@ function checkpointRouteFlowBytes(selection: RichCheckpointRoute): Buffer {
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for checkpoint route labels.',
       axes: {
-        allowed_depths: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -287,7 +287,7 @@ function checkpointRetryLoopFlowBytes(): Buffer {
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for bounded checkpoint retry routes.',
       axes: {
-        allowed_depths: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -336,7 +336,7 @@ function checkpointRetryLoopFlowBytes(): Buffer {
 }
 
 function checkpointMissingSafeChoiceFlowBytes(input: {
-  readonly depth: 'standard' | 'autonomous';
+  readonly depth: 'medium' | 'autonomous';
   readonly safeDefaultChoice?: string;
 }): Buffer {
   const policy: Record<string, unknown> = {
@@ -353,11 +353,11 @@ function checkpointMissingSafeChoiceFlowBytes(input: {
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for checkpoint auto-resolution failure.',
       axes: {
-        allowed_depths: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: input.depth === 'autonomous',
         default: {
-          depth: 'standard',
+          depth: 'medium',
           tournament: false,
           tournament_n: 3,
           autonomous: input.depth === 'autonomous',
@@ -410,7 +410,7 @@ function verificationFlowBytes(reportSchema = 'never-registered.verification@v1'
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for verification pre-write failure evidence.',
       axes: {
-        allowed_depths: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -953,7 +953,7 @@ describe('runtime control-loop parity twins', () => {
         runId: '20000000-0000-4000-8000-000000000007',
         goal: 'reject hidden automatic checkpoint resolution',
         manifestHash: 'checkpoint-no-guidance-boundary-test',
-        depth: 'standard',
+        depth: 'medium',
         now: () => new Date('2026-05-06T00:00:00.000Z'),
       });
       const trace = await new TraceStore(runDir).load();
@@ -1010,10 +1010,10 @@ describe('runtime control-loop parity twins', () => {
   it('records checkpoint auto-resolution failures when safe choices are missing', async () => {
     const cases = [
       {
-        name: 'standard',
-        flowBytes: checkpointMissingSafeChoiceFlowBytes({ depth: 'standard' }),
+        name: 'medium',
+        flowBytes: checkpointMissingSafeChoiceFlowBytes({ depth: 'medium' }),
         runId: '40000000-0000-4000-8000-000000000010',
-        reason: /cannot resolve standard depth without a declared safe default choice/,
+        reason: /cannot resolve medium depth without a declared safe default choice/,
       },
       {
         name: 'autonomous',

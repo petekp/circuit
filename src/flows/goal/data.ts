@@ -55,7 +55,7 @@ function childRunStep(input: {
       kind: 'sub-run',
       flow_ref: { flow_id: input.flowId, entry_mode: 'default' },
       goal: childGoal,
-      depth: 'standard',
+      depth: 'medium',
     },
     protocol: `${input.id}@v1`,
     writes: {
@@ -106,11 +106,11 @@ export const goalFlowData = {
       { generic: 'goal.contract@v1', actual: 'goal.result@v1' },
     ],
     axes: {
-      allowed_depths: ['lite', 'standard', 'deep'],
+      allowed_depths: ['low', 'medium', 'high'],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        depth: 'standard',
+        depth: 'medium',
         tournament: false,
         tournament_n: 3,
         autonomous: false,

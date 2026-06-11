@@ -37,7 +37,7 @@ export interface CompiledFlowRunOptions extends RuntimeExecutionCapabilities {
 }
 
 function depthForAxisSelectionName(entryModeName: string | undefined): string | undefined {
-  if (entryModeName === 'lite' || entryModeName === 'deep') return entryModeName;
+  if (entryModeName === 'low' || entryModeName === 'high') return entryModeName;
   if (entryModeName === 'tournament' || entryModeName === 'autonomous') return entryModeName;
   return undefined;
 }

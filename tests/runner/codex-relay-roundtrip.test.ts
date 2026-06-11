@@ -134,7 +134,7 @@ describe('codex relay round-trip (second-connector evidence)', () => {
         flowBytes: loadCodexRuntimeProofBytes(),
         runId: '45454545-4545-4545-4545-454545454545',
         goal: 'codex relay round-trip',
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 22, 3, 45, 0)),
         executors: composeExecutor(),
         relayer: codexRelayer(),

@@ -108,7 +108,7 @@ describe('fix runtime parity', () => {
   it('runs the generated fix deep entry mode through the runtime compiled-flow path', async () => {
     const fixture = await loadCompiledFlowFixture('fix');
     const { flow } = fixture;
-    const expectedSteps = expectedPassStepIds(flow, 'deep');
+    const expectedSteps = expectedPassStepIds(flow, 'high');
 
     await withTempRun(async (runDir) => {
       const result = await runSimpleCompiledFlow({
@@ -116,7 +116,7 @@ describe('fix runtime parity', () => {
         runDir,
         runId: '22222222-2222-4222-8222-222222222224',
         goal: 'fix deeply with deterministic evidence',
-        entryModeName: 'deep',
+        entryModeName: 'high',
       });
 
       expect(result).toMatchObject({

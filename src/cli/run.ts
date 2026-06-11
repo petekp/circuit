@@ -122,7 +122,7 @@ function addExecutionOptions(program: Command): Command {
   return program
     .option('--goal <goal>')
     .option('--why <why>')
-    .option('--depth <lite|standard|deep>')
+    .option('--depth <low|medium|high>')
     .option('--tournament')
     .option('--tournament-n <2|3|4>')
     .option('--autonomous')
@@ -310,7 +310,7 @@ function hasExplicitAxes(args: ParsedArgs): boolean {
 function axisSelectionNameForAxes(axes: AxesValue): string {
   if (axes.autonomous) return 'autonomous';
   if (axes.tournament) return 'tournament';
-  if (axes.depth === 'lite' || axes.depth === 'deep') return axes.depth;
+  if (axes.depth === 'low' || axes.depth === 'high') return axes.depth;
   return 'default';
 }
 

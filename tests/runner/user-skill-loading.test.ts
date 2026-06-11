@@ -59,7 +59,7 @@ function flowBytes(
       version: '0.0.0-test',
       purpose: 'Exercise user skill loading.',
       axes: {
-        allowed_depths: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -101,7 +101,7 @@ async function runSkillFlow(
     flowBytes: flowBytes(steps, defaultSelection),
     runId: '90909090-9090-4090-9090-909090909090',
     goal: 'exercise user skill loading',
-    depth: 'standard',
+    depth: 'medium',
     now: deterministicNow(Date.UTC(2026, 4, 8, 10, 0, 0)),
     relayer: capturingRelayer(captured),
     selectionConfigLayers,

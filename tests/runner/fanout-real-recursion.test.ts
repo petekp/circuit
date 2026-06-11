@@ -66,7 +66,7 @@ function buildChildCompiledFlow(): CompiledFlow {
     purpose:
       'real-recursion fanout test child — single relay step admits an accept verdict via the fake relayer.',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -110,7 +110,7 @@ function buildParentCompiledFlow(): CompiledFlow {
     purpose:
       'real-recursion fanout test parent — two branches, each recurses into the child via real runCompiledFlow.',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -141,7 +141,7 @@ function buildParentCompiledFlow(): CompiledFlow {
                 entry_mode: 'default',
               },
               goal: 'branch-a goal',
-              depth: 'standard',
+              depth: 'medium',
             },
             {
               branch_id: 'b',
@@ -150,7 +150,7 @@ function buildParentCompiledFlow(): CompiledFlow {
                 entry_mode: 'default',
               },
               goal: 'branch-b goal',
-              depth: 'standard',
+              depth: 'medium',
             },
           ],
         },
@@ -207,7 +207,7 @@ describe('fanout real recursion', () => {
       flowBytes: parentBytes,
       runId: parentRunId,
       goal: 'parent run goal — exercise fanout real recursion',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 27, 0, 0, 0)),
       relayer: acceptingRelayer(),
       projectRoot,

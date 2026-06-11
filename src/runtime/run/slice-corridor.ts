@@ -16,10 +16,10 @@ import type { SliceLoopEngineFlag } from '../../flows/types.js';
 
 // CompiledDepth labels ordered least-to-most thorough. The slice loop only activates
 // at or above the flag's activateWhenDepthAtLeast.
-const DEPTH_ORDER = ['lite', 'standard', 'deep', 'tournament', 'autonomous'] as const;
+const DEPTH_ORDER = ['low', 'medium', 'high', 'tournament', 'autonomous'] as const;
 
 function depthAtLeast(depth: string | undefined, floor: string): boolean {
-  const current = DEPTH_ORDER.indexOf((depth ?? 'standard') as (typeof DEPTH_ORDER)[number]);
+  const current = DEPTH_ORDER.indexOf((depth ?? 'medium') as (typeof DEPTH_ORDER)[number]);
   const minimum = DEPTH_ORDER.indexOf(floor as (typeof DEPTH_ORDER)[number]);
   if (current < 0 || minimum < 0) return false;
   return current >= minimum;

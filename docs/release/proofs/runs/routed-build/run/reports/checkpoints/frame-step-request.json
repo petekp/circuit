@@ -8,7 +8,7 @@
   "safe_default_choice": "continue",
   "execution_context": {
     "axes": {
-      "depth": "standard",
+      "depth": "medium",
       "tournament": false,
       "tournament_n": 3,
       "autonomous": false

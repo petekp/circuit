@@ -7,7 +7,7 @@ export type TournamentN = z.infer<typeof TournamentN>;
 
 export const Axes = z
   .object({
-    depth: Depth.default('standard'),
+    depth: Depth.default('medium'),
     tournament: z.boolean().default(false),
     tournament_n: TournamentN.default(3),
     autonomous: z.boolean().default(false),
@@ -77,10 +77,10 @@ export const FlowAxes = z
 export type FlowAxes = z.infer<typeof FlowAxes>;
 
 export const isConsequentialAxes = (axes: Axes): boolean =>
-  axes.depth === 'deep' || axes.tournament || axes.autonomous;
+  axes.depth === 'high' || axes.tournament || axes.autonomous;
 
 const axesForCompiledDepth = (depth: CompiledDepth): Axes => ({
-  depth: Depth.safeParse(depth).success ? (depth as Depth) : 'standard',
+  depth: Depth.safeParse(depth).success ? (depth as Depth) : 'medium',
   tournament: depth === 'tournament',
   autonomous: depth === 'autonomous',
   tournament_n: 3,

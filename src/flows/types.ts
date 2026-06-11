@@ -97,8 +97,8 @@ export interface SliceLoopEngineFlag {
   // Hard cap on the number of slices the loop will iterate.
   readonly maxSlices: number;
   // The loop only activates when the run's depth is at least this label
-  // (Build: 'deep'). Lower depths run a single pass, unchanged.
-  readonly activateWhenDepthAtLeast: 'deep';
+  // (Build: 'high'). Lower depths run a single pass, unchanged.
+  readonly activateWhenDepthAtLeast: 'high';
 }
 
 // Engine-visible flags a flow can opt into. Kept narrow on purpose:

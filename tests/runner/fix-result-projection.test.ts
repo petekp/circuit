@@ -428,7 +428,7 @@ describe('FixResultSchema rejects tampered claims', () => {
       regression_rerun_status: 'cleared',
       change_set_status: 'pass',
       review_status: 'skipped',
-      review_skip_reason: 'lite',
+      review_skip_reason: 'low',
       residual_risks: [],
       evidence_links: pointers(),
     };
@@ -445,7 +445,7 @@ describe('FixResultSchema rejects tampered claims', () => {
       regression_rerun_status: 'deferred',
       change_set_status: 'pass',
       review_status: 'skipped',
-      review_skip_reason: 'lite',
+      review_skip_reason: 'low',
       residual_risks: [],
       evidence_links: pointers(),
     };
@@ -462,7 +462,7 @@ describe('FixResultSchema rejects tampered claims', () => {
       regression_rerun_status: 'cleared',
       change_set_status: 'fail',
       review_status: 'skipped',
-      review_skip_reason: 'lite',
+      review_skip_reason: 'low',
       residual_risks: [],
       evidence_links: pointers(),
     };

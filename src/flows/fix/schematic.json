@@ -411,7 +411,7 @@
       },
       "route_overrides": {
         "continue": {
-          "lite": "fix-close-lite"
+          "low": "fix-close-low"
         }
       },
       "protocol": "fix-regression-rerun@v1",
@@ -460,7 +460,7 @@
       }
     },
     {
-      "id": "fix-close-lite",
+      "id": "fix-close-low",
       "block": "close-with-evidence",
       "title": "Close (lite) — emit Fix result without review",
       "stage": "close",
@@ -488,7 +488,7 @@
         "escalate": "@escalate"
       },
       "route_overrides": {},
-      "protocol": "fix-close-lite@v1",
+      "protocol": "fix-close-low@v1",
       "writes": {
         "report_path": "reports/fix-result.json"
       },
@@ -587,11 +587,11 @@
   ],
   "version": "0.1.0",
   "axes": {
-    "allowed_depths": ["lite", "standard", "deep"],
+    "allowed_depths": ["low", "medium", "high"],
     "supports_tournament": false,
     "supports_autonomous": true,
     "default": {
-      "depth": "standard",
+      "depth": "medium",
       "tournament": false,
       "tournament_n": 3,
       "autonomous": false

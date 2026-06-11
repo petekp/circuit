@@ -144,7 +144,7 @@ describe('CLI Run envelope shadow artifact', () => {
         '--goal',
         'Frame a Build change',
         '--depth',
-        'deep',
+        'high',
         '--run-folder',
         runFolder,
       ],

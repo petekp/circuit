@@ -43,7 +43,7 @@ describe('TraceStore is the single sequence-assignment authority', () => {
       flowBytes: bytes,
       runId: '99999999-aaaa-bbbb-cccc-000000000001',
       goal: 'pin TraceStore as the single sequence-assignment authority',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 26, 12, 0, 0)),
       relayer: stubRelayer(),
       executors: {

@@ -185,7 +185,7 @@ function compiledRelayFanoutFlow(
     version: '0.1.0',
     purpose: 'runtime relay fanout production parity test',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -272,13 +272,13 @@ function subRunFanoutFlow(
               branch_id: 'one',
               flow_ref: { flow_id: CompiledFlowId.parse('child-test'), entry_mode: 'default' },
               goal: 'child one',
-              depth: 'standard',
+              depth: 'medium',
             },
             {
               branch_id: 'two',
               flow_ref: { flow_id: CompiledFlowId.parse('child-test'), entry_mode: 'default' },
               goal: 'child two',
-              depth: 'standard',
+              depth: 'medium',
             },
           ],
         },
@@ -303,7 +303,7 @@ function childFlowBytes(): Buffer {
       version: '0.1.0',
       purpose: 'fanout child',
       axes: {
-        allowed_depths: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
       },

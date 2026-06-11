@@ -35,7 +35,7 @@ describe('CompiledFlow graph closure', () => {
     version: '2026-04-18',
     purpose: 'Build features.',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -97,8 +97,8 @@ describe('CompiledFlow graph closure', () => {
       CompiledFlow.safeParse(
         okCompiledFlow({
           entry_modes: [
-            { name: 'default', start_at: 'frame', depth: 'standard', description: 'a' },
-            { name: 'default', start_at: 'frame', depth: 'standard', description: 'b' },
+            { name: 'default', start_at: 'frame', depth: 'medium', description: 'a' },
+            { name: 'default', start_at: 'frame', depth: 'medium', description: 'b' },
           ],
         }),
       ).success,

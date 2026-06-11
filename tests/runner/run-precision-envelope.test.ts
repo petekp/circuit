@@ -67,7 +67,7 @@ function writePriorReviewRun(projectRoot: string): void {
       run_id: PRIOR_RUN_ID,
       kind: 'run.bootstrapped',
       flow_id: 'review',
-      depth: 'standard',
+      depth: 'medium',
       goal: 'Prior review of the dashboard filter',
       change_kind: {
         change_kind: 'discovery',

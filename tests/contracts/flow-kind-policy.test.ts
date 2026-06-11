@@ -123,7 +123,7 @@ function validExploreFixture(overrides: Record<string, unknown> = {}): Record<st
     version: '0.1.0',
     purpose: 'test fixture',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -154,10 +154,10 @@ function validExploreTournamentFixture(
 ): Record<string, unknown> {
   return validExploreFixture({
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: true,
       supports_autonomous: false,
-      default: { depth: 'standard', tournament: true, tournament_n: 3, autonomous: false },
+      default: { depth: 'medium', tournament: true, tournament_n: 3, autonomous: false },
       tournament_fan_out_stage: 'decision-stage',
     },
     starts_at: 'frame-step',

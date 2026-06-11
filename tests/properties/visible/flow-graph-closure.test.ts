@@ -96,7 +96,7 @@ function buildCompiledFlow(spec: GraphSpec): Record<string, unknown> {
     version: '2026-04-27',
     purpose: 'CompiledFlow graph closure property fixture.',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },

@@ -749,7 +749,7 @@ describe('CLI router', () => {
         '--goal',
         'develop: add a focused feature that waits for framing',
         '--depth',
-        'deep',
+        'high',
         '--run-folder',
         runFolder,
       ],
@@ -781,7 +781,7 @@ describe('CLI router', () => {
         '--goal',
         'develop: add a focused feature that waits for framing',
         '--depth',
-        'deep',
+        'high',
         '--progress',
         'jsonl',
         '--run-folder',
@@ -913,7 +913,7 @@ describe('CLI router', () => {
     expect(output.runtime_reason).toMatch(/runtime supports fresh pursue/i);
   });
 
-  it('lets explicit --depth standard set the Build default depth', async () => {
+  it('lets explicit --depth medium set the Build default depth', async () => {
     const runFolder = join(runFolderBase, 'build-explicit-default-mode');
     const projectRoot = createProofProject('build-explicit-default-mode-project');
 
@@ -925,7 +925,7 @@ describe('CLI router', () => {
           '--goal',
           'develop: add a small standard change',
           '--depth',
-          'standard',
+          'medium',
           '--run-folder',
           runFolder,
         ],
@@ -940,7 +940,7 @@ describe('CLI router', () => {
     expect(output.flow_id).toBe('build');
     expect(output.entry_mode).toBe('default');
     expect(output.entry_mode_source).toBe('explicit');
-    expect(bootstrap).toMatchObject({ depth: 'standard' });
+    expect(bootstrap).toMatchObject({ depth: 'medium' });
   }, 30_000);
 
   it('uses --depth to select the matching axis depth', async () => {
@@ -954,7 +954,7 @@ describe('CLI router', () => {
         '--goal',
         'develop: add a small deep change',
         '--depth',
-        'deep',
+        'high',
         '--run-folder',
         runFolder,
       ],
@@ -963,12 +963,12 @@ describe('CLI router', () => {
     );
 
     expect(output.flow_id).toBe('build');
-    expect(output.entry_mode).toBe('deep');
+    expect(output.entry_mode).toBe('high');
     expect(output.entry_mode_source).toBe('explicit');
     const bootstrap = traceEntryLog(runFolder).find(
       (trace_entry) => trace_entry.kind === 'run.bootstrapped',
     );
-    expect(bootstrap).toMatchObject({ depth: 'deep' });
+    expect(bootstrap).toMatchObject({ depth: 'high' });
   }, 30_000);
 
   it('rejects tournament on flows whose axis allow-list does not support it', async () => {
@@ -1050,9 +1050,9 @@ describe('CLI router', () => {
     expect(existsSync(runFolder)).toBe(false);
   });
 
-  it('accepts --depth lite and threads lite depth into relay selection', async () => {
-    const runFolder = join(runFolderBase, 'build-lite-entry-mode');
-    const projectRoot = createProofProject('build-lite-entry-mode-project');
+  it('accepts --depth low and threads low depth into relay selection', async () => {
+    const runFolder = join(runFolderBase, 'build-low-entry-mode');
+    const projectRoot = createProofProject('build-low-entry-mode-project');
     const output = await runMainJson(
       [
         'run',
@@ -1060,7 +1060,7 @@ describe('CLI router', () => {
         '--goal',
         'Add a tiny Build feature from the CLI',
         '--depth',
-        'lite',
+        'low',
         '--run-folder',
         runFolder,
       ],
@@ -1076,58 +1076,58 @@ describe('CLI router', () => {
     const relayResolvedSelection = relayStarted?.resolved_selection;
     expect(output.flow_id).toBe('build');
     expect(output.outcome).toBe('complete');
-    expect(bootstrap).toMatchObject({ depth: 'lite' });
-    expect(relayResolvedSelection).toMatchObject({ depth: 'lite' });
+    expect(bootstrap).toMatchObject({ depth: 'low' });
+    expect(relayResolvedSelection).toMatchObject({ depth: 'low' });
   }, 30_000);
 
   it('threads resolved depth into the relay prompt and records resolved axes on the envelope (F-M-1)', async () => {
-    const litePrompts: string[] = [];
-    const liteOutput = await runMainJsonWithRelayer(
+    const lowPrompts: string[] = [];
+    const lowOutput = await runMainJsonWithRelayer(
       [
         'run',
         'build',
         '--goal',
         'Add a tiny Build feature from the CLI',
         '--depth',
-        'lite',
+        'low',
         '--run-folder',
-        join(runFolderBase, 'build-depth-lite-thread'),
+        join(runFolderBase, 'build-depth-low-thread'),
       ],
       makeStubRelayer((input) => {
-        litePrompts.push(input.prompt);
+        lowPrompts.push(input.prompt);
         return '{"verdict":"accept"}';
       }),
-      { configCwd: createProofProject('build-depth-lite-thread-project') },
+      { configCwd: createProofProject('build-depth-low-thread-project') },
     );
 
-    const standardPrompts: string[] = [];
-    const standardOutput = await runMainJsonWithRelayer(
+    const mediumPrompts: string[] = [];
+    const mediumOutput = await runMainJsonWithRelayer(
       [
         'run',
         'build',
         '--goal',
         'Add a tiny Build feature from the CLI',
         '--run-folder',
-        join(runFolderBase, 'build-depth-standard-thread'),
+        join(runFolderBase, 'build-depth-medium-thread'),
       ],
       makeStubRelayer((input) => {
-        standardPrompts.push(input.prompt);
+        mediumPrompts.push(input.prompt);
         return '{"verdict":"accept"}';
       }),
-      { configCwd: createProofProject('build-depth-standard-thread-project') },
+      { configCwd: createProofProject('build-depth-medium-thread-project') },
     );
 
-    // Thread: the relay prompt now carries the resolved depth, so build-lite and
-    // build-standard prompts differ — the F-M-1 "byte-identical relay payloads"
+    // Thread: the relay prompt now carries the resolved depth, so build-low and
+    // build-medium prompts differ — the F-M-1 "byte-identical relay payloads"
     // defect. Every relay step in each run sees the run's resolved depth.
-    expect(litePrompts.length).toBeGreaterThan(0);
-    expect(standardPrompts.length).toBeGreaterThan(0);
-    expect(litePrompts.every((prompt) => prompt.includes('Depth: lite'))).toBe(true);
-    expect(standardPrompts.every((prompt) => prompt.includes('Depth: standard'))).toBe(true);
+    expect(lowPrompts.length).toBeGreaterThan(0);
+    expect(mediumPrompts.length).toBeGreaterThan(0);
+    expect(lowPrompts.every((prompt) => prompt.includes('Depth: low'))).toBe(true);
+    expect(mediumPrompts.every((prompt) => prompt.includes('Depth: medium'))).toBe(true);
     // Record: the resolved axes are echoed on the stdout envelope so a reader
     // can audit which depth actually ran.
-    expect(liteOutput.resolved_axes).toMatchObject({ depth: 'lite' });
-    expect(standardOutput.resolved_axes).toMatchObject({ depth: 'standard' });
+    expect(lowOutput.resolved_axes).toMatchObject({ depth: 'low' });
+    expect(mediumOutput.resolved_axes).toMatchObject({ depth: 'medium' });
   }, 30_000);
 
   it('accepts --autonomous and threads autonomous depth into relay selection', async () => {
@@ -1423,7 +1423,7 @@ describe('CLI router', () => {
       '--goal',
       'Add a tiny Build feature from the CLI with an old flag',
       '--mode',
-      'deep',
+      'high',
       '--run-folder',
       join(runFolderBase, 'old-mode-flag'),
     ]);
@@ -1469,7 +1469,7 @@ describe('CLI router', () => {
         'run',
         'build',
         '--goal=Build through equals syntax',
-        '--depth=deep',
+        '--depth=high',
         `--run-folder=${runFolder}`,
       ],
       '{"verdict":"accept"}',
@@ -1479,7 +1479,7 @@ describe('CLI router', () => {
     expect(output).toMatchObject({
       flow_id: 'build',
       selected_flow: 'build',
-      entry_mode: 'deep',
+      entry_mode: 'high',
     });
   });
 
@@ -1558,7 +1558,7 @@ describe('CLI router', () => {
     const runFolder = join(runFolderBase, 'checkpoint-waiting');
     const projectRoot = createProofProject('checkpoint-waiting-project');
     const output = await runMainJson(
-      ['run', 'build', '--goal', 'Frame via CLI', '--depth', 'deep', '--run-folder', runFolder],
+      ['run', 'build', '--goal', 'Frame via CLI', '--depth', 'high', '--run-folder', runFolder],
       '{"verdict":"accept"}',
       { configCwd: projectRoot },
     );
@@ -1602,7 +1602,7 @@ describe('CLI router', () => {
       '--checkpoint-choice',
       'continue',
       '--depth',
-      'deep',
+      'high',
     ]);
     expect(withDepth.exit).toBe(2);
     expect(withDepth.stderr).toMatch(/omit --depth\/--tournament\/--tournament-n\/--autonomous/);
@@ -1641,7 +1641,7 @@ describe('CLI router', () => {
       '--checkpoint-choice',
       'continue',
       '--rigor',
-      'deep',
+      'high',
     ]);
     expect(withRigor.exit).toBe(2);
     expect(withRigor.stderr).toMatch(/unknown option '--rigor'/);
@@ -1655,7 +1655,7 @@ describe('CLI router', () => {
       '--checkpoint-choice',
       'continue',
       '--mode',
-      'lite',
+      'low',
     ]);
     expect(withMode.exit).toBe(2);
     expect(withMode.stderr).toMatch(/unknown option '--mode'/);
@@ -1672,7 +1672,7 @@ describe('CLI router', () => {
       '--checkpoint-choice',
       'continue',
       '--depth',
-      'deep',
+      'high',
     ]);
     expect(result.exit).toBe(2);
     expect(result.stderr).toMatch(/omit --depth\/--tournament\/--tournament-n\/--autonomous/);
@@ -1686,9 +1686,9 @@ describe('CLI router', () => {
       '--checkpoint-choice',
       'continue',
       '--depth',
-      'standard',
+      'medium',
       '--depth',
-      'deep',
+      'high',
     ]);
     expect(conflict.exit).toBe(2);
     expect(conflict.stderr).toMatch(/omit --depth\/--tournament\/--tournament-n\/--autonomous/);

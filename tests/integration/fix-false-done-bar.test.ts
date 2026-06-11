@@ -45,7 +45,7 @@ import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
-const FIX_LITE_FIXTURE_PATH = resolve('generated/flows/fix/lite.json');
+const FIX_LITE_FIXTURE_PATH = resolve('generated/flows/fix/low.json');
 
 function loadLiteFixture(): { bytes: Buffer } {
   return { bytes: readFileSync(FIX_LITE_FIXTURE_PATH) };
@@ -420,7 +420,7 @@ describe('False-Done Fix bar', () => {
         flowBytes: bytes,
         runId: 'f1000000-0000-0000-0000-0000000000aa',
         goal: scenario.goal,
-        depth: 'lite',
+        depth: 'low',
         now: deterministicNow(Date.UTC(2026, 4, 10, 12, 0, 0)),
         relayer: relayer(scenario),
         executors: {

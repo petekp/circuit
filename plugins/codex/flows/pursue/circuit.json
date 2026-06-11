@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "purpose": "Pursue flow: turn one or more rough operator ideas into pursuit contracts, coordinate their order, execute code-changing work serially, verify, review for interference, and close with evidence.",
   "axes": {
-    "allowed_depths": ["standard"],
+    "allowed_depths": ["medium"],
     "supports_tournament": false,
     "supports_autonomous": true,
     "default": {
-      "depth": "standard",
+      "depth": "medium",
       "tournament": false,
       "tournament_n": 3,
       "autonomous": false

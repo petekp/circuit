@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/explore/circuit.work-contract.v0.json",
-    "sha256": "0ebed50f4e072e5f54bba09990fb1b4042ef1b62ba474c7af83c80b936707ef8",
+    "sha256": "30b42b2afb0f62c5d41e5a35f8c1f0c7a4737354f3df52a622b55869365cefba",
     "flow_id": "explore"
   },
   "work_contract": {
@@ -12,11 +12,11 @@
       "version": "0.1.0",
       "purpose": "Explore flow: frame the investigation, analyze the subject, either synthesize and critique findings or run a decision tournament, then close with findings plus evidence. All modes use Frame, Analyze, Plan or Decision, and Close; critique is embedded inside the Plan/Decision stage rather than exposed as a separate canonical Review stage.",
       "axes": {
-        "allowed_depths": ["lite", "standard", "deep"],
+        "allowed_depths": ["low", "medium", "high"],
         "supports_tournament": true,
         "supports_autonomous": true,
         "default": {
-          "depth": "standard",
+          "depth": "medium",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -453,7 +453,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "d0bd92436965cbc9719f522f61c5e14f585104929722d6794ea8eff8e7990ddc",
+          "sha256": "94f84ce4aabff39f2440ecaf598b2e9db97172b0b10f9bc7e54e854a2febbfd3",
           "flow_id": "explore"
         }
       },
@@ -482,7 +482,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/retry",
-          "sha256": "d0bd92436965cbc9719f522f61c5e14f585104929722d6794ea8eff8e7990ddc",
+          "sha256": "94f84ce4aabff39f2440ecaf598b2e9db97172b0b10f9bc7e54e854a2febbfd3",
           "flow_id": "explore"
         }
       },
@@ -513,7 +513,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/stop",
-          "sha256": "d0bd92436965cbc9719f522f61c5e14f585104929722d6794ea8eff8e7990ddc",
+          "sha256": "94f84ce4aabff39f2440ecaf598b2e9db97172b0b10f9bc7e54e854a2febbfd3",
           "flow_id": "explore"
         }
       },
@@ -542,7 +542,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/synthesize-step/routes/retry",
-          "sha256": "d0bd92436965cbc9719f522f61c5e14f585104929722d6794ea8eff8e7990ddc",
+          "sha256": "94f84ce4aabff39f2440ecaf598b2e9db97172b0b10f9bc7e54e854a2febbfd3",
           "flow_id": "explore"
         }
       },
@@ -573,7 +573,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/synthesize-step/routes/stop",
-          "sha256": "d0bd92436965cbc9719f522f61c5e14f585104929722d6794ea8eff8e7990ddc",
+          "sha256": "94f84ce4aabff39f2440ecaf598b2e9db97172b0b10f9bc7e54e854a2febbfd3",
           "flow_id": "explore"
         }
       },
@@ -598,7 +598,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/retry",
-          "sha256": "d0bd92436965cbc9719f522f61c5e14f585104929722d6794ea8eff8e7990ddc",
+          "sha256": "94f84ce4aabff39f2440ecaf598b2e9db97172b0b10f9bc7e54e854a2febbfd3",
           "flow_id": "explore"
         }
       },
@@ -623,7 +623,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/revise",
-          "sha256": "d0bd92436965cbc9719f522f61c5e14f585104929722d6794ea8eff8e7990ddc",
+          "sha256": "94f84ce4aabff39f2440ecaf598b2e9db97172b0b10f9bc7e54e854a2febbfd3",
           "flow_id": "explore"
         }
       },
@@ -654,7 +654,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/stop",
-          "sha256": "d0bd92436965cbc9719f522f61c5e14f585104929722d6794ea8eff8e7990ddc",
+          "sha256": "94f84ce4aabff39f2440ecaf598b2e9db97172b0b10f9bc7e54e854a2febbfd3",
           "flow_id": "explore"
         }
       },
@@ -685,7 +685,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/stop",
-          "sha256": "d0bd92436965cbc9719f522f61c5e14f585104929722d6794ea8eff8e7990ddc",
+          "sha256": "94f84ce4aabff39f2440ecaf598b2e9db97172b0b10f9bc7e54e854a2febbfd3",
           "flow_id": "explore"
         }
       }

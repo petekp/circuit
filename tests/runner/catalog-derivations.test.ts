@@ -307,7 +307,7 @@ describe('catalog-derivations: builder registries', () => {
 describe('catalog-derivations: runtime surfaces', () => {
   it('indexes package-owned runtime surface metadata by flow id', () => {
     const surface = {
-      supportedEntryModes: [{ entryModeName: 'default', depth: 'standard' }],
+      supportedEntryModes: [{ entryModeName: 'default', depth: 'medium' }],
       primaryResult: {
         schemaName: 'a.result@v1',
         path: 'reports/a-result.json',

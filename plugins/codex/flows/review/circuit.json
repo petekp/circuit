@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "purpose": "Review flow: frame the audit scope, relay independent review to a reviewer, and close with a verdict report. The schematic uses a compact Intake, Independent Audit, and Verdict shape because Review is audit-only and does not implement or verify a change.",
   "axes": {
-    "allowed_depths": ["standard"],
+    "allowed_depths": ["medium"],
     "supports_tournament": false,
     "supports_autonomous": false,
     "default": {
-      "depth": "standard",
+      "depth": "medium",
       "tournament": false,
       "tournament_n": 3,
       "autonomous": false

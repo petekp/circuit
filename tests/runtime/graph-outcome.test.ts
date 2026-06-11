@@ -123,7 +123,7 @@ describe('graph execution outcome values', () => {
       runDir,
       runId: '71000000-0000-0000-0000-000000000003',
       goal: 'wait through a typed outcome',
-      depth: 'deep',
+      depth: 'high',
       now: deterministicNow(Date.UTC(2026, 4, 18, 12, 20, 0)),
     });
 

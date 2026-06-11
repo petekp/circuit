@@ -148,9 +148,9 @@ function axisSupportFor(id: string): FlowAxisSupport {
 
 function axisSelectionsFor(axes: FlowAxisSupport): string[] {
   const selections = new Set<string>();
-  if (axes.allowed_depths.includes('standard')) selections.add('default');
-  if (axes.allowed_depths.includes('lite')) selections.add('lite');
-  if (axes.allowed_depths.includes('deep')) selections.add('deep');
+  if (axes.allowed_depths.includes('medium')) selections.add('default');
+  if (axes.allowed_depths.includes('low')) selections.add('low');
+  if (axes.allowed_depths.includes('high')) selections.add('high');
   if (axes.supports_tournament) selections.add('tournament');
   if (axes.supports_autonomous) selections.add('autonomous');
   return [...selections].sort();

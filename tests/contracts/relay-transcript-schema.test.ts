@@ -34,7 +34,7 @@ const bootstrapTraceEntry = {
   run_id: RUN_A,
   kind: 'run.bootstrapped' as const,
   flow_id: 'explore',
-  depth: 'deep',
+  depth: 'high',
   goal: 'relay-transcript fixture',
   manifest_hash: 'abc',
   change_kind,

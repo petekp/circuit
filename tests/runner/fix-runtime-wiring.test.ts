@@ -1,6 +1,6 @@
 // End-to-end runtime wiring for the lite Fix flow.
 //
-// Loads `generated/flows/fix/lite.json` (the compiled lite-mode
+// Loads `generated/flows/fix/low.json` (the compiled lite-mode
 // CompiledFlow) and runs it through `runCompiledFlow` with stubbed relayers
 // for context/diagnose/act and a custom compose executor that overrides
 // fix-frame to produce a brief with a fast no-op verification command.
@@ -31,7 +31,7 @@ import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
 const FIX_DEFAULT_FIXTURE_PATH = resolve('generated/flows/fix/circuit.json');
-const FIX_LITE_FIXTURE_PATH = resolve('generated/flows/fix/lite.json');
+const FIX_LITE_FIXTURE_PATH = resolve('generated/flows/fix/low.json');
 
 function loadDefaultFixture(): { bytes: Buffer } {
   return { bytes: readFileSync(FIX_DEFAULT_FIXTURE_PATH) };
@@ -45,14 +45,14 @@ function loadLiteFixture(): { bytes: Buffer } {
 // produce a brief with a fast no-op verification command (so fix-verify
 // runs in milliseconds instead of executing real `npm run verify`),
 // and falls through to the standard registered compose executor for every
-// other compose step (notably fix-close-lite, which exercises the
+// other compose step (notably fix-close-low, which exercises the
 // registered fix.result close writer).
 // Override the live verification executor for the two new git-driven steps
 // (fix-baseline-snapshot and fix-change-set). The live executor would shell
 // out to `git status --porcelain` against the host repo and fail because the
 // stubbed fix-act doesn't actually touch `src/test.ts`. This stub writes a
 // passing change-set for the file the relayer declared, so the e2e test
-// exercises the full graph (including fix-close-lite reading change-set)
+// exercises the full graph (including fix-close-low reading change-set)
 // without needing a controlled git workspace.
 function fixVerificationOverride(): ExecutorRegistry['verification'] {
   return async (step, context) => {
@@ -310,7 +310,7 @@ describe('Lite Fix runtime wiring', () => {
       flowBytes: bytes,
       runId: 'f1000000-0000-0000-0000-000000000000',
       goal: 'fix off-by-one in pagination',
-      depth: 'lite',
+      depth: 'low',
       now: deterministicNow(Date.UTC(2026, 3, 26, 10, 0, 0)),
       relayer: relayer(),
       executors: frameOverrideExecutors(),
@@ -362,7 +362,7 @@ describe('Standard Fix review-unavailable wiring', () => {
       flowBytes: bytes,
       runId: 'f1000000-0000-0000-0000-000000000001',
       goal: 'fix off-by-one in pagination',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 26, 11, 0, 0)),
       relayer: relayerWithUnavailableReview(),
       executors: frameOverrideExecutors(),

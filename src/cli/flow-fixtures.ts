@@ -40,7 +40,7 @@ export function resolveFixturePath(
 export function fixtureSelectionNameForAxes(axes: AxesValue): string {
   if (axes.tournament) return 'tournament';
   if (axes.autonomous) return 'autonomous';
-  if (axes.depth === 'lite' || axes.depth === 'deep') return axes.depth;
+  if (axes.depth === 'low' || axes.depth === 'high') return axes.depth;
   return 'default';
 }
 

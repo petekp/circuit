@@ -15,10 +15,10 @@ import {
 } from '../../src/index.js';
 
 describe('depth and axes', () => {
-  it('accepts only lite, standard, and deep depth values', () => {
-    expect(Depth.safeParse('lite').success).toBe(true);
-    expect(Depth.safeParse('standard').success).toBe(true);
-    expect(Depth.safeParse('deep').success).toBe(true);
+  it('accepts only low, medium, and high depth values', () => {
+    expect(Depth.safeParse('low').success).toBe(true);
+    expect(Depth.safeParse('medium').success).toBe(true);
+    expect(Depth.safeParse('high').success).toBe(true);
     expect(Depth.safeParse('tournament').success).toBe(false);
     expect(Depth.safeParse('autonomous').success).toBe(false);
     expect(Depth.safeParse('max').success).toBe(false);
@@ -26,7 +26,7 @@ describe('depth and axes', () => {
 
   it('defaults axes to standard interactive non-tournament runs', () => {
     expect(Axes.parse({})).toEqual({
-      depth: 'standard',
+      depth: 'medium',
       tournament: false,
       tournament_n: 3,
       autonomous: false,
@@ -43,17 +43,17 @@ describe('depth and axes', () => {
   it('validates flow-owned axis allow-lists and defaults', () => {
     expect(
       FlowAxes.parse({
-        allowed_depths: ['lite', 'standard', 'deep'],
+        allowed_depths: ['low', 'medium', 'high'],
         supports_tournament: true,
         supports_autonomous: true,
         tournament_fan_out_stage: 'decision-stage',
       }),
     ).toEqual({
-      allowed_depths: ['lite', 'standard', 'deep'],
+      allowed_depths: ['low', 'medium', 'high'],
       supports_tournament: true,
       supports_autonomous: true,
       default: {
-        depth: 'standard',
+        depth: 'medium',
         tournament: false,
         tournament_n: 3,
         autonomous: false,
@@ -63,21 +63,21 @@ describe('depth and axes', () => {
 
     expect(
       FlowAxes.safeParse({
-        allowed_depths: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
-        default: { depth: 'deep' },
+        default: { depth: 'high' },
       }).success,
     ).toBe(false);
     expect(
       FlowAxes.safeParse({
-        allowed_depths: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: true,
       }).success,
     ).toBe(false);
     expect(
       FlowAxes.safeParse({
-        allowed_depths: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         tournament_fan_out_stage: 'decision-stage',
       }).success,
@@ -85,27 +85,27 @@ describe('depth and axes', () => {
   });
 
   it('marks consequential axis combinations explicitly', () => {
-    expect(isConsequentialAxes(Axes.parse({ depth: 'deep' }))).toBe(true);
+    expect(isConsequentialAxes(Axes.parse({ depth: 'high' }))).toBe(true);
     expect(isConsequentialAxes(Axes.parse({ tournament: true }))).toBe(true);
     expect(isConsequentialAxes(Axes.parse({ autonomous: true }))).toBe(true);
-    expect(isConsequentialAxes(Axes.parse({ depth: 'lite' }))).toBe(false);
-    expect(isConsequentialAxes(Axes.parse({ depth: 'standard' }))).toBe(false);
+    expect(isConsequentialAxes(Axes.parse({ depth: 'low' }))).toBe(false);
+    expect(isConsequentialAxes(Axes.parse({ depth: 'medium' }))).toBe(false);
   });
 });
 
 describe('legacy depth compatibility', () => {
   it('keeps old flat depth values available during the axis migration', () => {
-    expect(CompiledDepth.safeParse('standard').success).toBe(true);
+    expect(CompiledDepth.safeParse('medium').success).toBe(true);
     expect(CompiledDepth.safeParse('tournament').success).toBe(true);
     expect(CompiledDepth.safeParse('max').success).toBe(false);
   });
 
   it('maps consequential legacy depths through axes', () => {
-    expect(isConsequentialDepth('deep')).toBe(true);
+    expect(isConsequentialDepth('high')).toBe(true);
     expect(isConsequentialDepth('tournament')).toBe(true);
     expect(isConsequentialDepth('autonomous')).toBe(true);
-    expect(isConsequentialDepth('lite')).toBe(false);
-    expect(isConsequentialDepth('standard')).toBe(false);
+    expect(isConsequentialDepth('low')).toBe(false);
+    expect(isConsequentialDepth('medium')).toBe(false);
   });
 });
 

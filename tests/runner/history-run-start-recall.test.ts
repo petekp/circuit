@@ -64,7 +64,7 @@ function writePriorHistoryFixture(projectRoot: string): void {
       run_id: PRIOR_RUN_ID,
       kind: 'run.bootstrapped',
       flow_id: 'review',
-      depth: 'standard',
+      depth: 'medium',
       goal: 'Explore local history memory injection',
       change_kind: {
         change_kind: 'discovery',

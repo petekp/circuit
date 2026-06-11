@@ -50,7 +50,7 @@ function terminalCompiledFlow(route: TerminalRoute): { bytes: Buffer } {
     version: '0.1.0',
     purpose: 'Runtime regression fixture for terminal route outcome mapping.',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -130,7 +130,7 @@ function richCheckpointRouteCompiledFlow(route: RichRoute): { bytes: Buffer } {
     version: '0.1.0',
     purpose: 'Runtime regression fixture for rich checkpoint route labels.',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -201,7 +201,7 @@ function retryLoopCompiledFlow(): { bytes: Buffer } {
     version: '0.1.0',
     purpose: 'Runtime regression fixture for bounded retry routes.',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -257,7 +257,7 @@ function relayFailureRecoveryCompiledFlow(): { bytes: Buffer } {
     version: '0.1.0',
     purpose: 'Runtime regression fixture for failed relay recovery routes.',
     axes: {
-      allowed_depths: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -391,7 +391,7 @@ describe('RUN-I7 terminal route outcome mapping', () => {
         flowBytes: bytes,
         runId: c.runId,
         goal: `terminal route ${c.route} maps honestly`,
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 24, 20, 0, 0)),
         relayer: unusedRelayer(),
         executors: composeExecutor(),
@@ -450,7 +450,7 @@ describe('REL-003 rich route execution', () => {
         flowBytes: bytes,
         runId: `74000000-0000-0000-0000-00000000000${route.length}`,
         goal: `rich route ${route} maps honestly`,
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 24, 21, 0, 0)),
         relayer: unusedRelayer(),
         executors: composeExecutor(),
@@ -493,7 +493,7 @@ describe('REL-003 rich route execution', () => {
       flowBytes: bytes,
       runId: '74000000-0000-0000-0000-000000000099',
       goal: 'retry route stops after bounded attempts',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 24, 22, 0, 0)),
       relayer: unusedRelayer(),
     });
@@ -522,7 +522,7 @@ describe('REL-003 rich route execution', () => {
       flowBytes: bytes,
       runId: '74000000-0000-0000-0000-000000000100',
       goal: 'relay check failure uses recovery route',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 24, 23, 0, 0)),
       relayer: {
         connectorName: 'claude-code',

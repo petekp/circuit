@@ -169,7 +169,7 @@
           "entry_mode": "default"
         },
         "goal": "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.",
-        "depth": "standard"
+        "depth": "medium"
       },
       "skill_slots": [],
       "routes": {
@@ -215,7 +215,7 @@
           "entry_mode": "default"
         },
         "goal": "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.",
-        "depth": "standard"
+        "depth": "medium"
       },
       "skill_slots": [],
       "routes": {
@@ -261,7 +261,7 @@
           "entry_mode": "default"
         },
         "goal": "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.",
-        "depth": "standard"
+        "depth": "medium"
       },
       "skill_slots": [],
       "routes": {
@@ -307,7 +307,7 @@
           "entry_mode": "default"
         },
         "goal": "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.",
-        "depth": "standard"
+        "depth": "medium"
       },
       "skill_slots": [],
       "routes": {
@@ -353,7 +353,7 @@
           "entry_mode": "default"
         },
         "goal": "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.",
-        "depth": "standard"
+        "depth": "medium"
       },
       "skill_slots": [],
       "routes": {
@@ -651,11 +651,11 @@
   ],
   "version": "0.1.0",
   "axes": {
-    "allowed_depths": ["lite", "standard", "deep"],
+    "allowed_depths": ["low", "medium", "high"],
     "supports_tournament": false,
     "supports_autonomous": true,
     "default": {
-      "depth": "standard",
+      "depth": "medium",
       "tournament": false,
       "tournament_n": 3,
       "autonomous": false

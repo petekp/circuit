@@ -62,10 +62,10 @@ function checkpointFixtureFlow(
     version: '0.1.0',
     purpose: 'Dedicated runtime checkpoint pause/resume fixture.',
     axes: {
-      allowed_depths: ['deep'],
+      allowed_depths: ['high'],
       supports_tournament: false,
       supports_autonomous: false,
-      default: { depth: 'deep', tournament: false, tournament_n: 3, autonomous: false },
+      default: { depth: 'high', tournament: false, tournament_n: 3, autonomous: false },
     },
     starts_at: 'checkpoint-step',
     stages: [
@@ -196,10 +196,10 @@ function completedAttemptFixtureFlow(): unknown {
     ...base,
     id: 'checkpoint-cycle-fixture',
     axes: {
-      allowed_depths: ['deep'],
+      allowed_depths: ['high'],
       supports_tournament: false,
       supports_autonomous: false,
-      default: { depth: 'deep', tournament: false, tournament_n: 3, autonomous: false },
+      default: { depth: 'high', tournament: false, tournament_n: 3, autonomous: false },
     },
     starts_at: 'pre-step',
     stages: base.stages.map((stage) =>
@@ -384,7 +384,7 @@ async function createWaitingFixture(input: {
     runDir: input.runDir,
     runId: RUN_ID,
     goal: GOAL,
-    entryModeName: 'deep',
+    entryModeName: 'high',
     projectRoot: input.runDir,
     selectionConfigLayers: [selectionLayer()],
     ...(input.policyLayers === undefined ? {} : { policyLayers: input.policyLayers }),
@@ -556,8 +556,8 @@ describe('runtime checkpoint pause/resume fixture', () => {
       runDir,
       runId: RUN_ID,
       goal: GOAL,
-      entryModeName: 'deep',
-      depth: 'standard',
+      entryModeName: 'high',
+      depth: 'medium',
       projectRoot: runDir,
       selectionConfigLayers: [selectionLayer()],
       now: deterministicNow(Date.UTC(2026, 0, 3)),
@@ -1000,7 +1000,7 @@ describe('runtime checkpoint pause/resume fixture', () => {
       runDir,
       runId: randomUUID(),
       goal: 'build checkpoint report hash proof',
-      entryModeName: 'deep',
+      entryModeName: 'high',
       projectRoot: tempDir,
     });
     expect(isGraphCheckpointWaitingResult(result)).toBe(true);
@@ -1023,7 +1023,7 @@ describe('runtime checkpoint pause/resume fixture', () => {
       runDir,
       runId: randomUUID(),
       goal: 'build checkpoint missing report proof',
-      entryModeName: 'deep',
+      entryModeName: 'high',
       projectRoot: tempDir,
     });
     expect(isGraphCheckpointWaitingResult(result)).toBe(true);

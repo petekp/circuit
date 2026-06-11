@@ -137,7 +137,7 @@ function writeFixture(root: string): { runsBase: string; indexDir: string; runFo
       run_id: RUN_ID,
       kind: 'run.bootstrapped',
       flow_id: 'build',
-      depth: 'standard',
+      depth: 'medium',
       goal: 'Build the history index',
       change_kind: {
         change_kind: 'ratchet-advance',
@@ -168,7 +168,7 @@ function writeFixture(root: string): { runsBase: string; indexDir: string; runFo
       attempt: 1,
       connector: { kind: 'builtin', name: 'claude-code' },
       role: 'implementer',
-      resolved_selection: { skills: [], depth: 'standard', invocation_options: {} },
+      resolved_selection: { skills: [], depth: 'medium', invocation_options: {} },
       resolved_from: { source: 'default' },
       request_payload_hash: 'b'.repeat(64),
       reason: 'connector exited before writing result trace entry',

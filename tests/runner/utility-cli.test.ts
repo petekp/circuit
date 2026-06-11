@@ -73,7 +73,7 @@ function writeInvalidRunFolder(runFolder: string, runId: string): void {
       kind: 'run.bootstrapped',
       run_id: runId,
       flow_id: 'build',
-      depth: 'deep',
+      depth: 'high',
       manifest_hash: snapshot.hash,
     })}\n`,
   );
@@ -88,7 +88,7 @@ function writeTraceOnlyInvalidRunFolder(runFolder: string, runId: string): void 
       kind: 'run.bootstrapped',
       run_id: runId,
       flow_id: 'build',
-      depth: 'deep',
+      depth: 'high',
       manifest_hash: 'invalid-manifest-hash',
     })}\n`,
   );
@@ -1441,7 +1441,7 @@ describe('utility CLI commands', () => {
         '--goal',
         'deep change that asks for scope',
         '--depth',
-        'deep',
+        'high',
         '--run-folder',
         runFolder,
       ],

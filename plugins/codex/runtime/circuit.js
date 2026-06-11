@@ -25531,6 +25531,10 @@ function date4(params) {
 // node_modules/zod/v4/classic/external.js
 config(en_default());
 
+// dist/schemas/depth.js
+var Depth = external_exports.enum(["low", "medium", "high"]);
+var CompiledDepth = external_exports.enum(["low", "medium", "high", "tournament", "autonomous"]);
+
 // dist/schemas/ids.js
 var slugPattern = /^[a-z][a-z0-9-]*$/;
 var CompiledFlowId = external_exports.string().regex(slugPattern).brand();
@@ -25542,14 +25546,10 @@ var SkillId = external_exports.string().regex(slugPattern).brand();
 var SkillSlotId = external_exports.string().regex(slugPattern).brand();
 var ProtocolId = external_exports.string().regex(/^[a-z][a-z0-9-]*@v\d+$/).brand();
 
-// dist/schemas/depth.js
-var Depth = external_exports.enum(["lite", "standard", "deep"]);
-var CompiledDepth = external_exports.enum(["lite", "standard", "deep", "tournament", "autonomous"]);
-
 // dist/schemas/axes.js
 var TournamentN = external_exports.number().int().min(2).max(4);
 var Axes = external_exports.object({
-  depth: Depth.default("standard"),
+  depth: Depth.default("medium"),
   tournament: external_exports.boolean().default(false),
   tournament_n: TournamentN.default(3),
   autonomous: external_exports.boolean().default(false)
@@ -30864,11 +30864,11 @@ var buildFlowData = {
       }
     ],
     axes: {
-      allowed_depths: ["lite", "standard", "deep"],
+      allowed_depths: ["low", "medium", "high"],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        depth: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -31333,7 +31333,7 @@ var buildFlowData = {
         itemsPath: "slices"
       },
       maxSlices: 8,
-      activateWhenDepthAtLeast: "deep"
+      activateWhenDepthAtLeast: "high"
     }
   }
 };
@@ -32566,11 +32566,11 @@ var exploreFlowData = {
       }
     ],
     axes: {
-      allowed_depths: ["lite", "standard", "deep"],
+      allowed_depths: ["low", "medium", "high"],
       supports_tournament: true,
       supports_autonomous: true,
       default: {
-        depth: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -34792,11 +34792,11 @@ var fixFlowData = {
       }
     ],
     axes: {
-      allowed_depths: ["lite", "standard", "deep"],
+      allowed_depths: ["low", "medium", "high"],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        depth: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -35096,7 +35096,7 @@ var fixFlowData = {
         },
         routeOverrides: {
           continue: {
-            lite: "fix-close-lite"
+            low: "fix-close-low"
           }
         }
       }),
@@ -35131,7 +35131,7 @@ var fixFlowData = {
         }
       }),
       expandBlockStepUse({
-        id: "fix-close-lite",
+        id: "fix-close-low",
         title: "Close (lite) \u2014 emit Fix result without review",
         stage: "close",
         block: "close-with-evidence",
@@ -35150,7 +35150,7 @@ var fixFlowData = {
         execution: {
           kind: "compose"
         },
-        protocol: "fix-close-lite@v1",
+        protocol: "fix-close-low@v1",
         reportPath: "reports/fix-result.json",
         required: [
           "summary",
@@ -35403,7 +35403,7 @@ var fixFlowData = {
           relayCompletedText: "Finished checking the result."
         },
         {
-          stepId: "fix-close-lite",
+          stepId: "fix-close-low",
           taskTitle: "Wrap up",
           activeText: "Wrapping up"
         },
@@ -37984,7 +37984,7 @@ function childRunStep(input) {
       kind: "sub-run",
       flow_ref: { flow_id: input.flowId, entry_mode: "default" },
       goal: childGoal,
-      depth: "standard"
+      depth: "medium"
     },
     protocol: `${input.id}@v1`,
     writes: {
@@ -38033,11 +38033,11 @@ var goalFlowData = {
       { generic: "goal.contract@v1", actual: "goal.result@v1" }
     ],
     axes: {
-      allowed_depths: ["lite", "standard", "deep"],
+      allowed_depths: ["low", "medium", "high"],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        depth: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -40267,11 +40267,11 @@ var prototypeFlowData = {
       }
     ],
     axes: {
-      allowed_depths: ["standard", "deep"],
+      allowed_depths: ["medium", "high"],
       supports_tournament: true,
       supports_autonomous: true,
       default: {
-        depth: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -42222,11 +42222,11 @@ var pursueFlowData = {
       }
     ],
     axes: {
-      allowed_depths: ["standard"],
+      allowed_depths: ["medium"],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        depth: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -43039,11 +43039,11 @@ var reviewFlowData = {
       }
     ],
     axes: {
-      allowed_depths: ["standard"],
+      allowed_depths: ["medium"],
       supports_tournament: false,
       supports_autonomous: false,
       default: {
-        depth: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -43329,11 +43329,11 @@ var runtimeProofSchematic = {
   initial_contracts: ["flow.brief@v1"],
   contract_aliases: [],
   axes: {
-    allowed_depths: ["standard"],
+    allowed_depths: ["medium"],
     supports_tournament: false,
     supports_autonomous: false,
     default: {
-      depth: "standard",
+      depth: "medium",
       tournament: false,
       tournament_n: 3,
       autonomous: false
@@ -54775,9 +54775,9 @@ function projectRuntimeCheckpointBoundary(input) {
   }
 }
 async function resolveCheckpoint(step, context, depth, stepPolicy) {
-  const effectiveDepth = depth ?? "standard";
+  const effectiveDepth = depth ?? "medium";
   const autonomous = context.axes?.autonomous === true || effectiveDepth === "autonomous";
-  if (!autonomous && (effectiveDepth === "deep" || effectiveDepth === "tournament")) {
+  if (!autonomous && (effectiveDepth === "high" || effectiveDepth === "tournament")) {
     return { kind: "waiting" };
   }
   if (autonomous) {
@@ -57749,7 +57749,7 @@ async function executeProductionRelayAttempt(input) {
     context,
     step,
     compiledStep,
-    depth: CompiledDepth.parse(context.depth ?? "standard")
+    depth: CompiledDepth.parse(context.depth ?? "medium")
   });
   const prompt = composeRelayPrompt(
     compiledStep,
@@ -58002,7 +58002,7 @@ async function executeRelayInternal(step, context, connector) {
     context,
     step,
     compiledStep,
-    depth: CompiledDepth.parse(context.depth ?? "standard"),
+    depth: CompiledDepth.parse(context.depth ?? "medium"),
     suppliedConnector: connector
   });
   const request = {
@@ -58248,7 +58248,7 @@ function planRelayFanoutBranchGuidanceDecision(input) {
     context: input.context,
     step: relayStep,
     compiledStep: syntheticCompiledRelayStepV1(input.step, input.branch, input.branchDirRel),
-    depth: CompiledDepth.parse(input.context.depth ?? "standard"),
+    depth: CompiledDepth.parse(input.context.depth ?? "medium"),
     ...input.relayConnector === void 0 ? {} : { suppliedConnector: input.relayConnector }
   });
 }
@@ -60766,9 +60766,9 @@ function classifyRouteTargetTransition(input) {
 }
 
 // dist/runtime/run/slice-corridor.js
-var DEPTH_ORDER = ["lite", "standard", "deep", "tournament", "autonomous"];
+var DEPTH_ORDER = ["low", "medium", "high", "tournament", "autonomous"];
 function depthAtLeast(depth, floor) {
-  const current = DEPTH_ORDER.indexOf(depth ?? "standard");
+  const current = DEPTH_ORDER.indexOf(depth ?? "medium");
   const minimum = DEPTH_ORDER.indexOf(floor);
   if (current < 0 || minimum < 0)
     return false;
@@ -61051,7 +61051,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       flow_id: flow.id,
       goal: context.goal,
       manifest_hash: context.manifestHash,
-      depth: context.depth ?? "standard",
+      depth: context.depth ?? "medium",
       change_kind: bootstrapChangeKind({
         flow,
         ...context.entryModeName === void 0 ? {} : { entryModeName: context.entryModeName }
@@ -61364,7 +61364,7 @@ async function executeExecutableFlowWithWaiting(flow, options) {
 
 // dist/runtime/run/compiled-flow-runner.js
 function depthForAxisSelectionName(entryModeName) {
-  if (entryModeName === "lite" || entryModeName === "deep")
+  if (entryModeName === "low" || entryModeName === "high")
     return entryModeName;
   if (entryModeName === "tournament" || entryModeName === "autonomous")
     return entryModeName;
@@ -64468,7 +64468,7 @@ function fixtureSelectionNameForAxes(axes) {
     return "tournament";
   if (axes.autonomous)
     return "autonomous";
-  if (axes.depth === "lite" || axes.depth === "deep")
+  if (axes.depth === "low" || axes.depth === "high")
     return axes.depth;
   return "default";
 }
@@ -64835,7 +64835,7 @@ function runtimeHostKind(options) {
   return HostKind.parse(raw);
 }
 function addExecutionOptions(program2) {
-  return program2.option("--goal <goal>").option("--why <why>").option("--depth <lite|standard|deep>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
+  return program2.option("--goal <goal>").option("--why <why>").option("--depth <low|medium|high>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
 }
 function parseExecutionArgs(command, argv) {
   const program2 = addExecutionOptions(new Command(`circuit ${command}`).argument("[flow-name]"));
@@ -64978,7 +64978,7 @@ function axisSelectionNameForAxes(axes) {
     return "autonomous";
   if (axes.tournament)
     return "tournament";
-  if (axes.depth === "lite" || axes.depth === "deep")
+  if (axes.depth === "low" || axes.depth === "high")
     return axes.depth;
   return "default";
 }
@@ -65596,7 +65596,7 @@ async function runRunsCommand(argv) {
 var DEFAULT_DEV_VERSION = "0.0.0-dev";
 function usage() {
   return [
-    'usage: circuit run [flow-name] --goal "<goal>" [--depth <lite|standard|deep>] [--tournament [--tournament-n <2|3|4>]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
+    'usage: circuit run [flow-name] --goal "<goal>" [--depth <low|medium|high>] [--tournament [--tournament-n <2|3|4>]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
     "       circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]",
     "       circuit runs show --run-folder <path> --json",
     "       circuit history rebuild|query|status --json [options]",
@@ -65605,7 +65605,7 @@ function usage() {
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
     "       circuit version [--json]",
     "",
-    "Axes: `--depth` controls care level (`lite`, `standard`, `deep`); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
+    "Axes: `--depth` controls care level (`low`, `medium`, `high`); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
     "",
     "With an explicit flow name, loads generated/flows/<name>/circuit.json. Without one, classifies the free-form goal across the registered explore/review/fix/build/pursue flows and then composes the runtime boundary using the configured relay connector.",
     "",

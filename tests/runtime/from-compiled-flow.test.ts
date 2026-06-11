@@ -243,13 +243,13 @@ describe('fromCompiledFlow', () => {
         {
           name: 'default',
           startAt: 'frame-step',
-          depth: 'standard',
+          depth: 'medium',
           description: 'Default mode',
         },
         {
           name: 'default',
           startAt: 'missing-step',
-          depth: 'standard',
+          depth: 'medium',
           description: 'Duplicate default mode',
         },
       ],
