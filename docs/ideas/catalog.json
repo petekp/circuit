@@ -480,7 +480,17 @@
       "title": "Depth and Power: the two-dial model for what a run spends",
       "status": "current-proposal",
       "category": "hosts-connectors-and-hitl",
-      "tags": ["selection", "model-tiering", "power", "depth", "local-models", "connectors", "receipts", "escalation", "vocabulary"],
+      "tags": [
+        "selection",
+        "model-tiering",
+        "power",
+        "depth",
+        "local-models",
+        "connectors",
+        "receipts",
+        "escalation",
+        "vocabulary"
+      ],
       "current_reading": "Journey-led proposal for default-on model tiering: receipt-first discovery, two dials (Depth and Power, shared low/medium/high scale, Rigor renamed to Depth), check-failure escalation, and a later local-connector lane. Verified implementation seams included. Not current behavior.",
       "related": [
         "docs/ideas/output-model.md",

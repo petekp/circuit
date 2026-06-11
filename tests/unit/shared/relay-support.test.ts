@@ -47,7 +47,7 @@ describe('composeRelayPrompt', () => {
     expect(prompt.indexOf('Operator Goal:')).toBeLessThan(prompt.indexOf('Context (from reads):'));
   });
 
-  it('threads the resolved rigor into the prompt when supplied and omits it otherwise (F-M-1)', () => {
+  it('threads the resolved depth into the prompt when supplied and omits it otherwise (F-M-1)', () => {
     const step = {
       id: 'act-step',
       title: 'Act - implement',
@@ -62,7 +62,7 @@ describe('composeRelayPrompt', () => {
       check: { kind: 'result_verdict', pass: ['accept'] },
     } as unknown as Parameters<typeof composeRelayPrompt>[0];
 
-    const withRigor = composeRelayPrompt(
+    const withDepth = composeRelayPrompt(
       step,
       runFolder,
       [],
@@ -72,13 +72,13 @@ describe('composeRelayPrompt', () => {
       'build',
       'lite',
     );
-    expect(withRigor).toContain('Rigor: lite');
+    expect(withDepth).toContain('Depth: lite');
 
-    // Direct callers that pass no rigor (the "direct callers unchanged" invariant)
-    // or an empty string get no Rigor line at all.
-    const withoutRigor = composeRelayPrompt(step, runFolder, [], undefined, undefined, [], 'build');
-    expect(withoutRigor).not.toContain('Rigor:');
-    const emptyRigor = composeRelayPrompt(
+    // Direct callers that pass no depth (the "direct callers unchanged" invariant)
+    // or an empty string get no Depth line at all.
+    const withoutDepth = composeRelayPrompt(step, runFolder, [], undefined, undefined, [], 'build');
+    expect(withoutDepth).not.toContain('Depth:');
+    const emptyDepth = composeRelayPrompt(
       step,
       runFolder,
       [],
@@ -88,7 +88,7 @@ describe('composeRelayPrompt', () => {
       'build',
       '',
     );
-    expect(emptyRigor).not.toContain('Rigor:');
+    expect(emptyDepth).not.toContain('Depth:');
   });
 
   it('includes prior history only as hint-only relay context when memory is provided', () => {

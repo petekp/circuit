@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { runCrossReportValidator } from '../../flows/registries/cross-report-validators.js';
 import { parseReport } from '../../flows/registries/report-schemas.js';
 import { CompiledFlow as CompiledFlowSchema } from '../../schemas/compiled-flow.js';
-import { Depth } from '../../schemas/depth.js';
+import { CompiledDepth } from '../../schemas/depth.js';
 import { RunResult } from '../../schemas/result.js';
 import type { TraceEntry } from '../domain/trace.js';
 import {
@@ -240,7 +240,7 @@ export function planRelayFanoutBranchGuidanceDecision(input: {
     context: input.context,
     step: relayStep,
     compiledStep: syntheticCompiledRelayStepV1(input.step, input.branch, input.branchDirRel),
-    depth: Depth.parse(input.context.depth ?? 'standard'),
+    depth: CompiledDepth.parse(input.context.depth ?? 'standard'),
     ...(input.relayConnector === undefined ? {} : { suppliedConnector: input.relayConnector }),
   });
 }

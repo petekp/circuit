@@ -109,8 +109,8 @@ metacharacters:
    ```
 
    The other flows and modes follow the same shape: substitute the flow name
-   (`prototype`, `pursue`), add `--rigor deep` for the deepest loop or
-   `--rigor lite` to skip the review pass, and add
+   (`prototype`, `pursue`), add `--depth deep` for the deepest loop or
+   `--depth lite` to skip the review pass, and add
    `--tournament --tournament-n 3` to a Prototype run for model comparison.
 
    Use the Bash tool to execute the constructed command. `./bin/circuit`

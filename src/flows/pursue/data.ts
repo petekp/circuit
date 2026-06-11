@@ -80,11 +80,11 @@ export const pursueFlowData = {
       },
     ],
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        rigor: 'standard',
+        depth: 'standard',
         tournament: false,
         tournament_n: 3,
         autonomous: false,

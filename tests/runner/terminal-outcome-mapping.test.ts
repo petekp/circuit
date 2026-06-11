@@ -50,7 +50,7 @@ function terminalCompiledFlow(route: TerminalRoute): { bytes: Buffer } {
     version: '0.1.0',
     purpose: 'Runtime regression fixture for terminal route outcome mapping.',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -130,7 +130,7 @@ function richCheckpointRouteCompiledFlow(route: RichRoute): { bytes: Buffer } {
     version: '0.1.0',
     purpose: 'Runtime regression fixture for rich checkpoint route labels.',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -201,7 +201,7 @@ function retryLoopCompiledFlow(): { bytes: Buffer } {
     version: '0.1.0',
     purpose: 'Runtime regression fixture for bounded retry routes.',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -257,7 +257,7 @@ function relayFailureRecoveryCompiledFlow(): { bytes: Buffer } {
     version: '0.1.0',
     purpose: 'Runtime regression fixture for failed relay recovery routes.',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },

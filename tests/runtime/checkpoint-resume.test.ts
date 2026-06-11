@@ -62,10 +62,10 @@ function checkpointFixtureFlow(
     version: '0.1.0',
     purpose: 'Dedicated runtime checkpoint pause/resume fixture.',
     axes: {
-      allowed_rigors: ['deep'],
+      allowed_depths: ['deep'],
       supports_tournament: false,
       supports_autonomous: false,
-      default: { rigor: 'deep', tournament: false, tournament_n: 3, autonomous: false },
+      default: { depth: 'deep', tournament: false, tournament_n: 3, autonomous: false },
     },
     starts_at: 'checkpoint-step',
     stages: [
@@ -196,10 +196,10 @@ function completedAttemptFixtureFlow(): unknown {
     ...base,
     id: 'checkpoint-cycle-fixture',
     axes: {
-      allowed_rigors: ['deep'],
+      allowed_depths: ['deep'],
       supports_tournament: false,
       supports_autonomous: false,
-      default: { rigor: 'deep', tournament: false, tournament_n: 3, autonomous: false },
+      default: { depth: 'deep', tournament: false, tournament_n: 3, autonomous: false },
     },
     starts_at: 'pre-step',
     stages: base.stages.map((stage) =>

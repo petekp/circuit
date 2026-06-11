@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ChangeKindDeclaration } from './change-kind.js';
-import { Depth } from './depth.js';
+import { CompiledDepth } from './depth.js';
 import { CompiledFlowId, InvocationId, RunId, StepId } from './ids.js';
 
 export const StepStatus = z.enum(['pending', 'in_progress', 'check_failed', 'complete', 'aborted']);
@@ -34,7 +34,7 @@ export const Snapshot = z
     run_id: RunId,
     flow_id: CompiledFlowId,
     invocation_id: InvocationId.optional(),
-    depth: Depth,
+    depth: CompiledDepth,
     change_kind: ChangeKindDeclaration,
     current_step: StepId.optional(),
     status: SnapshotStatus,

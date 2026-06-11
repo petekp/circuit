@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "purpose": "Prototype flow. Circuit frames a disposable artifact, plans its local prototype files, either relays one artifact or fans out configured model variants, verifies reported files under prototype_root, asks which local prototype evidence to keep, and closes with evidence. Prototype does not edit production code outside prototype_root or claim deployment, branch previews, screenshots, provider behavior, model behavior, or production readiness.",
   "axes": {
-    "allowed_rigors": ["standard", "deep"],
+    "allowed_depths": ["standard", "deep"],
     "supports_tournament": true,
     "supports_autonomous": true,
     "default": {
-      "rigor": "standard",
+      "depth": "standard",
       "tournament": false,
       "tournament_n": 3,
       "autonomous": false

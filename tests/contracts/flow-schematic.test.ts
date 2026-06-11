@@ -526,7 +526,7 @@ describe('flow schematic compiler-required metadata', () => {
       status: 'active',
       version: '0.1.0',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -570,7 +570,7 @@ describe('flow schematic compiler-required metadata', () => {
     return {
       ...activeSchematic([frame, tournamentFanoutItemWith(fanout)]),
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: true,
         supports_autonomous: false,
         tournament_fan_out_stage: 'act-stage',
@@ -817,7 +817,7 @@ describe('flow schematic compiler-required metadata', () => {
       ]),
       version: '0.1.0',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -841,7 +841,7 @@ describe('flow schematic compiler-required metadata', () => {
         }),
       ]),
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: true,
         supports_autonomous: false,
         tournament_fan_out_stage: 'missing-stage',

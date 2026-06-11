@@ -20,7 +20,7 @@ import {
   type LayeredConfig as LayeredConfigValue,
 } from '../../src/schemas/config.js';
 import { CustomConnectorDescriptor } from '../../src/schemas/connector.js';
-import { Depth } from '../../src/schemas/depth.js';
+import { CompiledDepth } from '../../src/schemas/depth.js';
 import {
   PolicyLayer,
   type PolicyLayer as PolicyLayerValue,
@@ -159,7 +159,7 @@ describe('runtime connector safety', () => {
       context,
       step,
       compiledStep,
-      depth: Depth.parse('standard'),
+      depth: CompiledDepth.parse('standard'),
       ...(input.suppliedConnector === undefined
         ? {}
         : { suppliedConnector: input.suppliedConnector }),

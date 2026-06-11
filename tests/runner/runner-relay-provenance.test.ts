@@ -15,7 +15,7 @@ import type { RunContext } from '../../src/runtime/run/run-context.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import { Config, type LayeredConfig as LayeredConfigValue } from '../../src/schemas/config.js';
-import { Depth } from '../../src/schemas/depth.js';
+import { CompiledDepth } from '../../src/schemas/depth.js';
 import { RunId, StepId } from '../../src/schemas/ids.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
@@ -112,7 +112,7 @@ function relayGuidanceExecution(input: {
     context,
     step: runtimeStep,
     compiledStep,
-    depth: Depth.parse('standard'),
+    depth: CompiledDepth.parse('standard'),
   }).relayExecution;
 }
 

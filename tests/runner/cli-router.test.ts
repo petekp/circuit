@@ -748,7 +748,7 @@ describe('CLI router', () => {
         'build',
         '--goal',
         'develop: add a focused feature that waits for framing',
-        '--rigor',
+        '--depth',
         'deep',
         '--run-folder',
         runFolder,
@@ -780,7 +780,7 @@ describe('CLI router', () => {
         'build',
         '--goal',
         'develop: add a focused feature that waits for framing',
-        '--rigor',
+        '--depth',
         'deep',
         '--progress',
         'jsonl',
@@ -913,7 +913,7 @@ describe('CLI router', () => {
     expect(output.runtime_reason).toMatch(/runtime supports fresh pursue/i);
   });
 
-  it('lets explicit --rigor standard set the Build default depth', async () => {
+  it('lets explicit --depth standard set the Build default depth', async () => {
     const runFolder = join(runFolderBase, 'build-explicit-default-mode');
     const projectRoot = createProofProject('build-explicit-default-mode-project');
 
@@ -924,7 +924,7 @@ describe('CLI router', () => {
           'build',
           '--goal',
           'develop: add a small standard change',
-          '--rigor',
+          '--depth',
           'standard',
           '--run-folder',
           runFolder,
@@ -943,7 +943,7 @@ describe('CLI router', () => {
     expect(bootstrap).toMatchObject({ depth: 'standard' });
   }, 30_000);
 
-  it('uses --rigor to select the matching axis depth', async () => {
+  it('uses --depth to select the matching axis depth', async () => {
     const runFolder = join(runFolderBase, 'build-depth-only');
     const projectRoot = createProofProject('build-depth-only-project');
 
@@ -953,7 +953,7 @@ describe('CLI router', () => {
         'build',
         '--goal',
         'develop: add a small deep change',
-        '--rigor',
+        '--depth',
         'deep',
         '--run-folder',
         runFolder,
@@ -986,7 +986,7 @@ describe('CLI router', () => {
 
     expect(result.exit).toBe(2);
     expect(result.stderr).toContain("--tournament is not supported by flow 'fix'");
-    expect(result.stderr).toContain('fix allows rigors:');
+    expect(result.stderr).toContain('fix allows depths:');
     expect(existsSync(runFolder)).toBe(false);
   });
 
@@ -1050,7 +1050,7 @@ describe('CLI router', () => {
     expect(existsSync(runFolder)).toBe(false);
   });
 
-  it('accepts --rigor lite and threads lite depth into relay selection', async () => {
+  it('accepts --depth lite and threads lite depth into relay selection', async () => {
     const runFolder = join(runFolderBase, 'build-lite-entry-mode');
     const projectRoot = createProofProject('build-lite-entry-mode-project');
     const output = await runMainJson(
@@ -1059,7 +1059,7 @@ describe('CLI router', () => {
         'build',
         '--goal',
         'Add a tiny Build feature from the CLI',
-        '--rigor',
+        '--depth',
         'lite',
         '--run-folder',
         runFolder,
@@ -1080,7 +1080,7 @@ describe('CLI router', () => {
     expect(relayResolvedSelection).toMatchObject({ depth: 'lite' });
   }, 30_000);
 
-  it('threads resolved rigor into the relay prompt and records resolved axes on the envelope (F-M-1)', async () => {
+  it('threads resolved depth into the relay prompt and records resolved axes on the envelope (F-M-1)', async () => {
     const litePrompts: string[] = [];
     const liteOutput = await runMainJsonWithRelayer(
       [
@@ -1088,16 +1088,16 @@ describe('CLI router', () => {
         'build',
         '--goal',
         'Add a tiny Build feature from the CLI',
-        '--rigor',
+        '--depth',
         'lite',
         '--run-folder',
-        join(runFolderBase, 'build-rigor-lite-thread'),
+        join(runFolderBase, 'build-depth-lite-thread'),
       ],
       makeStubRelayer((input) => {
         litePrompts.push(input.prompt);
         return '{"verdict":"accept"}';
       }),
-      { configCwd: createProofProject('build-rigor-lite-thread-project') },
+      { configCwd: createProofProject('build-depth-lite-thread-project') },
     );
 
     const standardPrompts: string[] = [];
@@ -1108,26 +1108,26 @@ describe('CLI router', () => {
         '--goal',
         'Add a tiny Build feature from the CLI',
         '--run-folder',
-        join(runFolderBase, 'build-rigor-standard-thread'),
+        join(runFolderBase, 'build-depth-standard-thread'),
       ],
       makeStubRelayer((input) => {
         standardPrompts.push(input.prompt);
         return '{"verdict":"accept"}';
       }),
-      { configCwd: createProofProject('build-rigor-standard-thread-project') },
+      { configCwd: createProofProject('build-depth-standard-thread-project') },
     );
 
-    // Thread: the relay prompt now carries the resolved rigor, so build-lite and
+    // Thread: the relay prompt now carries the resolved depth, so build-lite and
     // build-standard prompts differ — the F-M-1 "byte-identical relay payloads"
-    // defect. Every relay step in each run sees the run's resolved rigor.
+    // defect. Every relay step in each run sees the run's resolved depth.
     expect(litePrompts.length).toBeGreaterThan(0);
     expect(standardPrompts.length).toBeGreaterThan(0);
-    expect(litePrompts.every((prompt) => prompt.includes('Rigor: lite'))).toBe(true);
-    expect(standardPrompts.every((prompt) => prompt.includes('Rigor: standard'))).toBe(true);
+    expect(litePrompts.every((prompt) => prompt.includes('Depth: lite'))).toBe(true);
+    expect(standardPrompts.every((prompt) => prompt.includes('Depth: standard'))).toBe(true);
     // Record: the resolved axes are echoed on the stdout envelope so a reader
-    // can audit which rigor actually ran.
-    expect(liteOutput.resolved_axes).toMatchObject({ rigor: 'lite' });
-    expect(standardOutput.resolved_axes).toMatchObject({ rigor: 'standard' });
+    // can audit which depth actually ran.
+    expect(liteOutput.resolved_axes).toMatchObject({ depth: 'lite' });
+    expect(standardOutput.resolved_axes).toMatchObject({ depth: 'standard' });
   }, 30_000);
 
   it('accepts --autonomous and threads autonomous depth into relay selection', async () => {
@@ -1469,7 +1469,7 @@ describe('CLI router', () => {
         'run',
         'build',
         '--goal=Build through equals syntax',
-        '--rigor=deep',
+        '--depth=deep',
         `--run-folder=${runFolder}`,
       ],
       '{"verdict":"accept"}',
@@ -1558,7 +1558,7 @@ describe('CLI router', () => {
     const runFolder = join(runFolderBase, 'checkpoint-waiting');
     const projectRoot = createProofProject('checkpoint-waiting-project');
     const output = await runMainJson(
-      ['run', 'build', '--goal', 'Frame via CLI', '--rigor', 'deep', '--run-folder', runFolder],
+      ['run', 'build', '--goal', 'Frame via CLI', '--depth', 'deep', '--run-folder', runFolder],
       '{"verdict":"accept"}',
       { configCwd: projectRoot },
     );
@@ -1595,17 +1595,17 @@ describe('CLI router', () => {
   });
 
   it('rejects resume-only incompatible flags', async () => {
-    const withRigor = await runMainExit([
+    const withDepth = await runMainExit([
       'resume',
       '--run-folder',
       join(runFolderBase, 'not-needed'),
       '--checkpoint-choice',
       'continue',
-      '--rigor',
+      '--depth',
       'deep',
     ]);
-    expect(withRigor.exit).toBe(2);
-    expect(withRigor.stderr).toMatch(/omit --rigor\/--tournament\/--tournament-n\/--autonomous/);
+    expect(withDepth.exit).toBe(2);
+    expect(withDepth.stderr).toMatch(/omit --depth\/--tournament\/--tournament-n\/--autonomous/);
 
     const withFixture = await runMainExit([
       'resume',
@@ -1629,22 +1629,22 @@ describe('CLI router', () => {
     ]);
     expect(withAutonomous.exit).toBe(2);
     expect(withAutonomous.stderr).toMatch(
-      /omit --rigor\/--tournament\/--tournament-n\/--autonomous/,
+      /omit --depth\/--tournament\/--tournament-n\/--autonomous/,
     );
   });
 
-  it('lets Commander reject old --depth as an unknown option', async () => {
-    const withDepth = await runMainExit([
+  it('lets Commander reject retired --rigor as an unknown option', async () => {
+    const withRigor = await runMainExit([
       'resume',
       '--run-folder',
       join(runFolderBase, 'not-needed'),
       '--checkpoint-choice',
       'continue',
-      '--depth',
+      '--rigor',
       'deep',
     ]);
-    expect(withDepth.exit).toBe(2);
-    expect(withDepth.stderr).toMatch(/unknown option '--depth'/);
+    expect(withRigor.exit).toBe(2);
+    expect(withRigor.stderr).toMatch(/unknown option '--rigor'/);
   });
 
   it('lets Commander reject old --mode as an unknown option on resume too', async () => {
@@ -1661,9 +1661,9 @@ describe('CLI router', () => {
     expect(withMode.stderr).toMatch(/unknown option '--mode'/);
   });
 
-  it('parses --run-folder before rejecting resume-only --rigor', async () => {
+  it('parses --run-folder before rejecting resume-only --depth', async () => {
     // Resume validates other flags after argv parsing; pairing --run-folder
-    // with --rigor exercises the downstream axis-omit branch. The
+    // with --depth exercises the downstream axis-omit branch. The
     // branch firing proves --run-folder parsed and populated the run-folder slot.
     const result = await runMainExit([
       'resume',
@@ -1671,11 +1671,11 @@ describe('CLI router', () => {
       join(runFolderBase, 'not-needed'),
       '--checkpoint-choice',
       'continue',
-      '--rigor',
+      '--depth',
       'deep',
     ]);
     expect(result.exit).toBe(2);
-    expect(result.stderr).toMatch(/omit --rigor\/--tournament\/--tournament-n\/--autonomous/);
+    expect(result.stderr).toMatch(/omit --depth\/--tournament\/--tournament-n\/--autonomous/);
   });
 
   it("uses Commander's last-value-wins behavior for repeated scalar options", async () => {
@@ -1685,13 +1685,13 @@ describe('CLI router', () => {
       join(runFolderBase, 'not-needed'),
       '--checkpoint-choice',
       'continue',
-      '--rigor',
+      '--depth',
       'standard',
-      '--rigor',
+      '--depth',
       'deep',
     ]);
     expect(conflict.exit).toBe(2);
-    expect(conflict.stderr).toMatch(/omit --rigor\/--tournament\/--tournament-n\/--autonomous/);
+    expect(conflict.stderr).toMatch(/omit --depth\/--tournament\/--tournament-n\/--autonomous/);
   });
 
   it('rejects --tournament-n without --tournament', async () => {

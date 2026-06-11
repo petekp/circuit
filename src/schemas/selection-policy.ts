@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Depth } from './depth.js';
+import { CompiledDepth } from './depth.js';
 import { SkillId, StageId, StepId } from './ids.js';
 import { JsonObject } from './json.js';
 
@@ -54,7 +54,7 @@ export const SelectionOverride = z
     model: ProviderScopedModel.optional(),
     effort: Effort.optional(),
     skills: SkillOverride.default({ mode: 'inherit' }),
-    depth: Depth.optional(),
+    depth: CompiledDepth.optional(),
     invocation_options: JsonObject.default({}),
   })
   .strict();
@@ -72,7 +72,7 @@ export const ResolvedSelection = z
     model: ProviderScopedModel.optional(),
     effort: Effort.optional(),
     skills: UniqueSkillArray,
-    depth: Depth.optional(),
+    depth: CompiledDepth.optional(),
     invocation_options: JsonObject.default({}),
   })
   .strict();

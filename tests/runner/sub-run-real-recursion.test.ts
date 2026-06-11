@@ -49,7 +49,7 @@ function buildChildCompiledFlow(): CompiledFlow {
     purpose:
       'real-recursion test child — single relay step admits an accept verdict via the fake relayer.',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -93,7 +93,7 @@ function buildParentCompiledFlow(): CompiledFlow {
     purpose:
       'real-recursion test parent — single sub-run step recurses into the child via real runCompiledFlow.',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },

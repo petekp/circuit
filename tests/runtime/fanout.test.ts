@@ -185,7 +185,7 @@ function compiledRelayFanoutFlow(
     version: '0.1.0',
     purpose: 'runtime relay fanout production parity test',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -303,7 +303,7 @@ function childFlowBytes(): Buffer {
       version: '0.1.0',
       purpose: 'fanout child',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },

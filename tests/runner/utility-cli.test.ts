@@ -1440,7 +1440,7 @@ describe('utility CLI commands', () => {
         'build',
         '--goal',
         'deep change that asks for scope',
-        '--rigor',
+        '--depth',
         'deep',
         '--run-folder',
         runFolder,

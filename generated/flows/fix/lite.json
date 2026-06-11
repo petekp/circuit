@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "purpose": "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at standard depth, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Lite mode skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they are unreachable at compile time and omitted from compiled flows.",
   "axes": {
-    "allowed_rigors": ["lite", "standard", "deep"],
+    "allowed_depths": ["lite", "standard", "deep"],
     "supports_tournament": false,
     "supports_autonomous": true,
     "default": {
-      "rigor": "standard",
+      "depth": "standard",
       "tournament": false,
       "tournament_n": 3,
       "autonomous": false

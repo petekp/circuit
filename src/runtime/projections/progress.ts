@@ -378,7 +378,7 @@ export function createProgressProjector(input: {
         activeAttempts.set(stepId, entry.attempt);
         taskStatuses.set(stepId, 'in_progress');
         const display = stepDisplay({ flow: input.flow, stepDisplayById, stepId });
-        // Slice loop (deep-rigor Build): when this step runs one slice of a
+        // Slice loop (deep-depth Build): when this step runs one slice of a
         // slice loop, surface which slice so the operator can follow the
         // per-slice implement+verify gating rather than seeing the same line
         // repeat. slice_index is 0-based; show it 1-based.

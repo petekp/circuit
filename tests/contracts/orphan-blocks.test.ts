@@ -129,7 +129,7 @@ function schematicShell(overrides: {
     items: overrides.items,
     version: '0.0.1',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },

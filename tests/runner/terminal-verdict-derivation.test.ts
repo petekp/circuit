@@ -107,7 +107,7 @@ describe('deriveTerminalVerdict — fix #2 coverage', () => {
       version: '0.1.0',
       purpose: 'Test fixture for multi-relay terminal verdict derivation.',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -219,7 +219,7 @@ describe('deriveTerminalVerdict — fix #2 coverage', () => {
       version: '0.1.0',
       purpose: 'Test fixture: a flow with no verdict-bearing steps.',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },

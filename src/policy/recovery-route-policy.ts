@@ -7,7 +7,7 @@ import {
   type RecoveryRouteKind,
 } from '../schemas/recovery-route-kind.js';
 
-// 'advance' is the slice-loop forward edge (deep-rigor Build): a successful
+// 'advance' is the slice-loop forward edge (deep-depth Build): a successful
 // slice verify re-enters the head step for the next slice. It carries no
 // recovery mechanics, exactly like 'continue'.
 export const NORMAL_ROUTE_IDS = new Set(['pass', 'continue', 'complete', 'close', 'advance']);

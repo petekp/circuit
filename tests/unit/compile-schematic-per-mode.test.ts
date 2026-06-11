@@ -25,7 +25,7 @@ describe('compileSchematicToCompiledFlow — per-mode emission', () => {
     expect(result.kind).toBe('single');
     if (result.kind !== 'single') return;
     expect(result.flow.axes).toMatchObject({
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['lite', 'standard', 'deep'],
       supports_autonomous: true,
     });
     expect(result.flow.starts_at).toBe('frame-step');

@@ -137,7 +137,7 @@ function minimalDefinition(id: string) {
       initial_contracts: [],
       contract_aliases: [],
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },

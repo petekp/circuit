@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/review/circuit.work-contract.v0.json",
-    "sha256": "4205bbcb603ff6521283da46f4c89aceb04dcace11bd90f7a1bca42a85708d98",
+    "sha256": "add814a2603a56e2c55cf06d5240d1442145443990c7eea8dc4f45517661ccff",
     "flow_id": "review"
   },
   "work_contract": {
@@ -12,11 +12,11 @@
       "version": "0.1.0",
       "purpose": "Review flow: frame the audit scope, relay independent review to a reviewer, and close with a verdict report. The schematic uses a compact Intake, Independent Audit, and Verdict shape because Review is audit-only and does not implement or verify a change.",
       "axes": {
-        "allowed_rigors": ["standard"],
+        "allowed_depths": ["standard"],
         "supports_tournament": false,
         "supports_autonomous": false,
         "default": {
-          "rigor": "standard",
+          "depth": "standard",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -274,7 +274,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/intake-step/routes/stop",
-          "sha256": "73fd2c5a655a8c7c6f019292ce79145e3281f3fd29a60aa73edcc56c963ec86f",
+          "sha256": "ae42060da7373329f5b6df5a0f4a9a15d8bc01856dbf693272dc7d1f77db0cd8",
           "flow_id": "review"
         }
       },
@@ -303,7 +303,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/audit-step/routes/retry",
-          "sha256": "73fd2c5a655a8c7c6f019292ce79145e3281f3fd29a60aa73edcc56c963ec86f",
+          "sha256": "ae42060da7373329f5b6df5a0f4a9a15d8bc01856dbf693272dc7d1f77db0cd8",
           "flow_id": "review"
         }
       },
@@ -334,7 +334,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/audit-step/routes/stop",
-          "sha256": "73fd2c5a655a8c7c6f019292ce79145e3281f3fd29a60aa73edcc56c963ec86f",
+          "sha256": "ae42060da7373329f5b6df5a0f4a9a15d8bc01856dbf693272dc7d1f77db0cd8",
           "flow_id": "review"
         }
       },
@@ -365,7 +365,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verdict-step/routes/stop",
-          "sha256": "73fd2c5a655a8c7c6f019292ce79145e3281f3fd29a60aa73edcc56c963ec86f",
+          "sha256": "ae42060da7373329f5b6df5a0f4a9a15d8bc01856dbf693272dc7d1f77db0cd8",
           "flow_id": "review"
         }
       }

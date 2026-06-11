@@ -433,7 +433,7 @@ describe('Prototype runtime wiring', () => {
       runId: '94000000-0000-0000-0000-000000000007',
       goal: 'prototype: compare two custom flow builder UI variants',
       entryModeName: 'tournament',
-      axes: { rigor: 'standard', tournament: true, tournament_n: 2, autonomous: false },
+      axes: { depth: 'standard', tournament: true, tournament_n: 2, autonomous: false },
       now: deterministicNow(Date.UTC(2026, 4, 20, 9, 10, 0)),
       projectRoot,
       selectionConfigLayers: [variantLayer()],

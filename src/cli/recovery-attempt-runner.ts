@@ -97,13 +97,13 @@ export function createRecoveryAttemptRunner(deps: RecoveryAttemptRunnerDeps): Li
     // axis the flow does not declare.
     const support = axisSupportFromFlow({ flow: recoveryFlow.flow });
     const recoveryAxes = Axes.parse({
-      // Keep the parent's rigor only if the recovery flow allows it;
-      // otherwise fall back to the recovery flow's own default rigor,
+      // Keep the parent's depth only if the recovery flow allows it;
+      // otherwise fall back to the recovery flow's own default depth,
       // which the axes schema guarantees is in its allowed set (never a
       // hardcoded value the flow might not declare).
-      rigor: support.allowedRigors.includes(parentAxes.rigor)
-        ? parentAxes.rigor
-        : recoveryFlow.flow.axes.default.rigor,
+      depth: support.allowedDepths.includes(parentAxes.depth)
+        ? parentAxes.depth
+        : recoveryFlow.flow.axes.default.depth,
       tournament: false,
       autonomous: parentAxes.autonomous && support.supportsAutonomous,
     });

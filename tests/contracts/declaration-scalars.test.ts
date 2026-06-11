@@ -1,4 +1,4 @@
-// Declaration-layer scalar schemas — `Depth`, `Role`, and
+// Declaration-layer scalar schemas — `CompiledDepth`, `Role`, and
 // `ChangeKindDeclaration` exports from `src/index.ts`. Covers closed-enum
 // and structural-shape contracts that the larger family suites build on.
 
@@ -6,27 +6,27 @@ import { describe, expect, it } from 'vitest';
 import {
   Axes,
   ChangeKindDeclaration,
+  CompiledDepth,
   Depth,
   FlowAxes,
-  Rigor,
   Role,
   isConsequentialAxes,
   isConsequentialDepth,
 } from '../../src/index.js';
 
-describe('rigor and axes', () => {
-  it('accepts only lite, standard, and deep rigor values', () => {
-    expect(Rigor.safeParse('lite').success).toBe(true);
-    expect(Rigor.safeParse('standard').success).toBe(true);
-    expect(Rigor.safeParse('deep').success).toBe(true);
-    expect(Rigor.safeParse('tournament').success).toBe(false);
-    expect(Rigor.safeParse('autonomous').success).toBe(false);
-    expect(Rigor.safeParse('max').success).toBe(false);
+describe('depth and axes', () => {
+  it('accepts only lite, standard, and deep depth values', () => {
+    expect(Depth.safeParse('lite').success).toBe(true);
+    expect(Depth.safeParse('standard').success).toBe(true);
+    expect(Depth.safeParse('deep').success).toBe(true);
+    expect(Depth.safeParse('tournament').success).toBe(false);
+    expect(Depth.safeParse('autonomous').success).toBe(false);
+    expect(Depth.safeParse('max').success).toBe(false);
   });
 
   it('defaults axes to standard interactive non-tournament runs', () => {
     expect(Axes.parse({})).toEqual({
-      rigor: 'standard',
+      depth: 'standard',
       tournament: false,
       tournament_n: 3,
       autonomous: false,
@@ -43,17 +43,17 @@ describe('rigor and axes', () => {
   it('validates flow-owned axis allow-lists and defaults', () => {
     expect(
       FlowAxes.parse({
-        allowed_rigors: ['lite', 'standard', 'deep'],
+        allowed_depths: ['lite', 'standard', 'deep'],
         supports_tournament: true,
         supports_autonomous: true,
         tournament_fan_out_stage: 'decision-stage',
       }),
     ).toEqual({
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['lite', 'standard', 'deep'],
       supports_tournament: true,
       supports_autonomous: true,
       default: {
-        rigor: 'standard',
+        depth: 'standard',
         tournament: false,
         tournament_n: 3,
         autonomous: false,
@@ -63,21 +63,21 @@ describe('rigor and axes', () => {
 
     expect(
       FlowAxes.safeParse({
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
-        default: { rigor: 'deep' },
+        default: { depth: 'deep' },
       }).success,
     ).toBe(false);
     expect(
       FlowAxes.safeParse({
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: true,
       }).success,
     ).toBe(false);
     expect(
       FlowAxes.safeParse({
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         tournament_fan_out_stage: 'decision-stage',
       }).success,
@@ -85,19 +85,19 @@ describe('rigor and axes', () => {
   });
 
   it('marks consequential axis combinations explicitly', () => {
-    expect(isConsequentialAxes(Axes.parse({ rigor: 'deep' }))).toBe(true);
+    expect(isConsequentialAxes(Axes.parse({ depth: 'deep' }))).toBe(true);
     expect(isConsequentialAxes(Axes.parse({ tournament: true }))).toBe(true);
     expect(isConsequentialAxes(Axes.parse({ autonomous: true }))).toBe(true);
-    expect(isConsequentialAxes(Axes.parse({ rigor: 'lite' }))).toBe(false);
-    expect(isConsequentialAxes(Axes.parse({ rigor: 'standard' }))).toBe(false);
+    expect(isConsequentialAxes(Axes.parse({ depth: 'lite' }))).toBe(false);
+    expect(isConsequentialAxes(Axes.parse({ depth: 'standard' }))).toBe(false);
   });
 });
 
 describe('legacy depth compatibility', () => {
   it('keeps old flat depth values available during the axis migration', () => {
-    expect(Depth.safeParse('standard').success).toBe(true);
-    expect(Depth.safeParse('tournament').success).toBe(true);
-    expect(Depth.safeParse('max').success).toBe(false);
+    expect(CompiledDepth.safeParse('standard').success).toBe(true);
+    expect(CompiledDepth.safeParse('tournament').success).toBe(true);
+    expect(CompiledDepth.safeParse('max').success).toBe(false);
   });
 
   it('maps consequential legacy depths through axes', () => {

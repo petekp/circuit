@@ -33,7 +33,7 @@ does not wire a runnable Fix command or runtime behavior.
 
 ## Axis Support
 
-Fix declares `axes.allowed_rigors = [lite, standard, deep]`. It supports
+Fix declares `axes.allowed_depths = [lite, standard, deep]`. It supports
 autonomous runs and does not support tournament runs. Lite may skip the
 flow-declared optional review pass; standard and deep keep it.
 

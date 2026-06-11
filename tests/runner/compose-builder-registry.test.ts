@@ -43,7 +43,7 @@ function syntheticComposeCompiledFlow(): CompiledFlow {
     version: '0.1.0',
     purpose: 'Synthetic flow that exercises the compose-writer registry contract.',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },

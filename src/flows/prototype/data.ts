@@ -105,11 +105,11 @@ export const prototypeFlowData = {
       },
     ],
     axes: {
-      allowed_rigors: ['standard', 'deep'],
+      allowed_depths: ['standard', 'deep'],
       supports_tournament: true,
       supports_autonomous: true,
       default: {
-        rigor: 'standard',
+        depth: 'standard',
         tournament: false,
         tournament_n: 3,
         autonomous: false,

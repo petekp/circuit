@@ -249,7 +249,7 @@ describe('Build runtime wiring', () => {
   );
 
   it(
-    'implements and verifies each plan slice in turn under deep-rigor (autonomous) slicing',
+    'implements and verifies each plan slice in turn under deep-depth (autonomous) slicing',
     async () => {
       const { bytes } = loadFixture();
       const runFolder = join(runFolderBase, 'sliced');
@@ -460,7 +460,7 @@ describe('Build runtime wiring', () => {
 
       expect(outcome.outcome).toBe('complete');
       const trace_entries = await readTraceEntries(runFolder);
-      // The corridor is inert below deep rigor: even though the researcher
+      // The corridor is inert below deep depth: even though the researcher
       // emitted slices, the run is single-pass and no entry carries slice_index.
       // Guards against an executor regression that always-emits the field
       // (which would fail RunTrace's .strict() parse for standard runs).
@@ -623,7 +623,7 @@ describe('Build runtime wiring', () => {
   it('declares Build axes and reaches Review by the pass route', () => {
     const { flow } = loadFixture();
     expect(flow.axes).toMatchObject({
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['lite', 'standard', 'deep'],
       supports_tournament: false,
       supports_autonomous: true,
     });

@@ -82,7 +82,7 @@ function verificationCompiledFlow(options: { verifyRoutes?: Record<string, strin
     version: '0.1.0',
     purpose: 'test Build verification execution',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },

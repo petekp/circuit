@@ -44,7 +44,7 @@ export { CIRCUIT_HOST_KIND_ENV } from './run.js';
 
 export function usage(): string {
   return [
-    'usage: circuit run [flow-name] --goal "<goal>" [--rigor <lite|standard|deep>] [--tournament [--tournament-n <2|3|4>]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
+    'usage: circuit run [flow-name] --goal "<goal>" [--depth <lite|standard|deep>] [--tournament [--tournament-n <2|3|4>]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
     '       circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]',
     '       circuit runs show --run-folder <path> --json',
     '       circuit history rebuild|query|status --json [options]',
@@ -53,7 +53,7 @@ export function usage(): string {
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
     '       circuit version [--json]',
     '',
-    'Axes: `--rigor` controls care level (`lite`, `standard`, `deep`); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.',
+    'Axes: `--depth` controls care level (`lite`, `standard`, `deep`); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.',
     '',
     'With an explicit flow name, loads generated/flows/<name>/circuit.json. Without one, classifies the free-form goal across the registered explore/review/fix/build/pursue flows and then composes the runtime boundary using the configured relay connector.',
     '',

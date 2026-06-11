@@ -67,7 +67,7 @@ function buildContext(
     flow,
     step,
     goal: 'prototype: compare model variants',
-    axes: { rigor: 'standard', tournament: true, tournament_n: tournamentN, autonomous: false },
+    axes: { depth: 'standard', tournament: true, tournament_n: tournamentN, autonomous: false },
     selectionConfigLayers: [layerWithVariants(variantModels, connectors)],
     connectorPlanner: runtimeConnectorPlanner,
     inputs: {

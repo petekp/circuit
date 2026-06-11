@@ -10,7 +10,7 @@ import type {
 import { composePolicyHardConstraints } from '../../policy/policy-envelope.js';
 import type { ResolvedConnector } from '../../schemas/connector.js';
 import type { RelayResolutionSource } from '../../schemas/connector.js';
-import type { Depth } from '../../schemas/depth.js';
+import type { CompiledDepth } from '../../schemas/depth.js';
 import type { HostKind } from '../../schemas/host.js';
 import type { CompiledFlowId } from '../../schemas/ids.js';
 import type {
@@ -346,7 +346,7 @@ export function planRelayGuidanceDecision(input: {
   readonly context: RunContext;
   readonly step: RelayStep;
   readonly compiledStep: RuntimeIndexedRelayStep;
-  readonly depth: Depth;
+  readonly depth: CompiledDepth;
   readonly suppliedConnector?: RelayConnector;
 }): RelayGuidancePlan {
   const { context, step, compiledStep } = input;

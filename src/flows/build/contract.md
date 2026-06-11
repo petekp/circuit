@@ -34,7 +34,7 @@ Build uses the full canonical set
 
 ## Axis Support
 
-Build declares `axes.allowed_rigors = [lite, standard, deep]`. It supports
+Build declares `axes.allowed_depths = [lite, standard, deep]`. It supports
 autonomous runs and does not support tournament runs.
 
 This contract starts as the typed-output home for the seven Build reports:

@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/explore/tournament.work-contract.v0.json",
-    "sha256": "ad7d7a9a3cf97844ad8bff64d7c04d02189e7353470a61820ca22936026e24e9",
+    "sha256": "c352d1b3dfab3ea167a4482d6849cc1a1d0d224b1fadcd3b30227cd061dcbb04",
     "flow_id": "explore"
   },
   "work_contract": {
@@ -12,11 +12,11 @@
       "version": "0.1.0",
       "purpose": "Explore flow: frame the investigation, analyze the subject, either synthesize and critique findings or run a decision tournament, then close with findings plus evidence. All modes use Frame, Analyze, Plan or Decision, and Close; critique is embedded inside the Plan/Decision stage rather than exposed as a separate canonical Review stage.",
       "axes": {
-        "allowed_rigors": ["lite", "standard", "deep"],
+        "allowed_depths": ["lite", "standard", "deep"],
         "supports_tournament": true,
         "supports_autonomous": true,
         "default": {
-          "rigor": "standard",
+          "depth": "standard",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -666,7 +666,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+          "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
           "flow_id": "explore"
         }
       },
@@ -695,7 +695,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/retry",
-          "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+          "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
           "flow_id": "explore"
         }
       },
@@ -726,7 +726,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/stop",
-          "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+          "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
           "flow_id": "explore"
         }
       },
@@ -757,7 +757,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/decision-options-step/routes/stop",
-          "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+          "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
           "flow_id": "explore"
         }
       },
@@ -788,7 +788,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/proposal-fanout-step/routes/stop",
-          "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+          "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
           "flow_id": "explore"
         }
       },
@@ -813,7 +813,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/stress-proposals-step/routes/revise",
-          "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+          "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
           "flow_id": "explore"
         }
       },
@@ -844,7 +844,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/stress-proposals-step/routes/stop",
-          "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+          "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
           "flow_id": "explore"
         }
       },
@@ -875,7 +875,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/tradeoff-checkpoint-step/routes/stop",
-          "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+          "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
           "flow_id": "explore"
         }
       },
@@ -906,7 +906,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/decision-step/routes/stop",
-          "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+          "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
           "flow_id": "explore"
         }
       },
@@ -937,7 +937,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-tournament-step/routes/stop",
-          "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+          "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
           "flow_id": "explore"
         }
       }
@@ -954,7 +954,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/tradeoff-checkpoint-step/policy/safe_default_choice",
-        "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+        "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
         "flow_id": "explore"
       }
     ],
@@ -968,7 +968,7 @@
       "source_ref": {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/tradeoff-checkpoint-step/policy/auto_resolution",
-        "sha256": "903fe7db627b307f2d34794edaace98fe98deeadbfe622ff3ecb0fcb596d82da",
+        "sha256": "106fac97c74c38df75ac9c873bcc262de3cdedd0bd4f869cd4c6493179a66bbd",
         "flow_id": "explore"
       }
     }

@@ -41,7 +41,7 @@ function planCompiledFlow(options: { omitBriefRead?: boolean } = {}): {
     version: '0.1.0',
     purpose: 'test Build plan writer',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -234,7 +234,7 @@ function closeCompiledFlow(
     version: '0.1.0',
     purpose: 'test Build result writer',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },

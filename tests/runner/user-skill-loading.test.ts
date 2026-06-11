@@ -59,7 +59,7 @@ function flowBytes(
       version: '0.0.0-test',
       purpose: 'Exercise user skill loading.',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },

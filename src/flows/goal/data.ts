@@ -106,11 +106,11 @@ export const goalFlowData = {
       { generic: 'goal.contract@v1', actual: 'goal.result@v1' },
     ],
     axes: {
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['lite', 'standard', 'deep'],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        rigor: 'standard',
+        depth: 'standard',
         tournament: false,
         tournament_n: 3,
         autonomous: false,

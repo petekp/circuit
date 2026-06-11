@@ -177,7 +177,7 @@ function checkpointCompiledFlow(options: {
     version: '0.1.0',
     purpose: 'test Build checkpoint execution',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -249,7 +249,7 @@ function checkpointToRelayCompiledFlow(): { flow: CompiledFlow; bytes: Buffer } 
     version: '0.1.0',
     purpose: 'test checkpoint resume context for relay',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -338,7 +338,7 @@ function checkpointToVerificationCompiledFlow(commandCwd = '.'): {
     version: '0.1.0',
     purpose: 'test checkpoint resume context for verification',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },

@@ -80,7 +80,7 @@ function relayFlowBytes(options: readonly string[] | RelayFlowFixtureOptions = [
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for relay check admission.',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -135,7 +135,7 @@ function multiRelayVerdictFlowBytes(): Buffer {
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for terminal verdict derivation.',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -224,7 +224,7 @@ function checkpointRouteFlowBytes(selection: RichCheckpointRoute): Buffer {
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for checkpoint route labels.',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -287,7 +287,7 @@ function checkpointRetryLoopFlowBytes(): Buffer {
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for bounded checkpoint retry routes.',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -353,11 +353,11 @@ function checkpointMissingSafeChoiceFlowBytes(input: {
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for checkpoint auto-resolution failure.',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: input.depth === 'autonomous',
         default: {
-          rigor: 'standard',
+          depth: 'standard',
           tournament: false,
           tournament_n: 3,
           autonomous: input.depth === 'autonomous',
@@ -410,7 +410,7 @@ function verificationFlowBytes(reportSchema = 'never-registered.verification@v1'
       version: '0.1.0',
       purpose: 'Runtime control-loop fixture for verification pre-write failure evidence.',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['standard'],
         supports_tournament: false,
         supports_autonomous: false,
       },

@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/pursue/circuit.work-contract.v0.json",
-    "sha256": "a7bb3341762a7e70b9a27e2a1c5df9f622b060d1a0835e354b0d864421cb8d8b",
+    "sha256": "ea3c9c81f1acfc4b7a3bce9e36e0b89678cb6a8b84a7a38d0fb354dac66ea179",
     "flow_id": "pursue"
   },
   "work_contract": {
@@ -12,11 +12,11 @@
       "version": "0.1.0",
       "purpose": "Pursue flow: turn one or more rough operator ideas into pursuit contracts, coordinate their order, execute code-changing work serially, verify, review for interference, and close with evidence.",
       "axes": {
-        "allowed_rigors": ["standard"],
+        "allowed_depths": ["standard"],
         "supports_tournament": false,
         "supports_autonomous": true,
         "default": {
-          "rigor": "standard",
+          "depth": "standard",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -597,7 +597,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/contract-step/routes/stop",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       },
@@ -628,7 +628,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/graph-step/routes/stop",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       },
@@ -659,7 +659,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/wave-plan-step/routes/stop",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       },
@@ -688,7 +688,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/batch-step/routes/retry",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       },
@@ -719,7 +719,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/batch-step/routes/stop",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       },
@@ -744,7 +744,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/retry",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       },
@@ -775,7 +775,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/stop",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       },
@@ -800,7 +800,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/retry",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       },
@@ -831,7 +831,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/stop",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       },
@@ -862,7 +862,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/stop",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       },
@@ -887,7 +887,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/handoff",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       },
@@ -912,7 +912,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/escalate",
-          "sha256": "ff7198712006dd93fe85de3f09248c879fd4f1a362fb304f3518529edc326ee2",
+          "sha256": "9b3e670495f596695a88dce168f652447e6998680379415de0f093c9bf8bc959",
           "flow_id": "pursue"
         }
       }

@@ -5,7 +5,7 @@ import { validateCompiledFlowKindPolicy } from '../flows/canonical-stage-policy.
 import type { ChildCompiledFlowResolver } from '../runtime/run/child-runner.js';
 import type { Axes as AxesValue } from '../schemas/axes.js';
 import { CompiledFlow } from '../schemas/compiled-flow.js';
-import type { Rigor as RigorValue } from '../schemas/rigor.js';
+import type { Depth as DepthValue } from '../schemas/depth.js';
 
 // Compiled-flow fixture loading and axis-support projection, shared by the
 // run/resume command (src/cli/run.ts) and the autonomous recovery-attempt
@@ -13,7 +13,7 @@ import type { Rigor as RigorValue } from '../schemas/rigor.js';
 // recovery runner no longer imports the command module that imports it back.
 
 export interface AxisSupport {
-  allowedRigors: readonly RigorValue[];
+  allowedDepths: readonly DepthValue[];
   supportsTournament: boolean;
   supportsAutonomous: boolean;
 }
@@ -40,13 +40,13 @@ export function resolveFixturePath(
 export function fixtureSelectionNameForAxes(axes: AxesValue): string {
   if (axes.tournament) return 'tournament';
   if (axes.autonomous) return 'autonomous';
-  if (axes.rigor === 'lite' || axes.rigor === 'deep') return axes.rigor;
+  if (axes.depth === 'lite' || axes.depth === 'deep') return axes.depth;
   return 'default';
 }
 
 function axisSupportFromAxes(axes: CompiledFlow['axes']): AxisSupport {
   return {
-    allowedRigors: axes.allowed_rigors,
+    allowedDepths: axes.allowed_depths,
     supportsTournament: axes.supports_tournament,
     supportsAutonomous: axes.supports_autonomous,
   };

@@ -198,7 +198,7 @@ function buildContext(runFolder: string): ComposeBuildContext {
     flow,
     step,
     goal: 'prototype: compare connector-aware variants',
-    axes: { rigor: 'standard', tournament: true, tournament_n: 3, autonomous: false },
+    axes: { depth: 'standard', tournament: true, tournament_n: 3, autonomous: false },
     inputs: {
       options: variantOptions(),
     },

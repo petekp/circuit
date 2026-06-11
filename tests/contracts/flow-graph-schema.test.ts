@@ -35,7 +35,7 @@ describe('CompiledFlow graph closure', () => {
     version: '2026-04-18',
     purpose: 'Build features.',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },

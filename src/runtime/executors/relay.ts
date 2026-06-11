@@ -6,7 +6,7 @@ import { runCrossReportValidator } from '../../flows/registries/cross-report-val
 import { findReportZodSchema, parseReport } from '../../flows/registries/report-schemas.js';
 import { requireRuntimeIndexedStep } from '../../flows/registries/runtime-index.js';
 import type { EnabledConnector, ResolvedConnector } from '../../schemas/connector.js';
-import { Depth } from '../../schemas/depth.js';
+import { CompiledDepth } from '../../schemas/depth.js';
 import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
 import { canonicalJson, sha256OfString } from '../../schemas/hashing.js';
 import {
@@ -460,7 +460,7 @@ export async function executeProductionRelayAttempt(input: {
     context,
     step,
     compiledStep,
-    depth: Depth.parse(context.depth ?? 'standard'),
+    depth: CompiledDepth.parse(context.depth ?? 'standard'),
   });
   const prompt = composeRelayPrompt(
     compiledStep,
@@ -472,8 +472,8 @@ export async function executeProductionRelayAttempt(input: {
     // Slice 4 D4: thread the active flow into the always-on pull affordance so the
     // agent's copyable command already targets the correct flow for suppression.
     context.flow.id,
-    // F-M-1: thread the run's resolved rigor as a worker-effort signal.
-    context.axes?.rigor,
+    // F-M-1: thread the run's resolved depth as a worker-effort signal.
+    context.axes?.depth,
     // Slice loop: when this relay runs one slice of a slice loop, scope the
     // worker to that slice's unit of work. Undefined on single-pass runs.
     context.activeSlice,
@@ -761,7 +761,7 @@ async function executeRelayInternal(
     context,
     step,
     compiledStep,
-    depth: Depth.parse(context.depth ?? 'standard'),
+    depth: CompiledDepth.parse(context.depth ?? 'standard'),
     suppliedConnector: connector,
   });
 

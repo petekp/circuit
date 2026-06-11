@@ -45,7 +45,7 @@ function depthForAxisSelectionName(entryModeName: string | undefined): string | 
 function defaultDepthForFlow(flow: CompiledFlow): string {
   if (flow.axes.default.autonomous) return 'autonomous';
   if (flow.axes.default.tournament) return 'tournament';
-  return flow.axes.default.rigor;
+  return flow.axes.default.depth;
 }
 
 export function parseCompiledFlowBytes(bytes: Uint8Array): CompiledFlow {

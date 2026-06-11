@@ -32,7 +32,7 @@ separate flow kind.
 
 ## Axis Support
 
-Review declares `axes.allowed_rigors = [standard]` and does not support
+Review declares `axes.allowed_depths = [standard]` and does not support
 tournament or autonomous runs. Operator-supplied tournament or autonomous
 flags are rejected before execution.
 

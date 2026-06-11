@@ -38,7 +38,7 @@ function buildParentCompiledFlow(parentCheckPass: readonly string[]): CompiledFl
     version: '0.1.0',
     purpose: 'sub-run runtime test parent — exercises one sub-run step end-to-end',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -94,7 +94,7 @@ function buildChildCompiledFlow(): CompiledFlow {
     version: '0.1.0',
     purpose: 'sub-run runtime test child — single compose step.',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['standard'],
       supports_tournament: false,
       supports_autonomous: false,
     },
