@@ -95,6 +95,12 @@ describe('--power CLI flag parsing', () => {
     }
   });
 
+  it('accepts auto', () => {
+    const args = parseExecutionArgs('run', ['review', '--goal', 'g', '--power', 'auto']);
+    expect(args.power).toBe('auto');
+    expect(args.powerProvided).toBe(true);
+  });
+
   it('leaves the dial unset when the flag is absent', () => {
     const args = parseExecutionArgs('run', ['review', '--goal', 'g']);
     expect(args.power).toBeUndefined();

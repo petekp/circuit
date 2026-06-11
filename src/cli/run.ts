@@ -14,7 +14,7 @@ import { Depth, type Depth as DepthValue } from '../schemas/depth.js';
 import { HostKind, type HostKind as HostKindValue } from '../schemas/host.js';
 import { CompiledFlowId, RunId } from '../schemas/ids.js';
 import { computeManifestHash } from '../schemas/manifest.js';
-import { Power, type Power as PowerValue } from '../schemas/power.js';
+import { PowerDialSetting, type PowerDialSetting as PowerDialValue } from '../schemas/power.js';
 import {
   ProgressEvent,
   type ProgressEvent as ProgressEventValue,
@@ -74,7 +74,7 @@ export interface ParsedArgs {
   goal?: string;
   why?: string;
   axes: AxesValue;
-  power?: PowerValue;
+  power?: PowerDialValue;
   powerProvided: boolean;
   depthProvided: boolean;
   tournamentProvided: boolean;
@@ -126,7 +126,7 @@ function addExecutionOptions(program: Command): Command {
     .option('--goal <goal>')
     .option('--why <why>')
     .option('--depth <low|medium|high>')
-    .option('--power <low|medium|high>')
+    .option('--power <auto|low|medium|high>')
     .option('--tournament')
     .option('--tournament-n <2|3|4>')
     .option('--autonomous')
@@ -175,12 +175,12 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   const depthProvided = opts.depth !== undefined;
   if (opts.depth !== undefined) depth = Depth.parse(opts.depth);
 
-  let power: PowerValue | undefined;
+  let power: PowerDialValue | undefined;
   const powerProvided = opts.power !== undefined;
   if (opts.power !== undefined) {
-    const parsed = Power.safeParse(opts.power);
+    const parsed = PowerDialSetting.safeParse(opts.power);
     if (!parsed.success) {
-      throw new Error('--power must be one of low, medium, high');
+      throw new Error('--power must be one of auto, low, medium, high');
     }
     power = parsed.data;
   }
