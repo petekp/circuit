@@ -5,16 +5,19 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { safeSegment } from '../../scripts/evals/shared/json.ts';
-import { DEFECT_IDS } from './defect-taxonomy.ts';
-import type { DefectId, JudgeId } from './types.ts';
+import { DEFECT_IDS, SUITES } from './defect-taxonomy.ts';
+import type { DefectId, JudgeId, SuiteId } from './types.ts';
 
 export const SUPPORTED_JUDGES: readonly JudgeId[] = ['codex', 'claude-code'];
+export const SUITE_IDS: readonly SuiteId[] = ['standard', 'subtle', 'all'];
 
 const RESULTS_DIR = resolve(fileURLToPath(new URL('.', import.meta.url)), 'results');
 
 export interface CliArgs {
   readonly maxComposes: number;
   readonly defects: readonly DefectId[];
+  // The selected defect group, or 'custom' when --defects overrode it.
+  readonly suite: SuiteId | 'custom';
   readonly includeControl: boolean;
   readonly dryRun: boolean;
   readonly judge: JudgeId;
@@ -33,7 +36,12 @@ export interface ParseArgsOptions {
 export function parseArgs(argv: readonly string[], options: ParseArgsOptions = {}): CliArgs {
   const now = options.now ?? (() => new Date());
   let maxComposes = Number.POSITIVE_INFINITY;
-  let defects: readonly DefectId[] = DEFECT_IDS;
+  // The default suite is 'standard' so the bare command keeps measuring the
+  // historical near-ceiling defects. Phase C and the ledger run --suite subtle
+  // explicitly because that is the tracked regression baseline.
+  let suite: SuiteId = 'standard';
+  // Non-null only when --defects overrides the suite's defect set.
+  let defectsOverride: readonly DefectId[] | null = null;
   let includeControl = true;
   let dryRun = false;
   let judge: JudgeId = 'codex';
@@ -46,6 +54,14 @@ export function parseArgs(argv: readonly string[], options: ParseArgsOptions = {
       if (!next) throw new Error('--max-composes requires a number');
       maxComposes = Number.parseInt(next, 10);
       i += 1;
+    } else if (arg === '--suite') {
+      const next = argv[i + 1];
+      if (!next) throw new Error(`--suite requires one of: ${SUITE_IDS.join(', ')}`);
+      if (!(SUITE_IDS as readonly string[]).includes(next)) {
+        throw new Error(`unknown suite '${next}'; supported: ${SUITE_IDS.join(', ')}`);
+      }
+      suite = next as SuiteId;
+      i += 1;
     } else if (arg === '--defects') {
       const next = argv[i + 1];
       if (!next) throw new Error('--defects requires comma-separated ids');
@@ -54,7 +70,7 @@ export function parseArgs(argv: readonly string[], options: ParseArgsOptions = {
       if (unknown.length > 0) {
         throw new Error(`unknown defect ids: ${unknown.join(', ')}`);
       }
-      defects = requested;
+      defectsOverride = requested;
       i += 1;
     } else if (arg === '--no-control') {
       includeControl = false;
@@ -86,11 +102,25 @@ export function parseArgs(argv: readonly string[], options: ParseArgsOptions = {
     throw new Error(`--model is only supported with --judge claude-code (got --judge ${judge})`);
   }
 
+  // --defects is the precise override; when present it wins over --suite and
+  // the run is recorded as 'custom'. Otherwise the suite selects the set.
+  const defects = defectsOverride ?? SUITES[suite];
+  const suiteLabel: SuiteId | 'custom' = defectsOverride ? 'custom' : suite;
+
   const timestamp = now().toISOString().replace(/[:.]/g, '-');
   // Tag results dir with judge (and model when pinned) so cross-judge and
   // cross-model runs are easy to compare side by side without overwriting
   // each other's output.
   const modelSuffix = model === null ? '' : `-${safeSegment(model)}`;
   const resultsDir = resolve(RESULTS_DIR, `${timestamp}-${judge}${modelSuffix}`);
-  return { maxComposes, defects, includeControl, dryRun, judge, model, resultsDir };
+  return {
+    maxComposes,
+    defects,
+    suite: suiteLabel,
+    includeControl,
+    dryRun,
+    judge,
+    model,
+    resultsDir,
+  };
 }

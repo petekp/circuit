@@ -11,6 +11,7 @@ export function summarize(
   wallclockMs: number,
   judge: JudgeId,
   judgeModel: string | null,
+  suite: EvalSummary['suite'],
   now: () => Date = () => new Date(),
 ): EvalSummary {
   const perDefect = Object.fromEntries(
@@ -89,6 +90,7 @@ export function summarize(
   return {
     started_at: new Date(now().getTime() - wallclockMs).toISOString(),
     finished_at: now().toISOString(),
+    suite,
     judge,
     judge_model: judgeModel,
     wallclock_ms: wallclockMs,

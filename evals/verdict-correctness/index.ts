@@ -59,7 +59,9 @@ function renderMarkdownReport(results: readonly EvalCaseResult[], summary: EvalS
   const lines: string[] = [];
   lines.push('# Verdict-Correctness Eval — Results');
   lines.push('');
+  lines.push(`Suite: ${summary.suite}`);
   lines.push(`Judge: ${summary.judge}`);
+  lines.push(`Judge model: ${summary.judge_model ?? 'host default'}`);
   lines.push(`Run started: ${summary.started_at}`);
   lines.push(`Run finished: ${summary.finished_at}`);
   lines.push(`Wallclock: ${(summary.wallclock_ms / 1000).toFixed(1)}s`);
@@ -107,6 +109,8 @@ function renderMarkdownReport(results: readonly EvalCaseResult[], summary: EvalS
   lines.push('| --- | --- | --- | --- | --- | --- |');
   for (const id of DEFECT_IDS) {
     const b = summary.per_defect[id];
+    // Only the selected suite's defects ran; skip the other suite's empty rows.
+    if (b.cases === 0) continue;
     const scored = b.catches + b.misses;
     const rate = scored === 0 ? 'n/a' : `${((b.catches / scored) * 100).toFixed(0)}%`;
     lines.push(`| ${id} | ${b.cases} | ${b.catches} | ${b.misses} | ${b.errors} | ${rate} |`);
@@ -171,7 +175,7 @@ async function main(): Promise<void> {
     includeControl: args.includeControl,
   });
   console.error(
-    `Built ${cases.length} cases from ${requestPaths.length} composes. Judge: ${args.judge}. Model: ${args.model ?? 'host default'}. Defects: ${args.defects.join(', ')}. Controls: ${args.includeControl}.`,
+    `Built ${cases.length} cases from ${requestPaths.length} composes. Suite: ${args.suite}. Judge: ${args.judge}. Model: ${args.model ?? 'host default'}. Defects: ${args.defects.join(', ')}. Controls: ${args.includeControl}.`,
   );
   if (args.dryRun) {
     const sourcePool = summarizeCaseSourcePool(cases);
@@ -213,12 +217,13 @@ async function main(): Promise<void> {
     );
   }
   const wallclockMs = performance.now() - start;
-  const summary = summarize(results, wallclockMs, args.judge, args.model);
+  const summary = summarize(results, wallclockMs, args.judge, args.model, args.suite);
   writeFileSync(resolve(args.resultsDir, 'summary.json'), JSON.stringify(summary, null, 2));
   writeFileSync(resolve(args.resultsDir, 'results.json'), JSON.stringify(results, null, 2));
   writeFileSync(resolve(args.resultsDir, 'report.md'), renderMarkdownReport(results, summary));
   console.error('');
   console.error('=== SUMMARY ===');
+  console.error(`Suite: ${summary.suite}`);
   console.error(`Judge: ${summary.judge}`);
   console.error(`Model: ${summary.judge_model ?? 'host default'}`);
   console.error(`Cases: ${summary.overall.cases}`);

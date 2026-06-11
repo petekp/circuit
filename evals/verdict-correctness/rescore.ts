@@ -42,10 +42,12 @@ function main(): void {
   const resolved = resolve(path);
   const original = JSON.parse(readFileSync(resolved, 'utf8')) as EvalCaseResult[];
   const rescored = rescore(original);
-  // results.json carries no judge/model (that lives in summary.json), and
-  // wallclock is meaningless on a re-score. The catch/error accounting —
-  // what re-scoring exists to recompute — is fully determined by results.
-  const summary = summarize(rescored, 0, 'codex', null);
+  // results.json carries no judge/model/suite (those live in summary.json),
+  // and wallclock is meaningless on a re-score. 'all' is the honest suite
+  // label since re-scoring covers whatever defects the file already holds.
+  // The catch/error accounting — what re-scoring exists to recompute — is
+  // fully determined by results.
+  const summary = summarize(rescored, 0, 'codex', null, 'all');
 
   const outDir = dirname(resolved);
   writeFileSync(resolve(outDir, 'rescored-results.json'), JSON.stringify(rescored, null, 2));

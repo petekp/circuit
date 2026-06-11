@@ -80,9 +80,10 @@ describe('verdict-correctness summarize protocol-failure accounting', () => {
       success('control', { kind: 'control', original_verdict: 'accept' }),
     ];
 
-    const summary = summarize(results, 5000, 'claude-code', 'claude-haiku-4-5-20251001');
+    const summary = summarize(results, 5000, 'claude-code', 'claude-haiku-4-5-20251001', 'standard');
     const o = summary.overall;
 
+    expect(summary.suite).toBe('standard');
     expect(o.cases).toBe(11);
     expect(o.harness_skipped).toBe(1);
     // attempted = 11 total - 1 harness skip = 10 (judge actually invoked)
@@ -101,7 +102,8 @@ describe('verdict-correctness summarize protocol-failure accounting', () => {
   });
 
   it('reports zero rates and no attempts for an empty result set', () => {
-    const summary = summarize([], 0, 'codex', null);
+    const summary = summarize([], 0, 'codex', null, 'subtle');
+    expect(summary.suite).toBe('subtle');
     expect(summary.overall.cases).toBe(0);
     expect(summary.overall.attempted).toBe(0);
     expect(summary.overall.harness_skipped).toBe(0);

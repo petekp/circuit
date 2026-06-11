@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseArgs } from '../../evals/verdict-correctness/cli-args.ts';
+import {
+  STANDARD_DEFECT_IDS,
+  SUBTLE_DEFECT_IDS,
+} from '../../evals/verdict-correctness/defect-taxonomy.ts';
 import { summarize } from '../../evals/verdict-correctness/summary.ts';
 
 const FIXED_NOW = () => new Date('2026-06-11T00:00:00.000Z');
@@ -45,15 +49,47 @@ describe('verdict-correctness parseArgs --model', () => {
   });
 });
 
+describe('verdict-correctness parseArgs --suite', () => {
+  it('defaults to the standard suite', () => {
+    const args = parseArgs([], { now: FIXED_NOW });
+    expect(args.suite).toBe('standard');
+    expect(args.defects).toEqual(STANDARD_DEFECT_IDS);
+  });
+
+  it('selects the subtle suite and records it', () => {
+    const args = parseArgs(['--suite', 'subtle'], { now: FIXED_NOW });
+    expect(args.suite).toBe('subtle');
+    expect(args.defects).toEqual(SUBTLE_DEFECT_IDS);
+  });
+
+  it('selects all defects with --suite all', () => {
+    const args = parseArgs(['--suite', 'all'], { now: FIXED_NOW });
+    expect(args.suite).toBe('all');
+    expect(args.defects).toHaveLength(STANDARD_DEFECT_IDS.length + SUBTLE_DEFECT_IDS.length);
+  });
+
+  it('records suite as custom when --defects overrides the set', () => {
+    const args = parseArgs(['--suite', 'subtle', '--defects', 'wrong-subject'], {
+      now: FIXED_NOW,
+    });
+    expect(args.suite).toBe('custom');
+    expect(args.defects).toEqual(['wrong-subject']);
+  });
+
+  it('rejects an unknown suite name', () => {
+    expect(() => parseArgs(['--suite', 'bogus'])).toThrow(/unknown suite/);
+  });
+});
+
 describe('verdict-correctness summarize judge_model', () => {
   it('records the pinned judge model in the summary', () => {
-    const summary = summarize([], 1000, 'claude-code', 'claude-opus-4-8');
+    const summary = summarize([], 1000, 'claude-code', 'claude-opus-4-8', 'standard');
     expect(summary.judge_model).toBe('claude-opus-4-8');
     expect(summary.judge).toBe('claude-code');
   });
 
   it('records null when no model is pinned', () => {
-    const summary = summarize([], 1000, 'codex', null);
+    const summary = summarize([], 1000, 'codex', null, 'standard');
     expect(summary.judge_model).toBeNull();
   });
 });

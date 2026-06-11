@@ -10,11 +10,21 @@
 import type { ExploreReviewVerdict } from '../../src/flows/explore/reports.js';
 
 export type DefectId =
+  // Standard suite: blunt, near-ceiling defects (sanity floor).
   | 'fabricated-evidence-ref'
   | 'stripped-success-condition-alignment'
   | 'wrong-subject'
   | 'added-false-certainty'
-  | 'internal-contradiction';
+  | 'internal-contradiction'
+  // Subtle suite: plausible-looking defects that leave real headroom and
+  // are the tracked regression baseline.
+  | 'plausible-missing-evidence-ref'
+  | 'generic-success-condition-alignment'
+  | 'soft-false-certainty';
+
+// Named groups of defects a run can select with --suite. 'custom' is the
+// recorded label when --defects overrides the set explicitly.
+export type SuiteId = 'standard' | 'subtle' | 'all';
 
 // Connector used as the reviewer-under-test. Same prompt, different
 // model family, lets us check whether catch-rate findings survive a
@@ -73,6 +83,8 @@ export interface EvalCaseResult {
 export interface EvalSummary {
   readonly started_at: string;
   readonly finished_at: string;
+  // Which defect group ran. 'custom' when --defects overrode the suite.
+  readonly suite: SuiteId | 'custom';
   readonly judge: JudgeId;
   // The Anthropic model the judge was pinned to, or null when the connector
   // ran its host default (e.g. the codex judge, which the eval does not pin).
