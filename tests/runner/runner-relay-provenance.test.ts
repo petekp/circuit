@@ -241,6 +241,7 @@ describe('relay connector resolution precedence', () => {
             skills: { bindings: {} },
             skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
             circuits: {},
+            power_tiers: {},
             defaults: {},
           },
         },
@@ -273,6 +274,7 @@ describe('relay connector resolution precedence', () => {
             skills: { bindings: {} },
             skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
             circuits: {},
+            power_tiers: {},
             defaults: {},
           },
         },
@@ -350,6 +352,7 @@ describe('relay connector resolution precedence', () => {
               skills: { bindings: {} },
               skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
               circuits: {},
+              power_tiers: {},
               defaults: {},
             },
           },
@@ -389,6 +392,7 @@ describe('relay connector resolution precedence', () => {
               skills: { bindings: {} },
               skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
               circuits: {},
+              power_tiers: {},
               defaults: {},
             },
           },
@@ -436,6 +440,7 @@ describe('relay connector resolution precedence', () => {
               skills: { bindings: {} },
               skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
               circuits: {},
+              power_tiers: {},
               defaults: {},
             },
           },
@@ -459,11 +464,12 @@ describe('relay connector resolution precedence', () => {
 });
 
 describe("relay.started carries honest 'resolved_selection' from flow + step inputs", () => {
-  it('canonical empty selection survives when flow.default_selection and step.selection are both absent', async () => {
+  it('default-on power dial fills an empty stack selection with the medium-tier allocation', async () => {
     const { flow, bytes } = loadFixture();
     // The runtime-proof fixture does not declare default_selection or per-step
-    // selection; the canonical empty resolution is the honest claim and
-    // is genuinely derived from inputs that are empty.
+    // selection. Pre-flip the resolution stayed canonically empty; with the
+    // default-on dial the empty model seat now materializes the medium-dial
+    // allocation for the step's role, recorded with `power` provenance.
     expect(flow.default_selection).toBeUndefined();
     const relayStep = flow.steps.find((s) => s.kind === 'relay');
     if (relayStep === undefined) throw new Error('fixture missing relay step');
@@ -482,6 +488,8 @@ describe("relay.started carries honest 'resolved_selection' from flow + step inp
     });
 
     expect(relayStartedData(await readTrace(runFolder)).resolved_selection).toEqual({
+      model: { provider: 'anthropic', model: 'sonnet' },
+      power: 'medium',
       skills: [],
       invocation_options: {},
     });
@@ -595,7 +603,11 @@ describe("SkillOverride 'append' / 'remove' / 'inherit' compose per SEL-I3", () 
       executors: composeExecutor(),
       relayer: stubRelayer(),
     });
+    // The model + power fields are the default-on dial filling the empty model
+    // seat; the claim under test here is the skills composition.
     expect(relayStartedData(await readTrace(runFolder)).resolved_selection).toEqual({
+      model: { provider: 'anthropic', model: 'sonnet' },
+      power: 'medium',
       skills: ['react-doctor'],
       invocation_options: {},
     });
@@ -623,6 +635,8 @@ describe("SkillOverride 'append' / 'remove' / 'inherit' compose per SEL-I3", () 
       relayer: stubRelayer(),
     });
     expect(relayStartedData(await readTrace(runFolder)).resolved_selection).toEqual({
+      model: { provider: 'anthropic', model: 'sonnet' },
+      power: 'medium',
       skills: ['tdd', 'react-doctor'],
       invocation_options: {},
     });
@@ -652,6 +666,8 @@ describe("SkillOverride 'append' / 'remove' / 'inherit' compose per SEL-I3", () 
       relayer: stubRelayer(),
     });
     expect(relayStartedData(await readTrace(runFolder)).resolved_selection).toEqual({
+      model: { provider: 'anthropic', model: 'sonnet' },
+      power: 'medium',
       skills: ['tdd', 'react-doctor'],
       invocation_options: {},
     });
@@ -679,6 +695,8 @@ describe("SkillOverride 'append' / 'remove' / 'inherit' compose per SEL-I3", () 
       relayer: stubRelayer(),
     });
     expect(relayStartedData(await readTrace(runFolder)).resolved_selection).toEqual({
+      model: { provider: 'anthropic', model: 'sonnet' },
+      power: 'medium',
       skills: ['tdd'],
       invocation_options: {},
     });

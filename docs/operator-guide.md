@@ -36,6 +36,7 @@ can also pass these controls when the selected flow supports them:
 | Control | CLI flag | Supported by |
 | --- | --- | --- |
 | Low, medium, or high depth | `--depth <low|medium|high>` | Build, Explore, and Fix. Prototype supports medium or high. Review and Pursue only support medium depth. |
+| Low, medium, or high power | `--power <low|medium|high>` | Every flow. |
 | Tournament | `--tournament --tournament-n <2|3|4>` | Explore and Prototype. |
 | Autonomous continuation | `--autonomous` | Build, Explore, Fix, Prototype, and Pursue. |
 
@@ -44,7 +45,16 @@ Unsupported combinations fail before the run starts.
 Depth (`--depth`) tunes how much thoroughness and effort the worker spends, and
 the resolved depth is recorded as `resolved_axes` in the run output. For Fix,
 `low` also drops the independent review stage. For Build, depth tunes worker
-effort only; Build runs the same stages at every depth. Prototype tournament
+effort only; Build runs the same stages at every depth.
+
+Power (`--power`) tunes how much model each worker run gets. The dial never
+names models: per-connector tier tables translate low, medium, or high into a
+concrete model or reasoning effort at selection time, and a research step stays
+on the big tier at every dial position. The default is medium. Explicit model
+config always wins over the dial, and a worker retry automatically runs one
+tier up. The flag wins over a `defaults.power` entry in config; see the
+selection contract for the tier tables and role allocation. The end-of-run
+receipt line reports the dial position and any escalations. Prototype tournament
 mode (`--tournament`) additionally requires `circuits.prototype.variant_models`
 in your Circuit config and fails before the run starts when it is absent, naming
 the missing config as the stop reason. See

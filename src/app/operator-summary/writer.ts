@@ -17,6 +17,7 @@ import {
   type OperatorSummaryReportLink,
   type OperatorSummaryWarning,
 } from '../../schemas/operator-summary.js';
+import { Power } from '../../schemas/power.js';
 import type { RunResult } from '../../schemas/result.js';
 import { ProviderScopedModel } from '../../schemas/selection-policy.js';
 import { RunSkillHookEvent } from '../../schemas/skill-hook.js';
@@ -604,7 +605,9 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
   const tracePath = join(runFolder, 'trace.ndjson');
   if (!existsSync(tracePath)) return undefined;
   let depth: OperatorRunReceipt['depth'] | undefined;
+  let power: OperatorRunReceipt['power'] | undefined;
   let workerRuns = 0;
+  let escalations = 0;
   let checksEvaluated = 0;
   let checksFailed = 0;
   const models: ProviderScopedModel[] = [];
@@ -626,6 +629,15 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
     if (entry.kind === 'relay.started') {
       workerRuns += 1;
       const selection = entry.resolved_selection;
+      if (isObject(selection)) {
+        // The dial is run-level, so the first power a selection carries is the
+        // run's dial; escalations count per-relay dial provenance.
+        if (power === undefined) {
+          const parsedPower = Power.safeParse(selection.power);
+          if (parsedPower.success) power = parsedPower.data;
+        }
+        if (selection.power_escalated === true) escalations += 1;
+      }
       const model = isObject(selection)
         ? ProviderScopedModel.safeParse(selection.model)
         : undefined;
@@ -646,21 +658,30 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
   if (depth === undefined) return undefined;
   return {
     depth,
+    ...(power === undefined ? {} : { power }),
     worker_runs: workerRuns,
+    escalations,
     models,
     checks_evaluated: checksEvaluated,
     checks_failed: checksFailed,
   };
 }
 
-// The receipt trailer speaks plain words only: depth, how many worker runs,
-// and what the checks proved. No model ids and no tier claims here — those
-// live in the JSON receipt and the run record. The ⎿ glyph is the CIRCUIT
-// status-block grammar: the trailer reads as machine truth at the end of the
-// model-written digest, with no feature-name label.
+// The receipt trailer speaks plain words only: depth, the power dial, how
+// many worker runs, escalations, and what the checks proved. Tier words yes,
+// model ids no — those live in the JSON receipt and the run record. The ⎿
+// glyph is the CIRCUIT status-block grammar: the trailer reads as machine
+// truth at the end of the model-written digest, with no feature-name label.
 function receiptLine(receipt: OperatorRunReceipt): string {
   const runsWord = receipt.worker_runs === 1 ? 'worker run' : 'worker runs';
-  const parts = [`depth ${receipt.depth}`, `${receipt.worker_runs} ${runsWord}`];
+  const parts = [`depth ${receipt.depth}`];
+  if (receipt.power !== undefined) parts.push(`power ${receipt.power}`);
+  parts.push(`${receipt.worker_runs} ${runsWord}`);
+  if (receipt.escalations > 0) {
+    parts.push(
+      `${receipt.escalations} ${receipt.escalations === 1 ? 'escalation' : 'escalations'}`,
+    );
+  }
   if (receipt.checks_evaluated > 0) {
     parts.push(
       receipt.checks_failed === 0

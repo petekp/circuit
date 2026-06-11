@@ -181,7 +181,12 @@ function prototypeVariantRelayer(input: {
   return {
     connectorName: 'claude-code',
     relay: async (relayInput: RelayInput): Promise<RelayResult> => {
-      if (relayInput.resolvedSelection?.model !== undefined) {
+      // The default-on power dial gives every relay a materialized model, so a
+      // variant relay is identified by matching a configured variant model —
+      // mere model presence no longer distinguishes it from the review relay.
+      const modelName = relayInput.resolvedSelection?.model?.model;
+      const isVariantModel = modelName?.startsWith('local-fixture') === true;
+      if (isVariantModel) {
         const options = readJson(input.runFolder, 'reports/prototype/variant-options.json') as {
           readonly variants: ReadonlyArray<{
             readonly variant_id: string;
@@ -190,9 +195,7 @@ function prototypeVariantRelayer(input: {
             readonly variant_root: string;
           }>;
         };
-        const variant = options.variants.find(
-          (candidate) => candidate.model === relayInput.resolvedSelection?.model?.model,
-        );
+        const variant = options.variants.find((candidate) => candidate.model === modelName);
         if (variant === undefined) throw new Error('fixture variant was not configured');
         const indexFile = `${variant.variant_root}/index.html`;
         writeProjectFile(

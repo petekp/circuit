@@ -7,7 +7,8 @@ import {
 } from './connector.js';
 import { HostConfig } from './host.js';
 import { CompiledFlowId, SkillId, SkillSlotId } from './ids.js';
-import { SelectionOverride } from './selection-policy.js';
+import { Power } from './power.js';
+import { Effort, ProviderScopedModel, SelectionOverride } from './selection-policy.js';
 import { SkillHookConfig } from './skill-hook.js';
 import { RelayRole } from './step.js';
 
@@ -198,6 +199,29 @@ export const ProjectId = z
   });
 export type ProjectId = z.infer<typeof ProjectId>;
 
+// One Power tier's translation for one connector: the concrete model and/or
+// effort that tier word means there. At least one field is required — an
+// empty spec would silently make the tier a no-op.
+export const PowerTierSpec = z
+  .object({
+    model: ProviderScopedModel.optional(),
+    effort: Effort.optional(),
+  })
+  .strict()
+  .superRefine((spec, ctx) => {
+    if (spec.model === undefined && spec.effort === undefined) {
+      issueAt(ctx, [], 'power tier spec must set model, effort, or both');
+    }
+  });
+export type PowerTierSpec = z.infer<typeof PowerTierSpec>;
+
+// Per-connector translation from Power tier words to concrete selections.
+// Keyed by connector name (built-in or registered custom). Layered: a
+// project config can override a single tier of a single connector and the
+// shipped defaults fill the rest (src/selection/power-tiers.ts).
+export const PowerTierTable = z.partialRecord(Power, PowerTierSpec);
+export type PowerTierTable = z.infer<typeof PowerTierTable>;
+
 export const Config = z
   .object({
     schema_version: z.literal(1),
@@ -216,9 +240,11 @@ export const Config = z
     skills: SkillsConfig.default({ bindings: {} }),
     skill_hooks: SkillHookConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
     circuits: z.record(CompiledFlowId, CircuitOverride).default({}),
+    power_tiers: z.record(ConnectorName, PowerTierTable).default({}),
     defaults: z
       .object({
         selection: SelectionOverride.optional(),
+        power: Power.optional(),
       })
       .strict()
       .default({}),

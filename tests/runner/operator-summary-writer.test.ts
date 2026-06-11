@@ -2635,6 +2635,7 @@ describe('operator summary writer — run receipt', () => {
     stepId: string,
     attempt: number,
     model?: { provider: string; model: string },
+    selectionExtras?: Record<string, unknown>,
   ): Record<string, unknown> {
     return traceEntry(sequence, 'relay.started', {
       step_id: stepId,
@@ -2645,6 +2646,7 @@ describe('operator summary writer — run receipt', () => {
         ...(model === undefined ? {} : { model }),
         skills: [],
         invocation_options: {},
+        ...(selectionExtras ?? {}),
       },
       resolved_from: { source: 'role', role: 'implementer' },
     });
@@ -2678,6 +2680,7 @@ describe('operator summary writer — run receipt', () => {
     expect(written.summary.receipt).toEqual({
       depth: 'medium',
       worker_runs: 3,
+      escalations: 0,
       models: [
         { provider: 'anthropic', model: 'claude-haiku-4-5' },
         { provider: 'anthropic', model: 'claude-opus-4-8' },
@@ -2778,6 +2781,83 @@ describe('operator summary writer — run receipt', () => {
 
     expect(written.summary.receipt).toBeUndefined();
     expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('⎿');
+  });
+
+  it('reads the power dial and escalation count from relay.started selections', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(
+        2,
+        'diagnose-step',
+        1,
+        { provider: 'anthropic', model: 'opus' },
+        { power: 'low' },
+      ),
+      relayStarted(3, 'apply-step', 1, { provider: 'anthropic', model: 'haiku' }, { power: 'low' }),
+      relayStarted(
+        4,
+        'apply-step',
+        2,
+        { provider: 'anthropic', model: 'sonnet' },
+        { power: 'low', power_escalated: true },
+      ),
+      checkEvaluated(5, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt).toMatchObject({ power: 'low', escalations: 1 });
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain(
+      '⎿ depth medium · power low · 3 worker runs · 1 escalation · all checks passed',
+    );
+    // The dial line stays plain-word: tier words yes, model ids no.
+    expect(markdown).not.toContain('haiku');
+    expect(markdown).not.toContain('sonnet');
+    expect(markdown).not.toContain('opus');
+  });
+
+  it('pluralizes escalations and renders them even when the dial never escalated elsewhere', () => {
+    writeTrace([
+      bootstrapped('low'),
+      relayStarted(2, 'apply-step', 2, undefined, { power: 'medium', power_escalated: true }),
+      relayStarted(3, 'verify-step', 2, undefined, { power: 'medium', power_escalated: true }),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt).toMatchObject({ power: 'medium', escalations: 2 });
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      '⎿ depth low · power medium · 2 worker runs · 2 escalations\n',
+    );
+  });
+
+  it('omits the power clause and escalations when no relay carried a dial (dial off)', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(2, 'apply-step', 1),
+      checkEvaluated(3, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt?.power).toBeUndefined();
+    expect(written.summary.receipt?.escalations).toBe(0);
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('⎿ depth medium · 1 worker run · all checks passed');
+    expect(markdown).not.toMatch(/power|escalation/);
   });
 
   it('skips relay.started entries whose resolved_selection carries no model without losing the run count', () => {

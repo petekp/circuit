@@ -594,6 +594,46 @@
             "additionalProperties": false
           }
         },
+        "power_tiers": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "enum": ["low", "medium", "high"]
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "enum": ["openai", "anthropic", "gemini", "custom"]
+                    },
+                    "model": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["provider", "model"],
+                  "additionalProperties": false
+                },
+                "effort": {
+                  "type": "string",
+                  "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
         "defaults": {
           "default": {},
           "type": "object",
@@ -706,6 +746,10 @@
                 }
               },
               "additionalProperties": false
+            },
+            "power": {
+              "type": "string",
+              "enum": ["low", "medium", "high"]
             }
           },
           "additionalProperties": false

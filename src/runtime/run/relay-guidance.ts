@@ -20,6 +20,7 @@ import type {
 import type { ResolvedSelection as ResolvedSelectionValue } from '../../schemas/selection-policy.js';
 import type { SkillSlot } from '../../schemas/skill.js';
 import { RelayRole } from '../../schemas/step.js';
+import { materializePowerSelection } from '../../selection/power-tiers.js';
 import { deriveResolvedSelection } from '../../selection/relay-selection.js';
 import { type LoadedRelaySkill, resolveLoadedRelaySkills } from '../../shared/skill-loading.js';
 import type { RelayConnector } from '../executors/relay.js';
@@ -363,7 +364,7 @@ export function planRelayGuidanceDecision(input: {
     ...(context.hostKind === undefined ? {} : { hostKind: context.hostKind }),
     ...(step.connector === undefined ? {} : { stepConnector: step.connector }),
   });
-  const resolvedSelection = deriveResolvedSelection(
+  const stackSelection = deriveResolvedSelection(
     {
       ...(context.selectionConfigLayers === undefined
         ? {}
@@ -375,6 +376,19 @@ export function planRelayGuidanceDecision(input: {
     compiledStep,
     input.depth,
   );
+  // Power dial materialization runs after the stack (so explicit model config
+  // wins) and before connector compatibility (so a misconfigured tier table
+  // fails the same provider check explicit config would). Attempt-aware:
+  // attempt > 1 on the same (step, slice) work unit escalates one tier up.
+  const resolvedSelection = materializePowerSelection({
+    resolved: stackSelection,
+    role: RelayRole.parse(relayExecution.role),
+    connectorName: relayExecution.connectorName,
+    attempt: context.activeStepAttempt ?? 1,
+    ...(context.selectionConfigLayers === undefined
+      ? {}
+      : { configLayers: context.selectionConfigLayers }),
+  });
   assertConnectorSelectionCompatible(relayExecution.connectorName, resolvedSelection);
   // Skill-hook actuation: any skills an `auto` hook injected so far, applied
   // ONLY to write-capable (implementer) relays. Every injecting hook today

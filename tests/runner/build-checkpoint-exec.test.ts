@@ -1039,6 +1039,7 @@ describe('Build checkpoint execution substrate', () => {
             skills: { bindings: {} },
             skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
             circuits: {},
+            power_tiers: {},
             defaults: {
               selection: {
                 model: { provider: 'anthropic', model: 'claude-resume-original' },
@@ -1068,6 +1069,7 @@ describe('Build checkpoint execution substrate', () => {
             skills: { bindings: {} },
             skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
             circuits: {},
+            power_tiers: {},
             defaults: {
               selection: {
                 model: { provider: 'openai', model: 'wrong-resume-model' },
@@ -1130,6 +1132,7 @@ describe('Build checkpoint execution substrate', () => {
             skills: { bindings: {} },
             skill_hooks: { policy: {}, detection: { disabled_patterns: {} } },
             circuits: {},
+            power_tiers: {},
             defaults: {
               selection: {
                 model: { provider: 'openai', model: 'wrong-resume-model' },
@@ -1145,7 +1148,12 @@ describe('Build checkpoint execution substrate', () => {
 
     expect(resumed.result.outcome).toBe('complete');
     expect(captured).toHaveLength(1);
-    expect(captured[0]?.resolvedSelection?.model).toBeUndefined();
+    // The resume-time layer must not leak in: no 'wrong-resume-model'. The
+    // original empty context materializes the default-on medium dial instead.
+    expect(captured[0]?.resolvedSelection?.model).toEqual({
+      provider: 'anthropic',
+      model: 'sonnet',
+    });
     expect(captured[0]?.resolvedSelection?.effort).toBeUndefined();
     expect(captured[0]?.resolvedSelection?.skills).toEqual([]);
   });

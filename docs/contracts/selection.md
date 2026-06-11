@@ -1,9 +1,9 @@
 ---
 contract: selection
 status: ratified-v0.1
-version: 0.3
+version: 0.4
 schema_source: src/schemas/selection-policy.ts
-last_updated: 2026-05-08
+last_updated: 2026-06-10
 depends_on: [ids, depth, skill, stage, config, run]
 closes: [stage-md-v0.1-med-7-stage-level-selection]
 report_ids:
@@ -235,6 +235,45 @@ Closes Codex LOW #12 (enforcement-location claim drift).
   SelectionOverride>` field in v0.2 without disrupting option (a). Not
   doing (b) now is not a gap. Enforced at `src/schemas/stage.ts`;
   `Stage.safeParse({..., selection: {...}})` succeeds; `Stage.safeParse({..., selectoin: {...}})` (typo) fails under stage-I2 `.strict()`.
+
+## Power dial materialization (post-stack)
+
+The **Power** dial (`src/schemas/power.ts`, `low | medium | high`) is an
+operator-facing sibling of Depth: how much model per unit of work. It is NOT
+an eighth selection layer. The layered stack resolves first; then
+`materializePowerSelection` (`src/selection/power-tiers.ts`) fills ONLY the
+fields the stack left unset, at relay-guidance time
+(`src/runtime/run/relay-guidance.ts`), before connector compatibility checks.
+
+Rules, in order:
+
+1. **Explicit model wins outright.** If the resolved stack carries a `model`,
+   materialization returns it unchanged and records no `power` provenance.
+   An explicitly configured `effort` likewise survives; the tier may only
+   fill an unset effort.
+2. **Dial resolution is layered and default-on.** The dial reads
+   `Config.defaults.power` across config layers in the declared precedence
+   (`default` → `user-global` → `project` → `invocation`); the highest-
+   precedence opinion wins. When no layer has an opinion the dial is
+   `medium`. The CLI flag `--power <low|medium|high>` enters as the
+   invocation layer. There is no off position.
+3. **Dial × role → tier.** Allocation keeps judgment expensive and tunes
+   execution: `high` = all roles high; `medium` = researcher high,
+   implementer/reviewer medium; `low` = researcher high, implementer low,
+   reviewer medium. The researcher never leaves the top tier.
+4. **Tier × connector → spec.** `DEFAULT_POWER_TIERS` ships release-reviewed
+   data: `claude-code` tiers by durable Anthropic aliases
+   (haiku/sonnet/opus), `codex` tiers by reasoning effort only. A
+   `power_tiers.<connector>` config entry overrides per tier per connector;
+   connectors with no entry anywhere (cursor-agent, custom) leave the
+   selection untouched — the dial is inert there.
+5. **Escalation is monotonic and capped.** Attempt > 1 on the same
+   (step, slice) work unit runs one tier up, never down, never past `high`,
+   and stamps `power_escalated: true`.
+6. **Provenance.** A materialized selection carries `power` (the dial) and,
+   when rule 5 fired, `power_escalated` on `ResolvedSelection`; both flow
+   into `relay.started` trace entries and the end-of-run receipt
+   (`OperatorRunReceipt.power` / `.escalations`).
 
 ## Pre-conditions
 
@@ -568,6 +607,14 @@ Stage 2 harness task where noted below.
   from step schema plus config bindings, and loaded-skill evidence is
   emitted as `skills.loaded` trace entries instead of widening
   `ResolvedSelection`.
+
+- **v0.4 (Power dial slice, 2026-06-10)** — adds post-stack Power dial
+  materialization (see the section above): `ResolvedSelection` gains optional
+  `power` and `power_escalated` provenance fields; `Config` gains
+  `defaults.power` and `power_tiers`; the dial is default-on at `medium`
+  (BREAKING vs the pre-flip behavior where an unset dial left empty model
+  seats empty). Explicit selection config always wins; the dial fills, never
+  overrides.
 
 - **v1.0 (Stage 2)** — Ratified invariants + property tests + resolver
   implementation with `selection.prop.*` as acceptance check +

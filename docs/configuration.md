@@ -255,6 +255,41 @@ not stop the wrapper process from writing files on its own.
 
 The connector contract is [`docs/contracts/connector.md`](contracts/connector.md).
 
+## Power Dial
+
+Power tunes how much model each worker run gets without naming models. Set it
+per run with `--power <low|medium|high>`, or persist a default:
+
+```yaml
+schema_version: 1
+
+defaults:
+  power: low
+```
+
+The dial defaults to `medium` when nothing sets it. The flag (invocation
+layer) wins over project config, which wins over user-global config. Research
+steps stay on the big tier at every dial position, and a worker retry
+automatically runs one tier up. Explicit model or effort config always wins
+over the dial.
+
+Per-connector tier tables translate the dial: `claude-code` ships
+haiku/sonnet/opus aliases, `codex` ships reasoning-effort tiers, and other
+connectors ignore the dial unless you declare a table:
+
+```yaml
+power_tiers:
+  my-ollama:
+    low: { model: { provider: custom, model: qwen3-coder } }
+    medium: { model: { provider: custom, model: qwen3-coder-plus } }
+    high: { model: { provider: custom, model: qwen3-max } }
+```
+
+A declared tier overrides only that tier of that connector; shipped defaults
+fill the rest. The selection contract
+([`docs/contracts/selection.md`](contracts/selection.md)) documents the full
+materialization rules.
+
 ## Prototype Tournament Variants
 
 Prototype tournament mode reads `circuits.prototype.variant_models`. Each

@@ -25627,6 +25627,9 @@ var JsonPrimitive = external_exports.union([
 var JsonValue = external_exports.lazy(() => external_exports.union([JsonPrimitive, external_exports.array(JsonValue), JsonObject]));
 var JsonObject = external_exports.record(external_exports.string(), JsonValue);
 
+// dist/schemas/power.js
+var Power = external_exports.enum(["low", "medium", "high"]);
+
 // dist/schemas/selection-policy.js
 var ProviderScopedModel = external_exports.object({
   provider: external_exports.enum(["openai", "anthropic", "gemini", "custom"]),
@@ -25660,7 +25663,17 @@ var ResolvedSelection = external_exports.object({
   effort: Effort.optional(),
   skills: UniqueSkillArray,
   depth: CompiledDepth.optional(),
-  invocation_options: JsonObject.default({})
+  invocation_options: JsonObject.default({}),
+  // Present only when the Power dial materialized this selection's model or
+  // effort from a tier table. Absent when explicit model config won, when
+  // the connector has no tier table, or on pre-dial artifacts. Carried here
+  // so RelayStartedTraceEntry.resolved_selection self-reports dial
+  // application and the run receipt never has to guess.
+  power: Power.optional(),
+  // True only when a retry (attempt > 1) actually bumped the allocated tier
+  // up. A retry whose role was already at the top tier records no
+  // escalation — the receipt counts real bumps, not retries.
+  power_escalated: external_exports.boolean().optional()
 }).strict();
 var SelectionSource = external_exports.enum([
   "default",
@@ -38689,6 +38702,15 @@ var CircuitOverride = external_exports.object({
 var ProjectId = external_exports.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/, {
   message: "project_id must be a fanout-safe kebab-case slug"
 });
+var PowerTierSpec = external_exports.object({
+  model: ProviderScopedModel.optional(),
+  effort: Effort.optional()
+}).strict().superRefine((spec, ctx) => {
+  if (spec.model === void 0 && spec.effort === void 0) {
+    issueAt3(ctx, [], "power tier spec must set model, effort, or both");
+  }
+});
+var PowerTierTable = external_exports.partialRecord(Power, PowerTierSpec);
 var Config = external_exports.object({
   schema_version: external_exports.literal(1),
   // Optional so a minimal `{schema_version: 1}` still parses; absent means
@@ -38706,8 +38728,10 @@ var Config = external_exports.object({
   skills: SkillsConfig.default({ bindings: {} }),
   skill_hooks: SkillHookConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
   circuits: external_exports.record(CompiledFlowId, CircuitOverride).default({}),
+  power_tiers: external_exports.record(ConnectorName, PowerTierTable).default({}),
   defaults: external_exports.object({
-    selection: SelectionOverride.optional()
+    selection: SelectionOverride.optional(),
+    power: Power.optional()
   }).strict().default({})
 }).strict();
 var ConfigLayer = external_exports.enum(["default", "user-global", "project", "invocation"]);
@@ -47982,7 +48006,9 @@ var OperatorSkillHookActivation = external_exports.object({
 }).strict();
 var OperatorRunReceipt = external_exports.object({
   depth: CompiledDepth,
+  power: Power.optional(),
   worker_runs: external_exports.number().int().nonnegative(),
+  escalations: external_exports.number().int().nonnegative(),
   models: external_exports.array(ProviderScopedModel),
   checks_evaluated: external_exports.number().int().nonnegative(),
   checks_failed: external_exports.number().int().nonnegative()
@@ -56784,6 +56810,70 @@ function recoveryRouteForFailure(input) {
   return recoveryBindingForFailure(input)?.route_id;
 }
 
+// dist/selection/power-tiers.js
+var DEFAULT_POWER_TIERS = {
+  "claude-code": {
+    low: { model: { provider: "anthropic", model: "haiku" } },
+    medium: { model: { provider: "anthropic", model: "sonnet" } },
+    high: { model: { provider: "anthropic", model: "opus" } }
+  },
+  codex: {
+    low: { effort: "low" },
+    medium: { effort: "medium" },
+    high: { effort: "high" }
+  }
+};
+var ROLE_POWER_ALLOCATION = {
+  high: { researcher: "high", implementer: "high", reviewer: "high" },
+  medium: { researcher: "high", implementer: "medium", reviewer: "medium" },
+  low: { researcher: "high", implementer: "low", reviewer: "medium" }
+};
+var POWER_ORDER = ["low", "medium", "high"];
+function bumpOneTier(tier) {
+  const index = POWER_ORDER.indexOf(tier);
+  return POWER_ORDER[Math.min(index + 1, POWER_ORDER.length - 1)];
+}
+var LAYER_PRECEDENCE = ["default", "user-global", "project", "invocation"];
+function layersInPrecedenceOrder(layers) {
+  return LAYER_PRECEDENCE.flatMap((name) => layers.filter((layer) => layer.layer === name));
+}
+function resolvePowerDial(layers) {
+  let dial = "medium";
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const power = layer.config.defaults?.power;
+    if (power !== void 0)
+      dial = power;
+  }
+  return dial;
+}
+function tierSpec(layers, connectorName, tier) {
+  let spec = DEFAULT_POWER_TIERS[connectorName]?.[tier];
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const candidate = layer.config.power_tiers?.[connectorName]?.[tier];
+    if (candidate !== void 0)
+      spec = candidate;
+  }
+  return spec;
+}
+function materializePowerSelection(input) {
+  if (input.resolved.model !== void 0)
+    return input.resolved;
+  const layers = input.configLayers ?? [];
+  const dial = resolvePowerDial(layers);
+  const allocated = ROLE_POWER_ALLOCATION[dial][input.role];
+  const tier = input.attempt > 1 ? bumpOneTier(allocated) : allocated;
+  const spec = tierSpec(layers, input.connectorName, tier);
+  if (spec === void 0)
+    return input.resolved;
+  return {
+    ...input.resolved,
+    ...spec.model === void 0 ? {} : { model: spec.model },
+    ...input.resolved.effort === void 0 && spec.effort !== void 0 ? { effort: spec.effort } : {},
+    power: dial,
+    ...tier === allocated ? {} : { power_escalated: true }
+  };
+}
+
 // dist/selection/selection-resolver.js
 var PRE_FLOW_CONFIG_SOURCES = ["default", "user-global", "project"];
 function overrideContributes2(o) {
@@ -57247,10 +57337,17 @@ function planRelayGuidanceDecision(input) {
     ...context.hostKind === void 0 ? {} : { hostKind: context.hostKind },
     ...step.connector === void 0 ? {} : { stepConnector: step.connector }
   });
-  const resolvedSelection = deriveResolvedSelection({
+  const stackSelection = deriveResolvedSelection({
     ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers },
     bindsExecutionDepthToGuidanceSelection: context.guidanceSelection?.bindsExecutionDepthToGuidanceSelection === true
   }, flow, compiledStep, input.depth);
+  const resolvedSelection = materializePowerSelection({
+    resolved: stackSelection,
+    role: RelayRole.parse(relayExecution.role),
+    connectorName: relayExecution.connectorName,
+    attempt: context.activeStepAttempt ?? 1,
+    ...context.selectionConfigLayers === void 0 ? {} : { configLayers: context.selectionConfigLayers }
+  });
   assertConnectorSelectionCompatible(relayExecution.connectorName, resolvedSelection);
   const injectedSkillIds = relayExecution.role === "implementer" ? context.skillHookInjections?.ids() ?? [] : [];
   const loadedSkills = resolveLoadedRelaySkills({
@@ -63181,7 +63278,9 @@ function readRunReceipt(runFolder) {
   if (!existsSync32(tracePath))
     return void 0;
   let depth;
+  let power;
   let workerRuns = 0;
+  let escalations = 0;
   let checksEvaluated = 0;
   let checksFailed = 0;
   const models = [];
@@ -63206,6 +63305,15 @@ function readRunReceipt(runFolder) {
     if (entry.kind === "relay.started") {
       workerRuns += 1;
       const selection = entry.resolved_selection;
+      if (isObject4(selection)) {
+        if (power === void 0) {
+          const parsedPower = Power.safeParse(selection.power);
+          if (parsedPower.success)
+            power = parsedPower.data;
+        }
+        if (selection.power_escalated === true)
+          escalations += 1;
+      }
       const model = isObject4(selection) ? ProviderScopedModel.safeParse(selection.model) : void 0;
       if (model?.success) {
         const key = `${model.data.provider}:${model.data.model}`;
@@ -63226,7 +63334,9 @@ function readRunReceipt(runFolder) {
     return void 0;
   return {
     depth,
+    ...power === void 0 ? {} : { power },
     worker_runs: workerRuns,
+    escalations,
     models,
     checks_evaluated: checksEvaluated,
     checks_failed: checksFailed
@@ -63234,7 +63344,13 @@ function readRunReceipt(runFolder) {
 }
 function receiptLine(receipt) {
   const runsWord = receipt.worker_runs === 1 ? "worker run" : "worker runs";
-  const parts = [`depth ${receipt.depth}`, `${receipt.worker_runs} ${runsWord}`];
+  const parts = [`depth ${receipt.depth}`];
+  if (receipt.power !== void 0)
+    parts.push(`power ${receipt.power}`);
+  parts.push(`${receipt.worker_runs} ${runsWord}`);
+  if (receipt.escalations > 0) {
+    parts.push(`${receipt.escalations} ${receipt.escalations === 1 ? "escalation" : "escalations"}`);
+  }
   if (receipt.checks_evaluated > 0) {
     parts.push(receipt.checks_failed === 0 ? "all checks passed" : `${receipt.checks_evaluated - receipt.checks_failed} of ${receipt.checks_evaluated} checks passed`);
   }
@@ -64915,7 +65031,7 @@ function runtimeHostKind(options) {
   return HostKind.parse(raw);
 }
 function addExecutionOptions(program2) {
-  return program2.option("--goal <goal>").option("--why <why>").option("--depth <low|medium|high>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
+  return program2.option("--goal <goal>").option("--why <why>").option("--depth <low|medium|high>").option("--power <low|medium|high>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
 }
 function parseExecutionArgs(command, argv) {
   const program2 = addExecutionOptions(new Command(`circuit ${command}`).argument("[flow-name]"));
@@ -64929,6 +65045,15 @@ function parseExecutionArgs(command, argv) {
   const depthProvided = opts.depth !== void 0;
   if (opts.depth !== void 0)
     depth = Depth.parse(opts.depth);
+  let power;
+  const powerProvided = opts.power !== void 0;
+  if (opts.power !== void 0) {
+    const parsed = Power.safeParse(opts.power);
+    if (!parsed.success) {
+      throw new Error("--power must be one of low, medium, high");
+    }
+    power = parsed.data;
+  }
   const tournamentProvided = opts.tournament === true;
   const tournament = opts.tournament === true;
   let tournamentN;
@@ -64986,6 +65111,9 @@ function parseExecutionArgs(command, argv) {
     if (depthProvided || tournamentProvided || tournamentNProvided || autonomousProvided) {
       throw new Error("checkpoint resume reuses the saved run axes; omit --depth/--tournament/--tournament-n/--autonomous");
     }
+    if (powerProvided) {
+      throw new Error("checkpoint resume re-reads power from config; omit --power");
+    }
     if (includeUntrackedContent) {
       throw new Error("checkpoint resume reuses the saved evidence policy; omit --include-untracked-content");
     }
@@ -65004,6 +65132,7 @@ function parseExecutionArgs(command, argv) {
   const result = {
     command,
     axes,
+    powerProvided,
     depthProvided,
     tournamentProvided,
     tournamentNProvided,
@@ -65014,6 +65143,8 @@ function parseExecutionArgs(command, argv) {
     result.goal = goal;
   if (why !== void 0)
     result.why = why;
+  if (power !== void 0)
+    result.power = power;
   if (flowName !== void 0)
     result.flowName = flowName;
   if (runFolder !== void 0)
@@ -65322,7 +65453,16 @@ async function runExecutionCommand(args, options) {
   const runFolder = args.runFolder === void 0 ? join35(runsRoot(process.cwd()), runId) : resolve24(args.runFolder);
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...options.configHomeDir !== void 0 ? { homeDir: options.configHomeDir } : {},
-    ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {}
+    ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {},
+    // --power rides the existing invocation config layer, so it composes with
+    // (and outranks) a user-global or project `defaults.power` exactly like
+    // any other layered config opinion.
+    ...args.power === void 0 ? {} : {
+      invocationConfig: Config.parse({
+        schema_version: 1,
+        defaults: { power: args.power }
+      })
+    }
   });
   const { policyLayers, selectionConfigLayers } = runtimeConfigLayers;
   try {
