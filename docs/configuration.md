@@ -290,6 +290,95 @@ fill the rest. The selection contract
 ([`docs/contracts/selection.md`](contracts/selection.md)) documents the full
 materialization rules.
 
+## Local Workers (OpenCode + Ollama)
+
+The power dial can drive local models with no engine changes: a custom
+connector wraps an agentic CLI, and `power_tiers.<name>` maps the dial onto
+local model names. Circuit hands the materialized tier to the wrapper through
+`CIRCUIT_RELAY_MODEL` (plus `CIRCUIT_RELAY_MODEL_PROVIDER` and
+`CIRCUIT_RELAY_EFFORT` when set) in the subprocess environment.
+
+Custom connectors are read-only in V1, so route them to review work, not
+implementation. The researcher stays on the big tier at every dial position,
+and a retry escalates one tier up within the connector's own table — a flaky
+small-model attempt gets one shot at the bigger local model before the run
+surfaces the failure.
+
+The recipe, end to end:
+
+1. Serve the models locally (for example `ollama pull qwen2.5-coder:3b
+   qwen2.5-coder:7b` with the Ollama server running).
+2. Give the lane an isolated OpenCode home so it sees only its own provider
+   config, and declare every model the tier table can name (OpenCode hangs
+   headless on undeclared models). In
+   `<lane-home>/.config/opencode/opencode.json`:
+
+   ```json
+   {
+     "provider": {
+       "local": {
+         "npm": "@ai-sdk/openai-compatible",
+         "name": "Local (Ollama)",
+         "options": { "baseURL": "http://localhost:11434/v1" },
+         "models": {
+           "qwen2.5-coder:3b": {
+             "cost": { "input": 0, "output": 0 },
+             "limit": { "context": 32768, "output": 8192 }
+           },
+           "qwen2.5-coder:7b": {
+             "cost": { "input": 0, "output": 0 },
+             "limit": { "context": 32768, "output": 8192 }
+           }
+         }
+       }
+     }
+   }
+   ```
+
+3. Write the wrapper. It maps `CIRCUIT_RELAY_MODEL` onto OpenCode's model
+   flag and runs the read-only `plan` agent:
+
+   ```sh
+   #!/bin/sh
+   set -eu
+   LANE_HOME="${CIRCUIT_OPENCODE_HOME:-$HOME/.circuit-opencode-home}"
+   prompt_file="$1"
+   output_file="$2"
+   model="${CIRCUIT_RELAY_MODEL:-local/qwen2.5-coder:7b}"
+   HOME="$LANE_HOME" \
+   XDG_CONFIG_HOME="$LANE_HOME/.config" \
+   XDG_CACHE_HOME="$LANE_HOME/.cache" \
+   XDG_DATA_HOME="$LANE_HOME/.local/share" \
+     opencode run --agent plan -m "$model" "$(cat "$prompt_file")" > "$output_file"
+   ```
+
+4. Declare the connector, route review work to it, and map the dial:
+
+   ```yaml
+   relay:
+     roles:
+       reviewer: { kind: named, name: opencode-local }
+     connectors:
+       opencode-local:
+         kind: custom
+         name: opencode-local
+         command: ["/path/to/opencode-reviewer.sh"]
+         prompt_transport: prompt-file
+         output: { kind: output-file }
+         capabilities: { filesystem: read-only, structured_output: json }
+
+   power_tiers:
+     opencode-local:
+       low: { model: { provider: custom, model: local/qwen2.5-coder:3b } }
+       medium: { model: { provider: custom, model: local/qwen2.5-coder:7b } }
+       high: { model: { provider: custom, model: local/qwen2.5-coder:7b } }
+   ```
+
+Local models flake more than hosted ones. The relay timeout kills a hung
+wrapper, the retry runs one tier up, and the run receipt counts the
+escalation — the lane is only as trustworthy as the checks around it, which
+is the point.
+
 ## Prototype Tournament Variants
 
 Prototype tournament mode reads `circuits.prototype.variant_models`. Each

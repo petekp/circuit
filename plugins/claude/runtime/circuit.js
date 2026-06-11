@@ -56587,6 +56587,19 @@ async function extractConfiguredOutput(descriptor, outputFile) {
     resultBody: extractJsonObject(raw)
   };
 }
+function selectionEnv(input) {
+  const env = {};
+  const model = input.resolvedSelection?.model;
+  if (model !== void 0) {
+    env.CIRCUIT_RELAY_MODEL = model.model;
+    env.CIRCUIT_RELAY_MODEL_PROVIDER = model.provider;
+  }
+  const effort = input.resolvedSelection?.effort;
+  if (effort !== void 0) {
+    env.CIRCUIT_RELAY_EFFORT = effort;
+  }
+  return env;
+}
 async function relayCustom(input) {
   const { descriptor } = input;
   if (descriptor.prompt_transport !== "prompt-file") {
@@ -56612,7 +56625,7 @@ async function relayCustom(input) {
         stdoutMaxBytes: STDOUT_MAX_BYTES4,
         stderrMaxBytes: STDERR_MAX_BYTES4,
         sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS4,
-        env: process.env
+        env: { ...process.env, ...selectionEnv(input) }
       });
     } catch (error51) {
       if (isConnectorSubprocessSpawnError(error51)) {
