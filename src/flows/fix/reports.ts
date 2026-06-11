@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PowerRecommendation } from '../../schemas/power.js';
 import { RuntimeGitStateEntry, RuntimeHiddenIndexFlag } from '../../schemas/runtime-evidence.js';
 import { VerificationCommand } from '../../schemas/verification.js';
 import { resultReportPointer } from '../report-schema-kit.js';
@@ -174,6 +175,9 @@ export const FixDiagnosis = z
     evidence: LenientNonEmptyStringArray,
     residual_uncertainty: z.array(
       z.string().min(1).describe('remaining unknown that could still affect the fix'),
+    ),
+    recommended_power: PowerRecommendation.optional().describe(
+      'ONLY when the relay context states the power dial is auto: the tier the downstream work needs, judged from the code you read. Omit this key entirely otherwise',
     ),
   })
   .strict()

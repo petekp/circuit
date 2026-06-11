@@ -41,6 +41,7 @@ export const fixDiagnosisShapeHint: SchemaShapeHint = {
   instruction: [
     shapeInstruction(renderShapeSkeleton(FixDiagnosis)),
     'Compare the failing behavior against the intended behavior before naming the cause. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Check whether the bug could have sibling edge cases, not only the first failing assertion. evidence must contain at least one entry (file:line, command result, or report reference that supports the cause), expressed as a JSON array of short distinct strings (one supporting fact per element). residual_uncertainty must be non-empty whenever reproduction_status is anything other than "reproduced" — if you could not cleanly reproduce the bug, name the unknowns honestly. Calibrate confidence to the evidence: do not claim "high" without direct reproduction or equivalent proof.',
+    'Include recommended_power ONLY when the relay context states the power dial is auto; omit the key entirely otherwise. When you do include it, judge from the code you read how strong a model the downstream fix and review need: "low" for a small localized change with good test coverage, "high" for a wide, subtle, or weakly-tested change, "medium" between. One short rationale sentence.',
     mechanicalTail('fix.diagnosis@v1', 'reports/fix/diagnosis.json'),
   ].join(' '),
 };

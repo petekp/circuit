@@ -25629,6 +25629,15 @@ var JsonObject = external_exports.record(external_exports.string(), JsonValue);
 
 // dist/schemas/power.js
 var Power = external_exports.enum(["low", "medium", "high"]);
+var POWER_ORDER = ["low", "medium", "high"];
+function powerIndex(tier) {
+  return POWER_ORDER.indexOf(tier);
+}
+var PowerDialSetting = external_exports.enum(["auto", "low", "medium", "high"]);
+var PowerRecommendation = external_exports.object({
+  value: Power.describe("the power tier this job needs: low, medium, or high"),
+  rationale: external_exports.string().min(1).max(280).describe("one short sentence grounding the tier in what you read")
+}).strict();
 
 // dist/schemas/selection-policy.js
 var ProviderScopedModel = external_exports.object({
@@ -29185,12 +29194,13 @@ var buildContextShapeHint = {
   schema: "build.context@v1",
   instruction: [
     "Respond with a single raw JSON object whose top-level shape is exactly:",
-    '{ "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"], "slices": [{ "id": "slice-1", "intent": "<one concrete, independently-verifiable unit of implementation work>", "anticipated_file_extensions": ["<extension this slice will touch>"] }], "guardrails": { "non_goals": ["<something the change must NOT do, stated by the operator>"], "invariants": ["<a property the change must preserve, grounded in the code>"] }, "allowed_touch_area": ["<a directory subtree ending in \\"/\\", such as \\"src/flows/build/\\", or an exact repo-relative file path>"] }',
+    '{ "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"], "slices": [{ "id": "slice-1", "intent": "<one concrete, independently-verifiable unit of implementation work>", "anticipated_file_extensions": ["<extension this slice will touch>"] }], "guardrails": { "non_goals": ["<something the change must NOT do, stated by the operator>"], "invariants": ["<a property the change must preserve, grounded in the code>"] }, "allowed_touch_area": ["<a directory subtree ending in \\"/\\", such as \\"src/flows/build/\\", or an exact repo-relative file path>"], "recommended_power": { "value": "<low|medium|high>", "rationale": "<one short sentence grounding the tier in what you read>" } }',
     "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated depth (provided to you): on a quick or lite job read just the directly implicated files; on a deep job map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
     "In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer.",
     'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. Under deep depth the engine implements and verifies these one at a time; under lighter depth the change runs in a single pass regardless.',
     'In guardrails, capture the negative space of the change. Put in non_goals the things the operator said the change must NOT do - boundaries drawn from the goal and brief, not invented. Put in invariants the properties the change must preserve, grounded in what you read (a contract, a data shape, an ordering, a safety property). Both default to empty arrays: declare a guardrail only when it is real and specific, never a generic "do not break anything". These carry forward to the plan and the reviewer checks the change against them.',
     'In allowed_touch_area, name the paths this change is allowed to touch, proposed from what you read - either a directory subtree ending in "/" (for example "src/flows/build/", which covers everything beneath it) or an exact repo-relative file path. Include every place a correct change legitimately needs to reach: the source it edits, the tests that cover it, and any generated output it regenerates. State the allowed area positively; do not list off-limits files. After the build the engine compares the files actually changed - proven from git, not self-reported - against this area, and a change that reaches outside it cannot finish clean. Because the implementer is held to this without trimming the work to fit, leave the array empty whenever you cannot scope the change with confidence: an empty area turns the check off rather than guessing a box.',
+    'Include recommended_power ONLY when the relay context states the power dial is auto; omit the key entirely otherwise. When you do include it, judge from the codebase read how strong a model the downstream implementation and review need: "low" for a small localized change with good test coverage, "high" for a wide, subtle, or weakly-tested change, "medium" between. One short rationale sentence.',
     "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.context@v1 before writing reports/build/context.json."
   ].join(" ")
 };
@@ -29467,7 +29477,8 @@ var BuildContext = external_exports.object({
   anticipated_file_extensions: external_exports.array(external_exports.string().min(1).describe('file extension the implementation is expected to touch, e.g. ".ts" or ".test.ts"')).default([]).describe("file extensions the implementation is predicted to touch, inferred from the codebase read; empty when no confident prediction"),
   slices: external_exports.array(BuildSlice).default([]).describe("ordered units of implementation work the change decomposes into, inferred from the codebase read; empty when the change is a single indivisible unit (the plan then runs one pass)"),
   guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space: operator-stated non_goals extracted from the goal and code-grounded invariants the change must preserve; empty when none apply"),
-  allowed_touch_area: AllowedTouchArea
+  allowed_touch_area: AllowedTouchArea,
+  recommended_power: PowerRecommendation.optional().describe("ONLY when the relay context states the power dial is auto: the tier the downstream work needs, judged from the codebase read. Omit this key entirely otherwise")
 }).strict();
 var BuildPlan = external_exports.object({
   objective: external_exports.string().min(1),
@@ -33607,7 +33618,8 @@ var FixDiagnosis = external_exports.object({
   cause_summary: external_exports.string().min(1).describe("one-line root-cause statement"),
   confidence: external_exports.enum(["low", "medium", "high"]),
   evidence: LenientNonEmptyStringArray,
-  residual_uncertainty: external_exports.array(external_exports.string().min(1).describe("remaining unknown that could still affect the fix"))
+  residual_uncertainty: external_exports.array(external_exports.string().min(1).describe("remaining unknown that could still affect the fix")),
+  recommended_power: PowerRecommendation.optional().describe("ONLY when the relay context states the power dial is auto: the tier the downstream work needs, judged from the code you read. Omit this key entirely otherwise")
 }).strict().transform((diagnosis) => {
   if (diagnosis.reproduction_status === "reproduced" || diagnosis.residual_uncertainty.length > 0) {
     return diagnosis;
@@ -34148,6 +34160,7 @@ var fixDiagnosisShapeHint = {
   instruction: [
     shapeInstruction(renderShapeSkeleton(FixDiagnosis)),
     'Compare the failing behavior against the intended behavior before naming the cause. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Check whether the bug could have sibling edge cases, not only the first failing assertion. evidence must contain at least one entry (file:line, command result, or report reference that supports the cause), expressed as a JSON array of short distinct strings (one supporting fact per element). residual_uncertainty must be non-empty whenever reproduction_status is anything other than "reproduced" \u2014 if you could not cleanly reproduce the bug, name the unknowns honestly. Calibrate confidence to the evidence: do not claim "high" without direct reproduction or equivalent proof.',
+    'Include recommended_power ONLY when the relay context states the power dial is auto; omit the key entirely otherwise. When you do include it, judge from the code you read how strong a model the downstream fix and review need: "low" for a small localized change with good test coverage, "high" for a wide, subtle, or weakly-tested change, "medium" between. One short rationale sentence.',
     mechanicalTail("fix.diagnosis@v1", "reports/fix/diagnosis.json")
   ].join(" ")
 };
@@ -38711,6 +38724,14 @@ var PowerTierSpec = external_exports.object({
   }
 });
 var PowerTierTable = external_exports.partialRecord(Power, PowerTierSpec);
+var PowerAutoBounds = external_exports.object({
+  floor: Power.optional(),
+  ceiling: Power.optional()
+}).strict().superRefine((bounds, ctx) => {
+  if (bounds.floor !== void 0 && bounds.ceiling !== void 0 && powerIndex(bounds.floor) > powerIndex(bounds.ceiling)) {
+    issueAt3(ctx, [], "power_auto floor must not be above ceiling");
+  }
+});
 var Config = external_exports.object({
   schema_version: external_exports.literal(1),
   // Optional so a minimal `{schema_version: 1}` still parses; absent means
@@ -38729,9 +38750,10 @@ var Config = external_exports.object({
   skill_hooks: SkillHookConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
   circuits: external_exports.record(CompiledFlowId, CircuitOverride).default({}),
   power_tiers: external_exports.record(ConnectorName, PowerTierTable).default({}),
+  power_auto: PowerAutoBounds.optional(),
   defaults: external_exports.object({
     selection: SelectionOverride.optional(),
-    power: Power.optional()
+    power: PowerDialSetting.optional()
   }).strict().default({})
 }).strict();
 var ConfigLayer = external_exports.enum(["default", "user-global", "project", "invocation"]);
@@ -56841,23 +56863,38 @@ var ROLE_POWER_ALLOCATION = {
   medium: { researcher: "high", implementer: "medium", reviewer: "medium" },
   low: { researcher: "high", implementer: "low", reviewer: "medium" }
 };
-var POWER_ORDER = ["low", "medium", "high"];
 function bumpOneTier(tier) {
-  const index = POWER_ORDER.indexOf(tier);
-  return POWER_ORDER[Math.min(index + 1, POWER_ORDER.length - 1)];
+  return POWER_ORDER[Math.min(powerIndex(tier) + 1, POWER_ORDER.length - 1)];
 }
 var LAYER_PRECEDENCE = ["default", "user-global", "project", "invocation"];
 function layersInPrecedenceOrder(layers) {
   return LAYER_PRECEDENCE.flatMap((name) => layers.filter((layer) => layer.layer === name));
 }
-function resolvePowerDial(layers) {
+function resolvePowerDialSetting(layers) {
   let dial = "medium";
   for (const layer of layersInPrecedenceOrder(layers)) {
     const power = layer.config.defaults?.power;
     if (power !== void 0)
       dial = power;
   }
-  return dial;
+  if (dial !== "auto")
+    return { kind: "fixed", value: dial };
+  let floor = "low";
+  let ceiling = "high";
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const bounds = layer.config.power_auto;
+    if (bounds?.floor !== void 0)
+      floor = bounds.floor;
+    if (bounds?.ceiling !== void 0)
+      ceiling = bounds.ceiling;
+  }
+  if (powerIndex(floor) > powerIndex(ceiling))
+    floor = ceiling;
+  return { kind: "auto", floor, ceiling };
+}
+function resolvePowerDial(layers) {
+  const setting = resolvePowerDialSetting(layers);
+  return setting.kind === "fixed" ? setting.value : "medium";
 }
 function tierSpec(layers, connectorName, tier) {
   let spec = DEFAULT_POWER_TIERS[connectorName]?.[tier];
@@ -65044,7 +65081,7 @@ function runtimeHostKind(options) {
   return HostKind.parse(raw);
 }
 function addExecutionOptions(program2) {
-  return program2.option("--goal <goal>").option("--why <why>").option("--depth <low|medium|high>").option("--power <low|medium|high>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
+  return program2.option("--goal <goal>").option("--why <why>").option("--depth <low|medium|high>").option("--power <auto|low|medium|high>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
 }
 function parseExecutionArgs(command, argv) {
   const program2 = addExecutionOptions(new Command(`circuit ${command}`).argument("[flow-name]"));
@@ -65061,9 +65098,9 @@ function parseExecutionArgs(command, argv) {
   let power;
   const powerProvided = opts.power !== void 0;
   if (opts.power !== void 0) {
-    const parsed = Power.safeParse(opts.power);
+    const parsed = PowerDialSetting.safeParse(opts.power);
     if (!parsed.success) {
-      throw new Error("--power must be one of low, medium, high");
+      throw new Error("--power must be one of auto, low, medium, high");
     }
     power = parsed.data;
   }

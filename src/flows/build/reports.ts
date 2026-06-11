@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PowerRecommendation } from '../../schemas/power.js';
 import { RuntimeGitStateEntry, RuntimeHiddenIndexFlag } from '../../schemas/runtime-evidence.js';
 import {
   VerificationCommand,
@@ -227,6 +228,9 @@ export const BuildContext = z
       'negative space: operator-stated non_goals extracted from the goal and code-grounded invariants the change must preserve; empty when none apply',
     ),
     allowed_touch_area: AllowedTouchArea,
+    recommended_power: PowerRecommendation.optional().describe(
+      'ONLY when the relay context states the power dial is auto: the tier the downstream work needs, judged from the codebase read. Omit this key entirely otherwise',
+    ),
   })
   .strict();
 export type BuildContext = z.infer<typeof BuildContext>;

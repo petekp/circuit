@@ -27,3 +27,19 @@ export function powerIndex(tier: Power): number {
 // concrete Power.
 export const PowerDialSetting = z.enum(['auto', 'low', 'medium', 'high']);
 export type PowerDialSetting = z.infer<typeof PowerDialSetting>;
+
+// A researcher's per-run tier recommendation, emitted from inside the run by
+// the role that has already read the goal and the code. Advisory only: the
+// engine clamps it to the operator's `power_auto` bounds and ignores it
+// entirely unless the dial setting is `auto`. Always a concrete tier.
+export const PowerRecommendation = z
+  .object({
+    value: Power.describe('the power tier this job needs: low, medium, or high'),
+    rationale: z
+      .string()
+      .min(1)
+      .max(280)
+      .describe('one short sentence grounding the tier in what you read'),
+  })
+  .strict();
+export type PowerRecommendation = z.infer<typeof PowerRecommendation>;
