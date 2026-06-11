@@ -10,6 +10,7 @@ import { isGraphCheckpointWaitingResult } from '../runtime/run/graph-runner.js';
 import { Axes, type Axes as AxesValue, TournamentN } from '../schemas/axes.js';
 import type { CompiledFlow } from '../schemas/compiled-flow.js';
 import type { LayeredConfig } from '../schemas/config.js';
+import { Depth, type Depth as DepthValue } from '../schemas/depth.js';
 import { HostKind, type HostKind as HostKindValue } from '../schemas/host.js';
 import { CompiledFlowId, RunId } from '../schemas/ids.js';
 import { computeManifestHash } from '../schemas/manifest.js';
@@ -18,7 +19,6 @@ import {
   type ProgressEvent as ProgressEventValue,
 } from '../schemas/progress-event.js';
 import { RunResult } from '../schemas/result.js';
-import { Rigor, type Rigor as RigorValue } from '../schemas/rigor.js';
 
 import { prepareRunStartHistoryRecall } from '../app/history/run-start-recall.js';
 import { readPriorRoute, writeOperatorSummary } from '../app/operator-summary/writer.js';
@@ -73,7 +73,7 @@ export interface ParsedArgs {
   goal?: string;
   why?: string;
   axes: AxesValue;
-  rigorProvided: boolean;
+  depthProvided: boolean;
   tournamentProvided: boolean;
   tournamentNProvided: boolean;
   autonomousProvided: boolean;
@@ -122,7 +122,7 @@ function addExecutionOptions(program: Command): Command {
   return program
     .option('--goal <goal>')
     .option('--why <why>')
-    .option('--rigor <lite|standard|deep>')
+    .option('--depth <low|medium|high>')
     .option('--tournament')
     .option('--tournament-n <2|3|4>')
     .option('--autonomous')
@@ -142,7 +142,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   const opts = program.opts<{
     goal?: string;
     why?: string;
-    rigor?: string;
+    depth?: string;
     tournament?: boolean;
     tournamentN?: string;
     autonomous?: boolean;
@@ -166,9 +166,9 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     );
   }
 
-  let rigor: RigorValue | undefined;
-  const rigorProvided = opts.rigor !== undefined;
-  if (opts.rigor !== undefined) rigor = Rigor.parse(opts.rigor);
+  let depth: DepthValue | undefined;
+  const depthProvided = opts.depth !== undefined;
+  if (opts.depth !== undefined) depth = Depth.parse(opts.depth);
 
   const tournamentProvided = opts.tournament === true;
   const tournament = opts.tournament === true;
@@ -229,9 +229,9 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     if (flowRoot !== undefined) {
       throw new Error('checkpoint resume loads the saved flow manifest; omit --flow-root');
     }
-    if (rigorProvided || tournamentProvided || tournamentNProvided || autonomousProvided) {
+    if (depthProvided || tournamentProvided || tournamentNProvided || autonomousProvided) {
       throw new Error(
-        'checkpoint resume reuses the saved run axes; omit --rigor/--tournament/--tournament-n/--autonomous',
+        'checkpoint resume reuses the saved run axes; omit --depth/--tournament/--tournament-n/--autonomous',
       );
     }
     if (includeUntrackedContent) {
@@ -248,7 +248,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   }
 
   const axes = Axes.parse({
-    ...(rigor === undefined ? {} : { rigor }),
+    ...(depth === undefined ? {} : { depth }),
     tournament,
     ...(tournamentN === undefined ? {} : { tournament_n: tournamentN }),
     autonomous,
@@ -257,7 +257,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   const result: ParsedArgs = {
     command,
     axes,
-    rigorProvided,
+    depthProvided,
     tournamentProvided,
     tournamentNProvided,
     autonomousProvided,
@@ -304,24 +304,24 @@ function resolveCompiledFlowRoute(args: ParsedArgs): ResolvedCompiledFlowRoute {
 }
 
 function hasExplicitAxes(args: ParsedArgs): boolean {
-  return args.rigorProvided || args.tournamentProvided || args.autonomousProvided;
+  return args.depthProvided || args.tournamentProvided || args.autonomousProvided;
 }
 
 function axisSelectionNameForAxes(axes: AxesValue): string {
   if (axes.autonomous) return 'autonomous';
   if (axes.tournament) return 'tournament';
-  if (axes.rigor === 'lite' || axes.rigor === 'deep') return axes.rigor;
+  if (axes.depth === 'low' || axes.depth === 'high') return axes.depth;
   return 'default';
 }
 
 function runtimeDepthForAxes(axes: AxesValue): string {
   if (axes.autonomous) return 'autonomous';
   if (axes.tournament) return 'tournament';
-  return axes.rigor;
+  return axes.depth;
 }
 
 // Entry mode (thoroughness) is explicit-only: it comes from the axis flags
-// (--rigor/--tournament/--autonomous), never inferred from goal text.
+// (--depth/--tournament/--autonomous), never inferred from goal text.
 function resolveEntryModeSelection(args: ParsedArgs): ResolvedEntryModeSelection {
   if (hasExplicitAxes(args)) {
     return {
@@ -338,8 +338,8 @@ function progressSurfaceForFlowId(flowId: string) {
 }
 
 function axisAllowListText(flowId: string, support: AxisSupport): string {
-  const rigors = support.allowedRigors.join(', ');
-  return `${flowId} allows rigors: ${rigors}; tournament: ${support.supportsTournament ? 'yes' : 'no'}; autonomous: ${support.supportsAutonomous ? 'yes' : 'no'}`;
+  const depths = support.allowedDepths.join(', ');
+  return `${flowId} allows depths: ${depths}; tournament: ${support.supportsTournament ? 'yes' : 'no'}; autonomous: ${support.supportsAutonomous ? 'yes' : 'no'}`;
 }
 
 function validateFlowAxes(input: {
@@ -352,8 +352,8 @@ function validateFlowAxes(input: {
   const support = axisSupportFromFlow(input);
   const flowId = input.flow.id as unknown as string;
   const allowList = axisAllowListText(flowId, support);
-  if (!support.allowedRigors.includes(axes.rigor)) {
-    throw new Error(`--rigor ${axes.rigor} is not supported by flow '${flowId}'. ${allowList}`);
+  if (!support.allowedDepths.includes(axes.depth)) {
+    throw new Error(`--depth ${axes.depth} is not supported by flow '${flowId}'. ${allowList}`);
   }
   if (axes.tournament && !support.supportsTournament) {
     throw new Error(`--tournament is not supported by flow '${flowId}'. ${allowList}`);
@@ -952,7 +952,7 @@ export async function runExecutionCommand(
       }
     }
     // Record the resolved axes on the envelope so a reader can audit which
-    // rigor/tournament/autonomous selection actually ran (F-M-1). entry_mode
+    // depth/tournament/autonomous selection actually ran (F-M-1). entry_mode
     // collapses the three axes into one name; resolved_axes keeps them explicit.
     const resolvedAxes = args.axes;
     process.stdout.write(

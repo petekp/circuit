@@ -41,7 +41,7 @@ function writeRun(
     recorded_at: '2026-05-29T00:00:00.000Z',
     run_id: args.runId,
     flow_id: args.flowId,
-    depth: 'standard',
+    depth: 'medium',
     goal: 'do the work',
     change_kind: { declared: 'code' },
     manifest_hash: 'runtime:build@0.1.0',

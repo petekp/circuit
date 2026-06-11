@@ -301,7 +301,7 @@ describe('step.prop.writes_shape_per_variant — strict writes shape per kind', 
           kind: 'sub-run',
           flow_ref: { flow_id: 'build', entry_mode: 'default' },
           goal: 'do work',
-          depth: 'standard',
+          depth: 'medium',
           writes,
           check: {
             kind: 'result_verdict',

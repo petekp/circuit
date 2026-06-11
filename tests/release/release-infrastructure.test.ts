@@ -87,7 +87,7 @@ describe('release truth infrastructure', () => {
   });
 
   it('records canonical flow stages from circuit.json when mode files are present', () => {
-    expect(exists('generated/flows/fix/lite.json')).toBe(true);
+    expect(exists('generated/flows/fix/low.json')).toBe(true);
     const snapshot = CurrentCapabilitySnapshot.parse(
       jsonFile('generated/release/current-capabilities.json'),
     );
@@ -241,7 +241,7 @@ describe('release truth infrastructure', () => {
           status: 'implemented',
           summary: 'Fixture flow exists',
           axes: {
-            modes: ['default', 'lite'],
+            modes: ['default', 'low'],
             stage_path: ['frame', 'close'],
           },
         },
@@ -252,7 +252,7 @@ describe('release truth infrastructure', () => {
     expect(result.issues).toContainEqual(
       expect.stringContaining('untracked behavioral parity gap: flow:fixture'),
     );
-    expect(result.issues).toContainEqual(expect.stringContaining('modes extra lite'));
+    expect(result.issues).toContainEqual(expect.stringContaining('modes extra low'));
     expect(result.issues).toContainEqual(
       expect.stringContaining('checkpoint missing current value'),
     );

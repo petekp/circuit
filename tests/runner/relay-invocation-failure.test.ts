@@ -36,7 +36,7 @@ async function runFailureCase(input: {
     flowBytes: input.bytes,
     runId: '71000000-0000-0000-0000-000000000001',
     goal: 'connector failure must close durably',
-    depth: 'standard',
+    depth: 'medium',
     now: deterministicNow(Date.UTC(2026, 3, 24, 18, 0, 0)),
     relayer: throwingRelayer(),
     executors: {

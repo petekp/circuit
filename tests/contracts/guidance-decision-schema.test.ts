@@ -110,7 +110,7 @@ function proofPolicyDecision(overrides: Record<string, unknown> = {}) {
     decision_id: 'gd-proof-001',
     subject: 'proof_policy',
     selected: {
-      proof_profile: 'standard',
+      proof_profile: 'medium',
       required_claim_kinds: ['verification_passed'],
       required_evidence_kinds: ['command'],
       close_requires_proven: true,

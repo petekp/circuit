@@ -41,7 +41,7 @@ function planCompiledFlow(options: { omitBriefRead?: boolean } = {}): {
     version: '0.1.0',
     purpose: 'test Build plan writer',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -234,7 +234,7 @@ function closeCompiledFlow(
     version: '0.1.0',
     purpose: 'test Build result writer',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -548,7 +548,7 @@ describe('Build compose writers', () => {
       flowBytes: bytes,
       runId: 'b1000000-0000-0000-0000-000000000000',
       goal: 'Add a Build plan writer',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 1, 0, 0)),
       executors: seedThenDefaultWriter(),
     });
@@ -582,7 +582,7 @@ describe('Build compose writers', () => {
       flowBytes: bytes,
       runId: 'b1000000-0000-0000-0000-000000000006',
       goal: 'Reject ungrounded Build plan',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 1, 1, 0)),
       executors: seedThenDefaultWriter(),
     });
@@ -601,7 +601,7 @@ describe('Build compose writers', () => {
       flowBytes: bytes,
       runId: 'b1000000-0000-0000-0000-000000000007',
       goal: 'Reject malformed Build brief',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 1, 2, 0)),
       executors: seedThenDefaultWriter({ corruptBrief: true }),
     });
@@ -620,7 +620,7 @@ describe('Build compose writers', () => {
       flowBytes: bytes,
       runId: 'b1000000-0000-0000-0000-000000000001',
       goal: 'Close a Build run',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 1, 5, 0)),
       executors: seedThenDefaultWriter(),
     });
@@ -649,7 +649,7 @@ describe('Build compose writers', () => {
       flowBytes: bytes,
       runId: 'b1000000-0000-0000-0000-000000000002',
       goal: 'Reject missing verification',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 1, 10, 0)),
       executors: seedThenDefaultWriter({ removeVerification: true }),
     });
@@ -668,7 +668,7 @@ describe('Build compose writers', () => {
       flowBytes: bytes,
       runId: 'b1000000-0000-0000-0000-000000000003',
       goal: 'Reject malformed brief at close',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 1, 15, 0)),
       executors: seedThenDefaultWriter({ corruptBrief: true }),
     });
@@ -687,7 +687,7 @@ describe('Build compose writers', () => {
       flowBytes: bytes,
       runId: 'b1000000-0000-0000-0000-000000000004',
       goal: 'Reject malformed plan at close',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 1, 20, 0)),
       executors: seedThenDefaultWriter({ corruptPlan: true }),
     });
@@ -706,7 +706,7 @@ describe('Build compose writers', () => {
       flowBytes: bytes,
       runId: 'b1000000-0000-0000-0000-000000000005',
       goal: 'Reject missing Build producer',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 1, 25, 0)),
       executors: seedThenDefaultWriter(),
     });

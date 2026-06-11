@@ -96,13 +96,13 @@ describe('SelectionOverride (SEL-I2)', () => {
   });
 
   it('rejects surplus key (typo that would silently revert to prior layer)', () => {
-    const bad = SelectionOverride.safeParse({ rigr: 'standard' });
+    const bad = SelectionOverride.safeParse({ rigr: 'medium' });
     expect(bad.success).toBe(false);
   });
 
   it('rejects surplus key alongside valid fields', () => {
     const bad = SelectionOverride.safeParse({
-      depth: 'standard',
+      depth: 'medium',
       effort: 'high',
       smuggled: true,
     });
@@ -277,7 +277,7 @@ describe('SelectionResolution ordering and uniqueness (SEL-I6, SEL-I7)', () => {
   // Applied entries require non-empty overrides
   // (ghost-provenance rejection). Each helper below sets exactly one field
   // so the override legitimately contributes to the chain.
-  const contributes = { depth: 'standard' as const };
+  const contributes = { depth: 'medium' as const };
 
   it('accepts in-order applied chain with unique sources', () => {
     const ok = SelectionResolution.safeParse({
@@ -387,7 +387,7 @@ describe('SelectionResolution ordering and uniqueness (SEL-I6, SEL-I7)', () => {
 // in the same applied chain. SEL-I7's uniqueness is now keyed on identity
 // (source + disambiguator), not bare source.
 describe('SelectionResolution stage/step disambiguators', () => {
-  const contributes = { depth: 'standard' as const };
+  const contributes = { depth: 'medium' as const };
 
   it('accepts two stage entries with distinct stage_ids (overlapping stages)', () => {
     const ok = SelectionResolution.safeParse({
@@ -498,7 +498,7 @@ describe('SelectionResolution ghost provenance', () => {
   it('accepts applied entry contributing only depth', () => {
     const ok = SelectionResolution.safeParse({
       resolved: { skills: [] },
-      applied: [{ source: 'flow', override: { depth: 'deep' } }],
+      applied: [{ source: 'flow', override: { depth: 'high' } }],
     });
     expect(ok.success).toBe(true);
   });
@@ -526,7 +526,7 @@ describe('SelectionResolution ghost provenance', () => {
 });
 
 describe('SelectionResolution transitive strict (SEL-I8)', () => {
-  const contributes = { depth: 'standard' as const };
+  const contributes = { depth: 'medium' as const };
 
   it('rejects surplus key on the top-level SelectionResolution', () => {
     const bad = SelectionResolution.safeParse({
@@ -548,7 +548,7 @@ describe('SelectionResolution transitive strict (SEL-I8)', () => {
   it('rejects surplus key inside applied[].override', () => {
     const bad = SelectionResolution.safeParse({
       resolved: { skills: [] },
-      applied: [{ source: 'flow', override: { depth: 'standard', smuggled: 'x' } }],
+      applied: [{ source: 'flow', override: { depth: 'medium', smuggled: 'x' } }],
     });
     expect(bad.success).toBe(false);
   });
@@ -620,7 +620,7 @@ describe('Stage.selection (SEL-I9)', () => {
       id: 'review',
       title: 'Review',
       steps: ['review-step'],
-      selection: { rigr: 'standard' },
+      selection: { rigr: 'medium' },
     });
     expect(bad.success).toBe(false);
   });

@@ -25,17 +25,17 @@ describe('compileSchematicToCompiledFlow — per-mode emission', () => {
     expect(result.kind).toBe('single');
     if (result.kind !== 'single') return;
     expect(result.flow.axes).toMatchObject({
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['low', 'medium', 'high'],
       supports_autonomous: true,
     });
     expect(result.flow.starts_at).toBe('frame-step');
   });
 
-  it('returns kind:per-mode when an item declares route_overrides; lite mode drops unreachable items', () => {
+  it('returns kind:per-mode when an item declares route_overrides; low mode drops unreachable items', () => {
     const schematic = loadBuildSchematic();
     const items = schematic.items.map((item) =>
       (item.id as unknown as string) === 'review-step'
-        ? { ...item, route_overrides: { continue: { lite: '@complete' as const } } }
+        ? { ...item, route_overrides: { continue: { low: '@complete' as const } } }
         : item,
     );
     const mutated = { ...schematic, items } as typeof schematic;
@@ -44,26 +44,26 @@ describe('compileSchematicToCompiledFlow — per-mode emission', () => {
     expect(result.kind).toBe('per-mode');
     if (result.kind !== 'per-mode') return;
 
-    const lite = result.flows.get('lite');
+    const low = result.flows.get('low');
     const def = result.flows.get('default');
-    expect(lite).toBeDefined();
+    expect(low).toBeDefined();
     expect(def).toBeDefined();
-    if (lite === undefined || def === undefined) return;
+    if (low === undefined || def === undefined) return;
 
-    // Reachable steps differ. Lite skips close-step entirely because
+    // Reachable steps differ. Low skips close-step entirely because
     // review-step's continue edge now lands on the @complete terminal.
-    const liteIds = lite.steps.map((s) => s.id as unknown as string);
+    const lowIds = low.steps.map((s) => s.id as unknown as string);
     const defIds = def.steps.map((s) => s.id as unknown as string);
-    expect(liteIds).not.toContain('close-step');
+    expect(lowIds).not.toContain('close-step');
     expect(defIds).toContain('close-step');
 
     // The review-step's own pass edge differs by mode.
-    const liteReview = lite.steps.find((s) => (s.id as unknown as string) === 'review-step');
+    const lowReview = low.steps.find((s) => (s.id as unknown as string) === 'review-step');
     const defReview = def.steps.find((s) => (s.id as unknown as string) === 'review-step');
-    expect(liteReview?.routes.pass).toBe('@complete');
+    expect(lowReview?.routes.pass).toBe('@complete');
     expect(defReview?.routes.pass).toBe('close-step');
 
-    expect(lite.starts_at).toBe('frame-step');
+    expect(low.starts_at).toBe('frame-step');
     expect(def.starts_at).toBe('frame-step');
   });
 
@@ -71,7 +71,7 @@ describe('compileSchematicToCompiledFlow — per-mode emission', () => {
     const schematic = loadBuildSchematic();
     const items = schematic.items.map((item) =>
       (item.id as unknown as string) === 'review-step'
-        ? { ...item, route_overrides: { continue: { lite: '@complete' as const } } }
+        ? { ...item, route_overrides: { continue: { low: '@complete' as const } } }
         : item,
     );
     const mutated = { ...schematic, items } as typeof schematic;
@@ -80,16 +80,16 @@ describe('compileSchematicToCompiledFlow — per-mode emission', () => {
     if (result.kind !== 'per-mode') {
       throw new Error('expected per-mode result');
     }
-    const lite = result.flows.get('lite');
-    if (lite === undefined) throw new Error('expected lite compiled flow');
+    const low = result.flows.get('low');
+    if (low === undefined) throw new Error('expected low compiled flow');
 
-    // close-step's canonical stage is 'close'. Lite drops it; the compiled
+    // close-step's canonical stage is 'close'. Low drops it; the compiled
     // stage_path_policy must auto-omit 'close' so the CompiledFlow validator's
     // stage path completeness rule still passes.
-    expect(lite.stage_path_policy.mode).toBe('partial');
-    if (lite.stage_path_policy.mode !== 'partial') return;
-    expect(lite.stage_path_policy.omits).toContain('close');
-    expect(lite.stage_path_policy.rationale).toMatch(/lite/);
+    expect(low.stage_path_policy.mode).toBe('partial');
+    if (low.stage_path_policy.mode !== 'partial') return;
+    expect(low.stage_path_policy.omits).toContain('close');
+    expect(low.stage_path_policy.rationale).toMatch(/low/);
   });
 
   it('preserves rich schematic outcomes as executable compiled routes', () => {

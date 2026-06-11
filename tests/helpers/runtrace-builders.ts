@@ -26,7 +26,7 @@ export const bootstrapAt = (
   run_id: runId,
   kind: 'run.bootstrapped',
   flow_id: 'explore',
-  depth: 'deep',
+  depth: 'high',
   goal: 'Test',
   manifest_hash: 'abc',
   change_kind,

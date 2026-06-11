@@ -51,7 +51,7 @@ function bootstrapTraceInput(runId: string) {
     kind: 'run.bootstrapped' as const,
     flow_id: 'baseline',
     goal: 'runtime baseline trace fixture',
-    depth: 'standard' as const,
+    depth: 'medium' as const,
     change_kind,
     manifest_hash: 'runtime:baseline@0.1.0',
   };
@@ -94,7 +94,7 @@ function compiledFlowBytesForSnapshot(flowId = 'baseline'): Buffer {
       version: '0.1.0',
       purpose: 'runtime manifest snapshot fixture',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -331,13 +331,13 @@ describe('runtime baseline', () => {
           {
             name: 'default',
             startAt: 'compose',
-            depth: 'standard',
+            depth: 'medium',
             description: 'Default route',
           },
           {
             name: 'default',
             startAt: 'missing',
-            depth: 'standard',
+            depth: 'medium',
             description: 'Duplicate route',
           },
         ],

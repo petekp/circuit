@@ -44,7 +44,7 @@ const ALLOWED_WRITER_SCHEMA_ALIASES = new Map<string, readonly string[]>([
 const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
   string,
   {
-    readonly allowed_rigors: readonly string[];
+    readonly allowed_depths: readonly string[];
     readonly supports_tournament: boolean;
     readonly supports_autonomous: boolean;
     readonly tournament_fan_out_stage?: string;
@@ -53,7 +53,7 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
   [
     'review',
     {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -61,7 +61,7 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
   [
     'fix',
     {
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['low', 'medium', 'high'],
       supports_tournament: false,
       supports_autonomous: true,
     },
@@ -69,7 +69,7 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
   [
     'build',
     {
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['low', 'medium', 'high'],
       supports_tournament: false,
       supports_autonomous: true,
     },
@@ -77,7 +77,7 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
   [
     'explore',
     {
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['low', 'medium', 'high'],
       supports_tournament: true,
       supports_autonomous: true,
       tournament_fan_out_stage: 'decision-stage',
@@ -86,7 +86,7 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
   [
     'goal',
     {
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['low', 'medium', 'high'],
       supports_tournament: false,
       supports_autonomous: true,
     },
@@ -94,7 +94,7 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
   [
     'prototype',
     {
-      allowed_rigors: ['standard', 'deep'],
+      allowed_depths: ['medium', 'high'],
       supports_tournament: true,
       supports_autonomous: true,
       tournament_fan_out_stage: 'act-stage',
@@ -103,7 +103,7 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
   [
     'pursue',
     {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: true,
     },
@@ -111,7 +111,7 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
   [
     'runtime-proof',
     {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -224,7 +224,7 @@ describe('flow catalog completeness', () => {
       expect(flow.axes, `${pkg.id} generated fixture axes drifted`).toMatchObject({
         ...expected,
         default: {
-          rigor: 'standard',
+          depth: 'medium',
           tournament: false,
           tournament_n: 3,
           autonomous: false,

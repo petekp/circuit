@@ -60,7 +60,7 @@ async function runConnectorIdentityCase(input: {
     flowBytes: input.bytes,
     runId: '45a45a45-a45a-45a4-5a45-a45a45a45a45',
     goal: 'connector-identity regression',
-    depth: 'standard',
+    depth: 'medium',
     now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
     relayer: codexShapedStub(),
     executors: {

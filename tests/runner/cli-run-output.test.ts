@@ -10,14 +10,14 @@ describe('CLI run output domain values', () => {
         selectedFlow: 'fix',
         routedBy: 'explicit',
         routerReason: 'matched fix prefix',
-        entryMode: 'lite',
+        entryMode: 'low',
         entryModeSource: 'explicit',
       }),
     ).toEqual({
       selected_flow: 'fix',
       routed_by: 'explicit',
       router_reason: 'matched fix prefix',
-      entry_mode: 'lite',
+      entry_mode: 'low',
       entry_mode_source: 'explicit',
     });
   });

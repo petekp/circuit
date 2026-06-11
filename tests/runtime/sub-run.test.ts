@@ -46,7 +46,7 @@ function parentFlow(
         flowRef: 'child-test',
         entryMode: 'default',
         goal: 'child goal',
-        depth: 'standard',
+        depth: 'medium',
         writes: {
           result: { path: 'reports/child-result.json' },
           ...(options.reportPath === undefined ? {} : { report: { path: options.reportPath } }),
@@ -69,7 +69,7 @@ function childFlowBytes(): Buffer {
       version: '0.1.0',
       purpose: 'runtime sub-run child',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
       },

@@ -7,11 +7,11 @@
       "source": "src/flows/review/schematic.json",
       "contract_path": "src/flows/review/contract.md",
       "axis_support": {
-        "allowed_rigors": ["standard"],
+        "allowed_depths": ["medium"],
         "supports_tournament": false,
         "supports_autonomous": false,
         "default": {
-          "rigor": "standard",
+          "depth": "medium",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -33,11 +33,11 @@
       "source": "src/flows/fix/schematic.json",
       "contract_path": "src/flows/fix/contract.md",
       "axis_support": {
-        "allowed_rigors": ["lite", "standard", "deep"],
+        "allowed_depths": ["low", "medium", "high"],
         "supports_tournament": false,
         "supports_autonomous": true,
         "default": {
-          "rigor": "standard",
+          "depth": "medium",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -82,11 +82,11 @@
       "source": "src/flows/pursue/schematic.json",
       "command_path": "src/flows/pursue/command.md",
       "axis_support": {
-        "allowed_rigors": ["standard"],
+        "allowed_depths": ["medium"],
         "supports_tournament": false,
         "supports_autonomous": true,
         "default": {
-          "rigor": "standard",
+          "depth": "medium",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -116,11 +116,11 @@
       "source": "src/flows/prototype/schematic.json",
       "contract_path": "src/flows/prototype/contract.md",
       "axis_support": {
-        "allowed_rigors": ["standard", "deep"],
+        "allowed_depths": ["medium", "high"],
         "supports_tournament": true,
         "supports_autonomous": true,
         "default": {
-          "rigor": "standard",
+          "depth": "medium",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -156,11 +156,11 @@
       "source": "src/flows/build/schematic.json",
       "contract_path": "src/flows/build/contract.md",
       "axis_support": {
-        "allowed_rigors": ["lite", "standard", "deep"],
+        "allowed_depths": ["low", "medium", "high"],
         "supports_tournament": false,
         "supports_autonomous": true,
         "default": {
-          "rigor": "standard",
+          "depth": "medium",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -192,11 +192,11 @@
       "source": "src/flows/explore/schematic.json",
       "contract_path": "src/flows/explore/contract.md",
       "axis_support": {
-        "allowed_rigors": ["lite", "standard", "deep"],
+        "allowed_depths": ["low", "medium", "high"],
         "supports_tournament": true,
         "supports_autonomous": true,
         "default": {
-          "rigor": "standard",
+          "depth": "medium",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -476,7 +476,7 @@
       "readiness_refs": [],
       "axes": {
         "intent_hints": [],
-        "modes": ["autonomous", "deep", "default", "lite"],
+        "modes": ["autonomous", "default", "high", "low"],
         "stage_path": ["Frame", "Analyze", "Plan", "Act", "Verify", "Review", "Close"],
         "outputs": ["brief.md", "plan.md", "result.md", "review.md"],
         "checkpoint": "Compiled checkpoints can pause, auto-resolve safe defaults, or resume from operator input.",
@@ -497,7 +497,7 @@
       "readiness_refs": [],
       "axes": {
         "intent_hints": [],
-        "modes": ["autonomous", "deep", "default", "lite", "tournament"],
+        "modes": ["autonomous", "default", "high", "low", "tournament"],
         "stage_path": ["Frame", "Analyze", "Plan or Decision", "Close"],
         "outputs": ["analysis.md", "brief.md", "decision.md", "plan.md", "result.md"],
         "checkpoint": "Compiled checkpoints can pause, auto-resolve safe defaults, or resume from operator input.",
@@ -518,7 +518,7 @@
       "readiness_refs": [],
       "axes": {
         "intent_hints": [],
-        "modes": ["autonomous", "deep", "default", "lite"],
+        "modes": ["autonomous", "default", "high", "low"],
         "stage_path": ["Frame", "Analyze", "Fix", "Verify", "Review", "Close"],
         "outputs": ["analysis.md", "brief.md", "result.md", "review.md"],
         "checkpoint": "Compiled checkpoints can pause, auto-resolve safe defaults, or resume from operator input.",
@@ -539,7 +539,7 @@
       "readiness_refs": [],
       "axes": {
         "intent_hints": [],
-        "modes": ["autonomous", "deep", "default", "tournament"],
+        "modes": ["autonomous", "default", "high", "tournament"],
         "stage_path": ["Frame", "Plan", "Act", "Verify", "Review", "Close"],
         "outputs": [
           "prototype.artifact@v1",
@@ -688,21 +688,6 @@
       }
     },
     {
-      "id": "mode:build:deep",
-      "kind": "mode",
-      "title": "build deep",
-      "status": "implemented",
-      "summary": "build supports the deep axis selection.",
-      "evidence": ["generated/flows/build"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
       "id": "mode:build:default",
       "kind": "mode",
       "title": "build default",
@@ -718,11 +703,26 @@
       }
     },
     {
-      "id": "mode:build:lite",
+      "id": "mode:build:high",
       "kind": "mode",
-      "title": "build lite",
+      "title": "build high",
       "status": "implemented",
-      "summary": "build supports the lite axis selection.",
+      "summary": "build supports the high axis selection.",
+      "evidence": ["generated/flows/build"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "mode:build:low",
+      "kind": "mode",
+      "title": "build low",
+      "status": "implemented",
+      "summary": "build supports the low axis selection.",
       "evidence": ["generated/flows/build"],
       "readiness_refs": [],
       "axes": {
@@ -748,21 +748,6 @@
       }
     },
     {
-      "id": "mode:explore:deep",
-      "kind": "mode",
-      "title": "explore deep",
-      "status": "implemented",
-      "summary": "explore supports the deep axis selection.",
-      "evidence": ["generated/flows/explore"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
       "id": "mode:explore:default",
       "kind": "mode",
       "title": "explore default",
@@ -778,11 +763,26 @@
       }
     },
     {
-      "id": "mode:explore:lite",
+      "id": "mode:explore:high",
       "kind": "mode",
-      "title": "explore lite",
+      "title": "explore high",
       "status": "implemented",
-      "summary": "explore supports the lite axis selection.",
+      "summary": "explore supports the high axis selection.",
+      "evidence": ["generated/flows/explore"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "mode:explore:low",
+      "kind": "mode",
+      "title": "explore low",
+      "status": "implemented",
+      "summary": "explore supports the low axis selection.",
       "evidence": ["generated/flows/explore"],
       "readiness_refs": [],
       "axes": {
@@ -823,21 +823,6 @@
       }
     },
     {
-      "id": "mode:fix:deep",
-      "kind": "mode",
-      "title": "fix deep",
-      "status": "implemented",
-      "summary": "fix supports the deep axis selection.",
-      "evidence": ["generated/flows/fix"],
-      "readiness_refs": [],
-      "axes": {
-        "intent_hints": [],
-        "modes": [],
-        "stage_path": [],
-        "outputs": []
-      }
-    },
-    {
       "id": "mode:fix:default",
       "kind": "mode",
       "title": "fix default",
@@ -853,11 +838,26 @@
       }
     },
     {
-      "id": "mode:fix:lite",
+      "id": "mode:fix:high",
       "kind": "mode",
-      "title": "fix lite",
+      "title": "fix high",
       "status": "implemented",
-      "summary": "fix supports the lite axis selection.",
+      "summary": "fix supports the high axis selection.",
+      "evidence": ["generated/flows/fix"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "mode:fix:low",
+      "kind": "mode",
+      "title": "fix low",
+      "status": "implemented",
+      "summary": "fix supports the low axis selection.",
       "evidence": ["generated/flows/fix"],
       "readiness_refs": [],
       "axes": {
@@ -883,11 +883,11 @@
       }
     },
     {
-      "id": "mode:prototype:deep",
+      "id": "mode:prototype:default",
       "kind": "mode",
-      "title": "prototype deep",
+      "title": "prototype default",
       "status": "implemented",
-      "summary": "prototype supports the deep axis selection.",
+      "summary": "prototype supports the default axis selection.",
       "evidence": ["generated/flows/prototype"],
       "readiness_refs": [],
       "axes": {
@@ -898,11 +898,11 @@
       }
     },
     {
-      "id": "mode:prototype:default",
+      "id": "mode:prototype:high",
       "kind": "mode",
-      "title": "prototype default",
+      "title": "prototype high",
       "status": "implemented",
-      "summary": "prototype supports the default axis selection.",
+      "summary": "prototype supports the high axis selection.",
       "evidence": ["generated/flows/prototype"],
       "readiness_refs": [],
       "axes": {

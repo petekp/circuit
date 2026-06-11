@@ -93,11 +93,11 @@ export const exploreFlowData = {
       },
     ],
     axes: {
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['low', 'medium', 'high'],
       supports_tournament: true,
       supports_autonomous: true,
       default: {
-        rigor: 'standard',
+        depth: 'medium',
         tournament: false,
         tournament_n: 3,
         autonomous: false,

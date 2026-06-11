@@ -81,7 +81,7 @@ export function composeRunStdoutEnvelope(
       ? {}
       : {
           resolved_axes: {
-            rigor: input.resolvedAxes.rigor,
+            depth: input.resolvedAxes.depth,
             tournament: input.resolvedAxes.tournament,
             autonomous: input.resolvedAxes.autonomous,
           },

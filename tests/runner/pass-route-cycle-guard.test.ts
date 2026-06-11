@@ -134,7 +134,7 @@ describe('WF-I11 runtime-safety-floor pass-route cycle guard', () => {
       runDir: runFolder,
       runId: '72000000-0000-0000-0000-000000000001',
       goal: 'runtime must abort a pass-route cycle',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 24, 19, 0, 0)),
     });
     const trace_entries = await new TraceStore(runFolder).load();
@@ -185,7 +185,7 @@ describe('WF-I11 runtime-safety-floor pass-route cycle guard', () => {
       runDir: runFolder,
       runId: '72000000-0000-0000-0000-000000000002',
       goal: 'runtime must rerun proof corridor after repair',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 24, 19, 5, 0)),
       workContractRef: recoveryCorridorWorkContractRef,
       recoveryRouteBindings: [recoveryCorridorBinding()],

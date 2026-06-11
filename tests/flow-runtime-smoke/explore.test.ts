@@ -126,8 +126,8 @@ function tournamentRelayer(): RelayFn {
 describe('explore runtime parity', () => {
   it.each([
     { label: 'default', entryModeName: undefined },
-    { label: 'lite', entryModeName: 'lite' },
-    { label: 'deep', entryModeName: 'deep' },
+    { label: 'low', entryModeName: 'low' },
+    { label: 'high', entryModeName: 'high' },
     { label: 'autonomous', entryModeName: 'autonomous' },
   ] as const)(
     'runs the generated explore $label flow through the runtime pass route path',

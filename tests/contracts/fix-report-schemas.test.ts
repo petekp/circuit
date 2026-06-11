@@ -17,7 +17,7 @@ import {
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 
 const FIX_FLOW_PATH = join('generated', 'flows', 'fix', 'circuit.json');
-const FIX_LITE_FLOW_PATH = join('generated', 'flows', 'fix', 'lite.json');
+const FIX_LITE_FLOW_PATH = join('generated', 'flows', 'fix', 'low.json');
 
 const FIX_ARTIFACT_IDS = [
   'fix.brief',

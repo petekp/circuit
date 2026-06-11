@@ -25531,6 +25531,10 @@ function date4(params) {
 // node_modules/zod/v4/classic/external.js
 config(en_default());
 
+// dist/schemas/depth.js
+var Depth = external_exports.enum(["low", "medium", "high"]);
+var CompiledDepth = external_exports.enum(["low", "medium", "high", "tournament", "autonomous"]);
+
 // dist/schemas/ids.js
 var slugPattern = /^[a-z][a-z0-9-]*$/;
 var CompiledFlowId = external_exports.string().regex(slugPattern).brand();
@@ -25542,41 +25546,38 @@ var SkillId = external_exports.string().regex(slugPattern).brand();
 var SkillSlotId = external_exports.string().regex(slugPattern).brand();
 var ProtocolId = external_exports.string().regex(/^[a-z][a-z0-9-]*@v\d+$/).brand();
 
-// dist/schemas/rigor.js
-var Rigor = external_exports.enum(["lite", "standard", "deep"]);
-
 // dist/schemas/axes.js
 var TournamentN = external_exports.number().int().min(2).max(4);
 var Axes = external_exports.object({
-  rigor: Rigor.default("standard"),
+  depth: Depth.default("medium"),
   tournament: external_exports.boolean().default(false),
   tournament_n: TournamentN.default(3),
   autonomous: external_exports.boolean().default(false)
 }).strict();
 var DEFAULT_AXES = Axes.parse({});
 var FlowAxes = external_exports.object({
-  allowed_rigors: external_exports.array(Rigor).min(1),
+  allowed_depths: external_exports.array(Depth).min(1),
   supports_tournament: external_exports.boolean().default(false),
   supports_autonomous: external_exports.boolean().default(false),
   default: Axes.default(DEFAULT_AXES),
   tournament_fan_out_stage: StageId.optional()
 }).strict().superRefine((axes, ctx) => {
-  const seenRigors = /* @__PURE__ */ new Set();
-  for (const [index, rigor] of axes.allowed_rigors.entries()) {
-    if (seenRigors.has(rigor)) {
+  const seenDepths = /* @__PURE__ */ new Set();
+  for (const [index, depth] of axes.allowed_depths.entries()) {
+    if (seenDepths.has(depth)) {
       ctx.addIssue({
         code: "custom",
-        path: ["allowed_rigors", index],
-        message: `duplicate allowed rigor: ${rigor}`
+        path: ["allowed_depths", index],
+        message: `duplicate allowed depth: ${depth}`
       });
     }
-    seenRigors.add(rigor);
+    seenDepths.add(depth);
   }
-  if (!seenRigors.has(axes.default.rigor)) {
+  if (!seenDepths.has(axes.default.depth)) {
     ctx.addIssue({
       code: "custom",
-      path: ["default", "rigor"],
-      message: `default rigor '${axes.default.rigor}' is not in allowed_rigors`
+      path: ["default", "depth"],
+      message: `default depth '${axes.default.depth}' is not in allowed_depths`
     });
   }
   if (axes.default.tournament && !axes.supports_tournament) {
@@ -25613,9 +25614,6 @@ var FlowAxes = external_exports.object({
 var RUNTIME_SUCCESS_ROUTE = "pass";
 var SCHEMATIC_SUCCESS_ROUTE_ALIASES = ["continue", "complete"];
 var SUCCESS_ROUTE_ALIAS_SET = new Set(SCHEMATIC_SUCCESS_ROUTE_ALIASES);
-
-// dist/schemas/depth.js
-var Depth = external_exports.enum(["lite", "standard", "deep", "tournament", "autonomous"]);
 
 // dist/schemas/json.js
 var JsonPrimitive = external_exports.union([
@@ -25654,14 +25652,14 @@ var SelectionOverride = external_exports.object({
   model: ProviderScopedModel.optional(),
   effort: Effort.optional(),
   skills: SkillOverride.default({ mode: "inherit" }),
-  depth: Depth.optional(),
+  depth: CompiledDepth.optional(),
   invocation_options: JsonObject.default({})
 }).strict();
 var ResolvedSelection = external_exports.object({
   model: ProviderScopedModel.optional(),
   effort: Effort.optional(),
   skills: UniqueSkillArray,
-  depth: Depth.optional(),
+  depth: CompiledDepth.optional(),
   invocation_options: JsonObject.default({})
 }).strict();
 var SelectionSource = external_exports.enum([
@@ -26684,7 +26682,7 @@ var SubRunStep = StepBase.extend({
   // a runtime concern (e.g., `$upstream_report.field` substitution) that
   // resolves before child bootstrap; the schema accepts a plain string.
   goal: external_exports.string().min(1),
-  depth: Depth,
+  depth: CompiledDepth,
   writes: external_exports.object({
     // The child run's terminal result.json copied into the parent's
     // run-folder after the child closes. The parent check reads this slot.
@@ -26703,7 +26701,7 @@ var FanoutSubRunBranch = external_exports.object({
   branch_id: external_exports.string().min(1).max(64).regex(FANOUT_BRANCH_ID_REGEX, { message: "branch_id must be a kebab-case slug" }),
   flow_ref: CompiledFlowRef,
   goal: external_exports.string().min(1),
-  depth: Depth,
+  depth: CompiledDepth,
   // Per-branch selection override — useful for tournament-style fanouts
   // where the variation is in connector / model selection, not flow.
   selection: SelectionOverride.optional()
@@ -26728,7 +26726,7 @@ var FanoutSubRunBranchTemplate = external_exports.object({
   branch_id: external_exports.string().min(1).max(64),
   flow_ref: CompiledFlowRef,
   goal: external_exports.string().min(1),
-  depth: Depth,
+  depth: CompiledDepth,
   // Dynamic fanout selection may contain `$item.*` placeholders. The
   // expanded branch is parsed through FanoutBranch before execution, so
   // runtime still enforces the real SelectionOverride shape.
@@ -27311,7 +27309,7 @@ var FlowRoute = external_exports.enum([
   "run-next-gate-pass",
   "close",
   // Slice-loop forward edge: a passed slice verify re-enters the loop head
-  // for the next slice (deep-rigor Build). See
+  // for the next slice (deep-depth Build). See
   // docs/ideas/build-slice-decomposition.md.
   "advance"
 ]);
@@ -28026,7 +28024,7 @@ var FLOW_BLOCK_AUTHORING_POLICY = flowBlockAuthoringPolicy;
 var FlowSchematicStatus = external_exports.enum(["candidate", "active", "deprecated"]);
 var StepRouteTerminalTarget = external_exports.enum(["@complete", "@stop", "@handoff", "@escalate"]);
 var StepRouteTarget = external_exports.union([StepId, StepRouteTerminalTarget]);
-var SchematicRouteModeOverrides = external_exports.partialRecord(Depth, StepRouteTarget).refine((overrides) => Object.keys(overrides).length > 0, {
+var SchematicRouteModeOverrides = external_exports.partialRecord(CompiledDepth, StepRouteTarget).refine((overrides) => Object.keys(overrides).length > 0, {
   message: "route override must declare at least one depth"
 });
 var SchematicContractAlias = external_exports.object({
@@ -28067,7 +28065,7 @@ var SubRunStepExecution = external_exports.object({
   kind: external_exports.literal("sub-run"),
   flow_ref: CompiledFlowRef,
   goal: external_exports.string().min(1),
-  depth: Depth
+  depth: CompiledDepth
 }).strict();
 var StepExecution = external_exports.discriminatedUnion("kind", [
   ComposeStepExecution,
@@ -28365,7 +28363,7 @@ function validateExecutionShape(item, ctx) {
 }
 var FlowAxisSelection = external_exports.object({
   name: external_exports.string().regex(/^[a-z][a-z0-9-]*$/),
-  depth: Depth,
+  depth: CompiledDepth,
   description: external_exports.string().min(1),
   default_change_kind: ChangeKind.optional()
 }).strict();
@@ -29175,9 +29173,9 @@ var buildContextShapeHint = {
   instruction: [
     "Respond with a single raw JSON object whose top-level shape is exactly:",
     '{ "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"], "slices": [{ "id": "slice-1", "intent": "<one concrete, independently-verifiable unit of implementation work>", "anticipated_file_extensions": ["<extension this slice will touch>"] }], "guardrails": { "non_goals": ["<something the change must NOT do, stated by the operator>"], "invariants": ["<a property the change must preserve, grounded in the code>"] }, "allowed_touch_area": ["<a directory subtree ending in \\"/\\", such as \\"src/flows/build/\\", or an exact repo-relative file path>"] }',
-    "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated rigor (provided to you): on a quick or lite job read just the directly implicated files; on a deep job map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
+    "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated depth (provided to you): on a quick or lite job read just the directly implicated files; on a deep job map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
     "In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer.",
-    'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. Under deep rigor the engine implements and verifies these one at a time; under lighter rigor the change runs in a single pass regardless.',
+    'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. Under deep depth the engine implements and verifies these one at a time; under lighter depth the change runs in a single pass regardless.',
     'In guardrails, capture the negative space of the change. Put in non_goals the things the operator said the change must NOT do - boundaries drawn from the goal and brief, not invented. Put in invariants the properties the change must preserve, grounded in what you read (a contract, a data shape, an ordering, a safety property). Both default to empty arrays: declare a guardrail only when it is real and specific, never a generic "do not break anything". These carry forward to the plan and the reviewer checks the change against them.',
     'In allowed_touch_area, name the paths this change is allowed to touch, proposed from what you read - either a directory subtree ending in "/" (for example "src/flows/build/", which covers everything beneath it) or an exact repo-relative file path. Include every place a correct change legitimately needs to reach: the source it edits, the tests that cover it, and any generated output it regenerates. State the allowed area positively; do not list off-limits files. After the build the engine compares the files actually changed - proven from git, not self-reported - against this area, and a change that reaches outside it cannot finish clean. Because the implementer is held to this without trimming the work to fit, leave the array empty whenever you cannot scope the change with confidence: an empty area turns the check off rather than guessing a box.',
     "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.context@v1 before writing reports/build/context.json."
@@ -29461,7 +29459,7 @@ var BuildContext = external_exports.object({
 var BuildPlan = external_exports.object({
   objective: external_exports.string().min(1),
   approach: external_exports.string().min(1),
-  slices: external_exports.array(BuildSlice).min(1).describe("ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). Under deep rigor the engine implements and verifies these one at a time"),
+  slices: external_exports.array(BuildSlice).min(1).describe("ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). Under deep depth the engine implements and verifies these one at a time"),
   anticipated_file_extensions: external_exports.array(external_exports.string().min(1)).default([]).describe("file extensions the implementation is predicted to touch, surfaced from build.context@v1; empty when grounding made no confident prediction"),
   guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space carried from build.context@v1: non_goals the change must not do and invariants it must preserve; empty when none apply"),
   allowed_touch_area: AllowedTouchArea.describe("paths the change is allowed to touch, carried from build.context@v1; empty leaves the touch-area gate inert (opt-in)"),
@@ -30866,11 +30864,11 @@ var buildFlowData = {
       }
     ],
     axes: {
-      allowed_rigors: ["lite", "standard", "deep"],
+      allowed_depths: ["low", "medium", "high"],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        rigor: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -31097,7 +31095,7 @@ var buildFlowData = {
           // After the final slice's verify passes, compute the touch-area
           // verdict before review so the reviewer sees git-proven containment.
           continue: "build-touch-area",
-          // Slice loop (deep rigor): when this slice's verify passes and
+          // Slice loop (deep depth): when this slice's verify passes and
           // more slices remain, the engine selects 'advance' instead of
           // 'continue', re-entering act-step for the next slice. A normal,
           // non-recovery route; see docs/ideas/build-slice-decomposition.md.
@@ -31322,9 +31320,9 @@ var buildFlowData = {
   },
   engineFlags: {
     bindsExecutionDepthToRelaySelection: true,
-    // Deep rigor implements and verifies the plan's slices one at a time:
+    // Deep depth implements and verifies the plan's slices one at a time:
     // the engine re-enters act-step for each slice and only advances to
-    // review once every slice's verify passes. Lighter rigor runs a single
+    // review once every slice's verify passes. Lighter depth runs a single
     // pass. See docs/ideas/build-slice-decomposition.md.
     iteratesSliceLoop: {
       headStep: "act-step",
@@ -31335,7 +31333,7 @@ var buildFlowData = {
         itemsPath: "slices"
       },
       maxSlices: 8,
-      activateWhenDepthAtLeast: "deep"
+      activateWhenDepthAtLeast: "high"
     }
   }
 };
@@ -32568,11 +32566,11 @@ var exploreFlowData = {
       }
     ],
     axes: {
-      allowed_rigors: ["lite", "standard", "deep"],
+      allowed_depths: ["low", "medium", "high"],
       supports_tournament: true,
       supports_autonomous: true,
       default: {
-        rigor: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -34794,11 +34792,11 @@ var fixFlowData = {
       }
     ],
     axes: {
-      allowed_rigors: ["lite", "standard", "deep"],
+      allowed_depths: ["low", "medium", "high"],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        rigor: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -35098,7 +35096,7 @@ var fixFlowData = {
         },
         routeOverrides: {
           continue: {
-            lite: "fix-close-lite"
+            low: "fix-close-low"
           }
         }
       }),
@@ -35133,7 +35131,7 @@ var fixFlowData = {
         }
       }),
       expandBlockStepUse({
-        id: "fix-close-lite",
+        id: "fix-close-low",
         title: "Close (lite) \u2014 emit Fix result without review",
         stage: "close",
         block: "close-with-evidence",
@@ -35152,7 +35150,7 @@ var fixFlowData = {
         execution: {
           kind: "compose"
         },
-        protocol: "fix-close-lite@v1",
+        protocol: "fix-close-low@v1",
         reportPath: "reports/fix-result.json",
         required: [
           "summary",
@@ -35405,7 +35403,7 @@ var fixFlowData = {
           relayCompletedText: "Finished checking the result."
         },
         {
-          stepId: "fix-close-lite",
+          stepId: "fix-close-low",
           taskTitle: "Wrap up",
           activeText: "Wrapping up"
         },
@@ -36548,7 +36546,7 @@ var RunBootstrappedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("run.bootstrapped"),
   flow_id: CompiledFlowId,
   invocation_id: InvocationId.optional(),
-  depth: Depth,
+  depth: CompiledDepth,
   goal: external_exports.string().min(1),
   change_kind: ChangeKindDeclaration,
   manifest_hash: external_exports.string().min(1)
@@ -36798,7 +36796,7 @@ var SubRunStartedTraceEntry = TraceEntryBase.extend({
   child_run_id: RunId,
   child_flow_id: CompiledFlowId,
   child_entry_mode: external_exports.string().regex(/^[a-z][a-z0-9-]*$/),
-  child_depth: Depth
+  child_depth: CompiledDepth
 }).strict();
 var SubRunCompletedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("sub_run.completed"),
@@ -37986,7 +37984,7 @@ function childRunStep(input) {
       kind: "sub-run",
       flow_ref: { flow_id: input.flowId, entry_mode: "default" },
       goal: childGoal,
-      depth: "standard"
+      depth: "medium"
     },
     protocol: `${input.id}@v1`,
     writes: {
@@ -38035,11 +38033,11 @@ var goalFlowData = {
       { generic: "goal.contract@v1", actual: "goal.result@v1" }
     ],
     axes: {
-      allowed_rigors: ["lite", "standard", "deep"],
+      allowed_depths: ["low", "medium", "high"],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        rigor: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -40269,11 +40267,11 @@ var prototypeFlowData = {
       }
     ],
     axes: {
-      allowed_rigors: ["standard", "deep"],
+      allowed_depths: ["medium", "high"],
       supports_tournament: true,
       supports_autonomous: true,
       default: {
-        rigor: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -42224,11 +42222,11 @@ var pursueFlowData = {
       }
     ],
     axes: {
-      allowed_rigors: ["standard"],
+      allowed_depths: ["medium"],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        rigor: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -43041,11 +43039,11 @@ var reviewFlowData = {
       }
     ],
     axes: {
-      allowed_rigors: ["standard"],
+      allowed_depths: ["medium"],
       supports_tournament: false,
       supports_autonomous: false,
       default: {
-        rigor: "standard",
+        depth: "medium",
         tournament: false,
         tournament_n: 3,
         autonomous: false
@@ -43331,11 +43329,11 @@ var runtimeProofSchematic = {
   initial_contracts: ["flow.brief@v1"],
   contract_aliases: [],
   axes: {
-    allowed_rigors: ["standard"],
+    allowed_depths: ["medium"],
     supports_tournament: false,
     supports_autonomous: false,
     default: {
-      rigor: "standard",
+      depth: "medium",
       tournament: false,
       tournament_n: 3,
       autonomous: false
@@ -44276,7 +44274,7 @@ var Snapshot = external_exports.object({
   run_id: RunId,
   flow_id: CompiledFlowId,
   invocation_id: InvocationId.optional(),
-  depth: Depth,
+  depth: CompiledDepth,
   change_kind: ChangeKindDeclaration,
   current_step: StepId.optional(),
   status: SnapshotStatus,
@@ -54777,9 +54775,9 @@ function projectRuntimeCheckpointBoundary(input) {
   }
 }
 async function resolveCheckpoint(step, context, depth, stepPolicy) {
-  const effectiveDepth = depth ?? "standard";
+  const effectiveDepth = depth ?? "medium";
   const autonomous = context.axes?.autonomous === true || effectiveDepth === "autonomous";
-  if (!autonomous && (effectiveDepth === "deep" || effectiveDepth === "tournament")) {
+  if (!autonomous && (effectiveDepth === "high" || effectiveDepth === "tournament")) {
     return { kind: "waiting" };
   }
   if (autonomous) {
@@ -57429,7 +57427,7 @@ function currentSliceSection(activeSlice) {
     ...exts.length === 0 ? [] : [`- anticipated file extensions: ${exts.join(", ")}`]
   ].join("\n");
 }
-function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, rigor, activeSlice, operatorWhy) {
+function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
     if (!existsSync29(abs))
@@ -57448,11 +57446,11 @@ ${readFileSync43(abs, "utf8")}`;
     `Title: ${step.title}`,
     `Role: ${step.role}`,
     `Accepted verdicts: ${step.check.pass.join(", ")}`,
-    // Thread the run's resolved rigor to the worker as an effort signal: it
+    // Thread the run's resolved depth to the worker as an effort signal: it
     // tunes how much thoroughness to spend, it does not change which steps run
-    // (F-M-1). Omitted when no rigor is supplied so direct callers are unchanged.
-    ...rigor === void 0 || rigor.length === 0 ? [] : [
-      `Rigor: ${rigor}. Tune your thoroughness and effort to this level; it does not change which steps run.`
+    // (F-M-1). Omitted when no depth is supplied so direct callers are unchanged.
+    ...depth === void 0 || depth.length === 0 ? [] : [
+      `Depth: ${depth}. Tune your thoroughness and effort to this level; it does not change which steps run.`
     ],
     "",
     ...operatorGoal === void 0 || operatorGoal.length === 0 ? [] : [
@@ -57751,7 +57749,7 @@ async function executeProductionRelayAttempt(input) {
     context,
     step,
     compiledStep,
-    depth: Depth.parse(context.depth ?? "standard")
+    depth: CompiledDepth.parse(context.depth ?? "medium")
   });
   const prompt = composeRelayPrompt(
     compiledStep,
@@ -57763,8 +57761,8 @@ async function executeProductionRelayAttempt(input) {
     // Slice 4 D4: thread the active flow into the always-on pull affordance so the
     // agent's copyable command already targets the correct flow for suppression.
     context.flow.id,
-    // F-M-1: thread the run's resolved rigor as a worker-effort signal.
-    context.axes?.rigor,
+    // F-M-1: thread the run's resolved depth as a worker-effort signal.
+    context.axes?.depth,
     // Slice loop: when this relay runs one slice of a slice loop, scope the
     // worker to that slice's unit of work. Undefined on single-pass runs.
     context.activeSlice,
@@ -58004,7 +58002,7 @@ async function executeRelayInternal(step, context, connector) {
     context,
     step,
     compiledStep,
-    depth: Depth.parse(context.depth ?? "standard"),
+    depth: CompiledDepth.parse(context.depth ?? "medium"),
     suppliedConnector: connector
   });
   const request = {
@@ -58250,7 +58248,7 @@ function planRelayFanoutBranchGuidanceDecision(input) {
     context: input.context,
     step: relayStep,
     compiledStep: syntheticCompiledRelayStepV1(input.step, input.branch, input.branchDirRel),
-    depth: Depth.parse(input.context.depth ?? "standard"),
+    depth: CompiledDepth.parse(input.context.depth ?? "medium"),
     ...input.relayConnector === void 0 ? {} : { suppliedConnector: input.relayConnector }
   });
 }
@@ -60768,9 +60766,9 @@ function classifyRouteTargetTransition(input) {
 }
 
 // dist/runtime/run/slice-corridor.js
-var DEPTH_ORDER = ["lite", "standard", "deep", "tournament", "autonomous"];
+var DEPTH_ORDER = ["low", "medium", "high", "tournament", "autonomous"];
 function depthAtLeast(depth, floor) {
-  const current = DEPTH_ORDER.indexOf(depth ?? "standard");
+  const current = DEPTH_ORDER.indexOf(depth ?? "medium");
   const minimum = DEPTH_ORDER.indexOf(floor);
   if (current < 0 || minimum < 0)
     return false;
@@ -61053,7 +61051,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       flow_id: flow.id,
       goal: context.goal,
       manifest_hash: context.manifestHash,
-      depth: context.depth ?? "standard",
+      depth: context.depth ?? "medium",
       change_kind: bootstrapChangeKind({
         flow,
         ...context.entryModeName === void 0 ? {} : { entryModeName: context.entryModeName }
@@ -61366,7 +61364,7 @@ async function executeExecutableFlowWithWaiting(flow, options) {
 
 // dist/runtime/run/compiled-flow-runner.js
 function depthForAxisSelectionName(entryModeName) {
-  if (entryModeName === "lite" || entryModeName === "deep")
+  if (entryModeName === "low" || entryModeName === "high")
     return entryModeName;
   if (entryModeName === "tournament" || entryModeName === "autonomous")
     return entryModeName;
@@ -61377,7 +61375,7 @@ function defaultDepthForFlow(flow) {
     return "autonomous";
   if (flow.axes.default.tournament)
     return "tournament";
-  return flow.axes.default.rigor;
+  return flow.axes.default.depth;
 }
 function parseCompiledFlowBytes(bytes) {
   const raw = JSON.parse(Buffer.from(bytes).toString("utf8"));
@@ -64470,13 +64468,13 @@ function fixtureSelectionNameForAxes(axes) {
     return "tournament";
   if (axes.autonomous)
     return "autonomous";
-  if (axes.rigor === "lite" || axes.rigor === "deep")
-    return axes.rigor;
+  if (axes.depth === "low" || axes.depth === "high")
+    return axes.depth;
   return "default";
 }
 function axisSupportFromAxes(axes) {
   return {
-    allowedRigors: axes.allowed_rigors,
+    allowedDepths: axes.allowed_depths,
     supportsTournament: axes.supports_tournament,
     supportsAutonomous: axes.supports_autonomous
   };
@@ -64678,11 +64676,11 @@ function createRecoveryAttemptRunner(deps) {
     }
     const support = axisSupportFromFlow({ flow: recoveryFlow.flow });
     const recoveryAxes = Axes.parse({
-      // Keep the parent's rigor only if the recovery flow allows it;
-      // otherwise fall back to the recovery flow's own default rigor,
+      // Keep the parent's depth only if the recovery flow allows it;
+      // otherwise fall back to the recovery flow's own default depth,
       // which the axes schema guarantees is in its allowed set (never a
       // hardcoded value the flow might not declare).
-      rigor: support.allowedRigors.includes(parentAxes.rigor) ? parentAxes.rigor : recoveryFlow.flow.axes.default.rigor,
+      depth: support.allowedDepths.includes(parentAxes.depth) ? parentAxes.depth : recoveryFlow.flow.axes.default.depth,
       tournament: false,
       autonomous: parentAxes.autonomous && support.supportsAutonomous
     });
@@ -64791,7 +64789,7 @@ function composeRunStdoutEnvelope(input) {
     flow_id: input.flowId,
     ...input.resolvedAxes === void 0 ? {} : {
       resolved_axes: {
-        rigor: input.resolvedAxes.rigor,
+        depth: input.resolvedAxes.depth,
         tournament: input.resolvedAxes.tournament,
         autonomous: input.resolvedAxes.autonomous
       }
@@ -64837,7 +64835,7 @@ function runtimeHostKind(options) {
   return HostKind.parse(raw);
 }
 function addExecutionOptions(program2) {
-  return program2.option("--goal <goal>").option("--why <why>").option("--rigor <lite|standard|deep>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
+  return program2.option("--goal <goal>").option("--why <why>").option("--depth <low|medium|high>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
 }
 function parseExecutionArgs(command, argv) {
   const program2 = addExecutionOptions(new Command(`circuit ${command}`).argument("[flow-name]"));
@@ -64847,10 +64845,10 @@ function parseExecutionArgs(command, argv) {
   if (opts.dryRun === true) {
     throw new Error("--dry-run is not currently implemented and is rejected. An earlier version silently invoked the real connector while reporting dry_run:true, which is a safety bug. The flag stays rejected until real dry-run support lands.");
   }
-  let rigor;
-  const rigorProvided = opts.rigor !== void 0;
-  if (opts.rigor !== void 0)
-    rigor = Rigor.parse(opts.rigor);
+  let depth;
+  const depthProvided = opts.depth !== void 0;
+  if (opts.depth !== void 0)
+    depth = Depth.parse(opts.depth);
   const tournamentProvided = opts.tournament === true;
   const tournament = opts.tournament === true;
   let tournamentN;
@@ -64905,8 +64903,8 @@ function parseExecutionArgs(command, argv) {
     if (flowRoot2 !== void 0) {
       throw new Error("checkpoint resume loads the saved flow manifest; omit --flow-root");
     }
-    if (rigorProvided || tournamentProvided || tournamentNProvided || autonomousProvided) {
-      throw new Error("checkpoint resume reuses the saved run axes; omit --rigor/--tournament/--tournament-n/--autonomous");
+    if (depthProvided || tournamentProvided || tournamentNProvided || autonomousProvided) {
+      throw new Error("checkpoint resume reuses the saved run axes; omit --depth/--tournament/--tournament-n/--autonomous");
     }
     if (includeUntrackedContent) {
       throw new Error("checkpoint resume reuses the saved evidence policy; omit --include-untracked-content");
@@ -64918,7 +64916,7 @@ function parseExecutionArgs(command, argv) {
     throw new Error("--tournament-n requires --tournament");
   }
   const axes = Axes.parse({
-    ...rigor === void 0 ? {} : { rigor },
+    ...depth === void 0 ? {} : { depth },
     tournament,
     ...tournamentN === void 0 ? {} : { tournament_n: tournamentN },
     autonomous
@@ -64926,7 +64924,7 @@ function parseExecutionArgs(command, argv) {
   const result = {
     command,
     axes,
-    rigorProvided,
+    depthProvided,
     tournamentProvided,
     tournamentNProvided,
     autonomousProvided,
@@ -64973,15 +64971,15 @@ function resolveCompiledFlowRoute(args) {
   throw new Error("a flow name is required: pass one of build|fix|review|explore|prototype|pursue as the first argument");
 }
 function hasExplicitAxes(args) {
-  return args.rigorProvided || args.tournamentProvided || args.autonomousProvided;
+  return args.depthProvided || args.tournamentProvided || args.autonomousProvided;
 }
 function axisSelectionNameForAxes(axes) {
   if (axes.autonomous)
     return "autonomous";
   if (axes.tournament)
     return "tournament";
-  if (axes.rigor === "lite" || axes.rigor === "deep")
-    return axes.rigor;
+  if (axes.depth === "low" || axes.depth === "high")
+    return axes.depth;
   return "default";
 }
 function runtimeDepthForAxes(axes) {
@@ -64989,7 +64987,7 @@ function runtimeDepthForAxes(axes) {
     return "autonomous";
   if (axes.tournament)
     return "tournament";
-  return axes.rigor;
+  return axes.depth;
 }
 function resolveEntryModeSelection(args) {
   if (hasExplicitAxes(args)) {
@@ -65005,16 +65003,16 @@ function progressSurfaceForFlowId(flowId) {
   return findFlowRuntimeSurfaceById(flowId)?.progress;
 }
 function axisAllowListText(flowId, support) {
-  const rigors = support.allowedRigors.join(", ");
-  return `${flowId} allows rigors: ${rigors}; tournament: ${support.supportsTournament ? "yes" : "no"}; autonomous: ${support.supportsAutonomous ? "yes" : "no"}`;
+  const depths = support.allowedDepths.join(", ");
+  return `${flowId} allows depths: ${depths}; tournament: ${support.supportsTournament ? "yes" : "no"}; autonomous: ${support.supportsAutonomous ? "yes" : "no"}`;
 }
 function validateFlowAxes(input) {
   const axes = input.args.axes;
   const support = axisSupportFromFlow(input);
   const flowId = input.flow.id;
   const allowList = axisAllowListText(flowId, support);
-  if (!support.allowedRigors.includes(axes.rigor)) {
-    throw new Error(`--rigor ${axes.rigor} is not supported by flow '${flowId}'. ${allowList}`);
+  if (!support.allowedDepths.includes(axes.depth)) {
+    throw new Error(`--depth ${axes.depth} is not supported by flow '${flowId}'. ${allowList}`);
   }
   if (axes.tournament && !support.supportsTournament) {
     throw new Error(`--tournament is not supported by flow '${flowId}'. ${allowList}`);
@@ -65598,7 +65596,7 @@ async function runRunsCommand(argv) {
 var DEFAULT_DEV_VERSION = "0.0.0-dev";
 function usage() {
   return [
-    'usage: circuit run [flow-name] --goal "<goal>" [--rigor <lite|standard|deep>] [--tournament [--tournament-n <2|3|4>]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
+    'usage: circuit run [flow-name] --goal "<goal>" [--depth <low|medium|high>] [--tournament [--tournament-n <2|3|4>]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
     "       circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]",
     "       circuit runs show --run-folder <path> --json",
     "       circuit history rebuild|query|status --json [options]",
@@ -65607,7 +65605,7 @@ function usage() {
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
     "       circuit version [--json]",
     "",
-    "Axes: `--rigor` controls care level (`lite`, `standard`, `deep`); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
+    "Axes: `--depth` controls care level (`low`, `medium`, `high`); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
     "",
     "With an explicit flow name, loads generated/flows/<name>/circuit.json. Without one, classifies the free-form goal across the registered explore/review/fix/build/pursue flows and then composes the runtime boundary using the configured relay connector.",
     "",

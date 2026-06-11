@@ -28,7 +28,7 @@ Tested for universality (earlier "Design the product" leaned designer-specific).
 >
 > Each flow encodes the moves experienced AI engineers actually reach for: investigate before you build, plan before you act, verify before you review. The implementer isn't the reviewer — Circuit runs them as separate workers, the way frontier labs do. Flows leave typed reports and evidence behind, and relay steps can enforce declared acceptance criteria before the work moves on. Patterns most people only land on after months of trial and error. You get them as defaults.
 >
-> Pick how it runs. Flows declare the rigor and autonomy they support, so you can ask for a quicker pass, a deeper pass, a tournament decision, or unattended checkpoint resolution when that flow supports it.
+> Pick how it runs. Flows declare the depth and autonomy they support, so you can ask for a quicker pass, a deeper pass, a tournament decision, or unattended checkpoint resolution when that flow supports it.
 >
 > Each step is a self-contained module — a unit of capability with one clear job. Modules upgrade independently, so as best practices change, your flows inherit the improvements. Customize which skills apply at a step, a flow, or across your whole setup.
 >
@@ -42,7 +42,7 @@ Tested for universality (earlier "Design the product" leaned designer-specific).
 
 1. **Felt problem** — one long chat and hope. Circuit gives the work a shape via named flows.
 2. **Provenance** — flows encode patterns experienced AI engineers reach for. Concrete proof points: separate implementer/reviewer workers, typed reports and evidence, relay acceptance checks where declared.
-3. **Depth modes** — lite / standard / deep / autonomous. User agency over depth without redesigning anything.
+3. **Depth modes** — low / medium / high / autonomous. User agency over depth without redesigning anything.
 4. **Modularity** — each step is a self-contained module; modules upgrade independently; skills customizable at any level.
 5. **Closer** — *The field changes weekly. The shape of your work doesn't have to.*
 
@@ -70,9 +70,9 @@ Tested for universality (earlier "Design the product" leaned designer-specific).
 
 These are real, demonstrable, and pointed at the fatigue audience's actual pain:
 
-- **Run controls per flow** — Build, Fix, and Explore support `lite`, `standard`,
-  `deep`, and `autonomous`; Explore also supports `tournament`; Pursue supports
-  `standard` and `autonomous`; Review is standard-only. *"Pick how thorough you
+- **Run controls per flow** — Build, Fix, and Explore support `low`, `medium`,
+  `high`, and `autonomous`; Explore also supports `tournament`; Pursue supports
+  `medium` and `autonomous`; Review is medium-only. *"Pick how thorough you
   want to be when the flow supports that choice."*
 - **Evidence and acceptance checks as anti-fakery** — flows name the evidence a
   step must produce, and relay steps can declare deterministic
@@ -256,7 +256,7 @@ The four properties Circuit has and direct competitors don't:
 
 1. **Flow taxonomy.** Competitors ship one pipeline. Circuit ships distinct shapes for Build, Explore, Fix, and Review. *Different work needs different shapes* is a different theory of the field than *one universal pipeline.*
 2. **Schema-versioned typed records.** Competitors produce markdown. Circuit's typed JSON reports are queryable in ways markdown isn't — the foundation for the project-memory positioning in Section 7.
-3. **Six-layer override chain + depth modes.** No other project found has this granularity. Per-step model/effort selection plus lite/standard/deep/autonomous as per-invocation choice is genuinely unique.
+3. **Six-layer override chain + depth modes.** No other project found has this granularity. Per-step model/effort selection plus low/medium/high/autonomous as per-invocation choice is genuinely unique.
 4. **Custom flow shapes.** Circuit can author typed schematic flows that the engine runs as first-class peers to the built-in ones. The current Create path is CLI-only and experimental, while the product direction is Circuit proposing reusable flow shapes at the right moment. Most competitors offer skill/agent extensibility, not flow-shape extensibility. (See Section 10 for the personalized-flow direction.)
 
 ### Where Circuit is NOT differentiated (drop from lead)

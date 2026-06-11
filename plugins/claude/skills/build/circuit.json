@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "purpose": "Build flow. Circuit frames a requested change, plans it, relays implementation to a worker, runs verification, relays review to a separate worker, and closes with a Build result file plus evidence.",
   "axes": {
-    "allowed_rigors": ["lite", "standard", "deep"],
+    "allowed_depths": ["low", "medium", "high"],
     "supports_tournament": false,
     "supports_autonomous": true,
     "default": {
-      "rigor": "standard",
+      "depth": "medium",
       "tournament": false,
       "tournament_n": 3,
       "autonomous": false

@@ -54,11 +54,11 @@ type FlowGeneratedFile = {
   };
 };
 type FlowAxisSupport = {
-  allowed_rigors: string[];
+  allowed_depths: string[];
   supports_tournament: boolean;
   supports_autonomous: boolean;
   default: {
-    rigor: string;
+    depth: string;
     tournament: boolean;
     tournament_n: number;
     autonomous: boolean;
@@ -118,7 +118,7 @@ function readGeneratedFlowFiles(id: string): FlowGeneratedFile[] {
 
 function stableAxisSupportKey(axes: FlowAxisSupport): string {
   return JSON.stringify({
-    allowed_rigors: axes.allowed_rigors,
+    allowed_depths: axes.allowed_depths,
     supports_tournament: axes.supports_tournament,
     supports_autonomous: axes.supports_autonomous,
     default: axes.default,
@@ -148,9 +148,9 @@ function axisSupportFor(id: string): FlowAxisSupport {
 
 function axisSelectionsFor(axes: FlowAxisSupport): string[] {
   const selections = new Set<string>();
-  if (axes.allowed_rigors.includes('standard')) selections.add('default');
-  if (axes.allowed_rigors.includes('lite')) selections.add('lite');
-  if (axes.allowed_rigors.includes('deep')) selections.add('deep');
+  if (axes.allowed_depths.includes('medium')) selections.add('default');
+  if (axes.allowed_depths.includes('low')) selections.add('low');
+  if (axes.allowed_depths.includes('high')) selections.add('high');
   if (axes.supports_tournament) selections.add('tournament');
   if (axes.supports_autonomous) selections.add('autonomous');
   return [...selections].sort();

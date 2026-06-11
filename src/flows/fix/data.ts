@@ -107,11 +107,11 @@ export const fixFlowData = {
       },
     ],
     axes: {
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['low', 'medium', 'high'],
       supports_tournament: false,
       supports_autonomous: true,
       default: {
-        rigor: 'standard',
+        depth: 'medium',
         tournament: false,
         tournament_n: 3,
         autonomous: false,
@@ -412,7 +412,7 @@ export const fixFlowData = {
         },
         routeOverrides: {
           continue: {
-            lite: 'fix-close-lite',
+            low: 'fix-close-low',
           },
         },
       }),
@@ -447,7 +447,7 @@ export const fixFlowData = {
         },
       }),
       expandBlockStepUse({
-        id: 'fix-close-lite',
+        id: 'fix-close-low',
         title: 'Close (lite) — emit Fix result without review',
         stage: 'close',
         block: 'close-with-evidence',
@@ -466,7 +466,7 @@ export const fixFlowData = {
         execution: {
           kind: 'compose',
         },
-        protocol: 'fix-close-lite@v1',
+        protocol: 'fix-close-low@v1',
         reportPath: 'reports/fix-result.json',
         required: [
           'summary',
@@ -719,7 +719,7 @@ export const fixFlowData = {
           relayCompletedText: 'Finished checking the result.',
         },
         {
-          stepId: 'fix-close-lite',
+          stepId: 'fix-close-low',
           taskTitle: 'Wrap up',
           activeText: 'Wrapping up',
         },

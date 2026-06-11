@@ -9,7 +9,7 @@
   "safe_default_choice": "option-1",
   "execution_context": {
     "axes": {
-      "rigor": "standard",
+      "depth": "medium",
       "tournament": true,
       "tournament_n": 2,
       "autonomous": true

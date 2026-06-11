@@ -29,7 +29,7 @@ scenarios:
   - id: proof:explicit-build
     title: Explicit Build
     category: doing-work
-    command: ./bin/circuit run build --goal "add a focused change" --rigor deep --progress jsonl
+    command: ./bin/circuit run build --goal "add a focused change" --depth high --progress jsonl
     expected_flow: build
     expected_outcome: complete or checkpoint_waiting
     summary_contract: Summary explains explicit Build selection, checkpoint/verification state, and next action.
@@ -67,7 +67,7 @@ scenarios:
   - id: proof:checkpoint-resume
     title: Checkpoint And Resume
     category: continuity
-    command: ./bin/circuit run build --goal "deep change that asks for scope" --rigor deep --progress jsonl
+    command: ./bin/circuit run build --goal "deep change that asks for scope" --depth high --progress jsonl
     expected_flow: build
     expected_outcome: checkpoint_waiting then complete after resume
     summary_contract: Summary gives the checkpoint question, allowed choices, resume command, and final outcome.
@@ -189,7 +189,7 @@ scenarios:
   - id: proof:prototype
     title: Prototype
     category: doing-work
-    command: './bin/circuit run prototype --goal "prototype: sketch a custom Circuit flow builder UI" --rigor deep --run-folder docs/release/proofs/runs/prototype/run --progress jsonl; ./bin/circuit resume --run-folder docs/release/proofs/runs/prototype/run --checkpoint-choice save-build-input --progress jsonl'
+    command: './bin/circuit run prototype --goal "prototype: sketch a custom Circuit flow builder UI" --depth high --run-folder docs/release/proofs/runs/prototype/run --progress jsonl; ./bin/circuit resume --run-folder docs/release/proofs/runs/prototype/run --checkpoint-choice save-build-input --progress jsonl'
     expected_flow: prototype
     expected_outcome: checkpoint_waiting, then complete after resume
     summary_contract: Summary states prototype root, entry points, verification status, checkpoint choice, evidence, and Build follow-up prompt.

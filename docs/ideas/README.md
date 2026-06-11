@@ -107,6 +107,7 @@ every later extension in the note shipped.
 | [`multi-channel-hitl-proposal.md`](multi-channel-hitl-proposal.md) | `current-proposal` | Architecture proposal for multi-channel HITL as a delivery gateway around existing Human Decision and Checkpoint semantics. Not current runtime behavior. |
 | [`multi-channel-hitl-unlocks.md`](multi-channel-hitl-unlocks.md) | `current-proposal` | Opportunity exploration for what multi-channel HITL unlocks alone and with adjacent features. Not current behavior or roadmap commitment. |
 | [`opencode-as-host.md`](opencode-as-host.md) | `current-idea` | Idea for evaluating OpenCode as a third host alongside Claude Code and Codex. OpenCode is not a supported host today. |
+| [`depth-and-power.md`](depth-and-power.md) | `current-proposal` | Journey-led proposal for default-on model tiering: receipt-first discovery, two dials (Depth and Power, shared low/medium/high scale, Rigor renamed to Depth), check-failure escalation, and a later local-connector lane. Verified implementation seams included. Not current behavior. |
 | [`tracker-connector.md`](tracker-connector.md) | `current-idea` | Idea for reading task intent from trackers and writing structured flow output back at boundaries. Tracker issue emission is not implemented. |
 
 ### Skill Hooks And Expertise

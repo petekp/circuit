@@ -8,7 +8,7 @@ import {
   LayeredConfig,
   type LayeredConfig as LayeredConfigValue,
 } from '../schemas/config.js';
-import type { Depth } from '../schemas/depth.js';
+import type { CompiledDepth } from '../schemas/depth.js';
 import type { CompiledFlowId } from '../schemas/ids.js';
 import type { ResolvedSelection } from '../schemas/selection-policy.js';
 import {
@@ -29,7 +29,7 @@ function bindsExecutionDepthToGuidanceSelection(inv: GuidanceSelectionConfig): b
 function guidanceSelectionConfigLayersWithExecutionDepth(
   inv: GuidanceSelectionConfig,
   flow: GuidanceSelectionFlow,
-  depth: Depth,
+  depth: CompiledDepth,
 ): readonly LayeredConfigValue[] {
   const layers = [...(inv.selectionConfigLayers ?? [])];
   const flowId = flow.id as CompiledFlowId;
@@ -66,7 +66,7 @@ function guidanceSelectionConfigLayersWithExecutionDepth(
 function selectionConfigLayersForGuidanceInput(
   inv: GuidanceSelectionConfig,
   flow: GuidanceSelectionFlow,
-  depth: Depth,
+  depth: CompiledDepth,
 ): readonly LayeredConfigValue[] {
   if (!bindsExecutionDepthToGuidanceSelection(inv)) {
     return inv.selectionConfigLayers ?? [];
@@ -78,7 +78,7 @@ export function deriveResolvedSelection(
   inv: GuidanceSelectionConfig,
   flow: GuidanceSelectionFlow,
   step: GuidanceSelectionStep,
-  depth: Depth,
+  depth: CompiledDepth,
 ): ResolvedSelection {
   return resolveSelectionForGuidanceInput({
     flow,

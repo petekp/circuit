@@ -28,7 +28,7 @@ This spec is grounded in the current repo snapshot:
 | `src/flows/build/data.ts:41-63`, `src/flows/build/data.ts:100-110`, `src/flows/build/data.ts:149-316` | Build frames, plans, acts, verifies, reviews, and closes one production change. Build does not support tournament mode. |
 | `src/flows/explore/data.ts:112-129`, `src/flows/explore/data.ts:297-489` | Explore supports tournament decisions, fanout, checkpoint choice, and close, but omits Act, Verify, and Review as production stages. |
 | `src/flows/pursue/data.ts:46-64`, `docs/flows/pursue.md:22-28`, `docs/flows/pursue.md:239-255` | Pursue owns broad multi-track work and keeps V1 code-changing work serial. Prototype should not claim parallel apply or multi-pursuit ownership. |
-| `src/runtime/executors/checkpoint.ts:94-126`, `src/runtime/executors/checkpoint.ts:266-408`, `src/runtime/run/checkpoint-resume.ts:188-271` | Checkpoints pause only at deep/tournament depth unless safe defaults or autonomous policies resolve; request/response files and hashes anchor resume. |
+| `src/runtime/executors/checkpoint.ts:94-126`, `src/runtime/executors/checkpoint.ts:266-408`, `src/runtime/run/checkpoint-resume.ts:188-271` | Checkpoints pause only at high/tournament depth unless safe defaults or autonomous policies resolve; request/response files and hashes anchor resume. |
 | `src/runtime/executors/fanout.ts:108-235`, `src/runtime/fanout/branch-execution.ts:83-190`, `src/shared/fanout-join-policy.ts:36-126` | Fanout can run relay branches and aggregate results; branch report parsing and provenance are checked; merge/apply is narrower than comparison. |
 | `src/schemas/verification.ts:29-68`, `src/runtime/executors/verification.ts:24-116` | Verification commands are direct argv commands with project-relative working directories and bounded output. |
 | `src/runtime/executors/relay.ts:296-340`, `src/connectors/relay-materializer.ts:129-146` | Relay runs receive report paths and run context. Inference for Prototype: artifact file writes still need a project-relative root a worker can use from the project root. |
@@ -108,14 +108,14 @@ Prototype host command in V1 unless the product surface decision is reopened.
 
 Axes:
 
-- allowed depth: `standard`, `deep`;
-- default depth: `standard`;
+- allowed depth: `medium`, `high`;
+- default depth: `medium`;
 - supports autonomous: yes, with a safe close choice;
 - supports tournament: no in V1.
 
-Important checkpoint consequence: current checkpoint runtime waits at deep or
-tournament depth only. A standard Prototype run should auto-resolve to the safe
-choice, while an interactive proof run should use `--rigor deep`
+Important checkpoint consequence: current checkpoint runtime waits at high or
+tournament depth only. A medium-depth Prototype run should auto-resolve to the safe
+choice, while an interactive proof run should use `--depth high`
 (`src/runtime/executors/checkpoint.ts:100-126`).
 
 Suggested command for the first proof:
@@ -123,7 +123,7 @@ Suggested command for the first proof:
 ```bash
 ./bin/circuit run prototype \
   --goal "prototype: sketch a small settings panel for choosing verification commands" \
-  --rigor deep \
+  --depth high \
   --run-folder docs/release/proofs/runs/prototype/run \
   --progress jsonl
 ```
@@ -275,9 +275,9 @@ labels imply executable routes that V1 does not yet own.
 
 Safe defaults:
 
-- standard depth: `keep-prototype`;
+- medium depth: `keep-prototype`;
 - autonomous depth: `keep-prototype`;
-- deep depth: waits for operator input under current runtime policy.
+- high depth: waits for operator input under current runtime policy.
 
 Only runs that reach Review should write checkpoint request and response files.
 A pre-checkpoint `needs_attention` result should say the checkpoint was not
@@ -354,10 +354,10 @@ Ship only the single-prototype path:
 1. Add the `prototype` flow package with FlowData, report schemas, writers,
    relay hints, and contract docs.
 2. Register the flow in `src/flows/catalog.ts`.
-3. Add runtime wiring tests for standard auto-close and deep checkpoint/resume.
+3. Add runtime wiring tests for medium auto-close and high checkpoint/resume.
 4. Add the HTML checkpoint projector and tests.
 5. Emit generated surfaces from source.
-6. Add one release proof that runs deep, pauses at the checkpoint, resumes with
+6. Add one release proof that runs high, pauses at the checkpoint, resumes with
    `save-build-input`, and closes with evidence.
 
 V1 is shippable when an operator can run one command, inspect a prototype packet,
@@ -410,7 +410,7 @@ Focused tests for implementation:
 | Report schemas | `tests/contracts/prototype-report-schemas.test.ts` for required fields, file-root constraints, result/evidence consistency, pre-checkpoint `needs_attention`, and no production/deployment claims without evidence. |
 | Catalog and authoring | Update `tests/contracts/catalog-completeness.test.ts`; add Prototype to expected axes; keep command-surface expectations aligned with the no-dedicated-command V1 decision. |
 | Compiler | Existing `tests/runner/flow-definition-compiler.test.ts` should pass after generated manifests are emitted. Add focused assertions only if Prototype uses per-mode graphs. |
-| Runtime | `tests/runner/prototype-runtime.test.ts` for standard safe default, deep checkpoint wait, resume choices, artifact-integrity verification, failed verification closing through `close-step`, close result, and no writes outside `prototype_root`. |
+| Runtime | `tests/runner/prototype-runtime.test.ts` for medium safe default, high checkpoint wait, resume choices, artifact-integrity verification, failed verification closing through `close-step`, close result, and no writes outside `prototype_root`. |
 | Checkpoint resume | Add tamper tests for checkpoint request hash and, if a typed checkpoint report is added later, report hash validation. |
 | HTML | `tests/unit/shared/html/prototype-checkpoint.test.ts` for gating, escaping, missing-report fallback, allowed-choice filtering, and resume commands. |
 | Operator summary | Extend `tests/runner/operator-summary-writer.test.ts` to prove `operator-summary.html` is written and linked while Prototype is waiting, and stale HTML is removed when inputs are invalid. |
@@ -466,7 +466,7 @@ Add a proof scenario:
 - id: proof:prototype
   title: Prototype
   category: doing-work
-  command: './bin/circuit run prototype --goal "prototype: sketch a small settings panel for choosing verification commands" --rigor deep --run-folder docs/release/proofs/runs/prototype/run --progress jsonl; ./bin/circuit resume --run-folder docs/release/proofs/runs/prototype/run --checkpoint-choice save-build-input --progress jsonl'
+  command: './bin/circuit run prototype --goal "prototype: sketch a small settings panel for choosing verification commands" --depth high --run-folder docs/release/proofs/runs/prototype/run --progress jsonl; ./bin/circuit resume --run-folder docs/release/proofs/runs/prototype/run --checkpoint-choice save-build-input --progress jsonl'
   expected_flow: prototype
   expected_outcome: checkpoint_waiting, then complete after resume
   summary_contract: Summary states prototype path, verification result, checkpoint choice, Build follow-up prompt, risks, and evidence links.
@@ -505,7 +505,7 @@ npm run publish:plugins:check
 1. Resolved for V1: Prototype stays behind `/circuit:run` until usage proves it
    deserves top-level host chrome.
 2. Should the default depth pause for operator review? Current runtime does not
-   wait at standard depth, so changing that would be a runtime/product decision.
+   wait at medium depth, so changing that would be a runtime/product decision.
 3. Should operators be allowed to choose a custom prototype root, and if so what
    guardrails keep it synthetic and disposable?
 4. Should `save-build-input` create a continuity record for a later Build run, or

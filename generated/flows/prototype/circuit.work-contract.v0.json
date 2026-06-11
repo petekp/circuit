@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/prototype/circuit.work-contract.v0.json",
-    "sha256": "968caffc7d60651b22a17877f291015518e7e6e35d2744dd2e919462fc30ac2b",
+    "sha256": "40088f7d8009a8bac8ec27d257f2e0c0ff17aeba1611dd33e41a4b53711c9f56",
     "flow_id": "prototype"
   },
   "work_contract": {
@@ -12,11 +12,11 @@
       "version": "0.1.0",
       "purpose": "Prototype flow. Circuit frames a disposable artifact, plans its local prototype files, either relays one artifact or fans out configured model variants, verifies reported files under prototype_root, asks which local prototype evidence to keep, and closes with evidence. Prototype does not edit production code outside prototype_root or claim deployment, branch previews, screenshots, provider behavior, model behavior, or production readiness.",
       "axes": {
-        "allowed_rigors": ["standard", "deep"],
+        "allowed_depths": ["medium", "high"],
         "supports_tournament": true,
         "supports_autonomous": true,
         "default": {
-          "rigor": "standard",
+          "depth": "medium",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -501,7 +501,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
+          "sha256": "850db188b84200adae3ea55eedd0fb0123e9c3c8f3f3d777698298f996b6b88d",
           "flow_id": "prototype"
         }
       },
@@ -532,7 +532,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/stop",
-          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
+          "sha256": "850db188b84200adae3ea55eedd0fb0123e9c3c8f3f3d777698298f996b6b88d",
           "flow_id": "prototype"
         }
       },
@@ -563,7 +563,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/act-step/routes/stop",
-          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
+          "sha256": "850db188b84200adae3ea55eedd0fb0123e9c3c8f3f3d777698298f996b6b88d",
           "flow_id": "prototype"
         }
       },
@@ -594,7 +594,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/stop",
-          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
+          "sha256": "850db188b84200adae3ea55eedd0fb0123e9c3c8f3f3d777698298f996b6b88d",
           "flow_id": "prototype"
         }
       },
@@ -625,7 +625,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/prototype-checkpoint-step/routes/stop",
-          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
+          "sha256": "850db188b84200adae3ea55eedd0fb0123e9c3c8f3f3d777698298f996b6b88d",
           "flow_id": "prototype"
         }
       },
@@ -656,7 +656,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/stop",
-          "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
+          "sha256": "850db188b84200adae3ea55eedd0fb0123e9c3c8f3f3d777698298f996b6b88d",
           "flow_id": "prototype"
         }
       }
@@ -673,7 +673,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/prototype-checkpoint-step/policy/safe_default_choice",
-        "sha256": "d6e6ecf604832e2727cd545dd879728a15212c07e1bdb8232db4fe3312550ac6",
+        "sha256": "850db188b84200adae3ea55eedd0fb0123e9c3c8f3f3d777698298f996b6b88d",
         "flow_id": "prototype"
       }
     ],

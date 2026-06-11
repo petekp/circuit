@@ -204,9 +204,9 @@ async function resolveCheckpoint(
   depth: string | undefined,
   stepPolicy: Awaited<ReturnType<typeof materializePolicy>>,
 ): Promise<CheckpointResolution> {
-  const effectiveDepth = depth ?? 'standard';
+  const effectiveDepth = depth ?? 'medium';
   const autonomous = context.axes?.autonomous === true || effectiveDepth === 'autonomous';
-  if (!autonomous && (effectiveDepth === 'deep' || effectiveDepth === 'tournament')) {
+  if (!autonomous && (effectiveDepth === 'high' || effectiveDepth === 'tournament')) {
     return { kind: 'waiting' };
   }
   if (autonomous) {

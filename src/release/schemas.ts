@@ -142,12 +142,12 @@ export type OriginalCapabilitySnapshot = z.infer<typeof OriginalCapabilitySnapsh
 
 export const FlowAxisSupportRecord = z
   .object({
-    allowed_rigors: z.array(z.enum(['lite', 'standard', 'deep'])).min(1),
+    allowed_depths: z.array(z.enum(['low', 'medium', 'high'])).min(1),
     supports_tournament: z.boolean(),
     supports_autonomous: z.boolean(),
     default: z
       .object({
-        rigor: z.enum(['lite', 'standard', 'deep']),
+        depth: z.enum(['low', 'medium', 'high']),
         tournament: z.boolean(),
         tournament_n: z.number().int().min(2).max(4),
         autonomous: z.boolean(),

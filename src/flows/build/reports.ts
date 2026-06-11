@@ -62,7 +62,7 @@ export const AllowedTouchArea = z
 export type AllowedTouchArea = z.infer<typeof AllowedTouchArea>;
 
 // One ordered unit of implementation work. The researcher decomposes the
-// change into these during analyze; under deep rigor the engine implements
+// change into these during analyze; under deep depth the engine implements
 // and verifies them one at a time. See docs/ideas/build-slice-decomposition.md.
 export const BuildSlice = z
   .object({
@@ -239,7 +239,7 @@ export const BuildPlan = z
       .array(BuildSlice)
       .min(1)
       .describe(
-        'ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). Under deep rigor the engine implements and verifies these one at a time',
+        'ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). Under deep depth the engine implements and verifies these one at a time',
       ),
     anticipated_file_extensions: z
       .array(z.string().min(1))
@@ -381,7 +381,7 @@ export const BuildHiddenIndexFlag = RuntimeHiddenIndexFlag;
 export type BuildHiddenIndexFlag = z.infer<typeof BuildHiddenIndexFlag>;
 
 // Runtime-owned pre-act snapshot of git state. Captured once before the
-// implementer touches the working tree (and, under deep rigor, before the first
+// implementer touches the working tree (and, under deep depth, before the first
 // slice), it is the baseline the post-verify touch-area step diffs against to
 // recover the git-proven set of files the implementer actually changed. Mirrors
 // fix.baseline-snapshot@v1's captured shape; overall_status is always 'passed'

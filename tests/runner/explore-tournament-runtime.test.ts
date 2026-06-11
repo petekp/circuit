@@ -42,11 +42,11 @@ const PASSING_RUBRIC_MODEL_JUDGMENTS = {
 } as const;
 
 function tournamentAxes(n: 2 | 3 | 4): Axes {
-  return { rigor: 'standard', tournament: true, tournament_n: n, autonomous: false };
+  return { depth: 'medium', tournament: true, tournament_n: n, autonomous: false };
 }
 
 function autonomousTournamentAxes(n: 2 | 3 | 4): Axes {
-  return { rigor: 'standard', tournament: true, tournament_n: n, autonomous: true };
+  return { depth: 'medium', tournament: true, tournament_n: n, autonomous: true };
 }
 
 function tournamentRelayer(): RelayFn {

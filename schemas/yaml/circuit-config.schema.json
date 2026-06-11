@@ -400,7 +400,7 @@
                   },
                   "depth": {
                     "type": "string",
-                    "enum": ["lite", "standard", "deep", "tournament", "autonomous"]
+                    "enum": ["low", "medium", "high", "tournament", "autonomous"]
                   },
                   "invocation_options": {
                     "default": {},
@@ -572,7 +572,7 @@
                         },
                         "depth": {
                           "type": "string",
-                          "enum": ["lite", "standard", "deep", "tournament", "autonomous"]
+                          "enum": ["low", "medium", "high", "tournament", "autonomous"]
                         },
                         "invocation_options": {
                           "default": {},
@@ -694,7 +694,7 @@
                 },
                 "depth": {
                   "type": "string",
-                  "enum": ["lite", "standard", "deep", "tournament", "autonomous"]
+                  "enum": ["low", "medium", "high", "tournament", "autonomous"]
                 },
                 "invocation_options": {
                   "default": {},
@@ -1203,7 +1203,7 @@
                               },
                               "depth": {
                                 "type": "string",
-                                "enum": ["lite", "standard", "deep", "tournament", "autonomous"]
+                                "enum": ["low", "medium", "high", "tournament", "autonomous"]
                               },
                               "invocation_options": {
                                 "default": {},
@@ -1372,7 +1372,7 @@
                         },
                         "depth": {
                           "type": "string",
-                          "enum": ["lite", "standard", "deep", "tournament", "autonomous"]
+                          "enum": ["low", "medium", "high", "tournament", "autonomous"]
                         },
                         "invocation_options": {
                           "default": {},
@@ -1542,7 +1542,7 @@
                               },
                               "depth": {
                                 "type": "string",
-                                "enum": ["lite", "standard", "deep", "tournament", "autonomous"]
+                                "enum": ["low", "medium", "high", "tournament", "autonomous"]
                               },
                               "invocation_options": {
                                 "default": {},
@@ -1708,7 +1708,7 @@
                     },
                     "depth": {
                       "type": "string",
-                      "enum": ["lite", "standard", "deep", "tournament", "autonomous"]
+                      "enum": ["low", "medium", "high", "tournament", "autonomous"]
                     },
                     "invocation_options": {
                       "default": {},

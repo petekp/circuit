@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/build/circuit.work-contract.v0.json",
-    "sha256": "4cae8525f4c6358d7e1230a8e0fa020bb07b301d9fd3ff21b410e8c35c318d08",
+    "sha256": "03aefbc3006b66b907477bd4a2ab2f1d324f62d0c1a6c70fcd19ea8f371c04c6",
     "flow_id": "build"
   },
   "work_contract": {
@@ -12,11 +12,11 @@
       "version": "0.1.0",
       "purpose": "Build flow. Circuit frames a requested change, plans it, relays implementation to a worker, runs verification, relays review to a separate worker, and closes with a Build result file plus evidence.",
       "axes": {
-        "allowed_rigors": ["lite", "standard", "deep"],
+        "allowed_depths": ["low", "medium", "high"],
         "supports_tournament": false,
         "supports_autonomous": true,
         "default": {
-          "rigor": "standard",
+          "depth": "medium",
           "tournament": false,
           "tournament_n": 3,
           "autonomous": false
@@ -797,7 +797,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -826,7 +826,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/retry",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -856,7 +856,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/ask",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -887,7 +887,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/stop",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -912,7 +912,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/revise",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -943,7 +943,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/stop",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -974,7 +974,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/build-baseline/routes/stop",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -1003,7 +1003,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/act-step/routes/retry",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -1034,7 +1034,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/act-step/routes/stop",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -1059,7 +1059,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/retry",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -1090,7 +1090,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/stop",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -1121,7 +1121,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/build-touch-area/routes/stop",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -1146,7 +1146,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/retry",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -1171,7 +1171,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/revise",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -1202,7 +1202,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/stop",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       },
@@ -1233,7 +1233,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/stop",
-          "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+          "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
           "flow_id": "build"
         }
       }
@@ -1250,7 +1250,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/frame-step/policy/safe_default_choice",
-        "sha256": "f95d163dde4706f965f9edbfab90afaac27dde27a0ffaf3715a7065b00d087be",
+        "sha256": "7fb106bfaee08eb8fffc61a002f1a7e889e1f6040fabeeb1b2cc4966c694b8bd",
         "flow_id": "build"
       }
     ],

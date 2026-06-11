@@ -15,16 +15,16 @@ const supportedDecision: RuntimeSupportDecision = {
   kind: 'supported',
   flowId: 'review',
   entryModeName: 'default',
-  depth: 'standard',
-  reason: "runtime supports fresh review axis selection 'default' at depth 'standard'",
+  depth: 'medium',
+  reason: "runtime supports fresh review axis selection 'default' at depth 'medium'",
 };
 
 const unsupportedDecision: RuntimeSupportDecision = {
   kind: 'unsupported',
   flowId: 'review',
   entryModeName: 'custom',
-  depth: 'standard',
-  reason: "fresh review axis selection 'custom' at depth 'standard' is not supported",
+  depth: 'medium',
+  reason: "fresh review axis selection 'custom' at depth 'medium' is not supported",
 };
 
 const ORIGINAL_ENV = {

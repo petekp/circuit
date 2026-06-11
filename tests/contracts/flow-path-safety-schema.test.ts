@@ -87,7 +87,7 @@ describe('CompiledFlow stage_path_policy (stage-I4)', () => {
     version: '2026-04-18',
     purpose: 'Build features.',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },

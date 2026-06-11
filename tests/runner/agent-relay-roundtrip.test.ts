@@ -121,7 +121,7 @@ describe('agent relay round-trip', () => {
         flowBytes: loadRuntimeProofBytes(),
         runId: '42424242-4242-4242-4242-424242424242',
         goal: 'agent relay round-trip',
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 21, 17, 0, 0)),
         executors: composeExecutor(),
         relayer: claudeCodeRelayer(),

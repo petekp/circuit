@@ -39,7 +39,7 @@ function layeredConfigs(): LayeredConfig[] {
             model: { provider: 'anthropic', model: 'claude-opus-4-7' },
             effort: 'low',
             skills: { mode: 'replace', skills: ['tdd'] },
-            depth: 'lite',
+            depth: 'low',
             invocation_options: { shared: 'default', defaultOnly: true },
           },
         },
@@ -106,7 +106,7 @@ function flowWithModelEffortSelections(): { flow: CompiledFlow; bytes: Buffer } 
     if (stage.id === 'decision-stage') {
       stage.selection = {
         skills: { mode: 'append', skills: ['typography'] },
-        depth: 'deep',
+        depth: 'high',
         invocation_options: { shared: 'stage', stageOnly: true },
       };
     }
@@ -128,7 +128,7 @@ const EXPECTED_SYNTHESIZE_SELECTION: ResolvedSelection = {
   model: { provider: 'anthropic', model: 'claude-opus-4-7-invocation' },
   effort: 'xhigh',
   skills: [SkillId.parse('typography')],
-  depth: 'deep',
+  depth: 'high',
   invocation_options: {
     shared: 'invocation',
     defaultOnly: true,
@@ -308,7 +308,7 @@ describe('P2-MODEL-EFFORT — full selection precedence resolver', () => {
       flowBytes: bytes,
       runId: '85858585-8585-4585-8585-858585858585',
       goal: 'prove model effort selection reaches relay evidence',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 24, 9, 0, 0)),
       relayer,
       selectionConfigLayers: layeredConfigs(),

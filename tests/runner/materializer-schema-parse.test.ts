@@ -93,7 +93,7 @@ async function runMaterializerCase(input: {
     flowBytes: input.bytes,
     runId: input.runId,
     goal: input.goal,
-    depth: 'standard',
+    depth: 'medium',
     now: deterministicNow(Date.UTC(2026, 3, 22, 18, 0, 0)),
     relayer: relayerWith(input.resultBody),
     executors: {

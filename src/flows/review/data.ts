@@ -37,11 +37,11 @@ export const reviewFlowData = {
       },
     ],
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
       default: {
-        rigor: 'standard',
+        depth: 'medium',
         tournament: false,
         tournament_n: 3,
         autonomous: false,

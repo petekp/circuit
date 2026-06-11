@@ -55,7 +55,7 @@ async function closeFixtureRun(input: {
     flowBytes: bytes,
     runId: input.runId,
     goal: input.goal,
-    depth: 'standard',
+    depth: 'medium',
     now: deterministicNow(input.startMs),
     relayer: stubRelayer(),
     executors: composeExecutor(),

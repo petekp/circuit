@@ -37,7 +37,7 @@ export interface CompiledFlowRunOptions extends RuntimeExecutionCapabilities {
 }
 
 function depthForAxisSelectionName(entryModeName: string | undefined): string | undefined {
-  if (entryModeName === 'lite' || entryModeName === 'deep') return entryModeName;
+  if (entryModeName === 'low' || entryModeName === 'high') return entryModeName;
   if (entryModeName === 'tournament' || entryModeName === 'autonomous') return entryModeName;
   return undefined;
 }
@@ -45,7 +45,7 @@ function depthForAxisSelectionName(entryModeName: string | undefined): string | 
 function defaultDepthForFlow(flow: CompiledFlow): string {
   if (flow.axes.default.autonomous) return 'autonomous';
   if (flow.axes.default.tournament) return 'tournament';
-  return flow.axes.default.rigor;
+  return flow.axes.default.depth;
 }
 
 export function parseCompiledFlowBytes(bytes: Uint8Array): CompiledFlow {

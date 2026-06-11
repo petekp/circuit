@@ -43,7 +43,7 @@ function syntheticComposeCompiledFlow(): CompiledFlow {
     version: '0.1.0',
     purpose: 'Synthetic flow that exercises the compose-writer registry contract.',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -109,7 +109,7 @@ describe('compose writer registry', () => {
       flowBytes: Buffer.from(JSON.stringify(flow)),
       runId: '00000000-0000-0000-0000-0000bbbb5678',
       goal: 'missing compose registry test',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 26, 14, 5, 0)),
     });
 
@@ -132,7 +132,7 @@ describe('compose writer registry', () => {
       flowBytes: Buffer.from(JSON.stringify(flow)),
       runId: '00000000-0000-0000-0000-0000bbbb1234',
       goal: 'synthetic compose registry test',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 26, 14, 0, 0)),
       executors: {
         compose: async (step, context) => {

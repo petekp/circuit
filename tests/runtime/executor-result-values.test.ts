@@ -144,7 +144,7 @@ describe('executor result values', () => {
         choices: [{ id: 'continue', label: 'Continue' }],
         safe_default_choice: 'continue',
       },
-      'deep',
+      'high',
     );
     const waitingStep = onlyStep(waitingFixture.flow, 'checkpoint');
     const waiting = await executeCheckpointResult(
@@ -165,7 +165,7 @@ describe('executor result values', () => {
         prompt: 'Choose whether to continue.',
         choices: [{ id: 'continue', label: 'Continue' }],
       },
-      'standard',
+      'medium',
     );
     const failedStep = onlyStep(failedFixture.flow, 'checkpoint');
     const failedContext = contextFor(

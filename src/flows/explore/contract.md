@@ -49,7 +49,7 @@ no explicit policy entry; or landing of the `CompiledFlow.kind` field.
 
 ## Axis Support
 
-Explore declares `axes.allowed_rigors = [lite, standard, deep]`, supports
+Explore declares `axes.allowed_depths = [lite, standard, deep]`, supports
 tournament and autonomous runs, and declares `decision-stage` as the
 tournament fan-out stage. The default axis tuple is standard, non-tournament,
 and interactive with `tournament_n = 3`.

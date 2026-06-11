@@ -38,7 +38,7 @@ async function writeBootstrap(trace: TraceStore) {
     kind: 'run.bootstrapped',
     flow_id: FLOW_ID,
     goal: 'prove circuit can close one run',
-    depth: 'standard',
+    depth: 'medium',
     change_kind,
     manifest_hash: computeManifestHash(MANIFEST_BODY),
   });

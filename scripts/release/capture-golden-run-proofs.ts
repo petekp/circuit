@@ -271,8 +271,8 @@ const buildProofCheckpointExecutor: StepExecutor = async (step, context) => {
       ? 'autonomous'
       : context.axes?.tournament === true
         ? 'tournament'
-        : (context.axes?.rigor ?? 'standard'));
-  const waitsForOperator = effectiveDepth === 'deep' || effectiveDepth === 'tournament';
+        : (context.axes?.depth ?? 'medium'));
+  const waitsForOperator = effectiveDepth === 'high' || effectiveDepth === 'tournament';
   const autoSelection =
     effectiveDepth === 'autonomous'
       ? stepPolicy.safe_autonomous_choice
@@ -968,8 +968,8 @@ async function captureHandoff(): Promise<void> {
         'build',
         '--goal',
         'deep change that asks for handoff continuity',
-        '--rigor',
-        'deep',
+        '--depth',
+        'high',
         '--run-folder',
         runFolder,
         '--progress',
@@ -1102,7 +1102,7 @@ const scenarios: Scenario[] = [
   },
   {
     slug: 'explicit-build',
-    argv: ['run', 'build', '--goal', 'add a focused change', '--rigor', 'deep'],
+    argv: ['run', 'build', '--goal', 'add a focused change', '--depth', 'high'],
     relayer: buildRelayer(),
     runtimeExecutors: buildProofExecutors(),
     runId: '44444444-4444-4444-4444-444444444403',
@@ -1118,7 +1118,7 @@ const scenarios: Scenario[] = [
   },
   {
     slug: 'checkpoint',
-    argv: ['run', 'build', '--goal', 'deep change that asks for scope', '--rigor', 'deep'],
+    argv: ['run', 'build', '--goal', 'deep change that asks for scope', '--depth', 'high'],
     relayer: buildRelayer(),
     runtimeExecutors: buildProofExecutors(),
     resumeChoice: 'continue',
@@ -1180,8 +1180,8 @@ const scenarios: Scenario[] = [
       'prototype',
       '--goal',
       'prototype: sketch a custom Circuit flow builder UI',
-      '--rigor',
-      'deep',
+      '--depth',
+      'high',
     ],
     relayer: prototypeRelayer(),
     resumeChoice: 'save-build-input',

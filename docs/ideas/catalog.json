@@ -476,6 +476,30 @@
       "last_checked": "2026-06-05"
     },
     {
+      "path": "docs/ideas/depth-and-power.md",
+      "title": "Depth and Power: the two-dial model for what a run spends",
+      "status": "current-proposal",
+      "category": "hosts-connectors-and-hitl",
+      "tags": [
+        "selection",
+        "model-tiering",
+        "power",
+        "depth",
+        "local-models",
+        "connectors",
+        "receipts",
+        "escalation",
+        "vocabulary"
+      ],
+      "current_reading": "Journey-led proposal for default-on model tiering: receipt-first discovery, two dials (Depth and Power, shared low/medium/high scale, Rigor renamed to Depth), check-failure escalation, and a later local-connector lane. Verified implementation seams included. Not current behavior.",
+      "related": [
+        "docs/ideas/output-model.md",
+        "docs/ideas/adversarial-verification-gates.md",
+        "docs/ideas/opencode-as-host.md"
+      ],
+      "last_checked": "2026-06-10"
+    },
+    {
       "path": "docs/ideas/self-auditing-memory-review.md",
       "title": "Self-Auditing Memory: Soundness and Durability Review",
       "status": "archived",

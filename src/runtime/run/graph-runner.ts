@@ -385,7 +385,7 @@ async function executeExecutableFlowOutcomeUnsafe(
       flow_id: flow.id,
       goal: context.goal,
       manifest_hash: context.manifestHash,
-      depth: context.depth ?? 'standard',
+      depth: context.depth ?? 'medium',
       change_kind: bootstrapChangeKind({
         flow,
         ...(context.entryModeName === undefined ? {} : { entryModeName: context.entryModeName }),

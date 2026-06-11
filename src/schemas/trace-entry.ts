@@ -7,7 +7,7 @@ import {
   SafeApplyReasonCode,
 } from './change-packet.js';
 import { RelayResolutionSource, ResolvedConnector } from './connector.js';
-import { Depth } from './depth.js';
+import { CompiledDepth } from './depth.js';
 import {
   GuidanceDecisionId,
   GuidanceDecisionTraceEntryBody,
@@ -37,14 +37,14 @@ export const RunBootstrappedTraceEntry = TraceEntryBase.extend({
   kind: z.literal('run.bootstrapped'),
   flow_id: CompiledFlowId,
   invocation_id: InvocationId.optional(),
-  depth: Depth,
+  depth: CompiledDepth,
   goal: z.string().min(1),
   change_kind: ChangeKindDeclaration,
   manifest_hash: z.string().min(1),
 }).strict();
 export type RunBootstrappedTraceEntry = z.infer<typeof RunBootstrappedTraceEntry>;
 
-// Present only on loop-body steps during an active slice loop (deep-rigor
+// Present only on loop-body steps during an active slice loop (deep-depth
 // Build). Absent on single-pass runs. See docs/ideas/build-slice-decomposition.md.
 const SliceIndex = z.number().int().nonnegative();
 
@@ -414,7 +414,7 @@ export const SubRunStartedTraceEntry = TraceEntryBase.extend({
   child_run_id: RunId,
   child_flow_id: CompiledFlowId,
   child_entry_mode: z.string().regex(/^[a-z][a-z0-9-]*$/),
-  child_depth: Depth,
+  child_depth: CompiledDepth,
 }).strict();
 export type SubRunStartedTraceEntry = z.infer<typeof SubRunStartedTraceEntry>;
 

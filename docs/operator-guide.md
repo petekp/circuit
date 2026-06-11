@@ -35,16 +35,16 @@ can also pass these controls when the selected flow supports them:
 
 | Control | CLI flag | Supported by |
 | --- | --- | --- |
-| Lite, standard, or deep depth | `--rigor <lite|standard|deep>` | Build, Explore, and Fix. Prototype supports standard or deep. Review and Pursue only support standard depth. |
+| Low, medium, or high depth | `--depth <low|medium|high>` | Build, Explore, and Fix. Prototype supports medium or high. Review and Pursue only support medium depth. |
 | Tournament | `--tournament --tournament-n <2|3|4>` | Explore and Prototype. |
 | Autonomous continuation | `--autonomous` | Build, Explore, Fix, Prototype, and Pursue. |
 
 Unsupported combinations fail before the run starts.
 
-Rigor (`--rigor`) tunes how much thoroughness and effort the worker spends, and
-the resolved rigor is recorded as `resolved_axes` in the run output. For Fix,
-`lite` also drops the independent review stage. For Build, rigor tunes worker
-effort only; Build runs the same stages at every rigor. Prototype tournament
+Depth (`--depth`) tunes how much thoroughness and effort the worker spends, and
+the resolved depth is recorded as `resolved_axes` in the run output. For Fix,
+`low` also drops the independent review stage. For Build, depth tunes worker
+effort only; Build runs the same stages at every depth. Prototype tournament
 mode (`--tournament`) additionally requires `circuits.prototype.variant_models`
 in your Circuit config and fails before the run starts when it is absent, naming
 the missing config as the stop reason. See

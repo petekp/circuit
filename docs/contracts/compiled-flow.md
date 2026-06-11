@@ -4,7 +4,7 @@ status: draft
 version: 0.6
 schema_source: src/schemas/compiled-flow.ts
 last_updated: 2026-06-10
-depends_on: [step, stage, axes, rigor, change_kind, selection-policy, skill, acceptance-criteria]
+depends_on: [step, stage, axes, depth, change_kind, selection-policy, skill, acceptance-criteria]
 report_ids:
   - flow.definition
   - flow.scalar_catalog
@@ -150,7 +150,7 @@ Property-based tests will cover:
 - **stage**: CompiledFlow embeds `Stage[]`. Stage invariants in
   [docs/contracts/stage.md](stage.md) (ratified v0.1; stage-I1..I5 +
   stage_path_policy enforcement).
-- **axes / rigor**: `axes` declares the allowed rigor, tournament, and
+- **axes / depth**: `axes` declares the allowed depths, tournament, and
   autonomous support for this flow.
 - **change_kind**: `EntryMode.default_change_kind` is optional; when present, must be
   a valid `ChangeKind` literal.

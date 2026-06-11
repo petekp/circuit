@@ -59,7 +59,7 @@ function writeFixture(root: string) {
       run_id: RUN_ID,
       kind: 'run.bootstrapped',
       flow_id: 'explore',
-      depth: 'standard',
+      depth: 'medium',
       goal: 'Explore history recall',
       change_kind: {
         change_kind: 'discovery',

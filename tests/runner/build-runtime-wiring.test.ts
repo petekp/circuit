@@ -155,7 +155,7 @@ describe('Build runtime wiring', () => {
         flowBytes: bytes,
         runId: 'b2000000-0000-0000-0000-000000000000',
         goal: 'Add a tiny Build feature',
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 25, 8, 0, 0)),
         relayer: relayerWith(),
         projectRoot: makeVerificationProjectRoot(),
@@ -216,7 +216,7 @@ describe('Build runtime wiring', () => {
         flowBytes: bytes,
         runId: 'b2000000-0000-0000-0000-000000000010',
         goal: 'Retry implementation after first verification failure',
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 25, 8, 5, 0)),
         relayer: relayerWith(),
         projectRoot: makeVerificationProjectRoot(checkScript),
@@ -249,7 +249,7 @@ describe('Build runtime wiring', () => {
   );
 
   it(
-    'implements and verifies each plan slice in turn under deep-rigor (autonomous) slicing',
+    'implements and verifies each plan slice in turn under deep-depth (autonomous) slicing',
     async () => {
       const { bytes } = loadFixture();
       const runFolder = join(runFolderBase, 'sliced');
@@ -452,7 +452,7 @@ describe('Build runtime wiring', () => {
         flowBytes: bytes,
         runId: 'b2000000-0000-0000-0000-00000000005f',
         goal: 'Add a tiny Build feature',
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 25, 8, 10, 0)),
         relayer: relayerWith({ contextBody: threeSliceContextBody }),
         projectRoot: makeVerificationProjectRoot(),
@@ -460,7 +460,7 @@ describe('Build runtime wiring', () => {
 
       expect(outcome.outcome).toBe('complete');
       const trace_entries = await readTraceEntries(runFolder);
-      // The corridor is inert below deep rigor: even though the researcher
+      // The corridor is inert below deep depth: even though the researcher
       // emitted slices, the run is single-pass and no entry carries slice_index.
       // Guards against an executor regression that always-emits the field
       // (which would fail RunTrace's .strict() parse for standard runs).
@@ -485,7 +485,7 @@ describe('Build runtime wiring', () => {
         flowBytes: bytes,
         runId: 'b2000000-0000-0000-0000-000000000001',
         goal: 'Reject malformed implementation report',
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 25, 8, 10, 0)),
         relayer: relayerWith({
           implementationBody: JSON.stringify({
@@ -517,7 +517,7 @@ describe('Build runtime wiring', () => {
         flowBytes: bytes,
         runId: 'b2000000-0000-0000-0000-000000000002',
         goal: 'Reject a blocking Build review',
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 25, 8, 20, 0)),
         relayer: relayerWith({
           reviewBody: JSON.stringify({
@@ -558,7 +558,7 @@ describe('Build runtime wiring', () => {
         flowBytes: bytes,
         runId: 'b2000000-0000-0000-0000-000000000003',
         goal: 'Reject a non-actionable Build review',
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 25, 8, 30, 0)),
         relayer: relayerWith({
           reviewBody: JSON.stringify({
@@ -591,7 +591,7 @@ describe('Build runtime wiring', () => {
         flowBytes: bytes,
         runId: 'b2000000-0000-0000-0000-000000000004',
         goal: 'Accept Build with follow-up fixes',
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 25, 8, 35, 0)),
         relayer: relayerWith({
           reviewBody: JSON.stringify({
@@ -623,7 +623,7 @@ describe('Build runtime wiring', () => {
   it('declares Build axes and reaches Review by the pass route', () => {
     const { flow } = loadFixture();
     expect(flow.axes).toMatchObject({
-      allowed_rigors: ['lite', 'standard', 'deep'],
+      allowed_depths: ['low', 'medium', 'high'],
       supports_tournament: false,
       supports_autonomous: true,
     });
@@ -662,7 +662,7 @@ describe('Build runtime wiring', () => {
         flowBytes: bytes,
         runId: 'b2000000-0000-0000-0000-000000000004',
         goal: 'Add a tiny Build feature in lite mode',
-        entryModeName: 'lite',
+        entryModeName: 'low',
         now: deterministicNow(Date.UTC(2026, 3, 25, 8, 40, 0)),
         relayer: {
           connectorName: relayer.connectorName,
@@ -682,12 +682,12 @@ describe('Build runtime wiring', () => {
           traceEntryLabel(trace_entry) === 'checkpoint.resolved:frame-step',
       );
       expect(outcome.outcome).toBe('complete');
-      expect(bootstrap).toMatchObject({ depth: 'lite' });
+      expect(bootstrap).toMatchObject({ depth: 'low' });
       expect(checkpoint).toMatchObject({
         selection: 'continue',
         resolution_source: 'declared-default',
       });
-      expect(relayInputs[0]?.resolvedSelection).toMatchObject({ depth: 'lite' });
+      expect(relayInputs[0]?.resolvedSelection).toMatchObject({ depth: 'low' });
       expect(trace_entries.map(traceEntryLabel)).toContain('relay.completed:review-step');
     },
     BUILD_RUNTIME_TIMEOUT_MS,
@@ -704,7 +704,7 @@ describe('Build runtime wiring', () => {
         flowBytes: bytes,
         runId: 'b2000000-0000-0000-0000-000000000005',
         goal: 'Add a tiny Build feature in deep mode',
-        entryModeName: 'deep',
+        entryModeName: 'high',
         now: deterministicNow(Date.UTC(2026, 3, 25, 8, 50, 0)),
         relayer: relayerWith(),
         projectRoot: makeVerificationProjectRoot(),
@@ -713,7 +713,7 @@ describe('Build runtime wiring', () => {
       const trace_entries = await readTraceEntries(runFolder);
       const bootstrap = traceEntryByKind(trace_entries, 'run.bootstrapped');
       expect(outcome.outcome).toBe('checkpoint_waiting');
-      expect(bootstrap).toMatchObject({ depth: 'deep' });
+      expect(bootstrap).toMatchObject({ depth: 'high' });
       expect(trace_entries.map(traceEntryLabel)).not.toContain('run.closed');
       expect(existsSync(join(runFolder, 'reports/result.json'))).toBe(false);
     },
@@ -733,8 +733,8 @@ describe('Build runtime wiring', () => {
         flowBytes: bytes,
         runId: 'b2000000-0000-0000-0000-000000000006',
         goal: 'Add a tiny Build feature with an explicit standard override',
-        entryModeName: 'deep',
-        depth: 'standard',
+        entryModeName: 'high',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 25, 9, 0, 0)),
         relayer: {
           connectorName: relayer.connectorName,
@@ -749,8 +749,8 @@ describe('Build runtime wiring', () => {
       const trace_entries = await readTraceEntries(runFolder);
       const bootstrap = traceEntryByKind(trace_entries, 'run.bootstrapped');
       expect(outcome.outcome).toBe('complete');
-      expect(bootstrap).toMatchObject({ depth: 'standard' });
-      expect(relayInputs[0]?.resolvedSelection).toMatchObject({ depth: 'standard' });
+      expect(bootstrap).toMatchObject({ depth: 'medium' });
+      expect(relayInputs[0]?.resolvedSelection).toMatchObject({ depth: 'medium' });
     },
     BUILD_RUNTIME_TIMEOUT_MS,
   );

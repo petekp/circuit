@@ -203,11 +203,11 @@ no skipped, blocked, or failed pursuits.
 
 ## Axis Support
 
-Pursue supports standard interactive runs and autonomous runs:
+Pursue supports medium-depth interactive runs and autonomous runs:
 
 | Axis selection | Runtime depth | Meaning |
 | --- | --- | --- |
-| `default` | `standard` | Normal Pursue behavior. |
+| `default` | `medium` | Normal Pursue behavior. |
 | `autonomous` | `autonomous` | Same serial-write safety policy, with autonomous depth. |
 
 Autonomous depth does not permit parallel code writes. It changes the

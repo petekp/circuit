@@ -8,17 +8,17 @@ export function axisSelectionsForAxes(
   const selections: FlowAxisSelection[] = [
     {
       name: 'default',
-      depth: axes.default.rigor,
+      depth: axes.default.depth,
       description: `Default ${flowId} axis tuple.`,
     },
   ];
 
-  for (const rigor of axes.allowed_rigors) {
-    if (rigor === axes.default.rigor) continue;
+  for (const depth of axes.allowed_depths) {
+    if (depth === axes.default.depth) continue;
     selections.push({
-      name: rigor,
-      depth: rigor,
-      description: `${rigor} ${flowId} axis tuple.`,
+      name: depth,
+      depth: depth,
+      description: `${depth} ${flowId} axis tuple.`,
     });
   }
 

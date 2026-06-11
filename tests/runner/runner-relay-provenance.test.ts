@@ -15,7 +15,7 @@ import type { RunContext } from '../../src/runtime/run/run-context.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import { Config, type LayeredConfig as LayeredConfigValue } from '../../src/schemas/config.js';
-import { Depth } from '../../src/schemas/depth.js';
+import { CompiledDepth } from '../../src/schemas/depth.js';
 import { RunId, StepId } from '../../src/schemas/ids.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
@@ -112,7 +112,7 @@ function relayGuidanceExecution(input: {
     context,
     step: runtimeStep,
     compiledStep,
-    depth: Depth.parse('standard'),
+    depth: CompiledDepth.parse('medium'),
   }).relayExecution;
 }
 
@@ -206,7 +206,7 @@ describe("relay.started carries honest 'resolved_from' from the runner's decisio
       flowBytes: bytes,
       runId: '47a47a47-a47a-47a4-7a47-a47a47a47a47',
       goal: 'explicit provenance',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
       executors: composeExecutor(),
       relayer: stubRelayer(),
@@ -475,7 +475,7 @@ describe("relay.started carries honest 'resolved_selection' from flow + step inp
       flowBytes: bytes,
       runId: '47a47a47-a47a-47a4-7a47-a47a47a47a48',
       goal: 'empty selection composition',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
       executors: composeExecutor(),
       relayer: stubRelayer(),
@@ -508,7 +508,7 @@ describe("relay.started carries honest 'resolved_selection' from flow + step inp
       flowBytes: flowBytes(mutated),
       runId: '47a47a47-a47a-47a4-7a47-a47a47a47a49',
       goal: 'flow-level selection',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
       executors: composeExecutor(),
       relayer: stubRelayer(),
@@ -550,7 +550,7 @@ describe("relay.started carries honest 'resolved_selection' from flow + step inp
       flowBytes: flowBytes(raw),
       runId: '47a47a47-a47a-47a4-7a47-a47a47a47a4a',
       goal: 'step overrides flow',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
       executors: composeExecutor(),
       relayer: stubRelayer(),
@@ -590,7 +590,7 @@ describe("SkillOverride 'append' / 'remove' / 'inherit' compose per SEL-I3", () 
       flowBytes: flowBytes(raw),
       runId: '47a47a47-a47a-47a4-7a47-a47a47a47b01',
       goal: 'remove after replace composition',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
       executors: composeExecutor(),
       relayer: stubRelayer(),
@@ -617,7 +617,7 @@ describe("SkillOverride 'append' / 'remove' / 'inherit' compose per SEL-I3", () 
       flowBytes: flowBytes(raw),
       runId: '47a47a47-a47a-47a4-7a47-a47a47a47b02',
       goal: 'append after replace composition',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
       executors: composeExecutor(),
       relayer: stubRelayer(),
@@ -646,7 +646,7 @@ describe("SkillOverride 'append' / 'remove' / 'inherit' compose per SEL-I3", () 
       flowBytes: flowBytes(raw),
       runId: '47a47a47-a47a-47a4-7a47-a47a47a47b03',
       goal: 'append existing dedupes',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
       executors: composeExecutor(),
       relayer: stubRelayer(),
@@ -673,7 +673,7 @@ describe("SkillOverride 'append' / 'remove' / 'inherit' compose per SEL-I3", () 
       flowBytes: flowBytes(raw),
       runId: '47a47a47-a47a-47a4-7a47-a47a47a47b04',
       goal: 'inherit no-op preserves flow base',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
       executors: composeExecutor(),
       relayer: stubRelayer(),

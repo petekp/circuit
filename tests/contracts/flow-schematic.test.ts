@@ -82,7 +82,7 @@ describe('flow schematic schema — active Fix schematic', () => {
       ['fix-change-set', 'verify'],
       ['fix-regression-rerun', 'verify'],
       ['fix-review', 'review'],
-      ['fix-close-lite', 'close'],
+      ['fix-close-low', 'close'],
       ['fix-close', 'close'],
       ['fix-handoff', 'close'],
     ]);
@@ -102,7 +102,7 @@ describe('flow schematic schema — active Fix schematic', () => {
       ['fix-change-set', { kind: 'verification' }],
       ['fix-regression-rerun', { kind: 'verification' }],
       ['fix-review', { kind: 'relay', role: 'reviewer' }],
-      ['fix-close-lite', { kind: 'compose' }],
+      ['fix-close-low', { kind: 'compose' }],
       ['fix-close', { kind: 'compose' }],
       ['fix-handoff', { kind: 'compose' }],
     ]);
@@ -158,16 +158,16 @@ describe('flow schematic schema — active Fix schematic', () => {
     expect(parsed.success).toBe(false);
   });
 
-  it('keeps Fix close inputs aligned with the evidence path (lite skips review)', () => {
+  it('keeps Fix close inputs aligned with the evidence path (low skips review)', () => {
     const schematic = parseFixSchematic();
-    const closeLite = schematic.items.find(
-      (item) => (item.id as unknown as string) === 'fix-close-lite',
+    const closeLow = schematic.items.find(
+      (item) => (item.id as unknown as string) === 'fix-close-low',
     );
     const close = schematic.items.find((item) => (item.id as unknown as string) === 'fix-close');
-    if (closeLite === undefined) throw new Error('fix-close-lite missing');
+    if (closeLow === undefined) throw new Error('fix-close-low missing');
     if (close === undefined) throw new Error('fix-close missing');
 
-    expect(closeLite.input).toMatchObject({
+    expect(closeLow.input).toMatchObject({
       brief: 'fix.brief@v1',
       context: 'fix.context@v1',
       diagnosis: 'fix.diagnosis@v1',
@@ -178,7 +178,7 @@ describe('flow schematic schema — active Fix schematic', () => {
       regression_rerun: 'fix.regression-rerun@v1',
       change_set: 'fix.change-set@v1',
     });
-    expect(closeLite.input).not.toHaveProperty('review');
+    expect(closeLow.input).not.toHaveProperty('review');
     expect(close.input).toMatchObject({
       brief: 'fix.brief@v1',
       context: 'fix.context@v1',
@@ -193,9 +193,9 @@ describe('flow schematic schema — active Fix schematic', () => {
     });
   });
 
-  it('routes Lite regression-rerun directly to a no-review close item via route_overrides', () => {
+  it('routes low-depth regression-rerun directly to a no-review close item via route_overrides', () => {
     // Slice 2 v2: regression-rerun is the last verification step before
-    // close, so the lite override sits there (not on change-set as in v1).
+    // close, so the low override sits there (not on change-set as in v1).
     const schematic = parseFixSchematic();
     const verify = schematic.items.find((item) => (item.id as unknown as string) === 'fix-verify');
     if (verify === undefined) throw new Error('fix-verify missing');
@@ -216,7 +216,7 @@ describe('flow schematic schema — active Fix schematic', () => {
     expect(review.routes['connector-failed']).toBe('fix-close');
     expect(regressionRerun.route_overrides).toEqual({
       continue: {
-        lite: 'fix-close-lite',
+        low: 'fix-close-low',
       },
     });
   });
@@ -250,7 +250,7 @@ describe('flow schematic schema — active Fix schematic', () => {
     const items = raw.items as Array<Record<string, unknown>>;
     const verify = items.find((item) => item.id === 'fix-verify');
     if (verify === undefined) throw new Error('fixture missing verify item');
-    verify.route_overrides = { continue: { lite: 'missing-item' } };
+    verify.route_overrides = { continue: { low: 'missing-item' } };
     const result = FlowSchematic.safeParse(raw);
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -265,7 +265,7 @@ describe('flow schematic schema — active Fix schematic', () => {
     const items = raw.items as Array<Record<string, unknown>>;
     const verify = items.find((item) => item.id === 'fix-verify');
     if (verify === undefined) throw new Error('fixture missing verify item');
-    verify.route_overrides = { split: { lite: 'fix-close-lite' } };
+    verify.route_overrides = { split: { low: 'fix-close-low' } };
     const result = FlowSchematic.safeParse(raw);
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -526,7 +526,7 @@ describe('flow schematic compiler-required metadata', () => {
       status: 'active',
       version: '0.1.0',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -570,7 +570,7 @@ describe('flow schematic compiler-required metadata', () => {
     return {
       ...activeSchematic([frame, tournamentFanoutItemWith(fanout)]),
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: true,
         supports_autonomous: false,
         tournament_fan_out_stage: 'act-stage',
@@ -817,7 +817,7 @@ describe('flow schematic compiler-required metadata', () => {
       ]),
       version: '0.1.0',
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: false,
         supports_autonomous: false,
       },
@@ -841,7 +841,7 @@ describe('flow schematic compiler-required metadata', () => {
         }),
       ]),
       axes: {
-        allowed_rigors: ['standard'],
+        allowed_depths: ['medium'],
         supports_tournament: true,
         supports_autonomous: false,
         tournament_fan_out_stage: 'missing-stage',
@@ -884,7 +884,7 @@ describe('flow schematic compiler-required metadata', () => {
           check: { required: ['scope'] },
         }),
       ]),
-      entry_modes: [{ name: 'default', depth: 'standard', description: 'a' }],
+      entry_modes: [{ name: 'default', depth: 'medium', description: 'a' }],
     };
     const result = FlowSchematic.safeParse(schematic);
     expect(result.success).toBe(false);

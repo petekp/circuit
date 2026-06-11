@@ -6,7 +6,7 @@ import {
   ResultVerdictCheck,
   SchemaSectionsCheck,
 } from './check.js';
-import { Depth } from './depth.js';
+import { CompiledDepth } from './depth.js';
 import { CompiledFlowId, ProtocolId, StepId } from './ids.js';
 import { JsonObject } from './json.js';
 import { RubricRuntimeSignal } from './rubric.js';
@@ -225,7 +225,7 @@ export const SubRunStep = StepBase.extend({
   // a runtime concern (e.g., `$upstream_report.field` substitution) that
   // resolves before child bootstrap; the schema accepts a plain string.
   goal: z.string().min(1),
-  depth: Depth,
+  depth: CompiledDepth,
   writes: z
     .object({
       // The child run's terminal result.json copied into the parent's
@@ -266,7 +266,7 @@ export const FanoutSubRunBranch = z
       .regex(FANOUT_BRANCH_ID_REGEX, { message: 'branch_id must be a kebab-case slug' }),
     flow_ref: CompiledFlowRef,
     goal: z.string().min(1),
-    depth: Depth,
+    depth: CompiledDepth,
     // Per-branch selection override — useful for tournament-style fanouts
     // where the variation is in connector / model selection, not flow.
     selection: SelectionOverride.optional(),
@@ -319,7 +319,7 @@ export const FanoutSubRunBranchTemplate = z
     branch_id: z.string().min(1).max(64),
     flow_ref: CompiledFlowRef,
     goal: z.string().min(1),
-    depth: Depth,
+    depth: CompiledDepth,
     // Dynamic fanout selection may contain `$item.*` placeholders. The
     // expanded branch is parsed through FanoutBranch before execution, so
     // runtime still enforces the real SelectionOverride shape.

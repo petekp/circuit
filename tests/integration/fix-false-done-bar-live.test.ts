@@ -48,7 +48,7 @@ import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
-const FIX_LITE_FIXTURE_PATH = resolve('generated/flows/fix/lite.json');
+const FIX_LITE_FIXTURE_PATH = resolve('generated/flows/fix/low.json');
 const LIVE_FALSE_DONE_TIMEOUT_MS = 20_000;
 
 function loadLiteFixture(): { bytes: Buffer } {
@@ -258,7 +258,7 @@ describe('Live False-Done Fix bar', () => {
         flowBytes: loadLiteFixture().bytes,
         runId: 'f1000000-0000-0000-0000-0000000000bb',
         goal: 'fix the broken initialization',
-        depth: 'lite',
+        depth: 'low',
         now: deterministicNow(Date.UTC(2026, 4, 10, 12, 0, 0)),
         relayer: relayer(repo, {
           declaredChangedFiles: ['src/a.ts'],
@@ -303,7 +303,7 @@ describe('Live False-Done Fix bar', () => {
         flowBytes: loadLiteFixture().bytes,
         runId: 'f1000000-0000-0000-0000-0000000000cc',
         goal: 'fix the parser',
-        depth: 'lite',
+        depth: 'low',
         now: deterministicNow(Date.UTC(2026, 4, 10, 12, 0, 0)),
         relayer: relayer(repo, {
           declaredChangedFiles: ['src/parser.ts'],
@@ -355,7 +355,7 @@ describe('Live False-Done Fix bar', () => {
         flowBytes: loadLiteFixture().bytes,
         runId: 'f1000000-0000-0000-0000-0000000000dd',
         goal: 'fix the bug in v',
-        depth: 'lite',
+        depth: 'low',
         now: deterministicNow(Date.UTC(2026, 4, 10, 12, 0, 0)),
         relayer: relayer(repo, {
           // Declare an unrelated file so change-set passes; the regression
@@ -407,7 +407,7 @@ describe('Live False-Done Fix bar', () => {
         flowBytes: loadLiteFixture().bytes,
         runId: 'f1000000-0000-0000-0000-0000000000ee',
         goal: 'fix the bug in v cleanly',
-        depth: 'lite',
+        depth: 'low',
         now: deterministicNow(Date.UTC(2026, 4, 10, 12, 0, 0)),
         relayer: relayer(repo, {
           declaredChangedFiles: ['src/buggy.ts'],

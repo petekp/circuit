@@ -1,6 +1,6 @@
 // Build baseline-snapshot writer.
 //
-// Runs once before act-step (and, under deep rigor, before the first slice).
+// Runs once before act-step (and, under deep depth, before the first slice).
 // Snapshots the working tree's git state so the post-verify touch-area step has
 // a reference point: anything that becomes dirty between this snapshot and the
 // touch-area step is owned by the implementer, which is what the touch-area gate

@@ -3,7 +3,7 @@ import { AcceptanceCriteria } from './acceptance-criteria.js';
 import { FlowAxes } from './axes.js';
 import { ChangeKind } from './change-kind.js';
 import { CheckpointAllowFrom, FanoutJoinPolicy } from './check.js';
-import { Depth } from './depth.js';
+import { CompiledDepth } from './depth.js';
 import {
   FlowBlockCatalog,
   type FlowBlockCatalog as FlowBlockCatalogValue,
@@ -49,7 +49,7 @@ export const StepRouteTarget = z.union([StepId, StepRouteTerminalTarget]);
 export type StepRouteTarget = z.infer<typeof StepRouteTarget>;
 
 export const SchematicRouteModeOverrides = z
-  .partialRecord(Depth, StepRouteTarget)
+  .partialRecord(CompiledDepth, StepRouteTarget)
   .refine((overrides) => Object.keys(overrides).length > 0, {
     message: 'route override must declare at least one depth',
   });
@@ -109,7 +109,7 @@ const SubRunStepExecution = z
     kind: z.literal('sub-run'),
     flow_ref: CompiledFlowRef,
     goal: z.string().min(1),
-    depth: Depth,
+    depth: CompiledDepth,
   })
   .strict();
 
@@ -469,7 +469,7 @@ function validateExecutionShape(
 export const FlowAxisSelection = z
   .object({
     name: z.string().regex(/^[a-z][a-z0-9-]*$/),
-    depth: Depth,
+    depth: CompiledDepth,
     description: z.string().min(1),
     default_change_kind: ChangeKind.optional(),
   })

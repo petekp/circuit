@@ -82,7 +82,7 @@ function verificationCompiledFlow(options: { verifyRoutes?: Record<string, strin
     version: '0.1.0',
     purpose: 'test Build verification execution',
     axes: {
-      allowed_rigors: ['standard'],
+      allowed_depths: ['medium'],
       supports_tournament: false,
       supports_autonomous: false,
     },
@@ -187,7 +187,7 @@ describe('Build verification command execution', () => {
       projectRoot: process.cwd(),
       runId: 'b2000000-0000-0000-0000-000000000000',
       goal: 'Run verification',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 0, 0)),
       executors: planWriter(
         commandPlan({
@@ -282,7 +282,7 @@ describe('Build verification command execution', () => {
       projectRoot: process.cwd(),
       runId: 'b2000000-0000-0000-0000-000000000001',
       goal: 'Run failing verification',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 5, 0)),
       executors: planWriter(
         commandPlan({
@@ -354,7 +354,7 @@ describe('Build verification command execution', () => {
       projectRoot,
       runId: 'b2000000-0000-0000-0000-000000000009',
       goal: 'Run stale verification',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 45, 0)),
       executors: planWriter(
         commandPlan({
@@ -387,7 +387,7 @@ describe('Build verification command execution', () => {
       projectRoot,
       runId: 'b2000000-0000-0000-0000-000000000010',
       goal: 'Run partially blocked verification',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 47, 0)),
       executors: planWriter(
         commandsPlan([
@@ -431,7 +431,7 @@ describe('Build verification command execution', () => {
       projectRoot: process.cwd(),
       runId: 'b2000000-0000-0000-0000-000000000011',
       goal: 'Run unavailable binary',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 50, 0)),
       executors: planWriter(
         commandPlan({
@@ -455,7 +455,7 @@ describe('Build verification command execution', () => {
       projectRoot: process.cwd(),
       runId: 'b2000000-0000-0000-0000-000000000012',
       goal: 'Run invalid cwd verification',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 55, 0)),
       executors: planWriter(
         commandPlan({
@@ -481,7 +481,7 @@ describe('Build verification command execution', () => {
       projectRoot: process.cwd(),
       runId: 'b2000000-0000-0000-0000-000000000002',
       goal: 'Run timed verification',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 10, 0)),
       executors: planWriter(
         commandPlan({
@@ -509,7 +509,7 @@ describe('Build verification command execution', () => {
       projectRoot: process.cwd(),
       runId: 'b2000000-0000-0000-0000-000000000003',
       goal: 'Reject unsafe verification',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 15, 0)),
       executors: planWriter({
         objective: 'Unsafe',
@@ -551,7 +551,7 @@ describe('Build verification command execution', () => {
       projectRoot,
       runId: 'b2000000-0000-0000-0000-000000000004',
       goal: 'Reject lexical cwd escape',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 20, 0)),
       executors: planWriter({
         objective: 'Unsafe cwd',
@@ -585,7 +585,7 @@ describe('Build verification command execution', () => {
       projectRoot,
       runId: 'b2000000-0000-0000-0000-000000000005',
       goal: 'Reject symlink cwd escape',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 25, 0)),
       executors: planWriter(
         commandPlan({
@@ -613,7 +613,7 @@ describe('Build verification command execution', () => {
       projectRoot,
       runId: 'b2000000-0000-0000-0000-000000000006',
       goal: 'Use declared project root',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 30, 0)),
       executors: planWriter(
         commandPlan({
@@ -641,7 +641,7 @@ describe('Build verification command execution', () => {
         projectRoot: process.cwd(),
         runId: 'b2000000-0000-0000-0000-000000000007',
         goal: 'Constrain verification env',
-        depth: 'standard',
+        depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 3, 25, 2, 35, 0)),
         executors: planWriter(
           commandPlan({
@@ -679,7 +679,7 @@ describe('Build verification command execution', () => {
       projectRoot: process.cwd(),
       runId: 'b2000000-0000-0000-0000-000000000008',
       goal: 'Bound verification output',
-      depth: 'standard',
+      depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 25, 2, 40, 0)),
       executors: planWriter(
         commandPlan({

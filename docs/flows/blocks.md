@@ -58,7 +58,7 @@ those alternatives so schematic validation can reject under-specified
 steps without forcing every flow to include a separate Plan block.
 
 Close With Evidence also has more than one valid input shape. A reviewed
-close should consume review evidence. A Lite close that intentionally
+close should consume review evidence. A low-depth close that intentionally
 skips Review can consume the brief and verification result, but it should
 be a separate schematic step so the skipped-review path stays visible.
 
@@ -99,7 +99,7 @@ Fix should contribute these reusable blocks:
 | Regression Contract | Many change flows need expected behavior, actual behavior, and proof target. |
 | Diagnose Problem | Fix needs it directly; Review also needs "why this is risky or broken" analysis. |
 | No-Repro Decision | Any flow can hit uncertain evidence and need operator choice. |
-| Optional Review Branch | Lite-style paths can skip review only when mode and evidence allow it. |
+| Optional Review Branch | Low-depth paths can skip review only when mode and evidence allow it. |
 | Conditional Close | Some flows close as fixed, not reproduced, partially complete, skipped, or handed off. |
 
 ## Human Decision Block
@@ -132,9 +132,9 @@ The flow-level input is structured:
   ],
   "default": "instrument",
   "mode_policy": {
-    "lite": "use_default",
-    "standard": "ask",
-    "deep": "ask",
+    "low": "use_default",
+    "medium": "ask",
+    "high": "ask",
     "autonomous": "use_default_or_escalate"
   }
 }

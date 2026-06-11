@@ -1,13 +1,13 @@
 import { z } from 'zod';
+import { type CompiledDepth, Depth } from './depth.js';
 import { StageId } from './ids.js';
-import { Rigor } from './rigor.js';
 
 export const TournamentN = z.number().int().min(2).max(4);
 export type TournamentN = z.infer<typeof TournamentN>;
 
 export const Axes = z
   .object({
-    rigor: Rigor.default('standard'),
+    depth: Depth.default('medium'),
     tournament: z.boolean().default(false),
     tournament_n: TournamentN.default(3),
     autonomous: z.boolean().default(false),
@@ -19,7 +19,7 @@ export const DEFAULT_AXES = Axes.parse({});
 
 export const FlowAxes = z
   .object({
-    allowed_rigors: z.array(Rigor).min(1),
+    allowed_depths: z.array(Depth).min(1),
     supports_tournament: z.boolean().default(false),
     supports_autonomous: z.boolean().default(false),
     default: Axes.default(DEFAULT_AXES),
@@ -27,22 +27,22 @@ export const FlowAxes = z
   })
   .strict()
   .superRefine((axes, ctx) => {
-    const seenRigors = new Set<string>();
-    for (const [index, rigor] of axes.allowed_rigors.entries()) {
-      if (seenRigors.has(rigor)) {
+    const seenDepths = new Set<string>();
+    for (const [index, depth] of axes.allowed_depths.entries()) {
+      if (seenDepths.has(depth)) {
         ctx.addIssue({
           code: 'custom',
-          path: ['allowed_rigors', index],
-          message: `duplicate allowed rigor: ${rigor}`,
+          path: ['allowed_depths', index],
+          message: `duplicate allowed depth: ${depth}`,
         });
       }
-      seenRigors.add(rigor);
+      seenDepths.add(depth);
     }
-    if (!seenRigors.has(axes.default.rigor)) {
+    if (!seenDepths.has(axes.default.depth)) {
       ctx.addIssue({
         code: 'custom',
-        path: ['default', 'rigor'],
-        message: `default rigor '${axes.default.rigor}' is not in allowed_rigors`,
+        path: ['default', 'depth'],
+        message: `default depth '${axes.default.depth}' is not in allowed_depths`,
       });
     }
     if (axes.default.tournament && !axes.supports_tournament) {
@@ -77,4 +77,14 @@ export const FlowAxes = z
 export type FlowAxes = z.infer<typeof FlowAxes>;
 
 export const isConsequentialAxes = (axes: Axes): boolean =>
-  axes.rigor === 'deep' || axes.tournament || axes.autonomous;
+  axes.depth === 'high' || axes.tournament || axes.autonomous;
+
+const axesForCompiledDepth = (depth: CompiledDepth): Axes => ({
+  depth: Depth.safeParse(depth).success ? (depth as Depth) : 'medium',
+  tournament: depth === 'tournament',
+  autonomous: depth === 'autonomous',
+  tournament_n: 3,
+});
+
+export const isConsequentialDepth = (r: CompiledDepth): boolean =>
+  isConsequentialAxes(axesForCompiledDepth(r));

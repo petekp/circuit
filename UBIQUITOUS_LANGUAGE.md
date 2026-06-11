@@ -31,7 +31,7 @@ code, contracts, generated surfaces, or troubleshooting docs.
 | **Report** | A typed output written by a step or close stage. | Artifact, output blob |
 | **Evidence** | Supporting facts, files, checks, and reports produced or consumed by a run. | Artifact, proof blob |
 | **Run folder** | The directory where a run stores its trace, reports, evidence, and resume state. | Run root, run directory |
-| **Depth** | The compiled thoroughness value a run or step uses after Circuit combines rigor with mode flags such as tournament or autonomous. | Effort |
+| **Depth** | Operator-facing process dial for `--depth` and `axes.allowed_depths`: `low`, `medium`, or `high`. | Rigor, Effort |
 | **Mode** | A named flow entry option, often paired with a depth. | Safety classification, change kind |
 
 ## Identifier Language
@@ -183,7 +183,7 @@ Frame brief and Act, so do not use it for the limits in operator prose.
 | **Selection resolution** | The resolved selection plus provenance for which layers contributed it. | Audit record |
 | **Provider-scoped model** | A model named with its provider. | Model string |
 | **Effort** | Provider-level reasoning allocation. | Depth |
-| **Rigor** | Operator-facing care axis for `--rigor` and `axes.allowed_rigors`: `lite`, `standard`, or `deep`. | Depth when describing compiled runtime thoroughness |
+| **CompiledDepth** | The depth dial unioned with the mode flags (`low`, `medium`, `high`, `tournament`, `autonomous`): the single scalar that describes how hard a compiled run goes. | Rigor |
 | **change_kind** | Serialized safety classification for a run or change, such as `ratchet-advance`, `equivalence-refactor`, or `disposable`. Keep the field name exact in schemas and traces. | Mode, Depth |
 
 ## Continuity Language
@@ -261,9 +261,9 @@ inside historical docs, tests, or migration notes when the context is explicit.
 - **Acceptance criteria** can make a **Relay** retry or stop before its
   report becomes accepted evidence.
 - A **Checkpoint** is a step-level pause, not a separate flow.
-- A **Rigor** describes operator-requested care; **Depth** is the compiled
-  runtime thoroughness derived from rigor and mode flags; **Effort** describes
-  provider-level reasoning allocation.
+- A **Depth** describes operator-requested care; **CompiledDepth** is the
+  compiled runtime thoroughness derived from depth and mode flags; **Effort**
+  describes provider-level reasoning allocation.
 - A **Plugin** exposes **Skills**, commands, and generated compiled-flow outputs.
 
 ## Example Dialogue
@@ -285,9 +285,10 @@ inside historical docs, tests, or migration notes when the context is explicit.
 - **CompiledFlow** can sound like the product flow. Use **Flow** for the product and **CompiledFlow** only for the runtime schema.
 - **Report** can mean a typed output or a vague file. Use **Report** for typed outputs and **Evidence** for supporting proof.
 - **Relay** can name product delegation or serialized `relay.*` trace entries. Use **Relay** in prose and keep serialized names in code or backticks.
-- **Rigor**, **Depth**, and **Effort** all describe intensity at different layers.
-  Use **Rigor** for the operator care axis, **Depth** for compiled runtime
-  thoroughness, and **Effort** for provider-level reasoning allocation.
+- **Depth**, **CompiledDepth**, and **Effort** all describe intensity at
+  different layers. Use **Depth** for the operator dial, **CompiledDepth** for
+  compiled runtime thoroughness, and **Effort** for provider-level reasoning
+  allocation. **Rigor** is the retired name for the depth dial; do not use it.
 - **Stage** appears in both product prose and runtime fields. The term is canonical in both places, but runtime field names should stay in backticks when discussing serialization.
 - **Fixture** is useful in tests, but it should not describe product-facing generated flows.
 - **Runtime proof** is an internal proof flow, not a public capability.

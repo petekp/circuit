@@ -95,7 +95,7 @@ function requireItemField<T>(value: T | undefined, fieldName: string, itemId: st
 }
 
 // Resolve a single schematic-side route outcome to its target after applying
-// any depth-specific override. The override map is keyed by Depth so authors
+// any depth-specific override. The override map is keyed by CompiledDepth so authors
 // can express "lite-depth variants of this flow skip review" without naming
 // individual axis selections.
 function resolveRouteTarget(
