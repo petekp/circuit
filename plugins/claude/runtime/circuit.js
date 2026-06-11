@@ -44247,9 +44247,9 @@ import { existsSync as existsSync16, readFileSync as readFileSync32 } from "node
 import { resolve as resolve14 } from "node:path";
 
 // dist/app/continuity/brief.js
-import { execFileSync } from "node:child_process";
-import { existsSync as existsSync13, readFileSync as readFileSync28 } from "node:fs";
-import { basename, resolve as resolve11 } from "node:path";
+import { execFileSync as execFileSync2 } from "node:child_process";
+import { existsSync as existsSync14, readFileSync as readFileSync30 } from "node:fs";
+import { basename as basename2, resolve as resolve12 } from "node:path";
 
 // dist/schemas/snapshot.js
 var StepStatus = external_exports.enum(["pending", "in_progress", "check_failed", "complete", "aborted"]);
@@ -44401,13 +44401,40 @@ var indexOwnPropertyGuard = external_exports.custom((raw) => {
 }, "continuity index has inherited (not own) required field; prototype-chain smuggle rejected");
 var ContinuityIndex = indexOwnPropertyGuard.pipe(ContinuityIndexBody);
 
-// dist/app/continuity/records.js
+// dist/app/continuity/harvest.js
+import { execFileSync } from "node:child_process";
+import { createHash as createHash4 } from "node:crypto";
+import { closeSync as closeSync2, existsSync as existsSync13, openSync as openSync2, readFileSync as readFileSync29, readSync as readSync2, readdirSync, rmSync as rmSync3, statSync as statSync2 } from "node:fs";
+import { basename, join as join10, resolve as resolve11 } from "node:path";
+
+// dist/shared/atomic-io.js
 import { randomUUID as randomUUID3 } from "node:crypto";
-import { existsSync as existsSync12, mkdirSync as mkdirSync2, readFileSync as readFileSync27, writeFileSync as writeFileSync3 } from "node:fs";
-import { dirname as dirname3, join as join9, resolve as resolve10 } from "node:path";
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync25, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { dirname as dirname3 } from "node:path";
+function writeTextAtomic(path, contents, options = {}) {
+  mkdirSync2(dirname3(path), { recursive: true });
+  const staging = `${path}.${randomUUID3()}.tmp`;
+  writeFileSync2(staging, contents);
+  try {
+    options.validate?.(readFileSync25(staging, "utf8"));
+    renameSync(staging, path);
+  } catch (error51) {
+    rmSync2(staging, { force: true });
+    throw error51;
+  }
+}
+function writeJsonAtomic(path, value, options = {}) {
+  writeTextAtomic(path, `${JSON.stringify(value, null, 2)}
+`, options);
+}
+
+// dist/app/continuity/records.js
+import { randomUUID as randomUUID4 } from "node:crypto";
+import { existsSync as existsSync12, mkdirSync as mkdirSync3, readFileSync as readFileSync28, writeFileSync as writeFileSync4 } from "node:fs";
+import { dirname as dirname4, join as join9, resolve as resolve10 } from "node:path";
 
 // dist/shared/manifest-snapshot.js
-import { readFileSync as readFileSync25, writeFileSync as writeFileSync2 } from "node:fs";
+import { readFileSync as readFileSync26, writeFileSync as writeFileSync3 } from "node:fs";
 import { join as join5 } from "node:path";
 
 // dist/schemas/manifest.js
@@ -44454,7 +44481,7 @@ function manifestSnapshotPath(runFolder) {
   return join5(runFolder, "manifest.snapshot.json");
 }
 function readManifestSnapshot(runFolder) {
-  const text = readFileSync25(manifestSnapshotPath(runFolder), "utf8");
+  const text = readFileSync26(manifestSnapshotPath(runFolder), "utf8");
   const raw = JSON.parse(text);
   return ManifestSnapshot.parse(raw);
 }
@@ -44653,7 +44680,7 @@ function stepMetadata(flow, stepId) {
 }
 
 // dist/app/run-status/runtime-run-folder.js
-import { readFileSync as readFileSync26 } from "node:fs";
+import { readFileSync as readFileSync27 } from "node:fs";
 import { join as join8 } from "node:path";
 
 // dist/runtime/projections/tournament-checkpoint-context.js
@@ -44853,7 +44880,7 @@ function isRecord2(value) {
 }
 function readRawTraceEntries(runFolder) {
   const tracePath = join8(runFolder, "trace.ndjson");
-  const text = readFileSync26(tracePath, "utf8");
+  const text = readFileSync27(tracePath, "utf8");
   const trimmed = text.trim();
   if (trimmed.length === 0)
     return [];
@@ -45034,7 +45061,7 @@ function runtimeWaitingCheckpointProjection(input) {
   let requestAbs;
   try {
     requestAbs = resolveRunFilePath(input.runFolder, requestPath);
-    requestText = readFileSync26(requestAbs, "utf8");
+    requestText = readFileSync27(requestAbs, "utf8");
   } catch (err) {
     return invalidProjection({
       runFolder: input.runFolder,
@@ -45095,7 +45122,7 @@ function runtimeWaitingCheckpointProjection(input) {
   const presentation = tournamentCheckpointPresentation({
     readJson: (path) => {
       try {
-        return JSON.parse(readFileSync26(join8(input.runFolder, path), "utf8"));
+        return JSON.parse(readFileSync27(join8(input.runFolder, path), "utf8"));
       } catch {
         return void 0;
       }
@@ -45361,13 +45388,13 @@ function activeRunPath(controlPlane) {
   return join9(controlPlane, "active-run.md");
 }
 function writeJson2(path, value) {
-  mkdirSync2(dirname3(path), { recursive: true });
-  writeFileSync3(path, `${JSON.stringify(value, null, 2)}
+  mkdirSync3(dirname4(path), { recursive: true });
+  writeFileSync4(path, `${JSON.stringify(value, null, 2)}
 `);
 }
 function writeMarkdown(path, value) {
-  mkdirSync2(dirname3(path), { recursive: true });
-  writeFileSync3(path, value.endsWith("\n") ? value : `${value}
+  mkdirSync3(dirname4(path), { recursive: true });
+  writeFileSync4(path, value.endsWith("\n") ? value : `${value}
 `);
 }
 function stageForCurrentStep(flow, currentStep) {
@@ -45421,7 +45448,7 @@ function buildRecord(args, now) {
   }
   const projectRoot = resolveProjectRootArg(args);
   const createdAt = args.createdAt ?? now().toISOString();
-  const recordId = args.recordId ?? `continuity-${randomUUID3()}`;
+  const recordId = args.recordId ?? `continuity-${randomUUID4()}`;
   const base = {
     schema_version: 1,
     record_id: recordId,
@@ -45508,7 +45535,7 @@ function writeActiveRun(controlPlane, record2) {
 }
 function readJsonSafely(path) {
   try {
-    return { ok: true, value: JSON.parse(readFileSync27(path, "utf8")) };
+    return { ok: true, value: JSON.parse(readFileSync28(path, "utf8")) };
   } catch {
     return { ok: false };
   }
@@ -45522,6 +45549,489 @@ function readContinuityIndexOrNull(controlPlane) {
     return null;
   const parsed = ContinuityIndex.safeParse(raw.value);
   return parsed.success ? parsed.data : null;
+}
+
+// dist/app/continuity/harvest.js
+var DEFAULT_AMBIENT_RECORD_STEM = "ambient-latest";
+var AMBIENT_INTENT_MAX_CHARS = 280;
+var AMBIENT_MAX_INTENTS = 4;
+var AMBIENT_HOST_TAG_PREFIX = /^<(command-name|command-message|command-args|local-command|system-reminder|task-notification|bash-input|bash-stdout|bash-stderr)/;
+var AMBIENT_DROP_LINE_PREFIX = /^(# \/|# Warm continuity record|Caveat:|\[SESSION CONTINUITY\]|Base directory for this skill:)/;
+var AMBIENT_INTERRUPT_MARKER = /Request interrupted/;
+function collapseWhitespace(value) {
+  return value.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function isDroppedIntent(text) {
+  return text.length === 0 || AMBIENT_HOST_TAG_PREFIX.test(text) || AMBIENT_DROP_LINE_PREFIX.test(text) || AMBIENT_INTERRUPT_MARKER.test(text);
+}
+function textBlocks(content) {
+  if (!Array.isArray(content))
+    return [];
+  const blocks = [];
+  for (const block of content) {
+    if (typeof block === "object" && block !== null && block.type === "text" && typeof block.text === "string") {
+      blocks.push(block.text);
+    }
+  }
+  return blocks;
+}
+function userMessageText(content) {
+  if (typeof content === "string") {
+    const collapsed = collapseWhitespace(content);
+    return collapsed.length === 0 ? void 0 : collapsed;
+  }
+  if (Array.isArray(content)) {
+    const collapsed = collapseWhitespace(textBlocks(content).join(" "));
+    return collapsed.length === 0 ? void 0 : collapsed;
+  }
+  return void 0;
+}
+function compactSummaryText(content) {
+  const raw = typeof content === "string" ? content : textBlocks(content).join("\n");
+  const trimmed = raw.trim();
+  return trimmed.length === 0 ? void 0 : trimmed;
+}
+function parseTranscriptContent(raw) {
+  const intents = [];
+  let summary;
+  for (const line of raw.split("\n")) {
+    if (line.trim().length === 0)
+      continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (typeof parsed !== "object" || parsed === null)
+      continue;
+    const entry = parsed;
+    const content = entry.message?.content;
+    if (entry.isCompactSummary === true) {
+      const text2 = compactSummaryText(content);
+      if (text2 !== void 0)
+        summary = text2;
+      continue;
+    }
+    if (entry.type !== "user")
+      continue;
+    const text = userMessageText(content);
+    if (text === void 0 || isDroppedIntent(text))
+      continue;
+    intents.push(text.slice(0, AMBIENT_INTENT_MAX_CHARS));
+  }
+  return { intents: intents.slice(-AMBIENT_MAX_INTENTS), summary };
+}
+var HEAD_FINGERPRINT_BYTES = 4096;
+function cursorsRoot(controlPlane) {
+  return join10(continuityRoot(controlPlane), "cursors");
+}
+function cursorPath(controlPlane, recordId) {
+  return join10(cursorsRoot(controlPlane), `${recordId}.json`);
+}
+function isSafeControlPlaneStem(value) {
+  return /^[a-z0-9][a-z0-9._-]*$/.test(value) && !value.includes("..") && value.length <= 128;
+}
+function sha256Hex(buf) {
+  return createHash4("sha256").update(buf).digest("hex");
+}
+function readByteRange(path, start, length) {
+  if (length <= 0)
+    return Buffer.alloc(0);
+  let fd;
+  try {
+    fd = openSync2(path, "r");
+    const buf = Buffer.allocUnsafe(length);
+    const read = readSync2(fd, buf, 0, length, start);
+    return buf.subarray(0, read);
+  } catch {
+    return void 0;
+  } finally {
+    if (fd !== void 0)
+      closeSync2(fd);
+  }
+}
+function readHarvestCursor(path) {
+  if (!existsSync13(path))
+    return void 0;
+  const raw = readJsonSafely(path);
+  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
+    return void 0;
+  const o = raw.value;
+  if (typeof o.transcript_path !== "string")
+    return void 0;
+  if (typeof o.byte_offset !== "number" || !Number.isFinite(o.byte_offset) || o.byte_offset < 0) {
+    return void 0;
+  }
+  if (typeof o.head_fingerprint !== "string")
+    return void 0;
+  if (!Array.isArray(o.intents) || !o.intents.every((i) => typeof i === "string"))
+    return void 0;
+  if (o.summary !== void 0 && typeof o.summary !== "string")
+    return void 0;
+  return {
+    transcript_path: o.transcript_path,
+    byte_offset: o.byte_offset,
+    head_fingerprint: o.head_fingerprint,
+    intents: o.intents,
+    ...typeof o.summary === "string" ? { summary: o.summary } : {}
+  };
+}
+function tombstonesRoot(controlPlane) {
+  return join10(continuityRoot(controlPlane), "tombstones");
+}
+function tombstonePath(controlPlane, recordId) {
+  return join10(tombstonesRoot(controlPlane), `${recordId}.json`);
+}
+function readTombstone(path) {
+  if (!existsSync13(path))
+    return void 0;
+  const raw = readJsonSafely(path);
+  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
+    return void 0;
+  const o = raw.value;
+  if (o.schema_version !== 1)
+    return void 0;
+  if (typeof o.record_id !== "string")
+    return void 0;
+  if (typeof o.transcript_path !== "string")
+    return void 0;
+  if (typeof o.position !== "number" || !Number.isFinite(o.position) || o.position < 0)
+    return void 0;
+  if (typeof o.cleared_at !== "string")
+    return void 0;
+  return {
+    schema_version: 1,
+    record_id: o.record_id,
+    transcript_path: o.transcript_path,
+    position: o.position,
+    cleared_at: o.cleared_at
+  };
+}
+function readAmbientTranscriptPath(controlPlane, recordId) {
+  const raw = readJsonSafely(recordPath(controlPlane, recordId));
+  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
+    return void 0;
+  const prov = raw.value.ambient_provenance;
+  if (!prov || typeof prov.transcript_path !== "string" || prov.transcript_path.length === 0) {
+    return void 0;
+  }
+  return prov.transcript_path;
+}
+function tombstoneAmbientRecord(controlPlane, recordId, now) {
+  const transcriptPath = readAmbientTranscriptPath(controlPlane, recordId);
+  if (transcriptPath === void 0)
+    return;
+  let position;
+  try {
+    position = statSync2(transcriptPath).size;
+  } catch {
+    position = readHarvestCursor(cursorPath(controlPlane, recordId))?.byte_offset;
+  }
+  if (position === void 0)
+    return;
+  const tombstone = {
+    schema_version: 1,
+    record_id: recordId,
+    transcript_path: transcriptPath,
+    position,
+    cleared_at: now().toISOString()
+  };
+  writeJsonAtomic(tombstonePath(controlPlane, recordId), tombstone);
+}
+function parseTranscriptForHarvest(transcriptPath, cursor) {
+  let size;
+  try {
+    size = statSync2(transcriptPath).size;
+  } catch {
+    return void 0;
+  }
+  if (cursor !== void 0 && cursor.transcript_path === transcriptPath && cursor.byte_offset >= HEAD_FINGERPRINT_BYTES && cursor.byte_offset <= size) {
+    const head = readByteRange(transcriptPath, 0, HEAD_FINGERPRINT_BYTES);
+    if (head !== void 0 && sha256Hex(head) === cursor.head_fingerprint) {
+      const tail = readByteRange(transcriptPath, cursor.byte_offset, size - cursor.byte_offset);
+      if (tail !== void 0) {
+        const tailParsed = parseTranscriptContent(tail.toString("utf8"));
+        const intents = [...cursor.intents, ...tailParsed.intents].slice(-AMBIENT_MAX_INTENTS);
+        const summary = tailParsed.summary ?? cursor.summary;
+        const tailLastNewline = tail.lastIndexOf(10);
+        const byteOffset2 = tailLastNewline === -1 ? cursor.byte_offset : cursor.byte_offset + tailLastNewline + 1;
+        return {
+          parsed: { intents, summary },
+          nextCursor: {
+            transcript_path: transcriptPath,
+            byte_offset: byteOffset2,
+            // Head region is unchanged and stays >= window, so the fingerprint
+            // is still valid for the next harvest.
+            head_fingerprint: cursor.head_fingerprint,
+            intents,
+            ...summary === void 0 ? {} : { summary }
+          }
+        };
+      }
+    }
+  }
+  let buf;
+  try {
+    buf = readFileSync29(transcriptPath);
+  } catch {
+    return void 0;
+  }
+  const parsed = parseTranscriptContent(buf.toString("utf8"));
+  const lastNewline = buf.lastIndexOf(10);
+  const byteOffset = lastNewline === -1 ? 0 : lastNewline + 1;
+  const headLength = Math.min(byteOffset, HEAD_FINGERPRINT_BYTES);
+  return {
+    parsed,
+    nextCursor: {
+      transcript_path: transcriptPath,
+      byte_offset: byteOffset,
+      head_fingerprint: sha256Hex(buf.subarray(0, headLength)),
+      intents: parsed.intents,
+      ...parsed.summary === void 0 ? {} : { summary: parsed.summary }
+    }
+  };
+}
+var AMBIENT_RECORDS_KEPT = 10;
+function sanitizeStemPart(raw) {
+  if (raw === void 0)
+    return void 0;
+  const cleaned = raw.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/\.{2,}/g, ".").replace(/^[^a-z0-9]+/, "").slice(0, 100);
+  return cleaned.length === 0 ? void 0 : cleaned;
+}
+function ambientStemForSessionId(sessionId) {
+  const part = sanitizeStemPart(sessionId);
+  return part === void 0 ? void 0 : `ambient-${part}`;
+}
+function deriveAmbientStem(sessionId, transcriptPath) {
+  const fromSession = sessionId === void 0 ? void 0 : ambientStemForSessionId(sessionId);
+  if (fromSession !== void 0)
+    return fromSession;
+  const base = basename(transcriptPath).replace(/\.jsonl$/i, "");
+  const fromTranscript = sanitizeStemPart(base);
+  if (fromTranscript !== void 0)
+    return `ambient-${fromTranscript}`;
+  return DEFAULT_AMBIENT_RECORD_STEM;
+}
+function listAmbientRecords(controlPlane) {
+  let names;
+  try {
+    names = readdirSync(recordsRoot(controlPlane));
+  } catch {
+    return [];
+  }
+  const entries = [];
+  for (const name of names) {
+    if (!name.startsWith("ambient-") || !name.endsWith(".json"))
+      continue;
+    const recordId = name.slice(0, -".json".length);
+    const raw = readJsonSafely(join10(recordsRoot(controlPlane), name));
+    const createdAt = raw.ok && typeof raw.value === "object" && raw.value !== null && typeof raw.value.created_at === "string" ? raw.value.created_at : "";
+    entries.push({ record_id: recordId, created_at: createdAt });
+  }
+  return entries;
+}
+function removeFileQuietly(path) {
+  try {
+    rmSync3(path, { force: true });
+  } catch {
+  }
+}
+function removeAllAmbientRecords(controlPlane) {
+  for (const entry of listAmbientRecords(controlPlane)) {
+    removeFileQuietly(recordPath(controlPlane, entry.record_id));
+    if (isSafeControlPlaneStem(entry.record_id)) {
+      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
+    }
+  }
+}
+function reconcileAmbientRecords(controlPlane, current) {
+  const entries = listAmbientRecords(controlPlane);
+  let pointer = current;
+  for (const entry of entries) {
+    if (entry.created_at > pointer.created_at)
+      pointer = entry;
+  }
+  const sorted = [...entries].sort((a, b) => a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0);
+  for (const entry of sorted.slice(AMBIENT_RECORDS_KEPT)) {
+    if (entry.record_id === pointer.record_id || entry.record_id === current.record_id)
+      continue;
+    removeFileQuietly(recordPath(controlPlane, entry.record_id));
+    if (isSafeControlPlaneStem(entry.record_id)) {
+      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
+    }
+  }
+  return pointer;
+}
+function realAmbientGitProbe(projectRoot) {
+  const git = (gitArgs) => {
+    try {
+      return execFileSync("git", ["-C", projectRoot, ...gitArgs], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"]
+      }).trim();
+    } catch {
+      return void 0;
+    }
+  };
+  if (git(["rev-parse", "--is-inside-work-tree"]) !== "true")
+    return {};
+  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const head = git(["rev-parse", "--short", "HEAD"]);
+  const status = git(["status", "--porcelain=v1"]);
+  const statusPorcelain = status === void 0 || status.length === 0 ? void 0 : status.split("\n").slice(0, 40).join("\n");
+  return {
+    ...branch ? { branch } : {},
+    ...head ? { head } : {},
+    ...statusPorcelain ? { statusPorcelain } : {}
+  };
+}
+function composeAmbientStateMarkdown(intents, summary, git, transcriptPath) {
+  const summarySection = () => [
+    "## Structured summary (harvested from the last compaction)",
+    summary ?? "None captured this session. Full history is in the transcript below."
+  ];
+  const intentSection = () => {
+    const out = ["## Recent intent (your last requests, newest last)"];
+    if (intents.length > 0) {
+      for (const intent of intents)
+        out.push(`- ${intent}`);
+    } else {
+      out.push("- (none captured; see the transcript below)");
+    }
+    return out;
+  };
+  const treeSection = () => {
+    const out = ["## Working tree (uncommitted)"];
+    if (git.statusPorcelain !== void 0) {
+      out.push("```", git.statusPorcelain, "```");
+    } else {
+      out.push("clean, or not a git repo");
+    }
+    return out;
+  };
+  const lines = summary !== void 0 ? [...summarySection(), "", ...intentSection(), "", ...treeSection()] : [...intentSection(), "", ...treeSection(), "", ...summarySection()];
+  lines.push("", "## Full detail", `Transcript: ${transcriptPath}`);
+  return lines.join("\n");
+}
+function harvestAmbientContinuity(input) {
+  const projectRoot = resolve11(input.projectRoot);
+  const controlPlane = input.controlPlane === void 0 ? controlPlaneRoot(projectRoot) : resolve11(input.controlPlane);
+  const skip = (reason) => ({
+    schema_version: 1,
+    action: "harvest",
+    status: "skipped",
+    reason,
+    index_path: indexPath(controlPlane)
+  });
+  if (!existsSync13(input.transcriptPath))
+    return skip("no_transcript");
+  const recordId = input.recordId ?? deriveAmbientStem(input.sessionId, input.transcriptPath);
+  const stemSafe = isSafeControlPlaneStem(recordId);
+  const cursorAbs = stemSafe ? cursorPath(controlPlane, recordId) : void 0;
+  const priorCursor = cursorAbs === void 0 ? void 0 : readHarvestCursor(cursorAbs);
+  const tombstoneAbs = stemSafe ? tombstonePath(controlPlane, recordId) : void 0;
+  if (tombstoneAbs !== void 0) {
+    const tombstone = readTombstone(tombstoneAbs);
+    if (tombstone !== void 0 && tombstone.transcript_path === input.transcriptPath) {
+      let size;
+      try {
+        size = statSync2(input.transcriptPath).size;
+      } catch {
+        size = 0;
+      }
+      if (size <= tombstone.position)
+        return skip("cleared");
+      const tail = readByteRange(input.transcriptPath, tombstone.position, size - tombstone.position);
+      const tailIntents = tail === void 0 ? [] : parseTranscriptContent(tail.toString("utf8")).intents;
+      if (tailIntents.length === 0)
+        return skip("cleared");
+      removeFileQuietly(tombstoneAbs);
+    }
+  }
+  const harvested = parseTranscriptForHarvest(input.transcriptPath, priorCursor);
+  if (harvested === void 0)
+    return skip("transcript_unreadable");
+  const parsed = harvested.parsed;
+  const git = (input.gitProbe ?? (() => ({})))(projectRoot);
+  if (parsed.intents.length === 0 && parsed.summary === void 0 && git.statusPorcelain === void 0) {
+    return skip("nothing_to_harvest");
+  }
+  const createdAt = input.createdAt ?? input.now().toISOString();
+  const latestIntent = parsed.intents[parsed.intents.length - 1];
+  const goal = latestIntent ?? `Resume the mechanically captured session in ${basename(projectRoot) || projectRoot}`;
+  const record2 = ContinuityRecord.parse({
+    schema_version: 1,
+    record_id: recordId,
+    project_root: projectRoot,
+    created_at: createdAt,
+    git: {
+      cwd: projectRoot,
+      ...git.branch ? { branch: git.branch } : {},
+      ...git.head ? { head: git.head } : {}
+    },
+    narrative: {
+      goal,
+      next: "Review the recent intents and harvested summary below, then continue. This record was captured automatically, not saved by you, so confirm before acting.",
+      state_markdown: composeAmbientStateMarkdown(parsed.intents, parsed.summary, git, input.transcriptPath),
+      debt_markdown: `- Mechanically harvested from the live transcript at ${createdAt}. Treat it as a hint, not a verified plan.`
+    },
+    continuity_kind: "ambient",
+    ambient_provenance: {
+      transcript_path: input.transcriptPath,
+      ...input.sessionId ? { session_id: input.sessionId } : {},
+      source: input.source
+    },
+    resume_contract: {
+      mode: "resume_ambient",
+      auto_resume: false,
+      requires_explicit_resume: true
+    }
+  });
+  const recordAbs = recordPath(controlPlane, record2.record_id);
+  writeJsonAtomic(recordAbs, record2);
+  if (cursorAbs !== void 0)
+    writeJsonAtomic(cursorAbs, harvested.nextCursor);
+  const pointer = reconcileAmbientRecords(controlPlane, {
+    record_id: record2.record_id,
+    created_at: record2.created_at
+  });
+  const existing = readContinuityIndexOrNull(controlPlane);
+  const index = ContinuityIndex.parse({
+    schema_version: 1,
+    project_root: existing?.project_root ?? projectRoot,
+    pending_record: existing?.pending_record ?? null,
+    current_run: existing?.current_run ?? null,
+    ambient_record: {
+      record_id: pointer.record_id,
+      continuity_kind: "ambient",
+      created_at: pointer.created_at
+    }
+  });
+  writeJsonAtomic(indexPath(controlPlane), index);
+  return {
+    schema_version: 1,
+    action: "harvest",
+    status: "harvested",
+    record_id: record2.record_id,
+    continuity_path: recordAbs,
+    index_path: indexPath(controlPlane),
+    intents_captured: parsed.intents.length,
+    summary_captured: parsed.summary !== void 0
+  };
+}
+function ambientSourceFrom(value, hookEventName) {
+  if (value === "session-end")
+    return "session-end";
+  if (value === "pre-compact")
+    return "pre-compact";
+  if (value === "stop")
+    return "stop";
+  if (typeof hookEventName === "string" && hookEventName === "SessionEnd")
+    return "session-end";
+  if (typeof hookEventName === "string" && hookEventName === "PreCompact")
+    return "pre-compact";
+  return "stop";
 }
 
 // dist/app/continuity/brief.js
@@ -45617,7 +46127,7 @@ function stalenessBlockLines(record2, staleness) {
   return lines.length > 1 ? lines : [];
 }
 function composeAmbientBrief(record2, state, debt, ageLabel, staleness) {
-  const repo = basename(record2.git.cwd) || record2.git.cwd;
+  const repo = basename2(record2.git.cwd) || record2.git.cwd;
   const capturedSuffix = ageLabel === void 0 ? "" : ` (captured ${ageLabel})`;
   const stalenessLines = stalenessBlockLines(record2, staleness);
   const boundary = staleness !== void 0 && stalenessDiverged(staleness) ? AMBIENT_BOUNDARY_ADVANCED : AMBIENT_BOUNDARY_DEFAULT;
@@ -45763,19 +46273,19 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now, gitProbe)
   const projectRoot = resolveProjectRootArg(args);
   const indexAbs = indexPath(controlPlane);
   const recordAbs = recordPath(controlPlane, pointer.record_id);
-  if (!existsSync13(recordAbs)) {
+  if (!existsSync14(recordAbs)) {
     return invalidBrief(args, "record_missing", "Continuity index points at a missing record.", pointer.record_id);
   }
   let record2;
   try {
-    record2 = ContinuityRecord.parse(JSON.parse(readFileSync28(recordAbs, "utf8")));
+    record2 = ContinuityRecord.parse(JSON.parse(readFileSync30(recordAbs, "utf8")));
   } catch {
     return invalidBrief(args, "record_invalid", "Continuity record is malformed.", pointer.record_id);
   }
   if (record2.continuity_kind !== pointer.continuity_kind) {
     return invalidBrief(args, "record_kind_mismatch", "Continuity index kind disagrees with the pointed record.", pointer.record_id);
   }
-  const staleness = record2.continuity_kind === "ambient" && resolve11(record2.git.cwd) === resolve11(projectRoot) ? gitProbe({
+  const staleness = record2.continuity_kind === "ambient" && resolve12(record2.git.cwd) === resolve12(projectRoot) ? gitProbe({
     projectRoot,
     ...record2.git.head === void 0 ? {} : { capturedHead: record2.git.head },
     ...record2.git.branch === void 0 ? {} : { capturedBranch: record2.git.branch }
@@ -45800,14 +46310,25 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now, gitProbe)
     ...hasStaleness ? { staleness } : {}
   };
 }
+var CONTINUING_SESSION_SOURCES = /* @__PURE__ */ new Set(["compact", "resume"]);
+function resolveAmbientBrief(args, controlPlane, pointer, now, gitProbe) {
+  const ownStem = args.sessionId === void 0 ? void 0 : ambientStemForSessionId(args.sessionId);
+  if (ownStem !== void 0 && isSafeControlPlaneStem(ownStem) && existsSync14(recordPath(controlPlane, ownStem))) {
+    return resolvePointerBrief(args, controlPlane, { record_id: ownStem, continuity_kind: "ambient" }, "ambient_record", now, gitProbe);
+  }
+  if (args.sessionId !== void 0 && CONTINUING_SESSION_SOURCES.has(args.sessionSource ?? "")) {
+    return emptyBrief(args, "ambient_foreign_session");
+  }
+  return resolvePointerBrief(args, controlPlane, pointer, "ambient_record", now, gitProbe);
+}
 function handoffBrief(args, now = () => /* @__PURE__ */ new Date(), gitProbe = realBriefGitProbe) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync13(indexAbs))
+  if (!existsSync14(indexAbs))
     return emptyBrief(args, "no_index");
   let index;
   try {
-    index = ContinuityIndex.parse(JSON.parse(readFileSync28(indexAbs, "utf8")));
+    index = ContinuityIndex.parse(JSON.parse(readFileSync30(indexAbs, "utf8")));
   } catch {
     return invalidBrief(args, "index_invalid", "Continuity index is malformed.");
   }
@@ -45816,7 +46337,7 @@ function handoffBrief(args, now = () => /* @__PURE__ */ new Date(), gitProbe = r
     if (pending.status === "available")
       return pending;
     if (index.ambient_record) {
-      const ambient = resolvePointerBrief(args, controlPlane, index.ambient_record, "ambient_record", now, gitProbe);
+      const ambient = resolveAmbientBrief(args, controlPlane, index.ambient_record, now, gitProbe);
       if (ambient.status === "available") {
         const failure = briefErrorOf(pending);
         return {
@@ -45829,7 +46350,7 @@ function handoffBrief(args, now = () => /* @__PURE__ */ new Date(), gitProbe = r
     return pending;
   }
   if (index.ambient_record) {
-    return resolvePointerBrief(args, controlPlane, index.ambient_record, "ambient_record", now, gitProbe);
+    return resolveAmbientBrief(args, controlPlane, index.ambient_record, now, gitProbe);
   }
   return emptyBrief(args, "no_pending_record");
 }
@@ -45843,7 +46364,7 @@ function realBriefGitProbe(input) {
   const { projectRoot, capturedHead, capturedBranch } = input;
   const git = (gitArgs) => {
     try {
-      return execFileSync("git", ["-C", projectRoot, ...gitArgs], {
+      return execFileSync2("git", ["-C", projectRoot, ...gitArgs], {
         encoding: "utf8",
         stdio: ["ignore", "pipe", "ignore"],
         timeout: 2e3
@@ -45854,7 +46375,7 @@ function realBriefGitProbe(input) {
   };
   const gitBool = (gitArgs) => {
     try {
-      execFileSync("git", ["-C", projectRoot, ...gitArgs], {
+      execFileSync2("git", ["-C", projectRoot, ...gitArgs], {
         stdio: ["ignore", "ignore", "ignore"],
         timeout: 2e3
       });
@@ -45899,512 +46420,6 @@ function realBriefGitProbe(input) {
   } catch {
     return {};
   }
-}
-
-// dist/app/continuity/harvest.js
-import { execFileSync as execFileSync2 } from "node:child_process";
-import { createHash as createHash4 } from "node:crypto";
-import { closeSync as closeSync2, existsSync as existsSync14, openSync as openSync2, readFileSync as readFileSync30, readSync as readSync2, readdirSync, rmSync as rmSync3, statSync as statSync2 } from "node:fs";
-import { basename as basename2, join as join10, resolve as resolve12 } from "node:path";
-
-// dist/shared/atomic-io.js
-import { randomUUID as randomUUID4 } from "node:crypto";
-import { mkdirSync as mkdirSync3, readFileSync as readFileSync29, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync4 } from "node:fs";
-import { dirname as dirname4 } from "node:path";
-function writeTextAtomic(path, contents, options = {}) {
-  mkdirSync3(dirname4(path), { recursive: true });
-  const staging = `${path}.${randomUUID4()}.tmp`;
-  writeFileSync4(staging, contents);
-  try {
-    options.validate?.(readFileSync29(staging, "utf8"));
-    renameSync(staging, path);
-  } catch (error51) {
-    rmSync2(staging, { force: true });
-    throw error51;
-  }
-}
-function writeJsonAtomic(path, value, options = {}) {
-  writeTextAtomic(path, `${JSON.stringify(value, null, 2)}
-`, options);
-}
-
-// dist/app/continuity/harvest.js
-var DEFAULT_AMBIENT_RECORD_STEM = "ambient-latest";
-var AMBIENT_INTENT_MAX_CHARS = 280;
-var AMBIENT_MAX_INTENTS = 4;
-var AMBIENT_HOST_TAG_PREFIX = /^<(command-name|command-message|command-args|local-command|system-reminder|task-notification|bash-input|bash-stdout|bash-stderr)/;
-var AMBIENT_DROP_LINE_PREFIX = /^(# \/|# Warm continuity record|Caveat:|\[SESSION CONTINUITY\]|Base directory for this skill:)/;
-var AMBIENT_INTERRUPT_MARKER = /Request interrupted/;
-function collapseWhitespace(value) {
-  return value.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
-}
-function isDroppedIntent(text) {
-  return text.length === 0 || AMBIENT_HOST_TAG_PREFIX.test(text) || AMBIENT_DROP_LINE_PREFIX.test(text) || AMBIENT_INTERRUPT_MARKER.test(text);
-}
-function textBlocks(content) {
-  if (!Array.isArray(content))
-    return [];
-  const blocks = [];
-  for (const block of content) {
-    if (typeof block === "object" && block !== null && block.type === "text" && typeof block.text === "string") {
-      blocks.push(block.text);
-    }
-  }
-  return blocks;
-}
-function userMessageText(content) {
-  if (typeof content === "string") {
-    const collapsed = collapseWhitespace(content);
-    return collapsed.length === 0 ? void 0 : collapsed;
-  }
-  if (Array.isArray(content)) {
-    const collapsed = collapseWhitespace(textBlocks(content).join(" "));
-    return collapsed.length === 0 ? void 0 : collapsed;
-  }
-  return void 0;
-}
-function compactSummaryText(content) {
-  const raw = typeof content === "string" ? content : textBlocks(content).join("\n");
-  const trimmed = raw.trim();
-  return trimmed.length === 0 ? void 0 : trimmed;
-}
-function parseTranscriptContent(raw) {
-  const intents = [];
-  let summary;
-  for (const line of raw.split("\n")) {
-    if (line.trim().length === 0)
-      continue;
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (typeof parsed !== "object" || parsed === null)
-      continue;
-    const entry = parsed;
-    const content = entry.message?.content;
-    if (entry.isCompactSummary === true) {
-      const text2 = compactSummaryText(content);
-      if (text2 !== void 0)
-        summary = text2;
-      continue;
-    }
-    if (entry.type !== "user")
-      continue;
-    const text = userMessageText(content);
-    if (text === void 0 || isDroppedIntent(text))
-      continue;
-    intents.push(text.slice(0, AMBIENT_INTENT_MAX_CHARS));
-  }
-  return { intents: intents.slice(-AMBIENT_MAX_INTENTS), summary };
-}
-var HEAD_FINGERPRINT_BYTES = 4096;
-function cursorsRoot(controlPlane) {
-  return join10(continuityRoot(controlPlane), "cursors");
-}
-function cursorPath(controlPlane, recordId) {
-  return join10(cursorsRoot(controlPlane), `${recordId}.json`);
-}
-function isSafeControlPlaneStem(value) {
-  return /^[a-z0-9][a-z0-9._-]*$/.test(value) && !value.includes("..") && value.length <= 128;
-}
-function sha256Hex(buf) {
-  return createHash4("sha256").update(buf).digest("hex");
-}
-function readByteRange(path, start, length) {
-  if (length <= 0)
-    return Buffer.alloc(0);
-  let fd;
-  try {
-    fd = openSync2(path, "r");
-    const buf = Buffer.allocUnsafe(length);
-    const read = readSync2(fd, buf, 0, length, start);
-    return buf.subarray(0, read);
-  } catch {
-    return void 0;
-  } finally {
-    if (fd !== void 0)
-      closeSync2(fd);
-  }
-}
-function readHarvestCursor(path) {
-  if (!existsSync14(path))
-    return void 0;
-  const raw = readJsonSafely(path);
-  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
-    return void 0;
-  const o = raw.value;
-  if (typeof o.transcript_path !== "string")
-    return void 0;
-  if (typeof o.byte_offset !== "number" || !Number.isFinite(o.byte_offset) || o.byte_offset < 0) {
-    return void 0;
-  }
-  if (typeof o.head_fingerprint !== "string")
-    return void 0;
-  if (!Array.isArray(o.intents) || !o.intents.every((i) => typeof i === "string"))
-    return void 0;
-  if (o.summary !== void 0 && typeof o.summary !== "string")
-    return void 0;
-  return {
-    transcript_path: o.transcript_path,
-    byte_offset: o.byte_offset,
-    head_fingerprint: o.head_fingerprint,
-    intents: o.intents,
-    ...typeof o.summary === "string" ? { summary: o.summary } : {}
-  };
-}
-function tombstonesRoot(controlPlane) {
-  return join10(continuityRoot(controlPlane), "tombstones");
-}
-function tombstonePath(controlPlane, recordId) {
-  return join10(tombstonesRoot(controlPlane), `${recordId}.json`);
-}
-function readTombstone(path) {
-  if (!existsSync14(path))
-    return void 0;
-  const raw = readJsonSafely(path);
-  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
-    return void 0;
-  const o = raw.value;
-  if (o.schema_version !== 1)
-    return void 0;
-  if (typeof o.record_id !== "string")
-    return void 0;
-  if (typeof o.transcript_path !== "string")
-    return void 0;
-  if (typeof o.position !== "number" || !Number.isFinite(o.position) || o.position < 0)
-    return void 0;
-  if (typeof o.cleared_at !== "string")
-    return void 0;
-  return {
-    schema_version: 1,
-    record_id: o.record_id,
-    transcript_path: o.transcript_path,
-    position: o.position,
-    cleared_at: o.cleared_at
-  };
-}
-function readAmbientTranscriptPath(controlPlane, recordId) {
-  const raw = readJsonSafely(recordPath(controlPlane, recordId));
-  if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
-    return void 0;
-  const prov = raw.value.ambient_provenance;
-  if (!prov || typeof prov.transcript_path !== "string" || prov.transcript_path.length === 0) {
-    return void 0;
-  }
-  return prov.transcript_path;
-}
-function tombstoneAmbientRecord(controlPlane, recordId, now) {
-  const transcriptPath = readAmbientTranscriptPath(controlPlane, recordId);
-  if (transcriptPath === void 0)
-    return;
-  let position;
-  try {
-    position = statSync2(transcriptPath).size;
-  } catch {
-    position = readHarvestCursor(cursorPath(controlPlane, recordId))?.byte_offset;
-  }
-  if (position === void 0)
-    return;
-  const tombstone = {
-    schema_version: 1,
-    record_id: recordId,
-    transcript_path: transcriptPath,
-    position,
-    cleared_at: now().toISOString()
-  };
-  writeJsonAtomic(tombstonePath(controlPlane, recordId), tombstone);
-}
-function parseTranscriptForHarvest(transcriptPath, cursor) {
-  let size;
-  try {
-    size = statSync2(transcriptPath).size;
-  } catch {
-    return void 0;
-  }
-  if (cursor !== void 0 && cursor.transcript_path === transcriptPath && cursor.byte_offset >= HEAD_FINGERPRINT_BYTES && cursor.byte_offset <= size) {
-    const head = readByteRange(transcriptPath, 0, HEAD_FINGERPRINT_BYTES);
-    if (head !== void 0 && sha256Hex(head) === cursor.head_fingerprint) {
-      const tail = readByteRange(transcriptPath, cursor.byte_offset, size - cursor.byte_offset);
-      if (tail !== void 0) {
-        const tailParsed = parseTranscriptContent(tail.toString("utf8"));
-        const intents = [...cursor.intents, ...tailParsed.intents].slice(-AMBIENT_MAX_INTENTS);
-        const summary = tailParsed.summary ?? cursor.summary;
-        const tailLastNewline = tail.lastIndexOf(10);
-        const byteOffset2 = tailLastNewline === -1 ? cursor.byte_offset : cursor.byte_offset + tailLastNewline + 1;
-        return {
-          parsed: { intents, summary },
-          nextCursor: {
-            transcript_path: transcriptPath,
-            byte_offset: byteOffset2,
-            // Head region is unchanged and stays >= window, so the fingerprint
-            // is still valid for the next harvest.
-            head_fingerprint: cursor.head_fingerprint,
-            intents,
-            ...summary === void 0 ? {} : { summary }
-          }
-        };
-      }
-    }
-  }
-  let buf;
-  try {
-    buf = readFileSync30(transcriptPath);
-  } catch {
-    return void 0;
-  }
-  const parsed = parseTranscriptContent(buf.toString("utf8"));
-  const lastNewline = buf.lastIndexOf(10);
-  const byteOffset = lastNewline === -1 ? 0 : lastNewline + 1;
-  const headLength = Math.min(byteOffset, HEAD_FINGERPRINT_BYTES);
-  return {
-    parsed,
-    nextCursor: {
-      transcript_path: transcriptPath,
-      byte_offset: byteOffset,
-      head_fingerprint: sha256Hex(buf.subarray(0, headLength)),
-      intents: parsed.intents,
-      ...parsed.summary === void 0 ? {} : { summary: parsed.summary }
-    }
-  };
-}
-var AMBIENT_RECORDS_KEPT = 10;
-function sanitizeStemPart(raw) {
-  if (raw === void 0)
-    return void 0;
-  const cleaned = raw.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/\.{2,}/g, ".").replace(/^[^a-z0-9]+/, "").slice(0, 100);
-  return cleaned.length === 0 ? void 0 : cleaned;
-}
-function deriveAmbientStem(sessionId, transcriptPath) {
-  const fromSession = sanitizeStemPart(sessionId);
-  if (fromSession !== void 0)
-    return `ambient-${fromSession}`;
-  const base = basename2(transcriptPath).replace(/\.jsonl$/i, "");
-  const fromTranscript = sanitizeStemPart(base);
-  if (fromTranscript !== void 0)
-    return `ambient-${fromTranscript}`;
-  return DEFAULT_AMBIENT_RECORD_STEM;
-}
-function listAmbientRecords(controlPlane) {
-  let names;
-  try {
-    names = readdirSync(recordsRoot(controlPlane));
-  } catch {
-    return [];
-  }
-  const entries = [];
-  for (const name of names) {
-    if (!name.startsWith("ambient-") || !name.endsWith(".json"))
-      continue;
-    const recordId = name.slice(0, -".json".length);
-    const raw = readJsonSafely(join10(recordsRoot(controlPlane), name));
-    const createdAt = raw.ok && typeof raw.value === "object" && raw.value !== null && typeof raw.value.created_at === "string" ? raw.value.created_at : "";
-    entries.push({ record_id: recordId, created_at: createdAt });
-  }
-  return entries;
-}
-function removeFileQuietly(path) {
-  try {
-    rmSync3(path, { force: true });
-  } catch {
-  }
-}
-function removeAllAmbientRecords(controlPlane) {
-  for (const entry of listAmbientRecords(controlPlane)) {
-    removeFileQuietly(recordPath(controlPlane, entry.record_id));
-    if (isSafeControlPlaneStem(entry.record_id)) {
-      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
-    }
-  }
-}
-function reconcileAmbientRecords(controlPlane, current) {
-  const entries = listAmbientRecords(controlPlane);
-  let pointer = current;
-  for (const entry of entries) {
-    if (entry.created_at > pointer.created_at)
-      pointer = entry;
-  }
-  const sorted = [...entries].sort((a, b) => a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0);
-  for (const entry of sorted.slice(AMBIENT_RECORDS_KEPT)) {
-    if (entry.record_id === pointer.record_id || entry.record_id === current.record_id)
-      continue;
-    removeFileQuietly(recordPath(controlPlane, entry.record_id));
-    if (isSafeControlPlaneStem(entry.record_id)) {
-      removeFileQuietly(cursorPath(controlPlane, entry.record_id));
-    }
-  }
-  return pointer;
-}
-function realAmbientGitProbe(projectRoot) {
-  const git = (gitArgs) => {
-    try {
-      return execFileSync2("git", ["-C", projectRoot, ...gitArgs], {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"]
-      }).trim();
-    } catch {
-      return void 0;
-    }
-  };
-  if (git(["rev-parse", "--is-inside-work-tree"]) !== "true")
-    return {};
-  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
-  const head = git(["rev-parse", "--short", "HEAD"]);
-  const status = git(["status", "--porcelain=v1"]);
-  const statusPorcelain = status === void 0 || status.length === 0 ? void 0 : status.split("\n").slice(0, 40).join("\n");
-  return {
-    ...branch ? { branch } : {},
-    ...head ? { head } : {},
-    ...statusPorcelain ? { statusPorcelain } : {}
-  };
-}
-function composeAmbientStateMarkdown(intents, summary, git, transcriptPath) {
-  const summarySection = () => [
-    "## Structured summary (harvested from the last compaction)",
-    summary ?? "None captured this session. Full history is in the transcript below."
-  ];
-  const intentSection = () => {
-    const out = ["## Recent intent (your last requests, newest last)"];
-    if (intents.length > 0) {
-      for (const intent of intents)
-        out.push(`- ${intent}`);
-    } else {
-      out.push("- (none captured; see the transcript below)");
-    }
-    return out;
-  };
-  const treeSection = () => {
-    const out = ["## Working tree (uncommitted)"];
-    if (git.statusPorcelain !== void 0) {
-      out.push("```", git.statusPorcelain, "```");
-    } else {
-      out.push("clean, or not a git repo");
-    }
-    return out;
-  };
-  const lines = summary !== void 0 ? [...summarySection(), "", ...intentSection(), "", ...treeSection()] : [...intentSection(), "", ...treeSection(), "", ...summarySection()];
-  lines.push("", "## Full detail", `Transcript: ${transcriptPath}`);
-  return lines.join("\n");
-}
-function harvestAmbientContinuity(input) {
-  const projectRoot = resolve12(input.projectRoot);
-  const controlPlane = input.controlPlane === void 0 ? controlPlaneRoot(projectRoot) : resolve12(input.controlPlane);
-  const skip = (reason) => ({
-    schema_version: 1,
-    action: "harvest",
-    status: "skipped",
-    reason,
-    index_path: indexPath(controlPlane)
-  });
-  if (!existsSync14(input.transcriptPath))
-    return skip("no_transcript");
-  const recordId = input.recordId ?? deriveAmbientStem(input.sessionId, input.transcriptPath);
-  const stemSafe = isSafeControlPlaneStem(recordId);
-  const cursorAbs = stemSafe ? cursorPath(controlPlane, recordId) : void 0;
-  const priorCursor = cursorAbs === void 0 ? void 0 : readHarvestCursor(cursorAbs);
-  const tombstoneAbs = stemSafe ? tombstonePath(controlPlane, recordId) : void 0;
-  if (tombstoneAbs !== void 0) {
-    const tombstone = readTombstone(tombstoneAbs);
-    if (tombstone !== void 0 && tombstone.transcript_path === input.transcriptPath) {
-      let size;
-      try {
-        size = statSync2(input.transcriptPath).size;
-      } catch {
-        size = 0;
-      }
-      if (size <= tombstone.position)
-        return skip("cleared");
-      const tail = readByteRange(input.transcriptPath, tombstone.position, size - tombstone.position);
-      const tailIntents = tail === void 0 ? [] : parseTranscriptContent(tail.toString("utf8")).intents;
-      if (tailIntents.length === 0)
-        return skip("cleared");
-      removeFileQuietly(tombstoneAbs);
-    }
-  }
-  const harvested = parseTranscriptForHarvest(input.transcriptPath, priorCursor);
-  if (harvested === void 0)
-    return skip("transcript_unreadable");
-  const parsed = harvested.parsed;
-  const git = (input.gitProbe ?? (() => ({})))(projectRoot);
-  if (parsed.intents.length === 0 && parsed.summary === void 0 && git.statusPorcelain === void 0) {
-    return skip("nothing_to_harvest");
-  }
-  const createdAt = input.createdAt ?? input.now().toISOString();
-  const latestIntent = parsed.intents[parsed.intents.length - 1];
-  const goal = latestIntent ?? `Resume the mechanically captured session in ${basename2(projectRoot) || projectRoot}`;
-  const record2 = ContinuityRecord.parse({
-    schema_version: 1,
-    record_id: recordId,
-    project_root: projectRoot,
-    created_at: createdAt,
-    git: {
-      cwd: projectRoot,
-      ...git.branch ? { branch: git.branch } : {},
-      ...git.head ? { head: git.head } : {}
-    },
-    narrative: {
-      goal,
-      next: "Review the recent intents and harvested summary below, then continue. This record was captured automatically, not saved by you, so confirm before acting.",
-      state_markdown: composeAmbientStateMarkdown(parsed.intents, parsed.summary, git, input.transcriptPath),
-      debt_markdown: `- Mechanically harvested from the live transcript at ${createdAt}. Treat it as a hint, not a verified plan.`
-    },
-    continuity_kind: "ambient",
-    ambient_provenance: {
-      transcript_path: input.transcriptPath,
-      ...input.sessionId ? { session_id: input.sessionId } : {},
-      source: input.source
-    },
-    resume_contract: {
-      mode: "resume_ambient",
-      auto_resume: false,
-      requires_explicit_resume: true
-    }
-  });
-  const recordAbs = recordPath(controlPlane, record2.record_id);
-  writeJsonAtomic(recordAbs, record2);
-  if (cursorAbs !== void 0)
-    writeJsonAtomic(cursorAbs, harvested.nextCursor);
-  const pointer = reconcileAmbientRecords(controlPlane, {
-    record_id: record2.record_id,
-    created_at: record2.created_at
-  });
-  const existing = readContinuityIndexOrNull(controlPlane);
-  const index = ContinuityIndex.parse({
-    schema_version: 1,
-    project_root: existing?.project_root ?? projectRoot,
-    pending_record: existing?.pending_record ?? null,
-    current_run: existing?.current_run ?? null,
-    ambient_record: {
-      record_id: pointer.record_id,
-      continuity_kind: "ambient",
-      created_at: pointer.created_at
-    }
-  });
-  writeJsonAtomic(indexPath(controlPlane), index);
-  return {
-    schema_version: 1,
-    action: "harvest",
-    status: "harvested",
-    record_id: record2.record_id,
-    continuity_path: recordAbs,
-    index_path: indexPath(controlPlane),
-    intents_captured: parsed.intents.length,
-    summary_captured: parsed.summary !== void 0
-  };
-}
-function ambientSourceFrom(value, hookEventName) {
-  if (value === "session-end")
-    return "session-end";
-  if (value === "pre-compact")
-    return "pre-compact";
-  if (value === "stop")
-    return "stop";
-  if (typeof hookEventName === "string" && hookEventName === "SessionEnd")
-    return "session-end";
-  if (typeof hookEventName === "string" && hookEventName === "PreCompact")
-    return "pre-compact";
-  return "stop";
 }
 
 // dist/cli/handoff-codex-hooks.js
@@ -46790,7 +46805,7 @@ function codexInstallAssurance(input) {
 
 // dist/cli/handoff.js
 function addHandoffOptions(program2) {
-  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--source <stop|session-end|pre-compact>").option("--clear-ambient").option("--progress <format>").option("--json");
+  return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--session-source <startup|resume|clear|compact>").option("--source <stop|session-end|pre-compact>").option("--clear-ambient").option("--progress <format>").option("--json");
 }
 function parseArgs2(argv) {
   let parsed;
@@ -46850,6 +46865,7 @@ function parseArgs2(argv) {
     ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt },
     ...opts.transcriptPath === void 0 ? {} : { transcriptPath: opts.transcriptPath },
     ...opts.sessionId === void 0 ? {} : { sessionId: opts.sessionId },
+    ...opts.sessionSource === void 0 ? {} : { sessionSource: opts.sessionSource },
     ...opts.source === void 0 ? {} : { source: opts.source }
   };
 }
@@ -46876,6 +46892,12 @@ function projectRootFromHookInput(input) {
 function sourceFromHookInput(input) {
   if (typeof input === "object" && input !== null && "source" in input && typeof input.source === "string") {
     return input.source;
+  }
+  return void 0;
+}
+function sessionIdFromHookInput(input) {
+  if (typeof input === "object" && input !== null && "session_id" in input && typeof input.session_id === "string" && input.session_id.length > 0) {
+    return input.session_id;
   }
   return void 0;
 }
@@ -46910,6 +46932,7 @@ function runHandoffHook(args, now = () => /* @__PURE__ */ new Date()) {
   }
   let projectRoot = args.projectRoot;
   let source = args.source;
+  let sessionId = args.sessionId;
   if (projectRoot === void 0) {
     let input;
     try {
@@ -46920,6 +46943,7 @@ function runHandoffHook(args, now = () => /* @__PURE__ */ new Date()) {
     }
     projectRoot = projectRootFromHookInput(input);
     source = source ?? sourceFromHookInput(input);
+    sessionId = sessionId ?? sessionIdFromHookInput(input);
   }
   if (projectRoot === void 0 || projectRoot.length === 0) {
     debugHook("hook input did not include cwd; skipping handoff injection");
@@ -46930,7 +46954,11 @@ function runHandoffHook(args, now = () => /* @__PURE__ */ new Date()) {
     return 0;
   }
   try {
-    const brief = handoffBrief({ projectRoot }, now);
+    const brief = handoffBrief({
+      projectRoot,
+      ...sessionId === void 0 ? {} : { sessionId },
+      ...source === void 0 ? {} : { sessionSource: source }
+    }, now);
     if (brief.status === "invalid") {
       const notice = typeof brief.operator_notice === "string" ? brief.operator_notice : briefInvalidNotice(brief.error?.code ?? "unknown");
       debugHook(`brief state is invalid: ${brief.error?.code ?? "unknown"}`);

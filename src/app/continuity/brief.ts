@@ -12,6 +12,7 @@ import {
   type ContinuityRecord as ContinuityRecordValue,
 } from '../../schemas/continuity.js';
 import type { ControlPlaneFileStem } from '../../schemas/scalars.js';
+import { ambientStemForSessionId, isSafeControlPlaneStem } from './harvest.js';
 import { indexPath, recordPath, resolveControlPlaneArg, resolveProjectRootArg } from './records.js';
 
 /**
@@ -396,13 +397,22 @@ function relativeAge(createdAtIso: string, now: Date): string | undefined {
   return unit(Math.floor(days / 365), 'year');
 }
 
-/** The slice of the handoff CLI arguments that brief resolution reads. */
+/** The slice of the handoff CLI arguments that brief resolution reads.
+ * `sessionId` and `sessionSource` carry the host's identity for the session
+ * being briefed (SessionStart hook stdin), enabling session-scoped ambient
+ * resolution; both are optional so hosts and callers without them keep the
+ * repo-wide behavior. */
 export interface BriefArgs {
   readonly projectRoot?: string;
   readonly controlPlane?: string;
+  readonly sessionId?: string;
+  readonly sessionSource?: string;
 }
 
-function emptyBrief(args: BriefArgs, reason: 'no_index' | 'no_pending_record') {
+function emptyBrief(
+  args: BriefArgs,
+  reason: 'no_index' | 'no_pending_record' | 'ambient_foreign_session',
+) {
   const projectRoot = resolveProjectRootArg(args);
   const controlPlane = resolveControlPlaneArg(args);
   return {
@@ -528,6 +538,50 @@ function resolvePointerBrief(
   };
 }
 
+// SessionStart sources that mean the session is CONTINUING its own history
+// (the host already restored a summary or transcript) rather than opening a
+// fresh context. For these, another session's ambient record is a hijack
+// hazard, not a safety net: the incident this guards against is a compact
+// restore in one session being steered by a concurrent session's last
+// request. 'startup' (and unknown/absent sources) keep the repo-wide reach.
+const CONTINUING_SESSION_SOURCES = new Set(['compact', 'resume']);
+
+/**
+ * Session-scoped ambient resolution. When the caller identifies its session,
+ * that session's own ambient record outranks the repo-wide newest pointer;
+ * with no own record, a continuing session gets no ambient brief at all
+ * rather than a foreign session's intent. Callers without a session id (the
+ * CLI, older host hooks) keep the index pointer exactly as before.
+ */
+function resolveAmbientBrief(
+  args: BriefArgs,
+  controlPlane: string,
+  pointer: BriefPointer,
+  now: () => Date,
+  gitProbe: BriefGitProbe,
+) {
+  const ownStem =
+    args.sessionId === undefined ? undefined : ambientStemForSessionId(args.sessionId);
+  if (
+    ownStem !== undefined &&
+    isSafeControlPlaneStem(ownStem) &&
+    existsSync(recordPath(controlPlane, ownStem))
+  ) {
+    return resolvePointerBrief(
+      args,
+      controlPlane,
+      { record_id: ownStem as ControlPlaneFileStem, continuity_kind: 'ambient' },
+      'ambient_record',
+      now,
+      gitProbe,
+    );
+  }
+  if (args.sessionId !== undefined && CONTINUING_SESSION_SOURCES.has(args.sessionSource ?? '')) {
+    return emptyBrief(args, 'ambient_foreign_session');
+  }
+  return resolvePointerBrief(args, controlPlane, pointer, 'ambient_record', now, gitProbe);
+}
+
 export function handoffBrief(
   args: BriefArgs,
   now: () => Date = () => new Date(),
@@ -564,14 +618,7 @@ export function handoffBrief(
     // manual save was broken (the available path no longer trips A1's invalid
     // branch).
     if (index.ambient_record) {
-      const ambient = resolvePointerBrief(
-        args,
-        controlPlane,
-        index.ambient_record,
-        'ambient_record',
-        now,
-        gitProbe,
-      );
+      const ambient = resolveAmbientBrief(args, controlPlane, index.ambient_record, now, gitProbe);
       if (ambient.status === 'available') {
         const failure = briefErrorOf(pending);
         return {
@@ -586,14 +633,7 @@ export function handoffBrief(
     return pending;
   }
   if (index.ambient_record) {
-    return resolvePointerBrief(
-      args,
-      controlPlane,
-      index.ambient_record,
-      'ambient_record',
-      now,
-      gitProbe,
-    );
+    return resolveAmbientBrief(args, controlPlane, index.ambient_record, now, gitProbe);
   }
   return emptyBrief(args, 'no_pending_record');
 }
