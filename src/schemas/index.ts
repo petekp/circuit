@@ -15,6 +15,7 @@ export * from './change-kind.js';
 export * from './manifest.js';
 export * from './memory-input.js';
 export * from './operator-summary.js';
+export * from './power.js';
 export * from './stage.js';
 export * from './scalars.js';
 export * from './result.js';

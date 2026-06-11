@@ -86,7 +86,12 @@ describe('runtime-safety-floor connector invocation failure closure', () => {
     expect(started.connector).toEqual({ kind: 'builtin', name: 'claude-code' });
     expect(started.role).toBe('implementer');
     expect(started.resolved_from).toEqual({ source: 'explicit' });
-    expect(started.resolved_selection).toEqual({ skills: [], invocation_options: {} });
+    expect(started.resolved_selection).toEqual({
+      model: { provider: 'anthropic', model: 'sonnet' },
+      power: 'medium',
+      skills: [],
+      invocation_options: {},
+    });
 
     const relayStepKinds = outcome.trace_entries
       .filter((trace_entry) => 'step_id' in trace_entry && trace_entry.step_id === 'relay-step')

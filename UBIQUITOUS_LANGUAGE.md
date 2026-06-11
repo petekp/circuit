@@ -32,6 +32,7 @@ code, contracts, generated surfaces, or troubleshooting docs.
 | **Evidence** | Supporting facts, files, checks, and reports produced or consumed by a run. | Artifact, proof blob |
 | **Run folder** | The directory where a run stores its trace, reports, evidence, and resume state. | Run root, run directory |
 | **Depth** | Operator-facing process dial for `--depth` and `axes.allowed_depths`: `low`, `medium`, or `high`. | Rigor, Effort |
+| **Power** | Operator-facing model dial for `--power` and `defaults.power`: `low`, `medium`, or `high`. Never names models; per-connector tier tables translate it at selection time. Default `medium`. | Model picker, Tier, Effort |
 | **Mode** | A named flow entry option, often paired with a depth. | Safety classification, change kind |
 
 ## Identifier Language
@@ -285,9 +286,10 @@ inside historical docs, tests, or migration notes when the context is explicit.
 - **CompiledFlow** can sound like the product flow. Use **Flow** for the product and **CompiledFlow** only for the runtime schema.
 - **Report** can mean a typed output or a vague file. Use **Report** for typed outputs and **Evidence** for supporting proof.
 - **Relay** can name product delegation or serialized `relay.*` trace entries. Use **Relay** in prose and keep serialized names in code or backticks.
-- **Depth**, **CompiledDepth**, and **Effort** all describe intensity at
-  different layers. Use **Depth** for the operator dial, **CompiledDepth** for
-  compiled runtime thoroughness, and **Effort** for provider-level reasoning
+- **Depth**, **Power**, **CompiledDepth**, and **Effort** all describe
+  intensity at different layers. Use **Depth** for the operator process dial,
+  **Power** for the operator model dial, **CompiledDepth** for compiled
+  runtime thoroughness, and **Effort** for provider-level reasoning
   allocation. **Rigor** is the retired name for the depth dial; do not use it.
 - **Stage** appears in both product prose and runtime fields. The term is canonical in both places, but runtime field names should stay in backticks when discussing serialization.
 - **Fixture** is useful in tests, but it should not describe product-facing generated flows.

@@ -9,11 +9,12 @@ import { runCompiledFlowWithWaiting } from '../runtime/run/compiled-flow-runner.
 import { isGraphCheckpointWaitingResult } from '../runtime/run/graph-runner.js';
 import { Axes, type Axes as AxesValue, TournamentN } from '../schemas/axes.js';
 import type { CompiledFlow } from '../schemas/compiled-flow.js';
-import type { LayeredConfig } from '../schemas/config.js';
+import { Config, type LayeredConfig } from '../schemas/config.js';
 import { Depth, type Depth as DepthValue } from '../schemas/depth.js';
 import { HostKind, type HostKind as HostKindValue } from '../schemas/host.js';
 import { CompiledFlowId, RunId } from '../schemas/ids.js';
 import { computeManifestHash } from '../schemas/manifest.js';
+import { Power, type Power as PowerValue } from '../schemas/power.js';
 import {
   ProgressEvent,
   type ProgressEvent as ProgressEventValue,
@@ -73,6 +74,8 @@ export interface ParsedArgs {
   goal?: string;
   why?: string;
   axes: AxesValue;
+  power?: PowerValue;
+  powerProvided: boolean;
   depthProvided: boolean;
   tournamentProvided: boolean;
   tournamentNProvided: boolean;
@@ -123,6 +126,7 @@ function addExecutionOptions(program: Command): Command {
     .option('--goal <goal>')
     .option('--why <why>')
     .option('--depth <low|medium|high>')
+    .option('--power <low|medium|high>')
     .option('--tournament')
     .option('--tournament-n <2|3|4>')
     .option('--autonomous')
@@ -143,6 +147,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     goal?: string;
     why?: string;
     depth?: string;
+    power?: string;
     tournament?: boolean;
     tournamentN?: string;
     autonomous?: boolean;
@@ -169,6 +174,16 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   let depth: DepthValue | undefined;
   const depthProvided = opts.depth !== undefined;
   if (opts.depth !== undefined) depth = Depth.parse(opts.depth);
+
+  let power: PowerValue | undefined;
+  const powerProvided = opts.power !== undefined;
+  if (opts.power !== undefined) {
+    const parsed = Power.safeParse(opts.power);
+    if (!parsed.success) {
+      throw new Error('--power must be one of low, medium, high');
+    }
+    power = parsed.data;
+  }
 
   const tournamentProvided = opts.tournament === true;
   const tournament = opts.tournament === true;
@@ -234,6 +249,12 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
         'checkpoint resume reuses the saved run axes; omit --depth/--tournament/--tournament-n/--autonomous',
       );
     }
+    if (powerProvided) {
+      // The dial is config, not a saved axis: a resumed run re-discovers its
+      // config layers from disk, so changing the dial mid-run goes through
+      // config, not a flag the manifest never recorded.
+      throw new Error('checkpoint resume re-reads power from config; omit --power');
+    }
     if (includeUntrackedContent) {
       throw new Error(
         'checkpoint resume reuses the saved evidence policy; omit --include-untracked-content',
@@ -257,6 +278,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   const result: ParsedArgs = {
     command,
     axes,
+    powerProvided,
     depthProvided,
     tournamentProvided,
     tournamentNProvided,
@@ -265,6 +287,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   };
   if (goal !== undefined) result.goal = goal;
   if (why !== undefined) result.why = why;
+  if (power !== undefined) result.power = power;
   if (flowName !== undefined) result.flowName = flowName;
   if (runFolder !== undefined) result.runFolder = runFolder;
   if (fixturePath !== undefined) result.fixturePath = fixturePath;
@@ -664,6 +687,17 @@ export async function runExecutionCommand(
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...(options.configHomeDir !== undefined ? { homeDir: options.configHomeDir } : {}),
     ...(options.configCwd !== undefined ? { cwd: options.configCwd } : {}),
+    // --power rides the existing invocation config layer, so it composes with
+    // (and outranks) a user-global or project `defaults.power` exactly like
+    // any other layered config opinion.
+    ...(args.power === undefined
+      ? {}
+      : {
+          invocationConfig: Config.parse({
+            schema_version: 1,
+            defaults: { power: args.power },
+          }),
+        }),
   });
   const { policyLayers, selectionConfigLayers } = runtimeConfigLayers;
   try {

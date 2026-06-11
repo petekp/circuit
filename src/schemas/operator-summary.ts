@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CompiledDepth } from './depth.js';
 import { CompiledFlowId, RunId } from './ids.js';
+import { Power } from './power.js';
 import { MAX_STATUS_TEXT_CHARS } from './progress-event.js';
 import { RubricResult } from './rubric.js';
 import { ProviderScopedModel } from './selection-policy.js';
@@ -101,10 +102,17 @@ export type OperatorSkillHookActivation = z.infer<typeof OperatorSkillHookActiva
 // plain words only — model ids stay here and in the run record. Deliberately
 // no retry count: relay attempt numbers also increment per slice in slice
 // loops, so a retry count derived from them would overstate failures.
+// `power` is the run's dial position (the first one a relay selection carried;
+// the dial is run-level so they all agree) and is absent when the dial was
+// off. `escalations` counts relays that ran one tier above their allocation —
+// it is dial-provenance (power_escalated), not an attempt count, so it does
+// not reintroduce the retry-count overstatement above.
 export const OperatorRunReceipt = z
   .object({
     depth: CompiledDepth,
+    power: Power.optional(),
     worker_runs: z.number().int().nonnegative(),
+    escalations: z.number().int().nonnegative(),
     models: z.array(ProviderScopedModel),
     checks_evaluated: z.number().int().nonnegative(),
     checks_failed: z.number().int().nonnegative(),

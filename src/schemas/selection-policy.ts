@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { CompiledDepth } from './depth.js';
 import { SkillId, StageId, StepId } from './ids.js';
 import { JsonObject } from './json.js';
+import { Power } from './power.js';
 
 // Provider-scoped model. The four-provider enum is closed; `model` is an
 // open string because connector-specific code owns provider/model handling.
@@ -74,6 +75,16 @@ export const ResolvedSelection = z
     skills: UniqueSkillArray,
     depth: CompiledDepth.optional(),
     invocation_options: JsonObject.default({}),
+    // Present only when the Power dial materialized this selection's model or
+    // effort from a tier table. Absent when explicit model config won, when
+    // the connector has no tier table, or on pre-dial artifacts. Carried here
+    // so RelayStartedTraceEntry.resolved_selection self-reports dial
+    // application and the run receipt never has to guess.
+    power: Power.optional(),
+    // True only when a retry (attempt > 1) actually bumped the allocated tier
+    // up. A retry whose role was already at the top tier records no
+    // escalation — the receipt counts real bumps, not retries.
+    power_escalated: z.boolean().optional(),
   })
   .strict();
 export type ResolvedSelection = z.infer<typeof ResolvedSelection>;
