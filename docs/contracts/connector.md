@@ -1,9 +1,9 @@
 ---
 contract: connector
-status: ratified-v0.1
-version: 0.1
+status: ratified-v0.2
+version: 0.2
 schema_source: src/schemas/connector.ts
-last_updated: 2026-05-20
+last_updated: 2026-06-11
 depends_on: [ids, step, selection-policy]
 enforces_also_in: [src/schemas/config.ts, src/schemas/trace-entry.ts]
 report_ids:
@@ -200,7 +200,17 @@ invariant; tested in `tests/contracts/connector-schema.test.ts`,
     `spawn` lookup from the Circuit process current working directory
     and inherited `PATH`.
   - The subprocess inherits the Circuit process current working
-    directory and `process.env`.
+    directory and `process.env`, plus the resolved-selection projection
+    below. Inherited variables never collide with it: the `CIRCUIT_RELAY_`
+    prefix is reserved.
+  - When the relay's resolved selection carries a model, the subprocess
+    environment carries `CIRCUIT_RELAY_MODEL` (the model string) and
+    `CIRCUIT_RELAY_MODEL_PROVIDER` (the provider). When it carries an
+    effort, the environment carries `CIRCUIT_RELAY_EFFORT`. Unset fields
+    leave the variables absent, not empty. This is how a
+    `power_tiers.<name>` tier reaches a worker whose CLI the engine
+    cannot drive directly: the wrapper reads `CIRCUIT_RELAY_MODEL` and
+    maps it onto its own model flag.
   - `stdin` is ignored. The prompt is available only through
     `PROMPT_FILE`.
   - `stdout` is debug output only. The canonical response is the first
@@ -612,6 +622,16 @@ After a `RelayStartedTraceEntry` is accepted:
   `.strict()`.
 
 ## Evolution
+
+- **v0.2 (local worker lane slice, 2026-06-11)** — additive: the custom
+  connector subprocess environment gains the `CIRCUIT_RELAY_MODEL` /
+  `CIRCUIT_RELAY_MODEL_PROVIDER` / `CIRCUIT_RELAY_EFFORT` projection of
+  the relay's resolved selection (`selectionEnv` in
+  `src/connectors/custom.ts`). The authored argv contract is unchanged;
+  connectors that ignore the variables behave exactly as before. This is
+  the engine half of the local worker lane (power tiers driving an
+  OpenCode/Ollama wrapper); the wrapper half is operator config,
+  documented in `docs/configuration.md`.
 
 - **v0.1 (this draft)** — connector-I1..I11 enforced at the schema layer.
   **Codex adversarial property-auditor pass 2026-04-19** produced

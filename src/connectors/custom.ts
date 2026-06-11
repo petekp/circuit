@@ -47,6 +47,27 @@ async function extractConfiguredOutput(
   };
 }
 
+// The resolved selection crosses the subprocess boundary as environment
+// variables, not argv: the custom command contract (authored argv + prompt
+// file + output file) stays byte-identical for connectors that ignore the
+// dial, and a wrapper that does honor it reads the variables it cares about.
+// This is how a power tier reaches a local worker — `power_tiers.<name>`
+// materializes a model the engine itself cannot run, and the wrapper maps
+// CIRCUIT_RELAY_MODEL onto its CLI's model flag.
+function selectionEnv(input: CustomRelayInput): Record<string, string> {
+  const env: Record<string, string> = {};
+  const model = input.resolvedSelection?.model;
+  if (model !== undefined) {
+    env.CIRCUIT_RELAY_MODEL = model.model;
+    env.CIRCUIT_RELAY_MODEL_PROVIDER = model.provider;
+  }
+  const effort = input.resolvedSelection?.effort;
+  if (effort !== undefined) {
+    env.CIRCUIT_RELAY_EFFORT = effort;
+  }
+  return env;
+}
+
 export async function relayCustom(input: CustomRelayInput): Promise<RelayResult> {
   const { descriptor } = input;
   if (descriptor.prompt_transport !== 'prompt-file') {
@@ -75,7 +96,7 @@ export async function relayCustom(input: CustomRelayInput): Promise<RelayResult>
         stdoutMaxBytes: STDOUT_MAX_BYTES,
         stderrMaxBytes: STDERR_MAX_BYTES,
         sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
-        env: process.env,
+        env: { ...process.env, ...selectionEnv(input) },
       });
     } catch (error) {
       if (isConnectorSubprocessSpawnError(error)) {

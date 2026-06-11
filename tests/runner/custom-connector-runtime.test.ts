@@ -81,6 +81,59 @@ describe('custom connector runtime protocol', () => {
     });
   });
 
+  it('exposes the resolved model and effort to the subprocess as CIRCUIT_RELAY_* env vars', async () => {
+    const script = [
+      "const { writeFileSync } = require('node:fs');",
+      'const outputFile = process.argv[process.argv.length - 1];',
+      'writeFileSync(outputFile, JSON.stringify({',
+      'model: process.env.CIRCUIT_RELAY_MODEL ?? null,',
+      'provider: process.env.CIRCUIT_RELAY_MODEL_PROVIDER ?? null,',
+      'effort: process.env.CIRCUIT_RELAY_EFFORT ?? null,',
+      '}));',
+    ].join(' ');
+
+    const result = await relayCustom({
+      descriptor: descriptor([process.execPath, '-e', script]),
+      prompt: 'report your selection env',
+      resolvedSelection: {
+        model: { provider: 'custom', model: 'local/qwen2.5-coder:7b' },
+        effort: 'low',
+        skills: [],
+        invocation_options: {},
+      },
+    });
+
+    expect(JSON.parse(result.result_body)).toEqual({
+      model: 'local/qwen2.5-coder:7b',
+      provider: 'custom',
+      effort: 'low',
+    });
+  });
+
+  it('leaves CIRCUIT_RELAY_* env vars unset when the selection carries no model or effort', async () => {
+    const script = [
+      "const { writeFileSync } = require('node:fs');",
+      'const outputFile = process.argv[process.argv.length - 1];',
+      'writeFileSync(outputFile, JSON.stringify({',
+      "modelSet: 'CIRCUIT_RELAY_MODEL' in process.env,",
+      "providerSet: 'CIRCUIT_RELAY_MODEL_PROVIDER' in process.env,",
+      "effortSet: 'CIRCUIT_RELAY_EFFORT' in process.env,",
+      '}));',
+    ].join(' ');
+
+    const result = await relayCustom({
+      descriptor: descriptor([process.execPath, '-e', script]),
+      prompt: 'report which env vars exist',
+      resolvedSelection: { skills: [], invocation_options: {} },
+    });
+
+    expect(JSON.parse(result.result_body)).toEqual({
+      modelSet: false,
+      providerSet: false,
+      effortSet: false,
+    });
+  });
+
   it('fails nonzero connectors with a capped stderr sample', async () => {
     const script = ["console.error('custom connector failed loudly');", 'process.exit(7);'].join(
       ' ',
