@@ -88,7 +88,7 @@ Closes Codex LOW #12 (enforcement-location claim drift).
   A layer that contributes nothing is expressible as `{}` when parsed as a
   raw override — but a raw empty override MUST NOT appear as an
   `applied[]` entry; see SEL-I7 (ghost-provenance rejection). A typo
-  (`rigr: 'standard'` instead of `depth`) is **rejected**, not silently
+  (`dpth: 'medium'` instead of `depth`) is **rejected**, not silently
   dropped as a surplus key; a silent strip would leave the effective
   selection at the prior layer's default and the author's intent would
   never reach the runtime. `invocation_options` is a recursive
@@ -437,8 +437,8 @@ Stage 2 harness task where noted below.
   concern.
 
 - **depth** (`src/schemas/depth.ts`) — `SelectionOverride.depth` and
-  `ResolvedSelection.depth` use the `Depth` enum (`lite`, `standard`,
-  `deep`, `tournament`, `autonomous`). A `depth` contribution at the
+  `ResolvedSelection.depth` use the `CompiledDepth` enum (`low`, `medium`,
+  `high`, `tournament`, `autonomous`). A `depth` contribution at the
   step layer overrides the flow's entry-mode depth at relay
   time; the precedence rule is SEL-I1.
 

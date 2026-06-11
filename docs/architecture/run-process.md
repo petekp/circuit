@@ -126,7 +126,7 @@ Evidence:
 
 Run parses operator controls into `axes`:
 
-- `rigor`: `lite`, `standard`, or `deep`; default is `standard`.
+- `depth`: `low`, `medium`, or `high`; default is `medium`.
 - `tournament`: boolean; default is `false`.
 - `tournament_n`: integer from 2 to 4; default is `3`.
 - `autonomous`: boolean; default is `false`.
@@ -138,13 +138,13 @@ from router inference:
 | --- | --- |
 | `--autonomous` | `autonomous` |
 | `--tournament` | `tournament` |
-| `--rigor lite` | `lite` |
-| `--rigor deep` | `deep` |
+| `--depth low` | `low` |
+| `--depth high` | `high` |
 | no explicit axis and no inferred mode | no field in route event, then runtime default |
 
 Explicit axis flags override router-inferred entry mode. For example, if the
-router would infer Fix deep but the operator passes `--rigor lite`, Run uses
-lite.
+router would infer high-depth Fix but the operator passes `--depth low`, Run uses
+low.
 
 There are two related names:
 
@@ -159,7 +159,7 @@ Runtime depth is the normalized depth label passed into the runtime:
 
 - `autonomous` when `axes.autonomous` is true.
 - `tournament` when `axes.tournament` is true and autonomous is false.
-- otherwise the selected rigor.
+- otherwise the selected depth.
 
 Runtime depth is not the same thing as model reasoning effort. It is a run
 context label. A flow may choose to feed it into relay selection. Today Build
@@ -182,16 +182,16 @@ flow's allow-list. Unsupported combinations fail before runtime execution.
 
 Current generated flow support:
 
-| Flow | Allowed rigors | Tournament | Autonomous | Default axes |
+| Flow | Allowed depths | Tournament | Autonomous | Default axes |
 | --- | --- | --- | --- | --- |
-| build | lite, standard, deep | no | yes | standard, no tournament, no autonomous |
-| explore | lite, standard, deep | yes | yes | standard, no tournament, no autonomous |
-| fix | lite, standard, deep | no | yes | standard, no tournament, no autonomous |
-| goal | lite, standard, deep | no | yes | standard, no tournament, no autonomous |
-| prototype | standard, deep | yes | yes | standard, no tournament, no autonomous |
-| pursue | standard | no | yes | standard, no tournament, no autonomous |
-| review | standard | no | no | standard, no tournament, no autonomous |
-| runtime-proof | standard | no | no | standard, no tournament, no autonomous |
+| build | low, medium, high | no | yes | medium, no tournament, no autonomous |
+| explore | low, medium, high | yes | yes | medium, no tournament, no autonomous |
+| fix | low, medium, high | no | yes | medium, no tournament, no autonomous |
+| goal | low, medium, high | no | yes | medium, no tournament, no autonomous |
+| prototype | medium, high | yes | yes | medium, no tournament, no autonomous |
+| pursue | medium | no | yes | medium, no tournament, no autonomous |
+| review | medium | no | no | medium, no tournament, no autonomous |
+| runtime-proof | medium | no | no | medium, no tournament, no autonomous |
 
 The public host surface routes only public flows. Internal flows can exist in a
 source checkout for explicit development use, but an internal flow missing from
@@ -205,7 +205,7 @@ Fixture lookup order:
 
 1. `--fixture <path>` wins when supplied.
 2. Otherwise Run chooses a root: `--flow-root <path>` or `generated/flows`.
-3. If the selected mode has a sibling fixture like `deep.json` or
+3. If the selected mode has a sibling fixture like `high.json` or
    `tournament.json`, Run uses it.
 4. Otherwise Run falls back to `<root>/<flow>/circuit.json`.
 
@@ -433,7 +433,7 @@ is checked before subprocess execution.
 Relay execution then:
 
 - composes the prompt from the compiled relay step, run folder, loaded skills,
-  retry feedback, goal, memory inputs, flow id, and resolved rigor.
+  retry feedback, goal, memory inputs, flow id, and resolved depth.
 - writes the relay request.
 - appends relay execution guidance.
 - appends `relay.started` with connector, role, `resolved_selection`, and
@@ -526,7 +526,7 @@ Recovery flow decisions:
 - The recovery flow fixture is loaded for the same fixture mode name selected
   for the parent.
 - The recovery fixture id must match the routed process id.
-- The parent's rigor is kept only when the recovery flow supports it.
+- The parent's depth is kept only when the recovery flow supports it.
 - Tournament is disabled for recovery attempts.
 - Autonomous stays enabled only when the recovery flow supports autonomous.
 - The child attempt gets a fresh run id.
@@ -600,7 +600,7 @@ These are current pressure points, not current behavior:
 - Entry mode and fixture mode have different precedence when autonomous and
   tournament are both true. If combined axes remain supported, that distinction
   should be made intentional in a contract.
-- Runtime depth, rigor, and model effort are easy to confuse. The UI and docs
+- Compiled runtime depth, the operator depth dial, and model effort are easy to confuse. The UI and docs
   should keep naming them separately unless the product intentionally merges
   them.
 - The final Run decision packet is spread across stdout, trace guidance,
