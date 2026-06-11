@@ -21,6 +21,7 @@ function main() {
   runStep('registry', 'node', ['scripts/evals/validate-registry.ts']);
   runStep('fix manifest', 'node', ['scripts/evals/validate-fix-manifest.ts']);
   runStep('result hygiene', 'node', ['scripts/evals/validate-result-hygiene.ts']);
+  runStep('ledger', 'node', ['scripts/evals/validate-ledger.ts']);
   runStep('fix held-out dry-run', 'node', [
     'evals/fix-vs-vanilla/run-fix-comparison.ts',
     '--set',

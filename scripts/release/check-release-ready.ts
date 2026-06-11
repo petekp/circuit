@@ -1,6 +1,19 @@
 #!/usr/bin/env node
 
-import { loadReleaseChecks, loadReleaseSchemas, loadYamlWithSchema } from './shared.ts';
+import {
+  currentPluginVersion,
+  evalCadenceBlockers,
+  lastReleaseTagDate,
+  readLedgerEntries,
+  readRegistryEvals,
+  readWaivers,
+} from './eval-cadence.ts';
+import {
+  loadReleaseChecks,
+  loadReleaseSchemas,
+  loadYamlWithSchema,
+  projectRoot,
+} from './shared.ts';
 
 async function main() {
   const schemas = await loadReleaseSchemas();
@@ -14,7 +27,14 @@ async function main() {
     schemas.PublicClaimLedger,
   );
   const proofs = loadYamlWithSchema('docs/release/proofs/index.yaml', schemas.ProofScenarioIndex);
-  const blockers = checks.releaseBlockers({ exceptions, claims, proofs });
+  const cadenceBlockers = evalCadenceBlockers({
+    evals: readRegistryEvals(projectRoot),
+    ledgerEntries: readLedgerEntries(projectRoot),
+    lastReleaseDate: lastReleaseTagDate(projectRoot),
+    currentVersion: currentPluginVersion(projectRoot),
+    waivers: readWaivers(projectRoot),
+  });
+  const blockers = [...checks.releaseBlockers({ exceptions, claims, proofs }), ...cadenceBlockers];
   if (blockers.length > 0) {
     for (const blocker of blockers) console.error(`release blocker: ${blocker}`);
     process.exit(1);

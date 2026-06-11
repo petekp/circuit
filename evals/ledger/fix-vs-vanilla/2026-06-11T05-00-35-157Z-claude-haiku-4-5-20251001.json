@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "eval_id": "fix-vs-vanilla",
+  "ran_at": "2026-06-11T05:00:35.157Z",
+  "repo_commit": "f361e5f538568d642586a86c345045e4dad1db3f",
+  "model": "claude-haiku-4-5-20251001",
+  "descriptors": {
+    "provider": "claude-code",
+    "effort": "medium",
+    "set": "held-out",
+    "circuit_mode": "default",
+    "claim_supported": "false"
+  },
+  "metrics": {
+    "task_count": 5,
+    "circuit_false_fixed_rate": 0,
+    "vanilla_false_fixed_rate": 0,
+    "circuit_objective_fixed_rate": 1,
+    "vanilla_objective_fixed_rate": 1,
+    "circuit_verification_pass_rate": 1,
+    "vanilla_verification_pass_rate": 1,
+    "circuit_mean_proof_quality": 3,
+    "vanilla_mean_proof_quality": 3,
+    "circuit_mean_wallclock_ms": 184691.6646166,
+    "vanilla_mean_wallclock_ms": 61728.749533199974
+  }
+}
