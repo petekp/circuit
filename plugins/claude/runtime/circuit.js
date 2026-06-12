@@ -65200,6 +65200,25 @@ function createRecoveryAttemptRunner(deps) {
   };
 }
 
+// dist/cli/run-flag-vocabulary.js
+var RUN_EXECUTION_FLAGS = [
+  { flag: "--goal", valueHint: "<goal>", docValid: true },
+  { flag: "--why", valueHint: "<why>", docValid: true },
+  { flag: "--depth", valueHint: `<${Depth.options.join("|")}>`, docValid: true },
+  { flag: "--power", valueHint: `<${PowerDialSetting.options.join("|")}>`, docValid: true },
+  { flag: "--tournament", docValid: true },
+  { flag: "--tournament-n", valueHint: "<2|3|4>", docValid: true },
+  { flag: "--autonomous", docValid: true },
+  { flag: "--run-folder", valueHint: "<path>", docValid: true },
+  { flag: "--fixture", valueHint: "<path>", docValid: true },
+  { flag: "--flow-root", valueHint: "<path>", docValid: true },
+  { flag: "--checkpoint-choice", valueHint: "<choice>", docValid: true },
+  { flag: "--progress", valueHint: "<format>", docValid: true },
+  // Declared so the parser owns the rejection message; never teachable.
+  { flag: "--dry-run", docValid: false },
+  { flag: "--include-untracked-content", docValid: true }
+];
+
 // dist/cli/run-output.js
 function routeOutputFields(input) {
   return {
@@ -65307,7 +65326,10 @@ function runtimeHostKind(options) {
   return HostKind.parse(raw);
 }
 function addExecutionOptions(program2) {
-  return program2.option("--goal <goal>").option("--why <why>").option("--depth <low|medium|high>").option("--power <auto|low|medium|high>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
+  for (const row of RUN_EXECUTION_FLAGS) {
+    program2.option(row.valueHint === void 0 ? row.flag : `${row.flag} ${row.valueHint}`);
+  }
+  return program2;
 }
 function parseExecutionArgs(command, argv) {
   const program2 = addExecutionOptions(new Command(`circuit ${command}`).argument("[flow-name]"));

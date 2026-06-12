@@ -54,7 +54,7 @@ commands and Codex flow skills are not published by default; the flow package
 JSON remains available for routed runtime execution.
 
 Routing is model-only: the host (or operator) always names the flow. A
-`circuit run --goal "<task>"` call without an explicit flow is rejected; the
+`circuit run --goal "<task>"` call without an explicit flow is rejected; the <!-- cmd-ok -->
 CLI does not classify the goal text.
 
 ## Packaged Flow Lookup

@@ -50,6 +50,7 @@ import {
   postRunArtifactWarningOutputFields,
 } from './post-run-artifacts.js';
 import { createRecoveryAttemptRunner } from './recovery-attempt-runner.js';
+import { RUN_EXECUTION_FLAGS } from './run-flag-vocabulary.js';
 import {
   operatorSummaryOutputFields,
   routeOutputFields,
@@ -121,22 +122,14 @@ function runtimeHostKind(options: RunCommandOptions): HostKindValue | undefined 
   return HostKind.parse(raw);
 }
 
+// The option surface derives from RUN_EXECUTION_FLAGS so the parser, the
+// help text, and the doc lint (tests/contracts/doc-command-claims.test.ts)
+// can never disagree. Add new flags to the vocabulary, not here.
 function addExecutionOptions(program: Command): Command {
-  return program
-    .option('--goal <goal>')
-    .option('--why <why>')
-    .option('--depth <low|medium|high>')
-    .option('--power <auto|low|medium|high>')
-    .option('--tournament')
-    .option('--tournament-n <2|3|4>')
-    .option('--autonomous')
-    .option('--run-folder <path>')
-    .option('--fixture <path>')
-    .option('--flow-root <path>')
-    .option('--checkpoint-choice <choice>')
-    .option('--progress <format>')
-    .option('--dry-run')
-    .option('--include-untracked-content');
+  for (const row of RUN_EXECUTION_FLAGS) {
+    program.option(row.valueHint === undefined ? row.flag : `${row.flag} ${row.valueHint}`);
+  }
+  return program;
 }
 
 export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly string[]): ParsedArgs {
