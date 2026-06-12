@@ -1,8 +1,9 @@
 # Faster, more robust continuity restore
 
-Status: design exploration, 2026-06-06. Design only, no engine or runtime
-edits. Every current-behavior claim below is cited to source or to a probe
-run captured in the Appendix.
+Status: design exploration, 2026-06-06; all recommendations implemented via
+PR #44 (merge 18e13ac1). Current-behavior claims below describe the
+pre-implementation state, cited to source or to a probe run captured in the
+Appendix.
 
 ## What this explores
 

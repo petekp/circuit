@@ -1,9 +1,9 @@
 ---
 contract: run
 status: ratified-v0.1
-version: 0.3
+version: 0.4
 schema_source: src/schemas/run.ts
-last_updated: 2026-05-20
+last_updated: 2026-06-12
 depends_on: [trace_entry, snapshot, ids, change_kind, depth, flow, skill, acceptance-criteria]
 closes: []
 report_ids:
@@ -12,7 +12,7 @@ report_ids:
   - run.snapshot
   - run.manifest_snapshot
   - run.result
-invariant_ids: [RUN-I1, RUN-I2, RUN-I3, RUN-I4, RUN-I5, RUN-I6, RUN-I7, RUN-I8]
+invariant_ids: [RUN-I1, RUN-I2, RUN-I3, RUN-I4, RUN-I5, RUN-I5a, RUN-I6, RUN-I7, RUN-I8]
 property_ids: [run.prop.report_written_before_check, run.prop.attempt_monotonicity_per_step, run.prop.boundary_own_property_defense, run.prop.checkpoint_trace_entry_pairing, run.prop.close_outcome_semantic_adequacy, run.prop.deterministic_replay, run.prop.relay_trace_entry_pairing, run.prop.projection_is_a_function, run.prop.recorded_at_sanity, run.prop.step_trace_entry_causal_ordering]
 ---
 
@@ -485,13 +485,28 @@ property-test harness + reducer exist in Stage 2.
   (CC#P2-2), not the contract level. Authorized by ADR-0007 §Amendment
   (Slice 37).
 
-- **v0.2 (user skill loading slice, this version)** — TraceEntry
+- **v0.2 (user skill loading slice)** — TraceEntry
   discriminated union widened with `skills.loaded`, emitted before
   `relay.request` when local skill instructions are loaded for a relay
   attempt. The event records `{id, slot?, path, sha256, bytes}` and
   deliberately omits the instruction body.
 
-- **v0.3 (Stage 1)** — Absorb Codex adversarial property-auditor pass
+- **v0.3 (relay acceptance-criteria slice, 2026-05-20)** — Per-step
+  acceptance criteria add zero or more `check.evaluated` trace_entries
+  with `check_kind: 'acceptance_criteria'` on the same
+  `(step_id, attempt)` pair after `relay.completed` and before the step
+  terminal trace_entry. `acceptance-criteria` added to `depends_on`.
+
+- **v0.4 (guidance authority slice)** — RUN-I5a added. `guidance.decision`
+  entries bind recorded actions: relay execution, checkpoint resolution,
+  proof assessment, and safe-apply each require a prior matching
+  guidance decision with the same scope and payload identity. Checkpoint
+  resolution sources are `declared-default`, `policy`, or `operator`.
+  Enforced at `src/schemas/run.ts`; covered by
+  `tests/contracts/runtrace-schema.test.ts` and
+  `tests/runtime/runtime-trace-contract.test.ts`.
+
+- **v0.5 (Stage 1)** — Absorb Codex adversarial property-auditor pass
   findings. Ratify `property_ids` above by landing the corresponding
   property-test harness. Consider whether a typed `ReducerOutput` (log,
   snapshot, derived diagnostics) adds enough value over `RunProjection` to

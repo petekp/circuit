@@ -1,31 +1,45 @@
 # Script Ownership Inventory
 
-This is the current ownership map for the `scripts/` tree. Use it to decide
-where a script belongs before adding, moving, or renaming one.
+This file has two parts. The Owner Groups table is the current ownership map
+for the `scripts/` tree; use it to decide where a script belongs before
+adding, moving, or renaming one. Everything after it is a dated historical
+record of the PR #16 script reorg.
 
 Partition criterion: each top-level script directory is named for the behavior
 that owns the scripts, not for file type or incidental implementation detail.
-
-The migration map later in this file records the historical cleanup that
-produced the current layout.
 
 ## Owner Groups
 
 | Owner | Current paths | Responsibility |
 | --- | --- | --- |
 | Flow generation | `scripts/flows/*` | Emit generated flow surfaces, generated-surface maps, host command mirrors, skill mirrors, schematics, and block catalogs. |
-| Plugin packaging | `scripts/plugins/*` | Build plugin runtime bundles, compare package trees, publish local or release plugin copies, refresh/sync installed host caches, and diagnose installed plugins. |
+| Plugin packaging | `scripts/plugins/*` | Build plugin runtime bundles, compare package trees, publish local or release plugin copies, refresh/sync installed host caches through the shared cache-sync core, and diagnose installed plugins. |
 | Host smoke checks | `scripts/hosts/smoke/*` | Run live or preflight host handoff smoke checks. |
-| Eval operations | `scripts/evals/*` | List evals, validate eval registry and fixtures, run dry-run matrices, score fix-vs-vanilla output, and share eval runner helpers. |
-| Release checks | `scripts/release/*` | Emit release truth, check release parity and public claims, capture golden proof runs, and render release reports. |
+| Eval operations | `scripts/evals/*` | List evals, validate eval registry and fixtures, run dry-run matrices, score fix-vs-vanilla output and drive its circuit mode, append and validate the eval ledger, and share eval runner helpers. |
+| Release checks | `scripts/release/*` | Emit release truth, check release parity and public claims, gate release readiness on eval cadence, capture golden proof runs, and render release reports. |
+| Docs checks | `scripts/docs/*` | Validate documentation catalogs, such as the ideas catalog check wired to `npm run check-ideas` in `verify`. |
+| YAML schema emission | `scripts/schemas/*` | Emit and check YAML schema mirrors via `emit-yaml-schemas` and `check-yaml-schemas`, both run in `verify`. |
+| Shared script helpers | `scripts/shared/*` | Cross-owner helpers for formatting, path suffix handling, and write-or-check output. |
 
-## Before Inventory
+The table tracks owners, not files. For the current file list, run
+`git ls-files scripts`.
 
-Historical note: PR #16 combined the `.mjs` to `.ts` conversion with the
-ownership/name/directory cleanup. There is no separate committed "TS-only,
-old-layout" baseline in this repo. For that reason, the before inventory and
-migration map use the PR base commit `1957e041`; the after inventory uses the
-current `origin/main` state after fetching the merge.
+## Historical Record: The PR #16 Script Reorg
+
+PR #16 (merged 2026-05-19 as `5497b93d`, base `1957e041`) combined the `.mjs`
+to `.ts` conversion with the ownership, name, and directory cleanup. The
+inventories and migration map below record that cleanup. They are a fixed
+record, not the current tree.
+
+<!-- path-ok:begin — fixed record of the PR #16 reorg; retired script paths are quoted on purpose -->
+
+### Before Inventory
+
+Historical note: there is no separate committed "TS-only, old-layout"
+baseline in this repo, because PR #16 combined the conversion with the
+cleanup. For that reason, the before inventory and migration map use the PR
+base commit `1957e041`; the after inventory uses the tree at the merge commit
+plus the installed-host cache-hardening scripts that landed shortly after.
 
 Source: `git ls-tree -r --name-only 1957e041 scripts | sort`
 
@@ -66,10 +80,15 @@ scripts/release/render-readiness-report.mjs
 scripts/sync-codex-plugin-cache.mjs
 ```
 
-## After Inventory
+### After Inventory
 
-Source: current checkout, after the script ownership cleanup plus installed-host
-cache hardening.
+Source: the reorg result at the PR #16 merge (`git ls-tree -r --name-only
+5497b93d scripts | sort`) plus the two installed-host cache-hardening scripts
+that landed shortly after (`scripts/plugins/refresh-local.ts`,
+`scripts/plugins/sync-claude-cache.ts`).
+
+The scripts tree has grown since this snapshot. The Owner Groups table above
+is the current map; run `git ls-files scripts` for the current file list.
 
 ```text
 scripts/evals/check.ts
@@ -108,9 +127,10 @@ scripts/release/render-readiness-report.ts
 scripts/release/shared.ts
 ```
 
-## Migration Map
+### Migration Map
 
-Source: `git diff --name-status 1957e041..origin/main -- scripts`
+Source: `git diff --name-status 1957e041..origin/main -- scripts`, run when
+the reorg landed.
 
 | Old path | New path | Owner | Notes |
 | --- | --- | --- | --- |
@@ -151,7 +171,10 @@ Source: `git diff --name-status 1957e041..origin/main -- scripts`
 | `scripts/release/render-parity-matrix.mjs` | `scripts/release/render-parity-matrix.ts` | Release checks | Same release renderer, converted to typed source. |
 | `scripts/release/render-readiness-report.mjs` | `scripts/release/render-readiness-report.ts` | Release checks | Same release renderer, converted to typed source. |
 
-## Reference Probes
+### Reference Probes
+
+These probes record the checks run when the reorg landed; their recorded
+results are part of the historical record.
 
 Old path probe:
 
@@ -169,3 +192,5 @@ rg -n "scripts/" docs/README.md AGENTS.md README.md UBIQUITOUS_LANGUAGE.md docs/
 
 Result: remaining references point either to the new repo script paths or to
 plugin-local runtime entrypoints such as `plugins/<host>/scripts/circuit.ts`.
+
+<!-- path-ok:end -->

@@ -26,6 +26,7 @@
     "evals:fix:dry-run": "node evals/fix-vs-vanilla/run-fix-comparison.ts --set held-out --dry-run",
     "evals:fix:matrix:dry-run": "node scripts/evals/fix-matrix.ts --dry-run",
     "check-ideas": "node scripts/docs/check-ideas-catalog.ts",
+    "check-doc-paths": "node scripts/docs/check-doc-paths.ts",
     "soak:runtime:fast": "vitest run tests/soak tests/runner/cli-runtime.test.ts tests/runtime tests/flow-runtime-smoke",
     "soak:runtime": "vitest run tests/soak && npm run verify && npm run check-flow-drift:nobuild",
     "lint": "biome check .",
@@ -55,8 +56,8 @@
     "publish:plugins:check": "node scripts/plugins/publish.ts check",
     "publish:plugins:local": "node scripts/plugins/publish.ts local",
     "publish:plugins:release": "node scripts/plugins/publish.ts release --codex-source petekp/circuit --codex-marketplace circuit",
-    "verify": "npm run check && npm run lint && npm run build && npm run test && npm run check-evals && npm run check-ideas && npm run check-yaml-schemas:nobuild && npm run check-flow-drift:nobuild && npm run check-release-infra:nobuild",
-    "verify:fast": "npm run check && npm run lint && npm run build && npm run test:fast && npm run check-evals && npm run check-ideas && npm run check-yaml-schemas:nobuild && npm run check-flow-drift:nobuild",
+    "verify": "npm run check && npm run lint && npm run build && npm run test && npm run check-evals && npm run check-ideas && npm run check-doc-paths && npm run check-yaml-schemas:nobuild && npm run check-flow-drift:nobuild && npm run check-release-infra:nobuild",
+    "verify:fast": "npm run check && npm run lint && npm run build && npm run test:fast && npm run check-evals && npm run check-ideas && npm run check-doc-paths && npm run check-yaml-schemas:nobuild && npm run check-flow-drift:nobuild",
     "circuit:run": "./bin/circuit"
   },
   "dependencies": {

@@ -39,31 +39,34 @@ you actually ran.
 
 ### Commands and Host Packages
 
-- **Claude commands present:** <run, handoff>
-- **Codex commands/skills present:** <run, handoff>
-- **Public generated flow packages (mirrors only):** <review, fix, pursue, prototype, build, explore>
+- **Claude commands present:** <run, pursue, handoff>
+- **Codex commands/skills present:** <run, pursue, handoff>
+- **Public generated flow packages (mirrors):** <review, fix, pursue, prototype, build, explore>
 - **Internal generated flow packages:** <goal, runtime-proof; host mirrors absent?>
-- **Host-only limits:** <no flow has a direct command/skill — all routed through Run; create is CLI-only; goal is internal and never auto-selected>
+- **Host-only limits:** <pursue is the only flow with a direct command/skill — the others are routed through Run; create is CLI-only; goal is internal and never auto-selected>
 
 ### CLI Flags
 
-- **Run-axis flags observed:** <--rigor, --tournament, --tournament-n, --autonomous>
+- **Run-axis flags observed:** <--depth, --power, --tournament, --tournament-n, --autonomous>
 - **Evidence flags observed:** <--include-untracked-content, --progress jsonl, --run-folder>
-- **Rejected unsupported flags checked:** <--mode, --depth, --dry-run, if checked>
+- **Rejected unsupported flags checked:** <--mode, --rigor, --dry-run, if checked>
 
 ### Axis Allow-List
 
-| Flow | Visibility | Allowed rigor | Tournament | Autonomous | Direct host command/skill |
+| Flow | Visibility | Allowed depth | Tournament | Autonomous | Direct host command/skill |
 |---|---|---|---|---|---|
-| review | public | standard | no | no | none; via Run |
-| fix | public | lite, standard, deep | no | yes | none; via Run |
-| build | public | lite, standard, deep | no | yes | none; via Run |
-| explore | public | lite, standard, deep | yes | yes | none; via Run |
-| prototype | public | standard, deep | yes | yes | none; via Run |
-| pursue | public | standard | no | yes | none; via Run |
-| goal | internal | lite, standard, deep | no | yes | none; internal, no classifier auto-selects it |
+| review | public | medium | no | no | none; via Run |
+| fix | public | low, medium, high | no | yes | none; via Run |
+| build | public | low, medium, high | no | yes | none; via Run |
+| explore | public | low, medium, high | yes | yes | none; via Run |
+| prototype | public | medium, high | yes | yes | none; via Run |
+| pursue | public | medium | no | yes | direct command/skill + via Run |
+| goal | internal | low, medium, high | no | yes | none; internal, no classifier auto-selects it |
 
-Build (deep rigor only) iterates a per-slice implement+verify loop: progress
+The power dial is per-run, not per-flow: `--power <auto|low|medium|high>`,
+default `medium`.
+
+Build (depth high only) iterates a per-slice implement+verify loop: progress
 gains a `(slice N)` suffix and the trace gains `slice_index`. Record the slice
 count, whether the `(slice N)` suffix appeared, and the observed
 `anticipated_file_extensions`.
@@ -101,7 +104,7 @@ recommended for scanning.
 | ID | Item | Status (pass / pass-with-finding / fail / skipped / partial-skip) | Run folder | Notes |
 |---|---|---|---|---|
 | A1 | explore — default | pass / fail / skipped | <abs path or — > | <one line> |
-| A2 | explore — rigor deep | … | … | … |
+| A2 | explore — depth low | … | … | … |
 | … | … | … | … | … |
 
 ### Section B — utility surface
@@ -234,7 +237,7 @@ LLMs) read this when they need to understand what was actually exercised.
 ```text
 [01] /circuit:run briefly explain the repo layout (selected_flow=explore)
      exit=0  run=<abs path>
-[02] run explore --rigor deep --goal 'compare lite vs deep tradeoffs for explore'
+[02] run explore --depth high --goal 'compare low vs high depth tradeoffs for explore'
      exit=0  run=<abs path>
 …
 ```

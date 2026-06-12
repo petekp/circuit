@@ -1,9 +1,9 @@
 ---
 contract: config
 status: ratified-v0.1
-version: 0.3
+version: 0.5
 schema_source: src/schemas/config.ts
-last_updated: 2026-05-28
+last_updated: 2026-06-12
 depends_on: [ids, selection-policy, connector, step, skill, skill-hook]
 report_ids:
   - config.root
@@ -22,12 +22,17 @@ consumes before any relay step executes. The config contract governs
 three related surfaces:
 
 1. **`Config`** — the top-level shape a single layer contributes, combining
-   `schema_version`, an optional `host` identity, a `RelayConfig` (see
+   `schema_version`, an optional `project_id` identity, an optional `host`
+   identity, a `RelayConfig` (see
    [docs/contracts/connector.md](connector.md)), a map of per-circuit overrides
    (`CircuitOverride`), a top-level `skills.bindings` map for skill
-   slots, a `hooks` policy surface for deterministic Skill Hook
-   preparation, and a `defaults` object carrying a `SelectionOverride`
-   (see [docs/contracts/selection.md](selection.md)).
+   slots, a `skill_hooks` policy surface for deterministic Skill Hook
+   preparation, a `power_tiers` record mapping connector names to
+   `PowerTierTable`s, an optional `power_auto` bounds block, and a
+   `defaults` object carrying an optional `SelectionOverride` and an
+   optional `power` dial setting (see
+   [docs/contracts/selection.md](selection.md), which owns selection and
+   Power dial semantics; this contract governs shape and strictness only).
 2. **`LayeredConfig`** — the layer-identity wrapper around a `Config`:
    which `ConfigLayer` produced it and (optionally) the source path that
    backs it.
@@ -119,7 +124,8 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
 
 - **CONFIG-I4 — Nested `Config.defaults` rejects surplus keys at parse
   time (`.strict()`).** The `defaults` object is a nested record whose
-  only field at v0.1 is `selection?: SelectionOverride`. Surplus keys
+  only fields are `selection?: SelectionOverride` and
+  `power?: PowerDialSetting`. Surplus keys
   at this nesting level (`defaults: {selections: {...}}` with a plural
   typo) are rejected, not stripped. Without CONFIG-I4, a plural typo
   would silently produce an empty `defaults.selection`, which composes
@@ -150,14 +156,19 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
 
 - **CONFIG-I7 — Bare `{schema_version: 1}` produces a usable default
   `Config` via schema-level `.default(...)` on required runtime
-  fields.** `relay`, `skills`, `hooks`, `circuits`, and `defaults` all
+  fields.** `relay`, `skills`, `skill_hooks`, `circuits`, `power_tiers`,
+  and `defaults` all
   carry schema-level defaults (`RelayConfig` defaults to
   `{default: 'auto', roles: {}, circuits: {}, connectors: {}}`;
-  `skills` defaults to `{bindings: {}}`; `hooks` defaults to empty
+  `skills` defaults to `{bindings: {}}`; `skill_hooks` defaults to empty
   policy and detection records; `circuits` defaults to `{}`;
-  `defaults` defaults to `{}`). `host` is intentionally optional so
-  layered composition can distinguish "this layer has no host opinion"
-  from an explicit generic-shell reset. This preserves the existing
+  `power_tiers` defaults to `{}`; `defaults` defaults to `{}`).
+  `host`, `project_id`, and `power_auto` are intentionally optional,
+  not defaulted: `host` so layered composition can distinguish "this
+  layer has no host opinion" from an explicit generic-shell reset,
+  `project_id` so absence means "infer the project identity", and
+  `power_auto` so absence means an unbounded auto-dial range. This
+  preserves the existing
   ergonomic: a minimal operator config file that sets only the schema
   version parses successfully and produces a reasonable runtime
   configuration. Without CONFIG-I7, a
@@ -165,7 +176,8 @@ The runtime MUST reject any `Config`, `LayeredConfig`, or
   (the parser would accept no surplus keys but also reject the bare
   form). The two are reconciled by schema-level defaults on required
   fields. Enforced at `src/schemas/config.ts` via `.default(...)` on
-  `relay`, `skills`, `hooks`, `circuits`, and `defaults`.
+  `relay`, `skills`, `skill_hooks`, `circuits`, `power_tiers`, and
+  `defaults`.
 
 - **CONFIG-I8 — `Config.circuits` keys are `CompiledFlowId`s at parse time
   (closes Codex MED #5 fold-in).** `Config.circuits` is typed
@@ -441,7 +453,7 @@ After a `CircuitOverride` is accepted:
     config types stay owned by `src/schemas/config.ts`.
   - `pending_rehome` block removed from `connector.registry`.
 
-- **v0.2 (user skill loading slice, this version)** — CONFIG-I9 added.
+- **v0.2 (user skill loading slice)** — CONFIG-I9 added.
   Schema-level landings:
   - User skill binding fields added:
     `skills.bindings: Record<SkillSlotId, SkillId>` at the config root,
@@ -470,7 +482,7 @@ After a `CircuitOverride` is accepted:
     `relay.default`/`.roles`/`.circuits`/`.connectors`, `circuits`,
     and `defaults` (Codex LOW #6).
 
-- **v0.3 (Run-centered Skill Hook policy slice, this version)** —
+- **v0.3 (Run-centered Skill Hook policy slice)** —
   CONFIG-I10 added. Schema-level landings:
   - `skill_hooks.policy` added as a strict record keyed by `SkillHookName`.
     Policy rules support `auto` and `mute` (mode defaults to `auto`); concrete
@@ -478,14 +490,29 @@ After a `CircuitOverride` is accepted:
   - `skill_hooks.detection` added as a strict holder for literal detection
     patterns. Detection remains observable-state based; natural-language
     inference is not a config feature.
-  - CONFIG-I7 updated so bare config receives empty `hooks` defaults.
+  - CONFIG-I7 updated so bare config receives empty `skill_hooks` defaults.
+
+- **v0.4 (Power dial slice, 2026-06-10)** — `Config` gains the Power
+  dial shape: `defaults.power` (optional dial setting) and `power_tiers`
+  (record of connector name to `PowerTierTable`, defaults to `{}`).
+  Dial semantics (default-on `medium`, fill-never-override) are owned by
+  [docs/contracts/selection.md](selection.md) v0.4; this contract tracks
+  shape and strictness only. Also records the earlier `project_id`
+  addition (optional `ProjectId`; absence means "infer the project
+  identity from the git remote, then the runs base").
+
+- **v0.5 (Auto power slice, 2026-06-11)** — `Config` gains `power_auto`,
+  an optional strict `{floor, ceiling}` bounds block over concrete
+  tiers with a floor-not-above-ceiling refinement. Inert unless
+  `defaults.power` is `auto`. Semantics in
+  [docs/contracts/selection.md](selection.md) v0.5.
 
 - **v0.2 (Stage 1)** — Ratify `property_ids` above by landing the
   corresponding property-test harness at
-  `tests/properties/visible/config/`. Decide whether layer
+  `tests/properties/visible/config/`. Decide whether layer <!-- path-ok -->
   composition semantics (the merge resolver across multiple
   `LayeredConfig`s) belongs to this contract or to a new
-  `docs/contracts/config-composition.md`. Precedent suggests
+  `docs/contracts/config-composition.md`. Precedent suggests <!-- path-ok -->
   separate: connector composition lives in connector.md only through
   `RelayConfig.superRefine`; selection composition lives in
   `selection.md` through `SelectionResolution`. Config-file

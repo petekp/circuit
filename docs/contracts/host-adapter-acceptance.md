@@ -44,7 +44,7 @@ scripts may add confidence, but they do not upgrade a capability to
 |---|---|---|
 | packaged command invocation | Claude Code | `tests/runner/plugin-command-invocation.test.ts` |
 | packaged command invocation | Codex | `tests/contracts/codex-host-plugin.test.ts` |
-| packaged flow lookup | Claude Code | `tests/contracts/codex-host-plugin.test.ts` and `tests/runner/*-runtime-wiring.test.ts` |
+| packaged flow lookup | Claude Code | `tests/contracts/claude-host-plugin.test.ts` |
 | packaged flow lookup | Codex | `tests/contracts/codex-host-plugin.test.ts` |
 | progress JSONL rendering contract | Claude Code | `tests/contracts/host-experience-docs.test.ts` and `tests/contracts/codex-host-plugin.test.ts` |
 | progress JSONL rendering contract | Codex | `tests/contracts/codex-host-plugin.test.ts` |
@@ -82,7 +82,7 @@ npm run smoke:host:claude
 ## Current Boundaries
 
 Codex V1 does not support bundled plugin hook registration. Codex loads
-`plugins/codex/hooks/hooks.json` by default when that file exists, and runs
+`plugins/codex/hooks/hooks.json` by default when that file exists, and runs <!-- path-ok -->
 hook commands from the session working directory. Circuit therefore keeps the
 supported Codex path on the user-level hook installed by:
 

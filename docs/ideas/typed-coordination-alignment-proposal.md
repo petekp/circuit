@@ -31,7 +31,7 @@ per-step configurability, evidence, checks, traces, and reports"
 (`package.json`). That wording is accurate, but it makes the most durable parts
 sound secondary. The existing positioning notes already call the structured
 report and evidence trail an underused differentiator, and say it should be a
-co-equal lead beat with flow shape (`docs/positioning-and-strategy.md`).
+co-equal lead beat with flow shape (`docs/ideas/positioning-and-strategy.md`).
 
 Run's architecture also already behaves more like a coordination layer than a
 workflow template. Run selects or receives a flow, normalizes controls, loads
@@ -259,7 +259,7 @@ because they come from places where coordination could not safely act.
   channel for `auto` Skill Hooks and the implementer-only role gate.
 - `tests/runner/skill-hook-actuation.test.ts` proves `auto` injection into
   implementer prompts and `skills.loaded`, plus `mute` observe-only behavior.
-- `docs/positioning-and-strategy.md` already identifies structured reports and
+- `docs/ideas/positioning-and-strategy.md` already identifies structured reports and
   evidence as an underused differentiator that should be elevated.
 
 ## Recommendation

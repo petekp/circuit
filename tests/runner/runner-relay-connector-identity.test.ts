@@ -20,10 +20,10 @@ import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 //
 // The companion second-connector round-trip at
 // `tests/runner/codex-relay-roundtrip.test.ts` exercises the real
-// `relayCodex → materializeRelay` path directly (CODEX_SMOKE=1).
-// This test exercises the `runCompiledFlow` seam on top of that — the
-// regression the round-trip alone cannot catch, since the round-trip
-// calls `materializeRelay` directly and bypasses `runCompiledFlow`.
+// `relayCodex` subprocess path (CODEX_SMOKE=1). This test pins the
+// descriptor-to-trace_entry plumbing inside the runtime relay executor
+// (src/runtime/executors/relay.ts), which builds the relay transcript
+// inline during `runCompiledFlow`.
 
 const FIXTURE_PATH = resolve('generated/flows/runtime-proof/circuit.json');
 

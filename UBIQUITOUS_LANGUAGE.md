@@ -96,7 +96,8 @@ instructions.
 Trace kinds use `<subject>.<event>` names. Group them by subject when explaining
 a run:
 
-- **run**: `run.bootstrapped`, `run.closed`
+- **run**: `run.bootstrapped`, `run.power-inference`, `run.skill-hook`,
+  `run.skill-hook-error`, `run.closed`
 - **step**: `step.entered`, `step.report_written`, `step.completed`,
   `step.aborted`
 - **check**: `check.evaluated`
@@ -107,6 +108,9 @@ a run:
 - **sub_run**: `sub_run.started`, `sub_run.completed`
 - **fanout**: `fanout.started`, `fanout.branch_started`,
   `fanout.branch_completed`, `fanout.joined`
+- **verification**: `verification.command_evaluated`
+- **proof**: `proof.assessed`
+- **safe_apply**: `safe_apply.result`
 
 ## Goal Safety Review Bridge
 
@@ -128,7 +132,7 @@ the same safety review, not as a new product metaphor.
 | **Runtime signal** | Runtime evidence for whether a dim was proved, missing, or not applicable. | Runtime evidence |
 | **Model judgment** | The reviewer judgment for a dim: pass, concern, or fail. | Reviewer judgment |
 | **runtime_vetoed** | A flag showing the runtime evidence overrode a model judgment to fail. | Runtime override |
-| **Tournament** | Explore's pattern for generating multiple candidate answers and selecting one. | Model comparison |
+| **Tournament** | The fan-out-and-select pattern. Explore fans out decision options and selects one; Prototype fans out implementation variants and asks which to keep. | Model comparison |
 
 ## Build Limits Language
 

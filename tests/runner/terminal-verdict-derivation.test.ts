@@ -10,7 +10,8 @@ import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
-// Adversarial-review fix #2: deriveTerminalVerdict had no direct
+// Adversarial-review fix #2: terminal verdict derivation
+// (latestAdmittedVerdict in src/runtime/run/run-close.ts) had no direct
 // end-to-end coverage. Every existing sub-run
 // test stubs the childRunner and hand-writes the child's result.json,
 // so the runner's own walk-backward over trace_entries never executes in
@@ -78,7 +79,7 @@ afterEach(() => {
   rmSync(runFolderBase, { recursive: true, force: true });
 });
 
-describe('deriveTerminalVerdict — fix #2 coverage', () => {
+describe('terminal verdict derivation (run-close latestAdmittedVerdict) — fix #2 coverage', () => {
   it('single-relay run surfaces the verdict on result.json', async () => {
     const { bytes } = loadDogfood();
     const runFolder = join(runFolderBase, 'run-single');

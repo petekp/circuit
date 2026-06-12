@@ -20,7 +20,6 @@ import {
   relayCodex as neutralRelayCodex,
 } from '../../src/connectors/codex.js';
 import { relayCustom as neutralRelayCustom } from '../../src/connectors/custom.js';
-import { materializeRelay as neutralMaterializeRelay } from '../../src/connectors/relay-materializer.js';
 
 describe('connector relay exports', () => {
   it('keeps connector exports bound to the implementation modules', () => {
@@ -42,6 +41,5 @@ describe('connector relay exports', () => {
     expect(neutralCodexSupportedEfforts).toContain('low');
 
     expect(neutralRelayCustom).toEqual(expect.any(Function));
-    expect(neutralMaterializeRelay).toEqual(expect.any(Function));
   });
 });

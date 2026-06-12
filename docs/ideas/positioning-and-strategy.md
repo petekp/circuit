@@ -1,5 +1,7 @@
 # Circuit — Positioning & Strategy
 
+_Point-in-time workshop notes from May 2026 (see the Section 9 market scan date). The Section 4 control matrix predates the power dial and the Prototype flow._
+
 Working notes from a positioning workshop. Captures pitch development, code-grounded audit of marketing claims, strategic gaps & opportunities, and the major insight that emerged: Circuit's distinctive value lies in being the substrate for **structured project memory** for both humans and agents.
 
 These are internal working notes, not polished external copy. Some claims are honest about today's shipping reality; others are flagged as forward-looking and require build-out before they can be used externally. Before reusing any claim in public docs, check it against code, tests, generated release truth, and checked-in proof evidence.

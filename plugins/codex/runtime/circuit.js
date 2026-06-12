@@ -34798,7 +34798,7 @@ var fixFlowData = {
     schema_version: "2",
     id: "fix",
     title: "Fix Schematic",
-    purpose: "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at medium depth and above, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Low depth skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they are unreachable at compile time and omitted from compiled flows.",
+    purpose: "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at medium depth and above, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Low depth skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they appear in compiled flows but no runtime path selects them (the work contract declares no ask/handoff recovery bindings, and fallback recovery prefers retry, which every referencing step declares).",
     status: "active",
     version: "0.1.0",
     starts_at: "fix-frame",
@@ -65331,6 +65331,25 @@ function createRecoveryAttemptRunner(deps) {
   };
 }
 
+// dist/cli/run-flag-vocabulary.js
+var RUN_EXECUTION_FLAGS = [
+  { flag: "--goal", valueHint: "<goal>", docValid: true },
+  { flag: "--why", valueHint: "<why>", docValid: true },
+  { flag: "--depth", valueHint: `<${Depth.options.join("|")}>`, docValid: true },
+  { flag: "--power", valueHint: `<${PowerDialSetting.options.join("|")}>`, docValid: true },
+  { flag: "--tournament", docValid: true },
+  { flag: "--tournament-n", valueHint: "<2|3|4>", docValid: true },
+  { flag: "--autonomous", docValid: true },
+  { flag: "--run-folder", valueHint: "<path>", docValid: true },
+  { flag: "--fixture", valueHint: "<path>", docValid: true },
+  { flag: "--flow-root", valueHint: "<path>", docValid: true },
+  { flag: "--checkpoint-choice", valueHint: "<choice>", docValid: true },
+  { flag: "--progress", valueHint: "<format>", docValid: true },
+  // Declared so the parser owns the rejection message; never teachable.
+  { flag: "--dry-run", docValid: false },
+  { flag: "--include-untracked-content", docValid: true }
+];
+
 // dist/cli/run-output.js
 function routeOutputFields(input) {
   return {
@@ -65438,7 +65457,10 @@ function runtimeHostKind(options) {
   return HostKind.parse(raw);
 }
 function addExecutionOptions(program2) {
-  return program2.option("--goal <goal>").option("--why <why>").option("--depth <low|medium|high>").option("--power <auto|low|medium|high>").option("--tournament").option("--tournament-n <2|3|4>").option("--autonomous").option("--run-folder <path>").option("--fixture <path>").option("--flow-root <path>").option("--checkpoint-choice <choice>").option("--progress <format>").option("--dry-run").option("--include-untracked-content");
+  for (const row of RUN_EXECUTION_FLAGS) {
+    program2.option(row.valueHint === void 0 ? row.flag : `${row.flag} ${row.valueHint}`);
+  }
+  return program2;
 }
 function parseExecutionArgs(command, argv) {
   const program2 = addExecutionOptions(new Command(`circuit ${command}`).argument("[flow-name]"));
@@ -66223,18 +66245,18 @@ async function runRunsCommand(argv) {
 var DEFAULT_DEV_VERSION = "0.0.0-dev";
 function usage() {
   return [
-    'usage: circuit run [flow-name] --goal "<goal>" [--depth <low|medium|high>] [--tournament [--tournament-n <2|3|4>]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
+    'usage: circuit run <flow-name> --goal "<goal>" [--why <why>] [--depth <low|medium|high>] [--power <auto|low|medium|high>] [--tournament [--tournament-n <2|3|4>]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
     "       circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]",
     "       circuit runs show --run-folder <path> --json",
-    "       circuit history rebuild|query|status --json [options]",
+    "       circuit history rebuild|query|pull|status|memory-merge|memory-effect --json [options]",
     '       circuit memory note --flow <id> [--applies-to <kind>] "<text>" | memory list | memory forget <id>',
     "       circuit handoff [save|resume|done|brief|hook|hooks|harvest] [options]",
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
     "       circuit version [--json]",
     "",
-    "Axes: `--depth` controls care level (`low`, `medium`, `high`); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
+    "Axes: `--depth` controls care level (`low`, `medium`, `high`); `--power` sets the model tier (`auto`, `low`, `medium`, `high`; default `medium`; `auto` lets the run's research read pick within configured bounds); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
     "",
-    "With an explicit flow name, loads generated/flows/<name>/circuit.json. Without one, classifies the free-form goal across the registered explore/review/fix/build/pursue flows and then composes the runtime boundary using the configured relay connector.",
+    "With an explicit flow name, loads generated/flows/<name>/circuit.json. The flow name is required: pass one of build|fix|review|explore|prototype|pursue. Routing is model-only; the host or operator names the flow, and the CLI never classifies the goal text.",
     "",
     "Config: if present, loads ~/.config/circuit/config.yaml and ./.circuit/config.yaml from the current working directory into the selection resolver before relay.",
     "",

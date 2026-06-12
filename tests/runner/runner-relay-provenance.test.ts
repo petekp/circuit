@@ -4,7 +4,6 @@ import { dirname, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { deterministicNow, makeStubRelayer } from '../helpers/runtime-fixtures.js';
 
-import { materializeRelay } from '../../src/connectors/relay-materializer.js';
 import type { RuntimeIndexedRelayStep } from '../../src/flows/registries/runtime-index.js';
 import type { ExecutorRegistry } from '../../src/runtime/executors/index.js';
 import { relayWithResolvedConnector } from '../../src/runtime/executors/relay.js';
@@ -16,18 +15,16 @@ import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import { Config, type LayeredConfig as LayeredConfigValue } from '../../src/schemas/config.js';
 import { CompiledDepth } from '../../src/schemas/depth.js';
-import { RunId, StepId } from '../../src/schemas/ids.js';
-import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
 // Relay-trace_entry provenance plumbing through `runCompiledFlow`.
 //
-// `materializeRelay` does not hardcode
-// `resolved_selection: { skills: [], invocation_options: {} }` or
+// The runtime relay executor (src/runtime/executors/relay.ts) does not
+// hardcode `resolved_selection: { skills: [], invocation_options: {} }` or
 // `resolved_from: { source: 'default' }`; both fields flow from the
 // runner's actual selection-resolution path. This test file pins the
 // invariant: provenance is derived from real inputs at the runner
-// boundary and the materializer is fail-closed at the type signature.
+// boundary.
 
 const FIXTURE_PATH = resolve('generated/flows/runtime-proof/circuit.json');
 
@@ -700,43 +697,5 @@ describe("SkillOverride 'append' / 'remove' / 'inherit' compose per SEL-I3", () 
       skills: ['tdd'],
       invocation_options: {},
     });
-  });
-});
-
-describe("materializer fails closed when resolved_from.role does not match the relay step's role", () => {
-  it('materializeRelay throws when resolvedFrom.source="role" carries a role that disagrees with the trace_entry role', () => {
-    const stub: RelayResult = {
-      request_payload: 'x',
-      receipt_id: 'r',
-      result_body: 'y',
-      duration_ms: 1,
-      cli_version: '0',
-    };
-    const runFolder = mkdtempSync(join(tmpdir(), 'circuit-relay-provenance-throw-'));
-    try {
-      expect(() =>
-        materializeRelay({
-          runId: RunId.parse('47a47a47-a47a-47a4-7a47-a47a47a47a4b'),
-          stepId: StepId.parse('s1'),
-          attempt: 1,
-          role: 'researcher',
-          startingSequence: 0,
-          runFolder,
-          writes: { request: 'request', receipt: 'receipt', result: 'result' },
-          connector: { kind: 'builtin', name: 'claude-code' },
-          resolvedSelection: { skills: [], invocation_options: {} },
-          // `role` source with a role that does NOT equal the step's role
-          // — the cross-validation in src/schemas/trace-entry.ts catches this at
-          // the TraceEntry-union level; the materializer surfaces it earlier
-          // with a precise error.
-          resolvedFrom: { source: 'role', role: 'implementer' },
-          relayResult: stub,
-          verdict: 'accept',
-          now: () => new Date(0),
-        }),
-      ).toThrowError(/resolvedFrom.role 'implementer' does not match relay step role 'researcher'/);
-    } finally {
-      rmSync(runFolder, { recursive: true, force: true });
-    }
   });
 });

@@ -25,12 +25,16 @@ for canonical term definitions.
 
 ## Invariants
 
-The runtime MUST reject any CompiledFlow that violates these. All invariants
-are enforced by the `CompiledFlow` Zod schema — some as literal fields on
-`CompiledFlowBody` (e.g. WF-I7's `schema_version` literal), the remainder
-inside `CompiledFlow.superRefine` — and tested in
+The runtime MUST reject any CompiledFlow that violates WF-I1..WF-I11. Those
+invariants are enforced by the `CompiledFlow` Zod schema — some as literal
+fields on `CompiledFlowBody` (e.g. WF-I7's `schema_version` literal, WF-I5's
+`.strict()`), the remainder inside `CompiledFlow.superRefine` — and tested in
 `tests/contracts/flow-graph-schema.test.ts`,
 `tests/contracts/flow-schematic.test.ts`, and related runtime projection tests.
+WF-I12 is a catalog-level invariant: visibility (public vs user-authored) is
+a catalog property the schema cannot see, so it is enforced by
+`tests/contracts/catalog-completeness.test.ts` ("public built-in flows do not
+name concrete local skill ids") rather than at parse time.
 
 - **WF-I1 — Unique step ids.** No two steps in `CompiledFlow.steps` share an `id`.
 - **WF-I2 — Closed start reference.** `starts_at` must be the `id` of an
@@ -152,7 +156,10 @@ Property-based tests will cover:
   stage_path_policy enforcement).
 - **axes / depth**: `axes` declares the allowed depths, tournament, and
   autonomous support for this flow.
-- **change_kind**: `EntryMode.default_change_kind` is optional; when present, must be
+- **change_kind**: the compiled flow itself carries no change_kind field
+  (the dead `entry` metadata was removed in v0.6; see WF-I5). The
+  schematic-side `FlowAxisSelection.default_change_kind`
+  (`src/schemas/flow-schematic.ts`) is optional; when present, it must be
   a valid `ChangeKind` literal.
 - **selection-policy**: `CompiledFlow.default_selection` is a
   `SelectionOverride` and obeys selection precedence (see
@@ -172,7 +179,7 @@ Property-based tests will cover:
 - `carry-forward:prose-schema-drift` — Existing Circuit's SKILL.md can
   silently disagree with `circuit.yaml`. Circuit prevents this by
   generating host-facing flow surfaces from flow package sources.
-- `carry-forward:stage path-policy-too-loose` — **Closed in stage.md v0.1.**
+- `carry-forward:stage-path-policy-too-loose` — **Closed in stage.md v0.1.**
   `CompiledFlow.stage_path_policy` is a required discriminated union with two
   modes: `strict` (all seven canonical stages required) and `partial`
   (explicit `omits` + rationale ≥20 chars). Silent skip of `review` or

@@ -20,13 +20,15 @@ per-command details.
 Default to the host you are currently running in:
 
 - `claude` — the Claude Code plugin at `plugins/claude/`. The published slash
-  commands are `/circuit:run` and `/circuit:handoff` only. Built-in flows
-  (build, explore, fix, prototype, pursue, review) are routed through Run; they
-  ship as compiled flow mirrors under `plugins/claude/skills/<flow>/`, not as
-  separate slash commands.
+  commands are `/circuit:run`, `/circuit:handoff`, and `/circuit:pursue`.
+  Built-in flows (build, explore, fix, prototype, review) are routed through
+  Run; they ship as compiled flow mirrors under `plugins/claude/skills/<flow>/`,
+  not as separate slash commands. Pursue is both Run-routable and a direct
+  slash command, and it also ships a compiled mirror like the other flows.
 - `codex` — the Codex plugin at `plugins/codex/`. The published Codex
-  commands/skills are `run` and `handoff` only; flows are routed through Run and
-  ship as compiled mirrors under `plugins/codex/flows/<flow>/`.
+  commands/skills are `run`, `handoff`, and `pursue`; the other flows are
+  routed through Run and ship as compiled mirrors under
+  `plugins/codex/flows/<flow>/`. Pursue ships a compiled mirror too.
 
 If the user does not name a host, do not ask. Infer it from the execution
 context: Codex means `codex`; Claude Code means `claude`. If the user explicitly
@@ -76,8 +78,8 @@ pre-sync loaded command as authoritative.
 Concrete consequence: before declaring a clean run, you must have executed at
 least one default-axis invocation per public flow against the real connector,
 reached either through Run (host model recommendation — routing is model-only,
-there is no deterministic router) or the explicit CLI flow start, since no flow
-ships its own host command. If a
+there is no deterministic router) or the explicit CLI flow start; pursue is the
+only flow that also ships its own host command. If a
 default-axis flow aborts on its first relay step, that is the headline finding
 and the rest of the surface coverage is moot until it's fixed. Section A0 of the
 checklist exists for exactly this reason — run it first, stop on structural
@@ -351,10 +353,10 @@ deeper. The probes that tend to find real issues:
   rule in every command requires single-quote wrapping with `'\''` for
   literal apostrophes — verify it actually holds.
 - **Axis combinations** the checklist did not cover. Try valid combinations
-  such as Explore `--rigor deep --tournament --tournament-n 2` and supported
-  autonomous runs. Also test fail-closed combinations such as Build
-  `--tournament`, Review `--autonomous`, and `--tournament-n 2` without
-  `--tournament`.
+  such as Explore `--depth high --tournament --tournament-n 2`, power dials
+  (`--power low`, `--power auto`), and supported autonomous runs. Also test
+  fail-closed combinations such as Build `--tournament`, Review `--autonomous`,
+  and `--tournament-n 2` without `--tournament`.
 - **Checkpoint resume**: trigger a checkpoint-waiting outcome, kill the
   session, and resume with `--checkpoint-choice` from a fresh shell.
 - **Operator-summary completeness**: the host commands render the readable digest
@@ -452,7 +454,7 @@ A finding is anything a real user would notice and complain about. Concretely:
   it claims to render.
 - A documented flag is rejected, silently ignored, or behaves opposite to
   its description.
-- An unsupported flag such as `--mode` or `--depth` appears in a generated host
+- An unsupported flag such as `--mode` or `--rigor` appears in a generated host
   surface or checklist row.
 - A generated public flow is missing from the surface inventory, or a host
   direct command/skill is claimed for a flow that only has packaged CLI JSON.

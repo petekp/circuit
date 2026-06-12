@@ -14,10 +14,16 @@ host-surface checks:
 npm run plugins:refresh-local
 ```
 
+From a checkout, `npm run doctor:plugins:installed` resolves the current
+version and doctors both installed host caches. The commands below cover the
+no-checkout case. Substitute `<version>` with the installed version; list the
+cache directory to find it.
+
 Claude Code marketplace install:
 
 ```bash
-node "$HOME/.claude/plugins/cache/circuit/circuit/0.1.0-alpha.6/scripts/circuit.ts" doctor
+ls "$HOME/.claude/plugins/cache/circuit/circuit/"
+node "$HOME/.claude/plugins/cache/circuit/circuit/<version>/scripts/circuit.ts" doctor
 ```
 
 Codex plugin from this checkout:
@@ -29,7 +35,8 @@ node plugins/codex/scripts/circuit.ts doctor
 Synced Codex plugin cache:
 
 ```bash
-node "$HOME/.codex/plugins/cache/circuit-local/circuit/0.1.0-alpha.6/scripts/circuit.ts" doctor
+ls "$HOME/.codex/plugins/cache/circuit-local/circuit/"
+node "$HOME/.codex/plugins/cache/circuit-local/circuit/<version>/scripts/circuit.ts" doctor
 ```
 
 Claude Code package from this checkout:
@@ -54,7 +61,9 @@ shipped with, not a `circuit` binary from `PATH`.
 
 The checked-in doctor proof is
 [`docs/release/proofs/runs/doctor/output.txt`](release/proofs/runs/doctor/output.txt).
-The current source wrapper path in this checkout is `scripts/circuit.ts`.
+The wrapper is `scripts/circuit.ts` inside each host package; in this checkout <!-- path-ok -->
+that is `plugins/claude/scripts/circuit.ts` and
+`plugins/codex/scripts/circuit.ts`.
 
 ## 2. Run Review First
 

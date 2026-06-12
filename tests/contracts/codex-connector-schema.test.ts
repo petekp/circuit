@@ -24,10 +24,10 @@ const TURN_FAILED_FIXTURE = resolve('tests/fixtures/codex-smoke/protocol/turn-fa
 //   (B) `parseCodexStdout` NDJSON parser branches (happy path + each
 //       fail-closed assertion).
 //   (C) Cross-connector parity — both connectors produce the same
-//       `RelayResult` shape so the materializer consumes them
-//       interchangeably (the connector-name discriminant on
-//       `materializeRelay` is what records identity, not the result
-//       shape).
+//       `RelayResult` shape so the runtime relay executor
+//       (src/runtime/executors/relay.ts) consumes them interchangeably
+//       (the connector descriptor on the relay trace entries records
+//       identity, not the result shape).
 //
 // Import-level connector discipline coverage for `codex.ts` is
 // exercised by the live-repo regression guard in the claude-code
@@ -614,8 +614,8 @@ describe('Codex connector — parseCodexStdout against real Codex 0.118 JSONL fi
 describe('Codex connector — cross-connector shape parity (RelayResult uniformity)', () => {
   it('CodexRelayResult has the same field set as the shared RelayResult', async () => {
     // Structural assertion: both connectors' result types alias the shared
-    // `RelayResult` from `src/shared/connector-relay.ts`, so the materializer at
-    // `relay-materializer.ts` can consume them without branching on
+    // `RelayResult` from `src/shared/connector-relay.ts`, so the runtime
+    // relay executor can consume them without branching on
     // connector name. The field set is fixed at 5 fields:
     //   request_payload, receipt_id, result_body, duration_ms, cli_version.
     // If a future slice adds a field to one connector only, this test

@@ -287,7 +287,7 @@ After a `SkillSlot` is accepted:
 
 ## Codex adversarial review (v0.1)
 
-A narrow cross-model challenger pass (Codex via `/codex`) produced 1
+A narrow cross-model challenger pass (Codex CLI) produced 1
 HIGH + 5 MED + 2 LOW objections. All 8 are folded into v0.1; no items
 deferred.
 
@@ -335,4 +335,4 @@ deferred.
     documentation to typed policy vocabulary. Reopen condition: first
     resolver proposes `capabilities`-based relay.
 - **v1.0 (Stage 2)** — ratified invariants + property tests under
-  `tests/properties/visible/skill/` + catalog-level property harness.
+  `tests/properties/visible/skill/` + catalog-level property harness. <!-- path-ok -->

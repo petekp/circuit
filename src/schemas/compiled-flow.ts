@@ -113,7 +113,7 @@ const CompiledFlowStrict = CompiledFlowBody.superRefine((wf, ctx) => {
     }
     // Every step's `routes` must contain the runtime success route key.
     // CheckEvaluatedTraceEntry's
-    // `outcome` field is `z.enum(['pass', 'fail'])` — uniform across all three
+    // `outcome` field is `z.enum(['pass', 'fail'])` — uniform across all
     // check kinds — so the runtime's route pick on a successful check outcome
     // looks up that key. A fixture whose routes use author-friendly
     // aliases like `{ success: '@complete' }` would pass terminal-reachability

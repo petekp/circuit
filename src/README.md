@@ -11,7 +11,7 @@ then read that layer's local README if you need more detail.
 | `src/flows/` | Built-in flows, flow catalog, compiler support, and flow-owned writers. |
 | `src/history/` | Run-corpus and history-store primitives shared by app history and memory. |
 | `src/memory/` | Project memory storage, distillation, and memory-input helpers. |
-| `src/policy/` | Flow-domain policy: flow-kind rules, fanout join, terminal verdict, policy envelope, rubric scoring. |
+| `src/policy/` | Flow-domain policy: flow-kind rules, fanout join, policy envelope, rubric scoring. |
 | `src/runtime/` | Engine mechanics for running compiled flows. |
 | `src/schemas/` | Zod contracts for config, traces, reports, flows, and host surfaces. |
 | `src/selection/` | Flow-safe relay and connector planning contracts used before runtime connector resolution, plus the Power dial: tier materialization (`power-tiers.ts`) and the auto-dial power inference (`power-inference.ts`). |
@@ -19,8 +19,10 @@ then read that layer's local README if you need more detail.
 | `src/skill-hooks/` | Skill Hook matching, actuation policy, and loaded-skill projection. |
 | `src/app/` | Application services that compose the engine for the CLI (run envelope, run status, history, process evidence). |
 | `src/release/` | Release metadata helpers. |
-| `src/types/` | Hand-written TypeScript helpers that schemas cannot express cleanly. |
 | `src/index.ts` | Public package export surface. |
+
+Types come from Zod schemas in `src/schemas/`; prefer a schema first when a
+shape is stored, parsed, relayed, or shown to a host.
 
 ## Read Next
 
@@ -28,7 +30,6 @@ then read that layer's local README if you need more detail.
 - Schema changes: [src/schemas/README.md](schemas/README.md).
 - Flow changes: [src/flows/README.md](flows/README.md).
 - Shared helper changes: [src/shared/README.md](shared/README.md).
-- Type-only changes: [src/types/README.md](types/README.md).
 - Flow authoring: [docs/flows/authoring-model.md](../docs/flows/authoring-model.md).
 
 Generated host mirrors belong under `plugins/` and `generated/`. Edit the

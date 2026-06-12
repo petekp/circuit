@@ -28,14 +28,14 @@ Fix is the clearer v1 successor to the old Repair evidence. Its job is to take
 a concrete problem, understand it, make the smallest safe change, prove it, and
 close with evidence.
 
-This contract starts as the typed-output home for the Fix schematic draft. It
-does not wire a runnable Fix command or runtime behavior.
+Fix is a runnable public flow routed through `/circuit:run`. This contract
+is the typed-output home for its reports.
 
 ## Axis Support
 
-Fix declares `axes.allowed_depths = [lite, standard, deep]`. It supports
-autonomous runs and does not support tournament runs. Lite may skip the
-flow-declared optional review pass; standard and deep keep it.
+Fix declares `axes.allowed_depths = [low, medium, high]` (default `medium`).
+It supports autonomous runs and does not support tournament runs. Low depth
+skips the review relay after verification; medium and high keep it.
 
 | Report | Role | Backing path |
 |---|---|---|

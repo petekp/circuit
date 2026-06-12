@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "entries": [
+    { "glob": "docs/ideas/**", "class": "historical" },
+    { "glob": "docs/learnings/**", "class": "historical" },
+    { "glob": "docs/audits/**", "class": "historical" },
+    { "glob": "docs/plans/**", "class": "historical" },
+    { "glob": "docs/pivot/**", "class": "historical" },
+    { "glob": "docs/release/proofs/runs/**", "class": "evidence" },
+    { "glob": "docs/release/proofs/README.md", "class": "living" },
+    {
+      "glob": "docs/generated-surfaces.md",
+      "class": "generated",
+      "generator": "scripts/flows/emit.ts"
+    },
+    {
+      "glob": "docs/release/*.generated.md",
+      "class": "generated",
+      "generator": "scripts/release/render-parity-matrix.ts + scripts/release/render-readiness-report.ts"
+    },
+    {
+      "glob": "plugins/claude/commands/*.md",
+      "class": "generated",
+      "generator": "scripts/flows/emit.ts"
+    },
+    {
+      "glob": "plugins/codex/commands/*.md",
+      "class": "generated",
+      "generator": "scripts/flows/emit.ts"
+    },
+    {
+      "glob": "plugins/codex/skills/**",
+      "class": "generated",
+      "generator": "scripts/flows/emit.ts"
+    },
+    { "glob": "docs/specs/narration-display-profiles.md", "class": "living" },
+    { "glob": "docs/specs/**", "class": "historical" },
+    { "glob": ".claude/skills/**", "class": "living" },
+    { "glob": "README.md", "class": "living" },
+    { "glob": "AGENTS.md", "class": "living" },
+    { "glob": "CLAUDE.md", "class": "living" },
+    { "glob": "CONTEXT.md", "class": "living" },
+    { "glob": "UBIQUITOUS_LANGUAGE.md", "class": "living" },
+    { "glob": "docs/README.md", "class": "living" },
+    { "glob": "docs/repository-map.md", "class": "living" },
+    { "glob": "docs/operator-guide.md", "class": "living" },
+    { "glob": "docs/first-run.md", "class": "living" },
+    { "glob": "docs/agent-setup.md", "class": "living" },
+    { "glob": "docs/configuration.md", "class": "living" },
+    { "glob": "docs/yaml-validation.md", "class": "living" },
+    { "glob": "docs/host-trial-checklist.md", "class": "living" },
+    { "glob": "docs/contracts/**", "class": "living" },
+    { "glob": "docs/flows/**", "class": "living" },
+    { "glob": "docs/reference/**", "class": "living" },
+    { "glob": "docs/architecture/architecture-improvement-roadmap.md", "class": "historical" },
+    { "glob": "docs/architecture/architecture-revamp-staged-plan.md", "class": "historical" },
+    {
+      "glob": "docs/architecture/continuity-first-principles-evaluation.md",
+      "class": "historical"
+    },
+    { "glob": "docs/architecture/recovery-restore-roadmap-addendum.md", "class": "historical" },
+    { "glob": "docs/architecture/roadmap-prefactoring-plan.md", "class": "historical" },
+    { "glob": "docs/architecture/**", "class": "living" },
+    { "glob": "docs/evals/20*-*-*.md", "class": "historical" },
+    { "glob": "docs/evals/**", "class": "living" },
+    { "glob": "docs/release/*-notes.md", "class": "historical" },
+    { "glob": "docs/release/*.md", "class": "living" },
+    { "glob": "src/**/*.md", "class": "living" },
+    { "glob": "plugins/README.md", "class": "living" },
+    { "glob": "plugins/*/README.md", "class": "living" },
+    { "glob": "evals/**/*.md", "class": "living" }
+  ]
+}

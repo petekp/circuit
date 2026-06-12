@@ -1,6 +1,6 @@
 # Run Process Spec
 
-Status: current-state architecture reference. Last validated: 2026-06-05.
+Status: current-state architecture reference. Last validated: 2026-06-11.
 
 This document describes what Run decides, when it decides it, and what evidence
 records the decision. It is a map of the current implementation, not a proposal.
@@ -20,9 +20,9 @@ Primary sources:
   `src/runtime/run/graph-runner.ts` - compiled-flow execution and graph
   advancement.
 - `src/runtime/run/relay-guidance.ts`, `src/connectors/resolver.ts`,
-  `src/shared/relay-selection.ts`, and `src/shared/selection-resolver.ts` -
-  relay connector, model, effort, skill, depth, and invocation-option
-  resolution.
+  `src/selection/relay-selection.ts`, `src/selection/selection-resolver.ts`,
+  and `src/selection/power-tiers.ts` - relay connector, model, effort, skill,
+  depth, power, and invocation-option resolution.
 - `src/cli/runtime-routing-policy.ts` - runtime support and trusted-fixture
   gates.
 - `docs/operator-guide.md`, `docs/configuration.md`,
@@ -79,7 +79,7 @@ The CLI first decides which top-level command was invoked:
 For fresh `run`, `--goal` is required and must be non-empty.
 
 For checkpoint `resume`, the CLI rejects new flow, goal, fixture, flow root,
-axis, and untracked-content inputs. Resume reuses the saved run identity,
+axis, power, and untracked-content inputs. Resume reuses the saved run identity,
 compiled flow manifest, goal, axes, project root, config layers, policy layers,
 and evidence policy captured at the checkpoint boundary.
 
@@ -87,6 +87,7 @@ Safety gates at parse time:
 
 - `--dry-run` is rejected because real dry-run support is not implemented.
 - `--progress` only accepts `jsonl`.
+- `--power` only accepts `auto`, `low`, `medium`, or `high`.
 - `--flow-root` must be non-empty.
 - `--tournament-n` must be 2, 3, or 4, and requires `--tournament`.
 - Checkpoint resume must use `resume`, must pass `--run-folder`, and must pass a
@@ -131,8 +132,7 @@ Run parses operator controls into `axes`:
 - `tournament_n`: integer from 2 to 4; default is `3`.
 - `autonomous`: boolean; default is `false`.
 
-The entry mode is a display and fixture-selection name derived from axes or
-from router inference:
+The entry mode is a display and fixture-selection name derived from axes:
 
 | Input | Entry mode |
 | --- | --- |
@@ -140,11 +140,7 @@ from router inference:
 | `--tournament` | `tournament` |
 | `--depth low` | `low` |
 | `--depth high` | `high` |
-| no explicit axis and no inferred mode | no field in route event, then runtime default |
-
-Explicit axis flags override router-inferred entry mode. For example, if the
-router would infer high-depth Fix but the operator passes `--depth low`, Run uses
-low.
+| no explicit axis | no field in route event, then runtime default |
 
 There are two related names:
 
@@ -169,8 +165,7 @@ automatically select a model or effort.
 
 Evidence:
 
-- `entry_mode` and `entry_mode_source` when an entry mode is explicit or
-  inferred.
+- `entry_mode` and `entry_mode_source` when an entry mode is explicit.
 - `resolved_axes` in final stdout for closed fresh runs.
 - `run.bootstrapped.depth` in the trace.
 - `relay.started.resolved_selection.depth` when relay selection includes depth.
@@ -419,16 +414,54 @@ Selection may contribute:
 - skills
 - depth
 - invocation options
+- power, when the power dial materializes a tier (see below)
 
 Within a config source, `defaults.selection` and
 `circuits.<flow_id>.selection` are pre-composed before that source contributes
 to the applied selection chain.
 
-`ResolvedSelection` can be mostly empty. When no layer contributes a model, Run
-does not invent one; the connector uses its own default behavior. When a model
-is present, connector compatibility checks enforce the provider expected by the
-selected built-in connector. When effort is present, built-in connector support
-is checked before subprocess execution.
+`ResolvedSelection` can be mostly empty after the layered stack. When no layer
+contributes a model, the power dial decides what fills it (next subsection).
+When a model is present, connector compatibility checks enforce the provider
+expected by the selected built-in connector. When effort is present, built-in
+connector support is checked before subprocess execution.
+
+#### Power Dial Materialization
+
+The power dial is default-on. When the layered selection stack leaves `model`
+unset, materialization (`src/selection/power-tiers.ts`) fills it. It runs
+after the stack, so explicit model config always wins, and before connector
+compatibility checks, so a misconfigured tier table fails the same provider
+check explicit config would.
+
+Dial resolution:
+
+- The dial setting comes from `defaults.power`, read across config layers in
+  precedence order: `default`, then user-global, then project, then
+  invocation. The CLI `--power` flag rides the invocation layer.
+- When no layer has an opinion, the dial is fixed `medium`.
+- `auto` defers the tier to the run itself: the first accepted researcher
+  report carrying a `recommended_power` resolves it once, clamped to the
+  operator's `power_auto` floor and ceiling, and recorded as a
+  `run.power-inference` trace entry. Before that resolves, or when the
+  researcher never recommends, materialization uses `medium`.
+
+Materialization:
+
+- The dial and relay role pick a tier. The researcher is always `high`. At
+  `medium`, the implementer and reviewer run `medium`. At `low`, the
+  implementer runs `low` and the reviewer `medium`.
+- Attempts above 1 on the same work unit escalate one tier up, capped at
+  `high`.
+- The tier maps to a connector-scoped spec. The shipped tables tier
+  `claude-code` by model (haiku, sonnet, opus) and `codex` by reasoning effort
+  only, leaving the model at the connector default. Other connectors,
+  including `cursor-agent` and custom connectors, ship no entry: the dial is
+  inert for them unless the operator declares `power_tiers.<connector>` in
+  config.
+- The result is recorded on `relay.started.resolved_selection` as `power`,
+  plus `power_escalated` when an attempt bumped the tier and
+  `power_source: auto` when the dial setting was `auto`.
 
 Relay execution then:
 
@@ -445,9 +478,11 @@ Relay execution then:
 - writes schema-tied reports when appropriate.
 - appends result, check, and proof trace entries.
 
-This is the answer to "what model does Run use?": Run only uses a specific model
-when the per-relay selection layers produce one and the selected connector can
-honor it.
+This is the answer to "what model does Run use?": explicit selection layers
+win. When they leave the model unset, the default-on power dial materializes
+the role-allocated tier's model where the effective tier table names one. Only
+connectors with no applicable tier entry fall back to their own default
+behavior.
 
 ### 13. Checkpoint Waiting and Resume
 
@@ -479,7 +514,8 @@ Resume validates the saved checkpoint before continuing:
 
 Resume then re-enters the graph at the checkpoint step with the saved depth,
 axes, project root, selection config layers, and policy layers. Resume records no
-fresh history memory context.
+fresh history memory context. Resume rejects `--power`: the dial is config, not
+a saved axis, so a resumed run re-reads it from the config layers on disk.
 
 ### 14. Post-Run Artifacts and Final Output
 
@@ -539,14 +575,14 @@ still surfaced with an `autonomous-loop` warning.
 
 | Decision | Made by | Main inputs | Recorded as |
 | --- | --- | --- | --- |
-| Whether host recommends a flow | host command instructions | task text, safety ambiguity | explicit CLI flow or router path |
+| Whether host recommends a flow | host command instructions | task text, safety ambiguity | explicit CLI flow |
 | Fresh run vs resume | CLI parser | top-level command, checkpoint flags | command path |
 | Goal validity | CLI parser | `--goal` | error before run when invalid |
 | Dry-run support | CLI parser | `--dry-run` | rejected before run |
 | Progress stream | CLI parser | `--progress jsonl` | JSONL progress on stderr |
-| Flow route | CLI route resolver | positional flow or goal text | `selected_flow`, `routed_by`, `router_reason`, `router_signal` |
-| Axes | CLI parser plus route inference | explicit flags, inferred entry mode, defaults | `resolved_axes`, `entry_mode`, trace depth |
-| Runtime depth | CLI selected-depth logic | axes, route inference, flow defaults | `run.bootstrapped.depth`, runtime context |
+| Flow route | CLI route resolver | explicit positional flow | `selected_flow`, `routed_by`, `router_reason` |
+| Axes | CLI parser | explicit flags, defaults | `resolved_axes`, `entry_mode`, trace depth |
+| Runtime depth | CLI selected-depth logic | axes, flow defaults | `run.bootstrapped.depth`, runtime context |
 | Fixture path | CLI fixture resolver | flow, fixture mode, `--fixture`, `--flow-root` | manifest snapshot, manifest hash |
 | Axis support | CLI validator | selected axes, compiled flow `axes` | pre-run error on unsupported tuple |
 | Runtime eligibility | CLI runtime policy | fixture trust, compose writer injection | optional `runtime_reason`, or error |
@@ -563,6 +599,7 @@ still surfaced with an `autonomous-loop` warning.
 | Checkpoint wait | checkpoint executor and graph runner | checkpoint policy and choices | `checkpoint_waiting` stdout and reports |
 | Connector | relay guidance | step connector, supplied relayer, policy, config, host kind | guidance decision, `relay.started.resolved_from` |
 | Model / effort / skills | selection resolver | config, flow, stage, step, invocation | `relay.started.resolved_selection`, `skills.loaded` |
+| Power tier | power materialization in relay guidance | `defaults.power` layers, role, attempt, connector tier table | `resolved_selection.power`, `power_escalated`, `power_source` |
 | Relay prompt | relay executor | compiled step, goal, skills, memory, retry feedback | request file, request hash |
 | Relay result validity | relay executor | verdict, schema, cross validators, acceptance criteria | report files, checks, proof entries |
 | Close outcome | graph runner | terminal target, proof, primary result binding | `run.closed`, `reports/result.json` |
@@ -574,14 +611,16 @@ still surfaced with an `autonomous-loop` warning.
 - Run is not itself a flow. It chooses and runs a compiled flow.
 - Goal is not selected as a public kind of work. It is internal completion
   machinery.
-- The CLI router is deterministic and text-based. It does not inspect the
-  workspace to choose a flow.
-- The host can recommend a flow before CLI invocation. That is outside the CLI
-  router, but the final selected flow is still recorded.
+- The CLI does not route goal text. A flow name is always explicit, and the
+  CLI does not inspect the workspace to choose a flow.
+- The host can recommend a flow before CLI invocation. The final selected flow
+  is still recorded.
 - Runtime depth is not model effort. It can become part of resolved selection
   only through flow/config selection behavior.
-- Model choice is not guaranteed. Absence of `resolved_selection.model` means
-  the selected connector uses its default.
+- Model choice is not guaranteed for every connector. When explicit selection
+  leaves the model unset, the default-on power dial materializes one where the
+  effective tier table names a model. A connector with no applicable tier
+  entry uses its own default.
 - Config changes do not rebuild host plugins.
 - Generated host command and skill files are mirrors. Run behavior should be
   changed in source files and regenerated when needed.
@@ -595,8 +634,8 @@ still surfaced with an `autonomous-loop` warning.
 
 These are current pressure points, not current behavior:
 
-- Flow recommendation is split between host command instructions and the CLI
-  router. A future Run supervisor could make that authority more explicit.
+- Flow recommendation lives in host command instructions, outside the CLI. A
+  future Run supervisor could make that authority more explicit.
 - Entry mode and fixture mode have different precedence when autonomous and
   tournament are both true. If combined axes remain supported, that distinction
   should be made intentional in a contract.

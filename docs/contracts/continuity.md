@@ -72,8 +72,7 @@ scalar is **`ControlPlaneFileStem`** (`src/schemas/scalars.ts`),
 which enforces `/^[a-z0-9][a-z0-9._-]*$/`, rejects `.` / `..` / parent-
 traversal sequences, and forbids `/` and `\` path separators. Authority
 graph entries with `path_derived_fields` MUST cite `ControlPlaneFileStem`
-by name (ADR-0003 §Machine enforcement; verified by
-`scripts/audit.ts`).
+by name (ADR-0003 §Machine enforcement).
 
 The same scalar is used by `ContinuityIndex.pending_record.record_id`
 (the index-side pointer), so the index→record join is type-aligned.
@@ -184,10 +183,11 @@ and tested in `tests/contracts/continuity-schema.test.ts`.
   load-bearing identity/discriminator surface.
 
 - **CONT-I13 — Ambient records carry `ambient_provenance`, not `run_ref`.**
-  An `ambient` record is harvested mechanically by a Stop/SessionEnd hook,
-  so it cannot carry run-attached provenance. It MUST carry an
-  `ambient_provenance` block (`transcript_path` required; `session_id`
-  optional; `source` one of the closed enum `'stop' | 'session-end'`) and
+  An `ambient` record is harvested mechanically by a Stop, SessionEnd,
+  or PreCompact hook, so it cannot carry run-attached provenance. It
+  MUST carry an `ambient_provenance` block (`transcript_path` required;
+  `session_id` optional; `source` one of the closed enum
+  `'stop' | 'session-end' | 'pre-compact'`) and
   MUST NOT carry `run_ref` — enforced by `.strict()` on
   `AmbientContinuity` (surplus-key rejection). This is the ambient analog
   of CONT-I4's standalone/run-backed field-presence closure.
@@ -525,7 +525,7 @@ Two gaps remain, and they are gaps by design rather than defects:
 
 ## Codex adversarial review (v0.1)
 
-A narrow cross-model challenger pass (Codex via `/codex`) produced 2
+A narrow cross-model challenger pass (Codex CLI) produced 2
 HIGH + 3 MED + 1 LOW objections against this contract + schema. All
 HIGHs and MED #5 + LOW #6 are folded into v0.1. MED #3 and MED #4 are
 scoped to v0.2 with rationale in the §Resolver precedence section above.
@@ -593,6 +593,6 @@ scoped to v0.2 with rationale in the §Resolver precedence section above.
     resume flow ships OR a split-brain incident is observed in
     practice.
 - **v1.0 (Stage 2)** — ratified invariants plus property tests:
-  `continuity.prop.*` under `tests/properties/visible/continuity/`.
+  `continuity.prop.*` under `tests/properties/visible/continuity/`. <!-- path-ok -->
   Resolver-level properties (dangling reference, liveness validation)
   land with the resume implementation.

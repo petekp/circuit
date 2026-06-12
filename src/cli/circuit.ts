@@ -44,18 +44,18 @@ export { CIRCUIT_HOST_KIND_ENV } from './run.js';
 
 export function usage(): string {
   return [
-    'usage: circuit run [flow-name] --goal "<goal>" [--depth <low|medium|high>] [--tournament [--tournament-n <2|3|4>]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
+    'usage: circuit run <flow-name> --goal "<goal>" [--why <why>] [--depth <low|medium|high>] [--power <auto|low|medium|high>] [--tournament [--tournament-n <2|3|4>]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
     '       circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]',
     '       circuit runs show --run-folder <path> --json',
-    '       circuit history rebuild|query|status --json [options]',
+    '       circuit history rebuild|query|pull|status|memory-merge|memory-effect --json [options]',
     '       circuit memory note --flow <id> [--applies-to <kind>] "<text>" | memory list | memory forget <id>',
     '       circuit handoff [save|resume|done|brief|hook|hooks|harvest] [options]',
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
     '       circuit version [--json]',
     '',
-    'Axes: `--depth` controls care level (`low`, `medium`, `high`); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.',
+    "Axes: `--depth` controls care level (`low`, `medium`, `high`); `--power` sets the model tier (`auto`, `low`, `medium`, `high`; default `medium`; `auto` lets the run's research read pick within configured bounds); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
     '',
-    'With an explicit flow name, loads generated/flows/<name>/circuit.json. Without one, classifies the free-form goal across the registered explore/review/fix/build/pursue flows and then composes the runtime boundary using the configured relay connector.',
+    'With an explicit flow name, loads generated/flows/<name>/circuit.json. The flow name is required: pass one of build|fix|review|explore|prototype|pursue. Routing is model-only; the host or operator names the flow, and the CLI never classifies the goal text.',
     '',
     'Config: if present, loads ~/.config/circuit/config.yaml and ./.circuit/config.yaml from the current working directory into the selection resolver before relay.',
     '',

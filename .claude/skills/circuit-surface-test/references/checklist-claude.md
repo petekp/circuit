@@ -10,15 +10,19 @@ Every item below is a discrete test. Run them in order. For each item, record:
 
 ## Surface model (read first)
 
-The Claude plugin publishes exactly two slash commands: `/circuit:run` and
-`/circuit:handoff`. There are no per-flow slash commands. Built-in flows
-(build, explore, fix, prototype, pursue, review) are reached two ways:
+The Claude plugin publishes three slash commands: `/circuit:run`,
+`/circuit:handoff`, and `/circuit:pursue`. Built-in flows
+(build, explore, fix, prototype, review) have no per-flow slash command and are
+reached two ways:
 
 - **Through Run** — `/circuit:run <task>`: the host recommends a flow from the
   task and invokes it. This is the normal user path.
 - **Explicit CLI flow start** — `run <flow> --goal '<task>'` through the plugin
   wrapper: the deterministic way to exercise a specific flow and axis. Use this
   for axis and reject coverage so the target flow is unambiguous.
+
+Pursue is the one flow with its own slash command: it is reachable through
+`/circuit:pursue` as well as both paths above.
 
 `create` is a CLI-only utility (`create ...`), not a slash command. `goal` is an
 internal flow: it has no slash command, and it is never auto-selected because no
@@ -93,9 +97,9 @@ full surface walk. If any row aborts with schema validation, missing required
 fields, or unrecognized keys, stop, record a Critical finding, and ask the
 operator before continuing.
 
-No flow has a direct slash command, so A0 drives each public flow at its default
-axis through the explicit CLI flow start (deterministic), and proves the native
-host path separately in A0.0.
+Only pursue has a direct slash command, so A0 drives each public flow at its
+default axis through the explicit CLI flow start (deterministic), and proves
+the native host path separately in A0.0.
 
 **A0 pre-setup**:
 
@@ -119,8 +123,9 @@ intake, not baked into HEAD.
 | A0.6 | pursue | CLI: `run pursue --goal 'coordinate two tiny pursuits: document add.js; verify npm scripts' --run-folder "$REPORT_ROOT/A0.6-pursue" --progress jsonl` |
 
 Pass: every row exits 0 with `complete` or is pass-with-finding eligible. All A0
-flow rows are CLI flow starts because Claude has no direct per-flow command; A0.0
-proves the native `/circuit:run` host-recommendation path.
+flow rows are CLI flow starts so the target flow is unambiguous (only pursue has
+a direct command); A0.0 proves the native `/circuit:run` host-recommendation
+path.
 
 Note: routing is model-only, so on every real run `routed_by` is `explicit` and
 `router_reason` for the explicit path is the fixed string `explicit flow
@@ -158,17 +163,17 @@ CLI: `run explore --goal 'explain how the catalog wires flows into the engine'`
 Pass: criteria above + the summary names at least one source file considered.
 Explore is read-only; the working tree stays unchanged.
 
-### A2. explore - `--rigor lite`
+### A2. explore - `--depth low`
 
-CLI: `run explore --rigor lite --goal 'summarize the scratch repo structure'`
+CLI: `run explore --depth low --goal 'summarize the scratch repo structure'`
 
-Pass: run completes and the trace or summary reflects lite rigor.
+Pass: run completes and the trace or summary reflects low depth.
 
-### A3. explore - `--rigor deep`
+### A3. explore - `--depth high`
 
-CLI: `run explore --rigor deep --goal 'compare the tradeoffs of small vs broad investigation'`
+CLI: `run explore --depth high --goal 'compare the tradeoffs of small vs broad investigation'`
 
-Pass: run completes and the trace or summary reflects deep rigor.
+Pass: run completes and the trace or summary reflects high depth.
 
 ### A4. explore - tournament
 
@@ -205,14 +210,14 @@ tree is otherwise unchanged.
 ### A7. review - unsupported axes reject
 
 ```bash
-run review --goal 'review the staged evil.js' --rigor deep \
-  --run-folder "$REPORT_ROOT/A7-review-deep-reject" --progress jsonl
+run review --goal 'review the staged evil.js' --depth high \
+  --run-folder "$REPORT_ROOT/A7-review-high-reject" --progress jsonl
 ```
 
 Repeat with `--tournament` and `--autonomous` if time allows.
 
 Pass: rejected before worker execution with an allow-list saying Review allows
-only standard rigor and no tournament/autonomous.
+depths: medium only and no tournament/autonomous.
 
 ### A8. review - untracked content flag
 
@@ -240,15 +245,15 @@ CLI: `run fix --goal 'the buggyAdd in bug.js subtracts instead of adding'`
 
 Pass: criteria above + `bug.js` is corrected.
 
-### A10. fix - `--rigor lite`
+### A10. fix - `--depth low`
 
 Plant a README typo, then:
 
-CLI: `run fix --rigor lite --goal 'typo in README - change "fixture" to "fixtures"'`
+CLI: `run fix --depth low --goal 'typo in README - change "fixture" to "fixtures"'`
 
-Pass: run completes and the lite path skips only flow-declared optional review.
+Pass: run completes and the low path skips only flow-declared optional review.
 
-### A11. fix - `--rigor deep`
+### A11. fix - `--depth high`
 
 Set up:
 
@@ -258,9 +263,9 @@ echo "README expects buggyAdd to add numbers." >> README.md
 echo "function buggyAdd(a, b) { return a - b; }" > bug.js
 ```
 
-CLI: `run fix --rigor deep --goal 'make buggyAdd match the README expectation that it adds numbers'`
+CLI: `run fix --depth high --goal 'make buggyAdd match the README expectation that it adds numbers'`
 
-Pass: run completes and deep rigor is reflected in the trace or summary.
+Pass: run completes and high depth is reflected in the trace or summary.
 
 ### A12. fix - unsupported tournament rejects
 
@@ -277,40 +282,40 @@ CLI: `run build --goal 'add a multiply function to add.js exporting it as multip
 
 Pass: criteria above + the export exists.
 
-Negative slice assertion: under standard rigor there must be ZERO `(slice N)`
+Negative slice assertion: under medium depth there must be ZERO `(slice N)`
 suffixes in any progress `status_text`/`display.text` and ZERO `slice_index`
-keys in the trace — Build runs single-pass below deep. (`plan.json` may still
+keys in the trace — Build runs single-pass below high. (`plan.json` may still
 contain a `slices` array; that is fine — the loop just does not iterate below
-deep.) A `(slice N)` suffix or `slice_index` under standard rigor means the loop
-activated below its deep floor — a regression.
+high.) A `(slice N)` suffix or `slice_index` under medium depth means the loop
+activated below its high floor — a regression.
 
-### A14. build - `--rigor lite`
+### A14. build - `--depth low`
 
-CLI: `run build --rigor lite --goal 'export a constant TWO = 2 from add.js'`
+CLI: `run build --depth low --goal 'export a constant TWO = 2 from add.js'`
 
-Pass: run completes and lite rigor is reflected.
+Pass: run completes and low depth is reflected.
 
-Negative slice assertion: same as A13 — under lite rigor there must be ZERO
+Negative slice assertion: same as A13 — under low depth there must be ZERO
 `(slice N)` progress suffixes and ZERO `slice_index` trace keys.
 
-### A15. build - `--rigor deep` (per-slice loop)
+### A15. build - `--depth high` (per-slice loop)
 
-CLI: `run build --rigor deep --goal 'add an exported double(n) and an exported triple(n) to add.js, each independently verifiable'`
+CLI: `run build --depth high --goal 'add an exported double(n) and an exported triple(n) to add.js, each independently verifiable'`
 
 Drive past the frame/plan checkpoint if it waits (continue under C1, or use
 `--autonomous`).
 
-Pass: run completes and deep rigor is reflected. When `reports/build/plan.json`
+Pass: run completes and high depth is reflected. When `reports/build/plan.json`
 has more than one slice, `step.started` progress events for the act and verify
 steps carry a 1-based `(slice N)` suffix in BOTH `presentation.status_text`
 (e.g. `Making the change (slice 1)...`, `(slice 2)...`) and `display.text`
 (`Circuit: ... (slice N)...`), incrementing per slice. The trace carries a
 0-based `slice_index` on the loop-body steps; non-loop steps (frame, analyze,
 plan, review, close) carry NO `slice_index`. The loop iterates at most
-`maxSlices = 8`. A single-slice plan under deep showing one `(slice 1)` pass is
+`maxSlices = 8`. A single-slice plan under high showing one `(slice 1)` pass is
 correct, not a finding.
 
-Finding if: a deep run with a multi-slice plan shows no `(slice N)` suffix; OR
+Finding if: a high-depth run with a multi-slice plan shows no `(slice N)` suffix; OR
 the suffix never increments past `(slice 1)` despite more than one slice; OR
 act/verify run only once when the plan has multiple slices.
 
@@ -334,11 +339,11 @@ Pass: criteria above + prototype evidence is written under the run folder. If
 the flow asks whether to keep, save, or discard the prototype, continue under
 C1.
 
-### A18. prototype - `--rigor deep`
+### A18. prototype - `--depth high`
 
-CLI: `run prototype --rigor deep --goal 'compare two small README note variants'`
+CLI: `run prototype --depth high --goal 'compare two small README note variants'`
 
-Pass: run completes and deep rigor is reflected.
+Pass: run completes and high depth is reflected.
 
 ### A19. prototype - tournament
 
@@ -363,11 +368,11 @@ Two cases:
 Finding if: with config absent the run still spawns a worker / creates a run
 folder / aborts mid-run instead of rejecting up-front.
 
-### A20. prototype - unsupported lite rejects
+### A20. prototype - unsupported low rejects
 
 ```bash
-run prototype --goal 'sketch a disposable README note' --rigor lite \
-  --run-folder "$REPORT_ROOT/A20-prototype-lite-reject" --progress jsonl
+run prototype --goal 'sketch a disposable README note' --depth low \
+  --run-folder "$REPORT_ROOT/A20-prototype-low-reject" --progress jsonl
 ```
 
 Pass: rejected before worker execution with Prototype's allow-list.
@@ -392,16 +397,39 @@ run pursue --autonomous \
 Pass: supported checkpoints auto-resolve or the run fails closed with a clear
 unsupported-policy reason; an `autonomous_loop` field is present (see A-Loop).
 
-### A23. pursue - unsupported rigor/tournament rejects
+### A23. pursue - unsupported depth/tournament rejects
 
 ```bash
-run pursue --goal 'coordinate two tiny pursuits' --rigor deep \
-  --run-folder "$REPORT_ROOT/A23-pursue-deep-reject" --progress jsonl
+run pursue --goal 'coordinate two tiny pursuits' --depth high \
+  --run-folder "$REPORT_ROOT/A23-pursue-high-reject" --progress jsonl
 ```
 
 Repeat with `--tournament` if time allows.
 
 Pass: rejected before worker execution with Pursue's allow-list.
+
+### A24. power dial - `--power low` and `--power auto`
+
+```bash
+run explore --power low --goal 'summarize the scratch repo structure' \
+  --run-folder "$REPORT_ROOT/A24-explore-power-low" --progress jsonl
+run explore --power auto --goal 'summarize the scratch repo structure' \
+  --run-folder "$REPORT_ROOT/A24-explore-power-auto" --progress jsonl
+```
+
+Pass: both runs complete. Under `--power auto` the engine resolves the dial
+once and records a `run.power-inference` trace entry; the receipt reads the
+resolved tier (e.g. `power low (auto)`). The default with no flag is `medium`.
+
+### A25. power dial - invalid value rejects
+
+```bash
+run explore --power turbo --goal 'should reject' \
+  --run-folder "$REPORT_ROOT/A25-power-invalid-reject" --progress jsonl
+```
+
+Pass: rejected before worker execution (exit 2) with
+`--power must be one of auto, low, medium, high`.
 
 ---
 
@@ -422,10 +450,10 @@ Pass: the final JSON includes an `autonomous_loop` object with `outcome`,
 `attempts`, and `stop_reason`, and `reports/autonomous-loop.json` exists in the
 run folder. The loop never reports `complete` purely by exhausting attempts.
 
-Add-on (autonomous + deep slice loop coexist): rerun with
-`run build --rigor deep --autonomous --goal 'add an exported double(n) and an
+Add-on (autonomous + high-depth slice loop coexist): rerun with
+`run build --depth high --autonomous --goal 'add an exported double(n) and an
 exported triple(n) to add.js, each independently verifiable'`. Pass: the frame
-checkpoint auto-resolves (no prompt), the deep slice loop iterates with
+checkpoint auto-resolves (no prompt), the high-depth slice loop iterates with
 `(slice N)` suffixes (per A15), AND the final JSON still carries the
 `autonomous_loop` object plus `reports/autonomous-loop.json`. The two loops
 coexist.
@@ -459,7 +487,7 @@ that its reader-compat path still works.
 ### G1. No goal slash command
 
 Confirm `/circuit:goal` is not a recognized command and
-`plugins/claude/commands/goal.md` does not exist.
+`plugins/claude/commands/goal.md` does not exist. <!-- path-ok -->
 
 Pass: there is no goal slash command. A goal command would be a finding.
 
@@ -496,7 +524,7 @@ before running. Partial-skip via CLI (this is native-host behavior).
 
 Through the installed host plugin, `goal` is not available: as an internal flow
 its compiled JSON is not mirrored into the host package (no
-`plugins/claude/skills/goal/`). Confirm the host wrapper cannot run it:
+`plugins/claude/skills/goal/`). Confirm the host wrapper cannot run it: <!-- path-ok -->
 
 ```bash
 node "$PLUGIN_ROOT/scripts/circuit.ts" run goal --goal 'finish a tiny objective' \
@@ -690,9 +718,9 @@ node "$PLUGIN_ROOT/scripts/circuit.ts" doctor --json
 ```
 
 Pass: doctor status is `ok`, bundled runtime executes, the published command
-files (run, handoff) use the wrapper, and temp-repo smoke checks pass. Record
-warnings. Note: `doctor --json` does NOT report skill-hook posture; its absence
-there is expected, not a finding.
+files (run, handoff, pursue) use the wrapper, and temp-repo smoke checks pass.
+Record warnings. Note: `doctor --json` does NOT report skill-hook posture; its
+absence there is expected, not a finding.
 
 ### B8a. `doctor --json` reports host identity (drives auto connector routing)
 
@@ -799,7 +827,7 @@ Pass: exit code 0 and stderr does not contain `unknown flag`.
 
 ### C1. `checkpoint_waiting` to resume
 
-Trigger a checkpoint, commonly via Explore tournament or Build deep. When
+Trigger a checkpoint, commonly via Explore tournament or Build at high depth. When
 `outcome === "checkpoint_waiting"`:
 
 1. Confirm the host does not claim `result_path` if absent.
@@ -1002,7 +1030,7 @@ grep -c 'iteratesSliceLoop\|engineFlags' "$PLUGIN_ROOT/skills/build/circuit.json
 Pass: the Build mirror's verify-step routes include `"advance": "act-step"`
 (first grep matches), and the second grep is `0` — `iteratesSliceLoop` /
 `engineFlags` are trimmed from the host projection; the runtime resolves the flag
-from the catalog. Without `advance`, the deep slice loop would have nowhere to
+from the catalog. Without `advance`, the high-depth slice loop would have nowhere to
 route.
 
 Finding if: `advance` is missing from the verify-step; OR `iteratesSliceLoop`

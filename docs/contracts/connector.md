@@ -176,7 +176,7 @@ invariant; tested in `tests/contracts/connector-schema.test.ts`,
   ```
 
   ```js
-  // scripts/echo-reviewer.ts
+  // ./scripts/echo-reviewer.ts
   import { readFileSync, writeFileSync } from 'node:fs';
 
   const [, , promptFile, outputFile] = process.argv;
@@ -230,16 +230,17 @@ invariant; tested in `tests/contracts/connector-schema.test.ts`,
   still a trusted local process with the inherited cwd and environment.
   Writable isolated custom workers require a later isolated mode.
 
-- **connector-I4 — `ConnectorRef` is a 3-variant discriminated union with
+- **connector-I4 — `ConnectorRef` is a 3-variant union with
   transitive `.strict()`.** The variants are `BuiltInConnectorRef`
   (`{kind: 'builtin', name: EnabledConnector}`), `NamedConnectorRef`
   (`{kind: 'named', name: ConnectorName}`), and `CustomConnectorDescriptor`
   (`{kind: 'custom', name: ConnectorName, command: string[]}`). Each
   variant is `.strict()` so surplus keys (authorial typos like
   `{kind: 'named', names: 'gemini'}`) are rejected at parse time, not
-  silently stripped. The discriminant is `kind`; the union uses
-  `z.discriminatedUnion` so a malformed `kind` fails fast with a
-  clear error path. This union is the full connector-identity surface;
+  silently stripped. The discriminant field is `kind`; the union is a
+  plain `z.union` of `.strict()` variants, so a malformed `kind` is
+  rejected as a standard union parse error rather than silently
+  coerced. This union is the full connector-identity surface;
   it shows up in `RelayStartedTraceEntry.connector` and as the runtime
   value the relayer calls. Enforced at `src/schemas/connector.ts`.
 
@@ -379,7 +380,7 @@ invariant; tested in `tests/contracts/connector-schema.test.ts`,
 
 - **connector-I10 — A resolved connector MUST NOT be a pre-resolution
   named reference (closes Codex HIGH #1).** `RelayStartedTraceEntry.connector`
-  is typed `ResolvedConnector`, a 2-variant discriminated union of
+  is typed `ResolvedConnector`, a 2-variant union (`z.union`) of
   `BuiltInConnectorRef` and `CustomConnectorDescriptor`. The
   `NamedConnectorRef` variant (`{kind: 'named', ...}`) is a
   pre-resolution pointer at the `relay.connectors` registry; it MUST
@@ -683,7 +684,7 @@ After a `RelayStartedTraceEntry` is accepted:
 
 - **v0.2 (Stage 1)** — Ratify `property_ids` above by landing the
   corresponding property-test harness at
-  `tests/properties/visible/connector/`. Decide whether
+  `tests/properties/visible/connector/`. Decide whether <!-- path-ok -->
   `RelayResolutionSource.explicit` should carry the literal
   `--connector` CLI arg text for post-hoc flag reproduction (would add
   `{source: 'explicit', argv: string[]}` — currently deferred because
