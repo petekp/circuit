@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "eval_id": "verdict-correctness",
+  "ran_at": "2026-06-12T04:33:30.592Z",
+  "repo_commit": "b6188dc2c4dbd1c82ac030b4ca7bab0f5fdd96d9",
+  "model": "claude-haiku-4-5-20251001",
+  "descriptors": {
+    "judge": "claude-code",
+    "suite": "subtle"
+  },
+  "metrics": {
+    "catch_rate": 0.5555555555555556,
+    "protocol_failure_rate": 0,
+    "cases": 36,
+    "attempted": 36,
+    "catches": 15,
+    "misses": 12,
+    "errors": 0,
+    "harness_skipped": 0,
+    "control_passes": 9,
+    "control_fails": 0
+  }
+}

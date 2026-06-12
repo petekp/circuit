@@ -107,7 +107,7 @@
       "id": "synthesize-step",
       "title": "Synthesize — produce explore.compose (connector-bound relay)",
       "protocol": "explore-synthesize@v1",
-      "reads": ["reports/brief.json", "reports/analysis.json"],
+      "reads": ["reports/brief.json", "reports/analysis.json", "reports/review-verdict.json"],
       "routes": {
         "continue": "review-step",
         "pass": "review-step",

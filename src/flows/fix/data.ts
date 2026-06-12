@@ -40,7 +40,7 @@ export const fixFlowData = {
     id: 'fix',
     title: 'Fix Schematic',
     purpose:
-      'Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at standard depth, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Lite mode skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they are unreachable at compile time and omitted from compiled flows.',
+      'Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at medium depth and above, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Low depth skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they are unreachable at compile time and omitted from compiled flows.',
     status: 'active',
     version: '0.1.0',
     starts_at: 'fix-frame',
@@ -448,7 +448,7 @@ export const fixFlowData = {
       }),
       expandBlockStepUse({
         id: 'fix-close-low',
-        title: 'Close (lite) — emit Fix result without review',
+        title: 'Close (low depth) — emit Fix result without review',
         stage: 'close',
         block: 'close-with-evidence',
         input: {
@@ -660,17 +660,17 @@ export const fixFlowData = {
           stepId: 'fix-gather-context',
           taskTitle: 'Check the context',
           activeText: 'Checking the context',
-          relayRole: 'implementer',
-          relayStartedText: 'Asking the specialist to make the change...',
-          relayCompletedText: 'Finished the specialist pass.',
+          relayRole: 'researcher',
+          relayStartedText: 'Asking the specialist to gather context...',
+          relayCompletedText: 'Finished gathering context.',
         },
         {
           stepId: 'fix-diagnose',
           taskTitle: 'Check the context',
           activeText: 'Checking the context',
-          relayRole: 'implementer',
-          relayStartedText: 'Asking the specialist to make the change...',
-          relayCompletedText: 'Finished the specialist pass.',
+          relayRole: 'researcher',
+          relayStartedText: 'Asking the specialist to diagnose the cause...',
+          relayCompletedText: 'Finished the diagnosis.',
         },
         {
           stepId: 'fix-no-repro-decision',

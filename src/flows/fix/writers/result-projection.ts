@@ -97,7 +97,7 @@ export function projectFixResult(inputs: FixResultProjectorInputs): FixResult {
     ...(review === undefined ? {} : { review_verdict: review.verdict }),
     ...(review === undefined
       ? {
-          review_skip_reason: reviewSkipReason ?? 'Lite mode skipped review per route_overrides.',
+          review_skip_reason: reviewSkipReason ?? 'Low depth skipped review per route_overrides.',
         }
       : {}),
     residual_risks: [...diagnosis.residual_uncertainty],

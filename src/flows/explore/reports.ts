@@ -84,7 +84,11 @@ export const ExploreCompose = z
   .strict();
 export type ExploreCompose = z.infer<typeof ExploreCompose>;
 
-export const ExploreReviewVerdictValue = z.enum(['accept', 'accept-with-fold-ins']);
+// 'reject' is schema-valid but deliberately absent from the review step's
+// check.pass list: a reject is a handled non-pass outcome that routes the
+// compose back to synthesize-step for rework (retry/revise), bounded by
+// the engine's default max_attempts.
+export const ExploreReviewVerdictValue = z.enum(['accept', 'accept-with-fold-ins', 'reject']);
 export type ExploreReviewVerdictValue = z.infer<typeof ExploreReviewVerdictValue>;
 
 export const ExploreReviewVerdict = z
