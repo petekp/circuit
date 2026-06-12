@@ -173,20 +173,10 @@ Evidence:
 ### 5. Axis Support Validation
 
 After loading the compiled flow, Run validates the selected axes against that
-flow's allow-list. Unsupported combinations fail before runtime execution.
-
-Current generated flow support:
-
-| Flow | Allowed depths | Tournament | Autonomous | Default axes |
-| --- | --- | --- | --- | --- |
-| build | low, medium, high | no | yes | medium, no tournament, no autonomous |
-| explore | low, medium, high | yes | yes | medium, no tournament, no autonomous |
-| fix | low, medium, high | no | yes | medium, no tournament, no autonomous |
-| goal | low, medium, high | no | yes | medium, no tournament, no autonomous |
-| prototype | medium, high | yes | yes | medium, no tournament, no autonomous |
-| pursue | medium | no | yes | medium, no tournament, no autonomous |
-| review | medium | no | no | medium, no tournament, no autonomous |
-| runtime-proof | medium | no | no | medium, no tournament, no autonomous |
+flow's allow-list. Unsupported combinations fail before runtime execution. Each
+flow's allow-list is owned by its `schematic.axes` in the catalog; per-flow
+support is stated in that flow's contract under `docs/contracts/` and pinned
+against the catalog by `tests/contracts/doc-axis-claims.test.ts`.
 
 The public host surface routes only public flows. Internal flows can exist in a
 source checkout for explicit development use, but an internal flow missing from
