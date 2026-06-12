@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-06-11",
+  "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "verification": "claude-haiku-4-5 cross-checked 2026-06-11 against a live claude CLI probe: total_cost_usd reproduced exactly from these rates (36803 1h cache-write tokens x $2/MTok + 10 input x $1/MTok + 104 output x $5/MTok). All other rows are transcriptions of the published pricing page as of as_of, not probe-verified measurements.",
+  "unit": "usd_per_million_tokens",
+  "notes": "Model ids resolve by longest-prefix match, so dated ids like claude-haiku-4-5-20251001 hit the claude-haiku-4-5 row. Append a new dated file on any price change; never edit this one.",
+  "models": {
+    "claude-haiku-4-5": { "input": 1, "cache_write_5m": 1.25, "cache_write_1h": 2, "cache_read": 0.1, "output": 5 },
+    "claude-sonnet-4-5": { "input": 3, "cache_write_5m": 3.75, "cache_write_1h": 6, "cache_read": 0.3, "output": 15 },
+    "claude-sonnet-4-6": { "input": 3, "cache_write_5m": 3.75, "cache_write_1h": 6, "cache_read": 0.3, "output": 15 },
+    "claude-opus-4-5": { "input": 5, "cache_write_5m": 6.25, "cache_write_1h": 10, "cache_read": 0.5, "output": 25 },
+    "claude-opus-4-6": { "input": 5, "cache_write_5m": 6.25, "cache_write_1h": 10, "cache_read": 0.5, "output": 25 },
+    "claude-opus-4-7": { "input": 5, "cache_write_5m": 6.25, "cache_write_1h": 10, "cache_read": 0.5, "output": 25 },
+    "claude-opus-4-8": { "input": 5, "cache_write_5m": 6.25, "cache_write_1h": 10, "cache_read": 0.5, "output": 25 }
+  }
+}

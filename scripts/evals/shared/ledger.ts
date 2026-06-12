@@ -145,6 +145,41 @@ export function buildFixLedgerEntry(summary: unknown, options: FixLedgerOptions)
       ['vanilla_mean_proof_quality', vanilla.mean_proof_quality],
       ['circuit_mean_wallclock_ms', circuit.mean_wallclock_ms],
       ['vanilla_mean_wallclock_ms', vanilla.mean_wallclock_ms],
+      // Cost capture (charter instrument 1). Token sums by class plus both
+      // dollar figures per arm; the counters mark when those numbers are not
+      // citable (uncaptured usage, price-table misses, reported-vs-computed
+      // divergence). All finite numbers, so the poison scan is unaffected.
+      ['circuit_total_tokens_input', circuit.total_tokens_input],
+      ['circuit_total_tokens_output', circuit.total_tokens_output],
+      ['circuit_total_tokens_cache_read', circuit.total_tokens_cache_read],
+      ['circuit_total_tokens_cache_creation', circuit.total_tokens_cache_creation],
+      ['circuit_total_tokens_cache_creation_5m', circuit.total_tokens_cache_creation_5m],
+      ['circuit_total_tokens_cache_creation_1h', circuit.total_tokens_cache_creation_1h],
+      ['vanilla_total_tokens_input', vanilla.total_tokens_input],
+      ['vanilla_total_tokens_output', vanilla.total_tokens_output],
+      ['vanilla_total_tokens_cache_read', vanilla.total_tokens_cache_read],
+      ['vanilla_total_tokens_cache_creation', vanilla.total_tokens_cache_creation],
+      ['vanilla_total_tokens_cache_creation_5m', vanilla.total_tokens_cache_creation_5m],
+      ['vanilla_total_tokens_cache_creation_1h', vanilla.total_tokens_cache_creation_1h],
+      ['circuit_total_cost_usd_reported', circuit.total_cost_usd_reported],
+      ['circuit_total_cost_usd_computed', circuit.total_cost_usd_computed],
+      ['vanilla_total_cost_usd_reported', vanilla.total_cost_usd_reported],
+      ['vanilla_total_cost_usd_computed', vanilla.total_cost_usd_computed],
+      ['circuit_usage_missing_count', circuit.usage_missing_count],
+      ['vanilla_usage_missing_count', vanilla.usage_missing_count],
+      ['circuit_cost_divergence_flag_count', circuit.cost_divergence_flag_count],
+      ['vanilla_cost_divergence_flag_count', vanilla.cost_divergence_flag_count],
+      ['circuit_price_table_miss_count', circuit.price_table_miss_count],
+      ['vanilla_price_table_miss_count', vanilla.price_table_miss_count],
+      ['circuit_claim_parse_failure_count', circuit.claim_parse_failure_count],
+      ['vanilla_claim_parse_failure_count', vanilla.claim_parse_failure_count],
+      // Circuit-only relay tallies (the vanilla arm has no relays; its null
+      // sums drop out of collectMetrics). These mark when the committed token
+      // and dollar totals are undercounts.
+      ['circuit_total_relays_failed', circuit.total_relays_failed],
+      ['circuit_total_relays_missing_usage', circuit.total_relays_missing_usage],
+      ['circuit_total_envelopes_missing_reported_cost', circuit.total_envelopes_missing_reported_cost],
+      ['vanilla_total_envelopes_missing_reported_cost', vanilla.total_envelopes_missing_reported_cost],
     ]),
   };
 }

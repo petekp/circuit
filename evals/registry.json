@@ -11,7 +11,9 @@
         "regression_proof_quality",
         "verification_pass_rate",
         "diff_scope",
-        "wallclock_ms"
+        "wallclock_ms",
+        "cost_usd",
+        "tokens_by_class"
       ],
       "default_command": [
         "node",

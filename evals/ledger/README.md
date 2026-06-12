@@ -49,3 +49,17 @@ To ship without a fresh run for one eval, add a file under
 `evals/ledger/waivers/` named `<eval-id>-<version>` (any extension, `.md`
 suggested) explaining why. The waiver is keyed to that exact version, so it
 cannot silently carry forward to the next release.
+
+## Price tables
+
+`evals/ledger/prices/<YYYY-MM-DD>.json` holds the per-MTok dollar rates the
+fix harness uses for `cost_usd_computed` (the cross-check against the CLI's
+own `cost_usd_reported`; divergence above 5 percent flags the run's
+bookkeeping). The directory is append-only: on a price change, add a new
+dated file and leave the old one, so past ledger entries stay reproducible
+against the rates that were current when they ran. The newest file wins at
+run time. Model ids resolve by longest-prefix match
+(`claude-haiku-4-5-20251001` hits the `claude-haiku-4-5` row); an id with no
+row leaves the computed cost absent rather than guessing.
+`validate-ledger.ts` checks every table's shape (dated filename, matching
+`as_of`, five finite non-negative rates per model).

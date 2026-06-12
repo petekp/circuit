@@ -36807,6 +36807,23 @@ var SkillsLoadedTraceEntry = TraceEntryBase.extend({
   attempt: external_exports.number().int().positive(),
   skills: external_exports.array(LoadedSkillEvidence).min(1)
 }).strict();
+var RelayUsageEvidence = external_exports.object({
+  input_tokens: external_exports.number().nonnegative(),
+  output_tokens: external_exports.number().nonnegative(),
+  cache_read_tokens: external_exports.number().nonnegative(),
+  cache_creation_tokens: external_exports.number().nonnegative(),
+  cache_creation_5m_tokens: external_exports.number().nonnegative(),
+  cache_creation_1h_tokens: external_exports.number().nonnegative(),
+  total_cost_usd_reported: external_exports.number().nonnegative().optional(),
+  models: external_exports.array(external_exports.object({
+    model: external_exports.string().min(1),
+    input_tokens: external_exports.number().nonnegative(),
+    output_tokens: external_exports.number().nonnegative(),
+    cache_read_tokens: external_exports.number().nonnegative(),
+    cache_creation_tokens: external_exports.number().nonnegative(),
+    cost_usd_reported: external_exports.number().nonnegative().optional()
+  }).strict()).optional()
+}).strict();
 var RelayCompletedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("relay.completed"),
   step_id: StepId,
@@ -36814,7 +36831,8 @@ var RelayCompletedTraceEntry = TraceEntryBase.extend({
   verdict: external_exports.string().min(1),
   duration_ms: external_exports.number().int().nonnegative(),
   result_path: external_exports.string().min(1),
-  receipt_path: external_exports.string().min(1)
+  receipt_path: external_exports.string().min(1),
+  usage: RelayUsageEvidence.optional()
 }).strict();
 var RelayRequestTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("relay.request"),
@@ -56275,13 +56293,73 @@ function parseClaudeCodeStdout(stdout, prompt, duration_ms) {
     }
     result_body = extractJsonObject(result_body_raw);
   }
+  const usage2 = extractRelayUsage(resultTraceEntry);
   return {
     request_payload: prompt,
     receipt_id,
     result_body,
     duration_ms,
-    cli_version
+    cli_version,
+    ...usage2 === void 0 ? {} : { usage: usage2 }
   };
+}
+function extractRelayUsage(resultTraceEntry) {
+  const usage2 = resultTraceEntry.usage;
+  const modelUsage = resultTraceEntry.modelUsage;
+  const hasUsage = usage2 !== null && typeof usage2 === "object";
+  const hasModelUsage = modelUsage !== null && typeof modelUsage === "object";
+  if (!hasUsage && !hasModelUsage)
+    return void 0;
+  const u = hasUsage ? usage2 : {};
+  const cacheCreation = u.cache_creation ?? {};
+  const models = [];
+  if (hasModelUsage) {
+    for (const [model, raw] of Object.entries(modelUsage)) {
+      if (raw === null || typeof raw !== "object")
+        continue;
+      const m = raw;
+      const costUsd = finiteOrUndefined(m.costUSD);
+      models.push({
+        // The trace schema requires a non-empty model id, and a schema
+        // rejection at trace append would fail the relay. An empty
+        // modelUsage key becomes "unknown" so this stays observability.
+        model: model.length === 0 ? "unknown" : model,
+        input_tokens: finiteOrZero(m.inputTokens),
+        output_tokens: finiteOrZero(m.outputTokens),
+        cache_read_tokens: finiteOrZero(m.cacheReadInputTokens),
+        cache_creation_tokens: finiteOrZero(m.cacheCreationInputTokens),
+        ...costUsd === void 0 ? {} : { cost_usd_reported: costUsd }
+      });
+    }
+  }
+  const totalCostUsd = finiteOrUndefined(resultTraceEntry.total_cost_usd);
+  const totals = models.length > 0 ? {
+    input_tokens: sumBy(models, (m) => m.input_tokens),
+    output_tokens: sumBy(models, (m) => m.output_tokens),
+    cache_read_tokens: sumBy(models, (m) => m.cache_read_tokens),
+    cache_creation_tokens: sumBy(models, (m) => m.cache_creation_tokens)
+  } : {
+    input_tokens: finiteOrZero(u.input_tokens),
+    output_tokens: finiteOrZero(u.output_tokens),
+    cache_read_tokens: finiteOrZero(u.cache_read_input_tokens),
+    cache_creation_tokens: finiteOrZero(u.cache_creation_input_tokens)
+  };
+  return {
+    ...totals,
+    cache_creation_5m_tokens: finiteOrZero(cacheCreation.ephemeral_5m_input_tokens),
+    cache_creation_1h_tokens: finiteOrZero(cacheCreation.ephemeral_1h_input_tokens),
+    ...totalCostUsd === void 0 ? {} : { total_cost_usd_reported: totalCostUsd },
+    ...models.length === 0 ? {} : { models }
+  };
+}
+function finiteOrZero(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+function finiteOrUndefined(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : void 0;
+}
+function sumBy(items, pick2) {
+  return items.reduce((sum, item) => sum + pick2(item), 0);
 }
 
 // dist/connectors/codex.js
@@ -58252,7 +58330,10 @@ async function executeProductionRelayAttempt(input) {
     verdict: relayCompletedVerdict,
     duration_ms: durationMs,
     result_path: result.path,
-    receipt_path: receipt.path
+    receipt_path: receipt.path,
+    // Token/cost observability. Readers join role + model from the
+    // relay.started entry on the same (step_id, attempt).
+    ...relayResult.usage === void 0 ? {} : { usage: relayResult.usage }
   });
   const resultVerdictEvaluation = failureKind === "acceptance" ? checkEvaluation : evaluation;
   const sliceTag = context.activeSliceIndex === void 0 ? {} : { slice_index: context.activeSliceIndex };

@@ -118,6 +118,57 @@ describe('runtime trace contract', () => {
     ).toBe(true);
   });
 
+  it('forwards connector-reported usage onto relay.completed', async () => {
+    const runFolder = join(runFolderBase, 'review-with-usage');
+    const usage = {
+      input_tokens: 451,
+      output_tokens: 52,
+      cache_read_tokens: 17696,
+      cache_creation_tokens: 6024,
+      cache_creation_5m_tokens: 0,
+      cache_creation_1h_tokens: 6024,
+      total_cost_usd_reported: 0.0145286,
+      models: [
+        {
+          model: 'claude-haiku-4-5',
+          input_tokens: 451,
+          output_tokens: 52,
+          cache_read_tokens: 17696,
+          cache_creation_tokens: 6024,
+          cost_usd_reported: 0.0145286,
+        },
+      ],
+    };
+    const result = await runCompiledFlowWithWaiting({
+      flowBytes: readFileSync(join(process.cwd(), 'generated/flows/review/circuit.json')),
+      runDir: runFolder,
+      runId: '85000000-0000-4000-8000-000000000104',
+      goal: 'review this patch with usage capture',
+      now: deterministicNow(Date.UTC(2026, 4, 7, 12, 30, 0)),
+      relayer: makeStubRelayer(REVIEW_RELAY_BODY, {
+        receipt_id: 'stub-receipt-runtime-trace-contract',
+        usage,
+      }),
+    });
+
+    expect(result.outcome).toBe('complete');
+
+    const trace = readTrace(runFolder);
+    const completed = trace.filter(
+      (entry) => (entry as { kind?: string }).kind === 'relay.completed',
+    ) as Array<{ usage?: unknown }>;
+    expect(completed.length).toBeGreaterThan(0);
+    for (const entry of completed) {
+      expect(entry.usage).toEqual(usage);
+    }
+    // The usage-bearing trace still satisfies the public schema end to end.
+    const parsedTrace = RunTrace.safeParse(trace);
+    expect(
+      parsedTrace.success,
+      parsedTrace.success ? '' : JSON.stringify(parsedTrace.error.issues),
+    ).toBe(true);
+  });
+
   it('uses the generated WorkContract path when the compiled flow path is known', async () => {
     const runFolder = join(runFolderBase, 'review-with-path');
     const compiledFlowPath = join(process.cwd(), 'generated/flows/review/circuit.json');
