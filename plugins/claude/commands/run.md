@@ -122,7 +122,3 @@ metacharacters:
    or JSONL after Bash.
    Use non-`present` wrapper mode only for debug, tests, or explicit raw
    machine-readable output.
-## Authority
-
-- `src/cli/circuit.ts` `resolveCompiledFlowRoute` (explicit-flow requirement; routing is model-only)
-- `tests/runner/cli-router.test.ts` (explicit dispatch and the no-flow rejection)

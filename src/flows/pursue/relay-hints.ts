@@ -1,3 +1,12 @@
+// Pursue flow relay shape hints.
+//
+// These skeletons stay hand-written rather than rendered from Zod via
+// `renderShapeSkeleton` (as goal/build/fix do): the renderer cannot
+// reproduce the per-bucket status pinning (each of completed/skipped/blocked/
+// failed shares one item schema, so the renderer shows the full status enum
+// in every bucket instead of the fixed status that bucket expects), so a
+// mechanical migration would regress guidance.
+
 import type { SchemaShapeHint } from '../registries/shape-hints/types.js';
 
 export const pursuitBatchShapeHint: SchemaShapeHint = {

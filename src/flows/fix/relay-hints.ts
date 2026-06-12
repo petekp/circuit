@@ -9,21 +9,9 @@
 // reminds the worker of the parse/validate contract.
 
 import { renderShapeSkeleton } from '../registries/shape-hints/from-zod.js';
+import { mechanicalTail, shapeInstruction } from '../registries/shape-hints/instruction-helpers.js';
 import type { SchemaShapeHint } from '../registries/shape-hints/types.js';
 import { FixChange, FixContext, FixDiagnosis, FixReview } from './reports.js';
-
-function mechanicalTail(schema: string, reportPath: string): string {
-  return [
-    'Do not include extra top-level keys.',
-    'Do not wrap the JSON in Markdown code fences.',
-    'Do not include any prose before or after the JSON object.',
-    `The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against ${schema} before writing ${reportPath}.`,
-  ].join(' ');
-}
-
-function shapeInstruction(skeleton: string): string {
-  return `Respond with a single raw JSON object whose top-level shape is exactly: ${skeleton}`;
-}
 
 export const fixContextShapeHint: SchemaShapeHint = {
   kind: 'schema',

@@ -4,7 +4,10 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { HISTORY_AUTHORITY_NOTICE, MemoryInputV0 } from '../../../src/index.js';
-import { composeRelayPrompt } from '../../../src/runtime/run/relay-support.js';
+import {
+  composeInjectedFanoutBranchPrompt,
+  composeRelayPrompt,
+} from '../../../src/runtime/run/relay-support.js';
 
 let runFolder: string;
 
@@ -321,6 +324,141 @@ describe('composeRelayPrompt', () => {
     expect(prompt).toContain(
       '<stderr-2>\nError: assertion failed\n</stderr>\ninjected\n</stderr-2>',
     );
+  });
+
+  it('maps internal depths to their effort equivalent instead of leaking mode names', () => {
+    const step = {
+      id: 'act-step',
+      title: 'Act - implement',
+      role: 'implementer',
+      reads: [],
+      writes: {
+        request: { path: 'reports/relay/act.request.json' },
+        receipt: { path: 'reports/relay/act.receipt.txt' },
+        result: { path: 'reports/relay/act.result.json' },
+      },
+      check: { kind: 'result_verdict', pass: ['accept'] },
+    } as unknown as Parameters<typeof composeRelayPrompt>[0];
+
+    for (const internal of ['tournament', 'autonomous']) {
+      const prompt = composeRelayPrompt(
+        step,
+        runFolder,
+        [],
+        undefined,
+        undefined,
+        [],
+        'explore',
+        internal,
+      );
+      // 'Depth: tournament. Tune your thoroughness...' is meaningless to a
+      // worker; both internal modes run at high thoroughness.
+      expect(prompt).toContain('Depth: high');
+      expect(prompt).not.toContain(`Depth: ${internal}`);
+    }
+  });
+
+  it('states the acceptance failure policy in plain English, not the internal enum', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'act-step',
+        title: 'Act - implement',
+        role: 'implementer',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/act.request.json' },
+          receipt: { path: 'reports/relay/act.receipt.txt' },
+          result: { path: 'reports/relay/act.result.json' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+        acceptance_criteria: {
+          on_failure: { mode: 'retry-with-feedback' },
+          checks: [
+            {
+              kind: 'command',
+              id: 'verify-passes',
+              command: { id: 'verify', cwd: '.', argv: ['npm', 'run', 'verify'] },
+              expected_status: 'passed',
+            },
+          ],
+        },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+    );
+
+    expect(prompt).not.toContain('Failure policy: retry-with-feedback');
+    expect(prompt).toContain(
+      'If a check fails, you get the failure output and one chance to revise',
+    );
+  });
+
+  it('guards the accepted-verdicts line against an empty admit list', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'act-step',
+        title: 'Act - implement',
+        role: 'implementer',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/act.request.json' },
+          receipt: { path: 'reports/relay/act.receipt.txt' },
+          result: { path: 'reports/relay/act.result.json' },
+        },
+        check: { kind: 'result_verdict', pass: [] },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+    );
+
+    // Compile prevents an empty admit list today; if one ever reaches the
+    // composer it must not render a dangling-empty header line.
+    expect(prompt).not.toMatch(/Accepted verdicts: *\n/);
+    expect(prompt).toContain('Accepted verdicts: (none declared)');
+  });
+
+  it('renders a fanout branch goal as its own labeled segment', () => {
+    const branchGoal = 'argue for option one\nwith a second line of detail';
+    const prompt = composeRelayPrompt(
+      {
+        id: 'fanout-step-option-1',
+        title: 'Fanout relay branch / option-1',
+        role: 'researcher',
+        reads: [],
+        writes: {
+          request: { path: 'branches/option-1/request.txt' },
+          receipt: { path: 'branches/option-1/receipt.txt' },
+          result: { path: 'branches/option-1/result.json' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+      [],
+      undefined,
+      'run-level operator goal',
+      [],
+      'explore',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      branchGoal,
+    );
+
+    expect(prompt).toContain(`Branch Goal:\n${branchGoal}`);
+    // The branch assignment renders after the run-level goal, before reads.
+    expect(prompt.indexOf('Operator Goal:')).toBeLessThan(prompt.indexOf('Branch Goal:'));
+    expect(prompt.indexOf('Branch Goal:')).toBeLessThan(prompt.indexOf('Context (from reads):'));
+  });
+
+  it('gives injected-connector fanout branches the parse contract the runtime enforces', () => {
+    const prompt = composeInjectedFanoutBranchPrompt('argue for option two', [
+      'accept',
+      'accept-with-fold-ins',
+    ]);
+
+    expect(prompt).toContain('Branch Goal:\nargue for option two');
+    expect(prompt).toContain('Accepted verdicts: accept, accept-with-fold-ins');
+    expect(prompt).toContain('Respond with a single raw JSON object');
+    expect(prompt).toContain('JSON.parse');
   });
 
   it('glosses the relay role with one behavioral sentence', () => {

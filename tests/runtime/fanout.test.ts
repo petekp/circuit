@@ -395,7 +395,11 @@ describe('runtime fanout executor', () => {
     expect(result.outcome).toBe('complete');
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toContain('Step: fanout-step-option-1');
-    expect(prompts[0]).toContain('Title: Fanout relay branch / option-1: branch-a goal');
+    // The branch assignment is a labeled segment, not a Title suffix: a
+    // multi-line branch goal must not break the one-line Title header.
+    expect(prompts[0]).toContain('Title: Fanout relay branch / option-1');
+    expect(prompts[0]).not.toContain('Title: Fanout relay branch / option-1: branch-a goal');
+    expect(prompts[0]).toContain('Branch Goal:\nbranch-a goal');
     expect(prompts[0]).toContain('Accepted verdicts: accept');
     await expect(
       readFile(join(runDir, 'reports', 'branches', 'option-1', 'request.txt'), 'utf8'),

@@ -70,6 +70,21 @@ export function evaluateRelayCheck(step: RelayStep, resultBody: string): CheckEv
 const GENERIC_DISPATCH_SHAPE_HINT =
   'Respond with a single raw JSON object whose top-level shape is exactly { "verdict": "<one-of-accepted-verdicts>" } (additional fields permitted). Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse; an unparseable response or a verdict outside the schema fails this attempt. Rework verdicts, where the schema declares them, are valid responses that route the work back for rework.';
 
+// The injected-connector fanout path hands the connector a branch goal
+// directly instead of composing the full relay prompt, but the runtime
+// still JSON.parses the response and checks its verdict against the admit
+// list — so the prompt must carry that contract or the worker fails it
+// blind.
+export function composeInjectedFanoutBranchPrompt(goal: string, admit: readonly string[]): string {
+  return [
+    'Branch Goal:',
+    goal,
+    '',
+    `Accepted verdicts: ${admit.join(', ')}`,
+    GENERIC_DISPATCH_SHAPE_HINT,
+  ].join('\n');
+}
+
 // One behavioral sentence per relay role, rendered after the role name.
 // Flow-agnostic by construction: keyed on the engine-owned RelayRole enum,
 // never on flow identity. The reviewer gloss exists to counter the
@@ -114,9 +129,11 @@ function selectedSkillsSection(skills: readonly LoadedRelaySkill[]): string | un
     '',
     ...skills.map((skill) =>
       [
-        `## Skill: ${skill.id as unknown as string}${skill.slot === undefined ? '' : ` (slot: ${skill.slot as unknown as string})`}`,
-        `Source: ${skill.path}`,
-        `SHA-256: ${skill.sha256}`,
+        // Plain Label: line, not a `##` header — a Markdown heading here would
+        // outrank the engine's own prompt sections. Source path and SHA-256
+        // live in the skills.loaded trace, so they are not repeated as prompt
+        // tokens the worker cannot act on.
+        `Skill: ${skill.id as unknown as string}${skill.slot === undefined ? '' : ` (slot: ${skill.slot as unknown as string})`}`,
         '',
         skill.body,
       ].join('\n'),
@@ -138,10 +155,15 @@ function formatAcceptanceCriterion(criterion: AcceptanceCriterion): string {
 function acceptanceCriteriaSection(step: RelayStep): string | undefined {
   const criteria = step.acceptance_criteria;
   if (criteria === undefined) return undefined;
+  // Plain English for the worker, not the internal policy enum.
+  const failurePolicy =
+    criteria.on_failure.mode === 'retry-with-feedback'
+      ? 'If a check fails, you get the failure output and one chance to revise.'
+      : 'If a check fails, this attempt fails.';
   return [
     'Acceptance Criteria:',
     'Before this step can advance, Circuit will check the relay result against these deterministic criteria.',
-    `Failure policy: ${criteria.on_failure.mode}`,
+    failurePolicy,
     ...criteria.checks.map(formatAcceptanceCriterion),
   ].join('\n');
 }
@@ -223,14 +245,24 @@ function memoryInputsSection(memoryInputs: readonly MemoryInputValue[]): string 
 // The run folder and flow are interpolated so the copyable command already logs
 // (no --run-folder-less no-op) and suppresses against the correct flow (no
 // wrong-flow silent miss); only <label> and <query> are agent-supplied. The line
-// carries the full seven-kind authority enumeration and is advisory only: the pull
-// is never required, never blocks a step, and its results never satisfy any
-// authority ("memory orients but never overrules").
-function pullAffordanceSection(runFolder: string, flowId: string | undefined): string {
+// is advisory only: the pull is never required, never blocks a step, and its
+// results never satisfy any authority ("memory orients but never overrules").
+// The full seven-kind authority enumeration renders here only when the recall
+// section above is absent; when recall hits, that section already carries
+// HISTORY_AUTHORITY_NOTICE and this line defers to it instead of repeating
+// all seven kinds.
+function pullAffordanceSection(
+  runFolder: string,
+  flowId: string | undefined,
+  recallRendered: boolean,
+): string {
   const flow = flowId ?? '<flow id>';
+  const authorityTail = recallRendered
+    ? 'results are hint-only under the same authority limits stated above.'
+    : 'results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.';
   return [
     'Prior-Run Memory (optional, hint-only):',
-    `You may consult prior-run memory with \`circuit history pull --run-folder ${runFolder} --flow ${flow} --decision-point <label> <query>\`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.`,
+    `You may consult prior-run memory with \`circuit history pull --run-folder ${runFolder} --flow ${flow} --decision-point <label> <query>\`; ${authorityTail}`,
   ].join('\n');
 }
 
@@ -275,6 +307,10 @@ export function composeRelayPrompt(
   // `recommended_power` in its report. Omitted everywhere else so prompts on
   // fixed-dial runs are byte-identical to before the auto setting existed.
   powerDialAuto?: boolean,
+  // Fanout branches only: the branch's own assignment, rendered as a
+  // labeled segment so a multi-line goal cannot break the one-line Title
+  // header. Undefined on every non-branch relay.
+  branchGoal?: string,
 ): string {
   const readsBody =
     step.reads.length === 0
@@ -293,13 +329,20 @@ export function composeRelayPrompt(
   const memorySection = memoryInputsSection(memoryInputs);
   // The pull affordance is ALWAYS rendered (D4), unlike the recall-conditional
   // memorySection above which is omitted when recall is empty.
-  const pullSection = pullAffordanceSection(runFolder, flowId);
+  const pullSection = pullAffordanceSection(runFolder, flowId, memorySection !== undefined);
   const rework = reworkVerdicts(step);
+  // Compile prevents an empty admit list; guard the render anyway so a
+  // hypothetical empty list cannot produce a dangling-empty header line.
+  const acceptedVerdicts =
+    step.check.pass.length === 0 ? '(none declared)' : step.check.pass.join(', ');
+  // Internal modes (tournament, autonomous) are not effort levels; both run
+  // at high thoroughness, so the worker-facing effort signal says 'high'.
+  const effortDepth = depth === 'tournament' || depth === 'autonomous' ? 'high' : depth;
   return [
     `Step: ${step.id}`,
     `Title: ${step.title}`,
     roleLine(step.role),
-    `Accepted verdicts: ${step.check.pass.join(', ')}`,
+    `Accepted verdicts: ${acceptedVerdicts}`,
     ...(rework.length === 0
       ? []
       : [
@@ -308,10 +351,10 @@ export function composeRelayPrompt(
     // Thread the run's resolved depth to the worker as an effort signal: it
     // tunes how much thoroughness to spend, it does not change which steps run
     // (F-M-1). Omitted when no depth is supplied so direct callers are unchanged.
-    ...(depth === undefined || depth.length === 0
+    ...(effortDepth === undefined || effortDepth.length === 0
       ? []
       : [
-          `Depth: ${depth}. Tune your thoroughness and effort to this level; it does not change which steps run.`,
+          `Depth: ${effortDepth}. Tune your thoroughness and effort to this level; it does not change which steps run.`,
         ]),
     ...(powerDialAuto === true
       ? [
@@ -329,6 +372,11 @@ export function composeRelayPrompt(
           ...(operatorWhy === undefined || operatorWhy.length === 0 ? [] : [`Why: ${operatorWhy}`]),
           '',
         ]),
+    // The branch's own assignment outranks everything below it: the run-level
+    // goal above gives context, this block says what THIS worker must do.
+    ...(branchGoal === undefined || branchGoal.length === 0
+      ? []
+      : ['Branch Goal:', branchGoal, '']),
     ...(memorySection === undefined ? [] : [memorySection, '']),
     ...(sliceSection === undefined ? [] : [sliceSection, '']),
     pullSection,

@@ -17,7 +17,10 @@ import {
 import type { FanoutStep, RelayStep } from '../manifest/executable-flow.js';
 import type { WorktreeRunner } from '../run/child-runner.js';
 import { planRelayGuidanceDecision } from '../run/relay-guidance.js';
-import type { RelayStep as CompiledRelayStepV1 } from '../run/relay-support.js';
+import {
+  type RelayStep as CompiledRelayStepV1,
+  composeInjectedFanoutBranchPrompt,
+} from '../run/relay-support.js';
 import type { RunContext } from '../run/run-context.js';
 import {
   type BranchOutcome,
@@ -113,8 +116,10 @@ function relayBranchReads(step: FanoutStep): readonly string[] {
   return (step.reads ?? []).map((ref) => ref.path);
 }
 
+// Title carries only ids: the branch goal renders as its own labeled
+// prompt segment (a multi-line goal would break the one-line Title header).
 function syntheticRelayTitle(step: FanoutStep, branch: ResolvedRelayBranch): string {
-  return `${step.title ?? step.id} / ${branch.branch_id}: ${branch.goal}`;
+  return `${step.title ?? step.id} / ${branch.branch_id}`;
 }
 
 function syntheticRelayStep(
@@ -278,6 +283,7 @@ export async function executeRelayFanoutBranch(
         step: relayStep,
         compiledStep: syntheticCompiledRelayStepV1(step, branch, branchDirRel),
         context,
+        branchGoal: branch.goal,
         formatConnectorFailureReason: (_stepId, error) => {
           const reason = error instanceof Error ? error.message : String(error);
           return `relay fanout branch '${branch.branch_id}': connector invocation failed (${reason})`;
@@ -352,7 +358,10 @@ export async function executeRelayFanoutBranch(
       runId: context.runId,
       stepId: `${step.id}-${branch.branch_id}`,
       role: relayExecution.role,
-      prompt: branch.goal,
+      // The runtime JSON.parses the response and checks the verdict against
+      // the admit list, so the prompt must state that contract even on this
+      // compatibility path.
+      prompt: composeInjectedFanoutBranchPrompt(branch.goal, admitList(step)),
       connector: relayExecution.connectorName,
     });
     const reportBody = parseConnectorResponse(response);
