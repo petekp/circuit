@@ -37,7 +37,7 @@ A likely future product model is that Run absorbs the useful Goal primitives and
 _Avoid_: treating Goal as a separate user-facing noun forever, stopping after flow selection instead of goal completion
 
 **Run progress surface**:
-Run should show a compact progress story by default: goal, selected process, current phase, checkpoint status when action is needed, and done or blocked outcome. Detailed traces and evidence should remain available, but the default surface should reduce cognitive load rather than replacing one stream of chat with a stream of logs.
+Run should show a compact progress story by default: goal, selected process, current stage, checkpoint status when action is needed, and done or blocked outcome. Detailed traces and evidence should remain available, but the default surface should reduce cognitive load rather than replacing one stream of chat with a stream of logs.
 _Avoid_: verbose trace by default, log-stream UI, proof-heavy operator output, hiding evidence entirely
 
 **Run final output**:
@@ -54,7 +54,7 @@ Checkpoints should be rare and high-value. Use them when human judgment material
 _Avoid_: plain question prompt only, proof bundle, generic pause with no rich context, routine handholding
 
 **Run artifacts**:
-The durable agent-facing outputs from a run: structured reports, evidence, trace entries, checkpoints, handoff state, and memory material. Run artifacts should be complete enough for agents and future runs to continue, recover, evaluate, and improve without making the human read everything.
+The durable agent-facing outputs from a run: structured reports, evidence, trace entries, checkpoints, handoff state, and memory material. Run artifacts should be complete enough for agents and future runs to continue, recover, evaluate, and improve without making the human read everything. In product prose, name the concrete surface (report or evidence) per UBIQUITOUS_LANGUAGE.md.
 _Avoid_: treating artifacts as the primary human output, unstructured chat residue
 
 **Flow authoring**:

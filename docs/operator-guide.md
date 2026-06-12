@@ -10,13 +10,14 @@ Use one front door for coding work:
 | --- | --- | --- |
 | Claude Code | `/circuit:run the checkout total is wrong when discounts and tax both apply` | The host may recommend a flow; Circuit records the selected flow when the run starts. |
 | Codex | `/circuit:run the checkout total is wrong when discounts and tax both apply` | Codex may recommend a flow; Circuit records the selected flow when the run starts. |
-| CLI | `./bin/circuit run --goal "the checkout total is wrong when discounts and tax both apply"` | Circuit's deterministic CLI router selects and records the flow. |
+| CLI | `./bin/circuit run fix --goal "the checkout total is wrong when discounts and tax both apply"` | You name the flow; Circuit records it when the run starts. |
 
 The host plugin package model currently exposes file-backed commands as
 `/circuit:<command>`, so `/circuit:run` remains the visible slash command. A
 root `/circuit` alias is not shipped until the hosts support that shape.
 
-The CLI can still start a specific flow when the flow choice is clear:
+The CLI always takes an explicit flow name as the first argument and rejects a
+run without one:
 
 | Host | You type | What runs |
 | --- | --- | --- |
@@ -25,10 +26,13 @@ The CLI can still start a specific flow when the flow choice is clear:
 | CLI | `./bin/circuit run build --goal "add a focused feature"` | Build. |
 | CLI | `./bin/circuit run pursue --goal "coordinate these cleanup goals"` | Pursue. |
 
+Run the CLI from the checkout root; it loads compiled flows from
+`generated/flows` under the current working directory. Pass `--flow-root
+<path>` to run from somewhere else.
+
 Use `/circuit:run` for bounded objectives and completion discipline. From the
 operator's seat, Goal is not a kind of work; it is the completion standard Run
-uses by default. Direct CLI flow starts remain useful for debugging, tests, old
-run folders, and advanced local use.
+uses by default.
 
 The host commands wrap the same CLI. Each run accepts `--goal`. Direct CLI runs
 can also pass these controls when the selected flow supports them:
@@ -44,8 +48,9 @@ Unsupported combinations fail before the run starts.
 
 Depth (`--depth`) tunes how much thoroughness and effort the worker spends, and
 the resolved depth is recorded as `resolved_axes` in the run output. For Fix,
-`low` also drops the independent review stage. For Build, depth tunes worker
-effort only; Build runs the same stages at every depth.
+`low` also drops the independent review stage. For Build, low and medium run
+the plan in a single pass; high additionally iterates the plan's slices one at
+a time, implementing and verifying each slice before advancing to review.
 
 Power (`--power`) tunes how much model each worker run gets. The dial never
 names models: per-connector tier tables translate low, medium, or high into a
@@ -98,6 +103,17 @@ validating, and publishing reusable custom flows after explicit confirmation:
 
 It is not published as a Claude or Codex host command.
 
+## Utility Commands
+
+The CLI also ships small inspection utilities:
+
+| Command | What it does |
+| --- | --- |
+| `./bin/circuit runs show --run-folder <path> --json` | Print the recorded result for one run folder. |
+| `./bin/circuit history rebuild\|query\|status --json` | Rebuild, query, or check the local run history index. For `history pull`, see [`docs/reference/history-pull.md`](reference/history-pull.md). |
+| `./bin/circuit memory note --flow <id> "<text>"` | Add a flow memory note. `memory list` and `memory forget <id>` list and remove notes. |
+| `./bin/circuit version [--json]` | Print the installed Circuit version. |
+
 ## How A Run Works
 
 For vocabulary, read `flow` as the kind of work, `stage` as a grouped part of
@@ -106,8 +122,8 @@ that work, `trace` as the ordered record, `report` as typed output, and
 [`UBIQUITOUS_LANGUAGE.md`](../UBIQUITOUS_LANGUAGE.md).
 
 1. Circuit records the selected flow. In host plugins, the host may recommend a
-   flow before calling Circuit. In CLI router mode, Circuit's deterministic
-   router selects it.
+   flow before calling Circuit. On the CLI, you name the flow explicitly as the
+   first argument; the CLI rejects a run without a flow name.
 2. Circuit loads the compiled flow from the catalog and checks the requested
    depth, tournament, and autonomous controls against that flow's allow-list.
 3. Circuit runs stages in order. Examples include Frame, Analyze, Plan, Act,
@@ -158,9 +174,9 @@ checks before public claims:
 | `npm run check` | TypeScript with `tsc --noEmit`. |
 | `npm run lint` | Biome. |
 | `npm run test` | Full Vitest suite. |
-| `npm run test:fast` | Vitest without the slow CLI router outlier. |
+| `npm run test:fast` | Vitest without the two slow subprocess-driven outliers (CLI router integration and emit-flows drift). |
 | `npm run build` | Production TypeScript build. |
-| `npm run verify:fast` | Check, lint, build, fast tests, eval checks, flow drift, and plugin runtime drift. |
+| `npm run verify:fast` | Check, lint, build, fast tests, eval checks, ideas-catalog check, YAML schema drift, flow drift, and plugin runtime drift. |
 | `npm run verify` | The full canonical check that CI enforces. |
 | `npm run check-release-ready` | Strict release readiness check. |
 | `npm run publish:plugins:check` | Plugin packaging and version alignment check. |

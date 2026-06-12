@@ -52,7 +52,7 @@ on them, then adds maps at the boundaries where readers had to infer ownership:
 |   +-- configuration.md
 |   +-- generated-surfaces.md
 |   +-- architecture/
-|   |   +-- codebase-walkthrough.md
+|   |   +-- run-process.md
 |   |   +-- runtime.md
 |   +-- reference/
 |   |   +-- script-inventory.md
@@ -68,7 +68,11 @@ on them, then adds maps at the boundaries where readers had to infer ownership:
 +-- src/
     +-- README.md
     +-- app/
+    +-- cli/
+    +-- commands/README.md
+    +-- connectors/
     +-- history/
+    +-- memory/
     +-- policy/
     +-- release/
     +-- runtime/README.md
@@ -77,7 +81,6 @@ on them, then adds maps at the boundaries where readers had to infer ownership:
     +-- skill-hooks/
     +-- flows/README.md
     +-- shared/README.md
-    +-- types/README.md
 ```
 
 The operator path is still short:
@@ -92,9 +95,9 @@ The contributor path is now layered:
 docs/repository-map.md -> src/README.md -> src/<layer>/README.md -> code
 ```
 
-Layer maps live at `src/README.md`, `src/runtime/README.md`,
-`src/schemas/README.md`, `src/flows/README.md`, `src/shared/README.md`, and
-`src/types/README.md`.
+Layer maps live at `src/README.md`, `src/commands/README.md`,
+`src/runtime/README.md`, `src/schemas/README.md`, `src/flows/README.md`,
+and `src/shared/README.md`.
 
 ## Migration Rationale
 

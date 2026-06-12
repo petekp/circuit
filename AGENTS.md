@@ -2,8 +2,8 @@
 
 ## What this project is
 
-`circuit` is a Claude Code plugin that runs configurable developer
-flows. The product surface is `src/` (TypeScript), `tests/`, the
+`circuit` is a Claude Code and Codex plugin that runs configurable
+developer flows. The product surface is `src/` (TypeScript), `tests/`, the
 generated host plugin packages under `plugins/`, the flow packages
 under `src/flows/`, the engine contracts under `docs/contracts/`,
 and the flow design notes under `docs/flows/`.
@@ -27,16 +27,10 @@ evidence). Use that vocabulary in product-facing prose.
    task tools.
 5. **Root-cause discipline.** Enumerate two or three hypotheses before
    acting on one.
-6. **Codex for impactful, hard-to-revert decisions.** Default off. Pull
-   Codex in when a choice is hard to re-work later (architecture,
-   contracts, migration paths), I'm stuck after a couple of real
-   attempts, or you ask. Use `/codex` explicitly so the handoff is
-   visible. Don't use Codex for cleanup, mechanical refactors, or
-   anything `npm run verify` proves. No challenger passes on plans.
-7. **Host hooks use hook input for identity.** Hook scripts must read the
+6. **Host hooks use hook input for identity.** Hook scripts must read the
    host's stdin JSON for workspace identity and pass explicit project roots.
    Do not treat `process.cwd()` as the project authority inside hooks.
-8. **File-set audits need probes.** Before a rename, conversion, or migration
+7. **File-set audits need probes.** Before a rename, conversion, or migration
    batch, state the partition criterion and run the grep or script that proves
    it. If the plan depends on a runtime contract, run a small probe before
    locking the plan.
@@ -54,7 +48,7 @@ npm run test:fast    # vitest excluding the two subprocess-driven outliers: test
 npm run test:coverage # vitest run --coverage (info, no thresholds)
 npm run build        # tsc -p tsconfig.build.json
 npm run verify       # full canonical check; CI runs this
-npm run verify:fast  # check + lint + build + test:fast + drift (~40% faster)
+npm run verify:fast  # check + lint + build + test:fast + evals/ideas/yaml/drift checks (~40% faster)
 ```
 
 `verify` is the canonical check and what CI enforces. Use `verify:fast`
@@ -111,6 +105,7 @@ registries derive from the catalog. If you find yourself editing engine files
 to add a flow, the boundary is being violated.
 
 `CompiledFlowPackage.engineFlags` carries opt-in switches the engine
-branches on (currently only `bindsExecutionDepthToRelaySelection`,
-which Build sets). Add a flag entry there if your flow needs special
-engine behavior — never put flow-specific code into the engine itself.
+branches on. See `CompiledFlowEngineFlags` in `src/flows/types.ts` for
+the current set and which flows set each flag. Add a flag entry there
+if your flow needs special engine behavior — never put flow-specific
+code into the engine itself.

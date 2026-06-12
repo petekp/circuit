@@ -60,7 +60,13 @@ run `npm install`, install a `circuit` binary, or create a symlink.
 
 ### Codex
 
-For Codex host use from this checkout, refresh the local plugin package and
+Install the published plugin from the marketplace:
+
+```bash
+codex plugin marketplace add petekp/circuit --ref circuit--v0.1.0-alpha.7
+```
+
+Working from this checkout instead? Refresh the local plugin package and
 installed host caches:
 
 ```bash
@@ -82,8 +88,13 @@ From this checkout:
 ```bash
 npm install
 npm run build
-./bin/circuit run --goal '<your task>'
+./bin/circuit run <flow> --goal '<your task>'
 ```
+
+The flow name is required: one of `build`, `fix`, `review`, `explore`,
+`prototype`, or `pursue`. Run the CLI from the checkout root; it loads compiled
+flows from `generated/flows` under the current working directory. Pass
+`--flow-root <path>` to run from somewhere else.
 
 Circuit requires Node.js `22.18.0` or newer.
 For a more careful manual check, use [`docs/first-run.md`](docs/first-run.md).
@@ -97,14 +108,15 @@ Use `/circuit:run` as the normal front door:
 | --- | --- | --- |
 | Claude Code | `/circuit:run the checkout total is wrong when discounts and tax both apply` | The host may recommend a flow; Circuit records the selected flow when the run starts. |
 | Codex | `/circuit:run the checkout total is wrong when discounts and tax both apply` | Codex may recommend a flow; Circuit records the selected flow when the run starts. |
-| CLI | `./bin/circuit run --goal "the checkout total is wrong when discounts and tax both apply"` | Circuit's deterministic CLI router selects and records the flow. |
+| CLI | `./bin/circuit run fix --goal "the checkout total is wrong when discounts and tax both apply"` | You name the flow; Circuit records it when the run starts. |
 
 The host plugin package model currently exposes file-backed commands as
-`/circuit:<command>`, so `/circuit:run` is the single normal slash command for
-coding work. A root `/circuit` alias is not shipped until the hosts support
-that shape. The CLI can still run a specific flow directly with
-`./bin/circuit run <flow> --goal "<task>"` for debugging, tests, old run
-folders, and advanced local use.
+`/circuit:<command>`. `/circuit:run` is the default slash command for a single
+task; `/circuit:pursue` coordinates several related goals as one tracked run.
+A root `/circuit` alias is not shipped until the hosts support that shape. On
+the CLI, `./bin/circuit run <flow> --goal "<task>"` is the only invocation
+shape: there is no CLI classifier, so the operator (or the host model) names
+the flow and Circuit records it.
 
 Handoff stays available as a visible continuity utility for saving, resuming,
 clearing, briefing, or installing continuity support. The CLI also has an
@@ -181,8 +193,8 @@ Start:
 - [`docs/first-run.md`](docs/first-run.md): manual setup check, safest Review,
   and the run folder shape.
 - [`docs/README.md`](docs/README.md): map of the current docs.
-- [`docs/repository-map.md`](docs/repository-map.md): before/after repo map,
-  layer ownership, and migration rationale.
+- [`docs/repository-map.md`](docs/repository-map.md): repo map, layer
+  ownership, and migration rationale.
 
 Operate:
 

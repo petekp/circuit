@@ -36,7 +36,8 @@ only the layer you need, then go deeper when the change touches that layer.
   Run decision timeline, including flow routing, axes, depth, relay selection,
   runtime evidence, checkpoint resume, and autonomous continuation.
 - [docs/architecture/architecture-revamp-staged-plan.md](architecture/architecture-revamp-staged-plan.md)
-  - staged execution plan for the active architecture roadmap.
+  - completed staged execution record of the 2026-06 architecture revamp; all
+    stages landed.
 - [docs/pivot/contract-guidance-proof-recovery/](pivot/contract-guidance-proof-recovery/)
   - consolidated reference point for the contract, guidance, proof, and
     recovery pivot.
@@ -83,7 +84,7 @@ locations:
 | Contract, guidance, proof, and recovery pivot | [docs/pivot/contract-guidance-proof-recovery/](pivot/contract-guidance-proof-recovery/) |
 | Generated command, skill, schematic, manifest, and plugin output ownership | [docs/generated-surfaces.md](generated-surfaces.md) |
 | Host package maps | [plugins/README.md](../plugins/README.md), [plugins/claude/README.md](../plugins/claude/README.md), and [plugins/codex/README.md](../plugins/codex/README.md) |
-| Source tree and layer maps | [src/README.md](../src/README.md), [src/runtime/README.md](../src/runtime/README.md), [src/schemas/README.md](../src/schemas/README.md), [src/flows/README.md](../src/flows/README.md), [src/shared/README.md](../src/shared/README.md), and [src/types/README.md](../src/types/README.md) |
+| Source tree and layer maps | [src/README.md](../src/README.md), [src/runtime/README.md](../src/runtime/README.md), [src/schemas/README.md](../src/schemas/README.md), [src/flows/README.md](../src/flows/README.md), and [src/shared/README.md](../src/shared/README.md) |
 | Direct command source ownership | [src/commands/README.md](../src/commands/README.md) |
 | Release proof lifecycle | [docs/release/proofs/README.md](release/proofs/README.md) |
 | Host release QA checklist | [docs/host-trial-checklist.md](host-trial-checklist.md) |
@@ -99,11 +100,14 @@ not active instructions unless one of the sources above links to a live section.
 | Operator entry | [README.md](../README.md), [docs/first-run.md](first-run.md), [docs/operator-guide.md](operator-guide.md), [docs/configuration.md](configuration.md) | Current user-facing setup and operation. |
 | Agent setup | [docs/agent-setup.md](agent-setup.md), [AGENTS.md](../AGENTS.md) | Instructions for coding agents in this checkout. |
 | Vocabulary | [UBIQUITOUS_LANGUAGE.md](../UBIQUITOUS_LANGUAGE.md) | Current product terms for product prose, docs, contracts, and flow authoring notes. |
+| Product posture | [CONTEXT.md](../CONTEXT.md) | Product philosophy and posture context. [UBIQUITOUS_LANGUAGE.md](../UBIQUITOUS_LANGUAGE.md) wins on vocabulary. |
 | Contributor reference | [docs/repository-map.md](repository-map.md), [docs/architecture/](architecture/), [docs/contracts/](contracts/), [docs/flows/](flows/), [docs/reference/script-inventory.md](reference/script-inventory.md), [src/README.md](../src/README.md), [plugins/README.md](../plugins/README.md) | Current codebase, flow, block, contract, source tree, host package, and script ownership reference. |
 | Generated/evidence | [docs/generated-surfaces.md](generated-surfaces.md), [docs/flows/block-catalog.json](flows/block-catalog.json), [generated/](../generated/), [docs/release/](release/), [plugins/](../plugins/) generated mirrors | Generated truth, release truth, or proof evidence. Generated mirrors are regenerated from source. |
 | Release QA | [docs/host-trial-checklist.md](host-trial-checklist.md) | Checklist for validating host readiness before broader use. |
+| Eval charter and claim rules | [docs/evals/](evals/), [evals/README.md](../evals/README.md), and [evals/registry.json](../evals/registry.json) | Current theses, hypotheses, claim levels, and measurement discipline for evals. |
+| Dated plans | [docs/plans/](plans/) | Point-in-time execution plans. Historical record, not active instructions. |
 | Active pivot reference | [docs/pivot/contract-guidance-proof-recovery/](pivot/contract-guidance-proof-recovery/) | Consolidated reference for the contract, guidance, proof, and recovery pivot. Validate claims against code, tests, and generated surfaces before treating them as current behavior. |
-| Working strategy | [docs/positioning-and-strategy.md](positioning-and-strategy.md) | Internal strategy context. Not polished external copy; validate claims against code and release evidence before reuse. |
+| Working strategy | [docs/ideas/positioning-and-strategy.md](ideas/positioning-and-strategy.md) | Point-in-time workshop notes from May 2026. Not polished external copy; validate claims against code and release evidence before reuse. |
 | Audit records | [docs/audits/](audits/) | Source-backed cleanup and inventory reports. Use as evidence records, not active operating guidance. |
 | Research note | [docs/ideas/](ideas/) and [docs/learnings/](learnings/) | Prior-art or product-shape material. Useful context, not current behavior. |
 | Archived | Completed or historical files in [docs/specs/](specs/) and [docs/internal/archive/](internal/archive/) | Dated target specs, design records, and local-only historical notes. Do not treat as active instructions unless a current doc links to a live section. |
