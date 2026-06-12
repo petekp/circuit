@@ -7,14 +7,9 @@ shapes.
 Schemas are Zod first and TypeScript second. Prefer a schema when a shape is
 stored, parsed, relayed, or shown to a host.
 
-The root barrel, `index.ts`, stays complete for public/schema consumers. Family
-barrels are reader aids for internal imports:
-
-- `run-index.ts`
-- `flow-index.ts`
-- `host-index.ts`
-- `policy-index.ts`
-- `evidence-index.ts`
+The root barrel, `index.ts`, is flat and complete for public/schema
+consumers: every schema module is re-exported directly. There are no
+intermediate family barrels.
 
 ## Main Groups
 

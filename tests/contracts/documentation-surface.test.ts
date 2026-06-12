@@ -175,7 +175,6 @@ describe('documentation surface', () => {
       'src/schemas/README.md',
       'src/flows/README.md',
       'src/shared/README.md',
-      'src/types/README.md',
     ]) {
       expect(repoMap).toContain(required);
     }
@@ -185,7 +184,6 @@ describe('documentation surface', () => {
       '[src/schemas/README.md](schemas/README.md)',
       '[src/flows/README.md](flows/README.md)',
       '[src/shared/README.md](shared/README.md)',
-      '[src/types/README.md](types/README.md)',
       '`src/index.ts`',
     ]) {
       expect(sourceMap).toContain(required);

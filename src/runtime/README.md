@@ -17,6 +17,9 @@ It should not own flow-specific product behavior. Add or change a flow in
 | `trace/` | Append-only trace storage. |
 | `projections/` | Progress, status, and checkpoint projections. |
 | `fanout/` | Parallel branch mechanics. |
-| `connectors/` | Runtime connector resolution. Connector implementations live in `src/connectors/`. |
+| `domain/` | Runtime-internal types for flows, steps, routes, runs, and traces. |
+
+Connector implementations live in `src/connectors/`, and connector
+resolution lives in `src/connectors/resolver.ts`.
 
 Use runtime tests for engine mechanics and flow tests for flow behavior.
