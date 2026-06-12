@@ -61,6 +61,7 @@
     { "glob": "docs/architecture/recovery-restore-roadmap-addendum.md", "class": "historical" },
     { "glob": "docs/architecture/roadmap-prefactoring-plan.md", "class": "historical" },
     { "glob": "docs/architecture/**", "class": "living" },
+    { "glob": "docs/evals/20*-*-*.md", "class": "historical" },
     { "glob": "docs/evals/**", "class": "living" },
     { "glob": "docs/release/*-notes.md", "class": "historical" },
     { "glob": "docs/release/*.md", "class": "living" },
