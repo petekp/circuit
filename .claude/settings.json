@@ -9,7 +9,11 @@
       "Edit(/plugins/codex/skills/**)",
       "Edit(/src/flows/**/schematic.json)",
       "Edit(/docs/flows/block-catalog.json)",
-      "Edit(/docs/generated-surfaces.md)"
+      "Edit(/docs/generated-surfaces.md)",
+      "Edit(/plugins/claude/runtime/**)",
+      "Edit(/plugins/codex/runtime/**)",
+      "Edit(/plugins/claude/scripts/launcher-core.ts)",
+      "Edit(/plugins/codex/scripts/launcher-core.ts)"
     ]
   }
 }

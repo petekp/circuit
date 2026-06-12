@@ -267,15 +267,13 @@ defaults:
   power: low
 ```
 
-The dial defaults to `medium` when nothing sets it. The flag (invocation
-layer) wins over project config, which wins over user-global config. Research
-steps stay on the big tier at every dial position, and a worker retry
-automatically runs one tier up. Explicit model or effort config always wins
-over the dial.
+The dial defaults to `medium` when nothing sets it. How the dial resolves
+across config layers, maps to each role, escalates on retry, and yields to an
+explicit `model` or `effort` is the selection contract's job:
+[`docs/contracts/selection.md`](contracts/selection.md#power-dial-materialization-post-stack).
 
-Per-connector tier tables translate the dial: `claude-code` ships
-haiku/sonnet/opus aliases, `codex` ships reasoning-effort tiers, and other
-connectors ignore the dial unless you declare a table:
+Per-connector tier tables translate the dial. Declare one to map the dial onto
+a connector that ships no defaults:
 
 ```yaml
 power_tiers:
@@ -286,18 +284,14 @@ power_tiers:
 ```
 
 A declared tier overrides only that tier of that connector; shipped defaults
-fill the rest. The selection contract
-([`docs/contracts/selection.md`](contracts/selection.md)) documents the full
-materialization rules.
+fill the rest.
 
 ### Auto power
 
-Set the dial to `auto` and each run picks its own tier. The research step
-reads the code first anyway, so it judges how strong a model the rest of the
-run needs: a small, well-tested change gets `low`; a wide or subtle change
-gets `high`. The choice happens once per run, sticks for the whole run, and
-the run summary shows it as `power low (auto)` with the reason one line
-below.
+Set the dial to `auto` and each run picks its own tier; the choice happens once
+and sticks. How the tier is inferred and clamped to the bounds below is in the
+selection contract
+([rule 2a](contracts/selection.md#power-dial-materialization-post-stack)).
 
 ```yaml
 defaults:
@@ -308,12 +302,10 @@ power_auto:
   ceiling: medium # never above this, even if recommended
 ```
 
-Both bounds are optional. The ceiling is the spend cap: a recommendation
-above it gets capped, and the summary says so (`power medium (auto,
-capped)`). If the research step never makes a recommendation, the run uses
-`medium` and the summary says that too (`power medium (auto, no
-recommendation)`). The research step itself always runs on the big tier, so
-the choice costs nothing extra.
+Both bounds are optional. The run summary reports the resolved tier and why:
+`power low (auto)`, `power medium (auto, capped)` when a recommendation exceeds
+the ceiling, or `power medium (auto, no recommendation)` when the research step
+makes none.
 
 Depth has no auto position. Depth decides which steps the run is built from
 before any model runs, so there is nothing in the run yet that could judge

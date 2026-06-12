@@ -1,7 +1,7 @@
 # Flow Packages
 
-`src/flows/` owns Circuit's built-in flows: Build, Explore, Fix, Prototype,
-Pursue, and Review, plus the internal Goal and Runtime proof flows.
+`src/flows/` owns Circuit's built-in flows. `src/flows/catalog.ts` is the
+locked source of truth for the flow set and which flows are internal.
 
 Most public flows have:
 

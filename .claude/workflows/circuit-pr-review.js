@@ -327,7 +327,7 @@ Proof: targeted vitest over tests/contracts/ (name the specific files).`,
 - Checkpoint resume must reload flow bytes from the run folder (not from generated/) and compare the manifest snapshot
   hash correctly (=== ). Trace projection (run-status) must validate sequence contiguity and tolerate damaged state.
 - Evidence policy flag (includeUntrackedFileContent) must thread CLI -> compiled-flow-runner -> graph-runner -> executors.
-Proofs: tests/runner/{cli-router,cli-runtime,runtime-smoke,checkpoint-auto-resolution,history-cli}.test.ts, tests/runtime, tests/flow-runtime-smoke.`,
+Proofs: tests/runner/{cli-router,cli-runtime,runtime-smoke,history-cli}.test.ts, tests/runtime, tests/flow-runtime-smoke.`,
   },
   {
     key: 'tests',

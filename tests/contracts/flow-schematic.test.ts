@@ -232,6 +232,35 @@ describe('flow schematic schema — active Fix schematic', () => {
     expect(byId.get('fix-no-repro-decision')?.routes.continue).toBe('fix-act');
   });
 
+  it('keeps fix-no-repro-decision and fix-handoff off every default route (compiled, not runtime-reachable)', () => {
+    // The Fix purpose string (src/flows/fix/data.ts) and contract.md describe
+    // fix.no-repro-decision and the handoff step as future ask/handoff routing
+    // intent: compiled into the flow but never selected at runtime. The
+    // mechanism is that they are reached only through `ask`/`handoff` route
+    // outcomes, and the engine emits no failure cause those recovery bindings
+    // accept. Pin the schematic half here: if a future change adds a default
+    // route (e.g. `continue`/`complete`, or a route override) into either step,
+    // this fails and the contract caveat must change with it.
+    const schematic = parseFixSchematic();
+    const incomingOutcomes = (targetId: string): Set<string> => {
+      const outcomes = new Set<string>();
+      for (const item of schematic.items) {
+        for (const [outcome, target] of Object.entries(item.routes)) {
+          if ((target as unknown as string) === targetId) outcomes.add(outcome);
+        }
+        for (const perOutcome of Object.values(item.route_overrides ?? {})) {
+          for (const target of Object.values(perOutcome)) {
+            if ((target as unknown as string) === targetId) outcomes.add('override');
+          }
+        }
+      }
+      return outcomes;
+    };
+
+    expect(incomingOutcomes('fix-no-repro-decision')).toEqual(new Set(['ask']));
+    expect(incomingOutcomes('fix-handoff')).toEqual(new Set(['handoff']));
+  });
+
   it('rejects an unknown route target at parse time', () => {
     const raw = readJson(fixSchematicPath) as Record<string, unknown>;
     const items = raw.items as Array<Record<string, unknown>>;

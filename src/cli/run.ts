@@ -37,11 +37,11 @@ import { parseCommanderOrThrow } from './commander-support.js';
 import {
   type AxisSupport,
   axisSupportFromFlow,
+  compiledFlowSelectionNameForAxes,
   defaultChildCompiledFlowResolver,
-  fixtureSelectionNameForAxes,
-  loadFixture,
-  resolveFixturePath,
-} from './flow-fixtures.js';
+  loadCompiledFlow,
+  resolveCompiledFlowPath,
+} from './compiled-flow-loading.js';
 import { codexInstallAssurance } from './handoff-codex-hooks.js';
 import {
   type PostRunArtifactContext,
@@ -614,8 +614,8 @@ export async function runExecutionCommand(
     return 2;
   }
   const entryModeSelection = resolveEntryModeSelection(args);
-  const fixtureSelectionName = fixtureSelectionNameForAxes(args.axes);
-  const fixturePath = resolveFixturePath(
+  const fixtureSelectionName = compiledFlowSelectionNameForAxes(args.axes);
+  const fixturePath = resolveCompiledFlowPath(
     route.flowName,
     fixtureSelectionName,
     args.fixturePath,
@@ -636,7 +636,7 @@ export async function runExecutionCommand(
       return 2;
     }
   }
-  const { flow, bytes } = loadFixture(fixturePath);
+  const { flow, bytes } = loadCompiledFlow(fixturePath);
   assertFixtureMatchesRoute(flow, route);
   try {
     validateFlowAxes({ flow, args, route, fixturePath });

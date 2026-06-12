@@ -3,19 +3,10 @@ import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { flowDefinitions, flowPackages } from '../../src/flows/catalog.js';
+import { RETAINED_FLOW_IDS } from '../fixtures/retained-flow-ids.js';
 
 const REPO_ROOT = resolve('.');
 const RETIRED_FLOW_IDS = [`mi${'grate'}`, `sw${'eep'}`] as const;
-const RETAINED_FLOW_IDS = [
-  'review',
-  'fix',
-  'pursue',
-  'runtime-proof',
-  'prototype',
-  'build',
-  'explore',
-  'goal',
-];
 const SURFACE_ROOTS = [
   'src/flows',
   'src/commands',

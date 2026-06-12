@@ -42,7 +42,7 @@ skips the review relay after verification; medium and high keep it.
 | `fix.brief` | Problem boundary and proof target | `<run-folder>/reports/fix/brief.json` |
 | `fix.context` | Evidence gathered before diagnosis | `<run-folder>/reports/fix/context.json` |
 | `fix.diagnosis` | Cause, reproduction status, and uncertainty | `<run-folder>/reports/fix/diagnosis.json` |
-| `fix.no-repro-decision` | Operator or mode-policy choice when evidence is uncertain | `<run-folder>/reports/fix/no-repro-decision.json` |
+| `fix.no-repro-decision` | Operator or mode-policy choice when evidence is uncertain. Compiled future routing intent: no runtime path produces it yet (see the no-repro note below) | `<run-folder>/reports/fix/no-repro-decision.json` |
 | `fix.regression-proof` | Pre-fix observation of the brief's regression command | `<run-folder>/reports/fix/regression-proof.json` |
 | `fix.baseline-snapshot` | Pre-fix-act git state with per-path content fingerprints | `<run-folder>/reports/fix/baseline-snapshot.json` |
 | `fix.change` | Focused change evidence | `<run-folder>/reports/fix/change.json` |
@@ -51,6 +51,15 @@ skips the review relay after verification; medium and high keep it.
 | `fix.change-set` | Post-fix git state diffed against baseline + declared changes | `<run-folder>/reports/fix/change-set.json` |
 | `fix.review` | Independent review result when the mode requires it | `<run-folder>/reports/fix/review.json` |
 | `fix.result` | Close summary | `<run-folder>/reports/fix-result.json` |
+
+The `fix.no-repro-decision` report and the Fix `handoff` step are compiled into
+the flow but no runtime path selects them today. They are reached only through
+`ask` and `handoff` recovery routes, and the engine does not yet emit a failure
+cause those routes' recovery bindings accept, so they remain declared future
+routing intent. When reasoning about a real run, treat `fix.no-repro-decision`
+and any `not-reproduced` result as not-yet-reachable.
+`tests/contracts/flow-schematic.test.ts` pins the schematic half of this: both
+steps stay off every default route.
 
 Fix role outputs live under `reports/fix/` so they do not collide with
 Explore, Review, or Build outputs. The flow-specific Fix result file is
@@ -90,8 +99,10 @@ agree: `verification_status` is `passed`, `regression_status` is `proved`,
 `regression_rerun_status` is `cleared` (the same command that proved the bug
 now exits 0), and `change_set_status` is `pass` (declared file list matches
 observed working-tree diff, no mid-run commit, no hidden index flags). A
-`not-reproduced` result must point at the human-decision report that records
-how the run chose to stop or continue.
+`not-reproduced` result would point at the human-decision report
+(`fix.no-repro-decision`) that records how the run chose to stop or continue;
+per the no-repro note above, that path is compiled future routing intent and no
+runtime path reaches it yet.
 
 `fix.baseline-snapshot@v1` captures a fingerprint per dirty path so the
 change-set step can detect when fix-act mutates a file that was already

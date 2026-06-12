@@ -11,7 +11,10 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '../..');
 const entryPoint = resolve(repoRoot, 'dist/cli/circuit.js');
 const versionManifestPath = resolve(repoRoot, 'plugins/version.json');
-const outputPaths = ['plugins/claude/runtime/circuit.js', 'plugins/codex/runtime/circuit.js'];
+export const RUNTIME_BUNDLE_OUTPUT_PATHS = [
+  'plugins/claude/runtime/circuit.js',
+  'plugins/codex/runtime/circuit.js',
+];
 
 // The bundled CLI resolves git-state.ts via `new URL('./git-state.ts',
 // import.meta.url)` from src/shared/git-state-command.ts, so the helper must
@@ -19,7 +22,7 @@ const outputPaths = ['plugins/claude/runtime/circuit.js', 'plugins/codex/runtime
 // tsconfig.build.json does not copy .ts assets, so we also mirror the helper
 // into dist/shared/ so source-tree CLI runs (used by npm test and by
 // `node dist/cli/circuit.js`) find it.
-const ASSET_SIDECARS: Array<{ src: string; outs: readonly string[] }> = [
+export const RUNTIME_BUNDLE_ASSET_SIDECARS: Array<{ src: string; outs: readonly string[] }> = [
   {
     src: 'src/shared/git-state.ts',
     outs: [
@@ -100,7 +103,7 @@ async function main(): Promise<void> {
   const bundle = await buildRuntimeBundle();
   let drifted = false;
 
-  for (const rel of outputPaths) {
+  for (const rel of RUNTIME_BUNDLE_OUTPUT_PATHS) {
     const outAbs = resolve(repoRoot, rel);
     if (checkMode) {
       let current: string | undefined;
@@ -122,7 +125,7 @@ async function main(): Promise<void> {
     }
   }
 
-  for (const sidecar of ASSET_SIDECARS) {
+  for (const sidecar of RUNTIME_BUNDLE_ASSET_SIDECARS) {
     const srcAbs = resolve(repoRoot, sidecar.src);
     const sourceBody = readFileSync(srcAbs, 'utf8');
     for (const rel of sidecar.outs) {

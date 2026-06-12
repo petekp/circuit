@@ -507,7 +507,7 @@ function writeInvalidCheckpointFolder(input: {
 }
 
 describe('Build checkpoint execution substrate', () => {
-  it('resolves standard depth through a declared safe default choice', async () => {
+  it('resolves medium depth through a declared safe default choice', async () => {
     const { flow, bytes } = checkpointCompiledFlow({ safeDefault: 'continue' });
     const runFolder = join(runFolderBase, 'safe-default');
 
@@ -564,7 +564,7 @@ describe('Build checkpoint execution substrate', () => {
     });
   });
 
-  it('leaves deep depth paused-open with no run.closed and no result report', async () => {
+  it('leaves high depth paused-open with no run.closed and no result report', async () => {
     const { flow, bytes } = checkpointCompiledFlow({ safeDefault: 'continue' });
     const runFolder = join(runFolderBase, 'waiting');
 

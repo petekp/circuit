@@ -397,9 +397,12 @@ are safe to change.
 
 Choose focused proof before the final check:
 
-- `tests/runner/flow-facts.test.ts` and
-  `tests/contracts/catalog-completeness.test.ts` for catalog and flow package
-  shape.
+- `tests/runner/flow-facts.test.ts`,
+  `tests/contracts/catalog-completeness.test.ts`, and
+  `tests/contracts/retired-flow-surface.test.ts` for catalog and flow package
+  shape. `flow-facts` and `retired-flow-surface` pin the flow roster against
+  the shared `tests/fixtures/retained-flow-ids.ts` list; update that one file
+  when the set of flows changes.
 - The flow's report-schema and runtime tests for behavior.
 - `npm run check-flow-drift` for schematic, manifest, command, skill, plugin,
   and generated source-map drift.

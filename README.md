@@ -92,9 +92,8 @@ npm run build
 ```
 
 The flow name is required: one of `build`, `fix`, `review`, `explore`,
-`prototype`, or `pursue`. Run the CLI from the checkout root; it loads compiled
-flows from `generated/flows` under the current working directory. Pass
-`--flow-root <path>` to run from somewhere else.
+`prototype`, or `pursue`. Run the CLI from the checkout root; the operator guide
+covers running from another directory with `--flow-root`.
 
 Circuit requires Node.js `22.18.0` or newer.
 For a more careful manual check, use [`docs/first-run.md`](docs/first-run.md).
@@ -102,21 +101,9 @@ For the repo map, use [`docs/repository-map.md`](docs/repository-map.md).
 
 ## Start From An Intent
 
-Use `/circuit:run` as the normal front door:
-
-| Host | You type | What happens |
-| --- | --- | --- |
-| Claude Code | `/circuit:run the checkout total is wrong when discounts and tax both apply` | The host may recommend a flow; Circuit records the selected flow when the run starts. |
-| Codex | `/circuit:run the checkout total is wrong when discounts and tax both apply` | Codex may recommend a flow; Circuit records the selected flow when the run starts. |
-| CLI | `./bin/circuit run fix --goal "the checkout total is wrong when discounts and tax both apply"` | You name the flow; Circuit records it when the run starts. |
-
-The host plugin package model currently exposes file-backed commands as
-`/circuit:<command>`. `/circuit:run` is the default slash command for a single
-task; `/circuit:pursue` coordinates several related goals as one tracked run.
-A root `/circuit` alias is not shipped until the hosts support that shape. On
-the CLI, `./bin/circuit run <flow> --goal "<task>"` is the only invocation
-shape: there is no CLI classifier, so the operator (or the host model) names
-the flow and Circuit records it.
+`/circuit:run` is the normal front door on every host. See
+[`docs/operator-guide.md`](docs/operator-guide.md#front-doors) for the per-host
+table, the CLI flow-name rule, and the host-alias status.
 
 Handoff stays available as a visible continuity utility for saving, resuming,
 clearing, briefing, or installing continuity support. The CLI also has an

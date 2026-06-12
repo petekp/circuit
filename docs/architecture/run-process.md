@@ -111,8 +111,6 @@ When the positional flow is present, the route is:
 
 When the positional flow is absent, the CLI rejects the run with a clear error
 (`a flow name is required: pass one of build|fix|review|explore|prototype|pursue`).
-Routing is model-only: the host or operator names the flow, and the CLI never
-classifies goal text.
 
 Public flows are Build, Explore, Fix, Prototype, Pursue, and Review. Goal and
 runtime-proof are internal and are not offered as selectable flows.
@@ -145,11 +143,11 @@ The entry mode is a display and fixture-selection name derived from axes:
 There are two related names:
 
 - `axisSelectionNameForAxes` prefers autonomous before tournament.
-- `fixtureSelectionNameForAxes` prefers tournament before autonomous.
+- `compiledFlowSelectionNameForAxes` prefers tournament before autonomous.
 
 That means a combined autonomous+tournament axes object is displayed as
-`autonomous`, but fixture lookup first tries the tournament fixture. This is
-current behavior and should be treated carefully if the axes are redesigned.
+`autonomous`, but the compiled-flow lookup first tries the tournament file. This
+is current behavior and should be treated carefully if the axes are redesigned.
 
 Runtime depth is the normalized depth label passed into the runtime:
 
@@ -173,20 +171,10 @@ Evidence:
 ### 5. Axis Support Validation
 
 After loading the compiled flow, Run validates the selected axes against that
-flow's allow-list. Unsupported combinations fail before runtime execution.
-
-Current generated flow support:
-
-| Flow | Allowed depths | Tournament | Autonomous | Default axes |
-| --- | --- | --- | --- | --- |
-| build | low, medium, high | no | yes | medium, no tournament, no autonomous |
-| explore | low, medium, high | yes | yes | medium, no tournament, no autonomous |
-| fix | low, medium, high | no | yes | medium, no tournament, no autonomous |
-| goal | low, medium, high | no | yes | medium, no tournament, no autonomous |
-| prototype | medium, high | yes | yes | medium, no tournament, no autonomous |
-| pursue | medium | no | yes | medium, no tournament, no autonomous |
-| review | medium | no | no | medium, no tournament, no autonomous |
-| runtime-proof | medium | no | no | medium, no tournament, no autonomous |
+flow's allow-list. Unsupported combinations fail before runtime execution. Each
+flow's allow-list is owned by its `schematic.axes` in the catalog; per-flow
+support is stated in that flow's contract under `docs/contracts/` and pinned
+against the catalog by `tests/contracts/doc-axis-claims.test.ts`.
 
 The public host surface routes only public flows. Internal flows can exist in a
 source checkout for explicit development use, but an internal flow missing from

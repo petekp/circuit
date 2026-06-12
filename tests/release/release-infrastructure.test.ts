@@ -14,6 +14,7 @@ import {
 import { FixResult } from '../../src/flows/fix/reports.js';
 import { ReviewResult } from '../../src/flows/review/reports.js';
 import {
+  FLOW_CATALOG_CLAIM_ID,
   compareParity,
   releaseBlockers,
   validateProofCoverage,
@@ -395,6 +396,87 @@ describe('release truth infrastructure', () => {
     expect(result.issues).toEqual([
       'claim CLAIM-BOGUS-SCRIPT references unavailable script check: definitely-not-a-real-check --check',
     ]);
+  });
+
+  it('flow-catalog claim enumerates the catalog completely (real ledger is in sync)', () => {
+    const current = CurrentCapabilitySnapshot.parse(
+      jsonFile('generated/release/current-capabilities.json'),
+    );
+    const proofs = ProofScenarioIndex.parse(yamlFile('docs/release/proofs/index.yaml'));
+    const exceptions = ParityExceptionLedger.parse(yamlFile('docs/release/parity/exceptions.yaml'));
+    const claims = PublicClaimLedger.parse(yamlFile('docs/release/claims/public-claims.yaml'));
+
+    // The gate can only protect what the ledger still contains: fail loudly if
+    // the completeness claim itself is ever deleted.
+    expect(claims.claims.some((claim) => claim.id === FLOW_CATALOG_CLAIM_ID)).toBe(true);
+
+    const result = validatePublicClaims({
+      claims,
+      current,
+      proofs,
+      exceptions,
+      pathExists: exists,
+    });
+    expect(result.issues.filter((issue) => issue.includes(FLOW_CATALOG_CLAIM_ID))).toEqual([]);
+  });
+
+  it('flow-catalog completeness gate fails when the catalog grows past the claim', () => {
+    const current = CurrentCapabilitySnapshot.parse(
+      jsonFile('generated/release/current-capabilities.json'),
+    );
+    const proofs = ProofScenarioIndex.parse(yamlFile('docs/release/proofs/index.yaml'));
+    const exceptions = ParityExceptionLedger.parse(yamlFile('docs/release/parity/exceptions.yaml'));
+    const claims = PublicClaimLedger.parse(yamlFile('docs/release/claims/public-claims.yaml'));
+
+    // Add a new public flow to the catalog without touching the claim.
+    const realFlow = current.capabilities.find((capability) => capability.id === 'flow:review');
+    expect(realFlow).toBeDefined();
+    const phantom = {
+      ...structuredClone(realFlow as typeof realFlow & object),
+      id: 'flow:phantom',
+    };
+    const grown = { ...current, capabilities: [...current.capabilities, phantom] };
+
+    const result = validatePublicClaims({
+      claims,
+      current: grown,
+      proofs,
+      exceptions,
+      pathExists: exists,
+    });
+    expect(result.issues).toContain(
+      `claim ${FLOW_CATALOG_CLAIM_ID} omits catalog flow capability: flow:phantom`,
+    );
+  });
+
+  it('flow-catalog completeness gate fails when the claim drops a catalog flow', () => {
+    const current = CurrentCapabilitySnapshot.parse(
+      jsonFile('generated/release/current-capabilities.json'),
+    );
+    const proofs = ProofScenarioIndex.parse(yamlFile('docs/release/proofs/index.yaml'));
+    const exceptions = ParityExceptionLedger.parse(yamlFile('docs/release/parity/exceptions.yaml'));
+    const claims = PublicClaimLedger.parse(yamlFile('docs/release/claims/public-claims.yaml'));
+
+    // Drop a flow the catalog still ships from the claim's capability set.
+    const mutated = structuredClone(claims);
+    const claim = mutated.claims.find((entry) => entry.id === FLOW_CATALOG_CLAIM_ID);
+    expect(claim).toBeDefined();
+    if (claim !== undefined) {
+      claim.backing.capability_ids = claim.backing.capability_ids.filter(
+        (id) => id !== 'flow:review',
+      );
+    }
+
+    const result = validatePublicClaims({
+      claims: mutated,
+      current,
+      proofs,
+      exceptions,
+      pathExists: exists,
+    });
+    expect(result.issues).toContain(
+      `claim ${FLOW_CATALOG_CLAIM_ID} omits catalog flow capability: flow:review`,
+    );
   });
 
   it('proof coverage is complete as a tracked blocker set', () => {

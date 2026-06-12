@@ -52,14 +52,11 @@ the resolved depth is recorded as `resolved_axes` in the run output. For Fix,
 the plan in a single pass; high additionally iterates the plan's slices one at
 a time, implementing and verifying each slice before advancing to review.
 
-Power (`--power`) tunes how much model each worker run gets. The dial never
-names models: per-connector tier tables translate low, medium, or high into a
-concrete model or reasoning effort at selection time, and a research step stays
-on the big tier at every dial position. The default is medium. Explicit model
-config always wins over the dial, and a worker retry automatically runs one
-tier up. The flag wins over a `defaults.power` entry in config; see the
-selection contract for the tier tables and role allocation. The end-of-run
-receipt line reports the dial position and any escalations. Prototype tournament
+Power (`--power`) tunes how much model each worker run gets without naming
+models; the default is `medium`. The selection contract
+([`docs/contracts/selection.md`](contracts/selection.md#power-dial-materialization-post-stack))
+owns how the dial maps to roles, escalates on retry, and reads on the end-of-run
+receipt. Prototype tournament
 mode (`--tournament`) additionally requires `circuits.prototype.variant_models`
 in your Circuit config and fails before the run starts when it is absent, naming
 the missing config as the stop reason. See
@@ -174,9 +171,9 @@ checks before public claims:
 | `npm run check` | TypeScript with `tsc --noEmit`. |
 | `npm run lint` | Biome. |
 | `npm run test` | Full Vitest suite. |
-| `npm run test:fast` | Vitest without the two slow subprocess-driven outliers (CLI router integration and emit-flows drift). |
+| `npm run test:fast` | Vitest excluding the slowest subprocess-driven outliers, for faster iteration. |
 | `npm run build` | Production TypeScript build. |
-| `npm run verify:fast` | Check, lint, build, fast tests, eval checks, ideas-catalog check, YAML schema drift, flow drift, and plugin runtime drift. |
+| `npm run verify:fast` | A faster broad pass for iteration: the lint, type, build, test, and drift gates run with `test:fast` instead of the full suite and without the release-infra check. See `package.json` (`verify:fast`) for the exact command list. |
 | `npm run verify` | The full canonical check that CI enforces. |
 | `npm run check-release-ready` | Strict release readiness check. |
 | `npm run publish:plugins:check` | Plugin packaging and version alignment check. |

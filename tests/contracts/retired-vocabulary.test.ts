@@ -79,6 +79,20 @@ const RETIRED_TOKENS: RetiredToken[] = [
     ulHeading: 'Runtime Language',
     addedBy: 'run-status engine_state contract (run-status-v1)',
   },
+  // Compiled-flow loader rename: the production loader src/cli/flow-fixtures.ts
+  // (resolveFixturePath / loadFixture / fixtureSelectionNameForAxes) became
+  // src/cli/compiled-flow-loading.ts because it loads the product-facing
+  // generated flow, not a test input. "Fixture" stays valid for test inputs and
+  // the `--fixture` override flag, so only the retired module path and its two
+  // uniquely-named exports are banned in docs (the bare `loadFixture` name is a
+  // common test-helper and is intentionally not matched).
+  {
+    pattern: /\bflow-fixtures(?:\.[jt]s)?\b|\bresolveFixturePath\b|\bfixtureSelectionNameForAxes\b/,
+    replacement:
+      'src/cli/compiled-flow-loading.ts (resolveCompiledFlowPath / compiledFlowSelectionNameForAxes / loadCompiledFlow)',
+    ulHeading: 'Flagged Ambiguities',
+    addedBy: 'compiled-flow loader rename (fixture → compiled flow)',
+  },
 ];
 
 function escapeRegExp(value: string): string {
@@ -173,6 +187,7 @@ describe('retired-vocabulary calibration (false-positive regression net)', () =>
       [2, 'pass --depth lite for the quick loop'],
       [3, 'the dial accepts lite|standard|deep'],
       [4, 'engine_state: "checkpoint_waiting"'],
+      [5, 'see resolveFixturePath in src/cli/flow-fixtures.ts'],
     ];
     const coveredRows = new Set(positives.map(([index]) => index));
     expect([...coveredRows].sort((a, b) => a - b)).toEqual(RETIRED_TOKENS.map((_, index) => index));
