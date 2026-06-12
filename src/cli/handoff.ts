@@ -63,6 +63,7 @@ interface HandoffArgs {
   readonly createdAt?: string;
   readonly transcriptPath?: string;
   readonly sessionId?: string;
+  readonly sessionSource?: string;
   readonly source?: string;
   readonly clearAmbient: boolean;
   readonly progress: boolean;
@@ -89,6 +90,7 @@ type HandoffCommanderOptions = {
   createdAt?: string;
   transcriptPath?: string;
   sessionId?: string;
+  sessionSource?: string;
   source?: string;
   clearAmbient?: boolean;
   progress?: string;
@@ -111,6 +113,7 @@ function addHandoffOptions(program: Command): Command {
     .option('--created-at <iso>')
     .option('--transcript-path <path>')
     .option('--session-id <id>')
+    .option('--session-source <startup|resume|clear|compact>')
     .option('--source <stop|session-end|pre-compact>')
     .option('--clear-ambient')
     .option('--progress <format>')
@@ -187,6 +190,7 @@ function parseArgs(argv: readonly string[]): HandoffArgs {
     ...(opts.createdAt === undefined ? {} : { createdAt: opts.createdAt }),
     ...(opts.transcriptPath === undefined ? {} : { transcriptPath: opts.transcriptPath }),
     ...(opts.sessionId === undefined ? {} : { sessionId: opts.sessionId }),
+    ...(opts.sessionSource === undefined ? {} : { sessionSource: opts.sessionSource }),
     ...(opts.source === undefined ? {} : { source: opts.source }),
   };
 }
@@ -225,6 +229,19 @@ function sourceFromHookInput(input: unknown): string | undefined {
     typeof (input as { source?: unknown }).source === 'string'
   ) {
     return (input as { source: string }).source;
+  }
+  return undefined;
+}
+
+function sessionIdFromHookInput(input: unknown): string | undefined {
+  if (
+    typeof input === 'object' &&
+    input !== null &&
+    'session_id' in input &&
+    typeof (input as { session_id?: unknown }).session_id === 'string' &&
+    (input as { session_id: string }).session_id.length > 0
+  ) {
+    return (input as { session_id: string }).session_id;
   }
   return undefined;
 }
@@ -277,9 +294,10 @@ function runHandoffHook(args: HandoffArgs, now: () => Date = () => new Date()): 
 
   let projectRoot = args.projectRoot;
   let source = args.source;
+  let sessionId = args.sessionId;
   // Read the hook input only when projectRoot was not passed explicitly (the
-  // installed Codex path relies on stdin for cwd). The source rides along on
-  // that same payload so we never read fd 0 twice.
+  // installed Codex path relies on stdin for cwd). The source and session id
+  // ride along on that same payload so we never read fd 0 twice.
   if (projectRoot === undefined) {
     let input: unknown;
     try {
@@ -290,6 +308,7 @@ function runHandoffHook(args: HandoffArgs, now: () => Date = () => new Date()): 
     }
     projectRoot = projectRootFromHookInput(input);
     source = source ?? sourceFromHookInput(input);
+    sessionId = sessionId ?? sessionIdFromHookInput(input);
   }
 
   if (projectRoot === undefined || projectRoot.length === 0) {
@@ -305,7 +324,17 @@ function runHandoffHook(args: HandoffArgs, now: () => Date = () => new Date()): 
   }
 
   try {
-    const brief = handoffBrief({ projectRoot }, now) as {
+    // Session-scoped ambient resolution: the session's own record outranks
+    // the repo-wide pointer, and a continuing session never receives another
+    // session's intent (see resolveAmbientBrief in app/continuity/brief.ts).
+    const brief = handoffBrief(
+      {
+        projectRoot,
+        ...(sessionId === undefined ? {} : { sessionId }),
+        ...(source === undefined ? {} : { sessionSource: source }),
+      },
+      now,
+    ) as {
       status?: string;
       additional_context?: unknown;
       error?: { code?: string };

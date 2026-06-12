@@ -170,7 +170,3 @@ metacharacters:
 8. **If `outcome === "aborted"`, read `reports/result.json` at
    `result_path` to surface the abort `reason`.**
 
-## Authority
-
-- `src/cli/run.ts` `resolveCompiledFlowRoute` (explicit-flow requirement; routing is model-only)
-- `tests/runner/cli-router.test.ts` (explicit flow routing and the no-flow rejection)

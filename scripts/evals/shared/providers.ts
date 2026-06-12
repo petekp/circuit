@@ -130,9 +130,17 @@ export function createProviderWrapper(
   throw new Error(`unsupported provider '${provider}'`);
 }
 
-export function vanillaClaudeArgs(prompt: string): string[] {
+// jsonEnvelope wraps stdout in the CLI's `--output-format json` result object
+// (final text under `result`, token/cost usage alongside). Opt-in because the
+// circuit-vs-vanilla harness treats vanilla stdout as the final answer text
+// and must keep the plain format; the fix harness opts in and unwraps.
+export function vanillaClaudeArgs(
+  prompt: string,
+  { jsonEnvelope = false }: { jsonEnvelope?: boolean } = {},
+): string[] {
   return [
     '-p',
+    ...(jsonEnvelope ? ['--output-format', 'json'] : []),
     '--permission-mode',
     'bypassPermissions',
     '--strict-mcp-config',

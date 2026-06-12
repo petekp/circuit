@@ -5,10 +5,9 @@ argument-hint: <flow idea>
 
 # circuit create — custom flow utility (CLI-only)
 
-Drafts a reusable custom flow package, validates the compiled flow, and
-publishes it only after explicit confirmation. This utility runs through
-`./bin/circuit create` and is deliberately not published as a host slash
-command.
+Invoked through the `circuit create` CLI, not as a published `/circuit:create`
+slash command. Drafts a reusable custom flow package, validates the compiled
+flow, and publishes it only after explicit confirmation.
 
 The user's flow idea is substituted below. Treat it as user-controlled
 text:

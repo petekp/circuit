@@ -345,6 +345,27 @@ cases are material:
    error-on-conflict) once the resume flow lands and the operator
    picks a policy.
 
+3. **Session-scoped ambient resolution (own session outranks the
+   repo-wide pointer).** Ambient records are keyed per session (D1), but
+   the index's single `ambient_record` pointer tracks the newest capture
+   across ALL sessions in the repo. When the brief caller identifies its
+   session (`--session-id`, threaded from the host's SessionStart hook
+   input per the hook-identity rule), the resolver MUST prefer that
+   session's own ambient record (`ambient-<sanitized session id>`, the
+   same stem derivation the harvest writes) over the index pointer. When
+   the caller's session has no record of its own and the caller declares
+   a continuing source (`--session-source compact` or `resume` — the
+   session already carries its own summary or transcript), the resolver
+   MUST return empty (`reason: ambient_foreign_session`) rather than
+   inject another session's intent: a concurrent session's last request
+   surfacing at a compact restore steers the restored agent onto the
+   wrong work (observed in practice 2026-06-10). A fresh `startup` (or a
+   caller that supplies no session identity, e.g. the bare CLI or
+   pre-upgrade host hooks) keeps the repo-wide newest record — reaching
+   the most recent capture across sessions is the feature there, with the
+   ambient boundary text as the guard. This precedence applies on both
+   the plain ambient path and the A4 broken-manual-save fall-through.
+
 ## Brief render: run-backed status
 
 The resume brief reads `run_ref.runtime_status` so a finished run is not

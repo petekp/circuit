@@ -457,13 +457,21 @@ function sanitizeStemPart(raw: string | undefined): string | undefined {
   return cleaned.length === 0 ? undefined : cleaned;
 }
 
+/** The per-session ambient record stem for a host session id, shared by the
+ * harvest writer and the brief resolver so both sides derive the same record
+ * from the same raw id. Undefined when sanitizing leaves nothing usable. */
+export function ambientStemForSessionId(sessionId: string): string | undefined {
+  const part = sanitizeStemPart(sessionId);
+  return part === undefined ? undefined : `ambient-${part}`;
+}
+
 /** Derive the per-session ambient record stem. Prefers the host session id,
  * falls back to the transcript filename (also unique per session), and finally
  * to the legacy single-record stem so a host that supplies neither still
  * harvests. */
 function deriveAmbientStem(sessionId: string | undefined, transcriptPath: string): string {
-  const fromSession = sanitizeStemPart(sessionId);
-  if (fromSession !== undefined) return `ambient-${fromSession}`;
+  const fromSession = sessionId === undefined ? undefined : ambientStemForSessionId(sessionId);
+  if (fromSession !== undefined) return fromSession;
   const base = basename(transcriptPath).replace(/\.jsonl$/i, '');
   const fromTranscript = sanitizeStemPart(base);
   if (fromTranscript !== undefined) return `ambient-${fromTranscript}`;

@@ -454,6 +454,9 @@ export async function executeProductionRelayAttempt(input: {
   readonly validateAcceptedResult?: (
     input: ProductionRelayAttemptValidationInput,
   ) => ProductionRelayAttemptValidationResult;
+  // Fanout branches only: the branch's own assignment, rendered as a
+  // labeled prompt segment (see composeRelayPrompt).
+  readonly branchGoal?: string;
 }): Promise<ProductionRelayAttemptResult> {
   const { step, compiledStep, context } = input;
   const flow = context.packageIndex.flow;
@@ -485,6 +488,7 @@ export async function executeProductionRelayAttempt(input: {
     relayExecution.role === 'researcher' &&
       context.powerInference?.get() === undefined &&
       resolvePowerDialSetting(context.selectionConfigLayers ?? []).kind === 'auto',
+    input.branchGoal,
   );
 
   const request = step.writes?.request;
@@ -694,6 +698,9 @@ export async function executeProductionRelayAttempt(input: {
     duration_ms: durationMs,
     result_path: result.path,
     receipt_path: receipt.path,
+    // Token/cost observability. Readers join role + model from the
+    // relay.started entry on the same (step_id, attempt).
+    ...(relayResult.usage === undefined ? {} : { usage: relayResult.usage }),
   });
   const resultVerdictEvaluation = failureKind === 'acceptance' ? checkEvaluation : evaluation;
   // Slice loop: tag the relay's checks so per-slice attempts stay attributable

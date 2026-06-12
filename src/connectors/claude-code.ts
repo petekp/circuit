@@ -3,7 +3,9 @@ import type { Effort } from '../schemas/selection-policy.js';
 import type { ResolvedSelection } from '../schemas/selection-policy.js';
 import {
   type ConnectorRelayInput,
+  type RelayModelUsage,
   type RelayResult,
+  type RelayUsage,
   sha256Hex,
 } from '../shared/connector-relay.js';
 import { extractJsonObject } from '../shared/json-extraction.js';
@@ -327,11 +329,84 @@ export function parseClaudeCodeStdout(
     // unchanged.
     result_body = extractJsonObject(result_body_raw);
   }
+  const usage = extractRelayUsage(resultTraceEntry);
   return {
     request_payload: prompt,
     receipt_id,
     result_body,
     duration_ms,
     cli_version,
+    ...(usage === undefined ? {} : { usage }),
   };
+}
+
+// Token/cost extraction from the terminal result event. Tolerant by design:
+// any missing or odd-shaped field returns undefined instead of throwing,
+// because usage is observability and a CLI that stops emitting it must not
+// fail relays. The per-model `modelUsage` map is the true token total (the
+// top-level `usage` block covers the main loop only); the top-level block is
+// still read because it alone carries the cache-write TTL split.
+function extractRelayUsage(resultTraceEntry: Record<string, unknown>): RelayUsage | undefined {
+  const usage = resultTraceEntry.usage;
+  const modelUsage = resultTraceEntry.modelUsage;
+  const hasUsage = usage !== null && typeof usage === 'object';
+  const hasModelUsage = modelUsage !== null && typeof modelUsage === 'object';
+  if (!hasUsage && !hasModelUsage) return undefined;
+  const u = (hasUsage ? usage : {}) as Record<string, unknown>;
+  const cacheCreation = (u.cache_creation ?? {}) as Record<string, unknown>;
+
+  const models: RelayModelUsage[] = [];
+  if (hasModelUsage) {
+    for (const [model, raw] of Object.entries(modelUsage as Record<string, unknown>)) {
+      if (raw === null || typeof raw !== 'object') continue;
+      const m = raw as Record<string, unknown>;
+      const costUsd = finiteOrUndefined(m.costUSD);
+      models.push({
+        // The trace schema requires a non-empty model id, and a schema
+        // rejection at trace append would fail the relay. An empty
+        // modelUsage key becomes "unknown" so this stays observability.
+        model: model.length === 0 ? 'unknown' : model,
+        input_tokens: finiteOrZero(m.inputTokens),
+        output_tokens: finiteOrZero(m.outputTokens),
+        cache_read_tokens: finiteOrZero(m.cacheReadInputTokens),
+        cache_creation_tokens: finiteOrZero(m.cacheCreationInputTokens),
+        ...(costUsd === undefined ? {} : { cost_usd_reported: costUsd }),
+      });
+    }
+  }
+
+  const totalCostUsd = finiteOrUndefined(resultTraceEntry.total_cost_usd);
+  const totals =
+    models.length > 0
+      ? {
+          input_tokens: sumBy(models, (m) => m.input_tokens),
+          output_tokens: sumBy(models, (m) => m.output_tokens),
+          cache_read_tokens: sumBy(models, (m) => m.cache_read_tokens),
+          cache_creation_tokens: sumBy(models, (m) => m.cache_creation_tokens),
+        }
+      : {
+          input_tokens: finiteOrZero(u.input_tokens),
+          output_tokens: finiteOrZero(u.output_tokens),
+          cache_read_tokens: finiteOrZero(u.cache_read_input_tokens),
+          cache_creation_tokens: finiteOrZero(u.cache_creation_input_tokens),
+        };
+  return {
+    ...totals,
+    cache_creation_5m_tokens: finiteOrZero(cacheCreation.ephemeral_5m_input_tokens),
+    cache_creation_1h_tokens: finiteOrZero(cacheCreation.ephemeral_1h_input_tokens),
+    ...(totalCostUsd === undefined ? {} : { total_cost_usd_reported: totalCostUsd }),
+    ...(models.length === 0 ? {} : { models }),
+  };
+}
+
+function finiteOrZero(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function finiteOrUndefined(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function sumBy<T>(items: readonly T[], pick: (item: T) => number): number {
+  return items.reduce((sum, item) => sum + pick(item), 0);
 }

@@ -72,8 +72,3 @@ metacharacters:
    or JSONL after Bash.
    Use non-`present` wrapper mode only for debug, tests, or explicit raw
    machine-readable output.
-## Authority
-
-- `src/flows/pursue/data.ts` (flow package; visibility and command ownership)
-- `docs/flows/pursue.md` (flow shape and serial-only safety model)
-- `tests/runner/cli-router.test.ts` (explicit flow routing)

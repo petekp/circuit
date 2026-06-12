@@ -1,3 +1,13 @@
+// Prototype flow relay shape hints.
+//
+// These skeletons stay hand-written rather than rendered from Zod via
+// `renderShapeSkeleton` (as goal/build/fix do): the renderer cannot
+// reproduce the illustrative claim_limits defaults ("not production", "not
+// deployed") or the explicit eight-key rubric_model_judgments enumeration
+// (its record type collapses to "<key>"), so a mechanical conversion would
+// regress guidance. Convert these only after those fields carry the describes
+// the renderer needs.
+
 import type { SchemaShapeHint } from '../registries/shape-hints/types.js';
 
 export const prototypeArtifactShapeHint: SchemaShapeHint = {

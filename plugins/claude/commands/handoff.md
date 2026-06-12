@@ -19,10 +19,14 @@ text:
 
 ## Instructions
 
-1. **Choose the mode.** If the request is exactly `resume`, use resume mode.
-   If it is exactly `done`, use done mode. If it starts with `hooks`, pass the
-   hook command through to the CLI. Otherwise save a new continuity record from
-   the current conversation.
+1. **Choose the mode by intent.** Decide from what the operator is asking for,
+   using these keywords as the canonical signals rather than requiring an exact
+   match. A request to restore earlier context — `resume`, or phrasing like
+   "resume where I left off" or "resume the auth work" — is resume mode. A
+   request signalling the task is finished — `done`, or "mark this done" — is
+   done mode. A request that starts with `hooks` is hook setup mode (pass it
+   through to the CLI). Anything else, including a description of work to record,
+   saves a new continuity record from the current conversation.
 2. **Construct Bash invocations SAFELY.** Wrap every user-authored value in
    single quotes. If a value contains a literal single quote (`'`), replace it
    with `'\''`.
@@ -90,8 +94,3 @@ Circuit's plugin hooks call these for you; do not invoke them by hand.
   snapshot.
 - `hook` is the single Codex hook entry point installed by `hooks install`.
 
-## Authority
-
-- `src/cli/handoff.ts`
-- `src/schemas/continuity.ts`
-- `docs/contracts/continuity.md`

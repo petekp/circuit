@@ -1920,3 +1920,191 @@ describe('circuit handoff done ambient semantics (E1)', () => {
     expect(ambientRecordFiles(projectRoot).length).toBeGreaterThan(0);
   });
 });
+
+// The incident this block pins: two sessions run in one repo; session A
+// compacts and restarts; the SessionStart brief renders session B's newer
+// capture as "Latest request", steering A's restored agent onto B's work.
+// The fix: when the brief knows which session it is briefing, that session's
+// own ambient record outranks the repo-wide newest pointer; a continuing
+// session (compact/resume) with no record of its own gets NO ambient brief
+// rather than a foreign session's intent. A fresh startup keeps the
+// repo-wide newest record — that cross-session reach is the feature.
+describe('handoff brief session scoping (own session outranks the repo-wide pointer)', () => {
+  async function harvestSession(
+    projectRoot: string,
+    sessionId: string,
+    intent: string,
+    createdAt: string,
+  ): Promise<void> {
+    const transcript = join(projectRoot, `${sessionId.replace(/[^a-zA-Z0-9]/g, '_')}.jsonl`);
+    writeFileSync(transcript, jsonl([userString(intent)]));
+    const harvest = await captureMain(
+      [
+        'handoff',
+        'harvest',
+        '--transcript-path',
+        transcript,
+        '--project-root',
+        projectRoot,
+        '--session-id',
+        sessionId,
+        '--source',
+        'stop',
+        '--created-at',
+        createdAt,
+      ],
+      { now: NOW },
+    );
+    expect(harvest.code, harvest.stderr).toBe(0);
+  }
+
+  async function briefFor(
+    projectRoot: string,
+    extraArgs: readonly string[],
+  ): Promise<{ code: number; stdout: string; stderr: string }> {
+    return captureMain(
+      ['handoff', 'brief', '--json', '--project-root', projectRoot, ...extraArgs],
+      { now: NOW },
+    );
+  }
+
+  async function twoSessionRepo(prefix: string): Promise<string> {
+    const projectRoot = tempRoot(prefix);
+    await harvestSession(
+      projectRoot,
+      'session-a',
+      'session A: proceed with the power dial',
+      '2026-06-06T10:00:00.000Z',
+    );
+    await harvestSession(
+      projectRoot,
+      'session-b',
+      'session B: evaluate the state of evals',
+      '2026-06-06T11:00:00.000Z',
+    );
+    // The repo-wide pointer tracks the newest capture (session B).
+    expect(readIndex(projectRoot).ambient_record?.record_id).toBe('ambient-session-b');
+    return projectRoot;
+  }
+
+  it("prefers the calling session's own ambient record over a newer foreign one", async () => {
+    const projectRoot = await twoSessionRepo('circuit-brief-own-session-');
+
+    const brief = await briefFor(projectRoot, ['--session-id', 'session-a']);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      status: string;
+      record_id: string;
+      additional_context: string;
+    };
+    expect(output.status).toBe('available');
+    expect(output.record_id).toBe('ambient-session-a');
+    expect(output.additional_context).toContain('session A: proceed with the power dial');
+    expect(output.additional_context).not.toContain('session B: evaluate the state of evals');
+  });
+
+  it('matches the harvest stem derivation for session ids that need sanitizing', async () => {
+    const projectRoot = tempRoot('circuit-brief-sanitized-session-');
+    await harvestSession(
+      projectRoot,
+      'Dead BEEF',
+      'sanitized session request',
+      '2026-06-06T10:00:00.000Z',
+    );
+    await harvestSession(projectRoot, 'other', 'other session request', '2026-06-06T11:00:00.000Z');
+
+    const brief = await briefFor(projectRoot, ['--session-id', 'Dead BEEF']);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { status: string; record_id: string };
+    expect(output.status).toBe('available');
+    expect(output.record_id).toBe('ambient-dead-beef');
+  });
+
+  it('suppresses a foreign ambient record on compact restore', async () => {
+    const projectRoot = await twoSessionRepo('circuit-brief-compact-suppress-');
+
+    const brief = await briefFor(projectRoot, [
+      '--session-id',
+      'session-c-no-record',
+      '--session-source',
+      'compact',
+    ]);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { status: string; reason?: string };
+    expect(output.status).toBe('empty');
+    expect(output.reason).toBe('ambient_foreign_session');
+  });
+
+  it('suppresses a foreign ambient record on resume', async () => {
+    const projectRoot = await twoSessionRepo('circuit-brief-resume-suppress-');
+
+    const brief = await briefFor(projectRoot, [
+      '--session-id',
+      'session-c-no-record',
+      '--session-source',
+      'resume',
+    ]);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { status: string; reason?: string };
+    expect(output.status).toBe('empty');
+    expect(output.reason).toBe('ambient_foreign_session');
+  });
+
+  it('falls back to the newest record on startup when the session has none of its own', async () => {
+    const projectRoot = await twoSessionRepo('circuit-brief-startup-fallback-');
+
+    const brief = await briefFor(projectRoot, [
+      '--session-id',
+      'session-c-no-record',
+      '--session-source',
+      'startup',
+    ]);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { status: string; record_id: string };
+    expect(output.status).toBe('available');
+    expect(output.record_id).toBe('ambient-session-b');
+  });
+
+  it('keeps the newest-record behavior when no session id is given', async () => {
+    const projectRoot = await twoSessionRepo('circuit-brief-no-session-id-');
+
+    const brief = await briefFor(projectRoot, []);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { status: string; record_id: string };
+    expect(output.status).toBe('available');
+    expect(output.record_id).toBe('ambient-session-b');
+  });
+
+  it("manual pending record still outranks the session's own ambient record", async () => {
+    const projectRoot = await twoSessionRepo('circuit-brief-manual-outranks-');
+    await saveManual(projectRoot, 'Manual goal wins over session scoping');
+
+    const brief = await briefFor(projectRoot, ['--session-id', 'session-a']);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as { status: string; source: string };
+    expect(output.status).toBe('available');
+    expect(output.source).toBe('pending_record');
+  });
+
+  it("falls through a broken manual save to the calling session's own record, not the newest", async () => {
+    const projectRoot = await twoSessionRepo('circuit-brief-a4-own-session-');
+    await saveManual(projectRoot, 'Manual goal that will break');
+    rmSync(
+      join(
+        projectRoot,
+        '.circuit/continuity/records/continuity-abababab-abab-4bab-8bab-abababababab.json',
+      ),
+    );
+
+    const brief = await briefFor(projectRoot, ['--session-id', 'session-a']);
+    expect(brief.code, brief.stderr).toBe(0);
+    const output = JSON.parse(brief.stdout) as {
+      status: string;
+      record_id: string;
+      recovered_from?: { code: string };
+    };
+    expect(output.status).toBe('available');
+    expect(output.record_id).toBe('ambient-session-a');
+    expect(output.recovered_from?.code).toBe('record_missing');
+  });
+});

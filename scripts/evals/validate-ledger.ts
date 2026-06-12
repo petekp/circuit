@@ -15,6 +15,55 @@ import { validateLedgerEntry } from './shared/ledger.ts';
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
 const LEDGER_ROOT = resolve(REPO_ROOT, 'evals/ledger');
 
+// A price table is committed and feeds cost_usd_computed, so a malformed one
+// would silently corrupt every computed dollar figure downstream. Shape:
+// dated filename, matching as_of, and a models map of five finite
+// non-negative per-MTok rates.
+const PRICE_RATE_KEYS = ['input', 'cache_write_5m', 'cache_write_1h', 'cache_read', 'output'];
+
+function validatePriceTables(pricesDir: string): string[] {
+  const problems: string[] = [];
+  for (const file of readdirSync(pricesDir)) {
+    const rel = `evals/ledger/prices/${file}`;
+    if (!/^\d{4}-\d{2}-\d{2}\.json$/.test(file)) {
+      problems.push(`${rel}: price tables must be named <YYYY-MM-DD>.json`);
+      continue;
+    }
+    let table: unknown;
+    try {
+      table = readJson(resolve(pricesDir, file));
+    } catch (error) {
+      problems.push(`${rel}: unreadable JSON (${error instanceof Error ? error.message : error})`);
+      continue;
+    }
+    if (typeof table !== 'object' || table === null) {
+      problems.push(`${rel}: not an object`);
+      continue;
+    }
+    const t = table as Record<string, unknown>;
+    if (t.as_of !== file.replace(/\.json$/, '')) {
+      problems.push(`${rel}: as_of must match the filename date`);
+    }
+    if (typeof t.models !== 'object' || t.models === null) {
+      problems.push(`${rel}: models map is required`);
+      continue;
+    }
+    for (const [model, rates] of Object.entries(t.models as Record<string, unknown>)) {
+      if (typeof rates !== 'object' || rates === null) {
+        problems.push(`${rel}: models.${model} must be an object`);
+        continue;
+      }
+      for (const key of PRICE_RATE_KEYS) {
+        const value = (rates as Record<string, unknown>)[key];
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+          problems.push(`${rel}: models.${model}.${key} must be a finite non-negative number`);
+        }
+      }
+    }
+  }
+  return problems;
+}
+
 function main(): void {
   if (!existsSync(LEDGER_ROOT)) {
     process.stdout.write('Eval ledger OK (no ledger yet)\n');
@@ -34,6 +83,12 @@ function main(): void {
     }
     // Waivers (evals/ledger/waivers/) are release-gate overrides, not entries.
     if (evalId.name === 'waivers') continue;
+    // Price tables (evals/ledger/prices/) are committed dollar rates for
+    // cost_usd_computed, not run entries. They get their own shape check.
+    if (evalId.name === 'prices') {
+      problems.push(...validatePriceTables(resolve(LEDGER_ROOT, 'prices')));
+      continue;
+    }
     const evalDir = resolve(LEDGER_ROOT, evalId.name);
     for (const file of readdirSync(evalDir)) {
       if (!file.endsWith('.json')) {

@@ -8,10 +8,13 @@ import type { EvalCaseResult } from '../../evals/verdict-correctness/types.ts';
 type SuccessResult = Extract<EvalCaseResult['outcome'], { kind: 'success' }>['result'];
 
 function success(defectId: EvalCaseResult['case']['defect_id'], score: EvalCaseResult['score']): EvalCaseResult {
-  // summarize() reads only duration_ms off the result, so the verdict body
-  // is a thin stub cast to the result shape.
+  // summarize() reads duration_ms off every successful result and, for
+  // controls, the verdict body to bucket the distribution. In real data the
+  // control's body verdict equals score.original_verdict, so mirror that here
+  // for control scores; everything else stubs an 'accept' body.
+  const bodyVerdict = score.kind === 'control' ? score.original_verdict : 'accept';
   const result = {
-    verdict: { verdict: 'accept' },
+    verdict: { verdict: bodyVerdict },
     raw_response: '{}',
     duration_ms: 1000,
     cli_version: 'test',
@@ -39,6 +42,27 @@ function protocolFailure(
       defect_id: 'fabricated-evidence-ref',
       prompt: 'prompt',
       mutation_summary: 'planted a defect',
+    },
+    outcome:
+      kind === 'connector_error'
+        ? { kind, message: 'boom' }
+        : { kind, message: 'bad output', raw_response: 'garbage' },
+    score: { kind: 'skipped', reason: kind },
+  };
+}
+
+function protocolControl(
+  kind: 'connector_error' | 'parse_error' | 'schema_error',
+): EvalCaseResult {
+  // A control case that produced no valid verdict — counted in controls.errors,
+  // not in any verdict bucket.
+  return {
+    case: {
+      source_run_id: 'run-dddddddd',
+      source_request_path: '/runs/run-dddddddd/reports/relay/review.request.json',
+      defect_id: 'control',
+      prompt: 'prompt',
+      mutation_summary: 'unmodified original request',
     },
     outcome:
       kind === 'connector_error'
@@ -99,6 +123,34 @@ describe('verdict-correctness summarize protocol-failure accounting', () => {
     expect(o.catch_rate).toBeCloseTo(0.8, 10);
     // successful_calls = 4 caught + 1 missed + 2 control
     expect(o.successful_calls).toBe(7);
+  });
+
+  it('buckets the control verdict distribution and surfaces the false-positive signal', () => {
+    const results: EvalCaseResult[] = [
+      success('control', { kind: 'control', original_verdict: 'accept' }),
+      success('control', { kind: 'control', original_verdict: 'accept' }),
+      success('control', { kind: 'control', original_verdict: 'accept-with-fold-ins' }),
+      success('control', { kind: 'control', original_verdict: 'reject' }),
+      success('control', { kind: 'control', original_verdict: 'reject' }),
+      protocolControl('connector_error'),
+    ];
+
+    const summary = summarize(results, 1000, 'claude-code', 'claude-haiku-4-5-20251001', 'subtle');
+
+    // accept-with-fold-ins and reject are the reviewer rejecting a compose
+    // with no planted defect — the false-positive signal the old
+    // {passes, fails} shape collapsed into "passes".
+    expect(summary.controls).toEqual({
+      cases: 6,
+      accept: 2,
+      accept_with_fold_ins: 1,
+      reject: 2,
+      errors: 1,
+    });
+    // Controls still count toward attempted and their errors toward the
+    // protocol-failure denominator, unchanged by the distribution change.
+    expect(summary.overall.attempted).toBe(6);
+    expect(summary.overall.errors).toBe(1);
   });
 
   it('reports zero rates and no attempts for an empty result set', () => {

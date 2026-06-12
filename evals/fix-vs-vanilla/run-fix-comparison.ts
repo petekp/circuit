@@ -7,7 +7,7 @@ import {
   aggregate,
   decideClaim,
   parseCircuitClaim,
-  parseVanillaClaim,
+  parseVanillaEnvelopeClaim,
   scoreArm,
   type ArmScore,
   type TaskSummary as AggregateTaskSummary,
@@ -22,6 +22,14 @@ import {
 } from '../../scripts/evals/shared/process.ts';
 import { createClaudeCodeWrapper, vanillaClaudeArgs } from '../../scripts/evals/shared/providers.ts';
 import { readJson, safeSegment, writeJson } from '../../scripts/evals/shared/json.ts';
+import {
+  buildArmUsageScore,
+  groupRelaysByRole,
+  loadPriceTable,
+  parseVanillaEnvelope,
+  readCircuitRunUsage,
+  type PriceTable,
+} from '../../scripts/evals/shared/usage.ts';
 import {
   CIRCUIT_MODES,
   type CircuitMode,
@@ -478,12 +486,14 @@ async function runTask({
   wrapper,
   taskDir,
   rep,
+  priceTable,
 }: {
   task: FixTask;
   args: FixArgs;
   wrapper: { env: NodeJS.ProcessEnv };
   taskDir: string;
   rep: number;
+  priceTable: PriceTable | undefined;
 }): Promise<TaskSummary> {
   // `both` runs each side; the single-arm modes let calibration runs drive the
   // vanilla arm alone (no Circuit build, no Circuit repo).
@@ -538,6 +548,9 @@ async function runTask({
     });
     const circuitPostChecks = runAllChecks(circuitRepo, task, circuitDir, 'post');
     const circuitDiff = diffState(circuitRepo, circuitDir);
+    // Per-relay usage from the run trace; each relay attempt counts, so
+    // verdict-check retries are included in the arm's cost.
+    const circuitUsage = readCircuitRunUsage(circuitRunFolder);
     arms['circuit-claude-code'] = scoreArm({
       task,
       armId: 'circuit-claude-code',
@@ -545,6 +558,18 @@ async function runTask({
       checks: circuitPostChecks,
       diff: circuitDiff,
       claim: parseCircuitClaim(circuitRunFolder),
+      usage: buildArmUsageScore({
+        envelopes: circuitUsage?.relays.map((relay) => relay.usage) ?? [],
+        table: priceTable,
+        ...(circuitUsage === undefined
+          ? {}
+          : {
+              byRole: groupRelaysByRole(circuitUsage.relays),
+              relayCount: circuitUsage.relay_count,
+              relaysMissingUsage: circuitUsage.relays_missing_usage,
+              relaysFailed: circuitUsage.relays_failed,
+            }),
+      }),
     });
     baseline['circuit-claude-code'] = baselineCircuit;
     fixtureCommits.push(circuitCommit);
@@ -558,7 +583,7 @@ async function runTask({
     const vanillaRun = await runCommand({
       label: `${task.id}:vanilla`,
       command: 'claude',
-      argv: vanillaClaudeArgs(vanillaPrompt(task)),
+      argv: vanillaClaudeArgs(vanillaPrompt(task), { jsonEnvelope: true }),
       cwd: vanillaRepo,
       env: wrapper.env,
       timeoutMs: args.timeoutMs,
@@ -567,13 +592,24 @@ async function runTask({
     });
     const vanillaPostChecks = runAllChecks(vanillaRepo, task, vanillaDir, 'post');
     const vanillaDiff = diffState(vanillaRepo, vanillaDir);
+    // The envelope must be unwrapped before claim parsing: the last-JSON-object
+    // claim parser would otherwise parse the envelope itself and report
+    // claimed_fixed false for every vanilla run. When the envelope cannot be
+    // parsed at all (timeout, truncation) the claim is recorded as unparsed
+    // rather than guessed from raw stdout, which would re-open the same
+    // shadowing hole; usage is recorded as absent.
+    const vanillaEnvelope = parseVanillaEnvelope(vanillaRun.stdout);
     arms['vanilla-claude-code'] = scoreArm({
       task,
       armId: 'vanilla-claude-code',
       run: vanillaRun,
       checks: vanillaPostChecks,
       diff: vanillaDiff,
-      claim: parseVanillaClaim(vanillaRun.stdout),
+      claim: parseVanillaEnvelopeClaim(vanillaEnvelope),
+      usage: buildArmUsageScore({
+        envelopes: vanillaEnvelope === undefined ? [] : [vanillaEnvelope.usage],
+        table: priceTable,
+      }),
     });
     baseline['vanilla-claude-code'] = baselineVanilla;
     fixtureCommits.push(vanillaCommit);
@@ -621,10 +657,14 @@ tasks are not counted as measurement wins.
 
 ## Held-Out Metrics
 
-| Arm | False-fixed | Fixed | Proof quality | Verification | Changed files | Wallclock |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Circuit Fix | ${formatRate(circuit.false_fixed_rate)} | ${formatRate(circuit.objective_fixed_rate)} | ${formatNumber(circuit.mean_proof_quality)} | ${formatRate(circuit.verification_pass_rate)} | ${formatNumber(circuit.mean_changed_file_count)} | ${formatMs(circuit.mean_wallclock_ms)} |
-| Vanilla strong prompt | ${formatRate(vanilla.false_fixed_rate)} | ${formatRate(vanilla.objective_fixed_rate)} | ${formatNumber(vanilla.mean_proof_quality)} | ${formatRate(vanilla.verification_pass_rate)} | ${formatNumber(vanilla.mean_changed_file_count)} | ${formatMs(vanilla.mean_wallclock_ms)} |
+| Arm | False-fixed | Fixed | Proof quality | Verification | Changed files | Wallclock | Cost (computed) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Circuit Fix | ${formatRate(circuit.false_fixed_rate)} | ${formatRate(circuit.objective_fixed_rate)} | ${formatNumber(circuit.mean_proof_quality)} | ${formatRate(circuit.verification_pass_rate)} | ${formatNumber(circuit.mean_changed_file_count)} | ${formatMs(circuit.mean_wallclock_ms)} | ${formatUsd(circuit.total_cost_usd_computed)} |
+| Vanilla strong prompt | ${formatRate(vanilla.false_fixed_rate)} | ${formatRate(vanilla.objective_fixed_rate)} | ${formatNumber(vanilla.mean_proof_quality)} | ${formatRate(vanilla.verification_pass_rate)} | ${formatNumber(vanilla.mean_changed_file_count)} | ${formatMs(vanilla.mean_wallclock_ms)} | ${formatUsd(vanilla.total_cost_usd_computed)} |
+
+Per-task computed cost: Circuit median ${formatUsd(circuit.median_cost_usd_computed)} / p90 ${formatUsd(circuit.p90_cost_usd_computed)}; vanilla median ${formatUsd(vanilla.median_cost_usd_computed)} / p90 ${formatUsd(vanilla.p90_cost_usd_computed)}.
+
+Cost bookkeeping: ${costBookkeepingLine(circuit)} (Circuit); ${costBookkeepingLine(vanilla)} (vanilla).
 
 ## Tasks
 
@@ -667,6 +707,37 @@ function formatMs(value: number | null | undefined): string {
   return `${Math.round(value)} ms`;
 }
 
+function formatUsd(value: number | null | undefined): string {
+  if (value == null) return 'n/a';
+  return `$${value.toFixed(4)}`;
+}
+
+// One honest sentence per arm about whether the dollar figures are citable:
+// reported-vs-computed divergence, price-table misses, uncaptured usage,
+// failed relay attempts, partial reported sums, and unparsed claims all make
+// the numbers suspect without failing the run.
+function costBookkeepingLine(aggregateArm: JsonRecord): string {
+  const problems: string[] = [];
+  const counters: ReadonlyArray<readonly [unknown, string]> = [
+    [
+      aggregateArm.cost_divergence_flag_count,
+      'score(s) where reported and computed cost diverged >5% of the larger figure',
+    ],
+    [aggregateArm.price_table_miss_count, 'score(s) hit a price-table miss'],
+    [aggregateArm.usage_missing_count, 'score(s) captured no usage'],
+    [aggregateArm.total_relays_failed, 'relay attempt(s) failed with uncaptured usage'],
+    [
+      aggregateArm.total_envelopes_missing_reported_cost,
+      'capture unit(s) lacked a CLI-reported cost',
+    ],
+    [aggregateArm.claim_parse_failure_count, 'claim(s) could not be parsed'],
+  ];
+  for (const [count, label] of counters) {
+    if (typeof count === 'number' && count > 0) problems.push(`${count} ${label}`);
+  }
+  return problems.length === 0 ? 'clean' : problems.join('; ');
+}
+
 async function main() {
   const manifest = readJson<FixManifest>(MANIFEST_PATH);
   const args = parseFixArgs(process.argv.slice(2), manifest);
@@ -680,6 +751,12 @@ async function main() {
     tempPrefix: 'fix-vs-vanilla-claude-',
     forceModel: args.pinModel,
   });
+  // Committed dollar rates for cost_usd_computed. Absent table -> usage is
+  // still captured, computed costs are simply omitted and flagged.
+  const priceTable = loadPriceTable(resolve(REPO_ROOT, 'evals/ledger/prices'));
+  if (priceTable === undefined) {
+    process.stderr.write('warning: no price table under evals/ledger/prices; cost_usd_computed will be absent\n');
+  }
   const metadata = {
     schema_version: 1,
     benchmark_id: manifest.benchmark_id,
@@ -716,7 +793,12 @@ async function main() {
           }
         : {}),
       ...(args.arm !== 'circuit'
-        ? { vanilla: ['claude', ...vanillaClaudeArgs('<strong vanilla prompt>')] }
+        ? {
+            vanilla: [
+              'claude',
+              ...vanillaClaudeArgs('<strong vanilla prompt>', { jsonEnvelope: true }),
+            ],
+          }
         : {}),
     },
   };
@@ -761,7 +843,7 @@ async function main() {
       process.stderr.write(
         `\nRunning task ${task.id} (${task.split})${repLabel} [arm: ${args.arm}]...\n`,
       );
-      taskSummaries.push(await runTask({ task, args, wrapper, taskDir, rep }));
+      taskSummaries.push(await runTask({ task, args, wrapper, taskDir, rep, priceTable }));
     }
   }
 

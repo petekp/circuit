@@ -53,6 +53,12 @@ function hookSource(input: JsonRecord): string | undefined {
   return typeof input?.source === 'string' && input.source.length > 0 ? input.source : undefined;
 }
 
+function hookSessionId(input: JsonRecord): string | undefined {
+  return typeof input?.session_id === 'string' && input.session_id.length > 0
+    ? input.session_id
+    : undefined;
+}
+
 // E2: brief injection is source-aware and opt-in. The SessionStart matcher
 // fires on startup|resume|clear|compact; today every source injects the full
 // brief. A deliberate `clear` (the operator just wiped context) and a fresh
@@ -103,16 +109,20 @@ function main() {
     return 0;
   }
 
-  const result = spawnSync(
-    process.execPath,
-    [launcher, 'handoff', 'brief', '--json', '--project-root', cwd],
-    {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: briefTimeoutMs(),
-    },
-  );
+  // Session-scoped ambient resolution: pass the host's identity for THIS
+  // session so the brief prefers its own capture and a compact/resume restore
+  // is never steered by a concurrent session's last request.
+  const sessionId = hookSessionId(input);
+  const briefArgs = [launcher, 'handoff', 'brief', '--json', '--project-root', cwd];
+  if (sessionId !== undefined) briefArgs.push('--session-id', sessionId);
+  if (source !== undefined) briefArgs.push('--session-source', source);
+
+  const result = spawnSync(process.execPath, briefArgs, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: briefTimeoutMs(),
+  });
 
   if (result.error !== undefined || result.status !== 0) {
     // A1: a timeout or non-zero exit is a real restore failure, not a benign
