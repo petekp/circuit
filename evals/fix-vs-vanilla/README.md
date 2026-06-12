@@ -43,6 +43,29 @@ node evals/fix-vs-vanilla/run-fix-comparison.ts \
   --effort medium
 ```
 
+That recipe is a product-config run: Circuit keeps its own dials, so its
+power dial may route steps to stronger models than the vanilla arm. It
+backs a "Circuit as shipped" claim, not a structure claim.
+
+For a same-model structure comparison, add `--pin-model`. It forces every
+Circuit step onto the `--model` value, so the power dial cannot inject a
+stronger per-role model. Pinned runs are the basis for any "the flow
+itself helps" claim.
+
+Other measurement controls:
+
+- `--circuit-mode default|low|medium|high|autonomous`: how the Circuit arm
+  runs. `default` uses the CLI's own defaults, low/medium/high set the
+  depth dial, `autonomous` toggles the autonomous loop.
+- `--circuit-power low|medium|high`: sweep the Circuit power dial.
+- `--arm both|circuit|vanilla`: run a single arm. `--arm vanilla` skips
+  the Circuit build; pair with `--reps N` for calibration runs.
+- `--reps N`: run each task N times into per-rep subdirs; rates aggregate
+  over task x rep.
+
+Run with `--help` for the full flag list (`--timeout-ms`, `--out-dir`,
+`--skip-build`).
+
 The matrix dry-run checks the outer loop across model rows:
 
 ```bash

@@ -37,18 +37,21 @@ Observed source map: `docs/generated-surfaces.md`.
 - Codex package root: `plugins/codex/`.
 - Claude manifest: `plugins/claude/.claude-plugin/plugin.json`.
 - Codex manifest: `plugins/codex/.codex-plugin/plugin.json`.
-- Claude generated commands: `handoff`, `run`. These are the only published
-  Claude slash commands.
-- Codex generated commands: `handoff`, `run`.
-- Codex generated skills: `handoff`, `run`.
+- Claude generated commands: `handoff`, `pursue`, `run`. These are the only
+  published Claude slash commands.
+- Codex generated commands: `handoff`, `pursue`, `run`.
+- Codex generated skills: `handoff`, `pursue`, `run`.
 - Public generated flow packages: `review`, `fix`, `pursue`, `prototype`,
-  `build`, `explore`. Each ships compiled-flow mirrors only, under
+  `build`, `explore`. Each ships compiled-flow mirrors under
   `plugins/claude/skills/<flow>/*.json` and `plugins/codex/flows/<flow>/*.json`.
-  None has a direct slash command or Codex skill.
+  Pursue is the one public flow that also owns a direct slash command and Codex
+  skill (`src/flows/pursue/data.ts` sets `paths.command`); the others ship
+  mirrors only.
 - Internal generated flow packages: `goal`, `runtime-proof`. They emit only
   under `generated/flows/**` and must not appear in any host mirror.
-- No flow has a direct host command or skill. Every flow is exercised through
-  Run or an explicit CLI flow start (`run <flow>`). Run is **model-only routed**:
+- Pursue is the only flow with a direct host command/skill (`/circuit:pursue`).
+  Every other flow is exercised through Run or an explicit CLI flow start
+  (`run <flow>`). Run is **model-only routed**:
   the host model recommends and NAMES the flow, then passes it explicitly to the
   CLI. There is no deterministic/keyword classifier — `src/flows/router.ts` is
   deleted. A CLI `run --goal` with NO flow positional ERRORS with `a flow name is
@@ -63,7 +66,7 @@ Observed source map: `docs/generated-surfaces.md`.
   (exit 2) with `goal is an internal flow and is not available through the host
   run surface.` — identical message on Claude and Codex.
 - Claude has bundled SessionStart hooks under `plugins/claude/hooks/`.
-- Codex has `plugins/codex/hooks/session-start.mjs`. Use
+- Codex has `plugins/codex/hooks/session-start.ts`. Use
   `bin/circuit handoff hooks install|doctor|uninstall --host codex` for
   temp-file hook coverage unless the operator explicitly asks to touch the real
   user hooks file.
@@ -95,7 +98,12 @@ Top-level commands:
 
 Run-axis flags:
 
-- `--rigor <lite|standard|deep>`
+- `--depth <low|medium|high>` (bespoke per-flow allow-list error at
+  `src/cli/run.ts`: `--depth X is not supported by flow '<id>'. <id> allows
+  depths: ...`)
+- `--power <auto|low|medium|high>` (default `medium`; `auto` resolved once by
+  the engine via the `run.power-inference` trace)
+- `--why <why>`
 - `--tournament`
 - `--tournament-n <2|3|4>`; rejected unless `--tournament` is present
 - `--autonomous` (auto-resolves supported checkpoints and drives Run's bounded,
@@ -110,19 +118,20 @@ Run-axis flags:
 Unsupported:
 
 - `--mode`
-- `--depth`
+- `--rigor`
 - `--dry-run`
 
-All three reject before worker execution (exit 2). `--mode` and `--depth` are
-historical aliases that never shipped: by design Commander rejects them as
-generic `unknown option '--mode'` / `'--depth'` errors (no bespoke message —
-the generic rejection is intentional and test-locked). Only `--dry-run` gets a
-specific safety explanation, because it once silently ran the real connector.
+All three reject before worker execution (exit 2). `--mode` never shipped and
+`--rigor` was retired by the depth rename: by design Commander rejects both as
+generic `unknown option '--mode'` / `'--rigor'` errors (no bespoke message —
+the generic rejection is intentional and test-locked at
+`tests/runner/cli-router.test.ts`). Only `--dry-run` gets a specific safety
+explanation, because it once silently ran the real connector.
 
 ### Routing fields
 
 Observed sources: `src/cli/circuit.ts` (route construction ~line 450-465, final
-JSON ~line 875), `src/schemas/run-envelope.ts:137-141`.
+JSON ~line 875), `src/schemas/run-envelope.ts:137-142`.
 
 - Routing is model-only; there is no deterministic router. `routed_by` is the
   literal `explicit` on the `route.selected` progress event for every real run,
@@ -133,7 +142,7 @@ JSON ~line 875), `src/schemas/run-envelope.ts:137-141`.
 - The route status text reads `Chose <flow>.` (presentation) /
   `Circuit: Chose <flow>.` (display).
 - `selection_source` enum: `explicit_operator_request`, `goal_contract`,
-  `completion_followup` (no `router` member).
+  `completion_followup`, `recovery` (no `router` member).
 
 ### Help-text discovery limit
 
@@ -155,16 +164,16 @@ Observed sources: `src/flows/build/data.ts` (engineFlags ~line 459-476),
   min-1 `slices` array) and rewrites `approach` to begin `Grounded in a codebase
   read (N sources): ...`. These are FILE-ONLY — not in the operator summary, the
   run-surface markdown, or the final JSON envelope.
-- Under DEEP RIGOR ONLY, Build iterates a per-slice implement+verify loop via the
+- Under DEPTH HIGH ONLY, Build iterates a per-slice implement+verify loop via the
   `iteratesSliceLoop` `engineFlags` entry (`advanceRoute: 'advance'`, `slicesFrom`
-  → `plan.json#slices`, `maxSlices: 8`, `activateWhenDepthAtLeast: 'deep'`). The
+  → `plan.json#slices`, `maxSlices: 8`, `activateWhenDepthAtLeast: 'high'`). The
   verify-step carries an `advance` route back to act-step. Host mirrors carry the
   `advance` route but NOT the `engineFlags` block (the runtime resolves the flag
   from the catalog).
-- Operator-visible slice surface (deep only): `step.started` progress events gain
+- Operator-visible slice surface (high only): `step.started` progress events gain
   a 1-based `(slice N)` suffix in `presentation.status_text` and `display.text`;
   trace entries for loop-body steps carry a 0-based `slice_index`. Under
-  standard/lite there is NO slice suffix and NO `slice_index` — single pass.
+  medium/low there is NO slice suffix and NO `slice_index` — single pass.
 
 ## Flow Axis Allow-List
 
@@ -172,16 +181,19 @@ Observed sources: `src/flows/*/data.ts` (the `axes` block) and
 `src/flows/axis-selections.ts`, generated `circuit.json` files under both host
 packages, and `docs/operator-guide.md`.
 
-| Flow | Visibility | Direct host command or skill | Generated host flow mirror | Allowed rigor | Tournament | Autonomous |
+| Flow | Visibility | Direct host command or skill | Generated host flow mirror | Allowed depth | Tournament | Autonomous |
 |---|---|---|---:|---|---|---|
-| `review` | public | none; routed through Run | yes | `standard` | no | no |
-| `fix` | public | none; routed through Run | yes | `lite`, `standard`, `deep` | no | yes |
-| `build` | public | none; routed through Run | yes | `lite`, `standard`, `deep` | no | yes |
-| `explore` | public | none; routed through Run | yes | `lite`, `standard`, `deep` | yes | yes |
-| `prototype` | public | none; routed through Run | yes | `standard`, `deep` | yes | yes |
-| `pursue` | public | none; routed through Run | yes | `standard` | no | yes |
-| `goal` | internal | none; internal, never auto-selected | no host mirror | `lite`, `standard`, `deep` | no | yes |
-| `runtime-proof` | internal | none; internal | no host mirror | `standard` | no | no |
+| `review` | public | none; routed through Run | yes | `medium` | no | no |
+| `fix` | public | none; routed through Run | yes | `low`, `medium`, `high` | no | yes |
+| `build` | public | none; routed through Run | yes | `low`, `medium`, `high` | no | yes |
+| `explore` | public | none; routed through Run | yes | `low`, `medium`, `high` | yes | yes |
+| `prototype` | public | none; routed through Run | yes | `medium`, `high` | yes | yes |
+| `pursue` | public | direct command/skill + routed through Run | yes | `medium` | no | yes |
+| `goal` | internal | none; internal, never auto-selected | no host mirror | `low`, `medium`, `high` | no | yes |
+| `runtime-proof` | internal | none; internal | no host mirror | `medium` | no | no |
+
+The power dial is per-run, not per-flow: `--power <auto|low|medium|high>`
+applies to every flow and defaults to `medium`.
 
 Unsupported tuples must fail before worker execution and include the flow's
 allow-list in the error. Test at least one unsupported tuple per host run.
@@ -222,12 +234,12 @@ trace field.
   line 1 is a `Circuit · <FlowName>` headline, then a one-sentence assessment,
   `- ` key-point bullets, optional `- Caveat:` lines, a `Next: <action>` line,
   and optional `Auto-resolutions:` / `Skill hooks:` / `Rich summary:` trailers.
-  Source: `src/shared/operator-summary-writer.ts:719-741`. No HUD / status
+  Source: `src/app/operator-summary/writer.ts:871-896`. No HUD / status
   indicator exists anymore (removed 2026-06-02).
 - Final JSON may also include `operator_summary_path`,
   `operator_summary_status_text`, `run_surface_status_text`,
   `skill_hook_activations` (optional array; see Skill-Hooks Surface), and
-  `resolved_axes` (the resolved `rigor`/`tournament`/`autonomous` selection that
+  `resolved_axes` (the resolved `depth`/`tournament`/`autonomous` selection that
   actually ran). Note the two status fields are different things:
   `operator_summary_status_text` is the bare flow display NAME (e.g. `Fix`,
   `Runtime Proof`), NOT an outcome; `run_surface_status_text` is the outcome
@@ -272,7 +284,7 @@ Observed sources: `src/schemas/trace-entry.ts:396` (`RunClosedOutcome`),
 
 Config-gated and OPT-IN. Observed sources: `docs/configuration.md:116-177`,
 `src/schemas/skill-hook.ts`, `src/skill-hooks/*.ts`,
-`src/shared/operator-summary-writer.ts:604-683`,
+`src/app/operator-summary/writer.ts:745-935`,
 `src/schemas/operator-summary.ts:74-92,113`,
 `src/schemas/trace-entry.ts:531-547`.
 
@@ -313,7 +325,7 @@ Config-gated and OPT-IN. Observed sources: `docs/configuration.md:116-177`,
 
 ## Runtime Bundle and Doctor Surface
 
-Observed sources: plugin wrappers, `scripts/build-plugin-runtime.ts`,
+Observed sources: plugin wrappers, `scripts/plugins/runtime-bundle.ts`,
 `package.json`, `docs/release/0.1.0-alpha.6-notes.md`, wrapper
 `doctor --json`, and `npm run doctor:plugins:installed`.
 
@@ -351,7 +363,7 @@ Observed sources: `src/connectors/`, `src/cli/circuit.ts`
 - Re-run `npm run plugins:refresh-local` before checklist work, then each
   wrapper's `doctor --json` for current owned-file counts. Use
   `npm run check:host-plugin-caches` only when debugging cache sync directly.
-  The unified host command surface (run and handoff only) reduced the file
+  The unified host command surface (run, handoff, and pursue) reduced the file
   counts from earlier alpha snapshots, so do not carry forward a fixed count as
   expected.
 
@@ -361,9 +373,10 @@ Observed sources: `src/connectors/`, `src/cli/circuit.ts`
   task surfaces, or default-prompt flow selection.
 - Non-interactive runs cannot prove what the host visibly rendered; use
   `partial-skip` for file-only operator-summary checks.
-- Public flows have no direct host command or skill; cover each as a Run-routed
-  surface (host model recommendation — model-only routing, no deterministic
-  router) and as an explicit CLI flow start, not as a direct slash command or
-  direct Codex skill.
+- Pursue is the only public flow with a direct host command and Codex skill;
+  cover it via `/circuit:pursue` (or the Codex pursue skill) in addition to the
+  CLI flow start. Cover every other public flow as a Run-routed surface (host
+  model recommendation — model-only routing, no deterministic router) and as an
+  explicit CLI flow start, not as a direct slash command or direct Codex skill.
 - Local doctor and wrapper smokes do not prove real worker connector behavior
   for every flow.

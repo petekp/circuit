@@ -71,7 +71,8 @@ node --experimental-strip-types evals/verdict-correctness/index.ts \
   --judge claude-code --model claude-haiku-4-5-20251001 --suite subtle
 ```
 
-Outputs land in `evals/verdict-correctness/results/<timestamp>-<judge>/`.
+Outputs land in `evals/verdict-correctness/results/<timestamp>-<judge>[-<model>]/`.
+The model suffix is present whenever `--model` is passed.
 
 ## Reading Results
 
