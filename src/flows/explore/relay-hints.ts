@@ -44,7 +44,7 @@ export const exploreTournamentReviewShapeHint: SchemaShapeHint = {
   instruction: [
     'Respond with a single raw JSON object whose top-level shape is exactly:',
     '{ "verdict": "<recommend|no-clear-winner|needs-operator>", "recommended_option_id": "<one generated option id>", "comparison": "<comparative assessment>", "objections": ["<objection>"], "missing_evidence": ["<missing evidence>"], "tradeoff_question": "<specific choice the operator must make>", "confidence": "<low|medium|high>" }',
-    'Use the proposal aggregate and source reports. Treat this as the stress review inside the Decision stage, not as a separate canonical Review stage. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences.',
+    'Use the proposal aggregate and source reports. Treat this as the stress review inside the Decision stage, not as a separate canonical Review stage. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.',
     'The runtime parses your response with JSON.parse and validates the full report body against explore.tournament-review@v1 before writing reports/tournament-review.json.',
   ].join(' '),
 };

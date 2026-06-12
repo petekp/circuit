@@ -22,7 +22,7 @@ export const prototypeVariantArtifactShapeHint: SchemaShapeHint = {
     'Create only disposable prototype files under variant_root. Do not edit production application code, generated host packages, release metadata, or sibling variants.',
     'Use verdict "accept" only when the entry points and created files exist under variant_root. Use verdict "blocked" when you cannot create the artifact, and still report any evidence you gathered.',
     'Do not claim deployment, production readiness, provider behavior, model behavior, branch previews, screenshots, or hosted URLs. The provider/model comparison evidence is captured by the runtime trace, not by this report.',
-    'The runtime validates this response against prototype.variant-artifact@v1.',
+    'The runtime parses your response with JSON.parse and validates the full report body against prototype.variant-artifact@v1.',
     'Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.',
   ].join(' '),
 };
@@ -34,7 +34,7 @@ export const prototypeVariantReviewShapeHint: SchemaShapeHint = {
     'Respond with a single raw JSON object whose top-level shape is exactly:',
     '{ "verdict": "<recommend|no-clear-winner|needs-operator>", "recommended_variant_id": "<variant id from the aggregate>", "comparison_summary": "<plain-language comparison grounded in the variant reports>", "strengths": [{ "variant_id": "<variant id>", "note": "<specific strength>" }], "risks": ["<risk or limitation>"], "missing_evidence": ["<missing evidence, if any>"], "confidence": "<low|medium|high>" }',
     'Compare only the local prototype artifacts, verification report, provider evidence report, and aggregate evidence. Do not claim any provider or model actually ran unless the provider evidence report captured it from relay.started trace entries.',
-    'The runtime validates this response against prototype.variant-review@v1.',
-    'Do not claim deployment, production readiness, branch previews, screenshots, hosted URLs, or production fitness. Do not include extra top-level keys or Markdown.',
+    'The runtime parses your response with JSON.parse and validates the full report body against prototype.variant-review@v1.',
+    'Do not claim deployment, production readiness, branch previews, screenshots, hosted URLs, or production fitness. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.',
   ].join(' '),
 };

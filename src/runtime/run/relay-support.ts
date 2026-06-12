@@ -95,7 +95,7 @@ function formatAcceptanceCriterion(criterion: AcceptanceCriterion): string {
     return `- ${criterion.id}: report field ${criterion.path.join('.')} must be ${criterion.predicate}.`;
   }
   return [
-    `- ${criterion.id}: command ${criterion.command.id} must ${criterion.expected_status}.`,
+    `- ${criterion.id}: command ${criterion.command.id} must ${criterion.expected_status === 'passed' ? 'pass' : criterion.expected_status}.`,
     `  cwd: ${criterion.command.cwd}`,
     `  argv: ${JSON.stringify(criterion.command.argv)}`,
   ].join('\n');

@@ -150,4 +150,37 @@ describe('composeRelayPrompt', () => {
       prompt.indexOf('Context (from reads):'),
     );
   });
+
+  it('renders command acceptance criteria as grammatical requirements', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'act-step',
+        title: 'Act - implement',
+        role: 'implementer',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/act.request.json' },
+          receipt: { path: 'reports/relay/act.receipt.txt' },
+          result: { path: 'reports/relay/act.result.json' },
+          report: { path: 'reports/act.json', schema: 'flow.result@v1' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+        acceptance_criteria: {
+          on_failure: { mode: 'retry-with-feedback' },
+          checks: [
+            {
+              kind: 'command',
+              id: 'verify-passes',
+              command: { id: 'verify', cwd: '.', argv: ['npm', 'run', 'verify'] },
+              expected_status: 'passed',
+            },
+          ],
+        },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+    );
+
+    expect(prompt).toContain('command verify must pass.');
+    expect(prompt).not.toContain('must passed');
+  });
 });

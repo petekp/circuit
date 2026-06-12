@@ -243,7 +243,7 @@ export const BuildPlan = z
       .array(BuildSlice)
       .min(1)
       .describe(
-        'ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). Under deep depth the engine implements and verifies these one at a time',
+        'ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). At high depth the engine implements and verifies these one at a time',
       ),
     anticipated_file_extensions: z
       .array(z.string().min(1))

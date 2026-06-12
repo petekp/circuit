@@ -29199,9 +29199,9 @@ var buildContextShapeHint = {
   instruction: [
     "Respond with a single raw JSON object whose top-level shape is exactly:",
     '{ "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"], "slices": [{ "id": "slice-1", "intent": "<one concrete, independently-verifiable unit of implementation work>", "anticipated_file_extensions": ["<extension this slice will touch>"] }], "guardrails": { "non_goals": ["<something the change must NOT do, stated by the operator>"], "invariants": ["<a property the change must preserve, grounded in the code>"] }, "allowed_touch_area": ["<a directory subtree ending in \\"/\\", such as \\"src/flows/build/\\", or an exact repo-relative file path>"], "recommended_power": { "value": "<low|medium|high>", "rationale": "<one short sentence grounding the tier in what you read>" } }',
-    "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated depth (provided to you): on a quick or lite job read just the directly implicated files; on a deep job map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
+    "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated depth (provided to you): at low depth read just the directly implicated files; at high depth map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
     "In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer.",
-    'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. Under deep depth the engine implements and verifies these one at a time; under lighter depth the change runs in a single pass regardless.',
+    'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. At high depth the engine implements and verifies these one at a time; at lower depths the change runs in a single pass regardless.',
     'In guardrails, capture the negative space of the change. Put in non_goals the things the operator said the change must NOT do - boundaries drawn from the goal and brief, not invented. Put in invariants the properties the change must preserve, grounded in what you read (a contract, a data shape, an ordering, a safety property). Both default to empty arrays: declare a guardrail only when it is real and specific, never a generic "do not break anything". These carry forward to the plan and the reviewer checks the change against them.',
     'In allowed_touch_area, name the paths this change is allowed to touch, proposed from what you read - either a directory subtree ending in "/" (for example "src/flows/build/", which covers everything beneath it) or an exact repo-relative file path. Include every place a correct change legitimately needs to reach: the source it edits, the tests that cover it, and any generated output it regenerates. State the allowed area positively; do not list off-limits files. After the build the engine compares the files actually changed - proven from git, not self-reported - against this area, and a change that reaches outside it cannot finish clean. Because the implementer is held to this without trimming the work to fit, leave the array empty whenever you cannot scope the change with confidence: an empty area turns the check off rather than guessing a box.',
     'Include recommended_power ONLY when the relay context states the power dial is auto; omit the key entirely otherwise. When you do include it, judge from the codebase read how strong a model the downstream implementation and review need: "low" for a small localized change with good test coverage, "high" for a wide, subtle, or weakly-tested change, "medium" between. One short rationale sentence.',
@@ -29487,7 +29487,7 @@ var BuildContext = external_exports.object({
 var BuildPlan = external_exports.object({
   objective: external_exports.string().min(1),
   approach: external_exports.string().min(1),
-  slices: external_exports.array(BuildSlice).min(1).describe("ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). Under deep depth the engine implements and verifies these one at a time"),
+  slices: external_exports.array(BuildSlice).min(1).describe("ordered units of implementation work, carried from build.context@v1; always at least one (a single-slice plan runs one implement+verify pass). At high depth the engine implements and verifies these one at a time"),
   anticipated_file_extensions: external_exports.array(external_exports.string().min(1)).default([]).describe("file extensions the implementation is predicted to touch, surfaced from build.context@v1; empty when grounding made no confident prediction"),
   guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space carried from build.context@v1: non_goals the change must not do and invariants it must preserve; empty when none apply"),
   allowed_touch_area: AllowedTouchArea.describe("paths the change is allowed to touch, carried from build.context@v1; empty leaves the touch-area gate inert (opt-in)"),
@@ -31854,7 +31854,7 @@ var exploreTournamentReviewShapeHint = {
   instruction: [
     "Respond with a single raw JSON object whose top-level shape is exactly:",
     '{ "verdict": "<recommend|no-clear-winner|needs-operator>", "recommended_option_id": "<one generated option id>", "comparison": "<comparative assessment>", "objections": ["<objection>"], "missing_evidence": ["<missing evidence>"], "tradeoff_question": "<specific choice the operator must make>", "confidence": "<low|medium|high>" }',
-    "Use the proposal aggregate and source reports. Treat this as the stress review inside the Decision stage, not as a separate canonical Review stage. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences.",
+    "Use the proposal aggregate and source reports. Treat this as the stress review inside the Decision stage, not as a separate canonical Review stage. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
     "The runtime parses your response with JSON.parse and validates the full report body against explore.tournament-review@v1 before writing reports/tournament-review.json."
   ].join(" ")
 };
@@ -34513,7 +34513,7 @@ function projectFixResult(inputs) {
     review_status: reviewStatus,
     ...review === void 0 ? {} : { review_verdict: review.verdict },
     ...review === void 0 ? {
-      review_skip_reason: reviewSkipReason ?? "Lite mode skipped review per route_overrides."
+      review_skip_reason: reviewSkipReason ?? "Low depth skipped review per route_overrides."
     } : {},
     residual_risks: [...diagnosis.residual_uncertainty],
     evidence_links
@@ -34755,7 +34755,7 @@ var fixFlowData = {
     schema_version: "2",
     id: "fix",
     title: "Fix Schematic",
-    purpose: "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at standard depth, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Lite mode skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they are unreachable at compile time and omitted from compiled flows.",
+    purpose: "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at medium depth and above, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Low depth skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they are unreachable at compile time and omitted from compiled flows.",
     status: "active",
     version: "0.1.0",
     starts_at: "fix-frame",
@@ -35162,7 +35162,7 @@ var fixFlowData = {
       }),
       expandBlockStepUse({
         id: "fix-close-low",
-        title: "Close (lite) \u2014 emit Fix result without review",
+        title: "Close (low depth) \u2014 emit Fix result without review",
         stage: "close",
         block: "close-with-evidence",
         input: {
@@ -35374,17 +35374,17 @@ var fixFlowData = {
           stepId: "fix-gather-context",
           taskTitle: "Check the context",
           activeText: "Checking the context",
-          relayRole: "implementer",
-          relayStartedText: "Asking the specialist to make the change...",
-          relayCompletedText: "Finished the specialist pass."
+          relayRole: "researcher",
+          relayStartedText: "Asking the specialist to gather context...",
+          relayCompletedText: "Finished gathering context."
         },
         {
           stepId: "fix-diagnose",
           taskTitle: "Check the context",
           activeText: "Checking the context",
-          relayRole: "implementer",
-          relayStartedText: "Asking the specialist to make the change...",
-          relayCompletedText: "Finished the specialist pass."
+          relayRole: "researcher",
+          relayStartedText: "Asking the specialist to diagnose the cause...",
+          relayCompletedText: "Finished the diagnosis."
         },
         {
           stepId: "fix-no-repro-decision",
@@ -37123,7 +37123,7 @@ var goalClarifiedTaskShapeHint = {
     "Do not include adversarial review instructions, two-clean-review language, or medium-or-above finding ceremony; Goal gate steps own that later.",
     "Do not claim completion. Do not select or invent dynamic child flows. Preserve the operator request and keep the clarified prompt compact.",
     "Use verdict ask only when missing information makes the Goal unsafe or impossible to verify. Use verdict stop only when this is not a durable, checkable Goal-shaped task.",
-    "Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object."
+    "Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse and validates the full report body against goal.clarified-task@v1."
   ].join(" ")
 };
 var goalGateShapeHint = {
@@ -37135,7 +37135,7 @@ var goalGateShapeHint = {
     "Blocking findings are severities critical, high, or medium. Any blocking finding must set verdict to blocked, clean_streak to 0, and next_route to recover.",
     "A gate-pass verdict must have no blocking findings. Use next_route close only when clean_streak is at least 2. Use run-next-gate-pass when this pass is clean but another clean pass is still required.",
     "The passes array must include every clean pass counted by clean_streak. If a prior gate report is present, copy its passes and append the current pass before using next_route close.",
-    "Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object."
+    "Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse and validates the full report body against goal.gate@v1."
   ].join(" ")
 };
 var goalGatePassShapeHint = {
@@ -37148,7 +37148,7 @@ var goalGatePassShapeHint = {
     "Blocking findings are severities critical, high, or medium. Any blocking finding must set verdict to blocked, clean_streak to 0, and next_route to recover.",
     "A gate-pass verdict must have no blocking findings. Use next_route run-next-gate-pass when this pass is clean but another clean pass is still required.",
     "The passes array must include one object for each clean pass counted by clean_streak.",
-    "Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object."
+    "Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse and validates the full report body against goal.gate@v1."
   ].join(" ")
 };
 
@@ -38626,7 +38626,7 @@ var prototypeVariantArtifactShapeHint = {
     "Create only disposable prototype files under variant_root. Do not edit production application code, generated host packages, release metadata, or sibling variants.",
     'Use verdict "accept" only when the entry points and created files exist under variant_root. Use verdict "blocked" when you cannot create the artifact, and still report any evidence you gathered.',
     "Do not claim deployment, production readiness, provider behavior, model behavior, branch previews, screenshots, or hosted URLs. The provider/model comparison evidence is captured by the runtime trace, not by this report.",
-    "The runtime validates this response against prototype.variant-artifact@v1.",
+    "The runtime parses your response with JSON.parse and validates the full report body against prototype.variant-artifact@v1.",
     "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object."
   ].join(" ")
 };
@@ -38637,8 +38637,8 @@ var prototypeVariantReviewShapeHint = {
     "Respond with a single raw JSON object whose top-level shape is exactly:",
     '{ "verdict": "<recommend|no-clear-winner|needs-operator>", "recommended_variant_id": "<variant id from the aggregate>", "comparison_summary": "<plain-language comparison grounded in the variant reports>", "strengths": [{ "variant_id": "<variant id>", "note": "<specific strength>" }], "risks": ["<risk or limitation>"], "missing_evidence": ["<missing evidence, if any>"], "confidence": "<low|medium|high>" }',
     "Compare only the local prototype artifacts, verification report, provider evidence report, and aggregate evidence. Do not claim any provider or model actually ran unless the provider evidence report captured it from relay.started trace entries.",
-    "The runtime validates this response against prototype.variant-review@v1.",
-    "Do not claim deployment, production readiness, branch previews, screenshots, hosted URLs, or production fitness. Do not include extra top-level keys or Markdown."
+    "The runtime parses your response with JSON.parse and validates the full report body against prototype.variant-review@v1.",
+    "Do not claim deployment, production readiness, branch previews, screenshots, hosted URLs, or production fitness. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object."
   ].join(" ")
 };
 
@@ -41550,7 +41550,8 @@ var pursuitBatchShapeHint = {
     'Shape: { "verdict": "<accept|partial|blocked>", "summary": "<plain summary>", "serialized_execution": true, "completed": [{ "pursuit_id": "<id>", "status": "completed", "summary": "<what happened>", "evidence": ["<evidence>"] }], "skipped": [{ "pursuit_id": "<id>", "status": "skipped", "summary": "<why skipped>", "evidence": [] }], "blocked": [{ "pursuit_id": "<id>", "status": "blocked", "summary": "<why blocked>", "evidence": [] }], "failed": [{ "pursuit_id": "<id>", "status": "failed", "summary": "<why failed>", "evidence": [] }], "actual_touch_set": { "paths": ["<changed or inspected project-relative path>"], "symbols": ["<symbol>"], "commands": ["<command>"], "generated_outputs": ["<generated output path>"] }, "proof_evidence": ["<evidence>"] }.',
     "Execute code-changing work serially. Do not run parallel code-writing agents. If a pursuit cannot be safely completed serially, put it in blocked rather than guessing.",
     "Keep estimated touch sets separate from actual touch sets. actual_touch_set must describe what really changed or was materially inspected during this batch.",
-    "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences."
+    "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
+    "The runtime parses your response with JSON.parse and validates the full report body against pursuit.batch@v1."
   ].join(" ")
 };
 var pursuitReviewShapeHint = {
@@ -41561,7 +41562,8 @@ var pursuitReviewShapeHint = {
     'Shape: { "verdict": "<clean|needs-followup|blocked>", "summary": "<review summary>", "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line>"] }] }.',
     "Review whether the batch followed the pursuit contract, serialized code-changing work, preserved the difference between estimated and actual touch sets, and surfaced skipped or blocked pursuits honestly.",
     'Use verdict "clean" only when there are no findings. Use "needs-followup" only for low-severity findings. Use "blocked" when any finding is medium, high, or critical so the flow closes honestly as blocked instead of reporting completion.',
-    "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences."
+    "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
+    "The runtime parses your response with JSON.parse and validates the full report body against pursuit.review@v1."
   ].join(" ")
 };
 
@@ -57573,7 +57575,7 @@ function formatAcceptanceCriterion(criterion) {
     return `- ${criterion.id}: report field ${criterion.path.join(".")} must be ${criterion.predicate}.`;
   }
   return [
-    `- ${criterion.id}: command ${criterion.command.id} must ${criterion.expected_status}.`,
+    `- ${criterion.id}: command ${criterion.command.id} must ${criterion.expected_status === "passed" ? "pass" : criterion.expected_status}.`,
     `  cwd: ${criterion.command.cwd}`,
     `  argv: ${JSON.stringify(criterion.command.argv)}`
   ].join("\n");
