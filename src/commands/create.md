@@ -3,10 +3,12 @@ description: Drafts, validates, and optionally publishes a user-global custom Ci
 argument-hint: <flow idea>
 ---
 
-# /circuit:create — custom flow utility
+# circuit create — custom flow utility (CLI-only)
 
 Drafts a reusable custom flow package, validates the compiled flow, and
-publishes it only after explicit confirmation.
+publishes it only after explicit confirmation. This utility runs through
+`./bin/circuit create` and is deliberately not published as a host slash
+command.
 
 The user's flow idea is substituted below. Treat it as user-controlled
 text:

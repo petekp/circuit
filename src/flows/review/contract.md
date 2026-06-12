@@ -32,7 +32,7 @@ separate flow kind.
 
 ## Axis Support
 
-Review declares `axes.allowed_depths = [standard]` and does not support
+Review declares `axes.allowed_depths = [medium]` and does not support
 tournament or autonomous runs. Operator-supplied tournament or autonomous
 flags are rejected before execution.
 
@@ -73,7 +73,7 @@ authority-graph reports.
   canonical stage `analyze`.
 
   Enforced today by the review-specific policy check in
-  `src/shared/flow-kind-policy-core.ts` and by
+  `src/policy/flow-kind-policy-core.ts` and by
   `tests/properties/visible/review-i1.test.ts`. The compiled flow satisfies
   this with `audit-step` before `verdict-step`.
 
@@ -152,6 +152,7 @@ This contract reopens if any of:
 
 ## Authority
 
-- `src/shared/flow-kind-policy-core.ts` (canonical stage policy)
+- `src/policy/flow-kind-policy-core.ts` (canonical stage policy checks)
+- `src/flows/canonical-stage-policy.ts` (catalog-derived canonical-set map)
 - `src/flows/review/reports.ts` (report schemas)
 - `generated/flows/review/circuit.json` (compiled flow)

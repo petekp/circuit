@@ -14,7 +14,10 @@ claude --plugin-dir ./plugins/claude
 - `.claude-plugin/plugin.json`: hand-authored manifest.
 - `commands/<id>.md`: generated slash-command files.
 - `skills/<flow>/*.json`: generated compiled flow files.
-- `hooks/`: hand-authored SessionStart hook support.
+- `hooks/`: hand-authored hooks. `session-start.ts` runs on SessionStart to
+  surface saved continuity; `harvest.ts` runs on Stop, SessionEnd, and
+  PreCompact to harvest the session into `.circuit/continuity` (see
+  `hooks/hooks.json`).
 - `runtime/circuit.js`: generated bundled runtime.
 - `scripts/circuit.ts`: hand-authored wrapper that launches the bundled runtime.
 

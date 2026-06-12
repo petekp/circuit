@@ -22,9 +22,10 @@ property_ids:
 
 # Explore Flow Contract
 
-The **Explore** flow is the first-parity flow target. It walks a five-stage
+The **Explore** flow is the first-parity flow target. It walks a four-stage
 investigation: frame the investigation, analyze the subject, synthesize
-findings, review those findings adversarially, and close with a final report.
+findings and review them adversarially inside the Plan or Decision stage,
+and close with a final report.
 
 Unlike the base domain contracts (`flow.md`, `step.md`, `stage.md`, etc.)
 which govern the shape of any flow, this contract governs a specific flow:
@@ -42,16 +43,19 @@ report ids the flow's stages emit, plus four property ids for deferred
 semantic guarantees.
 
 The base `CompiledFlow` schema has no `kind` field today. Until it does,
-`src/shared/flow-kind-policy-core.ts` carries the `{id → canonical set}` map
-used by contract tests and generated flow loading. Reopen triggers for this seam:
+the `{id → canonical set}` map derives from each flow definition's
+`canonicalStagePolicy` in `src/flows/catalog.ts`, aggregated by
+`src/flows/canonical-stage-policy.ts` and checked by
+`src/policy/flow-kind-policy-core.ts` for contract tests and generated
+flow loading. Reopen triggers for this seam:
 duplicate `id` across flow packages; an `explore-mini` or `research` flow with
 no explicit policy entry; or landing of the `CompiledFlow.kind` field.
 
 ## Axis Support
 
-Explore declares `axes.allowed_depths = [lite, standard, deep]`, supports
+Explore declares `axes.allowed_depths = [low, medium, high]`, supports
 tournament and autonomous runs, and declares `decision-stage` as the
-tournament fan-out stage. The default axis tuple is standard, non-tournament,
+tournament fan-out stage. The default axis tuple is medium, non-tournament,
 and interactive with `tournament_n = 3`.
 
 ## Result-path split
@@ -77,12 +81,12 @@ See `UBIQUITOUS_LANGUAGE.md#core-flow-language` for canonical definitions of **C
   Analyze stage. Decomposes the subject into named aspects with evidence
   citations.
 - **Explore findings** (`explore.compose`): the report emitted by the
-  Synthesize stage. Produces the investigation's primary output — a
+  synthesize step. Produces the investigation's primary output — a
   recommendation, decision candidate set, or conclusion — with explicit
   mapping back to the brief's success condition. (The schema id is
   `explore.compose`; in prose we call it the findings report.)
 - **Explore review verdict** (`explore.review-verdict`): the report
-  emitted by the Review stage. Adversarial pass over `explore.compose`;
+  emitted by the review step. Adversarial pass over `explore.compose`;
   reports objections, missed angles, and overall result. The verdict
   vocabulary is `accept`, `accept-with-fold-ins`, and `reject`; only the
   first two are pass verdicts. `reject` is a schema-valid non-pass
@@ -100,13 +104,14 @@ See `UBIQUITOUS_LANGUAGE.md#core-flow-language` for canonical definitions of **C
 
 ## Canonical stage set and title-to-canonical translation
 
-The default investigation path uses flow-specific titles `{Frame, Analyze,
-Synthesize, Review, Close}`. The tournament decision path uses `{Frame,
-Analyze, Decision, Close}`. These titles are human-readable and match the
-reference Circuit explore behavior. They are not all canonical stage ids —
-`Synthesize` in particular is not in the CanonicalStage enum at
-`src/schemas/stage.ts` (which is the seven-stage path `frame, analyze, plan,
-act, verify, review, close`).
+Both the default investigation path and the tournament decision path use
+the flow-specific stage titles `{Frame, Analyze, Plan or Decision, Close}`.
+Synthesize and Review are steps (`synthesize-step`, `review-step`) inside
+the Plan or Decision stage, not standalone stages. The titles are
+human-readable and match the reference Circuit explore behavior. They are
+not all canonical stage ids — the canonical ids come from the
+CanonicalStage enum at `src/schemas/stage.ts` (which is the seven-stage
+path `frame, analyze, plan, act, verify, review, close`).
 
 This contract records the title-to-canonical translation as follows:
 
@@ -114,40 +119,38 @@ This contract records the title-to-canonical translation as follows:
 |---|---|---|
 | Frame                  | `frame`    | State the subject and success condition. |
 | Analyze                | `analyze`  | Decompose the subject into aspects with evidence. |
-| Synthesize             | `act`      | Produce the investigation's primary output. |
-| Decision               | `plan`     | Run option drafting, proposal fanout, stress review, tradeoff checkpoint, and final decision composition. |
-| Review                 | `review`   | Adversarial pass over `explore.compose`. |
+| Plan or Decision       | `plan`     | Holds the synthesize and review steps; on tournament runs it instead runs option drafting, proposal fanout, stress review, tradeoff checkpoint, and final decision composition. |
 | Close                  | `close`    | Final aggregate report and closure. |
 
-**Default canonical set:** `{frame, analyze, act, review, close}`.
-**Default omits:** `{plan, verify}` (partial path).
+**Default canonical set:** `{frame, analyze, plan, close}`.
+**Default omits:** `{act, verify, review}` (partial path).
 
-**Tournament canonical set:** `{frame, analyze, plan, close}`.
-**Tournament omits:** `{act, verify, review}` (partial path).
+**Tournament canonical set:** identical — `{frame, analyze, plan, close}`
+with the same omits.
 
 Tournament does not add a canonical Review stage. Its adversarial stress pass is
-inside the canonical `plan` stage titled `Decision`, because original Explore
-parity treats this as `Plan or Decision` with embedded critique.
+inside the canonical `plan` stage titled `Plan or Decision`, because original
+Explore parity treats this as `Plan or Decision` with embedded critique.
 
 ### Executor and kind per stage
 
-The runtime locks the executor + kind for each stage:
+The runtime locks the executor + kind for each stage and relay step:
 
-| Stage (title / canonical) | executor       | kind        | role          | writes shape                               | check              |
-|---------------------------|----------------|-------------|---------------|--------------------------------------------|--------------------|
-| Frame / `frame`           | `orchestrator` | `compose` | —             | `{report}`                               | `schema_sections`  |
-| Analyze / `analyze`       | `orchestrator` | `compose` | —             | `{report}`                               | `schema_sections`  |
-| Synthesize / `act`        | `worker`       | `relay`  | `implementer` | `{report, request, receipt, result}`     | `result_verdict`   |
-| Review / `review`         | `worker`       | `relay`  | `reviewer`    | `{report, request, receipt, result}`     | `result_verdict`   |
-| Close / `close`           | `orchestrator` | `compose` | —             | `{report}`                               | `schema_sections`  |
+| Stage or step (title / canonical) | executor       | kind        | role          | writes shape                               | check              |
+|-----------------------------------|----------------|-------------|---------------|--------------------------------------------|--------------------|
+| Frame / `frame`                   | `orchestrator` | `compose` | —             | `{report}`                               | `schema_sections`  |
+| Analyze / `analyze`               | `orchestrator` | `compose` | —             | `{report}`                               | `schema_sections`  |
+| synthesize-step in Plan or Decision / `plan` | `worker` | `relay`  | `implementer` | `{report, request, receipt, result}`     | `result_verdict`   |
+| review-step in Plan or Decision / `plan`     | `worker` | `relay`  | `reviewer`    | `{report, request, receipt, result}`     | `result_verdict`   |
+| Close / `close`                   | `orchestrator` | `compose` | —             | `{report}`                               | `schema_sections`  |
 
-**Why Synthesize and Review relay to workers.** The Synthesize stage IS
-the investigation output (the model doing the work); Review IS the
-adversarial pass (the model doing the checking). If the orchestrator does
-both, explore produces same-model self-review — the methodology rejects
-that.
+**Why the synthesize and review steps relay to workers.** The synthesize
+step IS the investigation output (the model doing the work); the review
+step IS the adversarial pass (the model doing the checking). If the
+orchestrator does both, explore produces same-model self-review — the
+methodology rejects that.
 
-Flipping these two stages to worker relays makes the relay routing a
+Flipping these two steps to worker relays makes the relay routing a
 contract-visible surface: the step schema carries a `role` tag, a
 request/receipt/result transcript, and a `ResultVerdictCheck` that every
 Circuit-written step lacks. The schema layer does not enforce that the
@@ -161,11 +164,11 @@ evidence), and aggregation (composing prior reports into a run result) are
 bookkeeping the orchestrator does. They do not benefit from crossing a
 model boundary; their output is deterministic given the inputs.
 
-**Why `Synthesize → act`.** Synthesize is the primary work-producing stage.
-It consumes the brief + analysis and emits the `explore.compose` report —
-the investigation's output. In the canonical seven-stage path, `act` is the
-"do the work" stage, where the flow's primary deliverable is produced.
-This matches.
+**Why Synthesize lives inside `plan`.** Synthesize is the primary
+work-producing step. It consumes the brief + analysis and emits the
+`explore.compose` report — the investigation's output. It runs as a relay
+step inside the canonical Plan or Decision stage, next to the review step,
+rather than as a standalone `act` stage.
 
 **Why `plan` is present.** Explore is an investigation and decision flow.
 Synthesize, critique, and tournament decisions live inside the canonical
@@ -209,7 +212,7 @@ Other semantic guarantees are recorded as deferred properties (see below).
   `check: ResultVerdictCheck`). Failures hit the base schema before
   Check 24 runs.
 
-  Enforced by `src/shared/flow-kind-policy-core.ts` and
+  Enforced by `src/policy/flow-kind-policy-core.ts` and
   `tests/contracts/flow-kind-policy.test.ts`.
 
 ## Deferred properties
@@ -218,11 +221,11 @@ These describe semantic guarantees the contract intends the `explore` flow
 to satisfy but that are not runtime-enforced today.
 
 - **`explore.prop.canonical_stage_set_is_correct`** — test-enforced via
-  `tests/contracts/stage path-coverage.test.ts`.
-- **`explore.prop.report_emission_ordered`** — five stages emit reports
-  in order: Frame → `explore.brief`, Analyze → `explore.analysis`,
-  Synthesize → `explore.compose`, Review → `explore.review-verdict`,
-  Close → `explore.result`. Deferred.
+  `tests/contracts/flow-kind-policy.test.ts`.
+- **`explore.prop.report_emission_ordered`** — five steps across four
+  stages emit reports in order: Frame → `explore.brief`, Analyze →
+  `explore.analysis`, synthesize-step → `explore.compose`, review-step →
+  `explore.review-verdict`, Close → `explore.result`. Deferred.
 - **`explore.prop.review_after_compose`** — Review MUST execute after
   Synthesize on every viable execution path. Deferred.
 - **`explore.prop.no_skip_to_close`** — no execution path from any
@@ -325,7 +328,8 @@ advance — `step.completed` is not emitted for the aborted step, and
 sequences trace_entries:
 
 1. `step.entered`
-2. The five-trace_entry relay transcript via `materializeRelay`:
+2. The five-trace_entry relay transcript, built inline by the runtime
+   relay executor (`src/runtime/executors/relay.ts`):
    `relay.started` → `relay.request` → `relay.receipt` →
    `relay.result` → `relay.completed`. The transcript writes the
    `request`, `receipt`, and `result` files unconditionally (durable
@@ -417,7 +421,7 @@ arrays, and runtime writer/registry behavior must stay aligned.
 See Deferred properties above for semantics.
 
 - `explore.prop.canonical_stage_set_is_correct` — test-enforced via
-  `tests/contracts/stage path-coverage.test.ts` describe title.
+  `tests/contracts/flow-kind-policy.test.ts`.
 - `explore.prop.report_emission_ordered` — deferred.
 - `explore.prop.review_after_compose` — deferred.
 - `explore.prop.no_skip_to_close` — deferred.
@@ -430,9 +434,9 @@ This contract is reopened if any of:
 1. **Target retarget.** If the operator reselects a different first-parity
    target, this contract is deprecated in place (status → `retargeted`).
 2. **Canonical stage set change.** If a future change amends the canonical
-   stage set for `explore` (e.g., adds `plan` back in, or maps Synthesize
-   to `plan` instead of `act`), this contract must be amended. The
-   title-to-canonical translation table is the authoritative surface.
+   stage set for `explore` (e.g., adds `act` back in, or moves Synthesize
+   out of `plan` into a standalone stage), this contract must be amended.
+   The title-to-canonical translation table is the authoritative surface.
 3. **Report-schema refactor.** If the five report ids gain different
    concrete Zod schemas, this contract amends the report id section with
    schema file pointers and the report round-trip invariant.
@@ -462,6 +466,7 @@ This contract is reopened if any of:
 
 ## Authority
 
-- `src/shared/flow-kind-policy-core.ts` (canonical stage policy)
+- `src/policy/flow-kind-policy-core.ts` (canonical stage policy checks)
+- `src/flows/canonical-stage-policy.ts` (catalog-derived canonical-set map)
 - `src/flows/explore/reports.ts` (report schemas)
 - `generated/flows/explore/circuit.json` (compiled flow)

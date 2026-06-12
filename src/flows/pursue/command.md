@@ -119,4 +119,4 @@ metacharacters:
 
 - `src/flows/pursue/data.ts` (flow package; visibility and command ownership)
 - `docs/flows/pursue.md` (flow shape and serial-only safety model)
-- `tests/runner/cli-router.test.ts` (explicit dispatch)
+- `tests/runner/cli-router.test.ts` (explicit flow routing)

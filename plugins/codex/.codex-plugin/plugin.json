@@ -7,7 +7,7 @@
   },
   "homepage": "https://github.com/petekp/circuit",
   "repository": "https://github.com/petekp/circuit",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "keywords": ["circuit", "developer-flows", "codex", "automation"],
   "skills": "./skills/",
   "interface": {

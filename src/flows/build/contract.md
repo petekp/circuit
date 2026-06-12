@@ -29,12 +29,13 @@ plan is grounded in a real read of the codebase rather than the brief alone.
 
 Build uses the full canonical set
 `{frame, analyze, plan, act, verify, review, close}`. This is enforced by
-`src/shared/flow-kind-policy-core.ts` against the generated flow at
-`generated/flows/build/circuit.json`.
+`src/policy/flow-kind-policy-core.ts` (table derived from
+`src/flows/catalog.ts` via `src/flows/canonical-stage-policy.ts`) against
+the generated flow at `generated/flows/build/circuit.json`.
 
 ## Axis Support
 
-Build declares `axes.allowed_depths = [lite, standard, deep]`. It supports
+Build declares `axes.allowed_depths = [low, medium, high]`. It supports
 autonomous runs and does not support tournament runs.
 
 This contract starts as the typed-output home for the seven Build reports:
