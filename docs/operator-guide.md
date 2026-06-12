@@ -174,9 +174,9 @@ checks before public claims:
 | `npm run check` | TypeScript with `tsc --noEmit`. |
 | `npm run lint` | Biome. |
 | `npm run test` | Full Vitest suite. |
-| `npm run test:fast` | Vitest without the two slow subprocess-driven outliers (CLI router integration and emit-flows drift). |
+| `npm run test:fast` | Vitest excluding the slowest subprocess-driven outliers, for faster iteration. |
 | `npm run build` | Production TypeScript build. |
-| `npm run verify:fast` | Check, lint, build, fast tests, eval checks, ideas-catalog check, YAML schema drift, flow drift, and plugin runtime drift. |
+| `npm run verify:fast` | A faster broad pass for iteration: the lint, type, build, test, and drift gates run with `test:fast` instead of the full suite and without the release-infra check. See `package.json` (`verify:fast`) for the exact command list. |
 | `npm run verify` | The full canonical check that CI enforces. |
 | `npm run check-release-ready` | Strict release readiness check. |
 | `npm run publish:plugins:check` | Plugin packaging and version alignment check. |
