@@ -17,7 +17,7 @@ function mechanicalTail(schema: string, reportPath: string): string {
     'Do not include extra top-level keys.',
     'Do not wrap the JSON in Markdown code fences.',
     'Do not include any prose before or after the JSON object.',
-    `The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against ${schema} before writing ${reportPath}.`,
+    `The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against ${schema} before writing ${reportPath}.`,
   ].join(' ');
 }
 

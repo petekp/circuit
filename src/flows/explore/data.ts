@@ -204,6 +204,11 @@ export const exploreFlowData = {
         input: {
           brief: 'explore.brief@v1',
           diagnosis: 'explore.analysis@v1',
+          // Forward read: written by review-step, so it is absent on the
+          // first pass (rendered as a reads-unavailable placeholder) and
+          // present on a rework pass after a reject — the rework attempt
+          // must see why the compose was rejected.
+          review: 'explore.review-verdict@v1',
         },
         output: 'explore.compose@v1',
         evidenceRequirements: ['changed files', 'change rationale', 'declared follow-up proof'],

@@ -291,10 +291,21 @@ describe('explore report schemas', () => {
     });
   });
 
-  it('rejects invalid explore.review-verdict verdicts and surplus keys', () => {
+  it('accepts a blocking reject verdict so the reviewer can route the compose to rework', () => {
     expect(
       ExploreReviewVerdict.safeParse({
         verdict: 'reject',
+        overall_assessment: 'The compose misses the requested scope',
+        objections: ['Missing evidence'],
+        missed_angles: [],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects invalid explore.review-verdict verdicts and surplus keys', () => {
+    expect(
+      ExploreReviewVerdict.safeParse({
+        verdict: 'needs-work',
         overall_assessment: 'The compose misses the requested scope',
         objections: ['Missing evidence'],
         missed_angles: [],
@@ -416,7 +427,11 @@ describe('explore report schemas', () => {
     const reviewStep = flow.steps.find((step) => step.id === 'review-step');
     if (reviewStep?.kind !== 'relay') throw new Error('expected review-step relay');
 
-    expect(reviewStep.check.pass).toEqual([...ExploreReviewVerdictValue.options]);
+    // The pass list is a strict subset of the schema vocabulary: 'reject'
+    // is schema-valid but not a pass verdict, which is exactly the
+    // mechanism that routes a rejected compose back to synthesize-step.
+    expect(reviewStep.check.pass).toEqual(['accept', 'accept-with-fold-ins']);
+    expect([...ExploreReviewVerdictValue.options]).toEqual([...reviewStep.check.pass, 'reject']);
   });
 
   it('accepts the typed explore.result aggregate shape', () => {

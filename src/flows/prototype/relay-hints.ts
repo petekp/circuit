@@ -9,7 +9,7 @@ export const prototypeArtifactShapeHint: SchemaShapeHint = {
     'Create only disposable prototype files under the prototype_root from the plan. Do not edit production application code, generated host packages, or release metadata.',
     'Use verdict "accept" only when the entry points and created files exist under prototype_root. Use verdict "blocked" when you cannot create the artifact, and still report any evidence you gathered.',
     'Do not claim deployment, production readiness, provider behavior, model behavior, branch previews, screenshots, or hosted URLs. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.',
-    'The runtime parses your response with JSON.parse, rejects verdicts outside the accepted-verdicts list, validates the full report body against prototype.artifact@v1, and verifies reported artifact paths before writing the final Prototype result.',
+    'The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, validates the full report body against prototype.artifact@v1, and verifies reported artifact paths before writing the final Prototype result.',
   ].join(' '),
 };
 

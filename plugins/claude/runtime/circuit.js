@@ -29205,7 +29205,7 @@ var buildContextShapeHint = {
     'In guardrails, capture the negative space of the change. Put in non_goals the things the operator said the change must NOT do - boundaries drawn from the goal and brief, not invented. Put in invariants the properties the change must preserve, grounded in what you read (a contract, a data shape, an ordering, a safety property). Both default to empty arrays: declare a guardrail only when it is real and specific, never a generic "do not break anything". These carry forward to the plan and the reviewer checks the change against them.',
     'In allowed_touch_area, name the paths this change is allowed to touch, proposed from what you read - either a directory subtree ending in "/" (for example "src/flows/build/", which covers everything beneath it) or an exact repo-relative file path. Include every place a correct change legitimately needs to reach: the source it edits, the tests that cover it, and any generated output it regenerates. State the allowed area positively; do not list off-limits files. After the build the engine compares the files actually changed - proven from git, not self-reported - against this area, and a change that reaches outside it cannot finish clean. Because the implementer is held to this without trimming the work to fit, leave the array empty whenever you cannot scope the change with confidence: an empty area turns the check off rather than guessing a box.',
     'Include recommended_power ONLY when the relay context states the power dial is auto; omit the key entirely otherwise. When you do include it, judge from the codebase read how strong a model the downstream implementation and review need: "low" for a small localized change with good test coverage, "high" for a wide, subtle, or weakly-tested change, "medium" between. One short rationale sentence.',
-    "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.context@v1 before writing reports/build/context.json."
+    "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against build.context@v1 before writing reports/build/context.json."
   ].join(" ")
 };
 var buildImplementationShapeHint = {
@@ -29220,7 +29220,7 @@ var buildImplementationShapeHint = {
     "The plan's anticipated_file_extensions (and the current slice's, when named) list the file types the grounding read expects to touch. Treat them as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched.",
     "The plan may also carry allowed_touch_area: the paths the grounding read predicted this change should reach. It is advisory to you, not a cage - implement what the slice and goal actually require and report every file you really changed. After you finish, the engine compares your git-proven changes against that area; reaching outside it does not fail the build but surfaces for a human to confirm, so do not pad the change with edits it does not need, and do not trim a necessary change just to stay inside the predicted box.",
     "Use an empty changed_files array only when no file changed. Evidence must contain at least one item. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
-    "The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.implementation@v1 before writing reports/build/implementation.json."
+    "The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against build.implementation@v1 before writing reports/build/implementation.json."
   ].join(" ")
 };
 var buildReviewShapeHint = {
@@ -29233,7 +29233,7 @@ var buildReviewShapeHint = {
     `alignment is required. Set scope_adherence by judging the finished change against the brief: within_scope when it does only what the goal asked, exceeds_scope when it reaches beyond. Add one non_goals entry per non_goal the plan declared and one invariants entry per invariant, each restating the plan's text with a status and concrete evidence; use empty arrays only when the plan declared none. If you set scope_adherence to exceeds_scope, or mark any non_goal violated or any invariant violated, the verdict cannot be "accept" and you must include at least one finding that explains the breach.`,
     "You are also given a git-proven touch_area report: the files the change actually modified and whether they stayed inside the plan's allowed_touch_area. Treat it as ground truth about what was physically touched - more reliable than the implementer's self-reported file list - and let it inform your scope_adherence judgment and your evidence. The engine enforces that boundary separately at close, so your job here is the semantic call, not to re-run the boundary check.",
     'Use an empty findings array only with verdict "accept". Verdicts "accept-with-fixes" and "reject" must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.',
-    "The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against build.review@v1 before writing reports/build/review.json."
+    "The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against build.review@v1 before writing reports/build/review.json."
   ].join(" ")
 };
 
@@ -31823,7 +31823,7 @@ var exploreComposeShapeHint = {
     '{ "verdict": "<one-of-accepted-verdicts>", "subject": "<subject investigated>", "recommendation": "<primary conclusion or recommendation>", "success_condition_alignment": "<how the recommendation satisfies the brief success condition>", "supporting_aspects": [{ "aspect": "<analysis aspect name>", "contribution": "<how this aspect supports the recommendation>", "evidence_refs": ["<report path or file:line reference that supports this contribution>"] }] }',
     "Ground claims in the provided reports or files you inspect. If the evidence is thin, say so in the recommendation instead of inventing certainty. When asked to score or grade, include the rubric in the recommendation and cite the evidence refs behind the score.",
     "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
-    "The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against explore.compose@v1 before writing reports/compose.json."
+    "The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against explore.compose@v1 before writing reports/compose.json."
   ].join(" ")
 };
 var exploreReviewVerdictShapeHint = {
@@ -31831,10 +31831,11 @@ var exploreReviewVerdictShapeHint = {
   schema: "explore.review-verdict@v1",
   instruction: [
     "Respond with a single raw JSON object whose top-level shape is exactly:",
-    '{ "verdict": "<one-of-accepted-verdicts>", "overall_assessment": "<review summary>", "objections": ["<blocking or follow-up objection>"], "missed_angles": ["<important angle not covered>"] }',
+    '{ "verdict": "<accept|accept-with-fold-ins|reject>", "overall_assessment": "<review summary>", "objections": ["<blocking or follow-up objection>"], "missed_angles": ["<important angle not covered>"] }',
+    'Use verdict "reject" when any objection is blocking: the compose routes back for one rework pass that reads this review, and a second reject stops the run. Use "accept-with-fold-ins" only for objections the operator can absorb without reworking the compose. A justified reject is a successful review.',
     "Use empty arrays when there are no objections or missed angles. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
     `Audit the compose against the brief on these axes before deciding the verdict. Subject fidelity: the subject must match the brief; flag if it includes unrelated topics. Evidence groundedness: every evidence_ref must be a real path in the run; flag fabricated, missing, or unresolvable references. Internal consistency: the recommendation and supporting_aspects must not contradict each other or the verdict; flag self-negating or contradictory sentences. Epistemic calibration: confidence must match the evidence; flag overclaiming, false certainty, or assertions unsupported by the cited reports. Specifically flag mild readiness overclaims: if the compose says more proof, validation, repo inspection, or follow-up investigation is still needed, object to any claim that the result is enough, safe, or ready to proceed confidently or without follow-up. Success-condition alignment: the success_condition_alignment field must substantively explain how the recommendation satisfies the brief's success condition with specifics from the analysis; flag if it is generic, formulaic, vacuous, merely restates the brief, or could be pasted into any other compose unchanged ("This satisfies the brief." is the canonical failure).`,
-    "The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against explore.review-verdict@v1 before writing reports/review-verdict.json."
+    "The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against explore.review-verdict@v1 before writing reports/review-verdict.json."
   ].join(" ")
 };
 var exploreTournamentProposalShapeHint = {
@@ -31914,7 +31915,7 @@ var ExploreCompose = external_exports.object({
   success_condition_alignment: external_exports.string().min(1),
   supporting_aspects: external_exports.array(ExploreComposeAspect).min(1)
 }).strict();
-var ExploreReviewVerdictValue = external_exports.enum(["accept", "accept-with-fold-ins"]);
+var ExploreReviewVerdictValue = external_exports.enum(["accept", "accept-with-fold-ins", "reject"]);
 var ExploreReviewVerdict = external_exports.object({
   verdict: ExploreReviewVerdictValue,
   overall_assessment: external_exports.string().min(1),
@@ -32703,7 +32704,12 @@ var exploreFlowData = {
         block: "plan",
         input: {
           brief: "explore.brief@v1",
-          diagnosis: "explore.analysis@v1"
+          diagnosis: "explore.analysis@v1",
+          // Forward read: written by review-step, so it is absent on the
+          // first pass (rendered as a reads-unavailable placeholder) and
+          // present on a rework pass after a reject — the rework attempt
+          // must see why the compose was rejected.
+          review: "explore.review-verdict@v1"
         },
         output: "explore.compose@v1",
         evidenceRequirements: ["changed files", "change rationale", "declared follow-up proof"],
@@ -33365,6 +33371,43 @@ function leafDescriptionOr(node, fallback) {
 var MAX_RECURSION_DEPTH = 32;
 function renderShapeSkeleton(schema) {
   return renderNode(schema, /* @__PURE__ */ new Set(), 0);
+}
+function verdictValuesFromSchema(schema) {
+  const out = [];
+  collectVerdictValues(schema, out, 0);
+  return [...new Set(out)];
+}
+function collectVerdictValues(node, out, depth) {
+  if (depth > MAX_RECURSION_DEPTH)
+    return;
+  const def = defOf(node);
+  switch (def.type) {
+    case "object": {
+      const verdict = objectShape(def).verdict;
+      if (verdict === void 0)
+        return;
+      const verdictDef = defOf(verdict);
+      const values = verdictDef.type === "enum" ? enumValues(verdictDef) : verdictDef.type === "literal" ? literalValues(verdictDef) : [];
+      for (const value of values) {
+        if (typeof value === "string")
+          out.push(value);
+      }
+      return;
+    }
+    case "union": {
+      for (const option of def.options) {
+        collectVerdictValues(option, out, depth + 1);
+      }
+      return;
+    }
+    case "lazy": {
+      const getter = def.getter;
+      collectVerdictValues(getter(), out, depth + 1);
+      return;
+    }
+    default:
+      return;
+  }
 }
 function renderNode(node, visited, depth) {
   if (visited.has(node) || depth > MAX_RECURSION_DEPTH) {
@@ -34143,7 +34186,7 @@ function mechanicalTail(schema, reportPath) {
     "Do not include extra top-level keys.",
     "Do not wrap the JSON in Markdown code fences.",
     "Do not include any prose before or after the JSON object.",
-    `The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and validates the full report body against ${schema} before writing ${reportPath}.`
+    `The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against ${schema} before writing ${reportPath}.`
   ].join(" ");
 }
 function shapeInstruction(skeleton) {
@@ -38614,7 +38657,7 @@ var prototypeArtifactShapeHint = {
     "Create only disposable prototype files under the prototype_root from the plan. Do not edit production application code, generated host packages, or release metadata.",
     'Use verdict "accept" only when the entry points and created files exist under prototype_root. Use verdict "blocked" when you cannot create the artifact, and still report any evidence you gathered.',
     "Do not claim deployment, production readiness, provider behavior, model behavior, branch previews, screenshots, or hosted URLs. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
-    "The runtime parses your response with JSON.parse, rejects verdicts outside the accepted-verdicts list, validates the full report body against prototype.artifact@v1, and verifies reported artifact paths before writing the final Prototype result."
+    "The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, validates the full report body against prototype.artifact@v1, and verifies reported artifact paths before writing the final Prototype result."
   ].join(" ")
 };
 var prototypeVariantArtifactShapeHint = {
@@ -42613,7 +42656,7 @@ var reviewRelayShapeHint = {
     "The verification array is your self-report of concrete steps you took: files inspected, commands run, evidence cross-referenced. Include at least one entry on every verdict so the operator can audit the review.",
     "The confidence_limitations array names anything that limits certainty: out-of-scope files, omitted untracked content, areas you did not inspect, assumptions you had to make. Use an empty array only when coverage was complete.",
     "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
-    "The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and the close step validates findings, assessment, verification, and confidence_limitations before writing reports/review-result.json."
+    "The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and the close step validates findings, assessment, verification, and confidence_limitations before writing reports/review-result.json."
   ].join(" ")
 };
 
@@ -57550,7 +57593,26 @@ function evaluateRelayCheck(step, resultBody) {
   }
   return { kind: "pass", verdict: verdictRaw };
 }
-var GENERIC_DISPATCH_SHAPE_HINT = 'Respond with a single raw JSON object whose top-level shape is exactly { "verdict": "<one-of-accepted-verdicts>" } (additional fields permitted). Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse and rejects the run on any parse failure or on a verdict not drawn from the accepted-verdicts list.';
+var GENERIC_DISPATCH_SHAPE_HINT = 'Respond with a single raw JSON object whose top-level shape is exactly { "verdict": "<one-of-accepted-verdicts>" } (additional fields permitted). Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse; an unparseable response or a verdict outside the schema fails this attempt. Rework verdicts, where the schema declares them, are valid responses that route the work back for rework.';
+var ROLE_GLOSS = {
+  researcher: "you investigate and report; you do not modify the checkout.",
+  implementer: "you make the change this step asks for, scoped to what it asks.",
+  reviewer: "you are an independent auditor. Treat upstream reports as claims to verify, not facts. A justified rework verdict is a successful review, not a failed step."
+};
+function roleLine(role) {
+  const gloss = ROLE_GLOSS[role];
+  return gloss === void 0 ? `Role: ${role}` : `Role: ${role} \u2014 ${gloss}`;
+}
+function reworkVerdicts(step) {
+  const schemaName = step.writes.report?.schema;
+  if (schemaName === void 0)
+    return [];
+  const zodSchema = findReportZodSchema(schemaName);
+  if (zodSchema === void 0)
+    return [];
+  const pass = new Set(step.check.pass);
+  return verdictValuesFromSchema(zodSchema).filter((verdict) => !pass.has(verdict));
+}
 function relayResponseInstruction(step) {
   return findRelayShapeHint(step) ?? GENERIC_DISPATCH_SHAPE_HINT;
 }
@@ -57669,11 +57731,15 @@ ${readFileSync43(abs, "utf8")}`;
   const feedbackSection = acceptanceRetryFeedbackSection(acceptanceRetryFeedback);
   const memorySection = memoryInputsSection(memoryInputs);
   const pullSection = pullAffordanceSection(runFolder, flowId);
+  const rework = reworkVerdicts(step);
   return [
     `Step: ${step.id}`,
     `Title: ${step.title}`,
-    `Role: ${step.role}`,
+    roleLine(step.role),
     `Accepted verdicts: ${step.check.pass.join(", ")}`,
+    ...rework.length === 0 ? [] : [
+      `Rework verdicts (valid; the engine routes the work back for rework): ${rework.join(", ")}`
+    ],
     // Thread the run's resolved depth to the worker as an effort signal: it
     // tunes how much thoroughness to spend, it does not change which steps run
     // (F-M-1). Omitted when no depth is supplied so direct callers are unchanged.

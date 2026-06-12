@@ -28,6 +28,6 @@ export const reviewRelayShapeHint: StructuralShapeHint = {
     'The verification array is your self-report of concrete steps you took: files inspected, commands run, evidence cross-referenced. Include at least one entry on every verdict so the operator can audit the review.',
     'The confidence_limitations array names anything that limits certainty: out-of-scope files, omitted untracked content, areas you did not inspect, assumptions you had to make. Use an empty array only when coverage was complete.',
     'Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.',
-    'The runtime parses your response with JSON.parse, rejects any verdict not drawn from the accepted-verdicts list, and the close step validates findings, assessment, verification, and confidence_limitations before writing reports/review-result.json.',
+    'The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and the close step validates findings, assessment, verification, and confidence_limitations before writing reports/review-result.json.',
   ].join(' '),
 };

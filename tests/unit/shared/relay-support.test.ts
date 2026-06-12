@@ -183,4 +183,87 @@ describe('composeRelayPrompt', () => {
     expect(prompt).toContain('command verify must pass.');
     expect(prompt).not.toContain('must passed');
   });
+
+  it('names schema-valid rework verdicts alongside the pass list so reviewers know reject is safe', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'fix-review',
+        title: 'Review — independent audit of Fix change',
+        role: 'reviewer',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/fix-review.request.json' },
+          receipt: { path: 'reports/relay/fix-review.receipt.txt' },
+          result: { path: 'reports/relay/fix-review.result.json' },
+          report: { path: 'reports/fix/review.json', schema: 'fix.review@v1' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept', 'accept-with-fixes'] },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+    );
+
+    expect(prompt).toContain('Accepted verdicts: accept, accept-with-fixes');
+    expect(prompt).toContain('Rework verdicts');
+    expect(prompt).toContain('reject');
+    expect(prompt.indexOf('Rework verdicts')).toBeGreaterThan(prompt.indexOf('Accepted verdicts'));
+  });
+
+  it('omits the rework line when the schema has no verdicts beyond the pass list', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'fix-gather-context',
+        title: 'Analyze — gather problem context',
+        role: 'researcher',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/fix-gather-context.request.json' },
+          receipt: { path: 'reports/relay/fix-gather-context.receipt.txt' },
+          result: { path: 'reports/relay/fix-gather-context.result.json' },
+          report: { path: 'reports/fix/context.json', schema: 'fix.context@v1' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+    );
+
+    expect(prompt).toContain('Accepted verdicts: accept');
+    expect(prompt).not.toContain('Rework verdicts');
+  });
+
+  it('glosses the relay role with one behavioral sentence', () => {
+    const reviewerPrompt = composeRelayPrompt(
+      {
+        id: 'review-step',
+        title: 'Review',
+        role: 'reviewer',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/review.request.json' },
+          receipt: { path: 'reports/relay/review.receipt.txt' },
+          result: { path: 'reports/relay/review.result.json' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+    );
+    const researcherPrompt = composeRelayPrompt(
+      {
+        id: 'analyze-step',
+        title: 'Analyze',
+        role: 'researcher',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/analyze.request.json' },
+          receipt: { path: 'reports/relay/analyze.receipt.txt' },
+          result: { path: 'reports/relay/analyze.result.json' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+    );
+
+    expect(reviewerPrompt).toContain('Role: reviewer — you are an independent auditor');
+    expect(reviewerPrompt).toContain('successful review');
+    expect(researcherPrompt).toContain('Role: researcher — you investigate and report');
+  });
 });

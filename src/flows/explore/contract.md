@@ -83,7 +83,13 @@ See `UBIQUITOUS_LANGUAGE.md#core-flow-language` for canonical definitions of **C
   `explore.compose`; in prose we call it the findings report.)
 - **Explore review verdict** (`explore.review-verdict`): the report
   emitted by the Review stage. Adversarial pass over `explore.compose`;
-  reports objections, missed angles, and overall result.
+  reports objections, missed angles, and overall result. The verdict
+  vocabulary is `accept`, `accept-with-fold-ins`, and `reject`; only the
+  first two are pass verdicts. `reject` is a schema-valid non-pass
+  outcome: the report is still written, and the engine routes the
+  compose back to synthesize-step for one rework pass (which reads the
+  rejecting review). A second reject exhausts the route's default
+  max_attempts and aborts the run.
 - **Explore result** (`explore.result`): the aggregate report emitted by
   the Close stage. A summary plus result snapshot plus pointers to the
   four prior reports. The flow-specific "what the explore run produced."

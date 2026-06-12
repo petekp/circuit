@@ -114,6 +114,52 @@ export function renderShapeSkeleton(schema: ZodSchema): string {
   return renderNode(schema, new Set(), 0);
 }
 
+// Collect every string value the schema admits for its top-level `verdict`
+// field. Handles plain objects (verdict as enum or literal) and unions —
+// including discriminated unions over `verdict` — by walking each branch.
+// Returns [] when the schema has no introspectable verdict field, so
+// callers can degrade to the step's check.pass list alone.
+export function verdictValuesFromSchema(schema: ZodSchema): readonly string[] {
+  const out: string[] = [];
+  collectVerdictValues(schema, out, 0);
+  return [...new Set(out)];
+}
+
+function collectVerdictValues(node: ZodSchema, out: string[], depth: number): void {
+  if (depth > MAX_RECURSION_DEPTH) return;
+  const def = defOf(node);
+  switch (def.type) {
+    case 'object': {
+      const verdict = objectShape(def).verdict;
+      if (verdict === undefined) return;
+      const verdictDef = defOf(verdict);
+      const values =
+        verdictDef.type === 'enum'
+          ? enumValues(verdictDef)
+          : verdictDef.type === 'literal'
+            ? literalValues(verdictDef)
+            : [];
+      for (const value of values) {
+        if (typeof value === 'string') out.push(value);
+      }
+      return;
+    }
+    case 'union': {
+      for (const option of def.options as ZodSchema[]) {
+        collectVerdictValues(option, out, depth + 1);
+      }
+      return;
+    }
+    case 'lazy': {
+      const getter = def.getter as () => ZodSchema;
+      collectVerdictValues(getter(), out, depth + 1);
+      return;
+    }
+    default:
+      return;
+  }
+}
+
 function renderNode(node: ZodSchema, visited: Set<ZodSchema>, depth: number): string {
   if (visited.has(node) || depth > MAX_RECURSION_DEPTH) {
     return '<recursive>';

@@ -1,5 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { findReportZodSchema } from '../../flows/registries/report-schemas.js';
 import type { RuntimeIndexedRelayStep } from '../../flows/registries/runtime-index.js';
+import { verdictValuesFromSchema } from '../../flows/registries/shape-hints/from-zod.js';
 import { findRelayShapeHint } from '../../flows/registries/shape-hints/registry.js';
 import type { AcceptanceCriterion } from '../../schemas/acceptance-criteria.js';
 import {
@@ -66,7 +68,39 @@ export function evaluateRelayCheck(step: RelayStep, resultBody: string): CheckEv
 }
 
 const GENERIC_DISPATCH_SHAPE_HINT =
-  'Respond with a single raw JSON object whose top-level shape is exactly { "verdict": "<one-of-accepted-verdicts>" } (additional fields permitted). Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse and rejects the run on any parse failure or on a verdict not drawn from the accepted-verdicts list.';
+  'Respond with a single raw JSON object whose top-level shape is exactly { "verdict": "<one-of-accepted-verdicts>" } (additional fields permitted). Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse; an unparseable response or a verdict outside the schema fails this attempt. Rework verdicts, where the schema declares them, are valid responses that route the work back for rework.';
+
+// One behavioral sentence per relay role, rendered after the role name.
+// Flow-agnostic by construction: keyed on the engine-owned RelayRole enum,
+// never on flow identity. The reviewer gloss exists to counter the
+// accept-bias the bare pass list creates — a reviewer must know that a
+// justified blocking verdict is doing its job, not failing the run.
+const ROLE_GLOSS: Readonly<Record<string, string>> = {
+  researcher: 'you investigate and report; you do not modify the checkout.',
+  implementer: 'you make the change this step asks for, scoped to what it asks.',
+  reviewer:
+    'you are an independent auditor. Treat upstream reports as claims to verify, not facts. A justified rework verdict is a successful review, not a failed step.',
+};
+
+function roleLine(role: string): string {
+  const gloss = ROLE_GLOSS[role];
+  return gloss === undefined ? `Role: ${role}` : `Role: ${role} — ${gloss}`;
+}
+
+// Schema-valid verdicts beyond the step's pass list. These are real,
+// handled outcomes (the report is still written and the run routes to
+// rework), so the prompt must name them: a worker shown only the pass
+// list infers that any other verdict breaks the run and avoids it —
+// exactly the wrong incentive for reviewers. Returns [] when the step
+// writes no typed report or the schema admits nothing beyond check.pass.
+function reworkVerdicts(step: RelayStep): readonly string[] {
+  const schemaName = step.writes.report?.schema;
+  if (schemaName === undefined) return [];
+  const zodSchema = findReportZodSchema(schemaName);
+  if (zodSchema === undefined) return [];
+  const pass = new Set(step.check.pass);
+  return verdictValuesFromSchema(zodSchema).filter((verdict) => !pass.has(verdict));
+}
 
 function relayResponseInstruction(step: RelayStep): string {
   return findRelayShapeHint(step) ?? GENERIC_DISPATCH_SHAPE_HINT;
@@ -241,11 +275,17 @@ export function composeRelayPrompt(
   // The pull affordance is ALWAYS rendered (D4), unlike the recall-conditional
   // memorySection above which is omitted when recall is empty.
   const pullSection = pullAffordanceSection(runFolder, flowId);
+  const rework = reworkVerdicts(step);
   return [
     `Step: ${step.id}`,
     `Title: ${step.title}`,
-    `Role: ${step.role}`,
+    roleLine(step.role),
     `Accepted verdicts: ${step.check.pass.join(', ')}`,
+    ...(rework.length === 0
+      ? []
+      : [
+          `Rework verdicts (valid; the engine routes the work back for rework): ${rework.join(', ')}`,
+        ]),
     // Thread the run's resolved depth to the worker as an effort signal: it
     // tunes how much thoroughness to spend, it does not change which steps run
     // (F-M-1). Omitted when no depth is supplied so direct callers are unchanged.

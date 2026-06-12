@@ -130,7 +130,8 @@
       "stage": "plan",
       "input": {
         "brief": "explore.brief@v1",
-        "diagnosis": "explore.analysis@v1"
+        "diagnosis": "explore.analysis@v1",
+        "review": "explore.review-verdict@v1"
       },
       "output": "explore.compose@v1",
       "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
