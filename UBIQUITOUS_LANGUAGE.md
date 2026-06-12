@@ -132,7 +132,7 @@ the same safety review, not as a new product metaphor.
 | **Runtime signal** | Runtime evidence for whether a dim was proved, missing, or not applicable. | Runtime evidence |
 | **Model judgment** | The reviewer judgment for a dim: pass, concern, or fail. | Reviewer judgment |
 | **runtime_vetoed** | A flag showing the runtime evidence overrode a model judgment to fail. | Runtime override |
-| **Tournament** | Explore's pattern for generating multiple candidate answers and selecting one. | Model comparison |
+| **Tournament** | The fan-out-and-select pattern. Explore fans out decision options and selects one; Prototype fans out implementation variants and asks which to keep. | Model comparison |
 
 ## Build Limits Language
 

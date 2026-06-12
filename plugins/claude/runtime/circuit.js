@@ -34798,7 +34798,7 @@ var fixFlowData = {
     schema_version: "2",
     id: "fix",
     title: "Fix Schematic",
-    purpose: "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at medium depth and above, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Low depth skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they are unreachable at compile time and omitted from compiled flows.",
+    purpose: "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at medium depth and above, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Low depth skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they appear in compiled flows but no runtime path selects them (the work contract declares no ask/handoff recovery bindings, and fallback recovery prefers retry, which every referencing step declares).",
     status: "active",
     version: "0.1.0",
     starts_at: "fix-frame",
