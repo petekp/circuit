@@ -74,7 +74,12 @@ export interface EvalCaseResult {
     | { kind: 'parse_error'; message: string; raw_response: string }
     | { kind: 'schema_error'; message: string; raw_response: string };
   readonly score:
-    | { kind: 'control'; original_verdict: 'accept' | 'accept-with-fold-ins' }
+    // A control sends the unmutated compose; original_verdict is the
+    // reviewer's actual verdict on it. 'reject' is a valid value — the
+    // reviewer flagging a supposedly-clean compose is the false-positive
+    // signal the control arm exists to measure — so it is bucketed, not
+    // narrowed away.
+    | { kind: 'control'; original_verdict: ExploreReviewVerdict['verdict'] }
     | { kind: 'caught'; matched_signal: string }
     | { kind: 'missed' }
     | { kind: 'skipped'; reason: string };
@@ -95,7 +100,19 @@ export interface EvalSummary {
     DefectId,
     { catches: number; misses: number; errors: number; cases: number }
   >;
-  readonly controls: { passes: number; fails: number; errors: number; cases: number };
+  // The reviewer's verdict distribution over the unmutated control composes.
+  // accept is the only truly clean outcome; accept_with_fold_ins and reject
+  // are the false-positive signal — a reviewer objecting to a compose with no
+  // planted defect. errors are controls that produced no valid verdict.
+  // (Replaces the former {passes, fails} shape, where every valid verdict
+  // counted as a "pass" and the reject signal was invisible.)
+  readonly controls: {
+    cases: number;
+    accept: number;
+    accept_with_fold_ins: number;
+    reject: number;
+    errors: number;
+  };
   readonly overall: {
     cases: number;
     // Cases where the judge was actually invoked: total cases minus the

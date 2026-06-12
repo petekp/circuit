@@ -100,3 +100,52 @@ A **harness skip** (a planter that could not apply because its target field
 was absent) is neither an attempt nor an error — the judge was never called.
 Harness skips are reported separately and excluded from both denominators so
 they cannot distort either rate.
+
+### The control arm
+
+Unless you pass `--no-control`, each source compose is also sent through the
+reviewer **unmutated**. That control measures the reviewer's false-positive
+rate: how often it objects to a compose with no planted defect.
+
+The summary reports the control verdict distribution, not a single
+pass/fail count:
+
+```
+controls: { cases, accept, accept_with_fold_ins, reject, errors }
+```
+
+Only `accept` is a clean pass. `accept-with-fold-ins` and `reject` are the
+reviewer objecting to an unmutated compose — the false-positive signal. The
+**control false-positive rate** is `(accept_with_fold_ins + reject) / scored`,
+where `scored` excludes controls that errored out (no valid verdict). An
+earlier `{passes, fails}` shape collapsed every valid verdict into `passes`,
+so rejects on clean composes were invisible; that is why this distribution is
+now reported in full and tracked in the committed ledger
+(`control_accept`, `control_accept_with_fold_ins`, `control_reject`,
+`control_errors`).
+
+A reject is only a *true* false positive if the compose was actually clean.
+To certify that half, run:
+
+```bash
+node --experimental-strip-types evals/verdict-correctness/certify-controls.ts \
+  --results evals/verdict-correctness/results/<dir>
+```
+
+It pulls each control compose's `evidence_refs`, classifies them (repo-file,
+run-report, or unverifiable), resolves the file-path ones against the repo and
+the source run dir, and pairs the result with the reviewer's verdict. It writes
+`control-certification.json` into the results dir and prints a per-control
+table. The point is to separate "the reviewer over-flagged a fully grounded
+compose" (genuine false positive) from "the reviewer objected to a compose with
+an unresolved citation" (inspect by hand).
+
+One honest limit, enforced by the module's design: resolution is against the
+**current** repo, not the repo as it stood when the source run produced the
+compose. An unresolved file-path ref is often a since-moved or since-pruned
+file, **not** a fabrication — so the certification reports it as `unresolved`,
+never as `broken`, and excludes non-path citations (git refs, shell commands,
+directory-listing prose) from the grounded/broken tally entirely.
+
+The first certification of the tracked claude-code runs is written up in
+[`docs/evals/2026-06-12-control-certification.md`](../../docs/evals/2026-06-12-control-certification.md).

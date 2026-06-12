@@ -7,7 +7,7 @@ import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from './cli-args.ts';
 import { DEFECT_IDS } from './defect-taxonomy.ts';
-import { summarizeCaseSourcePool } from './reporting.ts';
+import { renderControlDistribution, summarizeCaseSourcePool } from './reporting.ts';
 import { buildCases, runCase } from './runner.ts';
 import { summarize } from './summary.ts';
 import type { EvalCaseResult, EvalSummary } from './types.ts';
@@ -118,9 +118,7 @@ function renderMarkdownReport(results: readonly EvalCaseResult[], summary: EvalS
   lines.push('');
   lines.push('## Controls');
   lines.push('');
-  lines.push(
-    `Unmodified composes: ${summary.controls.passes} returned a valid verdict, ${summary.controls.errors} errored. Total: ${summary.controls.cases}.`,
-  );
+  for (const line of renderControlDistribution(summary.controls)) lines.push(line);
   lines.push('');
   lines.push('## Misses (defects the reviewer did not flag)');
   lines.push('');
