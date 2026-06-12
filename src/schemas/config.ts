@@ -7,7 +7,7 @@ import {
 } from './connector.js';
 import { HostConfig } from './host.js';
 import { CompiledFlowId, SkillId, SkillSlotId } from './ids.js';
-import { Power } from './power.js';
+import { Power, PowerDialSetting, powerIndex } from './power.js';
 import { Effort, ProviderScopedModel, SelectionOverride } from './selection-policy.js';
 import { SkillHookConfig } from './skill-hook.js';
 import { RelayRole } from './step.js';
@@ -222,6 +222,27 @@ export type PowerTierSpec = z.infer<typeof PowerTierSpec>;
 export const PowerTierTable = z.partialRecord(Power, PowerTierSpec);
 export type PowerTierTable = z.infer<typeof PowerTierTable>;
 
+// Operator bounds on the auto dial: when `defaults.power` is `auto`, the
+// run's inferred tier is clamped into [floor, ceiling]. Bounds are concrete
+// tiers (never `auto`), each optional — absent means the full range on that
+// side. Inert unless the dial setting is auto.
+export const PowerAutoBounds = z
+  .object({
+    floor: Power.optional(),
+    ceiling: Power.optional(),
+  })
+  .strict()
+  .superRefine((bounds, ctx) => {
+    if (
+      bounds.floor !== undefined &&
+      bounds.ceiling !== undefined &&
+      powerIndex(bounds.floor) > powerIndex(bounds.ceiling)
+    ) {
+      issueAt(ctx, [], 'power_auto floor must not be above ceiling');
+    }
+  });
+export type PowerAutoBounds = z.infer<typeof PowerAutoBounds>;
+
 export const Config = z
   .object({
     schema_version: z.literal(1),
@@ -241,10 +262,11 @@ export const Config = z
     skill_hooks: SkillHookConfig.default({ policy: {}, detection: { disabled_patterns: {} } }),
     circuits: z.record(CompiledFlowId, CircuitOverride).default({}),
     power_tiers: z.record(ConnectorName, PowerTierTable).default({}),
+    power_auto: PowerAutoBounds.optional(),
     defaults: z
       .object({
         selection: SelectionOverride.optional(),
-        power: Power.optional(),
+        power: PowerDialSetting.optional(),
       })
       .strict()
       .default({}),

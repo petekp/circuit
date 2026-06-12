@@ -1,9 +1,9 @@
 ---
 contract: selection
 status: ratified-v0.1
-version: 0.4
+version: 0.5
 schema_source: src/schemas/selection-policy.ts
-last_updated: 2026-06-10
+last_updated: 2026-06-11
 depends_on: [ids, depth, skill, stage, config, run]
 closes: [stage-md-v0.1-med-7-stage-level-selection]
 report_ids:
@@ -255,8 +255,29 @@ Rules, in order:
    `Config.defaults.power` across config layers in the declared precedence
    (`default` → `user-global` → `project` → `invocation`); the highest-
    precedence opinion wins. When no layer has an opinion the dial is
-   `medium`. The CLI flag `--power <low|medium|high>` enters as the
+   `medium`. The CLI flag `--power <auto|low|medium|high>` enters as the
    invocation layer. There is no off position.
+   The dial *setting* (`PowerDialSetting`) is wider than the dial *value*
+   (`Power`): a winning `auto` opinion defers the value to in-run inference
+   (rule 2a); the allocation tables in rules 3–5 only ever see a concrete
+   tier.
+
+2a. **Auto resolves once, in-run, from the researcher.** When the winning
+   setting is `auto`, the run's tier comes from the first accepted
+   researcher report carrying a `recommended_power {value, rationale}`
+   (the researcher is told to include it via a prompt notice; the engine
+   never makes an extra model call — the researcher is already on the top
+   tier at every dial position, so there is no circularity). The
+   recommendation is clamped to the operator's `Config.power_auto
+   {floor, ceiling}` bounds (per-field layered composition; a cross-layer
+   inverted range resolves ceiling-wins because the ceiling is the spend
+   cap), recorded durably as a `run.power-inference` trace entry, and held
+   in a run-scoped first-write-wins channel that checkpoint resume reseeds
+   from the trace. Before the inference lands — including the researcher's
+   own relay — and on runs whose researcher never recommends,
+   materialization uses the default-on `medium`. Resolution is
+   best-effort: any failure leaves the medium fallback, never breaks the
+   run.
 3. **Dial × role → tier.** Allocation keeps judgment expensive and tunes
    execution: `high` = all roles high; `medium` = researcher high,
    implementer/reviewer medium; `low` = researcher high, implementer low,
@@ -273,7 +294,11 @@ Rules, in order:
 6. **Provenance.** A materialized selection carries `power` (the dial) and,
    when rule 5 fired, `power_escalated` on `ResolvedSelection`; both flow
    into `relay.started` trace entries and the end-of-run receipt
-   (`OperatorRunReceipt.power` / `.escalations`).
+   (`OperatorRunReceipt.power` / `.escalations`). A selection materialized
+   under an `auto` setting additionally carries `power_source: 'auto'`, and
+   the receipt reports the run's resolved inference (with
+   `power_recommended` / `power_rationale` / `power_clamped`) rather than
+   the first relay's pre-inference fallback.
 
 ## Pre-conditions
 
@@ -615,6 +640,17 @@ Stage 2 harness task where noted below.
   (BREAKING vs the pre-flip behavior where an unset dial left empty model
   seats empty). Explicit selection config always wins; the dial fills, never
   overrides.
+
+- **v0.5 (Auto power slice, 2026-06-11)** — widens the dial *setting* to
+  `auto|low|medium|high` (`PowerDialSetting`; the `Power` value enum the
+  allocation tables consume stays three-tier). `auto` resolves once per run
+  from the first accepted researcher `recommended_power`, clamped to the new
+  `Config.power_auto {floor, ceiling}` bounds, recorded as a
+  `run.power-inference` trace entry, reseeded on resume. `ResolvedSelection`
+  gains optional `power_source: 'auto'`; the receipt gains
+  `power_source`/`power_recommended`/`power_rationale`/`power_clamped`.
+  Depth stays manual by design: depth selects the compiled flow shape before
+  any model runs, so inferring it would need a pre-run model call.
 
 - **v1.0 (Stage 2)** — Ratified invariants + property tests + resolver
   implementation with `selection.prop.*` as acceptance check +

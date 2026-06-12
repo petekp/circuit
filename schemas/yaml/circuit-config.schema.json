@@ -634,6 +634,20 @@
             }
           }
         },
+        "power_auto": {
+          "type": "object",
+          "properties": {
+            "floor": {
+              "type": "string",
+              "enum": ["low", "medium", "high"]
+            },
+            "ceiling": {
+              "type": "string",
+              "enum": ["low", "medium", "high"]
+            }
+          },
+          "additionalProperties": false
+        },
         "defaults": {
           "default": {},
           "type": "object",
@@ -749,7 +763,7 @@
             },
             "power": {
               "type": "string",
-              "enum": ["low", "medium", "high"]
+              "enum": ["auto", "low", "medium", "high"]
             }
           },
           "additionalProperties": false

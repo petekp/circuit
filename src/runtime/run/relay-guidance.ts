@@ -380,6 +380,11 @@ export function planRelayGuidanceDecision(input: {
   // wins) and before connector compatibility (so a misconfigured tier table
   // fails the same provider check explicit config would). Attempt-aware:
   // attempt > 1 on the same (step, slice) work unit escalates one tier up.
+  // The inferred tier is the run's resolved auto-power, when the post-step
+  // seam has set one. Read idempotently like the injection channel: every
+  // plan call for this step (production, injected-connector, fanout) sees
+  // the same value.
+  const inferredPower = context.powerInference?.get()?.resolved;
   const resolvedSelection = materializePowerSelection({
     resolved: stackSelection,
     role: RelayRole.parse(relayExecution.role),
@@ -388,6 +393,7 @@ export function planRelayGuidanceDecision(input: {
     ...(context.selectionConfigLayers === undefined
       ? {}
       : { configLayers: context.selectionConfigLayers }),
+    ...(inferredPower === undefined ? {} : { inferredPower }),
   });
   assertConnectorSelectionCompatible(relayExecution.connectorName, resolvedSelection);
   // Skill-hook actuation: any skills an `auto` hook injected so far, applied

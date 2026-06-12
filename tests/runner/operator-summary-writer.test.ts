@@ -2878,4 +2878,157 @@ describe('operator summary writer — run receipt', () => {
       models: [{ provider: 'openai', model: 'gpt-5.2-codex' }],
     });
   });
+
+  function powerInference(
+    sequence: number,
+    fields: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return traceEntry(sequence, 'run.power-inference', {
+      step_id: 'diagnose-step',
+      recommended: 'low',
+      rationale: 'small localized change with good test coverage',
+      floor: 'low',
+      ceiling: 'high',
+      resolved: 'low',
+      clamped: false,
+      ...fields,
+    });
+  }
+
+  it('reports the auto dial from the resolved inference, not the pre-inference fallback', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      // The researcher relay materialized the medium fallback before the
+      // inference landed; the receipt must report the resolved low, not medium.
+      relayStarted(
+        2,
+        'diagnose-step',
+        1,
+        { provider: 'anthropic', model: 'opus' },
+        { power: 'medium', power_source: 'auto' },
+      ),
+      powerInference(3),
+      relayStarted(
+        4,
+        'apply-step',
+        1,
+        { provider: 'anthropic', model: 'haiku' },
+        { power: 'low', power_source: 'auto' },
+      ),
+      checkEvaluated(5, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt).toMatchObject({
+      power: 'low',
+      power_source: 'auto',
+      power_recommended: 'low',
+      power_rationale: 'small localized change with good test coverage',
+      power_clamped: false,
+    });
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('power low (auto)');
+    expect(written.summary.details).toContain(
+      'Power dial: auto chose low. Reason: small localized change with good test coverage',
+    );
+  });
+
+  it('says when the auto choice was capped to the operator bounds', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(
+        2,
+        'diagnose-step',
+        1,
+        { provider: 'anthropic', model: 'opus' },
+        { power: 'medium', power_source: 'auto' },
+      ),
+      powerInference(3, {
+        recommended: 'high',
+        rationale: 'wide and weakly tested',
+        ceiling: 'medium',
+        resolved: 'medium',
+        clamped: true,
+      }),
+      relayStarted(
+        4,
+        'apply-step',
+        1,
+        { provider: 'anthropic', model: 'sonnet' },
+        { power: 'medium', power_source: 'auto' },
+      ),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt).toMatchObject({
+      power: 'medium',
+      power_source: 'auto',
+      power_recommended: 'high',
+      power_clamped: true,
+    });
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('power medium (auto, capped)');
+    expect(written.summary.details).toContain(
+      'Power dial: auto chose medium (recommended high, held to the configured bounds). Reason: wide and weakly tested',
+    );
+  });
+
+  it('marks an auto run whose researcher never recommended as the fallback it ran at', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(
+        2,
+        'apply-step',
+        1,
+        { provider: 'anthropic', model: 'sonnet' },
+        { power: 'medium', power_source: 'auto' },
+      ),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt).toMatchObject({ power: 'medium', power_source: 'auto' });
+    expect(written.summary.receipt?.power_rationale).toBeUndefined();
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('power medium (auto, no recommendation)');
+    expect(written.summary.details.join('\n')).not.toContain('Power dial:');
+  });
+
+  it('a fixed dial renders without any auto qualifier', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(
+        2,
+        'apply-step',
+        1,
+        { provider: 'anthropic', model: 'sonnet' },
+        { power: 'medium' },
+      ),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt?.power_source).toBeUndefined();
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('power medium ·');
+    expect(markdown).not.toContain('(auto');
+  });
 });

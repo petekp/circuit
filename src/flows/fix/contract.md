@@ -73,6 +73,13 @@ missing timeouts, or unbounded output.
 cleanly reproduced, it must carry residual uncertainty instead of closing as if
 the problem were proven.
 
+`fix.diagnosis@v1` also accepts an optional `recommended_power
+{value, rationale}`. The diagnose relay includes it only when its prompt
+states the power dial is `auto`; the engine (not this flow) consumes it to
+resolve the run's power tier, clamped to the operator's `power_auto` bounds.
+The field never appears under a fixed dial, and a stray value under a fixed
+dial is ignored. See `docs/contracts/selection.md` (rule 2a).
+
 `fix.brief@v1` carries a regression contract: expected behavior, actual
 behavior, a reproduction command or schematic when available, and either a
 failing-before-fix regression test or an explicit deferral reason when the bug

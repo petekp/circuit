@@ -7,7 +7,7 @@
 // fields the stack left unset, so the existing per-flow/stage/step escape
 // hatch is untouched.
 import type { LayeredConfig, PowerTierSpec, PowerTierTable } from '../schemas/config.js';
-import type { Power } from '../schemas/power.js';
+import { POWER_ORDER, type Power, type PowerDialSetting, powerIndex } from '../schemas/power.js';
 import type { ResolvedSelection } from '../schemas/selection-policy.js';
 import type { RelayRole } from '../schemas/step.js';
 
@@ -40,14 +40,11 @@ const ROLE_POWER_ALLOCATION: Readonly<Record<Power, Readonly<Record<RelayRole, P
   low: { researcher: 'high', implementer: 'low', reviewer: 'medium' },
 };
 
-const POWER_ORDER = ['low', 'medium', 'high'] as const satisfies readonly Power[];
-
 // Escalation is monotonic and capped: one tier up, never down, never past
 // the top. Attempt numbers are keyed per (step, slice), so attempt > 1 means
 // this same unit of work needed another try — slice advances restart at 1.
 function bumpOneTier(tier: Power): Power {
-  const index = POWER_ORDER.indexOf(tier);
-  return POWER_ORDER[Math.min(index + 1, POWER_ORDER.length - 1)] as Power;
+  return POWER_ORDER[Math.min(powerIndex(tier) + 1, POWER_ORDER.length - 1)] as Power;
 }
 
 // Layer precedence for dial and table reads. Same order the selection
@@ -59,14 +56,17 @@ function layersInPrecedenceOrder(layers: readonly LayeredConfig[]): readonly Lay
   return LAYER_PRECEDENCE.flatMap((name) => layers.filter((layer) => layer.layer === name));
 }
 
-// The run's effective dial: the highest-precedence layer with a
-// `defaults.power` opinion. Default-on: when no layer has an opinion the dial
-// sits at `medium` — the dial ships engaged, and an operator turns it rather
-// than discovers it. (BREAKING vs the pre-flip inert default: relays whose
-// selection stack left the model unset now materialize the medium-tier
-// allocation for their role.)
-export function resolvePowerDial(layers: readonly LayeredConfig[]): Power {
-  let dial: Power = 'medium';
+// The dial *setting*: either a fixed tier or auto with operator bounds.
+// Fixed resolution is the highest-precedence layer with a `defaults.power`
+// opinion; default-on means no opinion reads as fixed medium — the dial ships
+// engaged, and an operator turns it rather than discovers it. When the
+// winning opinion is `auto`, the bounds compose per field across layers.
+export type PowerDialResolution =
+  | { readonly kind: 'fixed'; readonly value: Power }
+  | { readonly kind: 'auto'; readonly floor: Power; readonly ceiling: Power };
+
+export function resolvePowerDialSetting(layers: readonly LayeredConfig[]): PowerDialResolution {
+  let dial: PowerDialSetting = 'medium';
   for (const layer of layersInPrecedenceOrder(layers)) {
     // Optional access: a zod-parsed Config always defaults these containers,
     // but callers also hand layers built structurally (tests, embedders), and
@@ -74,7 +74,29 @@ export function resolvePowerDial(layers: readonly LayeredConfig[]): Power {
     const power = layer.config.defaults?.power;
     if (power !== undefined) dial = power;
   }
-  return dial;
+  if (dial !== 'auto') return { kind: 'fixed', value: dial };
+  let floor: Power = 'low';
+  let ceiling: Power = 'high';
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const bounds = layer.config.power_auto;
+    if (bounds?.floor !== undefined) floor = bounds.floor;
+    if (bounds?.ceiling !== undefined) ceiling = bounds.ceiling;
+  }
+  // Schema validation rejects floor > ceiling inside one document, but two
+  // layers can compose into an inverted range. The ceiling is the spend cap,
+  // so it wins: the floor lowers to meet it rather than pushing spend up.
+  if (powerIndex(floor) > powerIndex(ceiling)) floor = ceiling;
+  return { kind: 'auto', floor, ceiling };
+}
+
+// The run's effective dial as a single tier, for callers with no inferred
+// tier to apply. An auto setting without an inference reads as the default-on
+// medium — never a crash, never a surprise high. (BREAKING vs the pre-flip
+// inert default: relays whose selection stack left the model unset now
+// materialize the medium-tier allocation for their role.)
+export function resolvePowerDial(layers: readonly LayeredConfig[]): Power {
+  const setting = resolvePowerDialSetting(layers);
+  return setting.kind === 'fixed' ? setting.value : 'medium';
 }
 
 // Tier lookup: the highest-precedence layer that declares this connector+tier
@@ -98,11 +120,17 @@ export function materializePowerSelection(input: {
   readonly connectorName: string;
   readonly attempt: number;
   readonly configLayers?: readonly LayeredConfig[];
+  // The run's resolved auto-power tier (already clamped), when one exists.
+  // Consulted only when the dial setting is `auto`; a fixed setting ignores it.
+  readonly inferredPower?: Power;
 }): ResolvedSelection {
   // Explicit model config wins outright; the dial never overrides it.
   if (input.resolved.model !== undefined) return input.resolved;
   const layers = input.configLayers ?? [];
-  const dial = resolvePowerDial(layers);
+  const setting = resolvePowerDialSetting(layers);
+  // Auto before its inference resolves (the researcher's own relay, or a run
+  // whose researcher never recommended) materializes the default-on medium.
+  const dial = setting.kind === 'fixed' ? setting.value : (input.inferredPower ?? 'medium');
   const allocated = ROLE_POWER_ALLOCATION[dial][input.role];
   const tier = input.attempt > 1 ? bumpOneTier(allocated) : allocated;
   const spec = tierSpec(layers, input.connectorName, tier);
@@ -115,5 +143,6 @@ export function materializePowerSelection(input: {
       : {}),
     power: dial,
     ...(tier === allocated ? {} : { power_escalated: true }),
+    ...(setting.kind === 'auto' ? { power_source: 'auto' as const } : {}),
   };
 }

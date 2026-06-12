@@ -258,7 +258,7 @@ The connector contract is [`docs/contracts/connector.md`](contracts/connector.md
 ## Power Dial
 
 Power tunes how much model each worker run gets without naming models. Set it
-per run with `--power <low|medium|high>`, or persist a default:
+per run with `--power <auto|low|medium|high>`, or persist a default:
 
 ```yaml
 schema_version: 1
@@ -289,6 +289,35 @@ A declared tier overrides only that tier of that connector; shipped defaults
 fill the rest. The selection contract
 ([`docs/contracts/selection.md`](contracts/selection.md)) documents the full
 materialization rules.
+
+### Auto power
+
+Set the dial to `auto` and each run picks its own tier. The research step
+reads the code first anyway, so it judges how strong a model the rest of the
+run needs: a small, well-tested change gets `low`; a wide or subtle change
+gets `high`. The choice happens once per run, sticks for the whole run, and
+the run summary shows it as `power low (auto)` with the reason one line
+below.
+
+```yaml
+defaults:
+  power: auto
+
+power_auto:
+  floor: low      # never below this
+  ceiling: medium # never above this, even if recommended
+```
+
+Both bounds are optional. The ceiling is the spend cap: a recommendation
+above it gets capped, and the summary says so (`power medium (auto,
+capped)`). If the research step never makes a recommendation, the run uses
+`medium` and the summary says that too (`power medium (auto, no
+recommendation)`). The research step itself always runs on the big tier, so
+the choice costs nothing extra.
+
+Depth has no auto position. Depth decides which steps the run is built from
+before any model runs, so there is nothing in the run yet that could judge
+it. Pick depth yourself; let power pick itself.
 
 ## Local Workers (OpenCode + Ollama)
 

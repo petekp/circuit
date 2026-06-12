@@ -478,7 +478,7 @@
     {
       "path": "docs/ideas/depth-and-power.md",
       "title": "Depth and Power: the two-dial model for what a run spends",
-      "status": "current-proposal",
+      "status": "implemented-closed",
       "category": "hosts-connectors-and-hitl",
       "tags": [
         "selection",
@@ -491,13 +491,13 @@
         "escalation",
         "vocabulary"
       ],
-      "current_reading": "Journey-led proposal for default-on model tiering: receipt-first discovery, two dials (Depth and Power, shared low/medium/high scale, Rigor renamed to Depth), check-failure escalation, and a later local-connector lane. Verified implementation seams included. Not current behavior.",
+      "current_reading": "Design rationale for the shipped Depth and Power dials (PRs #56/#57/#59/#60, plus the auto power position in PR #62 which the proposal did not anticipate). Current behavior lives in docs/configuration.md and docs/contracts/selection.md v0.5; read this for the why, not the what.",
       "related": [
         "docs/ideas/output-model.md",
         "docs/ideas/adversarial-verification-gates.md",
         "docs/ideas/opencode-as-host.md"
       ],
-      "last_checked": "2026-06-10"
+      "last_checked": "2026-06-11"
     },
     {
       "path": "docs/ideas/self-auditing-memory-review.md",

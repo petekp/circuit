@@ -13,6 +13,13 @@ import type { ChangeKindDeclaration, StandardChangeKind } from '../../schemas/ch
 import { computeManifestHash } from '../../schemas/manifest.js';
 import type { RecoveryRouteBindingV0 } from '../../schemas/recovery-route-kind.js';
 import type { Ref } from '../../schemas/ref.js';
+import {
+  clampPowerToBounds,
+  createPowerInferenceChannel,
+  extractPowerRecommendation,
+  seedPowerInferenceFromTrace,
+} from '../../selection/power-inference.js';
+import { resolvePowerDialSetting } from '../../selection/power-tiers.js';
 import { resolveDottedPath } from '../../shared/fanout-branch-template.js';
 import { isProofPlanBlockedError } from '../../shared/proof-plan.js';
 import { createUserSkillRegistry } from '../../shared/user-skill-registry.js';
@@ -288,6 +295,10 @@ async function executeExecutableFlowOutcomeUnsafe(
     // event's skills and the next relay step picks them up. Empty on runs with
     // no skill_hooks config, so it has no observable effect there.
     skillHookInjections: createSkillHookInjectionChannel(),
+    // Run-scoped auto-power resolution, same lifecycle as the injection
+    // channel: created once, written at most once by the post-step seam,
+    // read by relay planning. Inert when the dial setting is not `auto`.
+    powerInference: createPowerInferenceChannel(),
     // One filesystem snapshot of the user skill registry for the whole run,
     // shared by the skill-hook dispatcher and the relay skill loader so they
     // never disagree about which skills resolve (see RunContext.skillRegistry).
@@ -356,6 +367,10 @@ async function executeExecutableFlowOutcomeUnsafe(
   // un-re-executed) step injected. No-op on a fresh run (empty existingTrace).
   if (isResume) {
     seedSkillHookInjectionsFromTrace(existingTrace, context.skillHookInjections);
+    // Same for the auto-power resolution: a resumed run continues at the tier
+    // the prior process recorded instead of re-inferring (or worse, falling
+    // back to medium after the researcher step was checkpointed past).
+    seedPowerInferenceFromTrace(existingTrace, context.powerInference);
   }
   const defaultMaxSteps = Math.max(flow.steps.length * 4, 8);
   // A slice loop runs the body once per slice, each with its own retry budget,
@@ -768,6 +783,57 @@ async function executeExecutableFlowOutcomeUnsafe(
       } catch {
         // Last-resort: never let observability break the run.
       }
+    }
+
+    // Auto-power inference: when the dial setting is `auto` and this step's
+    // accepted relay was a researcher, read its result body for a
+    // `recommended_power`, clamp it to the operator bounds, record the
+    // resolution durably, and set the run-scoped channel so every later relay
+    // materializes against it. First resolution wins; best-effort like
+    // skill-hook dispatch — a failure here must never affect the run (the dial
+    // just stays at the medium fallback).
+    try {
+      if (context.powerInference !== undefined && context.powerInference.get() === undefined) {
+        const setting = resolvePowerDialSetting(context.selectionConfigLayers ?? []);
+        if (setting.kind === 'auto') {
+          const stepEntries = trace.getAll().slice(traceLengthBeforeStep);
+          const researcherRelayed = stepEntries.some(
+            (entry) => entry.kind === 'relay.started' && entry.role === 'researcher',
+          );
+          // The step completed, so the last relay.completed in the slice is the
+          // accepted attempt; earlier ones were retried past.
+          const completed = researcherRelayed
+            ? [...stepEntries].reverse().find((entry) => entry.kind === 'relay.completed')
+            : undefined;
+          if (completed !== undefined) {
+            const body = await context.files.readJson(completed.result_path);
+            const recommendation = extractPowerRecommendation(body);
+            if (recommendation !== undefined) {
+              const resolved = clampPowerToBounds(recommendation.value, setting);
+              await trace.append({
+                run_id: runId,
+                kind: 'run.power-inference',
+                step_id: step.id,
+                recommended: recommendation.value,
+                rationale: recommendation.rationale,
+                floor: setting.floor,
+                ceiling: setting.ceiling,
+                resolved,
+                clamped: resolved !== recommendation.value,
+              });
+              context.powerInference.set({
+                recommended: recommendation.value,
+                rationale: recommendation.rationale,
+                resolved,
+                clamped: resolved !== recommendation.value,
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      // Non-critical by design: an unreadable result body or a trace-append
+      // failure leaves the dial at the documented medium fallback.
     }
 
     if (targetTransition.kind === 'terminal_close') {

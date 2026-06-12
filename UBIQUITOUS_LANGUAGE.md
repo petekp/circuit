@@ -32,7 +32,7 @@ code, contracts, generated surfaces, or troubleshooting docs.
 | **Evidence** | Supporting facts, files, checks, and reports produced or consumed by a run. | Artifact, proof blob |
 | **Run folder** | The directory where a run stores its trace, reports, evidence, and resume state. | Run root, run directory |
 | **Depth** | Operator-facing process dial for `--depth` and `axes.allowed_depths`: `low`, `medium`, or `high`. | Rigor, Effort |
-| **Power** | Operator-facing model dial for `--power` and `defaults.power`: `low`, `medium`, or `high`. Never names models; per-connector tier tables translate it at selection time. Default `medium`. | Model picker, Tier, Effort |
+| **Power** | Operator-facing model dial for `--power` and `defaults.power`. The setting is `auto`, `low`, `medium`, or `high`; a run always materializes one of the three tiers. Under `auto` the run picks its own tier from the research read (the power inference), bounded by `power_auto` floor/ceiling. Never names models; per-connector tier tables translate it at selection time. Default `medium`. | Model picker, Tier, Effort |
 | **Mode** | A named flow entry option, often paired with a depth. | Safety classification, change kind |
 
 ## Identifier Language
@@ -291,6 +291,13 @@ inside historical docs, tests, or migration notes when the context is explicit.
   **Power** for the operator model dial, **CompiledDepth** for compiled
   runtime thoroughness, and **Effort** for provider-level reasoning
   allocation. **Rigor** is the retired name for the depth dial; do not use it.
+- **Auto-resolution** belongs to checkpoints (a declared safe default
+  answering a checkpoint without the operator). The mechanism that resolves
+  an `auto` power dial from the researcher's recommendation is the **power
+  inference** (`run.power-inference` trace entries,
+  `src/selection/power-inference.ts`); do not call it auto-resolution.
+  Depth has no auto position: depth selects the compiled flow shape before
+  any model runs.
 - **Stage** appears in both product prose and runtime fields. The term is canonical in both places, but runtime field names should stay in backticks when discussing serialization.
 - **Fixture** is useful in tests, but it should not describe product-facing generated flows.
 - **Runtime proof** is an internal proof flow, not a public capability.

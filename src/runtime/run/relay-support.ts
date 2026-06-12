@@ -217,6 +217,11 @@ export function composeRelayPrompt(
   depth?: string,
   activeSlice?: unknown,
   operatorWhy?: string,
+  // True only for a researcher relay on a run whose power dial setting is
+  // `auto` and whose tier has not resolved yet: tells the worker to include
+  // `recommended_power` in its report. Omitted everywhere else so prompts on
+  // fixed-dial runs are byte-identical to before the auto setting existed.
+  powerDialAuto?: boolean,
 ): string {
   const readsBody =
     step.reads.length === 0
@@ -249,6 +254,11 @@ export function composeRelayPrompt(
       : [
           `Depth: ${depth}. Tune your thoroughness and effort to this level; it does not change which steps run.`,
         ]),
+    ...(powerDialAuto === true
+      ? [
+          'Power dial: auto. Include recommended_power in your report: judge from what you read which model tier (low, medium, or high) the downstream implementation and review need, with one short rationale sentence.',
+        ]
+      : []),
     '',
     ...(operatorGoal === undefined || operatorGoal.length === 0
       ? []
