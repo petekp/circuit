@@ -11,7 +11,7 @@ status: implemented
 This note records the implemented Explore Tournament contract. The tournament
 mechanics are backed by runtime tests, generated release truth, and the
 `proof:explore-decision` golden run. The deterministic `decide:` intent router
-described in early drafts was removed; routing is model-only today.
+described in early drafts was removed (see the Router section below).
 
 ## Goal
 
@@ -38,9 +38,8 @@ process visible:
 
 ## Operator Contract
 
-There is no deterministic `decide:` router. Routing is model-only and a flow
-name is always required (`src/cli/run.ts`). Tournament mode is entered two
-ways:
+There is no deterministic `decide:` router; a flow name is always required
+(`src/cli/run.ts`). Tournament mode is entered two ways:
 
 - explicit CLI axes:
   `./bin/circuit run explore --goal "<decision question>" --tournament
@@ -448,8 +447,7 @@ Minimum tests that clear the release blocker:
 1. Add the report schemas and a stubbed design test for the tournament path.
 2. Add schematic/compiler support for fanout authoring and relay fanout.
 3. Add the Explore tournament graph and writers.
-4. Add router support for `decide:` (since removed; routing is model-only
-   today).
+4. Add router support for `decide:` (since removed).
 5. Regenerate release truth.
 6. Add the golden proof before clearing the remaining readiness blocker.
 

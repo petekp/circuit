@@ -111,8 +111,6 @@ When the positional flow is present, the route is:
 
 When the positional flow is absent, the CLI rejects the run with a clear error
 (`a flow name is required: pass one of build|fix|review|explore|prototype|pursue`).
-Routing is model-only: the host or operator names the flow, and the CLI never
-classifies goal text.
 
 Public flows are Build, Explore, Fix, Prototype, Pursue, and Review. Goal and
 runtime-proof are internal and are not offered as selectable flows.
