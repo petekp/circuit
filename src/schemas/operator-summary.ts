@@ -5,6 +5,7 @@ import { Power } from './power.js';
 import { MAX_STATUS_TEXT_CHARS } from './progress-event.js';
 import { RubricResult } from './rubric.js';
 import { ProviderScopedModel } from './selection-policy.js';
+import { RelayRole } from './step.js';
 import { RunClosedOutcome } from './trace-entry.js';
 
 export const OperatorSummaryWarning = z
@@ -94,6 +95,44 @@ export const OperatorSkillHookActivation = z
   .strict();
 export type OperatorSkillHookActivation = z.infer<typeof OperatorSkillHookActivation>;
 
+// Per-role model spend, joined reader-side from the trace: role and model come
+// from `relay.started`, the usage meter from `relay.completed`, on the shared
+// `(step_id, attempt)` key. Only completed relays count — a failed attempt
+// never reaches `relay.completed`, so it never bills. `models` entries are
+// `provider:model` strings in first-seen order. `cache_creation_tokens` is the
+// usage seam's TTL-summed total; the receipt does not split TTLs.
+export const OperatorRunReceiptSpendRole = z
+  .object({
+    role: RelayRole,
+    relays: z.number().int().positive(),
+    relays_missing_usage: z.number().int().nonnegative(),
+    models: z.array(z.string().min(1)),
+    input_tokens: z.number().nonnegative(),
+    output_tokens: z.number().nonnegative(),
+    cache_read_tokens: z.number().nonnegative(),
+    cache_creation_tokens: z.number().nonnegative(),
+    cost_usd_reported: z.number().nonnegative().optional(),
+  })
+  .strict();
+export type OperatorRunReceiptSpendRole = z.infer<typeof OperatorRunReceiptSpendRole>;
+
+// Run-level spend rollup. Absent (never empty) when no completed relay carried
+// a usage block, so a usage-less trace produces a byte-identical receipt. Role
+// order is fixed — researcher, implementer, reviewer — and roles with zero
+// completed relays are omitted. `total_cost_usd_reported` is present iff at
+// least one relay reported a cost. `partial` is the honesty bit: true when any
+// completed relay lacked usage or any usage lacked a reported cost, because a
+// sum with missing meters must never read as complete.
+export const OperatorRunReceiptSpend = z
+  .object({
+    total_cost_usd_reported: z.number().nonnegative().optional(),
+    relays_missing_usage: z.number().int().nonnegative(),
+    partial: z.boolean(),
+    roles: z.array(OperatorRunReceiptSpendRole).min(1),
+  })
+  .strict();
+export type OperatorRunReceiptSpend = z.infer<typeof OperatorRunReceiptSpend>;
+
 // End-of-run receipt: what the run actually spent and proved, aggregated from
 // the trace. `depth` comes from `run.bootstrapped`, `worker_runs` and `models`
 // from `relay.started` (distinct models in first-seen order; entries without a
@@ -127,6 +166,7 @@ export const OperatorRunReceipt = z
     models: z.array(ProviderScopedModel),
     checks_evaluated: z.number().int().nonnegative(),
     checks_failed: z.number().int().nonnegative(),
+    spend: OperatorRunReceiptSpend.optional(),
   })
   .strict();
 export type OperatorRunReceipt = z.infer<typeof OperatorRunReceipt>;

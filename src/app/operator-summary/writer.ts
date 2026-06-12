@@ -11,6 +11,8 @@ import {
   type OperatorAutoResolution as OperatorAutoResolutionValue,
   type OperatorBriefSlots,
   type OperatorRunReceipt,
+  type OperatorRunReceiptSpend,
+  type OperatorRunReceiptSpendRole,
   OperatorSkillHookActivation,
   type OperatorSkillHookActivation as OperatorSkillHookActivationValue,
   OperatorSummary,
@@ -21,6 +23,8 @@ import { Power } from '../../schemas/power.js';
 import type { RunResult } from '../../schemas/result.js';
 import { ProviderScopedModel } from '../../schemas/selection-policy.js';
 import { RunSkillHookEvent } from '../../schemas/skill-hook.js';
+import { RelayRole } from '../../schemas/step.js';
+import { RelayUsageEvidence } from '../../schemas/trace-entry.js';
 import { type HtmlProjectorContext, getHtmlProjector } from '../../shared/html/index.js';
 import {
   type JsonObject,
@@ -596,11 +600,43 @@ function readAutoResolutions(runFolder: string): OperatorAutoResolutionValue[] {
   return records;
 }
 
+// Mutable per-role accumulator behind the receipt's spend rollup. Shaped like
+// `OperatorRunReceiptSpendRole` minus `role` so the projection is a spread.
+type SpendTotals = {
+  relays: number;
+  relays_missing_usage: number;
+  models: string[];
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  cost_usd_reported?: number;
+};
+
+function emptySpendTotals(): SpendTotals {
+  return {
+    relays: 0,
+    relays_missing_usage: 0,
+    models: [],
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read_tokens: 0,
+    cache_creation_tokens: 0,
+  };
+}
+
+// The receipt's fixed role order. Deliberately a literal, not
+// `RelayRole.options`: the rendered order is a receipt commitment, not a
+// side effect of enum declaration order.
+const SPEND_ROLE_ORDER: readonly RelayRole[] = ['researcher', 'implementer', 'reviewer'];
+
 // Aggregate the run receipt out of the trace: depth from `run.bootstrapped`,
 // worker-run count and distinct models from `relay.started`, check totals from
-// `check.evaluated`. One pass, field-tolerant like the other trace readers —
-// a malformed line is skipped, never fatal. Returns undefined when the trace
-// is missing or never bootstrapped (nothing truthful to report).
+// `check.evaluated`, and the per-role spend rollup from joining `relay.started`
+// (role, model) with `relay.completed` (usage) on `(step_id, attempt)`. One
+// pass, field-tolerant like the other trace readers — a malformed line is
+// skipped, never fatal. Returns undefined when the trace is missing or never
+// bootstrapped (nothing truthful to report).
 function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
   const tracePath = join(runFolder, 'trace.ndjson');
   if (!existsSync(tracePath)) return undefined;
@@ -616,6 +652,11 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
   let checksFailed = 0;
   const models: ProviderScopedModel[] = [];
   const seenModels = new Set<string>();
+  const relayRoleByKey = new Map<string, { role: RelayRole; model?: string }>();
+  const spendByRole = new Map<RelayRole, SpendTotals>();
+  let spendRelaysMissingUsage = 0;
+  let anyUsage = false;
+  let anyCostMissing = false;
   for (const line of readFileSync(tracePath, 'utf8').split(/\r?\n/)) {
     if (line.trim().length === 0) continue;
     let entry: unknown;
@@ -646,12 +687,53 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
       const model = isObject(selection)
         ? ProviderScopedModel.safeParse(selection.model)
         : undefined;
-      if (model?.success) {
-        const key = `${model.data.provider}:${model.data.model}`;
-        if (!seenModels.has(key)) {
-          seenModels.add(key);
-          models.push(model.data);
-        }
+      const modelKey = model?.success ? `${model.data.provider}:${model.data.model}` : undefined;
+      if (model?.success && modelKey !== undefined && !seenModels.has(modelKey)) {
+        seenModels.add(modelKey);
+        models.push(model.data);
+      }
+      // Remember role + model so the spend rollup can attribute usage when
+      // this relay's `relay.completed` arrives on the same key.
+      const role = RelayRole.safeParse(entry.role);
+      const stepId = stringField(entry, 'step_id');
+      if (role.success && stepId !== undefined && typeof entry.attempt === 'number') {
+        relayRoleByKey.set(`${stepId}#${entry.attempt}`, {
+          role: role.data,
+          ...(modelKey === undefined ? {} : { model: modelKey }),
+        });
+      }
+      continue;
+    }
+    if (entry.kind === 'relay.completed') {
+      const stepId = stringField(entry, 'step_id');
+      const started =
+        stepId === undefined || typeof entry.attempt !== 'number'
+          ? undefined
+          : relayRoleByKey.get(`${stepId}#${entry.attempt}`);
+      // No matching relay.started means no role to bill — skip the entry.
+      if (started === undefined) continue;
+      const totals = spendByRole.get(started.role) ?? emptySpendTotals();
+      spendByRole.set(started.role, totals);
+      totals.relays += 1;
+      if (started.model !== undefined && !totals.models.includes(started.model)) {
+        totals.models.push(started.model);
+      }
+      const usage = RelayUsageEvidence.safeParse(entry.usage);
+      if (!usage.success) {
+        totals.relays_missing_usage += 1;
+        spendRelaysMissingUsage += 1;
+        continue;
+      }
+      anyUsage = true;
+      totals.input_tokens += usage.data.input_tokens;
+      totals.output_tokens += usage.data.output_tokens;
+      totals.cache_read_tokens += usage.data.cache_read_tokens;
+      totals.cache_creation_tokens += usage.data.cache_creation_tokens;
+      if (usage.data.total_cost_usd_reported === undefined) {
+        anyCostMissing = true;
+      } else {
+        totals.cost_usd_reported =
+          (totals.cost_usd_reported ?? 0) + usage.data.total_cost_usd_reported;
       }
       continue;
     }
@@ -675,6 +757,27 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
     }
   }
   if (depth === undefined) return undefined;
+  // Spend is absent — never empty — when no completed relay carried usage, so
+  // a usage-less trace keeps its receipt byte-identical to before this field.
+  const spendRoles: OperatorRunReceiptSpendRole[] = anyUsage
+    ? SPEND_ROLE_ORDER.flatMap((role) => {
+        const totals = spendByRole.get(role);
+        return totals === undefined ? [] : [{ role, ...totals }];
+      })
+    : [];
+  const reportedCosts = spendRoles.flatMap((role) =>
+    role.cost_usd_reported === undefined ? [] : [role.cost_usd_reported],
+  );
+  const spend: OperatorRunReceiptSpend | undefined = anyUsage
+    ? {
+        ...(reportedCosts.length === 0
+          ? {}
+          : { total_cost_usd_reported: reportedCosts.reduce((sum, cost) => sum + cost, 0) }),
+        relays_missing_usage: spendRelaysMissingUsage,
+        partial: spendRelaysMissingUsage > 0 || anyCostMissing,
+        roles: spendRoles,
+      }
+    : undefined;
   // Under auto, the run's dial is the resolved inference; the first relay
   // selection materialized the medium fallback before the inference landed.
   const effectivePower = inference?.resolved ?? power;
@@ -694,6 +797,7 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
     models,
     checks_evaluated: checksEvaluated,
     checks_failed: checksFailed,
+    ...(spend === undefined ? {} : { spend }),
   };
 }
 
@@ -731,6 +835,54 @@ function receiptLine(receipt: OperatorRunReceipt): string {
         ? 'all checks passed'
         : `${receipt.checks_evaluated - receipt.checks_failed} of ${receipt.checks_evaluated} checks passed`,
     );
+  }
+  return `⎿ ${parts.join(' · ')}`;
+}
+
+// Dollar figures keep plain cents above a dime and three significant figures
+// (capped at four decimal places) below it, so a $0.0123 run does not round
+// away to $0.01. Never scientific notation.
+function formatSpendDollars(amount: number): string {
+  if (amount >= 0.1) return `$${amount.toFixed(2)}`;
+  const significant = Number(amount.toPrecision(3));
+  if (significant >= 0.1) return `$${significant.toFixed(2)}`;
+  return `$${significant.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}`;
+}
+
+// Token figures: raw below 1k, one-decimal k below 1M, two-decimal M above.
+function formatSpendTokens(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(2)}M`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+  return String(count);
+}
+
+// Second trailer line, rendered directly under the receipt line and only when
+// the run has a spend rollup. Dollar form when any relay reported a cost;
+// token fallback (input + output only, cache tokens excluded) otherwise. The
+// (partial) qualifier covers the figure the line actually renders: a dollar
+// sum is partial whenever any meter or any cost is missing, a token sum only
+// when a meter is missing — absent dollars cannot hollow out a figure the
+// token form never claims. Role segments keep the headline's form and are
+// dropped when the role contributed nothing measurable in that form; the
+// qualifier, not a fabricated zero, marks the gap.
+function spendLine(receipt: OperatorRunReceipt): string | undefined {
+  const spend = receipt.spend;
+  if (spend === undefined) return undefined;
+  if (spend.total_cost_usd_reported !== undefined) {
+    const qualifier = spend.partial ? ' (partial)' : '';
+    const parts = [`spend ${formatSpendDollars(spend.total_cost_usd_reported)}${qualifier}`];
+    for (const role of spend.roles) {
+      if (role.cost_usd_reported === undefined) continue;
+      parts.push(`${role.role} ${formatSpendDollars(role.cost_usd_reported)}`);
+    }
+    return `⎿ ${parts.join(' · ')}`;
+  }
+  const total = spend.roles.reduce((sum, role) => sum + role.input_tokens + role.output_tokens, 0);
+  const qualifier = spend.relays_missing_usage > 0 ? ' (partial)' : '';
+  const parts = [`spend ${formatSpendTokens(total)} tokens${qualifier}`];
+  for (const role of spend.roles) {
+    if (role.relays_missing_usage === role.relays) continue;
+    parts.push(`${role.role} ${formatSpendTokens(role.input_tokens + role.output_tokens)}`);
   }
   return `⎿ ${parts.join(' · ')}`;
 }
@@ -888,6 +1040,8 @@ function renderMarkdown(summary: OperatorSummary): string {
     }
     if (summary.receipt !== undefined) {
       lines.push('', receiptLine(summary.receipt));
+      const spend = spendLine(summary.receipt);
+      if (spend !== undefined) lines.push(spend);
     }
     if (summary.html_path !== undefined) {
       lines.push('', `Rich summary: ${summary.html_path}`);
@@ -934,6 +1088,8 @@ function renderMarkdown(summary: OperatorSummary): string {
 
   if (summary.receipt !== undefined) {
     lines.push('', receiptLine(summary.receipt));
+    const spend = spendLine(summary.receipt);
+    if (spend !== undefined) lines.push(spend);
   }
 
   if (summary.html_path !== undefined) {
