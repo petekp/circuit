@@ -1723,9 +1723,11 @@ describe('CLI router', () => {
     expect(conflict.stderr).toMatch(/run folder is not a resumable Circuit run folder/);
   });
 
-  it('keeps CLI help text aligned with the router-supported flow set', () => {
+  it('keeps CLI help text aligned with the explicit-flow contract', () => {
     const source = readFileSync(join(process.cwd(), 'src/cli/circuit.ts'), 'utf-8');
-    expect(source).toContain('registered explore/review/fix/build/pursue flows');
+    expect(source).toContain('pass one of build|fix|review|explore|prototype|pursue');
+    expect(source).toContain('the CLI never classifies the goal text');
+    expect(source).not.toContain('classifies the free-form goal');
     expect(source).not.toContain('registered explore/review/build flows');
     expect(source).not.toContain('registered explore/review flows');
   });
