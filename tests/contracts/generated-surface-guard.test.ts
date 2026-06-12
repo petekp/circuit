@@ -10,13 +10,16 @@ import {
   generatedMarkdownOutputs,
 } from '../../scripts/generated/committed-generated-outputs.ts';
 
-// The generated-surface guard. Every committed generated file must be
-// protected from a hand-edit that the next emit would silently overwrite —
-// either by the Edit-deny list in .claude/settings.json (the only option for
-// non-markdown artifacts) or by a `generated` class in docs/doc-classes.json
-// (which routes the doc-rot gates at the generator). The set is derived from
-// the generators, so adding a new generated destination without protecting it
-// fails here instead of shipping editable.
+// The generated-surface guard. Its set is the runtime-bundle code artifacts
+// plus the generated markdown (see committed-generated-outputs.ts for why
+// generated JSON is out of scope — check-flow-drift re-emits and compares that).
+// Every member of this set must be protected from a hand-edit that the next
+// emit would silently overwrite — either by the Edit-deny list in
+// .claude/settings.json (the only option for non-markdown artifacts) or by a
+// `generated` class in docs/doc-classes.json (which routes the doc-rot gates at
+// the generator). The set is derived from the generators, so adding a new
+// runtime-bundle artifact or generated-markdown destination without protecting
+// it fails here instead of shipping editable.
 
 function denyGlobs(): string[] {
   const raw = JSON.parse(readFileSync(resolve(REPO_ROOT, '.claude/settings.json'), 'utf8')) as {
