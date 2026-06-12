@@ -41,6 +41,21 @@ const POISON_FIX_SUMMARY = {
         verification_pass_rate: 1,
         mean_proof_quality: 3,
         mean_wallclock_ms: 184691.66,
+        total_tokens_input: 12345,
+        total_tokens_output: 6789,
+        total_tokens_cache_read: 222222,
+        total_tokens_cache_creation: 33333,
+        total_tokens_cache_creation_5m: 3333,
+        total_tokens_cache_creation_1h: 30000,
+        total_cost_usd_reported: 1.23,
+        total_cost_usd_computed: 1.24,
+        usage_missing_count: 0,
+        cost_divergence_flag_count: 0,
+        price_table_miss_count: 1,
+        claim_parse_failure_count: 0,
+        total_relays_failed: 2,
+        total_relays_missing_usage: 0,
+        total_envelopes_missing_reported_cost: 3,
       },
       'vanilla-claude-code': {
         task_count: 5,
@@ -49,6 +64,11 @@ const POISON_FIX_SUMMARY = {
         verification_pass_rate: 1,
         mean_proof_quality: 3,
         mean_wallclock_ms: 62000,
+        total_tokens_input: 1111,
+        total_tokens_output: 999,
+        total_cost_usd_computed: 0.4,
+        usage_missing_count: 1,
+        cost_divergence_flag_count: 2,
       },
     },
   },
@@ -69,6 +89,26 @@ describe('buildFixLedgerEntry allowlist', () => {
     expect(entry.metrics.circuit_false_fixed_rate).toBe(0);
     expect(entry.metrics.vanilla_false_fixed_rate).toBe(0);
     expect(entry.metrics.task_count).toBe(5);
+
+    // Cost metrics ride the same allowlist: present when the aggregate has
+    // them, absent (not zero) when it does not.
+    expect(entry.metrics.circuit_total_tokens_input).toBe(12345);
+    expect(entry.metrics.circuit_total_cost_usd_reported).toBe(1.23);
+    expect(entry.metrics.circuit_total_cost_usd_computed).toBe(1.24);
+    expect(entry.metrics.vanilla_total_cost_usd_computed).toBe(0.4);
+    expect(entry.metrics.vanilla_total_cost_usd_reported).toBeUndefined();
+    expect(entry.metrics.vanilla_total_tokens_cache_read).toBeUndefined();
+    expect(entry.metrics.vanilla_usage_missing_count).toBe(1);
+    expect(entry.metrics.vanilla_cost_divergence_flag_count).toBe(2);
+    // Integrity counters ride along so a committed total is never citable
+    // without its caveats; the vanilla arm has no relay tallies (null sums
+    // drop out of the allowlist).
+    expect(entry.metrics.circuit_total_tokens_cache_creation_5m).toBe(3333);
+    expect(entry.metrics.circuit_total_tokens_cache_creation_1h).toBe(30000);
+    expect(entry.metrics.circuit_price_table_miss_count).toBe(1);
+    expect(entry.metrics.circuit_total_relays_failed).toBe(2);
+    expect(entry.metrics.circuit_total_envelopes_missing_reported_cost).toBe(3);
+    expect(entry.metrics.vanilla_total_relays_failed).toBeUndefined();
 
     // None of the operator-private content survives the allowlist.
     expect(serialized).not.toContain('/Users/');

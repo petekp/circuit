@@ -698,6 +698,9 @@ export async function executeProductionRelayAttempt(input: {
     duration_ms: durationMs,
     result_path: result.path,
     receipt_path: receipt.path,
+    // Token/cost observability. Readers join role + model from the
+    // relay.started entry on the same (step_id, attempt).
+    ...(relayResult.usage === undefined ? {} : { usage: relayResult.usage }),
   });
   const resultVerdictEvaluation = failureKind === 'acceptance' ? checkEvaluation : evaluation;
   // Slice loop: tag the relay's checks so per-slice attempts stay attributable

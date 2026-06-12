@@ -67,6 +67,22 @@ export function circuitProofQuality(result: JsonRecord): number {
   return 0;
 }
 
+// Claim parsing for a run that requested the --output-format json envelope.
+// When the envelope cannot be parsed, no JSON found in the raw stdout is a
+// trustworthy claim: the last-JSON-object parser would find the envelope
+// itself (or a truncated fragment of it) and shadow the model's real answer
+// with claimed_fixed false. The claim is recorded as unparsed instead of
+// guessed; aggregate() counts these so the false-fixed denominator is never
+// silently polluted.
+export function parseVanillaEnvelopeClaim(
+  envelope: { result_text: string } | undefined,
+): JsonRecord {
+  if (envelope === undefined) {
+    return { claimed_fixed: false, parse_status: 'envelope-unparsed', proof_quality: 0 };
+  }
+  return parseVanillaClaim(envelope.result_text);
+}
+
 export function parseVanillaClaim(stdout: string): JsonRecord {
   const parsed = parseLastJsonObject(stdout);
   if (parsed === undefined) {
@@ -150,6 +166,7 @@ export function scoreArm({
   checks,
   diff,
   claim,
+  usage,
 }: {
   task: { id: string; split: string; allowed_changed_files: string[] };
   armId: string;
@@ -157,6 +174,11 @@ export function scoreArm({
   checks: Array<{ passed: boolean }>;
   diff: { changed_files: string[]; diff_path: string };
   claim: JsonRecord;
+  // Prebuilt by buildArmUsageScore (scripts/evals/shared/usage.ts). Absent for
+  // runs the harness could not capture usage for; the score then records
+  // usage_present false so aggregates can count the gap instead of silently
+  // undercounting cost.
+  usage?: JsonRecord;
 }): ArmScore {
   const objectiveFixed = checks.length > 0 && checks.every((check) => check.passed);
   const allowed = new Set(task.allowed_changed_files);
@@ -168,6 +190,7 @@ export function scoreArm({
     exit_code: run.exit_code,
     timed_out: run.timed_out,
     wallclock_ms: run.wallclock_ms,
+    ...(usage ?? { usage_present: false }),
     objective_fixed: objectiveFixed,
     verification_passed: objectiveFixed,
     claimed_fixed: claim.claimed_fixed,
@@ -211,9 +234,76 @@ export function aggregate(taskSummaries: readonly TaskSummary[], splitFilter: st
         0,
       ),
       mean_wallclock_ms: mean(scores.map((score) => score.wallclock_ms)),
+      // Cost capture (charter instrument 1). Sums skip scores whose usage was
+      // never captured; the gap counters (usage_missing_count, the relay
+      // tallies, price_table_miss_count) make every partial sum legible so a
+      // low total is never mistaken for a cheap run.
+      total_tokens_input: sumFinite(scores.map((score) => score.tokens_input)),
+      total_tokens_output: sumFinite(scores.map((score) => score.tokens_output)),
+      total_tokens_cache_read: sumFinite(scores.map((score) => score.tokens_cache_read)),
+      total_tokens_cache_creation: sumFinite(
+        scores.map((score) => score.tokens_cache_creation),
+      ),
+      total_tokens_cache_creation_5m: sumFinite(
+        scores.map((score) => score.tokens_cache_creation_5m),
+      ),
+      total_tokens_cache_creation_1h: sumFinite(
+        scores.map((score) => score.tokens_cache_creation_1h),
+      ),
+      total_cost_usd_reported: sumFinite(scores.map((score) => score.cost_usd_reported)),
+      total_cost_usd_computed: sumFinite(scores.map((score) => score.cost_usd_computed)),
+      mean_cost_usd_computed: mean(scores.map((score) => score.cost_usd_computed)),
+      // Per-task distribution, not just totals: a single expensive task can
+      // dominate a mean, and the methodology checklist binds median and p90.
+      median_cost_usd_computed: percentileFinite(
+        scores.map((score) => score.cost_usd_computed),
+        0.5,
+      ),
+      p90_cost_usd_computed: percentileFinite(
+        scores.map((score) => score.cost_usd_computed),
+        0.9,
+      ),
+      usage_missing_count: scores.filter((score) => score.usage_present !== true).length,
+      cost_divergence_flag_count: scores.filter((score) => score.cost_divergence_flag === true)
+        .length,
+      price_table_miss_count: scores.filter((score) => score.price_table_miss === true).length,
+      // Claim parse failures pollute the false-fixed denominator (an
+      // unparsed claim scores claimed_fixed false), so the count travels
+      // with the headline rates.
+      claim_parse_failure_count: scores.filter((score) => score.claim.parse_status !== 'parsed')
+        .length,
+      total_relay_count: sumFinite(scores.map((score) => score.relay_count)),
+      total_relays_missing_usage: sumFinite(scores.map((score) => score.relays_missing_usage)),
+      total_relays_failed: sumFinite(scores.map((score) => score.relays_failed)),
+      total_envelopes_missing_reported_cost: sumFinite(
+        scores.map((score) => score.envelopes_missing_reported_cost),
+      ),
     };
   }
   return out;
+}
+
+// Nearest-rank percentile over the finite entries; null when none are
+// present. Nearest-rank (no interpolation) keeps the figure an actually
+// observed task cost, which reads honestly at the small task counts this
+// suite runs at.
+function percentileFinite(values: readonly unknown[], q: number): number | null {
+  const usable = values
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+    .sort((a, b) => a - b);
+  if (usable.length === 0) return null;
+  const rank = Math.min(usable.length - 1, Math.max(0, Math.ceil(q * usable.length) - 1));
+  return usable[rank] ?? null;
+}
+
+// Sum over the finite entries only; null when none are present so a fully
+// usage-less aggregate renders as "n/a" instead of a misleading zero.
+function sumFinite(values: readonly unknown[]): number | null {
+  const usable = values.filter(
+    (value): value is number => typeof value === 'number' && Number.isFinite(value),
+  );
+  if (usable.length === 0) return null;
+  return usable.reduce((sum, value) => sum + value, 0);
 }
 
 export function decideClaim(heldOutAggregate: Record<string, JsonRecord>): { supported: boolean; reason: string } {

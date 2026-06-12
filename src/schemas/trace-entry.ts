@@ -288,6 +288,39 @@ export const SkillsLoadedTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type SkillsLoadedTraceEntry = z.infer<typeof SkillsLoadedTraceEntry>;
 
+// Token/cost usage the connector reported for one relay subprocess. Mirrors
+// `RelayUsage` in src/shared/connector-relay.ts. Optional on the trace entry
+// because not every connector emits usage (codex and custom connectors leave
+// it absent) and a usage-less relay is still a valid relay. Per-role
+// attribution is a reader-side join: `relay.started` carries the role on the
+// same `(step_id, attempt)` key.
+export const RelayUsageEvidence = z
+  .object({
+    input_tokens: z.number().nonnegative(),
+    output_tokens: z.number().nonnegative(),
+    cache_read_tokens: z.number().nonnegative(),
+    cache_creation_tokens: z.number().nonnegative(),
+    cache_creation_5m_tokens: z.number().nonnegative(),
+    cache_creation_1h_tokens: z.number().nonnegative(),
+    total_cost_usd_reported: z.number().nonnegative().optional(),
+    models: z
+      .array(
+        z
+          .object({
+            model: z.string().min(1),
+            input_tokens: z.number().nonnegative(),
+            output_tokens: z.number().nonnegative(),
+            cache_read_tokens: z.number().nonnegative(),
+            cache_creation_tokens: z.number().nonnegative(),
+            cost_usd_reported: z.number().nonnegative().optional(),
+          })
+          .strict(),
+      )
+      .optional(),
+  })
+  .strict();
+export type RelayUsageEvidence = z.infer<typeof RelayUsageEvidence>;
+
 export const RelayCompletedTraceEntry = TraceEntryBase.extend({
   kind: z.literal('relay.completed'),
   step_id: StepId,
@@ -296,6 +329,7 @@ export const RelayCompletedTraceEntry = TraceEntryBase.extend({
   duration_ms: z.number().int().nonnegative(),
   result_path: z.string().min(1),
   receipt_path: z.string().min(1),
+  usage: RelayUsageEvidence.optional(),
 }).strict();
 export type RelayCompletedTraceEntry = z.infer<typeof RelayCompletedTraceEntry>;
 
