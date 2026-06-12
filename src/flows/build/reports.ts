@@ -269,9 +269,9 @@ export type BuildPlan = z.infer<typeof BuildPlan>;
 export const BuildImplementation = z
   .object({
     verdict: z.literal('accept'),
-    summary: z.string().min(1),
-    changed_files: z.array(z.string().min(1)),
-    evidence: NonEmptyStringArray,
+    summary: z.string().min(1).describe('what changed'),
+    changed_files: z.array(z.string().min(1).describe('project-relative path')),
+    evidence: z.array(z.string().min(1).describe('verification or implementation evidence')).min(1),
   })
   .strict();
 export type BuildImplementation = z.infer<typeof BuildImplementation>;

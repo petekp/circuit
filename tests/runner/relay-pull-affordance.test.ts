@@ -93,6 +93,15 @@ describe('composeRelayPrompt pull affordance', () => {
     expect(prompt).toContain('Prior Circuit History (hint-only):');
     expect(prompt).toContain('circuit history pull');
     expect(prompt).toContain('--flow explore');
+
+    // The seven-kind authority enumeration renders exactly once: the memory
+    // section carries it (HISTORY_AUTHORITY_NOTICE), so the affordance line
+    // defers to it instead of repeating all seven kinds.
+    const enumerationCount =
+      prompt.split('proof, checkpoint, policy, route, recovery, verification, or write authority')
+        .length - 1;
+    expect(enumerationCount).toBe(1);
+    expect(prompt).toContain('same authority limits stated above');
   });
 
   it('omits the --flow value gracefully when no flow id is threaded (advisory, never a gate)', () => {

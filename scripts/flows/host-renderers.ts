@@ -5,7 +5,7 @@ const CODEX_SKILL_METADATA: Record<string, { title: string; description: string 
   handoff: {
     title: 'Circuit Handoff',
     description:
-      'Runs Circuit Handoff to save, resume, clear, brief, or install continuity support across sessions.',
+      'Runs Circuit Handoff to save, resume, clear, or install continuity support across sessions.',
   },
   run: {
     title: 'Circuit Run',
@@ -21,6 +21,15 @@ const CODEX_SKILL_METADATA: Record<string, { title: string; description: string 
 
 function stripMarkdownComments(content: string): string {
   return content.replace(/<!--[\s\S]*?-->\s*/g, '');
+}
+
+// Source command/skill bodies end with a `## Authority` footer that cites
+// repo-relative paths (src/..., tests/..., docs/...). Those paths do not
+// exist in a user's installed plugin, so the footer is noise in every
+// generated host mirror. `## Authority` is always the trailing section, so
+// dropping from its heading to EOF is safe.
+function stripAuthorityFooter(content: string): string {
+  return content.replace(/\n## Authority\n[\s\S]*$/g, '\n');
 }
 
 function renderClaudePresentationInvocations(content: string): string {
@@ -63,52 +72,56 @@ function renderClaudePresentationInstructions(content: string): string {
 }
 
 export function renderClaudeHostCommand(sourceContent: string): string {
-  return renderClaudePresentationInstructions(
-    renderClaudePresentationInvocations(
-      stripMarkdownComments(sourceContent)
-        .replaceAll('./bin/circuit', CLAUDE_PLUGIN_WRAPPER_COMMAND)
-        .replace(
-          /1\. \*\*Confirm working directory\.\*\* The CLI is.*?2\. \*\*(?:Build a shell-safe invocation|Construct the Bash invocation [A-Z]+)\.\*\*/s,
-          [
-            '1. **Resolve plugin root.** Claude Code substitutes',
-            '   `${CLAUDE_PLUGIN_ROOT}` with the installed Circuit plugin directory.',
-            "   Do not use a path relative to the user's project.",
-            '2. **Build a shell-safe invocation.**',
-          ].join('\n'),
-        )
-        .replace(
-          /Use the Bash tool to execute the constructed command\. `node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/circuit\.ts"`\n\s+is the .*?`dist\/cli\/circuit\.js`\./gs,
-          [
-            'Use the Bash tool to execute the constructed command. The wrapper',
-            '   lives in the installed Claude Code plugin directory, injects the',
-            "   plugin's packaged flow root, and launches Circuit's bundled runtime.",
-          ].join('\n'),
-        ),
+  return stripAuthorityFooter(
+    renderClaudePresentationInstructions(
+      renderClaudePresentationInvocations(
+        stripMarkdownComments(sourceContent)
+          .replaceAll('./bin/circuit', CLAUDE_PLUGIN_WRAPPER_COMMAND)
+          .replace(
+            /1\. \*\*Confirm working directory\.\*\* The CLI is.*?2\. \*\*(?:Build a shell-safe invocation|Construct the Bash invocation [A-Z]+)\.\*\*/s,
+            [
+              '1. **Resolve plugin root.** Claude Code substitutes',
+              '   `${CLAUDE_PLUGIN_ROOT}` with the installed Circuit plugin directory.',
+              "   Do not use a path relative to the user's project.",
+              '2. **Build a shell-safe invocation.**',
+            ].join('\n'),
+          )
+          .replace(
+            /Use the Bash tool to execute the constructed command\. `node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/circuit\.ts"`\n\s+is the .*?`dist\/cli\/circuit\.js`\./gs,
+            [
+              'Use the Bash tool to execute the constructed command. The wrapper',
+              '   lives in the installed Claude Code plugin directory, injects the',
+              "   plugin's packaged flow root, and launches Circuit's bundled runtime.",
+            ].join('\n'),
+          ),
+      ),
     ),
   );
 }
 
 export function renderCodexHostCommand(sourceContent: string): string {
-  return stripMarkdownComments(sourceContent)
-    .replaceAll('./bin/circuit', CODEX_PLUGIN_WRAPPER_COMMAND)
-    .replace(
-      /1\. \*\*Confirm working directory\.\*\* The CLI is.*?2\. \*\*(?:Build a shell-safe invocation|Construct the Bash invocation [A-Z]+)\.\*\*/s,
-      [
-        '1. **Resolve plugin root.** Use the absolute path to the installed',
-        '   Circuit plugin directory, the directory that contains',
-        '   `.codex-plugin/plugin.json`. Do not use a path relative to the',
-        "   user's project.",
-        '2. **Build a shell-safe invocation.**',
-      ].join('\n'),
-    )
-    .replace(
-      /Use the Bash tool to execute the constructed command\. `node '<plugin root>\/scripts\/circuit\.ts'`\n\s+is the .*?`dist\/cli\/circuit\.js`\./gs,
-      [
-        'Use the Bash tool to execute the constructed command. The wrapper',
-        "   lives in the installed Circuit plugin directory and injects the plugin's",
-        "   packaged flow root before it launches Circuit's bundled runtime.",
-      ].join('\n'),
-    );
+  return stripAuthorityFooter(
+    stripMarkdownComments(sourceContent)
+      .replaceAll('./bin/circuit', CODEX_PLUGIN_WRAPPER_COMMAND)
+      .replace(
+        /1\. \*\*Confirm working directory\.\*\* The CLI is.*?2\. \*\*(?:Build a shell-safe invocation|Construct the Bash invocation [A-Z]+)\.\*\*/s,
+        [
+          '1. **Resolve plugin root.** Use the absolute path to the installed',
+          '   Circuit plugin directory, the directory that contains',
+          '   `.codex-plugin/plugin.json`. Do not use a path relative to the',
+          "   user's project.",
+          '2. **Build a shell-safe invocation.**',
+        ].join('\n'),
+      )
+      .replace(
+        /Use the Bash tool to execute the constructed command\. `node '<plugin root>\/scripts\/circuit\.ts'`\n\s+is the .*?`dist\/cli\/circuit\.js`\./gs,
+        [
+          'Use the Bash tool to execute the constructed command. The wrapper',
+          "   lives in the installed Circuit plugin directory and injects the plugin's",
+          "   packaged flow root before it launches Circuit's bundled runtime.",
+        ].join('\n'),
+      ),
+  );
 }
 
 function splitMarkdownFrontmatter(content: string): { frontmatter: string; body: string } {
@@ -144,11 +157,12 @@ function renderCodexHostSkillBody(body: string): string {
 }
 
 function renderCodexNativeSkillBody(body: string): string {
-  return renderCodexHostSkillBody(body)
-    .replace(/<!--[\s\S]*?-->\s*/g, '')
-    .trimStart()
-    .replace(/^#\s+\/circuit:[^\n]*\n+/, '')
-    .replace(/\n## Authority\n[\s\S]*$/g, '\n')
+  return stripAuthorityFooter(
+    renderCodexHostSkillBody(body)
+      .replace(/<!--[\s\S]*?-->\s*/g, '')
+      .trimStart()
+      .replace(/^#\s+\/circuit:[^\n]*\n+/, ''),
+  )
     .replace(/`\/circuit:run`/g, 'Circuit Run')
     .replace(/`\/circuit:<command>`/g, 'a Circuit host command')
     .replace(/\/circuit:([a-z][a-z-]*)/g, 'Circuit $1')

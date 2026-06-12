@@ -140,6 +140,13 @@ describe('runtime user skill loading', () => {
 
     expect(captured[0]?.prompt).toContain('Selected Skills:');
     expect(captured[0]?.prompt).toContain('UNIQUE_TDD_SKILL_BODY');
+    // The per-skill header is a plain Label: line (a `##` heading would
+    // outrank the engine's own sections), and provenance (path + SHA-256)
+    // stays in the skills.loaded trace rather than being repeated as prompt
+    // tokens the worker cannot act on.
+    expect(captured[0]?.prompt).toContain('Skill: tdd');
+    expect(captured[0]?.prompt).not.toContain('## Skill:');
+    expect(captured[0]?.prompt).not.toContain('SHA-256:');
     const loaded = (await readTrace()).find((entry) => entry.kind === 'skills.loaded');
     expect(loaded).toMatchObject({
       kind: 'skills.loaded',

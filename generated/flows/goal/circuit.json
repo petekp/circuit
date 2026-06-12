@@ -469,7 +469,7 @@
         "choices": [
           {
             "id": "continue",
-            "label": "Continue"
+            "label": "Close as-is"
           },
           {
             "id": "blocked",

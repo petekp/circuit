@@ -369,7 +369,7 @@ export const goalFlowData = {
         checkpoint_policy: {
           prompt: 'Goal needs operator judgment before continuing.',
           choices: [
-            { id: 'continue', label: 'Continue' },
+            { id: 'continue', label: 'Close as-is' },
             { id: 'blocked', label: 'Close Blocked' },
             { id: 'handoff', label: 'Hand Off' },
           ],

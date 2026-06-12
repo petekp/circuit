@@ -67,6 +67,10 @@ describe('emit-flows host renderers (real command sources)', () => {
     expect(rendered).toContain('Let the presentation wrapper render output');
     // HTML comments are stripped from generated output.
     expect(rendered).not.toContain('<!--');
+    // The source-authority footer cites repo paths that do not exist in an
+    // installed plugin, so it is stripped from the host command mirror.
+    expect(rendered).not.toContain('## Authority');
+    expect(rendered).not.toContain('`src/cli/circuit.ts`');
   });
 
   it('renders the real run command for Codex with plugin-root wording and JSONL intact', () => {
@@ -77,6 +81,9 @@ describe('emit-flows host renderers (real command sources)', () => {
     // Codex keeps raw JSONL progress (no presentation wrapper).
     expect(rendered).toContain('--progress jsonl');
     expect(rendered).not.toContain('<!--');
+    // The source-authority footer is stripped from the Codex command mirror too.
+    expect(rendered).not.toContain('## Authority');
+    expect(rendered).not.toContain('`src/cli/circuit.ts`');
   });
 
   it('renders the real run source into a Codex skill with no slash-command surface', () => {
@@ -114,6 +121,8 @@ describe('emit-flows host renderers (synthetic source branches)', () => {
     );
     expect(rendered).not.toContain('--progress jsonl');
     expect(rendered).toContain('Let the presentation wrapper render output');
+    expect(rendered).not.toContain('## Authority');
+    expect(rendered).not.toContain('`src/cli/circuit.ts`');
   });
 
   it('rewrites the Codex instruction block to plugin-root wording with JSONL intact', () => {
@@ -123,6 +132,8 @@ describe('emit-flows host renderers (synthetic source branches)', () => {
     expect(rendered).toContain('Resolve plugin root');
     expect(rendered).toContain("node '<plugin root>/scripts/circuit.ts' run --goal");
     expect(rendered).toContain('--progress jsonl');
+    expect(rendered).not.toContain('## Authority');
+    expect(rendered).not.toContain('`src/cli/circuit.ts`');
   });
 
   it('renders a Codex skill without slash-command placeholders', () => {

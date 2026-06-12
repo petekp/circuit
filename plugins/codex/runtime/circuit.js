@@ -29192,50 +29192,245 @@ function describeExpandBlockStepUseError(error51) {
   return error51.message;
 }
 
-// dist/flows/build/relay-hints.js
-var buildContextShapeHint = {
-  kind: "schema",
-  schema: "build.context@v1",
-  instruction: [
-    "Respond with a single raw JSON object whose top-level shape is exactly:",
-    '{ "verdict": "accept", "sources": [{ "kind": "<file|command|log|operator-note|reference>", "ref": "<project-relative path, command id, log line, note id, or external reference>", "summary": "<one-line summary of what this source contributed>" }], "observations": ["<observation grounded in the sources>"], "open_questions": ["<question still unresolved after gathering context>"], "anticipated_file_extensions": ["<file extension the change will likely touch, such as .ts, .tsx, or .test.ts>"], "slices": [{ "id": "slice-1", "intent": "<one concrete, independently-verifiable unit of implementation work>", "anticipated_file_extensions": ["<extension this slice will touch>"] }], "guardrails": { "non_goals": ["<something the change must NOT do, stated by the operator>"], "invariants": ["<a property the change must preserve, grounded in the code>"] }, "allowed_touch_area": ["<a directory subtree ending in \\"/\\", such as \\"src/flows/build/\\", or an exact repo-relative file path>"], "recommended_power": { "value": "<low|medium|high>", "rationale": "<one short sentence grounding the tier in what you read>" } }',
-    "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated depth (provided to you): at low depth read just the directly implicated files; at high depth map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
-    "In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer.",
-    'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. At high depth the engine implements and verifies these one at a time; at lower depths the change runs in a single pass regardless.',
-    'In guardrails, capture the negative space of the change. Put in non_goals the things the operator said the change must NOT do - boundaries drawn from the goal and brief, not invented. Put in invariants the properties the change must preserve, grounded in what you read (a contract, a data shape, an ordering, a safety property). Both default to empty arrays: declare a guardrail only when it is real and specific, never a generic "do not break anything". These carry forward to the plan and the reviewer checks the change against them.',
-    'In allowed_touch_area, name the paths this change is allowed to touch, proposed from what you read - either a directory subtree ending in "/" (for example "src/flows/build/", which covers everything beneath it) or an exact repo-relative file path. Include every place a correct change legitimately needs to reach: the source it edits, the tests that cover it, and any generated output it regenerates. State the allowed area positively; do not list off-limits files. After the build the engine compares the files actually changed - proven from git, not self-reported - against this area, and a change that reaches outside it cannot finish clean. Because the implementer is held to this without trimming the work to fit, leave the array empty whenever you cannot scope the change with confidence: an empty area turns the check off rather than guessing a box.',
-    'Include recommended_power ONLY when the relay context states the power dial is auto; omit the key entirely otherwise. When you do include it, judge from the codebase read how strong a model the downstream implementation and review need: "low" for a small localized change with good test coverage, "high" for a wide, subtle, or weakly-tested change, "medium" between. One short rationale sentence.',
-    "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against build.context@v1 before writing reports/build/context.json."
-  ].join(" ")
-};
-var buildImplementationShapeHint = {
-  kind: "schema",
-  schema: "build.implementation@v1",
-  instruction: [
-    "Respond with a single raw JSON object whose top-level shape is exactly:",
-    '{ "verdict": "accept", "summary": "<what changed>", "changed_files": ["<project-relative path>"], "evidence": ["<verification or implementation evidence>"] }',
-    "Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass.",
-    "The plan may carry guardrails: non_goals (things this change must NOT do) and invariants (properties it must preserve). Stay inside the non_goals and preserve every invariant. These are advisory to you here, but the reviewer checks the finished change against them, so a violation will surface as a finding.",
-    "When the request names a current slice (its id and intent), implement ONLY that slice's unit of work - the smallest change that satisfies that slice's intent - and leave later slices for their own turn. When no current slice is named, implement the whole plan in one pass. Report changed_files cumulatively: every file changed so far across all slices, not only this slice's files.",
-    "The plan's anticipated_file_extensions (and the current slice's, when named) list the file types the grounding read expects to touch. Treat them as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched.",
-    "The plan may also carry allowed_touch_area: the paths the grounding read predicted this change should reach. It is advisory to you, not a cage - implement what the slice and goal actually require and report every file you really changed. After you finish, the engine compares your git-proven changes against that area; reaching outside it does not fail the build but surfaces for a human to confirm, so do not pad the change with edits it does not need, and do not trim a necessary change just to stay inside the predicted box.",
-    "Use an empty changed_files array only when no file changed. Evidence must contain at least one item. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
-    "The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against build.implementation@v1 before writing reports/build/implementation.json."
-  ].join(" ")
-};
-var buildReviewShapeHint = {
-  kind: "schema",
-  schema: "build.review@v1",
-  instruction: [
-    "Respond with a single raw JSON object whose top-level shape is exactly:",
-    `{ "verdict": "<accept|accept-with-fixes|reject>", "summary": "<review summary>", "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }], "alignment": { "scope_adherence": "<within_scope|exceeds_scope>", "non_goals": [{ "statement": "<the plan's non_goal, verbatim>", "status": "<respected|violated|not_applicable>", "evidence": "<what in the change shows this>" }], "invariants": [{ "statement": "<the plan's invariant, verbatim>", "status": "<preserved|violated|not_applicable>", "evidence": "<what in the change shows this>" }] } }`,
-    "Review the change against the requested scope, not just against passing tests. Flag behavior that broadens semantics beyond the goal even when verification passes.",
-    `alignment is required. Set scope_adherence by judging the finished change against the brief: within_scope when it does only what the goal asked, exceeds_scope when it reaches beyond. Add one non_goals entry per non_goal the plan declared and one invariants entry per invariant, each restating the plan's text with a status and concrete evidence; use empty arrays only when the plan declared none. If you set scope_adherence to exceeds_scope, or mark any non_goal violated or any invariant violated, the verdict cannot be "accept" and you must include at least one finding that explains the breach.`,
-    "You are also given a git-proven touch_area report: the files the change actually modified and whether they stayed inside the plan's allowed_touch_area. Treat it as ground truth about what was physically touched - more reliable than the implementer's self-reported file list - and let it inform your scope_adherence judgment and your evidence. The engine enforces that boundary separately at close, so your job here is the semantic call, not to re-run the boundary check.",
-    'Use an empty findings array only with verdict "accept". Verdicts "accept-with-fixes" and "reject" must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference. Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.',
-    "The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against build.review@v1 before writing reports/build/review.json."
-  ].join(" ")
-};
+// dist/flows/registries/shape-hints/from-zod.js
+function defOf(node) {
+  return node._zod.def;
+}
+function objectShape(def) {
+  const shape = def.shape;
+  return typeof shape === "function" ? shape() : shape;
+}
+function literalValues(def) {
+  if (Array.isArray(def.values))
+    return def.values;
+  if ("value" in def)
+    return [def.value];
+  return [];
+}
+function enumValues(def) {
+  const raw = def.entries ?? def.values;
+  if (Array.isArray(raw))
+    return raw;
+  if (raw === void 0 || raw === null || typeof raw !== "object")
+    return [];
+  const values = Object.values(raw);
+  const isReverseMapped = values.some((value) => typeof value === "number" && Object.hasOwn(raw, String(value)));
+  const accepted = isReverseMapped ? values.filter((value) => typeof value === "number") : values;
+  return Array.from(new Set(accepted));
+}
+function renderEnumValues(values) {
+  return values.map((value) => typeof value === "string" ? escapeJsonInner(value) : String(value)).join("|");
+}
+function escapeJsonInner(value) {
+  const serialized = JSON.stringify(value);
+  return serialized.slice(1, serialized.length - 1);
+}
+function leafDescriptionOr(node, fallback) {
+  const nodeDescription = node.description;
+  const description = typeof nodeDescription === "string" && nodeDescription.length > 0 ? nodeDescription : defOf(node).description;
+  if (typeof description === "string" && description.length > 0) {
+    return `"<${escapeJsonInner(description)}>"`;
+  }
+  return fallback;
+}
+var MAX_RECURSION_DEPTH = 32;
+function renderShapeSkeleton(schema) {
+  return renderNode(schema, /* @__PURE__ */ new Set(), 0);
+}
+function verdictValuesFromSchema(schema) {
+  const out = [];
+  collectVerdictValues(schema, out, 0);
+  return [...new Set(out)];
+}
+function collectVerdictValues(node, out, depth) {
+  if (depth > MAX_RECURSION_DEPTH)
+    return;
+  const def = defOf(node);
+  switch (def.type) {
+    case "object": {
+      const verdict = objectShape(def).verdict;
+      if (verdict === void 0)
+        return;
+      const verdictDef = defOf(verdict);
+      const values = verdictDef.type === "enum" ? enumValues(verdictDef) : verdictDef.type === "literal" ? literalValues(verdictDef) : [];
+      for (const value of values) {
+        if (typeof value === "string")
+          out.push(value);
+      }
+      return;
+    }
+    case "union": {
+      for (const option of def.options) {
+        collectVerdictValues(option, out, depth + 1);
+      }
+      return;
+    }
+    case "lazy": {
+      const getter = def.getter;
+      collectVerdictValues(getter(), out, depth + 1);
+      return;
+    }
+    default:
+      return;
+  }
+}
+function renderNode(node, visited, depth) {
+  if (visited.has(node) || depth > MAX_RECURSION_DEPTH) {
+    return "<recursive>";
+  }
+  visited.add(node);
+  try {
+    return renderNodeInner(node, visited, depth + 1);
+  } finally {
+    visited.delete(node);
+  }
+}
+function renderNodeInner(node, visited, depth) {
+  const def = defOf(node);
+  switch (def.type) {
+    case "object": {
+      const shape = objectShape(def);
+      const entries = Object.entries(shape).map(([key, child]) => `"${escapeJsonInner(key)}": ${renderNode(child, visited, depth)}`);
+      return `{ ${entries.join(", ")} }`;
+    }
+    case "array": {
+      const inner = renderNode(def.element, visited, depth);
+      return `[${inner}]`;
+    }
+    case "optional":
+    case "nullable":
+    case "default":
+    case "readonly":
+    case "catch":
+    case "nonoptional":
+    case "success":
+      return renderNode(def.innerType, visited, depth);
+    case "pipe":
+      return renderNode(def.in ?? def.out, visited, depth);
+    case "transform":
+      return "<transform>";
+    case "literal": {
+      const [value] = literalValues(def);
+      return typeof value === "string" ? JSON.stringify(value) : JSON.stringify(value);
+    }
+    case "enum": {
+      const values = enumValues(def);
+      return `"<${renderEnumValues(values)}>"`;
+    }
+    case "string":
+      return leafDescriptionOr(node, '"<string>"');
+    case "number":
+      return leafDescriptionOr(node, "<number>");
+    case "bigint":
+      return leafDescriptionOr(node, "<bigint>");
+    case "boolean":
+      return leafDescriptionOr(node, "<true|false>");
+    case "date":
+      return leafDescriptionOr(node, '"<iso-date>"');
+    case "null":
+      return "null";
+    case "undefined":
+      return "<undefined>";
+    case "any":
+      return leafDescriptionOr(node, "<any>");
+    case "unknown":
+      return leafDescriptionOr(node, "<unknown>");
+    case "never":
+      return "<never>";
+    case "record":
+    case "map":
+      return `{ "<key>": ${renderNode(def.valueType, visited, depth)} }`;
+    case "tuple": {
+      const items = def.items.map((item) => renderNode(item, visited, depth));
+      const rest = def.rest;
+      if (rest !== void 0 && rest !== null) {
+        items.push(`...${renderNode(rest, visited, depth)}`);
+      }
+      return `[${items.join(", ")}]`;
+    }
+    case "union": {
+      const options = def.options;
+      const discriminator = def.discriminator;
+      if (typeof discriminator === "string") {
+        const collapsed = collapseDiscriminatedUnion(discriminator, options, visited, depth);
+        if (collapsed !== void 0)
+          return collapsed;
+      }
+      return options.map((opt) => renderNode(opt, visited, depth)).join(" | ");
+    }
+    case "lazy": {
+      const getter = def.getter;
+      return renderNode(getter(), visited, depth);
+    }
+    case "intersection": {
+      const left = renderNode(def.left, visited, depth);
+      const right = renderNode(def.right, visited, depth);
+      return `${left} & ${right}`;
+    }
+    default:
+      return `<${def.type}>`;
+  }
+}
+function collapseDiscriminatedUnion(discriminator, options, visited, depth) {
+  if (options.length === 0)
+    return void 0;
+  const objectShapes = [];
+  const discriminatorValues = [];
+  for (const option of options) {
+    const optDef = defOf(option);
+    if (optDef.type !== "object")
+      return void 0;
+    const shape = objectShape(optDef);
+    objectShapes.push(shape);
+    const discriminatorNode = shape[discriminator];
+    if (discriminatorNode === void 0)
+      return void 0;
+    const discriminatorDef = defOf(discriminatorNode);
+    if (discriminatorDef.type !== "literal")
+      return void 0;
+    const [value] = literalValues(discriminatorDef);
+    discriminatorValues.push(value);
+  }
+  const firstShape = objectShapes[0];
+  if (firstShape === void 0)
+    return void 0;
+  const keyList = Object.keys(firstShape);
+  const keyListSorted = keyList.slice().sort();
+  for (const shape of objectShapes) {
+    const shapeKeys = Object.keys(shape).slice().sort();
+    if (shapeKeys.length !== keyListSorted.length)
+      return void 0;
+    for (let idx = 0; idx < shapeKeys.length; idx += 1) {
+      if (shapeKeys[idx] !== keyListSorted[idx])
+        return void 0;
+    }
+  }
+  const entries = keyList.map((key) => {
+    if (key === discriminator) {
+      const rendered = discriminatorValues.map((value) => typeof value === "string" ? escapeJsonInner(value) : String(value));
+      return `"${escapeJsonInner(key)}": "<${rendered.join("|")}>"`;
+    }
+    const child = firstShape[key];
+    if (child === void 0)
+      return `"${escapeJsonInner(key)}": <missing>`;
+    return `"${escapeJsonInner(key)}": ${renderNode(child, visited, depth)}`;
+  });
+  return `{ ${entries.join(", ")} }`;
+}
+
+// dist/flows/registries/shape-hints/instruction-helpers.js
+function shapeInstruction(skeleton) {
+  return `Respond with a single raw JSON object whose top-level shape is exactly: ${skeleton}`;
+}
+function mechanicalTail(schema, reportPath) {
+  const validation = reportPath === void 0 ? `The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against ${schema}.` : `The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against ${schema} before writing ${reportPath}.`;
+  return [
+    "Do not include extra top-level keys.",
+    "Do not wrap the JSON in Markdown code fences.",
+    "Do not include any prose before or after the JSON object.",
+    validation
+  ].join(" ");
+}
 
 // dist/schemas/runtime-evidence.js
 var RuntimeGitStateEntry = external_exports.object({
@@ -29497,9 +29692,9 @@ var BuildPlan = external_exports.object({
 }).strict();
 var BuildImplementation = external_exports.object({
   verdict: external_exports.literal("accept"),
-  summary: external_exports.string().min(1),
-  changed_files: external_exports.array(external_exports.string().min(1)),
-  evidence: NonEmptyStringArray
+  summary: external_exports.string().min(1).describe("what changed"),
+  changed_files: external_exports.array(external_exports.string().min(1).describe("project-relative path")),
+  evidence: external_exports.array(external_exports.string().min(1).describe("verification or implementation evidence")).min(1)
 }).strict();
 var BuildVerification = VerificationResult;
 var BuildReviewVerdict = external_exports.enum(["accept", "accept-with-fixes", "reject"]);
@@ -29778,6 +29973,48 @@ var BuildResult = external_exports.object({
     }
   }
 });
+
+// dist/flows/build/relay-hints.js
+var buildContextShapeHint = {
+  kind: "schema",
+  schema: "build.context@v1",
+  instruction: [
+    shapeInstruction(renderShapeSkeleton(BuildContext)),
+    "Read the relevant source and tests before planning. This step is read-only by intent: do not edit files, write files, or run commands that modify the checkout. Scale the breadth of your reading to the run's stated depth (provided to you): at low depth read just the directly implicated files; at high depth map the surrounding modules, callers, and local conventions. sources must contain at least one entry; observations must contain at least one entry. Use an empty open_questions array only when nothing remains unresolved. Every observation must be grounded in the cited sources - do not invent details the sources do not support.",
+    "In anticipated_file_extensions, predict the file extensions the implementer will likely touch based on what you read (for example .ts and .test.ts for a typed code change with tests). Use the implementation file types, not every file you read. Use an empty array only when the read gives no confident prediction. This list is advisory: it scopes and warns, it does not bind the implementer.",
+    'In slices, decompose the change into an ordered list of independently-verifiable units of implementation work - each a concrete step a worker implements and verification can confirm before the next begins - ordered so each builds on the last. Do NOT include global gates such as "verification passes" or "review completes"; those are not units of work. Give each slice a stable id (slice-1, slice-2, ...) and its own anticipated_file_extensions. Keep the list short: prefer the fewest slices that make the work safely incremental, and use a single slice (or an empty array) when the change is one indivisible unit. At high depth the engine implements and verifies these one at a time; at lower depths the change runs in a single pass regardless.',
+    'In guardrails, capture the negative space of the change. Put in non_goals the things the operator said the change must NOT do - boundaries drawn from the goal and brief, not invented. Put in invariants the properties the change must preserve, grounded in what you read (a contract, a data shape, an ordering, a safety property). Both default to empty arrays: declare a guardrail only when it is real and specific, never a generic "do not break anything". These carry forward to the plan and the reviewer checks the change against them.',
+    'In allowed_touch_area, name the paths this change is allowed to touch, proposed from what you read - either a directory subtree ending in "/" (for example "src/flows/build/", which covers everything beneath it) or an exact repo-relative file path. Include every place a correct change legitimately needs to reach: the source it edits, the tests that cover it, and any generated output it regenerates. State the allowed area positively; do not list off-limits files. After the build the engine compares the files actually changed - proven from git, not self-reported - against this area, and a change that reaches outside it cannot finish clean. Because the implementer is held to this without trimming the work to fit, leave the array empty whenever you cannot scope the change with confidence: an empty area turns the check off rather than guessing a box.',
+    'Include recommended_power ONLY when the relay context states the power dial is auto; omit the key entirely otherwise. When you do include it, judge from the codebase read how strong a model the downstream implementation and review need: "low" for a small localized change with good test coverage, "high" for a wide, subtle, or weakly-tested change, "medium" between. One short rationale sentence.',
+    mechanicalTail("build.context@v1", "reports/build/context.json")
+  ].join(" ")
+};
+var buildImplementationShapeHint = {
+  kind: "schema",
+  schema: "build.implementation@v1",
+  instruction: [
+    shapeInstruction(renderShapeSkeleton(BuildImplementation)),
+    "Make the smallest behaviorally scoped change that satisfies the requested goal. Do not broaden semantics, normalize data, or add extra behavior just because tests still pass.",
+    "The plan may carry guardrails: non_goals (things this change must NOT do) and invariants (properties it must preserve). Stay inside the non_goals and preserve every invariant. These are advisory to you here, but the reviewer checks the finished change against them, so a violation will surface as a finding.",
+    "When the request names a current slice (its id and intent), implement ONLY that slice's unit of work - the smallest change that satisfies that slice's intent - and leave later slices for their own turn. When no current slice is named, implement the whole plan in one pass. Report changed_files cumulatively: every file changed so far across all slices, not only this slice's files.",
+    "The plan's anticipated_file_extensions (and the current slice's, when named) list the file types the grounding read expects to touch. Treat them as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched.",
+    "The plan may also carry allowed_touch_area: the paths the grounding read predicted this change should reach. It is advisory to you, not a cage - implement what the slice and goal actually require and report every file you really changed. After you finish, the engine compares your git-proven changes against that area; reaching outside it does not fail the build but surfaces for a human to confirm, so do not pad the change with edits it does not need, and do not trim a necessary change just to stay inside the predicted box.",
+    "Use an empty changed_files array only when no file changed. Evidence must contain at least one item.",
+    mechanicalTail("build.implementation@v1", "reports/build/implementation.json")
+  ].join(" ")
+};
+var buildReviewShapeHint = {
+  kind: "schema",
+  schema: "build.review@v1",
+  instruction: [
+    shapeInstruction(renderShapeSkeleton(BuildReview)),
+    "Review the change against the requested scope, not just against passing tests. Flag behavior that broadens semantics beyond the goal even when verification passes.",
+    `alignment is required. Set scope_adherence by judging the finished change against the brief: within_scope when it does only what the goal asked, exceeds_scope when it reaches beyond. Add one non_goals entry per non_goal the plan declared and one invariants entry per invariant, each restating the plan's text with a status and concrete evidence; use empty arrays only when the plan declared none. If you set scope_adherence to exceeds_scope, or mark any non_goal violated or any invariant violated, the verdict cannot be "accept" and you must include at least one finding that explains the breach.`,
+    "You are also given a git-proven touch_area report: the files the change actually modified and whether they stayed inside the plan's allowed_touch_area. Treat it as ground truth about what was physically touched - more reliable than the implementer's self-reported file list - and let it inform your scope_adherence judgment and your evidence. The engine enforces that boundary separately at close, so your job here is the semantic call, not to re-run the boundary check.",
+    'Use an empty findings array only with verdict "accept". Verdicts "accept-with-fixes" and "reject" must include at least one finding. Use an empty file_refs array when a finding has no file-specific reference.',
+    mechanicalTail("build.review@v1", "reports/build/review.json")
+  ].join(" ")
+};
 
 // dist/flows/build/writers/baseline-snapshot.js
 import { readFileSync } from "node:fs";
@@ -33327,232 +33564,6 @@ ${autoResolutions}
   });
 };
 
-// dist/flows/registries/shape-hints/from-zod.js
-function defOf(node) {
-  return node._zod.def;
-}
-function objectShape(def) {
-  const shape = def.shape;
-  return typeof shape === "function" ? shape() : shape;
-}
-function literalValues(def) {
-  if (Array.isArray(def.values))
-    return def.values;
-  if ("value" in def)
-    return [def.value];
-  return [];
-}
-function enumValues(def) {
-  const raw = def.entries ?? def.values;
-  if (Array.isArray(raw))
-    return raw;
-  if (raw === void 0 || raw === null || typeof raw !== "object")
-    return [];
-  const values = Object.values(raw);
-  const isReverseMapped = values.some((value) => typeof value === "number" && Object.hasOwn(raw, String(value)));
-  const accepted = isReverseMapped ? values.filter((value) => typeof value === "number") : values;
-  return Array.from(new Set(accepted));
-}
-function renderEnumValues(values) {
-  return values.map((value) => typeof value === "string" ? escapeJsonInner(value) : String(value)).join("|");
-}
-function escapeJsonInner(value) {
-  const serialized = JSON.stringify(value);
-  return serialized.slice(1, serialized.length - 1);
-}
-function leafDescriptionOr(node, fallback) {
-  const nodeDescription = node.description;
-  const description = typeof nodeDescription === "string" && nodeDescription.length > 0 ? nodeDescription : defOf(node).description;
-  if (typeof description === "string" && description.length > 0) {
-    return `"<${escapeJsonInner(description)}>"`;
-  }
-  return fallback;
-}
-var MAX_RECURSION_DEPTH = 32;
-function renderShapeSkeleton(schema) {
-  return renderNode(schema, /* @__PURE__ */ new Set(), 0);
-}
-function verdictValuesFromSchema(schema) {
-  const out = [];
-  collectVerdictValues(schema, out, 0);
-  return [...new Set(out)];
-}
-function collectVerdictValues(node, out, depth) {
-  if (depth > MAX_RECURSION_DEPTH)
-    return;
-  const def = defOf(node);
-  switch (def.type) {
-    case "object": {
-      const verdict = objectShape(def).verdict;
-      if (verdict === void 0)
-        return;
-      const verdictDef = defOf(verdict);
-      const values = verdictDef.type === "enum" ? enumValues(verdictDef) : verdictDef.type === "literal" ? literalValues(verdictDef) : [];
-      for (const value of values) {
-        if (typeof value === "string")
-          out.push(value);
-      }
-      return;
-    }
-    case "union": {
-      for (const option of def.options) {
-        collectVerdictValues(option, out, depth + 1);
-      }
-      return;
-    }
-    case "lazy": {
-      const getter = def.getter;
-      collectVerdictValues(getter(), out, depth + 1);
-      return;
-    }
-    default:
-      return;
-  }
-}
-function renderNode(node, visited, depth) {
-  if (visited.has(node) || depth > MAX_RECURSION_DEPTH) {
-    return "<recursive>";
-  }
-  visited.add(node);
-  try {
-    return renderNodeInner(node, visited, depth + 1);
-  } finally {
-    visited.delete(node);
-  }
-}
-function renderNodeInner(node, visited, depth) {
-  const def = defOf(node);
-  switch (def.type) {
-    case "object": {
-      const shape = objectShape(def);
-      const entries = Object.entries(shape).map(([key, child]) => `"${escapeJsonInner(key)}": ${renderNode(child, visited, depth)}`);
-      return `{ ${entries.join(", ")} }`;
-    }
-    case "array": {
-      const inner = renderNode(def.element, visited, depth);
-      return `[${inner}]`;
-    }
-    case "optional":
-    case "nullable":
-    case "default":
-    case "readonly":
-    case "catch":
-    case "nonoptional":
-    case "success":
-      return renderNode(def.innerType, visited, depth);
-    case "pipe":
-      return renderNode(def.in ?? def.out, visited, depth);
-    case "transform":
-      return "<transform>";
-    case "literal": {
-      const [value] = literalValues(def);
-      return typeof value === "string" ? JSON.stringify(value) : JSON.stringify(value);
-    }
-    case "enum": {
-      const values = enumValues(def);
-      return `"<${renderEnumValues(values)}>"`;
-    }
-    case "string":
-      return leafDescriptionOr(node, '"<string>"');
-    case "number":
-      return leafDescriptionOr(node, "<number>");
-    case "bigint":
-      return leafDescriptionOr(node, "<bigint>");
-    case "boolean":
-      return leafDescriptionOr(node, "<true|false>");
-    case "date":
-      return leafDescriptionOr(node, '"<iso-date>"');
-    case "null":
-      return "null";
-    case "undefined":
-      return "<undefined>";
-    case "any":
-      return leafDescriptionOr(node, "<any>");
-    case "unknown":
-      return leafDescriptionOr(node, "<unknown>");
-    case "never":
-      return "<never>";
-    case "record":
-    case "map":
-      return `{ "<key>": ${renderNode(def.valueType, visited, depth)} }`;
-    case "tuple": {
-      const items = def.items.map((item) => renderNode(item, visited, depth));
-      const rest = def.rest;
-      if (rest !== void 0 && rest !== null) {
-        items.push(`...${renderNode(rest, visited, depth)}`);
-      }
-      return `[${items.join(", ")}]`;
-    }
-    case "union": {
-      const options = def.options;
-      const discriminator = def.discriminator;
-      if (typeof discriminator === "string") {
-        const collapsed = collapseDiscriminatedUnion(discriminator, options, visited, depth);
-        if (collapsed !== void 0)
-          return collapsed;
-      }
-      return options.map((opt) => renderNode(opt, visited, depth)).join(" | ");
-    }
-    case "lazy": {
-      const getter = def.getter;
-      return renderNode(getter(), visited, depth);
-    }
-    case "intersection": {
-      const left = renderNode(def.left, visited, depth);
-      const right = renderNode(def.right, visited, depth);
-      return `${left} & ${right}`;
-    }
-    default:
-      return `<${def.type}>`;
-  }
-}
-function collapseDiscriminatedUnion(discriminator, options, visited, depth) {
-  if (options.length === 0)
-    return void 0;
-  const objectShapes = [];
-  const discriminatorValues = [];
-  for (const option of options) {
-    const optDef = defOf(option);
-    if (optDef.type !== "object")
-      return void 0;
-    const shape = objectShape(optDef);
-    objectShapes.push(shape);
-    const discriminatorNode = shape[discriminator];
-    if (discriminatorNode === void 0)
-      return void 0;
-    const discriminatorDef = defOf(discriminatorNode);
-    if (discriminatorDef.type !== "literal")
-      return void 0;
-    const [value] = literalValues(discriminatorDef);
-    discriminatorValues.push(value);
-  }
-  const firstShape = objectShapes[0];
-  if (firstShape === void 0)
-    return void 0;
-  const keyList = Object.keys(firstShape);
-  const keyListSorted = keyList.slice().sort();
-  for (const shape of objectShapes) {
-    const shapeKeys = Object.keys(shape).slice().sort();
-    if (shapeKeys.length !== keyListSorted.length)
-      return void 0;
-    for (let idx = 0; idx < shapeKeys.length; idx += 1) {
-      if (shapeKeys[idx] !== keyListSorted[idx])
-        return void 0;
-    }
-  }
-  const entries = keyList.map((key) => {
-    if (key === discriminator) {
-      const rendered = discriminatorValues.map((value) => typeof value === "string" ? escapeJsonInner(value) : String(value));
-      return `"${escapeJsonInner(key)}": "<${rendered.join("|")}>"`;
-    }
-    const child = firstShape[key];
-    if (child === void 0)
-      return `"${escapeJsonInner(key)}": <missing>`;
-    return `"${escapeJsonInner(key)}": ${renderNode(child, visited, depth)}`;
-  });
-  return `{ ${entries.join(", ")} }`;
-}
-
 // dist/flows/fix/reports.js
 var FIX_RESULT_SCHEMA_BY_ARTIFACT_ID = {
   "fix.brief": "fix.brief@v1",
@@ -34181,17 +34192,6 @@ var FixResult = external_exports.object({
 });
 
 // dist/flows/fix/relay-hints.js
-function mechanicalTail(schema, reportPath) {
-  return [
-    "Do not include extra top-level keys.",
-    "Do not wrap the JSON in Markdown code fences.",
-    "Do not include any prose before or after the JSON object.",
-    `The runtime parses your response with JSON.parse, rejects verdicts the schema does not allow, and validates the full report body against ${schema} before writing ${reportPath}.`
-  ].join(" ");
-}
-function shapeInstruction(skeleton) {
-  return `Respond with a single raw JSON object whose top-level shape is exactly: ${skeleton}`;
-}
 var fixContextShapeHint = {
   kind: "schema",
   schema: "fix.context@v1",
@@ -37155,46 +37155,6 @@ var RunResult = external_exports.object({
   verdict: external_exports.string().min(1).optional()
 }).strict();
 
-// dist/flows/goal/relay-hints.js
-var goalClarifiedTaskShapeHint = {
-  kind: "schema",
-  schema: "goal.clarified-task@v1",
-  instruction: [
-    "Respond with a single raw JSON object for goal.clarified-task@v1 whose top-level shape is exactly:",
-    '{ "schema": "goal.clarified-task@v1", "verdict": "continue|ask|stop", "original_request": "...", "target": { "kind": "flow", "id": "goal" }, "guide_id": "goal-v1", "clarified_prompt": "...", "objective": "...", "desired_outcome": "...", "proof_needed": [{ "kind": "command|report|review|source|checkpoint", "description": "...", "required": true }], "constraints": [], "scope": { "in_bounds": [], "out_of_bounds": [] }, "assumptions": [], "missing_information": [], "iteration_policy": [], "stop_conditions": [], "suggested_parts": [] }',
-    "Borrow only the useful Goal prompt ingredients: outcome, proof, constraints, boundaries, iteration policy, and blocked stop condition.",
-    "Do not include adversarial review instructions, two-clean-review language, or medium-or-above finding ceremony; Goal gate steps own that later.",
-    "Do not claim completion. Do not select or invent dynamic child flows. Preserve the operator request and keep the clarified prompt compact.",
-    "Use verdict ask only when missing information makes the Goal unsafe or impossible to verify. Use verdict stop only when this is not a durable, checkable Goal-shaped task.",
-    "Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse and validates the full report body against goal.clarified-task@v1."
-  ].join(" ")
-};
-var goalGateShapeHint = {
-  kind: "schema",
-  schema: "goal.gate@v1",
-  instruction: [
-    "Respond with a single raw JSON object whose top-level shape is exactly:",
-    '{ "schema": "goal.gate@v1", "verdict": "gate-pass|blocked", "clean_streak": 0, "required_passes": 2, "blocking_findings": [], "low_findings": [], "passes": [], "next_route": "run-next-gate-pass|recover|close" }',
-    "Blocking findings are severities critical, high, or medium. Any blocking finding must set verdict to blocked, clean_streak to 0, and next_route to recover.",
-    "A gate-pass verdict must have no blocking findings. Use next_route close only when clean_streak is at least 2. Use run-next-gate-pass when this pass is clean but another clean pass is still required.",
-    "The passes array must include every clean pass counted by clean_streak. If a prior gate report is present, copy its passes and append the current pass before using next_route close.",
-    "Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse and validates the full report body against goal.gate@v1."
-  ].join(" ")
-};
-var goalGatePassShapeHint = {
-  kind: "schema",
-  schema: "goal.gate-pass@v1",
-  instruction: [
-    "Respond with a single raw JSON object for goal.gate-pass@v1 whose top-level shape is exactly:",
-    '{ "schema": "goal.gate@v1", "verdict": "gate-pass|blocked", "clean_streak": 0, "required_passes": 2, "blocking_findings": [], "low_findings": [], "passes": [], "next_route": "run-next-gate-pass|recover|close" }',
-    "The report is bound as goal.gate-pass@v1, but the JSON schema field remains goal.gate@v1 so both gate passes share the same body validator.",
-    "Blocking findings are severities critical, high, or medium. Any blocking finding must set verdict to blocked, clean_streak to 0, and next_route to recover.",
-    "A gate-pass verdict must have no blocking findings. Use next_route run-next-gate-pass when this pass is clean but another clean pass is still required.",
-    "The passes array must include one object for each clean pass counted by clean_streak.",
-    "Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse and validates the full report body against goal.gate@v1."
-  ].join(" ")
-};
-
 // dist/flows/goal/reports.js
 var NonEmptyStringArray3 = external_exports.array(external_exports.string().min(1)).min(1);
 var GoalFlowTarget = external_exports.enum(["fix", "build", "review", "explore", "pursue"]);
@@ -37648,6 +37608,43 @@ var GoalResult = external_exports.object({
     }
   }
 });
+
+// dist/flows/goal/relay-hints.js
+var goalClarifiedTaskShapeHint = {
+  kind: "schema",
+  schema: "goal.clarified-task@v1",
+  instruction: [
+    shapeInstruction(renderShapeSkeleton(GoalClarifiedTask)),
+    "Borrow only the useful Goal prompt ingredients: outcome, proof, constraints, boundaries, iteration policy, and blocked stop condition.",
+    "Do not include adversarial review instructions, two-clean-review language, or medium-or-above finding ceremony; Goal gate steps own that later.",
+    "Do not claim completion. Do not select or invent dynamic child flows. Preserve the operator request and keep the clarified prompt compact.",
+    "Use verdict ask only when missing information makes the Goal unsafe or impossible to verify. Use verdict stop only when this is not a durable, checkable Goal-shaped task.",
+    mechanicalTail("goal.clarified-task@v1")
+  ].join(" ")
+};
+var goalGateShapeHint = {
+  kind: "schema",
+  schema: "goal.gate@v1",
+  instruction: [
+    shapeInstruction(renderShapeSkeleton(GoalGate)),
+    "Blocking findings are severities critical, high, or medium. Any blocking finding must set verdict to blocked, clean_streak to 0, and next_route to recover.",
+    "A gate-pass verdict must have no blocking findings. Use next_route close only when clean_streak is at least 2. Use run-next-gate-pass when this pass is clean but another clean pass is still required.",
+    "The passes array must include every clean pass counted by clean_streak. If a prior gate report is present, copy its passes and append the current pass before using next_route close.",
+    mechanicalTail("goal.gate@v1")
+  ].join(" ")
+};
+var goalGatePassShapeHint = {
+  kind: "schema",
+  schema: "goal.gate-pass@v1",
+  instruction: [
+    shapeInstruction(renderShapeSkeleton(GoalGate)),
+    "The report is bound as goal.gate-pass@v1, but the JSON schema field remains goal.gate@v1 so both gate passes share the same body validator.",
+    "Blocking findings are severities critical, high, or medium. Any blocking finding must set verdict to blocked, clean_streak to 0, and next_route to recover.",
+    "A gate-pass verdict must have no blocking findings. Use next_route run-next-gate-pass when this pass is clean but another clean pass is still required.",
+    "The passes array must include one object for each clean pass counted by clean_streak.",
+    mechanicalTail("goal.gate@v1")
+  ].join(" ")
+};
 
 // dist/flows/goal/writers/attempt.js
 import { existsSync as existsSync4, readFileSync as readFileSync14 } from "node:fs";
@@ -38382,7 +38379,7 @@ var goalFlowData = {
         checkpoint_policy: {
           prompt: "Goal needs operator judgment before continuing.",
           choices: [
-            { id: "continue", label: "Continue" },
+            { id: "continue", label: "Close as-is" },
             { id: "blocked", label: "Close Blocked" },
             { id: "handoff", label: "Hand Off" }
           ],
@@ -42650,6 +42647,8 @@ var reviewRelayShapeHint = {
   instruction: [
     "Respond with a single raw JSON object whose top-level shape is exactly:",
     '{ "verdict": "<one-of-accepted-verdicts>", "findings": [{ "severity": "<critical|high|medium|low>", "id": "<stable finding id>", "text": "<finding text>", "file_refs": ["<file:line reference>"] }], "assessment": "<plain-language paragraph>", "verification": ["<step you performed>"], "confidence_limitations": ["<gap that limits certainty>"] }',
+    "Audit the strongest claims in the material under review first: confirm each asserted outcome is backed by evidence you can see, and flag claims of completion, safety, or readiness that the cited evidence does not actually support.",
+    "Calibrate severity to impact: critical for a defect that breaks the stated goal or ships a falsehood, high for a real bug or unsupported claim worth fixing before anyone relies on the result, medium for a material gap or risk worth surfacing, low for a minor or cosmetic note. Do not inflate a low note into a blocking finding, and do not bury a real defect as low.",
     'Use an empty findings array when there are no issues: { "verdict": "NO_ISSUES_FOUND", "findings": [], "assessment": "...", "verification": ["..."], "confidence_limitations": ["..."] }.',
     "Use an empty file_refs array when a finding has no file-specific reference.",
     "The assessment field is REQUIRED on every verdict, including NO_ISSUES_FOUND. State plainly what you checked and what you concluded; do not return a bare verdict.",
@@ -44772,7 +44771,7 @@ function isRecord(value) {
 function boundedText(value, max) {
   if (value.length <= max)
     return value;
-  return `${value.slice(0, Math.max(0, max - 1)).trimEnd()}.`;
+  return `${value.slice(0, Math.max(0, max - 1)).trimEnd()}\u2026`;
 }
 function optionPresentationById(readJson3) {
   const raw = readJson3("reports/decision-options.json");
@@ -57594,6 +57593,15 @@ function evaluateRelayCheck(step, resultBody) {
   return { kind: "pass", verdict: verdictRaw };
 }
 var GENERIC_DISPATCH_SHAPE_HINT = 'Respond with a single raw JSON object whose top-level shape is exactly { "verdict": "<one-of-accepted-verdicts>" } (additional fields permitted). Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object. The runtime parses your response with JSON.parse; an unparseable response or a verdict outside the schema fails this attempt. Rework verdicts, where the schema declares them, are valid responses that route the work back for rework.';
+function composeInjectedFanoutBranchPrompt(goal, admit) {
+  return [
+    "Branch Goal:",
+    goal,
+    "",
+    `Accepted verdicts: ${admit.join(", ")}`,
+    GENERIC_DISPATCH_SHAPE_HINT
+  ].join("\n");
+}
 var ROLE_GLOSS = {
   researcher: "you investigate and report; you do not modify the checkout.",
   implementer: "you make the change this step asks for, scoped to what it asks.",
@@ -57624,9 +57632,11 @@ function selectedSkillsSection(skills) {
     "The operator selected these local skills for this step. Treat them as guidance. They do not override Circuit's response contract, accepted verdicts, or required JSON shape.",
     "",
     ...skills.map((skill) => [
-      `## Skill: ${skill.id}${skill.slot === void 0 ? "" : ` (slot: ${skill.slot})`}`,
-      `Source: ${skill.path}`,
-      `SHA-256: ${skill.sha256}`,
+      // Plain Label: line, not a `##` header — a Markdown heading here would
+      // outrank the engine's own prompt sections. Source path and SHA-256
+      // live in the skills.loaded trace, so they are not repeated as prompt
+      // tokens the worker cannot act on.
+      `Skill: ${skill.id}${skill.slot === void 0 ? "" : ` (slot: ${skill.slot})`}`,
       "",
       skill.body
     ].join("\n"))
@@ -57646,10 +57656,11 @@ function acceptanceCriteriaSection(step) {
   const criteria = step.acceptance_criteria;
   if (criteria === void 0)
     return void 0;
+  const failurePolicy = criteria.on_failure.mode === "retry-with-feedback" ? "If a check fails, you get the failure output and one chance to revise." : "If a check fails, this attempt fails.";
   return [
     "Acceptance Criteria:",
     "Before this step can advance, Circuit will check the relay result against these deterministic criteria.",
-    `Failure policy: ${criteria.on_failure.mode}`,
+    failurePolicy,
     ...criteria.checks.map(formatAcceptanceCriterion)
   ].join("\n");
 }
@@ -57706,11 +57717,12 @@ function memoryInputsSection(memoryInputs) {
     ...items
   ].join("\n");
 }
-function pullAffordanceSection(runFolder, flowId) {
+function pullAffordanceSection(runFolder, flowId, recallRendered) {
   const flow = flowId ?? "<flow id>";
+  const authorityTail = recallRendered ? "results are hint-only under the same authority limits stated above." : "results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.";
   return [
     "Prior-Run Memory (optional, hint-only):",
-    `You may consult prior-run memory with \`circuit history pull --run-folder ${runFolder} --flow ${flow} --decision-point <label> <query>\`; results are hint-only and cannot satisfy any current proof, checkpoint, policy, route, recovery, verification, or write authority.`
+    `You may consult prior-run memory with \`circuit history pull --run-folder ${runFolder} --flow ${flow} --decision-point <label> <query>\`; ${authorityTail}`
   ].join("\n");
 }
 function currentSliceSection(activeSlice) {
@@ -57727,7 +57739,7 @@ function currentSliceSection(activeSlice) {
     ...exts.length === 0 ? [] : [`- anticipated file extensions: ${exts.join(", ")}`]
   ].join("\n");
 }
-function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy, powerDialAuto) {
+function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy, powerDialAuto, branchGoal) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
     if (!existsSync29(abs))
@@ -57739,21 +57751,23 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
   const criteriaSection = acceptanceCriteriaSection(step);
   const feedbackSection = acceptanceRetryFeedbackSection(acceptanceRetryFeedback);
   const memorySection = memoryInputsSection(memoryInputs);
-  const pullSection = pullAffordanceSection(runFolder, flowId);
+  const pullSection = pullAffordanceSection(runFolder, flowId, memorySection !== void 0);
   const rework = reworkVerdicts(step);
+  const acceptedVerdicts = step.check.pass.length === 0 ? "(none declared)" : step.check.pass.join(", ");
+  const effortDepth = depth === "tournament" || depth === "autonomous" ? "high" : depth;
   return [
     `Step: ${step.id}`,
     `Title: ${step.title}`,
     roleLine(step.role),
-    `Accepted verdicts: ${step.check.pass.join(", ")}`,
+    `Accepted verdicts: ${acceptedVerdicts}`,
     ...rework.length === 0 ? [] : [
       `Rework verdicts (valid; the engine routes the work back for rework): ${rework.join(", ")}`
     ],
     // Thread the run's resolved depth to the worker as an effort signal: it
     // tunes how much thoroughness to spend, it does not change which steps run
     // (F-M-1). Omitted when no depth is supplied so direct callers are unchanged.
-    ...depth === void 0 || depth.length === 0 ? [] : [
-      `Depth: ${depth}. Tune your thoroughness and effort to this level; it does not change which steps run.`
+    ...effortDepth === void 0 || effortDepth.length === 0 ? [] : [
+      `Depth: ${effortDepth}. Tune your thoroughness and effort to this level; it does not change which steps run.`
     ],
     ...powerDialAuto === true ? [
       "Power dial: auto. Include recommended_power in your report: judge from what you read which model tier (low, medium, or high) the downstream implementation and review need, with one short rationale sentence."
@@ -57767,6 +57781,9 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
       ...operatorWhy === void 0 || operatorWhy.length === 0 ? [] : [`Why: ${operatorWhy}`],
       ""
     ],
+    // The branch's own assignment outranks everything below it: the run-level
+    // goal above gives context, this block says what THIS worker must do.
+    ...branchGoal === void 0 || branchGoal.length === 0 ? [] : ["Branch Goal:", branchGoal, ""],
     ...memorySection === void 0 ? [] : [memorySection, ""],
     ...sliceSection === void 0 ? [] : [sliceSection, ""],
     pullSection,
@@ -58077,7 +58094,8 @@ async function executeProductionRelayAttempt(input) {
     context.why,
     // Auto-power: tell a researcher relay to include recommended_power when
     // the dial setting is auto and the run's tier has not resolved yet.
-    relayExecution.role === "researcher" && context.powerInference?.get() === void 0 && resolvePowerDialSetting(context.selectionConfigLayers ?? []).kind === "auto"
+    relayExecution.role === "researcher" && context.powerInference?.get() === void 0 && resolvePowerDialSetting(context.selectionConfigLayers ?? []).kind === "auto",
+    input.branchGoal
   );
   const request = step.writes?.request;
   const receipt = step.writes?.receipt;
@@ -58461,7 +58479,7 @@ function relayBranchReads(step) {
   return (step.reads ?? []).map((ref) => ref.path);
 }
 function syntheticRelayTitle(step, branch) {
-  return `${step.title ?? step.id} / ${branch.branch_id}: ${branch.goal}`;
+  return `${step.title ?? step.id} / ${branch.branch_id}`;
 }
 function syntheticRelayStep(step, branch, branchDirRel) {
   const selection = branch.selection === void 0 || branch.selection === null ? {} : { selection: branch.selection };
@@ -58583,6 +58601,7 @@ async function executeRelayFanoutBranch(step, context, branch, relayConnector, b
         step: relayStep,
         compiledStep: syntheticCompiledRelayStepV1(step, branch, branchDirRel),
         context,
+        branchGoal: branch.goal,
         formatConnectorFailureReason: (_stepId, error51) => {
           const reason = error51 instanceof Error ? error51.message : String(error51);
           return `relay fanout branch '${branch.branch_id}': connector invocation failed (${reason})`;
@@ -58643,7 +58662,10 @@ async function executeRelayFanoutBranch(step, context, branch, relayConnector, b
       runId: context.runId,
       stepId: `${step.id}-${branch.branch_id}`,
       role: relayExecution.role,
-      prompt: branch.goal,
+      // The runtime JSON.parses the response and checks the verdict against
+      // the admit list, so the prompt must state that contract even on this
+      // compatibility path.
+      prompt: composeInjectedFanoutBranchPrompt(branch.goal, admitList(step)),
       connector: relayExecution.connectorName
     });
     const reportBody = parseConnectorResponse(response);
