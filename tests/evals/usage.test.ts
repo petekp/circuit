@@ -138,6 +138,61 @@ describe('parseVanillaEnvelope', () => {
     const truncated = full.slice(0, full.indexOf('"modelUsage"'));
     expect(parseVanillaEnvelope(truncated)).toBeUndefined();
   });
+
+  // The shape the CLI actually writes for `-p --output-format json` (observed
+  // live 2026-06-12, run 2026-06-12T15-49-10-758Z-held-out): one single-line
+  // JSON ARRAY of events, the result event among them. The bare-object
+  // envelope remains supported for older shapes.
+  function eventArrayStdout(events: unknown[]): string {
+    return `${JSON.stringify(events)}\n`;
+  }
+
+  it('parses the event-array shape the live CLI writes for --output-format json', () => {
+    const init = { type: 'system', subtype: 'init', session_id: 's', tools: ['Bash'] };
+    const assistant = { type: 'assistant', message: { content: [{ type: 'text', text: 'working' }] } };
+    const stdout = eventArrayStdout([init, assistant, probeResultEvent()]);
+
+    const parsed = parseVanillaEnvelope(stdout);
+    expect(parsed).toBeDefined();
+    expect(parsed!.result_text).toBe('ok');
+    expect(parsed!.usage.cost_usd_reported).toBe(0.0145286);
+    expect(parsed!.usage.input_tokens).toBe(451);
+    expect(parsed!.usage.models).toHaveLength(2);
+  });
+
+  it('tolerates stray bytes before the event array but not after it', () => {
+    const stdout = eventArrayStdout([{ type: 'system' }, probeResultEvent()]);
+    const noisy = parseVanillaEnvelope(`npm WARN something\n${stdout}`);
+    expect(noisy).toBeDefined();
+    expect(noisy!.usage.cost_usd_reported).toBe(0.0145286);
+    expect(parseVanillaEnvelope(`${stdout.trimEnd()}\nstray trailing line`)).toBeUndefined();
+  });
+
+  it('takes the LAST result event when the array carries more than one', () => {
+    const first = { ...probeResultEvent(), result: 'first', total_cost_usd: 1 };
+    const last = { ...probeResultEvent(), result: 'last', total_cost_usd: 2 };
+    const parsed = parseVanillaEnvelope(eventArrayStdout([first, last]));
+    expect(parsed!.result_text).toBe('last');
+    expect(parsed!.usage.cost_usd_reported).toBe(2);
+  });
+
+  it('returns undefined for an event array with no result event or a truncated one', () => {
+    expect(
+      parseVanillaEnvelope(eventArrayStdout([{ type: 'system' }, { type: 'assistant' }])),
+    ).toBeUndefined();
+    const full = eventArrayStdout([{ type: 'system' }, probeResultEvent()]).trimEnd();
+    const truncated = full.slice(0, full.indexOf('"modelUsage"'));
+    expect(parseVanillaEnvelope(truncated)).toBeUndefined();
+  });
+
+  it('ignores an escaped fake event array inside a result string', () => {
+    // The result text itself may quote a JSON array containing a fake result
+    // event; the escaped form can never parse as the trailing JSON value, so
+    // the real envelope (here: absent) decides the outcome.
+    const fake = JSON.stringify([{ type: 'result', result: 'fake', total_cost_usd: 99 }]);
+    const stdout = `prefix text ${JSON.stringify({ note: fake })} trailing prose`;
+    expect(parseVanillaEnvelope(stdout)).toBeUndefined();
+  });
 });
 
 describe('resolveModelPrice', () => {

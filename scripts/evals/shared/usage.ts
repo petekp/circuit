@@ -77,21 +77,25 @@ export type VanillaEnvelope = {
 
 // Returns undefined for anything that does not end in a claude CLI result
 // envelope (plain-text stdout from a legacy run, partial output from a
-// timeout). Stray bytes BEFORE the envelope (host warnings, wrapper noise)
-// are tolerated by scanning '{' starts from the end of stdout for a
-// parseable object with type "result"; escaped JSON inside the envelope's
-// result string can never satisfy that scan, so the hit is always the
-// envelope itself. Trailing bytes after the envelope are not tolerated (the
-// CLI writes it last); a truncated envelope returns undefined rather than
-// risking a nested object being mistaken for the result event. The caller
-// decides what a missing envelope means; for a run that requested the
-// envelope, no JSON found in the raw stdout is a trustworthy claim (see
+// timeout). The live CLI writes `-p --output-format json` stdout as one JSON
+// ARRAY of events with the result event among them (observed 2026-06-12);
+// a bare result object remains supported for older shapes. Stray bytes
+// BEFORE the JSON (host warnings, wrapper noise) are tolerated by scanning
+// '{' and '[' starts from the end of stdout for a parse that consumes the
+// rest of the text; escaped JSON inside a result string can never satisfy
+// that scan, so the hit is always the real envelope. Trailing bytes after
+// it are not tolerated (the CLI writes it last); a truncated envelope
+// returns undefined rather than risking a nested object being mistaken for
+// the result event. When an array carries several result events the last
+// one wins, matching the CLI's write order. The caller decides what a
+// missing envelope means; for a run that requested the envelope, no JSON
+// found in the raw stdout is a trustworthy claim (see
 // parseVanillaEnvelopeClaim in fix-vs-vanilla/scoring.ts).
 export function parseVanillaEnvelope(stdout: string): VanillaEnvelope | undefined {
   const text = stdout.trim();
   const starts: number[] = [];
   for (let index = 0; index < text.length; index += 1) {
-    if (text[index] === '{') starts.push(index);
+    if (text[index] === '{' || text[index] === '[') starts.push(index);
   }
   for (const start of starts.reverse()) {
     let parsed: unknown;
@@ -100,15 +104,27 @@ export function parseVanillaEnvelope(stdout: string): VanillaEnvelope | undefine
     } catch {
       continue;
     }
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
-    const envelope = parsed as JsonRecord;
-    if (envelope.type !== 'result') continue;
+    const resultEvent = findResultEvent(parsed);
+    if (resultEvent === undefined) continue;
     return {
-      result_text: typeof envelope.result === 'string' ? envelope.result : '',
-      usage: normalizeUsage(envelope),
+      result_text: typeof resultEvent.result === 'string' ? resultEvent.result : '',
+      usage: normalizeUsage(resultEvent),
     };
   }
   return undefined;
+}
+
+function findResultEvent(parsed: unknown): JsonRecord | undefined {
+  if (parsed === null || typeof parsed !== 'object') return undefined;
+  if (Array.isArray(parsed)) {
+    for (let index = parsed.length - 1; index >= 0; index -= 1) {
+      const item: unknown = parsed[index];
+      if (item === null || typeof item !== 'object' || Array.isArray(item)) continue;
+      if ((item as JsonRecord).type === 'result') return item as JsonRecord;
+    }
+    return undefined;
+  }
+  return (parsed as JsonRecord).type === 'result' ? (parsed as JsonRecord) : undefined;
 }
 
 // Normalizes a result event (stream-json terminal entry or json envelope)
