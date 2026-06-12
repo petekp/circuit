@@ -1,5 +1,21 @@
 # Circuit usage: what two months of sessions actually show
 
+> **Correction (2026-06-10, from Pete).** The one-line verdict below ("the
+> flows are a relic") is confounded and should not be cited as evidence of
+> flow non-demand. Pete used Circuit's flows roughly a hundred times for real
+> building work in the prior form at `~/Code/circuit-v1` (git history
+> 2026-03-29 to 2026-04-16). His flow usage fell when the rearchitecture
+> began, which is exactly the window this census measured; the method note
+> below says these commands have no traffic before May, so the corpus was
+> structurally blind to the v1-era usage. The census measured a founder
+> rebuilding his tool, not abandoning it. What still stands on its own
+> evidence: the continuity findings (Finding 1 and the handoff-depth
+> distribution), the entry-point observation in Finding 3, and the
+> counter-evidence section. The open question the data cannot answer is
+> v1-to-v2 transfer: whether v2's added rigor preserved the ease that made
+> v1 habit-forming. Standing assumption going forward: Pete does use the
+> flows.
+
 Date: 2026-06-05. Method: mined ~4,600 Claude Code session transcripts
 across all of Pete's projects (~1.3 GB). Macro counts and the manual-chain
 and handoff-depth measurements were taken directly with grep/jq and are
