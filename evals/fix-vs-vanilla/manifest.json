@@ -24,7 +24,13 @@
       "discovery-clamp-percent",
       "discovery-pager-pagecount",
       "discovery-truncate-ellipsis",
-      "discovery-amount-cents"
+      "discovery-amount-cents",
+      "discovery-quiet-hours-wrap",
+      "discovery-cache-key-order",
+      "discovery-release-order",
+      "discovery-env-flag-fallback",
+      "discovery-path-extension",
+      "discovery-threshold-direction"
     ],
     "regression": [
       "regression-query-plus",
@@ -41,13 +47,13 @@
       "heldout-permission-deny-wildcard",
       "heldout-json-pointer-escapes",
       "heldout-cidr-prefix-zero",
-      "heldout-template-escaping"
+      "heldout-template-escaping",
+      "heldout-bundle-discount",
+      "heldout-fit-width"
     ],
     "held-out": [
       "heldout-normalize-email",
-      "heldout-bundle-discount",
-      "heldout-wrap-index",
-      "heldout-fit-width"
+      "heldout-wrap-index"
     ]
   }
 }

@@ -1,0 +1,13 @@
+{
+  "id": "discovery-cache-key-order",
+  "split": "discovery",
+  "provenance": "discovery-created",
+  "tuning_used": true,
+  "archetype": "multi-site-duplication",
+  "prompt": "Our product API memoizer keeps missing: the listing page builds its filters as {color, size} while the detail page builds {size, color}, and the same filter set fetches twice. Fix memoKey in src/cache-key.mjs so equal param sets land on the same memo entry. The regression command is `npm test`; it should fail before the fix and pass after the fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "snapshot-key", "hidden": true, "argv": ["node", "tests/cache-key.snapshot.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/cache-key.mjs"]
+}

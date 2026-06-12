@@ -1,0 +1,13 @@
+{
+  "id": "discovery-quiet-hours-wrap",
+  "split": "discovery",
+  "provenance": "discovery-created",
+  "tuning_used": true,
+  "archetype": "multi-site-duplication",
+  "prompt": "A user with quiet hours set from 22:00 to 7:00 still got a push notification at 23:00. Fix inQuietHours in src/quiet-hours.mjs so a late-night send inside the window is held. The regression command is `npm test`; it should fail before the fix and pass after the fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "mute-preview", "hidden": true, "argv": ["node", "tests/quiet-hours.preview.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/quiet-hours.mjs"]
+}

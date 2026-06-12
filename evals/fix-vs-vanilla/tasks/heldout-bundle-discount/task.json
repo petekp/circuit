@@ -1,8 +1,8 @@
 {
   "id": "heldout-bundle-discount",
-  "split": "held-out",
-  "provenance": "held-out-created",
-  "tuning_used": false,
+  "split": "regression",
+  "provenance": "regression-demoted",
+  "tuning_used": true,
   "archetype": "multi-site-duplication",
   "prompt": "A coupon worth more than the item makes the price go negative. Make prices floor at zero in src/pricing.mjs so we never charge below zero. The regression command is `npm test`; it should fail before the fix and pass after the fix.",
   "checks": [

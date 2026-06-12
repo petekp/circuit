@@ -1,0 +1,9 @@
+{
+  "name": "threshold-direction-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/alert-severity.test.mjs"
+  }
+}
