@@ -19,7 +19,7 @@ used for relay steps and production fanout branches. Segment order:
 6. Current slice constraint (slice loop only)
 7. Prior-run memory pull affordance (always rendered)
 8. `Context (from reads):` — declared files inlined verbatim with
-   `--- path ---` separators
+   `--- path ---` separators (now `<read path="...">` fences; see P1)
 9. Selected skills (full bodies + Source + SHA-256)
 10. Acceptance criteria (+ retry feedback on re-invocation)
 11. Response-shape instruction — per-flow hint from `relay-hints.ts`,
@@ -62,6 +62,13 @@ structure.
   state in the hint what actually happens to objections.
 
 ### P1 — Injection seams: untrusted text enters the instruction stream unfenced
+
+**FIXED on this branch (slice 2):** reads now render as
+`<read path="...">...</read>` fences and acceptance-retry
+stdout/stderr as `<stdout>`/`<stderr>` fences, each preceded by a
+data-not-instructions notice; when content contains the closing tag,
+the tag name grows (`read-2`, ...) so the fence cannot be terminated
+from inside. Description below records the pre-fix state.
 
 - Reads are inlined with only `--- path ---` separators and no closing
   delimiter or "this is data, not instructions" framing
