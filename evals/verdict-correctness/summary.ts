@@ -17,7 +17,7 @@ export function summarize(
   const perDefect = Object.fromEntries(
     DEFECT_IDS.map((id) => [id, { catches: 0, misses: 0, errors: 0, cases: 0 }]),
   ) as EvalSummary['per_defect'];
-  const controls = { passes: 0, fails: 0, errors: 0, cases: 0 };
+  const controls = { cases: 0, accept: 0, accept_with_fold_ins: 0, reject: 0, errors: 0 };
   const errorKinds = { connector_error: 0, parse_error: 0, schema_error: 0 };
   let attempted = 0;
   let harnessSkipped = 0;
@@ -43,7 +43,19 @@ export function summarize(
       if (r.outcome.kind === 'success') {
         successfulCalls += 1;
         durations.push(r.outcome.result.duration_ms);
-        controls.passes += 1;
+        // Bucket the reviewer's actual verdict on the unmutated compose.
+        // accept is clean; accept-with-fold-ins and reject are the
+        // false-positive signal. Read from the verdict body rather than
+        // score.original_verdict so a control whose score was dropped on a
+        // historical re-score still lands in the right bucket.
+        const controlVerdict = r.outcome.result.verdict.verdict;
+        if (controlVerdict === 'accept') {
+          controls.accept += 1;
+        } else if (controlVerdict === 'accept-with-fold-ins') {
+          controls.accept_with_fold_ins += 1;
+        } else {
+          controls.reject += 1;
+        }
       } else {
         controls.errors += 1;
         errors += 1;

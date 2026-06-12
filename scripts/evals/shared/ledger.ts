@@ -84,8 +84,14 @@ export function buildVerdictLedgerEntry(
       ['misses', overall.misses],
       ['errors', overall.errors],
       ['harness_skipped', overall.harness_skipped],
-      ['control_passes', controls.passes],
-      ['control_fails', controls.fails],
+      // Control verdict distribution over the unmutated composes. accept is
+      // clean; accept-with-fold-ins and reject are the reviewer false-positive
+      // signal. (Replaces control_passes/control_fails, where every valid
+      // verdict counted as a pass and fails was always zero.)
+      ['control_accept', controls.accept],
+      ['control_accept_with_fold_ins', controls.accept_with_fold_ins],
+      ['control_reject', controls.reject],
+      ['control_errors', controls.errors],
     ]),
   };
 }

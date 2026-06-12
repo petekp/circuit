@@ -104,7 +104,7 @@ describe('buildVerdictLedgerEntry', () => {
       errors: 3,
       catch_rate: 0.9761904761904762,
     },
-    controls: { passes: 9, fails: 0, cases: 9 },
+    controls: { cases: 9, accept: 6, accept_with_fold_ins: 1, reject: 2, errors: 0 },
   };
 
   it('records ran_at from finished_at and tags the suite + repo commit', () => {
@@ -122,6 +122,14 @@ describe('buildVerdictLedgerEntry', () => {
     expect(entry.metrics.errors).toBe(3);
     // old-shape summary has no protocol_failure_rate, so it is simply omitted
     expect(entry.metrics.protocol_failure_rate).toBeUndefined();
+    // The control verdict distribution is recorded as separate metrics; the
+    // accept-with-fold-ins + reject counts are the reviewer false-positive
+    // signal that the former control_passes/control_fails pair hid.
+    expect(entry.metrics.control_accept).toBe(6);
+    expect(entry.metrics.control_accept_with_fold_ins).toBe(1);
+    expect(entry.metrics.control_reject).toBe(2);
+    expect(entry.metrics.control_errors).toBe(0);
+    expect(entry.metrics.control_passes).toBeUndefined();
     expect(validateLedgerEntry(entry, 'verdict')).toEqual([]);
   });
 
