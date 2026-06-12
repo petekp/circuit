@@ -15,6 +15,7 @@ Circuit command surfaces, compiled flow outputs, host mirrors, and edit rules.
 - Host mirrors under `plugins/claude/skills/**`, `plugins/claude/commands/**`, `plugins/codex/flows/**`, `plugins/codex/commands/**`, and `plugins/codex/skills/**` are generated outputs.
 - Internal flows emit only under `generated/flows/**`; host mirrors for internal flows are stale and fail the drift check.
 - After editing an authored source, run `npm run build && npm run emit-flows`, then verify.
+- Editing engine source under `src/` (runtime, CLI, schemas) restales the plugin runtime bundle; `npm run emit-flows` rebuilds it and `npm run check-flow-drift` is the gate that catches a stale bundle.
 
 ## Host Package Map
 
@@ -41,6 +42,7 @@ Codex skill files intentionally translate slash-command wording into skill-safe 
 | Codex plugin flow mirrors | `generated/flows/<id>/*.json` | `scripts/flows/emit.ts` | no | `plugins/codex/flows/<id>/*.json` | `node scripts/flows/emit.ts --check` | Public flows only. Mirrors compiled-flow JSON. WorkContract projections remain canonical under generated/flows and are projected by runtime code from compiled flows. Internal flow mirrors are stale and fail drift checks. |
 | Codex plugin command mirrors | flow-owned command sources or direct command sources | `scripts/flows/emit.ts` | no | `plugins/codex/commands/<id>.md` | `node scripts/flows/emit.ts --check` | Generated headers are omitted to preserve host command parsing and byte-for-byte mirror checks. |
 | Codex plugin skill surfaces | flow-owned command sources or direct command sources | `scripts/flows/emit.ts` | no | `plugins/codex/skills/<id>/SKILL.md` | `node scripts/flows/emit.ts --check` | Skill metadata is generated from script-owned metadata plus command source body. The renderer removes slash-command placeholders and source-authority footers for Codex-native invocation. |
+| Plugin runtime bundle | `src/**` engine (bundled via `dist/cli/circuit.js`) | `npm run build-plugin-runtime` (`node scripts/plugins/runtime-bundle.ts`) | no | `plugins/claude/runtime/circuit.js`<br>`plugins/codex/runtime/circuit.js` | `npm run check-plugin-runtime` (runs under `npm run check-flow-drift`) | esbuild bundle of the whole CLI engine that each host loads at runtime, plus the `runtime/git-state.ts` and `scripts/launcher-core.ts` sidecars. Editing any engine source under `src/` restales this bundle even when `node scripts/flows/emit.ts --check` reports clean; `npm run emit-flows` rebuilds it. |
 | Command ownership note | `src/commands/README.md` | none | yes | `src/commands/README.md` | normal docs review | Documents direct command source ownership; host command files are generated mirrors. |
 
 ## Flow Outputs
@@ -75,5 +77,5 @@ CLI-only utilities are source files under `src/commands/` that remain callable t
 
 ## Drift Check
 
-`node scripts/flows/emit.ts --check` verifies this file, the generated block catalog, generated schematics, generated manifests, command mirrors, host flow mirrors, stale per-mode siblings, stale internal host mirrors, stale host command files, and stale Codex skill directories.
+`npm run check-flow-drift` is the canonical gate for every generated surface in this map. It runs `node scripts/flows/emit.ts --check` (this file, the generated block catalog, generated schematics, generated manifests, command mirrors, host flow mirrors, stale per-mode siblings, stale internal host mirrors, stale host command files, and stale Codex skill directories) and then `npm run check-plugin-runtime` (the plugin runtime bundle and its sidecars). Running `node scripts/flows/emit.ts --check` on its own reports clean while the runtime bundle is stale, so any edit to engine source under `src/` must clear the full `check-flow-drift` gate.
 
