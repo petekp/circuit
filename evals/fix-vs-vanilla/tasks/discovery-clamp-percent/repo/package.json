@@ -1,0 +1,9 @@
+{
+  "name": "clamp-percent-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/percent.test.mjs"
+  }
+}

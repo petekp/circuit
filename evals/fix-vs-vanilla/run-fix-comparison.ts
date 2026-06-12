@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -15,7 +16,6 @@ import { createResultRoot, repoMetadata } from '../../scripts/evals/shared/metad
 import {
   commandOutput,
   findExecutable,
-  promptCommand,
   runCommand,
   runSync,
   type RunCommandMetadata,
@@ -41,8 +41,13 @@ type RequestedTaskSet = TaskSet | 'all';
 type CheckDefinition = {
   id: string;
   argv: string[];
+  // A hidden check's test code never ships in the repo the agent edits. Its
+  // files live in the task's `objective/` directory and the harness overlays
+  // them onto a throwaway copy of the repo at scoring time. This keeps the
+  // objective checks out of the agent's reach so a symptom patch can be caught.
+  hidden?: boolean;
 };
-type FixManifest = {
+export type FixManifest = {
   benchmark_id: string;
   default_provider: string;
   default_model: string;
@@ -50,7 +55,11 @@ type FixManifest = {
   default_timeout_ms: number;
   sets: Record<TaskSet, string[]>;
 };
-type FixArgs = {
+// Which arm(s) to run. `both` is the measurement default; the single-arm modes
+// exist for calibration, where we run the vanilla arm alone, many times, to see
+// how often it false-fixes a candidate trap.
+export type FixArm = 'both' | 'circuit' | 'vanilla';
+export type FixArgs = {
   set: RequestedTaskSet;
   taskId: string | undefined;
   provider: string;
@@ -58,6 +67,17 @@ type FixArgs = {
   effort: string;
   timeoutMs: number;
   circuitMode: CircuitMode;
+  // Power dial position for the Circuit arm. When set, the harness emits
+  // `--power <value>` so the dial materializes its per-role model allocation
+  // (researcher/implementer/reviewer). Undefined leaves the CLI default (the
+  // dial's own default-on medium).
+  circuitPower: 'low' | 'medium' | 'high' | undefined;
+  // Force both arms onto a single model by overriding the wrapper. Pins the
+  // Circuit arm so the dial cannot give it a stronger per-role stack — the only
+  // way to run a true same-model structure comparison.
+  pinModel: boolean;
+  arm: FixArm;
+  reps: number;
   outDir: string;
   skipBuild: boolean;
   dryRun: boolean;
@@ -70,6 +90,9 @@ type FixTask = JsonRecord & {
   allowed_changed_files: string[];
   task_root: string;
   repo_template: string;
+  // Directory of hidden objective-check files, overlaid at scoring time. May not
+  // exist for tasks whose checks all run in-repo.
+  objective_template: string;
 };
 type CheckRun = JsonRecord & {
   id: string;
@@ -108,6 +131,10 @@ function usage(): string {
     [--effort low|medium|high|xhigh] \\
     [--timeout-ms 900000] \\
     [--circuit-mode default|low|medium|high|autonomous] \\
+    [--circuit-power low|medium|high] \\
+    [--pin-model] \\
+    [--arm both|circuit|vanilla] \\
+    [--reps N] \\
     [--out-dir evals/fix-vs-vanilla/results] \\
     [--skip-build] \\
     [--dry-run]
@@ -115,11 +142,15 @@ function usage(): string {
 Runs isolated bug-fix tasks through Circuit Fix and a strong vanilla Claude Code
 prompt. Primary scoring is false-fixed rate: claimed fixed while objective
 checks still fail.
+
+--arm runs a single arm (vanilla-only skips the Circuit build, for calibration).
+--reps runs each task N times into per-rep subdirs; rates aggregate over task x rep.
 `;
 }
 
-function parseArgs(argv: string[]): { args: FixArgs; manifest: FixManifest } {
-  const manifest = readJson<FixManifest>(MANIFEST_PATH);
+// Pure arg parsing: the manifest (defaults) is injected so this can be unit
+// tested without touching disk. main() loads the manifest and calls this.
+export function parseFixArgs(argv: string[], manifest: FixManifest): FixArgs {
   const args: FixArgs = {
     set: 'held-out',
     taskId: undefined,
@@ -128,6 +159,10 @@ function parseArgs(argv: string[]): { args: FixArgs; manifest: FixManifest } {
     effort: manifest.default_effort,
     timeoutMs: manifest.default_timeout_ms,
     circuitMode: 'default',
+    circuitPower: undefined,
+    pinModel: false,
+    arm: 'both',
+    reps: 1,
     outDir: DEFAULT_RESULTS_ROOT,
     skipBuild: false,
     dryRun: false,
@@ -160,6 +195,17 @@ function parseArgs(argv: string[]): { args: FixArgs; manifest: FixManifest } {
     } else if (arg === '--circuit-mode') {
       args.circuitMode = requireValue(argv, i, arg) as CircuitMode;
       i += 1;
+    } else if (arg === '--circuit-power') {
+      args.circuitPower = requireValue(argv, i, arg) as 'low' | 'medium' | 'high';
+      i += 1;
+    } else if (arg === '--pin-model') {
+      args.pinModel = true;
+    } else if (arg === '--arm') {
+      args.arm = requireValue(argv, i, arg) as FixArm;
+      i += 1;
+    } else if (arg === '--reps') {
+      args.reps = Number.parseInt(requireValue(argv, i, arg), 10);
+      i += 1;
     } else if (arg === '--out-dir') {
       args.outDir = resolve(requireValue(argv, i, arg));
       i += 1;
@@ -184,11 +230,20 @@ function parseArgs(argv: string[]): { args: FixArgs; manifest: FixManifest } {
   if (!isCircuitMode(args.circuitMode)) {
     throw new Error(`--circuit-mode must be one of ${CIRCUIT_MODES.join(', ')}`);
   }
+  if (args.circuitPower !== undefined && !['low', 'medium', 'high'].includes(args.circuitPower)) {
+    throw new Error('--circuit-power must be one of low, medium, or high');
+  }
+  if (!['both', 'circuit', 'vanilla'].includes(args.arm)) {
+    throw new Error('--arm must be one of both, circuit, or vanilla');
+  }
+  if (!Number.isInteger(args.reps) || args.reps <= 0) {
+    throw new Error('--reps must be a positive integer');
+  }
   if (!Number.isFinite(args.timeoutMs) || args.timeoutMs <= 0) {
     throw new Error('--timeout-ms must be a positive integer');
   }
 
-  return { args, manifest };
+  return args;
 }
 
 function requireValue(argv: readonly string[], index: number, flag: string): string {
@@ -222,6 +277,7 @@ function loadTask(taskId: string): FixTask {
     ...(task as FixTask),
     task_root: taskRoot,
     repo_template: resolve(taskRoot, 'repo'),
+    objective_template: resolve(taskRoot, 'objective'),
   };
 }
 
@@ -261,17 +317,19 @@ function copyFixtureRepo(task: FixTask, dest: string): string {
 }
 
 function taskGoal(task: FixTask): string {
-  const checks = task.checks.map((check) => `- ${promptCommand(check.argv)}`).join('\n');
+  // The goal names only the regression command the bug report references. The
+  // harness's other checks are private ground truth. Revealing them would tell
+  // the agent exactly what to satisfy, so no agent would ever false-fix, and the
+  // eval could not separate a thorough fix from a symptom patch. Both arms get
+  // this identical, check-blind goal — the comparison is which process leaves
+  // the hidden checks passing more often.
   return `${task.prompt}
 
 Acceptance:
-- First confirm the regression by running the listed command before the fix.
+- First confirm the regression by running the regression command before the fix.
 - Make only the focused fix needed for this task.
-- Rerun the same command after the fix.
-- Leave the repo with the objective checks passing.
-
-Objective check commands:
-${checks}
+- Rerun the regression command after the fix and leave it passing.
+- Fix the underlying cause, not just the one symptom the regression command shows.
 
 Allowed changed files:
 ${task.allowed_changed_files.map((file) => `- ${file}`).join('\n')}`;
@@ -287,7 +345,7 @@ Strong process:
 2. Run the regression command before the fix and confirm it fails for the reported bug.
 3. Make the smallest focused code change you can.
 4. Rerun the same regression command after the fix.
-5. Do not claim the bug is fixed unless the regression failed before the fix, passes after the fix, and the objective checks pass.
+5. Do not claim the bug is fixed unless the regression failed before the fix, passes after the fix, and you have verified the fix addresses the root cause rather than only the one symptom the regression command exercises.
 6. Keep changed files inside the allowed list unless the task truly requires otherwise. If you go outside the list, say so.
 
 ${taskGoal(task)}
@@ -342,6 +400,52 @@ function runChecks(
   });
 }
 
+// Run a task's hidden objective checks without ever exposing their test code to
+// the agent. The agent's repo (`baseRepoDir`) is copied to a throwaway dir, the
+// task's `objective/` files are overlaid on top, and the hidden checks run there
+// against whatever the agent left in `src/`. The copy is discarded afterward.
+function runHiddenChecks(
+  baseRepoDir: string,
+  task: FixTask,
+  hidden: readonly CheckDefinition[],
+  outputDir: string,
+  phase: string,
+): CheckRun[] {
+  if (!existsSync(task.objective_template)) {
+    throw new Error(
+      `task ${task.id} declares hidden checks but has no objective/ directory at ${task.objective_template}`,
+    );
+  }
+  const scoringDir = mkdtempSync(resolve(tmpdir(), `fix-hidden-${safeSegment(task.id)}-`));
+  try {
+    cpSync(baseRepoDir, scoringDir, { recursive: true });
+    cpSync(task.objective_template, scoringDir, { recursive: true });
+    return runChecks(scoringDir, hidden, outputDir, `${phase}-hidden`);
+  } finally {
+    rmSync(scoringDir, { recursive: true, force: true });
+  }
+}
+
+// All of a task's checks, scored as one set. Visible checks run in the agent's
+// repo (the agent saw and was asked to satisfy the regression). Hidden checks
+// run against an overlay copy so their test code stays out of the agent's tree.
+// The combined result feeds scoreArm unchanged: objective_fixed stays "every
+// check passed".
+function runAllChecks(
+  repoDir: string,
+  task: FixTask,
+  outputDir: string,
+  phase: string,
+): CheckRun[] {
+  const visible = task.checks.filter((check) => check.hidden !== true);
+  const hidden = task.checks.filter((check) => check.hidden === true);
+  const results = runChecks(repoDir, visible, outputDir, phase);
+  if (hidden.length > 0) {
+    results.push(...runHiddenChecks(repoDir, task, hidden, outputDir, phase));
+  }
+  return results;
+}
+
 function diffState(repoDir: string, outputDir: string): DiffState {
   const nameOnly = runSync('git', ['diff', '--name-only'], { cwd: repoDir });
   const diff = runSync('git', ['diff', '--'], { cwd: repoDir });
@@ -372,113 +476,130 @@ async function runTask({
   task,
   args,
   wrapper,
-  resultRoot,
+  taskDir,
+  rep,
 }: {
   task: FixTask;
   args: FixArgs;
   wrapper: { env: NodeJS.ProcessEnv };
-  resultRoot: string;
+  taskDir: string;
+  rep: number;
 }): Promise<TaskSummary> {
-  const taskDir = resolve(resultRoot, 'tasks', task.id);
-  const circuitDir = resolve(taskDir, 'circuit-claude-code');
-  const vanillaDir = resolve(taskDir, 'vanilla-claude-code');
-  const circuitRepo = resolve(circuitDir, 'repo');
-  const vanillaRepo = resolve(vanillaDir, 'repo');
-  const circuitRunFolder = resolve(circuitDir, 'circuit-run');
-  const circuitFlowRoot = resolve(circuitDir, 'generated-flows');
+  // `both` runs each side; the single-arm modes let calibration runs drive the
+  // vanilla arm alone (no Circuit build, no Circuit repo).
+  const runCircuit = args.arm !== 'vanilla';
+  const runVanilla = args.arm !== 'circuit';
   mkdirSync(taskDir, { recursive: true });
   writeJson(resolve(taskDir, 'task.json'), task);
   writeFileSync(resolve(taskDir, 'goal.md'), `${taskGoal(task)}\n`);
-  writeFileSync(resolve(taskDir, 'vanilla-prompt.md'), `${vanillaPrompt(task)}\n`);
+  if (runVanilla) {
+    writeFileSync(resolve(taskDir, 'vanilla-prompt.md'), `${vanillaPrompt(task)}\n`);
+  }
 
-  const circuitCommit = copyFixtureRepo(task, circuitRepo);
-  const vanillaCommit = copyFixtureRepo(task, vanillaRepo);
-  cpSync(resolve(REPO_ROOT, 'generated', 'flows'), circuitFlowRoot, { recursive: true });
-  const baselineCircuit = runChecks(circuitRepo, task.checks, circuitDir, 'baseline');
-  const baselineVanilla = runChecks(vanillaRepo, task.checks, vanillaDir, 'baseline');
+  const arms: Record<string, ArmScore> = {};
+  const baseline: Record<string, CheckRun[]> = {};
+  const fixtureCommits: string[] = [];
 
-  const circuitArgs = [
-    resolve(REPO_ROOT, 'bin/circuit'),
-    'run',
-    'fix',
-    '--goal',
-    taskGoal(task),
-    ...circuitModeArgs(args.circuitMode),
-    '--run-folder',
-    circuitRunFolder,
-    '--flow-root',
-    circuitFlowRoot,
-    '--progress',
-    'jsonl',
-  ];
-  const vanillaArgs = vanillaClaudeArgs(vanillaPrompt(task));
+  if (runCircuit) {
+    const circuitDir = resolve(taskDir, 'circuit-claude-code');
+    const circuitRepo = resolve(circuitDir, 'repo');
+    const circuitRunFolder = resolve(circuitDir, 'circuit-run');
+    const circuitFlowRoot = resolve(circuitDir, 'generated-flows');
+    const circuitCommit = copyFixtureRepo(task, circuitRepo);
+    cpSync(resolve(REPO_ROOT, 'generated', 'flows'), circuitFlowRoot, { recursive: true });
+    const baselineCircuit = runAllChecks(circuitRepo, task, circuitDir, 'baseline');
+    const circuitArgs = [
+      resolve(REPO_ROOT, 'bin/circuit'),
+      'run',
+      'fix',
+      '--goal',
+      taskGoal(task),
+      ...circuitModeArgs(args.circuitMode),
+      ...(args.circuitPower ? ['--power', args.circuitPower] : []),
+      '--run-folder',
+      circuitRunFolder,
+      '--flow-root',
+      circuitFlowRoot,
+      '--progress',
+      'jsonl',
+    ];
+    const circuitRun = await runCommand({
+      label: `${task.id}:circuit`,
+      command: 'node',
+      argv: circuitArgs,
+      cwd: circuitRepo,
+      env: {
+        ...wrapper.env,
+        CIRCUIT_GENERATED_FLOW_MIRROR_ROOT: circuitFlowRoot,
+      },
+      timeoutMs: args.timeoutMs,
+      outputDir: circuitDir,
+      metadataBuilder: fixRunMetadata,
+    });
+    const circuitPostChecks = runAllChecks(circuitRepo, task, circuitDir, 'post');
+    const circuitDiff = diffState(circuitRepo, circuitDir);
+    arms['circuit-claude-code'] = scoreArm({
+      task,
+      armId: 'circuit-claude-code',
+      run: circuitRun,
+      checks: circuitPostChecks,
+      diff: circuitDiff,
+      claim: parseCircuitClaim(circuitRunFolder),
+    });
+    baseline['circuit-claude-code'] = baselineCircuit;
+    fixtureCommits.push(circuitCommit);
+  }
 
-  const circuitRun = await runCommand({
-    label: `${task.id}:circuit`,
-    command: 'node',
-    argv: circuitArgs,
-    cwd: circuitRepo,
-    env: {
-      ...wrapper.env,
-      CIRCUIT_GENERATED_FLOW_MIRROR_ROOT: circuitFlowRoot,
-    },
-    timeoutMs: args.timeoutMs,
-    outputDir: circuitDir,
-    metadataBuilder: fixRunMetadata,
-  });
-  const circuitPostChecks = runChecks(circuitRepo, task.checks, circuitDir, 'post');
-  const circuitDiff = diffState(circuitRepo, circuitDir);
-  const circuitScore = scoreArm({
-    task,
-    armId: 'circuit-claude-code',
-    run: circuitRun,
-    checks: circuitPostChecks,
-    diff: circuitDiff,
-    claim: parseCircuitClaim(circuitRunFolder),
-  });
+  if (runVanilla) {
+    const vanillaDir = resolve(taskDir, 'vanilla-claude-code');
+    const vanillaRepo = resolve(vanillaDir, 'repo');
+    const vanillaCommit = copyFixtureRepo(task, vanillaRepo);
+    const baselineVanilla = runAllChecks(vanillaRepo, task, vanillaDir, 'baseline');
+    const vanillaRun = await runCommand({
+      label: `${task.id}:vanilla`,
+      command: 'claude',
+      argv: vanillaClaudeArgs(vanillaPrompt(task)),
+      cwd: vanillaRepo,
+      env: wrapper.env,
+      timeoutMs: args.timeoutMs,
+      outputDir: vanillaDir,
+      metadataBuilder: fixRunMetadata,
+    });
+    const vanillaPostChecks = runAllChecks(vanillaRepo, task, vanillaDir, 'post');
+    const vanillaDiff = diffState(vanillaRepo, vanillaDir);
+    arms['vanilla-claude-code'] = scoreArm({
+      task,
+      armId: 'vanilla-claude-code',
+      run: vanillaRun,
+      checks: vanillaPostChecks,
+      diff: vanillaDiff,
+      claim: parseVanillaClaim(vanillaRun.stdout),
+    });
+    baseline['vanilla-claude-code'] = baselineVanilla;
+    fixtureCommits.push(vanillaCommit);
+  }
 
-  const vanillaRun = await runCommand({
-    label: `${task.id}:vanilla`,
-    command: 'claude',
-    argv: vanillaArgs,
-    cwd: vanillaRepo,
-    env: wrapper.env,
-    timeoutMs: args.timeoutMs,
-    outputDir: vanillaDir,
-    metadataBuilder: fixRunMetadata,
-  });
-  const vanillaPostChecks = runChecks(vanillaRepo, task.checks, vanillaDir, 'post');
-  const vanillaDiff = diffState(vanillaRepo, vanillaDir);
-  const vanillaScore = scoreArm({
-    task,
-    armId: 'vanilla-claude-code',
-    run: vanillaRun,
-    checks: vanillaPostChecks,
-    diff: vanillaDiff,
-    claim: parseVanillaClaim(vanillaRun.stdout),
-  });
-
+  // The fixture is identical per arm, so a single failing baseline proves the
+  // bug reproduced. With both arms we require both; with one, just that one.
+  const baselineChecks = Object.values(baseline);
   const taskSummary = {
     task_id: task.id,
     split: task.split,
-    fixture_commits_match: circuitCommit === vanillaCommit,
-    fixture_commit: circuitCommit,
+    rep,
+    arm: args.arm,
+    fixture_commits_match: new Set(fixtureCommits).size <= 1,
+    fixture_commit: fixtureCommits[0] ?? 'unavailable',
     baseline_failed_as_expected:
-      baselineCircuit.some((check) => !check.passed) && baselineVanilla.some((check) => !check.passed),
-    baseline: {
-      'circuit-claude-code': baselineCircuit,
-      'vanilla-claude-code': baselineVanilla,
-    },
-    arms: {
-      'circuit-claude-code': circuitScore,
-      'vanilla-claude-code': vanillaScore,
-    },
+      baselineChecks.length > 0 &&
+      baselineChecks.every((checks) => checks.some((check) => !check.passed)),
+    baseline,
+    arms,
   };
   writeJson(resolve(taskDir, 'summary.json'), taskSummary);
   return taskSummary;
 }
 
-function renderReport(summary: FixSummary): string {
+export function renderReport(summary: FixSummary): string {
   const heldOut = summary.aggregates['held-out'] ?? {};
   const circuit = heldOut['circuit-claude-code'] ?? {};
   const vanilla = heldOut['vanilla-claude-code'] ?? {};
@@ -510,13 +631,15 @@ tasks are not counted as measurement wins.
 ${summary.tasks
   .map(
     (task) =>
-      `- ${task.task_id} (${task.split}): Circuit ${formatTaskScore(task.arms['circuit-claude-code'] ?? {})}; vanilla ${formatTaskScore(task.arms['vanilla-claude-code'] ?? {})}`,
+      `- ${task.task_id} (${task.split}): Circuit ${formatTaskScore(task.arms['circuit-claude-code'])}; vanilla ${formatTaskScore(task.arms['vanilla-claude-code'])}`,
   )
   .join('\n')}
 `;
 }
 
-function formatTaskScore(score: JsonRecord): string {
+function formatTaskScore(score: JsonRecord | undefined): string {
+  // A single-arm run leaves the other arm absent; say so instead of crashing.
+  if (score?.claim === undefined) return 'not run';
   const review =
     score.claim.review_status === undefined
       ? ''
@@ -526,23 +649,27 @@ function formatTaskScore(score: JsonRecord): string {
   return `false-fixed=${score.false_fixed}, fixed=${score.objective_fixed}, proof=${score.proof_quality}${review}`;
 }
 
-function formatRate(value: number | null): string {
-  if (value === null) return 'n/a';
+// A sparse aggregate (an arm with no scored tasks) carries null — and an
+// under-populated one undefined — for every rate. Treat both as "n/a" so the
+// report renders for any arm shape.
+function formatRate(value: number | null | undefined): string {
+  if (value == null) return 'n/a';
   return `${(value * 100).toFixed(0)}%`;
 }
 
-function formatNumber(value: number | null): string {
-  if (value === null) return 'n/a';
+function formatNumber(value: number | null | undefined): string {
+  if (value == null) return 'n/a';
   return value.toFixed(2);
 }
 
-function formatMs(value: number | null): string {
-  if (value === null) return 'n/a';
+function formatMs(value: number | null | undefined): string {
+  if (value == null) return 'n/a';
   return `${Math.round(value)} ms`;
 }
 
 async function main() {
-  const { args, manifest } = parseArgs(process.argv.slice(2));
+  const manifest = readJson<FixManifest>(MANIFEST_PATH);
+  const args = parseFixArgs(process.argv.slice(2), manifest);
   const taskIds = selectedTaskIds(manifest, args);
   const tasks = taskIds.map(loadTask);
   const runLabel = args.taskId === undefined ? args.set : args.taskId;
@@ -551,6 +678,7 @@ async function main() {
   const realClaude = findExecutable('claude', { required: !args.dryRun });
   const wrapper = createClaudeCodeWrapper(realClaude, args.model, args.effort, {
     tempPrefix: 'fix-vs-vanilla-claude-',
+    forceModel: args.pinModel,
   });
   const metadata = {
     schema_version: 1,
@@ -564,12 +692,32 @@ async function main() {
     effort: args.effort,
     timeout_ms: args.timeoutMs,
     circuit_mode: args.circuitMode,
+    // Recorded so the ledger and report describe the real model configuration.
+    // circuit_power is the requested dial (empty string = CLI default-on
+    // medium); pin_model true means both arms were forced onto `model`.
+    circuit_power: args.circuitPower ?? '',
+    pin_model: args.pinModel,
+    arm: args.arm,
+    reps: args.reps,
     set: args.set,
     task_ids: taskIds,
     dry_run: args.dryRun,
     commands: {
-      circuit: ['node', '<repo>/bin/circuit', 'run', 'fix', ...circuitModeArgs(args.circuitMode)],
-      vanilla: ['claude', ...vanillaClaudeArgs('<strong vanilla prompt>')],
+      ...(args.arm !== 'vanilla'
+        ? {
+            circuit: [
+              'node',
+              '<repo>/bin/circuit',
+              'run',
+              'fix',
+              ...circuitModeArgs(args.circuitMode),
+              ...(args.circuitPower ? ['--power', args.circuitPower] : []),
+            ],
+          }
+        : {}),
+      ...(args.arm !== 'circuit'
+        ? { vanilla: ['claude', ...vanillaClaudeArgs('<strong vanilla prompt>')] }
+        : {}),
     },
   };
   writeJson(resolve(resultRoot, 'metadata.json'), metadata);
@@ -580,7 +728,7 @@ async function main() {
     return;
   }
 
-  if (!args.skipBuild) {
+  if (!args.skipBuild && args.arm !== 'vanilla') {
     process.stderr.write('Building compiled Circuit CLI before comparison...\n');
     const build = runSync('npm', ['run', 'build'], { cwd: REPO_ROOT });
     writeFileSync(resolve(resultRoot, 'build.stdout.txt'), build.stdout);
@@ -603,8 +751,18 @@ async function main() {
 
   const taskSummaries: TaskSummary[] = [];
   for (const task of tasks) {
-    process.stderr.write(`\nRunning task ${task.id} (${task.split})...\n`);
-    taskSummaries.push(await runTask({ task, args, wrapper, resultRoot }));
+    for (let rep = 1; rep <= args.reps; rep += 1) {
+      // reps === 1 keeps the flat tasks/<id>/ layout; reps > 1 nest per rep.
+      const taskDir =
+        args.reps === 1
+          ? resolve(resultRoot, 'tasks', task.id)
+          : resolve(resultRoot, 'tasks', task.id, `rep-${String(rep).padStart(2, '0')}`);
+      const repLabel = args.reps === 1 ? '' : ` rep ${rep}/${args.reps}`;
+      process.stderr.write(
+        `\nRunning task ${task.id} (${task.split})${repLabel} [arm: ${args.arm}]...\n`,
+      );
+      taskSummaries.push(await runTask({ task, args, wrapper, taskDir, rep }));
+    }
   }
 
   const aggregates = {
@@ -626,9 +784,21 @@ async function main() {
   process.stdout.write(`Report: ${resolve(resultRoot, 'report.md')}\n`);
 }
 
-main().catch((error: unknown) => {
-  process.stderr.write(
-    `fix-vs-vanilla comparison failed: ${error instanceof Error ? error.message : String(error)}\n`,
-  );
-  process.exit(1);
-});
+// Only run when invoked as a script. Tests import parseFixArgs from this
+// module, and an unguarded main() would kick off a live build + model run on
+// import. The matrix invokes us with a path relative to the repo root, so the
+// guard accepts the relative form, the absolute form, and a basename match.
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  (import.meta.url === `file://${process.argv[1]}` ||
+    __filename === resolve(process.argv[1]) ||
+    import.meta.url.endsWith(process.argv[1].split('/').pop() ?? ''));
+
+if (invokedDirectly) {
+  main().catch((error: unknown) => {
+    process.stderr.write(
+      `fix-vs-vanilla comparison failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    process.exit(1);
+  });
+}

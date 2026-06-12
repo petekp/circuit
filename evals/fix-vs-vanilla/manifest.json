@@ -20,7 +20,11 @@
     "discovery": [
       "discovery-slug-trailing",
       "discovery-window-average",
-      "discovery-discount-stacking"
+      "discovery-discount-stacking",
+      "discovery-clamp-percent",
+      "discovery-pager-pagecount",
+      "discovery-truncate-ellipsis",
+      "discovery-amount-cents"
     ],
     "regression": [
       "regression-query-plus",
@@ -32,14 +36,18 @@
       "regression-money-negative",
       "heldout-token-expiry-units",
       "heldout-user-display-name",
-      "heldout-shipping-fee-rules"
-    ],
-    "held-out": [
+      "heldout-shipping-fee-rules",
       "heldout-tax-line-rounding",
       "heldout-permission-deny-wildcard",
       "heldout-json-pointer-escapes",
       "heldout-cidr-prefix-zero",
       "heldout-template-escaping"
+    ],
+    "held-out": [
+      "heldout-normalize-email",
+      "heldout-bundle-discount",
+      "heldout-wrap-index",
+      "heldout-fit-width"
     ]
   }
 }

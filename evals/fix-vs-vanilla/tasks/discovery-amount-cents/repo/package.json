@@ -1,0 +1,9 @@
+{
+  "name": "amount-cents-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/amount.test.mjs"
+  }
+}

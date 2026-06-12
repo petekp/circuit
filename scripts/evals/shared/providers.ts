@@ -4,6 +4,13 @@ import { resolve } from 'node:path';
 
 type WrapperOptions = {
   tempPrefix?: string;
+  // When true the wrapper *forces* its model/effort onto every spawned `claude`,
+  // stripping any --model/--effort the caller already passed. The default
+  // (false) only injects when the caller omitted them. Forcing is what pins the
+  // Circuit arm to a single model: without it, Circuit's power dial resolves a
+  // per-role model, the builtin connector passes --model, and the inject path
+  // defers to it — silently defeating a same-model comparison.
+  forceModel?: boolean;
 };
 
 type ProviderWrapper = {
@@ -49,14 +56,35 @@ export function createClaudeCodeWrapper(
   realClaude: string,
   model: string,
   effort: string,
-  { tempPrefix = 'circuit-eval-claude-' } = {},
+  { tempPrefix = 'circuit-eval-claude-', forceModel = false }: WrapperOptions = {},
 ): ProviderWrapper {
   const binDir = mkdtempSync(resolve(tmpdir(), tempPrefix));
   const wrapperPath = resolve(binDir, 'claude');
+  // The shim carries both behaviors and picks via CIRCUIT_EVAL_FORCE_MODEL, so
+  // the generated script is identical regardless of the option; only the env
+  // toggles. Force mode drops any caller --model/--effort (the value too) and
+  // re-adds ours, so the dial cannot inject a stronger per-role model.
   writeFileSync(
     wrapperPath,
     `#!/usr/bin/env bash
 set -euo pipefail
+
+if [[ "\${CIRCUIT_EVAL_FORCE_MODEL:-0}" -eq 1 ]]; then
+  KEPT=()
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      --model|--effort)
+        shift
+        if [[ "$#" -gt 0 ]]; then shift; fi
+        ;;
+      *)
+        KEPT+=("$1")
+        shift
+        ;;
+    esac
+  done
+  exec "$REAL_CLAUDE" --model "$CIRCUIT_EVAL_MODEL" --effort "$CIRCUIT_EVAL_EFFORT" "\${KEPT[@]}"
+fi
 
 INJECT_MODEL=1
 INJECT_EFFORT=1
@@ -85,6 +113,7 @@ exec "$REAL_CLAUDE" "\${INJECTED[@]}" "$@"
       REAL_CLAUDE: realClaude,
       CIRCUIT_EVAL_MODEL: model,
       CIRCUIT_EVAL_EFFORT: effort,
+      CIRCUIT_EVAL_FORCE_MODEL: forceModel ? '1' : '0',
       PATH: `${binDir}:${process.env.PATH ?? ''}`,
     },
   };

@@ -44,3 +44,23 @@ describe('fix harness circuit-mode flags', () => {
     expect(parsedDefault.autonomousProvided).toBe(false);
   });
 });
+
+// The harness also emits `--power <dial>` for the Circuit dial sweep, built
+// inline in run-fix-comparison.ts rather than through circuitModeArgs. Same
+// drift risk: if the run CLI renames or drops --power, the sweep fails
+// mid-flight. Guard every position the harness can emit against the real CLI.
+describe('fix harness circuit-power flag', () => {
+  for (const power of ['low', 'medium', 'high'] as const) {
+    it(`emits a --power ${power} the run CLI accepts`, () => {
+      const parsed = parseExecutionArgs('run', [
+        'fix',
+        '--goal',
+        'fix the regression',
+        '--power',
+        power,
+      ]);
+      expect(parsed.powerProvided).toBe(true);
+      expect(parsed.power).toBe(power);
+    });
+  }
+});

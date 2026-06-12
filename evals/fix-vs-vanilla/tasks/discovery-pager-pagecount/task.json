@@ -1,0 +1,13 @@
+{
+  "id": "discovery-pager-pagecount",
+  "split": "discovery",
+  "provenance": "discovery-created",
+  "tuning_used": true,
+  "archetype": "multi-site-duplication",
+  "prompt": "Pagination drops the final page when the item count is not an exact multiple of the page size. For example, 25 items at 10 per page should be 3 pages, but the app shows 2. Fix the page-count logic in src/pagination.mjs so a partial last page is counted. The regression command is `npm test`; it should fail before the fix and pass after the fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "export-pages", "hidden": true, "argv": ["node", "tests/pagination.export.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/pagination.mjs"]
+}
