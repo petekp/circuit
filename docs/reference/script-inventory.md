@@ -31,6 +31,8 @@ to `.ts` conversion with the ownership, name, and directory cleanup. The
 inventories and migration map below record that cleanup. They are a fixed
 record, not the current tree.
 
+<!-- path-ok:begin — fixed record of the PR #16 reorg; retired script paths are quoted on purpose -->
+
 ### Before Inventory
 
 Historical note: there is no separate committed "TS-only, old-layout"
@@ -190,3 +192,5 @@ rg -n "scripts/" docs/README.md AGENTS.md README.md UBIQUITOUS_LANGUAGE.md docs/
 
 Result: remaining references point either to the new repo script paths or to
 plugin-local runtime entrypoints such as `plugins/<host>/scripts/circuit.ts`.
+
+<!-- path-ok:end -->

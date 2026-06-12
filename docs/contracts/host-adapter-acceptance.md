@@ -82,7 +82,7 @@ npm run smoke:host:claude
 ## Current Boundaries
 
 Codex V1 does not support bundled plugin hook registration. Codex loads
-`plugins/codex/hooks/hooks.json` by default when that file exists, and runs
+`plugins/codex/hooks/hooks.json` by default when that file exists, and runs <!-- path-ok -->
 hook commands from the session working directory. Circuit therefore keeps the
 supported Codex path on the user-level hook installed by:
 

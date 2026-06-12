@@ -61,7 +61,7 @@ shipped with, not a `circuit` binary from `PATH`.
 
 The checked-in doctor proof is
 [`docs/release/proofs/runs/doctor/output.txt`](release/proofs/runs/doctor/output.txt).
-The wrapper is `scripts/circuit.ts` inside each host package; in this checkout
+The wrapper is `scripts/circuit.ts` inside each host package; in this checkout <!-- path-ok -->
 that is `plugins/claude/scripts/circuit.ts` and
 `plugins/codex/scripts/circuit.ts`.
 

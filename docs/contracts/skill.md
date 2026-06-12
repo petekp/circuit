@@ -335,4 +335,4 @@ deferred.
     documentation to typed policy vocabulary. Reopen condition: first
     resolver proposes `capabilities`-based relay.
 - **v1.0 (Stage 2)** — ratified invariants + property tests under
-  `tests/properties/visible/skill/` + catalog-level property harness.
+  `tests/properties/visible/skill/` + catalog-level property harness. <!-- path-ok -->

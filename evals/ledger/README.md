@@ -46,6 +46,6 @@ the last-release marker is the most recent `circuit--v*` git tag.
 ## Waivers
 
 To ship without a fresh run for one eval, add a file under
-`evals/ledger/waivers/` named `<eval-id>-<version>` (any extension, `.md`
+`evals/ledger/waivers/` named `<eval-id>-<version>` (any extension, `.md` <!-- path-ok -->
 suggested) explaining why. The waiver is keyed to that exact version, so it
 cannot silently carry forward to the next release.

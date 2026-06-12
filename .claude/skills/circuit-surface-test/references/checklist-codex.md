@@ -456,7 +456,7 @@ that its reader-compat path still works.
 
 ### G1. No goal skill
 
-Confirm there is no `goal` Codex skill and `plugins/codex/skills/goal/` does not
+Confirm there is no `goal` Codex skill and `plugins/codex/skills/goal/` does not <!-- path-ok -->
 exist.
 
 Pass: there is no goal skill. A goal skill would be a finding.
@@ -495,7 +495,7 @@ before running. Partial-skip via CLI (this is native-host behavior).
 
 Through the installed host plugin, `goal` is not available: as an internal flow
 its compiled JSON is not mirrored into the host package (no
-`plugins/codex/flows/goal/`). Confirm the host wrapper cannot run it:
+`plugins/codex/flows/goal/`). Confirm the host wrapper cannot run it: <!-- path-ok -->
 
 ```bash
 node "$PLUGIN_ROOT/scripts/circuit.ts" run goal --goal 'finish a tiny objective' \

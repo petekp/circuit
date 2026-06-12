@@ -176,7 +176,7 @@ invariant; tested in `tests/contracts/connector-schema.test.ts`,
   ```
 
   ```js
-  // scripts/echo-reviewer.ts
+  // ./scripts/echo-reviewer.ts
   import { readFileSync, writeFileSync } from 'node:fs';
 
   const [, , promptFile, outputFile] = process.argv;
@@ -684,7 +684,7 @@ After a `RelayStartedTraceEntry` is accepted:
 
 - **v0.2 (Stage 1)** — Ratify `property_ids` above by landing the
   corresponding property-test harness at
-  `tests/properties/visible/connector/`. Decide whether
+  `tests/properties/visible/connector/`. Decide whether <!-- path-ok -->
   `RelayResolutionSource.explicit` should carry the literal
   `--connector` CLI arg text for post-hoc flag reproduction (would add
   `{source: 'explicit', argv: string[]}` — currently deferred because

@@ -48,7 +48,7 @@ npm run test:fast    # vitest excluding the two subprocess-driven outliers: test
 npm run test:coverage # vitest run --coverage (info, no thresholds)
 npm run build        # tsc -p tsconfig.build.json
 npm run verify       # full canonical check; CI runs this
-npm run verify:fast  # check + lint + build + test:fast + evals/ideas/yaml/drift checks (~40% faster)
+npm run verify:fast  # check + lint + build + test:fast + the fast gate scripts (~40% faster)
 ```
 
 `verify` is the canonical check and what CI enforces. Use `verify:fast`

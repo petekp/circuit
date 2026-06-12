@@ -53,7 +53,7 @@ Observed source map: `docs/generated-surfaces.md`.
   Every other flow is exercised through Run or an explicit CLI flow start
   (`run <flow>`). Run is **model-only routed**:
   the host model recommends and NAMES the flow, then passes it explicitly to the
-  CLI. There is no deterministic/keyword classifier — `src/flows/router.ts` is
+  CLI. There is no deterministic/keyword classifier — `src/flows/router.ts` is <!-- path-ok -->
   deleted. A CLI `run --goal` with NO flow positional ERRORS with `a flow name is
   required: pass one of build|fix|review|explore|prototype|pursue as the first
   argument` (exit 2). Mark that host limit plainly for each flow row.

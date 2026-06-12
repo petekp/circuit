@@ -324,7 +324,7 @@ constraints are inlined here:
    four token classes (input, output, cache creation split by TTL, cache
    read) into `summary.json` and the ledger. Two dollar fields per record:
    the host's reported estimate and our own computation from a dated,
-   append-only price table at `evals/ledger/prices/`; divergence above 5%
+   append-only price table at `evals/ledger/prices/`; divergence above 5% <!-- path-ok -->
    fails bookkeeping. Cost includes retries; protocol-failure runs are
    excluded from cost-per-success but their spend is still logged.
    Verified by direct probe: the Claude Code CLI already exposes

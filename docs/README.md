@@ -110,7 +110,7 @@ not active instructions unless one of the sources above links to a live section.
 | Working strategy | [docs/ideas/positioning-and-strategy.md](ideas/positioning-and-strategy.md) | Point-in-time workshop notes from May 2026. Not polished external copy; validate claims against code and release evidence before reuse. |
 | Audit records | [docs/audits/](audits/) | Source-backed cleanup and inventory reports. Use as evidence records, not active operating guidance. |
 | Research note | [docs/ideas/](ideas/) and [docs/learnings/](learnings/) | Prior-art or product-shape material. Useful context, not current behavior. |
-| Archived | Completed or historical files in [docs/specs/](specs/) and [docs/internal/archive/](internal/archive/) | Dated target specs, design records, and local-only historical notes. Do not treat as active instructions unless a current doc links to a live section. |
+| Archived | Completed or historical files in [docs/specs/](specs/) and [docs/internal/archive/](internal/archive/) | Dated target specs, design records, and local-only historical notes. Do not treat as active instructions unless a current doc links to a live section. | <!-- path-ok -->
 
 ## Low-Noise Rules
 
@@ -120,7 +120,7 @@ not active instructions unless one of the sources above links to a live section.
 - Do not add a new active runbook or playbook outside the approved locations
   without updating this map.
 - Move completed execution records that are not public release evidence into
-  local-only [docs/internal/archive/](internal/archive/) after repo-wide
+  local-only [docs/internal/archive/](internal/archive/) after repo-wide <!-- path-ok -->
   reference probes.
 - Keep speculative product ideas in [docs/ideas/](ideas/) and prior-art notes in
   [docs/learnings/](learnings/).

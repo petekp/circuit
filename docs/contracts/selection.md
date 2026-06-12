@@ -610,7 +610,7 @@ Stage 2 harness task where noted below.
 
 - **v0.2 (Stage 1)** — Ratify `property_ids` above by landing the
   corresponding property-test harness at
-  `tests/properties/visible/selection/`. **Decide scalar tombstone
+  `tests/properties/visible/selection/`. <!-- path-ok --> **Decide scalar tombstone
   semantics (Codex MED #9 deferral).** Currently there is no way for a
   higher layer to clear a lower layer's `model`/`effort`/`depth` back
   to connector/default behavior (skills have `{mode: 'replace', skills:

@@ -101,12 +101,12 @@ and `src/shared/README.md`.
 
 ## Migration Rationale
 
-The reorganization moved `docs/script-inventory.md` to
+The reorganization moved `docs/script-inventory.md` to <!-- path-ok -->
 `docs/reference/script-inventory.md` (behind the docs map), added
 parent maps for host packages (`plugins/README.md`, `plugins/codex/README.md`),
 and added `src/README.md` plus per-layer READMEs (`src/runtime/README.md`,
-`src/schemas/README.md`, `src/flows/README.md`, `src/shared/README.md`,
-`src/types/README.md`) so layer ownership is learnable locally. Stable public
+`src/schemas/README.md`, `src/flows/README.md`, `src/shared/README.md`) so
+layer ownership is learnable locally. Stable public
 paths and code layout were kept in place because release checks depend on them
 and a code move would churn imports without evidence of an ownership bug. All
 changes were docs-only; the full per-change rationale table is recoverable from

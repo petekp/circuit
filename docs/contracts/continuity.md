@@ -572,6 +572,6 @@ scoped to v0.2 with rationale in the §Resolver precedence section above.
     resume flow ships OR a split-brain incident is observed in
     practice.
 - **v1.0 (Stage 2)** — ratified invariants plus property tests:
-  `continuity.prop.*` under `tests/properties/visible/continuity/`.
+  `continuity.prop.*` under `tests/properties/visible/continuity/`. <!-- path-ok -->
   Resolver-level properties (dangling reference, liveness validation)
   land with the resume implementation.

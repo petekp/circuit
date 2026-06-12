@@ -487,7 +487,7 @@ that its reader-compat path still works.
 ### G1. No goal slash command
 
 Confirm `/circuit:goal` is not a recognized command and
-`plugins/claude/commands/goal.md` does not exist.
+`plugins/claude/commands/goal.md` does not exist. <!-- path-ok -->
 
 Pass: there is no goal slash command. A goal command would be a finding.
 
@@ -524,7 +524,7 @@ before running. Partial-skip via CLI (this is native-host behavior).
 
 Through the installed host plugin, `goal` is not available: as an internal flow
 its compiled JSON is not mirrored into the host package (no
-`plugins/claude/skills/goal/`). Confirm the host wrapper cannot run it:
+`plugins/claude/skills/goal/`). Confirm the host wrapper cannot run it: <!-- path-ok -->
 
 ```bash
 node "$PLUGIN_ROOT/scripts/circuit.ts" run goal --goal 'finish a tiny objective' \

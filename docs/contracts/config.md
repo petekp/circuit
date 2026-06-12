@@ -509,10 +509,10 @@ After a `CircuitOverride` is accepted:
 
 - **v0.2 (Stage 1)** — Ratify `property_ids` above by landing the
   corresponding property-test harness at
-  `tests/properties/visible/config/`. Decide whether layer
+  `tests/properties/visible/config/`. Decide whether layer <!-- path-ok -->
   composition semantics (the merge resolver across multiple
   `LayeredConfig`s) belongs to this contract or to a new
-  `docs/contracts/config-composition.md`. Precedent suggests
+  `docs/contracts/config-composition.md`. Precedent suggests <!-- path-ok -->
   separate: connector composition lives in connector.md only through
   `RelayConfig.superRefine`; selection composition lives in
   `selection.md` through `SelectionResolution`. Config-file
