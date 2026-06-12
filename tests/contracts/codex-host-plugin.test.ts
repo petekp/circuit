@@ -215,7 +215,7 @@ describe('Codex host plugin package', () => {
     const rendering = readFileSync(resolve(REPO_ROOT, 'docs/contracts/host-rendering.md'), 'utf8');
 
     expect(contract).toContain('contract: host-adapter');
-    expect(contract).toContain('Routed runs');
+    expect(contract).toContain('Explicit runs');
     expect(contract).toContain('--progress jsonl');
     expect(contract).toContain("node '<plugin root>/scripts/circuit.ts' doctor");
     expect(contract).toContain('final user-facing answer');

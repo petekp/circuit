@@ -5,11 +5,11 @@ version: 0.1
 schema_source: src/schemas/stage.ts
 last_updated: 2026-04-19
 depends_on: [ids, step]
-closes: [adversarial-review-med-11-stage path-policy]
+closes: [adversarial-review-med-11-stage-path-policy]
 report_ids:
   - stage.definition
 invariant_ids: [stage-I1, stage-I2, stage-I3, stage-I4, stage-I5, stage-I6]
-property_ids: [stage.prop.canonical_stage_reachability, stage.prop.canonical_set_is_enum, stage.prop.every_step_has_a_stage, stage.prop.omits_disjoint_from_declared, stage.prop.omits_pairwise_unique, stage.prop.partial_requires_rationale, stage.prop.review_semantic_adequacy, stage.prop.stage path_partial_covers_complement, stage.prop.stage path_strict_covers_all_seven, stage.prop.steps_closure, stage.prop.unique_canonicals, stage.prop.unique_ids, stage.prop.verify_semantic_adequacy]
+property_ids: [stage.prop.canonical_stage_reachability, stage.prop.canonical_set_is_enum, stage.prop.every_step_has_a_stage, stage.prop.omits_disjoint_from_declared, stage.prop.omits_pairwise_unique, stage.prop.partial_requires_rationale, stage.prop.review_semantic_adequacy, stage.prop.stage_path_partial_covers_complement, stage.prop.stage_path_strict_covers_all_seven, stage.prop.steps_closure, stage.prop.unique_canonicals, stage.prop.unique_ids, stage.prop.verify_semantic_adequacy]
 ---
 
 # Stage Contract
@@ -73,7 +73,7 @@ in `tests/contracts/flow-graph-schema.test.ts` and
   label bar while routing around review or verify at runtime. The
   Codex adversarial property-auditor (2026-04-18) flagged these as
   HIGH #1-3; they are tracked as property ids for Stage 2 enforcement
-  (see `stage.prop.*_semantic_coverage` and
+  (see `stage.prop.*_semantic_adequacy` and
   `stage.prop.*_reachability` below) and NOT claimed closed by this
   invariant.
 
@@ -99,7 +99,7 @@ in `tests/contracts/flow-graph-schema.test.ts` and
 
 - **stage-I6 — CompiledFlow-level strict surplus-key rejection.** The
   `CompiledFlow` schema itself is `.strict()`, so top-level surplus keys
-  (e.g., misspelled `stage path_plicy`, stray `audit_notes`, or alternate-
+  (e.g., misspelled `stage_path_plicy`, stray `audit_notes`, or alternate-
   stage path smuggling under a different name) are rejected at parse time.
   This is defense-in-depth against the same typo class stage-I2 handles
   at the Stage level. Closes Codex adversarial-auditor LOW #8. Enforced
@@ -136,11 +136,11 @@ Property-based tests will cover:
   `Stage.canonical` values are pairwise distinct (stage-I5).
 - `stage.prop.canonical_set_is_enum` — For any valid Stage, if `canonical`
   is present it is an element of `CanonicalStage`.
-- `stage.prop.stage path_strict_covers_all_seven` — For any valid CompiledFlow
+- `stage.prop.stage_path_strict_covers_all_seven` — For any valid CompiledFlow
   with `stage_path_policy.mode === 'strict'`, the set of
   `Stage.canonical` values (ignoring undefined) is a superset of the seven
   canonical labels.
-- `stage.prop.stage path_partial_covers_complement` — For any valid CompiledFlow
+- `stage.prop.stage_path_partial_covers_complement` — For any valid CompiledFlow
   with `stage_path_policy.mode === 'partial'` and `omits = O`, the set of
   `Stage.canonical` values is a superset of `CanonicalStage \ O`.
 - `stage.prop.omits_disjoint_from_declared` — For any valid CompiledFlow
@@ -205,12 +205,12 @@ exist in Stage 2:
 
 ## Failure modes (carried from evidence)
 
-- `carry-forward:stage path-policy-too-loose` — Prior to this contract,
+- `carry-forward:stage-path-policy-too-loose` — Prior to this contract,
   `Stage.canonical` was optional with no cross-flow check that
   required canonical labels were present. A malformed flow could
   silently skip `review`, short-circuiting the cross-model-challenger
   check. [docs/contracts/compiled-flow.md](compiled-flow.md) v0.1 flagged this as
-  `carry-forward:stage path-policy-too-loose`. Closed by stage-I4.
+  `carry-forward:stage-path-policy-too-loose`. Closed by stage-I4.
 
 - `carry-forward:surplus-key-silent-strip` — Prior to this contract,
   `Stage` was not `.strict()`, so a typo like `conanical` (three-char

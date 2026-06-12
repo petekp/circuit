@@ -305,7 +305,7 @@ Rules, in order:
 - A `SelectionOverride` is produced by parsing a layer's authored YAML /
   TOML / JSON into an object and passing it to `SelectionOverride.safeParse`.
 - A `ResolvedSelection` is produced by the shared resolver
-  (`src/shared/selection-resolver.ts`, Slice 85) folding an ordered
+  (`src/selection/selection-resolver.ts`, Slice 85) folding an ordered
   sequence of overrides under the documented resolution semantics
   (`selection.prop.skill_override_composition_total`,
   `selection.prop.invocation_options_merge_is_right_biased`).
@@ -444,7 +444,7 @@ Stage 2 harness task where noted below.
   allowed, not what's stripped.
 
 - **step** (`src/schemas/step.ts`) — `StepBase.selection:
-  SelectionOverride.optional()` is already declared (`step.ts:L23`).
+  SelectionOverride.optional()` is already declared on `StepBase`.
   Step-level contributions enter `applied[]` under `source: 'step'`.
 
 - **flow** (`src/schemas/compiled-flow.ts`) —

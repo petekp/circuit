@@ -12,7 +12,8 @@ A host adapter is the surface that lets an orchestrator drive Circuit from a
 normal project checkout. Keep three concepts separate:
 
 - host/orchestrator: `generic-shell`, `codex`, or `claude-code`
-- flow: `explore`, `review`, `fix`, `build`, `pursue`, or a custom flow
+- flow: `explore`, `review`, `fix`, `build`, `prototype`, `pursue`, or a
+  custom flow
 - worker connector: `claude-code`, `codex`, `cursor-agent`, or a custom
   connector
 
@@ -26,7 +27,6 @@ Support claims for each host adapter are governed by
 
 Every host adapter MUST support:
 
-- Routed runs: `circuit run --goal "<task>"`.
 - Explicit runs: `circuit run <flow> --goal "<task>"`.
 - Checkpoint resume: `circuit resume --run-folder <path> --checkpoint-choice <choice>`.
 - Stable final JSON parsing from stdout.
@@ -43,7 +43,7 @@ Every host adapter MUST support:
 
 Host plugins may let the host model choose a flow before calling Circuit.
 For example, Claude Code `/circuit:run` can select Fix, Review, Build,
-Explore, or Pursue and then invoke `circuit run <flow> --goal
+Explore, Prototype, or Pursue and then invoke `circuit run <flow> --goal
 "<task>"`. Codex should start from the bundled `run` skill and may recommend a
 flow before invoking the wrapper.
 
@@ -66,7 +66,7 @@ root when invoking `run`.
 For the Codex plugin, the wrapper command is:
 
 ```bash
-node '<plugin root>/scripts/circuit.ts' run --goal '<task>'
+node '<plugin root>/scripts/circuit.ts' run <flow> --goal '<task>'
 ```
 
 The wrapper injects:

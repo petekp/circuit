@@ -67,7 +67,8 @@ enforced via `src/schemas/step.ts`, `src/schemas/check.ts`, and
   `src/schemas/step.ts`.
 
 - **STEP-I2 — Non-empty routes.** Every Step declares at least one route
-  target. The `routes` record is refined at `src/schemas/step.ts:L20-L22`
+  target. The `routes` record is refined on `StepBase.routes` in
+  `src/schemas/step.ts`
   (`Object.keys(m).length > 0`). Route target closure is enforced at the
   CompiledFlow level (see
   [docs/contracts/compiled-flow.md](compiled-flow.md) WF-I4), not in the Step
