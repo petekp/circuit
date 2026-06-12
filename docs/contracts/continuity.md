@@ -504,7 +504,7 @@ Two gaps remain, and they are gaps by design rather than defects:
 
 ## Codex adversarial review (v0.1)
 
-A narrow cross-model challenger pass (Codex via `/codex`) produced 2
+A narrow cross-model challenger pass (Codex CLI) produced 2
 HIGH + 3 MED + 1 LOW objections against this contract + schema. All
 HIGHs and MED #5 + LOW #6 are folded into v0.1. MED #3 and MED #4 are
 scoped to v0.2 with rationale in the §Resolver precedence section above.

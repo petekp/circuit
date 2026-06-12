@@ -287,7 +287,7 @@ After a `SkillSlot` is accepted:
 
 ## Codex adversarial review (v0.1)
 
-A narrow cross-model challenger pass (Codex via `/codex`) produced 1
+A narrow cross-model challenger pass (Codex CLI) produced 1
 HIGH + 5 MED + 2 LOW objections. All 8 are folded into v0.1; no items
 deferred.
 
