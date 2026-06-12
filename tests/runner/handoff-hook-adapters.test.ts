@@ -106,6 +106,7 @@ describe('handoff SessionStart hook adapters', () => {
         {
           hook_event_name: 'SessionStart',
           source: 'startup',
+          session_id: 'sess-1234',
           cwd: projectRoot,
         },
         { hookPath, launcher, capturePath, cwd: wrongCwd },
@@ -123,8 +124,43 @@ describe('handoff SessionStart hook adapters', () => {
         argv: string[];
         cwd: string;
       };
-      expect(capture.argv).toEqual(['handoff', 'brief', '--json', '--project-root', projectRoot]);
+      // Session identity rides along so the brief resolves the calling
+      // session's own ambient record (session-scoped ambient resolution).
+      expect(capture.argv).toEqual([
+        'handoff',
+        'brief',
+        '--json',
+        '--project-root',
+        projectRoot,
+        '--session-id',
+        'sess-1234',
+        '--session-source',
+        'startup',
+      ]);
       expect(realpathSync(capture.cwd)).toBe(realpathSync(projectRoot));
+    },
+  );
+
+  it.each([
+    ['claude', resolve('plugins/claude/hooks/session-start.ts')],
+    ['codex', resolve('plugins/codex/hooks/session-start.ts')],
+  ] as const)(
+    '%s adapter omits identity flags when the hook input lacks them',
+    (_name, hookPath) => {
+      const root = tempRoot('circuit-handoff-hook-no-identity-');
+      const projectRoot = join(root, 'project');
+      const capturePath = join(root, 'capture.json');
+      const launcher = writeStubLauncher(root);
+      mkdirSync(projectRoot, { recursive: true });
+
+      const result = runHook(
+        { hook_event_name: 'SessionStart', cwd: projectRoot },
+        { hookPath, launcher, capturePath, cwd: root },
+      );
+
+      expect(result.status, result.stderr).toBe(0);
+      const capture = JSON.parse(readFileSync(capturePath, 'utf8')) as { argv: string[] };
+      expect(capture.argv).toEqual(['handoff', 'brief', '--json', '--project-root', projectRoot]);
     },
   );
 
