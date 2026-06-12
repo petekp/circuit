@@ -1,6 +1,6 @@
 ---
 name: explore-tournament-decision-mode
-description: Focused design for Explore Tournament and decide routing.
+description: Focused design for Explore Tournament decision mode.
 type: product-architecture
 date: 2026-04-29
 status: implemented
@@ -8,23 +8,23 @@ status: implemented
 
 # Explore Tournament Decision Mode
 
-This note records the implemented Explore Tournament contract for `decide:`
-requests. The behavior is backed by runtime tests, generated release truth, and
-the `proof:explore-decision` golden run.
+This note records the implemented Explore Tournament contract. The tournament
+mechanics are backed by runtime tests, generated release truth, and the
+`proof:explore-decision` golden run. The deterministic `decide:` intent router
+described in early drafts was removed; routing is model-only today.
 
 ## Goal
 
 Explore Tournament is the decision mode for consequential choices.
 
-When the operator writes:
+When the operator runs:
 
 ```bash
-/circuit:run decide: choose the architecture path for <topic>
+./bin/circuit run explore --goal "choose the architecture path for <topic>" --tournament
 ```
 
-Circuit should route to Explore, run a real tournament over options, stress the
-result, pause for the tradeoff decision, and close with a readable decision
-receipt.
+Circuit runs a real tournament over options, stresses the result, pauses for
+the tradeoff decision, and closes with a readable decision receipt.
 
 The value is not "more analysis." The value is that Circuit makes the decision
 process visible:
@@ -38,11 +38,19 @@ process visible:
 
 ## Operator Contract
 
-For `decide:` requests, the router selects:
+There is no deterministic `decide:` router. Routing is model-only and a flow
+name is always required (`src/cli/run.ts`). Tournament mode is entered two
+ways:
 
-- `selected_flow: explore`
-- `entry_mode: tournament`
-- `depth: tournament`
+- explicit CLI axes:
+  `./bin/circuit run explore --goal "<decision question>" --tournament
+  [--tournament-n 2|3|4]`;
+- host-model flow choice through `/circuit:run`, where the model selects
+  Explore and the tournament axis for decision-shaped goals.
+
+Deterministic `decide:` intent routing is a tracked capability gap
+(`router:intent:decide` in
+[docs/release/readiness-report.generated.md](../release/readiness-report.generated.md)).
 
 The first run is allowed to stop at `checkpoint_waiting` after the proposal
 stress pass. After the operator answers the checkpoint, the resumed run closes
@@ -364,12 +372,10 @@ breaking the default Explore result path.
 
 ### Router
 
-The implementation slice now does this:
-
-- route `decide:` to Explore tournament;
-- record `decide:` as an implemented intent hint for Explore;
-- produce the tournament reports and checkpoint before public docs claim the
-  mode is ready.
+There is no router. Routing is model-only: the CLI requires an explicit flow
+name and never classifies goal text (`src/cli/run.ts`, `src/commands/run.md`).
+Intent hints are empty in `generated/release/current-capabilities.json`, and
+the readiness report tracks `router:intent:decide` as a known gap.
 
 ### Operator Summary
 
@@ -389,7 +395,6 @@ belong to the waiting checkpoint state.
 
 Minimum tests that clear the release blocker:
 
-- Router: `decide:` selects Explore tournament.
 - Schematic compile: Explore emits a tournament entry mode whose path includes
   Plan/Decision-stage option drafting, fanout, stress pass, checkpoint,
   decision, and close, without adding a canonical Review stage to the
@@ -404,15 +409,16 @@ Minimum tests that clear the release blocker:
   map to valid selected options.
 - Resume: after a checkpoint response, the run writes `explore.decision@v1` and
   `explore.result@v1`.
-- Release truth: the generated readiness report no longer lists
-  `router:intent:decide` as missing, but only after the proof exists.
+- Release truth: the generated readiness report tracks `router:intent:decide`
+  as a known gap; the tournament capability itself is proven by the golden
+  run, not by intent routing.
 - Golden proof: `proof:explore-decision` captures progress, operator summary,
   and result reports for a synthetic architecture decision.
 
 ## Release Truth Rules
 
-- `generated/release/current-capabilities.json` shows Explore intent hints
-  including `decide:`.
+- `generated/release/current-capabilities.json` carries no intent hints;
+  the readiness report records `router:intent:decide` as a tracked gap.
 - `generated/flows/explore/tournament.json` exposes the tournament path.
 - [docs/release/proofs/index.yaml](../release/proofs/index.yaml) marks
   `proof:explore-decision` as verified current.
@@ -433,15 +439,17 @@ Minimum tests that clear the release blocker:
   as `Hybrid path` and `Defer pending evidence`.
 - `no-clear-winner` still reaches the bounded checkpoint; the checkpoint offers
   only final option choices that can safely advance into Compose Decision.
-- The only public command surface is `/circuit:run decide:`. There is no direct
-  `/circuit:tournament` command.
+- The public surfaces are `/circuit:run` (model-routed) and the CLI's
+  `run explore --tournament` axes. There is no direct `/circuit:tournament`
+  command and no `decide:` prefix routing.
 
 ## Implemented Order
 
 1. Add the report schemas and a stubbed design test for the tournament path.
 2. Add schematic/compiler support for fanout authoring and relay fanout.
 3. Add the Explore tournament graph and writers.
-4. Add router support for `decide:`.
+4. Add router support for `decide:` (since removed; routing is model-only
+   today).
 5. Regenerate release truth.
 6. Add the golden proof before clearing the remaining readiness blocker.
 

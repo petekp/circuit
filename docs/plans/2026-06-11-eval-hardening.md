@@ -1,8 +1,14 @@
 # Eval hardening — implementation plan (handoff)
 
-Status: ready to execute. Written 2026-06-11 after the first live baseline
-eval runs on post-rearchitecture main. This document is self-contained:
-execute it without needing the authoring session's context.
+Status: completed 2026-06-11. Phase A landed via PR #61 (merge 547d12c2);
+Phases B and C via PR #63 (merge b7658722, the same commit that added this
+document). Outcome audit: docs/audits/2026-06-11-eval-heldout-hardening.md.
+Do not re-execute: Phase C contains live paid model runs. Sizing and
+methodology are now owned by docs/evals/theses-and-hypotheses.md, which
+replaces this plan's 8-10 held-out target with a power-based target of
+roughly 25-40 discriminating tasks at 3 reps each (the shipped held-out set
+is 4 tasks by design). Written 2026-06-11 after the first live baseline
+eval runs on post-rearchitecture main.
 
 ## Mission
 

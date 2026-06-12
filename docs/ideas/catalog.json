@@ -131,11 +131,11 @@
     {
       "path": "docs/ideas/continuity-restore-fast-robust.md",
       "title": "Faster, more robust continuity restore",
-      "status": "current-idea",
+      "status": "implemented",
       "category": "memory-and-ratchet",
       "tags": ["continuity", "handoff", "ambient", "restore", "robustness"],
-      "current_reading": "Probe-grounded design exploration of the SessionStart brief and Stop/SessionEnd harvest paths. Finds restore latency is already fast and recommends visibility, staleness signal, throttled incremental harvest, and per-session records over a daemon. Design only, nothing built.",
-      "last_checked": "2026-06-06"
+      "current_reading": "Probe-grounded design exploration of the SessionStart brief and Stop/SessionEnd harvest paths. All recommendations shipped in PR #44 (merge 18e13ac1): visible restore failures with fall-through, staleness signal, Codex nudge, incremental harvest cursor, summary spine, per-session records, and clear semantics. Pre-implementation probes inside are historical.",
+      "last_checked": "2026-06-12"
     },
     {
       "path": "docs/ideas/continuity-staleness-check.md",
@@ -381,6 +381,15 @@
       "tags": ["run-captures", "portability", "sharing"],
       "current_reading": "Idea for exporting successful Runs as reusable team or personal process patterns. Future behavior.",
       "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/positioning-and-strategy.md",
+      "title": "Circuit positioning and strategy workshop notes",
+      "status": "current-strategy-context",
+      "category": "strategy-and-comparisons",
+      "tags": ["positioning", "strategy", "messaging", "market-scan"],
+      "current_reading": "Point-in-time positioning workshop notes from May 2026, moved from docs/ root. The Section 4 control matrix predates the power dial and the Prototype flow; validate claims against code and release evidence before reuse.",
+      "last_checked": "2026-06-12"
     },
     {
       "path": "docs/ideas/pre-execution-memory-comparison.md",

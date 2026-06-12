@@ -31,7 +31,7 @@ work, recover a run, or write files.
 
 - Circuit already writes per-run reports and schema-versioned JSON. Cross-run
   query/recall and agent-side consumption are still gaps. See
-  [docs/positioning-and-strategy.md:167-175](../positioning-and-strategy.md#L167-L175).
+  [docs/ideas/positioning-and-strategy.md:167-175](../ideas/positioning-and-strategy.md#L167-L175).
 - The CLI currently lists `run`, `resume`, `runs show`, `handoff`, `create`,
   and `version`, but no `history` command. See `src/cli/circuit.ts`.
 - Release notes explicitly did not ship cross-run project-memory query and

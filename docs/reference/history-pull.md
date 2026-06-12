@@ -19,15 +19,18 @@ approaches, or when the run-start recall block was empty or narrow — the agent
 
 ```
 circuit history pull --json --flow <flow-id> --decision-point <label> \
-  --run-folder <path> [--limit <n>] [--per-run-limit <n>] <query...>
+  [--run-folder <path>] [--limit <n>] [--per-run-limit <n>] <query...>
 ```
 
 - `--flow` (required) — suppression keys on the flow, so a hint that measurably
   misled comparable runs of this flow is not re-surfaced by the back door.
 - `--decision-point` (required) — a short label for the audit (e.g.
   `before-editing-auth-guard`).
-- `--run-folder` (required) — the active run folder; the pull-log entry is
-  appended to `<run-folder>/reports/history/pull-log.json`.
+- `--run-folder` (recommended, not enforced) — the active run folder; the
+  pull-log entry is appended to `<run-folder>/reports/history/pull-log.json`.
+  Omitting it skips the log append and surfaces a `pull_log_unavailable`
+  warning ("no --run-folder supplied; the pull returned results but was not
+  logged") instead of failing.
 
 In a relay prompt these three are pre-filled: the run folder and flow are
 interpolated into the always-on affordance line, so only `--decision-point` and

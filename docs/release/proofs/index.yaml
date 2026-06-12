@@ -1,9 +1,9 @@
 schema_version: 1
 scenarios:
   - id: proof:routed-build
-    title: Routed Build
+    title: Build (explicit flow)
     category: doing-work
-    command: './bin/circuit run --goal "develop: add a small safe change" --progress jsonl'
+    command: './bin/circuit run build --goal "develop: add a small safe change" --progress jsonl'
     expected_flow: build
     expected_outcome: complete or needs_attention
     summary_contract: Summary states selected work type, changes, verification, review, risk, and next action.
@@ -108,7 +108,7 @@ scenarios:
   - id: proof:fix
     title: Fix
     category: doing-work
-    command: './bin/circuit run --goal "fix: restore the failing login test" --progress jsonl'
+    command: './bin/circuit run fix --goal "quick fix: restore the failing login test" --progress jsonl'
     expected_flow: fix
     expected_outcome: complete or needs_attention
     summary_contract: Summary shows repro/diagnosis, fix, verification, review policy, and next action.

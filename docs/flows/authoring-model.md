@@ -89,7 +89,7 @@ A schematic step binds a block to a specific flow purpose.
 Typical step concerns:
 
 - `id`: stable step id.
-- `uses`: block id.
+- `block`: block id.
 - `stage`: canonical stage for this step.
 - `input`: named report contracts consumed by the step.
 - `output`: report contract produced by the step.
