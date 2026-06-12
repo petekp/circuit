@@ -12,8 +12,12 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       '.claude/**',
-      // Benchmark fixtures are tiny standalone repos with intentionally failing Node tests.
-      'evals/fix-vs-vanilla/tasks/**/repo/**',
+      // Benchmark fixtures are tiny standalone repos with intentionally failing
+      // Node tests, plus hidden objective-check tests under objective/ that only
+      // resolve once the runner overlays them onto a repo copy. None of the task
+      // tree is a repo unit test — the harness runs it in isolated copies — so
+      // exclude the whole tree, not just repo/ (objective/ would otherwise slip past).
+      'evals/fix-vs-vanilla/tasks/**',
       'evals/fix-vs-vanilla/results/**',
     ],
     coverage: {
