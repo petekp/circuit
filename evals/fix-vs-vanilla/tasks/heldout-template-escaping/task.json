@@ -1,8 +1,8 @@
 {
   "id": "heldout-template-escaping",
-  "split": "held-out",
-  "provenance": "held-out-created",
-  "tuning_used": false,
+  "split": "regression",
+  "provenance": "regression-demoted",
+  "tuning_used": true,
   "prompt": "Fix the template renderer. It should replace unescaped `{{ path }}` placeholders with nested data values, render falsey values such as `0` and `false`, leave missing placeholders unchanged, and treat a backslash immediately before `{{` as an escape that emits the placeholder literally without the backslash. Replacements are one pass: inserted values are not rendered again. The regression command is `npm test`; it should fail before the fix and pass after the fix. Keep the change focused.",
   "checks": [
     {

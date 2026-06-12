@@ -1,8 +1,8 @@
 {
   "id": "heldout-cidr-prefix-zero",
-  "split": "held-out",
-  "provenance": "held-out-created",
-  "tuning_used": false,
+  "split": "regression",
+  "provenance": "regression-demoted",
+  "tuning_used": true,
   "prompt": "Fix the IPv4 CIDR membership helper. Prefix `/0` must match every valid IPv4 address, `/32` must be exact, and high-bit addresses must compare correctly. IPv4 input is strict dotted decimal: exactly four octets, each 0-255, with no leading zeroes except the single digit `0`. Invalid CIDR strings or IP addresses should return `false`, not throw. The regression command is `npm test`; it should fail before the fix and pass after the fix. Keep the change focused.",
   "checks": [
     {

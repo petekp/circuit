@@ -1,0 +1,13 @@
+{
+  "id": "heldout-normalize-email",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "multi-site-duplication",
+  "prompt": "Two people who sign up with the same email but different capitalization end up as separate accounts. Make email handling case-insensitive in src/email.mjs. The regression command is `npm test`; it should fail before the fix and pass after the fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "email-key", "hidden": true, "argv": ["node", "tests/email.key.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/email.mjs"]
+}

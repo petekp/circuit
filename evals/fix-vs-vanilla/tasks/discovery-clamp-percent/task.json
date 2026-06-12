@@ -1,0 +1,13 @@
+{
+  "id": "discovery-clamp-percent",
+  "split": "discovery",
+  "provenance": "discovery-created",
+  "tuning_used": true,
+  "archetype": "weak-repro",
+  "prompt": "Users report that percentages above 100% show up as-is on the dashboard, for example 150% instead of being capped at 100%. Fix `clampPercent(value)` in src/percent.mjs so a percentage is clamped to a sensible bound. The regression command is `npm test`; it should fail before the fix and pass after the fix. Keep the change focused.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "lower-bound", "hidden": true, "argv": ["node", "tests/percent.lower-bound.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/percent.mjs"]
+}

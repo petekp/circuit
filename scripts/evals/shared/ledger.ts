@@ -126,6 +126,11 @@ export function buildFixLedgerEntry(summary: unknown, options: FixLedgerOptions)
       effort: asString(s.effort) ?? 'unknown',
       set: options.set ?? asString(s.set) ?? 'unknown',
       circuit_mode: asString(s.circuit_mode) ?? 'unknown',
+      // Power axis. circuit_power is the requested dial (empty -> CLI
+      // default-on medium); pin_model marks a same-model control run. Older
+      // summaries predate these fields, so they read as the legacy default.
+      circuit_power: asString(s.circuit_power) || 'default',
+      pin_model: String(s.pin_model === true),
       claim_supported: String(claim.supported === true),
     },
     metrics: collectMetrics([

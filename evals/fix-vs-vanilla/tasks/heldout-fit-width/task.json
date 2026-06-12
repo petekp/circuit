@@ -1,0 +1,13 @@
+{
+  "id": "heldout-fit-width",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "weak-repro",
+  "prompt": "Short labels in our table look ragged because they do not fill the column. Fix `fitWidth(str, n)` in src/fit.mjs so a label is sized to the column width `n`. The regression command is `npm test`; it should fail before the fix and pass after the fix. Keep the change focused.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "fit-trim", "hidden": true, "argv": ["node", "tests/fit.trim.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/fit.mjs"]
+}
