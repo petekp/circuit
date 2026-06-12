@@ -37,9 +37,11 @@ export const flowDefinitions: readonly FlowDefinition[] = [
 export const flowPackages: readonly CompiledFlowPackage[] = compileFlowDefinitions(flowDefinitions);
 
 // Canonical flow-id list — every id the engine knows about, in catalog
-// order. Derived from the single flowPackages aggregation so a new flow
-// is reflected everywhere that reserves or enumerates flow ids (e.g. the
-// custom-flow create command's reserved-slug guard) without a second edit.
+// order. Derived from the single flowPackages aggregation so every runtime
+// consumer that reserves or enumerates flow ids (e.g. the custom-flow create
+// command's reserved-slug guard) tracks the catalog automatically. The test
+// layer is deliberately not derived: tests/fixtures/retained-flow-ids.ts pins
+// the roster by hand, so adding or removing a flow is a reviewed edit there.
 export const catalogFlowIds: readonly string[] = flowPackages.map((pkg) => pkg.id);
 
 const PACKAGES_BY_ID: ReadonlyMap<string, CompiledFlowPackage> = (() => {
