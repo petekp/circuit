@@ -170,6 +170,15 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/doc-rot-gates-phase-2.md",
+      "title": "Doc-rot gates, phase 2",
+      "status": "current-proposal",
+      "category": "verification-and-evals",
+      "tags": ["doc-rot", "deterministic-gates", "doc-classes", "circuit-land", "release-blocker"],
+      "current_reading": "Phase-2 proposal from the 2026-06-12 pristine sweep. Phase-1 gates (doc-class manifest, path gate, retired-vocabulary registry, command-claims lint, site content gate) are built; everything in this doc is proposed, not shipped.",
+      "last_checked": "2026-06-12"
+    },
+    {
       "path": "docs/ideas/dynamic-flow-ratchet.md",
       "title": "Dynamic flow composition as a ratchet for coding agents",
       "status": "current-idea",

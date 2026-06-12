@@ -62,6 +62,7 @@ every later extension in the note shipped.
 | --- | --- | --- |
 | [`adversarial-verification-gates.md`](adversarial-verification-gates.md) | `current-idea` | Independent refutation gate for model-judged claims plus verify-then-escalate retries. Companion to per-step validation. |
 | [`build-flow-evaluation.md`](build-flow-evaluation.md) | `design-evaluation` | Design evaluation of Build behavior and proposed changes. Its own status says nothing there is shipped. |
+| [`doc-rot-gates-phase-2.md`](doc-rot-gates-phase-2.md) | `current-proposal` | Phase-2 proposal from the 2026-06-12 pristine sweep. Phase-1 gates (doc-class manifest, path gate, retired-vocabulary registry, command-claims lint, site content gate) are built; everything in this doc is proposed, not shipped. |
 | [`flow-eval-suites-implementation.md`](flow-eval-suites-implementation.md) | `current-proposal` | Proposal for suite manifests, adapter runners, and a standard result envelope around existing evals. Not current behavior. |
 | [`per-step-validation-check.md`](per-step-validation-check.md) | `partially-implemented` | Runtime steps validate typed reports, but the specific per-step validation-check product idea is not a separate shipped block. |
 
