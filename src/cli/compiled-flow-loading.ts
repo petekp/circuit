@@ -80,7 +80,12 @@ export function defaultChildCompiledFlowResolver(
   flowRoot: string | undefined,
 ): ChildCompiledFlowResolver {
   return (ref) => {
-    const compiledFlowPath = resolveCompiledFlowPath(ref.flowId, ref.entryMode, undefined, flowRoot);
+    const compiledFlowPath = resolveCompiledFlowPath(
+      ref.flowId,
+      ref.entryMode,
+      undefined,
+      flowRoot,
+    );
     const { bytes } = loadCompiledFlow(compiledFlowPath);
     return { flowBytes: bytes };
   };
