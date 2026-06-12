@@ -23,9 +23,9 @@ import type { RelayFn } from '../shared/relay-runtime-types.js';
 import {
   axisSupportFromFlow,
   defaultChildCompiledFlowResolver,
-  loadFixture,
-  resolveFixturePath,
-} from './flow-fixtures.js';
+  loadCompiledFlow,
+  resolveCompiledFlowPath,
+} from './compiled-flow-loading.js';
 
 // The autonomous continuation loop's live flow runner, extracted from
 // runExecutionCommand (src/cli/run.ts). Attempt 1 reuses the primary run's
@@ -73,8 +73,8 @@ export function createRecoveryAttemptRunner(deps: RecoveryAttemptRunnerDeps): Li
     }
     let recoveryFlow = recoveryFlowCache.get(processId);
     if (recoveryFlow === undefined) {
-      const path = resolveFixturePath(processId, fixtureSelectionName, undefined, flowRoot);
-      const loaded = loadFixture(path);
+      const path = resolveCompiledFlowPath(processId, fixtureSelectionName, undefined, flowRoot);
+      const loaded = loadCompiledFlow(path);
       // Guard the routed recovery flow the same way the primary run is
       // guarded: the loaded fixture's declared id must match the routed
       // process, so the loop can never silently run a different flow than

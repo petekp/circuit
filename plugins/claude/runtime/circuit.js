@@ -65052,10 +65052,10 @@ function discoverRuntimeConfigLayers(options = {}) {
   return { selectionConfigLayers, policyLayers };
 }
 
-// dist/cli/flow-fixtures.js
+// dist/cli/compiled-flow-loading.js
 import { existsSync as existsSync35, readFileSync as readFileSync50 } from "node:fs";
 import { resolve as resolve23 } from "node:path";
-function resolveFixturePath(flowName, modeName, override, flowRoot2) {
+function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   if (override !== void 0)
     return resolve23(override);
   const root = resolve23(flowRoot2 ?? "generated/flows");
@@ -65066,7 +65066,7 @@ function resolveFixturePath(flowName, modeName, override, flowRoot2) {
   }
   return resolve23(root, flowName, "circuit.json");
 }
-function fixtureSelectionNameForAxes(axes) {
+function compiledFlowSelectionNameForAxes(axes) {
   if (axes.tournament)
     return "tournament";
   if (axes.autonomous)
@@ -65085,24 +65085,24 @@ function axisSupportFromAxes(axes) {
 function axisSupportFromFlow(input) {
   return axisSupportFromAxes(input.flow.axes);
 }
-function loadFixture(fixturePath) {
-  if (!existsSync35(fixturePath)) {
-    throw new Error(`flow fixture not found: ${fixturePath}`);
+function loadCompiledFlow(compiledFlowPath) {
+  if (!existsSync35(compiledFlowPath)) {
+    throw new Error(`compiled flow not found: ${compiledFlowPath}`);
   }
-  const bytes = readFileSync50(fixturePath);
+  const bytes = readFileSync50(compiledFlowPath);
   const raw = JSON.parse(bytes.toString("utf8"));
   const flow = CompiledFlow.parse(raw);
   const policy2 = validateCompiledFlowKindPolicy(flow);
   if (!policy2.ok) {
-    throw new Error(`flow fixture policy violation (${fixturePath}):
+    throw new Error(`compiled flow policy violation (${compiledFlowPath}):
   ${policy2.reason}`);
   }
   return { flow, bytes };
 }
 function defaultChildCompiledFlowResolver(flowRoot2) {
   return (ref) => {
-    const fixturePath = resolveFixturePath(ref.flowId, ref.entryMode, void 0, flowRoot2);
-    const { bytes } = loadFixture(fixturePath);
+    const compiledFlowPath = resolveCompiledFlowPath(ref.flowId, ref.entryMode, void 0, flowRoot2);
+    const { bytes } = loadCompiledFlow(compiledFlowPath);
     return { flowBytes: bytes };
   };
 }
@@ -65268,8 +65268,8 @@ function createRecoveryAttemptRunner(deps) {
     }
     let recoveryFlow = recoveryFlowCache.get(processId);
     if (recoveryFlow === void 0) {
-      const path = resolveFixturePath(processId, fixtureSelectionName, void 0, flowRoot2);
-      const loaded = loadFixture(path);
+      const path = resolveCompiledFlowPath(processId, fixtureSelectionName, void 0, flowRoot2);
+      const loaded = loadCompiledFlow(path);
       const loadedFlowId = loaded.flow.id;
       if (loadedFlowId !== processId) {
         throw new Error(`recovery flow fixture id mismatch: routed to '${processId}' but fixture declares '${loadedFlowId}'`);
@@ -65835,8 +65835,8 @@ async function runExecutionCommand(args, options) {
     return 2;
   }
   const entryModeSelection = resolveEntryModeSelection(args);
-  const fixtureSelectionName = fixtureSelectionNameForAxes(args.axes);
-  const fixturePath = resolveFixturePath(route.flowName, fixtureSelectionName, args.fixturePath, args.flowRoot);
+  const fixtureSelectionName = compiledFlowSelectionNameForAxes(args.axes);
+  const fixturePath = resolveCompiledFlowPath(route.flowName, fixtureSelectionName, args.fixturePath, args.flowRoot);
   if (!existsSync36(fixturePath)) {
     const pkg = findCompiledFlowPackageById(route.flowName);
     if (pkg?.visibility === "internal") {
@@ -65845,7 +65845,7 @@ async function runExecutionCommand(args, options) {
       return 2;
     }
   }
-  const { flow, bytes } = loadFixture(fixturePath);
+  const { flow, bytes } = loadCompiledFlow(fixturePath);
   assertFixtureMatchesRoute(flow, route);
   try {
     validateFlowAxes({ flow, args, route, fixturePath });

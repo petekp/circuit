@@ -145,11 +145,11 @@ The entry mode is a display and fixture-selection name derived from axes:
 There are two related names:
 
 - `axisSelectionNameForAxes` prefers autonomous before tournament.
-- `fixtureSelectionNameForAxes` prefers tournament before autonomous.
+- `compiledFlowSelectionNameForAxes` prefers tournament before autonomous.
 
 That means a combined autonomous+tournament axes object is displayed as
-`autonomous`, but fixture lookup first tries the tournament fixture. This is
-current behavior and should be treated carefully if the axes are redesigned.
+`autonomous`, but the compiled-flow lookup first tries the tournament file. This
+is current behavior and should be treated carefully if the axes are redesigned.
 
 Runtime depth is the normalized depth label passed into the runtime:
 
