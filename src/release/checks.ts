@@ -184,6 +184,22 @@ export function compareParity(input: {
   return { issues, warnings };
 }
 
+// The one public claim that must enumerate the entire public flow catalog.
+// Its backing `flow:*` capabilities are gated for completeness — not merely
+// "each listed flow is implemented" but "the listed flows are exactly the
+// catalog's flows" — so adding or removing a flow without updating this claim
+// fails the release check instead of drifting silently.
+export const FLOW_CATALOG_CLAIM_ID = 'CLAIM-FLOW-CATALOG-CURRENT';
+const FLOW_CAPABILITY_PREFIX = 'flow:';
+
+function flowCapabilityIds(ids: Iterable<string>): string[] {
+  const flowIds = new Set<string>();
+  for (const id of ids) {
+    if (id.startsWith(FLOW_CAPABILITY_PREFIX)) flowIds.add(id);
+  }
+  return [...flowIds].sort();
+}
+
 export function validatePublicClaims(input: {
   readonly claims: PublicClaimLedger;
   readonly current: CurrentCapabilitySnapshot;
@@ -239,6 +255,30 @@ export function validatePublicClaims(input: {
 
     if (claim.status === 'planned' && backing.exception_ids.length > 0) {
       warnings.push(`planned claim ${claim.id} has exception backing; keep wording future-facing`);
+    }
+  }
+
+  // Completeness, not just backing: when the flow-catalog claim is present its
+  // flow capability set must EQUAL the catalog-derived flow set. The per-claim
+  // loop above only proves each listed flow is implemented; this proves none is
+  // missing, so a newly added flow cannot ship while the claim still names the
+  // old roster. (Absence of the claim is gated by a release test, not here, so
+  // the unit checks that pass minimal ledgers stay focused.)
+  const flowCatalogClaim = input.claims.claims.find((claim) => claim.id === FLOW_CATALOG_CLAIM_ID);
+  if (flowCatalogClaim !== undefined) {
+    const catalogFlowIds = flowCapabilityIds(currentById.keys());
+    const claimedFlowIds = flowCapabilityIds(flowCatalogClaim.backing.capability_ids);
+    for (const id of catalogFlowIds) {
+      if (!claimedFlowIds.includes(id)) {
+        issues.push(`claim ${FLOW_CATALOG_CLAIM_ID} omits catalog flow capability: ${id}`);
+      }
+    }
+    for (const id of claimedFlowIds) {
+      if (!catalogFlowIds.includes(id)) {
+        issues.push(
+          `claim ${FLOW_CATALOG_CLAIM_ID} lists flow capability absent from the catalog: ${id}`,
+        );
+      }
     }
   }
 

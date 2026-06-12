@@ -20,17 +20,9 @@ and compiles them into the package surface used by the router, runtime
 registries, generated schematic JSON, generated compiled manifests, and host
 plugin mirrors.
 
-The current production flow set, in catalog order
-(`src/flows/catalog.ts` is the locked source of truth), is:
-
-- `review`
-- `fix`
-- `pursue`
-- `runtime-proof` (internal)
-- `prototype`
-- `build`
-- `explore`
-- `goal` (internal)
+The current production flow set, in catalog order, is owned by
+`src/flows/catalog.ts` — the locked source of truth, which also marks which
+flows are internal.
 
 ## Current State
 
