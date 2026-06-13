@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FlowAxes } from './axes.js';
+import { EngineFlagsManifest } from './engine-flags.js';
 import { CompiledFlowId, StepId } from './ids.js';
 import { RUNTIME_SUCCESS_ROUTE } from './route-policy.js';
 import { SelectionOverride } from './selection-policy.js';
@@ -9,34 +10,13 @@ import { Step } from './step.js';
 const TERMINAL_ROUTE_TARGETS = new Set(['@complete', '@stop', '@escalate', '@handoff']);
 
 // Stage 3 (first-class composition): engine-visible behavior flags carried ON
-// the compiled manifest, in snake_case to match the rest of this schema. They
-// mirror `CompiledFlowEngineFlags` in src/flows/types.ts but live here so a
-// composed or published custom flow — which has no catalog package — can still
-// declare behavior the engine branches on. The engine resolves the effective
-// flags through `resolveEngineFlags`, preferring the manifest and falling back
-// to the by-id package per field during the migration. Absent = no flags.
-const CompiledFlowManifestEngineFlags = z
-  .object({
-    binds_execution_depth_to_relay_selection: z.boolean().optional(),
-    binds_terminal_outcome_to_primary_result: z.boolean().optional(),
-    iterates_slice_loop: z
-      .object({
-        head_step: z.string().min(1),
-        tail_step: z.string().min(1),
-        advance_route: z.string().min(1),
-        slices_from: z
-          .object({
-            report: z.string().min(1),
-            items_path: z.string().min(1),
-          })
-          .strict(),
-        max_slices: z.number().int().positive(),
-        activate_when_depth_at_least: z.literal('high'),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict();
+// the compiled manifest, in snake_case to match the rest of this schema. The
+// shape is shared with the authored schematic (`EngineFlagsManifest`) so a flow
+// — built-in or composed — declares behavior once and it travels through the
+// compiler to the manifest. The engine resolves the effective flags through
+// `resolveEngineFlags`, preferring the manifest and falling back to the by-id
+// package per field during the migration. Absent = no flags.
+const CompiledFlowManifestEngineFlags = EngineFlagsManifest;
 export type CompiledFlowManifestEngineFlags = z.infer<typeof CompiledFlowManifestEngineFlags>;
 
 const CompiledFlowBody = z

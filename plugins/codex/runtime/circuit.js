@@ -25611,6 +25611,23 @@ var FlowAxes = external_exports.object({
   }
 });
 
+// dist/schemas/engine-flags.js
+var EngineFlagsManifest = external_exports.object({
+  binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
+  binds_terminal_outcome_to_primary_result: external_exports.boolean().optional(),
+  iterates_slice_loop: external_exports.object({
+    head_step: external_exports.string().min(1),
+    tail_step: external_exports.string().min(1),
+    advance_route: external_exports.string().min(1),
+    slices_from: external_exports.object({
+      report: external_exports.string().min(1),
+      items_path: external_exports.string().min(1)
+    }).strict(),
+    max_slices: external_exports.number().int().positive(),
+    activate_when_depth_at_least: external_exports.literal("high")
+  }).strict().optional()
+}).strict();
+
 // dist/schemas/route-policy.js
 var RUNTIME_SUCCESS_ROUTE = "pass";
 var SCHEMATIC_SUCCESS_ROUTE_ALIASES = ["continue", "complete"];
@@ -26978,21 +26995,7 @@ var RouteMap = StepBase.shape.routes;
 
 // dist/schemas/compiled-flow.js
 var TERMINAL_ROUTE_TARGETS = /* @__PURE__ */ new Set(["@complete", "@stop", "@escalate", "@handoff"]);
-var CompiledFlowManifestEngineFlags = external_exports.object({
-  binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
-  binds_terminal_outcome_to_primary_result: external_exports.boolean().optional(),
-  iterates_slice_loop: external_exports.object({
-    head_step: external_exports.string().min(1),
-    tail_step: external_exports.string().min(1),
-    advance_route: external_exports.string().min(1),
-    slices_from: external_exports.object({
-      report: external_exports.string().min(1),
-      items_path: external_exports.string().min(1)
-    }).strict(),
-    max_slices: external_exports.number().int().positive(),
-    activate_when_depth_at_least: external_exports.literal("high")
-  }).strict().optional()
-}).strict();
+var CompiledFlowManifestEngineFlags = EngineFlagsManifest;
 var CompiledFlowBody = external_exports.object({
   schema_version: external_exports.literal("3"),
   id: CompiledFlowId,
@@ -28434,7 +28437,13 @@ var FlowSchematic = external_exports.object({
   axes: FlowAxes.optional(),
   stage_path_policy: SpinePolicy.optional(),
   stages: external_exports.array(SchematicStage).optional(),
-  default_selection: SelectionOverride.optional()
+  default_selection: SelectionOverride.optional(),
+  // Stage 3 (first-class composition): engine-visible behavior flags the flow
+  // DECLARES on its schematic. The compiler propagates them verbatim to the
+  // compiled manifest's `engine_flags`, where the engine reads them through
+  // `resolveEngineFlags`. Absent = the flow declares none (the engine then
+  // resolves any from the by-id catalog package during the migration).
+  engine_flags: EngineFlagsManifest.optional()
 }).strict().superRefine((schematic, ctx) => {
   const itemIds = /* @__PURE__ */ new Map();
   for (const [index, item] of schematic.items.entries()) {
@@ -38539,7 +38548,15 @@ var goalFlowData = {
           stop: "@stop"
         }
       }
-    ]
+    ],
+    // Stage 3 (first-class composition): goal is the first flow rehomed off the
+    // by-id catalog package onto its manifest. It DECLARES the terminal-outcome
+    // bind here on the schematic; the compiler propagates it to the compiled
+    // manifest, and the engine reads it through `resolveEngineFlags`. The
+    // package no longer carries engineFlags (see below).
+    engine_flags: {
+      binds_terminal_outcome_to_primary_result: true
+    }
   },
   canonicalStagePolicy: {
     kind: "enforce",
@@ -38686,10 +38703,11 @@ var goalFlowData = {
         { stepId: "goal-close", taskTitle: "Wrap up", activeText: "Wrapping up" }
       ]
     }
-  },
-  engineFlags: {
-    bindsTerminalOutcomeToPrimaryResult: true
   }
+  // Stage 3 (first-class composition): goal's engine flags now live on its
+  // schematic (see `schematic.engine_flags` above), so they travel on the
+  // compiled manifest. The package intentionally carries no engineFlags; the
+  // engine resolves the terminal-outcome bind from the manifest.
 };
 
 // dist/flows/goal/flow.js
@@ -53153,7 +53171,12 @@ var FLOW_KEYS = /* @__PURE__ */ new Set([
   "stages",
   "stage_path_policy",
   "steps",
-  "default_selection"
+  "default_selection",
+  // Stage 3 (first-class composition): engine-visible behavior flags. They
+  // describe how the engine runs the flow, not the authority/proof/recovery
+  // surface the work contract projects, so they are classified here without
+  // contributing a hint.
+  "engine_flags"
 ]);
 var STAGE_KEYS = /* @__PURE__ */ new Set(["id", "title", "canonical", "steps", "selection"]);
 var STEP_KEYS = {

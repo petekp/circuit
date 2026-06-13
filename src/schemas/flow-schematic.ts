@@ -4,6 +4,7 @@ import { FlowAxes } from './axes.js';
 import { ChangeKind } from './change-kind.js';
 import { CheckpointAllowFrom, FanoutJoinPolicy } from './check.js';
 import { CompiledDepth } from './depth.js';
+import { EngineFlagsManifest } from './engine-flags.js';
 import {
   FlowBlockCatalog,
   type FlowBlockCatalog as FlowBlockCatalogValue,
@@ -509,6 +510,12 @@ export const FlowSchematic = z
     stage_path_policy: SpinePolicy.optional(),
     stages: z.array(SchematicStage).optional(),
     default_selection: SelectionOverride.optional(),
+    // Stage 3 (first-class composition): engine-visible behavior flags the flow
+    // DECLARES on its schematic. The compiler propagates them verbatim to the
+    // compiled manifest's `engine_flags`, where the engine reads them through
+    // `resolveEngineFlags`. Absent = the flow declares none (the engine then
+    // resolves any from the by-id catalog package during the migration).
+    engine_flags: EngineFlagsManifest.optional(),
   })
   .strict()
   .superRefine((schematic, ctx) => {

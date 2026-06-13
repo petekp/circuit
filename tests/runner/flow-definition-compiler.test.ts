@@ -544,8 +544,17 @@ describe('FlowDefinition compiler', () => {
     expect(packageFor('prototype').engineFlags).toEqual({
       bindsExecutionDepthToRelaySelection: true,
     });
-    expect(packageFor('goal').engineFlags).toEqual({
-      bindsTerminalOutcomeToPrimaryResult: true,
-    });
+    // Stage 3 (first-class composition): goal is the first flow rehomed off the
+    // package onto its manifest. Its package no longer carries engineFlags; the
+    // terminal-outcome bind now rides the compiled manifest's engine_flags and
+    // the engine reads it through resolveEngineFlags. (build and prototype stay
+    // on the package above until the Stage 5 bulk rehome.)
+    expect(packageFor('goal').engineFlags).toBeUndefined();
+    const goalCompiled = compileSchematicToCompiledFlow(
+      schematicForFlowDefinition(definitionFor('goal')),
+    );
+    const goalFlow =
+      goalCompiled.kind === 'single' ? goalCompiled.flow : goalCompiled.flows.get('default');
+    expect(goalFlow?.engine_flags).toEqual({ binds_terminal_outcome_to_primary_result: true });
   });
 });

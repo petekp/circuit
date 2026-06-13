@@ -479,6 +479,14 @@ export const goalFlowData = {
         },
       },
     ],
+    // Stage 3 (first-class composition): goal is the first flow rehomed off the
+    // by-id catalog package onto its manifest. It DECLARES the terminal-outcome
+    // bind here on the schematic; the compiler propagates it to the compiled
+    // manifest, and the engine reads it through `resolveEngineFlags`. The
+    // package no longer carries engineFlags (see below).
+    engine_flags: {
+      binds_terminal_outcome_to_primary_result: true,
+    },
   },
   canonicalStagePolicy: {
     kind: 'enforce',
@@ -626,7 +634,8 @@ export const goalFlowData = {
       ],
     },
   },
-  engineFlags: {
-    bindsTerminalOutcomeToPrimaryResult: true,
-  },
+  // Stage 3 (first-class composition): goal's engine flags now live on its
+  // schematic (see `schematic.engine_flags` above), so they travel on the
+  // compiled manifest. The package intentionally carries no engineFlags; the
+  // engine resolves the terminal-outcome bind from the manifest.
 } satisfies FlowData;
