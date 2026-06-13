@@ -1,0 +1,13 @@
+{
+  "id": "heldout-roster-desk",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "weak-repro",
+  "prompt": "Our seating-chart helper misbehaves on chart cells that have no desk marked. In src/roster-desk.mjs, deskOf reads the desk assignment out of one printed chart cell. For a cell without a \"#\" assignment, like \"Okafor, Chidi\", it should come back with an empty string, but instead it echoes the whole cell text back. Please fix deskOf so an unassigned cell comes back empty. npm test currently fails on this case and must pass after your fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "desk-contract", "hidden": true, "argv": ["node", "tests/roster-desk.contract.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/roster-desk.mjs"]
+}

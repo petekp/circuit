@@ -1,0 +1,13 @@
+{
+  "id": "heldout-attachment-bytes",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "multi-site-duplication",
+  "prompt": "Our approval packet tool runs a pre-flight check before a packet goes out for sign-off, and it is blocking packets it should not. A coordinator attached a 30 KB site survey with the per-file cap set to 32 KB, and the pre-flight flagged it as over the cap. The bug is in `oversizedAttachments` in `src/attachments.mjs`. Fix it so the pre-flight stops flagging attachments that are under the cap. The regression command is `npm test`.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "archive-budget", "hidden": true, "argv": ["node", "tests/attachments.archive.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/attachments.mjs"]
+}

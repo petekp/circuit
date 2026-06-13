@@ -53,7 +53,19 @@
     ],
     "held-out": [
       "heldout-normalize-email",
-      "heldout-wrap-index"
+      "heldout-wrap-index",
+      "heldout-agenda-fingerprint",
+      "heldout-attachment-bytes",
+      "heldout-carousel-zone",
+      "heldout-drop-bay",
+      "heldout-exif-grade",
+      "heldout-fixture-status",
+      "heldout-playlist-loop-segment",
+      "heldout-roster-desk",
+      "heldout-sensor-frame",
+      "heldout-ticket-rush",
+      "heldout-triage-tier",
+      "heldout-turn-signature"
     ]
   }
 }

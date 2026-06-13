@@ -1,0 +1,8 @@
+{
+  "name": "heldout-sensor-frame",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/telemetry-frame.test.mjs"
+  }
+}

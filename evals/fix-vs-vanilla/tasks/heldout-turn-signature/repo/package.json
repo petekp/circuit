@@ -1,0 +1,8 @@
+{
+  "name": "heldout-turn-signature",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/turn-ids.test.mjs"
+  }
+}

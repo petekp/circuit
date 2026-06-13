@@ -1,0 +1,17 @@
+{
+  "id": "heldout-exif-grade",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "weak-repro",
+  "prompt": "Our photo culling helper grades each shot's numeric capture attributes against a pair of marks supplied by the culling profile. Grading for sensor gain is broken: with the profile's marks at 800 and 2500, a shot taken at ISO 6400 comes back 'keep' when it should come back 'reject'. The regression command is `npm test` from the repo root; it fails before the fix and must pass after. The grading lives in src/exif-grade.mjs.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    {
+      "id": "flipped-marks",
+      "hidden": true,
+      "argv": ["node", "tests/exif-grade.flipped-marks.test.mjs"]
+    }
+  ],
+  "allowed_changed_files": ["src/exif-grade.mjs"]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "heldout-sensor-frame",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "multi-site-duplication",
+  "prompt": "The sensor fleet dashboard shows a battery gauge on the node detail screen, and it has been reading low for some nodes. A field tech pulled the raw frame from one affected node: its batt field held \"20\", and the gauge showed 20, but the hardware team says that frame carries a charge reading of 32. The gauge gets its number from chargeLevel in src/telemetry-frame.mjs. Fix chargeLevel so the gauge shows the charge reading the frame carries. Run npm test to check the regression.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    {
+      "id": "peak-draw",
+      "hidden": true,
+      "argv": ["node", "tests/telemetry-frame.peak-draw.test.mjs"]
+    }
+  ],
+  "allowed_changed_files": ["src/telemetry-frame.mjs"]
+}
