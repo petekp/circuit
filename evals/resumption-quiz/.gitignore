@@ -1,0 +1,4 @@
+# Frozen real session bundles carry private transcripts; never commit them.
+sessions/
+# Run outputs, same policy as the other evals.
+results/

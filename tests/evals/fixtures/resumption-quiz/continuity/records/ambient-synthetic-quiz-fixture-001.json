@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "record_id": "ambient-synthetic-quiz-fixture-001",
+  "project_root": "/Users/synthetic/projects/parse-config",
+  "created_at": "2026-06-10T18:15:35.000Z",
+  "git": {
+    "cwd": "/Users/synthetic/projects/parse-config",
+    "branch": "fix/duration-units",
+    "head": "abc1234"
+  },
+  "narrative": {
+    "goal": "ok let's stop here for tonight, pick it up tomorrow",
+    "next": "Review the recent intents and harvested summary below, then continue. This record was captured automatically, not saved by you, so confirm before acting.",
+    "state_markdown": "## Structured summary (harvested from the last compaction)\nThis session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\n\n## Goal\nFix duration parsing in parse-config so unit suffixes are honored: a config value of \"30s\" must mean 30 seconds (30000 ms), not 30 milliseconds.\n\n## Key decisions\n1. Unknown duration units throw an error instead of silently defaulting to milliseconds (rejected the idea of defaulting unknown units to seconds).\n2. The public signature parseDuration(raw: string): number stays unchanged because src/loader.ts and src/retry.ts import it.\n3. Negative durations are rejected with a clear error rather than clamped to zero; the old clamp test was rewritten to assert the throw.\n\n## Work completed\n- Diagnosed src/duration.ts: \"s\" missing from UNIT_FACTORS and unknown suffixes fell through to a factor of 1 via `?? 1`.\n- Completed the unit table (ms, s, m, h), added the unknown-unit throw and the negative-duration throw.\n- Updated tests/duration.test.ts; full suite passes 14/14.\n\n## Pending\n- Table-driven tests for more negative-duration shapes (-5s, -1h, -0.5m) are not written yet.\n- README does not document the supported unit suffixes.\n\n## Recent intent (your last requests, newest last)\n- Negative durations should be rejected with a clear error, not silently clamped. A negative timeout is always a config mistake. Update that old test to match.\n- Great. What's left before I can commit this?\n- Also make sure the README documents the supported unit suffixes before this ships.\n- ok let's stop here for tonight, pick it up tomorrow\n\n## Working tree (uncommitted)\n```\n M src/duration.ts\n M tests/duration.test.ts\n```\n\n## Full detail\nTranscript: /Users/synthetic/.claude/projects/-Users-synthetic-projects-parse-config/synthetic-quiz-fixture-001.jsonl",
+    "debt_markdown": "- Mechanically harvested from the live transcript at 2026-06-10T18:15:35.000Z. Treat it as a hint, not a verified plan."
+  },
+  "continuity_kind": "ambient",
+  "ambient_provenance": {
+    "session_id": "synthetic-quiz-fixture-001",
+    "transcript_path": "/Users/synthetic/.claude/projects/-Users-synthetic-projects-parse-config/synthetic-quiz-fixture-001.jsonl",
+    "source": "stop"
+  },
+  "resume_contract": {
+    "mode": "resume_ambient",
+    "auto_resume": false,
+    "requires_explicit_resume": true
+  }
+}

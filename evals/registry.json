@@ -89,6 +89,26 @@
       "cadence": "release-or-milestone",
       "claim_eligible": false,
       "readme_path": "evals/verdict-correctness/README.md"
+    },
+    {
+      "id": "resumption-quiz",
+      "claim_level": "discovery",
+      "flow": "handoff",
+      "primary_metric": "quiz_accuracy",
+      "secondary_metrics": [
+        "abstention_fabrication_rate",
+        "arm_availability",
+        "cost_usd_reported"
+      ],
+      "default_command": [
+        "node",
+        "evals/resumption-quiz/run-resumption-quiz.ts",
+        "--dry-run"
+      ],
+      "cost_class": "live-model",
+      "cadence": "ad-hoc",
+      "claim_eligible": false,
+      "readme_path": "evals/resumption-quiz/README.md"
     }
   ]
 }

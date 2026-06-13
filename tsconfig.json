@@ -31,7 +31,15 @@
     "plugins/codex/hooks/**/*.ts",
     "plugins/codex/runtime/**/*.ts",
     "evals/circuit-vs-vanilla/**/*.ts",
-    "evals/fix-vs-vanilla/*.ts"
+    "evals/fix-vs-vanilla/*.ts",
+    "evals/resumption-quiz/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "bootstrap", "evals/fix-vs-vanilla/tasks", "evals/**/results"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "bootstrap",
+    "evals/fix-vs-vanilla/tasks",
+    "evals/**/results",
+    "evals/resumption-quiz/sessions"
+  ]
 }
