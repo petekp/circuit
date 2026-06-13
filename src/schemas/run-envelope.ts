@@ -427,6 +427,12 @@ export const RunSurfaceOutput = z
     schema: z.literal('run.surface-output@v0'),
     status_text: z.string().min(1),
     outcome: RunEnvelopeOutcome,
+    // The flow's own primary-result outcome word, carried only when the run
+    // reached @complete but that flow result was degraded (e.g. a Fix that
+    // closed `partial` because the independent review was skipped). It is the
+    // quality axis, distinct from `outcome` (the run lifecycle axis), so a
+    // degraded run does not read as an unqualified pass. Absent on clean runs.
+    flow_outcome: z.string().min(1).optional(),
     next_action: z.string().min(1).optional(),
     artifact_links: z.array(Ref).min(1),
     memory_indicator: z.string().min(1).optional(),

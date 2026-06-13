@@ -10766,7 +10766,7 @@ var require_dist = __commonJS({
 });
 
 // dist/cli/circuit.js
-import { readFileSync as readFileSync54 } from "node:fs";
+import { readFileSync as readFileSync55 } from "node:fs";
 import { dirname as dirname15, resolve as resolve26 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
@@ -49146,6 +49146,12 @@ var RunSurfaceOutput = external_exports.object({
   schema: external_exports.literal("run.surface-output@v0"),
   status_text: external_exports.string().min(1),
   outcome: RunEnvelopeOutcome,
+  // The flow's own primary-result outcome word, carried only when the run
+  // reached @complete but that flow result was degraded (e.g. a Fix that
+  // closed `partial` because the independent review was skipped). It is the
+  // quality axis, distinct from `outcome` (the run lifecycle axis), so a
+  // degraded run does not read as an unqualified pass. Absent on clean runs.
+  flow_outcome: external_exports.string().min(1).optional(),
   next_action: external_exports.string().min(1).optional(),
   artifact_links: external_exports.array(Ref).min(1),
   memory_indicator: external_exports.string().min(1).optional(),
@@ -50020,6 +50026,17 @@ var FAILURE_OUTCOMES = /* @__PURE__ */ new Set([
 ]);
 function isFailureOutcome(outcome) {
   return outcome !== void 0 && FAILURE_OUTCOMES.has(outcome);
+}
+var DEGRADED_COMPLETION_OUTCOMES = /* @__PURE__ */ new Set([
+  "partial",
+  "needs_attention",
+  "failed",
+  "blocked",
+  "stopped",
+  "handoff"
+]);
+function isDegradedCompletionOutcome(outcome) {
+  return outcome !== void 0 && DEGRADED_COMPLETION_OUTCOMES.has(outcome);
 }
 
 // dist/app/history/run-source-files.js
@@ -52610,8 +52627,8 @@ function latestRunFolder(runsBase) {
 
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync36, mkdirSync as mkdirSync10, readFileSync as readFileSync52, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname14, join as join35, resolve as resolve24 } from "node:path";
+import { existsSync as existsSync36, mkdirSync as mkdirSync10, readFileSync as readFileSync53, writeFileSync as writeFileSync11 } from "node:fs";
+import { dirname as dirname14, join as join36, resolve as resolve24 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
 import { readFileSync as readFileSync45 } from "node:fs";
@@ -64783,13 +64800,22 @@ function surfaceFor(input) {
     ...input.childResult === void 0 ? [] : [input.childResult.ref],
     ...input.checkpointRequest === void 0 ? [] : [input.checkpointRequest]
   ];
+  const degradedFlowOutcome = input.outcome === "complete" && isDegradedCompletionOutcome(input.flowOutcome) ? input.flowOutcome : void 0;
   const base = {
     schema: "run.surface-output@v0",
     outcome: input.outcome,
     artifact_links: artifactLinks,
+    ...degradedFlowOutcome === void 0 ? {} : { flow_outcome: degradedFlowOutcome },
     ...input.memoryIndicator === void 0 ? {} : { memory_indicator: input.memoryIndicator }
   };
   if (input.outcome === "complete") {
+    if (degradedFlowOutcome !== void 0) {
+      return {
+        ...base,
+        status_text: `Completed with caveats: ${input.processId} produced its required process evidence but reported a ${degradedFlowOutcome} outcome.`,
+        next_action: "close"
+      };
+    }
     return {
       ...base,
       status_text: `Done: ${input.processId} completed with required process evidence.`,
@@ -64858,6 +64884,7 @@ function writeRunEnvelopeRecord(input) {
   });
   const outcome = runOutcome2({ projection, ...missingEvidence && { missingEvidence } });
   const processId = projection.flow_id;
+  const flowOutcome = input.flowOutcome;
   const followupAttempt = followupPlannedAttempt({
     operatorIntent: input.operatorIntent,
     primaryProcessId: processId,
@@ -64968,6 +64995,7 @@ function writeRunEnvelopeRecord(input) {
       outcome,
       processId,
       processEvidence,
+      ...flowOutcome === void 0 ? {} : { flowOutcome },
       ...missingEvidence && { missingEvidence },
       decisionPacketRefs: decisionArtifacts.map((artifact) => artifact.ref),
       ...memoryIndicator === void 0 ? {} : { memoryIndicator },
@@ -65236,6 +65264,10 @@ function defaultChildCompiledFlowResolver(flowRoot2) {
   };
 }
 
+// dist/cli/post-run-artifacts.js
+import { readFileSync as readFileSync51 } from "node:fs";
+import { join as join33 } from "node:path";
+
 // dist/app/run-envelope/shadow-record.js
 import { mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
 import { dirname as dirname13, join as join32 } from "node:path";
@@ -65358,6 +65390,21 @@ function postRunArtifactWarningOutputFields(warnings) {
     }))
   };
 }
+function resolveFlowPrimaryOutcome(input) {
+  const primaryResultPath = findCompiledFlowPackageById(input.flowId)?.runtimeSurface?.primaryResult?.path;
+  if (primaryResultPath === void 0)
+    return void 0;
+  let primaryResult;
+  try {
+    primaryResult = JSON.parse(readFileSync51(join33(input.runFolder, primaryResultPath), "utf8"));
+  } catch {
+    return void 0;
+  }
+  if (typeof primaryResult !== "object" || primaryResult === null)
+    return void 0;
+  const outcome = primaryResult.outcome;
+  return typeof outcome === "string" ? outcome : void 0;
+}
 function emitPostRunArtifacts(input) {
   const { context, runFolder, operatorIntent, recordedAt, selectedProcess, child } = input;
   const operatorSummary = tryPostRunArtifact("operator-summary", context, input.writeOperatorSummary);
@@ -65372,22 +65419,29 @@ function emitPostRunArtifacts(input) {
     runFolder,
     projection: input.buildProcessEvidenceProjection()
   }));
-  const runEnvelope = processEvidence === void 0 ? void 0 : tryPostRunArtifact("run-envelope", context, () => writeRunEnvelopeRecord({
-    runFolder,
-    operatorIntent,
-    selectedProcess,
-    processEvidence,
-    recordedAt,
-    ...input.memoryContext === void 0 ? {} : { memoryContext: input.memoryContext },
-    ...input.recallMemoryIndicator === void 0 ? {} : { recallMemoryIndicator: input.recallMemoryIndicator }
-  }));
+  const runEnvelope = processEvidence === void 0 ? void 0 : tryPostRunArtifact("run-envelope", context, () => {
+    const flowOutcome = resolveFlowPrimaryOutcome({
+      runFolder,
+      flowId: processEvidence.projection.flow_id
+    });
+    return writeRunEnvelopeRecord({
+      runFolder,
+      operatorIntent,
+      selectedProcess,
+      processEvidence,
+      recordedAt,
+      ...flowOutcome === void 0 ? {} : { flowOutcome },
+      ...input.memoryContext === void 0 ? {} : { memoryContext: input.memoryContext },
+      ...input.recallMemoryIndicator === void 0 ? {} : { recallMemoryIndicator: input.recallMemoryIndicator }
+    });
+  });
   return { operatorSummary, processEvidence, runEnvelope };
 }
 
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { readFileSync as readFileSync51 } from "node:fs";
-import { join as join33 } from "node:path";
+import { readFileSync as readFileSync52 } from "node:fs";
+import { join as join34 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
   const recoveryFlowCache = /* @__PURE__ */ new Map();
@@ -65416,7 +65470,7 @@ function createRecoveryAttemptRunner(deps) {
       tournament: false,
       autonomous: parentAxes.autonomous && support.supportsAutonomous
     });
-    const attemptFolder = join33(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
+    const attemptFolder = join34(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
     const recoveryResult = await runCompiledFlowWithWaiting({
       flowBytes: recoveryFlow.bytes,
       compiledFlowPath: recoveryFlow.path,
@@ -65449,7 +65503,7 @@ function createRecoveryAttemptRunner(deps) {
         })
       };
     }
-    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync51(recoveryResult.resultPath, "utf8")));
+    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync52(recoveryResult.resultPath, "utf8")));
     return {
       projection: projectClosedProcessEvidence({
         runFolder: attemptFolder,
@@ -65517,13 +65571,13 @@ function runEnvelopeOutputFields(input) {
 }
 
 // dist/cli/run-stdout-envelope.js
-import { join as join34 } from "node:path";
+import { join as join35 } from "node:path";
 function historyRecallOutputFields(input) {
   return {
     history_recall: {
       status: input.report.status,
       memory_input_count: input.report.memory_input_count,
-      report_path: join34(input.runFolder, HISTORY_RECALL_REPORT_PATH),
+      report_path: join35(input.runFolder, HISTORY_RECALL_REPORT_PATH),
       rebuilt: input.report.rebuilt,
       ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
       warnings: input.report.warnings.map((warning) => ({
@@ -65879,7 +65933,7 @@ async function runResumeCommand(args, options) {
         ...progress === void 0 ? {} : { progress },
         progressSurfaceForFlowId
       });
-      const runResult = RunResult.parse(JSON.parse(readFileSync52(runtimeResult.resultPath, "utf8")));
+      const runResult = RunResult.parse(JSON.parse(readFileSync53(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
       const postRunArtifactContext = {
@@ -66008,7 +66062,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = args.runFolder === void 0 ? join35(runsRoot(process.cwd()), runId) : resolve24(args.runFolder);
+  const runFolder = args.runFolder === void 0 ? join36(runsRoot(process.cwd()), runId) : resolve24(args.runFolder);
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...options.configHomeDir !== void 0 ? { homeDir: options.configHomeDir } : {},
     ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {},
@@ -66187,7 +66241,7 @@ async function runExecutionCommand(args, options) {
 `);
       return 0;
     }
-    const runResult = RunResult.parse(JSON.parse(readFileSync52(runtimeResult.resultPath, "utf8")));
+    const runResult = RunResult.parse(JSON.parse(readFileSync53(runtimeResult.resultPath, "utf8")));
     const selectedProcess = selectedProcessFields({
       processId: flow.id,
       routedBy: route.source,
@@ -66253,7 +66307,7 @@ async function runExecutionCommand(args, options) {
             policyLayers
           })
         });
-        const autonomousLoopPath = join35(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
+        const autonomousLoopPath = join36(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
         mkdirSync10(dirname14(autonomousLoopPath), { recursive: true });
         writeFileSync11(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
@@ -66292,7 +66346,7 @@ async function runExecutionCommand(args, options) {
       postRunArtifactWarnings,
       operatorSummary,
       runEnvelope,
-      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join35(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
+      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join36(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
     }), null, 2)}
 `);
     return 0;
@@ -66371,8 +66425,8 @@ async function runRunsCommand(argv) {
 }
 
 // dist/cli/uninstall.js
-import { existsSync as existsSync37, readFileSync as readFileSync53 } from "node:fs";
-import { join as join36, resolve as resolve25 } from "node:path";
+import { existsSync as existsSync37, readFileSync as readFileSync54 } from "node:fs";
+import { join as join37, resolve as resolve25 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -66523,14 +66577,14 @@ async function runUninstallCommand(argv, options = {}) {
   let malformedAny = false;
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
-    const path = join36(args.dir, file2);
+    const path = join37(args.dir, file2);
     if (!existsSync37(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
     }
     let content;
     try {
-      content = readFileSync53(path, "utf8");
+      content = readFileSync54(path, "utf8");
     } catch (err) {
       process.stderr.write(`error: could not read ${path}: ${err.message}
 `);
@@ -66624,7 +66678,7 @@ function readSourceVersion() {
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync54(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync55(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {

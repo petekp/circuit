@@ -151,6 +151,59 @@ describe('Run envelope source writer', () => {
     ).toBeLessThanOrEqual(4);
   });
 
+  it('qualifies the run surface when a completed run reports a degraded flow outcome', () => {
+    // A Fix can reach @complete (its required process evidence, a passing
+    // verification command, is present) while its own primary result reports a
+    // `partial` outcome because the independent review was skipped. The run
+    // surface must name that degradation instead of reading as an unqualified
+    // "Done", which would launder a bypassed review into a clean pass one layer
+    // up from the operator digest.
+    const runFolder = join(tempDir, 'fix-run');
+    const resultPath = join(runFolder, 'reports/result.json');
+    const childResult = runResult('fix');
+    writeJson(resultPath, childResult);
+    writeJson(join(runFolder, 'reports/fix-result.json'), {
+      schema: 'fix.result@v1',
+      outcome: 'partial',
+      verification_status: 'passed',
+      review_status: 'skipped',
+      review_skip_reason:
+        'Reviewer connector failed after proof passed; Fix closed with regression, verification, and change-set evidence.',
+    });
+    const processEvidence = writtenClosedProcessEvidence({
+      runFolder,
+      runResult: childResult,
+      resultPath,
+    });
+
+    const written = writeRunEnvelopeRecord({
+      runFolder,
+      operatorIntent: 'Fix the failing login test.',
+      selectedProcess: {
+        process_id: 'fix',
+        routed_by: 'explicit',
+        router_reason: 'explicit flow positional argument',
+      },
+      processEvidence,
+      recordedAt: '2026-05-28T05:01:00.000Z',
+      // The caller (post-run-artifacts) resolves the flow's quality outcome from
+      // the catalog and passes it in; the projection-only envelope never reads it.
+      flowOutcome: 'partial',
+    });
+
+    // The lifecycle outcome stays truthful: the run did complete its process.
+    expect(written.record.outcome).toBe('complete');
+    expect(written.record.surface_output.outcome).toBe('complete');
+    // The quality word is carried on the machine record...
+    expect(written.record.surface_output.flow_outcome).toBe('partial');
+    // ...and the human surface names the degradation instead of a bare "Done".
+    expect(written.record.surface_output.status_text).not.toMatch(/^Done:/);
+    expect(written.record.surface_output.status_text).toMatch(/partial/);
+    const surfaceMarkdown = readFileSync(written.surfacePath, 'utf8');
+    expect(surfaceMarkdown).not.toContain('Done: fix completed with required process evidence.');
+    expect(surfaceMarkdown).toContain('partial');
+  });
+
   it('writes a checkpoint-waiting Run envelope without a child result ref', () => {
     const runFolder = join(tempDir, 'build-run');
     const requestPath = join(runFolder, 'reports/checkpoints/frame-step-request.json');

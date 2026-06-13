@@ -16,6 +16,7 @@ import {
   type RunRequiredEvidence,
   type RunRequiredEvidenceKind,
 } from '../../schemas/run-envelope.js';
+import { isDegradedCompletionOutcome } from '../../shared/outcome.js';
 import { runRelativePath } from '../../shared/run-artifact-io.js';
 
 export const RUN_ENVELOPE_RELATIVE_PATH = 'reports/run-envelope.json';
@@ -61,6 +62,12 @@ export type WriteRunEnvelopeRecordInput = {
   // surface_output.memory_indicator ONLY when no proposed/recorded memory-write
   // event exists (a write-side indicator takes precedence — see writeRunEnvelopeRecord).
   readonly recallMemoryIndicator?: string;
+  // The flow's own primary-result outcome word (e.g. a Fix `partial`), resolved
+  // by the caller from the flow catalog. Passed in rather than read here so this
+  // source-owned envelope stays projection-only and never imports the catalog.
+  // Used to qualify an otherwise-clean run surface when the flow result was
+  // degraded; omitted on clean runs.
+  readonly flowOutcome?: string;
 };
 
 export type WriteRunEnvelopeRecordResult = {
@@ -512,6 +519,7 @@ function surfaceFor(input: {
   readonly outcome: RunEnvelopeRecordValue['outcome'];
   readonly processId: string;
   readonly processEvidence: RunEvidenceRef;
+  readonly flowOutcome?: string;
   readonly missingEvidence?: MissingRunEvidence;
   readonly decisionPacketRefs?: readonly Ref[];
   readonly memoryIndicator?: string;
@@ -524,14 +532,32 @@ function surfaceFor(input: {
     ...(input.childResult === undefined ? [] : [input.childResult.ref]),
     ...(input.checkpointRequest === undefined ? [] : [input.checkpointRequest]),
   ];
+  // A degraded flow outcome on an otherwise-complete run is the one case where
+  // the flow quality word must reach the surface. Carry it so the machine
+  // record exposes the partial/failed result the run lifecycle outcome alone
+  // would hide. Clean runs leave flow_outcome absent.
+  const degradedFlowOutcome =
+    input.outcome === 'complete' && isDegradedCompletionOutcome(input.flowOutcome)
+      ? input.flowOutcome
+      : undefined;
   const base = {
     schema: 'run.surface-output@v0' as const,
     outcome: input.outcome,
     artifact_links: artifactLinks,
+    ...(degradedFlowOutcome === undefined ? {} : { flow_outcome: degradedFlowOutcome }),
     ...(input.memoryIndicator === undefined ? {} : { memory_indicator: input.memoryIndicator }),
   };
 
   if (input.outcome === 'complete') {
+    if (degradedFlowOutcome !== undefined) {
+      // The run finished its process, but its own result is not a clean pass.
+      // Name the degradation rather than reading as an unqualified "Done".
+      return {
+        ...base,
+        status_text: `Completed with caveats: ${input.processId} produced its required process evidence but reported a ${degradedFlowOutcome} outcome.`,
+        next_action: 'close',
+      };
+    }
     return {
       ...base,
       status_text: `Done: ${input.processId} completed with required process evidence.`,
@@ -615,6 +641,7 @@ export function writeRunEnvelopeRecord(
   });
   const outcome = runOutcome({ projection, ...(missingEvidence && { missingEvidence }) });
   const processId = projection.flow_id as unknown as string;
+  const flowOutcome = input.flowOutcome;
   const followupAttempt = followupPlannedAttempt({
     operatorIntent: input.operatorIntent,
     primaryProcessId: processId,
@@ -744,6 +771,7 @@ export function writeRunEnvelopeRecord(
       outcome,
       processId,
       processEvidence,
+      ...(flowOutcome === undefined ? {} : { flowOutcome }),
       ...(missingEvidence && { missingEvidence }),
       decisionPacketRefs: decisionArtifacts.map((artifact) => artifact.ref),
       ...(memoryIndicator === undefined ? {} : { memoryIndicator }),

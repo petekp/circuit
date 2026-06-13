@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { OperatorSummaryWriteResult } from '../app/operator-summary/writer.js';
 import { writeProcessEvidenceProjection } from '../app/process-evidence/projection.js';
 import {
@@ -9,6 +11,7 @@ import {
   type WriteRunEnvelopeRecordResult,
   writeRunEnvelopeRecord as writeSourceRunEnvelopeRecord,
 } from '../app/run-envelope/source-record.js';
+import { findCompiledFlowPackageById } from '../flows/catalog.js';
 // Post-run artifact emission for the run/resume execution paths.
 //
 // The four post-run artifacts (operator-summary, run-envelope-shadow,
@@ -68,6 +71,32 @@ type WrittenProcessEvidence = {
   readonly projection: ProcessEvidenceProjectionValue;
 };
 
+// Resolve the flow's own primary-result outcome word (e.g. a Fix `partial`) so
+// the source run-envelope can name a degraded-but-complete run without itself
+// importing the flow catalog (that would break the projection-only boundary the
+// envelope is held to). The flow package names where its primary result lives;
+// we read that outcome here, in the CLI layer that is allowed to know it.
+//
+// Fail open: a flow without a primary result, or a missing or malformed result
+// file, returns undefined and leaves the surface exactly as before.
+export function resolveFlowPrimaryOutcome(input: {
+  readonly runFolder: string;
+  readonly flowId: string;
+}): string | undefined {
+  const primaryResultPath = findCompiledFlowPackageById(input.flowId)?.runtimeSurface?.primaryResult
+    ?.path;
+  if (primaryResultPath === undefined) return undefined;
+  let primaryResult: unknown;
+  try {
+    primaryResult = JSON.parse(readFileSync(join(input.runFolder, primaryResultPath), 'utf8'));
+  } catch {
+    return undefined;
+  }
+  if (typeof primaryResult !== 'object' || primaryResult === null) return undefined;
+  const outcome = (primaryResult as { readonly outcome?: unknown }).outcome;
+  return typeof outcome === 'string' ? outcome : undefined;
+}
+
 export interface EmitPostRunArtifactsInput {
   readonly context: PostRunArtifactContext;
   readonly runFolder: string;
@@ -122,19 +151,24 @@ export function emitPostRunArtifacts(input: EmitPostRunArtifactsInput): EmitPost
   const runEnvelope =
     processEvidence === undefined
       ? undefined
-      : tryPostRunArtifact('run-envelope', context, () =>
-          writeSourceRunEnvelopeRecord({
+      : tryPostRunArtifact('run-envelope', context, () => {
+          const flowOutcome = resolveFlowPrimaryOutcome({
+            runFolder,
+            flowId: processEvidence.projection.flow_id,
+          });
+          return writeSourceRunEnvelopeRecord({
             runFolder,
             operatorIntent,
             selectedProcess,
             processEvidence,
             recordedAt,
+            ...(flowOutcome === undefined ? {} : { flowOutcome }),
             ...(input.memoryContext === undefined ? {} : { memoryContext: input.memoryContext }),
             ...(input.recallMemoryIndicator === undefined
               ? {}
               : { recallMemoryIndicator: input.recallMemoryIndicator }),
-          }),
-        );
+          });
+        });
 
   return { operatorSummary, processEvidence, runEnvelope };
 }
