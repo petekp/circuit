@@ -36616,6 +36616,13 @@ var TraceEntryBase = external_exports.object({
   run_id: RunId
 });
 var ContentHash = Sha256;
+var CatalogSourcedBinding = external_exports.enum([
+  "edit_file_surfaces",
+  "depth_binding",
+  "slice_loop",
+  "terminal_outcome_binding",
+  "primary_result_surface"
+]);
 var RunBootstrappedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("run.bootstrapped"),
   flow_id: CompiledFlowId,
@@ -36623,7 +36630,14 @@ var RunBootstrappedTraceEntry = TraceEntryBase.extend({
   depth: CompiledDepth,
   goal: external_exports.string().min(1),
   change_kind: ChangeKindDeclaration,
-  manifest_hash: external_exports.string().min(1)
+  manifest_hash: external_exports.string().min(1),
+  // Stage 1 (first-class composition): make silent capability loss legible.
+  // `package_resolved` is false when no catalog package matched this flow id;
+  // `reduced_bindings` then names the catalog-sourced bindings that fell back
+  // to defaults. Both optional so prior fixtures and resumed runs (which never
+  // re-bootstrap) stay valid — a run that omits them simply made no claim.
+  package_resolved: external_exports.boolean().optional(),
+  reduced_bindings: external_exports.array(CatalogSourcedBinding).optional()
 }).strict();
 var SliceIndex = external_exports.number().int().nonnegative();
 var StepEnteredTraceEntry = TraceEntryBase.extend({
@@ -48168,6 +48182,12 @@ var OperatorRunReceipt = external_exports.object({
   models: external_exports.array(ProviderScopedModel),
   checks_evaluated: external_exports.number().int().nonnegative(),
   checks_failed: external_exports.number().int().nonnegative(),
+  // Catalog-sourced bindings that fell back to defaults because no catalog
+  // package resolved for this flow id — a composed or published custom flow.
+  // Absent on a normal built-in run. Surfaced as a receipt note so a reduced
+  // run is visible, not silent. See
+  // docs/ideas/first-class-composition-sequence.md (Stage 1).
+  reduced_bindings: external_exports.array(CatalogSourcedBinding).optional(),
   spend: OperatorRunReceiptSpend.optional()
 }).strict();
 var OperatorSummary = external_exports.object({
@@ -59927,6 +59947,15 @@ function buildRuntimePackageIndex(flow) {
   };
 }
 
+// dist/runtime/run/binding-legibility.js
+var CATALOG_SOURCED_BINDINGS = CatalogSourcedBinding.options;
+function resolveBindingLegibility(compiledPackage) {
+  if (compiledPackage !== void 0) {
+    return { packageResolved: true, reducedBindings: [] };
+  }
+  return { packageResolved: false, reducedBindings: [...CATALOG_SOURCED_BINDINGS] };
+}
+
 // dist/runtime/run/manifest-snapshot.js
 import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile3 } from "node:fs/promises";
 import { dirname as dirname8, join as join25 } from "node:path";
@@ -61414,6 +61443,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
   const compiledPackage = findCompiledFlowPackageById(flow.id);
+  const bindingLegibility = resolveBindingLegibility(compiledPackage);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(compiledPackage?.reportFileSurfaces ?? {});
   const context = {
     flow,
@@ -61520,7 +61550,9 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       change_kind: bootstrapChangeKind({
         flow,
         ...context.entryModeName === void 0 ? {} : { entryModeName: context.entryModeName }
-      })
+      }),
+      package_resolved: bindingLegibility.packageResolved,
+      reduced_bindings: bindingLegibility.reducedBindings
     });
     await appendFlowSelectionGuidance(context);
     if (options.historyRecallReport !== void 0) {
@@ -63685,6 +63717,7 @@ function readRunReceipt(runFolder) {
   if (!existsSync32(tracePath))
     return void 0;
   let depth;
+  let reducedBindings;
   let power;
   let powerAuto = false;
   let inference;
@@ -63714,6 +63747,9 @@ function readRunReceipt(runFolder) {
       const parsed = CompiledDepth.safeParse(entry.depth);
       if (parsed.success)
         depth = parsed.data;
+      const bindings = CatalogSourcedBinding.array().safeParse(entry.reduced_bindings);
+      if (bindings.success && bindings.data.length > 0)
+        reducedBindings = bindings.data;
       continue;
     }
     if (entry.kind === "relay.started") {
@@ -63823,6 +63859,7 @@ function readRunReceipt(runFolder) {
     models,
     checks_evaluated: checksEvaluated,
     checks_failed: checksFailed,
+    ...reducedBindings === void 0 ? {} : { reduced_bindings: reducedBindings },
     ...spend === void 0 ? {} : { spend }
   };
 }
@@ -63880,6 +63917,20 @@ function spendLine(receipt) {
     parts.push(`${role.role} ${formatSpendTokens(role.input_tokens + role.output_tokens)}`);
   }
   return `\u23BF ${parts.join(" \xB7 ")}`;
+}
+var REDUCED_BINDING_LABELS = {
+  edit_file_surfaces: "edit-file hooks",
+  depth_binding: "depth binding",
+  slice_loop: "slice loop",
+  terminal_outcome_binding: "terminal outcome",
+  primary_result_surface: "primary result"
+};
+function reducedBindingsLine(receipt) {
+  const reduced = receipt.reduced_bindings;
+  if (reduced === void 0 || reduced.length === 0)
+    return void 0;
+  const labels = reduced.map((binding) => REDUCED_BINDING_LABELS[binding]);
+  return `\u23BF reduced bindings (no catalog package): ${labels.join(" \xB7 ")}`;
 }
 function firstLine(text) {
   const head = text.split(/\r?\n/)[0]?.trim() ?? "";
@@ -64027,6 +64078,9 @@ function renderMarkdown(summary) {
       const spend = spendLine(summary.receipt);
       if (spend !== void 0)
         lines2.push(spend);
+      const reduced = reducedBindingsLine(summary.receipt);
+      if (reduced !== void 0)
+        lines2.push(reduced);
     }
     if (summary.html_path !== void 0) {
       lines2.push("", `Rich summary: ${summary.html_path}`);
@@ -64071,6 +64125,9 @@ function renderMarkdown(summary) {
     const spend = spendLine(summary.receipt);
     if (spend !== void 0)
       lines.push(spend);
+    const reduced = reducedBindingsLine(summary.receipt);
+    if (reduced !== void 0)
+      lines.push(reduced);
   }
   if (summary.html_path !== void 0) {
     lines.push("", `Rich summary: ${summary.html_path}`);

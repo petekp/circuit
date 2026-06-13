@@ -33,6 +33,7 @@ import { type ExecutorRegistry, createDefaultExecutors } from '../executors/inde
 import type { ExecutableFlow, ExecutableStep } from '../manifest/executable-flow.js';
 import { buildRuntimePackageIndex } from '../manifest/runtime-package-index.js';
 import { assertExecutableFlow } from '../manifest/validate-executable-flow.js';
+import { resolveBindingLegibility } from './binding-legibility.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
 import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guidance.js';
 import { writeRuntimeManifestSnapshot } from './manifest-snapshot.js';
@@ -268,6 +269,11 @@ async function executeExecutableFlowOutcomeUnsafe(
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
   const compiledPackage = findCompiledFlowPackageById(flow.id);
+  // Stage 1 (first-class composition): record which catalog-sourced bindings
+  // this run actually got. A composed/custom flow whose id matches no catalog
+  // package loses them all silently today; the legibility goes onto
+  // `run.bootstrapped` below so the trace and receipt show the reduction.
+  const bindingLegibility = resolveBindingLegibility(compiledPackage);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(
     compiledPackage?.reportFileSurfaces ?? {},
   );
@@ -405,6 +411,8 @@ async function executeExecutableFlowOutcomeUnsafe(
         flow,
         ...(context.entryModeName === undefined ? {} : { entryModeName: context.entryModeName }),
       }),
+      package_resolved: bindingLegibility.packageResolved,
+      reduced_bindings: bindingLegibility.reducedBindings,
     });
     await appendFlowSelectionGuidance(context);
     if (options.historyRecallReport !== undefined) {

@@ -2726,6 +2726,68 @@ describe('operator summary writer — run receipt', () => {
     );
   });
 
+  it('surfaces a reduced-bindings note when a composed flow lost catalog-sourced bindings', () => {
+    // Stage 1 (first-class composition): a composed/published-custom flow whose
+    // id matched no catalog package records its lost bindings on run.bootstrapped.
+    // The receipt must make that loss visible instead of looking like a full run.
+    writeTrace([
+      traceEntry(1, 'run.bootstrapped', {
+        flow_id: 'my-composed-flow',
+        depth: 'medium',
+        goal: 'run a composed flow',
+        change_kind: 'behavioral',
+        manifest_hash: 'abc123',
+        package_resolved: false,
+        reduced_bindings: [
+          'edit_file_surfaces',
+          'depth_binding',
+          'slice_loop',
+          'terminal_outcome_binding',
+          'primary_result_surface',
+        ],
+      }),
+      relayStarted(2, 'apply-step', 1),
+      checkEvaluated(3, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt?.reduced_bindings).toEqual([
+      'edit_file_surfaces',
+      'depth_binding',
+      'slice_loop',
+      'terminal_outcome_binding',
+      'primary_result_surface',
+    ]);
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain(
+      '⎿ reduced bindings (no catalog package): edit-file hooks · depth binding · slice loop · terminal outcome · primary result',
+    );
+  });
+
+  it('shows no reduced-bindings note for a built-in flow with all bindings resolved', () => {
+    // A normal built-in run carries no reduced_bindings; the note must stay
+    // absent so it only ever signals a genuinely reduced run.
+    writeTrace([
+      bootstrapped('medium'),
+      relayStarted(2, 'apply-step', 1),
+      checkEvaluated(3, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt?.reduced_bindings).toBeUndefined();
+    expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('reduced bindings');
+  });
+
   it('reports the passed-of-evaluated count instead of claiming all checks passed when any check failed', () => {
     writeTrace([
       bootstrapped('high'),
