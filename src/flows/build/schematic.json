@@ -33,6 +33,14 @@
       "actual": "build.verification@v1"
     },
     {
+      "generic": "verification.result@v1",
+      "actual": "build.baseline-snapshot@v1"
+    },
+    {
+      "generic": "verification.result@v1",
+      "actual": "build.touch-area@v1"
+    },
+    {
       "generic": "review.verdict@v1",
       "actual": "build.review@v1"
     },

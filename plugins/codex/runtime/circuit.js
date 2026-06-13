@@ -27833,7 +27833,12 @@ var FLOW_BLOCK_DEFINITION_INPUTS = [
     },
     schematicPolicy: {
       executionKinds: ["relay", "compose", "fanout"],
-      stages: ["review", "analyze"]
+      // 'plan' is included because Explore runs a genuine reviewer pass
+      // (review-step) inside its canonical plan stage: Explore omits the
+      // act/verify/review canonical stages (EXPLORE-I1), so its adversarial
+      // review of the synthesized composition is runtime-locked to the plan
+      // stage. See src/flows/explore/contract.md.
+      stages: ["review", "analyze", "plan"]
     }
   },
   {
@@ -28183,7 +28188,12 @@ var FLOW_BLOCK_DEFINITION_INPUTS = [
       non_interactive: []
     },
     schematicPolicy: {
-      executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
+      // 'relay' is included because Pursue's batch-step delegates each work
+      // item to an implementer-role worker (a relay), which the pursue runtime
+      // wiring locks in. Batch already declares multiple kinds, so the
+      // single-kind authoring default stays undefined and the widening is
+      // runtime byte-identical.
+      executionKinds: ["compose", "relay", "checkpoint", "sub-run", "fanout"],
       stages: ["act"]
     }
   },
@@ -31362,6 +31372,21 @@ var buildFlowData = {
       {
         generic: "verification.result@v1",
         actual: "build.verification@v1"
+      },
+      {
+        // build-baseline runs the run-verification block (execution kind
+        // verification) to capture a pre-change proof snapshot. Its output is a
+        // verification result specialized with git state, so it is build's name
+        // for the generic verification.result@v1 at that seam.
+        generic: "verification.result@v1",
+        actual: "build.baseline-snapshot@v1"
+      },
+      {
+        // build-touch-area also runs the run-verification block: it executes
+        // containment proof commands and records the result, a verification
+        // result specialized with touch-area containment.
+        generic: "verification.result@v1",
+        actual: "build.touch-area@v1"
       },
       {
         generic: "review.verdict@v1",

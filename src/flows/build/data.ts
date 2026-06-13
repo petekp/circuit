@@ -67,6 +67,21 @@ export const buildFlowData = {
         actual: 'build.verification@v1',
       },
       {
+        // build-baseline runs the run-verification block (execution kind
+        // verification) to capture a pre-change proof snapshot. Its output is a
+        // verification result specialized with git state, so it is build's name
+        // for the generic verification.result@v1 at that seam.
+        generic: 'verification.result@v1',
+        actual: 'build.baseline-snapshot@v1',
+      },
+      {
+        // build-touch-area also runs the run-verification block: it executes
+        // containment proof commands and records the result, a verification
+        // result specialized with touch-area containment.
+        generic: 'verification.result@v1',
+        actual: 'build.touch-area@v1',
+      },
+      {
         generic: 'review.verdict@v1',
         actual: 'build.review@v1',
       },

@@ -68,13 +68,29 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
   // regression, fails the test). The two zeros are pinned exactly: Fix and
   // runtime-proof are the exemplars and must never regress.
   const BASELINE: Record<string, number> = {
-    // build 3 -> 2 and explore 7 -> 6 after gate-recognition reconciliation: the
-    // validator now accepts a route that is NORMAL or recovery-bound regardless of
-    // the block's allowed_routes, clearing build's `advance` (slice-loop forward
-    // edge) and explore's `retry` (recovery route). The remaining issues are
-    // output/stage/evidence/input shape, not routes.
-    build: 2,
-    explore: 6,
+    // build 3 -> 2 (gate-recognition reconciliation cleared `advance`, the
+    // slice-loop forward edge) -> 0 (block-model honesty pass). The last two were
+    // build-baseline and build-touch-area declaring outputs (build.baseline-snapshot@v1,
+    // build.touch-area@v1) the catalog did not know were verification results. Both
+    // items name the run-verification block and run with execution kind
+    // verification: they are specialized verification runs, so build now aliases
+    // both to the generic verification.result@v1, exactly as it already aliased
+    // build.verification@v1. contract_aliases are authoring/validation-only and
+    // never compiled, so this is runtime byte-identical. build is pinned at 0.
+    build: 0,
+    // explore 7 -> 6 (gate-recognition reconciliation cleared `retry`, a recovery
+    // route) -> 5 (block-model honesty pass). The cleared issue was review-step's
+    // stage `plan`: Explore omits the act/verify/review canonical stages
+    // (EXPLORE-I1), so its genuine adversarial reviewer pass is runtime-locked to
+    // the plan stage. Widening the Review block's stage allowlist to include `plan`
+    // describes that reality; schematicPolicy.stages is validation-only and never
+    // compiled, so it is byte-identical. The remaining 5 are all on synthesize-step,
+    // which names the `plan` block but is an implementer relay that composes the
+    // investigation (output explore.compose@v1, evidence about changed files, input
+    // from the review verdict). No alias or stage widen can make that honest: it is
+    // a real structural gap (Explore needs a compose/synthesize block the catalog
+    // does not yet have). Left as a real-limit for #14.
+    explore: 5,
     fix: 0,
     // goal: 113 -> 11 (goal-block split) -> 9 (gate-recognition reconciliation)
     // -> 5 (goal-gate-review allowed_routes corrected). The split replaced the one
@@ -93,12 +109,33 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
     // flow-specific, neither NORMAL nor recovery-bound). allowed_routes is
     // authoring/validation-only and never compiled, so this is runtime
     // byte-identical. The 5 that remain are route-aware contract_unavailable issues
-    // on multi-path inputs (goal-close, goal-recovery-checkpoint) that no block
-    // change can touch -- the availability walk is block-blind and alias-blind by
-    // construction.
+    // on multi-path inputs the availability walk cannot satisfy, and they split two
+    // ways (verified by deleting the dead edge in-process and re-running the walk):
+    //   - 2 are genuine route disjunction: goal-close inputs `recovery` and `gate`.
+    //     A real run reaches goal-close by exactly one route -- the gate-pass path
+    //     produces the gate but skips recovery; the recovery path produces recovery
+    //     but skips the gate -- so each is legitimately absent on the other route.
+    //     No block change can satisfy this; it is intrinsic to gathering inputs from
+    //     mutually exclusive routes.
+    //   - 3 are induced by a single dead edge and would vanish if it were removed:
+    //     goal-recovery-checkpoint's `evidence` plus goal-close's `attempt` and
+    //     `evaluation`. The goal-contract `ask` route into goal-recovery-checkpoint
+    //     is dead -- selected_flow_target, the only field compose.ts routes on,
+    //     cannot emit `ask` -- but the availability walk still treats it as a
+    //     reachable in-route. That contract-poor route intersects away attempt,
+    //     evaluation, and recovery at the checkpoint, and the loss propagates into
+    //     goal-close. Removing the dead `ask` edge fixes all three. That edit
+    //     changes compiled routes (runtime-neutral but not byte-identical), so it is
+    //     out of scope for this honesty pass and is documented for #14.
     goal: 5,
     prototype: 2,
-    pursue: 1,
+    // pursue 1 -> 0 (block-model honesty pass). The one issue was batch-step's
+    // execution kind `relay`: Pursue's batch-step delegates each work item to an
+    // implementer-role worker, which the pursue runtime wiring locks in. Batch
+    // already declares multiple execution kinds, so adding `relay` leaves the
+    // single-kind authoring default undefined and is byte-identical. pursue is
+    // pinned at 0.
+    pursue: 0,
     review: 2,
     'runtime-proof': 0,
   };

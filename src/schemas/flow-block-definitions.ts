@@ -401,7 +401,12 @@ const FLOW_BLOCK_DEFINITION_INPUTS = [
     },
     schematicPolicy: {
       executionKinds: ['relay', 'compose', 'fanout'],
-      stages: ['review', 'analyze'],
+      // 'plan' is included because Explore runs a genuine reviewer pass
+      // (review-step) inside its canonical plan stage: Explore omits the
+      // act/verify/review canonical stages (EXPLORE-I1), so its adversarial
+      // review of the synthesized composition is runtime-locked to the plan
+      // stage. See src/flows/explore/contract.md.
+      stages: ['review', 'analyze', 'plan'],
     },
   },
   {
@@ -770,7 +775,12 @@ const FLOW_BLOCK_DEFINITION_INPUTS = [
       non_interactive: [],
     },
     schematicPolicy: {
-      executionKinds: ['compose', 'checkpoint', 'sub-run', 'fanout'],
+      // 'relay' is included because Pursue's batch-step delegates each work
+      // item to an implementer-role worker (a relay), which the pursue runtime
+      // wiring locks in. Batch already declares multiple kinds, so the
+      // single-kind authoring default stays undefined and the widening is
+      // runtime byte-identical.
+      executionKinds: ['compose', 'relay', 'checkpoint', 'sub-run', 'fanout'],
       stages: ['act'],
     },
   },
