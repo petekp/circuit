@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "project_root": "/Users/synthetic/projects/parse-config",
+  "pending_record": {
+    "record_id": "continuity-8c4a1f2e-9b3d-4c5a-a6e7-2d1f0b9c8a7e",
+    "continuity_kind": "standalone",
+    "created_at": "2026-06-10T18:16:02.000Z"
+  },
+  "current_run": null,
+  "ambient_record": {
+    "record_id": "ambient-synthetic-quiz-fixture-001",
+    "continuity_kind": "ambient",
+    "created_at": "2026-06-10T18:15:35.000Z"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "eval_id": "resumption-quiz",
+  "quiz_generator_model": "claude-opus-4-8",
+  "answer_model": "claude-sonnet-4-6",
+  "judge_model": "claude-sonnet-4-6",
+  "judge_calibration": {
+    "status": "uncalibrated"
+  },
+  "reps_default": 3,
+  "arms": ["A0", "A1", "A2", "A3", "A4", "A5"],
+  "a4_max_chars": 600000
+}

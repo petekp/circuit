@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "record_id": "continuity-8c4a1f2e-9b3d-4c5a-a6e7-2d1f0b9c8a7e",
+  "project_root": "/Users/synthetic/projects/parse-config",
+  "created_at": "2026-06-10T18:16:02.000Z",
+  "git": {
+    "cwd": "/Users/synthetic/projects/parse-config"
+  },
+  "narrative": {
+    "goal": "Fix duration parsing in parse-config so unit suffixes are honored (\"30s\" means 30 seconds, not 30 milliseconds)",
+    "next": "Add table-driven negative-duration tests (-5s, -1h, -0.5m) to tests/duration.test.ts, run the full npm test suite, add a README section documenting the supported suffixes (ms, s, m, h), then commit on fix/duration-units",
+    "state_markdown": "- src/duration.ts fixed: unit table completed (ms, s, m, h), unknown suffixes throw, negative durations throw.\n- tests/duration.test.ts updated: the old clamp-to-zero test now asserts the negative-duration throw.\n- Full suite green: 14/14 passing.\n- Both files modified and uncommitted on branch fix/duration-units (HEAD abc1234).",
+    "debt_markdown": "- Negative-duration coverage is thin: only -5s is asserted; the table-driven cases are not written.\n- README has no section on duration values or supported unit suffixes.\n- Decision record: unknown units throw (no default), parseDuration signature frozen for src/loader.ts and src/retry.ts."
+  },
+  "continuity_kind": "standalone",
+  "resume_contract": {
+    "mode": "resume_standalone",
+    "auto_resume": false,
+    "requires_explicit_resume": true
+  }
+}
