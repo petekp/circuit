@@ -133,6 +133,7 @@ const NON_PACKAGE_FILES = new Set([
   'report-declarations.ts',
   'report-schema-kit.ts',
   'router.ts',
+  'schematic-catalog-check.ts',
   'stage-policy.ts',
   'types.ts',
 ]);
