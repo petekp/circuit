@@ -63,6 +63,14 @@ the missing config as the stop reason. See
 [Prototype Tournament Variants](configuration.md#prototype-tournament-variants)
 for the config shape.
 
+When worker runs report token usage, the receipt adds a second line that
+itemizes spend per role. It shows a dollar total and per-role dollars when the
+connector reported costs, and falls back to token counts (input plus output)
+when it did not. A sum missing any relay's meter is marked `(partial)`, so an
+incomplete figure never reads as complete. The full breakdown per role, with
+token classes and the models that ran, is recorded in
+`reports/operator-summary.json` under `receipt.spend`.
+
 With `--autonomous`, Run auto-resolves supported checkpoints and drives a
 bounded continuation loop instead of stopping after one process. Run frames
 task-specific required evidence at intake, holds that proof contract fixed for

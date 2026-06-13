@@ -48134,6 +48134,23 @@ var OperatorSkillHookActivation = external_exports.object({
     reason: external_exports.string().min(1).optional()
   }).strict())
 }).strict();
+var OperatorRunReceiptSpendRole = external_exports.object({
+  role: RelayRole,
+  relays: external_exports.number().int().positive(),
+  relays_missing_usage: external_exports.number().int().nonnegative(),
+  models: external_exports.array(external_exports.string().min(1)),
+  input_tokens: external_exports.number().nonnegative(),
+  output_tokens: external_exports.number().nonnegative(),
+  cache_read_tokens: external_exports.number().nonnegative(),
+  cache_creation_tokens: external_exports.number().nonnegative(),
+  cost_usd_reported: external_exports.number().nonnegative().optional()
+}).strict();
+var OperatorRunReceiptSpend = external_exports.object({
+  total_cost_usd_reported: external_exports.number().nonnegative().optional(),
+  relays_missing_usage: external_exports.number().int().nonnegative(),
+  partial: external_exports.boolean(),
+  roles: external_exports.array(OperatorRunReceiptSpendRole).min(1)
+}).strict();
 var OperatorRunReceipt = external_exports.object({
   depth: CompiledDepth,
   power: Power.optional(),
@@ -48149,7 +48166,8 @@ var OperatorRunReceipt = external_exports.object({
   escalations: external_exports.number().int().nonnegative(),
   models: external_exports.array(ProviderScopedModel),
   checks_evaluated: external_exports.number().int().nonnegative(),
-  checks_failed: external_exports.number().int().nonnegative()
+  checks_failed: external_exports.number().int().nonnegative(),
+  spend: OperatorRunReceiptSpend.optional()
 }).strict();
 var OperatorSummary = external_exports.object({
   schema_version: external_exports.literal(1),
@@ -63649,6 +63667,18 @@ function readAutoResolutions(runFolder) {
   }
   return records;
 }
+function emptySpendTotals() {
+  return {
+    relays: 0,
+    relays_missing_usage: 0,
+    models: [],
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read_tokens: 0,
+    cache_creation_tokens: 0
+  };
+}
+var SPEND_ROLE_ORDER = ["researcher", "implementer", "reviewer"];
 function readRunReceipt(runFolder) {
   const tracePath = join28(runFolder, "trace.ndjson");
   if (!existsSync32(tracePath))
@@ -63663,6 +63693,11 @@ function readRunReceipt(runFolder) {
   let checksFailed = 0;
   const models = [];
   const seenModels = /* @__PURE__ */ new Set();
+  const relayRoleByKey = /* @__PURE__ */ new Map();
+  const spendByRole = /* @__PURE__ */ new Map();
+  let spendRelaysMissingUsage = 0;
+  let anyUsage = false;
+  let anyCostMissing = false;
   for (const line of readFileSync48(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
@@ -63695,12 +63730,47 @@ function readRunReceipt(runFolder) {
           escalations += 1;
       }
       const model = isObject4(selection) ? ProviderScopedModel.safeParse(selection.model) : void 0;
-      if (model?.success) {
-        const key = `${model.data.provider}:${model.data.model}`;
-        if (!seenModels.has(key)) {
-          seenModels.add(key);
-          models.push(model.data);
-        }
+      const modelKey = model?.success ? `${model.data.provider}:${model.data.model}` : void 0;
+      if (model?.success && modelKey !== void 0 && !seenModels.has(modelKey)) {
+        seenModels.add(modelKey);
+        models.push(model.data);
+      }
+      const role = RelayRole.safeParse(entry.role);
+      const stepId = stringField2(entry, "step_id");
+      if (role.success && stepId !== void 0 && typeof entry.attempt === "number") {
+        relayRoleByKey.set(`${stepId}#${entry.attempt}`, {
+          role: role.data,
+          ...modelKey === void 0 ? {} : { model: modelKey }
+        });
+      }
+      continue;
+    }
+    if (entry.kind === "relay.completed") {
+      const stepId = stringField2(entry, "step_id");
+      const started = stepId === void 0 || typeof entry.attempt !== "number" ? void 0 : relayRoleByKey.get(`${stepId}#${entry.attempt}`);
+      if (started === void 0)
+        continue;
+      const totals = spendByRole.get(started.role) ?? emptySpendTotals();
+      spendByRole.set(started.role, totals);
+      totals.relays += 1;
+      if (started.model !== void 0 && !totals.models.includes(started.model)) {
+        totals.models.push(started.model);
+      }
+      const usage2 = RelayUsageEvidence.safeParse(entry.usage);
+      if (!usage2.success) {
+        totals.relays_missing_usage += 1;
+        spendRelaysMissingUsage += 1;
+        continue;
+      }
+      anyUsage = true;
+      totals.input_tokens += usage2.data.input_tokens;
+      totals.output_tokens += usage2.data.output_tokens;
+      totals.cache_read_tokens += usage2.data.cache_read_tokens;
+      totals.cache_creation_tokens += usage2.data.cache_creation_tokens;
+      if (usage2.data.total_cost_usd_reported === void 0) {
+        anyCostMissing = true;
+      } else {
+        totals.cost_usd_reported = (totals.cost_usd_reported ?? 0) + usage2.data.total_cost_usd_reported;
       }
       continue;
     }
@@ -63726,6 +63796,17 @@ function readRunReceipt(runFolder) {
   }
   if (depth === void 0)
     return void 0;
+  const spendRoles = anyUsage ? SPEND_ROLE_ORDER.flatMap((role) => {
+    const totals = spendByRole.get(role);
+    return totals === void 0 ? [] : [{ role, ...totals }];
+  }) : [];
+  const reportedCosts = spendRoles.flatMap((role) => role.cost_usd_reported === void 0 ? [] : [role.cost_usd_reported]);
+  const spend = anyUsage ? {
+    ...reportedCosts.length === 0 ? {} : { total_cost_usd_reported: reportedCosts.reduce((sum, cost) => sum + cost, 0) },
+    relays_missing_usage: spendRelaysMissingUsage,
+    partial: spendRelaysMissingUsage > 0 || anyCostMissing,
+    roles: spendRoles
+  } : void 0;
   const effectivePower = inference?.resolved ?? power;
   return {
     depth,
@@ -63740,7 +63821,8 @@ function readRunReceipt(runFolder) {
     escalations,
     models,
     checks_evaluated: checksEvaluated,
-    checks_failed: checksFailed
+    checks_failed: checksFailed,
+    ...spend === void 0 ? {} : { spend }
   };
 }
 function receiptLine(receipt) {
@@ -63756,6 +63838,45 @@ function receiptLine(receipt) {
   }
   if (receipt.checks_evaluated > 0) {
     parts.push(receipt.checks_failed === 0 ? "all checks passed" : `${receipt.checks_evaluated - receipt.checks_failed} of ${receipt.checks_evaluated} checks passed`);
+  }
+  return `\u23BF ${parts.join(" \xB7 ")}`;
+}
+function formatSpendDollars(amount) {
+  if (amount >= 0.1)
+    return `$${amount.toFixed(2)}`;
+  const significant = Number(amount.toPrecision(3));
+  if (significant >= 0.1)
+    return `$${significant.toFixed(2)}`;
+  return `$${significant.toFixed(4).replace(/0+$/, "").replace(/\.$/, "")}`;
+}
+function formatSpendTokens(count) {
+  if (count >= 1e6)
+    return `${(count / 1e6).toFixed(2)}M`;
+  if (count >= 1e3)
+    return `${(count / 1e3).toFixed(1)}k`;
+  return String(count);
+}
+function spendLine(receipt) {
+  const spend = receipt.spend;
+  if (spend === void 0)
+    return void 0;
+  if (spend.total_cost_usd_reported !== void 0) {
+    const qualifier2 = spend.partial ? " (partial)" : "";
+    const parts2 = [`spend ${formatSpendDollars(spend.total_cost_usd_reported)}${qualifier2}`];
+    for (const role of spend.roles) {
+      if (role.cost_usd_reported === void 0)
+        continue;
+      parts2.push(`${role.role} ${formatSpendDollars(role.cost_usd_reported)}`);
+    }
+    return `\u23BF ${parts2.join(" \xB7 ")}`;
+  }
+  const total = spend.roles.reduce((sum, role) => sum + role.input_tokens + role.output_tokens, 0);
+  const qualifier = spend.relays_missing_usage > 0 ? " (partial)" : "";
+  const parts = [`spend ${formatSpendTokens(total)} tokens${qualifier}`];
+  for (const role of spend.roles) {
+    if (role.relays_missing_usage === role.relays)
+      continue;
+    parts.push(`${role.role} ${formatSpendTokens(role.input_tokens + role.output_tokens)}`);
   }
   return `\u23BF ${parts.join(" \xB7 ")}`;
 }
@@ -63902,6 +64023,9 @@ function renderMarkdown(summary) {
     }
     if (summary.receipt !== void 0) {
       lines2.push("", receiptLine(summary.receipt));
+      const spend = spendLine(summary.receipt);
+      if (spend !== void 0)
+        lines2.push(spend);
     }
     if (summary.html_path !== void 0) {
       lines2.push("", `Rich summary: ${summary.html_path}`);
@@ -63943,6 +64067,9 @@ function renderMarkdown(summary) {
   }
   if (summary.receipt !== void 0) {
     lines.push("", receiptLine(summary.receipt));
+    const spend = spendLine(summary.receipt);
+    if (spend !== void 0)
+      lines.push(spend);
   }
   if (summary.html_path !== void 0) {
     lines.push("", `Rich summary: ${summary.html_path}`);

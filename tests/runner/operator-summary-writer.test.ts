@@ -3031,4 +3031,433 @@ describe('operator summary writer — run receipt', () => {
     expect(markdown).toContain('power medium ·');
     expect(markdown).not.toContain('(auto');
   });
+
+  function relayStartedAs(
+    sequence: number,
+    stepId: string,
+    attempt: number,
+    role: 'researcher' | 'implementer' | 'reviewer',
+    model?: { provider: string; model: string },
+  ): Record<string, unknown> {
+    return traceEntry(sequence, 'relay.started', {
+      step_id: stepId,
+      attempt,
+      connector: 'claude-code-task',
+      role,
+      resolved_selection: {
+        ...(model === undefined ? {} : { model }),
+        skills: [],
+        invocation_options: {},
+      },
+      resolved_from: { source: 'role', role },
+    });
+  }
+
+  function relayCompleted(
+    sequence: number,
+    stepId: string,
+    attempt: number,
+    usage?: Record<string, unknown>,
+  ): Record<string, unknown> {
+    return traceEntry(sequence, 'relay.completed', {
+      step_id: stepId,
+      attempt,
+      verdict: 'accept',
+      duration_ms: 1200,
+      result_path: `relays/${stepId}-${attempt}/result.json`,
+      receipt_path: `relays/${stepId}-${attempt}/receipt.json`,
+      ...(usage === undefined ? {} : { usage }),
+    });
+  }
+
+  function usageBlock(fields: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_read_tokens: 0,
+      cache_creation_tokens: 0,
+      cache_creation_5m_tokens: 0,
+      cache_creation_1h_tokens: 0,
+      ...fields,
+    };
+  }
+
+  it('itemizes per-role spend in dollars and renders it directly after the receipt line', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      // Trace order is implementer-first to prove the rendered role order is
+      // fixed (researcher, implementer, reviewer), not trace-arrival order.
+      relayStartedAs(2, 'apply-step', 1, 'implementer', {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5',
+      }),
+      relayCompleted(3, 'apply-step', 1, {
+        ...usageBlock({ input_tokens: 20000, output_tokens: 3000 }),
+        total_cost_usd_reported: 0.04,
+      }),
+      relayStartedAs(4, 'diagnose-step', 1, 'researcher', {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+      }),
+      relayCompleted(5, 'diagnose-step', 1, {
+        ...usageBlock({
+          input_tokens: 50000,
+          output_tokens: 4000,
+          cache_read_tokens: 100000,
+          cache_creation_tokens: 20000,
+        }),
+        total_cost_usd_reported: 0.35,
+      }),
+      relayStartedAs(6, 'review-step', 1, 'reviewer', {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-6',
+      }),
+      relayCompleted(7, 'review-step', 1, {
+        ...usageBlock({ input_tokens: 15000, output_tokens: 2000 }),
+        total_cost_usd_reported: 0.08,
+      }),
+      checkEvaluated(8, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const spend = written.summary.receipt?.spend;
+    expect(spend?.relays_missing_usage).toBe(0);
+    expect(spend?.partial).toBe(false);
+    expect(spend?.total_cost_usd_reported).toBeCloseTo(0.47, 10);
+    expect(spend?.roles).toEqual([
+      {
+        role: 'researcher',
+        relays: 1,
+        relays_missing_usage: 0,
+        models: ['anthropic:claude-opus-4-8'],
+        input_tokens: 50000,
+        output_tokens: 4000,
+        cache_read_tokens: 100000,
+        cache_creation_tokens: 20000,
+        cost_usd_reported: 0.35,
+      },
+      {
+        role: 'implementer',
+        relays: 1,
+        relays_missing_usage: 0,
+        models: ['anthropic:claude-haiku-4-5'],
+        input_tokens: 20000,
+        output_tokens: 3000,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        cost_usd_reported: 0.04,
+      },
+      {
+        role: 'reviewer',
+        relays: 1,
+        relays_missing_usage: 0,
+        models: ['anthropic:claude-sonnet-4-6'],
+        input_tokens: 15000,
+        output_tokens: 2000,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        cost_usd_reported: 0.08,
+      },
+    ]);
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain(
+      '⎿ depth medium · 3 worker runs · all checks passed\n' +
+        '⎿ spend $0.47 · researcher $0.35 · implementer $0.04 · reviewer $0.08',
+    );
+  });
+
+  it('marks the dollar sum (partial) when a completed relay carried no usage', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStartedAs(2, 'diagnose-step', 1, 'researcher', {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+      }),
+      relayCompleted(3, 'diagnose-step', 1, {
+        ...usageBlock({ input_tokens: 40000, output_tokens: 3000 }),
+        total_cost_usd_reported: 0.35,
+      }),
+      relayStartedAs(4, 'apply-step', 1, 'implementer', {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5',
+      }),
+      relayCompleted(5, 'apply-step', 1),
+      relayStartedAs(6, 'review-step', 1, 'reviewer', {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-6',
+      }),
+      relayCompleted(7, 'review-step', 1, {
+        ...usageBlock({ input_tokens: 12000, output_tokens: 1500 }),
+        total_cost_usd_reported: 0.08,
+      }),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const spend = written.summary.receipt?.spend;
+    expect(spend?.relays_missing_usage).toBe(1);
+    expect(spend?.partial).toBe(true);
+    expect(spend?.total_cost_usd_reported).toBeCloseTo(0.43, 10);
+    // The usage-less implementer relay still appears in the JSON (its model
+    // ran; only its meter is missing) but contributes no figure to the line.
+    expect(spend?.roles).toEqual([
+      {
+        role: 'researcher',
+        relays: 1,
+        relays_missing_usage: 0,
+        models: ['anthropic:claude-opus-4-8'],
+        input_tokens: 40000,
+        output_tokens: 3000,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        cost_usd_reported: 0.35,
+      },
+      {
+        role: 'implementer',
+        relays: 1,
+        relays_missing_usage: 1,
+        models: ['anthropic:claude-haiku-4-5'],
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+      },
+      {
+        role: 'reviewer',
+        relays: 1,
+        relays_missing_usage: 0,
+        models: ['anthropic:claude-sonnet-4-6'],
+        input_tokens: 12000,
+        output_tokens: 1500,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        cost_usd_reported: 0.08,
+      },
+    ]);
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      '⎿ spend $0.43 (partial) · researcher $0.35 · reviewer $0.08',
+    );
+  });
+
+  it('falls back to token counts when usage exists but no relay reported a cost', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStartedAs(2, 'diagnose-step', 1, 'researcher', {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+      }),
+      // Cache tokens are deliberately large: the headline counts input +
+      // output only, so they must not move the rendered figure.
+      relayCompleted(
+        3,
+        'diagnose-step',
+        1,
+        usageBlock({
+          input_tokens: 80000,
+          output_tokens: 10100,
+          cache_read_tokens: 500000,
+          cache_creation_tokens: 90000,
+        }),
+      ),
+      relayStartedAs(4, 'apply-step', 1, 'implementer', {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5',
+      }),
+      relayCompleted(5, 'apply-step', 1, usageBlock({ input_tokens: 600, output_tokens: 300 })),
+      relayStartedAs(6, 'review-step', 1, 'reviewer', {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-6',
+      }),
+      relayCompleted(7, 'review-step', 1, usageBlock({ input_tokens: 24000, output_tokens: 2000 })),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const spend = written.summary.receipt?.spend;
+    expect(spend?.total_cost_usd_reported).toBeUndefined();
+    expect(spend?.relays_missing_usage).toBe(0);
+    // Every token figure is complete, but no dollars exist anywhere: the JSON
+    // flag says so, while the token line carries no (partial) because the
+    // figure it renders is whole.
+    expect(spend?.partial).toBe(true);
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      '⎿ spend 117.0k tokens · researcher 90.1k · implementer 900 · reviewer 26.0k',
+    );
+  });
+
+  it('omits spend entirely when no completed relay carries a usage block', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStartedAs(2, 'apply-step', 1, 'implementer', {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5',
+      }),
+      relayCompleted(3, 'apply-step', 1),
+      checkEvaluated(4, 'pass'),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.receipt?.spend).toBeUndefined();
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('⎿ depth medium · 1 worker run · all checks passed');
+    expect(markdown).not.toContain('spend');
+  });
+
+  it('sums both completed attempts of the same step under one role', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStartedAs(2, 'apply-step', 1, 'implementer', {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5',
+      }),
+      relayCompleted(3, 'apply-step', 1, {
+        ...usageBlock({ input_tokens: 10000, output_tokens: 1000 }),
+        total_cost_usd_reported: 0.02,
+      }),
+      relayStartedAs(4, 'apply-step', 2, 'implementer', {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5',
+      }),
+      relayCompleted(5, 'apply-step', 2, {
+        ...usageBlock({ input_tokens: 14000, output_tokens: 2000 }),
+        total_cost_usd_reported: 0.03,
+      }),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const spend = written.summary.receipt?.spend;
+    expect(spend?.partial).toBe(false);
+    expect(spend?.roles).toHaveLength(1);
+    expect(spend?.roles[0]).toMatchObject({
+      role: 'implementer',
+      relays: 2,
+      relays_missing_usage: 0,
+      models: ['anthropic:claude-haiku-4-5'],
+      input_tokens: 24000,
+      output_tokens: 3000,
+    });
+    expect(spend?.roles[0]?.cost_usd_reported).toBeCloseTo(0.05, 10);
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      '⎿ spend $0.05 · implementer $0.05',
+    );
+  });
+
+  it('ignores relay.failed attempts: only completed relays count toward spend', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStartedAs(2, 'apply-step', 1, 'implementer', {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5',
+      }),
+      traceEntry(3, 'relay.failed', {
+        step_id: 'apply-step',
+        attempt: 1,
+        reason: 'connector subprocess crashed',
+      }),
+      relayStartedAs(4, 'apply-step', 2, 'implementer', {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5',
+      }),
+      relayCompleted(5, 'apply-step', 2, {
+        ...usageBlock({ input_tokens: 9000, output_tokens: 800 }),
+        total_cost_usd_reported: 0.02,
+      }),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const spend = written.summary.receipt?.spend;
+    expect(spend?.partial).toBe(false);
+    expect(spend?.relays_missing_usage).toBe(0);
+    expect(spend?.roles).toEqual([
+      {
+        role: 'implementer',
+        relays: 1,
+        relays_missing_usage: 0,
+        models: ['anthropic:claude-haiku-4-5'],
+        input_tokens: 9000,
+        output_tokens: 800,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        cost_usd_reported: 0.02,
+      },
+    ]);
+  });
+
+  it('dedupes models within a role in first-seen order and keeps sub-dime sums precise', () => {
+    writeTrace([
+      bootstrapped('medium'),
+      relayStartedAs(2, 'diagnose-step', 1, 'researcher', {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+      }),
+      relayCompleted(3, 'diagnose-step', 1, {
+        ...usageBlock({ input_tokens: 5000, output_tokens: 400 }),
+        total_cost_usd_reported: 0.005,
+      }),
+      relayStartedAs(4, 'findings-step', 1, 'researcher', {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-6',
+      }),
+      relayCompleted(5, 'findings-step', 1, {
+        ...usageBlock({ input_tokens: 6000, output_tokens: 500 }),
+        total_cost_usd_reported: 0.0073,
+      }),
+      relayStartedAs(6, 'recheck-step', 1, 'researcher', {
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+      }),
+      relayCompleted(7, 'recheck-step', 1, {
+        ...usageBlock({ input_tokens: 2000, output_tokens: 100 }),
+        total_cost_usd_reported: 0.002,
+      }),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const spend = written.summary.receipt?.spend;
+    expect(spend?.roles).toHaveLength(1);
+    expect(spend?.roles[0]).toMatchObject({
+      role: 'researcher',
+      relays: 3,
+      models: ['anthropic:claude-opus-4-8', 'anthropic:claude-sonnet-4-6'],
+    });
+    // 0.005 + 0.0073 + 0.002 = 0.0143: below ten cents the line keeps three
+    // significant figures instead of rounding the signal away to $0.01.
+    expect(spend?.total_cost_usd_reported).toBeCloseTo(0.0143, 10);
+    expect(readFileSync(written.markdownPath, 'utf8')).toContain(
+      '⎿ spend $0.0143 · researcher $0.0143',
+    );
+  });
 });
