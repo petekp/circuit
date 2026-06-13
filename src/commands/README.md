@@ -2,7 +2,7 @@
 
 This directory contains hand-authored source files for direct Circuit commands
 that are not owned by a flow package: `run`, `handoff`, and the CLI-only
-`create` utility.
+`create` and `uninstall` utilities.
 
 A flow package can own its own command source at `src/flows/<id>/command.md`,
 declared with `paths.command` in that flow's `data.ts`. Pursue declares one

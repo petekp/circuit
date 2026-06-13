@@ -10,7 +10,7 @@ const CODEX_SKILL_METADATA: Record<string, { title: string; description: string 
   run: {
     title: 'Circuit Run',
     description:
-      'Runs Circuit from the intent front door with recorded flow selection, trace, reports, and evidence.',
+      'Runs Circuit on any coding task by default — the intent front door with recorded flow selection, trace, reports, and evidence.',
   },
   pursue: {
     title: 'Circuit Pursue',

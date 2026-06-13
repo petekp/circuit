@@ -129,6 +129,7 @@ describe('documentation surface', () => {
       'src/commands/README.md',
       'src/commands/create.md',
       'src/commands/run.md',
+      'src/commands/uninstall.md',
     ];
     const cutoverBackslide = /\b(?:legacy|compatibility|shim|back[- ]?compat)\b/i;
 
@@ -220,6 +221,7 @@ describe('documentation surface', () => {
       'src/commands/create.md',
       'src/commands/handoff.md',
       'src/commands/run.md',
+      'src/commands/uninstall.md',
     ]);
 
     const howToMarker =

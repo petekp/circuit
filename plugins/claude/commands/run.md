@@ -1,5 +1,5 @@
 ---
-description: Runs Circuit on a coding intent through the project CLI, recording the selected flow and run evidence.
+description: The default way to start any coding task. Runs Circuit on the intent through the project CLI, recording the selected flow and run evidence.
 argument-hint: <task>
 ---
 

@@ -10766,8 +10766,8 @@ var require_dist = __commonJS({
 });
 
 // dist/cli/circuit.js
-import { readFileSync as readFileSync53 } from "node:fs";
-import { dirname as dirname15, resolve as resolve25 } from "node:path";
+import { readFileSync as readFileSync54 } from "node:fs";
+import { dirname as dirname15, resolve as resolve26 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -10795,6 +10795,7 @@ var CLI_COMMAND_NAMES = [
   "history",
   "memory",
   "create",
+  "uninstall",
   "runs",
   "version"
 ];
@@ -56079,7 +56080,7 @@ function parseNdjsonObjects(stdout, label) {
 }
 async function runConnectorSubprocess(input) {
   const start = performance.now();
-  return await new Promise((resolve26, reject) => {
+  return await new Promise((resolve27, reject) => {
     let child;
     try {
       child = spawn(input.executable, [...input.args], {
@@ -56152,7 +56153,7 @@ async function runConnectorSubprocess(input) {
     });
     child.on("close", (code, signal) => {
       clearAllTimers();
-      resolve26({
+      resolve27({
         stdout,
         stderr,
         stdoutCapped,
@@ -66241,6 +66242,224 @@ async function runRunsCommand(argv) {
   }
 }
 
+// dist/cli/uninstall.js
+import { existsSync as existsSync37, readFileSync as readFileSync53 } from "node:fs";
+import { join as join36, resolve as resolve25 } from "node:path";
+var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
+var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
+var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
+function stripCircuitBlock(content) {
+  const hadTrailingNewline = content.endsWith("\n");
+  const lines = content.split("\n");
+  if (hadTrailingNewline)
+    lines.pop();
+  const out = [];
+  const blocks = [];
+  const malformations = [];
+  const malformed = (reason) => {
+    malformations.push(reason);
+    return { changed: false, content, blocks: [], malformed: true, malformations };
+  };
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i] ?? "";
+    if (END_LINE.test(line)) {
+      return malformed(`stray circuit:end at line ${i + 1} with no matching circuit:start`);
+    }
+    if (!START_LINE.test(line)) {
+      out.push(line);
+      i += 1;
+      continue;
+    }
+    let j = i + 1;
+    let endIndex = -1;
+    while (j < lines.length) {
+      const candidate = lines[j] ?? "";
+      if (START_LINE.test(candidate)) {
+        return malformed(`nested circuit:start at line ${j + 1} before the block opened at line ${i + 1} closed`);
+      }
+      if (END_LINE.test(candidate)) {
+        endIndex = j;
+        break;
+      }
+      j += 1;
+    }
+    if (endIndex === -1) {
+      return malformed(`unterminated circuit:start at line ${i + 1} (no circuit:end follows)`);
+    }
+    if (out.length > 0 && (out[out.length - 1] ?? "").trim() === "") {
+      out.pop();
+    }
+    blocks.push({ startLine: i + 1, endLine: endIndex + 1 });
+    i = endIndex + 1;
+  }
+  if (blocks.length === 0) {
+    return { changed: false, content, blocks: [], malformed: false, malformations: [] };
+  }
+  let next = out.join("\n");
+  if (hadTrailingNewline && next.length > 0)
+    next += "\n";
+  return { changed: next !== content, content: next, blocks, malformed: false, malformations };
+}
+function parseArgs3(argv, cwd) {
+  const program2 = new Command("circuit uninstall").option("--dir <path>").option("--json");
+  parseCommanderOrThrow(program2, argv);
+  if (program2.args.length > 0)
+    throw new Error(`unexpected argument: ${program2.args[0]}`);
+  const opts = program2.opts();
+  return {
+    dir: resolve25(opts.dir ?? cwd),
+    json: opts.json === true
+  };
+}
+function resolveHostKind(options) {
+  if (options.hostKind !== void 0)
+    return options.hostKind;
+  const raw = process.env[CIRCUIT_HOST_KIND_ENV];
+  if (raw === void 0 || raw.length === 0)
+    return void 0;
+  try {
+    return HostKind.parse(raw);
+  } catch {
+    return void 0;
+  }
+}
+var CLAUDE_REMOVAL = [
+  "claude plugin uninstall circuit@circuit",
+  "claude plugin marketplace remove circuit"
+];
+var CODEX_REMOVAL = ["codex plugin marketplace remove circuit"];
+function hostRemoval(hostKind) {
+  if (hostKind === "claude-code") {
+    return {
+      host_kind: "claude-code",
+      commands: CLAUDE_REMOVAL,
+      note: "The running session keeps Circuit commands until you restart or reload plugins."
+    };
+  }
+  if (hostKind === "codex") {
+    return { host_kind: "codex", commands: CODEX_REMOVAL };
+  }
+  return {
+    host_kind: hostKind ?? "unknown",
+    commands: [...CLAUDE_REMOVAL, ...CODEX_REMOVAL],
+    note: "Host unknown \u2014 run the commands for whichever host you installed Circuit into."
+  };
+}
+function blockRanges(blocks) {
+  return blocks.map((b) => b.startLine === b.endLine ? `${b.startLine}` : `${b.startLine}\u2013${b.endLine}`).join(", ");
+}
+function renderHuman(files, removal, malformedAny, strippedAny) {
+  const lines = [];
+  for (const f of files) {
+    if (f.status === "stripped") {
+      const ranges = blockRanges(f.blocks ?? []);
+      lines.push(`\u2713 Removed Circuit block from ${f.file} (lines ${ranges}, circuit:start\u2026circuit:end)`);
+    } else if (f.status === "no-block") {
+      lines.push(`\u2022 ${f.file}: no Circuit block found, left untouched`);
+    } else if (f.status === "absent") {
+      lines.push(`\u2022 ${f.file}: not present`);
+    } else {
+      lines.push(`\u2717 ${f.file}: malformed Circuit markers \u2014 left untouched`);
+      for (const m of f.malformations ?? [])
+        lines.push(`    ${m}`);
+    }
+  }
+  if (!strippedAny && !malformedAny) {
+    lines.push("No Circuit instruction block found in this project.");
+  }
+  lines.push("");
+  lines.push("Next, remove the plugin from your host:");
+  for (const c of removal.commands)
+    lines.push(`  ${c}`);
+  if (removal.note !== void 0) {
+    lines.push("");
+    lines.push(removal.note);
+  }
+  if (malformedAny) {
+    lines.push("");
+    lines.push("One or more files had malformed Circuit markers and were left untouched. Fix the markers by hand, then rerun, or remove the block manually.");
+  }
+  return lines.join("\n");
+}
+async function runUninstallCommand(argv, options = {}) {
+  let args;
+  try {
+    args = parseArgs3(argv, options.cwd ?? process.cwd());
+  } catch (err) {
+    process.stderr.write(`error: ${err.message}
+`);
+    return 2;
+  }
+  const files = [];
+  let malformedAny = false;
+  let strippedAny = false;
+  for (const file2 of UNINSTALL_TARGET_FILES) {
+    const path = join36(args.dir, file2);
+    if (!existsSync37(path)) {
+      files.push({ file: file2, path, status: "absent" });
+      continue;
+    }
+    let content;
+    try {
+      content = readFileSync53(path, "utf8");
+    } catch (err) {
+      process.stderr.write(`error: could not read ${path}: ${err.message}
+`);
+      return 1;
+    }
+    const result = stripCircuitBlock(content);
+    if (result.malformed) {
+      malformedAny = true;
+      files.push({ file: file2, path, status: "malformed", malformations: result.malformations });
+      continue;
+    }
+    if (!result.changed) {
+      files.push({ file: file2, path, status: "no-block" });
+      continue;
+    }
+    try {
+      writeTextAtomic(path, result.content);
+    } catch (err) {
+      process.stderr.write(`error: could not write ${path}: ${err.message}
+`);
+      return 1;
+    }
+    strippedAny = true;
+    files.push({
+      file: file2,
+      path,
+      status: "stripped",
+      removed_blocks: result.blocks.length,
+      blocks: result.blocks
+    });
+  }
+  const removal = hostRemoval(resolveHostKind(options));
+  const status = malformedAny ? "attention" : strippedAny ? "removed" : "clean";
+  if (args.json) {
+    process.stdout.write(`${JSON.stringify({
+      schema_version: 1,
+      action: "uninstall",
+      status,
+      dir: args.dir,
+      files: files.map((f) => ({
+        file: f.file,
+        path: f.path,
+        status: f.status,
+        ...f.removed_blocks === void 0 ? {} : { removed_blocks: f.removed_blocks },
+        ...f.blocks === void 0 ? {} : { blocks: f.blocks },
+        ...f.malformations === void 0 ? {} : { malformations: f.malformations }
+      })),
+      host_removal: removal
+    }, null, 2)}
+`);
+  } else {
+    process.stdout.write(`${renderHuman(files, removal, malformedAny, strippedAny)}
+`);
+  }
+  return malformedAny ? 1 : 0;
+}
+
 // dist/cli/circuit.js
 var DEFAULT_DEV_VERSION = "0.0.0-dev";
 function usage() {
@@ -66252,6 +66471,7 @@ function usage() {
     '       circuit memory note --flow <id> [--applies-to <kind>] "<text>" | memory list | memory forget <id>',
     "       circuit handoff [save|resume|done|brief|hook|hooks|harvest] [options]",
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
+    "       circuit uninstall [--dir <path>] [--json]",
     "       circuit version [--json]",
     "",
     "Axes: `--depth` controls care level (`low`, `medium`, `high`); `--power` sets the model tier (`auto`, `low`, `medium`, `high`; default `medium`; `auto` lets the run's research read pick within configured bounds); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
@@ -66271,12 +66491,12 @@ function readSourceVersion() {
   if (true)
     return "0.1.0-alpha.7";
   const candidates = [
-    resolve25(dirname15(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
-    resolve25(process.cwd(), "plugins/version.json")
+    resolve26(dirname15(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
+    resolve26(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync53(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync54(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {
@@ -66336,7 +66556,7 @@ function parseTopLevelInvocation(argv) {
     addForwardingCommand(name);
   parseCommanderOrThrow(program2, argv);
   if (invocation === void 0) {
-    throw new Error("missing command: use run, resume, handoff, history, memory, create, runs, or version");
+    throw new Error("missing command: use run, resume, handoff, history, memory, create, uninstall, runs, or version");
   }
   return invocation;
 }
@@ -66370,6 +66590,9 @@ async function main(argv, options = {}) {
     return runCreateCommand(invocation.argv, {
       ...options.now === void 0 ? {} : { now: options.now }
     });
+  }
+  if (invocation.command === "uninstall") {
+    return runUninstallCommand(invocation.argv);
   }
   if (invocation.command === "runs") {
     return runRunsCommand(invocation.argv);

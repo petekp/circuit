@@ -242,7 +242,7 @@ describe('Codex host plugin package', () => {
     expect(skill).toContain('# Circuit Run');
     expect(skill).toContain('## Use Case');
     expect(skill).toContain(
-      'Runs Circuit from the intent front door with recorded flow selection, trace, reports, and evidence.',
+      'Runs Circuit on any coding task by default — the intent front door with recorded flow selection, trace, reports, and evidence.',
     );
     expect(skill).toContain("node '<plugin root>/scripts/circuit.ts' run fix --goal");
     expect(skill).toContain('--progress jsonl');
