@@ -851,15 +851,34 @@ function collectRouteAwareAvailability(
   return availableAt;
 }
 
+// Treat a route the block does not list as legitimate anyway — used for NORMAL
+// forward routes and recovery-bound routes, which are first-class across every
+// flow. Injected from the policy layer (see `isGenericallyLegitRoute`) so this
+// schema module stays a leaf: it must not import `src/policy` or the top-level
+// import graph gains a schemas <-> policy cycle. Defaults to recognizing nothing,
+// so a direct caller gets the pure catalog-shape check; the shared flows-layer
+// entry point (`collectSchematicCatalogIssues`) injects the real policy.
+export type RouteRecognizer = (input: {
+  readonly routeId: string;
+  readonly routeTarget: string;
+  readonly stepId: string;
+}) => boolean;
+
+export interface FlowSchematicCatalogCompatibilityOptions {
+  readonly recognizeRoute?: RouteRecognizer;
+}
+
 export function validateFlowSchematicCatalogCompatibility(
   schematic: FlowSchematic,
   catalog: FlowBlockCatalogValue,
+  options: FlowSchematicCatalogCompatibilityOptions = {},
 ): FlowSchematicCatalogCompatibilityIssue[] {
   const parsedCatalog = FlowBlockCatalog.safeParse(catalog);
   if (!parsedCatalog.success) {
     return [{ message: `block catalog failed to parse: ${parsedCatalog.error.message}` }];
   }
 
+  const recognizeRoute: RouteRecognizer = options.recognizeRoute ?? (() => false);
   const blockById = new Map(parsedCatalog.data.blocks.map((p) => [p.id, p]));
   const issues: FlowSchematicCatalogCompatibilityIssue[] = [];
 
@@ -874,12 +893,22 @@ export function validateFlowSchematicCatalogCompatibility(
     }
 
     for (const route of schematicStepRouteOutcomes(item) as FlowRouteValue[]) {
-      if (!block.allowed_routes.includes(route)) {
-        issues.push({
-          item_id: item.id,
-          message: `route "${route}" is not allowed by block "${item.block}"`,
-        });
+      if (block.allowed_routes.includes(route)) continue;
+      // A route the block does not list is still legitimate when the injected
+      // recognizer accepts it — NORMAL forward routes and recovery-bound routes
+      // are first-class across every flow (the projector derives the recovery
+      // binding the runtime honors), so the per-block list only constrains
+      // flow-specific routes. This is the gate-recognition reconciliation: it
+      // clears working forward/recovery routes (build `advance`, explore `retry`,
+      // goal `close`) in one change.
+      const routeTarget = (item.routes as Record<string, string>)[route] ?? '';
+      if (recognizeRoute({ routeId: route, routeTarget, stepId: item.id as unknown as string })) {
+        continue;
       }
+      issues.push({
+        item_id: item.id,
+        message: `route "${route}" is not allowed by block "${item.block}"`,
+      });
     }
 
     const acceptedInputSets = blockAcceptedInputSets(block);

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import { isGenericallyLegitRoute } from '../../src/policy/recovery-route-policy.js';
 import { FlowBlockCatalog } from '../../src/schemas/flow-blocks.js';
 import {
   FlowSchematic,
@@ -359,12 +360,35 @@ describe('flow schematic schema — active Fix schematic', () => {
     const schematic = parseFixSchematic();
     const frame = schematic.items.find((item) => (item.id as unknown as string) === 'fix-frame');
     if (frame === undefined) throw new Error('fix-frame missing');
-    frame.routes = { ...frame.routes, complete: '@complete' };
+    // `diagnose` is a flow-specific route — not NORMAL, not recovery-bound — so
+    // the per-block list is the only thing that can authorize it. frame does not
+    // list it, so it must be flagged.
+    frame.routes = { ...frame.routes, diagnose: '@stop' };
     const issues = validateFlowSchematicCatalogCompatibility(schematic, parseBlockCatalog());
     expect(issues).toContainEqual({
       item_id: 'fix-frame',
-      message: 'route "complete" is not allowed by block "frame"',
+      message: 'route "diagnose" is not allowed by block "frame"',
     });
+  });
+
+  it('accepts NORMAL and recovery-bound routes the block does not list (gate recognition)', () => {
+    const schematic = parseFixSchematic();
+    const frame = schematic.items.find((item) => (item.id as unknown as string) === 'fix-frame');
+    if (frame === undefined) throw new Error('fix-frame missing');
+    // frame.allowed_routes is ['continue', 'revise', 'ask', 'stop']. `complete` is
+    // a NORMAL forward route and `retry` is recovery-bound; both are first-class
+    // across every flow, so with the policy recognizer injected the validator must
+    // NOT flag them even though frame's block list omits them.
+    frame.routes = {
+      ...frame.routes,
+      complete: '@complete',
+      retry: 'fix-frame' as unknown as StepId,
+    };
+    const issues = validateFlowSchematicCatalogCompatibility(schematic, parseBlockCatalog(), {
+      recognizeRoute: isGenericallyLegitRoute,
+    });
+    const routeIssues = issues.filter((issue) => issue.message.includes('is not allowed by block'));
+    expect(routeIssues).toEqual([]);
   });
 
   it('reports schematic items that omit block evidence requirements', () => {

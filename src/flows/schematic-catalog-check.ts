@@ -17,6 +17,7 @@
 // recorded baseline and the ratchet that guards it live in
 // `tests/contracts/schematic-catalog-check.test.ts`. See
 // `docs/ideas/first-class-composition-sequence.md` (Stage 2).
+import { isGenericallyLegitRoute } from '../policy/recovery-route-policy.js';
 import { FLOW_BLOCK_CATALOG } from '../schemas/flow-block-definitions.js';
 import type {
   FlowSchematic,
@@ -27,5 +28,12 @@ import { validateFlowSchematicCatalogCompatibility } from '../schemas/flow-schem
 export function collectSchematicCatalogIssues(
   schematic: FlowSchematic,
 ): FlowSchematicCatalogCompatibilityIssue[] {
-  return validateFlowSchematicCatalogCompatibility(schematic, FLOW_BLOCK_CATALOG);
+  // Inject the policy-layer route recognizer here (the flows layer may depend on
+  // policy; the schema validator may not, or the top-level import graph gains a
+  // schemas <-> policy cycle). Gate-recognition reconciliation: a route that is
+  // NORMAL or recovery-bound is legitimate regardless of the block's
+  // allowed_routes. See docs/ideas/first-class-composition-sequence.md.
+  return validateFlowSchematicCatalogCompatibility(schematic, FLOW_BLOCK_CATALOG, {
+    recognizeRoute: isGenericallyLegitRoute,
+  });
 }

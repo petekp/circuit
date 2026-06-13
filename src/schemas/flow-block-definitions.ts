@@ -426,7 +426,7 @@ const FLOW_BLOCK_DEFINITION_INPUTS = [
       description:
         'The goal contract must preserve the operator objective, declare proof requirements, constrain flow targets, and name recovery and close rules.',
     },
-    allowed_routes: ['continue', 'ask', 'stop'],
+    allowed_routes: ['continue', 'ask', 'stop', 'fix', 'build', 'review', 'explore', 'pursue'],
     human_interaction: 'optional',
     host_capabilities: {
       claude: [],
@@ -436,6 +436,227 @@ const FLOW_BLOCK_DEFINITION_INPUTS = [
     schematicPolicy: {
       executionKinds: ['compose', 'checkpoint', 'sub-run'],
       stages: ['frame'],
+    },
+  },
+  {
+    id: 'goal-child-run',
+    title: 'Goal Child Run',
+    purpose:
+      'Run the statically selected child flow for the goal contract and capture its result as a goal attempt input.',
+    input_contracts: ['goal.contract@v1'],
+    alternative_input_contracts: [],
+    output_contract: 'goal.child-run@v1',
+    action_surface: 'orchestrator',
+    produces_evidence: ['static child flow target', 'child result file', 'parent trace link'],
+    check: {
+      kind: 'schema',
+      description:
+        'The child run must record which static flow target ran and where its result and reports landed.',
+    },
+    allowed_routes: ['continue', 'stop'],
+    human_interaction: 'never',
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: [],
+    },
+    schematicPolicy: {
+      executionKinds: ['sub-run'],
+      stages: ['act'],
+    },
+  },
+  {
+    id: 'goal-attempt',
+    title: 'Goal Attempt',
+    purpose:
+      'Summarize one child-flow attempt against the goal contract into a typed attempt record.',
+    input_contracts: ['goal.contract@v1'],
+    alternative_input_contracts: [],
+    output_contract: 'goal.attempt@v1',
+    action_surface: 'orchestrator',
+    produces_evidence: ['child result path', 'child report paths', 'attempt outcome'],
+    check: {
+      kind: 'schema',
+      description:
+        'The attempt must name the flow target, point at the child result, and state an outcome.',
+    },
+    allowed_routes: ['continue', 'stop'],
+    human_interaction: 'never',
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: [],
+    },
+    schematicPolicy: {
+      executionKinds: ['compose'],
+      stages: ['act'],
+    },
+  },
+  {
+    id: 'goal-evaluate',
+    title: 'Goal Evaluate',
+    purpose:
+      'Compare attempt evidence to the goal contract done claims and choose the next typed route.',
+    input_contracts: ['goal.contract@v1', 'goal.attempt@v1'],
+    alternative_input_contracts: [],
+    output_contract: 'goal.evidence-evaluation@v1',
+    action_surface: 'orchestrator',
+    produces_evidence: ['claim results', 'evidence gaps', 'next typed route'],
+    check: {
+      kind: 'schema',
+      description:
+        'The evaluation must report each done-claim result, name remaining evidence gaps, and select one typed next route.',
+    },
+    allowed_routes: [
+      'continue',
+      'completion-gate',
+      'retry-selected-flow',
+      'run-fix',
+      'run-review',
+      'run-explore',
+      'split-to-pursue',
+      'checkpoint',
+      'handoff',
+      'blocked',
+      'stop',
+    ],
+    human_interaction: 'never',
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: [],
+    },
+    schematicPolicy: {
+      executionKinds: ['compose'],
+      stages: ['verify'],
+    },
+  },
+  {
+    id: 'goal-recover',
+    title: 'Goal Recover',
+    purpose: 'Choose a typed recovery action when the goal attempt did not satisfy the contract.',
+    input_contracts: ['goal.evidence-evaluation@v1', 'goal.attempt@v1'],
+    alternative_input_contracts: [],
+    output_contract: 'goal.recovery@v1',
+    action_surface: 'orchestrator',
+    produces_evidence: ['recovery reason', 'selected route', 'operator input need'],
+    check: {
+      kind: 'schema',
+      description:
+        'The recovery must give a reason, select one typed route, and state whether operator input is needed.',
+    },
+    allowed_routes: [
+      'continue',
+      'retry-selected-flow',
+      'run-fix',
+      'run-review',
+      'run-explore',
+      'split-to-pursue',
+      'checkpoint',
+      'blocked',
+      'handoff',
+      'stop',
+    ],
+    human_interaction: 'never',
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: [],
+    },
+    schematicPolicy: {
+      executionKinds: ['compose'],
+      stages: ['verify'],
+    },
+  },
+  {
+    id: 'goal-checkpoint',
+    title: 'Goal Checkpoint',
+    purpose:
+      'Pause for operator judgment on a goal recovery decision and record the chosen option.',
+    input_contracts: ['flow.question@v1', 'goal.recovery@v1'],
+    alternative_input_contracts: [],
+    output_contract: 'goal.checkpoint@v1',
+    action_surface: 'host',
+    produces_evidence: ['question', 'available options', 'selected option', 'answer source'],
+    check: {
+      kind: 'decision',
+      description:
+        'The selected option must be one of the declared options or the run must pause, stop, or hand off clearly.',
+    },
+    allowed_routes: ['continue', 'blocked', 'handoff', 'stop'],
+    human_interaction: 'required',
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: [],
+    },
+    schematicPolicy: {
+      executionKinds: ['checkpoint'],
+      stages: ['verify'],
+    },
+  },
+  {
+    id: 'goal-gate-review',
+    title: 'Goal Gate Review',
+    purpose:
+      'Run one safety-review pass over the goal evaluation before the run is allowed to close.',
+    input_contracts: ['goal.contract@v1', 'goal.evidence-evaluation@v1'],
+    alternative_input_contracts: [],
+    output_contract: 'goal.gate-review@v1',
+    action_surface: 'worker',
+    produces_evidence: ['safety review pass', 'review lens', 'evidence checked'],
+    check: {
+      kind: 'review',
+      description:
+        'Each gate pass must record the review lens applied and the evidence it checked.',
+    },
+    // The gate-pass items route from the reviewer's report: route_from_report
+    // reads `next_route`, whose schema enum (GoalGate.next_route) is exactly
+    // {run-next-gate-pass, recover, close}. So those three are the routes this
+    // block actually emits at runtime, plus retry/stop as the failed-check
+    // recovery and terminal fallbacks (continue survives as the compiled `pass`
+    // twin the relay returns on a clean check in tests). allowed_routes lists the
+    // full declared vocabulary so the catalog model matches the items instead of
+    // claiming routes the block never uses. recover and run-next-gate-pass are
+    // flow-specific (not NORMAL, not recovery-bound), so they must be listed
+    // explicitly; gate-recognition reconciliation already clears close (NORMAL),
+    // retry, and stop (recovery-bound).
+    allowed_routes: ['continue', 'run-next-gate-pass', 'recover', 'retry', 'close', 'stop'],
+    human_interaction: 'never',
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: [],
+    },
+    schematicPolicy: {
+      executionKinds: ['relay'],
+      stages: ['review'],
+    },
+  },
+  {
+    id: 'goal-close',
+    title: 'Goal Close',
+    purpose: 'Emit the final goal result from the contract, attempt, and evaluation reports.',
+    input_contracts: ['goal.contract@v1', 'goal.attempt@v1', 'goal.evidence-evaluation@v1'],
+    alternative_input_contracts: [],
+    output_contract: 'goal.result@v1',
+    action_surface: 'orchestrator',
+    produces_evidence: ['outcome', 'evidence pointers', 'residual risks', 'follow-ups'],
+    check: {
+      kind: 'schema',
+      description:
+        'The goal result must state the outcome, point at evidence, and name residual risks and follow-ups.',
+    },
+    allowed_routes: ['complete', 'stop'],
+    human_interaction: 'never',
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: [],
+    },
+    schematicPolicy: {
+      executionKinds: ['compose'],
+      stages: ['close'],
     },
   },
   {

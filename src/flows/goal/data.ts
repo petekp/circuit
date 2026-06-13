@@ -45,7 +45,7 @@ function childRunStep(input: {
     id: input.id,
     title: input.title,
     stage: 'act',
-    block: 'goal',
+    block: 'goal-child-run',
     input: {
       contract: 'goal.contract@v1',
     },
@@ -104,6 +104,21 @@ export const goalFlowData = {
       { generic: 'goal.contract@v1', actual: 'goal.gate-pass@v1' },
       { generic: 'goal.contract@v1', actual: 'goal.gate@v1' },
       { generic: 'goal.contract@v1', actual: 'goal.result@v1' },
+      // First-class composition (goal split): per-role goal blocks own synthetic
+      // output contracts so each block has a unique typed output. These aliases
+      // let the re-homed items keep their real report outputs. Additive only —
+      // the 12 aliases above are retained so the split never removes a masking
+      // alias (the one second-order-failure risk the recovery-binding probe
+      // flagged). New generics are referenced by no other item, so they cannot
+      // mask an unrelated mismatch.
+      { generic: 'goal.child-run@v1', actual: 'goal.child-fix-result@v1' },
+      { generic: 'goal.child-run@v1', actual: 'goal.child-build-result@v1' },
+      { generic: 'goal.child-run@v1', actual: 'goal.child-review-result@v1' },
+      { generic: 'goal.child-run@v1', actual: 'goal.child-explore-result@v1' },
+      { generic: 'goal.child-run@v1', actual: 'goal.child-pursue-result@v1' },
+      { generic: 'goal.gate-review@v1', actual: 'goal.gate-pass@v1' },
+      { generic: 'goal.gate-review@v1', actual: 'goal.gate@v1' },
+      { generic: 'goal.checkpoint@v1', actual: 'decision.answer@v1' },
     ],
     axes: {
       allowed_depths: ['low', 'medium', 'high'],
@@ -251,7 +266,7 @@ export const goalFlowData = {
         id: 'goal-attempt',
         title: 'Attempt - summarize child result',
         stage: 'act',
-        block: 'goal',
+        block: 'goal-attempt',
         input: {
           contract: 'goal.contract@v1',
         },
@@ -274,7 +289,7 @@ export const goalFlowData = {
         id: 'goal-evidence-evaluation',
         title: 'Evaluate - compare attempt evidence to done claims',
         stage: 'verify',
-        block: 'goal',
+        block: 'goal-evaluate',
         input: {
           contract: 'goal.contract@v1',
           attempt: 'goal.attempt@v1',
@@ -310,7 +325,7 @@ export const goalFlowData = {
         id: 'goal-recovery',
         title: 'Recovery - choose typed next action',
         stage: 'verify',
-        block: 'goal',
+        block: 'goal-recover',
         input: {
           evaluation: 'goal.evidence-evaluation@v1',
           attempt: 'goal.attempt@v1',
@@ -345,7 +360,7 @@ export const goalFlowData = {
         id: 'goal-recovery-checkpoint',
         title: 'Checkpoint - operator judgment required',
         stage: 'verify',
-        block: 'human-decision',
+        block: 'goal-checkpoint',
         input: {
           question: 'flow.question@v1',
           evidence: 'goal.recovery@v1',
@@ -386,7 +401,7 @@ export const goalFlowData = {
         id: 'goal-gate-pass-1',
         title: 'Safety review - pass 1',
         stage: 'review',
-        block: 'review',
+        block: 'goal-gate-review',
         input: {
           contract: 'goal.contract@v1',
           evaluation: 'goal.evidence-evaluation@v1',
@@ -420,7 +435,7 @@ export const goalFlowData = {
         id: 'goal-gate-pass-2',
         title: 'Safety review - pass 2',
         stage: 'review',
-        block: 'review',
+        block: 'goal-gate-review',
         input: {
           contract: 'goal.contract@v1',
           evaluation: 'goal.evidence-evaluation@v1',
@@ -455,7 +470,7 @@ export const goalFlowData = {
         id: 'goal-close',
         title: 'Close - emit Goal result',
         stage: 'close',
-        block: 'close-with-evidence',
+        block: 'goal-close',
         input: {
           contract: 'goal.contract@v1',
           attempt: 'goal.attempt@v1',

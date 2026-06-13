@@ -68,10 +68,35 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
   // regression, fails the test). The two zeros are pinned exactly: Fix and
   // runtime-proof are the exemplars and must never regress.
   const BASELINE: Record<string, number> = {
-    build: 3,
-    explore: 7,
+    // build 3 -> 2 and explore 7 -> 6 after gate-recognition reconciliation: the
+    // validator now accepts a route that is NORMAL or recovery-bound regardless of
+    // the block's allowed_routes, clearing build's `advance` (slice-loop forward
+    // edge) and explore's `retry` (recovery route). The remaining issues are
+    // output/stage/evidence/input shape, not routes.
+    build: 2,
+    explore: 6,
     fix: 0,
-    goal: 113,
+    // goal: 113 -> 11 (goal-block split) -> 9 (gate-recognition reconciliation)
+    // -> 5 (goal-gate-review allowed_routes corrected). The split replaced the one
+    // shared `goal` block (stamped on 9 structurally distinct items) with per-role
+    // blocks (goal-child-run, goal-attempt, goal-evaluate, goal-recover,
+    // goal-checkpoint, goal-gate-review, goal-close) and cleared 102 issues with
+    // zero net-new. Gate-recognition reconciliation then cleared the two `close`
+    // routes (a NORMAL route the validator now accepts regardless of block). The
+    // last 4 were `recover` and `run-next-gate-pass` on each gate pass: NOT dead
+    // edges (the earlier framing was inverted). The gate-pass items route from the
+    // reviewer report via route_from_report:['next_route'], whose schema enum
+    // (GoalGate.next_route) is exactly {run-next-gate-pass, recover, close} -- so
+    // those are the routes the block actually emits, and the live goal-flow test
+    // asserts they stay declared. The fix was to correct the block model: list
+    // recover and run-next-gate-pass in goal-gate-review.allowed_routes (they are
+    // flow-specific, neither NORMAL nor recovery-bound). allowed_routes is
+    // authoring/validation-only and never compiled, so this is runtime
+    // byte-identical. The 5 that remain are route-aware contract_unavailable issues
+    // on multi-path inputs (goal-close, goal-recovery-checkpoint) that no block
+    // change can touch -- the availability walk is block-blind and alias-blind by
+    // construction.
+    goal: 5,
     prototype: 2,
     pursue: 1,
     review: 2,
