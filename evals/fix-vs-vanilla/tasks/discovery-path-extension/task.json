@@ -1,0 +1,13 @@
+{
+  "id": "discovery-path-extension",
+  "split": "discovery",
+  "provenance": "discovery-created",
+  "tuning_used": true,
+  "archetype": "weak-repro",
+  "prompt": "Uploads with no extension get tagged with their whole filename: uploading 'README' records extension 'README' instead of blank. Fix fileExtension in src/path-extension.mjs so a name with no dot reports an empty extension. The regression command is `npm test`; it should fail before the fix and pass after the fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "path-contract", "hidden": true, "argv": ["node", "tests/path-extension.contract.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/path-extension.mjs"]
+}

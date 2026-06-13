@@ -1,0 +1,17 @@
+{
+  "id": "heldout-carousel-zone",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "weak-repro",
+  "prompt": "A ride supervisor at the Gullwing Pier observation wheel filed a fault. The wheel carries 30 cabins, numbered 0 through 29, and the numbering rolls over, so cabin 0 rides directly behind cabin 29. Overnight crews closed an arc of cabins for re-glazing, from cabin 26 to cabin 3, and cabin 1 sits inside that closed arc. Even so, isCabinInArc(1, 26, 3) in src/cabin-arc.mjs returned false, and the gate let riders board cabin 1 with its glass still masked off. Fix isCabinInArc in src/cabin-arc.mjs so an arc that rolls over past cabin 0 is read correctly. The regression command is `npm test`: it fails on this case now and should pass after the fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    {
+      "id": "closed-cabins",
+      "hidden": true,
+      "argv": ["node", "tests/cabin-arc.closed-cabins.test.mjs"]
+    }
+  ],
+  "allowed_changed_files": ["src/cabin-arc.mjs"]
+}

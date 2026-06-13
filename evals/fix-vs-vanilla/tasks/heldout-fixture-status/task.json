@@ -1,0 +1,17 @@
+{
+  "id": "heldout-fixture-status",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "weak-repro",
+  "prompt": "League standings are undercounting played matches. Fixtures that finished after extra time (code \"AET\") or on a shoot-out (code \"PEN\") are missing from the table; the only results being credited are the ones whose code is \"FT\". The routine that decides whether a fixture counts is fixtureCountsForTable in src/fixture-status.mjs. The regression test in tests/fixture-status.test.mjs reproduces the problem: run npm test, watch it fail, then repair the routine so it passes.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    {
+      "id": "void-priority",
+      "hidden": true,
+      "argv": ["node", "tests/fixture-status.void-priority.test.mjs"]
+    }
+  ],
+  "allowed_changed_files": ["src/fixture-status.mjs"]
+}

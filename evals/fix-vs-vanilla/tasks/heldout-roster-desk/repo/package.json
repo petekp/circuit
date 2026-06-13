@@ -1,0 +1,8 @@
+{
+  "name": "heldout-roster-desk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/roster-desk.test.mjs"
+  }
+}

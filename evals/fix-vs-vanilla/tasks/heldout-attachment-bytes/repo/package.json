@@ -1,0 +1,8 @@
+{
+  "name": "heldout-attachment-bytes",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/attachments.test.mjs"
+  }
+}

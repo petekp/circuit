@@ -1,0 +1,8 @@
+{
+  "name": "heldout-playlist-loop-segment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/loop-segment.test.mjs"
+  }
+}

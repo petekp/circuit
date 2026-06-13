@@ -1,0 +1,13 @@
+{
+  "id": "heldout-turn-signature",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "multi-site-duplication",
+  "prompt": "Our turn-based strategy game collapses repeated identical moves in the replay viewer by comparing move signatures as plain strings. A player reported the same move showing up twice in a replay: the battle simulator and the input recorder assemble a move's modifier group in different sequences, and moveSignature in src/turn-ids.mjs emits a different string for each, so the replay viewer treats them as two distinct moves. Run npm test to confirm the failing regression before fixing; it should pass once the fix is in.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "digest", "hidden": true, "argv": ["node", "tests/turn-ids.digest.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/turn-ids.mjs"]
+}

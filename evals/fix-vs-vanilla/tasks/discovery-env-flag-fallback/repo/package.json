@@ -1,0 +1,9 @@
+{
+  "name": "env-flag-fallback-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/env-flag.test.mjs"
+  }
+}

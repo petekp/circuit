@@ -1,0 +1,13 @@
+{
+  "id": "discovery-release-order",
+  "split": "discovery",
+  "provenance": "discovery-created",
+  "tuning_used": true,
+  "archetype": "multi-site-duplication",
+  "prompt": "On the release notes page the version dropdown lists 1.9.0 above 1.10.0, as if 1.9.0 were the newer release. Fix compareVersions in src/release-order.mjs so the dropdown ranks 1.10.0 as the newer release. The regression command is `npm test`; it should fail before the fix and pass after the fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "newest-version", "hidden": true, "argv": ["node", "tests/release-order.newest.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/release-order.mjs"]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "heldout-ticket-rush",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "weak-repro",
+  "prompt": "Kitchen tickets can carry a short handwritten note, and the expo screen calls shouldRushTicket(note, expoLean) in src/ticket-rush.mjs to decide whether a ticket jumps ahead in the queue. Cooks report that tickets noted \"asap\" or \"fire\" sit in normal rotation instead of jumping ahead; right now only the literal note \"rush\" gets a ticket rushed. Fix shouldRushTicket in src/ticket-rush.mjs so the recognized rush notes jump the queue. Run `npm test` to see the regression fail before your change and pass after it.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "hold-notes", "hidden": true, "argv": ["node", "tests/ticket-rush.hold-notes.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/ticket-rush.mjs"]
+}

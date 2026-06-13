@@ -1,0 +1,13 @@
+{
+  "id": "heldout-playlist-loop-segment",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "weak-repro",
+  "prompt": "A listener on the mobile app reported a wrong badge in the player. Their 10-track playlist is set to repeat, and the editors featured a segment that begins at track 7 and ends before track 3, so it runs over the end of the playlist and back through the top. Track 8 sits inside that segment, but the player shows it without the In Segment badge. The membership check is isTrackInSegment in src/loop-segment.mjs. Run npm test to see the failing regression; it should pass once the bug is fixed.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "rail", "hidden": true, "argv": ["node", "tests/loop-segment.rail.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/loop-segment.mjs"]
+}

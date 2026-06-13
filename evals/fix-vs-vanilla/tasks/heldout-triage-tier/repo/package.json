@@ -1,0 +1,8 @@
+{
+  "name": "heldout-triage-tier",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/triage-tier.test.mjs"
+  }
+}

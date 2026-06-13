@@ -1,0 +1,8 @@
+{
+  "name": "heldout-carousel-zone",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/cabin-arc.test.mjs"
+  }
+}
