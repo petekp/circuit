@@ -35,6 +35,7 @@ import { buildRuntimePackageIndex } from '../manifest/runtime-package-index.js';
 import { assertExecutableFlow } from '../manifest/validate-executable-flow.js';
 import { resolveBindingLegibility } from './binding-legibility.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
+import { resolveEngineFlags } from './engine-flags.js';
 import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guidance.js';
 import { writeRuntimeManifestSnapshot } from './manifest-snapshot.js';
 import { recoveryBindingVerdict, recoveryCauseAllowed } from './recovery-binding-verdict.js';
@@ -274,6 +275,10 @@ async function executeExecutableFlowOutcomeUnsafe(
   // package loses them all silently today; the legibility goes onto
   // `run.bootstrapped` below so the trace and receipt show the reduction.
   const bindingLegibility = resolveBindingLegibility(compiledPackage);
+  // Stage 3 (first-class composition): resolve engine-visible flags through the
+  // shared seam so they come from the manifest when present and from the by-id
+  // package otherwise. A composed flow with no package still gets its flags.
+  const engineFlags = resolveEngineFlags(flow, compiledPackage);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(
     compiledPackage?.reportFileSurfaces ?? {},
   );
@@ -325,7 +330,7 @@ async function executeExecutableFlowOutcomeUnsafe(
       : { selectionConfigLayers: options.selectionConfigLayers }),
     guidanceSelection: {
       bindsExecutionDepthToGuidanceSelection:
-        compiledPackage?.engineFlags?.bindsExecutionDepthToRelaySelection === true,
+        engineFlags?.bindsExecutionDepthToRelaySelection === true,
     },
     ...(options.policyLayers === undefined ? {} : { policyLayers: options.policyLayers }),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
@@ -347,7 +352,7 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...options.executors,
   };
   const steps = new Map(flow.steps.map((step) => [step.id, step]));
-  const sliceFlag = compiledPackage?.engineFlags?.iteratesSliceLoop;
+  const sliceFlag = engineFlags?.iteratesSliceLoop;
   if (sliceFlag !== undefined) {
     assertNoCheckpointInSliceLoop(flow, sliceFlag);
   }

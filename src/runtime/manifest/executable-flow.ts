@@ -1,3 +1,4 @@
+import type { CompiledFlowEngineFlags } from '../../flows/types.js';
 import type { AcceptanceCriteria } from '../../schemas/acceptance-criteria.js';
 import type { Axes } from '../../schemas/axes.js';
 import type {
@@ -110,4 +111,9 @@ export interface ExecutableFlow {
   readonly stagePathPolicy?: unknown;
   readonly metadata?: Record<string, unknown>;
   readonly axes?: Axes;
+  // Stage 3 (first-class composition): engine-visible behavior flags carried
+  // from the compiled manifest's snake_case `engine_flags`, translated to the
+  // in-code shape at the manifest→runtime boundary. Absent when the manifest
+  // declares none; the engine then resolves them from the by-id catalog package.
+  readonly engineFlags?: CompiledFlowEngineFlags;
 }

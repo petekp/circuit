@@ -15,6 +15,7 @@ import {
 } from '../domain/route.js';
 import type { RunFileRef } from '../domain/run-file.js';
 import type { Selection } from '../domain/selection.js';
+import { manifestEngineFlagsToInCode } from '../run/engine-flags.js';
 import type {
   BaseStep,
   CheckpointStep,
@@ -152,6 +153,10 @@ function convertStep(step: CompiledStep): ExecutableStep {
 
 export function fromCompiledFlow(flow: CompiledFlow): ExecutableFlow {
   const defaultSelection = toSelection(flow.default_selection);
+  // Stage 3 (first-class composition): translate the manifest's snake_case
+  // engine flags into the in-code shape once, here, so the rest of the engine
+  // reads them off `flow.engineFlags` and never sees the wire shape.
+  const engineFlags = manifestEngineFlagsToInCode(flow.engine_flags);
   const executable: ExecutableFlow = {
     id: flow.id,
     version: flow.version,
@@ -174,6 +179,7 @@ export function fromCompiledFlow(flow: CompiledFlow): ExecutableFlow {
       source: 'compiled-flow-v1',
       schema_version: flow.schema_version,
     },
+    ...(engineFlags === undefined ? {} : { engineFlags }),
   };
 
   assertExecutableFlow(executable);

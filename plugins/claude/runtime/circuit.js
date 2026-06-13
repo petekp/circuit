@@ -26978,6 +26978,21 @@ var RouteMap = StepBase.shape.routes;
 
 // dist/schemas/compiled-flow.js
 var TERMINAL_ROUTE_TARGETS = /* @__PURE__ */ new Set(["@complete", "@stop", "@escalate", "@handoff"]);
+var CompiledFlowManifestEngineFlags = external_exports.object({
+  binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
+  binds_terminal_outcome_to_primary_result: external_exports.boolean().optional(),
+  iterates_slice_loop: external_exports.object({
+    head_step: external_exports.string().min(1),
+    tail_step: external_exports.string().min(1),
+    advance_route: external_exports.string().min(1),
+    slices_from: external_exports.object({
+      report: external_exports.string().min(1),
+      items_path: external_exports.string().min(1)
+    }).strict(),
+    max_slices: external_exports.number().int().positive(),
+    activate_when_depth_at_least: external_exports.literal("high")
+  }).strict().optional()
+}).strict();
 var CompiledFlowBody = external_exports.object({
   schema_version: external_exports.literal("3"),
   id: CompiledFlowId,
@@ -26992,7 +27007,10 @@ var CompiledFlowBody = external_exports.object({
   // `default_selection.skills = {mode: 'replace', skills: [...]}` so every
   // skill contribution flows through the typed SkillOverride operations,
   // closing the untyped-bypass path.
-  default_selection: SelectionOverride.optional()
+  default_selection: SelectionOverride.optional(),
+  // Optional engine-visible behavior flags carried on the manifest. Absent =
+  // resolve from the catalog package alone (the pre-migration path).
+  engine_flags: CompiledFlowManifestEngineFlags.optional()
 }).strict();
 var issueAt2 = (ctx, path, message) => {
   ctx.addIssue({ code: "custom", path, message });
@@ -53579,6 +53597,48 @@ var TERMINAL_TARGETS = [
   "@escalate"
 ];
 
+// dist/runtime/run/engine-flags.js
+function translateSliceLoop(slice) {
+  return {
+    headStep: slice.head_step,
+    tailStep: slice.tail_step,
+    advanceRoute: slice.advance_route,
+    slicesFrom: { report: slice.slices_from.report, itemsPath: slice.slices_from.items_path },
+    maxSlices: slice.max_slices,
+    activateWhenDepthAtLeast: slice.activate_when_depth_at_least
+  };
+}
+function manifestEngineFlagsToInCode(manifest) {
+  if (manifest === void 0)
+    return void 0;
+  const slice = manifest.iterates_slice_loop;
+  const result = {
+    ...manifest.binds_execution_depth_to_relay_selection === void 0 ? {} : {
+      bindsExecutionDepthToRelaySelection: manifest.binds_execution_depth_to_relay_selection
+    },
+    ...manifest.binds_terminal_outcome_to_primary_result === void 0 ? {} : {
+      bindsTerminalOutcomeToPrimaryResult: manifest.binds_terminal_outcome_to_primary_result
+    },
+    ...slice === void 0 ? {} : { iteratesSliceLoop: translateSliceLoop(slice) }
+  };
+  return Object.keys(result).length === 0 ? void 0 : result;
+}
+function resolveEngineFlags(flow, compiledPackage) {
+  const manifest = flow.engineFlags;
+  const pkg = compiledPackage?.engineFlags;
+  if (manifest === void 0)
+    return pkg;
+  const depth = manifest.bindsExecutionDepthToRelaySelection ?? pkg?.bindsExecutionDepthToRelaySelection;
+  const terminal = manifest.bindsTerminalOutcomeToPrimaryResult ?? pkg?.bindsTerminalOutcomeToPrimaryResult;
+  const slice = manifest.iteratesSliceLoop ?? pkg?.iteratesSliceLoop;
+  const merged = {
+    ...depth === void 0 ? {} : { bindsExecutionDepthToRelaySelection: depth },
+    ...terminal === void 0 ? {} : { bindsTerminalOutcomeToPrimaryResult: terminal },
+    ...slice === void 0 ? {} : { iteratesSliceLoop: slice }
+  };
+  return Object.keys(merged).length === 0 ? void 0 : merged;
+}
+
 // dist/runtime/manifest/validate-executable-flow.js
 function requiredRoutesForStep() {
   return ["pass"];
@@ -53818,6 +53878,7 @@ function convertStep(step) {
 }
 function fromCompiledFlow(flow) {
   const defaultSelection = toSelection(flow.default_selection);
+  const engineFlags = manifestEngineFlagsToInCode(flow.engine_flags);
   const executable = {
     id: flow.id,
     version: flow.version,
@@ -53839,7 +53900,8 @@ function fromCompiledFlow(flow) {
     metadata: {
       source: "compiled-flow-v1",
       schema_version: flow.schema_version
-    }
+    },
+    ...engineFlags === void 0 ? {} : { engineFlags }
   };
   assertExecutableFlow(executable);
   return executable;
@@ -61104,9 +61166,10 @@ async function terminalOutcomeBoundToPrimaryResult(context, outcome) {
   if (outcome !== "complete")
     return void 0;
   const pkg = findCompiledFlowPackageById(context.flow.id);
-  if (pkg?.engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true)
+  const engineFlags = resolveEngineFlags(context.flow, pkg);
+  if (engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true)
     return void 0;
-  const primaryResultPath = pkg.runtimeSurface?.primaryResult?.path;
+  const primaryResultPath = pkg?.runtimeSurface?.primaryResult?.path;
   if (primaryResultPath === void 0)
     return void 0;
   let primaryResult;
@@ -61444,6 +61507,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const packageIndex = buildRuntimePackageIndex(flow);
   const compiledPackage = findCompiledFlowPackageById(flow.id);
   const bindingLegibility = resolveBindingLegibility(compiledPackage);
+  const engineFlags = resolveEngineFlags(flow, compiledPackage);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(compiledPackage?.reportFileSurfaces ?? {});
   const context = {
     flow,
@@ -61486,7 +61550,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.hostKind === void 0 ? {} : { hostKind: options.hostKind },
     ...options.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: options.selectionConfigLayers },
     guidanceSelection: {
-      bindsExecutionDepthToGuidanceSelection: compiledPackage?.engineFlags?.bindsExecutionDepthToRelaySelection === true
+      bindsExecutionDepthToGuidanceSelection: engineFlags?.bindsExecutionDepthToRelaySelection === true
     },
     ...options.policyLayers === void 0 ? {} : { policyLayers: options.policyLayers },
     ...options.progress === void 0 ? {} : { progress: options.progress },
@@ -61502,7 +61566,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.executors
   };
   const steps = new Map(flow.steps.map((step) => [step.id, step]));
-  const sliceFlag = compiledPackage?.engineFlags?.iteratesSliceLoop;
+  const sliceFlag = engineFlags?.iteratesSliceLoop;
   if (sliceFlag !== void 0) {
     assertNoCheckpointInSliceLoop(flow, sliceFlag);
   }

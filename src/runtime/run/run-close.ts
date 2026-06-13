@@ -9,6 +9,7 @@ import { findCompiledFlowPackageById } from '../../flows/catalog.js';
 import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
 import type { TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
+import { resolveEngineFlags } from './engine-flags.js';
 import { type RuntimeRunResult, writeRuntimeRunResult } from './result-writer.js';
 import type { RunContext } from './run-context.js';
 import { proofPolicyRequirementKey, recordValue, traceScope } from './trace-evidence.js';
@@ -49,8 +50,14 @@ export async function terminalOutcomeBoundToPrimaryResult(
 ): Promise<{ readonly outcome: RunClosedOutcome; readonly reason: string } | undefined> {
   if (outcome !== 'complete') return undefined;
   const pkg = findCompiledFlowPackageById(context.flow.id);
-  if (pkg?.engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true) return undefined;
-  const primaryResultPath = pkg.runtimeSurface?.primaryResult?.path;
+  // Stage 3 (first-class composition): the behavior flag now resolves through
+  // the shared seam — the flow's manifest wins, the by-id package fills the
+  // rest — so a composed flow that declares this bind on its manifest is honored
+  // even with no catalog package. The package lookup stays for the primary-result
+  // path, which has not yet moved onto the manifest.
+  const engineFlags = resolveEngineFlags(context.flow, pkg);
+  if (engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true) return undefined;
+  const primaryResultPath = pkg?.runtimeSurface?.primaryResult?.path;
   if (primaryResultPath === undefined) return undefined;
 
   // The primary result is read at close time to bind the run outcome. Reading it
