@@ -38,6 +38,12 @@ const cliOnlyUtilityGeneratedPaths = [
   'plugins/codex/skills/create/SKILL.md',
 ];
 
+const uninstallGeneratedPaths = [
+  'plugins/claude/commands/uninstall.md',
+  'plugins/codex/commands/uninstall.md',
+  'plugins/codex/skills/uninstall/SKILL.md',
+];
+
 describe('generated host surface framing', () => {
   it('makes run the default Circuit command instead of a flow selector', () => {
     for (const path of runSurfacePaths) {
@@ -69,6 +75,21 @@ describe('generated host surface framing', () => {
     }
     expect(generatedSurfaceMap).toContain('## CLI-only Utilities');
     expect(generatedSurfaceMap).toContain('| `create` | `src/commands/create.md` | none |');
+  });
+
+  it('keeps Uninstall as a CLI-only utility instead of a host command', () => {
+    // Uninstall is a once-per-lifetime action; surfacing it in the /circuit
+    // palette would clutter every routine invocation. It stays a real CLI
+    // command (./bin/circuit uninstall) the docs point to, with no host
+    // command or skill mirror.
+    const generatedSurfaceMap = readRepoFile('docs/generated-surfaces.md');
+
+    expect(existsSync(resolve(REPO_ROOT, 'src/commands/uninstall.md'))).toBe(true);
+    expect(existsSync(resolve(REPO_ROOT, 'src/cli/uninstall.ts'))).toBe(true);
+    for (const path of uninstallGeneratedPaths) {
+      expect(existsSync(resolve(REPO_ROOT, path)), path).toBe(false);
+    }
+    expect(generatedSurfaceMap).toContain('| `uninstall` | `src/commands/uninstall.md` | none |');
   });
 
   it('keeps manifests intent-first and run-only for normal coding work', () => {

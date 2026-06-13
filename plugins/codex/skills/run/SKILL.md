@@ -1,13 +1,13 @@
 ---
 name: run
-description: "Runs Circuit from the intent front door with recorded flow selection, trace, reports, and evidence."
+description: "Runs Circuit on any coding task by default — the intent front door with recorded flow selection, trace, reports, and evidence."
 ---
 
 # Circuit Run
 
 ## Use Case
 
-Runs Circuit from the intent front door with recorded flow selection, trace, reports, and evidence.
+Runs Circuit on any coding task by default — the intent front door with recorded flow selection, trace, reports, and evidence.
 
 ## Codex Host Invocation
 

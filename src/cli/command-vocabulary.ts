@@ -13,6 +13,7 @@ export const CLI_COMMAND_NAMES = [
   'history',
   'memory',
   'create',
+  'uninstall',
   'runs',
   'version',
 ] as const;
