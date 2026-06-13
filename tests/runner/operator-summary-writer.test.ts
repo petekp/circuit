@@ -1042,6 +1042,46 @@ describe('operator summary writer', () => {
     }
   });
 
+  it('surfaces a skipped review instead of laundering a degraded Fix run into a clean pass', () => {
+    // A real degraded Fix run from the committed golden proof: the reviewer
+    // connector failed, so review was skipped, yet verification passed and the
+    // run closed 'complete'. buildFixDetails read only `review_verdict` (absent
+    // when review is skipped) with no fallback to `review_status`, so it emitted
+    // no Review line. The operator surface then read as an unqualified clean
+    // pass ("Verification: passed." and nothing else) — the exact false-done the
+    // product claims to prevent.
+    writeReport('reports/fix-result.json', {
+      summary: "Fix 'restore the failing login test': added the fallback guard.",
+      outcome: 'partial',
+      verification_status: 'passed',
+      review_status: 'skipped',
+      review_skip_reason:
+        'Reviewer connector failed after proof passed; Fix closed with regression, verification, and change-set evidence.',
+      evidence_links: [],
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const slots = written.summary.brief_slots;
+    if (slots === undefined) throw new Error('expected brief_slots');
+
+    // The skipped review must be visible as a key point so the surface no
+    // longer reads as a clean pass that mentions only verification, and that
+    // same key point must carry WHY it was skipped so a reader can tell a
+    // degraded skip (connector failure) from an intentional one. Asserting both
+    // on the key point (not just the internal details array) pins the reason to
+    // the operator-facing surface.
+    expect(
+      slots.key_points.some(
+        (point) => /Review:\s*skipped/i.test(point) && /Reviewer connector failed/.test(point),
+      ),
+    ).toBe(true);
+  });
+
   it('falls back to the run-level outcome when the flow-result file is missing instead of silently rendering complete', () => {
     // No reports/build-result.json on disk — simulates the legacy @stop
     // path where close-step never ran. Without the runOutcome fallback,
