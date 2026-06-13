@@ -163,12 +163,27 @@ function buildFixDetails(flowReport: JsonObject | undefined): string[] {
   const summaryDetail = flowSummaryDetail(flowReport);
   if (summaryDetail !== undefined) details.push(summaryDetail);
   const verification = stringField(flowReport, 'verification_status');
-  const review = stringField(flowReport, 'review_verdict');
+  // Fall back to review_status the same way the headline projector does. When
+  // review is skipped, the schema forbids a verdict, so reading only
+  // review_verdict drops the Review line entirely and the surface reads as a
+  // clean pass that mentions only verification. That launders a skipped (often
+  // degraded) review into a silent omission.
+  const review =
+    stringField(flowReport, 'review_verdict') ?? stringField(flowReport, 'review_status');
   if (verification !== undefined) {
     details.push(`Verification: ${friendlyVerificationStatus(verification)}.`);
   }
   if (review !== undefined) {
-    details.push(`Review: ${friendlyReviewStatus(review)}.`);
+    // A skip carries a required reason. Surface it so a degraded skip (e.g. the
+    // reviewer connector failed) is legible and cannot read as an intentional,
+    // benign one.
+    const skipReason =
+      review === 'skipped' ? stringField(flowReport, 'review_skip_reason') : undefined;
+    details.push(
+      skipReason !== undefined
+        ? `Review: ${friendlyReviewStatus(review)}. Reason: ${skipReason}`
+        : `Review: ${friendlyReviewStatus(review)}.`,
+    );
   }
   return details;
 }

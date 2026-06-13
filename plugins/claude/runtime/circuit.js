@@ -62972,12 +62972,13 @@ function buildFixDetails(flowReport) {
   if (summaryDetail !== void 0)
     details.push(summaryDetail);
   const verification = stringField2(flowReport, "verification_status");
-  const review = stringField2(flowReport, "review_verdict");
+  const review = stringField2(flowReport, "review_verdict") ?? stringField2(flowReport, "review_status");
   if (verification !== void 0) {
     details.push(`Verification: ${friendlyVerificationStatus(verification)}.`);
   }
   if (review !== void 0) {
-    details.push(`Review: ${friendlyReviewStatus(review)}.`);
+    const skipReason = review === "skipped" ? stringField2(flowReport, "review_skip_reason") : void 0;
+    details.push(skipReason !== void 0 ? `Review: ${friendlyReviewStatus(review)}. Reason: ${skipReason}` : `Review: ${friendlyReviewStatus(review)}.`);
   }
   return details;
 }
