@@ -2,7 +2,7 @@
 // route-aware catalog-compatibility check, bound to the canonical in-process
 // block catalog. `docs/flows/block-catalog.json` is generated from
 // FLOW_BLOCK_DEFINITIONS, so FLOW_BLOCK_CATALOG is the source of truth; binding
-// here means the compile path, the Stage 4 route probe, and the report-only
+// here means the compile path, the Stage 4 route probe, and the per-flow ratchet
 // baseline test all validate against the same catalog instead of each re-reading
 // the JSON and risking drift.
 //

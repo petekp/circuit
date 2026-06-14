@@ -147,8 +147,11 @@ describe('compileSchematicToCompiledFlow — failure modes', () => {
     // Remove that call and this test fails (the flow compiles instead).
     const schematic = loadCatalogCleanWriterlessVerification();
     expect(() => compileSchematicToCompiledFlow(schematic)).toThrow(FlowSchematicCompileError);
+    // Assert the offending step AND the writerless contract, so the test fails
+    // loudly if the construction's contract name ever drifts (which would make
+    // it a different, possibly vacuous, case).
     expect(() => compileSchematicToCompiledFlow(schematic)).toThrow(
-      /verify-step.*no verification writer is registered for that schema/,
+      /verify-step.*test\.writerless-verification@v1.*no verification writer is registered for that schema/,
     );
   });
 
