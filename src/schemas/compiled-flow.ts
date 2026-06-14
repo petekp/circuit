@@ -1,8 +1,11 @@
 import { z } from 'zod';
 import { FlowAxes } from './axes.js';
+import { AxisConfigRequirementList } from './axis-config-requirement.js';
 import { EngineFlagsManifest } from './engine-flags.js';
 import { CompiledFlowId, StepId } from './ids.js';
+import { ReportFileSurfaceMap } from './report-file-surface.js';
 import { RUNTIME_SUCCESS_ROUTE } from './route-policy.js';
+import { RunRelativePath } from './scalars.js';
 import { SelectionOverride } from './selection-policy.js';
 import { CANONICAL_STAGES, type CanonicalStage, SpinePolicy, Stage } from './stage.js';
 import { Step } from './step.js';
@@ -18,6 +21,26 @@ const TERMINAL_ROUTE_TARGETS = new Set(['@complete', '@stop', '@escalate', '@han
 // package per field during the migration. Absent = no flags.
 const CompiledFlowManifestEngineFlags = EngineFlagsManifest;
 export type CompiledFlowManifestEngineFlags = z.infer<typeof CompiledFlowManifestEngineFlags>;
+
+// Stage 3b (first-class composition): the runtime surface the engine reads off
+// the manifest. Only `primary_result` lives here — the binding the engine uses
+// to tie a terminal close to the flow's result report (run-close). Its
+// schema_name + path are DERIVED at compile from the close-stage compose step,
+// so a composed flow carries them without a by-id catalog package. The richer
+// presentational surface (progress steps, the result label) stays package-side:
+// it is by-id and operator-facing, resolved through the runtime-surface registry.
+const CompiledFlowManifestRuntimeSurface = z
+  .object({
+    primary_result: z
+      .object({
+        schema_name: z.string().min(1),
+        path: RunRelativePath,
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type CompiledFlowManifestRuntimeSurface = z.infer<typeof CompiledFlowManifestRuntimeSurface>;
 
 const CompiledFlowBody = z
   .object({
@@ -38,6 +61,15 @@ const CompiledFlowBody = z
     // Optional engine-visible behavior flags carried on the manifest. Absent =
     // resolve from the catalog package alone (the pre-migration path).
     engine_flags: CompiledFlowManifestEngineFlags.optional(),
+    // Stage 3b (first-class composition): execution-bearing declarations the
+    // engine reads off the manifest, so a composed flow carries them without a
+    // by-id catalog package. `report_file_surfaces` feeds the skill-hook
+    // edit-file surface table; `runtime_surface.primary_result` binds the
+    // terminal outcome to the result report; `required_config` is the CLI's
+    // up-front config gate. Each absent = the flow declares none.
+    report_file_surfaces: ReportFileSurfaceMap.optional(),
+    runtime_surface: CompiledFlowManifestRuntimeSurface.optional(),
+    required_config: AxisConfigRequirementList.optional(),
   })
   .strict();
 

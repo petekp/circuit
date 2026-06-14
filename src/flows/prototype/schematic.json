@@ -40,10 +40,6 @@
       "actual": "prototype.variant-aggregate@v1"
     },
     {
-      "generic": "flow.result@v1",
-      "actual": "prototype.variant-provider-evidence@v1"
-    },
-    {
       "generic": "verification.result@v1",
       "actual": "prototype.variant-verification@v1"
     },
@@ -74,6 +70,7 @@
         "task": "task.intake@v1",
         "route": "route.decision@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.brief@v1",
       "evidence_requirements": ["scope boundary", "constraints", "proof plan"],
       "execution": {
@@ -101,6 +98,7 @@
       "input": {
         "brief": "prototype.brief@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.plan@v1",
       "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
       "execution": {
@@ -133,6 +131,7 @@
         "brief": "prototype.brief@v1",
         "plan": "prototype.plan@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.artifact@v1",
       "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
       "execution": {
@@ -165,6 +164,7 @@
         "brief": "prototype.brief@v1",
         "plan": "prototype.plan@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.variant-options@v1",
       "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
       "execution": {
@@ -194,6 +194,7 @@
         "plan": "prototype.plan@v1",
         "options": "prototype.variant-options@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.variant-aggregate@v1",
       "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
       "execution": {
@@ -304,7 +305,7 @@
     },
     {
       "id": "variant-provider-evidence-step",
-      "block": "close-with-evidence",
+      "block": "prototype-variant-evidence",
       "title": "Verify - capture variant provider evidence",
       "stage": "verify",
       "input": {
@@ -312,8 +313,9 @@
         "options": "prototype.variant-options@v1",
         "aggregate": "prototype.variant-aggregate@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.variant-provider-evidence@v1",
-      "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
+      "evidence_requirements": ["captured variant count", "per-variant provider evidence"],
       "execution": {
         "kind": "compose"
       },
@@ -341,6 +343,7 @@
         "aggregate": "prototype.variant-aggregate@v1",
         "provider_evidence": "prototype.variant-provider-evidence@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.variant-verification@v1",
       "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
       "execution": {
@@ -372,6 +375,7 @@
         "provider_evidence": "prototype.variant-provider-evidence@v1",
         "verification": "prototype.variant-verification@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.variant-review@v1",
       "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
       "execution": {
@@ -407,6 +411,7 @@
         "verification": "prototype.variant-verification@v1",
         "review": "prototype.variant-review@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.variant-choice-options@v1",
       "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
       "execution": {
@@ -435,6 +440,7 @@
         "choices": "prototype.variant-choice-options@v1",
         "aggregate": "prototype.variant-aggregate@v1"
       },
+      "optional_inputs": [],
       "output": "decision.answer@v1",
       "evidence_requirements": [
         "question",
@@ -493,6 +499,7 @@
         "provider_evidence": "prototype.variant-provider-evidence@v1",
         "verification": "prototype.variant-verification@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.result@v1",
       "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
       "execution": {
@@ -521,6 +528,7 @@
         "plan": "prototype.plan@v1",
         "artifact": "prototype.artifact@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.verification@v1",
       "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
       "execution": {
@@ -542,14 +550,15 @@
     },
     {
       "id": "prototype-checkpoint-step",
-      "block": "human-decision",
+      "block": "prototype-checkpoint",
       "title": "Review - decide Prototype disposition",
       "stage": "review",
       "input": {
         "artifact": "prototype.artifact@v1",
         "verification": "prototype.verification@v1"
       },
-      "output": "decision.answer@v1",
+      "optional_inputs": [],
+      "output": "prototype.checkpoint@v1",
       "evidence_requirements": [
         "question",
         "available options",
@@ -605,6 +614,7 @@
         "plan": "prototype.plan@v1",
         "artifact": "prototype.artifact@v1"
       },
+      "optional_inputs": [],
       "output": "prototype.result@v1",
       "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
       "execution": {
@@ -673,6 +683,16 @@
       "canonical": "close",
       "id": "close-stage",
       "title": "Close"
+    }
+  ],
+  "engine_flags": {
+    "binds_execution_depth_to_relay_selection": true
+  },
+  "required_config": [
+    {
+      "axis": "tournament",
+      "path": "circuits.prototype.variant_models",
+      "message": "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament."
     }
   ]
 }

@@ -28,7 +28,7 @@ import {
   projectClosedProcessEvidence,
 } from '../app/process-evidence/projection.js';
 import { runAutonomousContinuation } from '../app/run-envelope/autonomous-run.js';
-import { findCompiledFlowPackageById, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
+import { INTERNAL_FLOW_IDS, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { runsRoot } from '../shared/control-plane-paths.js';
 import { progressDisplay, progressPresentation } from '../shared/progress-output.js';
@@ -407,9 +407,7 @@ function validateFlowConfigRequirements(input: {
   readonly axes: AxesValue;
   readonly selectionConfigLayers: readonly LayeredConfig[];
 }): void {
-  const requirements = findCompiledFlowPackageById(
-    input.flow.id as unknown as string,
-  )?.requiredConfig;
+  const requirements = input.flow.required_config;
   if (requirements === undefined) return;
   for (const requirement of requirements) {
     const axisActive =
@@ -628,8 +626,7 @@ export async function runExecutionCommand(
   // fixture still runs the flow explicitly — the guard only fires when the
   // fixture is missing here.
   if (!existsSync(fixturePath)) {
-    const pkg = findCompiledFlowPackageById(route.flowName);
-    if (pkg?.visibility === 'internal') {
+    if (INTERNAL_FLOW_IDS.has(route.flowName)) {
       process.stderr.write(
         `error: ${route.flowName} is an internal flow and is not available through the host run surface.\n`,
       );

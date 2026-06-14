@@ -108,7 +108,6 @@
         "review": "goal-run-review",
         "explore": "goal-run-explore",
         "pursue": "goal-run-pursue",
-        "ask": "goal-recovery-checkpoint",
         "stop": "@stop"
       },
       "route_from_report": {
@@ -611,5 +610,11 @@
   ],
   "engine_flags": {
     "binds_terminal_outcome_to_primary_result": true
+  },
+  "runtime_surface": {
+    "primary_result": {
+      "schema_name": "goal.result@v1",
+      "path": "reports/goal-result.json"
+    }
   }
 }

@@ -1,13 +1,18 @@
 // Stage 3b (first-class composition): proves a real built-in's engine-visible
-// behavior flag travels on its compiled MANIFEST, not only on the by-id catalog
-// package. `goal` is the first flow rehomed off the package onto the manifest:
-// it declares engine_flags.binds_terminal_outcome_to_primary_result on its
-// schematic, the compiler propagates it to the compiled manifest, and
-// fromCompiledFlow translates it onto ExecutableFlow.engineFlags. If the
-// schematic field, the compiler propagation, or the boundary translation
-// breaks, the flag silently vanishes and these tests go red.
+// behavior flags travel on its compiled MANIFEST, not only on the by-id catalog
+// package. `goal` was the first flow rehomed off the package onto the manifest;
+// `build` and `prototype` follow. Each declares engine_flags on its schematic,
+// the compiler propagates them to the compiled manifest, and fromCompiledFlow
+// translates them onto ExecutableFlow.engineFlags. If the schematic field, the
+// compiler propagation, or the boundary translation breaks, the flag silently
+// vanishes and these tests go red.
 //
-// See docs/ideas/first-class-composition-sequence.md (Stage 3).
+// The behavior-equivalence block is the load-bearing proof for the rehome: the
+// engine reads its flags through resolveEngineFlags(flow). Moving the flags from
+// the package to the manifest, then deleting the by-id package (M4), must not
+// change the resolved value the engine actually uses.
+//
+// See docs/architecture/first-class-composition-optimal-path.md.
 import { describe, expect, it } from 'vitest';
 import { flowDefinitions } from '../../src/flows/catalog.js';
 import {
@@ -15,6 +20,7 @@ import {
   compileSchematicToCompiledFlow,
 } from '../../src/flows/compile-schematic-to-flow.js';
 import { fromCompiledFlow } from '../../src/runtime/manifest/from-compiled-flow.js';
+import { resolveEngineFlags } from '../../src/runtime/run/engine-flags.js';
 
 function firstCompiledFlow(result: CompileResult) {
   if (result.kind === 'single') return result.flow;
@@ -23,20 +29,91 @@ function firstCompiledFlow(result: CompileResult) {
   return first;
 }
 
-function compiledGoal() {
-  const goal = flowDefinitions.find((definition) => definition.id === 'goal');
-  if (goal === undefined) throw new Error('missing goal flow definition');
-  return firstCompiledFlow(compileSchematicToCompiledFlow(goal.schematic));
+function compiledFlow(id: string) {
+  const definition = flowDefinitions.find((candidate) => candidate.id === id);
+  if (definition === undefined) throw new Error(`missing ${id} flow definition`);
+  return firstCompiledFlow(compileSchematicToCompiledFlow(definition.schematic));
 }
 
 describe('engine_flags on the compiled manifest (goal, Stage 3b)', () => {
   it('compiles goal with the terminal-outcome bind carried on the manifest', () => {
-    const flow = compiledGoal();
+    const flow = compiledFlow('goal');
     expect(flow.engine_flags?.binds_terminal_outcome_to_primary_result).toBe(true);
   });
 
   it('translates the manifest flag onto ExecutableFlow.engineFlags at the runtime boundary', () => {
-    const executable = fromCompiledFlow(compiledGoal());
+    const executable = fromCompiledFlow(compiledFlow('goal'));
     expect(executable.engineFlags?.bindsTerminalOutcomeToPrimaryResult).toBe(true);
+  });
+});
+
+describe('engine_flags on the compiled manifest (build, Stage 3b)', () => {
+  it('compiles build with the depth bind and slice loop carried on the manifest', () => {
+    const flow = compiledFlow('build');
+    expect(flow.engine_flags?.binds_execution_depth_to_relay_selection).toBe(true);
+    expect(flow.engine_flags?.iterates_slice_loop).toEqual({
+      head_step: 'act-step',
+      tail_step: 'verify-step',
+      advance_route: 'advance',
+      slices_from: { report: 'reports/build/plan.json', items_path: 'slices' },
+      max_slices: 8,
+      activate_when_depth_at_least: 'high',
+    });
+  });
+
+  it('translates the build flags onto ExecutableFlow.engineFlags at the runtime boundary', () => {
+    const executable = fromCompiledFlow(compiledFlow('build'));
+    expect(executable.engineFlags).toEqual({
+      bindsExecutionDepthToRelaySelection: true,
+      iteratesSliceLoop: {
+        headStep: 'act-step',
+        tailStep: 'verify-step',
+        advanceRoute: 'advance',
+        slicesFrom: { report: 'reports/build/plan.json', itemsPath: 'slices' },
+        maxSlices: 8,
+        activateWhenDepthAtLeast: 'high',
+      },
+    });
+  });
+});
+
+describe('engine_flags on the compiled manifest (prototype, Stage 3b)', () => {
+  it('compiles prototype with the depth bind carried on the manifest', () => {
+    const flow = compiledFlow('prototype');
+    expect(flow.engine_flags?.binds_execution_depth_to_relay_selection).toBe(true);
+    expect(flow.engine_flags?.iterates_slice_loop).toBeUndefined();
+  });
+
+  it('translates the prototype flag onto ExecutableFlow.engineFlags at the runtime boundary', () => {
+    const executable = fromCompiledFlow(compiledFlow('prototype'));
+    expect(executable.engineFlags).toEqual({ bindsExecutionDepthToRelaySelection: true });
+  });
+});
+
+describe('behavior-equivalence: the engine resolves the flags off the manifest', () => {
+  // The runtime reads its flags through resolveEngineFlags(flow). With the flags
+  // on the manifest and the by-id package deleted (M4), the resolved value the
+  // engine uses is exactly what the manifest carries — unchanged from the value
+  // the package used to provide before the rehome.
+  it('resolves build to the same depth bind and slice loop the package used to provide', () => {
+    const executable = fromCompiledFlow(compiledFlow('build'));
+    const resolved = resolveEngineFlags(executable);
+    expect(resolved).toEqual({
+      bindsExecutionDepthToRelaySelection: true,
+      iteratesSliceLoop: {
+        headStep: 'act-step',
+        tailStep: 'verify-step',
+        advanceRoute: 'advance',
+        slicesFrom: { report: 'reports/build/plan.json', itemsPath: 'slices' },
+        maxSlices: 8,
+        activateWhenDepthAtLeast: 'high',
+      },
+    });
+  });
+
+  it('resolves prototype to the same depth bind the package used to provide', () => {
+    const executable = fromCompiledFlow(compiledFlow('prototype'));
+    const resolved = resolveEngineFlags(executable);
+    expect(resolved).toEqual({ bindsExecutionDepthToRelaySelection: true });
   });
 });

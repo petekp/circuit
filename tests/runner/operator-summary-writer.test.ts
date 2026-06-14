@@ -2767,9 +2767,9 @@ describe('operator summary writer — run receipt', () => {
   });
 
   it('surfaces a reduced-bindings note when a composed flow lost catalog-sourced bindings', () => {
-    // Stage 1 (first-class composition): a composed/published-custom flow whose
-    // id matched no catalog package records its lost bindings on run.bootstrapped.
-    // The receipt must make that loss visible instead of looking like a full run.
+    // First-class composition: a composed flow that cannot resolve some
+    // catalog-sourced bindings records them on run.bootstrapped. The receipt must
+    // make that loss visible instead of looking like a full run.
     writeTrace([
       traceEntry(1, 'run.bootstrapped', {
         flow_id: 'my-composed-flow',
@@ -2777,7 +2777,6 @@ describe('operator summary writer — run receipt', () => {
         goal: 'run a composed flow',
         change_kind: 'behavioral',
         manifest_hash: 'abc123',
-        package_resolved: false,
         reduced_bindings: [
           'edit_file_surfaces',
           'depth_binding',

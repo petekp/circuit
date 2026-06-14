@@ -30,6 +30,7 @@ describe('Block Step expansion', () => {
       title: 'Plan the work',
       stage: 'plan',
       input: { brief: 'flow.brief@v1' },
+      optional_inputs: [],
       output: 'plan.strategy@v1',
       evidence_requirements: ['ordered steps', 'risk notes', 'proof strategy'],
       execution: { kind: 'compose' },

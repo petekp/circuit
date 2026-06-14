@@ -382,5 +382,33 @@
         "required": ["summary", "outcome", "evidence_links"]
       }
     }
-  ]
+  ],
+  "engine_flags": {
+    "binds_execution_depth_to_relay_selection": true,
+    "iterates_slice_loop": {
+      "head_step": "act-step",
+      "tail_step": "verify-step",
+      "advance_route": "advance",
+      "slices_from": {
+        "report": "reports/build/plan.json",
+        "items_path": "slices"
+      },
+      "max_slices": 8,
+      "activate_when_depth_at_least": "high"
+    }
+  },
+  "report_file_surfaces": {
+    "build.plan@v1": {
+      "timing": "before",
+      "extractor": {
+        "kind": "build-plan-and-slices-anticipated-file-extensions"
+      }
+    }
+  },
+  "runtime_surface": {
+    "primary_result": {
+      "schema_name": "build.result@v1",
+      "path": "reports/build-result.json"
+    }
+  }
 }

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { AcceptanceCriteria } from './acceptance-criteria.js';
 import { FlowAxes } from './axes.js';
+import { AxisConfigRequirementList } from './axis-config-requirement.js';
 import { ChangeKind } from './change-kind.js';
 import { CheckpointAllowFrom, FanoutJoinPolicy } from './check.js';
 import { CompiledDepth } from './depth.js';
@@ -21,6 +22,7 @@ import {
   schematicStagesForBlock,
 } from './flow-schematic-policy.js';
 import { CompiledFlowId, ProtocolId, StageId, StepId } from './ids.js';
+import { ReportFileSurfaceMap } from './report-file-surface.js';
 import { RunRelativePath } from './scalars.js';
 import { SelectionOverride } from './selection-policy.js';
 import { SkillSlotArray } from './skill.js';
@@ -180,6 +182,16 @@ export const SchematicStep = z
     title: z.string().min(1),
     stage: CanonicalStage,
     input: z.record(z.string().regex(/^[a-z][a-z0-9_]*$/), FlowContractRef).default({}),
+    // Input keys (from `input` above) whose contract may legitimately be absent
+    // on some reachable routes — the consumer reads them best-effort and tolerates
+    // the gap. Example: goal-close reads `recovery` and `gate`, each present on only
+    // one of two mutually exclusive routes; its close builder already reads both
+    // with required:false. The route-aware availability check verifies a required
+    // input on every reaching route (intersection) and an optional input on at
+    // least one (union). This lifts the runtime writer's required:false truth into
+    // the schematic so the validator models route-disjoint gathers by correction,
+    // not by aliasing or widening.
+    optional_inputs: z.array(z.string().regex(/^[a-z][a-z0-9_]*$/)).default([]),
     output: FlowContractRef,
     evidence_requirements: SchematicEvidenceRequirements,
     execution: StepExecution,
@@ -234,6 +246,15 @@ export const SchematicStep = z
           code: 'custom',
           path: ['route_overrides', route],
           message: `route override must target a declared route outcome: ${route}`,
+        });
+      }
+    }
+    for (const key of item.optional_inputs) {
+      if (!Object.hasOwn(item.input, key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['optional_inputs', key],
+          message: `optional_inputs entry "${key}" is not a declared input key`,
         });
       }
     }
@@ -516,6 +537,16 @@ export const FlowSchematic = z
     // `resolveEngineFlags`. Absent = the flow declares none (the engine then
     // resolves any from the by-id catalog package during the migration).
     engine_flags: EngineFlagsManifest.optional(),
+    // Stage 3b (first-class composition): execution-bearing declarations the
+    // flow DECLARES on its schematic; the compiler propagates them verbatim to
+    // the compiled manifest so the engine reads them without a by-id catalog
+    // package. `report_file_surfaces` (keyed by report schema name) marks which
+    // written reports are edit-file surfaces; `required_config` is the CLI's
+    // up-front config gate. `runtime_surface.primary_result` is NOT authored
+    // here — the compiler derives it from the close-stage compose step. Absent =
+    // the flow declares none.
+    report_file_surfaces: ReportFileSurfaceMap.optional(),
+    required_config: AxisConfigRequirementList.optional(),
   })
   .strict()
   .superRefine((schematic, ctx) => {
@@ -851,6 +882,53 @@ function collectRouteAwareAvailability(
   return availableAt;
 }
 
+// Union counterpart of collectRouteAwareAvailability: a contract is available at
+// an item when it arrives on AT LEAST ONE reaching route. Used for optional
+// inputs, which the consumer reads best-effort and tolerates when a given route
+// did not produce them. The intersection walk above stays the check for required
+// inputs (must be present on every reaching route). The two together let the
+// validator pass a legitimate route-disjoint gather (present on some route) while
+// still failing a contract that no route produces at all.
+function collectRouteAwareAvailabilityUnion(
+  schematic: FlowSchematic,
+): Map<string, Set<FlowContractRefValue>> {
+  const itemById = new Map(schematic.items.map((item) => [item.id as unknown as string, item]));
+  const availableAt = new Map<string, Set<FlowContractRefValue>>();
+  const worklist: string[] = [schematic.starts_at];
+  availableAt.set(schematic.starts_at, new Set(schematic.initial_contracts));
+
+  while (worklist.length > 0) {
+    const itemId = worklist.shift();
+    if (itemId === undefined) continue;
+    const item = itemById.get(itemId);
+    const current = availableAt.get(itemId);
+    if (item === undefined || current === undefined) continue;
+
+    const afterItem = new Set(current);
+    afterItem.add(item.output);
+
+    for (const target of schematicStepRouteTargets(item)) {
+      if (isTerminalTarget(target)) continue;
+      const prior = availableAt.get(target);
+      if (prior === undefined) {
+        availableAt.set(target, new Set(afterItem));
+        worklist.push(target);
+        continue;
+      }
+      let grew = false;
+      for (const contract of afterItem) {
+        if (!prior.has(contract)) {
+          prior.add(contract);
+          grew = true;
+        }
+      }
+      if (grew) worklist.push(target);
+    }
+  }
+
+  return availableAt;
+}
+
 // Treat a route the block does not list as legitimate anyway — used for NORMAL
 // forward routes and recovery-bound routes, which are first-class across every
 // flow. Injected from the policy layer (see `isGenericallyLegitRoute`) so this
@@ -959,6 +1037,7 @@ export function validateFlowSchematicCatalogCompatibility(
   }
 
   const availableAt = collectRouteAwareAvailability(schematic);
+  const availableAtAny = collectRouteAwareAvailabilityUnion(schematic);
   for (const item of schematic.items) {
     const availableContracts = availableAt.get(item.id);
     if (availableContracts === undefined) {
@@ -968,7 +1047,20 @@ export function validateFlowSchematicCatalogCompatibility(
       });
       continue;
     }
+    const optionalKeys = new Set(item.optional_inputs);
+    const anyContracts = availableAtAny.get(item.id) ?? new Set<FlowContractRefValue>();
     for (const [name, contract] of Object.entries(item.input)) {
+      if (optionalKeys.has(name)) {
+        // Optional input: legitimate as long as some reachable route produces it.
+        if (!anyContracts.has(contract)) {
+          issues.push({
+            item_id: item.id,
+            message: `optional input "${name}" references contract "${contract}" that no reachable route produces`,
+          });
+        }
+        continue;
+      }
+      // Required input: must be present on every route that reaches this item.
       if (!availableContracts.has(contract)) {
         issues.push({
           item_id: item.id,

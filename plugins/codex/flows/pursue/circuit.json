@@ -276,5 +276,11 @@
         "required": ["summary", "outcome", "evidence_links"]
       }
     }
-  ]
+  ],
+  "runtime_surface": {
+    "primary_result": {
+      "schema_name": "pursuit.result@v1",
+      "path": "reports/pursuit-result.json"
+    }
+  }
 }

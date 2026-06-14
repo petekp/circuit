@@ -39,21 +39,31 @@ export const flowPackages: readonly CompiledFlowPackage[] = compileFlowDefinitio
 // Canonical flow-id list — every id the engine knows about, in catalog
 // order. Derived from the single flowPackages aggregation so every runtime
 // consumer that reserves or enumerates flow ids (e.g. the custom-flow create
-// command's reserved-slug guard) tracks the catalog automatically. The test
-// layer is deliberately not derived: tests/fixtures/retained-flow-ids.ts pins
-// the roster by hand, so adding or removing a flow is a reviewed edit there.
-export const catalogFlowIds: readonly string[] = flowPackages.map((pkg) => pkg.id);
-
-const PACKAGES_BY_ID: ReadonlyMap<string, CompiledFlowPackage> = (() => {
-  const map = new Map<string, CompiledFlowPackage>();
+// command's reserved-slug guard) tracks the catalog automatically. The pass also
+// enforces the no-duplicate-id invariant the engine relies on: every remaining
+// by-id derivation (the runtime-surface registry, the internal-flow set) assumes
+// ids are unique. The test layer is deliberately not derived:
+// tests/fixtures/retained-flow-ids.ts pins the roster by hand, so adding or
+// removing a flow is a reviewed edit there.
+export const catalogFlowIds: readonly string[] = (() => {
+  const ids: string[] = [];
+  const seen = new Set<string>();
   for (const pkg of flowPackages) {
-    if (map.has(pkg.id)) {
+    if (seen.has(pkg.id)) {
       throw new Error(`duplicate flow package id '${pkg.id}'`);
     }
-    map.set(pkg.id, pkg);
+    seen.add(pkg.id);
+    ids.push(pkg.id);
   }
-  return map;
+  return ids;
 })();
+
+// Flows that ship no host run surface (the frozen internal flows). The CLI
+// rejects a host run request for one of these before it loads a manifest, so the
+// id set is derived here from the catalog rather than read off a loaded flow.
+export const INTERNAL_FLOW_IDS: ReadonlySet<string> = new Set(
+  flowPackages.filter((pkg) => pkg.visibility === 'internal').map((pkg) => pkg.id),
+);
 
 const RUNTIME_SURFACES = buildRuntimeSurfaceRegistry(flowPackages);
 
@@ -65,13 +75,6 @@ registerHtmlProjector('build', buildCheckpointProjector);
 registerHtmlProjector('explore', exploreTournamentProjector);
 registerHtmlProjector('prototype', prototypeCheckpointProjector);
 registerHtmlProjector('review', reviewResultProjector);
-
-// Look up a flow package by id. Used by engine layers that hold
-// only a CompiledFlow value and need package-level metadata (e.g. engine
-// flags). Returns undefined when no package is registered for the id.
-export function findCompiledFlowPackageById(id: string): CompiledFlowPackage | undefined {
-  return PACKAGES_BY_ID.get(id);
-}
 
 export function findFlowRuntimeSurfaceById(flowId: string): CompiledFlowRuntimeSurface | undefined {
   return RUNTIME_SURFACES.get(flowId);

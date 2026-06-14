@@ -11,7 +11,7 @@ import {
   type WriteRunEnvelopeRecordResult,
   writeRunEnvelopeRecord as writeSourceRunEnvelopeRecord,
 } from '../app/run-envelope/source-record.js';
-import { findCompiledFlowPackageById } from '../flows/catalog.js';
+import { findFlowRuntimeSurfaceById } from '../flows/catalog.js';
 // Post-run artifact emission for the run/resume execution paths.
 //
 // The four post-run artifacts (operator-summary, run-envelope-shadow,
@@ -74,8 +74,9 @@ type WrittenProcessEvidence = {
 // Resolve the flow's own primary-result outcome word (e.g. a Fix `partial`) so
 // the source run-envelope can name a degraded-but-complete run without itself
 // importing the flow catalog (that would break the projection-only boundary the
-// envelope is held to). The flow package names where its primary result lives;
-// we read that outcome here, in the CLI layer that is allowed to know it.
+// envelope is held to). The flow's runtime surface names where its primary
+// result lives; we read that outcome here, in the CLI layer that is allowed to
+// know it.
 //
 // Fail open: a flow without a primary result, or a missing or malformed result
 // file, returns undefined and leaves the surface exactly as before.
@@ -83,8 +84,7 @@ export function resolveFlowPrimaryOutcome(input: {
   readonly runFolder: string;
   readonly flowId: string;
 }): string | undefined {
-  const primaryResultPath = findCompiledFlowPackageById(input.flowId)?.runtimeSurface?.primaryResult
-    ?.path;
+  const primaryResultPath = findFlowRuntimeSurfaceById(input.flowId)?.primaryResult?.path;
   if (primaryResultPath === undefined) return undefined;
   let primaryResult: unknown;
   try {

@@ -1,19 +1,26 @@
-// Stage 2 (first-class composition): the shared, report-only catalog-check seam
-// plus the baseline ratchet that records where the eight shipped schematics
-// stand against the strong route-aware validator.
+// Stage 2 / M5 (first-class composition): the shared catalog-check seam, the
+// fail-closed compile gate it now backs, and the per-flow ratchet that records
+// where the eight shipped schematics stand against the route-aware validator.
 //
-// Why report-only, not a fail-closed compile gate: a probe across all eight
-// schematics (the `records the current baseline` test below) found 128 issues
-// across six of them. The block catalog is a coarse model — it reuses generic
-// block ids (`goal`, `plan`) for structurally distinct schematic items — and
-// only Fix and runtime-proof were authored to satisfy it. Flipping the check
-// to fail-closed on the compile path would break the build for the other six.
-// So Stage 2 lands the mechanism and the ratchet; the flip waits until the
-// block model actually describes the built-ins. See
-// docs/ideas/first-class-composition-sequence.md (Stage 2).
+// History: the seam landed report-only when a probe across all eight schematics
+// found 128 issues across six of them, because the block catalog reused generic
+// block ids (`goal`, `plan`) for structurally distinct schematic items, and only
+// Fix and runtime-proof were authored to satisfy it. The block model was then
+// corrected flow by flow (the goal-block split, then the M3a block-model pass for
+// explore, prototype, and review) so every shipped schematic reaches zero by
+// correction: honest aliases and dedicated blocks, never widening the validator
+// to mask a gap. With catalog-zero reached and the accommodation ledger at zero,
+// M5 flipped the seam to fail-closed: compileSchematicToCompiledFlow throws on
+// any catalog issue (see the "fail-closed compile gate (M5)" describe below). The
+// ratchet remains the precise per-flow diagnostic. See
+// docs/architecture/first-class-composition-optimal-path.md (M3a, M5).
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import {
+  FlowSchematicCompileError,
+  compileSchematicToCompiledFlow,
+} from '../../src/flows/compile-schematic-to-flow.js';
 import { collectSchematicCatalogIssues } from '../../src/flows/schematic-catalog-check.js';
 import { FlowSchematic } from '../../src/schemas/flow-schematic.js';
 
@@ -56,17 +63,20 @@ describe('collectSchematicCatalogIssues', () => {
     const issues = collectSchematicCatalogIssues(schematic);
     expect(issues).toContainEqual({
       item_id: 'fix-act',
-      message: 'stage "analyze" is not compatible with block "act"; expected one of act',
+      message: 'stage "analyze" is not compatible with block "act"; expected one of act, plan',
     });
   });
 });
 
-describe('shipped schematics vs the block catalog (report-only ratchet)', () => {
-  // The recorded baseline. These counts are NOT a target — they are a ceiling.
-  // A schematic getting fixed lowers its count (good, never fails the test). A
-  // schematic or a newly composed flow gaining a violation raises it (a
-  // regression, fails the test). The two zeros are pinned exactly: Fix and
-  // runtime-proof are the exemplars and must never regress.
+describe('shipped schematics vs the block catalog (per-flow zero ratchet)', () => {
+  // Every shipped schematic is pinned at zero catalog issues. Since M5 the
+  // compile gate enforces this directly: a non-zero flow fails to compile, so
+  // emit and the whole build break. This ratchet is the precise per-flow
+  // diagnostic that complements the gate, naming which flow regressed and by how
+  // much. The counts below are a ceiling of 0. Fix and runtime-proof were the
+  // original block-first exemplars; build, pursue, goal, explore, prototype, and
+  // review reached 0 by correction (honest aliases, corrected and dedicated block
+  // models, route-conditional availability, and one dead-edge removal).
   const BASELINE: Record<string, number> = {
     // build 3 -> 2 (gate-recognition reconciliation cleared `advance`, the
     // slice-loop forward edge) -> 0 (block-model honesty pass). The last two were
@@ -79,56 +89,68 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
     // never compiled, so this is runtime byte-identical. build is pinned at 0.
     build: 0,
     // explore 7 -> 6 (gate-recognition reconciliation cleared `retry`, a recovery
-    // route) -> 5 (block-model honesty pass). The cleared issue was review-step's
-    // stage `plan`: Explore omits the act/verify/review canonical stages
-    // (EXPLORE-I1), so its genuine adversarial reviewer pass is runtime-locked to
-    // the plan stage. Widening the Review block's stage allowlist to include `plan`
-    // describes that reality; schematicPolicy.stages is validation-only and never
-    // compiled, so it is byte-identical. The remaining 5 are all on synthesize-step,
-    // which names the `plan` block but is an implementer relay that composes the
-    // investigation (output explore.compose@v1, evidence about changed files, input
-    // from the review verdict). No alias or stage widen can make that honest: it is
-    // a real structural gap (Explore needs a compose/synthesize block the catalog
-    // does not yet have). Left as a real-limit for #14.
-    explore: 5,
+    // route) -> 5 (block-model honesty pass) -> 4 (M1 route-conditional
+    // availability) -> 0 (M3a block-model correction). The 6->5 cleared issue was
+    // review-step's stage `plan`: Explore omits the act/verify/review canonical
+    // stages (EXPLORE-I1), so its genuine adversarial reviewer pass is runtime-locked
+    // to the plan stage. The 5->4 cleared issue was synthesize-step's `review` input:
+    // a forward read produced only on the review-step -> synthesize-step rework
+    // loop-back, absent on the first pass; M1 lifted it into the model via
+    // `optional_inputs: ['review']`. The final 4 were all on synthesize-step, which
+    // named the generic `plan` block but is an implementer relay that composes the
+    // recommendation: its output explore.compose@v1 is already aliased to
+    // change.evidence@v1, and its evidence (changed files / rationale / follow-up) is
+    // verbatim the `act` block's. synthesize-step is the act archetype run inside
+    // Explore's canonical plan stage (EXPLORE-I1), exactly as review-step runs the
+    // review block at the plan stage. M3a re-points it to `act` and widens the act
+    // block's stages to include plan. The block id and evidence_requirements are
+    // never compiled, so this is runtime byte-identical. explore is pinned at 0.
+    explore: 0,
     fix: 0,
     // goal: 113 -> 11 (goal-block split) -> 9 (gate-recognition reconciliation)
-    // -> 5 (goal-gate-review allowed_routes corrected). The split replaced the one
-    // shared `goal` block (stamped on 9 structurally distinct items) with per-role
-    // blocks (goal-child-run, goal-attempt, goal-evaluate, goal-recover,
-    // goal-checkpoint, goal-gate-review, goal-close) and cleared 102 issues with
-    // zero net-new. Gate-recognition reconciliation then cleared the two `close`
-    // routes (a NORMAL route the validator now accepts regardless of block). The
-    // last 4 were `recover` and `run-next-gate-pass` on each gate pass: NOT dead
-    // edges (the earlier framing was inverted). The gate-pass items route from the
-    // reviewer report via route_from_report:['next_route'], whose schema enum
-    // (GoalGate.next_route) is exactly {run-next-gate-pass, recover, close} -- so
-    // those are the routes the block actually emits, and the live goal-flow test
-    // asserts they stay declared. The fix was to correct the block model: list
-    // recover and run-next-gate-pass in goal-gate-review.allowed_routes (they are
-    // flow-specific, neither NORMAL nor recovery-bound). allowed_routes is
-    // authoring/validation-only and never compiled, so this is runtime
-    // byte-identical. The 5 that remain are route-aware contract_unavailable issues
-    // on multi-path inputs the availability walk cannot satisfy, and they split two
-    // ways (verified by deleting the dead edge in-process and re-running the walk):
-    //   - 2 are genuine route disjunction: goal-close inputs `recovery` and `gate`.
+    // -> 5 (goal-gate-review allowed_routes corrected) -> 0 (M1 route-conditional
+    // availability + dead `ask` edge removed). The split replaced the one shared
+    // `goal` block (stamped on 9 structurally distinct items) with per-role blocks
+    // (goal-child-run, goal-attempt, goal-evaluate, goal-recover, goal-checkpoint,
+    // goal-gate-review, goal-close) and cleared 102 issues with zero net-new.
+    // Gate-recognition reconciliation cleared the two `close` routes; the
+    // goal-gate-review allowed_routes correction cleared `recover` and
+    // `run-next-gate-pass` on the gate passes. The final 5 were route-aware
+    // contract_unavailable issues on multi-path inputs, all now cleared by
+    // correction in M1:
+    //   - 2 were genuine route disjunction: goal-close inputs `recovery` and `gate`.
     //     A real run reaches goal-close by exactly one route -- the gate-pass path
     //     produces the gate but skips recovery; the recovery path produces recovery
-    //     but skips the gate -- so each is legitimately absent on the other route.
-    //     No block change can satisfy this; it is intrinsic to gathering inputs from
-    //     mutually exclusive routes.
-    //   - 3 are induced by a single dead edge and would vanish if it were removed:
-    //     goal-recovery-checkpoint's `evidence` plus goal-close's `attempt` and
-    //     `evaluation`. The goal-contract `ask` route into goal-recovery-checkpoint
-    //     is dead -- selected_flow_target, the only field compose.ts routes on,
-    //     cannot emit `ask` -- but the availability walk still treats it as a
-    //     reachable in-route. That contract-poor route intersects away attempt,
-    //     evaluation, and recovery at the checkpoint, and the loss propagates into
-    //     goal-close. Removing the dead `ask` edge fixes all three. That edit
-    //     changes compiled routes (runtime-neutral but not byte-identical), so it is
-    //     out of scope for this honesty pass and is documented for #14.
-    goal: 5,
-    prototype: 2,
+    //     but skips the gate. The close writer already reads both with optional:
+    //     true. M1 lifts that runtime truth into the model: goal-close declares
+    //     `optional_inputs: ['recovery', 'gate']`, and the validator checks optional
+    //     inputs by route-union (valid if any reachable route produces it) instead
+    //     of route-intersection. optional_inputs is authoring/validation-only, so
+    //     this is runtime byte-identical.
+    //   - 3 were induced by a single dead edge, now removed: goal-recovery-checkpoint's
+    //     `evidence` plus goal-close's `attempt` and `evaluation`. The goal-contract
+    //     `ask` route into goal-recovery-checkpoint was dead -- selected_flow_target,
+    //     the only field the contract block routes on, has schema GoalFlowTarget
+    //     {fix, build, review, explore, pursue} and cannot emit `ask` -- but the
+    //     availability walk still treated it as a reachable, contract-poor in-route
+    //     that intersected away attempt, evaluation, and recovery. Deleting the dead
+    //     `ask` edge fixes all three. It changes compiled routes but is
+    //     runtime-neutral (the edge can never fire). goal is pinned at 0.
+    goal: 0,
+    // prototype 2 -> 0 (M3a block-model correction). The two issues were items
+    // that named generic blocks the catalog did not model for them:
+    // variant-provider-evidence-step (a verify-stage evidence compose, not a flow
+    // close) named close-with-evidence, and prototype-checkpoint-step (a checkpoint
+    // over a built and verified artifact, inputs {artifact, verification}) named
+    // human-decision, whose required inputs are {question, evidence}. M3a adds two
+    // dedicated blocks -- prototype-variant-evidence (verify-stage compose) and
+    // prototype-checkpoint (artifact/verification checkpoint) -- and re-points the
+    // items; their generic input contracts are satisfied by the flow's existing
+    // change.evidence / verification.result / plan.strategy aliases. Block ids and
+    // outputs are never compiled, so this is runtime byte-identical, and the
+    // now-dead flow.result alias for the provider-evidence output is dropped.
+    // prototype is pinned at 0.
+    prototype: 0,
     // pursue 1 -> 0 (block-model honesty pass). The one issue was batch-step's
     // execution kind `relay`: Pursue's batch-step delegates each work item to an
     // implementer-role worker, which the pursue runtime wiring locks in. Batch
@@ -136,7 +158,13 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
     // single-kind authoring default undefined and is byte-identical. pursue is
     // pinned at 0.
     pursue: 0,
-    review: 2,
+    // review 2 -> 0 (M3a block-model correction). Both issues were on intake-step,
+    // which named the generic `frame` block but produces review-specific evidence
+    // (working tree status / diff or unavailable reason) instead of frame's
+    // constraints / proof-plan. M3a adds a dedicated review-intake block and
+    // re-points the item; its output and evidence are inherited from the block, and
+    // neither is compiled, so this is runtime byte-identical. review is pinned at 0.
+    review: 0,
     'runtime-proof': 0,
   };
 
@@ -162,5 +190,49 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
     }
     // Surface the live tally so a reader sees the ratchet position at a glance.
     console.log(`\nschematic catalog issues: ${total} total\n${report.join('\n')}\n`);
+  });
+});
+
+describe('fail-closed compile gate (M5)', () => {
+  // M5 (first-class composition) flips the catalog check from report-only to a
+  // compile-time gate: compileSchematicToCompiledFlow now calls
+  // collectSchematicCatalogIssues and throws FlowSchematicCompileError on any
+  // issue, before any other framing work. The eight built-ins reached zero by
+  // correction (pinned by the ratchet above) and an accommodation ledger of zero
+  // (tests/contracts/accommodation-ledger.test.ts), the two preconditions the
+  // flip required. The gate's standing job is composed/edited flows: one that
+  // wires a catalog-incompatible item now fails at compile time instead of
+  // compiling silently and breaking at run time.
+  //
+  // Non-vacuity: before the flip this exact mutation compiled clean, because the
+  // route-aware catalog check is strictly stronger than the compiler's
+  // producer-existence check (the produced contract still exists; only the
+  // block/stage pairing is wrong). So the gate is load-bearing, not a restatement
+  // of a check the compiler already ran.
+  function brokenFix(): FlowSchematic {
+    const schematic = loadSchematic('fix');
+    const act = schematic.items.find((item) => (item.id as unknown as string) === 'fix-act');
+    if (act === undefined) throw new Error('fix-act missing');
+    act.stage = 'analyze';
+    return schematic;
+  }
+
+  it('throws FlowSchematicCompileError when an item is catalog-incompatible', () => {
+    expect(() => compileSchematicToCompiledFlow(brokenFix())).toThrow(FlowSchematicCompileError);
+  });
+
+  it('names the offending item and the catalog issue in the error', () => {
+    expect(() => compileSchematicToCompiledFlow(brokenFix())).toThrow(
+      /fix-act: stage "analyze" is not compatible with block "act"/,
+    );
+  });
+
+  it('compiles every shipped schematic clean — the gate is inert at zero issues', () => {
+    for (const id of shippedSchematicIds()) {
+      expect(
+        () => compileSchematicToCompiledFlow(loadSchematic(id)),
+        `${id} must compile clean`,
+      ).not.toThrow();
+    }
   });
 });

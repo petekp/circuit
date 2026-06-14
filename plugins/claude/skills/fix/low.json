@@ -459,5 +459,20 @@
         "required": ["goal", "next_action"]
       }
     }
-  ]
+  ],
+  "report_file_surfaces": {
+    "fix.change-set@v1": {
+      "timing": "after",
+      "extractor": {
+        "kind": "string-array-field",
+        "field": "observed"
+      }
+    }
+  },
+  "runtime_surface": {
+    "primary_result": {
+      "schema_name": "fix.result@v1",
+      "path": "reports/fix-result.json"
+    }
+  }
 }

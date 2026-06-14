@@ -375,15 +375,20 @@ describe('FlowDefinition compiler', () => {
     expect(pkg.writers.checkpoint.map((writer) => writer.resultSchemaName)).toEqual([
       'build.brief@v1',
     ]);
-    expect(pkg.engineFlags).toEqual({
-      bindsExecutionDepthToRelaySelection: true,
-      iteratesSliceLoop: {
-        headStep: 'act-step',
-        tailStep: 'verify-step',
-        advanceRoute: 'advance',
-        slicesFrom: { report: 'reports/build/plan.json', itemsPath: 'slices' },
-        maxSlices: 8,
-        activateWhenDepthAtLeast: 'high',
+    // Stage 3b (first-class composition): build's engine flags are rehomed off
+    // the by-id catalog package onto the compiled manifest. The package no
+    // longer carries them; the manifest does. The full manifest->runtime
+    // roundtrip is proved in tests/runner/engine-flags-manifest-roundtrip.test.ts.
+    expect(pkg.engineFlags).toBeUndefined();
+    expect(compiledFlow?.engine_flags).toEqual({
+      binds_execution_depth_to_relay_selection: true,
+      iterates_slice_loop: {
+        head_step: 'act-step',
+        tail_step: 'verify-step',
+        advance_route: 'advance',
+        slices_from: { report: 'reports/build/plan.json', items_path: 'slices' },
+        max_slices: 8,
+        activate_when_depth_at_least: 'high',
       },
     });
     expect(frameStep?.execution.kind).toBe('checkpoint');
@@ -530,25 +535,16 @@ describe('FlowDefinition compiler', () => {
     }
     expect(packageFor('pursue').paths.command).toBe('src/flows/pursue/command.md');
     expect(packageFor('fix').runtimeSurface?.progress?.steps).toHaveLength(14);
-    expect(packageFor('build').engineFlags).toEqual({
-      bindsExecutionDepthToRelaySelection: true,
-      iteratesSliceLoop: {
-        headStep: 'act-step',
-        tailStep: 'verify-step',
-        advanceRoute: 'advance',
-        slicesFrom: { report: 'reports/build/plan.json', itemsPath: 'slices' },
-        maxSlices: 8,
-        activateWhenDepthAtLeast: 'high',
-      },
-    });
-    expect(packageFor('prototype').engineFlags).toEqual({
-      bindsExecutionDepthToRelaySelection: true,
-    });
-    // Stage 3 (first-class composition): goal is the first flow rehomed off the
+    // Stage 3b (first-class composition): build and prototype follow goal off
+    // the by-id catalog package onto their compiled manifests. Their packages no
+    // longer carry engineFlags; the manifests do (proved in
+    // tests/runner/engine-flags-manifest-roundtrip.test.ts).
+    expect(packageFor('build').engineFlags).toBeUndefined();
+    expect(packageFor('prototype').engineFlags).toBeUndefined();
+    // Stage 3 (first-class composition): goal was the first flow rehomed off the
     // package onto its manifest. Its package no longer carries engineFlags; the
     // terminal-outcome bind now rides the compiled manifest's engine_flags and
-    // the engine reads it through resolveEngineFlags. (build and prototype stay
-    // on the package above until the Stage 5 bulk rehome.)
+    // the engine reads it through resolveEngineFlags.
     expect(packageFor('goal').engineFlags).toBeUndefined();
     const goalCompiled = compileSchematicToCompiledFlow(
       schematicForFlowDefinition(definitionFor('goal')),

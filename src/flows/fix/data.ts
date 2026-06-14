@@ -556,6 +556,17 @@ export const fixFlowData = {
         },
       },
     ],
+    // Stage 3b (first-class composition): fix's report file surfaces ride the
+    // schematic onto the compiled manifest, so the engine reads the skill-hook
+    // edit-file surface table off the manifest, not the by-id catalog package.
+    // Mirrors the package's reports[].fileSurface; a drift-guard test keeps the
+    // two in sync until M6 collapses the duplicate authoring.
+    report_file_surfaces: {
+      'fix.change-set@v1': {
+        timing: 'after',
+        extractor: { kind: 'string-array-field', field: 'observed' },
+      },
+    },
   },
   canonicalStagePolicy: {
     kind: 'enforce',

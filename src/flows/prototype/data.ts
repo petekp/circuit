@@ -80,10 +80,6 @@ export const prototypeFlowData = {
         actual: 'prototype.variant-aggregate@v1',
       },
       {
-        generic: 'flow.result@v1',
-        actual: 'prototype.variant-provider-evidence@v1',
-      },
-      {
         generic: 'verification.result@v1',
         actual: 'prototype.variant-verification@v1',
       },
@@ -319,19 +315,19 @@ export const prototypeFlowData = {
           stop: '@stop',
         },
       }),
+      // A verify-stage compose that captures provider evidence for the variants
+      // before they are verified. It is not a flow close, so it uses the
+      // dedicated prototype-variant-evidence block; its output and evidence are
+      // inherited from the block rather than restated here.
       expandBlockStepUse({
         id: 'variant-provider-evidence-step',
         title: 'Verify - capture variant provider evidence',
         stage: 'verify',
-        block: 'close-with-evidence',
+        block: 'prototype-variant-evidence',
         input: {
           brief: 'prototype.brief@v1',
           options: 'prototype.variant-options@v1',
           aggregate: 'prototype.variant-aggregate@v1',
-        },
-        output: 'prototype.variant-provider-evidence@v1',
-        execution: {
-          kind: 'compose',
         },
         protocol: 'prototype-variant-provider-evidence@v1',
         reportPath: 'reports/prototype/variant-provider-evidence.json',
@@ -492,11 +488,16 @@ export const prototypeFlowData = {
           stop: 'close-step',
         },
       }),
+      // A checkpoint over a built and verified artifact (inputs {artifact,
+      // verification}), not the generic question/evidence human-decision shape.
+      // It uses the dedicated prototype-checkpoint block, whose generic input
+      // contracts the flow's existing change.evidence and verification.result
+      // aliases already satisfy.
       expandBlockStepUse({
         id: 'prototype-checkpoint-step',
         title: 'Review - decide Prototype disposition',
         stage: 'review',
-        block: 'human-decision',
+        block: 'prototype-checkpoint',
         input: {
           artifact: 'prototype.artifact@v1',
           verification: 'prototype.verification@v1',
@@ -553,6 +554,26 @@ export const prototypeFlowData = {
           stop: '@stop',
         },
       }),
+    ],
+    // Stage 3b (first-class composition): prototype's engine flag is rehomed
+    // off the by-id catalog package onto the schematic, so the compiled manifest
+    // carries it and the engine reads it through resolveEngineFlags without a
+    // by-id lookup. Mirrors goal's rehome; the package no longer carries it.
+    engine_flags: {
+      binds_execution_depth_to_relay_selection: true,
+    },
+    // Stage 3b (first-class composition): prototype's up-front config gate rides
+    // the schematic onto the compiled manifest, so the CLI validates the
+    // requirement off the loaded flow, not the by-id catalog package. Mirrors the
+    // package's requiredConfig; a drift-guard test keeps the two in sync until M6
+    // collapses the duplicate authoring.
+    required_config: [
+      {
+        axis: 'tournament',
+        path: 'circuits.prototype.variant_models',
+        message:
+          "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament.",
+      },
     ],
   },
   canonicalStagePolicy: {
@@ -723,9 +744,6 @@ export const prototypeFlowData = {
         },
       ],
     },
-  },
-  engineFlags: {
-    bindsExecutionDepthToRelaySelection: true,
   },
   // The tournament axis fans out one relay per configured model variant, so it
   // cannot run without operator-provided variant models. Declare the

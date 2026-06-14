@@ -157,6 +157,19 @@ export function fromCompiledFlow(flow: CompiledFlow): ExecutableFlow {
   // engine flags into the in-code shape once, here, so the rest of the engine
   // reads them off `flow.engineFlags` and never sees the wire shape.
   const engineFlags = manifestEngineFlagsToInCode(flow.engine_flags);
+  // Stage 3b (first-class composition): carry the manifest's execution-bearing
+  // declarations onto the runtime flow. report_file_surfaces and required_config
+  // are shape-identical to their in-code types, so they pass through; only
+  // runtime_surface renames its snake_case fields to camelCase.
+  const runtimeSurface =
+    flow.runtime_surface?.primary_result === undefined
+      ? undefined
+      : {
+          primaryResult: {
+            schemaName: flow.runtime_surface.primary_result.schema_name,
+            path: flow.runtime_surface.primary_result.path,
+          },
+        };
   const executable: ExecutableFlow = {
     id: flow.id,
     version: flow.version,
@@ -180,6 +193,11 @@ export function fromCompiledFlow(flow: CompiledFlow): ExecutableFlow {
       schema_version: flow.schema_version,
     },
     ...(engineFlags === undefined ? {} : { engineFlags }),
+    ...(flow.report_file_surfaces === undefined
+      ? {}
+      : { reportFileSurfaces: flow.report_file_surfaces }),
+    ...(runtimeSurface === undefined ? {} : { runtimeSurface }),
+    ...(flow.required_config === undefined ? {} : { requiredConfig: flow.required_config }),
   };
 
   assertExecutableFlow(executable);

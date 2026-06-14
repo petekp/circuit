@@ -350,7 +350,13 @@ const FLOW_BLOCK_DEFINITION_INPUTS = [
     },
     schematicPolicy: {
       executionKinds: ['relay', 'compose', 'fanout'],
-      stages: ['act'],
+      // 'plan' is included because Explore runs its genuine implementer
+      // synthesis (synthesize-step) inside its canonical plan stage: Explore
+      // omits the act/verify/review canonical stages (EXPLORE-I1), so the act
+      // that composes the recommendation is runtime-locked to the plan stage.
+      // This mirrors the same widening already applied to the review block for
+      // Explore's review-step. See src/flows/explore/contract.md.
+      stages: ['act', 'plan'],
     },
   },
   {
@@ -864,6 +870,87 @@ const FLOW_BLOCK_DEFINITION_INPUTS = [
     schematicPolicy: {
       executionKinds: ['compose', 'checkpoint', 'sub-run', 'fanout'],
       stages: ['close'],
+    },
+  },
+  {
+    id: 'review-intake',
+    title: 'Review Intake',
+    purpose:
+      'Frame an independent review: fix the audit scope and capture the working-tree state to review against.',
+    input_contracts: ['task.intake@v1', 'route.decision@v1'],
+    alternative_input_contracts: [],
+    output_contract: 'review.intake@v1',
+    action_surface: 'orchestrator',
+    produces_evidence: ['scope boundary', 'working tree status', 'diff or unavailable reason'],
+    check: {
+      kind: 'schema',
+      description:
+        'The intake must state what is in scope for the review and record the working tree state, or why a diff is unavailable.',
+    },
+    allowed_routes: ['continue', 'stop'],
+    human_interaction: 'optional',
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: [],
+    },
+    schematicPolicy: {
+      executionKinds: ['compose'],
+      stages: ['frame'],
+    },
+  },
+  {
+    id: 'prototype-variant-evidence',
+    title: 'Prototype Variant Evidence',
+    purpose:
+      'Compose the provider evidence for the model-comparison variants before the variants are verified.',
+    input_contracts: ['flow.brief@v1', 'plan.strategy@v1', 'change.evidence@v1'],
+    alternative_input_contracts: [],
+    output_contract: 'prototype.variant-provider-evidence@v1',
+    action_surface: 'orchestrator',
+    produces_evidence: ['captured variant count', 'per-variant provider evidence'],
+    check: {
+      kind: 'schema',
+      description:
+        'The provider evidence must record how many variants were captured and attribute the evidence to each variant.',
+    },
+    allowed_routes: ['complete', 'stop'],
+    human_interaction: 'never',
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: [],
+    },
+    schematicPolicy: {
+      executionKinds: ['compose'],
+      stages: ['verify'],
+    },
+  },
+  {
+    id: 'prototype-checkpoint',
+    title: 'Prototype Checkpoint',
+    purpose:
+      'Pause for the operator to decide what to do with a built and verified prototype artifact.',
+    input_contracts: ['change.evidence@v1', 'verification.result@v1'],
+    alternative_input_contracts: [],
+    output_contract: 'prototype.checkpoint@v1',
+    action_surface: 'host',
+    produces_evidence: ['question', 'available options', 'selected option', 'answer source'],
+    check: {
+      kind: 'decision',
+      description:
+        'The selected option must be one of the declared prototype dispositions or the run must pause or stop clearly.',
+    },
+    allowed_routes: ['continue', 'stop'],
+    human_interaction: 'mode-dependent',
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: [],
+    },
+    schematicPolicy: {
+      executionKinds: ['checkpoint'],
+      stages: ['review'],
     },
   },
 ] satisfies readonly FlowBlockDefinitionInput[];

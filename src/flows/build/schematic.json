@@ -59,6 +59,7 @@
         "task": "task.intake@v1",
         "route": "route.decision@v1"
       },
+      "optional_inputs": [],
       "output": "build.brief@v1",
       "evidence_requirements": ["scope boundary", "constraints", "proof plan"],
       "execution": {
@@ -107,6 +108,7 @@
         "brief": "build.brief@v1",
         "request": "context.request@v1"
       },
+      "optional_inputs": [],
       "output": "build.context@v1",
       "evidence_requirements": ["source list", "observations", "confidence notes"],
       "execution": {
@@ -141,6 +143,7 @@
         "brief": "build.brief@v1",
         "context": "build.context@v1"
       },
+      "optional_inputs": [],
       "output": "build.plan@v1",
       "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
       "execution": {
@@ -170,6 +173,7 @@
         "proof": "verification.plan@v1",
         "plan": "build.plan@v1"
       },
+      "optional_inputs": [],
       "output": "build.baseline-snapshot@v1",
       "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
       "execution": {
@@ -198,6 +202,7 @@
         "brief": "build.brief@v1",
         "plan": "build.plan@v1"
       },
+      "optional_inputs": [],
       "output": "build.implementation@v1",
       "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
       "execution": {
@@ -251,6 +256,7 @@
         "plan": "build.plan@v1",
         "change": "build.implementation@v1"
       },
+      "optional_inputs": [],
       "output": "build.verification@v1",
       "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
       "execution": {
@@ -283,6 +289,7 @@
         "baseline": "build.baseline-snapshot@v1",
         "change": "build.implementation@v1"
       },
+      "optional_inputs": [],
       "output": "build.touch-area@v1",
       "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
       "execution": {
@@ -314,6 +321,7 @@
         "verification": "build.verification@v1",
         "touch_area": "build.touch-area@v1"
       },
+      "optional_inputs": [],
       "output": "build.review@v1",
       "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
       "execution": {
@@ -352,6 +360,7 @@
         "review": "build.review@v1",
         "touch_area": "build.touch-area@v1"
       },
+      "optional_inputs": [],
       "output": "build.result@v1",
       "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
       "execution": {
@@ -423,5 +432,27 @@
       "id": "close-stage",
       "title": "Close"
     }
-  ]
+  ],
+  "engine_flags": {
+    "binds_execution_depth_to_relay_selection": true,
+    "iterates_slice_loop": {
+      "head_step": "act-step",
+      "tail_step": "verify-step",
+      "advance_route": "advance",
+      "slices_from": {
+        "report": "reports/build/plan.json",
+        "items_path": "slices"
+      },
+      "max_slices": 8,
+      "activate_when_depth_at_least": "high"
+    }
+  },
+  "report_file_surfaces": {
+    "build.plan@v1": {
+      "timing": "before",
+      "extractor": {
+        "kind": "build-plan-and-slices-anticipated-file-extensions"
+      }
+    }
+  }
 }

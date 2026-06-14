@@ -27,6 +27,9 @@ export const FLOW_BLOCK_IDS = [
   'risk-rollback-check',
   'close-with-evidence',
   'handoff',
+  'review-intake',
+  'prototype-variant-evidence',
+  'prototype-checkpoint',
 ] as const;
 
 export const FlowBlockId = z.enum(FLOW_BLOCK_IDS);

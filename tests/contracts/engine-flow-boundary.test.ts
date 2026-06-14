@@ -43,6 +43,10 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
   // a per-flow module. The compile path will join the engine allowlist when it
   // imports this in a later stage; today only tests do.
   'src/flows/schematic-catalog-check.ts',
+  // M1 (first-class composition): the accommodation ledger. Same shape as
+  // schematic-catalog-check.ts -- shared cross-flow honesty infrastructure
+  // exercised only by tests/contracts/accommodation-ledger.test.ts today.
+  'src/flows/accommodation-ledger.ts',
 ];
 
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([

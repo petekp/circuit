@@ -25611,6 +25611,18 @@ var FlowAxes = external_exports.object({
   }
 });
 
+// dist/schemas/axis-config-requirement.js
+var AxisConfigRequirement = external_exports.object({
+  // The boolean axis whose selection makes the config mandatory.
+  axis: external_exports.enum(["tournament", "autonomous"]),
+  // Dot path into the layered selection config, e.g.
+  // 'circuits.prototype.variant_models'. The last layer that defines it wins.
+  path: external_exports.string().min(1),
+  // Operator-facing reason printed on rejection.
+  message: external_exports.string().min(1)
+}).strict();
+var AxisConfigRequirementList = external_exports.array(AxisConfigRequirement).min(1);
+
 // dist/schemas/engine-flags.js
 var EngineFlagsManifest = external_exports.object({
   binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
@@ -25628,10 +25640,41 @@ var EngineFlagsManifest = external_exports.object({
   }).strict().optional()
 }).strict();
 
+// dist/schemas/report-file-surface.js
+var ReportFileSurfaceExtractor = external_exports.discriminatedUnion("kind", [
+  external_exports.object({ kind: external_exports.literal("string-array-field"), field: external_exports.string().min(1) }).strict(),
+  external_exports.object({ kind: external_exports.literal("build-plan-and-slices-anticipated-file-extensions") }).strict()
+]);
+var ReportFileSurface = external_exports.object({
+  timing: external_exports.enum(["before", "after"]),
+  extractor: ReportFileSurfaceExtractor
+}).strict();
+var ReportFileSurfaceMap = external_exports.record(external_exports.string().min(1), ReportFileSurface);
+
 // dist/schemas/route-policy.js
 var RUNTIME_SUCCESS_ROUTE = "pass";
 var SCHEMATIC_SUCCESS_ROUTE_ALIASES = ["continue", "complete"];
 var SUCCESS_ROUTE_ALIAS_SET = new Set(SCHEMATIC_SUCCESS_ROUTE_ALIASES);
+
+// dist/schemas/scalars.js
+var ControlPlaneFileStem = external_exports.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9._-]*$/, {
+  message: "must match /^[a-z0-9][a-z0-9._-]*$/ (lowercase alnum start; alnum, dot, underscore, hyphen thereafter)"
+}).refine((value) => value !== "." && value !== "..", {
+  message: "must not be a current or parent directory segment"
+}).refine((value) => !value.includes(".."), {
+  message: "must not contain parent-directory traversal"
+}).refine((value) => !value.includes("/") && !value.includes("\\"), {
+  message: "must not contain path separators"
+});
+var RunRelativePath = external_exports.string().min(1, { message: "run-relative path must be non-empty" }).refine((value) => !value.startsWith("/"), {
+  message: "run-relative path must not be absolute"
+}).refine((value) => !value.includes("\\"), {
+  message: 'run-relative path must use POSIX "/" separators, not backslashes'
+}).refine((value) => !value.includes(":"), {
+  message: "run-relative path must not contain drive-letter or colon forms"
+}).refine((value) => value.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== ".."), {
+  message: "run-relative path must not contain empty, current-directory, or parent-directory segments"
+}).brand();
 
 // dist/schemas/json.js
 var JsonPrimitive = external_exports.union([
@@ -26146,26 +26189,6 @@ var RubricResult = external_exports.object({
     }
   }
 });
-
-// dist/schemas/scalars.js
-var ControlPlaneFileStem = external_exports.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9._-]*$/, {
-  message: "must match /^[a-z0-9][a-z0-9._-]*$/ (lowercase alnum start; alnum, dot, underscore, hyphen thereafter)"
-}).refine((value) => value !== "." && value !== "..", {
-  message: "must not be a current or parent directory segment"
-}).refine((value) => !value.includes(".."), {
-  message: "must not contain parent-directory traversal"
-}).refine((value) => !value.includes("/") && !value.includes("\\"), {
-  message: "must not contain path separators"
-});
-var RunRelativePath = external_exports.string().min(1, { message: "run-relative path must be non-empty" }).refine((value) => !value.startsWith("/"), {
-  message: "run-relative path must not be absolute"
-}).refine((value) => !value.includes("\\"), {
-  message: 'run-relative path must use POSIX "/" separators, not backslashes'
-}).refine((value) => !value.includes(":"), {
-  message: "run-relative path must not contain drive-letter or colon forms"
-}).refine((value) => value.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== ".."), {
-  message: "run-relative path must not contain empty, current-directory, or parent-directory segments"
-}).brand();
 
 // dist/schemas/runtime-source.js
 var RuntimeNumberSource = external_exports.discriminatedUnion("kind", [
@@ -26996,6 +27019,12 @@ var RouteMap = StepBase.shape.routes;
 // dist/schemas/compiled-flow.js
 var TERMINAL_ROUTE_TARGETS = /* @__PURE__ */ new Set(["@complete", "@stop", "@escalate", "@handoff"]);
 var CompiledFlowManifestEngineFlags = EngineFlagsManifest;
+var CompiledFlowManifestRuntimeSurface = external_exports.object({
+  primary_result: external_exports.object({
+    schema_name: external_exports.string().min(1),
+    path: RunRelativePath
+  }).strict().optional()
+}).strict();
 var CompiledFlowBody = external_exports.object({
   schema_version: external_exports.literal("3"),
   id: CompiledFlowId,
@@ -27013,7 +27042,16 @@ var CompiledFlowBody = external_exports.object({
   default_selection: SelectionOverride.optional(),
   // Optional engine-visible behavior flags carried on the manifest. Absent =
   // resolve from the catalog package alone (the pre-migration path).
-  engine_flags: CompiledFlowManifestEngineFlags.optional()
+  engine_flags: CompiledFlowManifestEngineFlags.optional(),
+  // Stage 3b (first-class composition): execution-bearing declarations the
+  // engine reads off the manifest, so a composed flow carries them without a
+  // by-id catalog package. `report_file_surfaces` feeds the skill-hook
+  // edit-file surface table; `runtime_surface.primary_result` binds the
+  // terminal outcome to the result report; `required_config` is the CLI's
+  // up-front config gate. Each absent = the flow declares none.
+  report_file_surfaces: ReportFileSurfaceMap.optional(),
+  runtime_surface: CompiledFlowManifestRuntimeSurface.optional(),
+  required_config: AxisConfigRequirementList.optional()
 }).strict();
 var issueAt2 = (ctx, path, message) => {
   ctx.addIssue({ code: "custom", path, message });
@@ -27333,7 +27371,10 @@ var FLOW_BLOCK_IDS = [
   "batch",
   "risk-rollback-check",
   "close-with-evidence",
-  "handoff"
+  "handoff",
+  "review-intake",
+  "prototype-variant-evidence",
+  "prototype-checkpoint"
 ];
 var FlowBlockId = external_exports.enum(FLOW_BLOCK_IDS);
 var FlowRoute = external_exports.enum([
@@ -27783,7 +27824,13 @@ var FLOW_BLOCK_DEFINITION_INPUTS = [
     },
     schematicPolicy: {
       executionKinds: ["relay", "compose", "fanout"],
-      stages: ["act"]
+      // 'plan' is included because Explore runs its genuine implementer
+      // synthesis (synthesize-step) inside its canonical plan stage: Explore
+      // omits the act/verify/review canonical stages (EXPLORE-I1), so the act
+      // that composes the recommendation is runtime-locked to the plan stage.
+      // This mirrors the same widening already applied to the review block for
+      // Explore's review-step. See src/flows/explore/contract.md.
+      stages: ["act", "plan"]
     }
   },
   {
@@ -28275,6 +28322,81 @@ var FLOW_BLOCK_DEFINITION_INPUTS = [
       executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
       stages: ["close"]
     }
+  },
+  {
+    id: "review-intake",
+    title: "Review Intake",
+    purpose: "Frame an independent review: fix the audit scope and capture the working-tree state to review against.",
+    input_contracts: ["task.intake@v1", "route.decision@v1"],
+    alternative_input_contracts: [],
+    output_contract: "review.intake@v1",
+    action_surface: "orchestrator",
+    produces_evidence: ["scope boundary", "working tree status", "diff or unavailable reason"],
+    check: {
+      kind: "schema",
+      description: "The intake must state what is in scope for the review and record the working tree state, or why a diff is unavailable."
+    },
+    allowed_routes: ["continue", "stop"],
+    human_interaction: "optional",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["compose"],
+      stages: ["frame"]
+    }
+  },
+  {
+    id: "prototype-variant-evidence",
+    title: "Prototype Variant Evidence",
+    purpose: "Compose the provider evidence for the model-comparison variants before the variants are verified.",
+    input_contracts: ["flow.brief@v1", "plan.strategy@v1", "change.evidence@v1"],
+    alternative_input_contracts: [],
+    output_contract: "prototype.variant-provider-evidence@v1",
+    action_surface: "orchestrator",
+    produces_evidence: ["captured variant count", "per-variant provider evidence"],
+    check: {
+      kind: "schema",
+      description: "The provider evidence must record how many variants were captured and attribute the evidence to each variant."
+    },
+    allowed_routes: ["complete", "stop"],
+    human_interaction: "never",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["compose"],
+      stages: ["verify"]
+    }
+  },
+  {
+    id: "prototype-checkpoint",
+    title: "Prototype Checkpoint",
+    purpose: "Pause for the operator to decide what to do with a built and verified prototype artifact.",
+    input_contracts: ["change.evidence@v1", "verification.result@v1"],
+    alternative_input_contracts: [],
+    output_contract: "prototype.checkpoint@v1",
+    action_surface: "host",
+    produces_evidence: ["question", "available options", "selected option", "answer source"],
+    check: {
+      kind: "decision",
+      description: "The selected option must be one of the declared prototype dispositions or the run must pause or stop clearly."
+    },
+    allowed_routes: ["continue", "stop"],
+    human_interaction: "mode-dependent",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["checkpoint"],
+      stages: ["review"]
+    }
   }
 ];
 var FLOW_BLOCK_DEFINITIONS = FLOW_BLOCK_DEFINITION_INPUTS.map(defineFlowBlockDefinition);
@@ -28377,6 +28499,16 @@ var SchematicStep = external_exports.object({
   title: external_exports.string().min(1),
   stage: CanonicalStage,
   input: external_exports.record(external_exports.string().regex(/^[a-z][a-z0-9_]*$/), FlowContractRef).default({}),
+  // Input keys (from `input` above) whose contract may legitimately be absent
+  // on some reachable routes — the consumer reads them best-effort and tolerates
+  // the gap. Example: goal-close reads `recovery` and `gate`, each present on only
+  // one of two mutually exclusive routes; its close builder already reads both
+  // with required:false. The route-aware availability check verifies a required
+  // input on every reaching route (intersection) and an optional input on at
+  // least one (union). This lifts the runtime writer's required:false truth into
+  // the schematic so the validator models route-disjoint gathers by correction,
+  // not by aliasing or widening.
+  optional_inputs: external_exports.array(external_exports.string().regex(/^[a-z][a-z0-9_]*$/)).default([]),
   output: FlowContractRef,
   evidence_requirements: SchematicEvidenceRequirements,
   execution: StepExecution,
@@ -28429,6 +28561,15 @@ var SchematicStep = external_exports.object({
         code: "custom",
         path: ["route_overrides", route],
         message: `route override must target a declared route outcome: ${route}`
+      });
+    }
+  }
+  for (const key of item.optional_inputs) {
+    if (!Object.hasOwn(item.input, key)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["optional_inputs", key],
+        message: `optional_inputs entry "${key}" is not a declared input key`
       });
     }
   }
@@ -28669,7 +28810,17 @@ var FlowSchematic = external_exports.object({
   // compiled manifest's `engine_flags`, where the engine reads them through
   // `resolveEngineFlags`. Absent = the flow declares none (the engine then
   // resolves any from the by-id catalog package during the migration).
-  engine_flags: EngineFlagsManifest.optional()
+  engine_flags: EngineFlagsManifest.optional(),
+  // Stage 3b (first-class composition): execution-bearing declarations the
+  // flow DECLARES on its schematic; the compiler propagates them verbatim to
+  // the compiled manifest so the engine reads them without a by-id catalog
+  // package. `report_file_surfaces` (keyed by report schema name) marks which
+  // written reports are edit-file surfaces; `required_config` is the CLI's
+  // up-front config gate. `runtime_surface.primary_result` is NOT authored
+  // here — the compiler derives it from the close-stage compose step. Absent =
+  // the flow declares none.
+  report_file_surfaces: ReportFileSurfaceMap.optional(),
+  required_config: AxisConfigRequirementList.optional()
 }).strict().superRefine((schematic, ctx) => {
   const itemIds = /* @__PURE__ */ new Map();
   for (const [index, item] of schematic.items.entries()) {
@@ -31716,7 +31867,40 @@ var buildFlowData = {
           stop: "@stop"
         }
       })
-    ]
+    ],
+    // Stage 3b (first-class composition): build's engine flags are rehomed off
+    // the by-id catalog package onto the schematic, so the compiled manifest
+    // carries them and the engine reads them through resolveEngineFlags without
+    // a by-id lookup. Mirrors goal's rehome; the package no longer carries them.
+    engine_flags: {
+      binds_execution_depth_to_relay_selection: true,
+      // Deep depth implements and verifies the plan's slices one at a time: the
+      // engine re-enters act-step for each slice and only advances to review
+      // once every slice's verify passes. Lighter depth runs a single pass.
+      // See docs/ideas/build-slice-decomposition.md.
+      iterates_slice_loop: {
+        head_step: "act-step",
+        tail_step: "verify-step",
+        advance_route: "advance",
+        slices_from: {
+          report: "reports/build/plan.json",
+          items_path: "slices"
+        },
+        max_slices: 8,
+        activate_when_depth_at_least: "high"
+      }
+    },
+    // Stage 3b (first-class composition): build's report file surfaces ride the
+    // schematic onto the compiled manifest, so the engine reads the skill-hook
+    // edit-file surface table off the manifest, not the by-id catalog package.
+    // Mirrors the package's reports[].fileSurface; a drift-guard test keeps the
+    // two in sync until M6 collapses the duplicate authoring.
+    report_file_surfaces: {
+      "build.plan@v1": {
+        timing: "before",
+        extractor: { kind: "build-plan-and-slices-anticipated-file-extensions" }
+      }
+    }
   },
   canonicalStagePolicy: {
     kind: "enforce",
@@ -31850,24 +32034,6 @@ var buildFlowData = {
           activeText: "Wrapping up"
         }
       ]
-    }
-  },
-  engineFlags: {
-    bindsExecutionDepthToRelaySelection: true,
-    // Deep depth implements and verifies the plan's slices one at a time:
-    // the engine re-enters act-step for each slice and only advances to
-    // review once every slice's verify passes. Lighter depth runs a single
-    // pass. See docs/ideas/build-slice-decomposition.md.
-    iteratesSliceLoop: {
-      headStep: "act-step",
-      tailStep: "verify-step",
-      advanceRoute: "advance",
-      slicesFrom: {
-        report: "reports/build/plan.json",
-        itemsPath: "slices"
-      },
-      maxSlices: 8,
-      activateWhenDepthAtLeast: "high"
     }
   }
 };
@@ -33206,8 +33372,14 @@ var exploreFlowData = {
       expandBlockStepUse({
         id: "synthesize-step",
         title: "Synthesize \u2014 produce explore.compose (connector-bound relay)",
+        // synthesize-step is the act archetype run inside Explore's canonical
+        // plan stage (EXPLORE-I1): an implementer relay that composes the
+        // recommendation and emits explore.compose, which the flow already
+        // aliases to change.evidence@v1 (the act block's output). The act block
+        // declares the matching evidence and accepts the plan stage, so the
+        // evidence is inherited from the block rather than restated here.
         stage: "plan",
-        block: "plan",
+        block: "act",
         input: {
           brief: "explore.brief@v1",
           diagnosis: "explore.analysis@v1",
@@ -33217,8 +33389,12 @@ var exploreFlowData = {
           // must see why the compose was rejected.
           review: "explore.review-verdict@v1"
         },
+        // review arrives only on the rework loop-back (review-step ->
+        // synthesize-step); the first pass from analyze-step never produces it.
+        // Declaring it optional records that route-disjoint truth: it is valid
+        // as long as at least one reachable route produces it.
+        optional_inputs: ["review"],
         output: "explore.compose@v1",
-        evidenceRequirements: ["changed files", "change rationale", "declared follow-up proof"],
         execution: {
           kind: "relay",
           role: "implementer"
@@ -35581,7 +35757,18 @@ var fixFlowData = {
           stop: "@stop"
         }
       }
-    ]
+    ],
+    // Stage 3b (first-class composition): fix's report file surfaces ride the
+    // schematic onto the compiled manifest, so the engine reads the skill-hook
+    // edit-file surface table off the manifest, not the by-id catalog package.
+    // Mirrors the package's reports[].fileSurface; a drift-guard test keeps the
+    // two in sync until M6 collapses the duplicate authoring.
+    report_file_surfaces: {
+      "fix.change-set@v1": {
+        timing: "after",
+        extractor: { kind: "string-array-field", field: "observed" }
+      }
+    }
   },
   canonicalStagePolicy: {
     kind: "enforce",
@@ -36899,12 +37086,12 @@ var RunBootstrappedTraceEntry = TraceEntryBase.extend({
   goal: external_exports.string().min(1),
   change_kind: ChangeKindDeclaration,
   manifest_hash: external_exports.string().min(1),
-  // Stage 1 (first-class composition): make silent capability loss legible.
-  // `package_resolved` is false when no catalog package matched this flow id;
-  // `reduced_bindings` then names the catalog-sourced bindings that fell back
-  // to defaults. Both optional so prior fixtures and resumed runs (which never
-  // re-bootstrap) stay valid — a run that omits them simply made no claim.
-  package_resolved: external_exports.boolean().optional(),
+  // First-class composition: make any capability reduction legible.
+  // `reduced_bindings` names the catalog-sourced bindings a flow cannot resolve.
+  // It is empty for every built-in (the manifest is the sole authority post-M4)
+  // and omitted entirely when nothing was reduced; a composed flow with a needs
+  // model (M9) can populate it. Optional so prior fixtures and resumed runs
+  // (which never re-bootstrap) stay valid — an omitted field makes no claim.
   reduced_bindings: external_exports.array(CatalogSourcedBinding).optional()
 }).strict();
 var SliceIndex = external_exports.number().int().nonnegative();
@@ -38527,6 +38714,13 @@ var goalFlowData = {
         route_from_report: {
           path: ["selected_flow_target"]
         },
+        // The goal-contract block routes on selected_flow_target, whose schema
+        // (GoalFlowTarget) only admits fix/build/review/explore/pursue. There is
+        // no report value that selects "ask", so the old ask -> recovery
+        // checkpoint edge could never fire. Removing it is runtime-neutral and
+        // deletes the phantom route that made goal-recovery-checkpoint and
+        // goal-close look like they read contracts their real routes never
+        // produce.
         routes: {
           continue: "goal-run-build",
           fix: "goal-run-fix",
@@ -38534,7 +38728,6 @@ var goalFlowData = {
           review: "goal-run-review",
           explore: "goal-run-explore",
           pursue: "goal-run-pursue",
-          ask: "goal-recovery-checkpoint",
           stop: "@stop"
         }
       },
@@ -38789,6 +38982,13 @@ var goalFlowData = {
           recovery: "goal.recovery@v1",
           gate: "goal.gate@v1"
         },
+        // recovery and gate arrive on disjoint routes: the gate path
+        // (gate-pass-2 -> close) never runs recovery, and the recovery path
+        // (recovery/checkpoint -> close) never runs the second gate pass. The
+        // close writer already reads both with `optional: true`, so declaring
+        // them optional lifts that runtime truth into the model: each is valid
+        // as long as some reachable route produces it.
+        optional_inputs: ["recovery", "gate"],
         output: "goal.result@v1",
         evidence_requirements: ["outcome", "evidence pointers", "residual risks", "follow-ups"],
         execution: { kind: "compose" },
@@ -40671,10 +40871,6 @@ var prototypeFlowData = {
         actual: "prototype.variant-aggregate@v1"
       },
       {
-        generic: "flow.result@v1",
-        actual: "prototype.variant-provider-evidence@v1"
-      },
-      {
         generic: "verification.result@v1",
         actual: "prototype.variant-verification@v1"
       },
@@ -40909,19 +41105,19 @@ var prototypeFlowData = {
           stop: "@stop"
         }
       }),
+      // A verify-stage compose that captures provider evidence for the variants
+      // before they are verified. It is not a flow close, so it uses the
+      // dedicated prototype-variant-evidence block; its output and evidence are
+      // inherited from the block rather than restated here.
       expandBlockStepUse({
         id: "variant-provider-evidence-step",
         title: "Verify - capture variant provider evidence",
         stage: "verify",
-        block: "close-with-evidence",
+        block: "prototype-variant-evidence",
         input: {
           brief: "prototype.brief@v1",
           options: "prototype.variant-options@v1",
           aggregate: "prototype.variant-aggregate@v1"
-        },
-        output: "prototype.variant-provider-evidence@v1",
-        execution: {
-          kind: "compose"
         },
         protocol: "prototype-variant-provider-evidence@v1",
         reportPath: "reports/prototype/variant-provider-evidence.json",
@@ -41081,11 +41277,16 @@ var prototypeFlowData = {
           stop: "close-step"
         }
       }),
+      // A checkpoint over a built and verified artifact (inputs {artifact,
+      // verification}), not the generic question/evidence human-decision shape.
+      // It uses the dedicated prototype-checkpoint block, whose generic input
+      // contracts the flow's existing change.evidence and verification.result
+      // aliases already satisfy.
       expandBlockStepUse({
         id: "prototype-checkpoint-step",
         title: "Review - decide Prototype disposition",
         stage: "review",
-        block: "human-decision",
+        block: "prototype-checkpoint",
         input: {
           artifact: "prototype.artifact@v1",
           verification: "prototype.verification@v1"
@@ -41142,6 +41343,25 @@ var prototypeFlowData = {
           stop: "@stop"
         }
       })
+    ],
+    // Stage 3b (first-class composition): prototype's engine flag is rehomed
+    // off the by-id catalog package onto the schematic, so the compiled manifest
+    // carries it and the engine reads it through resolveEngineFlags without a
+    // by-id lookup. Mirrors goal's rehome; the package no longer carries it.
+    engine_flags: {
+      binds_execution_depth_to_relay_selection: true
+    },
+    // Stage 3b (first-class composition): prototype's up-front config gate rides
+    // the schematic onto the compiled manifest, so the CLI validates the
+    // requirement off the loaded flow, not the by-id catalog package. Mirrors the
+    // package's requiredConfig; a drift-guard test keeps the two in sync until M6
+    // collapses the duplicate authoring.
+    required_config: [
+      {
+        axis: "tournament",
+        path: "circuits.prototype.variant_models",
+        message: "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament."
+      }
     ]
   },
   canonicalStagePolicy: {
@@ -41312,9 +41532,6 @@ var prototypeFlowData = {
         }
       ]
     }
-  },
-  engineFlags: {
-    bindsExecutionDepthToRelaySelection: true
   },
   // The tournament axis fans out one relay per configured model variant, so it
   // cannot run without operator-provided variant models. Declare the
@@ -43505,21 +43722,20 @@ var reviewFlowData = {
       }
     ],
     items: [
-      composeBlockStep({
+      // Review's intake is a structurally distinct frame: it captures the
+      // working-tree state to audit against, not the generic scope/constraints/
+      // proof-plan a build-style frame produces. It uses the dedicated
+      // review-intake block, so its output and evidence are inherited from the
+      // block rather than restated here.
+      expandBlockStepUse({
         id: "intake-step",
         title: "Intake \u2014 resolve review scope",
         stage: "frame",
-        block: "frame",
+        block: "review-intake",
         input: {
           task: "task.intake@v1",
           route: "route.decision@v1"
         },
-        output: "review.intake@v1",
-        evidenceRequirements: [
-          "scope boundary",
-          "working tree status",
-          "diff or unavailable reason"
-        ],
         protocol: "review-intake@v1",
         reportPath: "reports/review-intake.json",
         required: ["scope", "evidence"],
@@ -43881,25 +44097,24 @@ var flowDefinitions = [
   goalFlowDefinition
 ];
 var flowPackages = compileFlowDefinitions(flowDefinitions);
-var catalogFlowIds = flowPackages.map((pkg) => pkg.id);
-var PACKAGES_BY_ID = (() => {
-  const map2 = /* @__PURE__ */ new Map();
+var catalogFlowIds = (() => {
+  const ids = [];
+  const seen = /* @__PURE__ */ new Set();
   for (const pkg of flowPackages) {
-    if (map2.has(pkg.id)) {
+    if (seen.has(pkg.id)) {
       throw new Error(`duplicate flow package id '${pkg.id}'`);
     }
-    map2.set(pkg.id, pkg);
+    seen.add(pkg.id);
+    ids.push(pkg.id);
   }
-  return map2;
+  return ids;
 })();
+var INTERNAL_FLOW_IDS = new Set(flowPackages.filter((pkg) => pkg.visibility === "internal").map((pkg) => pkg.id));
 var RUNTIME_SURFACES = buildRuntimeSurfaceRegistry(flowPackages);
 registerHtmlProjector("build", buildCheckpointProjector);
 registerHtmlProjector("explore", exploreTournamentProjector);
 registerHtmlProjector("prototype", prototypeCheckpointProjector);
 registerHtmlProjector("review", reviewResultProjector);
-function findCompiledFlowPackageById(id) {
-  return PACKAGES_BY_ID.get(id);
-}
 function findFlowRuntimeSurfaceById(flowId) {
   return RUNTIME_SURFACES.get(flowId);
 }
@@ -53449,7 +53664,15 @@ var FLOW_KEYS = /* @__PURE__ */ new Set([
   // describe how the engine runs the flow, not the authority/proof/recovery
   // surface the work contract projects, so they are classified here without
   // contributing a hint.
-  "engine_flags"
+  "engine_flags",
+  // Stage 3b (first-class composition): execution-bearing declarations carried
+  // on the manifest. Like engine_flags, they describe how the engine/CLI runs
+  // the flow (the skill-hook edit-file surface table, the primary-result
+  // binding, the up-front config gate), not the authority/proof/recovery surface
+  // the work contract projects, so they are classified here without a hint.
+  "report_file_surfaces",
+  "runtime_surface",
+  "required_config"
 ]);
 var STAGE_KEYS = /* @__PURE__ */ new Set(["id", "title", "canonical", "steps", "selection"]);
 var STEP_KEYS = {
@@ -53919,20 +54142,8 @@ function manifestEngineFlagsToInCode(manifest) {
   };
   return Object.keys(result).length === 0 ? void 0 : result;
 }
-function resolveEngineFlags(flow, compiledPackage) {
-  const manifest = flow.engineFlags;
-  const pkg = compiledPackage?.engineFlags;
-  if (manifest === void 0)
-    return pkg;
-  const depth = manifest.bindsExecutionDepthToRelaySelection ?? pkg?.bindsExecutionDepthToRelaySelection;
-  const terminal = manifest.bindsTerminalOutcomeToPrimaryResult ?? pkg?.bindsTerminalOutcomeToPrimaryResult;
-  const slice = manifest.iteratesSliceLoop ?? pkg?.iteratesSliceLoop;
-  const merged = {
-    ...depth === void 0 ? {} : { bindsExecutionDepthToRelaySelection: depth },
-    ...terminal === void 0 ? {} : { bindsTerminalOutcomeToPrimaryResult: terminal },
-    ...slice === void 0 ? {} : { iteratesSliceLoop: slice }
-  };
-  return Object.keys(merged).length === 0 ? void 0 : merged;
+function resolveEngineFlags(flow) {
+  return flow.engineFlags;
 }
 
 // dist/runtime/manifest/validate-executable-flow.js
@@ -54175,6 +54386,12 @@ function convertStep(step) {
 function fromCompiledFlow(flow) {
   const defaultSelection = toSelection(flow.default_selection);
   const engineFlags = manifestEngineFlagsToInCode(flow.engine_flags);
+  const runtimeSurface = flow.runtime_surface?.primary_result === void 0 ? void 0 : {
+    primaryResult: {
+      schemaName: flow.runtime_surface.primary_result.schema_name,
+      path: flow.runtime_surface.primary_result.path
+    }
+  };
   const executable = {
     id: flow.id,
     version: flow.version,
@@ -54197,7 +54414,10 @@ function fromCompiledFlow(flow) {
       source: "compiled-flow-v1",
       schema_version: flow.schema_version
     },
-    ...engineFlags === void 0 ? {} : { engineFlags }
+    ...engineFlags === void 0 ? {} : { engineFlags },
+    ...flow.report_file_surfaces === void 0 ? {} : { reportFileSurfaces: flow.report_file_surfaces },
+    ...runtimeSurface === void 0 ? {} : { runtimeSurface },
+    ...flow.required_config === void 0 ? {} : { requiredConfig: flow.required_config }
   };
   assertExecutableFlow(executable);
   return executable;
@@ -60307,11 +60527,22 @@ function buildRuntimePackageIndex(flow) {
 
 // dist/runtime/run/binding-legibility.js
 var CATALOG_SOURCED_BINDINGS = CatalogSourcedBinding.options;
-function resolveBindingLegibility(compiledPackage) {
-  if (compiledPackage !== void 0) {
-    return { packageResolved: true, reducedBindings: [] };
+function manifestBacksBinding(flow, binding) {
+  switch (binding) {
+    case "depth_binding":
+    case "slice_loop":
+    case "terminal_outcome_binding":
+      return flow.engineFlags !== void 0;
+    case "edit_file_surfaces":
+      return flow.reportFileSurfaces !== void 0;
+    case "primary_result_surface":
+      return flow.runtimeSurface !== void 0;
   }
-  return { packageResolved: false, reducedBindings: [...CATALOG_SOURCED_BINDINGS] };
+}
+function resolveBindingLegibility(flow) {
+  const manifestBackedBindings = CATALOG_SOURCED_BINDINGS.filter((binding) => manifestBacksBinding(flow, binding));
+  const reducedBindings = [];
+  return { reducedBindings, manifestBackedBindings };
 }
 
 // dist/runtime/run/manifest-snapshot.js
@@ -61461,11 +61692,10 @@ function runOutcomeForPrimaryResultOutcome(outcome) {
 async function terminalOutcomeBoundToPrimaryResult(context, outcome) {
   if (outcome !== "complete")
     return void 0;
-  const pkg = findCompiledFlowPackageById(context.flow.id);
-  const engineFlags = resolveEngineFlags(context.flow, pkg);
+  const engineFlags = resolveEngineFlags(context.flow);
   if (engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true)
     return void 0;
-  const primaryResultPath = pkg?.runtimeSurface?.primaryResult?.path;
+  const primaryResultPath = context.flow.runtimeSurface?.primaryResult?.path;
   if (primaryResultPath === void 0)
     return void 0;
   let primaryResult;
@@ -61801,10 +62031,9 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const runDir = boundary.runDirectory.path;
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
-  const compiledPackage = findCompiledFlowPackageById(flow.id);
-  const bindingLegibility = resolveBindingLegibility(compiledPackage);
-  const engineFlags = resolveEngineFlags(flow, compiledPackage);
-  const editFileSurfaceSources = surfaceSourcesFromDeclarations(compiledPackage?.reportFileSurfaces ?? {});
+  const bindingLegibility = resolveBindingLegibility(flow);
+  const engineFlags = resolveEngineFlags(flow);
+  const editFileSurfaceSources = surfaceSourcesFromDeclarations(flow.reportFileSurfaces ?? {});
   const context = {
     flow,
     packageIndex,
@@ -61911,8 +62140,10 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         flow,
         ...context.entryModeName === void 0 ? {} : { entryModeName: context.entryModeName }
       }),
-      package_resolved: bindingLegibility.packageResolved,
-      reduced_bindings: bindingLegibility.reducedBindings
+      // Empty for every built-in (the manifest is the sole authority post-M4);
+      // omitted entirely when empty so a run that reduced nothing makes no claim.
+      // A composed flow with a needs model (M9) can populate it again.
+      ...bindingLegibility.reducedBindings.length === 0 ? {} : { reduced_bindings: bindingLegibility.reducedBindings }
     });
     await appendFlowSelectionGuidance(context);
     if (options.historyRecallReport !== void 0) {
@@ -65791,7 +66022,7 @@ function postRunArtifactWarningOutputFields(warnings) {
   };
 }
 function resolveFlowPrimaryOutcome(input) {
-  const primaryResultPath = findCompiledFlowPackageById(input.flowId)?.runtimeSurface?.primaryResult?.path;
+  const primaryResultPath = findFlowRuntimeSurfaceById(input.flowId)?.primaryResult?.path;
   if (primaryResultPath === void 0)
     return void 0;
   let primaryResult;
@@ -66262,7 +66493,7 @@ function readConfigPathFromLayers(layers, dotPath) {
   return resolved;
 }
 function validateFlowConfigRequirements(input) {
-  const requirements = findCompiledFlowPackageById(input.flow.id)?.requiredConfig;
+  const requirements = input.flow.required_config;
   if (requirements === void 0)
     return;
   for (const requirement of requirements) {
@@ -66421,8 +66652,7 @@ async function runExecutionCommand(args, options) {
   const fixtureSelectionName = compiledFlowSelectionNameForAxes(args.axes);
   const fixturePath = resolveCompiledFlowPath(route.flowName, fixtureSelectionName, args.fixturePath, args.flowRoot);
   if (!existsSync36(fixturePath)) {
-    const pkg = findCompiledFlowPackageById(route.flowName);
-    if (pkg?.visibility === "internal") {
+    if (INTERNAL_FLOW_IDS.has(route.flowName)) {
       process.stderr.write(`error: ${route.flowName} is an internal flow and is not available through the host run surface.
 `);
       return 2;

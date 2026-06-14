@@ -43,6 +43,7 @@ import type { Step } from '../schemas/step.js';
 import { axisSelectionsForAxes } from './axis-selections.js';
 import { findCheckpointBriefBuilder } from './registries/checkpoint-writers/registry.js';
 import { findVerificationWriter } from './registries/verification-writers/registry.js';
+import { collectSchematicCatalogIssues } from './schematic-catalog-check.js';
 
 export class FlowSchematicCompileError extends Error {
   constructor(message: string) {
@@ -63,7 +64,7 @@ function fail(message: string): never {
 // understand. Both verification and checkpoint kinds consult their
 // per-kind writer registries (the single source of truth — adding a
 // writer there auto-permits the schema here).
-function ensureSupportedKindReportPair(item: SchematicStep): void {
+export function ensureSupportedKindReportPair(item: SchematicStep): void {
   if (item.execution.kind === 'verification') {
     if (findVerificationWriter(item.output as unknown as string) === undefined) {
       fail(
@@ -493,6 +494,54 @@ interface SchematicFrame {
   stagePathRationale: string | undefined;
   defaultSelection: FlowSchematic['default_selection'];
   engineFlags: FlowSchematic['engine_flags'];
+  // Stage 3b (first-class composition): execution-bearing declarations carried
+  // onto the manifest. report_file_surfaces / required_config ride verbatim from
+  // the schematic; primaryResult is DERIVED from the close stage (see
+  // derivePrimaryResult).
+  reportFileSurfaces: FlowSchematic['report_file_surfaces'];
+  requiredConfig: FlowSchematic['required_config'];
+  primaryResult: { schema_name: string; path: string } | undefined;
+}
+
+// Derive the flow's primary result — the report the close stage composes on the
+// success path. run-close binds the @complete terminal to it (e.g. it can
+// downgrade an @complete close when the result report's own outcome is not
+// "complete"). We read it off the close-stage compose steps that route to
+// @complete and write a report, which excludes a close-stage handoff/recovery
+// step that composes a different record on a non-complete terminal (fix's
+// fix-handoff writes continuity.record@v1 on @handoff). A flow may have more
+// than one @complete close path (a tournament close and a normal close); they
+// must converge on one result schema + path. Discordant @complete close writes
+// are a real ambiguity, so we fail closed rather than pick one silently. No
+// @complete close-compose step → undefined.
+function derivePrimaryResult(
+  schematic: FlowSchematic,
+): { schema_name: string; path: string } | undefined {
+  const writes = schematic.items
+    .filter(
+      (item) =>
+        item.stage === 'close' &&
+        item.execution.kind === 'compose' &&
+        item.writes?.report_path !== undefined &&
+        Object.values(item.routes).some((target) => (target as unknown as string) === '@complete'),
+    )
+    .map((item) => ({
+      schema_name: item.output as unknown as string,
+      path: item.writes?.report_path as unknown as string,
+    }));
+  const first = writes[0];
+  if (first === undefined) return undefined;
+  for (const w of writes) {
+    if (w.schema_name !== first.schema_name || w.path !== first.path) {
+      fail(
+        `schematic '${schematic.id as unknown as string}' has discordant @complete ` +
+          `close-stage compose writes (${first.schema_name} at ${first.path} vs ` +
+          `${w.schema_name} at ${w.path}); cannot derive a single ` +
+          'runtime_surface.primary_result',
+      );
+    }
+  }
+  return first;
 }
 
 function frameSchematic(schematic: FlowSchematic): SchematicFrame {
@@ -520,6 +569,9 @@ function frameSchematic(schematic: FlowSchematic): SchematicFrame {
     stagePathRationale: stagePathPolicy.mode === 'partial' ? stagePathPolicy.rationale : undefined,
     defaultSelection: schematic.default_selection,
     engineFlags: schematic.engine_flags,
+    reportFileSurfaces: schematic.report_file_surfaces,
+    requiredConfig: schematic.required_config,
+    primaryResult: derivePrimaryResult(schematic),
   };
 }
 
@@ -611,6 +663,18 @@ function compileForMode(
     // carries them onto the compiled manifest verbatim, so the engine reads them
     // off the manifest rather than a by-id catalog package.
     ...(frame.engineFlags !== undefined ? { engine_flags: frame.engineFlags } : {}),
+    // Stage 3b (first-class composition): execution-bearing declarations ride
+    // the manifest so the engine reads them off the compiled flow, not a by-id
+    // catalog package. report_file_surfaces / required_config travel verbatim
+    // from the schematic; runtime_surface.primary_result is derived from the
+    // close stage. Each absent = the flow declares none.
+    ...(frame.reportFileSurfaces !== undefined
+      ? { report_file_surfaces: frame.reportFileSurfaces }
+      : {}),
+    ...(frame.primaryResult !== undefined
+      ? { runtime_surface: { primary_result: frame.primaryResult } }
+      : {}),
+    ...(frame.requiredConfig !== undefined ? { required_config: frame.requiredConfig } : {}),
   };
 
   const parsed = CompiledFlow.safeParse(flow);
@@ -637,6 +701,23 @@ function composeStagePathRationale(
 }
 
 export function compileSchematicToCompiledFlow(schematic: FlowSchematic): CompileResult {
+  // M5 (first-class composition): the fail-closed catalog gate. Every flow that
+  // reaches the compiler — the eight built-ins at emit time and any composed or
+  // edited flow at run time — must fit the block catalog. This is the route-aware
+  // check that the catalog-check seam exposes report-only; here it is enforced.
+  // It runs first, before any framing, so a flow whose items do not match the
+  // block model fails with the most fundamental error rather than a downstream
+  // symptom. The built-ins compile clean (zero by correction); this gate's
+  // standing job is to stop a catalog-incompatible composed flow from compiling.
+  const catalogIssues = collectSchematicCatalogIssues(schematic);
+  if (catalogIssues.length > 0) {
+    const noun = catalogIssues.length === 1 ? 'issue' : 'issues';
+    const detail = catalogIssues.map((issue) => `${issue.item_id}: ${issue.message}`).join('; ');
+    fail(
+      `schematic '${schematic.id}' is not compatible with the block catalog (${catalogIssues.length} ${noun}): ${detail}`,
+    );
+  }
+
   const frame = frameSchematic(schematic);
   const axisSelections = axisSelectionsForAxes(frame.schematicId, frame.axes);
 

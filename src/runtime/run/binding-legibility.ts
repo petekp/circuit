@@ -1,58 +1,103 @@
-import type { CompiledFlowPackage } from '../../flows/types.js';
+import type { CompiledFlowEngineFlags } from '../../flows/types.js';
 import { CatalogSourcedBinding } from '../../schemas/trace-entry.js';
 
 /**
  * The catalog-sourced bindings, in a stable display order. These are the
- * behaviors the runtime resolves from a flow's compiled package at run start
- * (`findCompiledFlowPackageById`): the edit-file surface table, the
+ * behaviors the runtime resolves at run start: the edit-file surface table, the
  * depth/slice/terminal-outcome engine flags, and the primary-result surface.
  *
- * When no package resolves for a flow id — a composed or published custom flow
- * whose id is not one of the catalog flows — every one of these falls back to a
- * default today with zero signal: no depth binding, no slice loop, an empty
- * edit-file surface table, and so on. Stage 1 of the first-class composition
- * migration records which ones were lost so the trace and receipt make the
- * degradation legible.
+ * Originally (Stage 1) every one of these came only from the by-id catalog
+ * package; a composed or published custom flow whose id matched no package lost
+ * them all silently. The migration moved each binding onto the compiled manifest
+ * and M4 deleted the by-id package, so a flow now declares its own behavior and
+ * the runtime resolves every binding from the manifest it was loaded from.
  *
  * Kept as the single source of truth (derived from the schema enum so the two
- * never drift) so later stages — which move these bindings off catalog identity
- * and onto the manifest — can shrink the lost set by teaching
- * `resolveBindingLegibility` to read the new source first.
+ * never drift) so the legibility net can map each binding to its declaration
+ * source.
  */
 export const CATALOG_SOURCED_BINDINGS: readonly CatalogSourcedBinding[] =
   CatalogSourcedBinding.options;
 
+/**
+ * The manifest-side declarations the legibility net inspects. Structural on
+ * purpose: the runtime `ExecutableFlow` carries `engineFlags`,
+ * `reportFileSurfaces`, and `runtimeSurface` (Stage 3 + 3b), and each flows
+ * through here unchanged. A field the manifest does not carry reads as undefined,
+ * which the net treats as "not manifest-backed" for that binding.
+ */
+export interface BindingDeclaringFlow {
+  readonly engineFlags?: CompiledFlowEngineFlags;
+  readonly reportFileSurfaces?: Readonly<Record<string, unknown>>;
+  readonly runtimeSurface?: { readonly primaryResult?: unknown };
+}
+
 export interface BindingLegibility {
-  /** Whether a catalog package resolved for this flow id. */
-  packageResolved: boolean;
-  /** Catalog-sourced bindings unavailable because no package resolved. */
+  /**
+   * Catalog-sourced bindings the flow needs but its manifest does not declare a
+   * source for. Empty for every built-in: each one's manifest is a complete,
+   * authoritative declaration of its bindings, so dissolving the by-id package
+   * (M4) reduced nothing. A non-empty set becomes possible only once composed
+   * flows bring a block-level model of what a flow needs (M9); until that oracle
+   * exists there is no way to call a missing binding "lost" rather than
+   * "intentionally absent", so this stays empty.
+   */
   reducedBindings: CatalogSourcedBinding[];
+  /**
+   * Catalog-sourced bindings the manifest declares. This is an internal
+   * readiness/proof instrument, NOT a trace field: the run-start trace records
+   * only `reducedBindings` (see RunBootstrappedTraceEntry). Its standing job is
+   * the M4 gating proof — the binding-legibility test asserts every built-in
+   * backs all its bindings off the manifest — and it is kept for the M9
+   * composed-flow needs model. graph-runner computes it but currently surfaces
+   * only `reducedBindings`.
+   */
+  manifestBackedBindings: CatalogSourcedBinding[];
 }
 
 /**
- * Decide which catalog-sourced bindings a run actually got.
+ * Whether the manifest carries the declaration source that owns a binding.
  *
- * Today the catalog package is the only source for these bindings, so the rule
- * is simple and honest:
- *
- * - Package resolved → nothing is "reduced". Whatever the package declares,
- *   present or absent, is intentional. This is the key anti-over-fire property:
- *   a built-in flow that legitimately has no slice loop (Fix) is NOT flagged as
- *   having lost one.
- * - Package absent → the whole set fell back to defaults. This is the
- *   composed/custom-flow case, and the only case that produces a non-empty
- *   reduced set.
- *
- * Later stages keep this signature and extend the body: once a binding reads
- * from the manifest, it is only "reduced" when neither the manifest nor a
- * package provides it, so the reduced set naturally shrinks as the migration
- * progresses.
+ * Authority is CATEGORY-level, not value-level: an `engineFlags` block backs
+ * all three flag bindings even when it leaves one unset, because the author has
+ * taken authority over the engine-flag category and an omission within it is
+ * intentional. Keying on a specific flag's value would falsely strand the
+ * omitted ones — Fix, which legitimately has no slice loop, declares engineFlags
+ * yet would never count slice_loop as backed. The same field-presence rule
+ * applies uniformly to the two surface bindings.
  */
-export function resolveBindingLegibility(
-  compiledPackage: CompiledFlowPackage | undefined,
-): BindingLegibility {
-  if (compiledPackage !== undefined) {
-    return { packageResolved: true, reducedBindings: [] };
+function manifestBacksBinding(flow: BindingDeclaringFlow, binding: CatalogSourcedBinding): boolean {
+  switch (binding) {
+    case 'depth_binding':
+    case 'slice_loop':
+    case 'terminal_outcome_binding':
+      return flow.engineFlags !== undefined;
+    case 'edit_file_surfaces':
+      return flow.reportFileSurfaces !== undefined;
+    case 'primary_result_surface':
+      return flow.runtimeSurface !== undefined;
   }
-  return { packageResolved: false, reducedBindings: [...CATALOG_SOURCED_BINDINGS] };
+}
+
+/**
+ * Decide which catalog-sourced bindings a run got from its manifest.
+ *
+ * Post-M4 the compiled manifest is the sole authority: the by-id package
+ * fallback is gone, so a binding the manifest does not declare is authoritatively
+ * absent, not lost (exactly as a resolved package's omission used to be). So:
+ *
+ * - `manifestBackedBindings` reports the bindings the manifest declares. It is an
+ *   internal readiness/proof instrument (the M4 gating proof asserts on it), NOT a
+ *   trace field — the run-start trace carries only `reducedBindings`.
+ * - `reducedBindings` is empty. There is no longer a second source whose absence
+ *   could "reduce" a binding, and no oracle yet for "the flow needs a binding its
+ *   manifest omits" — that needs the block-level needs model composed flows bring
+ *   (M9). Until then a missing declaration is an intentional absence, not a loss.
+ */
+export function resolveBindingLegibility(flow: BindingDeclaringFlow): BindingLegibility {
+  const manifestBackedBindings = CATALOG_SOURCED_BINDINGS.filter((binding) =>
+    manifestBacksBinding(flow, binding),
+  );
+  const reducedBindings: CatalogSourcedBinding[] = [];
+  return { reducedBindings, manifestBackedBindings };
 }

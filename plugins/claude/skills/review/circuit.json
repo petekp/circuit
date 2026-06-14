@@ -123,5 +123,11 @@
         "required": ["scope", "findings", "verdict"]
       }
     }
-  ]
+  ],
+  "runtime_surface": {
+    "primary_result": {
+      "schema_name": "review.result@v1",
+      "path": "reports/review-result.json"
+    }
+  }
 }

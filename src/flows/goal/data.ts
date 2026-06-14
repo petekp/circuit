@@ -216,6 +216,13 @@ export const goalFlowData = {
         route_from_report: {
           path: ['selected_flow_target'],
         },
+        // The goal-contract block routes on selected_flow_target, whose schema
+        // (GoalFlowTarget) only admits fix/build/review/explore/pursue. There is
+        // no report value that selects "ask", so the old ask -> recovery
+        // checkpoint edge could never fire. Removing it is runtime-neutral and
+        // deletes the phantom route that made goal-recovery-checkpoint and
+        // goal-close look like they read contracts their real routes never
+        // produce.
         routes: {
           continue: 'goal-run-build',
           fix: 'goal-run-fix',
@@ -223,7 +230,6 @@ export const goalFlowData = {
           review: 'goal-run-review',
           explore: 'goal-run-explore',
           pursue: 'goal-run-pursue',
-          ask: 'goal-recovery-checkpoint',
           stop: '@stop',
         },
       },
@@ -478,6 +484,13 @@ export const goalFlowData = {
           recovery: 'goal.recovery@v1',
           gate: 'goal.gate@v1',
         },
+        // recovery and gate arrive on disjoint routes: the gate path
+        // (gate-pass-2 -> close) never runs recovery, and the recovery path
+        // (recovery/checkpoint -> close) never runs the second gate pass. The
+        // close writer already reads both with `optional: true`, so declaring
+        // them optional lifts that runtime truth into the model: each is valid
+        // as long as some reachable route produces it.
+        optional_inputs: ['recovery', 'gate'],
         output: 'goal.result@v1',
         evidence_requirements: ['outcome', 'evidence pointers', 'residual risks', 'follow-ups'],
         execution: { kind: 'compose' },

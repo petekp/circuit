@@ -95,9 +95,10 @@ outgoing at 794-812) and gives per-slice budgets for free.
    }
    ```
    Describes a behavior (a flow iterates a slice loop between two steps),
-   not a flow name. Read at runtime via `findCompiledFlowPackageById`
-   (same precedent as `bindsTerminalOutcomeToPrimaryResult`,
-   graph-runner.ts:141).
+   not a flow name. Read at runtime off the compiled manifest via
+   `resolveEngineFlags(flow)` (same precedent as
+   `bindsTerminalOutcomeToPrimaryResult`). Since M4 dissolved the by-id
+   catalog package, every flow carries its engine flags on its own manifest.
 
 2. **New `SliceCorridor`** (`src/runtime/run/slice-corridor.ts`), modeled
    on `RecoveryCorridor` (injected, pure, no IO except a lazy report

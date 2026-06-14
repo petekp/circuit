@@ -1,4 +1,7 @@
-import type { CompiledFlowEngineFlags } from '../../flows/types.js';
+import type {
+  CompiledFlowAxisConfigRequirement,
+  CompiledFlowEngineFlags,
+} from '../../flows/types.js';
 import type { AcceptanceCriteria } from '../../schemas/acceptance-criteria.js';
 import type { Axes } from '../../schemas/axes.js';
 import type {
@@ -8,6 +11,7 @@ import type {
   ResultVerdictCheck,
   SchemaSectionsCheck,
 } from '../../schemas/check.js';
+import type { ReportFileSurfaceDeclaration } from '../../schemas/report-file-surface.js';
 import type {
   CheckpointPolicy,
   FanoutBranches,
@@ -116,4 +120,15 @@ export interface ExecutableFlow {
   // in-code shape at the manifest→runtime boundary. Absent when the manifest
   // declares none; the engine then resolves them from the by-id catalog package.
   readonly engineFlags?: CompiledFlowEngineFlags;
+  // Stage 3b (first-class composition): execution-bearing declarations carried
+  // from the compiled manifest. reportFileSurfaces feeds the skill-hook
+  // edit-file surface table; runtimeSurface.primaryResult binds the terminal
+  // outcome to the result report; requiredConfig is the CLI's up-front config
+  // gate. Absent when the manifest declares none; the engine then resolves them
+  // from the by-id catalog package.
+  readonly reportFileSurfaces?: Readonly<Record<string, ReportFileSurfaceDeclaration>>;
+  readonly runtimeSurface?: {
+    readonly primaryResult?: { readonly schemaName: string; readonly path: string };
+  };
+  readonly requiredConfig?: readonly CompiledFlowAxisConfigRequirement[];
 }

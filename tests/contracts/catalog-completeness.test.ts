@@ -123,6 +123,7 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
 // Anything else under src/flows/ is expected to be a package.
 const NON_PACKAGE_FILES = new Set([
   'README.md',
+  'accommodation-ledger.ts',
   'axis-selections.ts',
   'block-step-expansion.ts',
   'canonical-stage-policy.ts',
