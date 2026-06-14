@@ -10963,6 +10963,31 @@ function checkReviewIdentitySeparationPolicy(fixture) {
     detail: "close review.result report writer is preceded by an analyze-stage reviewer relay"
   };
 }
+var REVIEW_IDENTITY_SEPARATION_AUTHORITY = "flow-kind review-identity-separation policy";
+function hasCloseStageReviewResultWriter(fixture) {
+  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
+  const steps = Array.isArray(fixture.steps) ? fixture.steps : [];
+  const closeStepIds = new Set(stringStepIdsForCanonical(stages, "close"));
+  for (const step of steps) {
+    const s = objectRecord(step);
+    if (s === void 0 || typeof s.id !== "string")
+      continue;
+    if (closeStepIds.has(s.id) && isReviewResultReportWriter(s))
+      return true;
+  }
+  return false;
+}
+function reviewIdentitySeparationViolation(id, fixture) {
+  if (!hasCloseStageReviewResultWriter(fixture))
+    return void 0;
+  const identity = checkReviewIdentitySeparationPolicy(fixture);
+  if (identity.ok)
+    return void 0;
+  return {
+    kind: "red",
+    detail: `${id}: ${identity.detail} (authority: ${REVIEW_IDENTITY_SEPARATION_AUTHORITY})`
+  };
+}
 function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
   const f = objectRecord(fixture);
   if (f === void 0) {
@@ -10978,6 +11003,10 @@ function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
       detail: "fixture missing top-level `id` string field"
     };
   }
+  const identityViolation = reviewIdentitySeparationViolation(id, f);
+  if (identityViolation !== void 0) {
+    return identityViolation;
+  }
   if (table.exemptFlowIds.has(id)) {
     return {
       kind: "exempt",
@@ -10988,7 +11017,7 @@ function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
   if (expected === void 0) {
     return {
       kind: "pass_through",
-      detail: `${id}: no canonical-set entry (unknown flow kind; pass-through)`
+      detail: `${id}: no canonical-set entry (unknown or composed flow kind; pass-through \u2014 intrinsic identity policy enforced)`
     };
   }
   const variants = [
@@ -11002,15 +11031,6 @@ function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
       kind: "red",
       detail: checkedVariants.map((variant) => variant.detail).join(" OR ")
     };
-  }
-  if (id === "review") {
-    const identitySeparation = checkReviewIdentitySeparationPolicy(f);
-    if (!identitySeparation.ok) {
-      return {
-        kind: "red",
-        detail: `${id}: ${identitySeparation.detail} (authority: ${expected.authority})`
-      };
-    }
   }
   return {
     kind: "green",
