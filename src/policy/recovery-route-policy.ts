@@ -122,6 +122,23 @@ export function recoveryKindForRoute(input: {
   return undefined;
 }
 
+// A route is legitimate independent of any block's allowed_routes when it is a
+// NORMAL forward route or when the recovery-route projection binds it to a
+// recovery kind. The schematic catalog validator consults this so it stops
+// flagging working forward and corridor-driven recovery routes as "not allowed
+// by block": those routes are already first-class (the projector derives a
+// binding the cycle guard and recovery corridor honor at runtime), so the
+// per-block route list only needs to constrain the flow-specific routes that
+// are NOT generically recognized. See
+// docs/ideas/first-class-composition-sequence.md (gate-recognition reconciliation).
+export function isGenericallyLegitRoute(input: {
+  readonly routeId: string;
+  readonly routeTarget: string;
+  readonly stepId: string;
+}): boolean {
+  return NORMAL_ROUTE_IDS.has(input.routeId) || recoveryKindForRoute(input) !== undefined;
+}
+
 export function recoveryAllowedFailureCausesForKind(
   kind: RecoveryRouteKind,
 ): RecoveryFailureCause[] {

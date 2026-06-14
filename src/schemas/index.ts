@@ -32,6 +32,7 @@ export * from './runtime-evidence.js';
 export * from './axes.js';
 export * from './acceptance-criteria.js';
 export * from './depth.js';
+export * from './engine-flags.js';
 export * from './role.js';
 export * from './route-policy.js';
 export * from './run.js';

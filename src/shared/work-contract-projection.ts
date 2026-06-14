@@ -49,6 +49,11 @@ const FLOW_KEYS = new Set([
   'stage_path_policy',
   'steps',
   'default_selection',
+  // Stage 3 (first-class composition): engine-visible behavior flags. They
+  // describe how the engine runs the flow, not the authority/proof/recovery
+  // surface the work contract projects, so they are classified here without
+  // contributing a hint.
+  'engine_flags',
 ]);
 
 const STAGE_KEYS = new Set(['id', 'title', 'canonical', 'steps', 'selection']);

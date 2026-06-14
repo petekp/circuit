@@ -4,16 +4,21 @@ import { terminalOutcomeBoundToPrimaryResult } from '../../src/runtime/run/run-c
 import type { RunContext } from '../../src/runtime/run/run-context.js';
 
 // Characterizes the close-time outcome binding for flows that declare
-// engineFlags.bindsTerminalOutcomeToPrimaryResult (only `goal` today). The
-// function reads the primary result at close time to bind the run outcome; the
-// contract under test is that this read FAILS OPEN — a missing or malformed
-// primary result returns undefined so the caller keeps the proof-derived
-// outcome instead of crashing the close path (the RCX-6b hardening). Uses the
-// real `goal` catalog package and stubs only context.files.readJson.
+// bindsTerminalOutcomeToPrimaryResult (only `goal` today). The function reads
+// the primary result at close time to bind the run outcome; the contract under
+// test is that this read FAILS OPEN — a missing or malformed primary result
+// returns undefined so the caller keeps the proof-derived outcome instead of
+// crashing the close path (the RCX-6b hardening).
+//
+// Stage 3 (first-class composition): goal's engine flag now rides its compiled
+// manifest, so at runtime `fromCompiledFlow` translates it onto
+// context.flow.engineFlags — that is what the stub carries here. The real goal
+// catalog package is still consulted for the primary-result path (which has not
+// moved onto the manifest), so only context.files.readJson is stubbed.
 
 function goalContextReading(readJson: (ref: string) => Promise<unknown>): RunContext {
   return {
-    flow: { id: 'goal' },
+    flow: { id: 'goal', engineFlags: { bindsTerminalOutcomeToPrimaryResult: true } },
     files: { readJson },
   } as unknown as RunContext;
 }

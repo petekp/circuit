@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FlowAxes } from './axes.js';
+import { EngineFlagsManifest } from './engine-flags.js';
 import { CompiledFlowId, StepId } from './ids.js';
 import { RUNTIME_SUCCESS_ROUTE } from './route-policy.js';
 import { SelectionOverride } from './selection-policy.js';
@@ -7,6 +8,16 @@ import { CANONICAL_STAGES, type CanonicalStage, SpinePolicy, Stage } from './sta
 import { Step } from './step.js';
 
 const TERMINAL_ROUTE_TARGETS = new Set(['@complete', '@stop', '@escalate', '@handoff']);
+
+// Stage 3 (first-class composition): engine-visible behavior flags carried ON
+// the compiled manifest, in snake_case to match the rest of this schema. The
+// shape is shared with the authored schematic (`EngineFlagsManifest`) so a flow
+// — built-in or composed — declares behavior once and it travels through the
+// compiler to the manifest. The engine resolves the effective flags through
+// `resolveEngineFlags`, preferring the manifest and falling back to the by-id
+// package per field during the migration. Absent = no flags.
+const CompiledFlowManifestEngineFlags = EngineFlagsManifest;
+export type CompiledFlowManifestEngineFlags = z.infer<typeof CompiledFlowManifestEngineFlags>;
 
 const CompiledFlowBody = z
   .object({
@@ -24,6 +35,9 @@ const CompiledFlowBody = z
     // skill contribution flows through the typed SkillOverride operations,
     // closing the untyped-bypass path.
     default_selection: SelectionOverride.optional(),
+    // Optional engine-visible behavior flags carried on the manifest. Absent =
+    // resolve from the catalog package alone (the pre-migration path).
+    engine_flags: CompiledFlowManifestEngineFlags.optional(),
   })
   .strict();
 

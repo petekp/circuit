@@ -24,7 +24,7 @@ import type { RunResult } from '../../schemas/result.js';
 import { ProviderScopedModel } from '../../schemas/selection-policy.js';
 import { RunSkillHookEvent } from '../../schemas/skill-hook.js';
 import { RelayRole } from '../../schemas/step.js';
-import { RelayUsageEvidence } from '../../schemas/trace-entry.js';
+import { CatalogSourcedBinding, RelayUsageEvidence } from '../../schemas/trace-entry.js';
 import { type HtmlProjectorContext, getHtmlProjector } from '../../shared/html/index.js';
 import {
   type JsonObject,
@@ -641,6 +641,7 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
   const tracePath = join(runFolder, 'trace.ndjson');
   if (!existsSync(tracePath)) return undefined;
   let depth: OperatorRunReceipt['depth'] | undefined;
+  let reducedBindings: OperatorRunReceipt['reduced_bindings'];
   let power: OperatorRunReceipt['power'] | undefined;
   let powerAuto = false;
   let inference:
@@ -669,6 +670,12 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
     if (entry.kind === 'run.bootstrapped') {
       const parsed = CompiledDepth.safeParse(entry.depth);
       if (parsed.success) depth = parsed.data;
+      // Stage 1 legibility: a non-empty reduced set means this run lost
+      // catalog-sourced bindings (a composed/custom flow). Carried to the
+      // receipt note. An absent or empty field (every built-in run) leaves
+      // the receipt byte-identical to before this field existed.
+      const bindings = CatalogSourcedBinding.array().safeParse(entry.reduced_bindings);
+      if (bindings.success && bindings.data.length > 0) reducedBindings = bindings.data;
       continue;
     }
     if (entry.kind === 'relay.started') {
@@ -797,6 +804,7 @@ function readRunReceipt(runFolder: string): OperatorRunReceipt | undefined {
     models,
     checks_evaluated: checksEvaluated,
     checks_failed: checksFailed,
+    ...(reducedBindings === undefined ? {} : { reduced_bindings: reducedBindings }),
     ...(spend === undefined ? {} : { spend }),
   };
 }
@@ -885,6 +893,28 @@ function spendLine(receipt: OperatorRunReceipt): string | undefined {
     parts.push(`${role.role} ${formatSpendTokens(role.input_tokens + role.output_tokens)}`);
   }
   return `⎿ ${parts.join(' · ')}`;
+}
+
+// Plain-words labels for the catalog-sourced bindings, so the note speaks
+// operator language (no schema field names). Order follows the receipt's
+// reduced_bindings array, which preserves the canonical binding order.
+const REDUCED_BINDING_LABELS: Record<CatalogSourcedBinding, string> = {
+  edit_file_surfaces: 'edit-file hooks',
+  depth_binding: 'depth binding',
+  slice_loop: 'slice loop',
+  terminal_outcome_binding: 'terminal outcome',
+  primary_result_surface: 'primary result',
+};
+
+// Third trailer line, rendered under the receipt (and spend) line only when the
+// run lost catalog-sourced bindings — a composed or published custom flow whose
+// id matched no catalog package. Names what degraded so a reduced run reads as
+// reduced instead of looking like a full run. Absent on every built-in run.
+function reducedBindingsLine(receipt: OperatorRunReceipt): string | undefined {
+  const reduced = receipt.reduced_bindings;
+  if (reduced === undefined || reduced.length === 0) return undefined;
+  const labels = reduced.map((binding) => REDUCED_BINDING_LABELS[binding]);
+  return `⎿ reduced bindings (no catalog package): ${labels.join(' · ')}`;
 }
 
 // The registry's "could not find skill" error is multi-line (it lists every
@@ -1042,6 +1072,8 @@ function renderMarkdown(summary: OperatorSummary): string {
       lines.push('', receiptLine(summary.receipt));
       const spend = spendLine(summary.receipt);
       if (spend !== undefined) lines.push(spend);
+      const reduced = reducedBindingsLine(summary.receipt);
+      if (reduced !== undefined) lines.push(reduced);
     }
     if (summary.html_path !== undefined) {
       lines.push('', `Rich summary: ${summary.html_path}`);
@@ -1090,6 +1122,8 @@ function renderMarkdown(summary: OperatorSummary): string {
     lines.push('', receiptLine(summary.receipt));
     const spend = spendLine(summary.receipt);
     if (spend !== undefined) lines.push(spend);
+    const reduced = reducedBindingsLine(summary.receipt);
+    if (reduced !== undefined) lines.push(reduced);
   }
 
   if (summary.html_path !== undefined) {

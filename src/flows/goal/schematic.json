@@ -54,6 +54,38 @@
     {
       "generic": "goal.contract@v1",
       "actual": "goal.result@v1"
+    },
+    {
+      "generic": "goal.child-run@v1",
+      "actual": "goal.child-fix-result@v1"
+    },
+    {
+      "generic": "goal.child-run@v1",
+      "actual": "goal.child-build-result@v1"
+    },
+    {
+      "generic": "goal.child-run@v1",
+      "actual": "goal.child-review-result@v1"
+    },
+    {
+      "generic": "goal.child-run@v1",
+      "actual": "goal.child-explore-result@v1"
+    },
+    {
+      "generic": "goal.child-run@v1",
+      "actual": "goal.child-pursue-result@v1"
+    },
+    {
+      "generic": "goal.gate-review@v1",
+      "actual": "goal.gate-pass@v1"
+    },
+    {
+      "generic": "goal.gate-review@v1",
+      "actual": "goal.gate@v1"
+    },
+    {
+      "generic": "goal.checkpoint@v1",
+      "actual": "decision.answer@v1"
     }
   ],
   "items": [
@@ -150,7 +182,7 @@
     },
     {
       "id": "goal-run-fix",
-      "block": "goal",
+      "block": "goal-child-run",
       "title": "Child Flow - run Fix",
       "stage": "act",
       "input": {
@@ -196,7 +228,7 @@
     },
     {
       "id": "goal-run-build",
-      "block": "goal",
+      "block": "goal-child-run",
       "title": "Child Flow - run Build",
       "stage": "act",
       "input": {
@@ -242,7 +274,7 @@
     },
     {
       "id": "goal-run-review",
-      "block": "goal",
+      "block": "goal-child-run",
       "title": "Child Flow - run Review",
       "stage": "act",
       "input": {
@@ -288,7 +320,7 @@
     },
     {
       "id": "goal-run-explore",
-      "block": "goal",
+      "block": "goal-child-run",
       "title": "Child Flow - run Explore",
       "stage": "act",
       "input": {
@@ -334,7 +366,7 @@
     },
     {
       "id": "goal-run-pursue",
-      "block": "goal",
+      "block": "goal-child-run",
       "title": "Child Flow - run Pursue",
       "stage": "act",
       "input": {
@@ -380,7 +412,7 @@
     },
     {
       "id": "goal-attempt",
-      "block": "goal",
+      "block": "goal-attempt",
       "title": "Attempt - summarize child result",
       "stage": "act",
       "input": {
@@ -407,7 +439,7 @@
     },
     {
       "id": "goal-evidence-evaluation",
-      "block": "goal",
+      "block": "goal-evaluate",
       "title": "Evaluate - compare attempt evidence to done claims",
       "stage": "verify",
       "input": {
@@ -447,7 +479,7 @@
     },
     {
       "id": "goal-recovery",
-      "block": "goal",
+      "block": "goal-recover",
       "title": "Recovery - choose typed next action",
       "stage": "verify",
       "input": {
@@ -486,7 +518,7 @@
     },
     {
       "id": "goal-recovery-checkpoint",
-      "block": "human-decision",
+      "block": "goal-checkpoint",
       "title": "Checkpoint - operator judgment required",
       "stage": "verify",
       "input": {
@@ -540,7 +572,7 @@
     },
     {
       "id": "goal-gate-pass-1",
-      "block": "review",
+      "block": "goal-gate-review",
       "title": "Safety review - pass 1",
       "stage": "review",
       "input": {
@@ -579,7 +611,7 @@
     },
     {
       "id": "goal-gate-pass-2",
-      "block": "review",
+      "block": "goal-gate-review",
       "title": "Safety review - pass 2",
       "stage": "review",
       "input": {
@@ -619,7 +651,7 @@
     },
     {
       "id": "goal-close",
-      "block": "close-with-evidence",
+      "block": "goal-close",
       "title": "Close - emit Goal result",
       "stage": "close",
       "input": {
@@ -692,5 +724,8 @@
       "id": "goal-close-stage",
       "title": "Close"
     }
-  ]
+  ],
+  "engine_flags": {
+    "binds_terminal_outcome_to_primary_result": true
+  }
 }

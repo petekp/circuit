@@ -25611,6 +25611,23 @@ var FlowAxes = external_exports.object({
   }
 });
 
+// dist/schemas/engine-flags.js
+var EngineFlagsManifest = external_exports.object({
+  binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
+  binds_terminal_outcome_to_primary_result: external_exports.boolean().optional(),
+  iterates_slice_loop: external_exports.object({
+    head_step: external_exports.string().min(1),
+    tail_step: external_exports.string().min(1),
+    advance_route: external_exports.string().min(1),
+    slices_from: external_exports.object({
+      report: external_exports.string().min(1),
+      items_path: external_exports.string().min(1)
+    }).strict(),
+    max_slices: external_exports.number().int().positive(),
+    activate_when_depth_at_least: external_exports.literal("high")
+  }).strict().optional()
+}).strict();
+
 // dist/schemas/route-policy.js
 var RUNTIME_SUCCESS_ROUTE = "pass";
 var SCHEMATIC_SUCCESS_ROUTE_ALIASES = ["continue", "complete"];
@@ -26978,6 +26995,7 @@ var RouteMap = StepBase.shape.routes;
 
 // dist/schemas/compiled-flow.js
 var TERMINAL_ROUTE_TARGETS = /* @__PURE__ */ new Set(["@complete", "@stop", "@escalate", "@handoff"]);
+var CompiledFlowManifestEngineFlags = EngineFlagsManifest;
 var CompiledFlowBody = external_exports.object({
   schema_version: external_exports.literal("3"),
   id: CompiledFlowId,
@@ -26992,7 +27010,10 @@ var CompiledFlowBody = external_exports.object({
   // `default_selection.skills = {mode: 'replace', skills: [...]}` so every
   // skill contribution flows through the typed SkillOverride operations,
   // closing the untyped-bypass path.
-  default_selection: SelectionOverride.optional()
+  default_selection: SelectionOverride.optional(),
+  // Optional engine-visible behavior flags carried on the manifest. Absent =
+  // resolve from the catalog package alone (the pre-migration path).
+  engine_flags: CompiledFlowManifestEngineFlags.optional()
 }).strict();
 var issueAt2 = (ctx, path, message) => {
   ctx.addIssue({ code: "custom", path, message });
@@ -27299,6 +27320,13 @@ var FLOW_BLOCK_IDS = [
   "run-verification",
   "review",
   "goal",
+  "goal-child-run",
+  "goal-attempt",
+  "goal-evaluate",
+  "goal-recover",
+  "goal-checkpoint",
+  "goal-gate-review",
+  "goal-close",
   "pursue",
   "coordinate-pursuits",
   "queue",
@@ -27805,7 +27833,12 @@ var FLOW_BLOCK_DEFINITION_INPUTS = [
     },
     schematicPolicy: {
       executionKinds: ["relay", "compose", "fanout"],
-      stages: ["review", "analyze"]
+      // 'plan' is included because Explore runs a genuine reviewer pass
+      // (review-step) inside its canonical plan stage: Explore omits the
+      // act/verify/review canonical stages (EXPLORE-I1), so its adversarial
+      // review of the synthesized composition is runtime-locked to the plan
+      // stage. See src/flows/explore/contract.md.
+      stages: ["review", "analyze", "plan"]
     }
   },
   {
@@ -27828,7 +27861,7 @@ var FLOW_BLOCK_DEFINITION_INPUTS = [
       kind: "schema",
       description: "The goal contract must preserve the operator objective, declare proof requirements, constrain flow targets, and name recovery and close rules."
     },
-    allowed_routes: ["continue", "ask", "stop"],
+    allowed_routes: ["continue", "ask", "stop", "fix", "build", "review", "explore", "pursue"],
     human_interaction: "optional",
     host_capabilities: {
       claude: [],
@@ -27838,6 +27871,215 @@ var FLOW_BLOCK_DEFINITION_INPUTS = [
     schematicPolicy: {
       executionKinds: ["compose", "checkpoint", "sub-run"],
       stages: ["frame"]
+    }
+  },
+  {
+    id: "goal-child-run",
+    title: "Goal Child Run",
+    purpose: "Run the statically selected child flow for the goal contract and capture its result as a goal attempt input.",
+    input_contracts: ["goal.contract@v1"],
+    alternative_input_contracts: [],
+    output_contract: "goal.child-run@v1",
+    action_surface: "orchestrator",
+    produces_evidence: ["static child flow target", "child result file", "parent trace link"],
+    check: {
+      kind: "schema",
+      description: "The child run must record which static flow target ran and where its result and reports landed."
+    },
+    allowed_routes: ["continue", "stop"],
+    human_interaction: "never",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["sub-run"],
+      stages: ["act"]
+    }
+  },
+  {
+    id: "goal-attempt",
+    title: "Goal Attempt",
+    purpose: "Summarize one child-flow attempt against the goal contract into a typed attempt record.",
+    input_contracts: ["goal.contract@v1"],
+    alternative_input_contracts: [],
+    output_contract: "goal.attempt@v1",
+    action_surface: "orchestrator",
+    produces_evidence: ["child result path", "child report paths", "attempt outcome"],
+    check: {
+      kind: "schema",
+      description: "The attempt must name the flow target, point at the child result, and state an outcome."
+    },
+    allowed_routes: ["continue", "stop"],
+    human_interaction: "never",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["compose"],
+      stages: ["act"]
+    }
+  },
+  {
+    id: "goal-evaluate",
+    title: "Goal Evaluate",
+    purpose: "Compare attempt evidence to the goal contract done claims and choose the next typed route.",
+    input_contracts: ["goal.contract@v1", "goal.attempt@v1"],
+    alternative_input_contracts: [],
+    output_contract: "goal.evidence-evaluation@v1",
+    action_surface: "orchestrator",
+    produces_evidence: ["claim results", "evidence gaps", "next typed route"],
+    check: {
+      kind: "schema",
+      description: "The evaluation must report each done-claim result, name remaining evidence gaps, and select one typed next route."
+    },
+    allowed_routes: [
+      "continue",
+      "completion-gate",
+      "retry-selected-flow",
+      "run-fix",
+      "run-review",
+      "run-explore",
+      "split-to-pursue",
+      "checkpoint",
+      "handoff",
+      "blocked",
+      "stop"
+    ],
+    human_interaction: "never",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["compose"],
+      stages: ["verify"]
+    }
+  },
+  {
+    id: "goal-recover",
+    title: "Goal Recover",
+    purpose: "Choose a typed recovery action when the goal attempt did not satisfy the contract.",
+    input_contracts: ["goal.evidence-evaluation@v1", "goal.attempt@v1"],
+    alternative_input_contracts: [],
+    output_contract: "goal.recovery@v1",
+    action_surface: "orchestrator",
+    produces_evidence: ["recovery reason", "selected route", "operator input need"],
+    check: {
+      kind: "schema",
+      description: "The recovery must give a reason, select one typed route, and state whether operator input is needed."
+    },
+    allowed_routes: [
+      "continue",
+      "retry-selected-flow",
+      "run-fix",
+      "run-review",
+      "run-explore",
+      "split-to-pursue",
+      "checkpoint",
+      "blocked",
+      "handoff",
+      "stop"
+    ],
+    human_interaction: "never",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["compose"],
+      stages: ["verify"]
+    }
+  },
+  {
+    id: "goal-checkpoint",
+    title: "Goal Checkpoint",
+    purpose: "Pause for operator judgment on a goal recovery decision and record the chosen option.",
+    input_contracts: ["flow.question@v1", "goal.recovery@v1"],
+    alternative_input_contracts: [],
+    output_contract: "goal.checkpoint@v1",
+    action_surface: "host",
+    produces_evidence: ["question", "available options", "selected option", "answer source"],
+    check: {
+      kind: "decision",
+      description: "The selected option must be one of the declared options or the run must pause, stop, or hand off clearly."
+    },
+    allowed_routes: ["continue", "blocked", "handoff", "stop"],
+    human_interaction: "required",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["checkpoint"],
+      stages: ["verify"]
+    }
+  },
+  {
+    id: "goal-gate-review",
+    title: "Goal Gate Review",
+    purpose: "Run one safety-review pass over the goal evaluation before the run is allowed to close.",
+    input_contracts: ["goal.contract@v1", "goal.evidence-evaluation@v1"],
+    alternative_input_contracts: [],
+    output_contract: "goal.gate-review@v1",
+    action_surface: "worker",
+    produces_evidence: ["safety review pass", "review lens", "evidence checked"],
+    check: {
+      kind: "review",
+      description: "Each gate pass must record the review lens applied and the evidence it checked."
+    },
+    // The gate-pass items route from the reviewer's report: route_from_report
+    // reads `next_route`, whose schema enum (GoalGate.next_route) is exactly
+    // {run-next-gate-pass, recover, close}. So those three are the routes this
+    // block actually emits at runtime, plus retry/stop as the failed-check
+    // recovery and terminal fallbacks (continue survives as the compiled `pass`
+    // twin the relay returns on a clean check in tests). allowed_routes lists the
+    // full declared vocabulary so the catalog model matches the items instead of
+    // claiming routes the block never uses. recover and run-next-gate-pass are
+    // flow-specific (not NORMAL, not recovery-bound), so they must be listed
+    // explicitly; gate-recognition reconciliation already clears close (NORMAL),
+    // retry, and stop (recovery-bound).
+    allowed_routes: ["continue", "run-next-gate-pass", "recover", "retry", "close", "stop"],
+    human_interaction: "never",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["relay"],
+      stages: ["review"]
+    }
+  },
+  {
+    id: "goal-close",
+    title: "Goal Close",
+    purpose: "Emit the final goal result from the contract, attempt, and evaluation reports.",
+    input_contracts: ["goal.contract@v1", "goal.attempt@v1", "goal.evidence-evaluation@v1"],
+    alternative_input_contracts: [],
+    output_contract: "goal.result@v1",
+    action_surface: "orchestrator",
+    produces_evidence: ["outcome", "evidence pointers", "residual risks", "follow-ups"],
+    check: {
+      kind: "schema",
+      description: "The goal result must state the outcome, point at evidence, and name residual risks and follow-ups."
+    },
+    allowed_routes: ["complete", "stop"],
+    human_interaction: "never",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["compose"],
+      stages: ["close"]
     }
   },
   {
@@ -27946,7 +28188,12 @@ var FLOW_BLOCK_DEFINITION_INPUTS = [
       non_interactive: []
     },
     schematicPolicy: {
-      executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
+      // 'relay' is included because Pursue's batch-step delegates each work
+      // item to an implementer-role worker (a relay), which the pursue runtime
+      // wiring locks in. Batch already declares multiple kinds, so the
+      // single-kind authoring default stays undefined and the widening is
+      // runtime byte-identical.
+      executionKinds: ["compose", "relay", "checkpoint", "sub-run", "fanout"],
       stages: ["act"]
     }
   },
@@ -28416,7 +28663,13 @@ var FlowSchematic = external_exports.object({
   axes: FlowAxes.optional(),
   stage_path_policy: SpinePolicy.optional(),
   stages: external_exports.array(SchematicStage).optional(),
-  default_selection: SelectionOverride.optional()
+  default_selection: SelectionOverride.optional(),
+  // Stage 3 (first-class composition): engine-visible behavior flags the flow
+  // DECLARES on its schematic. The compiler propagates them verbatim to the
+  // compiled manifest's `engine_flags`, where the engine reads them through
+  // `resolveEngineFlags`. Absent = the flow declares none (the engine then
+  // resolves any from the by-id catalog package during the migration).
+  engine_flags: EngineFlagsManifest.optional()
 }).strict().superRefine((schematic, ctx) => {
   const itemIds = /* @__PURE__ */ new Map();
   for (const [index, item] of schematic.items.entries()) {
@@ -31119,6 +31372,21 @@ var buildFlowData = {
       {
         generic: "verification.result@v1",
         actual: "build.verification@v1"
+      },
+      {
+        // build-baseline runs the run-verification block (execution kind
+        // verification) to capture a pre-change proof snapshot. Its output is a
+        // verification result specialized with git state, so it is build's name
+        // for the generic verification.result@v1 at that seam.
+        generic: "verification.result@v1",
+        actual: "build.baseline-snapshot@v1"
+      },
+      {
+        // build-touch-area also runs the run-verification block: it executes
+        // containment proof commands and records the result, a verification
+        // result specialized with touch-area containment.
+        generic: "verification.result@v1",
+        actual: "build.touch-area@v1"
       },
       {
         generic: "review.verdict@v1",
@@ -36616,6 +36884,13 @@ var TraceEntryBase = external_exports.object({
   run_id: RunId
 });
 var ContentHash = Sha256;
+var CatalogSourcedBinding = external_exports.enum([
+  "edit_file_surfaces",
+  "depth_binding",
+  "slice_loop",
+  "terminal_outcome_binding",
+  "primary_result_surface"
+]);
 var RunBootstrappedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("run.bootstrapped"),
   flow_id: CompiledFlowId,
@@ -36623,7 +36898,14 @@ var RunBootstrappedTraceEntry = TraceEntryBase.extend({
   depth: CompiledDepth,
   goal: external_exports.string().min(1),
   change_kind: ChangeKindDeclaration,
-  manifest_hash: external_exports.string().min(1)
+  manifest_hash: external_exports.string().min(1),
+  // Stage 1 (first-class composition): make silent capability loss legible.
+  // `package_resolved` is false when no catalog package matched this flow id;
+  // `reduced_bindings` then names the catalog-sourced bindings that fell back
+  // to defaults. Both optional so prior fixtures and resumed runs (which never
+  // re-bootstrap) stay valid — a run that omits them simply made no claim.
+  package_resolved: external_exports.boolean().optional(),
+  reduced_bindings: external_exports.array(CatalogSourcedBinding).optional()
 }).strict();
 var SliceIndex = external_exports.number().int().nonnegative();
 var StepEnteredTraceEntry = TraceEntryBase.extend({
@@ -38077,7 +38359,7 @@ function childRunStep(input) {
     id: input.id,
     title: input.title,
     stage: "act",
-    block: "goal",
+    block: "goal-child-run",
     input: {
       contract: "goal.contract@v1"
     },
@@ -38133,7 +38415,22 @@ var goalFlowData = {
       { generic: "goal.contract@v1", actual: "goal.recovery@v1" },
       { generic: "goal.contract@v1", actual: "goal.gate-pass@v1" },
       { generic: "goal.contract@v1", actual: "goal.gate@v1" },
-      { generic: "goal.contract@v1", actual: "goal.result@v1" }
+      { generic: "goal.contract@v1", actual: "goal.result@v1" },
+      // First-class composition (goal split): per-role goal blocks own synthetic
+      // output contracts so each block has a unique typed output. These aliases
+      // let the re-homed items keep their real report outputs. Additive only —
+      // the 12 aliases above are retained so the split never removes a masking
+      // alias (the one second-order-failure risk the recovery-binding probe
+      // flagged). New generics are referenced by no other item, so they cannot
+      // mask an unrelated mismatch.
+      { generic: "goal.child-run@v1", actual: "goal.child-fix-result@v1" },
+      { generic: "goal.child-run@v1", actual: "goal.child-build-result@v1" },
+      { generic: "goal.child-run@v1", actual: "goal.child-review-result@v1" },
+      { generic: "goal.child-run@v1", actual: "goal.child-explore-result@v1" },
+      { generic: "goal.child-run@v1", actual: "goal.child-pursue-result@v1" },
+      { generic: "goal.gate-review@v1", actual: "goal.gate-pass@v1" },
+      { generic: "goal.gate-review@v1", actual: "goal.gate@v1" },
+      { generic: "goal.checkpoint@v1", actual: "decision.answer@v1" }
     ],
     axes: {
       allowed_depths: ["low", "medium", "high"],
@@ -38280,7 +38577,7 @@ var goalFlowData = {
         id: "goal-attempt",
         title: "Attempt - summarize child result",
         stage: "act",
-        block: "goal",
+        block: "goal-attempt",
         input: {
           contract: "goal.contract@v1"
         },
@@ -38303,7 +38600,7 @@ var goalFlowData = {
         id: "goal-evidence-evaluation",
         title: "Evaluate - compare attempt evidence to done claims",
         stage: "verify",
-        block: "goal",
+        block: "goal-evaluate",
         input: {
           contract: "goal.contract@v1",
           attempt: "goal.attempt@v1"
@@ -38339,7 +38636,7 @@ var goalFlowData = {
         id: "goal-recovery",
         title: "Recovery - choose typed next action",
         stage: "verify",
-        block: "goal",
+        block: "goal-recover",
         input: {
           evaluation: "goal.evidence-evaluation@v1",
           attempt: "goal.attempt@v1"
@@ -38374,7 +38671,7 @@ var goalFlowData = {
         id: "goal-recovery-checkpoint",
         title: "Checkpoint - operator judgment required",
         stage: "verify",
-        block: "human-decision",
+        block: "goal-checkpoint",
         input: {
           question: "flow.question@v1",
           evidence: "goal.recovery@v1"
@@ -38415,7 +38712,7 @@ var goalFlowData = {
         id: "goal-gate-pass-1",
         title: "Safety review - pass 1",
         stage: "review",
-        block: "review",
+        block: "goal-gate-review",
         input: {
           contract: "goal.contract@v1",
           evaluation: "goal.evidence-evaluation@v1"
@@ -38449,7 +38746,7 @@ var goalFlowData = {
         id: "goal-gate-pass-2",
         title: "Safety review - pass 2",
         stage: "review",
-        block: "review",
+        block: "goal-gate-review",
         input: {
           contract: "goal.contract@v1",
           evaluation: "goal.evidence-evaluation@v1",
@@ -38484,7 +38781,7 @@ var goalFlowData = {
         id: "goal-close",
         title: "Close - emit Goal result",
         stage: "close",
-        block: "close-with-evidence",
+        block: "goal-close",
         input: {
           contract: "goal.contract@v1",
           attempt: "goal.attempt@v1",
@@ -38507,7 +38804,15 @@ var goalFlowData = {
           stop: "@stop"
         }
       }
-    ]
+    ],
+    // Stage 3 (first-class composition): goal is the first flow rehomed off the
+    // by-id catalog package onto its manifest. It DECLARES the terminal-outcome
+    // bind here on the schematic; the compiler propagates it to the compiled
+    // manifest, and the engine reads it through `resolveEngineFlags`. The
+    // package no longer carries engineFlags (see below).
+    engine_flags: {
+      binds_terminal_outcome_to_primary_result: true
+    }
   },
   canonicalStagePolicy: {
     kind: "enforce",
@@ -38654,10 +38959,11 @@ var goalFlowData = {
         { stepId: "goal-close", taskTitle: "Wrap up", activeText: "Wrapping up" }
       ]
     }
-  },
-  engineFlags: {
-    bindsTerminalOutcomeToPrimaryResult: true
   }
+  // Stage 3 (first-class composition): goal's engine flags now live on its
+  // schematic (see `schematic.engine_flags` above), so they travel on the
+  // compiled manifest. The package intentionally carries no engineFlags; the
+  // engine resolves the terminal-outcome bind from the manifest.
 };
 
 // dist/flows/goal/flow.js
@@ -48168,6 +48474,12 @@ var OperatorRunReceipt = external_exports.object({
   models: external_exports.array(ProviderScopedModel),
   checks_evaluated: external_exports.number().int().nonnegative(),
   checks_failed: external_exports.number().int().nonnegative(),
+  // Catalog-sourced bindings that fell back to defaults because no catalog
+  // package resolved for this flow id — a composed or published custom flow.
+  // Absent on a normal built-in run. Surfaced as a receipt note so a reduced
+  // run is visible, not silent. See
+  // docs/ideas/first-class-composition-sequence.md (Stage 1).
+  reduced_bindings: external_exports.array(CatalogSourcedBinding).optional(),
   spend: OperatorRunReceiptSpend.optional()
 }).strict();
 var OperatorSummary = external_exports.object({
@@ -53132,7 +53444,12 @@ var FLOW_KEYS = /* @__PURE__ */ new Set([
   "stages",
   "stage_path_policy",
   "steps",
-  "default_selection"
+  "default_selection",
+  // Stage 3 (first-class composition): engine-visible behavior flags. They
+  // describe how the engine runs the flow, not the authority/proof/recovery
+  // surface the work contract projects, so they are classified here without
+  // contributing a hint.
+  "engine_flags"
 ]);
 var STAGE_KEYS = /* @__PURE__ */ new Set(["id", "title", "canonical", "steps", "selection"]);
 var STEP_KEYS = {
@@ -53576,6 +53893,48 @@ var TERMINAL_TARGETS = [
   "@escalate"
 ];
 
+// dist/runtime/run/engine-flags.js
+function translateSliceLoop(slice) {
+  return {
+    headStep: slice.head_step,
+    tailStep: slice.tail_step,
+    advanceRoute: slice.advance_route,
+    slicesFrom: { report: slice.slices_from.report, itemsPath: slice.slices_from.items_path },
+    maxSlices: slice.max_slices,
+    activateWhenDepthAtLeast: slice.activate_when_depth_at_least
+  };
+}
+function manifestEngineFlagsToInCode(manifest) {
+  if (manifest === void 0)
+    return void 0;
+  const slice = manifest.iterates_slice_loop;
+  const result = {
+    ...manifest.binds_execution_depth_to_relay_selection === void 0 ? {} : {
+      bindsExecutionDepthToRelaySelection: manifest.binds_execution_depth_to_relay_selection
+    },
+    ...manifest.binds_terminal_outcome_to_primary_result === void 0 ? {} : {
+      bindsTerminalOutcomeToPrimaryResult: manifest.binds_terminal_outcome_to_primary_result
+    },
+    ...slice === void 0 ? {} : { iteratesSliceLoop: translateSliceLoop(slice) }
+  };
+  return Object.keys(result).length === 0 ? void 0 : result;
+}
+function resolveEngineFlags(flow, compiledPackage) {
+  const manifest = flow.engineFlags;
+  const pkg = compiledPackage?.engineFlags;
+  if (manifest === void 0)
+    return pkg;
+  const depth = manifest.bindsExecutionDepthToRelaySelection ?? pkg?.bindsExecutionDepthToRelaySelection;
+  const terminal = manifest.bindsTerminalOutcomeToPrimaryResult ?? pkg?.bindsTerminalOutcomeToPrimaryResult;
+  const slice = manifest.iteratesSliceLoop ?? pkg?.iteratesSliceLoop;
+  const merged = {
+    ...depth === void 0 ? {} : { bindsExecutionDepthToRelaySelection: depth },
+    ...terminal === void 0 ? {} : { bindsTerminalOutcomeToPrimaryResult: terminal },
+    ...slice === void 0 ? {} : { iteratesSliceLoop: slice }
+  };
+  return Object.keys(merged).length === 0 ? void 0 : merged;
+}
+
 // dist/runtime/manifest/validate-executable-flow.js
 function requiredRoutesForStep() {
   return ["pass"];
@@ -53815,6 +54174,7 @@ function convertStep(step) {
 }
 function fromCompiledFlow(flow) {
   const defaultSelection = toSelection(flow.default_selection);
+  const engineFlags = manifestEngineFlagsToInCode(flow.engine_flags);
   const executable = {
     id: flow.id,
     version: flow.version,
@@ -53836,7 +54196,8 @@ function fromCompiledFlow(flow) {
     metadata: {
       source: "compiled-flow-v1",
       schema_version: flow.schema_version
-    }
+    },
+    ...engineFlags === void 0 ? {} : { engineFlags }
   };
   assertExecutableFlow(executable);
   return executable;
@@ -59944,6 +60305,15 @@ function buildRuntimePackageIndex(flow) {
   };
 }
 
+// dist/runtime/run/binding-legibility.js
+var CATALOG_SOURCED_BINDINGS = CatalogSourcedBinding.options;
+function resolveBindingLegibility(compiledPackage) {
+  if (compiledPackage !== void 0) {
+    return { packageResolved: true, reducedBindings: [] };
+  }
+  return { packageResolved: false, reducedBindings: [...CATALOG_SOURCED_BINDINGS] };
+}
+
 // dist/runtime/run/manifest-snapshot.js
 import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile3 } from "node:fs/promises";
 import { dirname as dirname8, join as join25 } from "node:path";
@@ -61092,9 +61462,10 @@ async function terminalOutcomeBoundToPrimaryResult(context, outcome) {
   if (outcome !== "complete")
     return void 0;
   const pkg = findCompiledFlowPackageById(context.flow.id);
-  if (pkg?.engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true)
+  const engineFlags = resolveEngineFlags(context.flow, pkg);
+  if (engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true)
     return void 0;
-  const primaryResultPath = pkg.runtimeSurface?.primaryResult?.path;
+  const primaryResultPath = pkg?.runtimeSurface?.primaryResult?.path;
   if (primaryResultPath === void 0)
     return void 0;
   let primaryResult;
@@ -61431,6 +61802,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
   const compiledPackage = findCompiledFlowPackageById(flow.id);
+  const bindingLegibility = resolveBindingLegibility(compiledPackage);
+  const engineFlags = resolveEngineFlags(flow, compiledPackage);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(compiledPackage?.reportFileSurfaces ?? {});
   const context = {
     flow,
@@ -61473,7 +61846,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.hostKind === void 0 ? {} : { hostKind: options.hostKind },
     ...options.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: options.selectionConfigLayers },
     guidanceSelection: {
-      bindsExecutionDepthToGuidanceSelection: compiledPackage?.engineFlags?.bindsExecutionDepthToRelaySelection === true
+      bindsExecutionDepthToGuidanceSelection: engineFlags?.bindsExecutionDepthToRelaySelection === true
     },
     ...options.policyLayers === void 0 ? {} : { policyLayers: options.policyLayers },
     ...options.progress === void 0 ? {} : { progress: options.progress },
@@ -61489,7 +61862,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.executors
   };
   const steps = new Map(flow.steps.map((step) => [step.id, step]));
-  const sliceFlag = compiledPackage?.engineFlags?.iteratesSliceLoop;
+  const sliceFlag = engineFlags?.iteratesSliceLoop;
   if (sliceFlag !== void 0) {
     assertNoCheckpointInSliceLoop(flow, sliceFlag);
   }
@@ -61537,7 +61910,9 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       change_kind: bootstrapChangeKind({
         flow,
         ...context.entryModeName === void 0 ? {} : { entryModeName: context.entryModeName }
-      })
+      }),
+      package_resolved: bindingLegibility.packageResolved,
+      reduced_bindings: bindingLegibility.reducedBindings
     });
     await appendFlowSelectionGuidance(context);
     if (options.historyRecallReport !== void 0) {
@@ -63703,6 +64078,7 @@ function readRunReceipt(runFolder) {
   if (!existsSync32(tracePath))
     return void 0;
   let depth;
+  let reducedBindings;
   let power;
   let powerAuto = false;
   let inference;
@@ -63732,6 +64108,9 @@ function readRunReceipt(runFolder) {
       const parsed = CompiledDepth.safeParse(entry.depth);
       if (parsed.success)
         depth = parsed.data;
+      const bindings = CatalogSourcedBinding.array().safeParse(entry.reduced_bindings);
+      if (bindings.success && bindings.data.length > 0)
+        reducedBindings = bindings.data;
       continue;
     }
     if (entry.kind === "relay.started") {
@@ -63841,6 +64220,7 @@ function readRunReceipt(runFolder) {
     models,
     checks_evaluated: checksEvaluated,
     checks_failed: checksFailed,
+    ...reducedBindings === void 0 ? {} : { reduced_bindings: reducedBindings },
     ...spend === void 0 ? {} : { spend }
   };
 }
@@ -63898,6 +64278,20 @@ function spendLine(receipt) {
     parts.push(`${role.role} ${formatSpendTokens(role.input_tokens + role.output_tokens)}`);
   }
   return `\u23BF ${parts.join(" \xB7 ")}`;
+}
+var REDUCED_BINDING_LABELS = {
+  edit_file_surfaces: "edit-file hooks",
+  depth_binding: "depth binding",
+  slice_loop: "slice loop",
+  terminal_outcome_binding: "terminal outcome",
+  primary_result_surface: "primary result"
+};
+function reducedBindingsLine(receipt) {
+  const reduced = receipt.reduced_bindings;
+  if (reduced === void 0 || reduced.length === 0)
+    return void 0;
+  const labels = reduced.map((binding) => REDUCED_BINDING_LABELS[binding]);
+  return `\u23BF reduced bindings (no catalog package): ${labels.join(" \xB7 ")}`;
 }
 function firstLine(text) {
   const head = text.split(/\r?\n/)[0]?.trim() ?? "";
@@ -64045,6 +64439,9 @@ function renderMarkdown(summary) {
       const spend = spendLine(summary.receipt);
       if (spend !== void 0)
         lines2.push(spend);
+      const reduced = reducedBindingsLine(summary.receipt);
+      if (reduced !== void 0)
+        lines2.push(reduced);
     }
     if (summary.html_path !== void 0) {
       lines2.push("", `Rich summary: ${summary.html_path}`);
@@ -64089,6 +64486,9 @@ function renderMarkdown(summary) {
     const spend = spendLine(summary.receipt);
     if (spend !== void 0)
       lines.push(spend);
+    const reduced = reducedBindingsLine(summary.receipt);
+    if (reduced !== void 0)
+      lines.push(reduced);
   }
   if (summary.html_path !== void 0) {
     lines.push("", `Rich summary: ${summary.html_path}`);

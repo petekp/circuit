@@ -492,6 +492,7 @@ interface SchematicFrame {
   declaredOmits: readonly CanonicalStage[];
   stagePathRationale: string | undefined;
   defaultSelection: FlowSchematic['default_selection'];
+  engineFlags: FlowSchematic['engine_flags'];
 }
 
 function frameSchematic(schematic: FlowSchematic): SchematicFrame {
@@ -518,6 +519,7 @@ function frameSchematic(schematic: FlowSchematic): SchematicFrame {
     declaredOmits: stagePathPolicy.mode === 'partial' ? stagePathPolicy.omits : [],
     stagePathRationale: stagePathPolicy.mode === 'partial' ? stagePathPolicy.rationale : undefined,
     defaultSelection: schematic.default_selection,
+    engineFlags: schematic.engine_flags,
   };
 }
 
@@ -605,6 +607,10 @@ function compileForMode(
     stage_path_policy: stagePathPolicy,
     steps,
     ...(frame.defaultSelection !== undefined ? { default_selection: frame.defaultSelection } : {}),
+    // Stage 3 (first-class composition): a schematic that declares engine flags
+    // carries them onto the compiled manifest verbatim, so the engine reads them
+    // off the manifest rather than a by-id catalog package.
+    ...(frame.engineFlags !== undefined ? { engine_flags: frame.engineFlags } : {}),
   };
 
   const parsed = CompiledFlow.safeParse(flow);

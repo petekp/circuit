@@ -34,6 +34,24 @@ const TraceEntryBase = z.object({
 // shape-compatible with every other content hash at audit time.
 const ContentHash = Sha256;
 
+// Bindings the runtime resolves from a flow's compiled catalog package at run
+// start: the edit-file surface table, the depth/slice/terminal-outcome engine
+// flags, and the primary-result surface. When no package matches a flow id — a
+// composed or published custom flow whose id is not one of the catalog flows —
+// every one of these silently falls back to a default. `run.bootstrapped`
+// records the lost set so the degradation is legible in the trace and receipt
+// instead of invisible. See docs/ideas/first-class-composition-sequence.md
+// (Stage 1). Later stages move these bindings onto the manifest, which shrinks
+// the lost set; this enum stays the single source of truth for their names.
+export const CatalogSourcedBinding = z.enum([
+  'edit_file_surfaces',
+  'depth_binding',
+  'slice_loop',
+  'terminal_outcome_binding',
+  'primary_result_surface',
+]);
+export type CatalogSourcedBinding = z.infer<typeof CatalogSourcedBinding>;
+
 export const RunBootstrappedTraceEntry = TraceEntryBase.extend({
   kind: z.literal('run.bootstrapped'),
   flow_id: CompiledFlowId,
@@ -42,6 +60,13 @@ export const RunBootstrappedTraceEntry = TraceEntryBase.extend({
   goal: z.string().min(1),
   change_kind: ChangeKindDeclaration,
   manifest_hash: z.string().min(1),
+  // Stage 1 (first-class composition): make silent capability loss legible.
+  // `package_resolved` is false when no catalog package matched this flow id;
+  // `reduced_bindings` then names the catalog-sourced bindings that fell back
+  // to defaults. Both optional so prior fixtures and resumed runs (which never
+  // re-bootstrap) stay valid — a run that omits them simply made no claim.
+  package_resolved: z.boolean().optional(),
+  reduced_bindings: z.array(CatalogSourcedBinding).optional(),
 }).strict();
 export type RunBootstrappedTraceEntry = z.infer<typeof RunBootstrappedTraceEntry>;
 

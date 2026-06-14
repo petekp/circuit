@@ -33,7 +33,9 @@ import { type ExecutorRegistry, createDefaultExecutors } from '../executors/inde
 import type { ExecutableFlow, ExecutableStep } from '../manifest/executable-flow.js';
 import { buildRuntimePackageIndex } from '../manifest/runtime-package-index.js';
 import { assertExecutableFlow } from '../manifest/validate-executable-flow.js';
+import { resolveBindingLegibility } from './binding-legibility.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
+import { resolveEngineFlags } from './engine-flags.js';
 import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guidance.js';
 import { writeRuntimeManifestSnapshot } from './manifest-snapshot.js';
 import { recoveryBindingVerdict, recoveryCauseAllowed } from './recovery-binding-verdict.js';
@@ -268,6 +270,15 @@ async function executeExecutableFlowOutcomeUnsafe(
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
   const compiledPackage = findCompiledFlowPackageById(flow.id);
+  // Stage 1 (first-class composition): record which catalog-sourced bindings
+  // this run actually got. A composed/custom flow whose id matches no catalog
+  // package loses them all silently today; the legibility goes onto
+  // `run.bootstrapped` below so the trace and receipt show the reduction.
+  const bindingLegibility = resolveBindingLegibility(compiledPackage);
+  // Stage 3 (first-class composition): resolve engine-visible flags through the
+  // shared seam so they come from the manifest when present and from the by-id
+  // package otherwise. A composed flow with no package still gets its flags.
+  const engineFlags = resolveEngineFlags(flow, compiledPackage);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(
     compiledPackage?.reportFileSurfaces ?? {},
   );
@@ -319,7 +330,7 @@ async function executeExecutableFlowOutcomeUnsafe(
       : { selectionConfigLayers: options.selectionConfigLayers }),
     guidanceSelection: {
       bindsExecutionDepthToGuidanceSelection:
-        compiledPackage?.engineFlags?.bindsExecutionDepthToRelaySelection === true,
+        engineFlags?.bindsExecutionDepthToRelaySelection === true,
     },
     ...(options.policyLayers === undefined ? {} : { policyLayers: options.policyLayers }),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
@@ -341,7 +352,7 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...options.executors,
   };
   const steps = new Map(flow.steps.map((step) => [step.id, step]));
-  const sliceFlag = compiledPackage?.engineFlags?.iteratesSliceLoop;
+  const sliceFlag = engineFlags?.iteratesSliceLoop;
   if (sliceFlag !== undefined) {
     assertNoCheckpointInSliceLoop(flow, sliceFlag);
   }
@@ -405,6 +416,8 @@ async function executeExecutableFlowOutcomeUnsafe(
         flow,
         ...(context.entryModeName === undefined ? {} : { entryModeName: context.entryModeName }),
       }),
+      package_resolved: bindingLegibility.packageResolved,
+      reduced_bindings: bindingLegibility.reducedBindings,
     });
     await appendFlowSelectionGuidance(context);
     if (options.historyRecallReport !== undefined) {

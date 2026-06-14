@@ -38,6 +38,11 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
   'src/flows/canonical-stage-policy.ts',
   'src/flows/flow-definition.ts',
   'src/flows/report-declarations.ts',
+  // Stage 2 (first-class composition): the shared report-only catalog-check
+  // seam. Cross-flow infrastructure, peer to compile-schematic-to-flow.ts, not
+  // a per-flow module. The compile path will join the engine allowlist when it
+  // imports this in a later stage; today only tests do.
+  'src/flows/schematic-catalog-check.ts',
 ];
 
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([

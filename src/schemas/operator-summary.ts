@@ -6,7 +6,7 @@ import { MAX_STATUS_TEXT_CHARS } from './progress-event.js';
 import { RubricResult } from './rubric.js';
 import { ProviderScopedModel } from './selection-policy.js';
 import { RelayRole } from './step.js';
-import { RunClosedOutcome } from './trace-entry.js';
+import { CatalogSourcedBinding, RunClosedOutcome } from './trace-entry.js';
 
 export const OperatorSummaryWarning = z
   .object({
@@ -166,6 +166,12 @@ export const OperatorRunReceipt = z
     models: z.array(ProviderScopedModel),
     checks_evaluated: z.number().int().nonnegative(),
     checks_failed: z.number().int().nonnegative(),
+    // Catalog-sourced bindings that fell back to defaults because no catalog
+    // package resolved for this flow id — a composed or published custom flow.
+    // Absent on a normal built-in run. Surfaced as a receipt note so a reduced
+    // run is visible, not silent. See
+    // docs/ideas/first-class-composition-sequence.md (Stage 1).
+    reduced_bindings: z.array(CatalogSourcedBinding).optional(),
     spend: OperatorRunReceiptSpend.optional(),
   })
   .strict();
