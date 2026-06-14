@@ -116,12 +116,19 @@ describe('body-divergence reporter (M8.0)', () => {
     expect(byKey.get('goal::goal.child-run@v1')?.classification).toBe('uniform');
     expect(byKey.get('goal::goal.gate-review@v1')?.classification).toBe('uniform');
 
-    // Divergent: one generic name spans structurally different bodies — the
-    // catch-all the gate forbids, resolved by a split (M8.3).
+    // Divergent: one generic name spans structurally different bodies. These
+    // survive as write-only block-reuse umbrellas — no item consumes the generic,
+    // every consumer reads a distinct flow-scoped actual — so they are honest, not
+    // catch-alls. The M8.4 gate forbids only a CONSUMED divergent generic.
     expect(byKey.get('build::verification.result@v1')?.classification).toBe('divergent');
     expect(byKey.get('fix::verification.result@v1')?.classification).toBe('divergent');
     expect(byKey.get('prototype::verification.result@v1')?.classification).toBe('divergent');
-    expect(byKey.get('goal::goal.contract@v1')?.classification).toBe('divergent');
+
+    // M8.3 resolved goal.contract@v1 — the one genuinely CONSUMED catch-all (six
+    // goal items read it). Its 11 legacy masking aliases (onto every other goal
+    // report) were removed, so it is single-actual (the real contract) and is no
+    // longer a multi-actual generic at all.
+    expect(byKey.has('goal::goal.contract@v1')).toBe(false);
   });
 
   it('logs the divergence classification for every multi-actual generic', () => {

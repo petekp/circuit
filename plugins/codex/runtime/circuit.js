@@ -38592,24 +38592,21 @@ var goalFlowData = {
     initial_contracts: ["task.intake@v1", "route.decision@v1", "flow.question@v1"],
     contract_aliases: [
       { generic: "clarified.task@v1", actual: "goal.clarified-task@v1" },
-      { generic: "goal.contract@v1", actual: "goal.child-fix-result@v1" },
-      { generic: "goal.contract@v1", actual: "goal.child-build-result@v1" },
-      { generic: "goal.contract@v1", actual: "goal.child-review-result@v1" },
-      { generic: "goal.contract@v1", actual: "goal.child-explore-result@v1" },
-      { generic: "goal.contract@v1", actual: "goal.child-pursue-result@v1" },
-      { generic: "goal.contract@v1", actual: "goal.attempt@v1" },
-      { generic: "goal.contract@v1", actual: "goal.evidence-evaluation@v1" },
-      { generic: "goal.contract@v1", actual: "goal.recovery@v1" },
-      { generic: "goal.contract@v1", actual: "goal.gate-pass@v1" },
-      { generic: "goal.contract@v1", actual: "goal.gate@v1" },
-      { generic: "goal.contract@v1", actual: "goal.result@v1" },
       // First-class composition (goal split): per-role goal blocks own synthetic
       // output contracts so each block has a unique typed output. These aliases
-      // let the re-homed items keep their real report outputs. Additive only —
-      // the 12 aliases above are retained so the split never removes a masking
-      // alias (the one second-order-failure risk the recovery-binding probe
-      // flagged). New generics are referenced by no other item, so they cannot
-      // mask an unrelated mismatch.
+      // let the re-homed items bind generics to those real report outputs. Every
+      // generic below is referenced by no other item, so it cannot mask an
+      // unrelated mismatch.
+      //
+      // M8.3 removed 11 legacy goal.contract@v1 aliases that mapped that name
+      // onto every other goal report (the child results, attempt, evaluation,
+      // recovery, gate-pass, gate, result). They were pure masking: each of
+      // those reports is already the unique output_contract of its own goal
+      // block, so each item matches its block by identity without an alias, and
+      // the items that CONSUME goal.contract@v1 (recovery, gate, close) bind to
+      // the real goal-contract producer, which is always upstream. Removing them
+      // leaves goal.contract@v1 single-actual (its true producer), so it is no
+      // longer a multi-actual catch-all the M8.4 gate would have to forgive.
       { generic: "goal.child-run@v1", actual: "goal.child-fix-result@v1" },
       { generic: "goal.child-run@v1", actual: "goal.child-build-result@v1" },
       { generic: "goal.child-run@v1", actual: "goal.child-review-result@v1" },

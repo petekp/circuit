@@ -12,50 +12,6 @@
       "actual": "goal.clarified-task@v1"
     },
     {
-      "generic": "goal.contract@v1",
-      "actual": "goal.child-fix-result@v1"
-    },
-    {
-      "generic": "goal.contract@v1",
-      "actual": "goal.child-build-result@v1"
-    },
-    {
-      "generic": "goal.contract@v1",
-      "actual": "goal.child-review-result@v1"
-    },
-    {
-      "generic": "goal.contract@v1",
-      "actual": "goal.child-explore-result@v1"
-    },
-    {
-      "generic": "goal.contract@v1",
-      "actual": "goal.child-pursue-result@v1"
-    },
-    {
-      "generic": "goal.contract@v1",
-      "actual": "goal.attempt@v1"
-    },
-    {
-      "generic": "goal.contract@v1",
-      "actual": "goal.evidence-evaluation@v1"
-    },
-    {
-      "generic": "goal.contract@v1",
-      "actual": "goal.recovery@v1"
-    },
-    {
-      "generic": "goal.contract@v1",
-      "actual": "goal.gate-pass@v1"
-    },
-    {
-      "generic": "goal.contract@v1",
-      "actual": "goal.gate@v1"
-    },
-    {
-      "generic": "goal.contract@v1",
-      "actual": "goal.result@v1"
-    },
-    {
       "generic": "goal.child-run@v1",
       "actual": "goal.child-fix-result@v1"
     },
