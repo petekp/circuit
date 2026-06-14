@@ -534,10 +534,7 @@ function derivePrimaryResult(
   for (const w of writes) {
     if (w.schema_name !== first.schema_name || w.path !== first.path) {
       fail(
-        `schematic '${schematic.id as unknown as string}' has discordant @complete ` +
-          `close-stage compose writes (${first.schema_name} at ${first.path} vs ` +
-          `${w.schema_name} at ${w.path}); cannot derive a single ` +
-          'runtime_surface.primary_result',
+        `schematic '${schematic.id as unknown as string}' has discordant @complete close-stage compose writes (${first.schema_name} at ${first.path} vs ${w.schema_name} at ${w.path}); cannot derive a single runtime_surface.primary_result`,
       );
     }
   }

@@ -28,6 +28,8 @@ import type {
   FlowSchematicCatalogCompatibilityIssue,
 } from '../schemas/flow-schematic.js';
 import { validateFlowSchematicCatalogCompatibility } from '../schemas/flow-schematic.js';
+import { collectConsumedDivergenceIssues } from './accommodation-ledger.js';
+import { resolveFieldSignature } from './contract-body-signature.js';
 
 export function collectSchematicCatalogIssues(
   schematic: FlowSchematic,
@@ -37,7 +39,23 @@ export function collectSchematicCatalogIssues(
   // schemas <-> policy cycle). Gate-recognition reconciliation: a route that is
   // NORMAL or recovery-bound is legitimate regardless of the block's
   // allowed_routes. See docs/ideas/first-class-composition-sequence.md.
-  return validateFlowSchematicCatalogCompatibility(schematic, FLOW_BLOCK_CATALOG, {
+  const issues = validateFlowSchematicCatalogCompatibility(schematic, FLOW_BLOCK_CATALOG, {
     recognizeRoute: isGenericallyLegitRoute,
   });
+
+  // M8.4 anti-widening gate (fail-closed). Forbid a generic contract that is
+  // consumed as an item input AND resolves to more than one structurally-distinct
+  // body — a catch-all a consumer could bind to any of several shapes through.
+  // This lives in the flows layer (not the schema validator) because the body
+  // resolver is catalog-backed; injecting resolveFieldSignature keeps the schema
+  // module a leaf. Write-only block-reuse umbrellas pass untouched (see
+  // collectConsumedDivergenceIssues); since this runs on every compile, a composed
+  // flow that consumes one divergently is still caught.
+  for (const issue of collectConsumedDivergenceIssues(schematic, resolveFieldSignature)) {
+    issues.push({
+      message: `generic contract "${issue.generic}" is consumed as an item input (by ${issue.consumingItems.join(', ')}) but resolves to ${issue.signatures.length} structurally different bodies; a consumer reading the generic could bind to any of them. Read the specific typed actual instead, or unify the bodies under one contract.`,
+    });
+  }
+
+  return issues;
 }

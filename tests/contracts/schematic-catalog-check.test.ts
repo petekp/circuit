@@ -228,3 +228,61 @@ describe('fail-closed compile gate (M5)', () => {
     }
   });
 });
+
+describe('anti-widening gate (M8.4)', () => {
+  // The fail-closed gate forbids a generic that is CONSUMED as an item input AND
+  // resolves to more than one structurally-distinct body — a catch-all. It runs
+  // inside collectSchematicCatalogIssues, so it is enforced on every compile and
+  // covered by the per-flow ratchet above (every shipped flow stays at 0, which
+  // now includes this gate). These tests prove the gate FIRES on a flow that
+  // consumes a divergent generic, that it is non-vacuous (it catches the
+  // catch-all where availability and producer-existence checks stay silent), and
+  // that it leaves the shipped write-only umbrellas untouched.
+  //
+  // fix aliases verification.result@v1 to five structurally-distinct actuals as a
+  // write-only block-reuse umbrella: no fix item reads the generic, every
+  // consumer reads a typed actual (fix.verification@v1, ...). To synthesize a
+  // catch-all we (a) add the generic to initial_contracts so the availability
+  // walk treats it as present everywhere, and (b) have an item read it.
+  function fixConsumingDivergentGeneric(): FlowSchematic {
+    const schematic = loadSchematic('fix');
+    (schematic.initial_contracts as unknown as string[]).push('verification.result@v1');
+    const first = schematic.items[0];
+    if (first === undefined) throw new Error('fix has no items');
+    (first.input as Record<string, string>).divergent_probe = 'verification.result@v1';
+    return schematic;
+  }
+
+  it('flags a generic consumed as an item input that resolves to divergent bodies', () => {
+    const issues = collectSchematicCatalogIssues(fixConsumingDivergentGeneric());
+    expect(
+      issues.some(
+        (issue) =>
+          issue.message.includes('verification.result@v1') &&
+          issue.message.includes('structurally different bodies'),
+      ),
+      'the consumed divergent generic must be flagged',
+    ).toBe(true);
+  });
+
+  it('is non-vacuous: no availability issue fires for the same (available) contract', () => {
+    // The contract is in initial_contracts, so the route-aware availability check
+    // and the compiler producer-existence check both stay silent. Only the M8.4
+    // gate catches it — proving the gate is load-bearing, not a restatement of an
+    // existing check.
+    const issues = collectSchematicCatalogIssues(fixConsumingDivergentGeneric());
+    expect(
+      issues.some((issue) => /unavailable contract.*verification\.result@v1/.test(issue.message)),
+    ).toBe(false);
+  });
+
+  it('fails the compile gate when a divergent generic is consumed', () => {
+    expect(() => compileSchematicToCompiledFlow(fixConsumingDivergentGeneric())).toThrow(
+      FlowSchematicCompileError,
+    );
+  });
+
+  it('leaves shipped fix clean — the gate is inert on a write-only umbrella', () => {
+    expect(collectSchematicCatalogIssues(loadSchematic('fix'))).toEqual([]);
+  });
+});

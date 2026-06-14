@@ -190,3 +190,83 @@ export function collectBodyDivergence(
     return { flow: generic.flow, generic: generic.generic, classification, actuals };
   });
 }
+
+// M8.4 anti-widening gate: one consumed-divergence finding. A generic contract
+// that is CONSUMED as an item input (its name appears as a value in some
+// item.input) AND resolves to two or more structurally-distinct bodies is a
+// catch-all: a consumer reading the generic could bind to any of those shapes.
+export interface ConsumedDivergenceIssue {
+  readonly flow: string;
+  readonly generic: string;
+  // Item ids whose input reads the generic name directly (sorted, deduped).
+  readonly consumingItems: readonly string[];
+  // The distinct body signatures behind the generic's actuals (sorted, deduped).
+  readonly signatures: readonly string[];
+}
+
+// M8.4 anti-widening gate (fail-closed). Forbids exactly the catch-all shape:
+// a generic that is BOTH consumed as an item input AND divergent. Three families
+// pass untouched, by design:
+//   - write-only block-reuse umbrellas — a generic named only as a block
+//     output_contract, realized by typed flow-scoped actuals, that no item reads
+//     via the generic name. These are honest reuse (one block, many flows); the
+//     shipped flows' verification.result@v1 / plan.strategy@v1 / change.evidence@v1
+//     / review.verdict@v1 are all this. The gate re-runs on every compile, so a
+//     composed flow that DOES consume such a generic divergently is still caught.
+//   - uniform generics — every actual shares one body, so binding is unambiguous.
+//   - single-actual generics — one actual, nothing to disambiguate (this is
+//     review.verdict@v1 inside the review flow: consumed, but one actual).
+//
+// `resolveSignature` is injected (the catalog-backed resolver lives in
+// contract-body-signature.ts) so this stays a pure analyzer. An `unresolved`
+// generic (an actual with no registered body) is NOT gated here: divergence is a
+// claim about TWO known bodies differing, and the report-only reporter test
+// already forbids `unresolved` on shipped flows; a missing body is the body
+// registry's concern, not the widening gate's.
+export function collectConsumedDivergenceIssues(
+  schematic: FlowSchematic,
+  resolveSignature: (contractName: string) => string | null,
+): ConsumedDivergenceIssue[] {
+  const ledger = collectAccommodationLedger([schematic]);
+  const divergence = collectBodyDivergence(ledger.multiActualGenerics, resolveSignature);
+  const divergentByGeneric = new Map(
+    divergence
+      .filter((entry) => entry.classification === 'divergent')
+      .map((entry) => [entry.generic, entry]),
+  );
+  if (divergentByGeneric.size === 0) return [];
+
+  // Which divergent generics are read by name as an item input value, and by whom.
+  const consumersByGeneric = new Map<string, string[]>();
+  for (const item of schematic.items) {
+    const itemId = item.id as unknown as string;
+    for (const value of Object.values(item.input)) {
+      const name = value as unknown as string;
+      if (!divergentByGeneric.has(name)) continue;
+      const consumers = consumersByGeneric.get(name) ?? [];
+      consumers.push(itemId);
+      consumersByGeneric.set(name, consumers);
+    }
+  }
+
+  const flow = schematic.id as unknown as string;
+  const issues: ConsumedDivergenceIssue[] = [];
+  for (const [generic, consumers] of consumersByGeneric) {
+    const entry = divergentByGeneric.get(generic);
+    if (entry === undefined) continue;
+    const signatures = [
+      ...new Set(
+        entry.actuals
+          .map((actual) => actual.signature)
+          .filter((signature): signature is string => signature !== null),
+      ),
+    ].sort();
+    issues.push({
+      flow,
+      generic,
+      consumingItems: [...new Set(consumers)].sort(),
+      signatures,
+    });
+  }
+  return issues.sort((a, b) => a.generic.localeCompare(b.generic));
+}

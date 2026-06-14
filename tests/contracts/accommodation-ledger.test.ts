@@ -14,9 +14,15 @@ import { describe, expect, it } from 'vitest';
 import {
   collectAccommodationLedger,
   collectBodyDivergence,
+  collectConsumedDivergenceIssues,
 } from '../../src/flows/accommodation-ledger.js';
 import { resolveFieldSignature } from '../../src/flows/contract-body-signature.js';
-import { schematicForFlow, shippedFlowSchematics } from '../helpers/in-memory-schematics.js';
+import type { FlowSchematic } from '../../src/schemas/flow-schematic.js';
+import {
+  schematicForFlow,
+  shippedFlowIds,
+  shippedFlowSchematics,
+} from '../helpers/in-memory-schematics.js';
 
 describe('accommodation ledger', () => {
   it('analyzes the in-memory schematics it is given, not files on disk (M6)', () => {
@@ -186,6 +192,127 @@ describe('uniform producer generics (M8.2)', () => {
           `${generic} canonical body must equal its actual ${actual} (uniform)`,
         ).toBe(canonical);
       }
+    }
+  });
+});
+
+describe('consumed-divergence gate (M8.4)', () => {
+  // The fail-closed anti-widening gate. It forbids exactly one shape: a generic
+  // contract that is CONSUMED as an item input (its name appears as a value in
+  // some item.input) AND resolves to more than one structurally-distinct body.
+  // That is a catch-all — a consumer reading the generic could bind to any of
+  // several different shapes. Everything else is allowed: a write-only
+  // block-reuse umbrella (a generic only named as a block output_contract,
+  // realized by typed actuals, consumed by no item via the generic name) is
+  // honest reuse; a uniform generic resolves to one body; a single-actual
+  // generic is unambiguous.
+
+  // A stub resolver lets these unit tests control uniform-vs-divergent precisely
+  // without depending on the real body registry.
+  const stubResolve =
+    (shapes: Record<string, string>) =>
+    (name: string): string | null =>
+      shapes[name] ?? null;
+
+  // Minimal FlowSchematic shaped only with the fields the gate reads: id,
+  // contract_aliases, initial_contracts, and items[].{id,input,output}.
+  const synthetic = (over: {
+    aliases: { generic: string; actual: string }[];
+    items: { id: string; output: string; input: Record<string, string> }[];
+  }): FlowSchematic =>
+    ({
+      id: 'synthetic',
+      initial_contracts: [],
+      contract_aliases: over.aliases,
+      items: over.items,
+    }) as unknown as FlowSchematic;
+
+  it('fires when a divergent generic is consumed as an item input', () => {
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'b@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-b', output: 'b@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectConsumedDivergenceIssues(
+      schematic,
+      stubResolve({ 'a@v1': 'shapeA', 'b@v1': 'shapeB' }),
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.generic).toBe('g@v1');
+    expect(issues[0]?.consumingItems).toEqual(['consumer']);
+    expect(issues[0]?.signatures).toEqual(['shapeA', 'shapeB']);
+  });
+
+  it('allows a divergent generic that is write-only (consumed by no item via the generic)', () => {
+    // The shipped pattern: the consumer reads the typed actual, never the
+    // generic. This is the write-only block-reuse umbrella that must survive.
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'b@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-b', output: 'b@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'a@v1' } },
+      ],
+    });
+    const issues = collectConsumedDivergenceIssues(
+      schematic,
+      stubResolve({ 'a@v1': 'shapeA', 'b@v1': 'shapeB' }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it('allows a uniform generic even when consumed as an item input', () => {
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'b@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-b', output: 'b@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectConsumedDivergenceIssues(
+      schematic,
+      stubResolve({ 'a@v1': 'oneShape', 'b@v1': 'oneShape' }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it('allows a single-actual generic consumed as an item input', () => {
+    // Single actual = unambiguous; never a catch-all (this is review.verdict@v1
+    // inside the review flow, consumed but aliased to one actual).
+    const schematic = synthetic({
+      aliases: [{ generic: 'g@v1', actual: 'a@v1' }],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectConsumedDivergenceIssues(schematic, stubResolve({ 'a@v1': 'shapeA' }));
+    expect(issues).toEqual([]);
+  });
+
+  it('produces zero issues for every shipped flow (M8.3 cleared the consumed-divergent set)', () => {
+    // The load-bearing invariant for shipped flows: after M8.3 removed
+    // goal.contract@v1's masking aliases, no shipped flow consumes a divergent
+    // generic. Every remaining divergent generic is a write-only umbrella. If a
+    // future edit reintroduces a consumed catch-all, this fails.
+    for (const id of shippedFlowIds()) {
+      expect(
+        collectConsumedDivergenceIssues(schematicForFlow(id), resolveFieldSignature),
+        `${id} must not consume any divergent generic`,
+      ).toEqual([]);
     }
   });
 });
