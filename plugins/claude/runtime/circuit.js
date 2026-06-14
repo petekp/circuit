@@ -27333,7 +27333,10 @@ var FLOW_BLOCK_IDS = [
   "batch",
   "risk-rollback-check",
   "close-with-evidence",
-  "handoff"
+  "handoff",
+  "review-intake",
+  "prototype-variant-evidence",
+  "prototype-checkpoint"
 ];
 var FlowBlockId = external_exports.enum(FLOW_BLOCK_IDS);
 var FlowRoute = external_exports.enum([
@@ -27783,7 +27786,13 @@ var FLOW_BLOCK_DEFINITION_INPUTS = [
     },
     schematicPolicy: {
       executionKinds: ["relay", "compose", "fanout"],
-      stages: ["act"]
+      // 'plan' is included because Explore runs its genuine implementer
+      // synthesis (synthesize-step) inside its canonical plan stage: Explore
+      // omits the act/verify/review canonical stages (EXPLORE-I1), so the act
+      // that composes the recommendation is runtime-locked to the plan stage.
+      // This mirrors the same widening already applied to the review block for
+      // Explore's review-step. See src/flows/explore/contract.md.
+      stages: ["act", "plan"]
     }
   },
   {
@@ -28274,6 +28283,81 @@ var FLOW_BLOCK_DEFINITION_INPUTS = [
     schematicPolicy: {
       executionKinds: ["compose", "checkpoint", "sub-run", "fanout"],
       stages: ["close"]
+    }
+  },
+  {
+    id: "review-intake",
+    title: "Review Intake",
+    purpose: "Frame an independent review: fix the audit scope and capture the working-tree state to review against.",
+    input_contracts: ["task.intake@v1", "route.decision@v1"],
+    alternative_input_contracts: [],
+    output_contract: "review.intake@v1",
+    action_surface: "orchestrator",
+    produces_evidence: ["scope boundary", "working tree status", "diff or unavailable reason"],
+    check: {
+      kind: "schema",
+      description: "The intake must state what is in scope for the review and record the working tree state, or why a diff is unavailable."
+    },
+    allowed_routes: ["continue", "stop"],
+    human_interaction: "optional",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["compose"],
+      stages: ["frame"]
+    }
+  },
+  {
+    id: "prototype-variant-evidence",
+    title: "Prototype Variant Evidence",
+    purpose: "Compose the provider evidence for the model-comparison variants before the variants are verified.",
+    input_contracts: ["flow.brief@v1", "plan.strategy@v1", "change.evidence@v1"],
+    alternative_input_contracts: [],
+    output_contract: "prototype.variant-provider-evidence@v1",
+    action_surface: "orchestrator",
+    produces_evidence: ["captured variant count", "per-variant provider evidence"],
+    check: {
+      kind: "schema",
+      description: "The provider evidence must record how many variants were captured and attribute the evidence to each variant."
+    },
+    allowed_routes: ["complete", "stop"],
+    human_interaction: "never",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["compose"],
+      stages: ["verify"]
+    }
+  },
+  {
+    id: "prototype-checkpoint",
+    title: "Prototype Checkpoint",
+    purpose: "Pause for the operator to decide what to do with a built and verified prototype artifact.",
+    input_contracts: ["change.evidence@v1", "verification.result@v1"],
+    alternative_input_contracts: [],
+    output_contract: "prototype.checkpoint@v1",
+    action_surface: "host",
+    produces_evidence: ["question", "available options", "selected option", "answer source"],
+    check: {
+      kind: "decision",
+      description: "The selected option must be one of the declared prototype dispositions or the run must pause or stop clearly."
+    },
+    allowed_routes: ["continue", "stop"],
+    human_interaction: "mode-dependent",
+    host_capabilities: {
+      claude: [],
+      codex: [],
+      non_interactive: []
+    },
+    schematicPolicy: {
+      executionKinds: ["checkpoint"],
+      stages: ["review"]
     }
   }
 ];
@@ -33225,8 +33309,14 @@ var exploreFlowData = {
       expandBlockStepUse({
         id: "synthesize-step",
         title: "Synthesize \u2014 produce explore.compose (connector-bound relay)",
+        // synthesize-step is the act archetype run inside Explore's canonical
+        // plan stage (EXPLORE-I1): an implementer relay that composes the
+        // recommendation and emits explore.compose, which the flow already
+        // aliases to change.evidence@v1 (the act block's output). The act block
+        // declares the matching evidence and accepts the plan stage, so the
+        // evidence is inherited from the block rather than restated here.
         stage: "plan",
-        block: "plan",
+        block: "act",
         input: {
           brief: "explore.brief@v1",
           diagnosis: "explore.analysis@v1",
@@ -33242,7 +33332,6 @@ var exploreFlowData = {
         // as long as at least one reachable route produces it.
         optional_inputs: ["review"],
         output: "explore.compose@v1",
-        evidenceRequirements: ["changed files", "change rationale", "declared follow-up proof"],
         execution: {
           kind: "relay",
           role: "implementer"
@@ -40708,10 +40797,6 @@ var prototypeFlowData = {
         actual: "prototype.variant-aggregate@v1"
       },
       {
-        generic: "flow.result@v1",
-        actual: "prototype.variant-provider-evidence@v1"
-      },
-      {
         generic: "verification.result@v1",
         actual: "prototype.variant-verification@v1"
       },
@@ -40946,19 +41031,19 @@ var prototypeFlowData = {
           stop: "@stop"
         }
       }),
+      // A verify-stage compose that captures provider evidence for the variants
+      // before they are verified. It is not a flow close, so it uses the
+      // dedicated prototype-variant-evidence block; its output and evidence are
+      // inherited from the block rather than restated here.
       expandBlockStepUse({
         id: "variant-provider-evidence-step",
         title: "Verify - capture variant provider evidence",
         stage: "verify",
-        block: "close-with-evidence",
+        block: "prototype-variant-evidence",
         input: {
           brief: "prototype.brief@v1",
           options: "prototype.variant-options@v1",
           aggregate: "prototype.variant-aggregate@v1"
-        },
-        output: "prototype.variant-provider-evidence@v1",
-        execution: {
-          kind: "compose"
         },
         protocol: "prototype-variant-provider-evidence@v1",
         reportPath: "reports/prototype/variant-provider-evidence.json",
@@ -41118,11 +41203,16 @@ var prototypeFlowData = {
           stop: "close-step"
         }
       }),
+      // A checkpoint over a built and verified artifact (inputs {artifact,
+      // verification}), not the generic question/evidence human-decision shape.
+      // It uses the dedicated prototype-checkpoint block, whose generic input
+      // contracts the flow's existing change.evidence and verification.result
+      // aliases already satisfy.
       expandBlockStepUse({
         id: "prototype-checkpoint-step",
         title: "Review - decide Prototype disposition",
         stage: "review",
-        block: "human-decision",
+        block: "prototype-checkpoint",
         input: {
           artifact: "prototype.artifact@v1",
           verification: "prototype.verification@v1"
@@ -43542,21 +43632,20 @@ var reviewFlowData = {
       }
     ],
     items: [
-      composeBlockStep({
+      // Review's intake is a structurally distinct frame: it captures the
+      // working-tree state to audit against, not the generic scope/constraints/
+      // proof-plan a build-style frame produces. It uses the dedicated
+      // review-intake block, so its output and evidence are inherited from the
+      // block rather than restated here.
+      expandBlockStepUse({
         id: "intake-step",
         title: "Intake \u2014 resolve review scope",
         stage: "frame",
-        block: "frame",
+        block: "review-intake",
         input: {
           task: "task.intake@v1",
           route: "route.decision@v1"
         },
-        output: "review.intake@v1",
-        evidenceRequirements: [
-          "scope boundary",
-          "working tree status",
-          "diff or unavailable reason"
-        ],
         protocol: "review-intake@v1",
         reportPath: "reports/review-intake.json",
         required: ["scope", "evidence"],
@@ -60344,11 +60433,23 @@ function buildRuntimePackageIndex(flow) {
 
 // dist/runtime/run/binding-legibility.js
 var CATALOG_SOURCED_BINDINGS = CatalogSourcedBinding.options;
-function resolveBindingLegibility(compiledPackage) {
-  if (compiledPackage !== void 0) {
-    return { packageResolved: true, reducedBindings: [] };
+function manifestBacksBinding(flow, binding) {
+  switch (binding) {
+    case "depth_binding":
+    case "slice_loop":
+    case "terminal_outcome_binding":
+      return flow.engineFlags !== void 0;
+    case "edit_file_surfaces":
+      return flow.reportFileSurfaces !== void 0;
+    case "primary_result_surface":
+      return flow.runtimeSurface !== void 0;
   }
-  return { packageResolved: false, reducedBindings: [...CATALOG_SOURCED_BINDINGS] };
+}
+function resolveBindingLegibility(flow, compiledPackage) {
+  const manifestBackedBindings = CATALOG_SOURCED_BINDINGS.filter((binding) => manifestBacksBinding(flow, binding));
+  const packageResolved = compiledPackage !== void 0;
+  const reducedBindings = packageResolved ? [] : CATALOG_SOURCED_BINDINGS.filter((binding) => !manifestBacksBinding(flow, binding));
+  return { packageResolved, reducedBindings, manifestBackedBindings };
 }
 
 // dist/runtime/run/manifest-snapshot.js
@@ -61839,7 +61940,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
   const compiledPackage = findCompiledFlowPackageById(flow.id);
-  const bindingLegibility = resolveBindingLegibility(compiledPackage);
+  const bindingLegibility = resolveBindingLegibility(flow, compiledPackage);
   const engineFlags = resolveEngineFlags(flow, compiledPackage);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(compiledPackage?.reportFileSurfaces ?? {});
   const context = {

@@ -40,10 +40,6 @@
       "actual": "prototype.variant-aggregate@v1"
     },
     {
-      "generic": "flow.result@v1",
-      "actual": "prototype.variant-provider-evidence@v1"
-    },
-    {
       "generic": "verification.result@v1",
       "actual": "prototype.variant-verification@v1"
     },
@@ -309,7 +305,7 @@
     },
     {
       "id": "variant-provider-evidence-step",
-      "block": "close-with-evidence",
+      "block": "prototype-variant-evidence",
       "title": "Verify - capture variant provider evidence",
       "stage": "verify",
       "input": {
@@ -319,7 +315,7 @@
       },
       "optional_inputs": [],
       "output": "prototype.variant-provider-evidence@v1",
-      "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
+      "evidence_requirements": ["captured variant count", "per-variant provider evidence"],
       "execution": {
         "kind": "compose"
       },
@@ -554,7 +550,7 @@
     },
     {
       "id": "prototype-checkpoint-step",
-      "block": "human-decision",
+      "block": "prototype-checkpoint",
       "title": "Review - decide Prototype disposition",
       "stage": "review",
       "input": {
@@ -562,7 +558,7 @@
         "verification": "prototype.verification@v1"
       },
       "optional_inputs": [],
-      "output": "decision.answer@v1",
+      "output": "prototype.checkpoint@v1",
       "evidence_requirements": [
         "question",
         "available options",

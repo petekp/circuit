@@ -430,7 +430,7 @@ describe('flow schematic schema — active Fix schematic', () => {
     const issues = validateFlowSchematicCatalogCompatibility(schematic, parseBlockCatalog());
     expect(issues).toContainEqual({
       item_id: 'fix-act',
-      message: 'stage "analyze" is not compatible with block "act"; expected one of act',
+      message: 'stage "analyze" is not compatible with block "act"; expected one of act, plan',
     });
   });
 

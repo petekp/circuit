@@ -92,6 +92,9 @@ be a separate schematic step so the skipped-review path stays visible.
 | Risk/Rollback Check | Decide whether continuing is safe. | Current diff/evidence, risk policy, rollback or recovery options. | Risk decision with allowed next action. | Continue, split, revert plan, Human Decision, Stop. |
 | Close With Evidence | End honestly. | Required reports, verification, review when required, residual risks. | Flow result with outcome, evidence pointers, follow-ups. | Complete, stop, hand off, escalate. |
 | Handoff | Persist enough state to resume later. | Current goal, completed blocks, pending evidence, next action, debt. | Continuity record or handoff report. | Stop, Resume later. |
+| Review Intake | Frame an independent review and capture the working-tree state. | Intake, route decision. | Review intake with scope and working-tree status. | Independent Audit, Stop. |
+| Prototype Variant Evidence | Capture provider evidence for the model-comparison variants before verifying them. | Brief, variant options, variant aggregate. | Provider evidence with captured count and per-variant attribution. | Verify variants, Stop. |
+| Prototype Checkpoint | Pause for the operator to decide a verified prototype's disposition. | Prototype artifact, verification result. | Decision record with the selected disposition and source. | Continue, Stop. |
 
 ## Fix-Derived Reusable Blocks
 

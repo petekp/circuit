@@ -23,7 +23,7 @@
   "items": [
     {
       "id": "intake-step",
-      "block": "frame",
+      "block": "review-intake",
       "title": "Intake — resolve review scope",
       "stage": "frame",
       "input": {

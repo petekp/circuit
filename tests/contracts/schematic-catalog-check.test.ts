@@ -2,15 +2,19 @@
 // plus the baseline ratchet that records where the eight shipped schematics
 // stand against the strong route-aware validator.
 //
-// Why report-only, not a fail-closed compile gate: a probe across all eight
-// schematics (the `records the current baseline` test below) found 128 issues
-// across six of them. The block catalog is a coarse model — it reuses generic
-// block ids (`goal`, `plan`) for structurally distinct schematic items — and
-// only Fix and runtime-proof were authored to satisfy it. Flipping the check
-// to fail-closed on the compile path would break the build for the other six.
-// So Stage 2 lands the mechanism and the ratchet; the flip waits until the
-// block model actually describes the built-ins. See
-// docs/ideas/first-class-composition-sequence.md (Stage 2).
+// Why report-only, not yet a fail-closed compile gate: the seam landed when a
+// probe across all eight schematics found 128 issues across six of them,
+// because the block catalog reused generic block ids (`goal`, `plan`) for
+// structurally distinct schematic items, and only Fix and runtime-proof were
+// authored to satisfy it. The block model has since been corrected flow by
+// flow — the goal-block split, then the M3a block-model pass for explore,
+// prototype, and review — so every shipped schematic now reaches zero by
+// correction: honest aliases and dedicated blocks, never widening the
+// validator to mask a gap. The block model is no longer the blocker; the
+// fail-closed flip now waits only on the linchpin work (M4/M5) that lets the
+// engine resolve a flow from its manifest declarations. See
+// docs/ideas/first-class-composition-sequence.md (Stage 2) and
+// docs/architecture/first-class-composition-optimal-path.md (M3a, M5).
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
@@ -56,7 +60,7 @@ describe('collectSchematicCatalogIssues', () => {
     const issues = collectSchematicCatalogIssues(schematic);
     expect(issues).toContainEqual({
       item_id: 'fix-act',
-      message: 'stage "analyze" is not compatible with block "act"; expected one of act',
+      message: 'stage "analyze" is not compatible with block "act"; expected one of act, plan',
     });
   });
 });
@@ -66,9 +70,10 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
   // A schematic getting fixed lowers its count (good, never fails the test). A
   // schematic or a newly composed flow gaining a violation raises it (a
   // regression, fails the test). Fix and runtime-proof are the original
-  // block-first exemplars; build, pursue, and now goal reached 0 by correction
-  // (honest aliases, corrected block models, route-conditional availability, and
-  // one dead-edge removal). Every 0 is pinned exactly and must never regress.
+  // block-first exemplars; build, pursue, goal, explore, prototype, and review
+  // reached 0 by correction (honest aliases, corrected and dedicated block
+  // models, route-conditional availability, and one dead-edge removal). All
+  // eight shipped schematics are now pinned at 0 and must never regress.
   const BASELINE: Record<string, number> = {
     // build 3 -> 2 (gate-recognition reconciliation cleared `advance`, the
     // slice-loop forward edge) -> 0 (block-model honesty pass). The last two were
@@ -82,22 +87,22 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
     build: 0,
     // explore 7 -> 6 (gate-recognition reconciliation cleared `retry`, a recovery
     // route) -> 5 (block-model honesty pass) -> 4 (M1 route-conditional
-    // availability). The 6->5 cleared issue was review-step's stage `plan`: Explore
-    // omits the act/verify/review canonical stages (EXPLORE-I1), so its genuine
-    // adversarial reviewer pass is runtime-locked to the plan stage. The 5->4
-    // cleared issue was synthesize-step's `review` input: a forward read produced
-    // only on the review-step -> synthesize-step rework loop-back, absent on the
-    // first pass from analyze-step. relay-hints documents that the rework attempt
-    // reads the review verdict, so the route disjunction is real and intended. M1
-    // lifts it into the model: synthesize-step declares `optional_inputs: ['review']`,
-    // and the validator accepts an optional input that any reachable route produces.
-    // optional_inputs is authoring/validation-only, so this is runtime byte-identical.
-    // The remaining 4 are all on synthesize-step, which names the `plan` block but is
-    // an implementer relay that composes the investigation (output explore.compose@v1,
-    // evidence about changed files). No alias or stage widen can make that honest: it
-    // is a real structural gap (Explore needs a compose/synthesize block the catalog
-    // does not yet have). Left as a real-limit for #14.
-    explore: 4,
+    // availability) -> 0 (M3a block-model correction). The 6->5 cleared issue was
+    // review-step's stage `plan`: Explore omits the act/verify/review canonical
+    // stages (EXPLORE-I1), so its genuine adversarial reviewer pass is runtime-locked
+    // to the plan stage. The 5->4 cleared issue was synthesize-step's `review` input:
+    // a forward read produced only on the review-step -> synthesize-step rework
+    // loop-back, absent on the first pass; M1 lifted it into the model via
+    // `optional_inputs: ['review']`. The final 4 were all on synthesize-step, which
+    // named the generic `plan` block but is an implementer relay that composes the
+    // recommendation: its output explore.compose@v1 is already aliased to
+    // change.evidence@v1, and its evidence (changed files / rationale / follow-up) is
+    // verbatim the `act` block's. synthesize-step is the act archetype run inside
+    // Explore's canonical plan stage (EXPLORE-I1), exactly as review-step runs the
+    // review block at the plan stage. M3a re-points it to `act` and widens the act
+    // block's stages to include plan. The block id and evidence_requirements are
+    // never compiled, so this is runtime byte-identical. explore is pinned at 0.
+    explore: 0,
     fix: 0,
     // goal: 113 -> 11 (goal-block split) -> 9 (gate-recognition reconciliation)
     // -> 5 (goal-gate-review allowed_routes corrected) -> 0 (M1 route-conditional
@@ -129,7 +134,20 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
     //     `ask` edge fixes all three. It changes compiled routes but is
     //     runtime-neutral (the edge can never fire). goal is pinned at 0.
     goal: 0,
-    prototype: 2,
+    // prototype 2 -> 0 (M3a block-model correction). The two issues were items
+    // that named generic blocks the catalog did not model for them:
+    // variant-provider-evidence-step (a verify-stage evidence compose, not a flow
+    // close) named close-with-evidence, and prototype-checkpoint-step (a checkpoint
+    // over a built and verified artifact, inputs {artifact, verification}) named
+    // human-decision, whose required inputs are {question, evidence}. M3a adds two
+    // dedicated blocks -- prototype-variant-evidence (verify-stage compose) and
+    // prototype-checkpoint (artifact/verification checkpoint) -- and re-points the
+    // items; their generic input contracts are satisfied by the flow's existing
+    // change.evidence / verification.result / plan.strategy aliases. Block ids and
+    // outputs are never compiled, so this is runtime byte-identical, and the
+    // now-dead flow.result alias for the provider-evidence output is dropped.
+    // prototype is pinned at 0.
+    prototype: 0,
     // pursue 1 -> 0 (block-model honesty pass). The one issue was batch-step's
     // execution kind `relay`: Pursue's batch-step delegates each work item to an
     // implementer-role worker, which the pursue runtime wiring locks in. Batch
@@ -137,7 +155,13 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
     // single-kind authoring default undefined and is byte-identical. pursue is
     // pinned at 0.
     pursue: 0,
-    review: 2,
+    // review 2 -> 0 (M3a block-model correction). Both issues were on intake-step,
+    // which named the generic `frame` block but produces review-specific evidence
+    // (working tree status / diff or unavailable reason) instead of frame's
+    // constraints / proof-plan. M3a adds a dedicated review-intake block and
+    // re-points the item; its output and evidence are inherited from the block, and
+    // neither is compiled, so this is runtime byte-identical. review is pinned at 0.
+    review: 0,
     'runtime-proof': 0,
   };
 

@@ -199,8 +199,14 @@ export const exploreFlowData = {
       expandBlockStepUse({
         id: 'synthesize-step',
         title: 'Synthesize — produce explore.compose (connector-bound relay)',
+        // synthesize-step is the act archetype run inside Explore's canonical
+        // plan stage (EXPLORE-I1): an implementer relay that composes the
+        // recommendation and emits explore.compose, which the flow already
+        // aliases to change.evidence@v1 (the act block's output). The act block
+        // declares the matching evidence and accepts the plan stage, so the
+        // evidence is inherited from the block rather than restated here.
         stage: 'plan',
-        block: 'plan',
+        block: 'act',
         input: {
           brief: 'explore.brief@v1',
           diagnosis: 'explore.analysis@v1',
@@ -216,7 +222,6 @@ export const exploreFlowData = {
         // as long as at least one reachable route produces it.
         optional_inputs: ['review'],
         output: 'explore.compose@v1',
-        evidenceRequirements: ['changed files', 'change rationale', 'declared follow-up proof'],
         execution: {
           kind: 'relay',
           role: 'implementer',

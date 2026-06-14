@@ -127,7 +127,7 @@
     },
     {
       "id": "synthesize-step",
-      "block": "plan",
+      "block": "act",
       "title": "Synthesize — produce explore.compose (connector-bound relay)",
       "stage": "plan",
       "input": {

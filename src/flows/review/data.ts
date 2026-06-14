@@ -1,4 +1,4 @@
-import { composeBlockStep, relayBlockStep } from '../block-step-expansion.js';
+import { composeBlockStep, expandBlockStepUse, relayBlockStep } from '../block-step-expansion.js';
 import type { FlowData } from '../flow-definition.js';
 import { reviewRelayShapeHint } from './relay-hints.js';
 import { ReviewIntake, ReviewResult } from './reports.js';
@@ -71,21 +71,20 @@ export const reviewFlowData = {
       },
     ],
     items: [
-      composeBlockStep({
+      // Review's intake is a structurally distinct frame: it captures the
+      // working-tree state to audit against, not the generic scope/constraints/
+      // proof-plan a build-style frame produces. It uses the dedicated
+      // review-intake block, so its output and evidence are inherited from the
+      // block rather than restated here.
+      expandBlockStepUse({
         id: 'intake-step',
         title: 'Intake — resolve review scope',
         stage: 'frame',
-        block: 'frame',
+        block: 'review-intake',
         input: {
           task: 'task.intake@v1',
           route: 'route.decision@v1',
         },
-        output: 'review.intake@v1',
-        evidenceRequirements: [
-          'scope boundary',
-          'working tree status',
-          'diff or unavailable reason',
-        ],
         protocol: 'review-intake@v1',
         reportPath: 'reports/review-intake.json',
         required: ['scope', 'evidence'],

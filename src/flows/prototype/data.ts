@@ -80,10 +80,6 @@ export const prototypeFlowData = {
         actual: 'prototype.variant-aggregate@v1',
       },
       {
-        generic: 'flow.result@v1',
-        actual: 'prototype.variant-provider-evidence@v1',
-      },
-      {
         generic: 'verification.result@v1',
         actual: 'prototype.variant-verification@v1',
       },
@@ -319,19 +315,19 @@ export const prototypeFlowData = {
           stop: '@stop',
         },
       }),
+      // A verify-stage compose that captures provider evidence for the variants
+      // before they are verified. It is not a flow close, so it uses the
+      // dedicated prototype-variant-evidence block; its output and evidence are
+      // inherited from the block rather than restated here.
       expandBlockStepUse({
         id: 'variant-provider-evidence-step',
         title: 'Verify - capture variant provider evidence',
         stage: 'verify',
-        block: 'close-with-evidence',
+        block: 'prototype-variant-evidence',
         input: {
           brief: 'prototype.brief@v1',
           options: 'prototype.variant-options@v1',
           aggregate: 'prototype.variant-aggregate@v1',
-        },
-        output: 'prototype.variant-provider-evidence@v1',
-        execution: {
-          kind: 'compose',
         },
         protocol: 'prototype-variant-provider-evidence@v1',
         reportPath: 'reports/prototype/variant-provider-evidence.json',
@@ -492,11 +488,16 @@ export const prototypeFlowData = {
           stop: 'close-step',
         },
       }),
+      // A checkpoint over a built and verified artifact (inputs {artifact,
+      // verification}), not the generic question/evidence human-decision shape.
+      // It uses the dedicated prototype-checkpoint block, whose generic input
+      // contracts the flow's existing change.evidence and verification.result
+      // aliases already satisfy.
       expandBlockStepUse({
         id: 'prototype-checkpoint-step',
         title: 'Review - decide Prototype disposition',
         stage: 'review',
-        block: 'human-decision',
+        block: 'prototype-checkpoint',
         input: {
           artifact: 'prototype.artifact@v1',
           verification: 'prototype.verification@v1',

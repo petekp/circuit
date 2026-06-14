@@ -270,11 +270,14 @@ async function executeExecutableFlowOutcomeUnsafe(
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
   const compiledPackage = findCompiledFlowPackageById(flow.id);
-  // Stage 1 (first-class composition): record which catalog-sourced bindings
-  // this run actually got. A composed/custom flow whose id matches no catalog
-  // package loses them all silently today; the legibility goes onto
-  // `run.bootstrapped` below so the trace and receipt show the reduction.
-  const bindingLegibility = resolveBindingLegibility(compiledPackage);
+  // Stage 1 + M2 (first-class composition): record which catalog-sourced
+  // bindings this run actually got, declaration-aware. A binding is reduced only
+  // when neither the flow's manifest nor a by-id package provides it, so the
+  // legibility on `run.bootstrapped` below shows the true reduction as bindings
+  // move onto the manifest. `flow` carries the manifest declarations (engine
+  // flags today; surfaces after M3); `manifestBackedBindings` is the readiness
+  // signal the linchpin reads before deleting the package fallback.
+  const bindingLegibility = resolveBindingLegibility(flow, compiledPackage);
   // Stage 3 (first-class composition): resolve engine-visible flags through the
   // shared seam so they come from the manifest when present and from the by-id
   // package otherwise. A composed flow with no package still gets its flags.
