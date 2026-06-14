@@ -346,6 +346,95 @@ Confirmed at the git level — zero changes to `generated/`, `plugins/`, or any
 same 78 aliases / 0 accommodations / 10 multi-actual generics it did reading from
 disk, preserving the load-bearing `accommodations === []` invariant.
 
+### M8 RESULT (2026-06-14): the routing seam is typed and the catch-all is gated
+
+M8 closed the "typed" half of the vision in five slices, report-only first,
+ending in a fail-closed gate. No runtime behavior changed until M8.4, and even
+that is emit-only (the compile/gate path is tree-shaken from the runtime bundle).
+
+- **M8.0 — body-divergence reporter (report-only).** Extended the accommodation
+  ledger with `collectBodyDivergence`: for each multi-actual generic it resolves
+  every actual's body signature and classifies the generic `uniform` (all
+  actuals share one shape), `divergent` (two or more distinct shapes), or
+  `unresolved` (a body the resolver cannot see). The resolver
+  (`resolveFieldSignature`, catalog-backed) is injected so the ledger stays a
+  pure analyzer. No shipped generic classifies `unresolved`.
+- **M8.1 — typed the routing seam.** Authored real Zod bodies for the three
+  orchestrator contracts that were name-only identifiers — `task.intake@v1`,
+  `route.decision@v1`, `flow.catalog@v1` (`src/schemas/routing-contract-schemas.ts`),
+  grounded in each block's declared `produces_evidence`. Additive: contract
+  matching is still name-only (`contractIsCompatible`), so this changed no
+  compile behavior; it made the seam legible and gave the M8.4 gate a uniform
+  target. `flow.catalog@v1`'s body is typed independently of its still-open
+  producer decision (#15 / M9).
+- **M8.2 — canonical bodies for the two uniform producer generics.**
+  `goal.child-run@v1` (five RunResult bodies told apart only by `flow_id`) and
+  `goal.gate-review@v1` (gate-pass + gate, one shape) each got a single canonical
+  body in `UNIFORM_PRODUCER_GENERIC_SCHEMAS`, with a test pinning that the
+  canonical body equals every actual aliased to it. They stay multi-actual but
+  are now provably uniform.
+- **M8.3 — removed goal.contract@v1's masking aliases.** This was the one
+  genuinely *consumed* catch-all: six goal items read `goal.contract@v1`, and 11
+  legacy aliases remapped it onto every other goal report (child-run / build /
+  review / explore / pursue results, attempt, evidence-evaluation, recovery,
+  gate-pass, gate, result). Each of those reports is already the unique
+  `output_contract` of its own block, so consumers bind to the real upstream
+  producer; the aliases only widened the name. Removing them drops
+  `goal.contract@v1` to single-actual — no longer a multi-actual generic. Alias
+  count 78 → 67; multi-actual generics 10 → 9.
+- **M8.4 — the fail-closed anti-widening gate.** `collectConsumedDivergenceIssues`
+  forbids a generic that is CONSUMED as an item input (its name appears as a value
+  in some `item.input`) AND cannot be proven to bind to a single body — classified
+  `divergent` (≥2 distinct bodies) OR `unresolved` (≥1 actual with no registered
+  body, so uniformity is unprovable). It runs inside `collectSchematicCatalogIssues`,
+  so M5's fail-closed compile path now rejects such a flow, and it re-checks on
+  every compile — a composed M9 flow that consumes one unsafely is caught even
+  though no shipped flow does today. Three families pass untouched: write-only
+  block-reuse umbrellas (the seven shipped divergent flow-scoped generics across
+  four contract names — `verification.result@v1` in build/fix/prototype,
+  `plan.strategy@v1` in explore/prototype, `change.evidence@v1` and
+  `review.verdict@v1` in prototype — each read by no item via the generic name,
+  whether their bodies are divergent or unresolved), uniform generics, and
+  single-actual generics. The gate lives in the flows layer, not the schema
+  validator, because the body resolver is catalog-backed; `resolveFieldSignature`
+  is injected so the schema module stays a leaf.
+  - **Adversarial-review catch (HIGH, fixed):** the first cut gated only
+    `divergent` and skipped `unresolved`, which two independent review lenses found
+    to be a fail-open masking hole — adding one alias from a divergent *consumed*
+    generic to a real-but-bodyless contract flips the classification to
+    `unresolved` and silences the gate (a false negative on exactly the
+    composed/edited-flow population the gate protects). Reproduced end-to-end on
+    fix (`verification.result@v1 → verification.plan@v1`). Closed by requiring a
+    consumed multi-actual generic to be *provably uniform*: gate `divergent` OR
+    `unresolved`; write-only umbrellas (including unresolved ones) still pass.
+
+Final ledger: **67 aliases, 0 accommodations, 9 multi-actual generics (7
+divergent write-only flow-scoped generics across four contract names + 2
+uniform); the consumed-divergence gate produces 0 issues across every shipped
+flow.** Full `npm run verify` green.
+
+**Known boundary / residuals (deferred to M9).** The M8.4 gate is scoped to the
+*widening* shape — one generic name spanning many bodies — and two residuals fall
+outside that scope by design, both shipped-flow-inert today:
+
+- **Single-actual blindness (review found, HIGH, risk-accepted).** The gate keys
+  on multi-actual generics (`actuals.size > 1`). A consumed generic with a single
+  actual, or a bare consumed contract with no alias, never enters that set, so the
+  gate never inspects whether its one body is registered. Closing this means
+  proving *every* consumed contract has a typed body — that is the M9 typing pass,
+  not an anti-widening gate, and it would fail-closed on the eight built-ins today
+  (several routing-seam contracts are consumed before their Zod body is authored).
+  Expanding M8.4 to cover it would contradict the approved "gate consumed-
+  divergence" scope and guardrail 5 (don't build for an object that doesn't exist
+  yet). Documented in `collectConsumedDivergenceIssues`' doc comment.
+- **Signature collision (review found, MEDIUM, risk-accepted).** Object body
+  signatures record field *names* + optionality only; scalar types and nested
+  array element types are dropped, so two bodies with the same field names but
+  different field types would hash equal and read as `uniform`. Pre-existing in
+  `resolveFieldSignature`, shipped-flow-inert (no shipped uniform generic relies
+  on the dropped detail), and tightening it risks the M8.2 uniform tests.
+  Deferred to the M9 typing pass, which owns full body fidelity.
+
 ## The optimal path (9 milestones)
 
 | # | Milestone | Why here |
@@ -358,7 +447,7 @@ disk, preserving the load-bearing `accommodations === []` invariant.
 | M5 | **(done 2026-06-13)** Flip the catalog to a **fail-closed compile gate** for all 8 + composed flows (resolves #14) | Forces the two parallel truths into permanent agreement; safe only after M3 (zero-by-correction) and M4 (id-agnostic) |
 | M6 | **(done 2026-06-14)** Collapse `data.ts`/`schematic.json` redundancy; demote schematic to a drift-checked generated artifact | Subtractive elegance; safe once the gate enforces block linkage |
 | M7 | Build the **block-to-schematic assembler**; prove it on the truth-test exemplar (build/pursue) | The missing primitive every proposal assumed but none built |
-| M8 | **Type** the routing seam: real Zod bodies for `route.decision@v1`, `flow.catalog@v1`, `task.intake@v1` + producer generics; anti-widening gate | Closes the "typed" half of the vision no proposal had closed |
+| M8 | **(done 2026-06-14)** **Type** the routing seam: real Zod bodies for `route.decision@v1`, `flow.catalog@v1`, `task.intake@v1` + producer generics; anti-widening gate | Closes the "typed" half of the vision no proposal had closed |
 | M9 | Open the sanctioned composed runtime: retire template-clone-of-Build, one shared assembly path, dual-host parity | Delivers "assembled dynamically per task" on a path proven first-class; built-ins become the first customers |
 
 ## Corner-cutting guardrails (the no-corners contract)
