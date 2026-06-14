@@ -252,5 +252,8 @@
         "required": ["summary", "outcome", "evidence_links"]
       }
     }
-  ]
+  ],
+  "engine_flags": {
+    "binds_execution_depth_to_relay_selection": true
+  }
 }

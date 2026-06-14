@@ -432,5 +432,19 @@
       "id": "close-stage",
       "title": "Close"
     }
-  ]
+  ],
+  "engine_flags": {
+    "binds_execution_depth_to_relay_selection": true,
+    "iterates_slice_loop": {
+      "head_step": "act-step",
+      "tail_step": "verify-step",
+      "advance_route": "advance",
+      "slices_from": {
+        "report": "reports/build/plan.json",
+        "items_path": "slices"
+      },
+      "max_slices": 8,
+      "activate_when_depth_at_least": "high"
+    }
+  }
 }

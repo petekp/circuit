@@ -555,6 +555,13 @@ export const prototypeFlowData = {
         },
       }),
     ],
+    // Stage 3b (first-class composition): prototype's engine flag is rehomed
+    // off the by-id catalog package onto the schematic, so the compiled manifest
+    // carries it and the engine reads it through resolveEngineFlags without a
+    // by-id lookup. Mirrors goal's rehome; the package no longer carries it.
+    engine_flags: {
+      binds_execution_depth_to_relay_selection: true,
+    },
   },
   canonicalStagePolicy: {
     kind: 'enforce',
@@ -724,9 +731,6 @@ export const prototypeFlowData = {
         },
       ],
     },
-  },
-  engineFlags: {
-    bindsExecutionDepthToRelaySelection: true,
   },
   // The tournament axis fans out one relay per configured model variant, so it
   // cannot run without operator-provided variant models. Declare the

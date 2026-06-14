@@ -684,5 +684,8 @@
       "id": "close-stage",
       "title": "Close"
     }
-  ]
+  ],
+  "engine_flags": {
+    "binds_execution_depth_to_relay_selection": true
+  }
 }

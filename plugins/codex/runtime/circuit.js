@@ -31819,7 +31819,29 @@ var buildFlowData = {
           stop: "@stop"
         }
       })
-    ]
+    ],
+    // Stage 3b (first-class composition): build's engine flags are rehomed off
+    // the by-id catalog package onto the schematic, so the compiled manifest
+    // carries them and the engine reads them through resolveEngineFlags without
+    // a by-id lookup. Mirrors goal's rehome; the package no longer carries them.
+    engine_flags: {
+      binds_execution_depth_to_relay_selection: true,
+      // Deep depth implements and verifies the plan's slices one at a time: the
+      // engine re-enters act-step for each slice and only advances to review
+      // once every slice's verify passes. Lighter depth runs a single pass.
+      // See docs/ideas/build-slice-decomposition.md.
+      iterates_slice_loop: {
+        head_step: "act-step",
+        tail_step: "verify-step",
+        advance_route: "advance",
+        slices_from: {
+          report: "reports/build/plan.json",
+          items_path: "slices"
+        },
+        max_slices: 8,
+        activate_when_depth_at_least: "high"
+      }
+    }
   },
   canonicalStagePolicy: {
     kind: "enforce",
@@ -31953,24 +31975,6 @@ var buildFlowData = {
           activeText: "Wrapping up"
         }
       ]
-    }
-  },
-  engineFlags: {
-    bindsExecutionDepthToRelaySelection: true,
-    // Deep depth implements and verifies the plan's slices one at a time:
-    // the engine re-enters act-step for each slice and only advances to
-    // review once every slice's verify passes. Lighter depth runs a single
-    // pass. See docs/ideas/build-slice-decomposition.md.
-    iteratesSliceLoop: {
-      headStep: "act-step",
-      tailStep: "verify-step",
-      advanceRoute: "advance",
-      slicesFrom: {
-        report: "reports/build/plan.json",
-        itemsPath: "slices"
-      },
-      maxSlices: 8,
-      activateWhenDepthAtLeast: "high"
     }
   }
 };
@@ -41269,7 +41273,14 @@ var prototypeFlowData = {
           stop: "@stop"
         }
       })
-    ]
+    ],
+    // Stage 3b (first-class composition): prototype's engine flag is rehomed
+    // off the by-id catalog package onto the schematic, so the compiled manifest
+    // carries it and the engine reads it through resolveEngineFlags without a
+    // by-id lookup. Mirrors goal's rehome; the package no longer carries it.
+    engine_flags: {
+      binds_execution_depth_to_relay_selection: true
+    }
   },
   canonicalStagePolicy: {
     kind: "enforce",
@@ -41439,9 +41450,6 @@ var prototypeFlowData = {
         }
       ]
     }
-  },
-  engineFlags: {
-    bindsExecutionDepthToRelaySelection: true
   },
   // The tournament axis fans out one relay per configured model variant, so it
   // cannot run without operator-provided variant models. Declare the

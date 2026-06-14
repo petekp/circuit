@@ -410,6 +410,28 @@ export const buildFlowData = {
         },
       }),
     ],
+    // Stage 3b (first-class composition): build's engine flags are rehomed off
+    // the by-id catalog package onto the schematic, so the compiled manifest
+    // carries them and the engine reads them through resolveEngineFlags without
+    // a by-id lookup. Mirrors goal's rehome; the package no longer carries them.
+    engine_flags: {
+      binds_execution_depth_to_relay_selection: true,
+      // Deep depth implements and verifies the plan's slices one at a time: the
+      // engine re-enters act-step for each slice and only advances to review
+      // once every slice's verify passes. Lighter depth runs a single pass.
+      // See docs/ideas/build-slice-decomposition.md.
+      iterates_slice_loop: {
+        head_step: 'act-step',
+        tail_step: 'verify-step',
+        advance_route: 'advance',
+        slices_from: {
+          report: 'reports/build/plan.json',
+          items_path: 'slices',
+        },
+        max_slices: 8,
+        activate_when_depth_at_least: 'high',
+      },
+    },
   },
   canonicalStagePolicy: {
     kind: 'enforce',
@@ -543,24 +565,6 @@ export const buildFlowData = {
           activeText: 'Wrapping up',
         },
       ],
-    },
-  },
-  engineFlags: {
-    bindsExecutionDepthToRelaySelection: true,
-    // Deep depth implements and verifies the plan's slices one at a time:
-    // the engine re-enters act-step for each slice and only advances to
-    // review once every slice's verify passes. Lighter depth runs a single
-    // pass. See docs/ideas/build-slice-decomposition.md.
-    iteratesSliceLoop: {
-      headStep: 'act-step',
-      tailStep: 'verify-step',
-      advanceRoute: 'advance',
-      slicesFrom: {
-        report: 'reports/build/plan.json',
-        itemsPath: 'slices',
-      },
-      maxSlices: 8,
-      activateWhenDepthAtLeast: 'high',
     },
   },
 } satisfies FlowData;
