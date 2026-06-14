@@ -14,7 +14,6 @@
 // any catalog issue (see the "fail-closed compile gate (M5)" describe below). The
 // ratchet remains the precise per-flow diagnostic. See
 // docs/architecture/first-class-composition-optimal-path.md (M3a, M5).
-import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -22,25 +21,18 @@ import {
   compileSchematicToCompiledFlow,
 } from '../../src/flows/compile-schematic-to-flow.js';
 import { collectSchematicCatalogIssues } from '../../src/flows/schematic-catalog-check.js';
-import { FlowSchematic } from '../../src/schemas/flow-schematic.js';
+import type { FlowSchematic } from '../../src/schemas/flow-schematic.js';
+import { schematicForFlow, shippedFlowIds } from '../helpers/in-memory-schematics.js';
 
+// M6: read each flow's schematic from the in-memory catalog definition, not the
+// generated src/flows/<id>/schematic.json on disk. `schematicForFlow` returns a
+// fresh parse, so the broken-item tests below can mutate it safely.
 function loadSchematic(id: string): FlowSchematic {
-  return FlowSchematic.parse(JSON.parse(readFileSync(`src/flows/${id}/schematic.json`, 'utf8')));
+  return schematicForFlow(id);
 }
 
 function shippedSchematicIds(): string[] {
-  return readdirSync('src/flows', { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .filter((name) => {
-      try {
-        readFileSync(`src/flows/${name}/schematic.json`, 'utf8');
-        return true;
-      } catch {
-        return false;
-      }
-    })
-    .sort();
+  return shippedFlowIds();
 }
 
 describe('collectSchematicCatalogIssues', () => {

@@ -9,18 +9,34 @@
 //
 // See src/flows/accommodation-ledger.ts for the alias-vs-widening scope split
 // and why multi-actual generics are reported (not gated) until M8.
-import { readFileSync } from 'node:fs';
-
 import { describe, expect, it } from 'vitest';
 
-import {
-  collectAccommodationLedger,
-  shippedSchematicIds,
-} from '../../src/flows/accommodation-ledger.js';
+import { collectAccommodationLedger } from '../../src/flows/accommodation-ledger.js';
+import { schematicForFlow, shippedFlowSchematics } from '../helpers/in-memory-schematics.js';
 
 describe('accommodation ledger', () => {
+  it('analyzes the in-memory schematics it is given, not files on disk (M6)', () => {
+    // M6: the ledger is a pure analyzer over the in-memory definitions. Feed it a
+    // schematic that aliases a consumer generic onto a contract nothing in the
+    // flow produces, and it must surface that accommodation — proving it reads the
+    // passed schematic, not src/flows/<id>/schematic.json. A clean flow gains an
+    // accommodation purely from the alias we add here.
+    const clean = schematicForFlow('fix');
+    const phantom = {
+      ...clean,
+      contract_aliases: [
+        ...clean.contract_aliases,
+        { generic: 'verification.result@v1', actual: 'phantom.nothing@v1' },
+      ],
+    };
+    const ledger = collectAccommodationLedger([phantom]);
+    expect(ledger.accommodations).toHaveLength(1);
+    expect(ledger.accommodations[0]?.actual).toBe('phantom.nothing@v1');
+    expect(ledger.accommodations[0]?.citation).toBeNull();
+  });
+
   it('every shipped alias is a MODEL-CORRECTION that cites a real producer', () => {
-    const ledger = collectAccommodationLedger();
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
     // The load-bearing invariant. An alias whose `actual` is produced by no
     // in-flow item and no initial contract is remapping a consumer's generic
     // onto a phantom contract -- the dishonest collapse M5 must never freeze in.
@@ -29,7 +45,7 @@ describe('accommodation ledger', () => {
   });
 
   it('cites a producer for every model-correction entry', () => {
-    const ledger = collectAccommodationLedger();
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
     for (const entry of ledger.entries) {
       if (entry.classification === 'model-correction') {
         expect(
@@ -41,21 +57,21 @@ describe('accommodation ledger', () => {
   });
 
   it('covers every shipped flow that declares aliases', () => {
-    const ledger = collectAccommodationLedger();
+    const schematics = shippedFlowSchematics();
+    const ledger = collectAccommodationLedger(schematics);
     const flowsInLedger = new Set(ledger.entries.map((entry) => entry.flow));
-    for (const id of shippedSchematicIds()) {
-      const schematic = JSON.parse(readFileSync(`src/flows/${id}/schematic.json`, 'utf8'));
-      const aliasCount = (schematic.contract_aliases ?? []).length;
-      if (aliasCount > 0) {
-        expect(flowsInLedger.has(id), `${id} declares aliases but is missing from the ledger`).toBe(
-          true,
-        );
+    for (const schematic of schematics) {
+      if (schematic.contract_aliases.length > 0) {
+        expect(
+          flowsInLedger.has(schematic.id),
+          `${schematic.id} declares aliases but is missing from the ledger`,
+        ).toBe(true);
       }
     }
   });
 
   it('reports the alias surface and the multi-actual body-divergence probe targets', () => {
-    const ledger = collectAccommodationLedger();
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
     expect(ledger.entries.length).toBeGreaterThan(0);
     const probeLines = ledger.multiActualGenerics.map(
       (multi) =>

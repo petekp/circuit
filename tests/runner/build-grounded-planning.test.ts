@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+
+import { schematicForFlow } from '../helpers/in-memory-schematics.js';
 
 // Bug (Pete, 2026-06-03): Build plans and acts without ever reading the codebase.
 // Frame is a static-template checkpoint, Plan is a deterministic compose over the
@@ -9,9 +9,11 @@ import { describe, expect, it } from 'vitest';
 // `analyze` stage between Frame and Plan (the `gather-context` block, as Fix uses).
 // These assertions fail until that grounding step exists.
 //
-// The schematic is read from its checked-in JSON artifact rather than imported
-// from the flow's data.ts, so the test stays on the engine->flow boundary's
-// allowed surface (no direct flow-internal import), the way flow-facts does.
+// M6: the schematic comes from the in-memory catalog definition (schematicForFlow)
+// instead of reading the generated JSON back from disk. This still avoids a direct
+// flow-internal import — the helper reads the catalog aggregate, the same
+// boundary-safe surface flow-facts uses — and check-flow-drift proves the committed
+// schematic.json is a snapshot of this very definition.
 
 type SchematicItemView = {
   readonly id: string;
@@ -25,9 +27,7 @@ type SchematicView = {
   readonly stages: ReadonlyArray<SchematicStageView>;
 };
 
-const schematic = JSON.parse(
-  readFileSync(resolve('src/flows/build/schematic.json'), 'utf8'),
-) as SchematicView;
+const schematic = schematicForFlow('build') as unknown as SchematicView;
 const items = schematic.items;
 const byId = new Map(items.map((step) => [step.id, step]));
 

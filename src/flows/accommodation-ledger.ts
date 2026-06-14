@@ -38,9 +38,7 @@
 //     fail-closed gate). "Zero accommodations" therefore means "no alias points
 //     at a phantom contract", not "every binding is correct".
 
-import { readFileSync, readdirSync } from 'node:fs';
-
-import { FlowSchematic } from '../schemas/flow-schematic.js';
+import type { FlowSchematic } from '../schemas/flow-schematic.js';
 
 export type AliasClassification = 'model-correction' | 'accommodation';
 
@@ -64,25 +62,6 @@ export interface AccommodationLedger {
   readonly entries: readonly AliasLedgerEntry[];
   readonly accommodations: readonly AliasLedgerEntry[];
   readonly multiActualGenerics: readonly MultiActualGeneric[];
-}
-
-function loadSchematic(id: string): FlowSchematic {
-  return FlowSchematic.parse(JSON.parse(readFileSync(`src/flows/${id}/schematic.json`, 'utf8')));
-}
-
-export function shippedSchematicIds(): string[] {
-  return readdirSync('src/flows', { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .filter((name) => {
-      try {
-        readFileSync(`src/flows/${name}/schematic.json`, 'utf8');
-        return true;
-      } catch {
-        return false;
-      }
-    })
-    .sort();
 }
 
 // Resolve each alias against the flow's real producers. The citation names the
@@ -116,11 +95,16 @@ export function collectFlowAliasLedger(schematic: FlowSchematic): AliasLedgerEnt
   });
 }
 
+// Pure over the in-memory definitions (M6): the caller supplies each flow's
+// FlowSchematic (catalog.ts `flowDefinitions[*].schematic`), so the ledger
+// analyzes the live source of truth rather than reading the generated
+// src/flows/<id>/schematic.json back from disk. The committed JSON stays a
+// drift-checked snapshot, not an input here.
 export function collectAccommodationLedger(
-  ids: string[] = shippedSchematicIds(),
+  schematics: readonly FlowSchematic[],
 ): AccommodationLedger {
   const entries: AliasLedgerEntry[] = [];
-  for (const id of ids) entries.push(...collectFlowAliasLedger(loadSchematic(id)));
+  for (const schematic of schematics) entries.push(...collectFlowAliasLedger(schematic));
 
   const accommodations = entries.filter((entry) => entry.classification === 'accommodation');
 

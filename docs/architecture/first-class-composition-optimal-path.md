@@ -291,6 +291,46 @@ without registering a writer; the route-mapping check retargets to a leaf step
 (`close-step`) so the graph stays connected and the gate stays clean while the
 route check fires. Full `npm run verify` green.
 
+### M6 RESULT (2026-06-14): schematic.json is a snapshot, not a source
+
+The redundancy M6 names is real but narrow. `schematic.json` was already a
+generated, drift-checked snapshot of the typed in-memory definition
+(`flowDefinitions[*].schematic` in `catalog.ts`); the single source of truth was
+always the in-memory definition. What M6 removes is the last set of consumers
+that read that JSON back from disk *as if it were source*, repointing them to the
+in-memory definition.
+
+The only production read-back was `accommodation-ledger.ts`. It used
+`readFileSync`/`readdirSync` to walk `src/flows/*/schematic.json` and analyze
+each. It is now a pure analyzer, `collectAccommodationLedger(schematics:
+readonly FlowSchematic[])`, that depends only on the schema type; `catalog.ts`'s
+`flowDefinitions` is wired in at the call site. No `node:fs` import remains. The
+M5 catalog gate (`schematic-catalog-check.ts`) already took an in-memory
+schematic, so no production gate code changed.
+
+The shared accessor is `tests/helpers/in-memory-schematics.ts`:
+`schematicForFlow(id)` returns `FlowSchematic.parse(definition.schematic)`. The
+`parse` matters — it re-validates and deep-clones (zod constructs fresh
+objects/arrays), which is the exact in-memory analog of
+`FlowSchematic.parse(JSON.parse(readFileSync(...)))`. Several tests mutate the
+returned schematic in place (`act.stage = 'analyze'`), so the drop-in had to hand
+back a fresh mutable copy, not a shared reference into `flowDefinitions`.
+
+Six test files that loaded schematics from disk now consume the helper:
+`accommodation-ledger`, `schematic-catalog-check`, `compile-schematic-to-flow`,
+`compile-schematic-per-mode`, `build-grounded-planning`, and `flow-facts`
+(only its prototype-fanout assertion). The two legitimate disk readers stay on
+disk by design: `flow-facts`'s drift-parity check (it must compare the in-memory
+definition *against* the committed JSON) and `flow-schematic`'s schema unit test
+(it corrupts the committed fix fixture to prove the parser rejects it).
+
+Byte-identity: the one production change is never on the emit/compile path, so
+generated artifacts are untouched. Confirmed at the git level — zero changes to
+`generated/`, `plugins/`, or any `src/flows/*/schematic.json`. Full `npm run
+verify` green. The ledger reports the same 78 aliases / 0 accommodations / 10
+multi-actual generics it did reading from disk, preserving the load-bearing
+`accommodations === []` invariant.
+
 ## The optimal path (9 milestones)
 
 | # | Milestone | Why here |
@@ -301,7 +341,7 @@ route check fires. Full `npm run verify` green.
 | M4 | **LINCHPIN (done 2026-06-13):** dissolve the by-id package lookup at all 5 sites; delete the fallback | The coherence pivot for bindings; a composed flow becomes first-class for behavior resolution |
 | M4-safety | Rehome the flow-kind policy off by-id (`pass_through` hole + `id === 'review'`), failing-test-first | The safety half of the pivot; latent until M9, sequenced before composed flows run |
 | M5 | **(done 2026-06-13)** Flip the catalog to a **fail-closed compile gate** for all 8 + composed flows (resolves #14) | Forces the two parallel truths into permanent agreement; safe only after M3 (zero-by-correction) and M4 (id-agnostic) |
-| M6 | Collapse `data.ts`/`schematic.json` redundancy; demote schematic to a drift-checked generated artifact | Subtractive elegance; safe once the gate enforces block linkage |
+| M6 | **(done 2026-06-14)** Collapse `data.ts`/`schematic.json` redundancy; demote schematic to a drift-checked generated artifact | Subtractive elegance; safe once the gate enforces block linkage |
 | M7 | Build the **block-to-schematic assembler**; prove it on the truth-test exemplar (build/pursue) | The missing primitive every proposal assumed but none built |
 | M8 | **Type** the routing seam: real Zod bodies for `route.decision@v1`, `flow.catalog@v1`, `task.intake@v1` + producer generics; anti-widening gate | Closes the "typed" half of the vision no proposal had closed |
 | M9 | Open the sanctioned composed runtime: retire template-clone-of-Build, one shared assembly path, dual-host parity | Delivers "assembled dynamically per task" on a path proven first-class; built-ins become the first customers |

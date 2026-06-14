@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { flowDefinitions, flowPackages } from '../../src/flows/catalog.js';
 import { RETAINED_FLOW_IDS } from '../fixtures/retained-flow-ids.js';
+import { schematicForFlow } from '../helpers/in-memory-schematics.js';
 
 function readSource(path: string): string {
   return readFileSync(path, 'utf8');
@@ -46,7 +47,8 @@ describe('value-owned retained flow authoring', () => {
   });
 
   it('passes connector and selection through Prototype tournament fanout branches', () => {
-    const prototypeSchematic = JSON.parse(readSource('src/flows/prototype/schematic.json')) as {
+    // M6: read the in-memory prototype definition, not the generated JSON on disk.
+    const prototypeSchematic = schematicForFlow('prototype') as unknown as {
       readonly items: readonly {
         readonly id: string;
         readonly fanout?: {

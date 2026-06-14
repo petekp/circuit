@@ -13,36 +13,38 @@ import {
   SCHEMATIC_SUCCESS_ROUTE_ALIASES,
   schematicOutcomeToRuntimeRoute,
 } from '../../src/schemas/route-policy.js';
+import { schematicForFlow } from '../helpers/in-memory-schematics.js';
 
 function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf8')) as unknown;
-}
-
-function loadSchematic(path: string) {
-  return FlowSchematic.parse(readJson(path));
 }
 
 function loadCompiledFlow(path: string) {
   return CompiledFlow.parse(readJson(path));
 }
 
+// M6: schematics come from the in-memory catalog definition (schematicForFlow),
+// not the generated src/flows/<id>/schematic.json. The committed circuit.json is
+// still read from disk — it is the comparison TARGET, and check-flow-drift proves
+// the committed schematic.json regenerates from this same in-memory definition,
+// so compiling the definition is the stronger end-to-end assertion.
 describe('compileSchematicToCompiledFlow — byte-equivalence with committed compiled flows', () => {
   const cases = [
     {
       label: 'build',
-      schematicPath: 'src/flows/build/schematic.json',
+      id: 'build',
       committedPath: 'generated/flows/build/circuit.json',
     },
     {
       label: 'review',
-      schematicPath: 'src/flows/review/schematic.json',
+      id: 'review',
       committedPath: 'generated/flows/review/circuit.json',
     },
   ] as const;
 
   for (const c of cases) {
     it(`compiles ${c.label} schematic to a single compiled flow that matches the committed fixture`, () => {
-      const schematic = loadSchematic(c.schematicPath);
+      const schematic = schematicForFlow(c.id);
       const compiled = compileSchematicToCompiledFlow(schematic);
       expect(compiled.kind).toBe('single');
       if (compiled.kind !== 'single') return;
@@ -55,7 +57,7 @@ describe('compileSchematicToCompiledFlow — byte-equivalence with committed com
   }
 
   it('compiles explore schematic to default and tournament fixtures', () => {
-    const schematic = loadSchematic('src/flows/explore/schematic.json');
+    const schematic = schematicForFlow('explore');
     const compiled = compileSchematicToCompiledFlow(schematic);
     expect(compiled.kind).toBe('per-mode');
     if (compiled.kind !== 'per-mode') return;
@@ -72,7 +74,7 @@ describe('compileSchematicToCompiledFlow — byte-equivalence with committed com
 
 describe('compileSchematicToCompiledFlow — failure modes', () => {
   function loadBuildSchematic() {
-    return FlowSchematic.parse(readJson('src/flows/build/schematic.json'));
+    return schematicForFlow('build');
   }
 
   // Build trimmed to a terminal verification step (frame → analyze → plan →
@@ -85,10 +87,7 @@ describe('compileSchematicToCompiledFlow — failure modes', () => {
   // path: delete the `ensureSupportedKindReportPair(item)` call in `compileItem`
   // and this flow compiles clean instead of throwing.
   function loadCatalogCleanWriterlessVerification() {
-    const raw = readJson('src/flows/build/schematic.json') as {
-      items: { id: string; output: string; routes: Record<string, string> }[];
-      contract_aliases: { generic: string; actual: string }[];
-    };
+    const raw = schematicForFlow('build');
     const keep = new Set([
       'frame-step',
       'analyze-step',
@@ -173,9 +172,7 @@ describe('compileSchematicToCompiledFlow — failure modes', () => {
   });
 
   it('accepts the active Fix schematic (verify-step writes fix.verification@v1)', () => {
-    const fixSchematic = FlowSchematic.parse(
-      JSON.parse(readFileSync('src/flows/fix/schematic.json', 'utf8')),
-    );
+    const fixSchematic = schematicForFlow('fix');
     expect(() => compileSchematicToCompiledFlow(fixSchematic)).not.toThrow();
   });
 
