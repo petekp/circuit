@@ -8,13 +8,13 @@
 // vanishes and these tests go red.
 //
 // The behavior-equivalence block is the load-bearing proof for the rehome: the
-// engine reads its flags through resolveEngineFlags(flow, package). Moving the
-// flags from the package to the manifest must not change the resolved value the
-// engine actually uses, whether or not a by-id package still carries them.
+// engine reads its flags through resolveEngineFlags(flow). Moving the flags from
+// the package to the manifest, then deleting the by-id package (M4), must not
+// change the resolved value the engine actually uses.
 //
-// See docs/ideas/first-class-composition-sequence.md (Stage 3).
+// See docs/architecture/first-class-composition-optimal-path.md.
 import { describe, expect, it } from 'vitest';
-import { findCompiledFlowPackageById, flowDefinitions } from '../../src/flows/catalog.js';
+import { flowDefinitions } from '../../src/flows/catalog.js';
 import {
   type CompileResult,
   compileSchematicToCompiledFlow,
@@ -90,15 +90,14 @@ describe('engine_flags on the compiled manifest (prototype, Stage 3b)', () => {
   });
 });
 
-describe('behavior-equivalence: the engine resolves the same flags after the rehome', () => {
-  // The runtime reads its flags through resolveEngineFlags(flow, package). With
-  // the flags now on the manifest and removed from the package, the manifest
-  // wins and the package contributes nothing — the resolved value is unchanged.
-  // These assertions hold whether or not the package still carries flags, so
-  // they stay green through M4 (package read deleted) too.
+describe('behavior-equivalence: the engine resolves the flags off the manifest', () => {
+  // The runtime reads its flags through resolveEngineFlags(flow). With the flags
+  // on the manifest and the by-id package deleted (M4), the resolved value the
+  // engine uses is exactly what the manifest carries — unchanged from the value
+  // the package used to provide before the rehome.
   it('resolves build to the same depth bind and slice loop the package used to provide', () => {
     const executable = fromCompiledFlow(compiledFlow('build'));
-    const resolved = resolveEngineFlags(executable, findCompiledFlowPackageById('build'));
+    const resolved = resolveEngineFlags(executable);
     expect(resolved).toEqual({
       bindsExecutionDepthToRelaySelection: true,
       iteratesSliceLoop: {
@@ -114,7 +113,7 @@ describe('behavior-equivalence: the engine resolves the same flags after the reh
 
   it('resolves prototype to the same depth bind the package used to provide', () => {
     const executable = fromCompiledFlow(compiledFlow('prototype'));
-    const resolved = resolveEngineFlags(executable, findCompiledFlowPackageById('prototype'));
+    const resolved = resolveEngineFlags(executable);
     expect(resolved).toEqual({ bindsExecutionDepthToRelaySelection: true });
   });
 });

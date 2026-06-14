@@ -647,5 +647,14 @@
       "id": "close-stage",
       "title": "Close"
     }
-  ]
+  ],
+  "report_file_surfaces": {
+    "fix.change-set@v1": {
+      "timing": "after",
+      "extractor": {
+        "kind": "string-array-field",
+        "field": "observed"
+      }
+    }
+  }
 }

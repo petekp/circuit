@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { AcceptanceCriteria } from './acceptance-criteria.js';
 import { FlowAxes } from './axes.js';
+import { AxisConfigRequirementList } from './axis-config-requirement.js';
 import { ChangeKind } from './change-kind.js';
 import { CheckpointAllowFrom, FanoutJoinPolicy } from './check.js';
 import { CompiledDepth } from './depth.js';
@@ -21,6 +22,7 @@ import {
   schematicStagesForBlock,
 } from './flow-schematic-policy.js';
 import { CompiledFlowId, ProtocolId, StageId, StepId } from './ids.js';
+import { ReportFileSurfaceMap } from './report-file-surface.js';
 import { RunRelativePath } from './scalars.js';
 import { SelectionOverride } from './selection-policy.js';
 import { SkillSlotArray } from './skill.js';
@@ -535,6 +537,16 @@ export const FlowSchematic = z
     // `resolveEngineFlags`. Absent = the flow declares none (the engine then
     // resolves any from the by-id catalog package during the migration).
     engine_flags: EngineFlagsManifest.optional(),
+    // Stage 3b (first-class composition): execution-bearing declarations the
+    // flow DECLARES on its schematic; the compiler propagates them verbatim to
+    // the compiled manifest so the engine reads them without a by-id catalog
+    // package. `report_file_surfaces` (keyed by report schema name) marks which
+    // written reports are edit-file surfaces; `required_config` is the CLI's
+    // up-front config gate. `runtime_surface.primary_result` is NOT authored
+    // here — the compiler derives it from the close-stage compose step. Absent =
+    // the flow declares none.
+    report_file_surfaces: ReportFileSurfaceMap.optional(),
+    required_config: AxisConfigRequirementList.optional(),
   })
   .strict()
   .superRefine((schematic, ctx) => {

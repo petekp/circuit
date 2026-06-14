@@ -10,15 +10,21 @@ import type { RunContext } from '../../src/runtime/run/run-context.js';
 // returns undefined so the caller keeps the proof-derived outcome instead of
 // crashing the close path (the RCX-6b hardening).
 //
-// Stage 3 (first-class composition): goal's engine flag now rides its compiled
-// manifest, so at runtime `fromCompiledFlow` translates it onto
-// context.flow.engineFlags — that is what the stub carries here. The real goal
-// catalog package is still consulted for the primary-result path (which has not
-// moved onto the manifest), so only context.files.readJson is stubbed.
+// First-class composition (M3b-B + M4): both goal's engine flag AND its
+// primary-result path ride its compiled manifest, so at runtime `fromCompiledFlow`
+// translates them onto context.flow.engineFlags and context.flow.runtimeSurface.
+// The stub carries both; the by-id catalog package is gone, so only
+// context.files.readJson is stubbed.
 
 function goalContextReading(readJson: (ref: string) => Promise<unknown>): RunContext {
   return {
-    flow: { id: 'goal', engineFlags: { bindsTerminalOutcomeToPrimaryResult: true } },
+    flow: {
+      id: 'goal',
+      engineFlags: { bindsTerminalOutcomeToPrimaryResult: true },
+      runtimeSurface: {
+        primaryResult: { schemaName: 'goal.result@v1', path: 'reports/goal-result.json' },
+      },
+    },
     files: { readJson },
   } as unknown as RunContext;
 }

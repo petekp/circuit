@@ -54,6 +54,14 @@ const FLOW_KEYS = new Set([
   // surface the work contract projects, so they are classified here without
   // contributing a hint.
   'engine_flags',
+  // Stage 3b (first-class composition): execution-bearing declarations carried
+  // on the manifest. Like engine_flags, they describe how the engine/CLI runs
+  // the flow (the skill-hook edit-file surface table, the primary-result
+  // binding, the up-front config gate), not the authority/proof/recovery surface
+  // the work contract projects, so they are classified here without a hint.
+  'report_file_surfaces',
+  'runtime_surface',
+  'required_config',
 ]);
 
 const STAGE_KEYS = new Set(['id', 'title', 'canonical', 'steps', 'selection']);

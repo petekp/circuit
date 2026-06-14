@@ -396,5 +396,11 @@
         "required": ["summary", "verdict_snapshot"]
       }
     }
-  ]
+  ],
+  "runtime_surface": {
+    "primary_result": {
+      "schema_name": "explore.result@v1",
+      "path": "reports/explore-result.json"
+    }
+  }
 }

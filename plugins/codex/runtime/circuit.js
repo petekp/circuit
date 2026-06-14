@@ -25611,6 +25611,18 @@ var FlowAxes = external_exports.object({
   }
 });
 
+// dist/schemas/axis-config-requirement.js
+var AxisConfigRequirement = external_exports.object({
+  // The boolean axis whose selection makes the config mandatory.
+  axis: external_exports.enum(["tournament", "autonomous"]),
+  // Dot path into the layered selection config, e.g.
+  // 'circuits.prototype.variant_models'. The last layer that defines it wins.
+  path: external_exports.string().min(1),
+  // Operator-facing reason printed on rejection.
+  message: external_exports.string().min(1)
+}).strict();
+var AxisConfigRequirementList = external_exports.array(AxisConfigRequirement).min(1);
+
 // dist/schemas/engine-flags.js
 var EngineFlagsManifest = external_exports.object({
   binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
@@ -25628,10 +25640,41 @@ var EngineFlagsManifest = external_exports.object({
   }).strict().optional()
 }).strict();
 
+// dist/schemas/report-file-surface.js
+var ReportFileSurfaceExtractor = external_exports.discriminatedUnion("kind", [
+  external_exports.object({ kind: external_exports.literal("string-array-field"), field: external_exports.string().min(1) }).strict(),
+  external_exports.object({ kind: external_exports.literal("build-plan-and-slices-anticipated-file-extensions") }).strict()
+]);
+var ReportFileSurface = external_exports.object({
+  timing: external_exports.enum(["before", "after"]),
+  extractor: ReportFileSurfaceExtractor
+}).strict();
+var ReportFileSurfaceMap = external_exports.record(external_exports.string().min(1), ReportFileSurface);
+
 // dist/schemas/route-policy.js
 var RUNTIME_SUCCESS_ROUTE = "pass";
 var SCHEMATIC_SUCCESS_ROUTE_ALIASES = ["continue", "complete"];
 var SUCCESS_ROUTE_ALIAS_SET = new Set(SCHEMATIC_SUCCESS_ROUTE_ALIASES);
+
+// dist/schemas/scalars.js
+var ControlPlaneFileStem = external_exports.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9._-]*$/, {
+  message: "must match /^[a-z0-9][a-z0-9._-]*$/ (lowercase alnum start; alnum, dot, underscore, hyphen thereafter)"
+}).refine((value) => value !== "." && value !== "..", {
+  message: "must not be a current or parent directory segment"
+}).refine((value) => !value.includes(".."), {
+  message: "must not contain parent-directory traversal"
+}).refine((value) => !value.includes("/") && !value.includes("\\"), {
+  message: "must not contain path separators"
+});
+var RunRelativePath = external_exports.string().min(1, { message: "run-relative path must be non-empty" }).refine((value) => !value.startsWith("/"), {
+  message: "run-relative path must not be absolute"
+}).refine((value) => !value.includes("\\"), {
+  message: 'run-relative path must use POSIX "/" separators, not backslashes'
+}).refine((value) => !value.includes(":"), {
+  message: "run-relative path must not contain drive-letter or colon forms"
+}).refine((value) => value.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== ".."), {
+  message: "run-relative path must not contain empty, current-directory, or parent-directory segments"
+}).brand();
 
 // dist/schemas/json.js
 var JsonPrimitive = external_exports.union([
@@ -26146,26 +26189,6 @@ var RubricResult = external_exports.object({
     }
   }
 });
-
-// dist/schemas/scalars.js
-var ControlPlaneFileStem = external_exports.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9._-]*$/, {
-  message: "must match /^[a-z0-9][a-z0-9._-]*$/ (lowercase alnum start; alnum, dot, underscore, hyphen thereafter)"
-}).refine((value) => value !== "." && value !== "..", {
-  message: "must not be a current or parent directory segment"
-}).refine((value) => !value.includes(".."), {
-  message: "must not contain parent-directory traversal"
-}).refine((value) => !value.includes("/") && !value.includes("\\"), {
-  message: "must not contain path separators"
-});
-var RunRelativePath = external_exports.string().min(1, { message: "run-relative path must be non-empty" }).refine((value) => !value.startsWith("/"), {
-  message: "run-relative path must not be absolute"
-}).refine((value) => !value.includes("\\"), {
-  message: 'run-relative path must use POSIX "/" separators, not backslashes'
-}).refine((value) => !value.includes(":"), {
-  message: "run-relative path must not contain drive-letter or colon forms"
-}).refine((value) => value.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== ".."), {
-  message: "run-relative path must not contain empty, current-directory, or parent-directory segments"
-}).brand();
 
 // dist/schemas/runtime-source.js
 var RuntimeNumberSource = external_exports.discriminatedUnion("kind", [
@@ -26996,6 +27019,12 @@ var RouteMap = StepBase.shape.routes;
 // dist/schemas/compiled-flow.js
 var TERMINAL_ROUTE_TARGETS = /* @__PURE__ */ new Set(["@complete", "@stop", "@escalate", "@handoff"]);
 var CompiledFlowManifestEngineFlags = EngineFlagsManifest;
+var CompiledFlowManifestRuntimeSurface = external_exports.object({
+  primary_result: external_exports.object({
+    schema_name: external_exports.string().min(1),
+    path: RunRelativePath
+  }).strict().optional()
+}).strict();
 var CompiledFlowBody = external_exports.object({
   schema_version: external_exports.literal("3"),
   id: CompiledFlowId,
@@ -27013,7 +27042,16 @@ var CompiledFlowBody = external_exports.object({
   default_selection: SelectionOverride.optional(),
   // Optional engine-visible behavior flags carried on the manifest. Absent =
   // resolve from the catalog package alone (the pre-migration path).
-  engine_flags: CompiledFlowManifestEngineFlags.optional()
+  engine_flags: CompiledFlowManifestEngineFlags.optional(),
+  // Stage 3b (first-class composition): execution-bearing declarations the
+  // engine reads off the manifest, so a composed flow carries them without a
+  // by-id catalog package. `report_file_surfaces` feeds the skill-hook
+  // edit-file surface table; `runtime_surface.primary_result` binds the
+  // terminal outcome to the result report; `required_config` is the CLI's
+  // up-front config gate. Each absent = the flow declares none.
+  report_file_surfaces: ReportFileSurfaceMap.optional(),
+  runtime_surface: CompiledFlowManifestRuntimeSurface.optional(),
+  required_config: AxisConfigRequirementList.optional()
 }).strict();
 var issueAt2 = (ctx, path, message) => {
   ctx.addIssue({ code: "custom", path, message });
@@ -28772,7 +28810,17 @@ var FlowSchematic = external_exports.object({
   // compiled manifest's `engine_flags`, where the engine reads them through
   // `resolveEngineFlags`. Absent = the flow declares none (the engine then
   // resolves any from the by-id catalog package during the migration).
-  engine_flags: EngineFlagsManifest.optional()
+  engine_flags: EngineFlagsManifest.optional(),
+  // Stage 3b (first-class composition): execution-bearing declarations the
+  // flow DECLARES on its schematic; the compiler propagates them verbatim to
+  // the compiled manifest so the engine reads them without a by-id catalog
+  // package. `report_file_surfaces` (keyed by report schema name) marks which
+  // written reports are edit-file surfaces; `required_config` is the CLI's
+  // up-front config gate. `runtime_surface.primary_result` is NOT authored
+  // here — the compiler derives it from the close-stage compose step. Absent =
+  // the flow declares none.
+  report_file_surfaces: ReportFileSurfaceMap.optional(),
+  required_config: AxisConfigRequirementList.optional()
 }).strict().superRefine((schematic, ctx) => {
   const itemIds = /* @__PURE__ */ new Map();
   for (const [index, item] of schematic.items.entries()) {
@@ -31840,6 +31888,17 @@ var buildFlowData = {
         },
         max_slices: 8,
         activate_when_depth_at_least: "high"
+      }
+    },
+    // Stage 3b (first-class composition): build's report file surfaces ride the
+    // schematic onto the compiled manifest, so the engine reads the skill-hook
+    // edit-file surface table off the manifest, not the by-id catalog package.
+    // Mirrors the package's reports[].fileSurface; a drift-guard test keeps the
+    // two in sync until M6 collapses the duplicate authoring.
+    report_file_surfaces: {
+      "build.plan@v1": {
+        timing: "before",
+        extractor: { kind: "build-plan-and-slices-anticipated-file-extensions" }
       }
     }
   },
@@ -35698,7 +35757,18 @@ var fixFlowData = {
           stop: "@stop"
         }
       }
-    ]
+    ],
+    // Stage 3b (first-class composition): fix's report file surfaces ride the
+    // schematic onto the compiled manifest, so the engine reads the skill-hook
+    // edit-file surface table off the manifest, not the by-id catalog package.
+    // Mirrors the package's reports[].fileSurface; a drift-guard test keeps the
+    // two in sync until M6 collapses the duplicate authoring.
+    report_file_surfaces: {
+      "fix.change-set@v1": {
+        timing: "after",
+        extractor: { kind: "string-array-field", field: "observed" }
+      }
+    }
   },
   canonicalStagePolicy: {
     kind: "enforce",
@@ -37016,12 +37086,12 @@ var RunBootstrappedTraceEntry = TraceEntryBase.extend({
   goal: external_exports.string().min(1),
   change_kind: ChangeKindDeclaration,
   manifest_hash: external_exports.string().min(1),
-  // Stage 1 (first-class composition): make silent capability loss legible.
-  // `package_resolved` is false when no catalog package matched this flow id;
-  // `reduced_bindings` then names the catalog-sourced bindings that fell back
-  // to defaults. Both optional so prior fixtures and resumed runs (which never
-  // re-bootstrap) stay valid — a run that omits them simply made no claim.
-  package_resolved: external_exports.boolean().optional(),
+  // First-class composition: make any capability reduction legible.
+  // `reduced_bindings` names the catalog-sourced bindings a flow cannot resolve.
+  // It is empty for every built-in (the manifest is the sole authority post-M4)
+  // and omitted entirely when nothing was reduced; a composed flow with a needs
+  // model (M9) can populate it. Optional so prior fixtures and resumed runs
+  // (which never re-bootstrap) stay valid — an omitted field makes no claim.
   reduced_bindings: external_exports.array(CatalogSourcedBinding).optional()
 }).strict();
 var SliceIndex = external_exports.number().int().nonnegative();
@@ -41280,7 +41350,19 @@ var prototypeFlowData = {
     // by-id lookup. Mirrors goal's rehome; the package no longer carries it.
     engine_flags: {
       binds_execution_depth_to_relay_selection: true
-    }
+    },
+    // Stage 3b (first-class composition): prototype's up-front config gate rides
+    // the schematic onto the compiled manifest, so the CLI validates the
+    // requirement off the loaded flow, not the by-id catalog package. Mirrors the
+    // package's requiredConfig; a drift-guard test keeps the two in sync until M6
+    // collapses the duplicate authoring.
+    required_config: [
+      {
+        axis: "tournament",
+        path: "circuits.prototype.variant_models",
+        message: "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament."
+      }
+    ]
   },
   canonicalStagePolicy: {
     kind: "enforce",
@@ -44015,25 +44097,24 @@ var flowDefinitions = [
   goalFlowDefinition
 ];
 var flowPackages = compileFlowDefinitions(flowDefinitions);
-var catalogFlowIds = flowPackages.map((pkg) => pkg.id);
-var PACKAGES_BY_ID = (() => {
-  const map2 = /* @__PURE__ */ new Map();
+var catalogFlowIds = (() => {
+  const ids = [];
+  const seen = /* @__PURE__ */ new Set();
   for (const pkg of flowPackages) {
-    if (map2.has(pkg.id)) {
+    if (seen.has(pkg.id)) {
       throw new Error(`duplicate flow package id '${pkg.id}'`);
     }
-    map2.set(pkg.id, pkg);
+    seen.add(pkg.id);
+    ids.push(pkg.id);
   }
-  return map2;
+  return ids;
 })();
+var INTERNAL_FLOW_IDS = new Set(flowPackages.filter((pkg) => pkg.visibility === "internal").map((pkg) => pkg.id));
 var RUNTIME_SURFACES = buildRuntimeSurfaceRegistry(flowPackages);
 registerHtmlProjector("build", buildCheckpointProjector);
 registerHtmlProjector("explore", exploreTournamentProjector);
 registerHtmlProjector("prototype", prototypeCheckpointProjector);
 registerHtmlProjector("review", reviewResultProjector);
-function findCompiledFlowPackageById(id) {
-  return PACKAGES_BY_ID.get(id);
-}
 function findFlowRuntimeSurfaceById(flowId) {
   return RUNTIME_SURFACES.get(flowId);
 }
@@ -53583,7 +53664,15 @@ var FLOW_KEYS = /* @__PURE__ */ new Set([
   // describe how the engine runs the flow, not the authority/proof/recovery
   // surface the work contract projects, so they are classified here without
   // contributing a hint.
-  "engine_flags"
+  "engine_flags",
+  // Stage 3b (first-class composition): execution-bearing declarations carried
+  // on the manifest. Like engine_flags, they describe how the engine/CLI runs
+  // the flow (the skill-hook edit-file surface table, the primary-result
+  // binding, the up-front config gate), not the authority/proof/recovery surface
+  // the work contract projects, so they are classified here without a hint.
+  "report_file_surfaces",
+  "runtime_surface",
+  "required_config"
 ]);
 var STAGE_KEYS = /* @__PURE__ */ new Set(["id", "title", "canonical", "steps", "selection"]);
 var STEP_KEYS = {
@@ -54053,20 +54142,8 @@ function manifestEngineFlagsToInCode(manifest) {
   };
   return Object.keys(result).length === 0 ? void 0 : result;
 }
-function resolveEngineFlags(flow, compiledPackage) {
-  const manifest = flow.engineFlags;
-  const pkg = compiledPackage?.engineFlags;
-  if (manifest === void 0)
-    return pkg;
-  const depth = manifest.bindsExecutionDepthToRelaySelection ?? pkg?.bindsExecutionDepthToRelaySelection;
-  const terminal = manifest.bindsTerminalOutcomeToPrimaryResult ?? pkg?.bindsTerminalOutcomeToPrimaryResult;
-  const slice = manifest.iteratesSliceLoop ?? pkg?.iteratesSliceLoop;
-  const merged = {
-    ...depth === void 0 ? {} : { bindsExecutionDepthToRelaySelection: depth },
-    ...terminal === void 0 ? {} : { bindsTerminalOutcomeToPrimaryResult: terminal },
-    ...slice === void 0 ? {} : { iteratesSliceLoop: slice }
-  };
-  return Object.keys(merged).length === 0 ? void 0 : merged;
+function resolveEngineFlags(flow) {
+  return flow.engineFlags;
 }
 
 // dist/runtime/manifest/validate-executable-flow.js
@@ -54309,6 +54386,12 @@ function convertStep(step) {
 function fromCompiledFlow(flow) {
   const defaultSelection = toSelection(flow.default_selection);
   const engineFlags = manifestEngineFlagsToInCode(flow.engine_flags);
+  const runtimeSurface = flow.runtime_surface?.primary_result === void 0 ? void 0 : {
+    primaryResult: {
+      schemaName: flow.runtime_surface.primary_result.schema_name,
+      path: flow.runtime_surface.primary_result.path
+    }
+  };
   const executable = {
     id: flow.id,
     version: flow.version,
@@ -54331,7 +54414,10 @@ function fromCompiledFlow(flow) {
       source: "compiled-flow-v1",
       schema_version: flow.schema_version
     },
-    ...engineFlags === void 0 ? {} : { engineFlags }
+    ...engineFlags === void 0 ? {} : { engineFlags },
+    ...flow.report_file_surfaces === void 0 ? {} : { reportFileSurfaces: flow.report_file_surfaces },
+    ...runtimeSurface === void 0 ? {} : { runtimeSurface },
+    ...flow.required_config === void 0 ? {} : { requiredConfig: flow.required_config }
   };
   assertExecutableFlow(executable);
   return executable;
@@ -60453,11 +60539,10 @@ function manifestBacksBinding(flow, binding) {
       return flow.runtimeSurface !== void 0;
   }
 }
-function resolveBindingLegibility(flow, compiledPackage) {
+function resolveBindingLegibility(flow) {
   const manifestBackedBindings = CATALOG_SOURCED_BINDINGS.filter((binding) => manifestBacksBinding(flow, binding));
-  const packageResolved = compiledPackage !== void 0;
-  const reducedBindings = packageResolved ? [] : CATALOG_SOURCED_BINDINGS.filter((binding) => !manifestBacksBinding(flow, binding));
-  return { packageResolved, reducedBindings, manifestBackedBindings };
+  const reducedBindings = [];
+  return { reducedBindings, manifestBackedBindings };
 }
 
 // dist/runtime/run/manifest-snapshot.js
@@ -61607,11 +61692,10 @@ function runOutcomeForPrimaryResultOutcome(outcome) {
 async function terminalOutcomeBoundToPrimaryResult(context, outcome) {
   if (outcome !== "complete")
     return void 0;
-  const pkg = findCompiledFlowPackageById(context.flow.id);
-  const engineFlags = resolveEngineFlags(context.flow, pkg);
+  const engineFlags = resolveEngineFlags(context.flow);
   if (engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true)
     return void 0;
-  const primaryResultPath = pkg?.runtimeSurface?.primaryResult?.path;
+  const primaryResultPath = context.flow.runtimeSurface?.primaryResult?.path;
   if (primaryResultPath === void 0)
     return void 0;
   let primaryResult;
@@ -61947,10 +62031,9 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const runDir = boundary.runDirectory.path;
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
-  const compiledPackage = findCompiledFlowPackageById(flow.id);
-  const bindingLegibility = resolveBindingLegibility(flow, compiledPackage);
-  const engineFlags = resolveEngineFlags(flow, compiledPackage);
-  const editFileSurfaceSources = surfaceSourcesFromDeclarations(compiledPackage?.reportFileSurfaces ?? {});
+  const bindingLegibility = resolveBindingLegibility(flow);
+  const engineFlags = resolveEngineFlags(flow);
+  const editFileSurfaceSources = surfaceSourcesFromDeclarations(flow.reportFileSurfaces ?? {});
   const context = {
     flow,
     packageIndex,
@@ -62057,8 +62140,10 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         flow,
         ...context.entryModeName === void 0 ? {} : { entryModeName: context.entryModeName }
       }),
-      package_resolved: bindingLegibility.packageResolved,
-      reduced_bindings: bindingLegibility.reducedBindings
+      // Empty for every built-in (the manifest is the sole authority post-M4);
+      // omitted entirely when empty so a run that reduced nothing makes no claim.
+      // A composed flow with a needs model (M9) can populate it again.
+      ...bindingLegibility.reducedBindings.length === 0 ? {} : { reduced_bindings: bindingLegibility.reducedBindings }
     });
     await appendFlowSelectionGuidance(context);
     if (options.historyRecallReport !== void 0) {
@@ -65937,7 +66022,7 @@ function postRunArtifactWarningOutputFields(warnings) {
   };
 }
 function resolveFlowPrimaryOutcome(input) {
-  const primaryResultPath = findCompiledFlowPackageById(input.flowId)?.runtimeSurface?.primaryResult?.path;
+  const primaryResultPath = findFlowRuntimeSurfaceById(input.flowId)?.primaryResult?.path;
   if (primaryResultPath === void 0)
     return void 0;
   let primaryResult;
@@ -66408,7 +66493,7 @@ function readConfigPathFromLayers(layers, dotPath) {
   return resolved;
 }
 function validateFlowConfigRequirements(input) {
-  const requirements = findCompiledFlowPackageById(input.flow.id)?.requiredConfig;
+  const requirements = input.flow.required_config;
   if (requirements === void 0)
     return;
   for (const requirement of requirements) {
@@ -66567,8 +66652,7 @@ async function runExecutionCommand(args, options) {
   const fixtureSelectionName = compiledFlowSelectionNameForAxes(args.axes);
   const fixturePath = resolveCompiledFlowPath(route.flowName, fixtureSelectionName, args.fixturePath, args.flowRoot);
   if (!existsSync36(fixturePath)) {
-    const pkg = findCompiledFlowPackageById(route.flowName);
-    if (pkg?.visibility === "internal") {
+    if (INTERNAL_FLOW_IDS.has(route.flowName)) {
       process.stderr.write(`error: ${route.flowName} is an internal flow and is not available through the host run surface.
 `);
       return 2;

@@ -5,7 +5,6 @@
 // run.closed trace entry plus result.json. The graph-runner loop decides
 // WHEN to close; this module decides what the closed run records.
 
-import { findCompiledFlowPackageById } from '../../flows/catalog.js';
 import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
 import type { TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
@@ -49,15 +48,13 @@ export async function terminalOutcomeBoundToPrimaryResult(
   outcome: RunClosedOutcome,
 ): Promise<{ readonly outcome: RunClosedOutcome; readonly reason: string } | undefined> {
   if (outcome !== 'complete') return undefined;
-  const pkg = findCompiledFlowPackageById(context.flow.id);
-  // Stage 3 (first-class composition): the behavior flag now resolves through
-  // the shared seam — the flow's manifest wins, the by-id package fills the
-  // rest — so a composed flow that declares this bind on its manifest is honored
-  // even with no catalog package. The package lookup stays for the primary-result
-  // path, which has not yet moved onto the manifest.
-  const engineFlags = resolveEngineFlags(context.flow, pkg);
+  // First-class composition (M4): both the behavior flag and the primary-result
+  // path now read off the runtime flow's manifest. A composed flow that declares
+  // this bind and a primary result on its manifest is honored with no by-id
+  // catalog package in the path.
+  const engineFlags = resolveEngineFlags(context.flow);
   if (engineFlags?.bindsTerminalOutcomeToPrimaryResult !== true) return undefined;
-  const primaryResultPath = pkg?.runtimeSurface?.primaryResult?.path;
+  const primaryResultPath = context.flow.runtimeSurface?.primaryResult?.path;
   if (primaryResultPath === undefined) return undefined;
 
   // The primary result is read at close time to bind the run outcome. Reading it

@@ -562,6 +562,19 @@ export const prototypeFlowData = {
     engine_flags: {
       binds_execution_depth_to_relay_selection: true,
     },
+    // Stage 3b (first-class composition): prototype's up-front config gate rides
+    // the schematic onto the compiled manifest, so the CLI validates the
+    // requirement off the loaded flow, not the by-id catalog package. Mirrors the
+    // package's requiredConfig; a drift-guard test keeps the two in sync until M6
+    // collapses the duplicate authoring.
+    required_config: [
+      {
+        axis: 'tournament',
+        path: 'circuits.prototype.variant_models',
+        message:
+          "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament.",
+      },
+    ],
   },
   canonicalStagePolicy: {
     kind: 'enforce',

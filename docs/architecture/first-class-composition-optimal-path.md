@@ -225,6 +225,41 @@ engineFlags must be **serialized onto the manifest first** (zero of six built-in
 disables Build/Fix slice loops), and the model must be **honest-to-zero by
 correction first**.
 
+### M4 RESULT (2026-06-13): the by-id package lookup is dissolved
+
+`findCompiledFlowPackageById` and its `PACKAGES_BY_ID` map are deleted. The
+pre-flip audit was off by one in both directions: there were **five** actual
+call sites, not the four named plus the kind-policy resolve. The audit missed
+`post-run-artifacts.ts:86`, and the kind-policy resolve is a *separate* by-id
+coupling (`canonicalSets[id]`, `id === 'review'`), not a
+`findCompiledFlowPackageById` call. All five real sites now read off the runtime
+flow's manifest or a schema-keyed registry:
+
+- `graph-runner.ts` — engine flags, the edit-file surface table, and binding
+  legibility read off `flow` (the manifest); the `compiledPackage` local is gone.
+- `run-close.ts` — the terminal-outcome bind reads `flow.engineFlags` and
+  `flow.runtimeSurface.primaryResult.path` (both still fail open).
+- `run.ts` — required-config reads `flow.required_config`; the internal-flow
+  guard reads the catalog-derived `INTERNAL_FLOW_IDS` set.
+- `post-run-artifacts.ts` — the primary-result outcome reads
+  `findFlowRuntimeSurfaceById` (the surviving schema-keyed registry).
+
+`resolveEngineFlags` and `resolveBindingLegibility` are now single-arg (the
+package param is gone). `resolveBindingLegibility` reduces nothing — the manifest
+is the sole authority — and the now-dead `package_resolved` trace field is
+removed. The duplicate-flow-id invariant `PACKAGES_BY_ID` enforced moved into
+`catalogFlowIds`. Proof: the two manifest-roundtrip drift guards (manifest ==
+package for every serialized field) plus a new all-built-ins gating test (every
+flow resolves with an empty reduced set; the manifests cover all five binding
+categories). Full `npm run verify` green.
+
+**Carved out — the kind-policy safety rehome (its own milestone, before M9).**
+The `pass_through` enforcement hole and the `id === 'review'` identity gate are a
+distinct by-id coupling in `flow-kind-policy-core.ts`, latent until composed
+flows actually run (M9). Per guardrails 3 and 5 it gets a failing-test-first
+characterization of the `pass_through` hole and a real composed flow to prove
+against, not a rushed bundle into the bindings pivot. Tracked as M4-safety.
+
 ## The optimal path (9 milestones)
 
 | # | Milestone | Why here |
@@ -232,7 +267,8 @@ correction first**.
 | M1 | Validator route-conditional availability + script-backed accommodation ledger | Honesty foundation; the only way goal's intrinsic route-disjunction reaches zero by correction, not alias |
 | M2 | Declaration-aware legibility net (rewrite `resolveBindingLegibility`) | The instrument the linchpin reads to prove a binding was not silently lost |
 | M3 | Close real gaps with new/split blocks **and** serialize engineFlags + runtime-surface onto the manifest | Model true-to-zero by correction; manifest carries built-in behavior — both prerequisites for the flip and the linchpin |
-| M4 | **LINCHPIN:** dissolve by-id lookup at all 6 sites incl. kind-policy safety rehome; delete the fallback | The coherence pivot; a composed flow becomes first-class for bindings AND safety |
+| M4 | **LINCHPIN (done 2026-06-13):** dissolve the by-id package lookup at all 5 sites; delete the fallback | The coherence pivot for bindings; a composed flow becomes first-class for behavior resolution |
+| M4-safety | Rehome the flow-kind policy off by-id (`pass_through` hole + `id === 'review'`), failing-test-first | The safety half of the pivot; latent until M9, sequenced before composed flows run |
 | M5 | Flip the catalog to a **fail-closed compile gate** for all 8 + composed flows (resolves #14) | Forces the two parallel truths into permanent agreement; safe only after M3 (zero-by-correction) and M4 (id-agnostic) |
 | M6 | Collapse `data.ts`/`schematic.json` redundancy; demote schematic to a drift-checked generated artifact | Subtractive elegance; safe once the gate enforces block linkage |
 | M7 | Build the **block-to-schematic assembler**; prove it on the truth-test exemplar (build/pursue) | The missing primitive every proposal assumed but none built |

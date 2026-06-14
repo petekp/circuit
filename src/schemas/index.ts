@@ -30,6 +30,7 @@ export * from './rubric.js';
 export * from './runtime-source.js';
 export * from './runtime-evidence.js';
 export * from './axes.js';
+export * from './axis-config-requirement.js';
 export * from './acceptance-criteria.js';
 export * from './depth.js';
 export * from './engine-flags.js';

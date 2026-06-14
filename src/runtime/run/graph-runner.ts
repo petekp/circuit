@@ -6,7 +6,6 @@
 // only interprets the executable graph and appends durable trace entries.
 
 import { randomUUID } from 'node:crypto';
-import { findCompiledFlowPackageById } from '../../flows/catalog.js';
 import type { SliceLoopEngineFlag } from '../../flows/types.js';
 import type { Axes } from '../../schemas/axes.js';
 import type { ChangeKindDeclaration, StandardChangeKind } from '../../schemas/change-kind.js';
@@ -269,22 +268,16 @@ async function executeExecutableFlowOutcomeUnsafe(
   const runDir = boundary.runDirectory.path;
   const { existingTrace, files, trace } = boundary;
   const packageIndex = buildRuntimePackageIndex(flow);
-  const compiledPackage = findCompiledFlowPackageById(flow.id);
-  // Stage 1 + M2 (first-class composition): record which catalog-sourced
-  // bindings this run actually got, declaration-aware. A binding is reduced only
-  // when neither the flow's manifest nor a by-id package provides it, so the
-  // legibility on `run.bootstrapped` below shows the true reduction as bindings
-  // move onto the manifest. `flow` carries the manifest declarations (engine
-  // flags today; surfaces after M3); `manifestBackedBindings` is the readiness
-  // signal the linchpin reads before deleting the package fallback.
-  const bindingLegibility = resolveBindingLegibility(flow, compiledPackage);
-  // Stage 3 (first-class composition): resolve engine-visible flags through the
-  // shared seam so they come from the manifest when present and from the by-id
-  // package otherwise. A composed flow with no package still gets its flags.
-  const engineFlags = resolveEngineFlags(flow, compiledPackage);
-  const editFileSurfaceSources = surfaceSourcesFromDeclarations(
-    compiledPackage?.reportFileSurfaces ?? {},
-  );
+  // First-class composition (M4): record which catalog-sourced bindings this run
+  // got from its manifest. The by-id package is gone, so the manifest is the sole
+  // source; `manifestBackedBindings` reports what the flow declares and the
+  // reduced set stays empty until composed flows bring a needs model (M9).
+  const bindingLegibility = resolveBindingLegibility(flow);
+  // First-class composition (M4): engine-visible flags and the edit-file surface
+  // table read off the runtime flow's manifest. A composed flow resolves both the
+  // same way a built-in does, with no by-id package in the path.
+  const engineFlags = resolveEngineFlags(flow);
+  const editFileSurfaceSources = surfaceSourcesFromDeclarations(flow.reportFileSurfaces ?? {});
   const context: RunContext = {
     flow,
     packageIndex,
@@ -419,8 +412,12 @@ async function executeExecutableFlowOutcomeUnsafe(
         flow,
         ...(context.entryModeName === undefined ? {} : { entryModeName: context.entryModeName }),
       }),
-      package_resolved: bindingLegibility.packageResolved,
-      reduced_bindings: bindingLegibility.reducedBindings,
+      // Empty for every built-in (the manifest is the sole authority post-M4);
+      // omitted entirely when empty so a run that reduced nothing makes no claim.
+      // A composed flow with a needs model (M9) can populate it again.
+      ...(bindingLegibility.reducedBindings.length === 0
+        ? {}
+        : { reduced_bindings: bindingLegibility.reducedBindings }),
     });
     await appendFlowSelectionGuidance(context);
     if (options.historyRecallReport !== undefined) {

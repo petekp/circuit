@@ -482,5 +482,18 @@
   ],
   "engine_flags": {
     "binds_execution_depth_to_relay_selection": true
-  }
+  },
+  "runtime_surface": {
+    "primary_result": {
+      "schema_name": "prototype.result@v1",
+      "path": "reports/prototype-result.json"
+    }
+  },
+  "required_config": [
+    {
+      "axis": "tournament",
+      "path": "circuits.prototype.variant_models",
+      "message": "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament."
+    }
+  ]
 }

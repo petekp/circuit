@@ -432,6 +432,17 @@ export const buildFlowData = {
         activate_when_depth_at_least: 'high',
       },
     },
+    // Stage 3b (first-class composition): build's report file surfaces ride the
+    // schematic onto the compiled manifest, so the engine reads the skill-hook
+    // edit-file surface table off the manifest, not the by-id catalog package.
+    // Mirrors the package's reports[].fileSurface; a drift-guard test keeps the
+    // two in sync until M6 collapses the duplicate authoring.
+    report_file_surfaces: {
+      'build.plan@v1': {
+        timing: 'before',
+        extractor: { kind: 'build-plan-and-slices-anticipated-file-extensions' },
+      },
+    },
   },
   canonicalStagePolicy: {
     kind: 'enforce',
