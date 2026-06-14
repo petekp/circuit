@@ -48043,6 +48043,37 @@ var BUILTIN_REPORT_SCHEMAS = Object.freeze({
   "fanout-aggregate@v1": FanoutAggregateFixtureShape
 });
 
+// dist/schemas/routing-contract-schemas.js
+var TaskIntakeShape = external_exports.object({
+  // The user's goal, preserved through normalization (the block check
+  // requires the normalized task to preserve the goal).
+  normalized_goal: external_exports.string().min(1),
+  // The flow the operator explicitly asked for, when they named one.
+  requested_flow: external_exports.string().min(1).optional(),
+  // Immediate operator constraints carried into the flow (may be empty).
+  constraints: external_exports.array(external_exports.string().min(1))
+}).strict();
+var RouteDecisionShape = external_exports.object({
+  // The chosen flow id, or null when the router stopped instead of routing.
+  selected_flow: external_exports.string().min(1).nullable(),
+  // Why this flow was chosen (or why the router stopped).
+  selection_reason: external_exports.string().min(1),
+  // Why the router stayed conservative, when it fell back to a safer choice.
+  fallback_reason: external_exports.string().min(1).optional()
+}).strict();
+var FlowCatalogShape = external_exports.object({
+  flows: external_exports.array(external_exports.object({
+    id: external_exports.string().min(1),
+    title: external_exports.string().min(1),
+    purpose: external_exports.string().min(1)
+  }).strict()).min(1)
+}).strict();
+var BUILTIN_ROUTING_CONTRACT_SCHEMAS = Object.freeze({
+  "task.intake@v1": TaskIntakeShape,
+  "route.decision@v1": RouteDecisionShape,
+  "flow.catalog@v1": FlowCatalogShape
+});
+
 // dist/schemas/checkpoint-boundary.js
 var CheckpointReasonCode = external_exports.enum([
   "scope_expansion",
