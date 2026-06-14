@@ -685,4 +685,49 @@ describe('runtime sub-run executor', () => {
     expect(observed?.relayConnector).toBe(relayConnector);
     expect(observed?.selectionConfigLayers).toEqual([layer]);
   });
+
+  it('forwards the parent unattended flag into child run options', async () => {
+    // safety-(b): a composed/nested child must inherit the parent's unattended
+    // signal so its own checkpoints reach a terminal outcome instead of parking
+    // with no operator to answer them. Without forwarding, the child runs as
+    // attended and a high/tournament-depth checkpoint would park forever.
+    const runDir = join(baseDir, 'parent-child-unattended-propagation');
+    let observed: CompiledFlowRunOptions | undefined;
+
+    await executeExecutableFlow(parentFlow(), {
+      runDir,
+      runId: randomUUID(),
+      goal: 'parent goal',
+      unattended: true,
+      childCompiledFlowResolver: () => ({ flowBytes: childFlowBytes() }),
+      childRunner: async (options) => {
+        observed = options;
+        return stubChildRunner('accept')(options);
+      },
+      now: () => new Date('2026-05-03T00:00:00.000Z'),
+    });
+
+    expect(observed?.unattended).toBe(true);
+  });
+
+  it('leaves child run options unattended-free when the parent is attended', async () => {
+    // Inertness: an attended parent (unattended unset) must not mark its child
+    // unattended, so child checkpoint behavior is byte-identical to today.
+    const runDir = join(baseDir, 'parent-child-attended-propagation');
+    let observed: CompiledFlowRunOptions | undefined;
+
+    await executeExecutableFlow(parentFlow(), {
+      runDir,
+      runId: randomUUID(),
+      goal: 'parent goal',
+      childCompiledFlowResolver: () => ({ flowBytes: childFlowBytes() }),
+      childRunner: async (options) => {
+        observed = options;
+        return stubChildRunner('accept')(options);
+      },
+      now: () => new Date('2026-05-03T00:00:00.000Z'),
+    });
+
+    expect(observed?.unattended).toBeUndefined();
+  });
 });

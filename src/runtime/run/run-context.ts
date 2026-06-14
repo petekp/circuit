@@ -29,6 +29,13 @@ export interface RunContext
   readonly entryModeName?: string;
   readonly depth?: string;
   readonly axes?: Axes;
+  // Set by the run invocation (never by a flow) when no operator is present to
+  // answer a checkpoint and no external resume driver can clear it — e.g. a
+  // composed/nested flow running inside another run, or a batch/headless host.
+  // The checkpoint executor honors this by reaching a terminal outcome instead
+  // of parking at checkpoint_waiting forever (see resolveCheckpoint). Absent on
+  // every interactive top-level run, so attended runs are unaffected.
+  readonly unattended?: boolean;
   readonly guidanceSelection?: {
     readonly bindsExecutionDepthToGuidanceSelection: boolean;
   };

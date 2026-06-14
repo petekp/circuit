@@ -498,6 +498,10 @@ export async function executeSubRunFanoutBranch(
       entryModeName: branch.entryMode,
       depth: branch.depth,
       now: context.now,
+      // A fanout branch is a composed/nested child; inherit the parent's
+      // unattended signal so its checkpoints reach a terminal outcome rather
+      // than parking unanswerable. Inert while the parent is attended (unset).
+      ...(context.unattended === undefined ? {} : { unattended: context.unattended }),
       ...(context.childExecutors === undefined ? {} : { executors: context.childExecutors }),
       ...(context.childCompiledFlowResolver === undefined
         ? {}

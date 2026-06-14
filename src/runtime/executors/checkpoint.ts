@@ -198,6 +198,28 @@ export async function projectRuntimeCheckpointBoundaryForStep(
   return projectRuntimeCheckpointBoundary({ step, stepPolicy, context });
 }
 
+// Fail-safe checkpoint resolution for a run with no operator to answer the gate
+// — autonomous runs and unattended (composed/nested or headless) runs alike. The
+// order is fixed: a declared auto-resolution rubric first, then the declared safe
+// default, then a loud failure. It never parks (an operatorless run cannot be
+// resumed) and never guesses (no arbitrary route is taken). The missing-default
+// failure reason is supplied by the caller so each entry point names its cause.
+async function resolveWithoutOperator(
+  step: CheckpointStep,
+  context: RunContext,
+  stepPolicy: Awaited<ReturnType<typeof materializePolicy>>,
+  missingDefaultReason: string,
+): Promise<CheckpointResolution> {
+  if (stepPolicy.auto_resolution !== undefined) {
+    return await resolveAutoResolution(step, context, stepPolicy, stepPolicy.auto_resolution);
+  }
+  const selection = stepPolicy.safe_default_choice;
+  if (selection === undefined) {
+    return { kind: 'failed', reason: missingDefaultReason };
+  }
+  return { kind: 'resolved', selection, resolutionSource: 'declared-default', autoResolved: true };
+}
+
 async function resolveCheckpoint(
   step: CheckpointStep,
   context: RunContext,
@@ -206,26 +228,34 @@ async function resolveCheckpoint(
 ): Promise<CheckpointResolution> {
   const effectiveDepth = depth ?? 'medium';
   const autonomous = context.axes?.autonomous === true || effectiveDepth === 'autonomous';
-  if (!autonomous && (effectiveDepth === 'high' || effectiveDepth === 'tournament')) {
+  // An unattended run (a composed/nested child, or a batch/headless host) has no
+  // operator to answer the gate and no external resume driver to clear it, so it
+  // must never park — it reaches a terminal outcome through the same fail-safe
+  // path autonomy uses. Latent until a run invocation sets it; every shipped
+  // interactive run leaves it unset and still parks at high/tournament depth.
+  const unattended = context.unattended === true;
+  if (
+    !autonomous &&
+    !unattended &&
+    (effectiveDepth === 'high' || effectiveDepth === 'tournament')
+  ) {
     return { kind: 'waiting' };
   }
   if (autonomous) {
-    if (stepPolicy.auto_resolution !== undefined) {
-      return await resolveAutoResolution(step, context, stepPolicy, stepPolicy.auto_resolution);
-    }
-    const selection = stepPolicy.safe_default_choice;
-    if (selection === undefined) {
-      return {
-        kind: 'failed',
-        reason: `checkpoint step '${step.id}' cannot auto-resolve autonomous depth without a declared default choice`,
-      };
-    }
-    return {
-      kind: 'resolved',
-      selection,
-      resolutionSource: 'declared-default',
-      autoResolved: true,
-    };
+    return await resolveWithoutOperator(
+      step,
+      context,
+      stepPolicy,
+      `checkpoint step '${step.id}' cannot auto-resolve autonomous depth without a declared default choice`,
+    );
+  }
+  if (unattended) {
+    return await resolveWithoutOperator(
+      step,
+      context,
+      stepPolicy,
+      `checkpoint step '${step.id}' cannot reach a terminal outcome unattended without a declared safe default choice or auto-resolution policy`,
+    );
   }
   const selection = stepPolicy.safe_default_choice;
   if (selection === undefined) {

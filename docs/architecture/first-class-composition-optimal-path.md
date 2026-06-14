@@ -473,6 +473,43 @@ outside that scope by design, both shipped-flow-inert today:
   on the dropped detail), and tightening it risks the M8.2 uniform tests.
   Deferred to the M9 typing pass, which owns full body fidelity.
 
+### Safety (b) RESULT (2026-06-14): composed and nested runs resolve checkpoints unattended
+
+The exploration track's E1 run surfaced the gap. `build` opens on a `frame-step`
+checkpoint ("Confirm the Build brief before implementation starts."). Run with no
+operator, the opening `circuit run` exits 0 but writes no terminal `result.json`;
+`reports/process-evidence.json` carries `outcome: checkpoint_waiting`. The E1
+harness cleared it from outside with `circuit resume`. A nested flow running inside
+another run (the M9 target) has no outside driver, so the engine itself has to
+reach a terminal outcome.
+
+The fix is one new signal, `RunContext.unattended`. It rides on the run context,
+not on `Axes`: `Axes` is serialized into the checkpoint request body, so a field
+there would change every saved request fixture, and `autonomous` is already
+overloaded (it also drives the bounded continuation loop). `unattended` is set
+only by a run invocation, never by a flow, and it changes one thing,
+`resolveCheckpoint`, the single place a run parks. The park branch now also
+requires `!unattended`; an unattended run resolves through the same fixed
+fail-safe order autonomy already uses (a declared auto-resolution rubric, then the
+declared safe default, then a loud failure), pulled into a shared
+`resolveWithoutOperator` helper so the two operatorless paths cannot drift. It
+never parks and never guesses.
+
+The signal travels the whole way down, including into child runs: the sub-run and
+fanout-branch executors hand each child the parent's `unattended`, so the nested
+flows the E1 finding is about actually reach a terminal outcome. The first cut
+stopped at the top-level runner; the adversarial review caught that the child
+callback type had no slot for the field, which would have made M9 wiring a silent
+no-op. The threading is now end to end, pinned by a forwarding test at each child
+call site.
+
+The whole change is latent. Nothing sets `unattended` true yet, so every shipped
+run stays attended and parks exactly as before at high and tournament depth; an
+inertness test pins that an attended parent never marks its child unattended. M9
+turns it on by setting the flag on the top-level composed run. Full `npm run
+verify` green. One known residual, out of this change's scope: child runs also do
+not inherit the parent's `axes` today, a pre-existing gap unrelated to checkpoints.
+
 ## The optimal path (9 milestones)
 
 | # | Milestone | Why here |
@@ -482,6 +519,7 @@ outside that scope by design, both shipped-flow-inert today:
 | M3 | Close real gaps with new/split blocks **and** serialize engineFlags + runtime-surface onto the manifest | Model true-to-zero by correction; manifest carries built-in behavior — both prerequisites for the flip and the linchpin |
 | M4 | **LINCHPIN (done 2026-06-13):** dissolve the by-id package lookup at all 5 sites; delete the fallback | The coherence pivot for bindings; a composed flow becomes first-class for behavior resolution |
 | M4-safety | **(done 2026-06-14)** Rehome the flow-kind policy off by-id (`pass_through` hole + `id === 'review'`), failing-test-first; identity separation is now intrinsic (close emits `review.result@v1`) and runs before exemption and the table lookup | The safety half of the pivot; latent until M9, sequenced before composed flows run. Collapsed to a lean fix: Zod `superRefine` already enforces internal canonical consistency, so no manifest serialization was needed |
+| Safety (b) | **(done 2026-06-14)** Engine-side headless-checkpoint policy: an unattended run resolves through autonomy's fail-safe order instead of parking, threaded into child runs | The other safety half; latent until M9, lets composed and nested flows reach a terminal outcome with no operator |
 | M5 | **(done 2026-06-13)** Flip the catalog to a **fail-closed compile gate** for all 8 + composed flows (resolves #14) | Forces the two parallel truths into permanent agreement; safe only after M3 (zero-by-correction) and M4 (id-agnostic) |
 | M6 | **(done 2026-06-14)** Collapse `data.ts`/`schematic.json` redundancy; demote schematic to a drift-checked generated artifact | Subtractive elegance; safe once the gate enforces block linkage |
 | M7 | Build the **block-to-schematic assembler**; prove it on the truth-test exemplar (build/pursue) | The missing primitive every proposal assumed but none built |

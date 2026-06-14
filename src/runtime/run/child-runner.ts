@@ -47,6 +47,11 @@ export interface CompiledFlowRunOptions {
   readonly goal: string;
   readonly entryModeName?: string;
   readonly depth?: string;
+  // Inherited from the parent run so a composed/nested child reaches a terminal
+  // outcome instead of parking at a checkpoint with no operator to answer it.
+  // Forwarded by the sub-run and fanout-branch executors; consumed in
+  // resolveCheckpoint. Latent until a run invocation sets the parent unattended.
+  readonly unattended?: boolean;
   readonly now?: () => Date;
   readonly executors?: Partial<ExecutorRegistry>;
   readonly childExecutors?: Partial<ExecutorRegistry>;

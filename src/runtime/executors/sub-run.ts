@@ -182,6 +182,10 @@ async function executeSubRunInternal(step: SubRunStep, context: RunContext): Pro
       entryModeName: step.entryMode,
       depth: step.depth,
       now: context.now,
+      // A child run has no operator of its own; inherit the parent's unattended
+      // signal so the child's checkpoints reach a terminal outcome rather than
+      // parking unanswerable. Inert while the parent is attended (unset).
+      ...(context.unattended === undefined ? {} : { unattended: context.unattended }),
       ...(context.childExecutors === undefined ? {} : { executors: context.childExecutors }),
       ...(context.childCompiledFlowResolver === undefined
         ? {}

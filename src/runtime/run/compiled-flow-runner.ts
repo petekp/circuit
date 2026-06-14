@@ -33,6 +33,10 @@ export interface CompiledFlowRunOptions extends RuntimeExecutionCapabilities {
   readonly entryModeName?: string;
   readonly depth?: string;
   readonly axes?: Axes;
+  // No operator present and no external resume driver (e.g. a composed/nested
+  // child run): a checkpoint must reach a terminal outcome instead of parking.
+  // See RunContext.unattended and resolveCheckpoint.
+  readonly unattended?: boolean;
   readonly maxSteps?: number;
 }
 
@@ -95,6 +99,7 @@ export async function runCompiledFlowWithWaiting(
       entryModeName,
       depth,
       ...(options.axes === undefined ? {} : { axes: options.axes }),
+      ...(options.unattended === undefined ? {} : { unattended: options.unattended }),
       ...(options.now === undefined ? {} : { now: options.now }),
       ...(options.executors === undefined ? {} : { executors: options.executors }),
       ...(options.childExecutors === undefined ? {} : { childExecutors: options.childExecutors }),
