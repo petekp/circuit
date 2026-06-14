@@ -384,6 +384,66 @@ Confirmed at the git level — zero changes to `generated/`, `plugins/`, or any
 same 78 aliases / 0 accommodations / 10 multi-actual generics it did reading from
 disk, preserving the load-bearing `accommodations === []` invariant.
 
+### M7 RESULT (2026-06-14): the sequence-level assembler exists and is proven by equivalence
+
+`src/flows/assemble-flow-schematic.ts` adds `assembleFlowSchematic(spec) ->
+FlowSchematic`, the SEQUENCE-level counterpart to `expandBlockStepUse` (which
+expands ONE block use into one step). The truth-test spike (#34) and the M7
+prototype (#35) established that a block contributes only three compile-time
+defaults and that a schematic's other fields are per-item authored. The
+assembler's net-new value is therefore not synthesizing step bodies; it is
+DERIVING the three sequence-level fields a hand author keeps in sync with the
+item list by hand:
+
+- `starts_at` = the first item's id.
+- `stages` = one entry per canonical stage the sequence touches, emitted in
+  canonical order, labelled from caller-supplied `stageLabels` (titles like
+  pursue's "Coordinate" are not mechanical, so id + title are author input; the
+  assembler decides WHICH canonicals appear and in what order).
+- `stage_path_policy` = `strict` when the sequence covers all seven canonical
+  stages, otherwise `partial` with `omits` set to the absent canonicals (in
+  canonical order, provably disjoint from `stages` by construction) plus the
+  caller's rationale.
+
+Everything else (identity, axes, contract aliases, engine flags, report file
+surfaces, required config) is flow scaffolding passed through verbatim. The
+result goes to `FlowSchematic.parse`, so any inconsistency is caught by the
+schema superRefine, not at compile.
+
+**Scope: additive.** The eight built-ins still hand-author their schematics.
+Making them the assembler's first customers is M9's job (guardrail 5: prove the
+primitive before wiring it into the engine). Nothing in `src/flows/build`,
+`src/flows/pursue`, the compiler, or the engine was touched.
+
+**Proof by equivalence on two real flows with different stage shapes.** The
+assembler reconstructs `build` (strict, all seven stages) and `pursue` (partial,
+omits `analyze`) from their block sequences. The test asserts the assembled
+schematic `toEqual` the shipped one (read through the catalog via
+`schematicForFlowDefinition`, never the flow package, so the function under test
+is not on both sides) AND that `compileSchematicToCompiledFlow(assembled)`
+`toEqual` the compiled shipped flow. A mutation that makes the assembler emit
+stages in item-encounter order instead of canonical order fails the equivalence
+tests loudly (build authors `verify` before `act`).
+
+**The assembler is not a gate bypass.** Because it derives `starts_at` from the
+first item, a dynamic composer that hands it a consumer ahead of its producer
+mints a path-disjoint read (the first step requires a contract no upstream route
+has produced). The assembler does NOT police this; it produces a structurally
+valid schematic. The M5 fail-closed catalog gate does: a route-safety test pins
+that the same two blocks pass the gate in producer-first order and are rejected
+in consumer-first order, and the rejection is enforced at compile
+(`FlowSchematicCompileError`, message names the block catalog). Assembled flows
+face the same route-aware availability check as hand-authored ones.
+
+Adversarial review (`wf_01751e6a-ad5`, four lenses: correctness, proof
+integrity, architecture boundary, scope; refute-by-default per-finding verify)
+returned zero critical or high findings. Three low findings were folded in (a
+unit test now pins the assembler's own missing-label throw rather than the
+schema backstop; a new test pins canonical-order derivation with divergent item
+order; the `20`-char rationale minimum is now exported from the schema as
+`PARTIAL_SPINE_RATIONALE_MIN_LENGTH` so the assembler stops duplicating the
+literal). Full `npm run verify` green (3294 tests).
+
 ### M8 RESULT (2026-06-14): the routing seam is typed and the catch-all is gated
 
 M8 closed the "typed" half of the vision in five slices, report-only first,
@@ -522,7 +582,7 @@ not inherit the parent's `axes` today, a pre-existing gap unrelated to checkpoin
 | Safety (b) | **(done 2026-06-14)** Engine-side headless-checkpoint policy: an unattended run resolves through autonomy's fail-safe order instead of parking, threaded into child runs | The other safety half; latent until M9, lets composed and nested flows reach a terminal outcome with no operator |
 | M5 | **(done 2026-06-13)** Flip the catalog to a **fail-closed compile gate** for all 8 + composed flows (resolves #14) | Forces the two parallel truths into permanent agreement; safe only after M3 (zero-by-correction) and M4 (id-agnostic) |
 | M6 | **(done 2026-06-14)** Collapse `data.ts`/`schematic.json` redundancy; demote schematic to a drift-checked generated artifact | Subtractive elegance; safe once the gate enforces block linkage |
-| M7 | Build the **block-to-schematic assembler**; prove it on the truth-test exemplar (build/pursue) | The missing primitive every proposal assumed but none built |
+| M7 | **(done 2026-06-14)** Build the **block-to-schematic assembler**; prove it on the truth-test exemplar (build/pursue) | The missing primitive every proposal assumed but none built |
 | M8 | **(done 2026-06-14)** **Type** the routing seam: real Zod bodies for `route.decision@v1`, `flow.catalog@v1`, `task.intake@v1` + producer generics; anti-widening gate | Closes the "typed" half of the vision no proposal had closed |
 | M9 | Open the sanctioned composed runtime: retire template-clone-of-Build, one shared assembly path, dual-host parity | Delivers "assembled dynamically per task" on a path proven first-class; built-ins become the first customers |
 

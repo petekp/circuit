@@ -52,6 +52,11 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
   // infrastructure (it reads the catalog-derived report-schema registry), peer
   // to the ledger; exercised by tests/contracts/accommodation-ledger.test.ts.
   'src/flows/contract-body-signature.ts',
+  // M7 (first-class composition): the sequence-level flow assembler. Shared
+  // cross-flow infrastructure, peer to compile-schematic-to-flow.ts and
+  // block-step-expansion.ts, exercised today only by the assembler tests. It
+  // joins the engine allowlist when the compile/runtime path consumes it (M9).
+  'src/flows/assemble-flow-schematic.ts',
 ];
 
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([

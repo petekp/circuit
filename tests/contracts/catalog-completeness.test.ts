@@ -124,6 +124,7 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
 const NON_PACKAGE_FILES = new Set([
   'README.md',
   'accommodation-ledger.ts',
+  'assemble-flow-schematic.ts',
   'axis-selections.ts',
   'block-step-expansion.ts',
   'canonical-stage-policy.ts',

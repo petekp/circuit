@@ -25882,6 +25882,7 @@ var CANONICAL_STAGES = [
   "review",
   "close"
 ];
+var PARTIAL_SPINE_RATIONALE_MIN_LENGTH = 20;
 var SpinePolicy = external_exports.discriminatedUnion("mode", [
   external_exports.object({
     mode: external_exports.literal("strict")
@@ -25889,7 +25890,7 @@ var SpinePolicy = external_exports.discriminatedUnion("mode", [
   external_exports.object({
     mode: external_exports.literal("partial"),
     omits: external_exports.array(CanonicalStage).min(1),
-    rationale: external_exports.string().min(20)
+    rationale: external_exports.string().min(PARTIAL_SPINE_RATIONALE_MIN_LENGTH)
   }).strict()
 ]);
 
