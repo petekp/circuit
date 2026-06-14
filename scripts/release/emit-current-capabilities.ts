@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 
@@ -233,16 +233,17 @@ type SchematicRouteItem = {
   routes?: Record<string, unknown>;
   route_overrides?: Record<string, unknown>;
 };
+type SchematicRoutes = { items?: SchematicRouteItem[] };
 
-function readSchematic(pkg: FlowPackage): { items?: SchematicRouteItem[] } {
-  return JSON.parse(readFileSync(resolve(projectRoot, pkg.paths.schematic), 'utf8'));
-}
-
-function routeOutcomesFor(pkg: FlowPackage): {
+// M6: route outcomes are derived from the in-memory catalog definition
+// (flowDefinitions[*].schematic), threaded in by main(), not read back from the
+// generated src/flows/<id>/schematic.json on disk. The committed JSON is a
+// drift-checked snapshot of this same definition, so the derived facts are
+// identical; reading the definition keeps schematic.json a pure snapshot.
+function routeOutcomesFor(schematic: SchematicRoutes): {
   route_outcomes: string[];
   unsupported_route_outcomes: string[];
 } {
-  const schematic = readSchematic(pkg);
   const outcomes = new Set<string>();
   const unsupported = new Set<string>();
   for (const item of schematic.items ?? []) {
@@ -301,8 +302,8 @@ function flowBehaviorAxes(pkg: FlowRecord): Record<string, string> {
   return axes;
 }
 
-function flowRecord(pkg: FlowPackage): FlowRecord {
-  const routeOutcomes = routeOutcomesFor(pkg);
+function flowRecord(pkg: FlowPackage, schematic: SchematicRoutes): FlowRecord {
+  const routeOutcomes = routeOutcomesFor(schematic);
   return {
     id: pkg.id,
     source: pkg.paths.schematic,
@@ -798,10 +799,22 @@ async function main(): Promise<void> {
     >,
   ]);
   const { CurrentCapabilitySnapshot, ProofScenarioIndex } = releaseSchemas;
-  const { flowPackages } = catalog;
+  const { flowPackages, flowDefinitions } = catalog;
+  // M6: derive route outcomes from the in-memory schematic, keyed by flow id, so
+  // schematic.json on disk stays a pure drift-checked snapshot rather than a
+  // source this script reads back.
+  const schematicById = new Map(
+    flowDefinitions.map((definition) => [definition.id, definition.schematic]),
+  );
 
   const publicFlowPackages = flowPackages.filter((pkg) => pkg.visibility !== 'internal');
-  const flows = publicFlowPackages.map(flowRecord);
+  const flows = publicFlowPackages.map((pkg) => {
+    const schematic = schematicById.get(pkg.id);
+    if (schematic === undefined) {
+      throw new Error(`emit-current-capabilities: no in-memory schematic for flow '${pkg.id}'`);
+    }
+    return flowRecord(pkg, schematic as unknown as SchematicRoutes);
+  });
   const proofs = loadYamlWithSchema('docs/release/proofs/index.yaml', ProofScenarioIndex);
   const proofAxesByCapability = verifiedProofAxesByCapability(proofs);
   const sourceCommands = listMarkdownBasenames('src/commands').filter((id) => id !== 'README');

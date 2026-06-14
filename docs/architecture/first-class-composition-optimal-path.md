@@ -300,12 +300,26 @@ always the in-memory definition. What M6 removes is the last set of consumers
 that read that JSON back from disk *as if it were source*, repointing them to the
 in-memory definition.
 
-The only production read-back was `accommodation-ledger.ts`. It used
-`readFileSync`/`readdirSync` to walk `src/flows/*/schematic.json` and analyze
-each. It is now a pure analyzer, `collectAccommodationLedger(schematics:
-readonly FlowSchematic[])`, that depends only on the schema type; `catalog.ts`'s
-`flowDefinitions` is wired in at the call site. No `node:fs` import remains. The
-M5 catalog gate (`schematic-catalog-check.ts`) already took an in-memory
+Two production paths read the JSON back as source (the second was caught by the
+M6 adversarial review, not the initial grep pass, because it lives in `scripts/`
+not `src/`):
+
+1. `src/flows/accommodation-ledger.ts` used `readFileSync`/`readdirSync` to walk
+   `src/flows/*/schematic.json` and analyze each. It is now a pure analyzer,
+   `collectAccommodationLedger(schematics: readonly FlowSchematic[])`, that
+   depends only on the schema type; `catalog.ts`'s `flowDefinitions` is wired in
+   at the call site. No `node:fs` import remains.
+2. `scripts/release/emit-current-capabilities.ts` read each flow's
+   `paths.schematic` off disk to derive `route_outcomes` /
+   `unsupported_route_outcomes` for `generated/release/current-capabilities.json`.
+   It now derives those from the in-memory `flowDefinitions[*].schematic`
+   (keyed by id in `main`), so a stale committed `schematic.json` can no longer
+   feed a wrong shipped capability fact. Proven by a disk-injection probe: a
+   bogus route added only to the on-disk `fix/schematic.json` flips
+   `emit-current-capabilities --check` to drift before the fix and is ignored
+   after it, while the committed output stays byte-identical.
+
+The M5 catalog gate (`schematic-catalog-check.ts`) already took an in-memory
 schematic, so no production gate code changed.
 
 The shared accessor is `tests/helpers/in-memory-schematics.ts`:
@@ -324,12 +338,13 @@ disk by design: `flow-facts`'s drift-parity check (it must compare the in-memory
 definition *against* the committed JSON) and `flow-schematic`'s schema unit test
 (it corrupts the committed fix fixture to prove the parser rejects it).
 
-Byte-identity: the one production change is never on the emit/compile path, so
-generated artifacts are untouched. Confirmed at the git level — zero changes to
-`generated/`, `plugins/`, or any `src/flows/*/schematic.json`. Full `npm run
-verify` green. The ledger reports the same 78 aliases / 0 accommodations / 10
-multi-actual generics it did reading from disk, preserving the load-bearing
-`accommodations === []` invariant.
+Byte-identity: the ledger change is never on the emit/compile path, and the
+capabilities change re-derives the same facts from a snapshot that is identical
+to disk by the drift gate — so `emit-current-capabilities --check` stays in sync.
+Confirmed at the git level — zero changes to `generated/`, `plugins/`, or any
+`src/flows/*/schematic.json`. Full `npm run verify` green. The ledger reports the
+same 78 aliases / 0 accommodations / 10 multi-actual generics it did reading from
+disk, preserving the load-bearing `accommodations === []` invariant.
 
 ## The optimal path (9 milestones)
 
