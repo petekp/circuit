@@ -442,6 +442,142 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
     expect(result.detail).toMatch(/no canonical-set entry.*pass-through/);
   });
 
+  // Identity separation is keyed on what a flow DOES (emits a review.result@v1
+  // verdict in its close stage), not on a hardcoded `id === 'review'`. Any flow
+  // that produces a verdict must have an independent reviewer relay in its
+  // analyze stage. These tests pin that the check fires for a non-'review' id
+  // (coupling 2) and for a flow with no canonical-set table entry (coupling 1:
+  // the former pass-through hole that let composed flows self-author verdicts).
+  it('returns red when a non-review flow emits review.result without a preceding reviewer relay', () => {
+    const auditTable = {
+      canonicalSets: {
+        audit: {
+          canonicals: ['frame', 'analyze', 'close'],
+          omits: ['plan', 'act', 'verify', 'review'],
+          optional_canonicals: [],
+          variants: [],
+          title: 'Test Audit',
+          authority: 'test-policy-table',
+        },
+      } satisfies Record<string, CompiledFlowKindPolicyEntry>,
+      exemptFlowIds: new Set<string>(),
+    };
+    const fixture = reviewPolicyOnlyPayload({
+      id: 'audit',
+      steps: [
+        { id: 'intake-step', kind: 'compose', writes: { report: {} } },
+        // analyze step is NOT a reviewer relay — the verdict is self-authored.
+        { id: 'audit-step', kind: 'compose', writes: { report: {} } },
+        {
+          id: 'verdict-step',
+          kind: 'compose',
+          writes: {
+            report: { path: 'reports/review-result.json', schema: 'review.result@v1' },
+          },
+        },
+      ],
+    });
+    const result = checkCompiledFlowKindCanonicalPolicyWithTable(fixture, auditTable);
+    expect(result.kind).toBe('red');
+    expect(result.detail).toMatch(/role=reviewer/);
+  });
+
+  it('returns red when an unknown-kind composed flow emits review.result without a reviewer relay', () => {
+    const emptyTable = {
+      canonicalSets: {} satisfies Record<string, CompiledFlowKindPolicyEntry>,
+      exemptFlowIds: new Set<string>(),
+    };
+    const fixture = {
+      schema_version: '3',
+      id: 'composed-verdict',
+      stages: [
+        { title: 'Frame', canonical: 'frame', steps: ['intake-step'] },
+        { title: 'Analyze', canonical: 'analyze', steps: ['audit-step'] },
+        { title: 'Close', canonical: 'close', steps: ['verdict-step'] },
+      ],
+      stage_path_policy: { mode: 'partial', omits: ['plan', 'act', 'verify', 'review'] },
+      steps: [
+        { id: 'intake-step', kind: 'compose', writes: { report: {} } },
+        { id: 'audit-step', kind: 'compose', writes: { report: {} } },
+        {
+          id: 'verdict-step',
+          kind: 'compose',
+          writes: {
+            report: { path: 'reports/review-result.json', schema: 'review.result@v1' },
+          },
+        },
+      ],
+    };
+    const result = checkCompiledFlowKindCanonicalPolicyWithTable(fixture, emptyTable);
+    expect(result.kind).toBe('red');
+    expect(result.detail).toMatch(/role=reviewer/);
+  });
+
+  it('returns red when an EXEMPT flow emits review.result without a reviewer relay (identity runs before exemption)', () => {
+    // Exemption covers the partial-stage path, not separation of duties. A flow
+    // that emits a verdict must route it through an independent reviewer even if
+    // it is exempt from canonical stage-set enforcement. This pins that the
+    // intrinsic identity check runs before the exempt early-return.
+    const exemptTable = {
+      canonicalSets: {} satisfies Record<string, CompiledFlowKindPolicyEntry>,
+      exemptFlowIds: new Set<string>(['custom-exempt']),
+    };
+    const fixture = {
+      schema_version: '3',
+      id: 'custom-exempt',
+      stages: [
+        { title: 'Frame', canonical: 'frame', steps: ['intake-step'] },
+        { title: 'Analyze', canonical: 'analyze', steps: ['audit-step'] },
+        { title: 'Close', canonical: 'close', steps: ['verdict-step'] },
+      ],
+      stage_path_policy: { mode: 'partial', omits: ['plan', 'act', 'verify', 'review'] },
+      steps: [
+        { id: 'intake-step', kind: 'compose', writes: { report: {} } },
+        { id: 'audit-step', kind: 'compose', writes: { report: {} } },
+        {
+          id: 'verdict-step',
+          kind: 'compose',
+          writes: {
+            report: { path: 'reports/review-result.json', schema: 'review.result@v1' },
+          },
+        },
+      ],
+    };
+    const result = checkCompiledFlowKindCanonicalPolicyWithTable(fixture, exemptTable);
+    expect(result.kind).toBe('red');
+    expect(result.detail).toMatch(/role=reviewer/);
+  });
+
+  it('returns pass_through (not red) for an unknown-kind verdict flow WITH a reviewer relay', () => {
+    const emptyTable = {
+      canonicalSets: {} satisfies Record<string, CompiledFlowKindPolicyEntry>,
+      exemptFlowIds: new Set<string>(),
+    };
+    const fixture = {
+      schema_version: '3',
+      id: 'composed-verdict',
+      stages: [
+        { title: 'Frame', canonical: 'frame', steps: ['intake-step'] },
+        { title: 'Analyze', canonical: 'analyze', steps: ['audit-step'] },
+        { title: 'Close', canonical: 'close', steps: ['verdict-step'] },
+      ],
+      stage_path_policy: { mode: 'partial', omits: ['plan', 'act', 'verify', 'review'] },
+      steps: [
+        { id: 'intake-step', kind: 'compose', writes: { report: {} } },
+        { id: 'audit-step', kind: 'relay', role: 'reviewer' },
+        {
+          id: 'verdict-step',
+          kind: 'compose',
+          writes: {
+            report: { path: 'reports/review-result.json', schema: 'review.result@v1' },
+          },
+        },
+      ],
+    };
+    const result = checkCompiledFlowKindCanonicalPolicyWithTable(fixture, emptyTable);
+    expect(result.kind).toBe('pass_through');
+  });
+
   it('returns red when explore fixture omits a required canonical stage', () => {
     const fixture = validExploreFixture();
     const stages = fixture.stages as Array<Record<string, unknown>>;
@@ -584,7 +720,34 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
     expect(result.detail).toMatch(/unexpected omit\(s\): review/);
   });
 
-  it('returns red when review close writes a non-primary report shape', () => {
+  it('returns red when a review flow emits review.result without a preceding reviewer relay', () => {
+    // Identity separation is now keyed on emitting the review.result verdict, not
+    // on `id === 'review'`. A review flow that writes the verdict but whose
+    // analyze stage is a plain compose (no reviewer relay) self-authors its own
+    // verdict, which the policy rejects.
+    const fixture = reviewPolicyOnlyPayload({
+      steps: [
+        { id: 'intake-step', kind: 'compose', writes: { report: {} } },
+        { id: 'audit-step', kind: 'compose', writes: { report: {} } },
+        {
+          id: 'verdict-step',
+          kind: 'compose',
+          writes: {
+            report: { path: 'reports/review-result.json', schema: 'review.result@v1' },
+          },
+        },
+      ],
+    });
+    const result = checkCompiledFlowKindCanonicalPolicy(fixture);
+    expect(result.kind).toBe('red');
+    expect(result.detail).toMatch(/role=reviewer/);
+  });
+
+  it('no longer ties a review-id flow to the review.result schema (verdict-output is intrinsic, not id-coupled)', () => {
+    // Under the intrinsic model a close stage that writes some OTHER schema is
+    // simply not a verdict producer, so the identity rule does not apply. The
+    // real review flow still emits review.result — that is pinned by its own
+    // contract and output-schema tests, not by this generic kind policy.
     const fixture = reviewPolicyOnlyPayload({
       steps: [
         { id: 'intake-step', kind: 'compose', writes: { report: {} } },
@@ -599,8 +762,7 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
       ],
     });
     const result = checkCompiledFlowKindCanonicalPolicy(fixture);
-    expect(result.kind).toBe('red');
-    expect(result.detail).toMatch(/primary review\.result report/);
+    expect(result.kind).toBe('green');
   });
 
   it('returns red on non-object fixture input', () => {

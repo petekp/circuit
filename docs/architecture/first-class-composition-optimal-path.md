@@ -260,6 +260,44 @@ flows actually run (M9). Per guardrails 3 and 5 it gets a failing-test-first
 characterization of the `pass_through` hole and a real composed flow to prove
 against, not a rushed bundle into the bindings pivot. Tracked as M4-safety.
 
+### M4-safety RESULT (2026-06-14): both by-id couplings rehomed, lean fix
+
+The characterization step changed the plan. The `pass_through` path was assumed
+to need an M3b-B-scale rehome (serialize the expected canonical set onto the
+manifest, like the engineFlags/runtime-surface fields). Reading the schema
+disproved that: `CompiledFlow`'s Zod `superRefine` already enforces the full
+internal canonical-consistency invariant (`declared ∪ omits = the seven-stage
+spine`, disjoint) for *every* flow, with no id-gating, and runs before the
+kind-policy on both the load and compose paths. So `pass_through` never skipped
+structural enforcement; the only thing it skipped was the review identity-
+separation check, because that check sat *after* the table-lookup early return.
+
+Both couplings then collapsed into one change in `flow-kind-policy-core.ts`:
+
+- **`id === 'review'` (coupling 2)** → an intrinsic trigger,
+  `hasCloseStageReviewResultWriter`: the identity rule now fires for any flow
+  whose close stage has a compose step writing `review.result@v1`, not for a
+  hardcoded id. A composed flow that produces a verdict is held to it.
+- **The `pass_through` hole (coupling 1)** → the intrinsic check is hoisted
+  above the canonical-set table lookup *and* above the exempt early return, so a
+  flow with no table entry (a composed flow) and an exempt flow alike cannot
+  self-author a verdict. Exemption covers the partial-stage path, not separation
+  of duties. `pass_through` now means "no external canonical-set prescription;
+  intrinsic identity and Zod internal-consistency still enforced," not zero
+  enforcement.
+
+No manifest field, no schema change, **zero** `circuit.json` or `schematic.json`
+byte changes; only the policy source, three test files, and the rebuilt CLI
+bundles. Failing-test-first: a non-`review` id and a table-less id each red only
+after the fix. Among shipped flows only `review` emits the dot-form
+`review.result@v1` in a close writer (`goal` uses the hyphen-form
+`review-result@v1`, a different schema), and `review` passes identity
+separation, so no shipped flow newly fails to load. The wrong-schema review
+case the old id-coupling caught is independently pinned by the review flow's own
+contract test. A three-lens adversarial review returned zero blocking findings;
+its one residual (exempt-before-identity ordering) is what the hardening above
+resolved. Full `npm run verify` green.
+
 ### M5 RESULT (2026-06-13): the catalog check is a fail-closed compile gate
 
 Both preconditions held live before the flip: every shipped schematic at zero
@@ -443,7 +481,7 @@ outside that scope by design, both shipped-flow-inert today:
 | M2 | Declaration-aware legibility net (rewrite `resolveBindingLegibility`) | The instrument the linchpin reads to prove a binding was not silently lost |
 | M3 | Close real gaps with new/split blocks **and** serialize engineFlags + runtime-surface onto the manifest | Model true-to-zero by correction; manifest carries built-in behavior — both prerequisites for the flip and the linchpin |
 | M4 | **LINCHPIN (done 2026-06-13):** dissolve the by-id package lookup at all 5 sites; delete the fallback | The coherence pivot for bindings; a composed flow becomes first-class for behavior resolution |
-| M4-safety | Rehome the flow-kind policy off by-id (`pass_through` hole + `id === 'review'`), failing-test-first | The safety half of the pivot; latent until M9, sequenced before composed flows run |
+| M4-safety | **(done 2026-06-14)** Rehome the flow-kind policy off by-id (`pass_through` hole + `id === 'review'`), failing-test-first; identity separation is now intrinsic (close emits `review.result@v1`) and runs before exemption and the table lookup | The safety half of the pivot; latent until M9, sequenced before composed flows run. Collapsed to a lean fix: Zod `superRefine` already enforces internal canonical consistency, so no manifest serialization was needed |
 | M5 | **(done 2026-06-13)** Flip the catalog to a **fail-closed compile gate** for all 8 + composed flows (resolves #14) | Forces the two parallel truths into permanent agreement; safe only after M3 (zero-by-correction) and M4 (id-agnostic) |
 | M6 | **(done 2026-06-14)** Collapse `data.ts`/`schematic.json` redundancy; demote schematic to a drift-checked generated artifact | Subtractive elegance; safe once the gate enforces block linkage |
 | M7 | Build the **block-to-schematic assembler**; prove it on the truth-test exemplar (build/pursue) | The missing primitive every proposal assumed but none built |
