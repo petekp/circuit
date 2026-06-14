@@ -23,10 +23,12 @@
 
 import type { z } from 'zod';
 import { BUILTIN_REPORT_SCHEMAS } from '../schemas/builtin-report-schemas.js';
+import { RunResult } from '../schemas/result.js';
 import { BUILTIN_ROUTING_CONTRACT_SCHEMAS } from '../schemas/routing-contract-schemas.js';
 import { responseJsonSchemaFromZod } from '../shared/zod-to-response-schema.js';
 import { buildReportSchemaRegistry } from './catalog-derivations.js';
 import { flowPackages } from './catalog.js';
+import { GoalGate } from './goal/reports.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -70,7 +72,28 @@ export function fieldSignature(schema: z.ZodType): string {
   return signatureOfNode(responseJsonSchemaFromZod(schema));
 }
 
-// Every body the engine can resolve by contract NAME, in two parts:
+// Uniform producer generics (M8.2). A producer generic is a block
+// output_contract realized by several actuals within one flow. When all those
+// actuals share one body the generic is UNIFORM, and its single canonical body
+// is that shared shape. Two ship today, both in goal:
+//   - goal.child-run@v1   → RunResult (the goal-child-run block; five child
+//                           results, all RunResult)
+//   - goal.gate-review@v1 → GoalGate  (the goal-gate-review block; two passes,
+//                           both GoalGate)
+// Only the actuals were typed (they are flow reports); the generic NAME they
+// collapse under was not, so resolveFieldSignature returned null for it. These
+// entries close that gap. The body is the SAME Zod schema the actuals use
+// (imported, never re-authored) so the two cannot drift apart silently — the
+// "canonical body equals every actual" invariant is pinned in
+// accommodation-ledger.test.ts. Divergent producer generics (goal.contract@v1,
+// the verification families) get NO entry here on purpose: they have no single
+// canonical body, which is what forces their split in M8.3.
+const UNIFORM_PRODUCER_GENERIC_SCHEMAS: Readonly<Record<string, z.ZodType<unknown>>> = {
+  'goal.child-run@v1': RunResult,
+  'goal.gate-review@v1': GoalGate,
+};
+
+// Every body the engine can resolve by contract NAME, in three parts:
 //   1. report bodies — relay reports plus channel:'report' bodies (compose /
 //      close / verification / checkpoint / sub-run). The narrower relay-only
 //      registry that parseReport uses would miss most multi-actual actuals,
@@ -78,22 +101,27 @@ export function fieldSignature(schema: z.ZodType): string {
 //      builds over the broad relay+report coverage.
 //   2. routing-seam contracts (M8.1) — task.intake / route.decision /
 //      flow.catalog. These are engine built-ins, not flow-package reports, so
-//      they merge in separately. A name collision between the two is a bug
-//      (a routing contract masquerading as a flow report), so it throws.
+//      they merge in separately.
+//   3. uniform producer generics (M8.2) — block output_contracts whose actuals
+//      all share one body (see above).
+// A name collision across any two parts is a bug (a generic masquerading as a
+// flow report, or two sources claiming one name), so each merge throws on it.
 const BODY_REGISTRY: Readonly<Record<string, z.ZodType<unknown>>> = (() => {
   const reports = buildReportSchemaRegistry(flowPackages, {
     channels: 'relay+report',
     fixtures: BUILTIN_REPORT_SCHEMAS,
   });
   const merged: Record<string, z.ZodType<unknown>> = { ...reports };
-  for (const [name, schema] of Object.entries(BUILTIN_ROUTING_CONTRACT_SCHEMAS)) {
-    if (Object.hasOwn(merged, name)) {
-      throw new Error(
-        `routing-seam contract '${name}' collides with a flow report schema of the same name`,
-      );
+  const mergeBuiltins = (source: Readonly<Record<string, z.ZodType<unknown>>>, kind: string) => {
+    for (const [name, schema] of Object.entries(source)) {
+      if (Object.hasOwn(merged, name)) {
+        throw new Error(`${kind} '${name}' collides with an already-registered contract body`);
+      }
+      merged[name] = schema;
     }
-    merged[name] = schema;
-  }
+  };
+  mergeBuiltins(BUILTIN_ROUTING_CONTRACT_SCHEMAS, 'routing-seam contract');
+  mergeBuiltins(UNIFORM_PRODUCER_GENERIC_SCHEMAS, 'uniform producer generic');
   return Object.freeze(merged);
 })();
 

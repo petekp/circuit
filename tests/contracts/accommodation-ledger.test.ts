@@ -134,3 +134,51 @@ describe('body-divergence reporter (M8.0)', () => {
     console.log(`\nbody-divergence report (M8.0):\n${lines.join('\n')}\n`);
   });
 });
+
+describe('uniform producer generics (M8.2)', () => {
+  // goal.child-run@v1 and goal.gate-review@v1 are block output_contracts (the
+  // goal-child-run / goal-gate-review blocks) realized by several actuals that
+  // all share one body — five RunResult child results, two GoalGate passes. The
+  // actuals were already typed (they are flow reports); the generic NAME they
+  // collapse under was not. M8.2 gives each uniform generic its single canonical
+  // body, so the seam is typed end to end and the M8.4 gate has a body to check
+  // each actual against. The divergent generics (goal.contract@v1, the
+  // verification families) deliberately get NO canonical body here — they cannot
+  // have one, which is exactly what forces their split in M8.3.
+  const UNIFORM_PRODUCER_GENERICS = [
+    { flow: 'goal', generic: 'goal.child-run@v1' },
+    { flow: 'goal', generic: 'goal.gate-review@v1' },
+  ] as const;
+
+  it('resolves a canonical body signature for each uniform producer generic', () => {
+    for (const { generic } of UNIFORM_PRODUCER_GENERICS) {
+      expect(
+        resolveFieldSignature(generic),
+        `${generic} is a block output_contract realized by uniform actuals; it must resolve to a single canonical body`,
+      ).not.toBeNull();
+    }
+  });
+
+  it("each uniform generic's canonical body matches every actual aliased to it", () => {
+    // "Safe to unify" is now a machine fact, not a comment: the canonical body
+    // must equal every actual's body. If a future actual switches body, the
+    // generic stops matching it and this fails — forcing an explicit split or
+    // re-unify rather than a silent catch-all.
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
+    const byKey = new Map(
+      ledger.multiActualGenerics.map((multi) => [`${multi.flow}::${multi.generic}`, multi]),
+    );
+    for (const { flow, generic } of UNIFORM_PRODUCER_GENERICS) {
+      const multi = byKey.get(`${flow}::${generic}`);
+      expect(multi, `${flow}::${generic} must be a shipped multi-actual generic`).toBeDefined();
+      const canonical = resolveFieldSignature(generic);
+      expect(canonical, `${generic} must resolve to a canonical body`).not.toBeNull();
+      for (const actual of multi?.actuals ?? []) {
+        expect(
+          resolveFieldSignature(actual),
+          `${generic} canonical body must equal its actual ${actual} (uniform)`,
+        ).toBe(canonical);
+      }
+    }
+  });
+});
