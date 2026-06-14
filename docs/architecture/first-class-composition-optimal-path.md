@@ -260,6 +260,37 @@ flows actually run (M9). Per guardrails 3 and 5 it gets a failing-test-first
 characterization of the `pass_through` hole and a real composed flow to prove
 against, not a rushed bundle into the bindings pivot. Tracked as M4-safety.
 
+### M5 RESULT (2026-06-13): the catalog check is a fail-closed compile gate
+
+Both preconditions held live before the flip: every shipped schematic at zero
+catalog issues (the per-flow ratchet) and the accommodation ledger at zero (78
+aliases, all model-corrections; 10 multi-actual generics remain as M8 probe
+targets). The route-disjoint fork guardrail 6 named was already resolved in M1
+(goal-close's `recovery`/`gate` are `optional_inputs` checked by route-union), so
+the flip executed the pre-made #14 decision rather than surfacing a new one.
+
+`compileSchematicToCompiledFlow` now calls `collectSchematicCatalogIssues` first,
+before `frameSchematic`, and throws `FlowSchematicCompileError` on any issue,
+naming each offending item. It runs on every compile: the eight built-ins at emit
+time (all clean) and any composed or edited flow at run time. A catalog-incompatible
+flow now fails at compile instead of compiling silently and breaking at run time.
+
+Non-vacuity: before the flip, mutating `fix-act`'s stage to `analyze` compiled
+clean (the route-aware check is strictly stronger than the compiler's
+producer-existence check); after the flip it throws. The gate test pins both
+directions.
+
+Interaction handled: three compiler failure-mode tests mutated a flow to trigger
+a downstream error (unregistered verification or checkpoint writer, missing
+success route) with mutations that now also trip the gate. Root cause: each
+mutation is itself a block-model violation (an incompatible output, or a
+disconnected graph). The two writer checks are now proven directly on the
+extracted `ensureSupportedKindReportPair` validator, because the kind-to-writer
+invariant still has to hold for a catalog-valid flow that aliases a new output
+without registering a writer; the route-mapping check retargets to a leaf step
+(`close-step`) so the graph stays connected and the gate stays clean while the
+route check fires. Full `npm run verify` green.
+
 ## The optimal path (9 milestones)
 
 | # | Milestone | Why here |
@@ -269,7 +300,7 @@ against, not a rushed bundle into the bindings pivot. Tracked as M4-safety.
 | M3 | Close real gaps with new/split blocks **and** serialize engineFlags + runtime-surface onto the manifest | Model true-to-zero by correction; manifest carries built-in behavior — both prerequisites for the flip and the linchpin |
 | M4 | **LINCHPIN (done 2026-06-13):** dissolve the by-id package lookup at all 5 sites; delete the fallback | The coherence pivot for bindings; a composed flow becomes first-class for behavior resolution |
 | M4-safety | Rehome the flow-kind policy off by-id (`pass_through` hole + `id === 'review'`), failing-test-first | The safety half of the pivot; latent until M9, sequenced before composed flows run |
-| M5 | Flip the catalog to a **fail-closed compile gate** for all 8 + composed flows (resolves #14) | Forces the two parallel truths into permanent agreement; safe only after M3 (zero-by-correction) and M4 (id-agnostic) |
+| M5 | **(done 2026-06-13)** Flip the catalog to a **fail-closed compile gate** for all 8 + composed flows (resolves #14) | Forces the two parallel truths into permanent agreement; safe only after M3 (zero-by-correction) and M4 (id-agnostic) |
 | M6 | Collapse `data.ts`/`schematic.json` redundancy; demote schematic to a drift-checked generated artifact | Subtractive elegance; safe once the gate enforces block linkage |
 | M7 | Build the **block-to-schematic assembler**; prove it on the truth-test exemplar (build/pursue) | The missing primitive every proposal assumed but none built |
 | M8 | **Type** the routing seam: real Zod bodies for `route.decision@v1`, `flow.catalog@v1`, `task.intake@v1` + producer generics; anti-widening gate | Closes the "typed" half of the vision no proposal had closed |

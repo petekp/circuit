@@ -6,17 +6,21 @@
 // baseline test all validate against the same catalog instead of each re-reading
 // the JSON and risking drift.
 //
-// This is REPORT-ONLY by design today. The strong route-aware validator is
-// strictly stronger than the compiler's existing producer-existence check
-// (`computeReads`), and a probe found 128 issues across six of the eight shipped
-// schematics: the block catalog is a coarse model that reuses generic block ids
-// for structurally distinct items, and only Fix and runtime-proof were authored
-// to satisfy it. Flipping this to a fail-closed compile gate would break the
-// build for those six flows, so the flip waits until the block model actually
-// describes the built-ins (a block-model decision, not a mechanical edit). The
-// recorded baseline and the ratchet that guards it live in
+// This seam is the FAIL-CLOSED catalog gate (M5). The route-aware validator is
+// strictly stronger than the compiler's producer-existence check (`computeReads`):
+// when the seam first landed a probe found 128 issues across six of the eight
+// shipped schematics, because the block catalog reused generic block ids for
+// structurally distinct items, and only Fix and runtime-proof were authored to
+// satisfy it. The block model has since been corrected flow by flow (the
+// goal-block split, then the M3a pass for explore, prototype, and review) so
+// every shipped schematic reaches zero by correction. With catalog-zero reached
+// and the accommodation ledger at zero (the two preconditions M5 required),
+// `compileSchematicToCompiledFlow` calls this and throws on any issue. The eight
+// built-ins compile clean; the gate's standing job is to stop a composed or
+// edited flow that wires an incompatible contract from compiling. The per-flow
+// ratchet that proves the built-ins stay at zero lives in
 // `tests/contracts/schematic-catalog-check.test.ts`. See
-// `docs/ideas/first-class-composition-sequence.md` (Stage 2).
+// `docs/architecture/first-class-composition-optimal-path.md` (M5).
 import { isGenericallyLegitRoute } from '../policy/recovery-route-policy.js';
 import { FLOW_BLOCK_CATALOG } from '../schemas/flow-block-definitions.js';
 import type {

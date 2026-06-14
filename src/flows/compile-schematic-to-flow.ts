@@ -43,6 +43,7 @@ import type { Step } from '../schemas/step.js';
 import { axisSelectionsForAxes } from './axis-selections.js';
 import { findCheckpointBriefBuilder } from './registries/checkpoint-writers/registry.js';
 import { findVerificationWriter } from './registries/verification-writers/registry.js';
+import { collectSchematicCatalogIssues } from './schematic-catalog-check.js';
 
 export class FlowSchematicCompileError extends Error {
   constructor(message: string) {
@@ -63,7 +64,7 @@ function fail(message: string): never {
 // understand. Both verification and checkpoint kinds consult their
 // per-kind writer registries (the single source of truth — adding a
 // writer there auto-permits the schema here).
-function ensureSupportedKindReportPair(item: SchematicStep): void {
+export function ensureSupportedKindReportPair(item: SchematicStep): void {
   if (item.execution.kind === 'verification') {
     if (findVerificationWriter(item.output as unknown as string) === undefined) {
       fail(
@@ -700,6 +701,23 @@ function composeStagePathRationale(
 }
 
 export function compileSchematicToCompiledFlow(schematic: FlowSchematic): CompileResult {
+  // M5 (first-class composition): the fail-closed catalog gate. Every flow that
+  // reaches the compiler — the eight built-ins at emit time and any composed or
+  // edited flow at run time — must fit the block catalog. This is the route-aware
+  // check that the catalog-check seam exposes report-only; here it is enforced.
+  // It runs first, before any framing, so a flow whose items do not match the
+  // block model fails with the most fundamental error rather than a downstream
+  // symptom. The built-ins compile clean (zero by correction); this gate's
+  // standing job is to stop a catalog-incompatible composed flow from compiling.
+  const catalogIssues = collectSchematicCatalogIssues(schematic);
+  if (catalogIssues.length > 0) {
+    const noun = catalogIssues.length === 1 ? 'issue' : 'issues';
+    const detail = catalogIssues.map((issue) => `${issue.item_id}: ${issue.message}`).join('; ');
+    fail(
+      `schematic '${schematic.id}' is not compatible with the block catalog (${catalogIssues.length} ${noun}): ${detail}`,
+    );
+  }
+
   const frame = frameSchematic(schematic);
   const axisSelections = axisSelectionsForAxes(frame.schematicId, frame.axes);
 

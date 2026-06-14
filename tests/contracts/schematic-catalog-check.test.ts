@@ -1,23 +1,26 @@
-// Stage 2 (first-class composition): the shared, report-only catalog-check seam
-// plus the baseline ratchet that records where the eight shipped schematics
-// stand against the strong route-aware validator.
+// Stage 2 / M5 (first-class composition): the shared catalog-check seam, the
+// fail-closed compile gate it now backs, and the per-flow ratchet that records
+// where the eight shipped schematics stand against the route-aware validator.
 //
-// Why report-only, not yet a fail-closed compile gate: the seam landed when a
-// probe across all eight schematics found 128 issues across six of them,
-// because the block catalog reused generic block ids (`goal`, `plan`) for
-// structurally distinct schematic items, and only Fix and runtime-proof were
-// authored to satisfy it. The block model has since been corrected flow by
-// flow — the goal-block split, then the M3a block-model pass for explore,
-// prototype, and review — so every shipped schematic now reaches zero by
-// correction: honest aliases and dedicated blocks, never widening the
-// validator to mask a gap. The block model is no longer the blocker; the
-// fail-closed flip now waits only on the linchpin work (M4/M5) that lets the
-// engine resolve a flow from its manifest declarations. See
-// docs/ideas/first-class-composition-sequence.md (Stage 2) and
+// History: the seam landed report-only when a probe across all eight schematics
+// found 128 issues across six of them, because the block catalog reused generic
+// block ids (`goal`, `plan`) for structurally distinct schematic items, and only
+// Fix and runtime-proof were authored to satisfy it. The block model was then
+// corrected flow by flow (the goal-block split, then the M3a block-model pass for
+// explore, prototype, and review) so every shipped schematic reaches zero by
+// correction: honest aliases and dedicated blocks, never widening the validator
+// to mask a gap. With catalog-zero reached and the accommodation ledger at zero,
+// M5 flipped the seam to fail-closed: compileSchematicToCompiledFlow throws on
+// any catalog issue (see the "fail-closed compile gate (M5)" describe below). The
+// ratchet remains the precise per-flow diagnostic. See
 // docs/architecture/first-class-composition-optimal-path.md (M3a, M5).
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import {
+  FlowSchematicCompileError,
+  compileSchematicToCompiledFlow,
+} from '../../src/flows/compile-schematic-to-flow.js';
 import { collectSchematicCatalogIssues } from '../../src/flows/schematic-catalog-check.js';
 import { FlowSchematic } from '../../src/schemas/flow-schematic.js';
 
@@ -65,15 +68,15 @@ describe('collectSchematicCatalogIssues', () => {
   });
 });
 
-describe('shipped schematics vs the block catalog (report-only ratchet)', () => {
-  // The recorded baseline. These counts are NOT a target — they are a ceiling.
-  // A schematic getting fixed lowers its count (good, never fails the test). A
-  // schematic or a newly composed flow gaining a violation raises it (a
-  // regression, fails the test). Fix and runtime-proof are the original
-  // block-first exemplars; build, pursue, goal, explore, prototype, and review
-  // reached 0 by correction (honest aliases, corrected and dedicated block
-  // models, route-conditional availability, and one dead-edge removal). All
-  // eight shipped schematics are now pinned at 0 and must never regress.
+describe('shipped schematics vs the block catalog (per-flow zero ratchet)', () => {
+  // Every shipped schematic is pinned at zero catalog issues. Since M5 the
+  // compile gate enforces this directly: a non-zero flow fails to compile, so
+  // emit and the whole build break. This ratchet is the precise per-flow
+  // diagnostic that complements the gate, naming which flow regressed and by how
+  // much. The counts below are a ceiling of 0. Fix and runtime-proof were the
+  // original block-first exemplars; build, pursue, goal, explore, prototype, and
+  // review reached 0 by correction (honest aliases, corrected and dedicated block
+  // models, route-conditional availability, and one dead-edge removal).
   const BASELINE: Record<string, number> = {
     // build 3 -> 2 (gate-recognition reconciliation cleared `advance`, the
     // slice-loop forward edge) -> 0 (block-model honesty pass). The last two were
@@ -187,5 +190,49 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
     }
     // Surface the live tally so a reader sees the ratchet position at a glance.
     console.log(`\nschematic catalog issues: ${total} total\n${report.join('\n')}\n`);
+  });
+});
+
+describe('fail-closed compile gate (M5)', () => {
+  // M5 (first-class composition) flips the catalog check from report-only to a
+  // compile-time gate: compileSchematicToCompiledFlow now calls
+  // collectSchematicCatalogIssues and throws FlowSchematicCompileError on any
+  // issue, before any other framing work. The eight built-ins reached zero by
+  // correction (pinned by the ratchet above) and an accommodation ledger of zero
+  // (tests/contracts/accommodation-ledger.test.ts), the two preconditions the
+  // flip required. The gate's standing job is composed/edited flows: one that
+  // wires a catalog-incompatible item now fails at compile time instead of
+  // compiling silently and breaking at run time.
+  //
+  // Non-vacuity: before the flip this exact mutation compiled clean, because the
+  // route-aware catalog check is strictly stronger than the compiler's
+  // producer-existence check (the produced contract still exists; only the
+  // block/stage pairing is wrong). So the gate is load-bearing, not a restatement
+  // of a check the compiler already ran.
+  function brokenFix(): FlowSchematic {
+    const schematic = loadSchematic('fix');
+    const act = schematic.items.find((item) => (item.id as unknown as string) === 'fix-act');
+    if (act === undefined) throw new Error('fix-act missing');
+    act.stage = 'analyze';
+    return schematic;
+  }
+
+  it('throws FlowSchematicCompileError when an item is catalog-incompatible', () => {
+    expect(() => compileSchematicToCompiledFlow(brokenFix())).toThrow(FlowSchematicCompileError);
+  });
+
+  it('names the offending item and the catalog issue in the error', () => {
+    expect(() => compileSchematicToCompiledFlow(brokenFix())).toThrow(
+      /fix-act: stage "analyze" is not compatible with block "act"/,
+    );
+  });
+
+  it('compiles every shipped schematic clean — the gate is inert at zero issues', () => {
+    for (const id of shippedSchematicIds()) {
+      expect(
+        () => compileSchematicToCompiledFlow(loadSchematic(id)),
+        `${id} must compile clean`,
+      ).not.toThrow();
+    }
   });
 });

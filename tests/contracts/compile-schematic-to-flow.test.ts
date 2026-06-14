@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FlowSchematicCompileError,
   compileSchematicToCompiledFlow,
+  ensureSupportedKindReportPair,
 } from '../../src/flows/compile-schematic-to-flow.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 import { FlowSchematic } from '../../src/schemas/flow-schematic.js';
@@ -74,6 +75,50 @@ describe('compileSchematicToCompiledFlow — failure modes', () => {
     return FlowSchematic.parse(readJson('src/flows/build/schematic.json'));
   }
 
+  // Build trimmed to a terminal verification step (frame → analyze → plan →
+  // baseline → act → verify) whose output is a contract with no registered
+  // writer, made catalog-compatible by aliasing it to the verification block's
+  // generic output contract. This is the one construction where the fail-closed
+  // catalog gate passes (the output is block-compatible via the alias, the step
+  // is reachable, every input is produced) yet the per-item kind↔writer check
+  // must still fire. It exists to prove that check is wired into the compile
+  // path: delete the `ensureSupportedKindReportPair(item)` call in `compileItem`
+  // and this flow compiles clean instead of throwing.
+  function loadCatalogCleanWriterlessVerification() {
+    const raw = readJson('src/flows/build/schematic.json') as {
+      items: { id: string; output: string; routes: Record<string, string> }[];
+      contract_aliases: { generic: string; actual: string }[];
+    };
+    const keep = new Set([
+      'frame-step',
+      'analyze-step',
+      'plan-step',
+      'build-baseline',
+      'act-step',
+      'verify-step',
+    ]);
+    const items = raw.items
+      .filter((item) => keep.has(item.id))
+      .map((item) =>
+        item.id === 'verify-step'
+          ? {
+              ...item,
+              output: 'test.writerless-verification@v1',
+              routes: { continue: '@complete', stop: '@stop' },
+            }
+          : item,
+      );
+    const trimmed = {
+      ...raw,
+      items,
+      contract_aliases: [
+        ...raw.contract_aliases,
+        { generic: 'verification.result@v1', actual: 'test.writerless-verification@v1' },
+      ],
+    };
+    return FlowSchematic.parse(trimmed);
+  }
+
   it('throws if a required schematic-level field is missing', () => {
     const schematic = loadBuildSchematic();
     // Force-clear via type assertion since FlowSchematic normally enforces presence
@@ -92,15 +137,34 @@ describe('compileSchematicToCompiledFlow — failure modes', () => {
     expect(() => compileSchematicToCompiledFlow(broken)).toThrow(/missing.*protocol/);
   });
 
-  it('throws if a verification step writes a schema the runner does not support', () => {
-    const schematic = loadBuildSchematic();
-    const itemsCopy = schematic.items.map((item) =>
-      item.id === ('verify-step' as unknown as typeof item.id)
-        ? ({ ...item, output: 'foo.bar@v1' } as unknown as typeof item)
-        : item,
+  it('compiling a catalog-clean flow whose verification output has no writer throws the writer error (proves the writer check is wired into compileItem)', () => {
+    // The wiring proof for the kind↔writer invariant. The catalog gate runs first
+    // and is strictly stronger than the writer check for incompatible outputs, so
+    // a writer-check failure is only reachable through the full compile path when
+    // the output is catalog-COMPATIBLE (via an alias) yet still has no registered
+    // writer. This flow is exactly that case: the gate passes, and the throw comes
+    // from `ensureSupportedKindReportPair` inside `compileItem`, not the gate.
+    // Remove that call and this test fails (the flow compiles instead).
+    const schematic = loadCatalogCleanWriterlessVerification();
+    expect(() => compileSchematicToCompiledFlow(schematic)).toThrow(FlowSchematicCompileError);
+    expect(() => compileSchematicToCompiledFlow(schematic)).toThrow(
+      /verify-step.*no verification writer is registered for that schema/,
     );
-    const broken = { ...schematic, items: itemsCopy } as unknown as typeof schematic;
-    expect(() => compileSchematicToCompiledFlow(broken)).toThrow(
+  });
+
+  it('rejects a verification step whose output has no registered writer', () => {
+    // The per-item invariant in isolation. Through compileSchematicToCompiledFlow an
+    // incompatible output like "foo.bar@v1" is caught first by the fail-closed
+    // catalog gate, so the unit-level negative path is proven directly on the
+    // validator the compiler runs for every verification step. The integration
+    // wiring proof above covers the catalog-compatible-but-writerless case.
+    const schematic = loadBuildSchematic();
+    const verifyStep = schematic.items.find(
+      (item) => item.id === ('verify-step' as unknown as typeof item.id),
+    );
+    if (verifyStep === undefined) throw new Error('verify-step missing');
+    const broken = { ...verifyStep, output: 'foo.bar@v1' } as unknown as typeof verifyStep;
+    expect(() => ensureSupportedKindReportPair(broken)).toThrow(
       /no verification writer is registered for that schema/,
     );
   });
@@ -112,15 +176,18 @@ describe('compileSchematicToCompiledFlow — failure modes', () => {
     expect(() => compileSchematicToCompiledFlow(fixSchematic)).not.toThrow();
   });
 
-  it('throws if a checkpoint step writes a report whose schema has no registered checkpoint writer', () => {
+  it('rejects a checkpoint step whose report schema has no registered writer', () => {
+    // M5 note: as above, the catalog gate rejects this mutation first on the
+    // compile path (incompatible checkpoint output), so the kind↔writer invariant
+    // is proven directly on the per-item validator the compiler runs for every
+    // checkpoint step.
     const schematic = loadBuildSchematic();
-    const itemsCopy = schematic.items.map((item) =>
-      item.id === ('frame-step' as unknown as typeof item.id)
-        ? ({ ...item, output: 'foo.bar@v1' } as unknown as typeof item)
-        : item,
+    const frameStep = schematic.items.find(
+      (item) => item.id === ('frame-step' as unknown as typeof item.id),
     );
-    const broken = { ...schematic, items: itemsCopy } as unknown as typeof schematic;
-    expect(() => compileSchematicToCompiledFlow(broken)).toThrow(
+    if (frameStep === undefined) throw new Error('frame-step missing');
+    const broken = { ...frameStep, output: 'foo.bar@v1' } as unknown as typeof frameStep;
+    expect(() => ensureSupportedKindReportPair(broken)).toThrow(
       /no checkpoint writer is registered for that schema/,
     );
   });
@@ -193,9 +260,13 @@ describe('compileSchematicToCompiledFlow — failure modes', () => {
   });
 
   it('throws if a step has no continue/complete route mapping to pass', () => {
+    // Target close-step (a leaf): removing its success route leaves the rest of
+    // the graph reachable, so the M5 catalog gate stays clean and the route-mapping
+    // check is what fires. Disconnecting a mid-graph step like frame-step would now
+    // trip the gate's reachability check first.
     const schematic = loadBuildSchematic();
     const itemsCopy = schematic.items.map((item) =>
-      item.id === ('frame-step' as unknown as typeof item.id)
+      item.id === ('close-step' as unknown as typeof item.id)
         ? ({ ...item, routes: { stop: '@stop' } } as unknown as typeof item)
         : item,
     );
