@@ -24,12 +24,13 @@
 // describes. Together the two gates cover the whole accommodation surface.
 //
 // What this ledger does NOT prove, on two axes:
-//   - Body divergence. That the bodies behind a multi-actual generic (one
-//     generic aliased to several distinct actuals) are mutually compatible. An
-//     alias can cite a real producer and still collapse structurally divergent
-//     bodies under one generic name. Deferred to M8 (typed canonical bodies +
-//     an anti-widening gate). The multi-actual generics are surfaced here as
-//     probe targets so they stay visible, not silently blessed.
+//   - Body divergence enforcement. `collectBodyDivergence` (M8.0, below) now
+//     DETECTS whether the bodies behind a multi-actual generic share one shape
+//     (uniform) or collapse structurally divergent bodies under one generic
+//     name (divergent) — report-only. It is the data source for the fail-closed
+//     anti-widening gate, which is M8.4: until that lands, a divergent generic
+//     is surfaced, not rejected. The multi-actual generics stay visible as probe
+//     targets, never silently blessed.
 //   - Per-consumer binding. That a consumer reading the generic resolves to the
 //     producer on ITS route. This ledger proves alias->producer EXISTENCE (the
 //     actual is emitted somewhere in the flow); it does not prove the compiler
@@ -62,6 +63,31 @@ export interface AccommodationLedger {
   readonly entries: readonly AliasLedgerEntry[];
   readonly accommodations: readonly AliasLedgerEntry[];
   readonly multiActualGenerics: readonly MultiActualGeneric[];
+}
+
+// M8 body-divergence: one actual contract behind a multi-actual generic, paired
+// with the structural signature of its body (null when no body resolves).
+export interface BodyDivergenceActual {
+  readonly actual: string;
+  readonly signature: string | null;
+}
+
+// M8 body-divergence classification for one multi-actual generic:
+//   - uniform:    every actual resolves to one and the same body signature.
+//                 Safe to unify under a single typed contract.
+//   - divergent:  the actuals resolve to two or more distinct signatures. The
+//                 generic name spans structurally different bodies — the
+//                 catch-all the anti-widening gate must forbid; needs a split.
+//   - unresolved: at least one actual has no registered body, so the bodies
+//                 cannot be compared yet (e.g. a routing-seam contract before
+//                 its body is authored).
+export type BodyDivergenceClassification = 'uniform' | 'divergent' | 'unresolved';
+
+export interface MultiActualBodyDivergence {
+  readonly flow: string;
+  readonly generic: string;
+  readonly classification: BodyDivergenceClassification;
+  readonly actuals: readonly BodyDivergenceActual[];
 }
 
 // Resolve each alias against the flow's real producers. The citation names the
@@ -136,4 +162,31 @@ export function collectAccommodationLedger(
   );
 
   return { entries, accommodations, multiActualGenerics };
+}
+
+// M8 (report-only): classify each multi-actual generic by whether the bodies
+// behind its actuals share one structural shape. `resolveSignature` maps an
+// actual contract name to its body signature (or null when unresolvable) — it
+// is injected so this stays a pure analyzer with no catalog or Zod dependency;
+// the catalog-backed resolver lives in contract-body-signature.ts. This is the
+// data source the M8.4 anti-widening gate consumes: a generic that classifies
+// `divergent` and is not made a discriminated union must be split.
+export function collectBodyDivergence(
+  generics: readonly MultiActualGeneric[],
+  resolveSignature: (contractName: string) => string | null,
+): MultiActualBodyDivergence[] {
+  return generics.map((generic) => {
+    const actuals = generic.actuals.map((actual) => ({
+      actual,
+      signature: resolveSignature(actual),
+    }));
+    const classification: BodyDivergenceClassification = actuals.some(
+      (entry) => entry.signature === null,
+    )
+      ? 'unresolved'
+      : new Set(actuals.map((entry) => entry.signature)).size === 1
+        ? 'uniform'
+        : 'divergent';
+    return { flow: generic.flow, generic: generic.generic, classification, actuals };
+  });
 }

@@ -130,6 +130,7 @@ const NON_PACKAGE_FILES = new Set([
   'catalog.ts',
   'catalog-derivations.ts',
   'compile-schematic-to-flow.ts',
+  'contract-body-signature.ts',
   'flow-definition.ts',
   'report-declarations.ts',
   'report-schema-kit.ts',

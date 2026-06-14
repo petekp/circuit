@@ -11,7 +11,11 @@
 // and why multi-actual generics are reported (not gated) until M8.
 import { describe, expect, it } from 'vitest';
 
-import { collectAccommodationLedger } from '../../src/flows/accommodation-ledger.js';
+import {
+  collectAccommodationLedger,
+  collectBodyDivergence,
+} from '../../src/flows/accommodation-ledger.js';
+import { resolveFieldSignature } from '../../src/flows/contract-body-signature.js';
 import { schematicForFlow, shippedFlowSchematics } from '../helpers/in-memory-schematics.js';
 
 describe('accommodation ledger', () => {
@@ -82,5 +86,51 @@ describe('accommodation ledger', () => {
         `${ledger.accommodations.length} accommodations, ` +
         `${ledger.multiActualGenerics.length} multi-actual generics\n${probeLines.join('\n')}\n`,
     );
+  });
+});
+
+describe('body-divergence reporter (M8.0)', () => {
+  it('resolves a body signature for every actual behind a multi-actual generic', () => {
+    // No shipped multi-actual generic may classify `unresolved`: every actual is
+    // a real producer (the accommodation ledger already proves that) and so must
+    // resolve to a registered body. An unresolved here means a body the reporter
+    // cannot see — exactly the blind spot M8 closes.
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
+    const divergence = collectBodyDivergence(ledger.multiActualGenerics, resolveFieldSignature);
+    for (const entry of divergence) {
+      expect(
+        entry.classification,
+        `${entry.flow}::${entry.generic} has an actual with no resolvable body`,
+      ).not.toBe('unresolved');
+    }
+  });
+
+  it('classifies the unify candidates uniform and the split candidates divergent', () => {
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
+    const divergence = collectBodyDivergence(ledger.multiActualGenerics, resolveFieldSignature);
+    const byKey = new Map(divergence.map((entry) => [`${entry.flow}::${entry.generic}`, entry]));
+
+    // Uniform: the bodies are byte-identical shapes, safe to unify (M8.2).
+    // goal.child-run = five RunResult bodies told apart only by flow_id;
+    // goal.gate-review = gate-pass and gate, identical shapes told apart by schema.
+    expect(byKey.get('goal::goal.child-run@v1')?.classification).toBe('uniform');
+    expect(byKey.get('goal::goal.gate-review@v1')?.classification).toBe('uniform');
+
+    // Divergent: one generic name spans structurally different bodies — the
+    // catch-all the gate forbids, resolved by a split (M8.3).
+    expect(byKey.get('build::verification.result@v1')?.classification).toBe('divergent');
+    expect(byKey.get('fix::verification.result@v1')?.classification).toBe('divergent');
+    expect(byKey.get('prototype::verification.result@v1')?.classification).toBe('divergent');
+    expect(byKey.get('goal::goal.contract@v1')?.classification).toBe('divergent');
+  });
+
+  it('logs the divergence classification for every multi-actual generic', () => {
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
+    const divergence = collectBodyDivergence(ledger.multiActualGenerics, resolveFieldSignature);
+    const lines = divergence.map(
+      (entry) =>
+        `  [${entry.classification}] ${entry.flow}::${entry.generic} (${entry.actuals.length} actuals)`,
+    );
+    console.log(`\nbody-divergence report (M8.0):\n${lines.join('\n')}\n`);
   });
 });

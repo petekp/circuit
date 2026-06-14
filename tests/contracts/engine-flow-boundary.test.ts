@@ -47,6 +47,11 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
   // schematic-catalog-check.ts -- shared cross-flow honesty infrastructure
   // exercised only by tests/contracts/accommodation-ledger.test.ts today.
   'src/flows/accommodation-ledger.ts',
+  // M8 (first-class composition): the contract-body signature resolver that
+  // backs the accommodation ledger's body-divergence reporter. Cross-flow
+  // infrastructure (it reads the catalog-derived report-schema registry), peer
+  // to the ledger; exercised by tests/contracts/accommodation-ledger.test.ts.
+  'src/flows/contract-body-signature.ts',
 ];
 
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
