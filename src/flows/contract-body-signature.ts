@@ -23,6 +23,7 @@
 
 import type { z } from 'zod';
 import { BUILTIN_REPORT_SCHEMAS } from '../schemas/builtin-report-schemas.js';
+import { BUILTIN_ROUTING_CONTRACT_SCHEMAS } from '../schemas/routing-contract-schemas.js';
 import { responseJsonSchemaFromZod } from '../shared/zod-to-response-schema.js';
 import { buildReportSchemaRegistry } from './catalog-derivations.js';
 import { flowPackages } from './catalog.js';
@@ -69,15 +70,32 @@ export function fieldSignature(schema: z.ZodType): string {
   return signatureOfNode(responseJsonSchemaFromZod(schema));
 }
 
-// Every report body the engine can resolve by NAME: relay reports plus
-// channel:'report' bodies (compose / close / verification / checkpoint /
-// sub-run). The narrower relay-only registry that parseReport uses would miss
-// most multi-actual actuals, which are channel:'report' compose/verification
-// bodies — so the divergence reporter must build over the broad coverage.
-const BODY_REGISTRY = buildReportSchemaRegistry(flowPackages, {
-  channels: 'relay+report',
-  fixtures: BUILTIN_REPORT_SCHEMAS,
-});
+// Every body the engine can resolve by contract NAME, in two parts:
+//   1. report bodies — relay reports plus channel:'report' bodies (compose /
+//      close / verification / checkpoint / sub-run). The narrower relay-only
+//      registry that parseReport uses would miss most multi-actual actuals,
+//      which are channel:'report' compose/verification bodies, so the resolver
+//      builds over the broad relay+report coverage.
+//   2. routing-seam contracts (M8.1) — task.intake / route.decision /
+//      flow.catalog. These are engine built-ins, not flow-package reports, so
+//      they merge in separately. A name collision between the two is a bug
+//      (a routing contract masquerading as a flow report), so it throws.
+const BODY_REGISTRY: Readonly<Record<string, z.ZodType<unknown>>> = (() => {
+  const reports = buildReportSchemaRegistry(flowPackages, {
+    channels: 'relay+report',
+    fixtures: BUILTIN_REPORT_SCHEMAS,
+  });
+  const merged: Record<string, z.ZodType<unknown>> = { ...reports };
+  for (const [name, schema] of Object.entries(BUILTIN_ROUTING_CONTRACT_SCHEMAS)) {
+    if (Object.hasOwn(merged, name)) {
+      throw new Error(
+        `routing-seam contract '${name}' collides with a flow report schema of the same name`,
+      );
+    }
+    merged[name] = schema;
+  }
+  return Object.freeze(merged);
+})();
 
 // Resolve a contract/actual name to its body signature, or null when no
 // registered body exists for it (e.g. a routing-seam contract before M8.1

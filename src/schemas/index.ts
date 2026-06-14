@@ -1,4 +1,5 @@
 export * from './builtin-report-schemas.js';
+export * from './routing-contract-schemas.js';
 export * from './connector.js';
 export * from './config.js';
 export * from './custom-flow-descriptor.js';
