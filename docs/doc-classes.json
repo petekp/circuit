@@ -55,6 +55,10 @@
     { "glob": "docs/architecture/architecture-improvement-roadmap.md", "class": "historical" },
     { "glob": "docs/architecture/architecture-revamp-staged-plan.md", "class": "historical" },
     {
+      "glob": "docs/architecture/first-class-composition-optimal-path.md",
+      "class": "historical"
+    },
+    {
       "glob": "docs/architecture/continuity-first-principles-evaluation.md",
       "class": "historical"
     },

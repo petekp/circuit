@@ -98,6 +98,7 @@
         "task": "task.intake@v1",
         "route": "route.decision@v1"
       },
+      "optional_inputs": [],
       "output": "goal.clarified-task@v1",
       "evidence_requirements": [
         "original request",
@@ -145,6 +146,7 @@
         "route": "route.decision@v1",
         "clarified": "goal.clarified-task@v1"
       },
+      "optional_inputs": [],
       "output": "goal.contract@v1",
       "evidence_requirements": [
         "goal contract",
@@ -165,7 +167,6 @@
         "review": "goal-run-review",
         "explore": "goal-run-explore",
         "pursue": "goal-run-pursue",
-        "ask": "goal-recovery-checkpoint",
         "stop": "@stop"
       },
       "route_overrides": {},
@@ -188,6 +189,7 @@
       "input": {
         "contract": "goal.contract@v1"
       },
+      "optional_inputs": [],
       "output": "goal.child-fix-result@v1",
       "evidence_requirements": [
         "static child flow target",
@@ -234,6 +236,7 @@
       "input": {
         "contract": "goal.contract@v1"
       },
+      "optional_inputs": [],
       "output": "goal.child-build-result@v1",
       "evidence_requirements": [
         "static child flow target",
@@ -280,6 +283,7 @@
       "input": {
         "contract": "goal.contract@v1"
       },
+      "optional_inputs": [],
       "output": "goal.child-review-result@v1",
       "evidence_requirements": [
         "static child flow target",
@@ -326,6 +330,7 @@
       "input": {
         "contract": "goal.contract@v1"
       },
+      "optional_inputs": [],
       "output": "goal.child-explore-result@v1",
       "evidence_requirements": [
         "static child flow target",
@@ -372,6 +377,7 @@
       "input": {
         "contract": "goal.contract@v1"
       },
+      "optional_inputs": [],
       "output": "goal.child-pursue-result@v1",
       "evidence_requirements": [
         "static child flow target",
@@ -418,6 +424,7 @@
       "input": {
         "contract": "goal.contract@v1"
       },
+      "optional_inputs": [],
       "output": "goal.attempt@v1",
       "evidence_requirements": ["child result path", "child report paths", "attempt outcome"],
       "execution": {
@@ -446,6 +453,7 @@
         "contract": "goal.contract@v1",
         "attempt": "goal.attempt@v1"
       },
+      "optional_inputs": [],
       "output": "goal.evidence-evaluation@v1",
       "evidence_requirements": ["claim results", "evidence gaps", "next typed route"],
       "execution": {
@@ -486,6 +494,7 @@
         "evaluation": "goal.evidence-evaluation@v1",
         "attempt": "goal.attempt@v1"
       },
+      "optional_inputs": [],
       "output": "goal.recovery@v1",
       "evidence_requirements": ["recovery reason", "selected route", "operator input need"],
       "execution": {
@@ -525,6 +534,7 @@
         "question": "flow.question@v1",
         "evidence": "goal.recovery@v1"
       },
+      "optional_inputs": [],
       "output": "decision.answer@v1",
       "evidence_requirements": [
         "question",
@@ -579,6 +589,7 @@
         "contract": "goal.contract@v1",
         "evaluation": "goal.evidence-evaluation@v1"
       },
+      "optional_inputs": [],
       "output": "goal.gate-pass@v1",
       "evidence_requirements": ["safety review pass", "review lens", "evidence checked"],
       "execution": {
@@ -619,6 +630,7 @@
         "evaluation": "goal.evidence-evaluation@v1",
         "gate": "goal.gate-pass@v1"
       },
+      "optional_inputs": [],
       "output": "goal.gate@v1",
       "evidence_requirements": ["safety review pass", "review lens", "evidence checked"],
       "execution": {
@@ -661,6 +673,7 @@
         "recovery": "goal.recovery@v1",
         "gate": "goal.gate@v1"
       },
+      "optional_inputs": ["recovery", "gate"],
       "output": "goal.result@v1",
       "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
       "execution": {

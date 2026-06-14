@@ -66,6 +66,7 @@
         "task": "task.intake@v1",
         "route": "route.decision@v1"
       },
+      "optional_inputs": [],
       "output": "explore.brief@v1",
       "evidence_requirements": ["scope boundary", "constraints", "proof plan"],
       "execution": {
@@ -94,6 +95,7 @@
         "brief": "explore.brief@v1",
         "context": "context.packet@v1"
       },
+      "optional_inputs": [],
       "output": "explore.analysis@v1",
       "evidence_requirements": [
         "cause hypothesis",
@@ -133,6 +135,7 @@
         "diagnosis": "explore.analysis@v1",
         "review": "explore.review-verdict@v1"
       },
+      "optional_inputs": ["review"],
       "output": "explore.compose@v1",
       "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
       "execution": {
@@ -167,6 +170,7 @@
         "diagnosis": "explore.analysis@v1",
         "change": "explore.compose@v1"
       },
+      "optional_inputs": [],
       "output": "explore.review-verdict@v1",
       "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
       "execution": {
@@ -201,6 +205,7 @@
         "brief": "explore.brief@v1",
         "diagnosis": "explore.analysis@v1"
       },
+      "optional_inputs": [],
       "output": "explore.decision-options@v1",
       "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
       "execution": {
@@ -229,6 +234,7 @@
         "brief": "explore.brief@v1",
         "options": "explore.decision-options@v1"
       },
+      "optional_inputs": [],
       "output": "explore.tournament-aggregate@v1",
       "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
       "execution": {
@@ -339,6 +345,7 @@
         "options": "explore.decision-options@v1",
         "aggregate": "explore.tournament-aggregate@v1"
       },
+      "optional_inputs": [],
       "output": "explore.tournament-review@v1",
       "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
       "execution": {
@@ -372,6 +379,7 @@
         "question": "explore.tournament-review@v1",
         "evidence": "explore.tournament-aggregate@v1"
       },
+      "optional_inputs": [],
       "output": "explore.tradeoff-selection@v1",
       "evidence_requirements": [
         "question",
@@ -434,6 +442,7 @@
         "aggregate": "explore.tournament-aggregate@v1",
         "review": "explore.tournament-review@v1"
       },
+      "optional_inputs": [],
       "output": "explore.decision@v1",
       "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
       "execution": {
@@ -465,6 +474,7 @@
         "review": "explore.tournament-review@v1",
         "decision": "explore.decision@v1"
       },
+      "optional_inputs": [],
       "output": "explore.result@v1",
       "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
       "execution": {
@@ -494,6 +504,7 @@
         "compose": "explore.compose@v1",
         "review": "explore.review-verdict@v1"
       },
+      "optional_inputs": [],
       "output": "explore.result@v1",
       "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
       "execution": {

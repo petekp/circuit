@@ -28377,6 +28377,16 @@ var SchematicStep = external_exports.object({
   title: external_exports.string().min(1),
   stage: CanonicalStage,
   input: external_exports.record(external_exports.string().regex(/^[a-z][a-z0-9_]*$/), FlowContractRef).default({}),
+  // Input keys (from `input` above) whose contract may legitimately be absent
+  // on some reachable routes — the consumer reads them best-effort and tolerates
+  // the gap. Example: goal-close reads `recovery` and `gate`, each present on only
+  // one of two mutually exclusive routes; its close builder already reads both
+  // with required:false. The route-aware availability check verifies a required
+  // input on every reaching route (intersection) and an optional input on at
+  // least one (union). This lifts the runtime writer's required:false truth into
+  // the schematic so the validator models route-disjoint gathers by correction,
+  // not by aliasing or widening.
+  optional_inputs: external_exports.array(external_exports.string().regex(/^[a-z][a-z0-9_]*$/)).default([]),
   output: FlowContractRef,
   evidence_requirements: SchematicEvidenceRequirements,
   execution: StepExecution,
@@ -28429,6 +28439,15 @@ var SchematicStep = external_exports.object({
         code: "custom",
         path: ["route_overrides", route],
         message: `route override must target a declared route outcome: ${route}`
+      });
+    }
+  }
+  for (const key of item.optional_inputs) {
+    if (!Object.hasOwn(item.input, key)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["optional_inputs", key],
+        message: `optional_inputs entry "${key}" is not a declared input key`
       });
     }
   }
@@ -33217,6 +33236,11 @@ var exploreFlowData = {
           // must see why the compose was rejected.
           review: "explore.review-verdict@v1"
         },
+        // review arrives only on the rework loop-back (review-step ->
+        // synthesize-step); the first pass from analyze-step never produces it.
+        // Declaring it optional records that route-disjoint truth: it is valid
+        // as long as at least one reachable route produces it.
+        optional_inputs: ["review"],
         output: "explore.compose@v1",
         evidenceRequirements: ["changed files", "change rationale", "declared follow-up proof"],
         execution: {
@@ -38527,6 +38551,13 @@ var goalFlowData = {
         route_from_report: {
           path: ["selected_flow_target"]
         },
+        // The goal-contract block routes on selected_flow_target, whose schema
+        // (GoalFlowTarget) only admits fix/build/review/explore/pursue. There is
+        // no report value that selects "ask", so the old ask -> recovery
+        // checkpoint edge could never fire. Removing it is runtime-neutral and
+        // deletes the phantom route that made goal-recovery-checkpoint and
+        // goal-close look like they read contracts their real routes never
+        // produce.
         routes: {
           continue: "goal-run-build",
           fix: "goal-run-fix",
@@ -38534,7 +38565,6 @@ var goalFlowData = {
           review: "goal-run-review",
           explore: "goal-run-explore",
           pursue: "goal-run-pursue",
-          ask: "goal-recovery-checkpoint",
           stop: "@stop"
         }
       },
@@ -38789,6 +38819,13 @@ var goalFlowData = {
           recovery: "goal.recovery@v1",
           gate: "goal.gate@v1"
         },
+        // recovery and gate arrive on disjoint routes: the gate path
+        // (gate-pass-2 -> close) never runs recovery, and the recovery path
+        // (recovery/checkpoint -> close) never runs the second gate pass. The
+        // close writer already reads both with `optional: true`, so declaring
+        // them optional lifts that runtime truth into the model: each is valid
+        // as long as some reachable route produces it.
+        optional_inputs: ["recovery", "gate"],
         output: "goal.result@v1",
         evidence_requirements: ["outcome", "evidence pointers", "residual risks", "follow-ups"],
         execution: { kind: "compose" },

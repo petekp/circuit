@@ -16,6 +16,7 @@
       "input": {
         "brief": "flow.brief@v1"
       },
+      "optional_inputs": [],
       "output": "plan.strategy@v1",
       "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
       "execution": {
@@ -43,6 +44,7 @@
         "brief": "flow.brief@v1",
         "plan": "plan.strategy@v1"
       },
+      "optional_inputs": [],
       "output": "change.evidence@v1",
       "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
       "execution": {

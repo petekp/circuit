@@ -210,6 +210,11 @@ export const exploreFlowData = {
           // must see why the compose was rejected.
           review: 'explore.review-verdict@v1',
         },
+        // review arrives only on the rework loop-back (review-step ->
+        // synthesize-step); the first pass from analyze-step never produces it.
+        // Declaring it optional records that route-disjoint truth: it is valid
+        // as long as at least one reachable route produces it.
+        optional_inputs: ['review'],
         output: 'explore.compose@v1',
         evidenceRequirements: ['changed files', 'change rationale', 'declared follow-up proof'],
         execution: {

@@ -77,6 +77,7 @@
         "task": "task.intake@v1",
         "route": "route.decision@v1"
       },
+      "optional_inputs": [],
       "output": "fix.brief@v1",
       "evidence_requirements": ["scope boundary", "constraints", "proof plan"],
       "execution": {
@@ -107,6 +108,7 @@
         "brief": "fix.brief@v1",
         "request": "context.request@v1"
       },
+      "optional_inputs": [],
       "output": "fix.context@v1",
       "evidence_requirements": ["source list", "observations", "confidence notes"],
       "execution": {
@@ -141,6 +143,7 @@
         "brief": "fix.brief@v1",
         "context": "fix.context@v1"
       },
+      "optional_inputs": [],
       "output": "fix.diagnosis@v1",
       "evidence_requirements": [
         "cause hypothesis",
@@ -180,6 +183,7 @@
         "question": "flow.question@v1",
         "evidence": "fix.diagnosis@v1"
       },
+      "optional_inputs": [],
       "output": "fix.no-repro-decision@v1",
       "evidence_requirements": [
         "question",
@@ -227,6 +231,7 @@
         "proof": "verification.plan@v1",
         "brief": "fix.brief@v1"
       },
+      "optional_inputs": [],
       "output": "fix.regression-proof@v1",
       "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
       "execution": {
@@ -255,6 +260,7 @@
       "input": {
         "proof": "verification.plan@v1"
       },
+      "optional_inputs": [],
       "output": "fix.baseline-snapshot@v1",
       "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
       "execution": {
@@ -283,6 +289,7 @@
         "brief": "fix.brief@v1",
         "diagnosis": "fix.diagnosis@v1"
       },
+      "optional_inputs": [],
       "output": "fix.change@v1",
       "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
       "execution": {
@@ -338,6 +345,7 @@
         "brief": "fix.brief@v1",
         "change": "fix.change@v1"
       },
+      "optional_inputs": [],
       "output": "fix.verification@v1",
       "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
       "execution": {
@@ -369,6 +377,7 @@
         "baseline": "fix.baseline-snapshot@v1",
         "change": "fix.change@v1"
       },
+      "optional_inputs": [],
       "output": "fix.change-set@v1",
       "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
       "execution": {
@@ -398,6 +407,7 @@
         "proof": "verification.plan@v1",
         "brief": "fix.brief@v1"
       },
+      "optional_inputs": [],
       "output": "fix.regression-rerun@v1",
       "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
       "execution": {
@@ -432,6 +442,7 @@
         "change": "fix.change@v1",
         "verification": "fix.verification@v1"
       },
+      "optional_inputs": [],
       "output": "fix.review@v1",
       "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
       "execution": {
@@ -475,6 +486,7 @@
         "regression_rerun": "fix.regression-rerun@v1",
         "change_set": "fix.change-set@v1"
       },
+      "optional_inputs": [],
       "output": "fix.result@v1",
       "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
       "execution": {
@@ -521,6 +533,7 @@
         "change_set": "fix.change-set@v1",
         "review": "fix.review@v1"
       },
+      "optional_inputs": [],
       "output": "fix.result@v1",
       "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
       "execution": {
@@ -559,6 +572,7 @@
         "state": "flow.state@v1",
         "brief": "fix.brief@v1"
       },
+      "optional_inputs": [],
       "output": "continuity.record@v1",
       "evidence_requirements": [
         "goal",

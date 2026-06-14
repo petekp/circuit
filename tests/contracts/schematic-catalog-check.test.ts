@@ -65,8 +65,10 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
   // The recorded baseline. These counts are NOT a target — they are a ceiling.
   // A schematic getting fixed lowers its count (good, never fails the test). A
   // schematic or a newly composed flow gaining a violation raises it (a
-  // regression, fails the test). The two zeros are pinned exactly: Fix and
-  // runtime-proof are the exemplars and must never regress.
+  // regression, fails the test). Fix and runtime-proof are the original
+  // block-first exemplars; build, pursue, and now goal reached 0 by correction
+  // (honest aliases, corrected block models, route-conditional availability, and
+  // one dead-edge removal). Every 0 is pinned exactly and must never regress.
   const BASELINE: Record<string, number> = {
     // build 3 -> 2 (gate-recognition reconciliation cleared `advance`, the
     // slice-loop forward edge) -> 0 (block-model honesty pass). The last two were
@@ -79,55 +81,54 @@ describe('shipped schematics vs the block catalog (report-only ratchet)', () => 
     // never compiled, so this is runtime byte-identical. build is pinned at 0.
     build: 0,
     // explore 7 -> 6 (gate-recognition reconciliation cleared `retry`, a recovery
-    // route) -> 5 (block-model honesty pass). The cleared issue was review-step's
-    // stage `plan`: Explore omits the act/verify/review canonical stages
-    // (EXPLORE-I1), so its genuine adversarial reviewer pass is runtime-locked to
-    // the plan stage. Widening the Review block's stage allowlist to include `plan`
-    // describes that reality; schematicPolicy.stages is validation-only and never
-    // compiled, so it is byte-identical. The remaining 5 are all on synthesize-step,
-    // which names the `plan` block but is an implementer relay that composes the
-    // investigation (output explore.compose@v1, evidence about changed files, input
-    // from the review verdict). No alias or stage widen can make that honest: it is
-    // a real structural gap (Explore needs a compose/synthesize block the catalog
+    // route) -> 5 (block-model honesty pass) -> 4 (M1 route-conditional
+    // availability). The 6->5 cleared issue was review-step's stage `plan`: Explore
+    // omits the act/verify/review canonical stages (EXPLORE-I1), so its genuine
+    // adversarial reviewer pass is runtime-locked to the plan stage. The 5->4
+    // cleared issue was synthesize-step's `review` input: a forward read produced
+    // only on the review-step -> synthesize-step rework loop-back, absent on the
+    // first pass from analyze-step. relay-hints documents that the rework attempt
+    // reads the review verdict, so the route disjunction is real and intended. M1
+    // lifts it into the model: synthesize-step declares `optional_inputs: ['review']`,
+    // and the validator accepts an optional input that any reachable route produces.
+    // optional_inputs is authoring/validation-only, so this is runtime byte-identical.
+    // The remaining 4 are all on synthesize-step, which names the `plan` block but is
+    // an implementer relay that composes the investigation (output explore.compose@v1,
+    // evidence about changed files). No alias or stage widen can make that honest: it
+    // is a real structural gap (Explore needs a compose/synthesize block the catalog
     // does not yet have). Left as a real-limit for #14.
-    explore: 5,
+    explore: 4,
     fix: 0,
     // goal: 113 -> 11 (goal-block split) -> 9 (gate-recognition reconciliation)
-    // -> 5 (goal-gate-review allowed_routes corrected). The split replaced the one
-    // shared `goal` block (stamped on 9 structurally distinct items) with per-role
-    // blocks (goal-child-run, goal-attempt, goal-evaluate, goal-recover,
-    // goal-checkpoint, goal-gate-review, goal-close) and cleared 102 issues with
-    // zero net-new. Gate-recognition reconciliation then cleared the two `close`
-    // routes (a NORMAL route the validator now accepts regardless of block). The
-    // last 4 were `recover` and `run-next-gate-pass` on each gate pass: NOT dead
-    // edges (the earlier framing was inverted). The gate-pass items route from the
-    // reviewer report via route_from_report:['next_route'], whose schema enum
-    // (GoalGate.next_route) is exactly {run-next-gate-pass, recover, close} -- so
-    // those are the routes the block actually emits, and the live goal-flow test
-    // asserts they stay declared. The fix was to correct the block model: list
-    // recover and run-next-gate-pass in goal-gate-review.allowed_routes (they are
-    // flow-specific, neither NORMAL nor recovery-bound). allowed_routes is
-    // authoring/validation-only and never compiled, so this is runtime
-    // byte-identical. The 5 that remain are route-aware contract_unavailable issues
-    // on multi-path inputs the availability walk cannot satisfy, and they split two
-    // ways (verified by deleting the dead edge in-process and re-running the walk):
-    //   - 2 are genuine route disjunction: goal-close inputs `recovery` and `gate`.
+    // -> 5 (goal-gate-review allowed_routes corrected) -> 0 (M1 route-conditional
+    // availability + dead `ask` edge removed). The split replaced the one shared
+    // `goal` block (stamped on 9 structurally distinct items) with per-role blocks
+    // (goal-child-run, goal-attempt, goal-evaluate, goal-recover, goal-checkpoint,
+    // goal-gate-review, goal-close) and cleared 102 issues with zero net-new.
+    // Gate-recognition reconciliation cleared the two `close` routes; the
+    // goal-gate-review allowed_routes correction cleared `recover` and
+    // `run-next-gate-pass` on the gate passes. The final 5 were route-aware
+    // contract_unavailable issues on multi-path inputs, all now cleared by
+    // correction in M1:
+    //   - 2 were genuine route disjunction: goal-close inputs `recovery` and `gate`.
     //     A real run reaches goal-close by exactly one route -- the gate-pass path
     //     produces the gate but skips recovery; the recovery path produces recovery
-    //     but skips the gate -- so each is legitimately absent on the other route.
-    //     No block change can satisfy this; it is intrinsic to gathering inputs from
-    //     mutually exclusive routes.
-    //   - 3 are induced by a single dead edge and would vanish if it were removed:
-    //     goal-recovery-checkpoint's `evidence` plus goal-close's `attempt` and
-    //     `evaluation`. The goal-contract `ask` route into goal-recovery-checkpoint
-    //     is dead -- selected_flow_target, the only field compose.ts routes on,
-    //     cannot emit `ask` -- but the availability walk still treats it as a
-    //     reachable in-route. That contract-poor route intersects away attempt,
-    //     evaluation, and recovery at the checkpoint, and the loss propagates into
-    //     goal-close. Removing the dead `ask` edge fixes all three. That edit
-    //     changes compiled routes (runtime-neutral but not byte-identical), so it is
-    //     out of scope for this honesty pass and is documented for #14.
-    goal: 5,
+    //     but skips the gate. The close writer already reads both with optional:
+    //     true. M1 lifts that runtime truth into the model: goal-close declares
+    //     `optional_inputs: ['recovery', 'gate']`, and the validator checks optional
+    //     inputs by route-union (valid if any reachable route produces it) instead
+    //     of route-intersection. optional_inputs is authoring/validation-only, so
+    //     this is runtime byte-identical.
+    //   - 3 were induced by a single dead edge, now removed: goal-recovery-checkpoint's
+    //     `evidence` plus goal-close's `attempt` and `evaluation`. The goal-contract
+    //     `ask` route into goal-recovery-checkpoint was dead -- selected_flow_target,
+    //     the only field the contract block routes on, has schema GoalFlowTarget
+    //     {fix, build, review, explore, pursue} and cannot emit `ask` -- but the
+    //     availability walk still treated it as a reachable, contract-poor in-route
+    //     that intersected away attempt, evaluation, and recovery. Deleting the dead
+    //     `ask` edge fixes all three. It changes compiled routes but is
+    //     runtime-neutral (the edge can never fire). goal is pinned at 0.
+    goal: 0,
     prototype: 2,
     // pursue 1 -> 0 (block-model honesty pass). The one issue was batch-step's
     // execution kind `relay`: Pursue's batch-step delegates each work item to an

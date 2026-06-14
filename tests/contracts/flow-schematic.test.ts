@@ -496,6 +496,52 @@ describe('flow schematic schema — active Fix schematic', () => {
     });
   });
 
+  it('treats an optional input as available when it arrives on at least one reachable route', () => {
+    // Same route-disjoint setup as above: redirect fix-verify so fix-close is also
+    // reached by a path that skips fix-review, leaving `review` present on one route
+    // and absent on the other. A REQUIRED read of that input is an error (test
+    // above); an OPTIONAL read is legitimate — the close builder already reads
+    // review with required:false and tolerates its absence. M1 lifts that truth
+    // into the schematic via optional_inputs and checks optional inputs by union
+    // (available on at least one route) rather than intersection.
+    const schematic = parseFixSchematic();
+    const verify = schematic.items.find((item) => (item.id as unknown as string) === 'fix-verify');
+    if (verify === undefined) throw new Error('fix-verify missing');
+    verify.routes.continue = StepId.parse('fix-close');
+    const close = schematic.items.find((item) => (item.id as unknown as string) === 'fix-close');
+    if (close === undefined) throw new Error('fix-close missing');
+    (close as { optional_inputs?: string[] }).optional_inputs = ['review'];
+
+    const issues = validateFlowSchematicCatalogCompatibility(schematic, parseBlockCatalog());
+    expect(
+      issues.some(
+        (issue) =>
+          issue.item_id === 'fix-close' &&
+          issue.message.includes('unavailable contract "fix.review@v1"'),
+      ),
+    ).toBe(false);
+  });
+
+  it('still flags an optional input whose contract no reachable route produces', () => {
+    // Optional relaxes "must be on every route" to "must be on at least one
+    // route" — it does NOT excuse a contract that nothing produces anywhere.
+    const schematic = parseFixSchematic();
+    const close = schematic.items.find((item) => (item.id as unknown as string) === 'fix-close');
+    if (close === undefined) throw new Error('fix-close missing');
+    close.input.review = 'never.produced@v1' as unknown as (typeof close.input)['review'];
+    (close as { optional_inputs?: string[] }).optional_inputs = ['review'];
+
+    const issues = validateFlowSchematicCatalogCompatibility(schematic, parseBlockCatalog());
+    expect(
+      issues.some(
+        (issue) =>
+          issue.item_id === 'fix-close' &&
+          issue.message.includes('never.produced@v1') &&
+          issue.message.includes('no reachable route produces'),
+      ),
+    ).toBe(true);
+  });
+
   it('reports schematic items that cannot be reached from starts_at', () => {
     const schematic = parseFixSchematic();
     const frame = schematic.items.find((item) => (item.id as unknown as string) === 'fix-frame');

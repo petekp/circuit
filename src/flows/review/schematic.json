@@ -30,6 +30,7 @@
         "task": "task.intake@v1",
         "route": "route.decision@v1"
       },
+      "optional_inputs": [],
       "output": "review.intake@v1",
       "evidence_requirements": [
         "scope boundary",
@@ -61,6 +62,7 @@
       "input": {
         "brief": "review.intake@v1"
       },
+      "optional_inputs": [],
       "output": "review.verdict@v1",
       "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
       "execution": {
@@ -93,6 +95,7 @@
         "brief": "review.intake@v1",
         "review": "review.verdict@v1"
       },
+      "optional_inputs": [],
       "output": "review.result@v1",
       "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
       "execution": {

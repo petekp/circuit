@@ -108,7 +108,6 @@
         "review": "goal-run-review",
         "explore": "goal-run-explore",
         "pursue": "goal-run-pursue",
-        "ask": "goal-recovery-checkpoint",
         "stop": "@stop"
       },
       "route_from_report": {

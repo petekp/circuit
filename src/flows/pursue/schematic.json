@@ -50,6 +50,7 @@
         "intake": "task.intake@v1",
         "route": "route.decision@v1"
       },
+      "optional_inputs": [],
       "output": "pursuit.contract@v1",
       "evidence_requirements": [
         "ownership contract",
@@ -82,6 +83,7 @@
       "input": {
         "contract": "pursuit.contract@v1"
       },
+      "optional_inputs": [],
       "output": "pursuit.graph@v1",
       "evidence_requirements": [
         "dependency graph",
@@ -115,6 +117,7 @@
         "brief": "pursuit.contract@v1",
         "context": "pursuit.graph@v1"
       },
+      "optional_inputs": [],
       "output": "pursuit.wave-plan@v1",
       "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
       "execution": {
@@ -144,6 +147,7 @@
         "brief": "pursuit.contract@v1",
         "plan": "pursuit.wave-plan@v1"
       },
+      "optional_inputs": [],
       "output": "pursuit.batch@v1",
       "evidence_requirements": [
         "completed items",
@@ -183,6 +187,7 @@
         "brief": "pursuit.contract@v1",
         "change": "pursuit.batch@v1"
       },
+      "optional_inputs": [],
       "output": "pursuit.verification@v1",
       "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
       "execution": {
@@ -213,6 +218,7 @@
         "change": "pursuit.batch@v1",
         "verification": "pursuit.verification@v1"
       },
+      "optional_inputs": [],
       "output": "pursuit.review@v1",
       "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
       "execution": {
@@ -250,6 +256,7 @@
         "review": "pursuit.review@v1",
         "batch": "pursuit.batch@v1"
       },
+      "optional_inputs": [],
       "output": "pursuit.result@v1",
       "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
       "execution": {
