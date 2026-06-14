@@ -245,8 +245,64 @@ describe('consumed-divergence gate (M8.4)', () => {
     );
     expect(issues).toHaveLength(1);
     expect(issues[0]?.generic).toBe('g@v1');
+    expect(issues[0]?.classification).toBe('divergent');
     expect(issues[0]?.consumingItems).toEqual(['consumer']);
     expect(issues[0]?.signatures).toEqual(['shapeA', 'shapeB']);
+    expect(issues[0]?.unresolvedActuals).toEqual([]);
+  });
+
+  it('fires when a consumed generic is masked divergent->unresolved by a null-body actual', () => {
+    // The unresolved-masking hole (adversarial review, HIGH). a@v1 and b@v1 are
+    // genuinely divergent, but adding one actual with no registered body
+    // (masked@v1 -> null) flips the whole generic to `unresolved`. A consumed
+    // generic whose bodies cannot be PROVEN uniform is just as unsafe as a
+    // divergent one — a consumer could bind to the unverified shape — so the gate
+    // must fire here too, not go silent.
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'b@v1' },
+        { generic: 'g@v1', actual: 'masked@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-b', output: 'b@v1', input: {} },
+        { id: 'producer-masked', output: 'masked@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    // masked@v1 is intentionally absent from the resolver -> null signature.
+    const issues = collectConsumedDivergenceIssues(
+      schematic,
+      stubResolve({ 'a@v1': 'shapeA', 'b@v1': 'shapeB' }),
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.generic).toBe('g@v1');
+    expect(issues[0]?.classification).toBe('unresolved');
+    expect(issues[0]?.consumingItems).toEqual(['consumer']);
+    expect(issues[0]?.unresolvedActuals).toEqual(['masked@v1']);
+    // The resolved subset is still surfaced, so the message names both the
+    // divergent shapes the operator can see AND the unresolved actual it cannot.
+    expect(issues[0]?.signatures).toEqual(['shapeA', 'shapeB']);
+  });
+
+  it('allows an unresolved generic that is write-only (not consumed via the generic)', () => {
+    // Symmetric to the divergent write-only case: a generic with an unresolvable
+    // body is still fine if no item reads it via the generic name. The gate is
+    // about CONSUMPTION, not about whether every body is registered.
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'masked@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-masked', output: 'masked@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'a@v1' } },
+      ],
+    });
+    const issues = collectConsumedDivergenceIssues(schematic, stubResolve({ 'a@v1': 'shapeA' }));
+    expect(issues).toEqual([]);
   });
 
   it('allows a divergent generic that is write-only (consumed by no item via the generic)', () => {

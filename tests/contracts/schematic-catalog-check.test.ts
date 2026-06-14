@@ -255,14 +255,11 @@ describe('anti-widening gate (M8.4)', () => {
 
   it('flags a generic consumed as an item input that resolves to divergent bodies', () => {
     const issues = collectSchematicCatalogIssues(fixConsumingDivergentGeneric());
-    expect(
-      issues.some(
-        (issue) =>
-          issue.message.includes('verification.result@v1') &&
-          issue.message.includes('structurally different bodies'),
-      ),
-      'the consumed divergent generic must be flagged',
-    ).toBe(true);
+    const divergent = issues.find((issue) => issue.message.includes('verification.result@v1'));
+    expect(divergent, 'the consumed divergent generic must be flagged').toBeDefined();
+    // The message must render the real body count, not just the static phrase:
+    // fix aliases verification.result@v1 to five structurally-distinct actuals.
+    expect(divergent?.message).toMatch(/resolves to 5 structurally different bodies/);
   });
 
   it('is non-vacuous: no availability issue fires for the same (available) contract', () => {
@@ -284,5 +281,38 @@ describe('anti-widening gate (M8.4)', () => {
 
   it('leaves shipped fix clean — the gate is inert on a write-only umbrella', () => {
     expect(collectSchematicCatalogIssues(loadSchematic('fix'))).toEqual([]);
+  });
+
+  // The masking hole (adversarial review, HIGH): a single null-body alias flips a
+  // divergent consumed generic to `unresolved`, which an unresolved-skipping gate
+  // would wave through. verification.plan@v1 is a real fix initial_contract with
+  // NO registered body, so aliasing verification.result@v1 -> verification.plan@v1
+  // keeps accommodations at zero (it is a model-correction) while forcing the
+  // classification to `unresolved`.
+  function fixMaskingUnresolvedConsumed(): FlowSchematic {
+    const schematic = fixConsumingDivergentGeneric();
+    (schematic.contract_aliases as unknown as { generic: string; actual: string }[]).push({
+      generic: 'verification.result@v1',
+      actual: 'verification.plan@v1',
+    });
+    return schematic;
+  }
+
+  it('still flags the consumed generic when one null-body alias masks it as unresolved', () => {
+    const issues = collectSchematicCatalogIssues(fixMaskingUnresolvedConsumed());
+    expect(
+      issues.some(
+        (issue) =>
+          issue.message.includes('verification.result@v1') &&
+          issue.message.includes('no registered body'),
+      ),
+      'the masked-unresolved consumed generic must still be flagged',
+    ).toBe(true);
+  });
+
+  it('fails the compile gate when a masked-unresolved generic is consumed', () => {
+    expect(() => compileSchematicToCompiledFlow(fixMaskingUnresolvedConsumed())).toThrow(
+      FlowSchematicCompileError,
+    );
   });
 });

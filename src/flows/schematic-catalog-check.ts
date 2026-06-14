@@ -44,16 +44,23 @@ export function collectSchematicCatalogIssues(
   });
 
   // M8.4 anti-widening gate (fail-closed). Forbid a generic contract that is
-  // consumed as an item input AND resolves to more than one structurally-distinct
-  // body — a catch-all a consumer could bind to any of several shapes through.
-  // This lives in the flows layer (not the schema validator) because the body
-  // resolver is catalog-backed; injecting resolveFieldSignature keeps the schema
-  // module a leaf. Write-only block-reuse umbrellas pass untouched (see
+  // consumed as an item input AND cannot be proven to bind to a single body —
+  // either it resolves to >1 structurally-distinct body (divergent) or an actual
+  // has no registered body so uniformity is unprovable (unresolved). Gating the
+  // unresolved case too closes a masking hole: one null-body alias must not be
+  // able to flip a divergent consumed generic out of the gate's sight. This lives
+  // in the flows layer (not the schema validator) because the body resolver is
+  // catalog-backed; injecting resolveFieldSignature keeps the schema module a
+  // leaf. Write-only block-reuse umbrellas pass untouched (see
   // collectConsumedDivergenceIssues); since this runs on every compile, a composed
-  // flow that consumes one divergently is still caught.
+  // flow that consumes one unsafely is still caught.
   for (const issue of collectConsumedDivergenceIssues(schematic, resolveFieldSignature)) {
+    const reason =
+      issue.classification === 'divergent'
+        ? `resolves to ${issue.signatures.length} structurally different bodies; a consumer reading the generic could bind to any of them`
+        : `has actuals with no registered body (${issue.unresolvedActuals.join(', ')}), so the engine cannot prove its bodies are uniform; a consumer reading the generic could bind to an unverified shape`;
     issues.push({
-      message: `generic contract "${issue.generic}" is consumed as an item input (by ${issue.consumingItems.join(', ')}) but resolves to ${issue.signatures.length} structurally different bodies; a consumer reading the generic could bind to any of them. Read the specific typed actual instead, or unify the bodies under one contract.`,
+      message: `generic contract "${issue.generic}" is consumed as an item input (by ${issue.consumingItems.join(', ')}) but ${reason}. Read the specific typed actual instead, register the missing bodies, or unify the bodies under one contract.`,
     });
   }
 
