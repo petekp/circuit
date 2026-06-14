@@ -165,6 +165,11 @@ describe('orphan scalar: handoff', () => {
     id: 'orphan-handoff',
     starts_at: 'frame-step',
     initial_contracts: ['flow.state@v1', 'task.intake@v1', 'route.decision@v1'],
+    // M9-A1 typing gate: a brief produced and consumed in-flow must bind to a
+    // registered body, so the frame emits the typed actual build.brief@v1 and
+    // the alias proves it satisfies the generic flow.brief@v1 slot — the same
+    // authoring discipline every shipped flow uses.
+    contract_aliases: [{ generic: 'flow.brief@v1', actual: 'build.brief@v1' }],
     items: [
       {
         id: 'frame-step',
@@ -172,7 +177,7 @@ describe('orphan scalar: handoff', () => {
         title: 'Frame',
         stage: 'frame',
         input: { intake: 'task.intake@v1', route: 'route.decision@v1' },
-        output: 'flow.brief@v1',
+        output: 'build.brief@v1',
         evidence_requirements: ['scope boundary', 'constraints', 'proof plan'],
         execution: { kind: 'compose' },
         protocol: 'orphan-frame@v1',
@@ -185,7 +190,7 @@ describe('orphan scalar: handoff', () => {
         block: 'handoff',
         title: 'Handoff',
         stage: 'close',
-        input: { state: 'flow.state@v1', brief: 'flow.brief@v1' },
+        input: { state: 'flow.state@v1', brief: 'build.brief@v1' },
         output: 'continuity.record@v1',
         evidence_requirements: [
           'goal',
@@ -354,6 +359,9 @@ describe('orphan scalar: queue', () => {
     id: 'orphan-queue',
     starts_at: 'frame-step',
     initial_contracts: ['task.intake@v1', 'route.decision@v1', 'context.packet@v1'],
+    // M9-A1 typing gate: see orphan-handoff — the brief produced in-flow binds
+    // to the registered actual build.brief@v1 via the alias.
+    contract_aliases: [{ generic: 'flow.brief@v1', actual: 'build.brief@v1' }],
     items: [
       {
         id: 'frame-step',
@@ -361,7 +369,7 @@ describe('orphan scalar: queue', () => {
         title: 'Frame',
         stage: 'frame',
         input: { intake: 'task.intake@v1', route: 'route.decision@v1' },
-        output: 'flow.brief@v1',
+        output: 'build.brief@v1',
         evidence_requirements: ['scope boundary', 'constraints', 'proof plan'],
         execution: { kind: 'compose' },
         protocol: 'orphan-frame@v1',
@@ -374,7 +382,7 @@ describe('orphan scalar: queue', () => {
         block: 'queue',
         title: 'Queue',
         stage: 'plan',
-        input: { brief: 'flow.brief@v1', context: 'context.packet@v1' },
+        input: { brief: 'build.brief@v1', context: 'context.packet@v1' },
         output: 'work.queue@v1',
         evidence_requirements: ['ordered items', 'item state', 'risk class', 'selection rule'],
         execution: { kind: 'compose' },
@@ -430,6 +438,9 @@ describe('orphan scalar: batch', () => {
     id: 'orphan-batch',
     starts_at: 'frame-step',
     initial_contracts: ['task.intake@v1', 'route.decision@v1', 'work.queue@v1'],
+    // M9-A1 typing gate: see orphan-handoff — the brief produced in-flow binds
+    // to the registered actual build.brief@v1 via the alias.
+    contract_aliases: [{ generic: 'flow.brief@v1', actual: 'build.brief@v1' }],
     items: [
       {
         id: 'frame-step',
@@ -437,7 +448,7 @@ describe('orphan scalar: batch', () => {
         title: 'Frame',
         stage: 'frame',
         input: { intake: 'task.intake@v1', route: 'route.decision@v1' },
-        output: 'flow.brief@v1',
+        output: 'build.brief@v1',
         evidence_requirements: ['scope boundary', 'constraints', 'proof plan'],
         execution: { kind: 'compose' },
         protocol: 'orphan-frame@v1',
@@ -450,7 +461,7 @@ describe('orphan scalar: batch', () => {
         block: 'batch',
         title: 'Batch',
         stage: 'act',
-        input: { queue: 'work.queue@v1', brief: 'flow.brief@v1' },
+        input: { queue: 'work.queue@v1', brief: 'build.brief@v1' },
         output: 'batch.result@v1',
         evidence_requirements: [
           'completed items',
@@ -517,6 +528,9 @@ describe('orphan scalar: risk-rollback-check', () => {
       'change.evidence@v1',
       'verification.result@v1',
     ],
+    // M9-A1 typing gate: see orphan-handoff — the brief produced in-flow binds
+    // to the registered actual build.brief@v1 via the alias.
+    contract_aliases: [{ generic: 'flow.brief@v1', actual: 'build.brief@v1' }],
     items: [
       {
         id: 'frame-step',
@@ -524,7 +538,7 @@ describe('orphan scalar: risk-rollback-check', () => {
         title: 'Frame',
         stage: 'frame',
         input: { intake: 'task.intake@v1', route: 'route.decision@v1' },
-        output: 'flow.brief@v1',
+        output: 'build.brief@v1',
         evidence_requirements: ['scope boundary', 'constraints', 'proof plan'],
         execution: { kind: 'compose' },
         protocol: 'orphan-frame@v1',
@@ -540,7 +554,7 @@ describe('orphan scalar: risk-rollback-check', () => {
         input: {
           change: 'change.evidence@v1',
           verification: 'verification.result@v1',
-          brief: 'flow.brief@v1',
+          brief: 'build.brief@v1',
         },
         output: 'risk.decision@v1',
         evidence_requirements: ['risk class', 'allowed next action', 'recovery option'],

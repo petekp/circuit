@@ -305,3 +305,86 @@ export function collectConsumedDivergenceIssues(
   }
   return issues.sort((a, b) => a.generic.localeCompare(b.generic));
 }
+
+// M9-A1 single-actual typing gate: one unregistered-consumed-contract finding. A
+// contract that a flow CONSUMES (read as an item input) AND PRODUCES in-flow
+// (some item outputs it, directly or as an alias actual) whose body does not
+// resolve to a registered Zod shape.
+export interface UnregisteredConsumedContractIssue {
+  readonly flow: string;
+  // The consumed contract name as written in the item input.
+  readonly contract: string;
+  // Item ids that read the contract name as an input (sorted, deduped).
+  readonly consumingItems: readonly string[];
+}
+
+// M9-A1 single-actual typing gate (fail-closed). The anti-widening gate above
+// only inspects MULTI-actual generics — a consumed contract that binds to a
+// SINGLE body never enters `multiActualGenerics`, so its body is never checked.
+// If that one body is unregistered, a consumer reads a shape the engine never
+// verified: the single-actual blind spot an assembler trips, because an
+// assembler wires block generics raw rather than through flow-scoped actuals.
+// This gate closes it. Every contract a flow CONSUMES (read as an item input)
+// AND PRODUCES in-flow (some item outputs it, directly or as the actual behind
+// an alias it reads) must resolve to a registered body.
+//
+// Two populations are EXEMPT, by design:
+//   - initial-only inputs — a contract supplied solely by initial_contracts
+//     (the engine routing/brief seam: context.request@v1, flow.brief@v1,
+//     verification.plan@v1, flow.state@v1, flow.question@v1, context.packet@v1).
+//     It has no in-flow producer, so there is no producer->consumer binding an
+//     assembler could mis-stitch; its body is the engine's to own, not the
+//     flow's. The gate never inspects a contract no item produces.
+//   - multi-actual generics — the anti-widening gate already requires every one
+//     of their actuals to resolve and be uniform, so checking them here would
+//     only duplicate that finding. This gate is the complement: it owns the
+//     single-actual and no-alias cases that gate cannot see.
+//
+// `resolveSignature` is injected (the catalog-backed resolver lives in
+// contract-body-signature.ts) so this stays a pure analyzer.
+export function collectUnregisteredConsumedContractIssues(
+  schematic: FlowSchematic,
+  resolveSignature: (contractName: string) => string | null,
+): UnregisteredConsumedContractIssue[] {
+  const producedInFlow = new Set<string>();
+  for (const item of schematic.items) producedInFlow.add(item.output as unknown as string);
+
+  // generic -> its alias actuals. Used to (a) skip multi-actual generics (the
+  // anti-widening gate owns them) and (b) find the binding target when a consumed
+  // name is an alias generic: the consumer receives the actual's body, so that is
+  // the body that must resolve.
+  const actualsByGeneric = new Map<string, Set<string>>();
+  for (const alias of schematic.contract_aliases) {
+    const generic = alias.generic as unknown as string;
+    const set = actualsByGeneric.get(generic) ?? new Set<string>();
+    set.add(alias.actual as unknown as string);
+    actualsByGeneric.set(generic, set);
+  }
+
+  const consumersByContract = new Map<string, Set<string>>();
+  for (const item of schematic.items) {
+    const itemId = item.id as unknown as string;
+    for (const value of Object.values(item.input)) {
+      const name = value as unknown as string;
+      const aliasActuals = actualsByGeneric.get(name);
+      // Multi-actual generics belong to the anti-widening gate.
+      if ((aliasActuals?.size ?? 0) > 1) continue;
+      // Binding target(s): the single alias actual if the name is an alias
+      // generic, else the name itself (read raw).
+      const targets = aliasActuals === undefined ? [name] : [...aliasActuals];
+      // Only contracts produced in-flow are this flow's to type; an input that
+      // arrives only from initial_contracts is engine-supplied and exempt.
+      const producedTargets = targets.filter((target) => producedInFlow.has(target));
+      if (producedTargets.length === 0) continue;
+      if (!producedTargets.some((target) => resolveSignature(target) === null)) continue;
+      const consumers = consumersByContract.get(name) ?? new Set<string>();
+      consumers.add(itemId);
+      consumersByContract.set(name, consumers);
+    }
+  }
+
+  const flow = schematic.id as unknown as string;
+  return [...consumersByContract.entries()]
+    .map(([contract, items]) => ({ flow, contract, consumingItems: [...items].sort() }))
+    .sort((a, b) => a.contract.localeCompare(b.contract));
+}

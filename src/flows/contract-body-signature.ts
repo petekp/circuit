@@ -31,6 +31,8 @@ import { responseJsonSchemaFromZod } from '../shared/zod-to-response-schema.js';
 import { buildReportSchemaRegistry } from './catalog-derivations.js';
 import { flowPackages } from './catalog.js';
 import { GoalGate } from './goal/reports.js';
+import { ReviewRelayResult } from './review/reports.js';
+import { RuntimeProofCompose } from './runtime-proof/reports.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -103,6 +105,30 @@ const UNIFORM_PRODUCER_GENERIC_SCHEMAS: Readonly<Record<string, z.ZodType<unknow
   'goal.gate-review@v1': GoalGate,
 };
 
+// Raw consumed generics (M9-A1). A generic block output_contract that a flow
+// CONSUMES raw — read by an item input under the generic name, produced in-flow,
+// and NOT specialized to a flow-scoped actual — needs a canonical body so the
+// single-actual typing gate (collectUnregisteredConsumedContractIssues) can
+// verify the consumer reads a known shape. Two ship today, each consuming the
+// generic raw inside one flow:
+//   - plan.strategy@v1  → RuntimeProofCompose  (runtime-proof: compose-step
+//                          outputs it, relay-step reads it as `plan`)
+//   - review.verdict@v1 → ReviewRelayResult    (review: the reviewer relay
+//                          outputs it, verdict-step reads it as `review`)
+// The body is the SAME Zod schema the producing item writes — RuntimeProofCompose
+// is the compose writer's result (runtime-proof.compose@v1), ReviewRelayResult is
+// what the close step parses the reviewer relay against (review/writers/result.ts)
+// — so the registration matches runtime truth, never re-authoring a shape. Other
+// flows that reuse these generics alias them to flow-scoped actuals and read the
+// actual; this registration is consulted only where the generic is read raw,
+// which is exactly the two flows above. Divergent producer generics are NOT
+// listed (they have no single canonical body); the typing gate exempts them
+// because they are write-only umbrellas the anti-widening gate already guards.
+const RAW_CONSUMED_GENERIC_SCHEMAS: Readonly<Record<string, z.ZodType<unknown>>> = {
+  'plan.strategy@v1': RuntimeProofCompose,
+  'review.verdict@v1': ReviewRelayResult,
+};
+
 // Every body the engine can resolve by contract NAME, in three parts:
 //   1. report bodies — relay reports plus channel:'report' bodies (compose /
 //      close / verification / checkpoint / sub-run). The narrower relay-only
@@ -114,6 +140,9 @@ const UNIFORM_PRODUCER_GENERIC_SCHEMAS: Readonly<Record<string, z.ZodType<unknow
 //      they merge in separately.
 //   3. uniform producer generics (M8.2) — block output_contracts whose actuals
 //      all share one body (see above).
+//   4. raw consumed generics (M9-A1) — block output_contracts a flow consumes
+//      raw (under the generic name), whose canonical body is the producing item's
+//      report shape (see above).
 // A name collision across any two parts is a bug (a generic masquerading as a
 // flow report, or two sources claiming one name), so each merge throws on it.
 const BODY_REGISTRY: Readonly<Record<string, z.ZodType<unknown>>> = (() => {
@@ -132,6 +161,7 @@ const BODY_REGISTRY: Readonly<Record<string, z.ZodType<unknown>>> = (() => {
   };
   mergeBuiltins(BUILTIN_ROUTING_CONTRACT_SCHEMAS, 'routing-seam contract');
   mergeBuiltins(UNIFORM_PRODUCER_GENERIC_SCHEMAS, 'uniform producer generic');
+  mergeBuiltins(RAW_CONSUMED_GENERIC_SCHEMAS, 'raw consumed generic');
   return Object.freeze(merged);
 })();
 

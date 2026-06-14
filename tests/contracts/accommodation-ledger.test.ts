@@ -15,6 +15,7 @@ import {
   collectAccommodationLedger,
   collectBodyDivergence,
   collectConsumedDivergenceIssues,
+  collectUnregisteredConsumedContractIssues,
 } from '../../src/flows/accommodation-ledger.js';
 import { resolveFieldSignature } from '../../src/flows/contract-body-signature.js';
 import type { FlowSchematic } from '../../src/schemas/flow-schematic.js';
@@ -368,6 +369,122 @@ describe('consumed-divergence gate (M8.4)', () => {
       expect(
         collectConsumedDivergenceIssues(schematicForFlow(id), resolveFieldSignature),
         `${id} must not consume any divergent generic`,
+      ).toEqual([]);
+    }
+  });
+});
+
+describe('single-actual typing gate (M9-A1)', () => {
+  // The anti-widening gate (M8.4) only inspects MULTI-actual generics. A consumed
+  // contract that binds to a SINGLE body never enters that set, so its body is
+  // never checked — the single-actual blind spot an assembler trips by wiring
+  // block generics raw. This gate is the complement: every contract a flow
+  // CONSUMES and PRODUCES in-flow must resolve to a registered body. Initial-only
+  // inputs (engine-supplied) and multi-actual generics (the anti-widening gate's
+  // domain) are exempt.
+
+  const stubResolve =
+    (shapes: Record<string, string>) =>
+    (name: string): string | null =>
+      shapes[name] ?? null;
+
+  const synthetic = (over: {
+    initial_contracts?: string[];
+    aliases?: { generic: string; actual: string }[];
+    items: { id: string; output: string; input: Record<string, string> }[];
+  }): FlowSchematic =>
+    ({
+      id: 'synthetic',
+      initial_contracts: over.initial_contracts ?? [],
+      contract_aliases: over.aliases ?? [],
+      items: over.items,
+    }) as unknown as FlowSchematic;
+
+  it('fires when a raw produced-and-consumed contract has no registered body', () => {
+    // The runtime-proof shape: one item outputs g@v1, another reads it raw (no
+    // alias), and g@v1 has no registered body. M8.4 cannot see this — g@v1 is not
+    // a multi-actual generic — so this gate must.
+    const schematic = synthetic({
+      items: [
+        { id: 'producer', output: 'g@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectUnregisteredConsumedContractIssues(schematic, stubResolve({}));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.contract).toBe('g@v1');
+    expect(issues[0]?.consumingItems).toEqual(['consumer']);
+  });
+
+  it('fires when a single-actual aliased generic resolves to an unregistered body', () => {
+    // The review shape: a self-alias (generic === actual) produced in-flow and
+    // consumed via the generic name, with no registered body.
+    const schematic = synthetic({
+      aliases: [{ generic: 'g@v1', actual: 'g@v1' }],
+      items: [
+        { id: 'producer', output: 'g@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectUnregisteredConsumedContractIssues(schematic, stubResolve({}));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.contract).toBe('g@v1');
+  });
+
+  it('exempts an initial-only input that no item produces', () => {
+    // The engine routing/brief seam: a contract supplied solely by
+    // initial_contracts has no in-flow producer, so there is no producer->consumer
+    // binding to verify. Unregistered body is fine — the engine owns it.
+    const schematic = synthetic({
+      initial_contracts: ['engine@v1'],
+      items: [{ id: 'consumer', output: 'c@v1', input: { x: 'engine@v1' } }],
+    });
+    const issues = collectUnregisteredConsumedContractIssues(schematic, stubResolve({}));
+    expect(issues).toEqual([]);
+  });
+
+  it('defers a multi-actual generic to the anti-widening gate (no duplicate finding)', () => {
+    // A consumed multi-actual generic with an unregistered actual is the M8.4
+    // gate's job; this gate must not also report it.
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'b@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-b', output: 'b@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectUnregisteredConsumedContractIssues(schematic, stubResolve({}));
+    expect(issues).toEqual([]);
+  });
+
+  it('passes a produced-and-consumed contract whose body resolves', () => {
+    const schematic = synthetic({
+      items: [
+        { id: 'producer', output: 'g@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectUnregisteredConsumedContractIssues(
+      schematic,
+      stubResolve({ 'g@v1': 'shapeG' }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it('produces zero issues for every shipped flow (M9-A1 registered the raw consumed bodies)', () => {
+    // The load-bearing shipped-flow invariant. Before M9-A1 registered
+    // plan.strategy@v1 (runtime-proof) and review.verdict@v1 (review), each flow
+    // consumed a produced-in-flow contract with no registered body — the seam this
+    // gate closes. If a future edit consumes an untyped produced contract, this
+    // fails. toEqual([]) so a failure names the offending flow and contract.
+    for (const id of shippedFlowIds()) {
+      expect(
+        collectUnregisteredConsumedContractIssues(schematicForFlow(id), resolveFieldSignature),
+        `${id} must not consume a produced-in-flow contract with no registered body`,
       ).toEqual([]);
     }
   });

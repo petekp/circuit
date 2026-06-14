@@ -28,7 +28,10 @@ import type {
   FlowSchematicCatalogCompatibilityIssue,
 } from '../schemas/flow-schematic.js';
 import { validateFlowSchematicCatalogCompatibility } from '../schemas/flow-schematic.js';
-import { collectConsumedDivergenceIssues } from './accommodation-ledger.js';
+import {
+  collectConsumedDivergenceIssues,
+  collectUnregisteredConsumedContractIssues,
+} from './accommodation-ledger.js';
 import { resolveFieldSignature } from './contract-body-signature.js';
 
 export function collectSchematicCatalogIssues(
@@ -61,6 +64,21 @@ export function collectSchematicCatalogIssues(
         : `has actuals with no registered body (${issue.unresolvedActuals.join(', ')}), so the engine cannot prove its bodies are uniform; a consumer reading the generic could bind to an unverified shape`;
     issues.push({
       message: `generic contract "${issue.generic}" is consumed as an item input (by ${issue.consumingItems.join(', ')}) but ${reason}. Read the specific typed actual instead, register the missing bodies, or unify the bodies under one contract.`,
+    });
+  }
+
+  // M9-A1 single-actual typing gate (fail-closed). The anti-widening gate above
+  // only inspects multi-actual generics; a contract consumed-and-produced in-flow
+  // that binds to a SINGLE body is never checked there. Forbid one whose body is
+  // not registered — a consumer would read a shape the engine never verified, the
+  // blind spot an assembler trips by wiring block generics raw. Initial-only
+  // inputs (engine-supplied) and multi-actual generics are exempt (see
+  // collectUnregisteredConsumedContractIssues).
+  for (const issue of collectUnregisteredConsumedContractIssues(schematic, resolveFieldSignature)) {
+    const [firstConsumer] = issue.consumingItems;
+    issues.push({
+      ...(firstConsumer === undefined ? {} : { item_id: firstConsumer }),
+      message: `contract "${issue.contract}" is produced and consumed in-flow (read by ${issue.consumingItems.join(', ')}) but has no registered body, so the engine cannot verify the shape the consumer reads. Register its Zod body or read a typed actual whose body is registered.`,
     });
   }
 

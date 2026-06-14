@@ -22,9 +22,12 @@ import {
 } from '../../src/flows/compile-schematic-to-flow.js';
 import { collectSchematicCatalogIssues } from '../../src/flows/schematic-catalog-check.js';
 
-// gather-context produces context.packet@v1; plan consumes it. flow.brief@v1 and
-// context.request@v1 are supplied as initial contracts so the ONLY availability
-// variable is the order of these two steps.
+// gather-context produces the context packet; plan consumes it. The seam is
+// typed to the registered actual build.context@v1 (aliased onto the generic
+// context.packet@v1 slot, exactly as the build flow authors it) so the M9-A1
+// typing gate is satisfied in BOTH orderings — leaving the order of the two
+// steps as the ONLY availability variable this test exercises. flow.brief@v1 and
+// context.request@v1 are supplied as initial contracts.
 const INITIAL_CONTRACTS = ['flow.brief@v1', 'context.request@v1', 'route.decision@v1'];
 
 function produceContext(routes: BlockStepUse['routes']): BlockStepUse {
@@ -34,6 +37,9 @@ function produceContext(routes: BlockStepUse['routes']): BlockStepUse {
     stage: 'analyze',
     block: 'gather-context',
     input: { brief: 'flow.brief@v1', request: 'context.request@v1' },
+    // Typed actual for the context.packet@v1 slot (registered body BuildContext),
+    // bound via the spec's contract alias — see header.
+    output: 'build.context@v1',
     execution: { kind: 'relay', role: 'researcher' },
     protocol: 'produce-context@v1',
     requestPath: 'reports/relay/produce-context.request.json',
@@ -50,7 +56,7 @@ function consumeContext(routes: BlockStepUse['routes']): BlockStepUse {
     title: 'Plan using the context packet',
     stage: 'plan',
     block: 'plan',
-    input: { brief: 'flow.brief@v1', context: 'context.packet@v1' },
+    input: { brief: 'flow.brief@v1', context: 'build.context@v1' },
     // output omitted: defaults to the plan block's plan.strategy@v1.
     execution: { kind: 'compose' },
     protocol: 'consume-context@v1',
@@ -68,6 +74,7 @@ function specFor(items: readonly BlockStepUse[]): FlowSchematicAssemblySpec {
     status: 'candidate',
     items,
     initial_contracts: INITIAL_CONTRACTS,
+    contract_aliases: [{ generic: 'context.packet@v1', actual: 'build.context@v1' }],
     stageLabels: {
       analyze: { id: 'analyze-stage', title: 'Analyze' },
       plan: { id: 'plan-stage', title: 'Plan' },
@@ -104,7 +111,7 @@ describe('assembleFlowSchematic — route-disjoint correctness guard', () => {
     expect(issues).toContainEqual(
       expect.objectContaining({
         item_id: 'consume-context',
-        message: expect.stringContaining('context.packet@v1'),
+        message: expect.stringContaining('build.context@v1'),
       }),
     );
   });
