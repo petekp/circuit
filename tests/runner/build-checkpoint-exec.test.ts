@@ -103,6 +103,7 @@ async function runCompiledFlow(invocation: {
   readonly runId: string;
   readonly goal: string;
   readonly depth?: string;
+  readonly unattended?: boolean;
   readonly change_kind?: ChangeKindDeclaration;
   readonly now?: () => Date;
   readonly relayer?: RelayFn;
@@ -118,6 +119,7 @@ async function runCompiledFlow(invocation: {
     runId: String(invocation.runId),
     goal: invocation.goal,
     ...(invocation.depth === undefined ? {} : { depth: invocation.depth }),
+    ...(invocation.unattended === undefined ? {} : { unattended: invocation.unattended }),
     ...(invocation.projectRoot === undefined ? {} : { projectRoot: invocation.projectRoot }),
     ...(invocation.now === undefined ? {} : { now: invocation.now }),
     ...(invocation.relayer === undefined ? {} : { relayer: invocation.relayer }),
@@ -1273,6 +1275,77 @@ describe('Build checkpoint execution substrate', () => {
       throw new Error(`expected aborted, got ${outcome.result.outcome}`);
     }
     expect(outcome.result.reason).toMatch(/declared default choice/);
+    expect(existsSync(join(runFolder, 'reports/result.json'))).toBe(true);
+  });
+
+  // Headless-checkpoint policy. An unattended run (a composed/nested child, or a
+  // batch/headless host) has no operator to answer a checkpoint and no external
+  // resume driver to clear it. At high/tournament depth an attended run parks at
+  // checkpoint_waiting for that operator (proven by the paused-open test above) —
+  // but an unattended run that parked could never be resumed, so the engine must
+  // instead carry it to a terminal outcome. The signal rides on the run
+  // invocation, never on a flow, so it is latent until M9 wires composed runs;
+  // every shipped top-level run today is attended and still parks unchanged.
+  it('resolves an unattended high-depth checkpoint through its declared safe default instead of parking', async () => {
+    const { flow, bytes } = checkpointCompiledFlow({ safeDefault: 'continue' });
+    const runFolder = join(runFolderBase, 'unattended-high');
+
+    const outcome = await runCompiledFlow({
+      runFolder,
+      flow,
+      flowBytes: bytes,
+      projectRoot: process.cwd(),
+      runId: RunId.parse('b3000000-0000-0000-0000-000000000020'),
+      goal: 'Resolve an unattended deep Build run',
+      depth: 'high',
+      unattended: true,
+      change_kind: change_kind(),
+      now: deterministicNow(Date.UTC(2026, 3, 25, 6, 0, 0)),
+    });
+
+    if (isGraphCheckpointWaitingResult(outcome.result)) {
+      throw new Error('unattended run must reach a terminal outcome, not park at a checkpoint');
+    }
+    expect(outcome.result.outcome).toBe('complete');
+    expect(outcome.snapshot.status).toBe('complete');
+    const resolved = outcome.trace_entries.find(
+      (trace_entry) => trace_entry.kind === 'checkpoint.resolved',
+    );
+    expect(resolved).toMatchObject({
+      selection: 'continue',
+      auto_resolved: true,
+      resolution_source: 'declared-default',
+    });
+    expect(readJson(runFolder, 'reports/result.json')).toMatchObject({ outcome: 'complete' });
+  });
+
+  it('fails an unattended high-depth checkpoint closed when no safe default or auto-resolution exists', async () => {
+    const { flow, bytes } = checkpointCompiledFlow({});
+    const runFolder = join(runFolderBase, 'unattended-high-missing');
+
+    const outcome = await runCompiledFlow({
+      runFolder,
+      flow,
+      flowBytes: bytes,
+      projectRoot: process.cwd(),
+      runId: RunId.parse('b3000000-0000-0000-0000-000000000021'),
+      goal: 'Reject an unsafe unattended checkpoint',
+      depth: 'high',
+      unattended: true,
+      change_kind: change_kind(),
+      now: deterministicNow(Date.UTC(2026, 3, 25, 6, 5, 0)),
+    });
+
+    // Never a silent park (it could not be resumed) and never a guess (no
+    // arbitrary route is chosen): a loud, terminal failure instead.
+    if (isGraphCheckpointWaitingResult(outcome.result)) {
+      throw new Error('unattended run must not park at a checkpoint');
+    }
+    expect(outcome.result.outcome).toBe('aborted');
+    if (outcome.result.outcome !== 'aborted') {
+      throw new Error(`expected aborted, got ${outcome.result.outcome}`);
+    }
+    expect(outcome.result.reason).toMatch(/unattended/);
     expect(existsSync(join(runFolder, 'reports/result.json'))).toBe(true);
   });
 });

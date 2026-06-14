@@ -55685,29 +55685,28 @@ function projectRuntimeCheckpointBoundary(input) {
     throw error51;
   }
 }
+async function resolveWithoutOperator(step, context, stepPolicy, missingDefaultReason) {
+  if (stepPolicy.auto_resolution !== void 0) {
+    return await resolveAutoResolution(step, context, stepPolicy, stepPolicy.auto_resolution);
+  }
+  const selection = stepPolicy.safe_default_choice;
+  if (selection === void 0) {
+    return { kind: "failed", reason: missingDefaultReason };
+  }
+  return { kind: "resolved", selection, resolutionSource: "declared-default", autoResolved: true };
+}
 async function resolveCheckpoint(step, context, depth, stepPolicy) {
   const effectiveDepth = depth ?? "medium";
   const autonomous = context.axes?.autonomous === true || effectiveDepth === "autonomous";
-  if (!autonomous && (effectiveDepth === "high" || effectiveDepth === "tournament")) {
+  const unattended = context.unattended === true;
+  if (!autonomous && !unattended && (effectiveDepth === "high" || effectiveDepth === "tournament")) {
     return { kind: "waiting" };
   }
   if (autonomous) {
-    if (stepPolicy.auto_resolution !== void 0) {
-      return await resolveAutoResolution(step, context, stepPolicy, stepPolicy.auto_resolution);
-    }
-    const selection2 = stepPolicy.safe_default_choice;
-    if (selection2 === void 0) {
-      return {
-        kind: "failed",
-        reason: `checkpoint step '${step.id}' cannot auto-resolve autonomous depth without a declared default choice`
-      };
-    }
-    return {
-      kind: "resolved",
-      selection: selection2,
-      resolutionSource: "declared-default",
-      autoResolved: true
-    };
+    return await resolveWithoutOperator(step, context, stepPolicy, `checkpoint step '${step.id}' cannot auto-resolve autonomous depth without a declared default choice`);
+  }
+  if (unattended) {
+    return await resolveWithoutOperator(step, context, stepPolicy, `checkpoint step '${step.id}' cannot reach a terminal outcome unattended without a declared safe default choice or auto-resolution policy`);
   }
   const selection = stepPolicy.safe_default_choice;
   if (selection === void 0) {
@@ -59512,6 +59511,10 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
       entryModeName: branch.entryMode,
       depth: branch.depth,
       now: context.now,
+      // A fanout branch is a composed/nested child; inherit the parent's
+      // unattended signal so its checkpoints reach a terminal outcome rather
+      // than parking unanswerable. Inert while the parent is attended (unset).
+      ...context.unattended === void 0 ? {} : { unattended: context.unattended },
       ...context.childExecutors === void 0 ? {} : { executors: context.childExecutors },
       ...context.childCompiledFlowResolver === void 0 ? {} : { childCompiledFlowResolver: context.childCompiledFlowResolver },
       childRunner: context.childRunner,
@@ -60036,6 +60039,10 @@ async function executeSubRunInternal(step, context) {
       entryModeName: step.entryMode,
       depth: step.depth,
       now: context.now,
+      // A child run has no operator of its own; inherit the parent's unattended
+      // signal so the child's checkpoints reach a terminal outcome rather than
+      // parking unanswerable. Inert while the parent is attended (unset).
+      ...context.unattended === void 0 ? {} : { unattended: context.unattended },
       ...context.childExecutors === void 0 ? {} : { executors: context.childExecutors },
       ...context.childCompiledFlowResolver === void 0 ? {} : { childCompiledFlowResolver: context.childCompiledFlowResolver },
       childRunner: context.childRunner,
@@ -62047,6 +62054,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.entryModeName === void 0 ? {} : { entryModeName: options.entryModeName },
     ...options.depth === void 0 ? {} : { depth: options.depth },
     ...options.axes === void 0 ? {} : { axes: options.axes },
+    ...options.unattended === void 0 ? {} : { unattended: options.unattended },
     now: boundary.clock.now,
     files,
     trace,
@@ -62535,6 +62543,7 @@ async function runCompiledFlowWithWaiting(options) {
     entryModeName,
     depth,
     ...options.axes === void 0 ? {} : { axes: options.axes },
+    ...options.unattended === void 0 ? {} : { unattended: options.unattended },
     ...options.now === void 0 ? {} : { now: options.now },
     ...options.executors === void 0 ? {} : { executors: options.executors },
     ...options.childExecutors === void 0 ? {} : { childExecutors: options.childExecutors },
