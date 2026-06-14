@@ -10,10 +10,12 @@
 // divergent (the shapes differ).
 //
 // The signature is an EQUALITY key, not a subtype relation. Two bodies share a
-// signature iff their JSON-Schema shape — top-level field names with optionality,
-// recursively through union variants and arrays — is identical. This is the
-// report-only half of M8: it makes "needs split vs safe to unify" a machine
-// output. The fail-closed half (the anti-widening gate) is M8.4.
+// signature iff their JSON-Schema shape — field names with optionality,
+// recursively through object property values, union variants, and arrays — is
+// identical. (M9-A2 added the object-property-value recursion; before it, two
+// bodies with the same field names but different field types hashed equal.) This
+// is the report-only half of M8: it makes "needs split vs safe to unify" a
+// machine output. The fail-closed half (the anti-widening gate) is M8.4.
 //
 // Why JSON Schema and not raw Zod introspection: the report bodies mix
 // z.object, z.looseObject, discriminated unions, supersets, and `.extend`
@@ -35,10 +37,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 // Canonical signature of a JSON-Schema node. Object → its sorted field names
-// with `?` on the optional ones; union → its variant signatures, sorted so
+// with `?` on the optional ones, EACH paired with the recursed signature of its
+// value (`name:<sig>` / `name?:<sig>`); union → its variant signatures, sorted so
 // declaration order does not matter; array → the element signature; anything
-// else → its JSON-Schema `type` (or `scalar` when untyped). Recursion is what
-// makes a discriminated union compare equal to another union of the same
+// else → its JSON-Schema `type` (or `scalar` when untyped). Recursing through
+// object property values (M9-A2) is what stops two bodies with the same field
+// names but different field types from hashing equal — the signature-collision
+// seam an assembler would otherwise trip. Recursion through unions and arrays is
+// what makes a discriminated union compare equal to another union of the same
 // variants regardless of how each was authored.
 function signatureOfNode(node: unknown): string {
   if (!isRecord(node)) return 'unknown';
@@ -58,9 +64,13 @@ function signatureOfNode(node: unknown): string {
     const required = new Set<string>(
       Array.isArray(node.required) ? (node.required as string[]) : [],
     );
-    const fields = Object.keys(node.properties)
+    const properties = node.properties;
+    const fields = Object.keys(properties)
       .sort()
-      .map((key) => (required.has(key) ? key : `${key}?`));
+      .map((key) => {
+        const label = required.has(key) ? key : `${key}?`;
+        return `${label}:${signatureOfNode(properties[key])}`;
+      });
     return `{${fields.join(',')}}`;
   }
   if (typeof node.type === 'string') return node.type;
