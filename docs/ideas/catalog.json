@@ -198,6 +198,55 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/e1-implementation-brief.md",
+      "title": "E1 implementation brief — one task, two shapes, measured",
+      "status": "implementation-spec",
+      "category": "verification-and-evals",
+      "tags": ["evals", "experiments", "decomposition", "fix-vs-build"],
+      "current_reading": "Build brief for the E1 experiment-runner: one task under two decomposition grains, measured. Implemented under experiments/e1/; see the run report.",
+      "related": [
+        "docs/ideas/exploration-substrate-two-track-plan.md",
+        "docs/ideas/e1-run-report.md"
+      ],
+      "last_checked": "2026-06-14"
+    },
+    {
+      "path": "docs/ideas/e1-implications-for-m8.md",
+      "title": "E1 implications for M8: what the typed seam must express",
+      "status": "pre-implementation",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "typed-seam", "m8", "verification", "experiments"],
+      "current_reading": "B3 spec: from the E1 framing, the payload shapes M8's typed seam must express so holism/separation seams are locally checkable. Design only; implements no M8 code. Re-check against current schemas before use.",
+      "related": [
+        "docs/ideas/primitive-readiness-audit.md",
+        "docs/ideas/e2-equipment-scope-spec.md"
+      ],
+      "last_checked": "2026-06-14"
+    },
+    {
+      "path": "docs/ideas/e1-run-report.md",
+      "title": "E1 run report — one task, two shapes, measured",
+      "status": "partially-implemented",
+      "category": "verification-and-evals",
+      "tags": ["evals", "experiments", "harness", "report"],
+      "current_reading": "Build report for the E1 harness: Step 0 GO, two-lane (fixture + live) design, fixture-proven, one live comparison pending. Code under experiments/e1/.",
+      "related": ["docs/ideas/e1-implementation-brief.md"],
+      "last_checked": "2026-06-14"
+    },
+    {
+      "path": "docs/ideas/e2-equipment-scope-spec.md",
+      "title": "E2 spec: equipment scope, manifest-first",
+      "status": "pre-implementation",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "equipment-scope", "manifest-first", "decomposition", "experiments"],
+      "current_reading": "B3 spec: equipment scope (primitive 3b) as a declared, manifest-first field with write-tier enforcement, turning decomposition grain into a per-step dial. Design only; implements nothing (would collide with M8). Re-check against current schemas before use.",
+      "related": [
+        "docs/ideas/primitive-readiness-audit.md",
+        "docs/ideas/e1-implications-for-m8.md"
+      ],
+      "last_checked": "2026-06-14"
+    },
+    {
       "path": "docs/ideas/effective-memory-program-review-codex.md",
       "title": "Effective Memory Program Review",
       "status": "independent-review",
@@ -219,6 +268,19 @@
         "docs/ideas/effective-memory-program-review-codex.md"
       ],
       "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/exploration-substrate-two-track-plan.md",
+      "title": "Two-track plan: the M-spine and the exploration substrate",
+      "status": "current-proposal",
+      "category": "strategy-and-comparisons",
+      "tags": ["exploration", "experiments", "composition", "roadmap"],
+      "current_reading": "Plan separating the first-class-composition M-spine from an exploration substrate for measured experiments. E1 is its first milestone. Plan context, not shipped behavior.",
+      "related": [
+        "docs/ideas/e1-implementation-brief.md",
+        "docs/ideas/mini-harness-debrief-vs-circuit.md"
+      ],
+      "last_checked": "2026-06-14"
     },
     {
       "path": "docs/ideas/flow-eval-suites-implementation.md",
@@ -253,6 +315,20 @@
       "tags": ["strategy", "model-improvement", "orchestration"],
       "current_reading": "Strategy note on which Circuit bets compound as models improve and which erode. No direct implementation status.",
       "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/grain-separability-experiment-design.md",
+      "title": "Experiment design: grain x task-separability",
+      "status": "pre-implementation",
+      "category": "verification-and-evals",
+      "tags": ["experiments", "composition", "evals", "grain", "methodology"],
+      "current_reading": "Pre-registered experiment design that pits two opposing hypotheses (coherence-loss vs verification-gain) about whether chopping a task into separated steps helps or hurts, to settle the assembler's chop/hold default. Designed, not run; built on the E1 harness and now fireable against the post-M9 composed runtime.",
+      "related": [
+        "docs/ideas/e1-run-report.md",
+        "docs/ideas/exploration-substrate-two-track-plan.md",
+        "docs/architecture/first-class-composition-optimal-path.md"
+      ],
+      "last_checked": "2026-06-14"
     },
     {
       "path": "docs/ideas/intent-capture-and-enforcement-implementation.md",
@@ -316,6 +392,20 @@
       "last_checked": "2026-06-05"
     },
     {
+      "path": "docs/ideas/m9-grounding-brief.md",
+      "title": "M9 grounding brief - open the composed runtime (the finale)",
+      "status": "implemented",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "milestone", "runtime", "assembler", "safety-floor"],
+      "current_reading": "Grounding brief for M9, the finale of the first-class-composition migration: open one shared assembly/runtime path so a flow assembled per task runs exactly the way a built-in does, floor-first (close the safety gaps before opening the door). M9 has since landed; this is the record of the intent and sequencing.",
+      "related": [
+        "docs/architecture/first-class-composition-optimal-path.md",
+        "docs/ideas/exploration-substrate-two-track-plan.md",
+        "docs/ideas/e1-implications-for-m8.md"
+      ],
+      "last_checked": "2026-06-14"
+    },
+    {
       "path": "docs/ideas/memory-phase0-failure-legibility-spec.md",
       "title": "Implementation spec: failure-outcome reconciliation + Phase 0 legibility",
       "status": "implemented",
@@ -324,6 +414,16 @@
       "current_reading": "Implemented failure outcome reconciliation and failure-query ranking slice. Current code lives in history, run-envelope, outcome, and related tests.",
       "related": ["docs/ideas/effective-memory-program.md"],
       "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/mini-harness-debrief-vs-circuit.md",
+      "title": "The mini-harness debrief vs. circuit's first-class composition",
+      "status": "current-comparison",
+      "category": "strategy-and-comparisons",
+      "tags": ["comparison", "composition", "experiments", "harness"],
+      "current_reading": "Compares an external exploratory mini-harness against Circuit's first-class composition direction. Comparison context that motivates the exploration substrate.",
+      "related": ["docs/ideas/exploration-substrate-two-track-plan.md"],
+      "last_checked": "2026-06-14"
     },
     {
       "path": "docs/ideas/modern-engineering-practices-proposals.md",
@@ -409,6 +509,19 @@
       "current_reading": "The Codex source proposal: a source-backed comparison of Circuit today against a typed pre-execution-memory / preflight-contract direction. The analysis stands as context; its specific recommendation is revised by intent-capture-and-enforcement.md, which enforces intent inside existing flow reports rather than adding a preflight gate.",
       "related": ["docs/ideas/intent-capture-and-enforcement.md"],
       "last_checked": "2026-06-08"
+    },
+    {
+      "path": "docs/ideas/primitive-readiness-audit.md",
+      "title": "Primitive-readiness audit: the six substrate primitives at M5",
+      "status": "current-gap-analysis",
+      "category": "strategy-and-comparisons",
+      "tags": ["exploration", "experiments", "composition", "primitives", "readiness"],
+      "current_reading": "B2 of the E1 backlog. Grounds the six-primitive substrate analysis in the post-M5 codebase: per primitive, the implementing file(s) today and the remaining gap. Audit context as of M5, not shipped behavior; re-check citations against current src.",
+      "related": [
+        "docs/ideas/exploration-substrate-two-track-plan.md",
+        "docs/ideas/e1-implementation-brief.md"
+      ],
+      "last_checked": "2026-06-14"
     },
     {
       "path": "docs/ideas/project-execution-memory.md",

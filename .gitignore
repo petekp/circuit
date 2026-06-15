@@ -31,3 +31,7 @@ coverage/
 # planning notes, audit ledgers, and other material that should not ship as
 # public documentation.
 /docs/internal/**
+
+# E1 experiment live-run output: worktrees, run folders, and raw stdout/stderr
+# from `run-comparison.ts --live`. Per-run scratch, never a deliverable.
+/experiments/e1/.runs/

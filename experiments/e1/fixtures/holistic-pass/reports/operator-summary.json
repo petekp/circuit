@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "run_id": "11111111-1111-4111-8111-111111111111",
+  "flow_id": "fix",
+  "selected_flow": "fix",
+  "outcome": "complete",
+  "headline": "Fix complete — paging wraps and npm test passes.",
+  "details": [
+    "Reproduced the failure with npm test before editing.",
+    "Changed src/wrap.mjs only, then reran the regression command green."
+  ],
+  "evidence_warnings": [],
+  "run_folder": "holistic/circuit-run",
+  "report_paths": [
+    { "label": "result", "path": "reports/result.json" },
+    { "label": "process evidence", "path": "reports/process-evidence.json" }
+  ],
+  "receipt": {
+    "depth": "medium",
+    "worker_runs": 3,
+    "escalations": 0,
+    "models": [{ "provider": "anthropic", "model": "claude-sonnet-4-6" }],
+    "checks_evaluated": 2,
+    "checks_failed": 0,
+    "spend": {
+      "total_cost_usd_reported": 0.42,
+      "relays_missing_usage": 0,
+      "partial": false,
+      "roles": [
+        {
+          "role": "researcher",
+          "relays": 1,
+          "relays_missing_usage": 0,
+          "models": ["anthropic:claude-sonnet-4-6"],
+          "input_tokens": 12000,
+          "output_tokens": 1500,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "cost_usd_reported": 0.08
+        },
+        {
+          "role": "implementer",
+          "relays": 1,
+          "relays_missing_usage": 0,
+          "models": ["anthropic:claude-sonnet-4-6"],
+          "input_tokens": 18000,
+          "output_tokens": 3200,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "cost_usd_reported": 0.22
+        },
+        {
+          "role": "reviewer",
+          "relays": 1,
+          "relays_missing_usage": 0,
+          "models": ["anthropic:claude-sonnet-4-6"],
+          "input_tokens": 14000,
+          "output_tokens": 1800,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "cost_usd_reported": 0.12
+        }
+      ]
+    }
+  }
+}

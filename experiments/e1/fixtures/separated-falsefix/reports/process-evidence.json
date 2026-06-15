@@ -1,0 +1,44 @@
+{
+  "schema": "process.evidence@v0",
+  "flow_id": "build",
+  "attempt_id": "build-attempt-1",
+  "outcome": "complete",
+  "summary": "Implemented the slices; the visible regression command passes.",
+  "child_run_ref": {
+    "kind": "trace",
+    "ref": "trace.ndjson#sequence=0",
+    "run_id": "22222222-2222-4222-8222-222222222222",
+    "sequence": 0
+  },
+  "result_ref": {
+    "kind": "report",
+    "ref": "reports/result.json",
+    "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+  },
+  "evidence_refs": [
+    {
+      "kind": "evidence",
+      "ref": "reports/slice-1-verify.txt",
+      "sha256": "9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba"
+    },
+    {
+      "kind": "evidence",
+      "ref": "reports/slice-2-verify.txt",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "kind": "evidence",
+      "ref": "reports/slice-3-verify.txt",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    {
+      "kind": "report",
+      "ref": "reports/result.json",
+      "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+    }
+  ],
+  "declared_report_paths": ["reports/result.json"],
+  "missing_evidence": [],
+  "trace_entries_observed": 14,
+  "manifest_hash": "build-manifest-hash-0001"
+}
