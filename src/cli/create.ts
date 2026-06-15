@@ -4,8 +4,11 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Command } from 'commander';
 import { parse as parseYaml } from 'yaml';
+import { assembleFlowSchematic } from '../flows/assemble-flow-schematic.js';
+import { buildAssemblySpec } from '../flows/build/assembly-spec.js';
 import { validateCompiledFlowKindPolicy } from '../flows/canonical-stage-policy.js';
 import { catalogFlowIds } from '../flows/catalog.js';
+import { compileSchematicToCompiledFlow } from '../flows/compile-schematic-to-flow.js';
 import { CompiledFlow } from '../schemas/compiled-flow.js';
 import { CustomFlowPackageDescriptor } from '../schemas/custom-flow-descriptor.js';
 import { progressPresentation } from '../shared/progress-output.js';
@@ -18,7 +21,6 @@ interface CreateArgs {
   readonly name?: string;
   readonly description?: string;
   readonly home?: string;
-  readonly templateFlowRoot?: string;
   readonly publish: boolean;
   readonly yes: boolean;
   readonly createdAt?: string;
@@ -44,7 +46,6 @@ function parseArgs(argv: readonly string[]): CreateArgs {
     .option('--name <slug>')
     .option('--description <flow idea>')
     .option('--home <path>')
-    .option('--template-flow-root <path>')
     .option('--created-at <iso>')
     .option('--publish')
     .option('--yes')
@@ -56,7 +57,6 @@ function parseArgs(argv: readonly string[]): CreateArgs {
     name?: string;
     description?: string;
     home?: string;
-    templateFlowRoot?: string;
     createdAt?: string;
     publish?: boolean;
     yes?: boolean;
@@ -73,7 +73,6 @@ function parseArgs(argv: readonly string[]): CreateArgs {
     ...(opts.name === undefined ? {} : { name: opts.name }),
     ...(opts.description === undefined ? {} : { description: opts.description }),
     ...(opts.home === undefined ? {} : { home: opts.home }),
-    ...(opts.templateFlowRoot === undefined ? {} : { templateFlowRoot: opts.templateFlowRoot }),
     ...(opts.createdAt === undefined ? {} : { createdAt: opts.createdAt }),
   };
 }
@@ -156,34 +155,28 @@ function validateCustomFlow(slug: string, flow: CompiledFlow, source: string): v
   }
 }
 
-function candidateTemplatePaths(args: CreateArgs): string[] {
-  const roots = [args.templateFlowRoot, 'generated/flows', 'plugins/codex/flows'].filter(
-    (root): root is string => root !== undefined,
-  );
-  return roots.map((root) => resolve(root, 'build', 'circuit.json'));
-}
-
-function loadTemplateFlow(args: CreateArgs): CompiledFlow {
-  for (const candidate of candidateTemplatePaths(args)) {
-    if (!existsSync(candidate)) continue;
-    return CompiledFlow.parse(JSON.parse(readFileSync(candidate, 'utf8')));
-  }
-  throw new Error(
-    'could not find the Build template flow; pass --template-flow-root with a root containing build/circuit.json',
-  );
-}
-
-function customizeTemplateFlow(input: {
+// First-class composition (M9): a custom flow is produced through the SAME
+// sanctioned path build's own data.ts uses — assemble the build block spec with
+// the custom id/purpose, then compile — rather than reading and cloning build's
+// COMPILED bytes off disk. This retires the template-clone, the last second
+// production mechanism, so create needs no on-disk template and no
+// --template-flow-root. The result is byte-identical to the former clone (modulo
+// id/purpose); see tests/contracts/custom-flow-descriptor.test.ts and the
+// create equivalence assertion in tests/runner/utility-cli.test.ts.
+function assembleCustomFlow(input: {
   readonly slug: string;
   readonly description: string;
-  readonly template: CompiledFlow;
 }): CompiledFlow {
-  const candidate = {
-    ...input.template,
+  const schematic = assembleFlowSchematic({
+    ...buildAssemblySpec,
     id: input.slug,
     purpose: input.description,
-  };
-  const parsed = CompiledFlow.parse(candidate);
+  });
+  const compiled = compileSchematicToCompiledFlow(schematic);
+  if (compiled.kind !== 'single') {
+    throw new Error(`custom flow assembled to an unexpected '${compiled.kind}' package`);
+  }
+  const parsed = CompiledFlow.parse(compiled.flow);
   validateCustomFlow(input.slug, parsed, 'custom flow');
   return parsed;
 }
@@ -215,7 +208,6 @@ function circuitYaml(slug: string, description: string): string {
     `id: ${slug}`,
     'format: compiled-flow-package',
     'compiled_flow: circuit.json',
-    'archetype: build',
     'purpose: |',
     `  ${description.replace(/\n/g, '\n  ')}`,
   ].join('\n');
@@ -293,7 +285,6 @@ function publishManifest(input: {
       {
         id: input.slug,
         description: input.description,
-        archetype: 'build',
         flow_path: join(flowRoot(input.home), input.slug, 'circuit.json'),
         skill_path: join(publishedRoot(input.home, input.slug), 'SKILL.md'),
         command_path: join(commandRoot(input.home), `${input.slug}.md`),
@@ -456,11 +447,7 @@ export async function runCreateCommand(
     const flow =
       args.publish && draftExists
         ? loadDraftFlow(home, slug)
-        : customizeTemplateFlow({
-            slug,
-            description: args.description,
-            template: loadTemplateFlow(args),
-          });
+        : assembleCustomFlow({ slug, description: args.description });
     const outputDescription = args.publish && draftExists ? flow.purpose : args.description;
     if (args.publish && draftExists) {
       writeValidationResult({ home, slug, flow, source: 'draft' });

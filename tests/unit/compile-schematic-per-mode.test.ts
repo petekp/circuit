@@ -4,18 +4,14 @@
 // Byte-equivalence against committed compiled flows is covered separately by
 // tests/contracts/compile-schematic-to-flow.test.ts.
 
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
-import { FlowSchematic } from '../../src/schemas/flow-schematic.js';
+import { schematicForFlow } from '../helpers/in-memory-schematics.js';
 
-function readJson(path: string): unknown {
-  return JSON.parse(readFileSync(path, 'utf8')) as unknown;
-}
-
+// M6: build schematic from the in-memory catalog definition, not disk.
 function loadBuildSchematic() {
-  return FlowSchematic.parse(readJson('src/flows/build/schematic.json'));
+  return schematicForFlow('build');
 }
 
 describe('compileSchematicToCompiledFlow — per-mode emission', () => {

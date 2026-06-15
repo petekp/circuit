@@ -9,18 +9,45 @@
 //
 // See src/flows/accommodation-ledger.ts for the alias-vs-widening scope split
 // and why multi-actual generics are reported (not gated) until M8.
-import { readFileSync } from 'node:fs';
-
 import { describe, expect, it } from 'vitest';
 
 import {
   collectAccommodationLedger,
-  shippedSchematicIds,
+  collectBodyDivergence,
+  collectConsumedDivergenceIssues,
+  collectUnregisteredConsumedContractIssues,
 } from '../../src/flows/accommodation-ledger.js';
+import { resolveFieldSignature } from '../../src/flows/contract-body-signature.js';
+import type { FlowSchematic } from '../../src/schemas/flow-schematic.js';
+import {
+  schematicForFlow,
+  shippedFlowIds,
+  shippedFlowSchematics,
+} from '../helpers/in-memory-schematics.js';
 
 describe('accommodation ledger', () => {
+  it('analyzes the in-memory schematics it is given, not files on disk (M6)', () => {
+    // M6: the ledger is a pure analyzer over the in-memory definitions. Feed it a
+    // schematic that aliases a consumer generic onto a contract nothing in the
+    // flow produces, and it must surface that accommodation — proving it reads the
+    // passed schematic, not src/flows/<id>/schematic.json. A clean flow gains an
+    // accommodation purely from the alias we add here.
+    const clean = schematicForFlow('fix');
+    const phantom = {
+      ...clean,
+      contract_aliases: [
+        ...clean.contract_aliases,
+        { generic: 'verification.result@v1', actual: 'phantom.nothing@v1' },
+      ],
+    };
+    const ledger = collectAccommodationLedger([phantom]);
+    expect(ledger.accommodations).toHaveLength(1);
+    expect(ledger.accommodations[0]?.actual).toBe('phantom.nothing@v1');
+    expect(ledger.accommodations[0]?.citation).toBeNull();
+  });
+
   it('every shipped alias is a MODEL-CORRECTION that cites a real producer', () => {
-    const ledger = collectAccommodationLedger();
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
     // The load-bearing invariant. An alias whose `actual` is produced by no
     // in-flow item and no initial contract is remapping a consumer's generic
     // onto a phantom contract -- the dishonest collapse M5 must never freeze in.
@@ -29,7 +56,7 @@ describe('accommodation ledger', () => {
   });
 
   it('cites a producer for every model-correction entry', () => {
-    const ledger = collectAccommodationLedger();
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
     for (const entry of ledger.entries) {
       if (entry.classification === 'model-correction') {
         expect(
@@ -41,21 +68,21 @@ describe('accommodation ledger', () => {
   });
 
   it('covers every shipped flow that declares aliases', () => {
-    const ledger = collectAccommodationLedger();
+    const schematics = shippedFlowSchematics();
+    const ledger = collectAccommodationLedger(schematics);
     const flowsInLedger = new Set(ledger.entries.map((entry) => entry.flow));
-    for (const id of shippedSchematicIds()) {
-      const schematic = JSON.parse(readFileSync(`src/flows/${id}/schematic.json`, 'utf8'));
-      const aliasCount = (schematic.contract_aliases ?? []).length;
-      if (aliasCount > 0) {
-        expect(flowsInLedger.has(id), `${id} declares aliases but is missing from the ledger`).toBe(
-          true,
-        );
+    for (const schematic of schematics) {
+      if (schematic.contract_aliases.length > 0) {
+        expect(
+          flowsInLedger.has(schematic.id),
+          `${schematic.id} declares aliases but is missing from the ledger`,
+        ).toBe(true);
       }
     }
   });
 
   it('reports the alias surface and the multi-actual body-divergence probe targets', () => {
-    const ledger = collectAccommodationLedger();
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
     expect(ledger.entries.length).toBeGreaterThan(0);
     const probeLines = ledger.multiActualGenerics.map(
       (multi) =>
@@ -66,5 +93,399 @@ describe('accommodation ledger', () => {
         `${ledger.accommodations.length} accommodations, ` +
         `${ledger.multiActualGenerics.length} multi-actual generics\n${probeLines.join('\n')}\n`,
     );
+  });
+});
+
+describe('body-divergence reporter (M8.0)', () => {
+  it('resolves a body signature for every actual behind a multi-actual generic', () => {
+    // No shipped multi-actual generic may classify `unresolved`: every actual is
+    // a real producer (the accommodation ledger already proves that) and so must
+    // resolve to a registered body. An unresolved here means a body the reporter
+    // cannot see — exactly the blind spot M8 closes.
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
+    const divergence = collectBodyDivergence(ledger.multiActualGenerics, resolveFieldSignature);
+    for (const entry of divergence) {
+      expect(
+        entry.classification,
+        `${entry.flow}::${entry.generic} has an actual with no resolvable body`,
+      ).not.toBe('unresolved');
+    }
+  });
+
+  it('classifies the unify candidates uniform and the split candidates divergent', () => {
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
+    const divergence = collectBodyDivergence(ledger.multiActualGenerics, resolveFieldSignature);
+    const byKey = new Map(divergence.map((entry) => [`${entry.flow}::${entry.generic}`, entry]));
+
+    // Uniform: the bodies are byte-identical shapes, safe to unify (M8.2).
+    // goal.child-run = five RunResult bodies told apart only by flow_id;
+    // goal.gate-review = gate-pass and gate, identical shapes told apart by schema.
+    expect(byKey.get('goal::goal.child-run@v1')?.classification).toBe('uniform');
+    expect(byKey.get('goal::goal.gate-review@v1')?.classification).toBe('uniform');
+
+    // Divergent: one generic name spans structurally different bodies. These
+    // survive as write-only block-reuse umbrellas — no item consumes the generic,
+    // every consumer reads a distinct flow-scoped actual — so they are honest, not
+    // catch-alls. The M8.4 gate forbids only a CONSUMED divergent generic.
+    expect(byKey.get('build::verification.result@v1')?.classification).toBe('divergent');
+    expect(byKey.get('fix::verification.result@v1')?.classification).toBe('divergent');
+    expect(byKey.get('prototype::verification.result@v1')?.classification).toBe('divergent');
+
+    // M8.3 resolved goal.contract@v1 — the one genuinely CONSUMED catch-all (six
+    // goal items read it). Its 11 legacy masking aliases (onto every other goal
+    // report) were removed, so it is single-actual (the real contract) and is no
+    // longer a multi-actual generic at all.
+    expect(byKey.has('goal::goal.contract@v1')).toBe(false);
+  });
+
+  it('logs the divergence classification for every multi-actual generic', () => {
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
+    const divergence = collectBodyDivergence(ledger.multiActualGenerics, resolveFieldSignature);
+    const lines = divergence.map(
+      (entry) =>
+        `  [${entry.classification}] ${entry.flow}::${entry.generic} (${entry.actuals.length} actuals)`,
+    );
+    console.log(`\nbody-divergence report (M8.0):\n${lines.join('\n')}\n`);
+  });
+});
+
+describe('uniform producer generics (M8.2)', () => {
+  // goal.child-run@v1 and goal.gate-review@v1 are block output_contracts (the
+  // goal-child-run / goal-gate-review blocks) realized by several actuals that
+  // all share one body — five RunResult child results, two GoalGate passes. The
+  // actuals were already typed (they are flow reports); the generic NAME they
+  // collapse under was not. M8.2 gives each uniform generic its single canonical
+  // body, so the seam is typed end to end and the M8.4 gate has a body to check
+  // each actual against. The divergent generics (goal.contract@v1, the
+  // verification families) deliberately get NO canonical body here — they cannot
+  // have one, which is exactly what forces their split in M8.3.
+  const UNIFORM_PRODUCER_GENERICS = [
+    { flow: 'goal', generic: 'goal.child-run@v1' },
+    { flow: 'goal', generic: 'goal.gate-review@v1' },
+  ] as const;
+
+  it('resolves a canonical body signature for each uniform producer generic', () => {
+    for (const { generic } of UNIFORM_PRODUCER_GENERICS) {
+      expect(
+        resolveFieldSignature(generic),
+        `${generic} is a block output_contract realized by uniform actuals; it must resolve to a single canonical body`,
+      ).not.toBeNull();
+    }
+  });
+
+  it("each uniform generic's canonical body matches every actual aliased to it", () => {
+    // "Safe to unify" is now a machine fact, not a comment: the canonical body
+    // must equal every actual's body. If a future actual switches body, the
+    // generic stops matching it and this fails — forcing an explicit split or
+    // re-unify rather than a silent catch-all.
+    const ledger = collectAccommodationLedger(shippedFlowSchematics());
+    const byKey = new Map(
+      ledger.multiActualGenerics.map((multi) => [`${multi.flow}::${multi.generic}`, multi]),
+    );
+    for (const { flow, generic } of UNIFORM_PRODUCER_GENERICS) {
+      const multi = byKey.get(`${flow}::${generic}`);
+      expect(multi, `${flow}::${generic} must be a shipped multi-actual generic`).toBeDefined();
+      const canonical = resolveFieldSignature(generic);
+      expect(canonical, `${generic} must resolve to a canonical body`).not.toBeNull();
+      for (const actual of multi?.actuals ?? []) {
+        expect(
+          resolveFieldSignature(actual),
+          `${generic} canonical body must equal its actual ${actual} (uniform)`,
+        ).toBe(canonical);
+      }
+    }
+  });
+});
+
+describe('consumed-divergence gate (M8.4)', () => {
+  // The fail-closed anti-widening gate. It forbids exactly one shape: a generic
+  // contract that is CONSUMED as an item input (its name appears as a value in
+  // some item.input) AND resolves to more than one structurally-distinct body.
+  // That is a catch-all — a consumer reading the generic could bind to any of
+  // several different shapes. Everything else is allowed: a write-only
+  // block-reuse umbrella (a generic only named as a block output_contract,
+  // realized by typed actuals, consumed by no item via the generic name) is
+  // honest reuse; a uniform generic resolves to one body; a single-actual
+  // generic is unambiguous.
+
+  // A stub resolver lets these unit tests control uniform-vs-divergent precisely
+  // without depending on the real body registry.
+  const stubResolve =
+    (shapes: Record<string, string>) =>
+    (name: string): string | null =>
+      shapes[name] ?? null;
+
+  // Minimal FlowSchematic shaped only with the fields the gate reads: id,
+  // contract_aliases, initial_contracts, and items[].{id,input,output}.
+  const synthetic = (over: {
+    aliases: { generic: string; actual: string }[];
+    items: { id: string; output: string; input: Record<string, string> }[];
+  }): FlowSchematic =>
+    ({
+      id: 'synthetic',
+      initial_contracts: [],
+      contract_aliases: over.aliases,
+      items: over.items,
+    }) as unknown as FlowSchematic;
+
+  it('fires when a divergent generic is consumed as an item input', () => {
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'b@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-b', output: 'b@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectConsumedDivergenceIssues(
+      schematic,
+      stubResolve({ 'a@v1': 'shapeA', 'b@v1': 'shapeB' }),
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.generic).toBe('g@v1');
+    expect(issues[0]?.classification).toBe('divergent');
+    expect(issues[0]?.consumingItems).toEqual(['consumer']);
+    expect(issues[0]?.signatures).toEqual(['shapeA', 'shapeB']);
+    expect(issues[0]?.unresolvedActuals).toEqual([]);
+  });
+
+  it('fires when a consumed generic is masked divergent->unresolved by a null-body actual', () => {
+    // The unresolved-masking hole (adversarial review, HIGH). a@v1 and b@v1 are
+    // genuinely divergent, but adding one actual with no registered body
+    // (masked@v1 -> null) flips the whole generic to `unresolved`. A consumed
+    // generic whose bodies cannot be PROVEN uniform is just as unsafe as a
+    // divergent one — a consumer could bind to the unverified shape — so the gate
+    // must fire here too, not go silent.
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'b@v1' },
+        { generic: 'g@v1', actual: 'masked@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-b', output: 'b@v1', input: {} },
+        { id: 'producer-masked', output: 'masked@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    // masked@v1 is intentionally absent from the resolver -> null signature.
+    const issues = collectConsumedDivergenceIssues(
+      schematic,
+      stubResolve({ 'a@v1': 'shapeA', 'b@v1': 'shapeB' }),
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.generic).toBe('g@v1');
+    expect(issues[0]?.classification).toBe('unresolved');
+    expect(issues[0]?.consumingItems).toEqual(['consumer']);
+    expect(issues[0]?.unresolvedActuals).toEqual(['masked@v1']);
+    // The resolved subset is still surfaced, so the message names both the
+    // divergent shapes the operator can see AND the unresolved actual it cannot.
+    expect(issues[0]?.signatures).toEqual(['shapeA', 'shapeB']);
+  });
+
+  it('allows an unresolved generic that is write-only (not consumed via the generic)', () => {
+    // Symmetric to the divergent write-only case: a generic with an unresolvable
+    // body is still fine if no item reads it via the generic name. The gate is
+    // about CONSUMPTION, not about whether every body is registered.
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'masked@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-masked', output: 'masked@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'a@v1' } },
+      ],
+    });
+    const issues = collectConsumedDivergenceIssues(schematic, stubResolve({ 'a@v1': 'shapeA' }));
+    expect(issues).toEqual([]);
+  });
+
+  it('allows a divergent generic that is write-only (consumed by no item via the generic)', () => {
+    // The shipped pattern: the consumer reads the typed actual, never the
+    // generic. This is the write-only block-reuse umbrella that must survive.
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'b@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-b', output: 'b@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'a@v1' } },
+      ],
+    });
+    const issues = collectConsumedDivergenceIssues(
+      schematic,
+      stubResolve({ 'a@v1': 'shapeA', 'b@v1': 'shapeB' }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it('allows a uniform generic even when consumed as an item input', () => {
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'b@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-b', output: 'b@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectConsumedDivergenceIssues(
+      schematic,
+      stubResolve({ 'a@v1': 'oneShape', 'b@v1': 'oneShape' }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it('allows a single-actual generic consumed as an item input', () => {
+    // Single actual = unambiguous; never a catch-all (this is review.verdict@v1
+    // inside the review flow, consumed but aliased to one actual).
+    const schematic = synthetic({
+      aliases: [{ generic: 'g@v1', actual: 'a@v1' }],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectConsumedDivergenceIssues(schematic, stubResolve({ 'a@v1': 'shapeA' }));
+    expect(issues).toEqual([]);
+  });
+
+  it('produces zero issues for every shipped flow (M8.3 cleared the consumed-divergent set)', () => {
+    // The load-bearing invariant for shipped flows: after M8.3 removed
+    // goal.contract@v1's masking aliases, no shipped flow consumes a divergent
+    // generic. Every remaining divergent generic is a write-only umbrella. If a
+    // future edit reintroduces a consumed catch-all, this fails.
+    for (const id of shippedFlowIds()) {
+      expect(
+        collectConsumedDivergenceIssues(schematicForFlow(id), resolveFieldSignature),
+        `${id} must not consume any divergent generic`,
+      ).toEqual([]);
+    }
+  });
+});
+
+describe('single-actual typing gate (M9-A1)', () => {
+  // The anti-widening gate (M8.4) only inspects MULTI-actual generics. A consumed
+  // contract that binds to a SINGLE body never enters that set, so its body is
+  // never checked — the single-actual blind spot an assembler trips by wiring
+  // block generics raw. This gate is the complement: every contract a flow
+  // CONSUMES and PRODUCES in-flow must resolve to a registered body. Initial-only
+  // inputs (engine-supplied) and multi-actual generics (the anti-widening gate's
+  // domain) are exempt.
+
+  const stubResolve =
+    (shapes: Record<string, string>) =>
+    (name: string): string | null =>
+      shapes[name] ?? null;
+
+  const synthetic = (over: {
+    initial_contracts?: string[];
+    aliases?: { generic: string; actual: string }[];
+    items: { id: string; output: string; input: Record<string, string> }[];
+  }): FlowSchematic =>
+    ({
+      id: 'synthetic',
+      initial_contracts: over.initial_contracts ?? [],
+      contract_aliases: over.aliases ?? [],
+      items: over.items,
+    }) as unknown as FlowSchematic;
+
+  it('fires when a raw produced-and-consumed contract has no registered body', () => {
+    // The runtime-proof shape: one item outputs g@v1, another reads it raw (no
+    // alias), and g@v1 has no registered body. M8.4 cannot see this — g@v1 is not
+    // a multi-actual generic — so this gate must.
+    const schematic = synthetic({
+      items: [
+        { id: 'producer', output: 'g@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectUnregisteredConsumedContractIssues(schematic, stubResolve({}));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.contract).toBe('g@v1');
+    expect(issues[0]?.consumingItems).toEqual(['consumer']);
+  });
+
+  it('fires when a single-actual aliased generic resolves to an unregistered body', () => {
+    // The review shape: a self-alias (generic === actual) produced in-flow and
+    // consumed via the generic name, with no registered body.
+    const schematic = synthetic({
+      aliases: [{ generic: 'g@v1', actual: 'g@v1' }],
+      items: [
+        { id: 'producer', output: 'g@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectUnregisteredConsumedContractIssues(schematic, stubResolve({}));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.contract).toBe('g@v1');
+  });
+
+  it('exempts an initial-only input that no item produces', () => {
+    // The engine routing/brief seam: a contract supplied solely by
+    // initial_contracts has no in-flow producer, so there is no producer->consumer
+    // binding to verify. Unregistered body is fine — the engine owns it.
+    const schematic = synthetic({
+      initial_contracts: ['engine@v1'],
+      items: [{ id: 'consumer', output: 'c@v1', input: { x: 'engine@v1' } }],
+    });
+    const issues = collectUnregisteredConsumedContractIssues(schematic, stubResolve({}));
+    expect(issues).toEqual([]);
+  });
+
+  it('defers a multi-actual generic to the anti-widening gate (no duplicate finding)', () => {
+    // A consumed multi-actual generic with an unregistered actual is the M8.4
+    // gate's job; this gate must not also report it.
+    const schematic = synthetic({
+      aliases: [
+        { generic: 'g@v1', actual: 'a@v1' },
+        { generic: 'g@v1', actual: 'b@v1' },
+      ],
+      items: [
+        { id: 'producer-a', output: 'a@v1', input: {} },
+        { id: 'producer-b', output: 'b@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectUnregisteredConsumedContractIssues(schematic, stubResolve({}));
+    expect(issues).toEqual([]);
+  });
+
+  it('passes a produced-and-consumed contract whose body resolves', () => {
+    const schematic = synthetic({
+      items: [
+        { id: 'producer', output: 'g@v1', input: {} },
+        { id: 'consumer', output: 'c@v1', input: { x: 'g@v1' } },
+      ],
+    });
+    const issues = collectUnregisteredConsumedContractIssues(
+      schematic,
+      stubResolve({ 'g@v1': 'shapeG' }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it('produces zero issues for every shipped flow (M9-A1 registered the raw consumed bodies)', () => {
+    // The load-bearing shipped-flow invariant. Before M9-A1 registered
+    // plan.strategy@v1 (runtime-proof) and review.verdict@v1 (review), each flow
+    // consumed a produced-in-flow contract with no registered body — the seam this
+    // gate closes. If a future edit consumes an untyped produced contract, this
+    // fails. toEqual([]) so a failure names the offending flow and contract.
+    for (const id of shippedFlowIds()) {
+      expect(
+        collectUnregisteredConsumedContractIssues(schematicForFlow(id), resolveFieldSignature),
+        `${id} must not consume a produced-in-flow contract with no registered body`,
+      ).toEqual([]);
+    }
   });
 });

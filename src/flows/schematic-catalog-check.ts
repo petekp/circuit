@@ -28,6 +28,11 @@ import type {
   FlowSchematicCatalogCompatibilityIssue,
 } from '../schemas/flow-schematic.js';
 import { validateFlowSchematicCatalogCompatibility } from '../schemas/flow-schematic.js';
+import {
+  collectConsumedDivergenceIssues,
+  collectUnregisteredConsumedContractIssues,
+} from './accommodation-ledger.js';
+import { resolveFieldSignature } from './contract-body-signature.js';
 
 export function collectSchematicCatalogIssues(
   schematic: FlowSchematic,
@@ -37,7 +42,45 @@ export function collectSchematicCatalogIssues(
   // schemas <-> policy cycle). Gate-recognition reconciliation: a route that is
   // NORMAL or recovery-bound is legitimate regardless of the block's
   // allowed_routes. See docs/ideas/first-class-composition-sequence.md.
-  return validateFlowSchematicCatalogCompatibility(schematic, FLOW_BLOCK_CATALOG, {
+  const issues = validateFlowSchematicCatalogCompatibility(schematic, FLOW_BLOCK_CATALOG, {
     recognizeRoute: isGenericallyLegitRoute,
   });
+
+  // M8.4 anti-widening gate (fail-closed). Forbid a generic contract that is
+  // consumed as an item input AND cannot be proven to bind to a single body —
+  // either it resolves to >1 structurally-distinct body (divergent) or an actual
+  // has no registered body so uniformity is unprovable (unresolved). Gating the
+  // unresolved case too closes a masking hole: one null-body alias must not be
+  // able to flip a divergent consumed generic out of the gate's sight. This lives
+  // in the flows layer (not the schema validator) because the body resolver is
+  // catalog-backed; injecting resolveFieldSignature keeps the schema module a
+  // leaf. Write-only block-reuse umbrellas pass untouched (see
+  // collectConsumedDivergenceIssues); since this runs on every compile, a composed
+  // flow that consumes one unsafely is still caught.
+  for (const issue of collectConsumedDivergenceIssues(schematic, resolveFieldSignature)) {
+    const reason =
+      issue.classification === 'divergent'
+        ? `resolves to ${issue.signatures.length} structurally different bodies; a consumer reading the generic could bind to any of them`
+        : `has actuals with no registered body (${issue.unresolvedActuals.join(', ')}), so the engine cannot prove its bodies are uniform; a consumer reading the generic could bind to an unverified shape`;
+    issues.push({
+      message: `generic contract "${issue.generic}" is consumed as an item input (by ${issue.consumingItems.join(', ')}) but ${reason}. Read the specific typed actual instead, register the missing bodies, or unify the bodies under one contract.`,
+    });
+  }
+
+  // M9-A1 single-actual typing gate (fail-closed). The anti-widening gate above
+  // only inspects multi-actual generics; a contract consumed-and-produced in-flow
+  // that binds to a SINGLE body is never checked there. Forbid one whose body is
+  // not registered — a consumer would read a shape the engine never verified, the
+  // blind spot an assembler trips by wiring block generics raw. Initial-only
+  // inputs (engine-supplied) and multi-actual generics are exempt (see
+  // collectUnregisteredConsumedContractIssues).
+  for (const issue of collectUnregisteredConsumedContractIssues(schematic, resolveFieldSignature)) {
+    const [firstConsumer] = issue.consumingItems;
+    issues.push({
+      ...(firstConsumer === undefined ? {} : { item_id: firstConsumer }),
+      message: `contract "${issue.contract}" is produced and consumed in-flow (read by ${issue.consumingItems.join(', ')}) but has no registered body, so the engine cannot verify the shape the consumer reads. Register its Zod body or read a typed actual whose body is registered.`,
+    });
+  }
+
+  return issues;
 }

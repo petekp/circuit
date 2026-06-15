@@ -7,7 +7,6 @@ export const CustomFlowPackageDescriptor = z
     id: CompiledFlowId,
     format: z.literal('compiled-flow-package'),
     compiled_flow: z.literal('circuit.json'),
-    archetype: z.literal('build'),
     purpose: z.string().min(1),
   })
   .strict();

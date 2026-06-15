@@ -42,14 +42,18 @@ export function collectJsonFiles(root: string, prefix = ''): string[] {
   });
 }
 
-/** Filter mirrored flow files down to the public surface (drops proof/goal/work-contract/never-a-mode artifacts). */
+/** Filter mirrored flow files down to the public surface (drops proof/goal/work-contract/never-a-mode artifacts and the top-level flow catalog). */
 export function publicHostFlowFiles(files: string[]): string[] {
   return files.filter(
     (file) =>
       !file.startsWith('runtime-proof/') &&
       !file.startsWith('goal/') &&
       !file.endsWith('.work-contract.v0.json') &&
-      !file.includes('never-a-mode'),
+      !file.includes('never-a-mode') &&
+      // The static flow.catalog@v1 registry (generated/flows/catalog.json) is a
+      // build/docs artifact, not a per-flow compiled output, so it is not
+      // mirrored into host packages.
+      file !== 'catalog.json',
   );
 }
 

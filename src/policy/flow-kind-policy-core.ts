@@ -219,6 +219,44 @@ export function checkReviewIdentitySeparationPolicy(
   };
 }
 
+const REVIEW_IDENTITY_SEPARATION_AUTHORITY = 'flow-kind review-identity-separation policy';
+
+// Intrinsic trigger for the review-identity-separation invariant: a flow whose
+// close stage contains a compose step that writes the primary review.result
+// report is producing a verdict, and must therefore route that verdict through
+// an independent reviewer relay. Keying on this behavior — rather than on a
+// hardcoded `id === 'review'` — holds composed flows (which carry no catalog id)
+// to the same separation-of-duties rule.
+function hasCloseStageReviewResultWriter(fixture: RecordLike): boolean {
+  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
+  const steps = Array.isArray(fixture.steps) ? fixture.steps : [];
+  const closeStepIds = new Set(stringStepIdsForCanonical(stages, 'close'));
+  for (const step of steps) {
+    const s = objectRecord(step);
+    if (s === undefined || typeof s.id !== 'string') continue;
+    if (closeStepIds.has(s.id) && isReviewResultReportWriter(s)) return true;
+  }
+  return false;
+}
+
+// Returns a red result when the flow emits a verdict but violates identity
+// separation; undefined when the invariant does not apply (no close-stage
+// verdict writer) or is satisfied. Callers run this for every flow, including
+// those with no canonical-set entry, so the verdict-producing rule cannot be
+// skipped by composition.
+function reviewIdentitySeparationViolation(
+  id: string,
+  fixture: RecordLike,
+): CompiledFlowKindPolicyCheckResult | undefined {
+  if (!hasCloseStageReviewResultWriter(fixture)) return undefined;
+  const identity = checkReviewIdentitySeparationPolicy(fixture);
+  if (identity.ok) return undefined;
+  return {
+    kind: 'red',
+    detail: `${id}: ${identity.detail} (authority: ${REVIEW_IDENTITY_SEPARATION_AUTHORITY})`,
+  };
+}
+
 export function checkCompiledFlowKindCanonicalPolicyWithTable(
   fixture: unknown,
   table: CompiledFlowKindPolicyTable,
@@ -238,6 +276,18 @@ export function checkCompiledFlowKindCanonicalPolicyWithTable(
     };
   }
 
+  // Intrinsic, kind-independent invariant, checked first — before exemption and
+  // before the canonical-set table lookup. A flow that emits a verdict cannot
+  // self-author it, regardless of its id, whether it has a table entry (a
+  // composed flow does not), or whether it is exempt from stage-set enforcement
+  // (exemption covers the partial-stage path, not separation of duties). This is
+  // what closes the former pass-through hole: an unknown-id flow is no longer
+  // waved through.
+  const identityViolation = reviewIdentitySeparationViolation(id, f);
+  if (identityViolation !== undefined) {
+    return identityViolation;
+  }
+
   if (table.exemptFlowIds.has(id)) {
     return {
       kind: 'exempt',
@@ -247,9 +297,13 @@ export function checkCompiledFlowKindCanonicalPolicyWithTable(
 
   const expected = table.canonicalSets[id];
   if (expected === undefined) {
+    // No external canonical-set prescription for this id (e.g. a composed flow).
+    // Internal canonical consistency is already enforced by CompiledFlow's Zod
+    // superRefine, and the intrinsic identity check above has run, so this is a
+    // clean pass-through rather than zero enforcement.
     return {
       kind: 'pass_through',
-      detail: `${id}: no canonical-set entry (unknown flow kind; pass-through)`,
+      detail: `${id}: no canonical-set entry (unknown or composed flow kind; pass-through — intrinsic identity policy enforced)`,
     };
   }
 
@@ -274,16 +328,8 @@ export function checkCompiledFlowKindCanonicalPolicyWithTable(
     };
   }
 
-  if (id === 'review') {
-    const identitySeparation = checkReviewIdentitySeparationPolicy(f);
-    if (!identitySeparation.ok) {
-      return {
-        kind: 'red',
-        detail: `${id}: ${identitySeparation.detail} (authority: ${expected.authority})`,
-      };
-    }
-  }
-
+  // Identity separation is enforced intrinsically above (for known and composed
+  // flows alike), so no id-specific branch is needed here.
   return {
     kind: 'green',
     detail: acceptedVariant.detail,

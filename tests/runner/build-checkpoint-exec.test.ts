@@ -103,6 +103,7 @@ async function runCompiledFlow(invocation: {
   readonly runId: string;
   readonly goal: string;
   readonly depth?: string;
+  readonly unattended?: boolean;
   readonly change_kind?: ChangeKindDeclaration;
   readonly now?: () => Date;
   readonly relayer?: RelayFn;
@@ -118,6 +119,7 @@ async function runCompiledFlow(invocation: {
     runId: String(invocation.runId),
     goal: invocation.goal,
     ...(invocation.depth === undefined ? {} : { depth: invocation.depth }),
+    ...(invocation.unattended === undefined ? {} : { unattended: invocation.unattended }),
     ...(invocation.projectRoot === undefined ? {} : { projectRoot: invocation.projectRoot }),
     ...(invocation.now === undefined ? {} : { now: invocation.now }),
     ...(invocation.relayer === undefined ? {} : { relayer: invocation.relayer }),
@@ -170,6 +172,7 @@ async function captureOutput(fn: () => Promise<number>): Promise<{
 
 function checkpointCompiledFlow(options: {
   safeDefault?: string;
+  autoContinuableWhenNested?: boolean;
 }): { flow: CompiledFlow; bytes: Buffer } {
   const raw = {
     schema_version: '3',
@@ -210,6 +213,9 @@ function checkpointCompiledFlow(options: {
           ...(options.safeDefault === undefined
             ? {}
             : { safe_default_choice: options.safeDefault }),
+          ...(options.autoContinuableWhenNested === undefined
+            ? {}
+            : { auto_continuable_when_nested: options.autoContinuableWhenNested }),
           report_template: {
             scope: 'Only prove checkpoint execution',
             success_criteria: ['Frame checkpoint is represented honestly'],
@@ -1273,6 +1279,149 @@ describe('Build checkpoint execution substrate', () => {
       throw new Error(`expected aborted, got ${outcome.result.outcome}`);
     }
     expect(outcome.result.reason).toMatch(/declared default choice/);
+    expect(existsSync(join(runFolder, 'reports/result.json'))).toBe(true);
+  });
+
+  // Headless-checkpoint policy (M9-A4). An unattended run (a composed/nested
+  // child, or a batch/headless host) has no operator to answer a checkpoint and
+  // no external resume driver to clear it. At high/tournament depth an attended
+  // run parks at checkpoint_waiting for that operator (proven by the paused-open
+  // test above) — but an unattended run that parked could never be resumed, so
+  // the engine must instead reach a terminal outcome. The locked decision is
+  // fail-closed by default: the engine never auto-skips a human gate just
+  // because a safe default exists. It auto-continues an unattended checkpoint
+  // ONLY when the flow's manifest explicitly opts that checkpoint in via
+  // auto_continuable_when_nested; otherwise it stops with a loud "hit a human
+  // gate unattended" terminal. The signal rides on the run invocation, never on
+  // a flow, so it is latent until M9 wires composed runs; every shipped
+  // top-level run today is attended and still parks unchanged.
+  it('fails an unattended high-depth checkpoint closed when it is not declared auto-continuable, even with a safe default', async () => {
+    // The safety regression guard: a safe default alone must NOT let an
+    // unattended run auto-skip a human gate. Only an explicit opt-in may.
+    const { flow, bytes } = checkpointCompiledFlow({ safeDefault: 'continue' });
+    const runFolder = join(runFolderBase, 'unattended-high-not-optedin');
+
+    const outcome = await runCompiledFlow({
+      runFolder,
+      flow,
+      flowBytes: bytes,
+      projectRoot: process.cwd(),
+      runId: RunId.parse('b3000000-0000-0000-0000-000000000020'),
+      goal: 'Refuse to auto-skip an unattended human gate',
+      depth: 'high',
+      unattended: true,
+      change_kind: change_kind(),
+      now: deterministicNow(Date.UTC(2026, 3, 25, 6, 0, 0)),
+    });
+
+    if (isGraphCheckpointWaitingResult(outcome.result)) {
+      throw new Error('unattended run must not park at a checkpoint');
+    }
+    expect(outcome.result.outcome).toBe('aborted');
+    if (outcome.result.outcome !== 'aborted') {
+      throw new Error(`expected aborted, got ${outcome.result.outcome}`);
+    }
+    expect(outcome.result.reason).toMatch(/unattended/);
+    expect(outcome.result.reason).toMatch(/auto_continuable_when_nested/);
+    // It must not have crossed the gate: no checkpoint.resolved trace entry.
+    expect(
+      outcome.trace_entries.find((trace_entry) => trace_entry.kind === 'checkpoint.resolved'),
+    ).toBeUndefined();
+    expect(existsSync(join(runFolder, 'reports/result.json'))).toBe(true);
+  });
+
+  it('auto-continues an unattended high-depth checkpoint through its safe default when declared auto-continuable', async () => {
+    const { flow, bytes } = checkpointCompiledFlow({
+      safeDefault: 'continue',
+      autoContinuableWhenNested: true,
+    });
+    const runFolder = join(runFolderBase, 'unattended-high-optedin');
+
+    const outcome = await runCompiledFlow({
+      runFolder,
+      flow,
+      flowBytes: bytes,
+      projectRoot: process.cwd(),
+      runId: RunId.parse('b3000000-0000-0000-0000-000000000022'),
+      goal: 'Resolve an opted-in unattended deep Build run',
+      depth: 'high',
+      unattended: true,
+      change_kind: change_kind(),
+      now: deterministicNow(Date.UTC(2026, 3, 25, 6, 10, 0)),
+    });
+
+    if (isGraphCheckpointWaitingResult(outcome.result)) {
+      throw new Error('unattended run must reach a terminal outcome, not park at a checkpoint');
+    }
+    expect(outcome.result.outcome).toBe('complete');
+    expect(outcome.snapshot.status).toBe('complete');
+    const resolved = outcome.trace_entries.find(
+      (trace_entry) => trace_entry.kind === 'checkpoint.resolved',
+    );
+    expect(resolved).toMatchObject({
+      selection: 'continue',
+      auto_resolved: true,
+      resolution_source: 'declared-default',
+    });
+    expect(readJson(runFolder, 'reports/result.json')).toMatchObject({ outcome: 'complete' });
+  });
+
+  it('fails an opted-in unattended checkpoint closed when it has no safe default or auto-resolution to continue with', async () => {
+    // Opt-in alone is not enough: there must be something safe to continue with.
+    const { flow, bytes } = checkpointCompiledFlow({ autoContinuableWhenNested: true });
+    const runFolder = join(runFolderBase, 'unattended-high-optedin-missing');
+
+    const outcome = await runCompiledFlow({
+      runFolder,
+      flow,
+      flowBytes: bytes,
+      projectRoot: process.cwd(),
+      runId: RunId.parse('b3000000-0000-0000-0000-000000000023'),
+      goal: 'Reject an opted-in unattended checkpoint with nothing to continue with',
+      depth: 'high',
+      unattended: true,
+      change_kind: change_kind(),
+      now: deterministicNow(Date.UTC(2026, 3, 25, 6, 15, 0)),
+    });
+
+    if (isGraphCheckpointWaitingResult(outcome.result)) {
+      throw new Error('unattended run must not park at a checkpoint');
+    }
+    expect(outcome.result.outcome).toBe('aborted');
+    if (outcome.result.outcome !== 'aborted') {
+      throw new Error(`expected aborted, got ${outcome.result.outcome}`);
+    }
+    expect(outcome.result.reason).toMatch(/safe default|auto-resolution/);
+    expect(existsSync(join(runFolder, 'reports/result.json'))).toBe(true);
+  });
+
+  it('fails an unattended high-depth checkpoint closed when not opted in and no safe default exists', async () => {
+    const { flow, bytes } = checkpointCompiledFlow({});
+    const runFolder = join(runFolderBase, 'unattended-high-missing');
+
+    const outcome = await runCompiledFlow({
+      runFolder,
+      flow,
+      flowBytes: bytes,
+      projectRoot: process.cwd(),
+      runId: RunId.parse('b3000000-0000-0000-0000-000000000021'),
+      goal: 'Reject an unsafe unattended checkpoint',
+      depth: 'high',
+      unattended: true,
+      change_kind: change_kind(),
+      now: deterministicNow(Date.UTC(2026, 3, 25, 6, 5, 0)),
+    });
+
+    // Never a silent park (it could not be resumed) and never a guess (no
+    // arbitrary route is chosen): a loud, terminal failure instead.
+    if (isGraphCheckpointWaitingResult(outcome.result)) {
+      throw new Error('unattended run must not park at a checkpoint');
+    }
+    expect(outcome.result.outcome).toBe('aborted');
+    if (outcome.result.outcome !== 'aborted') {
+      throw new Error(`expected aborted, got ${outcome.result.outcome}`);
+    }
+    expect(outcome.result.reason).toMatch(/unattended/);
     expect(existsSync(join(runFolder, 'reports/result.json'))).toBe(true);
   });
 });

@@ -37,6 +37,11 @@ export const CANONICAL_STAGES = [
   'close',
 ] as const satisfies readonly CanonicalStage[];
 
+// Minimum length for a partial spine's rationale. Exported so callers that
+// pre-check before SpinePolicy.parse (the flow assembler) share the one source
+// of truth instead of duplicating the literal.
+export const PARTIAL_SPINE_RATIONALE_MIN_LENGTH = 20;
+
 // SpinePolicy is a plain discriminated union (no superRefine on the variants)
 // so Zod's discriminated-union machinery can relay on the `mode` literal.
 // Structural invariants that span the whole variant — notably, omits must be
@@ -53,7 +58,7 @@ export const SpinePolicy = z.discriminatedUnion('mode', [
     .object({
       mode: z.literal('partial'),
       omits: z.array(CanonicalStage).min(1),
-      rationale: z.string().min(20),
+      rationale: z.string().min(PARTIAL_SPINE_RATIONALE_MIN_LENGTH),
     })
     .strict(),
 ]);

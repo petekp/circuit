@@ -853,6 +853,40 @@ describe('runtime fanout executor', () => {
     expect(entries.find((entry) => entry.kind === 'fanout.joined')?.policy).toBe('disjoint-merge');
   });
 
+  it('forwards the parent unattended flag into every fanout branch child', async () => {
+    // safety-(b): like sub-run, a fanout branch is a composed/nested child and
+    // must inherit the parent's unattended signal so its checkpoints reach a
+    // terminal outcome instead of parking. Without forwarding, a branch runs as
+    // attended and a high/tournament-depth checkpoint would park forever.
+    const runDir = join(baseDir, 'sub-run-fanout-unattended-propagation');
+    const observed: Array<boolean | undefined> = [];
+
+    const result = await executeExecutableFlow(subRunFanoutFlow(), {
+      runDir,
+      runId: randomUUID(),
+      goal: 'fanout goal',
+      unattended: true,
+      projectRoot: join(baseDir, 'project'),
+      worktreeRunner: {
+        add() {},
+        remove() {},
+        changedFiles(worktreePath: string) {
+          return [worktreePath.endsWith('/one') ? 'one.ts' : 'two.ts'];
+        },
+      },
+      childCompiledFlowResolver: () => ({ flowBytes: childFlowBytes() }),
+      childRunner: async (options) => {
+        observed.push(options.unattended);
+        return stubChildRunner()(options);
+      },
+      now: () => new Date('2026-05-03T00:00:00.000Z'),
+    });
+
+    expect(result.outcome).toBe('complete');
+    expect(observed).toHaveLength(2);
+    expect(observed.every((value) => value === true)).toBe(true);
+  });
+
   it('records the successful sub-run fanout trace sequence before closing the run', async () => {
     const runDir = join(baseDir, 'sub-run-fanout-sequence-run');
     const result = await executeExecutableFlow(subRunFanoutFlow({ concurrencyMax: 1 }), {

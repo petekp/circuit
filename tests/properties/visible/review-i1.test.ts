@@ -78,6 +78,13 @@ describe('REVIEW-I1 structural ordering property', () => {
     expect(checkReviewIdentitySeparationPolicy(wrongRole).ok).toBe(false);
     expect(checkCompiledFlowKindCanonicalPolicy(wrongRole).kind).toBe('red');
 
+    // The strict standalone helper still requires a review.result writer, so it
+    // rejects a close that writes a different schema. The integrated policy,
+    // however, now gates identity separation on whether the flow actually emits
+    // a review.result verdict — a close that writes some other schema is simply
+    // not a verdict producer, so the policy passes it. (Schema correctness for
+    // the real review flow is pinned by its own contract/output-schema tests, not
+    // by this generic kind policy.) This is the decoupling from `id === 'review'`.
     const wrongReport = reviewPolicyPayload([
       { id: 'intake-step', kind: 'compose', writes: { report: {} } },
       { id: 'audit-step', kind: 'relay', role: 'reviewer' },
@@ -90,6 +97,6 @@ describe('REVIEW-I1 structural ordering property', () => {
       },
     ]);
     expect(checkReviewIdentitySeparationPolicy(wrongReport).ok).toBe(false);
-    expect(checkCompiledFlowKindCanonicalPolicy(wrongReport).kind).toBe('red');
+    expect(checkCompiledFlowKindCanonicalPolicy(wrongReport).kind).toBe('green');
   });
 });

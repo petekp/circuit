@@ -24,12 +24,13 @@
 // describes. Together the two gates cover the whole accommodation surface.
 //
 // What this ledger does NOT prove, on two axes:
-//   - Body divergence. That the bodies behind a multi-actual generic (one
-//     generic aliased to several distinct actuals) are mutually compatible. An
-//     alias can cite a real producer and still collapse structurally divergent
-//     bodies under one generic name. Deferred to M8 (typed canonical bodies +
-//     an anti-widening gate). The multi-actual generics are surfaced here as
-//     probe targets so they stay visible, not silently blessed.
+//   - Body divergence enforcement. `collectBodyDivergence` (M8.0, below) now
+//     DETECTS whether the bodies behind a multi-actual generic share one shape
+//     (uniform) or collapse structurally divergent bodies under one generic
+//     name (divergent) — report-only. It is the data source for the fail-closed
+//     anti-widening gate, which is M8.4: until that lands, a divergent generic
+//     is surfaced, not rejected. The multi-actual generics stay visible as probe
+//     targets, never silently blessed.
 //   - Per-consumer binding. That a consumer reading the generic resolves to the
 //     producer on ITS route. This ledger proves alias->producer EXISTENCE (the
 //     actual is emitted somewhere in the flow); it does not prove the compiler
@@ -38,9 +39,7 @@
 //     fail-closed gate). "Zero accommodations" therefore means "no alias points
 //     at a phantom contract", not "every binding is correct".
 
-import { readFileSync, readdirSync } from 'node:fs';
-
-import { FlowSchematic } from '../schemas/flow-schematic.js';
+import type { FlowSchematic } from '../schemas/flow-schematic.js';
 
 export type AliasClassification = 'model-correction' | 'accommodation';
 
@@ -66,23 +65,29 @@ export interface AccommodationLedger {
   readonly multiActualGenerics: readonly MultiActualGeneric[];
 }
 
-function loadSchematic(id: string): FlowSchematic {
-  return FlowSchematic.parse(JSON.parse(readFileSync(`src/flows/${id}/schematic.json`, 'utf8')));
+// M8 body-divergence: one actual contract behind a multi-actual generic, paired
+// with the structural signature of its body (null when no body resolves).
+export interface BodyDivergenceActual {
+  readonly actual: string;
+  readonly signature: string | null;
 }
 
-export function shippedSchematicIds(): string[] {
-  return readdirSync('src/flows', { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .filter((name) => {
-      try {
-        readFileSync(`src/flows/${name}/schematic.json`, 'utf8');
-        return true;
-      } catch {
-        return false;
-      }
-    })
-    .sort();
+// M8 body-divergence classification for one multi-actual generic:
+//   - uniform:    every actual resolves to one and the same body signature.
+//                 Safe to unify under a single typed contract.
+//   - divergent:  the actuals resolve to two or more distinct signatures. The
+//                 generic name spans structurally different bodies — the
+//                 catch-all the anti-widening gate must forbid; needs a split.
+//   - unresolved: at least one actual has no registered body, so the bodies
+//                 cannot be compared yet (e.g. a routing-seam contract before
+//                 its body is authored).
+export type BodyDivergenceClassification = 'uniform' | 'divergent' | 'unresolved';
+
+export interface MultiActualBodyDivergence {
+  readonly flow: string;
+  readonly generic: string;
+  readonly classification: BodyDivergenceClassification;
+  readonly actuals: readonly BodyDivergenceActual[];
 }
 
 // Resolve each alias against the flow's real producers. The citation names the
@@ -116,11 +121,16 @@ export function collectFlowAliasLedger(schematic: FlowSchematic): AliasLedgerEnt
   });
 }
 
+// Pure over the in-memory definitions (M6): the caller supplies each flow's
+// FlowSchematic (catalog.ts `flowDefinitions[*].schematic`), so the ledger
+// analyzes the live source of truth rather than reading the generated
+// src/flows/<id>/schematic.json back from disk. The committed JSON stays a
+// drift-checked snapshot, not an input here.
 export function collectAccommodationLedger(
-  ids: string[] = shippedSchematicIds(),
+  schematics: readonly FlowSchematic[],
 ): AccommodationLedger {
   const entries: AliasLedgerEntry[] = [];
-  for (const id of ids) entries.push(...collectFlowAliasLedger(loadSchematic(id)));
+  for (const schematic of schematics) entries.push(...collectFlowAliasLedger(schematic));
 
   const accommodations = entries.filter((entry) => entry.classification === 'accommodation');
 
@@ -152,4 +162,229 @@ export function collectAccommodationLedger(
   );
 
   return { entries, accommodations, multiActualGenerics };
+}
+
+// M8 (report-only): classify each multi-actual generic by whether the bodies
+// behind its actuals share one structural shape. `resolveSignature` maps an
+// actual contract name to its body signature (or null when unresolvable) — it
+// is injected so this stays a pure analyzer with no catalog or Zod dependency;
+// the catalog-backed resolver lives in contract-body-signature.ts. This is the
+// data source the M8.4 anti-widening gate consumes: a generic that classifies
+// `divergent` and is not made a discriminated union must be split.
+export function collectBodyDivergence(
+  generics: readonly MultiActualGeneric[],
+  resolveSignature: (contractName: string) => string | null,
+): MultiActualBodyDivergence[] {
+  return generics.map((generic) => {
+    const actuals = generic.actuals.map((actual) => ({
+      actual,
+      signature: resolveSignature(actual),
+    }));
+    const classification: BodyDivergenceClassification = actuals.some(
+      (entry) => entry.signature === null,
+    )
+      ? 'unresolved'
+      : new Set(actuals.map((entry) => entry.signature)).size === 1
+        ? 'uniform'
+        : 'divergent';
+    return { flow: generic.flow, generic: generic.generic, classification, actuals };
+  });
+}
+
+// M8.4 anti-widening gate: one consumed-divergence finding. A generic contract
+// that is CONSUMED as an item input (its name appears as a value in some
+// item.input) AND cannot be PROVEN to bind to a single body — classified
+// `divergent` (two or more structurally-distinct bodies) or `unresolved` (at
+// least one actual has no registered body) — is unsafe: a consumer reading the
+// generic could bind to a shape the engine never verified.
+export interface ConsumedDivergenceIssue {
+  readonly flow: string;
+  readonly generic: string;
+  // Why the consumed generic is unsafe: `divergent` (>=2 distinct bodies) or
+  // `unresolved` (>=1 actual with no registered body, so uniformity is unprovable).
+  readonly classification: 'divergent' | 'unresolved';
+  // Item ids whose input reads the generic name directly (sorted, deduped).
+  readonly consumingItems: readonly string[];
+  // The distinct RESOLVED body signatures behind the generic's actuals (sorted,
+  // deduped). For `unresolved` this is the subset of actuals that did resolve.
+  readonly signatures: readonly string[];
+  // For `unresolved`: the actuals whose body could not be resolved (sorted,
+  // deduped). Empty for `divergent`.
+  readonly unresolvedActuals: readonly string[];
+}
+
+// M8.4 anti-widening gate (fail-closed). Forbids a generic that is CONSUMED as
+// an item input AND cannot be PROVEN to bind to a single body — classified
+// `divergent` (>=2 distinct bodies, the catch-all) OR `unresolved` (>=1 actual
+// with no registered body, so uniformity is unprovable). Gating `unresolved`
+// closes the masking hole an adversarial review found: without it, adding one
+// alias from a divergent consumed generic to a real-but-bodyless contract flips
+// the classification to `unresolved` and silences the gate — a false negative on
+// a genuine widening, on exactly the composed/edited-flow population this gate
+// exists to protect.
+//
+// Three families pass untouched, by design:
+//   - write-only block-reuse umbrellas — a generic named only as a block
+//     output_contract, realized by typed flow-scoped actuals, that no item reads
+//     via the generic name. These are honest reuse (one block, many flows),
+//     whether their bodies are divergent OR unresolved; binding is moot because
+//     nothing reads the generic. The shipped flows' verification.result@v1 /
+//     plan.strategy@v1 / change.evidence@v1 / review.verdict@v1 are all this. The
+//     gate re-runs on every compile, so a composed flow that DOES consume one
+//     unsafely is still caught.
+//   - uniform generics — every actual shares one body, so binding is unambiguous.
+//   - single-actual generics — one actual, nothing to disambiguate (this is
+//     review.verdict@v1 inside the review flow: consumed, but one actual).
+//
+// Scope boundary (M9). This gate keys on multi-actual generics — `actuals.size
+// > 1` in collectAccommodationLedger. A consumed generic with a SINGLE actual,
+// or a bare consumed contract with no alias at all, never enters that set, so
+// the gate never inspects its body. If that one body is unregistered/unverified,
+// the gate is blind to it: this gate forbids the WIDENING shape (one name, many
+// bodies), not the orthogonal "is every consumed body typed" question. Proving
+// the whole contract universe has a registered body is the M9 typing pass; it
+// would fail-closed on the eight built-ins today (several routing-seam contracts
+// are consumed before their Zod body is authored), which is why it is out of
+// scope here. The shipped flows are inert under both gates.
+//
+// `resolveSignature` is injected (the catalog-backed resolver lives in
+// contract-body-signature.ts) so this stays a pure analyzer.
+export function collectConsumedDivergenceIssues(
+  schematic: FlowSchematic,
+  resolveSignature: (contractName: string) => string | null,
+): ConsumedDivergenceIssue[] {
+  const ledger = collectAccommodationLedger([schematic]);
+  const divergence = collectBodyDivergence(ledger.multiActualGenerics, resolveSignature);
+  // A CONSUMED multi-actual generic must be provably uniform; anything that is
+  // not `uniform` is unsafe to read through (see the masking-hole note above).
+  const unsafeByGeneric = new Map(
+    divergence
+      .filter((entry) => entry.classification !== 'uniform')
+      .map((entry) => [entry.generic, entry]),
+  );
+  if (unsafeByGeneric.size === 0) return [];
+
+  // Which unsafe generics are read by name as an item input value, and by whom.
+  const consumersByGeneric = new Map<string, string[]>();
+  for (const item of schematic.items) {
+    const itemId = item.id as unknown as string;
+    for (const value of Object.values(item.input)) {
+      const name = value as unknown as string;
+      if (!unsafeByGeneric.has(name)) continue;
+      const consumers = consumersByGeneric.get(name) ?? [];
+      consumers.push(itemId);
+      consumersByGeneric.set(name, consumers);
+    }
+  }
+
+  const flow = schematic.id as unknown as string;
+  const issues: ConsumedDivergenceIssue[] = [];
+  for (const [generic, consumers] of consumersByGeneric) {
+    const entry = unsafeByGeneric.get(generic);
+    if (entry === undefined) continue;
+    const signatures = [
+      ...new Set(
+        entry.actuals
+          .map((actual) => actual.signature)
+          .filter((signature): signature is string => signature !== null),
+      ),
+    ].sort();
+    const unresolvedActuals = [
+      ...new Set(
+        entry.actuals.filter((actual) => actual.signature === null).map((actual) => actual.actual),
+      ),
+    ].sort();
+    issues.push({
+      flow,
+      generic,
+      classification: entry.classification === 'divergent' ? 'divergent' : 'unresolved',
+      consumingItems: [...new Set(consumers)].sort(),
+      signatures,
+      unresolvedActuals,
+    });
+  }
+  return issues.sort((a, b) => a.generic.localeCompare(b.generic));
+}
+
+// M9-A1 single-actual typing gate: one unregistered-consumed-contract finding. A
+// contract that a flow CONSUMES (read as an item input) AND PRODUCES in-flow
+// (some item outputs it, directly or as an alias actual) whose body does not
+// resolve to a registered Zod shape.
+export interface UnregisteredConsumedContractIssue {
+  readonly flow: string;
+  // The consumed contract name as written in the item input.
+  readonly contract: string;
+  // Item ids that read the contract name as an input (sorted, deduped).
+  readonly consumingItems: readonly string[];
+}
+
+// M9-A1 single-actual typing gate (fail-closed). The anti-widening gate above
+// only inspects MULTI-actual generics — a consumed contract that binds to a
+// SINGLE body never enters `multiActualGenerics`, so its body is never checked.
+// If that one body is unregistered, a consumer reads a shape the engine never
+// verified: the single-actual blind spot an assembler trips, because an
+// assembler wires block generics raw rather than through flow-scoped actuals.
+// This gate closes it. Every contract a flow CONSUMES (read as an item input)
+// AND PRODUCES in-flow (some item outputs it, directly or as the actual behind
+// an alias it reads) must resolve to a registered body.
+//
+// Two populations are EXEMPT, by design:
+//   - initial-only inputs — a contract supplied solely by initial_contracts
+//     (the engine routing/brief seam: context.request@v1, flow.brief@v1,
+//     verification.plan@v1, flow.state@v1, flow.question@v1, context.packet@v1).
+//     It has no in-flow producer, so there is no producer->consumer binding an
+//     assembler could mis-stitch; its body is the engine's to own, not the
+//     flow's. The gate never inspects a contract no item produces.
+//   - multi-actual generics — the anti-widening gate already requires every one
+//     of their actuals to resolve and be uniform, so checking them here would
+//     only duplicate that finding. This gate is the complement: it owns the
+//     single-actual and no-alias cases that gate cannot see.
+//
+// `resolveSignature` is injected (the catalog-backed resolver lives in
+// contract-body-signature.ts) so this stays a pure analyzer.
+export function collectUnregisteredConsumedContractIssues(
+  schematic: FlowSchematic,
+  resolveSignature: (contractName: string) => string | null,
+): UnregisteredConsumedContractIssue[] {
+  const producedInFlow = new Set<string>();
+  for (const item of schematic.items) producedInFlow.add(item.output as unknown as string);
+
+  // generic -> its alias actuals. Used to (a) skip multi-actual generics (the
+  // anti-widening gate owns them) and (b) find the binding target when a consumed
+  // name is an alias generic: the consumer receives the actual's body, so that is
+  // the body that must resolve.
+  const actualsByGeneric = new Map<string, Set<string>>();
+  for (const alias of schematic.contract_aliases) {
+    const generic = alias.generic as unknown as string;
+    const set = actualsByGeneric.get(generic) ?? new Set<string>();
+    set.add(alias.actual as unknown as string);
+    actualsByGeneric.set(generic, set);
+  }
+
+  const consumersByContract = new Map<string, Set<string>>();
+  for (const item of schematic.items) {
+    const itemId = item.id as unknown as string;
+    for (const value of Object.values(item.input)) {
+      const name = value as unknown as string;
+      const aliasActuals = actualsByGeneric.get(name);
+      // Multi-actual generics belong to the anti-widening gate.
+      if ((aliasActuals?.size ?? 0) > 1) continue;
+      // Binding target(s): the single alias actual if the name is an alias
+      // generic, else the name itself (read raw).
+      const targets = aliasActuals === undefined ? [name] : [...aliasActuals];
+      // Only contracts produced in-flow are this flow's to type; an input that
+      // arrives only from initial_contracts is engine-supplied and exempt.
+      const producedTargets = targets.filter((target) => producedInFlow.has(target));
+      if (producedTargets.length === 0) continue;
+      if (!producedTargets.some((target) => resolveSignature(target) === null)) continue;
+      const consumers = consumersByContract.get(name) ?? new Set<string>();
+      consumers.add(itemId);
+      consumersByContract.set(name, consumers);
+    }
+  }
+
+  const flow = schematic.id as unknown as string;
+  return [...consumersByContract.entries()]
+    .map(([contract, items]) => ({ flow, contract, consumingItems: [...items].sort() }))
+    .sort((a, b) => a.contract.localeCompare(b.contract));
 }

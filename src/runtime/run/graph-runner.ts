@@ -74,6 +74,10 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   readonly entryModeName?: string;
   readonly depth?: string;
   readonly axes?: Axes;
+  // No operator present and no external resume driver — a checkpoint must reach
+  // a terminal outcome rather than park. Threaded onto RunContext; see
+  // RunContext.unattended and resolveCheckpoint.
+  readonly unattended?: boolean;
   readonly maxSteps?: number;
   readonly resumeCheckpoint?: {
     readonly stepId: string;
@@ -293,6 +297,7 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...(options.entryModeName === undefined ? {} : { entryModeName: options.entryModeName }),
     ...(options.depth === undefined ? {} : { depth: options.depth }),
     ...(options.axes === undefined ? {} : { axes: options.axes }),
+    ...(options.unattended === undefined ? {} : { unattended: options.unattended }),
     now: boundary.clock.now,
     files,
     trace,

@@ -21,15 +21,11 @@
       "type": "string",
       "const": "circuit.json"
     },
-    "archetype": {
-      "type": "string",
-      "const": "build"
-    },
     "purpose": {
       "type": "string",
       "minLength": 1
     }
   },
-  "required": ["schema_version", "id", "format", "compiled_flow", "archetype", "purpose"],
+  "required": ["schema_version", "id", "format", "compiled_flow", "purpose"],
   "additionalProperties": false
 }

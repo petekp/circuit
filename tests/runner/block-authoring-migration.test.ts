@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { flowDefinitions } from '../../src/flows/catalog.js';
@@ -40,14 +40,28 @@ const SLICE_2_7_TARGETS = new Map<string, readonly string[]>([
 ]);
 
 function expandedStepIds(flowId: string): readonly string[] {
-  const source = readFileSync(`src/flows/${flowId}/data.ts`, 'utf8');
-  return [
-    ...source.matchAll(
+  // A flow authors its block steps one of two ways. Most still call the Block
+  // Step expansion helpers inline in data.ts. The assembler's production
+  // customers (build, pursue — first-class composition M9) instead list raw
+  // BlockStepUse items in assembly-spec.ts, which assembleFlowSchematic expands.
+  // Read whichever source the flow uses so this migration guard tracks the
+  // authored block sequence rather than one specific call site.
+  const dataSource = readFileSync(`src/flows/${flowId}/data.ts`, 'utf8');
+  const helperIds = [
+    ...dataSource.matchAll(
       /(?:expandBlockStepUse|composeBlockStep|relayBlockStep|verificationBlockStep|checkpointBlockStep)\(\{\s+id: '([^']+)'/g,
     ),
-  ]
-    .map((match) => match[1])
-    .filter((stepId): stepId is string => stepId !== undefined);
+  ].map((match) => match[1]);
+
+  // Top-level BlockStepUse items in assembly-spec.ts sit at four-space indent
+  // (biome-enforced); nested ids (checkpoint choices, acceptance checks) are
+  // deeper, and stage-label ids are mid-line, so neither matches.
+  const specPath = `src/flows/${flowId}/assembly-spec.ts`;
+  const specIds = existsSync(specPath)
+    ? [...readFileSync(specPath, 'utf8').matchAll(/^ {4}id: '([^']+)',/gm)].map((match) => match[1])
+    : [];
+
+  return [...helperIds, ...specIds].filter((stepId): stepId is string => stepId !== undefined);
 }
 
 describe('Block-simplified authoring migration', () => {

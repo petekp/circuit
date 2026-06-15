@@ -47,12 +47,31 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
   // schematic-catalog-check.ts -- shared cross-flow honesty infrastructure
   // exercised only by tests/contracts/accommodation-ledger.test.ts today.
   'src/flows/accommodation-ledger.ts',
+  // M8 (first-class composition): the contract-body signature resolver that
+  // backs the accommodation ledger's body-divergence reporter. Cross-flow
+  // infrastructure (it reads the catalog-derived report-schema registry), peer
+  // to the ledger; exercised by tests/contracts/accommodation-ledger.test.ts.
+  'src/flows/contract-body-signature.ts',
+  // M7 (first-class composition): the sequence-level flow assembler. Shared
+  // cross-flow infrastructure, peer to compile-schematic-to-flow.ts and
+  // block-step-expansion.ts, exercised today only by the assembler tests. It
+  // joins the engine allowlist when the compile/runtime path consumes it (M9).
+  'src/flows/assemble-flow-schematic.ts',
 ];
 
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
   'tests/runner/fix-result-projection.test.ts -> src/flows/fix/writers/result-projection.ts',
   'tests/runner/build-result-projection.test.ts -> src/flows/build/writers/result-projection.ts',
   'tests/runner/build-touch-area-projection.test.ts -> src/flows/build/writers/touch-area-projection.ts',
+]);
+
+// M9 (first-class composition): custom-flow creation deliberately reuses
+// build's assembly spec — a custom flow is build-shaped by design, so it is
+// assembled from the same block sequence and compiled through the same path.
+// This is the ONE sanctioned src→flow-internal import outside the catalog;
+// any other is a boundary break.
+const ALLOWED_SRC_INTERNAL_FLOW_IMPORTS = new Set([
+  'src/cli/create.ts -> src/flows/build/assembly-spec.ts',
 ]);
 
 function flowImportTarget(file: string, importPath: string): string | undefined {
@@ -177,6 +196,42 @@ describe('engine ↔ flow boundary', () => {
     ).toEqual([]);
   });
 
+  it('no src file outside runtime/ and flows/ reaches into a flow package internal', () => {
+    // The index-only guard above misses non-index internals (e.g. M9's
+    // assembly-spec.ts), and the src/runtime/ and src/flows/<id>/ guards only
+    // cover their own trees. This closes the remaining gap: any other src file
+    // (cli/, connectors/, schemas/, …) that imports a per-flow internal must be
+    // an explicit, reviewed exception, so a future unintended reach fails loudly.
+    const offenders: { readonly file: string; readonly importPath: string }[] = [];
+    let inspected = 0;
+    for (const file of walkTsFiles('src')) {
+      if (file.startsWith(`${RUNTIME_ROOT}/`) || file.startsWith(`${WORKFLOWS_ROOT}/`)) continue;
+      inspected++;
+      for (const importPath of importPathsFrom(file)) {
+        const target = flowImportTarget(file, importPath);
+        if (target === undefined) continue;
+        const importedCompiledFlow = flowPackageIdForTarget(target);
+        if (importedCompiledFlow === undefined) continue;
+        // Shared flow infrastructure at flows/ root is allowed.
+        if (isAllowedEngineImport(target)) continue;
+        if (ALLOWED_SRC_INTERNAL_FLOW_IMPORTS.has(`${file} -> ${target}`)) continue;
+        offenders.push({ file, importPath });
+      }
+    }
+    expect(
+      inspected,
+      'src walk outside runtime/flows inspected unexpectedly few files — discovery loop is likely broken',
+    ).toBeGreaterThanOrEqual(10);
+    expect(
+      offenders,
+      `non-catalog src files reached into flow internals:\n${offenders
+        .map((o) => `  ${o.file} → ${o.importPath}`)
+        .join(
+          '\n',
+        )}\nGo through src/flows/catalog.ts, or add an explicit ALLOWED_SRC_INTERNAL_FLOW_IMPORTS exception if the coupling is intentional.`,
+    ).toEqual([]);
+  });
+
   it('test files do not bypass the engine→flow boundary via direct package imports', () => {
     // Tests CAN import a flow package's index for unit-testing
     // the package in isolation. They MAY also import a package's
@@ -196,9 +251,13 @@ describe('engine ↔ flow boundary', () => {
         const target = flowImportTarget(file, importPath);
         if (target === undefined) continue;
         // index.js / catalog.js / types.js / reports.js are the
-        // supported public surfaces.
+        // supported public surfaces. assembly-spec.ts joins them in M9
+        // (first-class composition): a flow's block sequence + assembly spec
+        // are its authored composition surface, peer to its reports schemas,
+        // and the prove-by-equivalence / create-CLI tests legitimately read it.
         if (target.endsWith('/index.ts')) continue;
         if (target.endsWith('/reports.ts')) continue;
+        if (target.endsWith('/assembly-spec.ts')) continue;
         if (isAllowedTestImport(target)) continue;
         if (ALLOWED_TEST_INTERNAL_FLOW_IMPORTS.has(`${file} -> ${target}`)) continue;
         offenders.push({ file, importPath });
