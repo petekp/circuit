@@ -65,6 +65,15 @@ const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
   'tests/runner/build-touch-area-projection.test.ts -> src/flows/build/writers/touch-area-projection.ts',
 ]);
 
+// M9 (first-class composition): custom-flow creation deliberately reuses
+// build's assembly spec — a custom flow is build-shaped by design, so it is
+// assembled from the same block sequence and compiled through the same path.
+// This is the ONE sanctioned src→flow-internal import outside the catalog;
+// any other is a boundary break.
+const ALLOWED_SRC_INTERNAL_FLOW_IMPORTS = new Set([
+  'src/cli/create.ts -> src/flows/build/assembly-spec.ts',
+]);
+
 function flowImportTarget(file: string, importPath: string): string | undefined {
   const target = relativeImportTarget(file, importPath);
   if (target === undefined) return undefined;
@@ -184,6 +193,42 @@ describe('engine ↔ flow boundary', () => {
       `non-catalog files imported a flow package directly:\n${offenders
         .map((o) => `  ${o.file} → ${o.importPath}`)
         .join('\n')}\nUse src/flows/catalog.ts → flowPackages instead.`,
+    ).toEqual([]);
+  });
+
+  it('no src file outside runtime/ and flows/ reaches into a flow package internal', () => {
+    // The index-only guard above misses non-index internals (e.g. M9's
+    // assembly-spec.ts), and the src/runtime/ and src/flows/<id>/ guards only
+    // cover their own trees. This closes the remaining gap: any other src file
+    // (cli/, connectors/, schemas/, …) that imports a per-flow internal must be
+    // an explicit, reviewed exception, so a future unintended reach fails loudly.
+    const offenders: { readonly file: string; readonly importPath: string }[] = [];
+    let inspected = 0;
+    for (const file of walkTsFiles('src')) {
+      if (file.startsWith(`${RUNTIME_ROOT}/`) || file.startsWith(`${WORKFLOWS_ROOT}/`)) continue;
+      inspected++;
+      for (const importPath of importPathsFrom(file)) {
+        const target = flowImportTarget(file, importPath);
+        if (target === undefined) continue;
+        const importedCompiledFlow = flowPackageIdForTarget(target);
+        if (importedCompiledFlow === undefined) continue;
+        // Shared flow infrastructure at flows/ root is allowed.
+        if (isAllowedEngineImport(target)) continue;
+        if (ALLOWED_SRC_INTERNAL_FLOW_IMPORTS.has(`${file} -> ${target}`)) continue;
+        offenders.push({ file, importPath });
+      }
+    }
+    expect(
+      inspected,
+      'src walk outside runtime/flows inspected unexpectedly few files — discovery loop is likely broken',
+    ).toBeGreaterThanOrEqual(10);
+    expect(
+      offenders,
+      `non-catalog src files reached into flow internals:\n${offenders
+        .map((o) => `  ${o.file} → ${o.importPath}`)
+        .join(
+          '\n',
+        )}\nGo through src/flows/catalog.ts, or add an explicit ALLOWED_SRC_INTERNAL_FLOW_IMPORTS exception if the coupling is intentional.`,
     ).toEqual([]);
   });
 
