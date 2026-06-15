@@ -64,6 +64,38 @@ describe('claude-code argv', () => {
   });
 });
 
+describe('claude-code argv — equipment-scope tool restriction', () => {
+  it('omits --tools when no toolAllowList is supplied', () => {
+    const args = buildClaudeCodeArgs({ prompt: 'hi' });
+    expect(args).not.toContain('--tools');
+  });
+
+  it('emits --tools as a single comma-joined token of the allow-list', () => {
+    const args = buildClaudeCodeArgs({ prompt: 'hi', toolAllowList: ['Read', 'Edit', 'Write'] });
+    const flagIndex = args.indexOf('--tools');
+    expect(flagIndex).toBeGreaterThanOrEqual(0);
+    expect(args[flagIndex + 1]).toBe('Read,Edit,Write');
+  });
+
+  it('places --tools before every other dispatch flag (variadic safety: terminated by the next flag, never the prompt)', () => {
+    const args = buildClaudeCodeArgs({ prompt: 'hi', toolAllowList: ['Read'] });
+    // --tools is variadic and greedily eats following argv elements, so it must
+    // lead and be terminated by the next flag (-p), not be adjacent to the
+    // trailing prompt.
+    expect(args[0]).toBe('--tools');
+    expect(args[1]).toBe('Read');
+    expect(args[2]).toBe('-p');
+    // The value token is a flag, not the prompt.
+    expect(args[args.length - 1]).toBe('hi');
+    expect(args.indexOf('--tools')).toBeLessThan(args.indexOf('hi'));
+  });
+
+  it('omits --tools for an empty allow-list rather than emitting a dangling flag', () => {
+    const args = buildClaudeCodeArgs({ prompt: 'hi', toolAllowList: [] });
+    expect(args).not.toContain('--tools');
+  });
+});
+
 describe('codex argv', () => {
   it('omits --output-schema when no schemaPath is supplied', () => {
     const args = buildCodexArgs({ prompt: 'hi' });

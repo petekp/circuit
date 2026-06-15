@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/fix/circuit.work-contract.v0.json",
-    "sha256": "69d0de730561b2c3e612b63b05b8f0cfef62a29fcb11717088cd3aa8a2f90ab3",
+    "sha256": "a5ce8c86ef6c790f4b2ae4e28bf1c955101271ed070ff580194d9c4cb6a3dda7",
     "flow_id": "fix"
   },
   "work_contract": {
@@ -918,7 +918,7 @@
           "tools": {
             "allow": ["Read", "Grep", "Glob", "Edit", "Write", "Bash"]
           },
-          "enforcement": "trusted"
+          "enforcement": "enforced"
         }
       ]
     },
@@ -1151,7 +1151,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-frame/routes/revise",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1181,7 +1181,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-frame/routes/ask",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1212,7 +1212,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-frame/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1241,7 +1241,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-gather-context/routes/retry",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1271,7 +1271,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-gather-context/routes/ask",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1302,7 +1302,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-gather-context/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1327,7 +1327,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-diagnose/routes/retry",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1357,7 +1357,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-diagnose/routes/ask",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1388,7 +1388,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-diagnose/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1413,7 +1413,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-no-repro-decision/routes/revise",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1444,7 +1444,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-no-repro-decision/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1469,7 +1469,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-no-repro-decision/routes/handoff",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1494,7 +1494,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-no-repro-decision/routes/escalate",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1519,7 +1519,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-regression-baseline/routes/retry",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1550,7 +1550,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-regression-baseline/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1581,7 +1581,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-baseline-snapshot/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1610,7 +1610,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-act/routes/retry",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1640,7 +1640,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-act/routes/ask",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1671,7 +1671,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-act/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1696,7 +1696,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-act/routes/handoff",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1721,7 +1721,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-verify/routes/retry",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1751,7 +1751,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-verify/routes/ask",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1782,7 +1782,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-verify/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1807,7 +1807,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-change-set/routes/retry",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1838,7 +1838,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-change-set/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1863,7 +1863,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-regression-rerun/routes/retry",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1894,7 +1894,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-regression-rerun/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1919,7 +1919,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-review/routes/connector-failed",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1944,7 +1944,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-review/routes/retry",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1969,7 +1969,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-review/routes/revise",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -1999,7 +1999,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-review/routes/ask",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -2030,7 +2030,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-review/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -2061,7 +2061,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-close/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -2086,7 +2086,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-close/routes/handoff",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -2111,7 +2111,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-close/routes/escalate",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       },
@@ -2142,7 +2142,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/fix-handoff/routes/stop",
-          "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+          "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
           "flow_id": "fix"
         }
       }
@@ -2159,7 +2159,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/fix-no-repro-decision/policy/safe_default_choice",
-        "sha256": "b6ec2225c6d622af1ff8b7b6d8edbc0a8c095d72d177c60fc54db0ebe8f0bf9c",
+        "sha256": "3393c6aa82ed2b04567b26c03d5a4279cff028f7da47eb7939aa0d9c44b8ff8f",
         "flow_id": "fix"
       }
     ],

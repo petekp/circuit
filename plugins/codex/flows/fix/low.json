@@ -282,7 +282,7 @@
         "tools": {
           "allow": ["Read", "Grep", "Glob", "Edit", "Write", "Bash"]
         },
-        "enforcement": "trusted"
+        "enforcement": "enforced"
       },
       "executor": "worker",
       "kind": "relay",

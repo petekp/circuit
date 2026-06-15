@@ -327,7 +327,11 @@ describe('relay connector resolution precedence', () => {
       command: ['node', 'readonly.js'],
       prompt_transport: 'prompt-file' as const,
       output: { kind: 'output-file' as const },
-      capabilities: { filesystem: 'read-only' as const, structured_output: 'json' as const },
+      capabilities: {
+        filesystem: 'read-only' as const,
+        structured_output: 'json' as const,
+        tool_scope: 'none' as const,
+      },
     };
 
     expect(() =>
@@ -367,7 +371,11 @@ describe('relay connector resolution precedence', () => {
       command: ['node', 'readonly.js'],
       prompt_transport: 'prompt-file' as const,
       output: { kind: 'output-file' as const },
-      capabilities: { filesystem: 'read-only' as const, structured_output: 'json' as const },
+      capabilities: {
+        filesystem: 'read-only' as const,
+        structured_output: 'json' as const,
+        tool_scope: 'none' as const,
+      },
     };
 
     expect(() =>
@@ -430,7 +438,11 @@ describe('relay connector resolution precedence', () => {
                     command: [process.execPath, '-e', script],
                     prompt_transport: 'prompt-file',
                     output: { kind: 'output-file' },
-                    capabilities: { filesystem: 'read-only', structured_output: 'json' },
+                    capabilities: {
+                      filesystem: 'read-only',
+                      structured_output: 'json',
+                      tool_scope: 'none',
+                    },
                   },
                 },
               },

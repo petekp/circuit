@@ -349,12 +349,13 @@ export const fixFlowData = {
         ],
         // The write tier scoped to the file-and-shell toolset a focused fix
         // needs: read and search, edit and write, run verification. Declared
-        // trusted — the engine renders it to the worker as guidance; nothing
-        // restricts the connector tool surface at this tier yet. Flipping this
-        // to enforced is the write-tier-enforcement increment.
+        // ENFORCED — on a connector that can restrict tools (claude-code's
+        // --tools), the worker is spawned with exactly this set and nothing
+        // else; on a connector that cannot, the runtime downgrades to trusted
+        // guidance and records the downgrade rather than pretending to enforce.
         equipmentScope: {
           tools: { allow: ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash'] },
-          enforcement: 'trusted',
+          enforcement: 'enforced',
         },
         acceptanceCriteria: {
           checks: [

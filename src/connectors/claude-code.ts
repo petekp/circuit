@@ -143,7 +143,17 @@ function assertClaudeCodeEffort(
 }
 
 export function buildClaudeCodeArgs(input: ClaudeCodeRelayInput): string[] {
-  const args: string[] = [...CLAUDE_CODE_DISPATCH_FLAGS];
+  const args: string[] = [];
+  // Equipment-scope enforcement. `--tools` restricts the worker's tool surface
+  // to exactly the named set under bypassPermissions. It is variadic and
+  // greedily consumes following argv elements, so it MUST lead and be
+  // terminated by the next flag (`-p`) — never left adjacent to the trailing
+  // prompt, which it would otherwise swallow. The CLI accepts a single
+  // comma-joined token. An empty list emits nothing (no dangling flag).
+  if (input.toolAllowList !== undefined && input.toolAllowList.length > 0) {
+    args.push('--tools', input.toolAllowList.join(','));
+  }
+  args.push(...CLAUDE_CODE_DISPATCH_FLAGS);
   const model = selectedAnthropicModel(input.resolvedSelection);
   if (model !== undefined) {
     args.push('--model', model);
@@ -228,7 +238,12 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
     );
   }
   try {
-    return parseClaudeCodeStdout(result.stdout, input.prompt, result.durationMs);
+    return parseClaudeCodeStdout(
+      result.stdout,
+      input.prompt,
+      result.durationMs,
+      input.toolAllowList,
+    );
   } catch (error) {
     const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
     throw new Error(
@@ -252,6 +267,12 @@ export function parseClaudeCodeStdout(
   stdout: string,
   prompt: string,
   duration_ms: number,
+  // The tool allow-list requested via `--tools` for an enforced equipment
+  // scope. When present, the parser re-asserts that the session's tool surface
+  // stayed within it — the honesty guard against a flag regression that
+  // silently widened the surface. Absent means an unrestricted surface, so no
+  // assertion runs.
+  requestedTools?: readonly string[],
 ): RelayResult {
   const trace_entries = parseNdjsonObjects(stdout, 'stream-json');
   if (trace_entries.length === 0) {
@@ -294,6 +315,29 @@ export function parseClaudeCodeStdout(
     throw new Error(
       `init.slash_commands must be []; got ${JSON.stringify(slashCommands)}. CLAUDE_CODE_DISPATCH_FLAGS includes --disable-slash-commands to keep this surface closed.`,
     );
+  }
+
+  // Enforced equipment scope: re-assert that the session's tool surface stayed
+  // within the requested allow-list. `--tools` restricts the surface at the
+  // flag layer; this is the parse-time safety net so a flag regression that
+  // silently widened it (a tool we never granted appearing in the session)
+  // fails the relay instead of letting an over-equipped worker reach flow state.
+  if (requestedTools !== undefined && requestedTools.length > 0) {
+    const sessionTools = initTraceEntry.tools;
+    if (!Array.isArray(sessionTools)) {
+      throw new Error(
+        `init.tools must be an array to verify the enforced equipment scope; got ${JSON.stringify(sessionTools)}`,
+      );
+    }
+    const allowed = new Set(requestedTools);
+    const leaked = sessionTools.filter(
+      (tool): tool is string => typeof tool === 'string' && !allowed.has(tool),
+    );
+    if (leaked.length !== 0) {
+      throw new Error(
+        `enforced equipment scope violated: tools outside the allow-list are present in the session: ${leaked.join(', ')}. The relay passes --tools to restrict the surface to [${requestedTools.join(', ')}]; a tool beyond it means the restriction did not hold.`,
+      );
+    }
   }
 
   const receipt_id = initTraceEntry.session_id;

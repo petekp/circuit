@@ -14,6 +14,15 @@ function buildInitLine(overrides: Record<string, unknown> = {}): string {
   });
 }
 
+function successResultLine(): string {
+  return JSON.stringify({
+    type: 'result',
+    subtype: 'success',
+    is_error: false,
+    result: '{"ok":true}',
+  });
+}
+
 describe('parseClaudeCodeStdout — structured_output precedence', () => {
   it('uses result.structured_output when the schema-piping path is in effect', () => {
     const init = buildInitLine();
@@ -86,6 +95,37 @@ describe('parseClaudeCodeStdout — structured_output precedence', () => {
     expect(() => parseClaudeCodeStdout(stdout, 'prompt', 1)).toThrow(
       /structured_output present but not an object/,
     );
+  });
+});
+
+describe('parseClaudeCodeStdout — equipment-scope honesty guard', () => {
+  it('accepts an init whose tools exactly match the requested allow-list', () => {
+    const init = buildInitLine({ tools: ['Read', 'Edit'] });
+    const stdout = `${init}\n${successResultLine()}\n`;
+    expect(() => parseClaudeCodeStdout(stdout, 'prompt', 1, ['Read', 'Edit'])).not.toThrow();
+  });
+
+  it('accepts an init whose tools are a SUBSET of the requested allow-list (more restrictive is fine)', () => {
+    const init = buildInitLine({ tools: ['Read'] });
+    const stdout = `${init}\n${successResultLine()}\n`;
+    expect(() =>
+      parseClaudeCodeStdout(stdout, 'prompt', 1, ['Read', 'Edit', 'Write']),
+    ).not.toThrow();
+  });
+
+  it('throws when a tool outside the requested allow-list leaked into the session', () => {
+    // A flag regression that silently widened the tool surface (e.g. --tools
+    // stopped restricting) would surface a tool we never granted. That is the
+    // exact safety violation the enforced tier exists to prevent.
+    const init = buildInitLine({ tools: ['Read', 'Bash'] });
+    const stdout = `${init}\n${successResultLine()}\n`;
+    expect(() => parseClaudeCodeStdout(stdout, 'prompt', 1, ['Read'])).toThrow(/Bash/);
+  });
+
+  it('does not assert tools when no allow-list was requested (unrestricted by default)', () => {
+    const init = buildInitLine({ tools: ['Read', 'Edit', 'Bash', 'WebFetch'] });
+    const stdout = `${init}\n${successResultLine()}\n`;
+    expect(() => parseClaudeCodeStdout(stdout, 'prompt', 1)).not.toThrow();
   });
 });
 

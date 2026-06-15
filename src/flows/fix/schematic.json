@@ -316,7 +316,7 @@
         "tools": {
           "allow": ["Read", "Grep", "Glob", "Edit", "Write", "Bash"]
         },
-        "enforcement": "trusted"
+        "enforcement": "enforced"
       },
       "routes": {
         "continue": "fix-verify",
