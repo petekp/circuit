@@ -1,0 +1,12 @@
+{
+  "objective": {
+    "baseline_reproduced": true,
+    "post_checks": [
+      { "id": "node-test", "hidden": false, "passed": true },
+      { "id": "wrap-negative", "hidden": true, "passed": false }
+    ],
+    "objective_passed": false
+  },
+  "changed_files": ["src/wrap.mjs", "tests/wrap.test.mjs"],
+  "fallback_wall_time_ms": 95000
+}

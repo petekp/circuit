@@ -1,0 +1,19 @@
+{
+  "schema": "process.evidence@v0",
+  "flow_id": "build",
+  "attempt_id": "frame-step#1",
+  "outcome": "checkpoint_waiting",
+  "summary": "Parked at the Build frame checkpoint awaiting operator confirmation of the brief.",
+  "evidence_refs": [
+    { "kind": "request", "ref": "reports/checkpoints/frame-step-request.json" }
+  ],
+  "declared_report_paths": ["reports/checkpoints/frame-step-request.json"],
+  "missing_evidence": [],
+  "trace_entries_observed": 2,
+  "manifest_hash": "e1-fixture-checkpoint-waiting",
+  "checkpoint": {
+    "step_id": "frame-step",
+    "request_ref": { "kind": "request", "ref": "reports/checkpoints/frame-step-request.json" },
+    "allowed_choices": ["continue"]
+  }
+}

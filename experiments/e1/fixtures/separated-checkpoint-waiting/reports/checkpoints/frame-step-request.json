@@ -1,0 +1,9 @@
+{
+  "schema": "checkpoint.request@v0",
+  "step_id": "frame-step",
+  "title": "Frame - confirm Build brief",
+  "safe_default_choice": "continue",
+  "choices": [
+    { "id": "continue", "title": "Confirm the brief and proceed" }
+  ]
+}

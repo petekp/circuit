@@ -19,6 +19,11 @@ export default defineConfig({
       // exclude the whole tree, not just repo/ (objective/ would otherwise slip past).
       'evals/fix-vs-vanilla/tasks/**',
       'evals/fix-vs-vanilla/results/**',
+      // E1 live-run scratch (gitignored): isolated worktree copies of a task
+      // repo, each carrying the task's own `.mjs` Node tests. Like the task tree
+      // above, these are not vitest suites — exclude them so a live comparison
+      // never leaves the test suite broken.
+      'experiments/e1/.runs/**',
     ],
     coverage: {
       provider: 'v8',
