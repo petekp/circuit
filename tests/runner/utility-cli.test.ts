@@ -8,6 +8,9 @@ import {
   missingDefaultLauncherMessage,
   resolveDefaultLauncher,
 } from '../../src/cli/handoff-codex-hooks.js';
+import { assembleFlowSchematic } from '../../src/flows/assemble-flow-schematic.js';
+import { buildAssemblySpec } from '../../src/flows/build/assembly-spec.js';
+import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
 import { CUSTOM_FLOW_ROOT_RUNTIME_POLICY } from '../../src/cli/runtime-routing-policy.js';
 import {
   CompiledFlow,
@@ -136,8 +139,6 @@ describe('utility CLI commands', () => {
         'Draft release notes from a change summary',
         '--home',
         home,
-        '--template-flow-root',
-        resolve('generated/flows'),
         '--publish',
         '--yes',
         '--created-at',
@@ -172,10 +173,26 @@ describe('utility CLI commands', () => {
       'release-note-flow',
     );
     const manifest = JSON.parse(readFileSync(output.manifest_path, 'utf8')) as {
-      custom_flows: Array<{ id: string; archetype: string }>;
+      custom_flows: Array<{ id: string; archetype?: unknown }>;
     };
     expect(manifest.custom_flows.map((flow) => flow.id)).toEqual(['release-note-flow']);
-    expect(manifest.custom_flows.map((flow) => flow.archetype)).toEqual(['build']);
+    // M9-C: custom flows no longer carry an archetype. The manifest entry
+    // records identity, not "this is a build clone".
+    expect(manifest.custom_flows.every((flow) => flow.archetype === undefined)).toBe(true);
+
+    // The published flow is produced through the sanctioned assemble->compile
+    // path build's own data.ts uses — not a clone of build's compiled bytes off
+    // disk. Prove the published bytes ARE the assembler's output for this slug.
+    const publishedFlow = CompiledFlow.parse(JSON.parse(readFileSync(output.flow_path, 'utf8')));
+    const assembled = compileSchematicToCompiledFlow(
+      assembleFlowSchematic({
+        ...buildAssemblySpec,
+        id: 'release-note-flow',
+        purpose: 'Draft release notes from a change summary',
+      }),
+    );
+    if (assembled.kind !== 'single') throw new Error(assembled.kind);
+    expect(publishedFlow).toEqual(CompiledFlow.parse(assembled.flow));
 
     const projectRoot = tempRoot('circuit-create-run-project-');
     writeFileSync(
@@ -232,8 +249,6 @@ describe('utility CLI commands', () => {
       'Draft release notes from a change summary',
       '--home',
       home,
-      '--template-flow-root',
-      resolve('generated/flows'),
     ]);
 
     expect(draft.code, draft.stderr).toBe(0);
@@ -303,8 +318,6 @@ describe('utility CLI commands', () => {
       'Draft release notes from a change summary',
       '--home',
       home,
-      '--template-flow-root',
-      resolve('generated/flows'),
     ]);
 
     expect(draft.code, draft.stderr).toBe(0);
@@ -316,7 +329,6 @@ describe('utility CLI commands', () => {
         'id: other-flow',
         'format: compiled-flow-package',
         'compiled_flow: circuit.json',
-        'archetype: build',
         'purpose: tampered descriptor',
       ].join('\n'),
     );
@@ -353,8 +365,6 @@ describe('utility CLI commands', () => {
       'Draft release notes',
       '--home',
       home,
-      '--template-flow-root',
-      resolve('generated/flows'),
       '--publish',
     ]);
 
@@ -369,7 +379,6 @@ describe('utility CLI commands', () => {
       '--name=release-note-flow',
       '--description=Draft release notes',
       `--home=${home}`,
-      `--template-flow-root=${resolve('generated/flows')}`,
     ]);
 
     expect(result.code, result.stderr).toBe(0);

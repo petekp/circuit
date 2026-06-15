@@ -1062,8 +1062,6 @@ async function captureCustomization(): Promise<void> {
         'Draft release notes from a change summary.',
         '--home',
         home,
-        '--template-flow-root',
-        resolve(projectRoot, 'generated/flows'),
         '--publish',
         '--yes',
         '--created-at',

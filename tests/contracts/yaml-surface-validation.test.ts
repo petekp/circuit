@@ -38,8 +38,28 @@ function trackedYamlFiles(): string[] {
     .sort();
 }
 
+// Two checked-in customization proofs are FROZEN records captured before M9
+// retired the custom-flow `archetype` field. Mirror the `entry` precedent in
+// tests/release/release-infrastructure.test.ts: strip the legacy key at the
+// parse site so the strict descriptor schema validates the historical record,
+// rather than rewriting frozen release evidence.
+const LEGACY_ARCHETYPE_PROOF_PATHS = new Set([
+  'docs/release/proofs/runs/customization/custom-home/drafts/release-note-flow/circuit.yaml',
+  'docs/release/proofs/runs/customization/custom-home/skills/release-note-flow/circuit.yaml',
+]);
+
 function parseYamlFile(relPath: string): unknown {
-  return YAML.parse(readFileSync(resolve(root, relPath), 'utf8'));
+  const parsed: unknown = YAML.parse(readFileSync(resolve(root, relPath), 'utf8'));
+  if (
+    LEGACY_ARCHETYPE_PROOF_PATHS.has(relPath) &&
+    parsed !== null &&
+    typeof parsed === 'object' &&
+    'archetype' in parsed
+  ) {
+    const { archetype: _legacyArchetype, ...rest } = parsed as Record<string, unknown>;
+    return rest;
+  }
+  return parsed;
 }
 
 describe('checked-in YAML surfaces', () => {
