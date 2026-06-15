@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/runtime-proof/circuit.work-contract.v0.json",
-    "sha256": "8abaf0b454619b1472cd87242e80e997e23837a58aa5b83cd3d85cd11db57cf0",
+    "sha256": "d0d0abc5409510f678a465126ea0049fdbcd0619dcc97181b92847c51a41f3aa",
     "flow_id": "runtime-proof"
   },
   "work_contract": {
@@ -135,7 +135,8 @@
       "checkpoints": [],
       "sub_runs": [],
       "fanouts": [],
-      "skill_slots": []
+      "skill_slots": [],
+      "equipment_scopes": []
     },
     "proof": {
       "reports": [

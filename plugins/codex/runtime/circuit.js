@@ -25697,6 +25697,45 @@ var EngineFlagsManifest = external_exports.object({
   }).strict().optional()
 }).strict();
 
+// dist/schemas/equipment-scope.js
+var EquipmentToolName = external_exports.string().min(1);
+var EquipmentToolAllowList = external_exports.object({
+  allow: external_exports.array(EquipmentToolName).min(1)
+}).strict().superRefine((scope, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, tool] of scope.allow.entries()) {
+    if (seen.has(tool)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["allow", index],
+        message: `duplicate tool '${tool}'`
+      });
+    }
+    seen.add(tool);
+  }
+});
+var EquipmentToolScope = external_exports.union([external_exports.literal("full"), EquipmentToolAllowList]);
+var EquipmentEnforcement = external_exports.enum(["trusted", "enforced"]);
+var EquipmentScope = external_exports.object({
+  tools: EquipmentToolScope.default("full"),
+  enforcement: EquipmentEnforcement.default("trusted")
+}).strict().superRefine((scope, ctx) => {
+  if (scope.enforcement === "enforced" && scope.tools === "full") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["enforcement"],
+      message: 'enforced equipment scope requires an explicit tools allow-list (there is nothing to restrict when tools is "full")'
+    });
+  }
+});
+var DEFAULT_EQUIPMENT_SCOPE = Object.freeze({
+  tools: "full",
+  enforcement: "trusted"
+});
+function isDefaultEquipmentScope(scope) {
+  return scope.tools === "full" && scope.enforcement === "trusted";
+}
+
 // dist/schemas/flow-blocks.js
 var FLOW_BLOCK_IDS = [
   "intake",
@@ -27557,6 +27596,11 @@ var StepBase = external_exports.object({
   selection: SelectionOverride.optional(),
   skill_hooks: SkillHookNameArray.optional(),
   skill_slots: SkillSlotArray.optional(),
+  // The tools sub-axis of equipment scope, compiled from the schematic step.
+  // Optional and omitted at the default (full, trusted) so flows that declare
+  // nothing keep byte-stable compiled output. The compiler enforces that an
+  // enforced scope only lands on the implementer relay variant.
+  equipment_scope: EquipmentScope.optional(),
   route_from_report: RouteFromReport.optional(),
   budgets: external_exports.object({
     max_attempts: external_exports.number().int().positive().max(10),
@@ -28048,6 +28092,11 @@ var SchematicStep = external_exports.object({
   execution: StepExecution,
   selection: SelectionOverride.optional(),
   skill_slots: SkillSlotArray.default([]),
+  // The tools sub-axis of equipment scope (the skills sub-axis rides
+  // `skill_slots` above). Optional so flows that declare nothing stay
+  // byte-stable; an enforced scope is constrained to the write tier by the
+  // cross-field guard in superRefine below.
+  equipment_scope: EquipmentScope.optional(),
   routes: external_exports.record(external_exports.string(), StepRouteTarget).refine((routes) => {
     return Object.keys(routes).length > 0;
   }, "schematic item must declare at least one route"),
@@ -28104,6 +28153,16 @@ var SchematicStep = external_exports.object({
         code: "custom",
         path: ["optional_inputs", key],
         message: `optional_inputs entry "${key}" is not a declared input key`
+      });
+    }
+  }
+  if (item.equipment_scope?.enforcement === "enforced") {
+    const isImplementerRelay = item.execution.kind === "relay" && item.execution.role === "implementer";
+    if (!isImplementerRelay) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment_scope", "enforcement"],
+        message: 'enforced equipment scope is only valid on an implementer relay step (the write tier); use enforcement "trusted" elsewhere'
       });
     }
   }
@@ -28936,7 +28995,7 @@ function resolveCheck(use, executionKind) {
 }
 function schematicStepInputFromBlockUse(input) {
   const { block, check: check2, execution, use, writes } = input;
-  const { checkpointPolicy, evidenceRequirements, output, routeOverrides, skillSlots, acceptanceCriteria, reportPath: _reportPath, requestPath: _requestPath, receiptPath: _receiptPath, resultPath: _resultPath, branchesDirPath: _branchesDirPath, checkpointRequestPath: _checkpointRequestPath, checkpointResponsePath: _checkpointResponsePath, required: _required, allow: _allow, allowFrom: _allowFrom, pass: _pass, writes: _writes, check: _check2, execution: _execution, ...step } = use;
+  const { checkpointPolicy, equipmentScope, evidenceRequirements, output, routeOverrides, skillSlots, acceptanceCriteria, reportPath: _reportPath, requestPath: _requestPath, receiptPath: _receiptPath, resultPath: _resultPath, branchesDirPath: _branchesDirPath, checkpointRequestPath: _checkpointRequestPath, checkpointResponsePath: _checkpointResponsePath, required: _required, allow: _allow, allowFrom: _allowFrom, pass: _pass, writes: _writes, check: _check2, execution: _execution, ...step } = use;
   return {
     ...step,
     output: output ?? block.output_contract,
@@ -28947,7 +29006,8 @@ function schematicStepInputFromBlockUse(input) {
     ...acceptanceCriteria === void 0 ? {} : { acceptance_criteria: acceptanceCriteria },
     ...checkpointPolicy === void 0 ? {} : { checkpoint_policy: checkpointPolicy },
     ...routeOverrides === void 0 ? {} : { route_overrides: routeOverrides },
-    ...skillSlots === void 0 ? {} : { skill_slots: skillSlots }
+    ...skillSlots === void 0 ? {} : { skill_slots: skillSlots },
+    ...equipmentScope === void 0 ? {} : { equipment_scope: equipmentScope }
   };
 }
 function describeExpandBlockStepUseError(error51) {
@@ -35589,6 +35649,12 @@ var fixFlowData = {
         receiptPath: "reports/relay/fix-gather-context.receipt.txt",
         resultPath: "reports/relay/fix-gather-context.result.json",
         pass: ["accept"],
+        skillSlots: [
+          {
+            id: "fix-codebase-search",
+            description: "A skill for navigating and searching the codebase to locate the code involved in the reported problem."
+          }
+        ],
         routes: {
           continue: "fix-diagnose",
           retry: "fix-gather-context",
@@ -35616,6 +35682,12 @@ var fixFlowData = {
         receiptPath: "reports/relay/fix-diagnose.receipt.txt",
         resultPath: "reports/relay/fix-diagnose.result.json",
         pass: ["accept"],
+        skillSlots: [
+          {
+            id: "fix-root-cause-analysis",
+            description: "A skill for forming and testing hypotheses about the root cause of a bug before any change is made."
+          }
+        ],
         routes: {
           continue: "fix-act",
           retry: "fix-gather-context",
@@ -35711,6 +35783,21 @@ var fixFlowData = {
         receiptPath: "reports/relay/fix-act.receipt.txt",
         resultPath: "reports/relay/fix-act.result.json",
         pass: ["accept"],
+        skillSlots: [
+          {
+            id: "fix-focused-edit",
+            description: "A skill for making the smallest correct code edit that resolves the diagnosed problem."
+          }
+        ],
+        // The write tier scoped to the file-and-shell toolset a focused fix
+        // needs: read and search, edit and write, run verification. Declared
+        // trusted — the engine renders it to the worker as guidance; nothing
+        // restricts the connector tool surface at this tier yet. Flipping this
+        // to enforced is the write-tier-enforcement increment.
+        equipmentScope: {
+          tools: { allow: ["Read", "Grep", "Glob", "Edit", "Write", "Bash"] },
+          enforcement: "trusted"
+        },
         acceptanceCriteria: {
           checks: [
             {
@@ -35822,6 +35909,12 @@ var fixFlowData = {
         receiptPath: "reports/relay/fix-review.receipt.txt",
         resultPath: "reports/relay/fix-review.result.json",
         pass: ["accept", "accept-with-fixes"],
+        skillSlots: [
+          {
+            id: "fix-change-audit",
+            description: "A skill for independently auditing a change for correctness, scope creep, and regressions."
+          }
+        ],
         routes: {
           continue: "fix-close",
           "connector-failed": "fix-close",
@@ -44845,6 +44938,7 @@ function compileItem(item, reads, routes) {
     routes,
     ...item.selection !== void 0 ? { selection: item.selection } : {},
     ...item.skill_slots.length === 0 ? {} : { skill_slots: item.skill_slots },
+    ...item.equipment_scope === void 0 || isDefaultEquipmentScope(item.equipment_scope) ? {} : { equipment_scope: item.equipment_scope },
     ...item.route_from_report === void 0 ? {} : { route_from_report: item.route_from_report }
   };
   switch (item.execution.kind) {
@@ -50841,6 +50935,11 @@ var ContractSkillSlot = external_exports.object({
   slot_id: SkillSlotId,
   description: external_exports.string().min(1)
 }).strict();
+var ContractEquipmentScope = external_exports.object({
+  step_id: StepId,
+  tools: EquipmentToolScope,
+  enforcement: EquipmentEnforcement
+}).strict();
 var ContractRelay = external_exports.object({
   step_id: StepId,
   role: external_exports.enum(["researcher", "implementer", "reviewer"]),
@@ -50922,7 +51021,8 @@ var WorkContractProjectionV0 = external_exports.object({
       checkpoints: external_exports.array(ContractCheckpoint),
       sub_runs: external_exports.array(ContractSubRun),
       fanouts: external_exports.array(ContractFanout),
-      skill_slots: external_exports.array(ContractSkillSlot)
+      skill_slots: external_exports.array(ContractSkillSlot),
+      equipment_scopes: external_exports.array(ContractEquipmentScope)
     }).strict(),
     proof: external_exports.object({
       reports: external_exports.array(ReportSlot),
@@ -54551,6 +54651,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54566,6 +54667,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54581,6 +54683,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54597,6 +54700,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54615,6 +54719,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54633,6 +54738,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54762,6 +54868,7 @@ function projectWorkContractProjectionV0(input) {
   const subRuns = [];
   const fanouts = [];
   const skillSlots = [];
+  const equipmentScopes = [];
   const reports = [];
   const checks = [];
   const acceptanceCriteria = [];
@@ -54789,6 +54896,13 @@ function projectWorkContractProjectionV0(input) {
         step_id: step.id,
         slot_id: slot.id,
         description: slot.description
+      });
+    }
+    if (step.equipment_scope !== void 0) {
+      equipmentScopes.push({
+        step_id: step.id,
+        tools: step.equipment_scope.tools,
+        enforcement: step.equipment_scope.enforcement
       });
     }
     for (const report of reportSlotsForStep(step))
@@ -54941,7 +55055,8 @@ function projectWorkContractProjectionV0(input) {
       checkpoints,
       sub_runs: subRuns,
       fanouts,
-      skill_slots: skillSlots
+      skill_slots: skillSlots,
+      equipment_scopes: equipmentScopes
     },
     proof: {
       reports,
@@ -55199,6 +55314,7 @@ function baseStep(step) {
     writes: toWrites(step.writes),
     ...selection === void 0 ? {} : { selection },
     ...step.skill_slots === void 0 ? {} : { skillSlots: step.skill_slots },
+    ...step.equipment_scope === void 0 ? {} : { equipmentScope: step.equipment_scope },
     ...step.route_from_report === void 0 ? {} : { routeFromReport: step.route_from_report },
     check: step.check,
     ...step.budgets === void 0 ? {} : { budgets: step.budgets }
@@ -59182,6 +59298,16 @@ function selectedSkillsSection(skills) {
     ].join("\n"))
   ].join("\n\n");
 }
+function equipmentScopeSection(step) {
+  const scope = step.equipment_scope;
+  if (scope === void 0 || scope.tools === "full")
+    return void 0;
+  return [
+    "Equipment Scope:",
+    "This step is scoped to a specific set of tools. Use only these tools to do the work; reach for nothing outside the list.",
+    `Allowed tools: ${scope.tools.allow.join(", ")}`
+  ].join("\n");
+}
 function formatAcceptanceCriterion(criterion) {
   if (criterion.kind === "report_field") {
     return `- ${criterion.id}: report field ${criterion.path.join(".")} must be ${criterion.predicate}.`;
@@ -59287,6 +59413,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     return fencedBlock("read", ` path="${path}"`, readFileSync43(abs, "utf8"));
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
+  const equipmentSection = equipmentScopeSection(step);
   const sliceSection = currentSliceSection(activeSlice);
   const criteriaSection = acceptanceCriteriaSection(step);
   const feedbackSection = acceptanceRetryFeedbackSection(acceptanceRetryFeedback);
@@ -59333,6 +59460,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     readsBody,
     "",
     ...skillsSection === void 0 ? [] : [skillsSection, ""],
+    ...equipmentSection === void 0 ? [] : [equipmentSection, ""],
     ...criteriaSection === void 0 ? [] : [criteriaSection, ""],
     ...feedbackSection === void 0 ? [] : [feedbackSection, ""],
     relayResponseInstruction(step)
@@ -61283,6 +61411,7 @@ function baseStep2(step) {
     check: step.check,
     ...selection === void 0 ? {} : { selection },
     ...step.skillSlots === void 0 ? {} : { skill_slots: step.skillSlots },
+    ...step.equipmentScope === void 0 ? {} : { equipment_scope: step.equipmentScope },
     ...step.budgets === void 0 ? {} : { budgets: step.budgets }
   };
 }

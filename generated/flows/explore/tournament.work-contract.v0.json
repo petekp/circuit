@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/explore/tournament.work-contract.v0.json",
-    "sha256": "080ee8d3db69482d0b29cd3079b8d22afd2e3e3bece99ef0395b08b048144560",
+    "sha256": "9b091d5a5a32d7a2b0bbb70329a2d698a3fb7d55849b90d50872a3edd023103a",
     "flow_id": "explore"
   },
   "work_contract": {
@@ -523,7 +523,8 @@
           }
         }
       ],
-      "skill_slots": []
+      "skill_slots": [],
+      "equipment_scopes": []
     },
     "proof": {
       "reports": [

@@ -247,6 +247,16 @@
       "last_checked": "2026-06-14"
     },
     {
+      "path": "docs/ideas/equipment-scope-build-brief.md",
+      "title": "Equipment-scope build brief",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "equipment-scope", "manifest-first", "tools", "build-brief"],
+      "current_reading": "Build brief for the equipment-scope mechanism (declared tools sub-axis + write-tier enforcement). Increment 1 (declared + trusted provide) implemented on feat/equipment-scope; write-tier enforcement is the open increment. See the e2 spec for the design.",
+      "related": ["docs/ideas/e2-equipment-scope-spec.md", "docs/ideas/e1-implications-for-m8.md"],
+      "last_checked": "2026-06-15"
+    },
+    {
       "path": "docs/ideas/effective-memory-program-review-codex.md",
       "title": "Effective Memory Program Review",
       "status": "independent-review",

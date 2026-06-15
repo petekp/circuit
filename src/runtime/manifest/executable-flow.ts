@@ -11,6 +11,7 @@ import type {
   ResultVerdictCheck,
   SchemaSectionsCheck,
 } from '../../schemas/check.js';
+import type { EquipmentScope } from '../../schemas/equipment-scope.js';
 import type { ReportFileSurfaceDeclaration } from '../../schemas/report-file-surface.js';
 import type {
   CheckpointPolicy,
@@ -43,6 +44,7 @@ export interface BaseStep {
   readonly writes?: Readonly<Record<string, RunFileRef>>;
   readonly selection?: Selection;
   readonly skillSlots?: readonly unknown[];
+  readonly equipmentScope?: EquipmentScope;
   readonly routeFromReport?: { readonly path: readonly string[] };
   readonly check: Check;
   readonly budgets?: StepBudgets;

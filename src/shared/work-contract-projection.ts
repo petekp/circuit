@@ -75,6 +75,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'routes',
     'selection',
     'skill_slots',
+    'equipment_scope',
     'route_from_report',
     'budgets',
     'executor',
@@ -90,6 +91,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'routes',
     'selection',
     'skill_slots',
+    'equipment_scope',
     'route_from_report',
     'budgets',
     'executor',
@@ -105,6 +107,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'routes',
     'selection',
     'skill_slots',
+    'equipment_scope',
     'route_from_report',
     'budgets',
     'executor',
@@ -121,6 +124,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'routes',
     'selection',
     'skill_slots',
+    'equipment_scope',
     'route_from_report',
     'budgets',
     'executor',
@@ -139,6 +143,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'routes',
     'selection',
     'skill_slots',
+    'equipment_scope',
     'route_from_report',
     'budgets',
     'executor',
@@ -157,6 +162,7 @@ const STEP_KEYS: Readonly<Record<Step['kind'], ReadonlySet<string>>> = {
     'routes',
     'selection',
     'skill_slots',
+    'equipment_scope',
     'route_from_report',
     'budgets',
     'executor',
@@ -342,6 +348,8 @@ export function projectWorkContractProjectionV0(
   const subRuns: WorkContractProjectionValue['work_contract']['authority']['sub_runs'] = [];
   const fanouts: WorkContractProjectionValue['work_contract']['authority']['fanouts'] = [];
   const skillSlots: WorkContractProjectionValue['work_contract']['authority']['skill_slots'] = [];
+  const equipmentScopes: WorkContractProjectionValue['work_contract']['authority']['equipment_scopes'] =
+    [];
   const reports: WorkContractProjectionValue['work_contract']['proof']['reports'] = [];
   const checks: WorkContractProjectionValue['work_contract']['proof']['checks'] = [];
   const acceptanceCriteria: WorkContractProjectionValue['work_contract']['proof']['acceptance_criteria'] =
@@ -381,6 +389,13 @@ export function projectWorkContractProjectionV0(
         step_id: step.id,
         slot_id: slot.id,
         description: slot.description,
+      });
+    }
+    if (step.equipment_scope !== undefined) {
+      equipmentScopes.push({
+        step_id: step.id,
+        tools: step.equipment_scope.tools,
+        enforcement: step.equipment_scope.enforcement,
       });
     }
     for (const report of reportSlotsForStep(step)) reports.push(report);
@@ -553,6 +568,7 @@ export function projectWorkContractProjectionV0(
       sub_runs: subRuns,
       fanouts,
       skill_slots: skillSlots,
+      equipment_scopes: equipmentScopes,
     },
     proof: {
       reports,

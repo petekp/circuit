@@ -204,6 +204,13 @@ export const fixFlowData = {
         receiptPath: 'reports/relay/fix-gather-context.receipt.txt',
         resultPath: 'reports/relay/fix-gather-context.result.json',
         pass: ['accept'],
+        skillSlots: [
+          {
+            id: 'fix-codebase-search',
+            description:
+              'A skill for navigating and searching the codebase to locate the code involved in the reported problem.',
+          },
+        ],
         routes: {
           continue: 'fix-diagnose',
           retry: 'fix-gather-context',
@@ -231,6 +238,13 @@ export const fixFlowData = {
         receiptPath: 'reports/relay/fix-diagnose.receipt.txt',
         resultPath: 'reports/relay/fix-diagnose.result.json',
         pass: ['accept'],
+        skillSlots: [
+          {
+            id: 'fix-root-cause-analysis',
+            description:
+              'A skill for forming and testing hypotheses about the root cause of a bug before any change is made.',
+          },
+        ],
         routes: {
           continue: 'fix-act',
           retry: 'fix-gather-context',
@@ -326,6 +340,22 @@ export const fixFlowData = {
         receiptPath: 'reports/relay/fix-act.receipt.txt',
         resultPath: 'reports/relay/fix-act.result.json',
         pass: ['accept'],
+        skillSlots: [
+          {
+            id: 'fix-focused-edit',
+            description:
+              'A skill for making the smallest correct code edit that resolves the diagnosed problem.',
+          },
+        ],
+        // The write tier scoped to the file-and-shell toolset a focused fix
+        // needs: read and search, edit and write, run verification. Declared
+        // trusted — the engine renders it to the worker as guidance; nothing
+        // restricts the connector tool surface at this tier yet. Flipping this
+        // to enforced is the write-tier-enforcement increment.
+        equipmentScope: {
+          tools: { allow: ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash'] },
+          enforcement: 'trusted',
+        },
         acceptanceCriteria: {
           checks: [
             {
@@ -437,6 +467,13 @@ export const fixFlowData = {
         receiptPath: 'reports/relay/fix-review.receipt.txt',
         resultPath: 'reports/relay/fix-review.result.json',
         pass: ['accept', 'accept-with-fixes'],
+        skillSlots: [
+          {
+            id: 'fix-change-audit',
+            description:
+              'A skill for independently auditing a change for correctness, scope creep, and regressions.',
+          },
+        ],
         routes: {
           continue: 'fix-close',
           'connector-failed': 'fix-close',

@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/goal/circuit.work-contract.v0.json",
-    "sha256": "2e85f3c900a28950d00636af895fd8ae5a9492dd41a7fb104ccc07099ecede18",
+    "sha256": "d42865f256f53d63cc6496035d9e1377fa3097bc066eb8c3cd5ac7d0e106987d",
     "flow_id": "goal"
   },
   "work_contract": {
@@ -1101,7 +1101,8 @@
         }
       ],
       "fanouts": [],
-      "skill_slots": []
+      "skill_slots": [],
+      "equipment_scopes": []
     },
     "proof": {
       "reports": [

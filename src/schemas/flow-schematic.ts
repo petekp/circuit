@@ -6,6 +6,7 @@ import { ChangeKind } from './change-kind.js';
 import { CheckpointAllowFrom, FanoutJoinPolicy } from './check.js';
 import { CompiledDepth } from './depth.js';
 import { EngineFlagsManifest } from './engine-flags.js';
+import { EquipmentScope } from './equipment-scope.js';
 import {
   FlowBlockCatalog,
   type FlowBlockCatalog as FlowBlockCatalogValue,
@@ -197,6 +198,11 @@ export const SchematicStep = z
     execution: StepExecution,
     selection: SelectionOverride.optional(),
     skill_slots: SkillSlotArray.default([]),
+    // The tools sub-axis of equipment scope (the skills sub-axis rides
+    // `skill_slots` above). Optional so flows that declare nothing stay
+    // byte-stable; an enforced scope is constrained to the write tier by the
+    // cross-field guard in superRefine below.
+    equipment_scope: EquipmentScope.optional(),
     routes: z.record(z.string(), StepRouteTarget).refine((routes) => {
       return Object.keys(routes).length > 0;
     }, 'schematic item must declare at least one route'),
@@ -255,6 +261,23 @@ export const SchematicStep = z
           code: 'custom',
           path: ['optional_inputs', key],
           message: `optional_inputs entry "${key}" is not a declared input key`,
+        });
+      }
+    }
+    // Enforcement is a write-tier property. A tool restriction can only be a
+    // real boundary on the worker that changes files: the implementer relay.
+    // Declaring it elsewhere is an authoring slip (a researcher or reviewer has
+    // no write tier to bound), so reject it at parse time rather than silently
+    // downgrading. Trusted scopes stay role-agnostic — guidance is harmless.
+    if (item.equipment_scope?.enforcement === 'enforced') {
+      const isImplementerRelay =
+        item.execution.kind === 'relay' && item.execution.role === 'implementer';
+      if (!isImplementerRelay) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['equipment_scope', 'enforcement'],
+          message:
+            'enforced equipment scope is only valid on an implementer relay step (the write tier); use enforcement "trusted" elsewhere',
         });
       }
     }

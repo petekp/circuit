@@ -25,6 +25,7 @@
 
 import type { CompiledFlow as CompiledFlowValue } from '../schemas/compiled-flow.js';
 import { CompiledFlow } from '../schemas/compiled-flow.js';
+import { isDefaultEquipmentScope } from '../schemas/equipment-scope.js';
 import type { FlowContractRef } from '../schemas/flow-blocks.js';
 import type {
   FlowAxisSelection,
@@ -263,6 +264,9 @@ function compileItem(
     routes,
     ...(item.selection !== undefined ? { selection: item.selection } : {}),
     ...(item.skill_slots.length === 0 ? {} : { skill_slots: item.skill_slots }),
+    ...(item.equipment_scope === undefined || isDefaultEquipmentScope(item.equipment_scope)
+      ? {}
+      : { equipment_scope: item.equipment_scope }),
     ...(item.route_from_report === undefined ? {} : { route_from_report: item.route_from_report }),
   } as const;
 
