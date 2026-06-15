@@ -636,9 +636,20 @@ safe default → completes through the default; opted-in + nothing to continue w
    before committing canonical bodies (`verification.result@v1` aliases three
    structurally distinct outputs).
 7. **Never special-case the engine.** No flow-specific engine branch. The final
-   grep gate (zero behavior-deciding by-id lookups, zero `canonicalSets[id]`,
-   zero `archetype z.literal`) is the machine-checkable proof no second execution
-   model survives. `schema_version` stays literal 3.
+   grep gate (zero behavior-deciding by-id lookups, zero `archetype z.literal`)
+   is the machine-checkable proof no second execution model survives.
+   `schema_version` stays literal 3.
+
+   *Reconciliation (M9, 2026-06-14).* An earlier draft of this gate read "zero
+   `canonicalSets[id]`." One lookup survives by design at
+   `flow-kind-policy-core.ts:298`, and it is **not** behavior-deciding for safety:
+   it runs *after* the intrinsic `reviewIdentitySeparationViolation` check (so it
+   cannot decide separation of duties), and a missing entry — every composed flow
+   — returns a governed `pass_through` whose canonical consistency is already
+   enforced by `CompiledFlow`'s Zod `superRefine`. It is an additive canonical-
+   stage *prescription* for known built-ins, not the floor. The load-bearing
+   clause is "zero behavior-deciding by-id lookups"; the "no second execution
+   model" invariant holds.
 
 ## How this reframes the open tasks
 
