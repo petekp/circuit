@@ -249,11 +249,28 @@
     {
       "path": "docs/ideas/equipment-scope-build-brief.md",
       "title": "Equipment-scope build brief",
-      "status": "partially-implemented",
+      "status": "implemented",
       "category": "flows-and-blocks",
       "tags": ["composition", "equipment-scope", "manifest-first", "tools", "build-brief"],
-      "current_reading": "Build brief for the equipment-scope mechanism (declared tools sub-axis + write-tier enforcement). Increment 1 (declared + trusted provide) implemented on feat/equipment-scope; write-tier enforcement is the open increment. See the e2 spec for the design.",
-      "related": ["docs/ideas/e2-equipment-scope-spec.md", "docs/ideas/e1-implications-for-m8.md"],
+      "current_reading": "Build brief for the equipment-scope mechanism (declared tools sub-axis + write-tier enforcement). Both increments implemented on feat/equipment-scope (held PR): declared+trusted provide, plus enforced write-tier restriction via claude-code --tools with honest downgrade on incapable connectors. See the enforcement-mechanism report for the decision and what's left.",
+      "related": [
+        "docs/ideas/e2-equipment-scope-spec.md",
+        "docs/ideas/e1-implications-for-m8.md",
+        "docs/ideas/equipment-scope-enforcement-report.md"
+      ],
+      "last_checked": "2026-06-15"
+    },
+    {
+      "path": "docs/ideas/equipment-scope-enforcement-report.md",
+      "title": "Equipment scope — enforcement-mechanism decision + status",
+      "status": "implemented",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "equipment-scope", "tools", "connectors", "report"],
+      "current_reading": "Closes the equipment-scope build brief. Records the enforcement-mechanism decision (claude-code --tools is the obviously-correct lever, no stop-and-report needed), the enforced-vs-trusted honesty model, the ratchet status, the closed review findings, and what's left (scope the other five implementer steps, real-codebase enforcement test).",
+      "related": [
+        "docs/ideas/equipment-scope-build-brief.md",
+        "docs/ideas/e2-equipment-scope-spec.md"
+      ],
       "last_checked": "2026-06-15"
     },
     {
