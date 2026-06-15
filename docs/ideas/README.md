@@ -149,6 +149,7 @@ every later extension in the note shipped.
 
 | Note | Status | Current reading |
 | --- | --- | --- |
+| [`first-class-composition-sequence.md`](first-class-composition-sequence.md) | `superseded` | Superseded staged migration plan (Stages 1-6) for first-class block composition. The work shipped as M1-M9; the optimal-path architecture doc governs where they disagree. Kept as the design record the merged code cites by stage number. |
 | [`longitudinal-evidence-memory.md`](longitudinal-evidence-memory.md) | `archived` | Archived in place. Its useful direction was absorbed into self-auditing memory specs, the effective-memory program, and current history memory implementation. |
 | [`pull-query-memory.md`](pull-query-memory.md) | `superseded` | Superseded by the engineering proposal and implemented `circuit history pull` surface. Keep only for lineage. |
 | [`self-auditing-memory-review.md`](self-auditing-memory-review.md) | `archived` | Archived in place. Useful historical critique, but prefer parent memory docs, slice specs, and current code for active guidance. |

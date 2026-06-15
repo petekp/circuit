@@ -283,6 +283,19 @@
       "last_checked": "2026-06-14"
     },
     {
+      "path": "docs/ideas/first-class-composition-sequence.md",
+      "title": "Circuit: First-Class Block Composition Migration Plan",
+      "status": "superseded",
+      "category": "archived-or-superseded",
+      "tags": ["composition", "flows-and-blocks", "migration", "superseded", "historical-lineage"],
+      "current_reading": "Superseded staged migration plan (Stages 1-6) for making block composition first-class. The work shipped as milestones M1-M9; where it disagrees with the optimal-path architecture doc, that doc governs. Kept as the design record the merged code cites by stage number.",
+      "related": [
+        "docs/architecture/first-class-composition-optimal-path.md",
+        "docs/ideas/exploration-substrate-two-track-plan.md"
+      ],
+      "last_checked": "2026-06-14"
+    },
+    {
       "path": "docs/ideas/flow-eval-suites-implementation.md",
       "title": "Flow Eval Suites: Implementation Exploration",
       "status": "current-proposal",
