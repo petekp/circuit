@@ -22,6 +22,7 @@ import {
   assembleFlowSchematic,
 } from '../../src/flows/assemble-flow-schematic.js';
 import type { BlockStepUse } from '../../src/flows/block-step-expansion.js';
+import { buildBlockItems } from '../../src/flows/build/assembly-spec.js';
 import { flowDefinitions } from '../../src/flows/catalog.js';
 import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
 import { schematicForFlowDefinition } from '../../src/flows/flow-definition.js';
@@ -92,189 +93,11 @@ function singleCompiled(schematic: FlowSchematicValue) {
   return result.flow;
 }
 
-// Build's full block sequence. Note plan-step: build hand-authors it as a raw
-// literal (it would restate the plan block's default evidence), but as a block
-// use that OMITS evidenceRequirements the same default fills back in — so the
-// assembler reproduces it exactly.
-const BUILD_ITEMS: readonly BlockStepUse[] = [
-  {
-    id: 'frame-step',
-    title: 'Frame - confirm Build brief',
-    stage: 'frame',
-    block: 'frame',
-    input: { task: 'task.intake@v1', route: 'route.decision@v1' },
-    output: 'build.brief@v1',
-    execution: { kind: 'checkpoint' },
-    protocol: 'build-frame@v1',
-    reportPath: 'reports/build/brief.json',
-    checkpointRequestPath: 'reports/checkpoints/frame-step-request.json',
-    checkpointResponsePath: 'reports/checkpoints/frame-step-response.json',
-    allow: ['continue'],
-    checkpointPolicy: {
-      prompt: 'Confirm the Build brief before implementation starts.',
-      choices: [{ id: 'continue', label: 'Continue' }],
-      safe_default_choice: 'continue',
-      report_template: {
-        scope: 'Make the smallest safe change that satisfies the requested goal.',
-        success_criteria: [
-          'The requested behavior is implemented',
-          'Verification passes',
-          'Review completes without a blocking issue',
-        ],
-      },
-    },
-    routes: { continue: 'analyze-step', stop: '@stop' },
-  },
-  {
-    id: 'analyze-step',
-    title: 'Analyze — read the code before planning',
-    stage: 'analyze',
-    block: 'gather-context',
-    input: { brief: 'build.brief@v1', request: 'context.request@v1' },
-    output: 'build.context@v1',
-    execution: { kind: 'relay', role: 'researcher' },
-    protocol: 'build-analyze@v1',
-    reportPath: 'reports/build/context.json',
-    requestPath: 'reports/relay/build-analyze.request.json',
-    receiptPath: 'reports/relay/build-analyze.receipt.txt',
-    resultPath: 'reports/relay/build-analyze.result.json',
-    pass: ['accept'],
-    routes: { continue: 'plan-step', retry: 'analyze-step', ask: '@stop', stop: '@stop' },
-  },
-  {
-    id: 'plan-step',
-    title: 'Plan - produce Build plan',
-    stage: 'plan',
-    block: 'plan',
-    input: { brief: 'build.brief@v1', context: 'build.context@v1' },
-    output: 'build.plan@v1',
-    execution: { kind: 'compose' },
-    protocol: 'build-plan@v1',
-    reportPath: 'reports/build/plan.json',
-    required: ['objective', 'verification'],
-    routes: { continue: 'build-baseline', revise: 'plan-step', stop: '@stop' },
-  },
-  {
-    id: 'build-baseline',
-    title: 'Verify - snapshot pre-change git state',
-    stage: 'verify',
-    block: 'run-verification',
-    input: { proof: 'verification.plan@v1', plan: 'build.plan@v1' },
-    output: 'build.baseline-snapshot@v1',
-    protocol: 'build-baseline-snapshot@v1',
-    reportPath: 'reports/build/baseline-snapshot.json',
-    required: ['overall_status'],
-    routes: { continue: 'act-step', stop: '@stop' },
-  },
-  {
-    id: 'act-step',
-    title: 'Act - implementation relay',
-    stage: 'act',
-    block: 'act',
-    input: { brief: 'build.brief@v1', plan: 'build.plan@v1' },
-    output: 'build.implementation@v1',
-    execution: { kind: 'relay', role: 'implementer' },
-    protocol: 'build-act@v1',
-    reportPath: 'reports/build/implementation.json',
-    requestPath: 'reports/relay/build-act.request.json',
-    receiptPath: 'reports/relay/build-act.receipt.txt',
-    resultPath: 'reports/relay/build-act.result.json',
-    pass: ['accept'],
-    acceptanceCriteria: {
-      checks: [
-        {
-          kind: 'report_field',
-          id: 'changed-files-present',
-          path: ['changed_files'],
-          predicate: 'present',
-        },
-        {
-          kind: 'report_field',
-          id: 'evidence-non-empty',
-          path: ['evidence'],
-          predicate: 'non_empty',
-        },
-      ],
-      on_failure: { mode: 'retry-with-feedback' },
-    },
-    routes: { continue: 'verify-step', retry: 'act-step', stop: '@stop' },
-  },
-  {
-    id: 'verify-step',
-    title: 'Verify - run Build verification',
-    stage: 'verify',
-    block: 'run-verification',
-    input: {
-      proof: 'verification.plan@v1',
-      plan: 'build.plan@v1',
-      change: 'build.implementation@v1',
-    },
-    output: 'build.verification@v1',
-    protocol: 'build-verify@v1',
-    reportPath: 'reports/build/verification.json',
-    required: ['overall_status', 'commands'],
-    routes: { continue: 'build-touch-area', advance: 'act-step', retry: 'act-step', stop: '@stop' },
-  },
-  {
-    id: 'build-touch-area',
-    title: 'Verify - check git-proven touch area',
-    stage: 'verify',
-    block: 'run-verification',
-    input: {
-      proof: 'verification.plan@v1',
-      plan: 'build.plan@v1',
-      baseline: 'build.baseline-snapshot@v1',
-      change: 'build.implementation@v1',
-    },
-    output: 'build.touch-area@v1',
-    protocol: 'build-touch-area@v1',
-    reportPath: 'reports/build/touch-area.json',
-    required: ['overall_status', 'enforcement', 'containment'],
-    routes: { continue: 'review-step', stop: '@stop' },
-  },
-  {
-    id: 'review-step',
-    title: 'Review - implementation review relay',
-    stage: 'review',
-    block: 'review',
-    input: {
-      brief: 'build.brief@v1',
-      plan: 'build.plan@v1',
-      change: 'build.implementation@v1',
-      verification: 'build.verification@v1',
-      touch_area: 'build.touch-area@v1',
-    },
-    output: 'build.review@v1',
-    execution: { kind: 'relay', role: 'reviewer' },
-    protocol: 'build-review@v1',
-    reportPath: 'reports/build/review.json',
-    requestPath: 'reports/relay/build-review.request.json',
-    receiptPath: 'reports/relay/build-review.receipt.txt',
-    resultPath: 'reports/relay/build-review.result.json',
-    pass: ['accept', 'accept-with-fixes'],
-    routes: { continue: 'close-step', retry: 'act-step', revise: 'act-step', stop: '@stop' },
-  },
-  {
-    id: 'close-step',
-    title: 'Close - emit Build result',
-    stage: 'close',
-    block: 'close-with-evidence',
-    input: {
-      brief: 'build.brief@v1',
-      plan: 'build.plan@v1',
-      implementation: 'build.implementation@v1',
-      verification: 'build.verification@v1',
-      review: 'build.review@v1',
-      touch_area: 'build.touch-area@v1',
-    },
-    output: 'build.result@v1',
-    execution: { kind: 'compose' },
-    protocol: 'build-close@v1',
-    reportPath: 'reports/build-result.json',
-    required: ['summary', 'outcome', 'evidence_links'],
-    routes: { complete: '@complete', stop: '@stop' },
-  },
-];
+// Build's full block sequence is now build's production source of truth
+// (src/flows/build/assembly-spec.ts → buildBlockItems), consumed by data.ts via
+// the assembler (M9). Importing it here keeps ONE copy: this prove-by-
+// equivalence test reconstructs build's schematic from the same items the flow
+// ships, so a slip in the sequence fails both this test and the live flow.
 
 // Pursue's full block sequence. Pursue leaves the analyze stage empty, so the
 // assembler must derive a partial stage path with omits: ['analyze'].
@@ -397,7 +220,7 @@ const PURSUE_ITEMS: readonly BlockStepUse[] = [
 describe('assembleFlowSchematic — prove-by-equivalence', () => {
   it('reconstructs the build schematic from its block sequence (strict stage path)', () => {
     const shipped = shippedSchematicFor('build');
-    const assembled = assembleFlowSchematic(scaffoldingFrom(shipped, BUILD_ITEMS));
+    const assembled = assembleFlowSchematic(scaffoldingFrom(shipped, buildBlockItems));
 
     expect(assembled.starts_at).toBe('frame-step');
     expect(assembled.stage_path_policy).toEqual({ mode: 'strict' });
@@ -406,7 +229,7 @@ describe('assembleFlowSchematic — prove-by-equivalence', () => {
 
   it('compiles the assembled build flow to the same CompiledFlow', () => {
     const shipped = shippedSchematicFor('build');
-    const assembled = assembleFlowSchematic(scaffoldingFrom(shipped, BUILD_ITEMS));
+    const assembled = assembleFlowSchematic(scaffoldingFrom(shipped, buildBlockItems));
     expect(singleCompiled(assembled)).toEqual(singleCompiled(shipped));
   });
 
