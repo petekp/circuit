@@ -247,6 +247,43 @@
       "last_checked": "2026-06-14"
     },
     {
+      "path": "docs/ideas/decision-layer-exploration.md",
+      "title": "The decision layer: making Circuit's per-step choices first-class and trialable",
+      "status": "current-idea",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "decision-layer", "resolvers", "assembler", "exploration"],
+      "current_reading": "Exploration of a uniform per-axis chooser (a resolver) that maps task context plus prior choices to one choice for one axis (structure, equipment, context, depth, routing, verification, role), materialized onto an assembly spec the existing assembler eats. Section 7 records the as-if-unified shape to observe before extracting a shared type. Exploration only; the first two instances were prototyped offline (see the next-phase docs), but no resolver is wired into production authoring yet.",
+      "related": ["docs/ideas/next-phase-build-brief.md", "docs/ideas/next-phase-run-report.md"],
+      "last_checked": "2026-06-14"
+    },
+    {
+      "path": "docs/ideas/next-phase-build-brief.md",
+      "title": "Next-phase build brief - the offline flow lab + the first two resolvers",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "flow-lab", "resolvers", "quality-ratchet", "offline"],
+      "current_reading": "Build brief for an offline flow lab (generate, assemble, compile, and score flows in memory with a quality ratchet) plus the first two resolvers (structure chop/hold and equipment skill-injection). The offline lab and both thin resolvers are built under experiments/ with zero engine change; the deep unit-unification / uniform-recursion refactor is deliberately left as the operator's ratification item. See the run report for what shipped.",
+      "related": [
+        "docs/ideas/decision-layer-exploration.md",
+        "docs/ideas/next-phase-run-report.md"
+      ],
+      "last_checked": "2026-06-14"
+    },
+    {
+      "path": "docs/ideas/next-phase-run-report.md",
+      "title": "Next-phase run report: the flow lab + the first two resolvers",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "flow-lab", "resolvers", "report", "offline"],
+      "current_reading": "Run report for the offline build: the flow lab and quality ratchet (experiments/flow-lab/, tests/contracts/flow-quality.test.ts), the two resolvers (experiments/resolvers/), their shared shape and four divergences, the typed-seam authoring constraint, and a proposed production plan (E4 structure adoption + shipping the trusted half of skill injection). Records the deep-E3 recursion question held for operator ratification. Built offline with no model spend; nothing is wired into production authoring yet.",
+      "related": [
+        "docs/ideas/next-phase-build-brief.md",
+        "docs/ideas/decision-layer-exploration.md",
+        "docs/ideas/primitive-readiness-audit.md"
+      ],
+      "last_checked": "2026-06-14"
+    },
+    {
       "path": "docs/ideas/effective-memory-program-review-codex.md",
       "title": "Effective Memory Program Review",
       "status": "independent-review",
