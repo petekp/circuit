@@ -118,6 +118,17 @@ export const CheckpointPolicy = z
     choices_from: CheckpointChoiceSource.optional(),
     safe_default_choice: z.string().min(1).optional(),
     auto_resolution: AutoResolutionPolicy.optional(),
+    // Opt-in: when this checkpoint is reached in an unattended run (a
+    // composed/nested child or a headless host, where there is no operator to
+    // answer the gate and no resume driver to clear it), may the engine
+    // auto-continue it through its fail-safe path (auto-resolution rubric, then
+    // declared safe default) instead of failing closed? Defaults to absent =
+    // false: an unattended run hitting a human gate that is NOT declared
+    // auto-continuable reaches a loud terminal failure rather than silently
+    // auto-skipping the gate. Top-level attended and autonomous runs ignore this
+    // field — it governs only the unattended path. See resolveCheckpoint in
+    // src/runtime/executors/checkpoint.ts.
+    auto_continuable_when_nested: z.boolean().optional(),
     report_template: JsonObject.optional(),
   })
   .strict()

@@ -26696,6 +26696,17 @@ var CheckpointPolicy = external_exports.object({
   choices_from: CheckpointChoiceSource.optional(),
   safe_default_choice: external_exports.string().min(1).optional(),
   auto_resolution: AutoResolutionPolicy.optional(),
+  // Opt-in: when this checkpoint is reached in an unattended run (a
+  // composed/nested child or a headless host, where there is no operator to
+  // answer the gate and no resume driver to clear it), may the engine
+  // auto-continue it through its fail-safe path (auto-resolution rubric, then
+  // declared safe default) instead of failing closed? Defaults to absent =
+  // false: an unattended run hitting a human gate that is NOT declared
+  // auto-continuable reaches a loud terminal failure rather than silently
+  // auto-skipping the gate. Top-level attended and autonomous runs ignore this
+  // field — it governs only the unattended path. See resolveCheckpoint in
+  // src/runtime/executors/checkpoint.ts.
+  auto_continuable_when_nested: external_exports.boolean().optional(),
   report_template: JsonObject.optional()
 }).strict().superRefine((policy2, ctx) => {
   const hasStaticChoices = policy2.choices !== void 0;
@@ -55694,6 +55705,7 @@ async function materializePolicy(step, context) {
     prompt: stepPolicy.prompt,
     choices,
     choice_source: choiceSource,
+    auto_continuable_when_nested: stepPolicy.auto_continuable_when_nested === true,
     ...stepPolicy.safe_default_choice === void 0 ? {} : { safe_default_choice: stepPolicy.safe_default_choice },
     ...stepPolicy.auto_resolution === void 0 ? {} : { auto_resolution: stepPolicy.auto_resolution }
   };
@@ -55764,7 +55776,13 @@ async function resolveCheckpoint(step, context, depth, stepPolicy) {
     return await resolveWithoutOperator(step, context, stepPolicy, `checkpoint step '${step.id}' cannot auto-resolve autonomous depth without a declared default choice`);
   }
   if (unattended) {
-    return await resolveWithoutOperator(step, context, stepPolicy, `checkpoint step '${step.id}' cannot reach a terminal outcome unattended without a declared safe default choice or auto-resolution policy`);
+    if (!stepPolicy.auto_continuable_when_nested) {
+      return {
+        kind: "failed",
+        reason: `checkpoint step '${step.id}' hit a human gate while running unattended (a composed/nested child or headless host) and is not declared auto_continuable_when_nested; refusing to auto-skip a human gate`
+      };
+    }
+    return await resolveWithoutOperator(step, context, stepPolicy, `checkpoint step '${step.id}' is declared auto_continuable_when_nested but cannot reach a terminal outcome unattended without a declared safe default choice or auto-resolution policy`);
   }
   const selection = stepPolicy.safe_default_choice;
   if (selection === void 0) {

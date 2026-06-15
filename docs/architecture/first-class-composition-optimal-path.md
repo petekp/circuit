@@ -549,11 +549,11 @@ there would change every saved request fixture, and `autonomous` is already
 overloaded (it also drives the bounded continuation loop). `unattended` is set
 only by a run invocation, never by a flow, and it changes one thing,
 `resolveCheckpoint`, the single place a run parks. The park branch now also
-requires `!unattended`; an unattended run resolves through the same fixed
-fail-safe order autonomy already uses (a declared auto-resolution rubric, then the
-declared safe default, then a loud failure), pulled into a shared
-`resolveWithoutOperator` helper so the two operatorless paths cannot drift. It
-never parks and never guesses.
+requires `!unattended`; an unattended run never parks (a parked unattended run
+could never be resumed) and never guesses (no arbitrary route is taken). How it
+reaches its terminal outcome was tightened by M9-A4 below — the first cut
+resolved every unattended checkpoint through autonomy's fail-safe order, which
+M9-A4 narrowed to a fail-closed default.
 
 The signal travels the whole way down, including into child runs: the sub-run and
 fanout-branch executors hand each child the parent's `unattended`, so the nested
@@ -570,6 +570,35 @@ turns it on by setting the flag on the top-level composed run. Full `npm run
 verify` green. One known residual, out of this change's scope: child runs also do
 not inherit the parent's `axes` today, a pre-existing gap unrelated to checkpoints.
 
+### M9-A4 RESULT (2026-06-14): unattended is fail-closed by default, opt-in to auto-continue
+
+The Safety (b) first cut let an unattended run auto-resolve **any** checkpoint
+that carried a safe default, through the same fail-safe order autonomy uses. The
+locked decision tightened that: the engine must never silently skip a human gate
+just because a safe default exists. A nested/composed flow that hits a checkpoint
+now **fails closed by default** with a loud "hit a human gate unattended"
+terminal, and auto-continues only when the flow's manifest explicitly opts that
+checkpoint in.
+
+The opt-in is one new optional field on `CheckpointPolicy`,
+`auto_continuable_when_nested: boolean`. `resolveCheckpoint`'s unattended branch
+splits on it: opted-in checkpoints resolve through the shared
+`resolveWithoutOperator` order (auto-resolution rubric, then declared safe
+default, then a loud failure if neither exists); not-opted-in checkpoints stop
+immediately, before any safe default is consulted. Top-level attended and
+autonomous runs are unchanged — autonomous remains an explicit operator choice to
+self-drive, so it ignores the new field. The field is invisible to the checkpoint
+authority boundary projection (it is not one of the fields hashed into
+`boundary_hash`), so adding it drifts no saved boundary and breaks no resume
+validation; every existing flow leaves it unset and is inert.
+
+The conservative default is deliberate: surfacing the gate up to a human
+interactively (pause the parent, ask, resume) is the scheduled post-M9 end-state.
+Until then, fail-closed is the safe floor. Four runner tests pin the matrix:
+not-opted-in + safe default → aborted (the safety regression guard); opted-in +
+safe default → completes through the default; opted-in + nothing to continue with
+→ aborted; not-opted-in + no default → aborted.
+
 ## The optimal path (9 milestones)
 
 | # | Milestone | Why here |
@@ -579,7 +608,7 @@ not inherit the parent's `axes` today, a pre-existing gap unrelated to checkpoin
 | M3 | Close real gaps with new/split blocks **and** serialize engineFlags + runtime-surface onto the manifest | Model true-to-zero by correction; manifest carries built-in behavior — both prerequisites for the flip and the linchpin |
 | M4 | **LINCHPIN (done 2026-06-13):** dissolve the by-id package lookup at all 5 sites; delete the fallback | The coherence pivot for bindings; a composed flow becomes first-class for behavior resolution |
 | M4-safety | **(done 2026-06-14)** Rehome the flow-kind policy off by-id (`pass_through` hole + `id === 'review'`), failing-test-first; identity separation is now intrinsic (close emits `review.result@v1`) and runs before exemption and the table lookup | The safety half of the pivot; latent until M9, sequenced before composed flows run. Collapsed to a lean fix: Zod `superRefine` already enforces internal canonical consistency, so no manifest serialization was needed |
-| Safety (b) | **(done 2026-06-14)** Engine-side headless-checkpoint policy: an unattended run resolves through autonomy's fail-safe order instead of parking, threaded into child runs | The other safety half; latent until M9, lets composed and nested flows reach a terminal outcome with no operator |
+| Safety (b) | **(done 2026-06-14; tightened by M9-A4)** Engine-side headless-checkpoint policy: an unattended run never parks. **M9-A4** made it fail-closed by default — it auto-continues a nested checkpoint only when the manifest opts in via `auto_continuable_when_nested`, else stops with a loud "hit a human gate unattended" terminal | The other safety half; latent until M9, lets composed and nested flows reach a terminal outcome with no operator while never silently skipping a human gate |
 | M5 | **(done 2026-06-13)** Flip the catalog to a **fail-closed compile gate** for all 8 + composed flows (resolves #14) | Forces the two parallel truths into permanent agreement; safe only after M3 (zero-by-correction) and M4 (id-agnostic) |
 | M6 | **(done 2026-06-14)** Collapse `data.ts`/`schematic.json` redundancy; demote schematic to a drift-checked generated artifact | Subtractive elegance; safe once the gate enforces block linkage |
 | M7 | **(done 2026-06-14)** Build the **block-to-schematic assembler**; prove it on the truth-test exemplar (build/pursue) | The missing primitive every proposal assumed but none built |

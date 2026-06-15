@@ -78,6 +78,7 @@ async function materializePolicy(
   readonly choices: readonly MaterializedChoice[];
   readonly choice_source: 'static' | 'dynamic';
   readonly auto_resolution?: AutoResolutionPolicy;
+  readonly auto_continuable_when_nested: boolean;
 }> {
   const stepPolicy = policy(step);
   const choiceSource = stepPolicy.choices_from === undefined ? 'static' : 'dynamic';
@@ -98,6 +99,7 @@ async function materializePolicy(
     prompt: stepPolicy.prompt,
     choices,
     choice_source: choiceSource,
+    auto_continuable_when_nested: stepPolicy.auto_continuable_when_nested === true,
     ...(stepPolicy.safe_default_choice === undefined
       ? {}
       : { safe_default_choice: stepPolicy.safe_default_choice }),
@@ -230,9 +232,9 @@ async function resolveCheckpoint(
   const autonomous = context.axes?.autonomous === true || effectiveDepth === 'autonomous';
   // An unattended run (a composed/nested child, or a batch/headless host) has no
   // operator to answer the gate and no external resume driver to clear it, so it
-  // must never park — it reaches a terminal outcome through the same fail-safe
-  // path autonomy uses. Latent until a run invocation sets it; every shipped
-  // interactive run leaves it unset and still parks at high/tournament depth.
+  // must never park — a parked unattended run could never be resumed. Latent
+  // until a run invocation sets it; every shipped interactive run leaves it unset
+  // and still parks at high/tournament depth.
   const unattended = context.unattended === true;
   if (
     !autonomous &&
@@ -242,6 +244,8 @@ async function resolveCheckpoint(
     return { kind: 'waiting' };
   }
   if (autonomous) {
+    // Top-level autonomous is an explicit operator choice to let the run
+    // self-drive; it is unchanged by the unattended policy below.
     return await resolveWithoutOperator(
       step,
       context,
@@ -250,11 +254,23 @@ async function resolveCheckpoint(
     );
   }
   if (unattended) {
+    // Fail-closed by default (M9-A4 locked decision): the engine never auto-skips
+    // a human gate just because a safe default exists. It auto-continues an
+    // unattended checkpoint ONLY when the flow's manifest explicitly opts that
+    // checkpoint in via auto_continuable_when_nested; otherwise it stops with a
+    // loud terminal failure rather than silently crossing the gate. (Surfacing
+    // the gate up to a human interactively is the scheduled post-M9 end-state.)
+    if (!stepPolicy.auto_continuable_when_nested) {
+      return {
+        kind: 'failed',
+        reason: `checkpoint step '${step.id}' hit a human gate while running unattended (a composed/nested child or headless host) and is not declared auto_continuable_when_nested; refusing to auto-skip a human gate`,
+      };
+    }
     return await resolveWithoutOperator(
       step,
       context,
       stepPolicy,
-      `checkpoint step '${step.id}' cannot reach a terminal outcome unattended without a declared safe default choice or auto-resolution policy`,
+      `checkpoint step '${step.id}' is declared auto_continuable_when_nested but cannot reach a terminal outcome unattended without a declared safe default choice or auto-resolution policy`,
     );
   }
   const selection = stepPolicy.safe_default_choice;
