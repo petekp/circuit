@@ -29,8 +29,8 @@ import { deterministicNow } from '../helpers/runtime-fixtures.js';
 import type { ClaudeCodeRelayInput } from '../../src/connectors/claude-code.js';
 import { assembleFlowSchematic } from '../../src/flows/assemble-flow-schematic.js';
 import { buildAssemblySpec } from '../../src/flows/build/assembly-spec.js';
-import { buildFlowDefinition } from '../../src/flows/build/flow.js';
 import { BuildResult } from '../../src/flows/build/reports.js';
+import { flowDefinitions } from '../../src/flows/catalog.js';
 import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
 import { schematicForFlowDefinition } from '../../src/flows/flow-definition.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
@@ -41,6 +41,17 @@ import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 
 const ON_DISK_FIXTURE = resolve('generated/flows/build/circuit.json');
 const BUILD_RUNTIME_TIMEOUT_MS = 15_000;
+
+// The catalog is the supported surface for a built-in's shipped FlowDefinition
+// (reaching into src/flows/build/flow.ts directly would cross the engine→flow
+// boundary the tests guard). schematicForFlowDefinition parses it as shipped.
+const buildFlowDefinition = (() => {
+  const definition = flowDefinitions.find((entry) => entry.id === 'build');
+  if (definition === undefined) {
+    throw new Error('missing build FlowDefinition in the catalog');
+  }
+  return definition;
+})();
 
 function compileSingle(schematic: ReturnType<typeof assembleFlowSchematic>): CompiledFlow {
   const result = compileSchematicToCompiledFlow(schematic);

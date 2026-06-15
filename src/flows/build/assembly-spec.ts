@@ -1,3 +1,4 @@
+import type { FlowSchematicAssemblySpec, StageLabelMap } from '../assemble-flow-schematic.js';
 // Build's flow assembly spec (first-class composition, M9).
 //
 // This is build's schematic expressed as the assembler's input: a raw block
@@ -21,10 +22,6 @@
 // block's default fills back the exact list build used to hand-author, so the
 // assembled schematic is byte-identical to the shipped one.
 import type { BlockStepUse } from '../block-step-expansion.js';
-import type {
-  FlowSchematicAssemblySpec,
-  StageLabelMap,
-} from '../assemble-flow-schematic.js';
 
 // Build's full block sequence, in route order.
 export const buildBlockItems: readonly BlockStepUse[] = [

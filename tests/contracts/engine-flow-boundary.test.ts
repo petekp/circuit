@@ -206,9 +206,13 @@ describe('engine ↔ flow boundary', () => {
         const target = flowImportTarget(file, importPath);
         if (target === undefined) continue;
         // index.js / catalog.js / types.js / reports.js are the
-        // supported public surfaces.
+        // supported public surfaces. assembly-spec.ts joins them in M9
+        // (first-class composition): a flow's block sequence + assembly spec
+        // are its authored composition surface, peer to its reports schemas,
+        // and the prove-by-equivalence / create-CLI tests legitimately read it.
         if (target.endsWith('/index.ts')) continue;
         if (target.endsWith('/reports.ts')) continue;
+        if (target.endsWith('/assembly-spec.ts')) continue;
         if (isAllowedTestImport(target)) continue;
         if (ALLOWED_TEST_INTERNAL_FLOW_IMPORTS.has(`${file} -> ${target}`)) continue;
         offenders.push({ file, importPath });

@@ -23,10 +23,10 @@ import {
 } from '../../src/flows/assemble-flow-schematic.js';
 import type { BlockStepUse } from '../../src/flows/block-step-expansion.js';
 import { buildBlockItems } from '../../src/flows/build/assembly-spec.js';
-import { pursueBlockItems } from '../../src/flows/pursue/assembly-spec.js';
 import { flowDefinitions } from '../../src/flows/catalog.js';
 import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
 import { schematicForFlowDefinition } from '../../src/flows/flow-definition.js';
+import { pursueBlockItems } from '../../src/flows/pursue/assembly-spec.js';
 import type { FlowSchematic as FlowSchematicValue } from '../../src/schemas/flow-schematic.js';
 
 // The catalog (not a per-flow data.ts) is the supported surface for reaching a
