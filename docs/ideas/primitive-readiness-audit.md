@@ -1,329 +1,115 @@
-# Primitive-readiness audit: the six substrate primitives at M5
+# Primitive-readiness audit: the six substrate primitives at M9
 
-> Superseded — grounded in the pre-M6 (M5) codebase; M6–M9 have since landed (uniform composed runtime, the block-to-schematic assembler, the typed routing seam, fail-closed checkpoints), so several primitives marked missing/partial here are now present. Refresh before relying on this.
-
-> Written 2026-06-14. This is **B2** of the E1 backlog (see
-> [`e1-implementation-brief.md`](e1-implementation-brief.md)). It grounds the
-> six-primitive substrate analysis from
-> [`exploration-substrate-two-track-plan.md`](exploration-substrate-two-track-plan.md)
-> in the *current* codebase, so the next experiments (E2 onward) are scoped
-> against what actually exists rather than against a plan. Read-only: this audit
-> touches no `src/`. For each primitive it answers three questions: what
-> implements it today (with file:line), what is still missing, and which
-> track/gate it sits on.
-
-## What "current" means here
-
-This audit reads the worktree at branch `exp/e1-variant-harness`, based on
-`c0f2619a` (composition milestone **M5**). What has landed:
-
-- **M1** — route-conditional input availability (`303de751`).
-- **M2/M3** — declaration-aware legibility; build/prototype engine flags rehomed
-  onto the manifest.
-- **M4** — the by-id flow package dissolved; `findCompiledFlowPackageById` is
-  gone and the compiled manifest is the sole authority (`d4058992`).
-- **M5** — the catalog check flipped to a fail-closed compile gate (`c0f2619a`).
-
-What has **not** landed (and several gaps below depend on these): **M6** (collapse
-data/schematic), **M7** (the assembler), **M8** (typed Zod seam + anti-widening
-gate), **M9** (composed runtime). The migration is mutating `src/` concurrently
-on its own branch, so re-check a citation before acting on it; line numbers are
-accurate as of M5 on this branch.
+> Written 2026-06-14. This is the post-M9 refresh. It grounds the
+> six-primitive substrate analysis in the *current* post-M9 codebase — M6
+> (data/schematic collapse), M7 (the block-to-schematic assembler), M8 (the
+> typed Zod seam plus the anti-widening gate), and M9 (the composed runtime)
+> have all landed. Read-only: this audit touches no `src/`. For each primitive
+> it answers three questions: what implements it today (with file:line), what is
+> still missing, and which track/gate it sits on.
 
 ## Readiness at a glance
 
-| # | Primitive | Track / gate | Readiness | Anchor in code | The gap in one line |
-|---|---|---|---|---|---|
-| 1 | self-similar unit (flow = composite harness) | Track B, gated on M4 | **partial** | `src/runtime/executors/sub-run.ts`, `src/runtime/run/binding-legibility.ts:85` | sub-runs invoke a child flow, but a flow is not yet substitutable for a *leaf step* |
-| 2 | typed + enforced seam | **is** M5 (enforce) + M8 (type) | **half** | `src/flows/compile-schematic-to-flow.ts:703` | enforcement landed; payload bodies are still string-named, not typed |
-| 3a | context envelope | M1, already shipped | **done (narrow)** | `src/schemas/flow-schematic.ts:194,848` | availability is proven, but path-specific producer binding is not |
-| 3b | equipment scope | Track B, start now | **absent** | nearest: `src/schemas/step.ts:19` (`RelayRole`) | no declared per-step tool/read kit; only a 3-value role |
-| 4 | legible composition surface + repair edges | Track B, partial M7 | **partial** | `src/schemas/recovery-route-kind.ts:5`, `src/schemas/flow-schematic.ts` | structure is authorable-by-hand; arrangement and repair are not composition-as-data |
-| 5 | isolation / change-packets | Track B, start now | **half** | `src/runtime/fanout/worktree.ts:4` | worktree isolation is real; change-packets + disjoint-apply join are not built |
-| 6 | commensurable traces | Track B, mostly exists | **mostly done** | `src/schemas/result.ts:40`, `src/schemas/operator-summary.ts:104` | shared schemas exist; cost meter is best-effort (`partial` honesty bit) |
-
-The shape of the answer: three primitives (3a, 5, 6) are at or near ready and are
-exactly the three E1 already exercised end to end. Two (1, 4) are genuinely
-gated on the spine (M4 landed for 1; M7 still open for 4). One (2) is half-built
-by construction: M5 gave it teeth, M8 will give it types. One (3b) does not exist
-yet and is the cleanest start-now build.
+| # | Primitive | Track / gate | Readiness | The gap in one line |
+|---|---|---|---|---|
+| 1 | self-similar unit (flow = composite harness) | Track B, gated on M4 (landed). The authoring/assembler half (M7/M9) is done; the remaining load-bearing work — true leaf-substitutability and bounded recursion — is the E3 fork, still unbuilt and now unblocked by the assembler. | **half** | A flow is still only invocable as an isolated child run via the dedicated `kind: 'sub-run'` execution (a distinct `executor: 'orchestrator'` code path), not splice-substitutable as a leaf step the engine treats like any relay — the M5 "inline-subtree" gap is untouched, and nested recursion has no depth/cycle guard. |
+| 2 | typed + enforced seam | A composed (assembler-authored) or operator-edited flow that wires a produced-and-consumed contract with no registered Zod body must FAIL to compile, not silently bind to an unverified shape. The gate is met for the eight shipped built-ins (all inert at zero issues) and for the single-actual / multi-actual divergent / unresolved-masking cases. The residual gate before "done": the WIRE-matching seam (contractIsCompatible) still matches by name only, and divergent write-only block umbrellas are intentionally left bodyless, so "every contract the engine ever binds has a verified body" is not yet a total invariant — it is enforced exactly on the consumed-and-produced population the gate inspects. | **mostly-done** | Wire-time contract matching is still name/alias equality (flow-schematic.ts:786-788), and divergent write-only block umbrellas plus engine-supplied initial-only inputs are deliberately left bodyless, so "every contract the engine binds carries a verified Zod body" is enforced on the consumed-and-produced population but is not yet a universal invariant. |
+| 3a | context envelope | guardrail-7 / fail-closed catalog gate (the route-aware availability check at flow-schematic.ts:1050 plus the single-producer-per-mode invariant at compile-schematic-to-flow.ts:156). Gate to widen the residual: an E3-recursion / multi-producer follow-up would need to make buildContractProducerIndex route-scoped before a route-disjoint shared producer is admittable. | **done** | Producer binding is per-compiled-mode-global, not per-route: buildContractProducerIndex (compile-schematic-to-flow.ts:595) keys one producer per contract across the whole reachable set and fails compile if two reachable items write the same contract (line 156), so a sequence with two route-disjoint producers of the SAME contract cannot compile. The route-aware availability check models route-disjoint CONSUMPTION (required vs optional) correctly, but route-disjoint PRODUCTION of a shared contract is still structurally disallowed rather than path-resolved. |
+| 3b | equipment scope | Track B, start now (Resolver #2 — equipment). Unchanged by M6–M9. Build manifest-first per e2-equipment-scope-spec.md: author equipment_scope on SchematicStep, compile it onto the Step/manifest exactly as skill_slots and engine_flags now travel, and reuse WorkRootKind (src/schemas/change-packet.ts:2) for write_tier. Do not reintroduce a by-id package field. | **absent** | The entire primitive is still unbuilt: there is no declared `equipment_scope` (reads envelope, tools allow-list, write_tier) field on the schematic step, compiled step, or manifest, and nothing enforces a kit at relay dispatch or at apply — skill_slots only injects skills, it does not bound reads/tools/writes. |
+| 4 | legible composition surface + repair edges | Resolver #1 (structure). Gate to advance to "mostly-done": migrate the remaining 6 hand-authored flows (fix, goal, review, explore, prototype, runtime-proof) onto assembleFlowSchematic so authoring-as-data is the single production path, not a 2-of-8 path. The safety/repair-edge half is already done(narrow) — compile-time gating is shared and unbypassable; it does not need its own gate. | **half** | Composition is authorable-as-data and validated, but only 2 of 8 flows (build, pursue) actually route through the assembler; the other 6 (fix, goal, review, explore, prototype, runtime-proof) still hand-author the full schematic literal — including the very starts_at/stages/stage_path_policy fields the assembler would derive — so the legible-composition surface is real but not yet the single production authoring path. |
+| 5 | isolation / change-packets | Track 2 (composition/isolation runtime). Gate to advance past half: land a ChangePacket payload schema in src/schemas/change-packet.ts (patch body + base ref + touched-files + hash) AND a disjoint-apply step in the fanout executor that, after the existing disjointness validation passes, applies the union of branch change-packets into the parent tree (replacing the current discard-on-finally). Reconcile the src/schemas/check.ts:124-126 'merges all into the parent tree' comment with reality at the same time. | **half** | There is still no ChangePacket payload schema and no disjoint-APPLY join: branches are isolated and validated for file-disjointness, but the union of their changes is never composed back into the parent tree — admission is verdict-on-result-file only, and worktrees are torn down with their edits discarded. |
+| 6 | commensurable traces | No track gate. Commensurable traces is a shipped, fail-closed-by-construction substrate property as of post-M9. The remaining work is not a gate for this primitive — it is a measurement gap (no cross-flow trace-equivalence test asserts the property directly) and an unexercised path (composed flows can populate reduced_bindings, but no built-in run produces a non-empty set, so the legibility leg is structurally present but never lit in production traces today). | **done** | No assertion directly proves cross-flow trace commensurability (it is guaranteed structurally by the shared schemas + single compile/write paths, not by a dedicated equivalence test), and the reduced_bindings legibility leg, though fully wired, stays empty for every built-in run, so the composed-flow degradation path it exists to make legible is never exercised in a production trace today. |
 
 ---
 
 ## Primitive 1 — self-similar unit (flow = composite harness)
 
-**The claim.** A built-in flow, a composed flow, and a nested sub-tree should be
-the same kind of thing, so recursion is uniform instead of a hand-authored
-special case. M4 (dissolving the by-id lookup) was its precondition.
+**The claim.** A built-in flow, a composed flow, and a nested sub-tree should be the same kind of thing, so recursion is uniform instead of a hand-authored special case. The strong form of the claim is that a flow becomes *substitutable for a leaf step* — the engine treats "this step's body is sub-tree X" exactly as it treats a single relay. M4 (dissolving the by-id lookup) was the precondition and is confirmed landed: `findCompiledFlowPackageById` has zero hits in `src/`, and `binding-legibility.ts:85` region states the manifest is now the sole authority.
 
-**What implements it today.**
+**What implements it today.** The self-similar *authoring* half is now real, which is the concrete M6–M9 delivery for this primitive. The sequence-level assembler `assembleFlowSchematic` (src/flows/assemble-flow-schematic.ts:79) turns a raw block sequence plus flow scaffolding into a validated `FlowSchematic`, deriving `starts_at`, `stages`, and `stage_path_policy`. Build (src/flows/build/data.ts:43) and pursue (src/flows/pursue/data.ts:36) are now its production customers, and `circuit create` produces custom flows through the same assemble→compile path rather than cloning build's compiled bytes off disk (src/cli/create.ts:170). The M9-C commit deleted the `archetype: 'build'` literal, so there is genuinely one shared assembly path — built-ins, custom, and composed flows all pass through the one compiler. Flow-as-step also exists at runtime: goal embeds fix/build/review/explore/pursue as steps via `kind: 'sub-run'` (src/flows/goal/data.ts:55, childRunStep used at 233-267), the sub-run executor runs the child to its own `result.json` and admits it back only on the child's verdict (src/runtime/executors/sub-run.ts:1-5).
 
-- The unit is the compiled manifest. Post-M4 the runtime resolves a flow's
-  behavior from the manifest itself, not a catalog lookup:
-  `src/runtime/run/binding-legibility.ts:85` states it outright ("Post-M4 the
-  compiled manifest is the sole authority"). `findCompiledFlowPackageById` is
-  deleted (grep: zero hits in `src/`).
-- A flow can already invoke *another whole flow* as a step. The `sub-run`
-  execution kind resolves a child flow through
-  `context.childCompiledFlowResolver` (`src/runtime/executors/sub-run.ts:112-129`),
-  runs it to its own `result.json`, and checks the child's `verdict` against the
-  parent step's `check.pass`. That is real recursion: a parent step whose body is
-  an entire child run.
-- The compiled-flow shape is one schema (`CompiledFlow`, `schema_version` 3) in
-  `src/schemas/compiled-flow.ts`, and the authored shape is `FlowSchematic` in
-  `src/schemas/flow-schematic.ts`. Both built-ins and any future composed flow
-  pass through the same compiler.
+**What is still missing.** The load-bearing half of the claim — uniform leaf-substitutability — is untouched by M9 and remains exactly as the M5 audit described it (primitive-readiness-audit.md:79-83). A flow is invocable only as an isolated *child run*, never spliced in as a leaf. The proof is structural: a sub-run compiles to `executor: 'orchestrator'` (compile-schematic-to-flow.ts:409), a different code path from a leaf relay's `executor: 'worker'` (:372), with its own executor binding (executors/index.ts:49) and its own child-run isolation boundary. "Flow = composite harness" is therefore true for the run-a-child case and still false for the inline-subtree case. Two further gaps remain open: the binding-legibility oracle the M5 audit explicitly deferred to M9 is still a stub — `reducedBindings` is hardcoded empty and the docblock still treats the block-level needs model as future M9 work (binding-legibility.ts:92-95, 101); and there is no recursion-depth cap or cycle guard anywhere — `child_depth: step.depth` (sub-run.ts:171) is the axis dial, not a recursion counter, so a flow that sub-ran itself would loop unbounded. One nuance worth flagging: pursue, named in the "migrate pursue onto the shared assembly path" commit, does NOT use sub-runs at all — its batch-step is a relay (pursue/assembly-spec.ts) — so that migration is purely about authoring, not about flow-as-leaf.
 
-**What is still missing.**
-
-- A flow is invocable as a *child run* (sub-run) but not yet substitutable for a
-  *leaf step*. There is no composition primitive that says "this step's body is
-  sub-tree X" and treats X exactly as it would treat a single relay. The two are
-  different code paths, so "flow = composite harness" is true for the run-a-child
-  case and not yet for the inline-subtree case.
-- No authoring surface for composed flows. Built-ins are hardcoded in
-  `src/flows/catalog.ts`; there is no command or assembler that emits a new
-  manifest from parts. That is M7/M9 territory.
-
-**Track / gate.** Track B, gated on M4 (landed). The remaining work (true
-leaf-substitutability) is E3 and waits on M7's assembler to be worth doing.
+**Track / gate.** Track B, gated on M4 (landed). M6–M9 advanced this primitive from **partial** to **half**: the assembler exists, built-ins are its customers, and the second M5 gap ("no authoring surface, no assembler") is genuinely closed. But the readiness ceiling is set by the un-built half. True leaf-substitutability and bounded recursion are E3, which the M5 audit said "waits on M7's assembler to be worth doing" — that precondition is now met, so E3 is unblocked but not begun. This is the primitive that informs the deep-E3 fork, and the honest read is: the substrate to make flows composable on paper now exists, but the engine still runs a nested flow as a child process, not as a uniform step, and nothing stops infinite recursion.
 
 ---
 
 ## Primitive 2 — typed + enforced seam
 
-**The claim.** The seam between composed units should carry real typed payload
-bodies *and* be enforced fail-closed. Per the analysis, this primitive **is** M5
-(enforcement) plus M8 (typing).
+**The claim.** The seam between flow items — one item's output contract feeding the next item's input — should be both *typed* (each contract names a real Zod body the engine can verify, not just a string identifier) and *enforced* (a flow that wires an incompatible or unverifiable contract fails to compile rather than binding an unverified shape at runtime). At composition-milestone M5 this primitive was rated `half`: the *enforced* side was real (the catalog gate had just flipped fail-closed) but the *typed* side was missing — contracts were name-only identifiers matched by string, so the engine could enforce "this name has a producer" but never "the body the consumer reads is the body the producer wrote." Post-M9 the typed side has substantially landed.
 
-**What implements it today — the enforced half (M5, landed).**
+**What implements it today (with file:line).** The enforcement spine is the M5 gate in `compile-schematic-to-flow.ts:709` — `compileSchematicToCompiledFlow` calls `collectSchematicCatalogIssues` first, before any framing, and throws `FlowSchematicCompileError` on any issue. Every flow that reaches the compiler passes through it, including the two assembler-authored flows (`build/data.ts:43`, `pursue/data.ts:36`) and operator `create` (`cli/create.ts:175`). The gate now stacks three layers (`schematic-catalog-check.ts:45-83`): the original route-aware catalog-compat check, the M8.4 anti-widening gate (`collectConsumedDivergenceIssues`, line 60), and the M9-A1 single-actual typing gate (`collectUnregisteredConsumedContractIssues`, line 77). The *typed* half that was absent at M5 now exists: the three routing-seam contracts carry real Zod bodies (`routing-contract-schemas.ts:27-82`, M8.1), engine built-in report bodies are typed (`builtin-report-schemas.ts:48`), and `contract-body-signature.ts:148` builds a `BODY_REGISTRY` over flow reports + routing-seam contracts + uniform producer generics + raw consumed generics, with `resolveFieldSignature` (line 171) returning a real structural signature or `null`. M9-A1 registered the two raw-consumed generics (`plan.strategy@v1`, `review.verdict@v1`) to their producing item's real schema (`contract-body-signature.ts:127`), and M9-A2 made the signature recurse into field-value types (`signatureOfNode`, line 51) so two bodies with matching field names but differing field types no longer collide. The behavior is test-pinned both ways: the gate throws on a catalog-incompatible item and is inert on the eight shipped schematics (`tests/contracts/schematic-catalog-check.test.ts:212`), and `collectUnregisteredConsumedContractIssues` returns zero for every shipped flow (`tests/contracts/accommodation-ledger.test.ts:478`), locking in that the raw-consumed bodies are registered.
 
-- `compileSchematicToCompiledFlow` (`src/flows/compile-schematic-to-flow.ts:703`)
-  opens with the fail-closed catalog gate: it calls `collectSchematicCatalogIssues`
-  *before any framing*, and on any issue it `fail()`s with the precise mismatch.
-  The header comment makes the intent explicit ("here it is enforced"). This is
-  what stops a catalog-incompatible composed flow from ever compiling.
-- The validator behind the gate is
-  `validateFlowSchematicCatalogCompatibility` in `src/schemas/flow-schematic.ts`,
-  checking block existence, route allowance, input/output contract compatibility,
-  evidence requirements, and execution-kind fit.
+**What is still missing.** Two deliberate seams keep this from being a total invariant. First, wire-time contract *matching* is still name/alias equality — `contractIsCompatible` (`flow-schematic.ts:786`) returns true on `expected === actual` or an alias generic→actual pair; it never compares bodies. The typed bodies are consulted by the catalog gate at *compile*, not at the per-edge match. So the typing is enforced on a population (consumed-and-produced contracts) rather than at the literal matching step. Second, by design the body gates exempt two groups (`accommodation-ledger.ts:239-248`): divergent write-only block-reuse umbrellas (a generic named only as a block output, realized by typed flow-scoped actuals, that no item reads via the generic name) and engine-supplied initial-only inputs (the routing/brief seam the engine owns). The accommodation ledger's own header is candid that "zero accommodations" means "no alias points at a phantom contract", not "every binding is correct." So a fully universal "every contract the engine ever binds carries a verified Zod body" invariant is not yet reached — but the specific blind spots an assembler would trip (raw single-actual generics, multi-actual divergence, unresolved-masking) are all now fail-closed.
 
-**What implements it today — the typed half (M8, NOT landed).**
-
-- Seam payloads are referenced by *name*, not validated by *body*. A step's
-  `input` is `z.record(..., FlowContractRef)` where the ref is a string like
-  `goal.recovery@v1` (`src/schemas/flow-schematic.ts:184` region). There is no
-  Zod body schema asserting the shape of that payload.
-- The engine ships only a tiny set of built-in report-body schemas:
-  `BUILTIN_REPORT_SCHEMAS` (`src/schemas/builtin-report-schemas.ts:48`) is a
-  frozen record of just `runtime-proof-canonical@v1`, `runtime-proof-strict@v1`,
-  and `fanout-aggregate@v1`. The abstract routing contracts that flows actually
-  pass across seams have no registered body schema.
-
-**What is still missing.** The typed payload bodies, a runtime check that a read's
-consumed body matches its declared schema, and the anti-widening gate that M8 owes
-(so one generic contract id cannot alias two structurally divergent bodies). Until
-then E1-style findings are name-matched and must be labeled shape-finding, per the
-two-track plan's "no production claims before M5/M8."
-
-**Track / gate.** This primitive *is* the spine at this seam: M5 is done, M8 is
-the remaining half. E5 consumes it.
+**Track / gate.** The gate that mattered for M5→M9 — that a composed or operator-edited flow consuming a produced-in-flow contract with no registered body must fail to compile — is met and test-locked, with the eight built-ins inert at zero issues. The residual before this primitive is unqualified `done` is purely the two intentional exemptions plus the still-string wire-matcher; closing those is a forward typing pass, not a regression. Readiness is `mostly-done`: the typed half went from absent to real, the enforcement covers exactly the population that assembler-driven composition can break, and the only gap is the deliberately-deferred universality of body coverage.
 
 ---
 
 ## Primitive 3a — context envelope
 
-**The claim.** The set of contracts available at each step, narrowed by route. The
-analysis marks this **done** via M1.
+**The claim.** Every schematic step declares the typed contracts it reads (`input`) and the one it writes (`output`), and the compiler resolves each read to a concrete producer so that the abstract "what context does this step need" becomes concrete runtime read paths. Crucially, the model must distinguish a *required* input (the contract must arrive on every route that can reach this step) from an *optional* one (the step reads it best-effort and tolerates routes where it is absent). The envelope must hold not just for hand-authored flows but for dynamically composed ones, or composition is a hole in the contract model.
 
-**What implements it today.**
+**What implements it today (with file:line).** The envelope is a first-class part of the schematic schema: `optional_inputs` at `src/schemas/flow-schematic.ts:194` (the M5 anchor, unmoved), with a superRefine at `:252` rejecting any optional key that is not a declared input. The required/optional split is enforced by two graph walks — `collectRouteAwareAvailability` (`:848`, intersection: required contracts must be on every reaching route) and `collectRouteAwareAvailabilityUnion` (`:892`, union: optional contracts need only one reaching route) — consumed together at `:1050` where each item's inputs are partitioned and checked. At compile time the abstract contracts become real read paths: `computeReads` (`src/flows/compile-schematic-to-flow.ts:176`) maps each input contract to its producing item via `buildContractProducerIndex` (`:147`), and the index is built from the items reachable *for that mode* (`:595`), so each axis selection gets its own envelope resolution. The whole thing is now proven against dynamic composition: the M7 assembler (`src/flows/assemble-flow-schematic.ts:134`) routes assembled flows through the same `FlowSchematic.parse`, and the route-safety test (`tests/runner/assemble-flow-route-safety.test.ts`) shows a consumer-first assembled ordering is flagged by the catalog gate and is fail-closed at compile. I ran the route-safety and M9 truth tests: 8/8 green.
 
-- A step declares which reads it tolerates being absent via
-  `optional_inputs` (`src/schemas/flow-schematic.ts:194`), validated to name real
-  input keys at lines 252-257.
-- Availability is computed two ways over the route graph:
-  `collectRouteAwareAvailability` (intersection, line 848) for required inputs and
-  `collectRouteAwareAvailabilityUnion` (union, line 892) for optional inputs. The
-  validator at line 1039 onward enforces that required reads are present on *every*
-  reaching path and optional reads are present on *at least one*.
-- Real use: `goal-close` declares `optional_inputs: ['recovery', 'gate']` because
-  the recovery payload exists only on the failure branch and the gate payload only
-  on its own branch.
+**What is still missing.** One structural limitation survives: producer binding is per-mode-global, not per-route. `buildContractProducerIndex` fails compile when two reachable items write the same contract (`src/flows/compile-schematic-to-flow.ts:156`, "a single producer per contract per mode"). The availability check models route-disjoint *consumption* perfectly — the goal-close case that reads `recovery` and `gate` from two mutually exclusive routes is exactly what `optional_inputs` plus the union walk handle. But route-disjoint *production* of the same contract (two different branches each emitting `context.packet@v1` to be read by a shared downstream consumer) is disallowed rather than path-resolved. In practice no shipped flow needs this, so it is a ceiling, not a live bug.
 
-**What is still missing.**
-
-- The check proves a contract is produced *somewhere reachable*; it does not prove
-  the compiled producer binding reaches the consumer on *its specific* path. The
-  known case: `goal-close` reads `goal.recovery@v1`, produced only on the failure
-  branch, and the success path tolerates the missing file silently. A
-  path-specific binding-correctness gate is unscheduled.
-- Availability is route-aware for inputs but not for evidence: there is no
-  `optional_evidence`, so route-disjoint evidence generation has no clean
-  declaration.
-
-**Track / gate.** Already shipped (M1). Genuinely done for the narrow job of input
-availability; the binding-correctness refinement is a separate, later gate.
+**Track / gate.** This primitive is governed by the guardrail-7 fail-closed catalog gate: the route-aware availability check at `flow-schematic.ts:1050` plus the single-producer invariant at `compile-schematic-to-flow.ts:156`. The M5 "done (narrow)" rating — narrow because the check had only ever met hand-authored input — is now retired: M7 and M9 put the assembler and a real composed run behind the same gate, and the tests pin it. I rate it **done**: the envelope's required/optional semantics, its anti-widening discipline, and its survival of dynamic composition are all proven by live, green code on main. The route-disjoint-shared-producer case is the only thing left, and it belongs to a future E3-recursion / multi-producer track that would make the producer index route-scoped — not to the envelope primitive as currently scoped.
 
 ---
 
 ## Primitive 3b — equipment scope
 
-**The claim.** A per-harness "kit": the declared, enforced set of tools and reads a
-worker is given. The analysis says this is **not on the migration line** and should
-be started now. The audit confirms it does not exist yet.
+**The claim.** Equipment scope is a per-harness "kit": the declared, enforced set of *reads* (context envelope), *tools* (capability allow-list), and *write_tier* (where edits may land) that a single work step's worker is given. It is the fine-grained dial that would let one flow express both a holistic wide-envelope step and several narrow, separated leaves — without authoring a new flow. The M5-era audit rated this `absent`, with the nearest neighbor being the three-value `RelayRole` enum (`src/schemas/primitive-readiness-audit.md:40`, pointing at `step.ts:19`), a coarse identity rather than a tool/read kit.
 
-**What exists in the neighborhood.**
+**What implements it today (with file:line).** Still nothing that is equipment scope. The one thing M6–M9 added in the neighborhood is `skill_slots`. It is authored manifest-first on the schematic step as `skill_slots: SkillSlotArray.default([])` (`src/schemas/flow-schematic.ts:199`), compiled onto the runtime `Step` as an optional `SkillSlotArray` (`src/schemas/step.ts:49`, via `src/flows/compile-schematic-to-flow.ts:265`), and consumed by the composed runtime at relay dispatch (`src/shared/skill-loading.ts:87-91`). That field travels with the manifest exactly the way the spec wants equipment scope to travel — so the *plumbing pattern* it needs is now proven. But a `SkillSlot` is only `{ id, description }` (`src/schemas/skill.ts:69-75`): a named binding point where an operator's `skill_bindings` config attaches a skill id. It declares no reads, no tools, and no write tier. The closest thing to the spec's `reads` envelope is the unrelated `Step.reads` list (`src/schemas/step.ts:43`), a fixed array of read paths that does feed the worker prompt (`src/runtime/run/relay-support.ts:315-322`) — but it is an explicit file list, not a `wide`/`narrow` envelope, and nothing records a read outside it as a violation. The write-tier vocabulary the spec proposes to reuse — `WorkRootKind` = `isolated_worktree | parent_checkout_diff_capture | pre_safe_apply_trusted_write` — exists at `src/schemas/change-packet.ts:2`, but it is not wired to any per-step declaration.
 
-- The closest declaration is the relay's role: `RelayRole` is a three-value enum
-  (`researcher | implementer | reviewer`) at `src/schemas/step.ts:19`, attached to
-  a step as `role: RelayRole` (line 177). A role is a coarse identity, not a tool
-  or read list.
-- Skill availability is handled *after the fact* by skill-hooks, surfaced as
-  outcomes (`injected_skills`, `withheld_skills`, `unavailable_skills`) in
-  `src/schemas/operator-summary.ts` rather than as a pre-declared boundary.
+**What is still missing.** The whole primitive. A grep for `equipment_scope|allowed_tools|tool_list|write_tier` across `src/` returns nothing, and the compiled-flow manifest body (`src/schemas/compiled-flow.ts:45`) enumerates every manifest field without one. Two distinct enforcement gaps remain: (1) at dispatch, `skill_slots` only *injects* skills additively (`src/shared/skill-loading.ts:83-91`) — there is no allow/withhold boundary and no recorded "used a tool/read outside the declared kit" violation, which is the mechanism the spec asks for; (2) at apply, no `write_tier` value gates which `WorkRootKind` a step may write to, so the upper-bound-on-where-edits-land enforcement is unbuilt. `skill_slots` is therefore a real but narrow sibling — it realizes the *skill-list* facet of a kit and nothing of the reads/tools/write-tier scope.
 
-**What is still missing (i.e., the whole primitive).**
-
-- No first-class `equipment_scope` / `kit` / `allowed_tools` / read-list field on
-  any step or role. Grep for `equipment_scope|allowed_tools|tool_list` across
-  `src/` returns nothing.
-- No write-tier enforcement of such a scope, and nothing to compare a declared kit
-  against what a worker actually used.
-- E1 *fakes* this dial today only as the difference between two whole flows (`fix`
-  = wide; `build --depth high` = the act/verify split). The crude per-harness dial
-  the two-track plan describes (hand-set reads + a per-harness tool list) is not
-  expressible as data yet.
-
-**Track / gate.** Track B, start now. This is the cleanest additive build and the
-direct subject of the B3 spec
-[`e2-equipment-scope-spec.md`](e2-equipment-scope-spec.md): author it
-manifest-first so it never reintroduces a by-id package field of the kind M4 had to
-dissolve.
+**Track / gate.** Track B, start now — this primitive is Resolver #2 (equipment), and M6–M9 did not move its readiness off `absent`. The build path is the spec `docs/ideas/e2-equipment-scope-spec.md`: author `equipment_scope` on `SchematicStep` and compile it onto the `Step`/manifest exactly as `skill_slots` and `engine_flags` now travel (manifest-first, never a by-id package lookup), reuse `WorkRootKind` for `write_tier`, and generalize the skill-hook dispatch surface from "inject a skill" to "this is the declared reads/tools allow-list, record any use outside it." The `skill_slots` field is the proof that the manifest-first plumbing is ready to carry it.
 
 ---
 
 ## Primitive 4 — legible composition surface + repair edges
 
-**The claim.** Arrangement (sequence, recurse, fan-out, loop) and the upward
-design-repair edge should be legible, authorable data. The analysis marks this
-partial (M7), with the surface itself unscheduled.
+**The claim.** A flow should be authorable as data — a block sequence that assembles into a validated schematic with derived structural fields and typed repair edges — rather than hand-authored step-by-step with the cross-cutting fields kept in sync by hand. At M5 this was rated "partial (M7 open)" because the assembler did not exist; every flow was a hand-written literal.
 
-**What implements it today.**
+**What implements it today (with file:line).** The assembler is built and shipped. `assembleFlowSchematic` (src/flows/assemble-flow-schematic.ts:79) takes a block sequence as raw `BlockStepUse` data and DERIVES the three fields previously hand-kept in sync: `starts_at` from the first item (line 118), `stages` in canonical order (lines 93-104), and `stage_path_policy` from coverage (lines 106-110), then validates via `FlowSchematic.parse` (line 134). It is a live producer: build (src/flows/build/data.ts:43) and pursue (src/flows/pursue/data.ts:36) consume it in production, with sequences lifted into typed specs (src/flows/build/assembly-spec.ts:27). The seam is typed (assemble-flow-schematic.ts:44; block-step-expansion.ts:14), and the M8.4 anti-widening + M9-A1 single-actual gates run on every compile (src/flows/schematic-catalog-check.ts:60, :77), the latter closing the assembler's raw-generic blind spot (line 74). Repair edges are typed and shared: `RECOVERY_KIND_CONTRACT_RULES` (src/schemas/recovery-route-kind.ts:143) with superRefine enforcement (line 184), projected from routes at compile by `recovery-route-policy.ts` (src/policy/recovery-route-policy.ts:101). The assembler is not a safety bypass (tests/runner/assemble-flow-route-safety.test.ts:1).
 
-- The composition surface is the authored `FlowSchematic` (`.json` next to each
-  flow), compiled to a `CompiledFlow`. Structure is a list of steps with
-  `execution.kind`, `input`/`output` contracts, `routes` (outcome to target), and
-  `check` (pass verdicts). `fanout` and `sub-run` are real execution kinds, so
-  parallelism and recursion exist as authored steps.
-- Repair edges exist as recovery routes. `RecoveryRouteKind`
-  (`src/schemas/recovery-route-kind.ts:5`) enumerates the repair vocabulary:
-  `retry_same_step_with_feedback`, `narrow_scope`, `run_verification`,
-  `run_independent_review`, `checkpoint_authority`, `safe_apply_reject`,
-  `stop_unsafe`, `escalate`, `handoff`. A recovery binding gates which failure
-  causes may take a route and with what evidence, enforced at runtime by
-  `recoveryBindingVerdict` (`src/runtime/run/recovery-binding-verdict.ts`).
+**What is still missing.** Adoption, not capability. Only 2 of 8 flows route through the assembler; the other six hand-author their schematic literal including the derivable fields (fix at src/flows/fix/data.ts:46 and :126; runtime-proof at src/flows/runtime-proof/data.ts:17/31/37). The surface is real and validated but is a 2-of-8 path, not the single production authoring path.
 
-**What is still missing.**
-
-- The surface is authorable *by hand*, not *as composition data*. A flow author
-  writes each step and each route string individually; there is no higher-order
-  primitive to declare "run A, B, C in parallel, merge at D, on any failure
-  escalate" as one composable statement. That language is M7's job and is not
-  built.
-- Repair is real but not a *first-class edge abstraction*. Routes are bare
-  `outcome -> target` strings, and recovery semantics are bolted on out of band via
-  the work-contract layer rather than declared on the edge itself. A composed-flow
-  author cannot legibly say "if this fails, route to recovery X" in the schematic.
-- No assembler (M7): nothing turns a sparse block list into task-specific steps.
-
-**Track / gate.** Track B, gated on M4 (landed) with M7 (open). This is E4, and it
-is the primitive least ready of the "build" set.
+**Track / gate.** Resolver #1 (structure). The repair-edge half is done(narrow) — gating is shared and fail-closed. The remaining gate to reach "mostly-done" is migrating the six hand-authored flows onto `assembleFlowSchematic`. Until then the honest readiness is "half".
 
 ---
 
 ## Primitive 5 — isolation / change-packets
 
-**The claim.** Run two arrangements without collision (isolation), and generalize
-that into change-packets with a disjoint-apply join.
+**The claim.** Circuit should run fan-out branches in true isolation, then admit each branch's *changes* back into the parent under a typed, auditable contract — a "change packet" that names the patch, its base, and the files it touches — so that N parallel branches can be safely composed into one tree. At milestone M5 this was rated `half`: the isolation half was real, the change-packet half was a stub.
 
-**What implements it today — isolation (real).**
+**What implements it today (with file:line).** The isolation half is genuinely done and unchanged. `src/runtime/fanout/worktree.ts:6` provisions each branch in a real git worktree (`git worktree add -b <branch> <path> <baseRef>`), and `src/runtime/fanout/worktree.ts:28` reads the branch's file changes with a real `git diff --name-only baseRef..HEAD`. The fanout executor wires this in: for `disjoint-merge` joins it collects per-branch changed files (`src/runtime/executors/fanout.ts:266`) and hands them to the join policy, which validates that no file was touched by two branches (`src/policy/fanout-join-policy.ts:60`, with the pairwise check at lines 79-92). That disjointness *validation* is the one capability beyond raw M5 — but it predates composition: it last moved under the SD-FIX-4 (23eaaac2) and RCX-2 (deec1b1f) refactors, not M6-M9.
 
-- `gitWorktreeRunner` (`src/runtime/fanout/worktree.ts:4`) is the whole mechanism:
-  `add` provisions a worktree via `git worktree add -b <branch> <path> <baseRef>`,
-  `remove` tears it down with `--force`, and `changedFiles` diffs `<baseRef>..HEAD`.
-  Each branch gets its own worktree at a shared base commit.
-- It is used by the fanout executor (`src/runtime/executors/fanout.ts`) and defined
-  as the `WorktreeRunner` interface in `src/runtime/run/child-runner.ts`. **E1's own
-  live runner reuses this exact runner** (`experiments/e1/runner.ts` imports
-  `gitWorktreeRunner`) rather than inventing isolation, which is the two-track
-  plan's "reuse, don't special-case" rule in practice.
+**What is still missing.** The change-packet half is still absent. `src/schemas/change-packet.ts:1` defines only enums (work-root kind, protected-file decision, safe-apply action/outcome/reason); there is no `ChangePacket` payload object — no patch body, base ref, or touched-files hash. The only `patch_hash` token is the enum value `patch_hash_mismatch` at line 23. More consequentially, nothing ever *applies* branch changes into the parent. The schema comment at `src/schemas/check.ts:124` asserts that `disjoint-merge` "merges all into the parent tree" (and pick-winner "merges into parent's tree" at line 123), but no runtime code does this — grep across `src/runtime` finds no tree-merge, `git merge`, `git apply`, or patch-application path. Admission is by verdict on the child's result file, stated outright in the sub-run executor header (`src/runtime/executors/sub-run.ts:1`: "admitted back into the parent only through the child RunResult... copies that result file"), and the branch worktrees — with their edits — are removed in the `finally` block (`src/runtime/executors/fanout.ts:282`). The safe-apply contract that would carry a change packet exists in the schema/guidance layer (`src/schemas/trace-entry.ts:207` records a `change_packet_ref`) but has no runtime executor. M6-M9 did not touch any of this: M9's compose executor (`src/runtime/executors/compose.ts:43`) is a report-body writer, not a tree-merge.
 
-**What is still missing — change-packets (not built).**
-
-- `src/schemas/change-packet.ts` is only *enums*: `WorkRootKind`
-  (`isolated_worktree | ...`), `SafeApplyAction`, `SafeApplyOutcome`. There is no
-  `ChangePacket` *payload* schema (base, branch, diff, metadata as one object).
-- The `disjoint-merge` join policy is *documented* (`src/schemas/check.ts`: all
-  children must close complete, be pairwise file-disjoint, then merge) but there is
-  no runtime that collects isolated changes into packets, verifies pairwise
-  disjointness, and applies them back with conflict/rollback handling.
-
-**Track / gate.** Track B, start now for the isolation half (done); the
-change-packet generalization is E2 and the sandboxed-pursuits substrate.
+**Track / gate.** This sits on the composition/isolation runtime track. To move past `half`, two things must land together: a real `ChangePacket` payload schema in `src/schemas/change-packet.ts` (patch + base + touched-files + hash), and a disjoint-*apply* step in the fanout executor that, once the existing disjointness check passes, composes the union of branch change-packets into the parent tree instead of discarding the worktrees. The stale "merges all into the parent tree" comment at `src/schemas/check.ts:124` should be reconciled with reality in the same change. Net readiness holds at `half`: isolation done, disjointness validation landed, change-packet apply contract still entirely open — and untouched by M6-M9.
 
 ---
 
 ## Primitive 6 — commensurable traces
 
-**The claim.** Every run emits the same measurable record, so two arrangements are
-comparable. The analysis marks this **mostly exists**.
+**The claim.** Every Circuit run, no matter which flow produced it, emits evidence in one shared, machine-checkable frame: a strict version-pinned result file, a single discriminated-union trace alphabet, and one operator receipt whose cost meter is honest about what it could and could not measure. Two runs of different flows are therefore directly comparable — you can diff their traces, line up their spend, and read their result.json against the same schema — while each flow remains free to carry its own richly-typed report bodies inside that frame.
 
-**What implements it today.**
+**What implements it today (with file:line).** The run-level frame is genuinely shared and single-pathed. `RunResult` (src/schemas/result.ts:40) is a `.strict()` schema with `schema_version` pinned, and it is written for every flow by exactly one function, `writeRuntimeRunResult` (src/runtime/run/result-writer.ts:19), populated at one place in run-close (src/runtime/run/run-close.ts:169). The trace is one discriminated union over a fixed `kind` set (src/schemas/trace-entry.ts:636), so a Fix trace and a Build trace are the same alphabet of entries — the precondition for comparing them at all. The receipt's spend rollup carries the load-bearing honesty bit I was asked to re-verify: `OperatorRunReceiptSpend.partial` is documented (src/schemas/operator-summary.ts:126) and computed exactly as promised — `partial = spendRelaysMissingUsage > 0 || anyCostMissing` (src/app/operator-summary/writer.ts:784) — and it is surfaced to the operator with a `(partial)` qualifier on the rendered spend line (src/app/operator-summary/writer.ts:880,889). The other M5-era claim, per-flow report-body variance, also still stands: there are 40-plus distinct typed report schemas across flows (`fix.diagnosis@v1`, `build.implementation@v1`, `explore.tournament-aggregate@v1`, and so on), each declared via the per-flow `FlowReportDeclaration.schema`. The frame is uniform; the bodies inside it are not.
 
-- **Verdict / outcome:** `RunResult` (`src/schemas/result.ts:40`) carries
-  `outcome` (`RunClosedOutcome`), an optional terminal `verdict`, and
-  `manifest_hash`, all under one `schema_version`.
-- **Cost:** `OperatorRunReceiptSpend` (`src/schemas/operator-summary.ts:104`)
-  carries per-role `cost_usd_reported` (optional), `total_cost_usd_reported`
-  (optional), a `roles[]` breakdown, and a `partial` boolean honesty bit (true when
-  any completed relay lacked usage or a usage lacked a reported cost).
-- **Evidence:** `ProcessEvidenceProjection` (`src/schemas/process-evidence.ts`)
-  carries `evidence_refs` and `missing_evidence` (claim id + reason + next action).
-- **Event stream:** `trace.ndjson` entries share `TraceEntryBase`
-  (`src/schemas/trace-entry.ts`: `schema_version`, `sequence`, `recorded_at`,
-  `run_id`), so any run reconstructs to the same ordered graph. **E1's extractor
-  reads exactly these four artifacts** (`experiments/e1/extract.ts`), which is the
-  proof the traces are commensurable across `fix` and `build`.
+**What M6-M9 changed for this primitive.** At M5 the frame existed but flows reached it by divergent, partly by-id-resolved paths, so commensurability was a convention, not a guarantee. M6 demoted each flow's `schematic.json` to a drift-checked snapshot, making `data.ts` the single source of truth. M7 made `assembleFlowSchematic` (src/flows/assemble-flow-schematic.ts:79) the one shared schematic producer. M8 added the typed Zod seam — `fieldSignature` over one shared `BODY_REGISTRY` (src/flows/contract-body-signature.ts:83,148) — that gives every contract body a single canonical structural key, and turned the anti-widening and single-actual typing gates fail-closed inside `collectSchematicCatalogIssues` (src/flows/schematic-catalog-check.ts:60), enforced at compile by `compileSchematicToCompiledFlow`, which throws on any issue (src/flows/compile-schematic-to-flow.ts:709). M9-B/M9-C then moved Build and Pursue onto that same shared assembly path. M9 also wired `reduced_bindings` legibility end to end: `resolveBindingLegibility` (src/runtime/run/binding-legibility.ts:97), the conditional write into `run.bootstrapped` (src/runtime/run/graph-runner.ts:423), and the receipt note (src/schemas/operator-summary.ts:169) together ensure that if a composed flow ever loses a catalog-sourced binding, the reduction shows up in the trace and receipt rather than vanishing. Net effect: commensurability moved from convention to a property the compiler enforces.
 
-**What is still missing.**
-
-- The cost meter is best-effort, not guaranteed: `cost_usd_reported` is optional and
-  `partial` flags when it is incomplete. A comparison must treat a `partial` or
-  unmetered run honestly (E1's matrix already carries a `none`/`mixed` cost meter
-  for exactly this). This is a soft gap, not a structural one.
-- Report *bodies* still vary per flow (each flow declares its own report schema);
-  the *envelope* (result/receipt/evidence/trace) is uniform, which is what makes
-  cross-flow comparison work. Tightening per-flow body shape is M8's concern, not
-  this primitive's.
-
-**Track / gate.** Track B, mostly exists; ratchet separately. E1 is the proof it is
-already comparable enough to measure on.
+**Track / gate.** There is no open track gate for this primitive — it is a shipped, fail-closed-by-construction substrate property post-M9. Two honest caveats keep it from being absolutely airtight. First, commensurability is guaranteed structurally (shared schemas, one compile path, one write path) but no dedicated test asserts cross-flow trace equivalence directly, so the guarantee rests on the schemas and paths rather than on a positive equivalence proof. Second, the `reduced_bindings` legibility leg, while fully wired, stays empty for every built-in run (binding-legibility.ts:97 returns an empty set; a non-empty set needs the composed-flow needs model), so the degradation path it exists to make legible is structurally present but never exercised in a production trace today. Both are measurement/exercise gaps, not correctness holes.
 
 ---
 
-## What this means for the next experiments
+## What this means for the next phase
 
-- **E1 (done) leaned on exactly the three ready primitives:** 3a (the envelope it
-  varies by choosing whole vs split flows), 5 (worktree isolation, reused verbatim),
-  6 (the result/receipt/trace it normalizes). That is why E1 was buildable now with
-  thin glue.
-- **The cleanest next build is 3b (equipment scope),** because it is fully absent,
-  fully additive, off the migration line, and it is what turns E1's coarse
-  whole-flow dial into a real per-harness knob. B3 specs it manifest-first.
-- **Primitive 2's typed half (M8) is the one hard external dependency** for turning
-  shape-findings into production claims; everything E1-E4 produces stays labeled
-  shape-finding until it lands. B3's
-  [`e1-implications-for-m8.md`](e1-implications-for-m8.md) records which payload
-  shapes M8 must express so these seams become locally checkable.
-- **Primitive 4 is the least ready of the build set** and is correctly gated on M7;
-  do not front-run it.
+The readiness deltas point the next phase at three places where the substrate is now load-bearing, and one place where the operator owes a ratification call.
+
+**(a) What the flow lab and the two resolvers can build on now.** Three primitives are firm enough to build on immediately. The context envelope (3a) is now unqualified `done`: M7 and M9 put the assembler and a real composed run behind the same route-aware availability check plus single-producer invariant (`flow-schematic.ts:1050`, `compile-schematic-to-flow.ts:156`), so any new authored or composed flow inherits the required/optional contract model for free. The typed seam (2) is `mostly-done`: the catalog gate fails closed on exactly the blind spots an assembler trips (raw single-actual generics, multi-actual divergence, unresolved-masking), enforced at `compile-schematic-to-flow.ts:709`, so the flow lab can author new sequences without fear of silently binding an unverified shape. Commensurable traces (6) is `done` by construction, so every lab run is already measurable against every other on the same result/trace/spend frame. On top of these, the two resolvers each have a concrete, unblocked path. Resolver #1 (structure = primitive 4) is `half` on adoption only, not capability: the assembler is built and proven non-bypassing (`assemble-flow-schematic.ts:79`, `tests/runner/assemble-flow-route-safety.test.ts`), so its gate to `mostly-done` is purely migrating the six hand-authored flows (fix, goal, review, explore, prototype, runtime-proof) onto `assembleFlowSchematic`. Resolver #2 (equipment = primitive 3b) is `absent` but fully additive: M6-M9 did not move its readiness, yet `skill_slots` (`flow-schematic.ts:199` → `step.ts:49` → `compile-schematic-to-flow.ts:265` → `skill-loading.ts:87`) proves the manifest-first plumbing the spec wants, and `WorkRootKind` (`change-packet.ts:2`) is the write-tier vocabulary ready to reuse, so the build can start now per `docs/ideas/e2-equipment-scope-spec.md`.
+
+**(b) The operator's ratification item.** The self-similar unit (primitive 1) moved from `partial` to `half`, and the honest read of that delta is the open question the next phase must ratify. M9 delivered the *authoring* half in full: the assembler exists, built-ins are its customers, and a flow is composable on paper through one shared compile path. M9 delivered none of the *runtime* half: a nested flow still runs as an isolated child via `kind: 'sub-run'` compiled to `executor: 'orchestrator'` (`compile-schematic-to-flow.ts:409`), a distinct code path from a leaf relay's `executor: 'worker'` (:372), so the engine never treats "this step's body is sub-tree X" the way it treats a single relay; and there is no recursion-depth cap or cycle guard anywhere, so a flow that sub-ran itself would loop unbounded (`sub-run.ts:171` carries the axis dial, not a recursion counter). The ratification item is therefore a scoping decision: how much of the uniform self-similar unit does the operator count as delivered by M9 (authoring-as-data, one compiler, flow-as-child-run), versus what the deep-E3 recursion refactor still owes (true leaf-substitutability, bounded recursion, the non-empty `reduced_bindings` needs model the legibility leg waits on). E3 is now unblocked — its precondition, the assembler, is met — but not begun, and primitive 1's readiness ceiling stays at `half` until that fork is taken.
