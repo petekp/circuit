@@ -8,7 +8,7 @@
 import { registerHtmlProjector } from '../shared/html/index.js';
 import { buildFlowDefinition } from './build/flow.js';
 import { buildCheckpointProjector } from './build/writers/checkpoint-html.js';
-import { buildRuntimeSurfaceRegistry } from './catalog-derivations.js';
+import { buildRuntimeSurfaceRegistry, deriveFlowCatalog } from './catalog-derivations.js';
 import { exploreFlowDefinition } from './explore/flow.js';
 import { exploreTournamentProjector } from './explore/writers/tournament-html.js';
 import { fixFlowDefinition } from './fix/flow.js';
@@ -64,6 +64,14 @@ export const catalogFlowIds: readonly string[] = (() => {
 export const INTERNAL_FLOW_IDS: ReadonlySet<string> = new Set(
   flowPackages.filter((pkg) => pkg.visibility === 'internal').map((pkg) => pkg.id),
 );
+
+// The static flow.catalog@v1 value (M9-A3): the routing-target set the route
+// block chooses from, derived once from the fixed flow definitions and validated
+// against the typed FlowCatalogShape body. Computed here (the single point that
+// holds every flow definition) and serialized to generated/flows/catalog.json by
+// the emit script. Title and purpose live on the schematic, not the compiled
+// package, so the derivation reads flowDefinitions rather than flowPackages.
+export const flowCatalog = deriveFlowCatalog(flowDefinitions);
 
 const RUNTIME_SURFACES = buildRuntimeSurfaceRegistry(flowPackages);
 

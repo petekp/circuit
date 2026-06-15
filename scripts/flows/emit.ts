@@ -114,12 +114,30 @@ function failMissingDefinition(flowId: string): never {
   throw new Error(`flow package '${flowId}' has no matching FlowDefinition export in catalog`);
 }
 
+// The static flow.catalog@v1 value, read from the compiled catalog so emit and
+// the route-aware consumers agree on one producer. Validated at derivation
+// (deriveFlowCatalog), so this just snapshots the bytes to serialize.
+async function loadFlowCatalogFromCatalog(): Promise<unknown> {
+  const catalogPath = resolve(projectRoot, 'dist/flows/catalog.js');
+  try {
+    const mod = (await import(catalogPath)) as typeof CatalogModule;
+    return mod.flowCatalog;
+  } catch (err) {
+    console.error(
+      `\nCould not import flow catalog from dist/. Run \`npm run build\` first, then re-run this script.\n${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    process.exit(1);
+  }
+}
+
 const SCHEMATICS = await loadSchematicsFromCatalog();
+const FLOW_CATALOG = await loadFlowCatalogFromCatalog();
 const CLAUDE_PLUGIN_ROOT_REL = 'plugins/claude';
 const CODEX_PLUGIN_ROOT_REL = 'plugins/codex';
 const SOURCE_COMMAND_ROOT_REL = 'src/commands';
 const GENERATED_SURFACE_MAP_REL = 'docs/generated-surfaces.md';
 const BLOCK_CATALOG_REL = 'docs/flows/block-catalog.json';
+const FLOW_CATALOG_REL = 'generated/flows/catalog.json';
 const HOST_DIRECT_COMMANDS = ['handoff', 'run'];
 const CLI_ONLY_COMMANDS = ['create', 'uninstall'];
 const ROOT_CLAUDE_MARKETPLACE_REL = '.claude-plugin/marketplace.json';
@@ -148,6 +166,15 @@ function renderSurfaceInventory(): string {
       '`docs/flows/block-catalog.json`',
       '`node scripts/flows/emit.ts --check`',
       'The JSON catalog is generated for docs; typed block definitions own current facts.',
+    ],
+    [
+      'Flow catalog',
+      '`src/flows/catalog.ts` (`deriveFlowCatalog`)',
+      '`npm run build && node scripts/flows/emit.ts`',
+      'no',
+      '`generated/flows/catalog.json`',
+      '`node scripts/flows/emit.ts --check`',
+      'The static `flow.catalog@v1` routing-target set (public flows only). Derived from the flow definitions; the typed definitions own current facts.',
     ],
     [
       'Flow-owned commands',
@@ -789,6 +816,24 @@ function blockCatalogDescriptor(catalog: unknown, scratchDir: string): ArtifactD
   };
 }
 
+// flow.catalog@v1 artifact (M9-A3). Serializes the static routing-target catalog
+// (deriveFlowCatalog, src/flows/catalog.ts) so the producer is checked into the
+// tree and CI fails closed if it drifts from the flow definitions, exactly like
+// the block catalog.
+function flowCatalogDescriptor(catalog: unknown, scratchDir: string): ArtifactDescriptor {
+  return {
+    relPath: FLOW_CATALOG_REL,
+    computeBytes: () => biomeFormatToString(FLOW_CATALOG_REL, stringifyJson(catalog), scratchDir),
+    emitMessage: `emitted ${FLOW_CATALOG_REL} from src/flows/catalog.ts (deriveFlowCatalog)`,
+    checkOkMessage: `✓ ${FLOW_CATALOG_REL} is in sync with src/flows/catalog.ts`,
+    checkMissingMessage: `✗ ${FLOW_CATALOG_REL} is missing on disk but src/flows/catalog.ts generates it. Run \`npm run emit-flows\` to regenerate, then commit.`,
+    checkDriftMessage: [
+      `✗ ${FLOW_CATALOG_REL} drifted from src/flows/catalog.ts`,
+      '  Run `npm run emit-flows` to regenerate, then commit the diff.',
+    ],
+  };
+}
+
 function schematicDescriptor(entry: SchematicEntry, scratchDir: string): ArtifactDescriptor {
   return {
     relPath: entry.schematicPath,
@@ -980,6 +1025,7 @@ async function buildArtifactDescriptors(scratchDir: string): Promise<{
   const { projectWorkContractProjectionV0 } = await loadWorkContractProjectionModule();
   const descriptors: ArtifactDescriptor[] = [
     blockCatalogDescriptor(FLOW_BLOCK_CATALOG, scratchDir),
+    flowCatalogDescriptor(FLOW_CATALOG, scratchDir),
   ];
   const flowPlans: { entry: SchematicEntry; plan: SchematicFilePlan[] }[] = [];
   for (const entry of SCHEMATICS) {

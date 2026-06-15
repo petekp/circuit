@@ -5,13 +5,18 @@
 
 import type { z } from 'zod';
 import type { ReportFileSurfaceDeclaration } from '../schemas/report-file-surface.js';
+import { type FlowCatalog, FlowCatalogShape } from '../schemas/routing-contract-schemas.js';
 import type { CheckpointBriefBuilder } from './registries/checkpoint-writers/types.js';
 import type { CloseBuilder } from './registries/close-writers/types.js';
 import type { ComposeBuilder } from './registries/compose-writers/types.js';
 import type { CrossReportValidator } from './registries/cross-report-validators.js';
 import type { StructuralShapeHint } from './registries/shape-hints/types.js';
 import type { VerificationBuilder } from './registries/verification-writers/types.js';
-import type { CompiledFlowPackage, CompiledFlowRuntimeSurface } from './types.js';
+import type {
+  CompiledFlowPackage,
+  CompiledFlowRuntimeSurface,
+  CompiledFlowVisibility,
+} from './types.js';
 
 // Collect a Map keyed by builder.resultSchemaName from one writer slot
 // across all packages. Throws on duplicate keys with a message that
@@ -194,4 +199,36 @@ export function buildReportFileSurfaceRegistry(
     }
   }
   return Object.freeze(out);
+}
+
+// The minimal shape deriveFlowCatalog reads. A FlowDefinition satisfies it
+// structurally (id + visibility + a schematic carrying title/purpose), so the
+// derivation needs no import of the heavier FlowDefinition type and stays
+// testable against synthetic sources.
+export interface FlowCatalogSource {
+  readonly id: string;
+  readonly visibility: CompiledFlowVisibility;
+  readonly schematic: { readonly title: string; readonly purpose: string };
+}
+
+// flow.catalog@v1 producer (M9-A3). Derive the static catalog the route block
+// chooses from: the host-runnable (public) flows, each as {id, title, purpose}
+// read straight from its schematic, in catalog (source) order. Internal flows
+// (goal, runtime-proof) ship no host run surface, so a router cannot route to
+// them — they are excluded. The result is validated against the typed
+// FlowCatalogShape body, so an empty or malformed catalog fails closed here
+// rather than reaching a consumer. This is the static-registry producer Pete
+// locked: a deterministic function of the fixed flow set, computed at
+// build/compile time (serialized to generated/flows/catalog.json by the emit
+// script). The contract layer is compile-time only today (no route step runs),
+// so this closes the producer gap without a runtime route consumer.
+export function deriveFlowCatalog(sources: readonly FlowCatalogSource[]): FlowCatalog {
+  const flows = sources
+    .filter((source) => source.visibility === 'public')
+    .map((source) => ({
+      id: source.id,
+      title: source.schematic.title,
+      purpose: source.schematic.purpose,
+    }));
+  return FlowCatalogShape.parse({ flows });
 }

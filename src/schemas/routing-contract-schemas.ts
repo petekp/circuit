@@ -55,7 +55,7 @@ const RouteDecisionShape = z
 // (engine-provided vs a compose step). Typing the body now is independent of
 // that decision: the shape is what a router needs to choose, regardless of who
 // emits it.
-const FlowCatalogShape = z
+export const FlowCatalogShape = z
   .object({
     flows: z
       .array(
@@ -70,6 +70,9 @@ const FlowCatalogShape = z
       .min(1),
   })
   .strict();
+
+// The validated catalog value, as produced by deriveFlowCatalog (M9-A3).
+export type FlowCatalog = z.infer<typeof FlowCatalogShape>;
 
 export const BUILTIN_ROUTING_CONTRACT_SCHEMAS: Readonly<Record<string, z.ZodType<unknown>>> =
   Object.freeze({
