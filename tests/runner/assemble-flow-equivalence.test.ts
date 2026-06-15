@@ -23,6 +23,7 @@ import {
 } from '../../src/flows/assemble-flow-schematic.js';
 import type { BlockStepUse } from '../../src/flows/block-step-expansion.js';
 import { buildBlockItems } from '../../src/flows/build/assembly-spec.js';
+import { pursueBlockItems } from '../../src/flows/pursue/assembly-spec.js';
 import { flowDefinitions } from '../../src/flows/catalog.js';
 import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
 import { schematicForFlowDefinition } from '../../src/flows/flow-definition.js';
@@ -99,123 +100,12 @@ function singleCompiled(schematic: FlowSchematicValue) {
 // equivalence test reconstructs build's schematic from the same items the flow
 // ships, so a slip in the sequence fails both this test and the live flow.
 
-// Pursue's full block sequence. Pursue leaves the analyze stage empty, so the
-// assembler must derive a partial stage path with omits: ['analyze'].
-const PURSUE_ITEMS: readonly BlockStepUse[] = [
-  {
-    id: 'contract-step',
-    title: 'Frame - create pursuit contract',
-    stage: 'frame',
-    block: 'pursue',
-    input: { intake: 'task.intake@v1', route: 'route.decision@v1' },
-    execution: { kind: 'compose' },
-    protocol: 'pursuit-contract@v1',
-    reportPath: 'reports/pursuit/contract.json',
-    required: ['objective', 'pursuits', 'verification_command_candidates'],
-    routes: { continue: 'graph-step', stop: '@stop' },
-  },
-  {
-    id: 'graph-step',
-    title: 'Coordinate - build pursuit graph',
-    stage: 'plan',
-    block: 'coordinate-pursuits',
-    input: { contract: 'pursuit.contract@v1' },
-    execution: { kind: 'compose' },
-    protocol: 'pursuit-graph@v1',
-    reportPath: 'reports/pursuit/graph.json',
-    required: ['nodes', 'serial_groups', 'parallel_read_only_groups'],
-    routes: { continue: 'wave-plan-step', stop: '@stop' },
-  },
-  {
-    id: 'wave-plan-step',
-    title: 'Plan - order execution waves',
-    stage: 'plan',
-    block: 'plan',
-    input: { brief: 'pursuit.contract@v1', context: 'pursuit.graph@v1' },
-    output: 'pursuit.wave-plan@v1',
-    execution: { kind: 'compose' },
-    protocol: 'pursuit-wave-plan@v1',
-    reportPath: 'reports/pursuit/wave-plan.json',
-    required: ['waves', 'no_parallel_writes_reason'],
-    routes: { continue: 'batch-step', stop: '@stop' },
-  },
-  {
-    id: 'batch-step',
-    title: 'Execute - run serialized pursuit batch',
-    stage: 'act',
-    block: 'batch',
-    input: {
-      queue: 'pursuit.graph@v1',
-      brief: 'pursuit.contract@v1',
-      plan: 'pursuit.wave-plan@v1',
-    },
-    output: 'pursuit.batch@v1',
-    execution: { kind: 'relay', role: 'implementer' },
-    protocol: 'pursuit-batch@v1',
-    reportPath: 'reports/pursuit/batch.json',
-    requestPath: 'reports/relay/pursuit-batch.request.json',
-    receiptPath: 'reports/relay/pursuit-batch.receipt.txt',
-    resultPath: 'reports/relay/pursuit-batch.result.json',
-    pass: ['accept', 'partial'],
-    routes: { continue: 'verify-step', retry: 'batch-step', stop: '@stop' },
-  },
-  {
-    id: 'verify-step',
-    title: 'Verify - run Pursue proof commands',
-    stage: 'verify',
-    block: 'run-verification',
-    input: {
-      proof: 'verification.plan@v1',
-      brief: 'pursuit.contract@v1',
-      change: 'pursuit.batch@v1',
-    },
-    output: 'pursuit.verification@v1',
-    protocol: 'pursuit-verify@v1',
-    reportPath: 'reports/pursuit/verification.json',
-    required: ['overall_status', 'commands'],
-    routes: { continue: 'review-step', retry: 'batch-step', stop: '@stop' },
-  },
-  {
-    id: 'review-step',
-    title: 'Review - check pursuit coordination',
-    stage: 'review',
-    block: 'review',
-    input: {
-      brief: 'pursuit.contract@v1',
-      change: 'pursuit.batch@v1',
-      verification: 'pursuit.verification@v1',
-    },
-    output: 'pursuit.review@v1',
-    execution: { kind: 'relay', role: 'reviewer' },
-    protocol: 'pursuit-review@v1',
-    reportPath: 'reports/pursuit/review.json',
-    requestPath: 'reports/relay/pursuit-review.request.json',
-    receiptPath: 'reports/relay/pursuit-review.receipt.txt',
-    resultPath: 'reports/relay/pursuit-review.result.json',
-    pass: ['clean', 'needs-followup', 'blocked'],
-    routes: { continue: 'close-step', retry: 'batch-step', stop: '@stop' },
-  },
-  {
-    id: 'close-step',
-    title: 'Close - summarize pursuit result',
-    stage: 'close',
-    block: 'close-with-evidence',
-    input: {
-      brief: 'pursuit.contract@v1',
-      graph: 'pursuit.graph@v1',
-      plan: 'pursuit.wave-plan@v1',
-      verification: 'pursuit.verification@v1',
-      review: 'pursuit.review@v1',
-      batch: 'pursuit.batch@v1',
-    },
-    output: 'pursuit.result@v1',
-    execution: { kind: 'compose' },
-    protocol: 'pursuit-close@v1',
-    reportPath: 'reports/pursuit-result.json',
-    required: ['summary', 'outcome', 'evidence_links'],
-    routes: { complete: '@complete', stop: '@stop', handoff: '@handoff', escalate: '@escalate' },
-  },
-];
+// Pursue's full block sequence is now pursue's production source of truth
+// (src/flows/pursue/assembly-spec.ts → pursueBlockItems), consumed by data.ts
+// via the assembler (M9). Importing it here keeps ONE copy: this prove-by-
+// equivalence test reconstructs pursue's schematic from the same items the flow
+// ships. Pursue leaves the analyze stage empty, so the assembler must derive a
+// partial stage path with omits: ['analyze'].
 
 describe('assembleFlowSchematic — prove-by-equivalence', () => {
   it('reconstructs the build schematic from its block sequence (strict stage path)', () => {
@@ -235,7 +125,7 @@ describe('assembleFlowSchematic — prove-by-equivalence', () => {
 
   it('reconstructs the pursue schematic from its block sequence (partial stage path)', () => {
     const shipped = shippedSchematicFor('pursue');
-    const assembled = assembleFlowSchematic(scaffoldingFrom(shipped, PURSUE_ITEMS));
+    const assembled = assembleFlowSchematic(scaffoldingFrom(shipped, pursueBlockItems));
 
     expect(assembled.starts_at).toBe('contract-step');
     expect(assembled.stage_path_policy).toMatchObject({ mode: 'partial', omits: ['analyze'] });
@@ -244,7 +134,7 @@ describe('assembleFlowSchematic — prove-by-equivalence', () => {
 
   it('compiles the assembled pursue flow to the same CompiledFlow', () => {
     const shipped = shippedSchematicFor('pursue');
-    const assembled = assembleFlowSchematic(scaffoldingFrom(shipped, PURSUE_ITEMS));
+    const assembled = assembleFlowSchematic(scaffoldingFrom(shipped, pursueBlockItems));
     expect(singleCompiled(assembled)).toEqual(singleCompiled(shipped));
   });
 });
