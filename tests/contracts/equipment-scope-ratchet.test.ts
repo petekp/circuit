@@ -92,6 +92,22 @@ describe('equipment-scope ratchet (shipped schematics)', () => {
     expect(skillSlotGaps().byFlow.fix ?? 0).toBe(0);
     expect(toolScopeGaps().byFlow.fix ?? 0).toBe(0);
   });
+
+  it('pins the fix implementer step to an ENFORCED scope with its exact write-tier tool list', () => {
+    // The proven slice is the whole point of the ratchet: not just "a scope is
+    // present" (what the gap count proves) but that it is the enforced binding
+    // with the file-and-shell toolset a focused fix needs. A future edit that
+    // silently weakened it to trusted, or trimmed/widened the tools, would keep
+    // the gap count at zero — so assert the content, not only its presence.
+    const fix = shippedFlowSchematics().find((s) => (s.id as unknown as string) === 'fix');
+    if (fix === undefined) throw new Error('fix schematic missing from corpus');
+    const implementer = fix.items.filter(isImplementerRelay);
+    expect(implementer, 'fix should have exactly one implementer relay step').toHaveLength(1);
+    expect(implementer[0]?.equipment_scope).toEqual({
+      tools: { allow: ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash'] },
+      enforcement: 'enforced',
+    });
+  });
 });
 
 describe('the ratchet scorer is non-vacuous', () => {

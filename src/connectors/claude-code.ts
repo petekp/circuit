@@ -330,12 +330,16 @@ export function parseClaudeCodeStdout(
       );
     }
     const allowed = new Set(requestedTools);
-    const leaked = sessionTools.filter(
-      (tool): tool is string => typeof tool === 'string' && !allowed.has(tool),
-    );
+    // Fail closed: a non-string entry is unverifiable against the allow-list,
+    // so it counts as a leak rather than being narrowed away. A type-narrowing
+    // filter would silently drop it and let an unverifiable surface pass.
+    const leaked = sessionTools.filter((tool) => typeof tool !== 'string' || !allowed.has(tool));
     if (leaked.length !== 0) {
+      const rendered = leaked
+        .map((tool) => (typeof tool === 'string' ? tool : JSON.stringify(tool)))
+        .join(', ');
       throw new Error(
-        `enforced equipment scope violated: tools outside the allow-list are present in the session: ${leaked.join(', ')}. The relay passes --tools to restrict the surface to [${requestedTools.join(', ')}]; a tool beyond it means the restriction did not hold.`,
+        `enforced equipment scope violated: tools outside the allow-list are present in the session: ${rendered}. The relay passes --tools to restrict the surface to [${requestedTools.join(', ')}]; a tool beyond it means the restriction did not hold.`,
       );
     }
   }

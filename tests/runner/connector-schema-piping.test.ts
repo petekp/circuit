@@ -77,6 +77,16 @@ describe('claude-code argv — equipment-scope tool restriction', () => {
     expect(args[flagIndex + 1]).toBe('Read,Edit,Write');
   });
 
+  it('emits a single-tool allow-list as one bare token (no trailing comma)', () => {
+    // A one-element join must produce 'Read', never 'Read,' — a stray comma
+    // would read as an empty tool name to the CLI's variadic parser.
+    const args = buildClaudeCodeArgs({ prompt: 'hi', toolAllowList: ['Read'] });
+    const flagIndex = args.indexOf('--tools');
+    expect(flagIndex).toBeGreaterThanOrEqual(0);
+    expect(args[flagIndex + 1]).toBe('Read');
+    expect(args[flagIndex + 1]).not.toContain(',');
+  });
+
   it('places --tools before every other dispatch flag (variadic safety: terminated by the next flag, never the prompt)', () => {
     const args = buildClaudeCodeArgs({ prompt: 'hi', toolAllowList: ['Read'] });
     // --tools is variadic and greedily eats following argv elements, so it must

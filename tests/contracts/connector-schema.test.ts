@@ -731,6 +731,23 @@ describe('RelayStartedTraceEntry.equipment evidence', () => {
     expect(bad.success).toBe(false);
   });
 
+  it('rejects an effective-enforced decision whose declared intent was only trusted', () => {
+    // Effective enforcement is only reachable from a declared-enforced scope —
+    // the runtime never tightens a trusted declaration into a real boundary.
+    // This input satisfies every other rule (enforced_tools present, not flagged
+    // downgraded) so it isolates the declared/effective consistency rule.
+    const bad = TraceEntry.safeParse({
+      ...base,
+      equipment: {
+        declared: 'trusted',
+        effective: 'enforced',
+        downgraded: false,
+        enforced_tools: ['Read'],
+      },
+    });
+    expect(bad.success).toBe(false);
+  });
+
   it('rejects surplus keys on the equipment evidence (strict)', () => {
     const bad = TraceEntry.safeParse({
       ...base,

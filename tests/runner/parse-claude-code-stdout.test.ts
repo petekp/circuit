@@ -127,6 +127,17 @@ describe('parseClaudeCodeStdout — equipment-scope honesty guard', () => {
     const stdout = `${init}\n${successResultLine()}\n`;
     expect(() => parseClaudeCodeStdout(stdout, 'prompt', 1)).not.toThrow();
   });
+
+  it('throws when init.tools contains a non-string entry under an allow-list (cannot verify it is in-scope)', () => {
+    // A non-string tool entry means we cannot prove the surface stayed within
+    // the allow-list. The guard must fail closed (treat it as a violation)
+    // rather than silently drop it the way a type-narrowing filter would.
+    const init = buildInitLine({ tools: ['Read', { name: 'Bash' }] });
+    const stdout = `${init}\n${successResultLine()}\n`;
+    expect(() => parseClaudeCodeStdout(stdout, 'prompt', 1, ['Read'])).toThrow(
+      /enforced equipment scope violated/,
+    );
+  });
 });
 
 describe('parseClaudeCodeStdout — usage extraction', () => {

@@ -711,3 +711,102 @@ describe("SkillOverride 'append' / 'remove' / 'inherit' compose per SEL-I3", () 
     });
   });
 });
+
+// Equipment-scope evidence at the dispatch seam. The enforcement decision
+// (declared scope + the resolved connector's tool-scope capability → effective
+// enforcement) is computed in executeProductionRelayAttempt and recorded on
+// relay.started. These pin the seam through the real runner: the same declared
+// scope produces an enforced binding on a capable connector and an honest
+// downgrade on one that cannot restrict tools.
+describe('relay.started carries the equipment-scope enforcement decision', () => {
+  function withEquipmentScope(scope: unknown): { raw: Record<string, unknown> } {
+    const { bytes } = loadFixture();
+    const raw = JSON.parse(bytes.toString('utf8'));
+    for (const step of raw.steps) {
+      if (step.kind === 'relay') {
+        step.equipment_scope = scope;
+      }
+    }
+    CompiledFlow.parse(raw);
+    return { raw };
+  }
+
+  it('enforces the declared tool list when the connector can restrict tools (claude-code)', async () => {
+    const { raw } = withEquipmentScope({
+      tools: { allow: ['Read', 'Edit', 'Write'] },
+      enforcement: 'enforced',
+    });
+    const runFolder = join(runFolderBase, 'equipment-enforced');
+    await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: flowBytes(raw),
+      runId: '47a47a47-a47a-47a4-7a47-a47a47a47c01',
+      goal: 'equipment enforced on a capable connector',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
+      executors: composeExecutor(),
+      // Default stub connector is claude-code (tool_scope 'allow-list').
+      relayer: stubRelayer(),
+    });
+
+    expect(relayStartedData(await readTrace(runFolder)).equipment).toEqual({
+      declared: 'enforced',
+      effective: 'enforced',
+      downgraded: false,
+      enforced_tools: ['Read', 'Edit', 'Write'],
+    });
+  });
+
+  it('downgrades an enforced scope to trusted (no tool list) when the connector cannot restrict tools (codex)', async () => {
+    const { raw } = withEquipmentScope({
+      tools: { allow: ['Read', 'Edit', 'Write'] },
+      enforcement: 'enforced',
+    });
+    const runFolder = join(runFolderBase, 'equipment-downgraded');
+    await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: flowBytes(raw),
+      runId: '47a47a47-a47a-47a4-7a47-a47a47a47c02',
+      goal: 'equipment enforced downgraded on an incapable connector',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
+      executors: composeExecutor(),
+      // codex is trusted-write (can run the implementer step) but tool_scope
+      // 'none', so the enforced binding must downgrade to trusted.
+      relayer: makeStubRelayer('{"verdict":"ok"}', {
+        receipt_id: 'stub-receipt',
+        connectorName: 'codex',
+      }),
+    });
+
+    expect(relayStartedData(await readTrace(runFolder)).equipment).toEqual({
+      declared: 'enforced',
+      effective: 'trusted',
+      downgraded: true,
+    });
+  });
+
+  it('reports a declared-trusted scope as not-enforced even on a capable connector (no tool list)', async () => {
+    const { raw } = withEquipmentScope({
+      tools: { allow: ['Read', 'Grep'] },
+      enforcement: 'trusted',
+    });
+    const runFolder = join(runFolderBase, 'equipment-trusted');
+    await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: flowBytes(raw),
+      runId: '47a47a47-a47a-47a4-7a47-a47a47a47c03',
+      goal: 'equipment trusted on a capable connector',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 3, 22, 14, 0, 0)),
+      executors: composeExecutor(),
+      relayer: stubRelayer(),
+    });
+
+    expect(relayStartedData(await readTrace(runFolder)).equipment).toEqual({
+      declared: 'trusted',
+      effective: 'trusted',
+      downgraded: false,
+    });
+  });
+});

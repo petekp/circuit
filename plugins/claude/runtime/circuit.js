@@ -57976,9 +57976,10 @@ function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools) {
       throw new Error(`init.tools must be an array to verify the enforced equipment scope; got ${JSON.stringify(sessionTools)}`);
     }
     const allowed = new Set(requestedTools);
-    const leaked = sessionTools.filter((tool) => typeof tool === "string" && !allowed.has(tool));
+    const leaked = sessionTools.filter((tool) => typeof tool !== "string" || !allowed.has(tool));
     if (leaked.length !== 0) {
-      throw new Error(`enforced equipment scope violated: tools outside the allow-list are present in the session: ${leaked.join(", ")}. The relay passes --tools to restrict the surface to [${requestedTools.join(", ")}]; a tool beyond it means the restriction did not hold.`);
+      const rendered = leaked.map((tool) => typeof tool === "string" ? tool : JSON.stringify(tool)).join(", ");
+      throw new Error(`enforced equipment scope violated: tools outside the allow-list are present in the session: ${rendered}. The relay passes --tools to restrict the surface to [${requestedTools.join(", ")}]; a tool beyond it means the restriction did not hold.`);
     }
   }
   const receipt_id = initTraceEntry.session_id;
