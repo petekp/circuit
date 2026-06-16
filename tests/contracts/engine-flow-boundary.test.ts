@@ -68,6 +68,11 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
   // resolver picks a flow's grain (whole vs decomposed); create.ts consumes it
   // and the resolver tests exercise it.
   'src/flows/resolvers/structure.ts',
+  // B3 (equipment chooser): resolver #2, the per-step skill-injection chooser.
+  // Same shared-infra status as structure.ts — imports only public flow types
+  // and rides the existing skill_slots manifest field via the shared assembler.
+  // The equipment resolver tests exercise it.
+  'src/flows/resolvers/equipment.ts',
 ];
 
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([

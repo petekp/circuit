@@ -677,6 +677,19 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/resolver-shared-shape.md",
+      "title": "The resolver shared shape (observed, not extracted)",
+      "status": "current-gap-analysis",
+      "category": "flows-and-blocks",
+      "tags": ["resolvers", "decision-layer", "assembly", "abstraction", "equipment", "structure"],
+      "current_reading": "Records the four-part shape the two in-src decision-layer resolvers (src/flows/resolvers/structure.ts + equipment.ts) independently landed on, plus the four load-bearing divergences (per-flow vs per-step scope, enforced vs trusted-only, downgrade/finding channel, binding time). The shared Resolver type is earnable but deliberately NOT extracted; a third instance (context or depth) is the honest trigger.",
+      "related": [
+        "docs/ideas/e2-equipment-scope-spec.md",
+        "docs/ideas/grain-separability-experiment-design.md"
+      ],
+      "last_checked": "2026-06-16"
+    },
+    {
       "path": "docs/ideas/spec-driven-flow-opportunities.md",
       "title": "Circuit-native spec-driven development flow opportunities",
       "status": "current-proposal",
