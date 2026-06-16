@@ -39032,6 +39032,335 @@ var fixFlowData = {
 // dist/flows/fix/flow.js
 var fixFlowDefinition = defineFlowData(fixFlowData);
 
+// dist/flows/goal/assembly-spec.js
+var GOAL_STAGE_PATH_RATIONALE = "Goal supervises a child flow through Frame, Act, Verify, Review, and Close. Analyze and Plan are delegated to the selected static child flow.";
+var CHILD_PASS_VERDICTS = [
+  "accept",
+  "accept-with-fixes",
+  "accept-with-fold-ins",
+  "NO_ISSUES_FOUND",
+  "ISSUES_FOUND",
+  "clean",
+  "needs-followup",
+  "decided"
+];
+var childGoal = "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.";
+function childRunStep(input) {
+  return {
+    id: input.id,
+    title: input.title,
+    stage: "act",
+    block: "goal-child-run",
+    input: { contract: "goal.contract@v1" },
+    output: input.output,
+    execution: {
+      kind: "sub-run",
+      flow_ref: { flow_id: input.flowId, entry_mode: "default" },
+      goal: childGoal,
+      depth: "medium"
+    },
+    protocol: `${input.id}@v1`,
+    writes: { result_path: input.resultPath },
+    check: { pass: [...CHILD_PASS_VERDICTS] },
+    routes: { continue: "goal-attempt", stop: "@stop" }
+  };
+}
+var goalBlockItems = [
+  {
+    id: "clarify-goal",
+    title: "Clarify - shape Goal task",
+    stage: "frame",
+    block: "clarify",
+    input: { task: "task.intake@v1", route: "route.decision@v1" },
+    output: "goal.clarified-task@v1",
+    execution: { kind: "relay", role: "researcher" },
+    protocol: "goal-clarify@v1",
+    writes: {
+      report_path: "reports/goal/clarified-task.json",
+      request_path: "reports/relay/goal-clarify.request.json",
+      receipt_path: "reports/relay/goal-clarify.receipt.txt",
+      result_path: "reports/relay/goal-clarify.result.json"
+    },
+    check: { pass: ["continue", "ask", "stop"] },
+    route_from_report: { path: ["verdict"] },
+    routes: { continue: "goal-contract", ask: "@stop", stop: "@stop" }
+  },
+  {
+    id: "goal-contract",
+    title: "Goal - write contract and select static target",
+    stage: "frame",
+    block: "goal",
+    input: {
+      task: "task.intake@v1",
+      route: "route.decision@v1",
+      clarified: "goal.clarified-task@v1"
+    },
+    execution: { kind: "compose" },
+    protocol: "goal-contract@v1",
+    writes: { report_path: "reports/goal/contract.json" },
+    check: { required: ["schema", "objective", "done_when", "selected_flow_target"] },
+    route_from_report: { path: ["selected_flow_target"] },
+    routes: {
+      continue: "goal-run-build",
+      fix: "goal-run-fix",
+      build: "goal-run-build",
+      review: "goal-run-review",
+      explore: "goal-run-explore",
+      pursue: "goal-run-pursue",
+      stop: "@stop"
+    }
+  },
+  childRunStep({
+    id: "goal-run-fix",
+    title: "Child Flow - run Fix",
+    flowId: "fix",
+    output: "goal.child-fix-result@v1",
+    resultPath: "reports/goal/child-results/fix-result.json"
+  }),
+  childRunStep({
+    id: "goal-run-build",
+    title: "Child Flow - run Build",
+    flowId: "build",
+    output: "goal.child-build-result@v1",
+    resultPath: "reports/goal/child-results/build-result.json"
+  }),
+  childRunStep({
+    id: "goal-run-review",
+    title: "Child Flow - run Review",
+    flowId: "review",
+    output: "goal.child-review-result@v1",
+    resultPath: "reports/goal/child-results/review-result.json"
+  }),
+  childRunStep({
+    id: "goal-run-explore",
+    title: "Child Flow - run Explore",
+    flowId: "explore",
+    output: "goal.child-explore-result@v1",
+    resultPath: "reports/goal/child-results/explore-result.json"
+  }),
+  childRunStep({
+    id: "goal-run-pursue",
+    title: "Child Flow - run Pursue",
+    flowId: "pursue",
+    output: "goal.child-pursue-result@v1",
+    resultPath: "reports/goal/child-results/pursue-result.json"
+  }),
+  {
+    id: "goal-attempt",
+    title: "Attempt - summarize child result",
+    stage: "act",
+    block: "goal-attempt",
+    input: { contract: "goal.contract@v1" },
+    protocol: "goal-attempt@v1",
+    writes: { report_path: "reports/goal/attempts/attempt-1.json" },
+    check: { required: ["schema", "attempt_id", "flow_target", "outcome"] },
+    routes: { continue: "goal-evidence-evaluation", stop: "@stop" }
+  },
+  {
+    id: "goal-evidence-evaluation",
+    title: "Evaluate - compare attempt evidence to done claims",
+    stage: "verify",
+    block: "goal-evaluate",
+    input: { contract: "goal.contract@v1", attempt: "goal.attempt@v1" },
+    protocol: "goal-evidence-evaluation@v1",
+    writes: { report_path: "reports/goal/evidence-evaluation.json" },
+    check: { required: ["schema", "verdict", "claim_results", "next_route"] },
+    route_from_report: { path: ["next_route"] },
+    routes: {
+      continue: "goal-gate-pass-1",
+      "completion-gate": "goal-gate-pass-1",
+      "retry-selected-flow": "goal-recovery",
+      "run-fix": "goal-recovery",
+      "run-review": "goal-recovery",
+      "run-explore": "goal-recovery",
+      "split-to-pursue": "goal-recovery",
+      checkpoint: "goal-recovery",
+      handoff: "@handoff",
+      blocked: "goal-recovery",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "goal-recovery",
+    title: "Recovery - choose typed next action",
+    stage: "verify",
+    block: "goal-recover",
+    input: { evaluation: "goal.evidence-evaluation@v1", attempt: "goal.attempt@v1" },
+    protocol: "goal-recovery@v1",
+    writes: { report_path: "reports/goal/recovery.json" },
+    check: { required: ["schema", "reason", "selected_route", "rationale"] },
+    route_from_report: { path: ["selected_route"] },
+    routes: {
+      continue: "goal-recovery-checkpoint",
+      "retry-selected-flow": "goal-recovery-checkpoint",
+      "run-fix": "goal-recovery-checkpoint",
+      "run-review": "goal-recovery-checkpoint",
+      "run-explore": "goal-recovery-checkpoint",
+      "split-to-pursue": "goal-recovery-checkpoint",
+      checkpoint: "goal-recovery-checkpoint",
+      blocked: "goal-close",
+      handoff: "@handoff",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "goal-recovery-checkpoint",
+    title: "Checkpoint - operator judgment required",
+    stage: "verify",
+    block: "goal-checkpoint",
+    input: { question: "flow.question@v1", evidence: "goal.recovery@v1" },
+    output: "decision.answer@v1",
+    protocol: "goal-recovery-checkpoint@v1",
+    writes: {
+      checkpoint_request_path: "reports/checkpoints/goal-recovery-request.json",
+      checkpoint_response_path: "reports/checkpoints/goal-recovery-response.json"
+    },
+    check: { allow: ["continue", "blocked", "handoff"] },
+    checkpointPolicy: {
+      prompt: "Goal needs operator judgment before continuing.",
+      choices: [
+        { id: "continue", label: "Close as-is" },
+        { id: "blocked", label: "Close Blocked" },
+        { id: "handoff", label: "Hand Off" }
+      ],
+      safe_default_choice: "blocked"
+    },
+    routes: { continue: "goal-close", blocked: "goal-close", handoff: "@handoff", stop: "@stop" }
+  },
+  {
+    id: "goal-gate-pass-1",
+    title: "Safety review - pass 1",
+    stage: "review",
+    block: "goal-gate-review",
+    input: { contract: "goal.contract@v1", evaluation: "goal.evidence-evaluation@v1" },
+    output: "goal.gate-pass@v1",
+    execution: { kind: "relay", role: "reviewer" },
+    protocol: "goal-gate-pass-1@v1",
+    writes: {
+      report_path: "reports/goal/gate-pass-1.json",
+      request_path: "reports/relay/goal-gate-pass-1.request.json",
+      receipt_path: "reports/relay/goal-gate-pass-1.receipt.txt",
+      result_path: "reports/relay/goal-gate-pass-1.result.json"
+    },
+    check: { pass: ["gate-pass", "blocked"] },
+    route_from_report: { path: ["next_route"] },
+    routes: {
+      continue: "goal-gate-pass-2",
+      "run-next-gate-pass": "goal-gate-pass-2",
+      recover: "goal-recovery",
+      retry: "goal-recovery",
+      close: "goal-recovery",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "goal-gate-pass-2",
+    title: "Safety review - pass 2",
+    stage: "review",
+    block: "goal-gate-review",
+    input: {
+      contract: "goal.contract@v1",
+      evaluation: "goal.evidence-evaluation@v1",
+      gate: "goal.gate-pass@v1"
+    },
+    output: "goal.gate@v1",
+    execution: { kind: "relay", role: "reviewer" },
+    protocol: "goal-gate-pass-2@v1",
+    writes: {
+      report_path: "reports/goal/gate.json",
+      request_path: "reports/relay/goal-gate-pass-2.request.json",
+      receipt_path: "reports/relay/goal-gate-pass-2.receipt.txt",
+      result_path: "reports/relay/goal-gate-pass-2.result.json"
+    },
+    check: { pass: ["gate-pass", "blocked"] },
+    route_from_report: { path: ["next_route"] },
+    routes: {
+      continue: "goal-close",
+      close: "goal-close",
+      "run-next-gate-pass": "goal-gate-pass-2",
+      recover: "goal-recovery",
+      retry: "goal-recovery",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "goal-close",
+    title: "Close - emit Goal result",
+    stage: "close",
+    block: "goal-close",
+    input: {
+      contract: "goal.contract@v1",
+      attempt: "goal.attempt@v1",
+      evaluation: "goal.evidence-evaluation@v1",
+      recovery: "goal.recovery@v1",
+      gate: "goal.gate@v1"
+    },
+    // recovery and gate arrive on disjoint routes: the gate path
+    // (gate-pass-2 -> close) never runs recovery, and the recovery path
+    // (recovery/checkpoint -> close) never runs the second gate pass. The close
+    // writer already reads both with `optional: true`, so declaring them optional
+    // lifts that runtime truth into the model: each is valid as long as some
+    // reachable route produces it.
+    optional_inputs: ["recovery", "gate"],
+    protocol: "goal-close@v1",
+    writes: { report_path: "reports/goal-result.json" },
+    check: { required: ["schema", "outcome", "summary", "evidence_links", "gate"] },
+    routes: { complete: "@complete", stop: "@stop" }
+  }
+];
+var goalStageLabels = {
+  frame: { id: "goal-frame-stage", title: "Frame" },
+  act: { id: "goal-act-stage", title: "Act" },
+  verify: { id: "goal-verify-stage", title: "Verify" },
+  review: { id: "goal-review-stage", title: "Review" },
+  close: { id: "goal-close-stage", title: "Close" }
+};
+var goalAssemblySpec = {
+  id: "goal",
+  title: "Goal Schematic",
+  purpose: "Goal flow. Circuit writes a bounded goal contract, runs one statically authored child flow target, evaluates evidence, runs a two-pass safety review, and closes from typed Goal reports.",
+  status: "active",
+  version: "0.1.0",
+  initial_contracts: ["task.intake@v1", "route.decision@v1", "flow.question@v1"],
+  contract_aliases: [
+    { generic: "clarified.task@v1", actual: "goal.clarified-task@v1" },
+    // First-class composition (goal split): per-role goal blocks own synthetic
+    // output contracts so each block has a unique typed output. These aliases
+    // let the re-homed items bind generics to those real report outputs. Every
+    // generic below is referenced by no other item, so it cannot mask an
+    // unrelated mismatch.
+    //
+    // M8.3 removed 11 legacy goal.contract@v1 aliases that mapped that name onto
+    // every other goal report. Each goal report is already the unique
+    // output_contract of its own goal block, so each item matches its block by
+    // identity without an alias, and the items that CONSUME goal.contract@v1
+    // (recovery, gate, close) bind to the real goal-contract producer upstream.
+    { generic: "goal.child-run@v1", actual: "goal.child-fix-result@v1" },
+    { generic: "goal.child-run@v1", actual: "goal.child-build-result@v1" },
+    { generic: "goal.child-run@v1", actual: "goal.child-review-result@v1" },
+    { generic: "goal.child-run@v1", actual: "goal.child-explore-result@v1" },
+    { generic: "goal.child-run@v1", actual: "goal.child-pursue-result@v1" },
+    { generic: "goal.gate-review@v1", actual: "goal.gate-pass@v1" },
+    { generic: "goal.gate-review@v1", actual: "goal.gate@v1" },
+    { generic: "goal.checkpoint@v1", actual: "decision.answer@v1" }
+  ],
+  axes: {
+    allowed_depths: ["low", "medium", "high"],
+    supports_tournament: false,
+    supports_autonomous: true,
+    default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
+  },
+  // Stage 3 (first-class composition): goal DECLARES the terminal-outcome bind on
+  // its schematic; the compiler propagates it to the compiled manifest and the
+  // engine reads it through `resolveEngineFlags`.
+  engine_flags: {
+    binds_terminal_outcome_to_primary_result: true
+  },
+  items: goalBlockItems,
+  stageLabels: goalStageLabels,
+  stagePathRationale: GOAL_STAGE_PATH_RATIONALE
+};
+
 // dist/flows/goal/reports.js
 var NonEmptyStringArray3 = external_exports.array(external_exports.string().min(1)).min(1);
 var GoalFlowTarget = external_exports.enum(["fix", "build", "review", "explore", "pursue"]);
@@ -39919,47 +40248,6 @@ var goalRecoveryBuilder = {
 };
 
 // dist/flows/goal/data.js
-var CHILD_PASS_VERDICTS = [
-  "accept",
-  "accept-with-fixes",
-  "accept-with-fold-ins",
-  "NO_ISSUES_FOUND",
-  "ISSUES_FOUND",
-  "clean",
-  "needs-followup",
-  "decided"
-];
-var childGoal = "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.";
-function childRunStep(input) {
-  return {
-    id: input.id,
-    title: input.title,
-    stage: "act",
-    block: "goal-child-run",
-    input: {
-      contract: "goal.contract@v1"
-    },
-    output: input.output,
-    evidence_requirements: ["static child flow target", "child result file", "parent trace link"],
-    execution: {
-      kind: "sub-run",
-      flow_ref: { flow_id: input.flowId, entry_mode: "default" },
-      goal: childGoal,
-      depth: "medium"
-    },
-    protocol: `${input.id}@v1`,
-    writes: {
-      result_path: input.resultPath
-    },
-    check: {
-      pass: [...CHILD_PASS_VERDICTS]
-    },
-    routes: {
-      continue: "goal-attempt",
-      stop: "@stop"
-    }
-  };
-}
 var goalFlowData = {
   id: "goal",
   // S8: frozen to internal. Goal's contract/gate semantics moved into the Run
@@ -39970,436 +40258,15 @@ var goalFlowData = {
   paths: {
     schematic: "src/flows/goal/schematic.json"
   },
-  schematic: {
-    schema_version: "2",
-    id: "goal",
-    title: "Goal Schematic",
-    purpose: "Goal flow. Circuit writes a bounded goal contract, runs one statically authored child flow target, evaluates evidence, runs a two-pass safety review, and closes from typed Goal reports.",
-    status: "active",
-    version: "0.1.0",
-    starts_at: "clarify-goal",
-    initial_contracts: ["task.intake@v1", "route.decision@v1", "flow.question@v1"],
-    contract_aliases: [
-      { generic: "clarified.task@v1", actual: "goal.clarified-task@v1" },
-      // First-class composition (goal split): per-role goal blocks own synthetic
-      // output contracts so each block has a unique typed output. These aliases
-      // let the re-homed items bind generics to those real report outputs. Every
-      // generic below is referenced by no other item, so it cannot mask an
-      // unrelated mismatch.
-      //
-      // M8.3 removed 11 legacy goal.contract@v1 aliases that mapped that name
-      // onto every other goal report (the child results, attempt, evaluation,
-      // recovery, gate-pass, gate, result). They were pure masking: each of
-      // those reports is already the unique output_contract of its own goal
-      // block, so each item matches its block by identity without an alias, and
-      // the items that CONSUME goal.contract@v1 (recovery, gate, close) bind to
-      // the real goal-contract producer, which is always upstream. Removing them
-      // leaves goal.contract@v1 single-actual (its true producer), so it is no
-      // longer a multi-actual catch-all the M8.4 gate would have to forgive.
-      { generic: "goal.child-run@v1", actual: "goal.child-fix-result@v1" },
-      { generic: "goal.child-run@v1", actual: "goal.child-build-result@v1" },
-      { generic: "goal.child-run@v1", actual: "goal.child-review-result@v1" },
-      { generic: "goal.child-run@v1", actual: "goal.child-explore-result@v1" },
-      { generic: "goal.child-run@v1", actual: "goal.child-pursue-result@v1" },
-      { generic: "goal.gate-review@v1", actual: "goal.gate-pass@v1" },
-      { generic: "goal.gate-review@v1", actual: "goal.gate@v1" },
-      { generic: "goal.checkpoint@v1", actual: "decision.answer@v1" }
-    ],
-    axes: {
-      allowed_depths: ["low", "medium", "high"],
-      supports_tournament: false,
-      supports_autonomous: true,
-      default: {
-        depth: "medium",
-        tournament: false,
-        tournament_n: 3,
-        autonomous: false
-      }
-    },
-    stage_path_policy: {
-      mode: "partial",
-      omits: ["analyze", "plan"],
-      rationale: "Goal supervises a child flow through Frame, Act, Verify, Review, and Close. Analyze and Plan are delegated to the selected static child flow."
-    },
-    stages: [
-      { id: "goal-frame-stage", canonical: "frame", title: "Frame" },
-      { id: "goal-act-stage", canonical: "act", title: "Act" },
-      { id: "goal-verify-stage", canonical: "verify", title: "Verify" },
-      { id: "goal-review-stage", canonical: "review", title: "Review" },
-      { id: "goal-close-stage", canonical: "close", title: "Close" }
-    ],
-    items: [
-      {
-        id: "clarify-goal",
-        title: "Clarify - shape Goal task",
-        stage: "frame",
-        block: "clarify",
-        input: {
-          task: "task.intake@v1",
-          route: "route.decision@v1"
-        },
-        output: "goal.clarified-task@v1",
-        evidence_requirements: [
-          "original request",
-          "clarified task",
-          "desired outcome",
-          "proof needed",
-          "constraints",
-          "scope",
-          "assumptions",
-          "missing information",
-          "stop conditions"
-        ],
-        execution: { kind: "relay", role: "researcher" },
-        protocol: "goal-clarify@v1",
-        writes: {
-          report_path: "reports/goal/clarified-task.json",
-          request_path: "reports/relay/goal-clarify.request.json",
-          receipt_path: "reports/relay/goal-clarify.receipt.txt",
-          result_path: "reports/relay/goal-clarify.result.json"
-        },
-        check: {
-          pass: ["continue", "ask", "stop"]
-        },
-        route_from_report: {
-          path: ["verdict"]
-        },
-        routes: {
-          continue: "goal-contract",
-          ask: "@stop",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-contract",
-        title: "Goal - write contract and select static target",
-        stage: "frame",
-        block: "goal",
-        input: {
-          task: "task.intake@v1",
-          route: "route.decision@v1",
-          clarified: "goal.clarified-task@v1"
-        },
-        output: "goal.contract@v1",
-        evidence_requirements: [
-          "goal contract",
-          "done claims",
-          "proof requirements",
-          "allowed flow targets",
-          "recovery routes",
-          "safety review policy"
-        ],
-        execution: { kind: "compose" },
-        protocol: "goal-contract@v1",
-        writes: {
-          report_path: "reports/goal/contract.json"
-        },
-        check: {
-          required: ["schema", "objective", "done_when", "selected_flow_target"]
-        },
-        route_from_report: {
-          path: ["selected_flow_target"]
-        },
-        // The goal-contract block routes on selected_flow_target, whose schema
-        // (GoalFlowTarget) only admits fix/build/review/explore/pursue. There is
-        // no report value that selects "ask", so the old ask -> recovery
-        // checkpoint edge could never fire. Removing it is runtime-neutral and
-        // deletes the phantom route that made goal-recovery-checkpoint and
-        // goal-close look like they read contracts their real routes never
-        // produce.
-        routes: {
-          continue: "goal-run-build",
-          fix: "goal-run-fix",
-          build: "goal-run-build",
-          review: "goal-run-review",
-          explore: "goal-run-explore",
-          pursue: "goal-run-pursue",
-          stop: "@stop"
-        }
-      },
-      childRunStep({
-        id: "goal-run-fix",
-        title: "Child Flow - run Fix",
-        flowId: "fix",
-        output: "goal.child-fix-result@v1",
-        resultPath: "reports/goal/child-results/fix-result.json"
-      }),
-      childRunStep({
-        id: "goal-run-build",
-        title: "Child Flow - run Build",
-        flowId: "build",
-        output: "goal.child-build-result@v1",
-        resultPath: "reports/goal/child-results/build-result.json"
-      }),
-      childRunStep({
-        id: "goal-run-review",
-        title: "Child Flow - run Review",
-        flowId: "review",
-        output: "goal.child-review-result@v1",
-        resultPath: "reports/goal/child-results/review-result.json"
-      }),
-      childRunStep({
-        id: "goal-run-explore",
-        title: "Child Flow - run Explore",
-        flowId: "explore",
-        output: "goal.child-explore-result@v1",
-        resultPath: "reports/goal/child-results/explore-result.json"
-      }),
-      childRunStep({
-        id: "goal-run-pursue",
-        title: "Child Flow - run Pursue",
-        flowId: "pursue",
-        output: "goal.child-pursue-result@v1",
-        resultPath: "reports/goal/child-results/pursue-result.json"
-      }),
-      {
-        id: "goal-attempt",
-        title: "Attempt - summarize child result",
-        stage: "act",
-        block: "goal-attempt",
-        input: {
-          contract: "goal.contract@v1"
-        },
-        output: "goal.attempt@v1",
-        evidence_requirements: ["child result path", "child report paths", "attempt outcome"],
-        execution: { kind: "compose" },
-        protocol: "goal-attempt@v1",
-        writes: {
-          report_path: "reports/goal/attempts/attempt-1.json"
-        },
-        check: {
-          required: ["schema", "attempt_id", "flow_target", "outcome"]
-        },
-        routes: {
-          continue: "goal-evidence-evaluation",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-evidence-evaluation",
-        title: "Evaluate - compare attempt evidence to done claims",
-        stage: "verify",
-        block: "goal-evaluate",
-        input: {
-          contract: "goal.contract@v1",
-          attempt: "goal.attempt@v1"
-        },
-        output: "goal.evidence-evaluation@v1",
-        evidence_requirements: ["claim results", "evidence gaps", "next typed route"],
-        execution: { kind: "compose" },
-        protocol: "goal-evidence-evaluation@v1",
-        writes: {
-          report_path: "reports/goal/evidence-evaluation.json"
-        },
-        check: {
-          required: ["schema", "verdict", "claim_results", "next_route"]
-        },
-        route_from_report: {
-          path: ["next_route"]
-        },
-        routes: {
-          continue: "goal-gate-pass-1",
-          "completion-gate": "goal-gate-pass-1",
-          "retry-selected-flow": "goal-recovery",
-          "run-fix": "goal-recovery",
-          "run-review": "goal-recovery",
-          "run-explore": "goal-recovery",
-          "split-to-pursue": "goal-recovery",
-          checkpoint: "goal-recovery",
-          handoff: "@handoff",
-          blocked: "goal-recovery",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-recovery",
-        title: "Recovery - choose typed next action",
-        stage: "verify",
-        block: "goal-recover",
-        input: {
-          evaluation: "goal.evidence-evaluation@v1",
-          attempt: "goal.attempt@v1"
-        },
-        output: "goal.recovery@v1",
-        evidence_requirements: ["recovery reason", "selected route", "operator input need"],
-        execution: { kind: "compose" },
-        protocol: "goal-recovery@v1",
-        writes: {
-          report_path: "reports/goal/recovery.json"
-        },
-        check: {
-          required: ["schema", "reason", "selected_route", "rationale"]
-        },
-        route_from_report: {
-          path: ["selected_route"]
-        },
-        routes: {
-          continue: "goal-recovery-checkpoint",
-          "retry-selected-flow": "goal-recovery-checkpoint",
-          "run-fix": "goal-recovery-checkpoint",
-          "run-review": "goal-recovery-checkpoint",
-          "run-explore": "goal-recovery-checkpoint",
-          "split-to-pursue": "goal-recovery-checkpoint",
-          checkpoint: "goal-recovery-checkpoint",
-          blocked: "goal-close",
-          handoff: "@handoff",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-recovery-checkpoint",
-        title: "Checkpoint - operator judgment required",
-        stage: "verify",
-        block: "goal-checkpoint",
-        input: {
-          question: "flow.question@v1",
-          evidence: "goal.recovery@v1"
-        },
-        output: "decision.answer@v1",
-        evidence_requirements: [
-          "question",
-          "available options",
-          "selected option",
-          "answer source"
-        ],
-        execution: { kind: "checkpoint" },
-        protocol: "goal-recovery-checkpoint@v1",
-        writes: {
-          checkpoint_request_path: "reports/checkpoints/goal-recovery-request.json",
-          checkpoint_response_path: "reports/checkpoints/goal-recovery-response.json"
-        },
-        check: {
-          allow: ["continue", "blocked", "handoff"]
-        },
-        checkpoint_policy: {
-          prompt: "Goal needs operator judgment before continuing.",
-          choices: [
-            { id: "continue", label: "Close as-is" },
-            { id: "blocked", label: "Close Blocked" },
-            { id: "handoff", label: "Hand Off" }
-          ],
-          safe_default_choice: "blocked"
-        },
-        routes: {
-          continue: "goal-close",
-          blocked: "goal-close",
-          handoff: "@handoff",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-gate-pass-1",
-        title: "Safety review - pass 1",
-        stage: "review",
-        block: "goal-gate-review",
-        input: {
-          contract: "goal.contract@v1",
-          evaluation: "goal.evidence-evaluation@v1"
-        },
-        output: "goal.gate-pass@v1",
-        evidence_requirements: ["safety review pass", "review lens", "evidence checked"],
-        execution: { kind: "relay", role: "reviewer" },
-        protocol: "goal-gate-pass-1@v1",
-        writes: {
-          report_path: "reports/goal/gate-pass-1.json",
-          request_path: "reports/relay/goal-gate-pass-1.request.json",
-          receipt_path: "reports/relay/goal-gate-pass-1.receipt.txt",
-          result_path: "reports/relay/goal-gate-pass-1.result.json"
-        },
-        check: {
-          pass: ["gate-pass", "blocked"]
-        },
-        route_from_report: {
-          path: ["next_route"]
-        },
-        routes: {
-          continue: "goal-gate-pass-2",
-          "run-next-gate-pass": "goal-gate-pass-2",
-          recover: "goal-recovery",
-          retry: "goal-recovery",
-          close: "goal-recovery",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-gate-pass-2",
-        title: "Safety review - pass 2",
-        stage: "review",
-        block: "goal-gate-review",
-        input: {
-          contract: "goal.contract@v1",
-          evaluation: "goal.evidence-evaluation@v1",
-          gate: "goal.gate-pass@v1"
-        },
-        output: "goal.gate@v1",
-        evidence_requirements: ["safety review pass", "review lens", "evidence checked"],
-        execution: { kind: "relay", role: "reviewer" },
-        protocol: "goal-gate-pass-2@v1",
-        writes: {
-          report_path: "reports/goal/gate.json",
-          request_path: "reports/relay/goal-gate-pass-2.request.json",
-          receipt_path: "reports/relay/goal-gate-pass-2.receipt.txt",
-          result_path: "reports/relay/goal-gate-pass-2.result.json"
-        },
-        check: {
-          pass: ["gate-pass", "blocked"]
-        },
-        route_from_report: {
-          path: ["next_route"]
-        },
-        routes: {
-          continue: "goal-close",
-          close: "goal-close",
-          "run-next-gate-pass": "goal-gate-pass-2",
-          recover: "goal-recovery",
-          retry: "goal-recovery",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-close",
-        title: "Close - emit Goal result",
-        stage: "close",
-        block: "goal-close",
-        input: {
-          contract: "goal.contract@v1",
-          attempt: "goal.attempt@v1",
-          evaluation: "goal.evidence-evaluation@v1",
-          recovery: "goal.recovery@v1",
-          gate: "goal.gate@v1"
-        },
-        // recovery and gate arrive on disjoint routes: the gate path
-        // (gate-pass-2 -> close) never runs recovery, and the recovery path
-        // (recovery/checkpoint -> close) never runs the second gate pass. The
-        // close writer already reads both with `optional: true`, so declaring
-        // them optional lifts that runtime truth into the model: each is valid
-        // as long as some reachable route produces it.
-        optional_inputs: ["recovery", "gate"],
-        output: "goal.result@v1",
-        evidence_requirements: ["outcome", "evidence pointers", "residual risks", "follow-ups"],
-        execution: { kind: "compose" },
-        protocol: "goal-close@v1",
-        writes: {
-          report_path: "reports/goal-result.json"
-        },
-        check: {
-          required: ["schema", "outcome", "summary", "evidence_links", "gate"]
-        },
-        routes: {
-          complete: "@complete",
-          stop: "@stop"
-        }
-      }
-    ],
-    // Stage 3 (first-class composition): goal is the first flow rehomed off the
-    // by-id catalog package onto its manifest. It DECLARES the terminal-outcome
-    // bind here on the schematic; the compiler propagates it to the compiled
-    // manifest, and the engine reads it through `resolveEngineFlags`. The
-    // package no longer carries engineFlags (see below).
-    engine_flags: {
-      binds_terminal_outcome_to_primary_result: true
-    }
-  },
+  // First-class composition (A5): goal is one of the assembler's production
+  // customers, and its generality stress-test. Its block sequence (including the
+  // five sub-run child-flow steps), scaffolding, and engine_flags live in
+  // ./assembly-spec.ts; `assembleFlowSchematic` derives starts_at / stages /
+  // stage_path_policy and returns the validated FlowSchematic that used to be a
+  // hand-authored literal here. The prove-by-equivalence test proves byte-
+  // identity (schematic + compiled), and the M9 truth test proves the assembled
+  // goal RUNS its sub-run path on the shared graph runner.
+  schematic: assembleFlowSchematic(goalAssemblySpec),
   canonicalStagePolicy: {
     kind: "enforce",
     canonicals: ["frame", "act", "verify", "review", "close"],
