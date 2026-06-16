@@ -26,6 +26,7 @@ interface CliOptions {
   readonly taskIds: readonly string[];
   readonly power: string;
   readonly timeoutMs: number;
+  readonly repeats: number;
   readonly outDir: string | null;
 }
 
@@ -34,6 +35,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
   const taskIds: string[] = [];
   let power = 'medium';
   let timeoutMs = 20 * 60 * 1000;
+  let repeats = 1;
   let outDir: string | null = null;
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -54,6 +56,17 @@ function parseArgs(argv: readonly string[]): CliOptions {
         i += 1;
         timeoutMs = Number(argv[i] ?? timeoutMs) || timeoutMs;
         break;
+      case '--repeats':
+      case '-k': {
+        i += 1;
+        const parsed = Number(argv[i]);
+        if (!Number.isInteger(parsed) || parsed < 1) {
+          process.stderr.write(`--repeats needs a positive integer; got '${argv[i]}'\n`);
+          printHelpAndExit(1);
+        }
+        repeats = parsed;
+        break;
+      }
       case '--out':
         i += 1;
         outDir = argv[i] ?? null;
@@ -69,7 +82,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
     }
   }
 
-  return { live, taskIds, power, timeoutMs, outDir };
+  return { live, taskIds, power, timeoutMs, repeats, outDir };
 }
 
 function printHelpAndExit(code = 0): never {
@@ -88,6 +101,9 @@ function printHelpAndExit(code = 0): never {
       'Options:',
       '  --task <id>        Eval task id; repeatable (live only)',
       '  --power <tier>     low | medium | high (default: medium, live only)',
+      '  --repeats, -k <n>  Times to run every task (default: 1, live only).',
+      '                     Run order interleaves: every task once per pass, so',
+      '                     repeats spread across wall-time instead of back-to-back.',
       '  --timeout-ms <n>   Per-variant timeout in ms (default: 1200000, live only)',
       '  --out <dir>        Also write matrix.json + matrix.md there',
       '  --help             Show this help',
@@ -113,13 +129,16 @@ async function buildMatrixForCli(options: CliOptions): Promise<ExperimentMatrix>
   const workRoot = join(REPO_ROOT, 'experiments', 'e1', '.runs', `matrix-${stamp()}`);
   mkdirSync(workRoot, { recursive: true });
 
+  const totalRuns = options.taskIds.length * options.repeats * 2;
   process.stderr.write(
     [
       '',
       '  ⚠️  LIVE MATRIX — this spends model budget.',
-      `      tasks:  ${options.taskIds.join(', ')}`,
-      `      power:  ${options.power}`,
-      `      work:   ${workRoot}`,
+      `      tasks:   ${options.taskIds.join(', ')}`,
+      `      power:   ${options.power}`,
+      `      repeats: ${options.repeats} (interleaved across tasks)`,
+      `      runs:    ${totalRuns} (tasks × repeats × 2 grains)`,
+      `      work:    ${workRoot}`,
       '      Running fix + build --depth high per task, then stopping.',
       '',
     ].join('\n'),
@@ -132,6 +151,7 @@ async function buildMatrixForCli(options: CliOptions): Promise<ExperimentMatrix>
     workRoot,
     power: options.power,
     timeoutMs: options.timeoutMs,
+    repeats: options.repeats,
     now: () => Date.now(),
     nowIso: () => new Date().toISOString(),
     log: (message) => process.stderr.write(`  ${message}\n`),

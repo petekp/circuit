@@ -166,6 +166,92 @@ describe('buildMatrix', () => {
   it('rejects a matrix with no cells', () => {
     expect(() => buildMatrix(SPECS, [], META)).toThrow(/at least one task/);
   });
+
+  it('keys rows by (task, repeat) so K>1 keeps one row per repeat (no repeat dropped)', () => {
+    // 2 tasks × 2 variants × 2 repeats, interleaved (repeat outer, task inner).
+    // Repeat 0: separated false-fixes on t1; repeat 1: separated passes on t1.
+    // A repeat-blind .find() row would silently collapse this to one row per
+    // task and drop the second repeat's outcome.
+    const repeated = (
+      taskId: string,
+      variantId: VariantId,
+      repeat: number,
+      overrides: Partial<VariantRecord> = {},
+    ): MatrixCell => ({ ...cell(taskId, variantId, overrides), repeat });
+
+    const matrix = buildMatrix(
+      SPECS,
+      [
+        // repeat 0
+        repeated('t1', 'holistic', 0),
+        repeated('t1', 'separated', 0, {
+          verdict: 'fail',
+          quality_signal: {
+            ...record({ variant_id: 'separated' }).quality_signal,
+            objective_passed: false,
+            false_fixed: true,
+          },
+        }),
+        repeated('t2', 'holistic', 0),
+        repeated('t2', 'separated', 0),
+        // repeat 1
+        repeated('t1', 'holistic', 1),
+        repeated('t1', 'separated', 1),
+        repeated('t2', 'holistic', 1),
+        repeated('t2', 'separated', 1),
+      ],
+      META,
+    );
+
+    // One row per (task, repeat): 2 tasks × 2 repeats = 4 rows, none dropped.
+    expect(matrix.rows).toHaveLength(4);
+    expect(matrix.rows.map((r) => [r.task_id, r.repeat])).toEqual([
+      ['t1', 0],
+      ['t2', 0],
+      ['t1', 1],
+      ['t2', 1],
+    ]);
+    // Each row still has both columns' cells.
+    for (const row of matrix.rows) {
+      expect(row.cells.map((c) => c.variant_label)).toEqual(['holistic', 'separated']);
+    }
+
+    // summariseVariant aggregates across ALL repeats: runs = tasks × repeats.
+    const holistic = matrix.summaries.find((s) => s.variant_label === 'holistic');
+    const separated = matrix.summaries.find((s) => s.variant_label === 'separated');
+    expect(holistic?.runs).toBe(4);
+    expect(separated?.runs).toBe(4);
+    // separated false-fixed in exactly 1 of its 4 runs (t1 repeat 0).
+    expect(separated?.false_fixed).toBe(1);
+    expect(separated?.failed).toBe(1);
+    expect(separated?.passed).toBe(3);
+    expect(holistic?.false_fixed).toBe(0);
+  });
+});
+
+describe('renderMatrixMarkdown — repeat rows', () => {
+  it('labels rows with their 1-based repeat when cells carry a repeat', () => {
+    const matrix = buildMatrix(
+      SPECS,
+      [
+        { ...cell('t', 'holistic'), repeat: 0 },
+        { ...cell('t', 'separated'), repeat: 0 },
+        { ...cell('t', 'holistic'), repeat: 1 },
+        { ...cell('t', 'separated'), repeat: 1 },
+      ],
+      META,
+    );
+    const md = renderMatrixMarkdown(matrix);
+    expect(md).toContain('`t` (repeat 1)');
+    expect(md).toContain('`t` (repeat 2)');
+  });
+
+  it('omits the repeat suffix when no cell carries a repeat (K=1 unchanged)', () => {
+    const matrix = buildMatrix(SPECS, [cell('t', 'holistic'), cell('t', 'separated')], META);
+    const md = renderMatrixMarkdown(matrix);
+    expect(md).toContain('| `t` |');
+    expect(md).not.toContain('repeat');
+  });
 });
 
 describe('comparisonToCells', () => {
@@ -184,6 +270,23 @@ describe('comparisonToCells', () => {
     expect(cells).toHaveLength(2);
     expect(cells.every((c) => c.task_id === 'wrap')).toBe(true);
     expect(cells.map((c) => c.variant_label)).toEqual(['holistic', 'separated']);
+    // No repeat arg → repeat stays undefined (K=1 / single-run shape).
+    expect(cells.every((c) => c.repeat === undefined)).toBe(true);
+  });
+
+  it('tags every cell with the repeat index when one is supplied', () => {
+    const comparison: ExperimentComparison = {
+      schema_version: 1,
+      task_id: 'wrap',
+      done_when: 'objective met',
+      base_ref: 'base',
+      mode: 'live',
+      generated_at: META.generated_at,
+      variants: [record({ variant_id: 'holistic' }), record({ variant_id: 'separated' })],
+      delta: { verdict_match: true, cost_ratio: 1, cost_ratio_basis: 'usd', notes: '' },
+    };
+    const cells = comparisonToCells(comparison, 2);
+    expect(cells.every((c) => c.repeat === 2)).toBe(true);
   });
 });
 

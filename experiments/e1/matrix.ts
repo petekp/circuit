@@ -29,6 +29,11 @@ export interface MatrixCell {
   readonly task_id: string;
   readonly variant_label: string;
   readonly record: VariantRecord;
+  // Repeat index (0-based) when the cell came from a K>1 run. Undefined for the
+  // single-repeat (K=1) and fixture lanes, where it leaves row keying unchanged.
+  // Rows are keyed by (task_id, repeat), so two repeats of the same task are
+  // distinct rows instead of the first silently shadowing the rest.
+  readonly repeat?: number;
 }
 
 // One non-baseline column's standing on a task, relative to that task's baseline
@@ -49,6 +54,10 @@ export interface MatrixVariantDelta {
 // where it is false is where the experiment found something).
 export interface MatrixTaskRow {
   readonly task_id: string;
+  // The repeat index this row reports, carried from its cells. Undefined when
+  // the cells carry no repeat (K=1 / fixture lane), which keeps the row shape
+  // byte-identical to the single-run grid.
+  readonly repeat?: number;
   readonly baseline_label: string;
   readonly cells: readonly MatrixCell[];
   readonly variant_deltas: readonly MatrixVariantDelta[];
@@ -115,9 +124,12 @@ function variantDelta(baseline: VariantRecord, other: MatrixCell): MatrixVariant
 
 // Build one row from a task's cells. The baseline is the first column in
 // `variantOrder` that the task actually ran; deltas are every other column
-// against it.
+// against it. `repeat` is carried onto the row from the group's cells (all
+// cells in a group share it by construction); it stays undefined for the K=1 /
+// fixture lane so the row shape is byte-identical to the single-run grid.
 function buildRow(
   taskId: string,
+  repeat: number | undefined,
   cells: readonly MatrixCell[],
   variantOrder: readonly string[],
 ): MatrixTaskRow {
@@ -132,8 +144,11 @@ function buildRow(
   const variantDeltas = ordered.slice(1).map((cell) => variantDelta(baseline.record, cell));
   const verdicts = new Set(ordered.map((cell) => cell.record.verdict));
 
+  // Spread repeat only when defined so K=1 rows omit the key entirely and stay
+  // byte-identical to today's single-run rows.
   return {
     task_id: taskId,
+    ...(repeat === undefined ? {} : { repeat }),
     baseline_label: baseline.variant_label,
     cells: ordered,
     variant_deltas: variantDeltas,
@@ -195,21 +210,48 @@ export function buildMatrix(
   }
 
   const variantOrder = specs.map((spec) => spec.variant_label);
+
+  // Group cells into rows keyed by (task_id, repeat). When repeat is undefined
+  // (K=1 / fixture lane) the key degenerates to task_id, so the row set and
+  // order are byte-identical to the single-run grid. When K>1, each repeat is a
+  // distinct row instead of the first repeat shadowing the rest. Group order
+  // follows first appearance of the composite key in `cells`, so an interleaved
+  // run (repeat outer, task inner) reads top-to-bottom in the order it ran.
+  const rowKey = (cell: MatrixCell): string =>
+    cell.repeat === undefined ? cell.task_id : `${cell.task_id} ${cell.repeat}`;
+  const groupOrder: string[] = [];
+  const groups = new Map<
+    string,
+    { taskId: string; repeat: number | undefined; cells: MatrixCell[] }
+  >();
+  for (const cell of cells) {
+    const key = rowKey(cell);
+    let group = groups.get(key);
+    if (group === undefined) {
+      group = { taskId: cell.task_id, repeat: cell.repeat, cells: [] };
+      groups.set(key, group);
+      groupOrder.push(key);
+    }
+    group.cells.push(cell);
+  }
+  if (groupOrder.length === 0) {
+    throw new Error('a matrix needs at least one task with cells');
+  }
+
+  // Task list keeps its first-appearance, de-duplicated order across repeats.
   const taskOrder: string[] = [];
   for (const cell of cells) {
     if (!taskOrder.includes(cell.task_id)) taskOrder.push(cell.task_id);
   }
-  if (taskOrder.length === 0) {
-    throw new Error('a matrix needs at least one task with cells');
-  }
 
-  const rows = taskOrder.map((taskId) =>
-    buildRow(
-      taskId,
-      cells.filter((cell) => cell.task_id === taskId),
-      variantOrder,
-    ),
-  );
+  const rows = groupOrder.map((key) => {
+    const group = groups.get(key) as {
+      taskId: string;
+      repeat: number | undefined;
+      cells: MatrixCell[];
+    };
+    return buildRow(group.taskId, group.repeat, group.cells, variantOrder);
+  });
   const summaries = specs.map((spec) => summariseVariant(spec, cells));
 
   return {
@@ -226,11 +268,14 @@ export function buildMatrix(
 // Project a single-pair `ExperimentComparison` (what the live two-variant runner
 // emits per task) into matrix cells. Pure, so the live matrix runner is just a
 // loop over tasks around this and `buildMatrix`. The variant label is the
-// record's own grain id.
-export function comparisonToCells(comparison: ExperimentComparison): MatrixCell[] {
+// record's own grain id. `repeat` tags the cell with its 0-based repeat index
+// when the caller is running K>1; left undefined (the default) it reproduces
+// the single-run behavior exactly.
+export function comparisonToCells(comparison: ExperimentComparison, repeat?: number): MatrixCell[] {
   return comparison.variants.map((record) => ({
     task_id: comparison.task_id,
     variant_label: record.variant_id,
     record,
+    ...(repeat === undefined ? {} : { repeat }),
   }));
 }
