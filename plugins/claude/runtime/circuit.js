@@ -28883,13 +28883,6 @@ function expandBlockStepUse(use) {
     return result.value;
   throw new Error(result.errors.map(describeExpandBlockStepUseError).join("\n"));
 }
-function composeBlockStep(use) {
-  return expandBlockStepUse({ ...use, execution: { kind: "compose" } });
-}
-function relayBlockStep(use) {
-  const { role, ...stepUse } = use;
-  return expandBlockStepUse({ ...stepUse, execution: { kind: "relay", role } });
-}
 function validateOverrideOnlyFields(use, block) {
   const errors = [];
   if (use.output === block.output_contract) {
@@ -44484,6 +44477,81 @@ var pursueFlowData = {
 // dist/flows/pursue/flow.js
 var pursueFlowDefinition = defineFlowData(pursueFlowData);
 
+// dist/flows/review/assembly-spec.js
+var REVIEW_STAGE_PATH_RATIONALE = "Review is an audit-only flow: Intake frames the scope, Independent Audit performs the reviewer relay, and Verdict aggregates findings. There is no planning stage, no implementation/action stage, no verification rerun, and no nested review stage in this narrowed variant.";
+var reviewBlockItems = [
+  // Review's intake is a structurally distinct frame: it captures the
+  // working-tree state to audit against, not the generic scope/constraints/
+  // proof-plan a build-style frame produces. It uses the dedicated
+  // review-intake block, so its output and evidence are inherited from the
+  // block rather than restated here.
+  {
+    id: "intake-step",
+    title: "Intake \u2014 resolve review scope",
+    stage: "frame",
+    block: "review-intake",
+    input: { task: "task.intake@v1", route: "route.decision@v1" },
+    protocol: "review-intake@v1",
+    reportPath: "reports/review-intake.json",
+    required: ["scope", "evidence"],
+    routes: { continue: "audit-step", stop: "@stop" }
+  },
+  {
+    id: "audit-step",
+    title: "Independent Audit \u2014 reviewer relay",
+    stage: "analyze",
+    block: "review",
+    input: { brief: "review.intake@v1" },
+    execution: { kind: "relay", role: "reviewer" },
+    protocol: "review-audit@v1",
+    requestPath: "reports/relay/review.request.json",
+    receiptPath: "reports/relay/review.receipt.txt",
+    resultPath: "stages/analyze/review-raw-findings.json",
+    pass: ["NO_ISSUES_FOUND", "ISSUES_FOUND"],
+    routes: { continue: "verdict-step", retry: "audit-step", stop: "@stop" }
+  },
+  {
+    id: "verdict-step",
+    title: "Verdict \u2014 emit review.result",
+    stage: "close",
+    block: "close-with-evidence",
+    input: { brief: "review.intake@v1", review: "review.verdict@v1" },
+    output: "review.result@v1",
+    execution: { kind: "compose" },
+    protocol: "review-verdict@v1",
+    reportPath: "reports/review-result.json",
+    required: ["scope", "findings", "verdict"],
+    routes: { complete: "@complete", stop: "@stop" }
+  }
+];
+var reviewStageLabels = {
+  frame: { id: "intake-stage", title: "Intake" },
+  analyze: { id: "audit-stage", title: "Independent Audit" },
+  close: { id: "verdict-stage", title: "Verdict" }
+};
+var reviewAssemblySpec = {
+  id: "review",
+  title: "Review Schematic",
+  purpose: "Review flow: frame the audit scope, relay independent review to a reviewer, and close with a verdict report. The schematic uses a compact Intake, Independent Audit, and Verdict shape because Review is audit-only and does not implement or verify a change.",
+  status: "active",
+  version: "0.1.0",
+  initial_contracts: ["task.intake@v1", "route.decision@v1"],
+  contract_aliases: [
+    { generic: "flow.brief@v1", actual: "review.intake@v1" },
+    { generic: "review.verdict@v1", actual: "review.verdict@v1" },
+    { generic: "flow.result@v1", actual: "review.result@v1" }
+  ],
+  axes: {
+    allowed_depths: ["medium"],
+    supports_tournament: false,
+    supports_autonomous: false,
+    default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
+  },
+  items: reviewBlockItems,
+  stageLabels: reviewStageLabels,
+  stagePathRationale: REVIEW_STAGE_PATH_RATIONALE
+};
+
 // dist/flows/review/relay-hints.js
 var reviewRelayShapeHint = {
   kind: "structural",
@@ -44970,125 +45038,13 @@ var reviewFlowData = {
     schematic: "src/flows/review/schematic.json",
     contract: "src/flows/review/contract.md"
   },
-  schematic: {
-    schema_version: "2",
-    id: "review",
-    title: "Review Schematic",
-    purpose: "Review flow: frame the audit scope, relay independent review to a reviewer, and close with a verdict report. The schematic uses a compact Intake, Independent Audit, and Verdict shape because Review is audit-only and does not implement or verify a change.",
-    status: "active",
-    version: "0.1.0",
-    starts_at: "intake-step",
-    initial_contracts: ["task.intake@v1", "route.decision@v1"],
-    contract_aliases: [
-      {
-        generic: "flow.brief@v1",
-        actual: "review.intake@v1"
-      },
-      {
-        generic: "review.verdict@v1",
-        actual: "review.verdict@v1"
-      },
-      {
-        generic: "flow.result@v1",
-        actual: "review.result@v1"
-      }
-    ],
-    axes: {
-      allowed_depths: ["medium"],
-      supports_tournament: false,
-      supports_autonomous: false,
-      default: {
-        depth: "medium",
-        tournament: false,
-        tournament_n: 3,
-        autonomous: false
-      }
-    },
-    stage_path_policy: {
-      mode: "partial",
-      omits: ["plan", "act", "verify", "review"],
-      rationale: "Review is an audit-only flow: Intake frames the scope, Independent Audit performs the reviewer relay, and Verdict aggregates findings. There is no planning stage, no implementation/action stage, no verification rerun, and no nested review stage in this narrowed variant."
-    },
-    stages: [
-      {
-        id: "intake-stage",
-        canonical: "frame",
-        title: "Intake"
-      },
-      {
-        id: "audit-stage",
-        canonical: "analyze",
-        title: "Independent Audit"
-      },
-      {
-        id: "verdict-stage",
-        canonical: "close",
-        title: "Verdict"
-      }
-    ],
-    items: [
-      // Review's intake is a structurally distinct frame: it captures the
-      // working-tree state to audit against, not the generic scope/constraints/
-      // proof-plan a build-style frame produces. It uses the dedicated
-      // review-intake block, so its output and evidence are inherited from the
-      // block rather than restated here.
-      expandBlockStepUse({
-        id: "intake-step",
-        title: "Intake \u2014 resolve review scope",
-        stage: "frame",
-        block: "review-intake",
-        input: {
-          task: "task.intake@v1",
-          route: "route.decision@v1"
-        },
-        protocol: "review-intake@v1",
-        reportPath: "reports/review-intake.json",
-        required: ["scope", "evidence"],
-        routes: {
-          continue: "audit-step",
-          stop: "@stop"
-        }
-      }),
-      relayBlockStep({
-        id: "audit-step",
-        title: "Independent Audit \u2014 reviewer relay",
-        stage: "analyze",
-        block: "review",
-        input: {
-          brief: "review.intake@v1"
-        },
-        role: "reviewer",
-        protocol: "review-audit@v1",
-        requestPath: "reports/relay/review.request.json",
-        receiptPath: "reports/relay/review.receipt.txt",
-        resultPath: "stages/analyze/review-raw-findings.json",
-        pass: ["NO_ISSUES_FOUND", "ISSUES_FOUND"],
-        routes: {
-          continue: "verdict-step",
-          retry: "audit-step",
-          stop: "@stop"
-        }
-      }),
-      composeBlockStep({
-        id: "verdict-step",
-        title: "Verdict \u2014 emit review.result",
-        stage: "close",
-        block: "close-with-evidence",
-        input: {
-          brief: "review.intake@v1",
-          review: "review.verdict@v1"
-        },
-        output: "review.result@v1",
-        protocol: "review-verdict@v1",
-        reportPath: "reports/review-result.json",
-        required: ["scope", "findings", "verdict"],
-        routes: {
-          complete: "@complete",
-          stop: "@stop"
-        }
-      })
-    ]
-  },
+  // First-class composition (A5): review is one of the assembler's production
+  // customers. Its block sequence and scaffolding live in ./assembly-spec.ts;
+  // `assembleFlowSchematic` derives starts_at / stages / stage_path_policy and
+  // returns the validated FlowSchematic that used to be a hand-authored literal
+  // here. The prove-by-equivalence test proves the assembled schematic is
+  // byte-identical to the former literal (schematic + compiled).
+  schematic: assembleFlowSchematic(reviewAssemblySpec),
   canonicalStagePolicy: {
     kind: "enforce",
     canonicals: ["frame", "analyze", "close"],
@@ -45253,6 +45209,59 @@ var reviewResultProjector = (ctx) => {
   });
 };
 
+// dist/flows/runtime-proof/assembly-spec.js
+var RUNTIME_PROOF_STAGE_PATH_RATIONALE = "Runtime Proof is a narrow proof flow; only plan and act are needed to exercise compose and relay through the runtime boundary.";
+var runtimeProofBlockItems = [
+  {
+    id: "compose-step",
+    title: "Compose runtime proof report",
+    stage: "plan",
+    block: "plan",
+    input: { brief: "flow.brief@v1" },
+    execution: { kind: "compose" },
+    protocol: "runtime-proof-compose@v1",
+    reportPath: "reports/compose.json",
+    required: ["summary"],
+    routes: { continue: "relay-step" }
+  },
+  {
+    id: "relay-step",
+    title: "Relay dry-run connector",
+    stage: "act",
+    block: "act",
+    input: { brief: "flow.brief@v1", plan: "plan.strategy@v1" },
+    execution: { kind: "relay", role: "implementer" },
+    protocol: "runtime-proof-relay@v1",
+    requestPath: "reports/relay.request.json",
+    receiptPath: "reports/relay.receipt.json",
+    resultPath: "reports/relay.result.json",
+    pass: ["ok"],
+    routes: { continue: "@complete" }
+  }
+];
+var runtimeProofStageLabels = {
+  plan: { id: "plan-stage", title: "Plan" },
+  act: { id: "act-stage", title: "Act" }
+};
+var runtimeProofAssemblySpec = {
+  id: "runtime-proof",
+  title: "Runtime Proof Schematic",
+  purpose: "Runtime Proof flow: exercise one compose step and one relay step end-to-end so the runtime boundary can be observed closing a real run.",
+  status: "active",
+  version: "0.1.0",
+  initial_contracts: ["flow.brief@v1"],
+  contract_aliases: [],
+  axes: {
+    allowed_depths: ["medium"],
+    supports_tournament: false,
+    supports_autonomous: false,
+    default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
+  },
+  items: runtimeProofBlockItems,
+  stageLabels: runtimeProofStageLabels,
+  stagePathRationale: RUNTIME_PROOF_STAGE_PATH_RATIONALE
+};
+
 // dist/flows/runtime-proof/reports.js
 var RuntimeProofCompose = external_exports.object({
   summary: external_exports.string().min(1)
@@ -45272,99 +45281,7 @@ var runtimeProofComposeBuilder = {
 var runtimeProofPaths = {
   schematic: "src/flows/runtime-proof/schematic.json"
 };
-var runtimeProofSchematic = {
-  schema_version: "2",
-  id: "runtime-proof",
-  title: "Runtime Proof Schematic",
-  purpose: "Runtime Proof flow: exercise one compose step and one relay step end-to-end so the runtime boundary can be observed closing a real run.",
-  status: "active",
-  version: "0.1.0",
-  starts_at: "compose-step",
-  initial_contracts: ["flow.brief@v1"],
-  contract_aliases: [],
-  axes: {
-    allowed_depths: ["medium"],
-    supports_tournament: false,
-    supports_autonomous: false,
-    default: {
-      depth: "medium",
-      tournament: false,
-      tournament_n: 3,
-      autonomous: false
-    }
-  },
-  stage_path_policy: {
-    mode: "partial",
-    omits: ["frame", "analyze", "verify", "review", "close"],
-    rationale: "Runtime Proof is a narrow proof flow; only plan and act are needed to exercise compose and relay through the runtime boundary."
-  },
-  stages: [
-    {
-      id: "plan-stage",
-      canonical: "plan",
-      title: "Plan"
-    },
-    {
-      id: "act-stage",
-      canonical: "act",
-      title: "Act"
-    }
-  ],
-  items: [
-    {
-      id: "compose-step",
-      title: "Compose runtime proof report",
-      stage: "plan",
-      block: "plan",
-      input: {
-        brief: "flow.brief@v1"
-      },
-      output: "plan.strategy@v1",
-      evidence_requirements: ["ordered steps", "risk notes", "proof strategy"],
-      execution: {
-        kind: "compose"
-      },
-      protocol: "runtime-proof-compose@v1",
-      writes: {
-        report_path: "reports/compose.json"
-      },
-      check: {
-        required: ["summary"]
-      },
-      routes: {
-        continue: "relay-step"
-      }
-    },
-    {
-      id: "relay-step",
-      title: "Relay dry-run connector",
-      stage: "act",
-      block: "act",
-      input: {
-        brief: "flow.brief@v1",
-        plan: "plan.strategy@v1"
-      },
-      output: "change.evidence@v1",
-      evidence_requirements: ["changed files", "change rationale", "declared follow-up proof"],
-      execution: {
-        kind: "relay",
-        role: "implementer"
-      },
-      protocol: "runtime-proof-relay@v1",
-      writes: {
-        request_path: "reports/relay.request.json",
-        receipt_path: "reports/relay.receipt.json",
-        result_path: "reports/relay.result.json"
-      },
-      check: {
-        pass: ["ok"]
-      },
-      routes: {
-        continue: "@complete"
-      }
-    }
-  ]
-};
+var runtimeProofSchematic = assembleFlowSchematic(runtimeProofAssemblySpec);
 var runtimeProofCanonicalStagePolicy = {
   kind: "exempt",
   reason: "partial-stage path, recorded"
