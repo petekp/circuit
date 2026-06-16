@@ -46,8 +46,13 @@ rollup across tasks:
 node experiments/e1/run-matrix.ts
 
 # Live lane — fix + build --depth high across every --task, then stops. SPENDS BUDGET.
-node experiments/e1/run-matrix.ts --live --task heldout-wrap-index --task heldout-fit-width --out /tmp/e1-matrix
+node experiments/e1/run-matrix.ts --live --task heldout-wrap-index --task heldout-token-bucket --out /tmp/e1-matrix
 ```
+
+`--task` ids resolve against `--tasks-root`, which defaults to
+`evals/grain-separability/tasks` — the set whose tasks carry pre-registered
+separability bands. Point it elsewhere (for example
+`--tasks-root evals/fix-vs-vanilla/tasks`) to run the grid over a different set.
 
 ## How the pieces fit
 

@@ -28,7 +28,13 @@ interface CliOptions {
   readonly timeoutMs: number;
   readonly repeats: number;
   readonly outDir: string | null;
+  readonly tasksRoot: string;
 }
+
+// The grain-separability set is this harness's home tasks-root: it is the set
+// whose tasks carry pre-registered separability bands. Point elsewhere with
+// --tasks-root to run the grid over a different eval set.
+const DEFAULT_TASKS_ROOT = join(REPO_ROOT, 'evals', 'grain-separability', 'tasks');
 
 function parseArgs(argv: readonly string[]): CliOptions {
   let live = false;
@@ -37,6 +43,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
   let timeoutMs = 20 * 60 * 1000;
   let repeats = 1;
   let outDir: string | null = null;
+  let tasksRoot = DEFAULT_TASKS_ROOT;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -47,6 +54,10 @@ function parseArgs(argv: readonly string[]): CliOptions {
       case '--task':
         i += 1;
         if (argv[i] !== undefined) taskIds.push(argv[i] as string);
+        break;
+      case '--tasks-root':
+        i += 1;
+        if (argv[i] !== undefined) tasksRoot = resolve(REPO_ROOT, argv[i] as string);
         break;
       case '--power':
         i += 1;
@@ -82,7 +93,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
     }
   }
 
-  return { live, taskIds, power, timeoutMs, repeats, outDir };
+  return { live, taskIds, power, timeoutMs, repeats, outDir, tasksRoot };
 }
 
 function printHelpAndExit(code = 0): never {
@@ -100,6 +111,9 @@ function printHelpAndExit(code = 0): never {
       '',
       'Options:',
       '  --task <id>        Eval task id; repeatable (live only)',
+      '  --tasks-root <dir> Eval set to resolve --task ids against',
+      '                     (default: evals/grain-separability/tasks).',
+      '                     Relative paths resolve from the repo root.',
       '  --power <tier>     low | medium | high (default: medium, live only)',
       '  --repeats, -k <n>  Times to run every task (default: 1, live only).',
       '                     Run order interleaves: every task once per pass, so',
@@ -135,6 +149,7 @@ async function buildMatrixForCli(options: CliOptions): Promise<ExperimentMatrix>
       '',
       '  ⚠️  LIVE MATRIX — this spends model budget.',
       `      tasks:   ${options.taskIds.join(', ')}`,
+      `      root:    ${options.tasksRoot}`,
       `      power:   ${options.power}`,
       `      repeats: ${options.repeats} (interleaved across tasks)`,
       `      runs:    ${totalRuns} (tasks × repeats × 2 grains)`,
@@ -146,7 +161,7 @@ async function buildMatrixForCli(options: CliOptions): Promise<ExperimentMatrix>
 
   return runLiveMatrix({
     taskIds: options.taskIds,
-    tasksRoot: join(REPO_ROOT, 'evals', 'fix-vs-vanilla', 'tasks'),
+    tasksRoot: options.tasksRoot,
     repoRoot: REPO_ROOT,
     workRoot,
     power: options.power,

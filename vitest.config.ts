@@ -17,8 +17,10 @@ export default defineConfig({
       // resolve once the runner overlays them onto a repo copy. None of the task
       // tree is a repo unit test — the harness runs it in isolated copies — so
       // exclude the whole tree, not just repo/ (objective/ would otherwise slip past).
-      'evals/fix-vs-vanilla/tasks/**',
-      'evals/fix-vs-vanilla/results/**',
+      // Scoped to every eval set's task/result tree (fix-vs-vanilla,
+      // grain-separability, ...) so a new set never reintroduces this footgun.
+      'evals/*/tasks/**',
+      'evals/*/results/**',
       // E1 live-run scratch (gitignored): isolated worktree copies of a task
       // repo, each carrying the task's own `.mjs` Node tests. Like the task tree
       // above, these are not vitest suites — exclude them so a live comparison
