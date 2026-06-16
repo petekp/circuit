@@ -62898,6 +62898,54 @@ var RecoveryCorridor = class {
       this.active = void 0;
     }
   }
+  /**
+   * Checkpoint-resume reseed: replay the durable `step.completed` entries so a
+   * resumed run lands on the same STRUCTURAL corridor identity (which recovery
+   * route is active, with what origin step) the prior process held. Mirrors
+   * seedSkillHookInjectionsFromTrace / seedPowerInferenceFromTrace: a fold over
+   * existing trace entries into the in-memory channel, applying the exact
+   * enter / clearIfExitingOrigin transitions the live loop applies after each
+   * step completes (graph-runner: enter on a recovery-mechanics route, then
+   * clearIfExitingOrigin when the origin re-completes without mechanics).
+   *
+   * Faithfulness boundary — read before relying on this. The durable
+   * `step.completed` entry carries only `route_taken` (+ ids/attempt/slice).
+   * The live `enter()` also took executor-outcome fields — `recoveryReason`
+   * (details.reason), `recoveryFailure`, and `acceptanceFeedback`
+   * (details.acceptance_feedback) — that are NOT persisted to the trace. This
+   * reseed therefore restores ONLY the structural fields (originStepId, route)
+   * and deliberately leaves the payload fields undefined. The consequence is
+   * exact: after reseed `lastReasonSuffix()` returns '' and
+   * `acceptanceFeedbackForReentry()` returns undefined even where the live run
+   * carried a reason / feedback. `evidenceFor()` likewise has no seeded failure
+   * to surface. That payload gap is the spec line for the full cursor
+   * (docs/ideas/durability-tier2-cursor-spec.md); restoring it requires
+   * persisting those fields, which is out of scope for this foundation slice.
+   *
+   * This is plumbing ahead of its consumer: no current code path resumes at an
+   * arbitrary step.completed, so this is inert until a Tier-2 cursor calls it.
+   */
+  seedFromTrace(entries) {
+    for (const entry of entries) {
+      if (entry.kind !== "step.completed")
+        continue;
+      const step = this.deps.steps.get(entry.step_id);
+      if (step === void 0)
+        continue;
+      const route = entry.route_taken;
+      const routeHasRecoveryMechanics = this.deps.routeHasRecoveryMechanics({ step, route });
+      if (routeHasRecoveryMechanics) {
+        this.enter({
+          originStepId: entry.step_id,
+          route,
+          recoveryReason: void 0,
+          recoveryFailure: void 0,
+          acceptanceFeedback: void 0
+        });
+      }
+      this.clearIfExitingOrigin({ stepId: entry.step_id, routeHasRecoveryMechanics });
+    }
+  }
   canReachStepViaNonRecoveryRoutes(input) {
     if (input.fromStepId === input.targetStepId)
       return true;
@@ -64336,6 +64384,9 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     routeHasRecoveryMechanics: ({ step, route }) => isRecoveryRouteForMechanics({ bindings: recoveryRouteBindings, step, route }),
     latestStepReportOrRelayRef: ({ stepId, attempt }) => latestStepReportOrRelayRef({ context, stepId, attempt })
   });
+  if (isResume) {
+    corridor.seedFromTrace(existingTrace);
+  }
   for (let index = 0; index < maxSteps; index += 1) {
     const step = steps.get(currentStepId);
     if (step === void 0) {
