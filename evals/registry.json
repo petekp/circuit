@@ -109,6 +109,25 @@
       "cadence": "ad-hoc",
       "claim_eligible": false,
       "readme_path": "evals/resumption-quiz/README.md"
+    },
+    {
+      "id": "grain-separability",
+      "claim_level": "discovery",
+      "flow": "auto",
+      "primary_metric": "false_fixed_rate",
+      "secondary_metrics": [
+        "objective_fixed_rate",
+        "cost_ratio_vs_baseline",
+        "verdict"
+      ],
+      "default_command": [
+        "node",
+        "experiments/e1/run-matrix.ts"
+      ],
+      "cost_class": "live-model",
+      "cadence": "ad-hoc",
+      "claim_eligible": false,
+      "readme_path": "evals/grain-separability/README.md"
     }
   ]
 }

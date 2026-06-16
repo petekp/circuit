@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "set_id": "grain-separability",
+  "status": "experiment-internal",
+  "purpose": "Measure whether a flow's grain changes outcome quality as a function of how separable the task is. The independent variable is grain: holistic (fix) versus separated (build --depth high). The moderator is the task's a-priori separability band.",
+  "independent_variable": "grain: holistic fix vs separated build --depth high",
+  "moderator": "separability band (separable | mixed | entangled), pre-registered per task",
+  "primary_metric": "false_fixed_rate",
+  "secondary_metrics": [
+    "objective_fixed_rate",
+    "cost_ratio_vs_baseline",
+    "verdict"
+  ],
+  "harness": "node experiments/e1/run-matrix.ts --live --task <id> --repeats 5 (this set is the harness default tasks-root)",
+  "decision_rule_doc": "docs/ideas/grain-separability-experiment-design.md",
+  "lineage_note": "heldout-wrap-index and heldout-normalize-email are copied from the fix-vs-vanilla held-out set to give this experiment its separable band. They keep their ids and still live in fix-vs-vanilla too; the two sets are independent.",
+  "bands": {
+    "separable": ["heldout-wrap-index", "heldout-normalize-email"],
+    "mixed": ["heldout-pagination-cursor", "heldout-retry-backoff"],
+    "entangled": ["heldout-token-bucket", "heldout-invoice-rounding"]
+  },
+  "tasks": [
+    "heldout-wrap-index",
+    "heldout-normalize-email",
+    "heldout-pagination-cursor",
+    "heldout-retry-backoff",
+    "heldout-token-bucket",
+    "heldout-invoice-rounding"
+  ]
+}
