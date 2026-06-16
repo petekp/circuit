@@ -31,33 +31,36 @@ the surfaced remedy (entangled-task spec + harness K-repeat gap).
 |---|---|---|---|
 | Infra | base off origin/main, report backbone | DONE | `overnight/foundation-frontier` |
 | B0/B1 | grain experiment | **SKIP+SURFACE (no spend)** — DECIDED | `grain-experiment-deferred.md` |
-| A4 | typed vocabulary | build DONE (commit 69504af2), verify+PR pending | `feat/vocabulary-finding` |
-| A5 | migrate 6 built-ins onto assembler | building | `feat/assembler-builtins-migration` |
-| A1 | durability Tier-2 foundation slice | building | `feat/durability-tier2-foundation` |
-| B2 | structure chooser (thin) | building | `feat/structure-chooser` |
-| B3 | two resolvers same shape | not started (after A5+B2) | — |
-| A6 | equipment skills injection | not started (after A5) | — |
-| A2 | Tier-3 crash-safe linkage | spec being written | docs only |
-| A3 | parallel decision inbox | spec being written | docs only |
-| B4 | three deep forks | specs being written | docs only (spikes sketched in-spec) |
+| A4 | typed vocabulary | **DONE — verify green, held PR #92** | `feat/vocabulary-finding` |
+| A5 | migrate 6 built-ins onto assembler | **DONE — verify green, held PR #94** | `feat/assembler-builtins-migration` |
+| A1 | durability Tier-2 foundation slice | **DONE — verify green, held PR #93** | `feat/durability-tier2-foundation` |
+| B2 | structure chooser (thin) | **DONE — verify green, held PR #95** | `feat/structure-chooser` |
+| B3 | two resolvers same shape | building (off B2 / PR #95) | `feat/equipment-resolver` |
+| A6 | equipment skills injection | building (off A5 / PR #94) | `feat/equipment-skills-injection` |
+| A2 | Tier-3 crash-safe linkage | spec DONE + committed (f6916e4e) | docs only |
+| A3 | parallel decision inbox | spec DONE + committed (f6916e4e) | docs only |
+| B4 | three deep forks | specs DONE + committed (f6916e4e) | docs only (spikes sketched in-spec) |
 
-### Verify + PR strategy
+### Verify + PR strategy (executed)
 
-Build agents work in isolated worktrees off `origin/main` with a shared
-(symlinked) `node_modules`. To avoid vitest cache races, full `npm run verify`
-gates + `gh pr create` (HOLD MERGE) are **serialized after the build agents
-finish**, not run concurrently. Committed branches already bank the value; PRs
-are wrappers. If budget ends before PRs open, the branches + this report let a
-fresh session open them.
+Build agents worked in isolated worktrees off `origin/main` with a shared
+(symlinked) `node_modules`. Full `npm run verify` gates + `gh pr create`
+(HOLD MERGE) were **serialized after the build agents finished** to avoid vitest
+cache races. All four foundation PRs are open and independently verify-green:
+**A4 #92, A1 #93, A5 #94, B2 #95.** A1 needed one extra commit regenerating the
+host runtime bundles (its new runtime code changes the compiled CLI — the known
+"runtime change drifts host bundles" gotcha); re-verified green after.
 
 ### Recommended next step for a fresh session
 
-1. For each branch with "build DONE", in its worktree: sweep any `zzz-*` scratch,
-   run full `npm run verify`, then `gh pr create` with HOLD MERGE.
-2. Launch B3 (off `feat/structure-chooser`) then A6 (off
-   `feat/assembler-builtins-migration`) — the remaining schematic-touching
-   cluster. See **Recommended merge order** at the bottom.
-3. Each PR is held and independently verify-green; do not merge here.
+1. B3 (`feat/equipment-resolver`, off B2) and A6 (`feat/equipment-skills-injection`,
+   off A5) are the last two chunks, building now. When each finishes: in its
+   worktree run full `npm run verify` (regenerate host bundles with
+   `npm run build-plugin-runtime` if `check-flow-drift` complains), then
+   `gh pr create` with HOLD MERGE.
+2. Commit the report's final pass + any open findings to the docs branch.
+3. Every PR is held and independently verify-green; do not merge here. See
+   **Recommended merge order** at the bottom.
 
 ---
 
@@ -80,6 +83,36 @@ B0 pre-registered branch, the correct action is skip-and-surface.
   Spec written as part of this chunk.
 
 **B2 consequence:** thin-conservative chooser; "needs more data."
+
+### B2 — structure chooser (built, thin conservative) + a load-bearing finding
+
+**Built:** `src/flows/resolvers/structure.ts` (pure, public-types-only, no engine
+dep) + a `--decompose` flag on `create`. With no signal (the common case) the
+chooser returns `whole` and folds build's 9-step spine to the 5-step
+`frame -> plan -> act -> verify -> close`; `--decompose` (or large surface /
+high risk) yields the full spine. Shared shape recorded in the resolver header
+(points at the lab's `SHARED-SHAPE.md`), NOT extracted — a third instance is the
+honest trigger. `resolvers/` registered as shared cross-flow infra in the two
+gates that walk `src/flows/` (same treatment `registries` gets). Host runtime
+bundles regenerated (`npm run build-plugin-runtime`), committed separately.
+
+**Finding (surfaced fork, not a STOP):** the whole grain **assembles, compiles,
+validates, and publishes** as a valid package and passes every static gate, but
+it **cannot RUN end-to-end**. Build's `close-with-evidence` writer
+(`src/flows/build/writers/close.ts` + `result-projection.ts`) hard-requires
+`build.review@v1` + `build.touch-area@v1`, which the whole-grain fold removes, so
+close aborts ("expected exactly one report writer for schema 'build.review@v1',
+found 0"). The offline lab never caught this because `scoreSpec` assembles +
+compiles + scores but never runs. Making the whole grain runnable needs an
+engine/built-in change (build's close writer + `BuildResult` schema tolerating
+absent review/touch-area) — out of B2 scope and forbidden by the engine-boundary
+rule, so it was NOT forced. The decomposed grain runs to `complete` cleanly, so
+the pre-existing end-to-end create+run test was pointed at `--decompose`. This is
+a real decision for the operator: the conservative whole grain is publishable but
+not yet runnable for build-derived custom flows; the runnable path today is the
+decomposed spine. **This belongs in the resolver/abstraction deep-fork discussion
+(B4) — it is concrete evidence that the chop/hold default interacts with built-in
+close-writer contracts.**
 
 ### A4 — typed vocabulary (the pantry)
 
@@ -123,18 +156,45 @@ proof, app→runtime staleness-gate boundary). Decision-ready spec written.
   on it producing non-build shapes).
 - **Grain verdict:** null-by-construction (taskset gap); B2 → thin conservative.
 - **A1 dependency outcome:** foundation slice banked; cursor surfaced; A2/A3
-  surface-only.
+  surface-only. A1 also surfaced that the trace does not persist the executor
+  `outcome.details` payload, so a faithful rehydration is impossible from durable
+  state alone — the rehydrator restores structure only and a test pins the gap.
+- **B2 structure-chooser finding:** the conservative whole grain is publishable
+  but NOT runnable for build-derived custom flows — build's close-with-evidence
+  writer hard-requires `build.review@v1` + `build.touch-area@v1`. The runnable
+  path today is `--decompose`. Concrete input to the B4 resolver/abstraction
+  fork: chop/hold interacts with built-in close-writer contracts.
 
 ---
 
 ## Recommended merge order
 
-_(filled in as PRs open)_
-
-1. _Independent, no schematic collision:_ A4, A1.
+1. _Independent, no schematic collision (merge in either order):_ **A4 (#92)**,
+   **A1 (#93)**.
 2. _Schematic-touching cluster — merge in this order, rebasing each onto the
-   prior:_ **A5** (assembler migration, byte-identical) → **B2** (structure
-   chooser) → **B3** (equipment trusted resolver, adds skill_slots) → **A6**
-   (equipment skills enforcement on top).
-3. Surface-only docs (A2/A3/B4 specs, grain spec) — no engine merge; land as a
-   docs PR or alongside.
+   prior:_ **A5 (#94)** (assembler migration, byte-identical) → **B2 (#95)**
+   (structure chooser) → **B3** (equipment resolver, custom-flow decision layer)
+   → **A6** (equipment skills injection on shipped flows). B3 was built off B2 and
+   A6 off A5, so each already contains its predecessor's commits except where the
+   tree branches (B3 lacks A5; A6 lacks B2/B3) — expect a clean rebase since their
+   file surfaces are disjoint (B3 = `src/flows/resolvers/`; A6 = shipped-flow
+   `assembly-spec.ts` + runtime injection + the ratchet test).
+3. Surface-only docs — the docs branch `overnight/foundation-frontier` (commit
+   f6916e4e) carries the A2/A3 specs, the three B4 deep-fork specs, and the grain
+   skip verdict. No engine merge; land as a docs PR or alongside.
+
+### What is HELD for the operator (the genuine decisions)
+
+- **B2 finding:** the conservative whole grain is publishable but not runnable for
+  build-derived custom flows (build's close writer hard-requires
+  `build.review@v1` + `build.touch-area@v1`). Decide whether to make build's close
+  writer tolerate absent review/touch-area (an engine/built-in change) or keep
+  `--decompose` as the runnable path. Feeds the B4 resolver-abstraction fork.
+- **A1 finding:** the trace does not persist executor `outcome.details`, so a
+  faithful recovery-corridor rehydration needs a schema change (folded into the
+  cursor spec). The resumable cursor proper is multi-week.
+- **B4 deep forks (surface-only specs):** uniform recursion E3, the resolver
+  abstraction (do NOT extract yet — a third instance is the trigger), and adaptive
+  bubble-up recompile. Each has a decision-ready spec on the docs branch.
+- **Grain experiment:** not run (taskset has no entangled tasks). Remedy spec
+  written; re-run only after the taskset spans separable/mixed/entangled.
