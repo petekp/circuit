@@ -4,11 +4,19 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Command } from 'commander';
 import { parse as parseYaml } from 'yaml';
-import { assembleFlowSchematic } from '../flows/assemble-flow-schematic.js';
+import {
+  type FlowSchematicAssemblySpec,
+  assembleFlowSchematic,
+} from '../flows/assemble-flow-schematic.js';
 import { buildAssemblySpec } from '../flows/build/assembly-spec.js';
 import { validateCompiledFlowKindPolicy } from '../flows/canonical-stage-policy.js';
 import { catalogFlowIds } from '../flows/catalog.js';
 import { compileSchematicToCompiledFlow } from '../flows/compile-schematic-to-flow.js';
+import {
+  type StructureTaskContext,
+  applyStructure,
+  resolveStructure,
+} from '../flows/resolvers/structure.js';
 import { CompiledFlow } from '../schemas/compiled-flow.js';
 import { CustomFlowPackageDescriptor } from '../schemas/custom-flow-descriptor.js';
 import { progressPresentation } from '../shared/progress-output.js';
@@ -25,6 +33,9 @@ interface CreateArgs {
   readonly yes: boolean;
   readonly createdAt?: string;
   readonly progress: boolean;
+  // Explicit request for the full decomposed spine. Absent → the structure
+  // chooser leans to the thin-conservative whole grain (see assembleCustomFlow).
+  readonly decompose: boolean;
 }
 
 interface CreateMainOptions {
@@ -49,6 +60,7 @@ function parseArgs(argv: readonly string[]): CreateArgs {
     .option('--created-at <iso>')
     .option('--publish')
     .option('--yes')
+    .option('--decompose')
     .option('--progress <format>');
   parseCommanderOrThrow(program, argv);
   if (program.args.length > 0) throw new Error(`unexpected argument: ${program.args[0]}`);
@@ -60,6 +72,7 @@ function parseArgs(argv: readonly string[]): CreateArgs {
     createdAt?: string;
     publish?: boolean;
     yes?: boolean;
+    decompose?: boolean;
     progress?: string;
   }>();
   if (opts.progress !== undefined && opts.progress !== 'jsonl') {
@@ -69,6 +82,7 @@ function parseArgs(argv: readonly string[]): CreateArgs {
   return {
     publish: opts.publish === true,
     yes: opts.yes === true,
+    decompose: opts.decompose === true,
     progress: opts.progress === 'jsonl',
     ...(opts.name === undefined ? {} : { name: opts.name }),
     ...(opts.description === undefined ? {} : { description: opts.description }),
@@ -155,23 +169,56 @@ function validateCustomFlow(slug: string, flow: CompiledFlow, source: string): v
   }
 }
 
-// First-class composition (M9): a custom flow is produced through the SAME
-// sanctioned path build's own data.ts uses — assemble the build block spec with
-// the custom id/purpose, then compile — rather than reading and cloning build's
-// COMPILED bytes off disk. This retires the template-clone, the last second
-// production mechanism, so create needs no on-disk template and no
-// --template-flow-root. The result is byte-identical to the former clone (modulo
-// id/purpose); see tests/contracts/custom-flow-descriptor.test.ts and the
-// create equivalence assertion in tests/runner/utility-cli.test.ts.
+// Derive the structure chooser's task context from the create args. The chooser
+// is THIN and lean-to-whole: with no clear decompose signal a created flow folds
+// to the whole grain. create has no reliable surface-area/risk signal in a
+// one-line description, so those default to the conservative `small`/`low`; the
+// only explicit lever is the operator's `--decompose` flag, which maps to
+// `explicit_decompose` and earns build's full spine. This keeps the DEFAULT
+// thin-conservative (whole) when signals are absent — the common case.
+function structureTaskFromCreate(input: {
+  readonly description: string;
+  readonly decompose: boolean;
+}): StructureTaskContext {
+  return {
+    summary: input.description,
+    surface_area: 'small',
+    risk: 'low',
+    ...(input.decompose ? { explicit_decompose: true } : {}),
+  };
+}
+
+// First-class composition (M9) + the B2 structure chooser. A custom flow is
+// produced through the SAME sanctioned path build's own data.ts uses — assemble
+// a block spec with the custom id/purpose, then compile — rather than reading
+// and cloning build's COMPILED bytes off disk. B2 adds the grain choice: the
+// structure resolver picks `whole` (a folded frame->plan->act->verify->close
+// spine, the conservative default) or `decomposed` (build's full spine) and
+// transforms the seed spec accordingly via `applyStructure`. Folding reuses
+// build's body-registered actuals, so the folded flow rides the same typed seams
+// and passes the fail-closed catalog/contract gates the full spine does.
+//
+// `applyStructure` stamps a grain suffix onto the seed id (for offline
+// measurement); create re-sets `id` to the slug so the published flow's identity
+// stays the slug and `validateCustomFlow`'s id check holds. The decomposed path
+// is byte-identical to the former full-spine clone (modulo id/purpose); see
+// tests/contracts/custom-flow-descriptor.test.ts, tests/runner/structure-chooser.test.ts,
+// and the create assertions in tests/runner/utility-cli.test.ts.
 function assembleCustomFlow(input: {
   readonly slug: string;
   readonly description: string;
+  readonly decompose: boolean;
 }): CompiledFlow {
-  const schematic = assembleFlowSchematic({
+  const seed: FlowSchematicAssemblySpec = {
     ...buildAssemblySpec,
     id: input.slug,
     purpose: input.description,
-  });
+  };
+  const resolution = resolveStructure(
+    structureTaskFromCreate({ description: input.description, decompose: input.decompose }),
+  );
+  const grained = applyStructure(seed, resolution);
+  const schematic = assembleFlowSchematic({ ...grained, id: input.slug });
   const compiled = compileSchematicToCompiledFlow(schematic);
   if (compiled.kind !== 'single') {
     throw new Error(`custom flow assembled to an unexpected '${compiled.kind}' package`);
@@ -447,7 +494,7 @@ export async function runCreateCommand(
     const flow =
       args.publish && draftExists
         ? loadDraftFlow(home, slug)
-        : assembleCustomFlow({ slug, description: args.description });
+        : assembleCustomFlow({ slug, description: args.description, decompose: args.decompose });
     const outputDescription = args.publish && draftExists ? flow.purpose : args.description;
     if (args.publish && draftExists) {
       writeValidationResult({ home, slug, flow, source: 'draft' });

@@ -12,6 +12,7 @@ import { CUSTOM_FLOW_ROOT_RUNTIME_POLICY } from '../../src/cli/runtime-routing-p
 import { assembleFlowSchematic } from '../../src/flows/assemble-flow-schematic.js';
 import { buildAssemblySpec } from '../../src/flows/build/assembly-spec.js';
 import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
+import { applyStructure, resolveStructure } from '../../src/flows/resolvers/structure.js';
 import {
   CompiledFlow,
   CompiledFlowId,
@@ -130,6 +131,11 @@ afterEach(() => {
 describe('utility CLI commands', () => {
   it('creates, validates, and publishes a custom flow package', async () => {
     const home = tempRoot('circuit-create-');
+    // B2: this test also RUNS the published flow end-to-end. Running build's
+    // close-with-evidence writer requires the full review + touch-area evidence
+    // set, which only the decomposed (full-spine) grain produces — so create
+    // with --decompose. The thin-conservative whole-grain choice (and that it is
+    // a valid published package) is covered by tests/runner/structure-chooser.test.ts.
     const result = await captureMain(
       [
         'create',
@@ -141,6 +147,7 @@ describe('utility CLI commands', () => {
         home,
         '--publish',
         '--yes',
+        '--decompose',
         '--created-at',
         '2026-04-29T23:00:00.000Z',
       ],
@@ -182,17 +189,31 @@ describe('utility CLI commands', () => {
 
     // The published flow is produced through the sanctioned assemble->compile
     // path build's own data.ts uses — not a clone of build's compiled bytes off
-    // disk. Prove the published bytes ARE the assembler's output for this slug.
+    // disk. B2: the structure chooser now picks the grain. This task was created
+    // with --decompose, so it materializes the DECOMPOSED (full-spine) grain,
+    // which is byte-identical to the former full-spine clone (modulo id/purpose).
+    // Prove the published bytes ARE the assembler's output for this slug at that grain.
     const publishedFlow = CompiledFlow.parse(JSON.parse(readFileSync(output.flow_path, 'utf8')));
-    const assembled = compileSchematicToCompiledFlow(
-      assembleFlowSchematic({
+    const grained = applyStructure(
+      {
         ...buildAssemblySpec,
         id: 'release-note-flow',
         purpose: 'Draft release notes from a change summary',
+      },
+      resolveStructure({
+        summary: 'Draft release notes from a change summary',
+        surface_area: 'small',
+        risk: 'low',
+        explicit_decompose: true,
       }),
+    );
+    const assembled = compileSchematicToCompiledFlow(
+      assembleFlowSchematic({ ...grained, id: 'release-note-flow' }),
     );
     if (assembled.kind !== 'single') throw new Error(assembled.kind);
     expect(publishedFlow).toEqual(CompiledFlow.parse(assembled.flow));
+    // The decomposed grain is build's full spine, step-for-step.
+    expect(publishedFlow.steps.length).toBe(buildAssemblySpec.items.length);
 
     const projectRoot = tempRoot('circuit-create-run-project-');
     writeFileSync(
