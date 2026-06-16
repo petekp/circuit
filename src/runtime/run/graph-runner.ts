@@ -451,6 +451,17 @@ async function executeExecutableFlowOutcomeUnsafe(
     latestStepReportOrRelayRef: ({ stepId, attempt }) =>
       latestStepReportOrRelayRef({ context, stepId, attempt }),
   });
+  // Reseed the recovery-corridor's structural identity from the durable trace,
+  // mirroring the skill-hook / power-inference reseeds above. Inert today: the
+  // only resume entrypoint is a checkpoint boundary, which is never inside an
+  // open corridor, so `existingTrace` replays to no active corridor. This is
+  // plumbing ahead of a Tier-2 cursor that resumes at an arbitrary
+  // step.completed; see docs/ideas/durability-tier2-cursor-spec.md (the
+  // executor-outcome payload — reason / acceptance feedback — is NOT in the
+  // trace and is the spec line for that cursor). No-op on a fresh run.
+  if (isResume) {
+    corridor.seedFromTrace(existingTrace);
+  }
   for (let index = 0; index < maxSteps; index += 1) {
     const step = steps.get(currentStepId);
     if (step === undefined) {
