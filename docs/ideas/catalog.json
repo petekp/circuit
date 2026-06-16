@@ -1040,6 +1040,30 @@
         "docs/ideas/deepfork-resolver-abstraction-spec.md"
       ],
       "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/grain-chooser-run-report.md",
+      "title": "Grain experiment + structure chooser run report (2026-06-16)",
+      "status": "design-evaluation",
+      "category": "verification-and-evals",
+      "tags": [
+        "grain",
+        "structure-chooser",
+        "eval",
+        "false-fixed-rate",
+        "null-result",
+        "experiment",
+        "integration"
+      ],
+      "current_reading": "Run report for the 2026-06-16 grain experiment and structure-chooser batch. The grain experiment (40 live runs across 4 tasks, 2 grains, 5 repeats) returned a null verdict on its pre-committed metric: the false-fixed rate was 0 in every cell, both grains and both bands, so the coherence-vs-verification hypotheses could not be adjudicated. Every miss was an honest abort, not a false claim of done. Per the decision rule the thin-conservative structure chooser was held unchanged and re-validated green on the flow-lab quality ratchet. Also records the grain task isolation (PR #100), the close-writer fold-tolerance fix (PR #102), and the durability restart-linkage spec (PR #101), integrated as one verified batch. The honest follow-up is tasks that actually induce false-fixing, not more repeats of these.",
+      "related": [
+        "docs/ideas/grain-separability-experiment-design.md",
+        "docs/ideas/grain-taskset-ready.md",
+        "docs/ideas/grain-experiment-deferred.md",
+        "docs/ideas/durability-tier3-restart-linkage-spec.md",
+        "docs/ideas/resolver-shared-shape.md"
+      ],
+      "last_checked": "2026-06-16"
     }
   ]
 }
