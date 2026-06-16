@@ -1,0 +1,21 @@
+{
+  "id": "heldout-invoice-rounding",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "entangled-two-module",
+  "prompt": "Our invoices come out a cent or two off on orders with discounted lines. Each line price lives in src/price.mjs (it applies the line's discount) and the order total lives in src/invoice.mjs (it sums the lines). The two disagree about where rounding happens, so totals drift. Settle on one consistent rounding rule across both files: round each line to whole cents, then report the exact sum of those rounded lines. The regression command is `npm test`; it should fail before the fix and pass after the fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "invoice-assembled", "hidden": true, "argv": ["node", "tests/invoice.assembled.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/price.mjs", "src/invoice.mjs"],
+  "separability": {
+    "co_change": 2,
+    "coupling": 2,
+    "cross_part_decision": 2,
+    "independent_verifiability": 2,
+    "sum": 8,
+    "band": "entangled"
+  }
+}
