@@ -86,6 +86,22 @@ export const CLAUDE_CODE_DISPATCH_FLAGS = [
   '--no-session-persistence',
 ] as const;
 
+// Tools the claude CLI injects into the session as a consequence of OUR OWN
+// dispatch flags, not the worker's equipment scope. `--json-schema` adds a
+// `StructuredOutput` tool: the return channel the model uses to emit the
+// validated JSON payload. It has no filesystem, network, or exec reach — it is
+// a framework mechanism, so admitting it into the enforced-scope check does not
+// widen a worker's real capability.
+//
+// Grounded against claude v2.1.178: `--tools <allow-list>` alone produces
+// exactly the allow-list; adding `--json-schema` adds exactly `StructuredOutput`
+// and nothing else, independent of the allow-list contents. This set is admitted
+// ONLY when the relay actually emitted `--json-schema` (see the honesty guard in
+// parseClaudeCodeStdout), so an unexpected return-channel tool appearing without
+// our flag still fails closed. If a future CLI version names additional
+// return-channel tools, extend this set rather than loosening the guard.
+export const CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS = ['StructuredOutput'] as const;
+
 export const CLAUDE_CODE_EXECUTABLE = 'claude';
 // Re-exported from the built-in connector registry (the single source of
 // truth); kept under this name for the connector's own effort guard and for
@@ -168,14 +184,25 @@ export function buildClaudeCodeArgs(input: ClaudeCodeRelayInput): string[] {
   // anyOf/oneOf schemas can make the CLI exit before returning a receipt.
   // For those shapes, fall back to the prompt shape hint and let the runtime
   // Zod parse remain the authoritative validator.
-  if (
-    input.responseSchema !== undefined &&
-    isClaudeCodeStructuredOutputCompatible(input.responseSchema)
-  ) {
+  if (claudeCodeEmitsStructuredOutputFlag(input)) {
     args.push('--json-schema', JSON.stringify(input.responseSchema));
   }
   args.push(input.prompt);
   return args;
+}
+
+// Single source of truth for whether this relay emits `--json-schema`. The argv
+// builder uses it to decide whether to pass the flag, and the relay uses it to
+// tell the parse-time honesty guard that the CLI's structured-output return
+// channel (StructuredOutput) is expected in the session. Routing both decisions
+// through one predicate is deliberate: the defect this guards against was the two
+// decisions diverging — the flag was emitted, the guard didn't know, and it read
+// the CLI's own return-channel tool as a scope leak.
+export function claudeCodeEmitsStructuredOutputFlag(input: ClaudeCodeRelayInput): boolean {
+  return (
+    input.responseSchema !== undefined &&
+    isClaudeCodeStructuredOutputCompatible(input.responseSchema)
+  );
 }
 
 function claudeCodeStdoutDiagnostic(stdout: string): string | undefined {
@@ -243,6 +270,10 @@ export async function relayClaudeCode(input: ClaudeCodeRelayInput): Promise<Rela
       input.prompt,
       result.durationMs,
       input.toolAllowList,
+      // Same predicate that decided whether buildClaudeCodeArgs emitted
+      // --json-schema, so the guard admits the CLI's return-channel tool exactly
+      // when we asked for structured output — the two can't diverge.
+      claudeCodeEmitsStructuredOutputFlag(input),
     );
   } catch (error) {
     const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
@@ -273,6 +304,12 @@ export function parseClaudeCodeStdout(
   // silently widened the surface. Absent means an unrestricted surface, so no
   // assertion runs.
   requestedTools?: readonly string[],
+  // True when this relay emitted `--json-schema`. The CLI then injects its
+  // structured-output return-channel tool(s) into the session
+  // (CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS). Those are framework tools, not the
+  // worker's equipment, so the guard admits them — but ONLY when we asked for
+  // them, so an unexpected return-channel tool still fails closed.
+  structuredOutputRequested = false,
 ): RelayResult {
   const trace_entries = parseNdjsonObjects(stdout, 'stream-json');
   if (trace_entries.length === 0) {
@@ -329,7 +366,14 @@ export function parseClaudeCodeStdout(
         `init.tools must be an array to verify the enforced equipment scope; got ${JSON.stringify(sessionTools)}`,
       );
     }
-    const allowed = new Set(requestedTools);
+    const allowed = new Set<string>(requestedTools);
+    // Admit the CLI's structured-output return channel ONLY when this relay
+    // emitted --json-schema. Without our flag the CLI never injects it, so an
+    // unexpected StructuredOutput still counts as a leak (fail closed). Admitting
+    // it does not widen the worker: it has no filesystem, network, or exec reach.
+    if (structuredOutputRequested) {
+      for (const tool of CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS) allowed.add(tool);
+    }
     // Fail closed: a non-string entry is unverifiable against the allow-list,
     // so it counts as a leak rather than being narrowed away. A type-narrowing
     // filter would silently drop it and let an unverifiable surface pass.

@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildClaudeCodeArgs,
+  claudeCodeEmitsStructuredOutputFlag,
   isClaudeCodeStructuredOutputCompatible,
 } from '../../src/connectors/claude-code.js';
 import { assertCodexSpawnArgvBoundary, buildCodexArgs } from '../../src/connectors/codex.js';
@@ -61,6 +62,24 @@ describe('claude-code argv', () => {
     const args = buildClaudeCodeArgs({ prompt: 'hi', responseSchema: schema });
     expect(args).not.toContain('--json-schema');
     expect(args.at(-1)).toBe('hi');
+  });
+
+  it('the --json-schema emission decision is the single source the equipment-scope guard reuses', () => {
+    // The defect was these two decisions diverging: the flag was emitted but the
+    // parse-time guard didn't know, so it read the CLI's injected StructuredOutput
+    // return-channel tool as a scope leak and failed fix-act on every run. Both the
+    // argv builder and the relay's guard call MUST route through one predicate.
+    const objectSchema = { prompt: 'hi', responseSchema: { type: 'object' } };
+    const anyOfSchema = {
+      prompt: 'hi',
+      responseSchema: { anyOf: [{ type: 'object' }, { type: 'object' }] },
+    };
+    const noSchema = { prompt: 'hi' };
+    for (const input of [objectSchema, anyOfSchema, noSchema]) {
+      expect(buildClaudeCodeArgs(input).includes('--json-schema')).toBe(
+        claudeCodeEmitsStructuredOutputFlag(input),
+      );
+    }
   });
 });
 

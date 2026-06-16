@@ -274,6 +274,19 @@
       "last_checked": "2026-06-15"
     },
     {
+      "path": "docs/ideas/equipment-scope-allowlist-review.md",
+      "title": "Equipment-scope enforcement — adversarial boundary review (PR #89)",
+      "status": "independent-review",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "equipment-scope", "tools", "connectors", "review", "soundness"],
+      "current_reading": "Read-only adversarial review of the equipment-scope enforcement on PR #89. All four boundary checks HOLD (a no-write worker cannot write, delegate around the restriction, or exceed its scope), but the review found a BLOCKING functional defect: the fail-closed parse guard rejected the CLI's own auto-injected StructuredOutput tool, so fix-act (the only enforced scope) failed on every real run. Defect fixed in the follow-up commit (admit StructuredOutput only when --json-schema was emitted); re-proven by regression test, a live fix-act repro, and a re-run write-escape probe.",
+      "related": [
+        "docs/ideas/equipment-scope-enforcement-report.md",
+        "docs/ideas/equipment-scope-build-brief.md"
+      ],
+      "last_checked": "2026-06-15"
+    },
+    {
       "path": "docs/ideas/effective-memory-program-review-codex.md",
       "title": "Effective Memory Program Review",
       "status": "independent-review",

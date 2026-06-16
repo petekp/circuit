@@ -1,6 +1,20 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { parseClaudeCodeStdout } from '../../src/connectors/claude-code.js';
+
+// A REAL claude CLI stdout stream (v2.1.178), captured by running the fix-act
+// argv: `--tools Read,Grep,Glob,Edit,Write,Bash … --json-schema <object schema>`.
+// Its init.tools is the allow-list PLUS the CLI's framework-injected
+// `StructuredOutput` return-channel tool. This fixture is the ground truth the
+// earlier guard tests lacked: they hand-built init.tools WITHOUT StructuredOutput,
+// which is exactly what let the enforced-scope-vs-structured-output defect ship.
+const REAL_JSON_SCHEMA_WITH_TOOLS_STREAM = readFileSync(
+  new URL('../fixtures/claude-code/json-schema-with-tools.stream.jsonl', import.meta.url),
+  'utf8',
+);
+const FIX_ACT_ALLOW_LIST = ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash'];
 
 function buildInitLine(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
@@ -137,6 +151,64 @@ describe('parseClaudeCodeStdout — equipment-scope honesty guard', () => {
     expect(() => parseClaudeCodeStdout(stdout, 'prompt', 1, ['Read'])).toThrow(
       /enforced equipment scope violated/,
     );
+  });
+});
+
+describe('parseClaudeCodeStdout — structured-output return channel under an enforced scope', () => {
+  it('admits the CLI-injected StructuredOutput tool when --json-schema was emitted (real fix-act stream)', () => {
+    // The regression: fix-act is enforced to [Read,Grep,Glob,Edit,Write,Bash] AND
+    // produces a structured report, so the relay always passes --json-schema. The
+    // real CLI then injects a `StructuredOutput` tool into the session. Before the
+    // fix the guard read it as a leak and threw -> connector_failed, so fix-act
+    // (the only enforced scope) failed on every real run. With the structured-output
+    // signal threaded in, the framework return-channel tool is admitted.
+    expect(() =>
+      parseClaudeCodeStdout(
+        REAL_JSON_SCHEMA_WITH_TOOLS_STREAM,
+        'prompt',
+        1,
+        FIX_ACT_ALLOW_LIST,
+        true,
+      ),
+    ).not.toThrow();
+  });
+
+  it('returns the structured_output payload from the real fix-act stream once admitted', () => {
+    const parsed = parseClaudeCodeStdout(
+      REAL_JSON_SCHEMA_WITH_TOOLS_STREAM,
+      'prompt',
+      1,
+      FIX_ACT_ALLOW_LIST,
+      true,
+    );
+    expect(JSON.parse(parsed.result_body)).toEqual({ verdict: 'accept', summary: 'Understood' });
+  });
+
+  it('still fails closed on StructuredOutput when --json-schema was NOT emitted (admission is gated, not blanket)', () => {
+    // Defense in depth: StructuredOutput is admitted ONLY because we asked for it.
+    // If it appeared without our flag, that is an unexpected surface change and the
+    // guard must still fail closed.
+    const init = buildInitLine({ tools: ['Read', 'StructuredOutput'] });
+    const stdout = `${init}\n${successResultLine()}\n`;
+    expect(() => parseClaudeCodeStdout(stdout, 'prompt', 1, ['Read'])).toThrow(/StructuredOutput/);
+  });
+
+  it('admits StructuredOutput but STILL throws on a genuine leak alongside it (boundary not weakened)', () => {
+    // The fix admits exactly the framework return-channel tool — it does not
+    // disable the guard. A real unlisted tool (WebFetch) leaking in must still fail
+    // even while --json-schema is in effect, and the admitted framework tool must
+    // not appear in the leak report.
+    const init = buildInitLine({ tools: ['Read', 'StructuredOutput', 'WebFetch'] });
+    const stdout = `${init}\n${successResultLine()}\n`;
+    let error: Error | undefined;
+    try {
+      parseClaudeCodeStdout(stdout, 'prompt', 1, ['Read'], true);
+    } catch (caught) {
+      error = caught as Error;
+    }
+    expect(error).toBeDefined();
+    expect(error?.message).toMatch(/WebFetch/);
+    expect(error?.message).not.toMatch(/StructuredOutput/);
   });
 });
 

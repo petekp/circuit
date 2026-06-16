@@ -57851,6 +57851,7 @@ var CLAUDE_CODE_DISPATCH_FLAGS = [
   "--verbose",
   "--no-session-persistence"
 ];
+var CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS = ["StructuredOutput"];
 var CLAUDE_CODE_EXECUTABLE = "claude";
 var DEFAULT_TIMEOUT_MS = 6e5;
 var SIGTERM_TO_SIGKILL_GRACE_MS = 2e3;
@@ -57885,11 +57886,14 @@ function buildClaudeCodeArgs(input) {
     assertClaudeCodeEffort(effort);
     args.push("--effort", effort);
   }
-  if (input.responseSchema !== void 0 && isClaudeCodeStructuredOutputCompatible(input.responseSchema)) {
+  if (claudeCodeEmitsStructuredOutputFlag(input)) {
     args.push("--json-schema", JSON.stringify(input.responseSchema));
   }
   args.push(input.prompt);
   return args;
+}
+function claudeCodeEmitsStructuredOutputFlag(input) {
+  return input.responseSchema !== void 0 && isClaudeCodeStructuredOutputCompatible(input.responseSchema);
 }
 function claudeCodeStdoutDiagnostic(stdout) {
   try {
@@ -57938,13 +57942,22 @@ async function relayClaudeCode(input) {
     throw new Error(`claude-code subprocess stdout exceeded ${STDOUT_MAX_BYTES} bytes; capability-boundary check cannot be evaluated on truncated stream`);
   }
   try {
-    return parseClaudeCodeStdout(result.stdout, input.prompt, result.durationMs, input.toolAllowList);
+    return parseClaudeCodeStdout(
+      result.stdout,
+      input.prompt,
+      result.durationMs,
+      input.toolAllowList,
+      // Same predicate that decided whether buildClaudeCodeArgs emitted
+      // --json-schema, so the guard admits the CLI's return-channel tool exactly
+      // when we asked for structured output — the two can't diverge.
+      claudeCodeEmitsStructuredOutputFlag(input)
+    );
   } catch (error51) {
     const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
     throw new Error(`claude-code subprocess: ${error51.message}; stdout[:500]=${result.stdout.slice(0, 500)}; stderr[:200]=${result.stderr.slice(0, 200)}${stderrSuffix}`);
   }
 }
-function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools) {
+function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools, structuredOutputRequested = false) {
   const trace_entries = parseNdjsonObjects(stdout, "stream-json");
   if (trace_entries.length === 0) {
     throw new Error("stream-json stdout is empty");
@@ -57976,6 +57989,10 @@ function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools) {
       throw new Error(`init.tools must be an array to verify the enforced equipment scope; got ${JSON.stringify(sessionTools)}`);
     }
     const allowed = new Set(requestedTools);
+    if (structuredOutputRequested) {
+      for (const tool of CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS)
+        allowed.add(tool);
+    }
     const leaked = sessionTools.filter((tool) => typeof tool !== "string" || !allowed.has(tool));
     if (leaked.length !== 0) {
       const rendered = leaked.map((tool) => typeof tool === "string" ? tool : JSON.stringify(tool)).join(", ");
