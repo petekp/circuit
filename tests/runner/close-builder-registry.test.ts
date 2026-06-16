@@ -18,8 +18,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
 
-import { findCloseBuilder } from '../../src/flows/registries/close-writers/registry.js';
+import {
+  findCloseBuilder,
+  resolveCloseReadPaths,
+} from '../../src/flows/registries/close-writers/registry.js';
 import type { CloseBuilder } from '../../src/flows/registries/close-writers/types.js';
+import type { RuntimeIndexedFlow } from '../../src/flows/registries/runtime-index.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 
@@ -190,5 +194,118 @@ describe('close-with-evidence registry', () => {
     ) as { summary: string; answer: string };
     expect(result.answer).toBe('forty-two');
     expect(result.summary).toContain('Synthetic close for:');
+  });
+});
+
+// Build's close writer declares review and touch_area as OPTIONAL reads so a
+// whole-grain (folded) build-derived flow with no review/touch-area step can
+// still close. The resolver must keep the two regimes separate:
+//   - When the flow declares the writer (build's full flow), the optional read
+//     resolves exactly as a required read would; build's inputs stay unchanged.
+//   - When no step writes the schema (a folded flow), the read is skipped and
+//     the builder receives undefined, with no throw.
+// These tests pin that contract directly on resolveCloseReadPaths so a future
+// edit that silently skips a present optional read (which would break build's
+// own result) fails here.
+describe('resolveCloseReadPaths handles build optional reads', () => {
+  // Pull the real build close builder through the registry's public lookup
+  // (not its internal module) so this test stays on the supported surface.
+  const builder = findCloseBuilder('build.result@v1');
+  if (builder === undefined) throw new Error('build.result@v1 close builder must be registered');
+
+  const writer = (id: string, path: string, schema: string) => ({
+    id,
+    title: id,
+    protocol: id,
+    reads: [] as string[],
+    routes: { continue: '@complete' },
+    writes: { report: { path, schema } },
+    check: {},
+    kind: 'compose' as const,
+  });
+
+  // A minimal runtime-indexed flow that writes the four always-present build
+  // reports plus, when full, the review and touch-area reports.
+  function buildLikeFlow(options: { withReviewAndTouchArea: boolean }): RuntimeIndexedFlow {
+    const steps = [
+      writer('frame-step', 'reports/build/brief.json', 'build.brief@v1'),
+      writer('plan-step', 'reports/build/plan.json', 'build.plan@v1'),
+      writer('act-step', 'reports/build/implementation.json', 'build.implementation@v1'),
+      writer('verify-step', 'reports/build/verification.json', 'build.verification@v1'),
+      ...(options.withReviewAndTouchArea
+        ? [
+            writer('build-touch-area', 'reports/build/touch-area.json', 'build.touch-area@v1'),
+            writer('review-step', 'reports/build/review.json', 'build.review@v1'),
+          ]
+        : []),
+    ];
+    return {
+      id: 'build-like',
+      version: '0.1.0',
+      stages: [],
+      steps,
+    } as unknown as RuntimeIndexedFlow;
+  }
+
+  // The build close step reads every report the flow produced.
+  function closeStepReading(paths: readonly string[]) {
+    return {
+      id: 'close-step',
+      title: 'close',
+      protocol: 'build-close@v1',
+      reads: paths,
+      routes: { complete: '@complete' },
+      writes: { report: { path: 'reports/build-result.json', schema: 'build.result@v1' } },
+      check: {},
+      kind: 'compose' as const,
+    } as unknown as Parameters<typeof resolveCloseReadPaths>[2];
+  }
+
+  it("resolves review and touch_area for build's FULL flow (regression: present reads still resolve)", () => {
+    const flow = buildLikeFlow({ withReviewAndTouchArea: true });
+    const closeStep = closeStepReading([
+      'reports/build/brief.json',
+      'reports/build/plan.json',
+      'reports/build/implementation.json',
+      'reports/build/verification.json',
+      'reports/build/touch-area.json',
+      'reports/build/review.json',
+    ]);
+    const paths = resolveCloseReadPaths(builder, flow, closeStep);
+    // All six reads resolve to their declared paths — build's close is unchanged.
+    expect(paths.brief).toBe('reports/build/brief.json');
+    expect(paths.plan).toBe('reports/build/plan.json');
+    expect(paths.implementation).toBe('reports/build/implementation.json');
+    expect(paths.verification).toBe('reports/build/verification.json');
+    expect(paths.review).toBe('reports/build/review.json');
+    expect(paths.touch_area).toBe('reports/build/touch-area.json');
+  });
+
+  it('skips review and touch_area for a folded flow with no such writer (no throw)', () => {
+    const flow = buildLikeFlow({ withReviewAndTouchArea: false });
+    const closeStep = closeStepReading([
+      'reports/build/brief.json',
+      'reports/build/plan.json',
+      'reports/build/implementation.json',
+      'reports/build/verification.json',
+    ]);
+    const paths = resolveCloseReadPaths(builder, flow, closeStep);
+    // The four always-present reads still resolve...
+    expect(paths.brief).toBe('reports/build/brief.json');
+    expect(paths.verification).toBe('reports/build/verification.json');
+    // ...and the two absent reads are skipped, not thrown.
+    expect(paths.review).toBeUndefined();
+    expect(paths.touch_area).toBeUndefined();
+  });
+
+  it('still throws for a required read the close step does not read (required path unchanged)', () => {
+    const flow = buildLikeFlow({ withReviewAndTouchArea: true });
+    // Drop the required verification read from the close step's reads list.
+    const closeStep = closeStepReading([
+      'reports/build/brief.json',
+      'reports/build/plan.json',
+      'reports/build/implementation.json',
+    ]);
+    expect(() => resolveCloseReadPaths(builder, flow, closeStep)).toThrow(/requires close step/);
   });
 });

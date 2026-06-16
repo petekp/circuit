@@ -571,6 +571,26 @@ export const BuildResultReportId = z.enum([
 ]);
 export type BuildResultReportId = z.infer<typeof BuildResultReportId>;
 
+// The four reports every build-derived flow produces, whatever its grain. A
+// whole-grain (folded) flow drops the review step, so 'build.review' is the one
+// report that may be absent; these four are always present and always pointed
+// at from the result's evidence links.
+export const BUILD_RESULT_REQUIRED_REPORT_IDS = [
+  'build.brief',
+  'build.plan',
+  'build.implementation',
+  'build.verification',
+] as const satisfies readonly BuildResultReportId[];
+
+// The result-level review verdict. It carries the reviewer's own verdict when a
+// review ran, plus a 'not_assessed' sentinel for a folded flow that has no
+// review step. 'not_assessed' is the honest representation of "no reviewer
+// looked", and it can never satisfy the 'complete' gate, which requires an
+// 'accept'. This is deliberately a SUPERSET of BuildReviewVerdict (the
+// reviewer's own output never uses 'not_assessed').
+export const BuildResultReviewVerdict = z.enum([...BuildReviewVerdict.options, 'not_assessed']);
+export type BuildResultReviewVerdict = z.infer<typeof BuildResultReviewVerdict>;
+
 export const BuildResultReportPointer = resultReportPointer(
   BuildResultReportId,
   BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID,
@@ -597,15 +617,37 @@ export const BuildScope = z
   .strict();
 export type BuildScope = z.infer<typeof BuildScope>;
 
+// The result-level touch-area enforcement. It carries the report's own
+// enforcement when the gate ran, plus a 'not_assessed' sentinel for a folded
+// flow that has no touch-area step. A SUPERSET of BuildTouchAreaEnforcement (the
+// report's own value never uses 'not_assessed').
+export const BuildResultTouchAreaEnforcement = z.enum([
+  ...BuildTouchAreaEnforcement.options,
+  'not_assessed',
+]);
+export type BuildResultTouchAreaEnforcement = z.infer<typeof BuildResultTouchAreaEnforcement>;
+
+// The result-level containment verdict. Adds a 'not_assessed' value to the
+// report's three so a folded flow with no touch-area step can say "containment
+// was never proven" honestly. Like every non-'within' value, 'not_assessed'
+// can never satisfy the 'complete' gate.
+export const BuildResultTouchAreaContainment = z.enum([
+  ...BuildTouchAreaContainment.options,
+  'not_assessed',
+]);
+export type BuildResultTouchAreaContainment = z.infer<typeof BuildResultTouchAreaContainment>;
+
 // Operator-facing touch-area summary, derived deterministically at close from
 // build.touch-area@v1. It makes the git-proven containment verdict visible in
 // the result and lets the outcome reflect overreach the implementer cannot
 // self-report away. Defaults to a not-enforced, within shape so a result
-// synthesized without touch-area detail is permissive, not blocking.
+// synthesized without touch-area detail is permissive, not blocking. A folded
+// flow that never ran the gate reports the 'not_assessed' shape instead, which
+// is honest (no containment was proven) and blocks 'complete'.
 export const BuildTouchAreaSummary = z
   .object({
-    enforcement: BuildTouchAreaEnforcement,
-    containment: BuildTouchAreaContainment,
+    enforcement: BuildResultTouchAreaEnforcement,
+    containment: BuildResultTouchAreaContainment,
     out_of_bounds_paths: z
       .array(z.string().min(1))
       .default([])
@@ -619,7 +661,7 @@ export const BuildResult = z
     summary: z.string().min(1),
     outcome: z.enum(['complete', 'needs_attention', 'failed']),
     verification_status: z.enum(['passed', 'failed']),
-    review_verdict: BuildReviewVerdict,
+    review_verdict: BuildResultReviewVerdict,
     scope: BuildScope.default({
       adherence: 'within_scope',
       violated_guardrails: [],
@@ -630,7 +672,13 @@ export const BuildResult = z
       containment: 'within',
       out_of_bounds_paths: [],
     }),
-    evidence_links: z.array(BuildResultReportPointer).length(5),
+    // The full build flow points at all five reports. A folded flow with no
+    // review step points at the four always-present reports only; the missing
+    // 'build.review' link is dropped, never faked with an empty path. The
+    // superRefine below requires the four always-present ids and allows the
+    // review link to be absent exactly when the verdict says it was not
+    // assessed.
+    evidence_links: z.array(BuildResultReportPointer).min(4).max(5),
   })
   .strict()
   .superRefine((result, ctx) => {
@@ -645,7 +693,8 @@ export const BuildResult = z
       }
       seen.add(pointer.report_id);
     }
-    for (const reportId of BuildResultReportId.options) {
+    // The four reports every grain produces must always be linked.
+    for (const reportId of BUILD_RESULT_REQUIRED_REPORT_IDS) {
       if (!seen.has(reportId)) {
         ctx.addIssue({
           code: 'custom',
@@ -653,6 +702,25 @@ export const BuildResult = z
           message: `missing report_id '${reportId}'`,
         });
       }
+    }
+    // The review link and the review verdict move together: a present review
+    // means a real verdict and a linked report; an absent review means the
+    // 'not_assessed' verdict and no link. Neither can disagree with the other.
+    const reviewLinked = seen.has('build.review');
+    if (reviewLinked && result.review_verdict === 'not_assessed') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['review_verdict'],
+        message: "review_verdict may not be 'not_assessed' when the build.review report is linked",
+      });
+    }
+    if (!reviewLinked && result.review_verdict !== 'not_assessed') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['evidence_links'],
+        message:
+          "evidence_links must include 'build.review' unless review_verdict is 'not_assessed'",
+      });
     }
     if (result.outcome === 'complete') {
       if (result.verification_status !== 'passed') {
