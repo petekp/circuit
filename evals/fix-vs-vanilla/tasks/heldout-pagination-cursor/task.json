@@ -1,0 +1,21 @@
+{
+  "id": "heldout-pagination-cursor",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "mixed-two-module",
+  "prompt": "Our paginated list endpoint misbehaves at the edges. A request for a zero or negative page size returns an empty page that never advances, and the very first page (with no cursor yet) comes back empty instead of starting at the first item. The page-size clamp lives in src/api.mjs and the cursor encode/decode lives in src/store.mjs. Fix both so the page size is clamped into a sane range and an empty cursor starts paging at the first item. The regression command is `npm test`; it should fail before the fix and pass after the fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "pagination-assembled", "hidden": true, "argv": ["node", "tests/api.assembled.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/api.mjs", "src/store.mjs"],
+  "separability": {
+    "co_change": 1,
+    "coupling": 1,
+    "cross_part_decision": 1,
+    "independent_verifiability": 1,
+    "sum": 4,
+    "band": "mixed"
+  }
+}

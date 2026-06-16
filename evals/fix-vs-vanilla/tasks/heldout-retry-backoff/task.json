@@ -1,0 +1,21 @@
+{
+  "id": "heldout-retry-backoff",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "mixed-two-module",
+  "prompt": "Our retry helper gives up one attempt too early and waits the wrong amount of time between tries. The retry loop lives in src/retry.mjs (it calls the function until it succeeds or the max-attempts budget is spent) and the delay schedule lives in src/backoff.mjs (it returns how long to wait before the next try). Fix both so the loop uses the full max-attempts budget and the backoff delays start at the base delay and double from there. The regression command is `npm test`; it should fail before the fix and pass after the fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "retry-assembled", "hidden": true, "argv": ["node", "tests/retry.assembled.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/retry.mjs", "src/backoff.mjs"],
+  "separability": {
+    "co_change": 1,
+    "coupling": 1,
+    "cross_part_decision": 1,
+    "independent_verifiability": 0,
+    "sum": 3,
+    "band": "mixed"
+  }
+}
