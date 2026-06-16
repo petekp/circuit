@@ -10767,7 +10767,7 @@ var require_dist = __commonJS({
 
 // dist/cli/circuit.js
 import { readFileSync as readFileSync57 } from "node:fs";
-import { dirname as dirname15, resolve as resolve26 } from "node:path";
+import { dirname as dirname14, resolve as resolve26 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -55346,7 +55346,7 @@ function latestRunFolder(runsBase) {
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
 import { existsSync as existsSync36, mkdirSync as mkdirSync10, readFileSync as readFileSync55, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname14, join as join36, resolve as resolve24 } from "node:path";
+import { dirname as dirname13, join as join36, resolve as resolve24 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
 import { readFileSync as readFileSync47 } from "node:fs";
@@ -56528,7 +56528,7 @@ function fromCompiledFlow(flow) {
 }
 
 // dist/runtime/trace/trace-store.js
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, truncate as truncate2 } from "node:fs/promises";
 import { join as join20 } from "node:path";
 var TraceStore = class {
   runDir;
@@ -56538,6 +56538,10 @@ var TraceStore = class {
   nextSequence = 0;
   closed = false;
   appendTail = Promise.resolve();
+  // Byte length of the last consistent (complete-line) prefix when load() drops
+  // a torn trailing line. The next append truncates the torn bytes first so it
+  // cannot concatenate onto a half-written record. undefined => nothing to heal.
+  healToByteLength;
   constructor(runDir, options = {}) {
     this.runDir = runDir;
     this.options = options;
@@ -56557,7 +56561,34 @@ var TraceStore = class {
       }
       throw error51;
     }
-    const rawEntries = raw.split("\n").filter((line) => line.trim().length > 0).map((line) => JSON.parse(line));
+    const segments = raw.split("\n");
+    let lastContentIndex = -1;
+    for (let index = segments.length - 1; index >= 0; index -= 1) {
+      if ((segments[index] ?? "").trim().length > 0) {
+        lastContentIndex = index;
+        break;
+      }
+    }
+    const rawEntries = [];
+    this.healToByteLength = void 0;
+    let byteOffset = 0;
+    for (const [index, segment] of segments.entries()) {
+      const onDiskBytes = Buffer.byteLength(segment, "utf8") + (index < segments.length - 1 ? 1 : 0);
+      if (segment.trim().length === 0) {
+        byteOffset += onDiskBytes;
+        continue;
+      }
+      try {
+        rawEntries.push(JSON.parse(segment));
+      } catch (error51) {
+        if (index === lastContentIndex) {
+          this.healToByteLength = byteOffset;
+          break;
+        }
+        throw new Error(`trace entry ${index} is not valid JSON (interior corruption): ${error51.message}`);
+      }
+      byteOffset += onDiskBytes;
+    }
     const entries = [];
     for (const [index, entry] of rawEntries.entries()) {
       if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
@@ -56593,6 +56624,10 @@ var TraceStore = class {
         sequence: this.nextSequence
       });
       await mkdir(this.runDir, { recursive: true });
+      if (this.healToByteLength !== void 0) {
+        await truncate2(this.tracePath, this.healToByteLength);
+        this.healToByteLength = void 0;
+      }
       await appendFile(this.tracePath, `${JSON.stringify(entry)}
 `, "utf8");
       this.nextSequence += 1;
@@ -62897,7 +62932,7 @@ function corridorCause(active, binding) {
 
 // dist/runtime/run/run-boundary.js
 import { readFileSync as readFileSync46 } from "node:fs";
-import { lstat, mkdir as mkdir4, readdir } from "node:fs/promises";
+import { lstat, mkdir as mkdir3, readdir } from "node:fs/promises";
 
 // dist/runtime/projections/progress.js
 import { join as join26 } from "node:path";
@@ -63551,8 +63586,7 @@ var validateReportValue = (schemaName, value) => {
 };
 
 // dist/runtime/run-files/run-file-store.js
-import { mkdir as mkdir3, readFile as readFile4, writeFile as writeFile4 } from "node:fs/promises";
-import { dirname as dirname9 } from "node:path";
+import { readFile as readFile4 } from "node:fs/promises";
 var RunFileStore = class {
   runDir;
   validateReport;
@@ -63568,9 +63602,7 @@ var RunFileStore = class {
       this.validateReport?.(ref.schema, value);
     }
     const fullPath = this.resolve(ref);
-    await mkdir3(dirname9(fullPath), { recursive: true });
-    await writeFile4(fullPath, `${JSON.stringify(value, null, 2)}
-`, "utf8");
+    writeJsonAtomic(fullPath, value);
     return fullPath;
   }
   async writeText(ref, value) {
@@ -63578,8 +63610,7 @@ var RunFileStore = class {
       throw new Error(`writeText cannot write schema-tagged run file '${ref.path}'; use writeJson after parsing and validation`);
     }
     const fullPath = this.resolve(ref);
-    await mkdir3(dirname9(fullPath), { recursive: true });
-    await writeFile4(fullPath, value, "utf8");
+    writeTextAtomic(fullPath, value);
     return fullPath;
   }
   async readText(ref) {
@@ -63607,7 +63638,7 @@ async function assertFreshRunDir(runDir) {
   } catch (error51) {
     if (error51.code !== "ENOENT")
       throw error51;
-    await mkdir4(runDir, { recursive: true });
+    await mkdir3(runDir, { recursive: true });
     stat2 = await lstat(runDir);
   }
   if (stat2.isSymbolicLink()) {
@@ -63641,7 +63672,7 @@ async function openRunBoundary(options) {
   if (!options.isResume) {
     await assertFreshRunDir(options.runDir);
   } else {
-    await mkdir4(options.runDir, { recursive: true });
+    await mkdir3(options.runDir, { recursive: true });
   }
   const clock = { now: options.now ?? (() => /* @__PURE__ */ new Date()) };
   const progressProjector = createProgressProjector({
@@ -63860,8 +63891,7 @@ async function terminalOutcomeBoundToPrimaryResult(context, outcome) {
     reason: `primary result '${primaryResultPath}' reported outcome '${primaryOutcome}'`
   };
 }
-function latestAdmittedVerdict(context) {
-  const entries = context.trace.getAll();
+function latestAdmittedVerdict(entries) {
   const admitted = /* @__PURE__ */ new Set();
   for (const entry of entries) {
     if (entry.kind === "check.evaluated" && entry.check_kind === "result_verdict" && entry.outcome === "pass" && entry.step_id !== void 0 && entry.attempt !== void 0) {
@@ -63921,7 +63951,7 @@ async function closeRun(context, outcome, terminalTarget, reason) {
     outcome: finalOutcome,
     ...finalReason === void 0 ? {} : { reason: finalReason }
   });
-  const verdict = finalOutcome === "complete" ? latestAdmittedVerdict(context) : void 0;
+  const verdict = finalOutcome === "complete" ? latestAdmittedVerdict(context.trace.getAll()) : void 0;
   const result = {
     schema_version: 1,
     run_id: context.runId,
@@ -65378,7 +65408,7 @@ function prepareRunStartHistoryRecall(options) {
 
 // dist/app/operator-summary/writer.js
 import { existsSync as existsSync32, mkdirSync as mkdirSync6, readFileSync as readFileSync50, rmSync as rmSync4, writeFileSync as writeFileSync7 } from "node:fs";
-import { dirname as dirname10, isAbsolute as isAbsolute12, join as join28, relative as relative13, resolve as resolve21 } from "node:path";
+import { dirname as dirname9, isAbsolute as isAbsolute12, join as join28, relative as relative13, resolve as resolve21 } from "node:path";
 
 // dist/shared/operator-summary/json.js
 import { existsSync as existsSync31, readFileSync as readFileSync49 } from "node:fs";
@@ -66883,7 +66913,7 @@ function writeOperatorSummary(input) {
   const receipt = readRunReceipt(input.runFolder);
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
-  mkdirSync6(dirname10(outJsonPath), { recursive: true });
+  mkdirSync6(dirname9(outJsonPath), { recursive: true });
   const projector = getHtmlProjector(flowId);
   const candidateHtmlPath = htmlPath(input.runFolder);
   let outHtmlPath;
@@ -67024,7 +67054,7 @@ function writeOperatorSummary(input) {
 
 // dist/app/process-evidence/projection.js
 import { existsSync as existsSync33, mkdirSync as mkdirSync7, writeFileSync as writeFileSync8 } from "node:fs";
-import { dirname as dirname11, join as join29 } from "node:path";
+import { dirname as dirname10, join as join29 } from "node:path";
 function traceRef2(runId) {
   return {
     kind: "trace",
@@ -67146,7 +67176,7 @@ function projectCheckpointWaitingProcessEvidence(input) {
 function writeProcessEvidenceProjection(input) {
   const projection = ProcessEvidenceProjection.parse(input.projection);
   const outPath = join29(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
-  mkdirSync7(dirname11(outPath), { recursive: true });
+  mkdirSync7(dirname10(outPath), { recursive: true });
   writeFileSync8(outPath, `${JSON.stringify(projection, null, 2)}
 `);
   return { path: outPath, projection };
@@ -67226,7 +67256,7 @@ function detectNoProgress(attempts) {
 
 // dist/app/run-envelope/source-record.js
 import { mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname12, join as join30 } from "node:path";
+import { dirname as dirname11, join as join30 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RUN_SURFACE_RELATIVE_PATH = "reports/run-surface.md";
 var RUN_DECISION_PACKET_RELATIVE_DIR = "reports/decision-packets";
@@ -67781,10 +67811,10 @@ function writeRunEnvelopeRecord(input) {
     outcome
   });
   const outPath = join30(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
-  mkdirSync8(dirname12(outPath), { recursive: true });
+  mkdirSync8(dirname11(outPath), { recursive: true });
   const decisionPacketPaths = decisionArtifacts.map((artifact) => {
     const path = join30(input.runFolder, artifact.ref.ref);
-    mkdirSync8(dirname12(path), { recursive: true });
+    mkdirSync8(dirname11(path), { recursive: true });
     writeFileSync9(path, artifact.body);
     return path;
   });
@@ -68046,7 +68076,7 @@ import { join as join33 } from "node:path";
 
 // dist/app/run-envelope/shadow-record.js
 import { mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname13, join as join32 } from "node:path";
+import { dirname as dirname12, join as join32 } from "node:path";
 var RUN_ENVELOPE_SHADOW_RELATIVE_PATH = "reports/run-envelope-shadow.json";
 function reportRef2(input) {
   return {
@@ -68136,7 +68166,7 @@ function writeRunEnvelopeShadowRecord(input) {
     artifact_links: artifactLinks
   });
   const outPath = join32(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
-  mkdirSync9(dirname13(outPath), { recursive: true });
+  mkdirSync9(dirname12(outPath), { recursive: true });
   writeFileSync10(outPath, `${JSON.stringify(record2, null, 2)}
 `);
   return { path: outPath, record: record2 };
@@ -69083,7 +69113,7 @@ async function runExecutionCommand(args, options) {
           })
         });
         const autonomousLoopPath = join36(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
-        mkdirSync10(dirname14(autonomousLoopPath), { recursive: true });
+        mkdirSync10(dirname13(autonomousLoopPath), { recursive: true });
         writeFileSync11(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
       } catch (err) {
@@ -69448,7 +69478,7 @@ function readSourceVersion() {
   if (true)
     return "0.1.0-alpha.7";
   const candidates = [
-    resolve26(dirname15(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
+    resolve26(dirname14(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
     resolve26(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
