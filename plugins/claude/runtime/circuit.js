@@ -28883,13 +28883,6 @@ function expandBlockStepUse(use) {
     return result.value;
   throw new Error(result.errors.map(describeExpandBlockStepUseError).join("\n"));
 }
-function composeBlockStep(use) {
-  return expandBlockStepUse({ ...use, execution: { kind: "compose" } });
-}
-function relayBlockStep(use) {
-  const { role, ...stepUse } = use;
-  return expandBlockStepUse({ ...stepUse, execution: { kind: "relay", role } });
-}
 function validateOverrideOnlyFields(use, block) {
   const errors = [];
   if (use.output === block.output_contract) {
@@ -35537,6 +35530,312 @@ function tieBreakReason(winner, runnerUp, orderedDims) {
   return "original_ordinal";
 }
 
+// dist/flows/explore/assembly-spec.js
+var EXPLORE_STAGE_PATH_RATIONALE = "Explore is an investigation and decision flow. Synthesize, critique, and tournament stress review are all embedded inside the canonical Plan/Decision stage. Verify is omitted because Explore output is not executable and uses evidence/seam proof rather than mechanical command verification. See src/flows/explore/contract.md \xA7Canonical stage set for the full rationale.";
+var exploreBlockItems = [
+  {
+    id: "frame-step",
+    title: "Frame \u2014 produce explore.brief",
+    stage: "frame",
+    block: "frame",
+    input: { task: "task.intake@v1", route: "route.decision@v1" },
+    output: "explore.brief@v1",
+    execution: { kind: "compose" },
+    protocol: "explore-frame@v1",
+    writes: { report_path: "reports/brief.json" },
+    check: { required: ["subject", "success_condition"] },
+    routes: { continue: "analyze-step", stop: "@stop" }
+  },
+  {
+    id: "analyze-step",
+    title: "Analyze \u2014 produce explore.analysis",
+    stage: "analyze",
+    block: "diagnose",
+    input: { brief: "explore.brief@v1", context: "context.packet@v1" },
+    output: "explore.analysis@v1",
+    execution: { kind: "compose" },
+    protocol: "explore-analyze@v1",
+    writes: { report_path: "reports/analysis.json" },
+    check: { required: ["aspects"] },
+    routeOverrides: { continue: { tournament: "decision-options-step" } },
+    routes: { continue: "synthesize-step", retry: "analyze-step", stop: "@stop" }
+  },
+  {
+    id: "synthesize-step",
+    title: "Synthesize \u2014 produce explore.compose (connector-bound relay)",
+    stage: "plan",
+    block: "act",
+    input: {
+      brief: "explore.brief@v1",
+      diagnosis: "explore.analysis@v1",
+      // Forward read: written by review-step, so it is absent on the first pass
+      // (rendered as a reads-unavailable placeholder) and present on a rework
+      // pass after a reject. Declared optional because it is route-disjoint.
+      review: "explore.review-verdict@v1"
+    },
+    optional_inputs: ["review"],
+    output: "explore.compose@v1",
+    execution: { kind: "relay", role: "implementer" },
+    protocol: "explore-synthesize@v1",
+    writes: {
+      report_path: "reports/compose.json",
+      request_path: "reports/relay/synthesize.request.json",
+      receipt_path: "reports/relay/synthesize.receipt.txt",
+      result_path: "reports/relay/synthesize.result.json"
+    },
+    check: { pass: ["accept"] },
+    routes: { continue: "review-step", retry: "synthesize-step", stop: "@stop" }
+  },
+  {
+    id: "review-step",
+    title: "Review \u2014 adversarial pass over compose (connector-bound relay)",
+    stage: "plan",
+    block: "review",
+    input: {
+      brief: "explore.brief@v1",
+      diagnosis: "explore.analysis@v1",
+      change: "explore.compose@v1"
+    },
+    output: "explore.review-verdict@v1",
+    execution: { kind: "relay", role: "reviewer" },
+    protocol: "explore-review@v1",
+    writes: {
+      report_path: "reports/review-verdict.json",
+      request_path: "reports/relay/review.request.json",
+      receipt_path: "reports/relay/review.receipt.txt",
+      result_path: "reports/relay/review.result.json"
+    },
+    check: { pass: ["accept", "accept-with-fold-ins"] },
+    routes: {
+      continue: "close-step",
+      retry: "synthesize-step",
+      revise: "synthesize-step",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "decision-options-step",
+    title: "Decision \u2014 draft tournament options",
+    stage: "plan",
+    block: "plan",
+    input: { brief: "explore.brief@v1", diagnosis: "explore.analysis@v1" },
+    output: "explore.decision-options@v1",
+    execution: { kind: "compose" },
+    protocol: "explore-decision-options@v1",
+    writes: { report_path: "reports/decision-options.json" },
+    check: { required: ["decision_question", "options"] },
+    routes: { continue: "proposal-fanout-step", stop: "@stop" }
+  },
+  {
+    id: "proposal-fanout-step",
+    title: "Decision \u2014 fan out option cases",
+    stage: "plan",
+    block: "plan",
+    input: { brief: "explore.brief@v1", options: "explore.decision-options@v1" },
+    output: "explore.tournament-aggregate@v1",
+    execution: { kind: "fanout" },
+    protocol: "explore-proposal-fanout@v1",
+    writes: {
+      report_path: "reports/tournament-aggregate.json",
+      branches_dir_path: "reports/tournament-branches"
+    },
+    check: { pass: ["accept"] },
+    routes: { continue: "stress-proposals-step", stop: "@stop" },
+    fanout: {
+      branches: {
+        kind: "dynamic",
+        source_report: "reports/decision-options.json",
+        items_path: "options",
+        template: {
+          branch_id: "$item.id",
+          execution: {
+            kind: "relay",
+            role: "researcher",
+            goal: "$item.best_case_prompt",
+            report_schema: "explore.tournament-proposal@v1",
+            provenance_field: "option_id"
+          }
+        },
+        max_branches: { kind: "axis", axis: "tournament_n" },
+        required_count: { kind: "axis", axis: "tournament_n" }
+      },
+      concurrency: { kind: "bounded", max: 2 },
+      on_child_failure: "continue-others",
+      join: { policy: "aggregate-survivors" },
+      rubric: {
+        model_judgments_path: "rubric_model_judgments",
+        ordered_dims: [...THREE_AXIS_RUBRIC_TIE_BREAK_ORDER],
+        runtime_signals: {
+          evidence_rigor: { kind: "non_empty_array", path: "evidence_refs" },
+          actionability: { kind: "non_empty_string", path: "next_action" },
+          coverage_adequacy: { kind: "non_empty_string", path: "case_summary" },
+          scope_discipline: { kind: "constant", signal: "met" },
+          honest_calibration: { kind: "constant", signal: "n/a" },
+          project_specificity: { kind: "constant", signal: "n/a" },
+          insight_density: { kind: "constant", signal: "n/a" },
+          branch_distinctness: { kind: "constant", signal: "n/a" }
+        }
+      }
+    }
+  },
+  {
+    id: "stress-proposals-step",
+    title: "Decision \u2014 stress proposals",
+    stage: "plan",
+    block: "plan",
+    input: {
+      brief: "explore.brief@v1",
+      options: "explore.decision-options@v1",
+      aggregate: "explore.tournament-aggregate@v1"
+    },
+    output: "explore.tournament-review@v1",
+    execution: { kind: "relay", role: "reviewer" },
+    protocol: "explore-stress-proposals@v1",
+    writes: {
+      report_path: "reports/tournament-review.json",
+      request_path: "reports/relay/tournament-review.request.json",
+      receipt_path: "reports/relay/tournament-review.receipt.txt",
+      result_path: "reports/relay/tournament-review.result.json"
+    },
+    check: { pass: ["recommend", "no-clear-winner", "needs-operator"] },
+    routes: {
+      continue: "tradeoff-checkpoint-step",
+      revise: "decision-options-step",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "tradeoff-checkpoint-step",
+    title: "Decision \u2014 tradeoff checkpoint",
+    stage: "plan",
+    block: "human-decision",
+    input: {
+      question: "explore.tournament-review@v1",
+      evidence: "explore.tournament-aggregate@v1"
+    },
+    output: "explore.tradeoff-selection@v1",
+    protocol: "explore-tradeoff-checkpoint@v1",
+    writes: {
+      checkpoint_request_path: "reports/checkpoints/tradeoff-request.json",
+      checkpoint_response_path: "reports/checkpoints/tradeoff-response.json"
+    },
+    check: { allow_from: { kind: "policy_choices" } },
+    checkpointPolicy: {
+      prompt: "Choose the option Circuit should close with. This checkpoint only supports final option choices; ask-for-more-evidence and stop routes are intentionally not encoded until the runtime has executable route semantics for them.",
+      choices_from: {
+        kind: "report_items",
+        source_report: "reports/tournament-aggregate.json",
+        items_path: "branches",
+        filter: { kind: "path_equals", path: "child_outcome", value: "complete" },
+        id_path: "branch_id",
+        label_path: "result_body.option_label",
+        description_path: "result_body.case_summary"
+      },
+      safe_default_choice: "option-1",
+      auto_resolution: {
+        policy: "highest-score",
+        source_report: "reports/tournament-aggregate.json",
+        branches_path: "branches",
+        id_path: "branch_id",
+        rubric_result_path: "rubric_result"
+      }
+    },
+    routes: { continue: "decision-step", stop: "@stop" }
+  },
+  {
+    id: "decision-step",
+    title: "Decision \u2014 compose final choice",
+    stage: "plan",
+    block: "plan",
+    input: {
+      brief: "explore.brief@v1",
+      options: "explore.decision-options@v1",
+      aggregate: "explore.tournament-aggregate@v1",
+      review: "explore.tournament-review@v1"
+    },
+    output: "explore.decision@v1",
+    execution: { kind: "compose" },
+    protocol: "explore-decision@v1",
+    writes: { report_path: "reports/decision.json" },
+    check: { required: ["decision", "selected_option_id", "rationale"] },
+    routes: { continue: "close-tournament-step", stop: "@stop" }
+  },
+  {
+    id: "close-tournament-step",
+    title: "Close \u2014 emit tournament result file",
+    stage: "close",
+    block: "close-with-evidence",
+    input: {
+      brief: "explore.brief@v1",
+      options: "explore.decision-options@v1",
+      aggregate: "explore.tournament-aggregate@v1",
+      review: "explore.tournament-review@v1",
+      decision: "explore.decision@v1"
+    },
+    output: "explore.result@v1",
+    execution: { kind: "compose" },
+    protocol: "explore-close-tournament@v1",
+    writes: { report_path: "reports/explore-result.json" },
+    check: { required: ["summary", "verdict_snapshot"] },
+    routes: { complete: "@complete", stop: "@stop" }
+  },
+  {
+    id: "close-step",
+    title: "Close \u2014 emit final result file",
+    stage: "close",
+    block: "close-with-evidence",
+    input: {
+      brief: "explore.brief@v1",
+      compose: "explore.compose@v1",
+      review: "explore.review-verdict@v1"
+    },
+    output: "explore.result@v1",
+    execution: { kind: "compose" },
+    protocol: "explore-close@v1",
+    writes: { report_path: "reports/explore-result.json" },
+    check: { required: ["summary", "verdict_snapshot"] },
+    routes: { complete: "@complete", stop: "@stop" }
+  }
+];
+var exploreStageLabels = {
+  frame: { id: "frame-stage", title: "Frame" },
+  analyze: { id: "analyze-stage", title: "Analyze" },
+  plan: { id: "decision-stage", title: "Plan or Decision" },
+  close: { id: "close-stage", title: "Close" }
+};
+var exploreAssemblySpec = {
+  id: "explore",
+  title: "Explore Schematic",
+  purpose: "Explore flow: frame the investigation, analyze the subject, either synthesize and critique findings or run a decision tournament, then close with findings plus evidence. All modes use Frame, Analyze, Plan or Decision, and Close; critique is embedded inside the Plan/Decision stage rather than exposed as a separate canonical Review stage.",
+  status: "active",
+  version: "0.1.0",
+  initial_contracts: ["task.intake@v1", "route.decision@v1", "context.packet@v1"],
+  contract_aliases: [
+    { generic: "flow.brief@v1", actual: "explore.brief@v1" },
+    { generic: "diagnosis.result@v1", actual: "explore.analysis@v1" },
+    { generic: "change.evidence@v1", actual: "explore.compose@v1" },
+    { generic: "review.verdict@v1", actual: "explore.review-verdict@v1" },
+    { generic: "plan.strategy@v1", actual: "explore.decision-options@v1" },
+    { generic: "plan.strategy@v1", actual: "explore.tournament-aggregate@v1" },
+    { generic: "plan.strategy@v1", actual: "explore.tournament-review@v1" },
+    { generic: "plan.strategy@v1", actual: "explore.decision@v1" },
+    { generic: "flow.question@v1", actual: "explore.tournament-review@v1" },
+    { generic: "flow.evidence@v1", actual: "explore.tournament-aggregate@v1" },
+    { generic: "decision.answer@v1", actual: "explore.tradeoff-selection@v1" },
+    { generic: "flow.result@v1", actual: "explore.result@v1" }
+  ],
+  axes: {
+    allowed_depths: ["low", "medium", "high"],
+    supports_tournament: true,
+    supports_autonomous: true,
+    default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false },
+    tournament_fan_out_stage: "decision-stage"
+  },
+  items: exploreBlockItems,
+  stageLabels: exploreStageLabels,
+  stagePathRationale: EXPLORE_STAGE_PATH_RATIONALE
+};
+
 // dist/flows/explore/relay-hints.js
 var exploreComposeShapeHint = {
   kind: "schema",
@@ -36258,485 +36557,17 @@ var exploreFlowData = {
     schematic: "src/flows/explore/schematic.json",
     contract: "src/flows/explore/contract.md"
   },
-  schematic: {
-    schema_version: "2",
-    id: "explore",
-    title: "Explore Schematic",
-    purpose: "Explore flow: frame the investigation, analyze the subject, either synthesize and critique findings or run a decision tournament, then close with findings plus evidence. All modes use Frame, Analyze, Plan or Decision, and Close; critique is embedded inside the Plan/Decision stage rather than exposed as a separate canonical Review stage.",
-    status: "active",
-    version: "0.1.0",
-    starts_at: "frame-step",
-    initial_contracts: ["task.intake@v1", "route.decision@v1", "context.packet@v1"],
-    contract_aliases: [
-      {
-        generic: "flow.brief@v1",
-        actual: "explore.brief@v1"
-      },
-      {
-        generic: "diagnosis.result@v1",
-        actual: "explore.analysis@v1"
-      },
-      {
-        generic: "change.evidence@v1",
-        actual: "explore.compose@v1"
-      },
-      {
-        generic: "review.verdict@v1",
-        actual: "explore.review-verdict@v1"
-      },
-      {
-        generic: "plan.strategy@v1",
-        actual: "explore.decision-options@v1"
-      },
-      {
-        generic: "plan.strategy@v1",
-        actual: "explore.tournament-aggregate@v1"
-      },
-      {
-        generic: "plan.strategy@v1",
-        actual: "explore.tournament-review@v1"
-      },
-      {
-        generic: "plan.strategy@v1",
-        actual: "explore.decision@v1"
-      },
-      {
-        generic: "flow.question@v1",
-        actual: "explore.tournament-review@v1"
-      },
-      {
-        generic: "flow.evidence@v1",
-        actual: "explore.tournament-aggregate@v1"
-      },
-      {
-        generic: "decision.answer@v1",
-        actual: "explore.tradeoff-selection@v1"
-      },
-      {
-        generic: "flow.result@v1",
-        actual: "explore.result@v1"
-      }
-    ],
-    axes: {
-      allowed_depths: ["low", "medium", "high"],
-      supports_tournament: true,
-      supports_autonomous: true,
-      default: {
-        depth: "medium",
-        tournament: false,
-        tournament_n: 3,
-        autonomous: false
-      },
-      tournament_fan_out_stage: "decision-stage"
-    },
-    stage_path_policy: {
-      mode: "partial",
-      omits: ["act", "verify", "review"],
-      rationale: "Explore is an investigation and decision flow. Synthesize, critique, and tournament stress review are all embedded inside the canonical Plan/Decision stage. Verify is omitted because Explore output is not executable and uses evidence/seam proof rather than mechanical command verification. See src/flows/explore/contract.md \xA7Canonical stage set for the full rationale."
-    },
-    stages: [
-      {
-        id: "frame-stage",
-        canonical: "frame",
-        title: "Frame"
-      },
-      {
-        id: "analyze-stage",
-        canonical: "analyze",
-        title: "Analyze"
-      },
-      {
-        id: "decision-stage",
-        canonical: "plan",
-        title: "Plan or Decision"
-      },
-      {
-        id: "close-stage",
-        canonical: "close",
-        title: "Close"
-      }
-    ],
-    items: [
-      {
-        id: "frame-step",
-        title: "Frame \u2014 produce explore.brief",
-        stage: "frame",
-        block: "frame",
-        input: {
-          task: "task.intake@v1",
-          route: "route.decision@v1"
-        },
-        output: "explore.brief@v1",
-        evidence_requirements: ["scope boundary", "constraints", "proof plan"],
-        execution: {
-          kind: "compose"
-        },
-        protocol: "explore-frame@v1",
-        writes: {
-          report_path: "reports/brief.json"
-        },
-        check: {
-          required: ["subject", "success_condition"]
-        },
-        routes: {
-          continue: "analyze-step",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "analyze-step",
-        title: "Analyze \u2014 produce explore.analysis",
-        stage: "analyze",
-        block: "diagnose",
-        input: {
-          brief: "explore.brief@v1",
-          context: "context.packet@v1"
-        },
-        output: "explore.analysis@v1",
-        evidence_requirements: [
-          "cause hypothesis",
-          "confidence",
-          "reproduction status",
-          "diagnostic path"
-        ],
-        execution: {
-          kind: "compose"
-        },
-        protocol: "explore-analyze@v1",
-        writes: {
-          report_path: "reports/analysis.json"
-        },
-        check: {
-          required: ["aspects"]
-        },
-        routes: {
-          continue: "synthesize-step",
-          retry: "analyze-step",
-          stop: "@stop"
-        },
-        route_overrides: {
-          continue: {
-            tournament: "decision-options-step"
-          }
-        }
-      },
-      expandBlockStepUse({
-        id: "synthesize-step",
-        title: "Synthesize \u2014 produce explore.compose (connector-bound relay)",
-        // synthesize-step is the act archetype run inside Explore's canonical
-        // plan stage (EXPLORE-I1): an implementer relay that composes the
-        // recommendation and emits explore.compose, which the flow already
-        // aliases to change.evidence@v1 (the act block's output). The act block
-        // declares the matching evidence and accepts the plan stage, so the
-        // evidence is inherited from the block rather than restated here.
-        stage: "plan",
-        block: "act",
-        input: {
-          brief: "explore.brief@v1",
-          diagnosis: "explore.analysis@v1",
-          // Forward read: written by review-step, so it is absent on the
-          // first pass (rendered as a reads-unavailable placeholder) and
-          // present on a rework pass after a reject — the rework attempt
-          // must see why the compose was rejected.
-          review: "explore.review-verdict@v1"
-        },
-        // review arrives only on the rework loop-back (review-step ->
-        // synthesize-step); the first pass from analyze-step never produces it.
-        // Declaring it optional records that route-disjoint truth: it is valid
-        // as long as at least one reachable route produces it.
-        optional_inputs: ["review"],
-        output: "explore.compose@v1",
-        execution: {
-          kind: "relay",
-          role: "implementer"
-        },
-        protocol: "explore-synthesize@v1",
-        reportPath: "reports/compose.json",
-        requestPath: "reports/relay/synthesize.request.json",
-        receiptPath: "reports/relay/synthesize.receipt.txt",
-        resultPath: "reports/relay/synthesize.result.json",
-        pass: ["accept"],
-        routes: {
-          continue: "review-step",
-          retry: "synthesize-step",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "review-step",
-        title: "Review \u2014 adversarial pass over compose (connector-bound relay)",
-        stage: "plan",
-        block: "review",
-        input: {
-          brief: "explore.brief@v1",
-          diagnosis: "explore.analysis@v1",
-          change: "explore.compose@v1"
-        },
-        output: "explore.review-verdict@v1",
-        execution: {
-          kind: "relay",
-          role: "reviewer"
-        },
-        protocol: "explore-review@v1",
-        reportPath: "reports/review-verdict.json",
-        requestPath: "reports/relay/review.request.json",
-        receiptPath: "reports/relay/review.receipt.txt",
-        resultPath: "reports/relay/review.result.json",
-        pass: ["accept", "accept-with-fold-ins"],
-        routes: {
-          continue: "close-step",
-          retry: "synthesize-step",
-          revise: "synthesize-step",
-          stop: "@stop"
-        }
-      }),
-      {
-        id: "decision-options-step",
-        title: "Decision \u2014 draft tournament options",
-        stage: "plan",
-        block: "plan",
-        input: {
-          brief: "explore.brief@v1",
-          diagnosis: "explore.analysis@v1"
-        },
-        output: "explore.decision-options@v1",
-        evidence_requirements: ["ordered steps", "risk notes", "proof strategy"],
-        execution: {
-          kind: "compose"
-        },
-        protocol: "explore-decision-options@v1",
-        writes: {
-          report_path: "reports/decision-options.json"
-        },
-        check: {
-          required: ["decision_question", "options"]
-        },
-        routes: {
-          continue: "proposal-fanout-step",
-          stop: "@stop"
-        }
-      },
-      expandBlockStepUse({
-        id: "proposal-fanout-step",
-        title: "Decision \u2014 fan out option cases",
-        stage: "plan",
-        block: "plan",
-        input: {
-          brief: "explore.brief@v1",
-          options: "explore.decision-options@v1"
-        },
-        output: "explore.tournament-aggregate@v1",
-        execution: {
-          kind: "fanout"
-        },
-        protocol: "explore-proposal-fanout@v1",
-        reportPath: "reports/tournament-aggregate.json",
-        branchesDirPath: "reports/tournament-branches",
-        pass: ["accept"],
-        fanout: {
-          branches: {
-            kind: "dynamic",
-            source_report: "reports/decision-options.json",
-            items_path: "options",
-            template: {
-              branch_id: "$item.id",
-              execution: {
-                kind: "relay",
-                role: "researcher",
-                goal: "$item.best_case_prompt",
-                report_schema: "explore.tournament-proposal@v1",
-                provenance_field: "option_id"
-              }
-            },
-            max_branches: { kind: "axis", axis: "tournament_n" },
-            required_count: { kind: "axis", axis: "tournament_n" }
-          },
-          concurrency: {
-            kind: "bounded",
-            max: 2
-          },
-          on_child_failure: "continue-others",
-          join: {
-            policy: "aggregate-survivors"
-          },
-          rubric: {
-            model_judgments_path: "rubric_model_judgments",
-            ordered_dims: [...THREE_AXIS_RUBRIC_TIE_BREAK_ORDER],
-            runtime_signals: {
-              evidence_rigor: { kind: "non_empty_array", path: "evidence_refs" },
-              actionability: { kind: "non_empty_string", path: "next_action" },
-              coverage_adequacy: { kind: "non_empty_string", path: "case_summary" },
-              scope_discipline: { kind: "constant", signal: "met" },
-              honest_calibration: { kind: "constant", signal: "n/a" },
-              project_specificity: { kind: "constant", signal: "n/a" },
-              insight_density: { kind: "constant", signal: "n/a" },
-              branch_distinctness: { kind: "constant", signal: "n/a" }
-            }
-          }
-        },
-        routes: {
-          continue: "stress-proposals-step",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "stress-proposals-step",
-        title: "Decision \u2014 stress proposals",
-        stage: "plan",
-        block: "plan",
-        input: {
-          brief: "explore.brief@v1",
-          options: "explore.decision-options@v1",
-          aggregate: "explore.tournament-aggregate@v1"
-        },
-        output: "explore.tournament-review@v1",
-        execution: {
-          kind: "relay",
-          role: "reviewer"
-        },
-        protocol: "explore-stress-proposals@v1",
-        reportPath: "reports/tournament-review.json",
-        requestPath: "reports/relay/tournament-review.request.json",
-        receiptPath: "reports/relay/tournament-review.receipt.txt",
-        resultPath: "reports/relay/tournament-review.result.json",
-        pass: ["recommend", "no-clear-winner", "needs-operator"],
-        routes: {
-          continue: "tradeoff-checkpoint-step",
-          revise: "decision-options-step",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "tradeoff-checkpoint-step",
-        title: "Decision \u2014 tradeoff checkpoint",
-        stage: "plan",
-        block: "human-decision",
-        input: {
-          question: "explore.tournament-review@v1",
-          evidence: "explore.tournament-aggregate@v1"
-        },
-        output: "explore.tradeoff-selection@v1",
-        protocol: "explore-tradeoff-checkpoint@v1",
-        checkpointRequestPath: "reports/checkpoints/tradeoff-request.json",
-        checkpointResponsePath: "reports/checkpoints/tradeoff-response.json",
-        check: {
-          allow_from: { kind: "policy_choices" }
-        },
-        checkpointPolicy: {
-          prompt: "Choose the option Circuit should close with. This checkpoint only supports final option choices; ask-for-more-evidence and stop routes are intentionally not encoded until the runtime has executable route semantics for them.",
-          choices_from: {
-            kind: "report_items",
-            source_report: "reports/tournament-aggregate.json",
-            items_path: "branches",
-            filter: {
-              kind: "path_equals",
-              path: "child_outcome",
-              value: "complete"
-            },
-            id_path: "branch_id",
-            label_path: "result_body.option_label",
-            description_path: "result_body.case_summary"
-          },
-          safe_default_choice: "option-1",
-          auto_resolution: {
-            policy: "highest-score",
-            source_report: "reports/tournament-aggregate.json",
-            branches_path: "branches",
-            id_path: "branch_id",
-            rubric_result_path: "rubric_result"
-          }
-        },
-        routes: {
-          continue: "decision-step",
-          stop: "@stop"
-        }
-      }),
-      {
-        id: "decision-step",
-        title: "Decision \u2014 compose final choice",
-        stage: "plan",
-        block: "plan",
-        input: {
-          brief: "explore.brief@v1",
-          options: "explore.decision-options@v1",
-          aggregate: "explore.tournament-aggregate@v1",
-          review: "explore.tournament-review@v1"
-        },
-        output: "explore.decision@v1",
-        evidence_requirements: ["ordered steps", "risk notes", "proof strategy"],
-        execution: {
-          kind: "compose"
-        },
-        protocol: "explore-decision@v1",
-        writes: {
-          report_path: "reports/decision.json"
-        },
-        check: {
-          required: ["decision", "selected_option_id", "rationale"]
-        },
-        routes: {
-          continue: "close-tournament-step",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "close-tournament-step",
-        title: "Close \u2014 emit tournament result file",
-        stage: "close",
-        block: "close-with-evidence",
-        input: {
-          brief: "explore.brief@v1",
-          options: "explore.decision-options@v1",
-          aggregate: "explore.tournament-aggregate@v1",
-          review: "explore.tournament-review@v1",
-          decision: "explore.decision@v1"
-        },
-        output: "explore.result@v1",
-        evidence_requirements: ["outcome", "evidence pointers", "residual risks", "follow-ups"],
-        execution: {
-          kind: "compose"
-        },
-        protocol: "explore-close-tournament@v1",
-        writes: {
-          report_path: "reports/explore-result.json"
-        },
-        check: {
-          required: ["summary", "verdict_snapshot"]
-        },
-        routes: {
-          complete: "@complete",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "close-step",
-        title: "Close \u2014 emit final result file",
-        stage: "close",
-        block: "close-with-evidence",
-        input: {
-          brief: "explore.brief@v1",
-          compose: "explore.compose@v1",
-          review: "explore.review-verdict@v1"
-        },
-        output: "explore.result@v1",
-        evidence_requirements: ["outcome", "evidence pointers", "residual risks", "follow-ups"],
-        execution: {
-          kind: "compose"
-        },
-        protocol: "explore-close@v1",
-        writes: {
-          report_path: "reports/explore-result.json"
-        },
-        check: {
-          required: ["summary", "verdict_snapshot"]
-        },
-        routes: {
-          complete: "@complete",
-          stop: "@stop"
-        }
-      }
-    ]
-  },
+  // First-class composition (A5): explore is the assembler's most irregular
+  // production customer — a four-canonical partial spine with the act/review
+  // archetypes and the full decision tournament folded inside the canonical
+  // Plan stage, non-monotonic items, a dynamic proposal fanout, a tradeoff
+  // checkpoint, a custom diagnose block, a forward-read optional input, and two
+  // close steps sharing one result output. Its block sequence + scaffolding
+  // live in ./assembly-spec.ts; `assembleFlowSchematic` derives starts_at /
+  // stages / stage_path_policy and returns the validated FlowSchematic that used
+  // to be a hand-authored literal here. The prove-by-equivalence test proves
+  // byte-identity (schematic + compiled).
+  schematic: assembleFlowSchematic(exploreAssemblySpec),
   canonicalStagePolicy: {
     kind: "enforce",
     canonicals: ["frame", "analyze", "plan", "close"],
@@ -37058,6 +36889,395 @@ ${autoResolutions}
     footerLeft: `circuit \xB7 explore \xB7 ${ctx.runId}`,
     footerRight: decisionOptions.recommendation_basis
   });
+};
+
+// dist/flows/fix/assembly-spec.js
+var FIX_STAGE_PATH_RATIONALE = "Fix follows Frame, Analyze, Act, Verify, Review, Close. The Plan stage is omitted because Fix's planning is folded into Diagnose during the Analyze stage \u2014 there is no separate plan-of-attack report distinct from the diagnosis.";
+var fixBlockItems = [
+  {
+    id: "fix-frame",
+    title: "Frame \u2014 confirm Fix brief",
+    stage: "frame",
+    block: "frame",
+    input: { task: "task.intake@v1", route: "route.decision@v1" },
+    output: "fix.brief@v1",
+    execution: { kind: "compose" },
+    protocol: "fix-frame@v1",
+    writes: { report_path: "reports/fix/brief.json" },
+    check: { required: ["problem_statement", "scope", "regression_contract", "success_criteria"] },
+    routes: {
+      continue: "fix-regression-baseline",
+      revise: "fix-frame",
+      ask: "@stop",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "fix-gather-context",
+    title: "Analyze \u2014 gather problem context",
+    stage: "analyze",
+    block: "gather-context",
+    input: { brief: "fix.brief@v1", request: "context.request@v1" },
+    output: "fix.context@v1",
+    execution: { kind: "relay", role: "researcher" },
+    protocol: "fix-gather-context@v1",
+    writes: {
+      report_path: "reports/fix/context.json",
+      request_path: "reports/relay/fix-gather-context.request.json",
+      receipt_path: "reports/relay/fix-gather-context.receipt.txt",
+      result_path: "reports/relay/fix-gather-context.result.json"
+    },
+    check: { pass: ["accept"] },
+    skillSlots: [
+      {
+        id: "fix-codebase-search",
+        description: "A skill for navigating and searching the codebase to locate the code involved in the reported problem."
+      }
+    ],
+    routes: { continue: "fix-diagnose", retry: "fix-gather-context", ask: "@stop", stop: "@stop" }
+  },
+  {
+    id: "fix-diagnose",
+    title: "Analyze \u2014 diagnose problem",
+    stage: "analyze",
+    block: "diagnose",
+    input: { brief: "fix.brief@v1", context: "fix.context@v1" },
+    output: "fix.diagnosis@v1",
+    execution: { kind: "relay", role: "researcher" },
+    protocol: "fix-diagnose@v1",
+    writes: {
+      report_path: "reports/fix/diagnosis.json",
+      request_path: "reports/relay/fix-diagnose.request.json",
+      receipt_path: "reports/relay/fix-diagnose.receipt.txt",
+      result_path: "reports/relay/fix-diagnose.result.json"
+    },
+    check: { pass: ["accept"] },
+    skillSlots: [
+      {
+        id: "fix-root-cause-analysis",
+        description: "A skill for forming and testing hypotheses about the root cause of a bug before any change is made."
+      }
+    ],
+    routes: {
+      continue: "fix-act",
+      retry: "fix-gather-context",
+      ask: "fix-no-repro-decision",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "fix-no-repro-decision",
+    title: "Analyze \u2014 choose path forward when reproduction is uncertain",
+    stage: "analyze",
+    block: "human-decision",
+    input: { question: "flow.question@v1", evidence: "fix.diagnosis@v1" },
+    output: "fix.no-repro-decision@v1",
+    protocol: "fix-no-repro-decision@v1",
+    writes: {
+      checkpoint_request_path: "reports/checkpoints/fix-no-repro-decision-request.json",
+      checkpoint_response_path: "reports/checkpoints/fix-no-repro-decision-response.json"
+    },
+    check: { allow: ["continue"] },
+    checkpointPolicy: {
+      prompt: "Diagnosis did not cleanly reproduce the bug. Choose how to proceed.",
+      choices: [{ id: "continue", label: "Continue with a focused fix anyway" }],
+      safe_default_choice: "continue"
+    },
+    routes: {
+      continue: "fix-act",
+      revise: "fix-diagnose",
+      stop: "@stop",
+      handoff: "fix-handoff",
+      escalate: "@escalate"
+    }
+  },
+  {
+    id: "fix-regression-baseline",
+    title: "Verify \u2014 capture regression baseline",
+    stage: "verify",
+    block: "run-verification",
+    input: { proof: "verification.plan@v1", brief: "fix.brief@v1" },
+    output: "fix.regression-proof@v1",
+    protocol: "fix-regression-baseline@v1",
+    writes: { report_path: "reports/fix/regression-proof.json" },
+    check: { required: ["status", "overall_status"] },
+    routes: { continue: "fix-baseline-snapshot", retry: "fix-frame", stop: "@stop" }
+  },
+  {
+    id: "fix-baseline-snapshot",
+    title: "Verify \u2014 snapshot pre-fix git state",
+    stage: "verify",
+    block: "run-verification",
+    input: { proof: "verification.plan@v1" },
+    output: "fix.baseline-snapshot@v1",
+    protocol: "fix-baseline-snapshot@v1",
+    writes: { report_path: "reports/fix/baseline-snapshot.json" },
+    check: { required: ["overall_status", "head_sha"] },
+    routes: { continue: "fix-gather-context", stop: "@stop" }
+  },
+  {
+    id: "fix-act",
+    title: "Act \u2014 apply focused fix",
+    stage: "act",
+    block: "act",
+    input: { brief: "fix.brief@v1", diagnosis: "fix.diagnosis@v1" },
+    output: "fix.change@v1",
+    execution: { kind: "relay", role: "implementer" },
+    protocol: "fix-act@v1",
+    writes: {
+      report_path: "reports/fix/change.json",
+      request_path: "reports/relay/fix-act.request.json",
+      receipt_path: "reports/relay/fix-act.receipt.txt",
+      result_path: "reports/relay/fix-act.result.json"
+    },
+    check: { pass: ["accept"] },
+    acceptanceCriteria: {
+      checks: [
+        {
+          kind: "report_field",
+          id: "changed-files-present",
+          path: ["changed_files"],
+          predicate: "present"
+        },
+        {
+          kind: "report_field",
+          id: "evidence-non-empty",
+          path: ["evidence"],
+          predicate: "non_empty"
+        }
+      ],
+      on_failure: { mode: "retry-with-feedback" }
+    },
+    skillSlots: [
+      {
+        id: "fix-focused-edit",
+        description: "A skill for making the smallest correct code edit that resolves the diagnosed problem."
+      }
+    ],
+    equipmentScope: {
+      tools: { allow: ["Read", "Grep", "Glob", "Edit", "Write", "Bash"] },
+      enforcement: "enforced"
+    },
+    routes: {
+      continue: "fix-verify",
+      retry: "fix-act",
+      ask: "fix-no-repro-decision",
+      stop: "@stop",
+      handoff: "fix-handoff"
+    }
+  },
+  {
+    id: "fix-verify",
+    title: "Verify \u2014 run Fix proof",
+    stage: "verify",
+    block: "run-verification",
+    input: { proof: "verification.plan@v1", brief: "fix.brief@v1", change: "fix.change@v1" },
+    output: "fix.verification@v1",
+    protocol: "fix-verify@v1",
+    writes: { report_path: "reports/fix/verification.json" },
+    check: { required: ["overall_status", "commands"] },
+    routes: {
+      continue: "fix-change-set",
+      retry: "fix-act",
+      ask: "fix-no-repro-decision",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "fix-change-set",
+    title: "Verify \u2014 compute fix change-set",
+    stage: "verify",
+    block: "run-verification",
+    input: {
+      proof: "verification.plan@v1",
+      baseline: "fix.baseline-snapshot@v1",
+      change: "fix.change@v1"
+    },
+    output: "fix.change-set@v1",
+    protocol: "fix-change-set@v1",
+    writes: { report_path: "reports/fix/change-set.json" },
+    check: { required: ["status", "overall_status"] },
+    routes: { continue: "fix-regression-rerun", retry: "fix-act", stop: "@stop" }
+  },
+  {
+    id: "fix-regression-rerun",
+    title: "Verify \u2014 rerun regression command after fix",
+    stage: "verify",
+    block: "run-verification",
+    input: { proof: "verification.plan@v1", brief: "fix.brief@v1" },
+    output: "fix.regression-rerun@v1",
+    protocol: "fix-regression-rerun@v1",
+    writes: { report_path: "reports/fix/regression-rerun.json" },
+    check: { required: ["status", "overall_status"] },
+    routeOverrides: { continue: { low: "fix-close-low" } },
+    routes: { continue: "fix-review", retry: "fix-act", stop: "@stop" }
+  },
+  {
+    id: "fix-review",
+    title: "Review \u2014 independent audit of Fix change",
+    stage: "review",
+    block: "review",
+    input: { brief: "fix.brief@v1", change: "fix.change@v1", verification: "fix.verification@v1" },
+    output: "fix.review@v1",
+    execution: { kind: "relay", role: "reviewer" },
+    protocol: "fix-review@v1",
+    writes: {
+      report_path: "reports/fix/review.json",
+      request_path: "reports/relay/fix-review.request.json",
+      receipt_path: "reports/relay/fix-review.receipt.txt",
+      result_path: "reports/relay/fix-review.result.json"
+    },
+    check: { pass: ["accept", "accept-with-fixes"] },
+    skillSlots: [
+      {
+        id: "fix-change-audit",
+        description: "A skill for independently auditing a change for correctness, scope creep, and regressions."
+      }
+    ],
+    routes: {
+      continue: "fix-close",
+      "connector-failed": "fix-close",
+      retry: "fix-act",
+      revise: "fix-act",
+      ask: "fix-no-repro-decision",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "fix-close-low",
+    title: "Close (low depth) \u2014 emit Fix result without review",
+    stage: "close",
+    block: "close-with-evidence",
+    input: {
+      brief: "fix.brief@v1",
+      context: "fix.context@v1",
+      diagnosis: "fix.diagnosis@v1",
+      regression: "fix.regression-proof@v1",
+      baseline_snapshot: "fix.baseline-snapshot@v1",
+      change: "fix.change@v1",
+      verification: "fix.verification@v1",
+      regression_rerun: "fix.regression-rerun@v1",
+      change_set: "fix.change-set@v1"
+    },
+    output: "fix.result@v1",
+    execution: { kind: "compose" },
+    protocol: "fix-close-low@v1",
+    writes: { report_path: "reports/fix-result.json" },
+    check: {
+      required: [
+        "summary",
+        "outcome",
+        "verification_status",
+        "regression_status",
+        "change_set_status",
+        "review_status",
+        "evidence_links"
+      ]
+    },
+    routes: { complete: "@complete", stop: "@stop", handoff: "fix-handoff", escalate: "@escalate" }
+  },
+  {
+    id: "fix-close",
+    title: "Close \u2014 emit Fix result",
+    stage: "close",
+    block: "close-with-evidence",
+    input: {
+      brief: "fix.brief@v1",
+      context: "fix.context@v1",
+      diagnosis: "fix.diagnosis@v1",
+      regression: "fix.regression-proof@v1",
+      baseline_snapshot: "fix.baseline-snapshot@v1",
+      change: "fix.change@v1",
+      verification: "fix.verification@v1",
+      regression_rerun: "fix.regression-rerun@v1",
+      change_set: "fix.change-set@v1",
+      review: "fix.review@v1"
+    },
+    output: "fix.result@v1",
+    execution: { kind: "compose" },
+    protocol: "fix-close@v1",
+    writes: { report_path: "reports/fix-result.json" },
+    check: {
+      required: [
+        "summary",
+        "outcome",
+        "verification_status",
+        "regression_status",
+        "change_set_status",
+        "review_status",
+        "evidence_links"
+      ]
+    },
+    routes: { complete: "@complete", stop: "@stop", handoff: "fix-handoff", escalate: "@escalate" }
+  },
+  {
+    id: "fix-handoff",
+    title: "Persist Fix handoff",
+    stage: "close",
+    block: "handoff",
+    input: { state: "flow.state@v1", brief: "fix.brief@v1" },
+    execution: { kind: "compose" },
+    protocol: "fix-handoff@v1",
+    writes: { report_path: "reports/fix/handoff.json" },
+    check: { required: ["goal", "next_action"] },
+    routes: { complete: "@handoff", stop: "@stop" }
+  }
+];
+var fixStageLabels = {
+  frame: { id: "frame-stage", title: "Frame" },
+  analyze: { id: "analyze-stage", title: "Analyze" },
+  act: { id: "act-stage", title: "Act" },
+  verify: { id: "verify-stage", title: "Verify" },
+  review: { id: "review-stage", title: "Review" },
+  close: { id: "close-stage", title: "Close" }
+};
+var fixAssemblySpec = {
+  id: "fix",
+  title: "Fix Schematic",
+  purpose: "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at medium depth and above, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Low depth skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they appear in compiled flows with declared ask/handoff recovery bindings, but the engine does not yet emit any failure cause those bindings accept, so no runtime path reaches them.",
+  status: "active",
+  version: "0.1.0",
+  initial_contracts: [
+    "task.intake@v1",
+    "route.decision@v1",
+    "context.request@v1",
+    "flow.question@v1",
+    "verification.plan@v1",
+    "flow.state@v1"
+  ],
+  contract_aliases: [
+    { generic: "flow.brief@v1", actual: "fix.brief@v1" },
+    { generic: "context.packet@v1", actual: "fix.context@v1" },
+    { generic: "diagnosis.result@v1", actual: "fix.diagnosis@v1" },
+    { generic: "decision.answer@v1", actual: "fix.no-repro-decision@v1" },
+    { generic: "flow.evidence@v1", actual: "fix.diagnosis@v1" },
+    { generic: "change.evidence@v1", actual: "fix.change@v1" },
+    { generic: "verification.result@v1", actual: "fix.verification@v1" },
+    { generic: "verification.result@v1", actual: "fix.regression-proof@v1" },
+    { generic: "verification.result@v1", actual: "fix.baseline-snapshot@v1" },
+    { generic: "verification.result@v1", actual: "fix.regression-rerun@v1" },
+    { generic: "verification.result@v1", actual: "fix.change-set@v1" },
+    { generic: "review.verdict@v1", actual: "fix.review@v1" },
+    { generic: "flow.result@v1", actual: "fix.result@v1" }
+  ],
+  axes: {
+    allowed_depths: ["low", "medium", "high"],
+    supports_tournament: false,
+    supports_autonomous: true,
+    default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
+  },
+  // Stage 3b (first-class composition): fix's report file surfaces ride the
+  // schematic onto the compiled manifest, so the engine reads the skill-hook
+  // edit-file surface table off the manifest, not the by-id catalog package.
+  report_file_surfaces: {
+    "fix.change-set@v1": {
+      timing: "after",
+      extractor: { kind: "string-array-field", field: "observed" }
+    }
+  },
+  items: fixBlockItems,
+  stageLabels: fixStageLabels,
+  stagePathRationale: FIX_STAGE_PATH_RATIONALE
 };
 
 // dist/flows/fix/reports.js
@@ -38290,571 +38510,14 @@ var fixFlowData = {
     schematic: "src/flows/fix/schematic.json",
     contract: "src/flows/fix/contract.md"
   },
-  schematic: {
-    schema_version: "2",
-    id: "fix",
-    title: "Fix Schematic",
-    purpose: "Fix captures the problem boundary, proves the pre-fix regression before a specialist relay edits the checkout, gathers context, diagnoses, applies a focused change, verifies, reviews at medium depth and above, and closes with evidence. If the reviewer connector is unavailable after proof passes, Fix closes with proof evidence and marks review skipped. Low depth skips the review relay after verification. fix-no-repro-decision and fix-handoff remain as future ask/handoff routing intent; they appear in compiled flows with declared ask/handoff recovery bindings, but the engine does not yet emit any failure cause those bindings accept, so no runtime path reaches them.",
-    status: "active",
-    version: "0.1.0",
-    starts_at: "fix-frame",
-    initial_contracts: [
-      "task.intake@v1",
-      "route.decision@v1",
-      "context.request@v1",
-      "flow.question@v1",
-      "verification.plan@v1",
-      "flow.state@v1"
-    ],
-    contract_aliases: [
-      {
-        generic: "flow.brief@v1",
-        actual: "fix.brief@v1"
-      },
-      {
-        generic: "context.packet@v1",
-        actual: "fix.context@v1"
-      },
-      {
-        generic: "diagnosis.result@v1",
-        actual: "fix.diagnosis@v1"
-      },
-      {
-        generic: "decision.answer@v1",
-        actual: "fix.no-repro-decision@v1"
-      },
-      {
-        generic: "flow.evidence@v1",
-        actual: "fix.diagnosis@v1"
-      },
-      {
-        generic: "change.evidence@v1",
-        actual: "fix.change@v1"
-      },
-      {
-        generic: "verification.result@v1",
-        actual: "fix.verification@v1"
-      },
-      {
-        generic: "verification.result@v1",
-        actual: "fix.regression-proof@v1"
-      },
-      {
-        generic: "verification.result@v1",
-        actual: "fix.baseline-snapshot@v1"
-      },
-      {
-        generic: "verification.result@v1",
-        actual: "fix.regression-rerun@v1"
-      },
-      {
-        generic: "verification.result@v1",
-        actual: "fix.change-set@v1"
-      },
-      {
-        generic: "review.verdict@v1",
-        actual: "fix.review@v1"
-      },
-      {
-        generic: "flow.result@v1",
-        actual: "fix.result@v1"
-      }
-    ],
-    axes: {
-      allowed_depths: ["low", "medium", "high"],
-      supports_tournament: false,
-      supports_autonomous: true,
-      default: {
-        depth: "medium",
-        tournament: false,
-        tournament_n: 3,
-        autonomous: false
-      }
-    },
-    stage_path_policy: {
-      mode: "partial",
-      omits: ["plan"],
-      rationale: "Fix follows Frame, Analyze, Act, Verify, Review, Close. The Plan stage is omitted because Fix's planning is folded into Diagnose during the Analyze stage \u2014 there is no separate plan-of-attack report distinct from the diagnosis."
-    },
-    stages: [
-      {
-        id: "frame-stage",
-        canonical: "frame",
-        title: "Frame"
-      },
-      {
-        id: "analyze-stage",
-        canonical: "analyze",
-        title: "Analyze"
-      },
-      {
-        id: "act-stage",
-        canonical: "act",
-        title: "Act"
-      },
-      {
-        id: "verify-stage",
-        canonical: "verify",
-        title: "Verify"
-      },
-      {
-        id: "review-stage",
-        canonical: "review",
-        title: "Review"
-      },
-      {
-        id: "close-stage",
-        canonical: "close",
-        title: "Close"
-      }
-    ],
-    items: [
-      {
-        id: "fix-frame",
-        title: "Frame \u2014 confirm Fix brief",
-        stage: "frame",
-        block: "frame",
-        input: {
-          task: "task.intake@v1",
-          route: "route.decision@v1"
-        },
-        output: "fix.brief@v1",
-        evidence_requirements: ["scope boundary", "constraints", "proof plan"],
-        execution: {
-          kind: "compose"
-        },
-        protocol: "fix-frame@v1",
-        writes: {
-          report_path: "reports/fix/brief.json"
-        },
-        check: {
-          required: ["problem_statement", "scope", "regression_contract", "success_criteria"]
-        },
-        routes: {
-          continue: "fix-regression-baseline",
-          revise: "fix-frame",
-          ask: "@stop",
-          stop: "@stop"
-        }
-      },
-      expandBlockStepUse({
-        id: "fix-gather-context",
-        title: "Analyze \u2014 gather problem context",
-        stage: "analyze",
-        block: "gather-context",
-        input: {
-          brief: "fix.brief@v1",
-          request: "context.request@v1"
-        },
-        output: "fix.context@v1",
-        execution: {
-          kind: "relay",
-          role: "researcher"
-        },
-        protocol: "fix-gather-context@v1",
-        reportPath: "reports/fix/context.json",
-        requestPath: "reports/relay/fix-gather-context.request.json",
-        receiptPath: "reports/relay/fix-gather-context.receipt.txt",
-        resultPath: "reports/relay/fix-gather-context.result.json",
-        pass: ["accept"],
-        skillSlots: [
-          {
-            id: "fix-codebase-search",
-            description: "A skill for navigating and searching the codebase to locate the code involved in the reported problem."
-          }
-        ],
-        routes: {
-          continue: "fix-diagnose",
-          retry: "fix-gather-context",
-          ask: "@stop",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "fix-diagnose",
-        title: "Analyze \u2014 diagnose problem",
-        stage: "analyze",
-        block: "diagnose",
-        input: {
-          brief: "fix.brief@v1",
-          context: "fix.context@v1"
-        },
-        output: "fix.diagnosis@v1",
-        execution: {
-          kind: "relay",
-          role: "researcher"
-        },
-        protocol: "fix-diagnose@v1",
-        reportPath: "reports/fix/diagnosis.json",
-        requestPath: "reports/relay/fix-diagnose.request.json",
-        receiptPath: "reports/relay/fix-diagnose.receipt.txt",
-        resultPath: "reports/relay/fix-diagnose.result.json",
-        pass: ["accept"],
-        skillSlots: [
-          {
-            id: "fix-root-cause-analysis",
-            description: "A skill for forming and testing hypotheses about the root cause of a bug before any change is made."
-          }
-        ],
-        routes: {
-          continue: "fix-act",
-          retry: "fix-gather-context",
-          ask: "fix-no-repro-decision",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "fix-no-repro-decision",
-        title: "Analyze \u2014 choose path forward when reproduction is uncertain",
-        stage: "analyze",
-        block: "human-decision",
-        input: {
-          question: "flow.question@v1",
-          evidence: "fix.diagnosis@v1"
-        },
-        output: "fix.no-repro-decision@v1",
-        protocol: "fix-no-repro-decision@v1",
-        checkpointRequestPath: "reports/checkpoints/fix-no-repro-decision-request.json",
-        checkpointResponsePath: "reports/checkpoints/fix-no-repro-decision-response.json",
-        allow: ["continue"],
-        checkpointPolicy: {
-          prompt: "Diagnosis did not cleanly reproduce the bug. Choose how to proceed.",
-          choices: [
-            {
-              id: "continue",
-              label: "Continue with a focused fix anyway"
-            }
-          ],
-          safe_default_choice: "continue"
-        },
-        routes: {
-          continue: "fix-act",
-          revise: "fix-diagnose",
-          stop: "@stop",
-          handoff: "fix-handoff",
-          escalate: "@escalate"
-        }
-      }),
-      expandBlockStepUse({
-        id: "fix-regression-baseline",
-        title: "Verify \u2014 capture regression baseline",
-        stage: "verify",
-        block: "run-verification",
-        input: {
-          proof: "verification.plan@v1",
-          brief: "fix.brief@v1"
-        },
-        output: "fix.regression-proof@v1",
-        protocol: "fix-regression-baseline@v1",
-        reportPath: "reports/fix/regression-proof.json",
-        required: ["status", "overall_status"],
-        routes: {
-          continue: "fix-baseline-snapshot",
-          retry: "fix-frame",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "fix-baseline-snapshot",
-        title: "Verify \u2014 snapshot pre-fix git state",
-        stage: "verify",
-        block: "run-verification",
-        input: {
-          proof: "verification.plan@v1"
-        },
-        output: "fix.baseline-snapshot@v1",
-        protocol: "fix-baseline-snapshot@v1",
-        reportPath: "reports/fix/baseline-snapshot.json",
-        required: ["overall_status", "head_sha"],
-        routes: {
-          continue: "fix-gather-context",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "fix-act",
-        title: "Act \u2014 apply focused fix",
-        stage: "act",
-        block: "act",
-        input: {
-          brief: "fix.brief@v1",
-          diagnosis: "fix.diagnosis@v1"
-        },
-        output: "fix.change@v1",
-        execution: {
-          kind: "relay",
-          role: "implementer"
-        },
-        protocol: "fix-act@v1",
-        reportPath: "reports/fix/change.json",
-        requestPath: "reports/relay/fix-act.request.json",
-        receiptPath: "reports/relay/fix-act.receipt.txt",
-        resultPath: "reports/relay/fix-act.result.json",
-        pass: ["accept"],
-        skillSlots: [
-          {
-            id: "fix-focused-edit",
-            description: "A skill for making the smallest correct code edit that resolves the diagnosed problem."
-          }
-        ],
-        // The write tier scoped to the file-and-shell toolset a focused fix
-        // needs: read and search, edit and write, run verification. Declared
-        // ENFORCED — on a connector that can restrict tools (claude-code's
-        // --tools), the worker is spawned with exactly this set and nothing
-        // else; on a connector that cannot, the runtime downgrades to trusted
-        // guidance and records the downgrade rather than pretending to enforce.
-        equipmentScope: {
-          tools: { allow: ["Read", "Grep", "Glob", "Edit", "Write", "Bash"] },
-          enforcement: "enforced"
-        },
-        acceptanceCriteria: {
-          checks: [
-            {
-              kind: "report_field",
-              id: "changed-files-present",
-              path: ["changed_files"],
-              predicate: "present"
-            },
-            {
-              kind: "report_field",
-              id: "evidence-non-empty",
-              path: ["evidence"],
-              predicate: "non_empty"
-            }
-          ],
-          on_failure: { mode: "retry-with-feedback" }
-        },
-        routes: {
-          continue: "fix-verify",
-          retry: "fix-act",
-          ask: "fix-no-repro-decision",
-          stop: "@stop",
-          handoff: "fix-handoff"
-        }
-      }),
-      expandBlockStepUse({
-        id: "fix-verify",
-        title: "Verify \u2014 run Fix proof",
-        stage: "verify",
-        block: "run-verification",
-        input: {
-          proof: "verification.plan@v1",
-          brief: "fix.brief@v1",
-          change: "fix.change@v1"
-        },
-        output: "fix.verification@v1",
-        protocol: "fix-verify@v1",
-        reportPath: "reports/fix/verification.json",
-        required: ["overall_status", "commands"],
-        routes: {
-          continue: "fix-change-set",
-          retry: "fix-act",
-          ask: "fix-no-repro-decision",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "fix-change-set",
-        title: "Verify \u2014 compute fix change-set",
-        stage: "verify",
-        block: "run-verification",
-        input: {
-          proof: "verification.plan@v1",
-          baseline: "fix.baseline-snapshot@v1",
-          change: "fix.change@v1"
-        },
-        output: "fix.change-set@v1",
-        protocol: "fix-change-set@v1",
-        reportPath: "reports/fix/change-set.json",
-        required: ["status", "overall_status"],
-        routes: {
-          continue: "fix-regression-rerun",
-          retry: "fix-act",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "fix-regression-rerun",
-        title: "Verify \u2014 rerun regression command after fix",
-        stage: "verify",
-        block: "run-verification",
-        input: {
-          proof: "verification.plan@v1",
-          brief: "fix.brief@v1"
-        },
-        output: "fix.regression-rerun@v1",
-        protocol: "fix-regression-rerun@v1",
-        reportPath: "reports/fix/regression-rerun.json",
-        required: ["status", "overall_status"],
-        routes: {
-          continue: "fix-review",
-          retry: "fix-act",
-          stop: "@stop"
-        },
-        routeOverrides: {
-          continue: {
-            low: "fix-close-low"
-          }
-        }
-      }),
-      expandBlockStepUse({
-        id: "fix-review",
-        title: "Review \u2014 independent audit of Fix change",
-        stage: "review",
-        block: "review",
-        input: {
-          brief: "fix.brief@v1",
-          change: "fix.change@v1",
-          verification: "fix.verification@v1"
-        },
-        output: "fix.review@v1",
-        execution: {
-          kind: "relay",
-          role: "reviewer"
-        },
-        protocol: "fix-review@v1",
-        reportPath: "reports/fix/review.json",
-        requestPath: "reports/relay/fix-review.request.json",
-        receiptPath: "reports/relay/fix-review.receipt.txt",
-        resultPath: "reports/relay/fix-review.result.json",
-        pass: ["accept", "accept-with-fixes"],
-        skillSlots: [
-          {
-            id: "fix-change-audit",
-            description: "A skill for independently auditing a change for correctness, scope creep, and regressions."
-          }
-        ],
-        routes: {
-          continue: "fix-close",
-          "connector-failed": "fix-close",
-          retry: "fix-act",
-          revise: "fix-act",
-          ask: "fix-no-repro-decision",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "fix-close-low",
-        title: "Close (low depth) \u2014 emit Fix result without review",
-        stage: "close",
-        block: "close-with-evidence",
-        input: {
-          brief: "fix.brief@v1",
-          context: "fix.context@v1",
-          diagnosis: "fix.diagnosis@v1",
-          regression: "fix.regression-proof@v1",
-          baseline_snapshot: "fix.baseline-snapshot@v1",
-          change: "fix.change@v1",
-          verification: "fix.verification@v1",
-          regression_rerun: "fix.regression-rerun@v1",
-          change_set: "fix.change-set@v1"
-        },
-        output: "fix.result@v1",
-        execution: {
-          kind: "compose"
-        },
-        protocol: "fix-close-low@v1",
-        reportPath: "reports/fix-result.json",
-        required: [
-          "summary",
-          "outcome",
-          "verification_status",
-          "regression_status",
-          "change_set_status",
-          "review_status",
-          "evidence_links"
-        ],
-        routes: {
-          complete: "@complete",
-          stop: "@stop",
-          handoff: "fix-handoff",
-          escalate: "@escalate"
-        }
-      }),
-      expandBlockStepUse({
-        id: "fix-close",
-        title: "Close \u2014 emit Fix result",
-        stage: "close",
-        block: "close-with-evidence",
-        input: {
-          brief: "fix.brief@v1",
-          context: "fix.context@v1",
-          diagnosis: "fix.diagnosis@v1",
-          regression: "fix.regression-proof@v1",
-          baseline_snapshot: "fix.baseline-snapshot@v1",
-          change: "fix.change@v1",
-          verification: "fix.verification@v1",
-          regression_rerun: "fix.regression-rerun@v1",
-          change_set: "fix.change-set@v1",
-          review: "fix.review@v1"
-        },
-        output: "fix.result@v1",
-        execution: {
-          kind: "compose"
-        },
-        protocol: "fix-close@v1",
-        reportPath: "reports/fix-result.json",
-        required: [
-          "summary",
-          "outcome",
-          "verification_status",
-          "regression_status",
-          "change_set_status",
-          "review_status",
-          "evidence_links"
-        ],
-        routes: {
-          complete: "@complete",
-          stop: "@stop",
-          handoff: "fix-handoff",
-          escalate: "@escalate"
-        }
-      }),
-      {
-        id: "fix-handoff",
-        title: "Persist Fix handoff",
-        stage: "close",
-        block: "handoff",
-        input: {
-          state: "flow.state@v1",
-          brief: "fix.brief@v1"
-        },
-        output: "continuity.record@v1",
-        evidence_requirements: [
-          "goal",
-          "completed moves",
-          "pending evidence",
-          "next action",
-          "known debt"
-        ],
-        execution: {
-          kind: "compose"
-        },
-        protocol: "fix-handoff@v1",
-        writes: {
-          report_path: "reports/fix/handoff.json"
-        },
-        check: {
-          required: ["goal", "next_action"]
-        },
-        routes: {
-          complete: "@handoff",
-          stop: "@stop"
-        }
-      }
-    ],
-    // Stage 3b (first-class composition): fix's report file surfaces ride the
-    // schematic onto the compiled manifest, so the engine reads the skill-hook
-    // edit-file surface table off the manifest, not the by-id catalog package.
-    // Mirrors the package's reports[].fileSurface; a drift-guard test keeps the
-    // two in sync until M6 collapses the duplicate authoring.
-    report_file_surfaces: {
-      "fix.change-set@v1": {
-        timing: "after",
-        extractor: { kind: "string-array-field", field: "observed" }
-      }
-    }
-  },
+  // First-class composition (A5): fix is one of the assembler's production
+  // customers. Its block sequence, scaffolding, and report_file_surfaces live in
+  // ./assembly-spec.ts; `assembleFlowSchematic` derives starts_at / stages /
+  // stage_path_policy and returns the validated FlowSchematic that used to be a
+  // hand-authored literal here. The prove-by-equivalence test proves the
+  // assembled schematic is byte-identical to the former literal (schematic +
+  // compiled).
+  schematic: assembleFlowSchematic(fixAssemblySpec),
   canonicalStagePolicy: {
     kind: "enforce",
     canonicals: ["frame", "analyze", "act", "verify", "review", "close"],
@@ -39038,6 +38701,335 @@ var fixFlowData = {
 
 // dist/flows/fix/flow.js
 var fixFlowDefinition = defineFlowData(fixFlowData);
+
+// dist/flows/goal/assembly-spec.js
+var GOAL_STAGE_PATH_RATIONALE = "Goal supervises a child flow through Frame, Act, Verify, Review, and Close. Analyze and Plan are delegated to the selected static child flow.";
+var CHILD_PASS_VERDICTS = [
+  "accept",
+  "accept-with-fixes",
+  "accept-with-fold-ins",
+  "NO_ISSUES_FOUND",
+  "ISSUES_FOUND",
+  "clean",
+  "needs-followup",
+  "decided"
+];
+var childGoal = "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.";
+function childRunStep(input) {
+  return {
+    id: input.id,
+    title: input.title,
+    stage: "act",
+    block: "goal-child-run",
+    input: { contract: "goal.contract@v1" },
+    output: input.output,
+    execution: {
+      kind: "sub-run",
+      flow_ref: { flow_id: input.flowId, entry_mode: "default" },
+      goal: childGoal,
+      depth: "medium"
+    },
+    protocol: `${input.id}@v1`,
+    writes: { result_path: input.resultPath },
+    check: { pass: [...CHILD_PASS_VERDICTS] },
+    routes: { continue: "goal-attempt", stop: "@stop" }
+  };
+}
+var goalBlockItems = [
+  {
+    id: "clarify-goal",
+    title: "Clarify - shape Goal task",
+    stage: "frame",
+    block: "clarify",
+    input: { task: "task.intake@v1", route: "route.decision@v1" },
+    output: "goal.clarified-task@v1",
+    execution: { kind: "relay", role: "researcher" },
+    protocol: "goal-clarify@v1",
+    writes: {
+      report_path: "reports/goal/clarified-task.json",
+      request_path: "reports/relay/goal-clarify.request.json",
+      receipt_path: "reports/relay/goal-clarify.receipt.txt",
+      result_path: "reports/relay/goal-clarify.result.json"
+    },
+    check: { pass: ["continue", "ask", "stop"] },
+    route_from_report: { path: ["verdict"] },
+    routes: { continue: "goal-contract", ask: "@stop", stop: "@stop" }
+  },
+  {
+    id: "goal-contract",
+    title: "Goal - write contract and select static target",
+    stage: "frame",
+    block: "goal",
+    input: {
+      task: "task.intake@v1",
+      route: "route.decision@v1",
+      clarified: "goal.clarified-task@v1"
+    },
+    execution: { kind: "compose" },
+    protocol: "goal-contract@v1",
+    writes: { report_path: "reports/goal/contract.json" },
+    check: { required: ["schema", "objective", "done_when", "selected_flow_target"] },
+    route_from_report: { path: ["selected_flow_target"] },
+    routes: {
+      continue: "goal-run-build",
+      fix: "goal-run-fix",
+      build: "goal-run-build",
+      review: "goal-run-review",
+      explore: "goal-run-explore",
+      pursue: "goal-run-pursue",
+      stop: "@stop"
+    }
+  },
+  childRunStep({
+    id: "goal-run-fix",
+    title: "Child Flow - run Fix",
+    flowId: "fix",
+    output: "goal.child-fix-result@v1",
+    resultPath: "reports/goal/child-results/fix-result.json"
+  }),
+  childRunStep({
+    id: "goal-run-build",
+    title: "Child Flow - run Build",
+    flowId: "build",
+    output: "goal.child-build-result@v1",
+    resultPath: "reports/goal/child-results/build-result.json"
+  }),
+  childRunStep({
+    id: "goal-run-review",
+    title: "Child Flow - run Review",
+    flowId: "review",
+    output: "goal.child-review-result@v1",
+    resultPath: "reports/goal/child-results/review-result.json"
+  }),
+  childRunStep({
+    id: "goal-run-explore",
+    title: "Child Flow - run Explore",
+    flowId: "explore",
+    output: "goal.child-explore-result@v1",
+    resultPath: "reports/goal/child-results/explore-result.json"
+  }),
+  childRunStep({
+    id: "goal-run-pursue",
+    title: "Child Flow - run Pursue",
+    flowId: "pursue",
+    output: "goal.child-pursue-result@v1",
+    resultPath: "reports/goal/child-results/pursue-result.json"
+  }),
+  {
+    id: "goal-attempt",
+    title: "Attempt - summarize child result",
+    stage: "act",
+    block: "goal-attempt",
+    input: { contract: "goal.contract@v1" },
+    protocol: "goal-attempt@v1",
+    writes: { report_path: "reports/goal/attempts/attempt-1.json" },
+    check: { required: ["schema", "attempt_id", "flow_target", "outcome"] },
+    routes: { continue: "goal-evidence-evaluation", stop: "@stop" }
+  },
+  {
+    id: "goal-evidence-evaluation",
+    title: "Evaluate - compare attempt evidence to done claims",
+    stage: "verify",
+    block: "goal-evaluate",
+    input: { contract: "goal.contract@v1", attempt: "goal.attempt@v1" },
+    protocol: "goal-evidence-evaluation@v1",
+    writes: { report_path: "reports/goal/evidence-evaluation.json" },
+    check: { required: ["schema", "verdict", "claim_results", "next_route"] },
+    route_from_report: { path: ["next_route"] },
+    routes: {
+      continue: "goal-gate-pass-1",
+      "completion-gate": "goal-gate-pass-1",
+      "retry-selected-flow": "goal-recovery",
+      "run-fix": "goal-recovery",
+      "run-review": "goal-recovery",
+      "run-explore": "goal-recovery",
+      "split-to-pursue": "goal-recovery",
+      checkpoint: "goal-recovery",
+      handoff: "@handoff",
+      blocked: "goal-recovery",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "goal-recovery",
+    title: "Recovery - choose typed next action",
+    stage: "verify",
+    block: "goal-recover",
+    input: { evaluation: "goal.evidence-evaluation@v1", attempt: "goal.attempt@v1" },
+    protocol: "goal-recovery@v1",
+    writes: { report_path: "reports/goal/recovery.json" },
+    check: { required: ["schema", "reason", "selected_route", "rationale"] },
+    route_from_report: { path: ["selected_route"] },
+    routes: {
+      continue: "goal-recovery-checkpoint",
+      "retry-selected-flow": "goal-recovery-checkpoint",
+      "run-fix": "goal-recovery-checkpoint",
+      "run-review": "goal-recovery-checkpoint",
+      "run-explore": "goal-recovery-checkpoint",
+      "split-to-pursue": "goal-recovery-checkpoint",
+      checkpoint: "goal-recovery-checkpoint",
+      blocked: "goal-close",
+      handoff: "@handoff",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "goal-recovery-checkpoint",
+    title: "Checkpoint - operator judgment required",
+    stage: "verify",
+    block: "goal-checkpoint",
+    input: { question: "flow.question@v1", evidence: "goal.recovery@v1" },
+    output: "decision.answer@v1",
+    protocol: "goal-recovery-checkpoint@v1",
+    writes: {
+      checkpoint_request_path: "reports/checkpoints/goal-recovery-request.json",
+      checkpoint_response_path: "reports/checkpoints/goal-recovery-response.json"
+    },
+    check: { allow: ["continue", "blocked", "handoff"] },
+    checkpointPolicy: {
+      prompt: "Goal needs operator judgment before continuing.",
+      choices: [
+        { id: "continue", label: "Close as-is" },
+        { id: "blocked", label: "Close Blocked" },
+        { id: "handoff", label: "Hand Off" }
+      ],
+      safe_default_choice: "blocked"
+    },
+    routes: { continue: "goal-close", blocked: "goal-close", handoff: "@handoff", stop: "@stop" }
+  },
+  {
+    id: "goal-gate-pass-1",
+    title: "Safety review - pass 1",
+    stage: "review",
+    block: "goal-gate-review",
+    input: { contract: "goal.contract@v1", evaluation: "goal.evidence-evaluation@v1" },
+    output: "goal.gate-pass@v1",
+    execution: { kind: "relay", role: "reviewer" },
+    protocol: "goal-gate-pass-1@v1",
+    writes: {
+      report_path: "reports/goal/gate-pass-1.json",
+      request_path: "reports/relay/goal-gate-pass-1.request.json",
+      receipt_path: "reports/relay/goal-gate-pass-1.receipt.txt",
+      result_path: "reports/relay/goal-gate-pass-1.result.json"
+    },
+    check: { pass: ["gate-pass", "blocked"] },
+    route_from_report: { path: ["next_route"] },
+    routes: {
+      continue: "goal-gate-pass-2",
+      "run-next-gate-pass": "goal-gate-pass-2",
+      recover: "goal-recovery",
+      retry: "goal-recovery",
+      close: "goal-recovery",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "goal-gate-pass-2",
+    title: "Safety review - pass 2",
+    stage: "review",
+    block: "goal-gate-review",
+    input: {
+      contract: "goal.contract@v1",
+      evaluation: "goal.evidence-evaluation@v1",
+      gate: "goal.gate-pass@v1"
+    },
+    output: "goal.gate@v1",
+    execution: { kind: "relay", role: "reviewer" },
+    protocol: "goal-gate-pass-2@v1",
+    writes: {
+      report_path: "reports/goal/gate.json",
+      request_path: "reports/relay/goal-gate-pass-2.request.json",
+      receipt_path: "reports/relay/goal-gate-pass-2.receipt.txt",
+      result_path: "reports/relay/goal-gate-pass-2.result.json"
+    },
+    check: { pass: ["gate-pass", "blocked"] },
+    route_from_report: { path: ["next_route"] },
+    routes: {
+      continue: "goal-close",
+      close: "goal-close",
+      "run-next-gate-pass": "goal-gate-pass-2",
+      recover: "goal-recovery",
+      retry: "goal-recovery",
+      stop: "@stop"
+    }
+  },
+  {
+    id: "goal-close",
+    title: "Close - emit Goal result",
+    stage: "close",
+    block: "goal-close",
+    input: {
+      contract: "goal.contract@v1",
+      attempt: "goal.attempt@v1",
+      evaluation: "goal.evidence-evaluation@v1",
+      recovery: "goal.recovery@v1",
+      gate: "goal.gate@v1"
+    },
+    // recovery and gate arrive on disjoint routes: the gate path
+    // (gate-pass-2 -> close) never runs recovery, and the recovery path
+    // (recovery/checkpoint -> close) never runs the second gate pass. The close
+    // writer already reads both with `optional: true`, so declaring them optional
+    // lifts that runtime truth into the model: each is valid as long as some
+    // reachable route produces it.
+    optional_inputs: ["recovery", "gate"],
+    protocol: "goal-close@v1",
+    writes: { report_path: "reports/goal-result.json" },
+    check: { required: ["schema", "outcome", "summary", "evidence_links", "gate"] },
+    routes: { complete: "@complete", stop: "@stop" }
+  }
+];
+var goalStageLabels = {
+  frame: { id: "goal-frame-stage", title: "Frame" },
+  act: { id: "goal-act-stage", title: "Act" },
+  verify: { id: "goal-verify-stage", title: "Verify" },
+  review: { id: "goal-review-stage", title: "Review" },
+  close: { id: "goal-close-stage", title: "Close" }
+};
+var goalAssemblySpec = {
+  id: "goal",
+  title: "Goal Schematic",
+  purpose: "Goal flow. Circuit writes a bounded goal contract, runs one statically authored child flow target, evaluates evidence, runs a two-pass safety review, and closes from typed Goal reports.",
+  status: "active",
+  version: "0.1.0",
+  initial_contracts: ["task.intake@v1", "route.decision@v1", "flow.question@v1"],
+  contract_aliases: [
+    { generic: "clarified.task@v1", actual: "goal.clarified-task@v1" },
+    // First-class composition (goal split): per-role goal blocks own synthetic
+    // output contracts so each block has a unique typed output. These aliases
+    // let the re-homed items bind generics to those real report outputs. Every
+    // generic below is referenced by no other item, so it cannot mask an
+    // unrelated mismatch.
+    //
+    // M8.3 removed 11 legacy goal.contract@v1 aliases that mapped that name onto
+    // every other goal report. Each goal report is already the unique
+    // output_contract of its own goal block, so each item matches its block by
+    // identity without an alias, and the items that CONSUME goal.contract@v1
+    // (recovery, gate, close) bind to the real goal-contract producer upstream.
+    { generic: "goal.child-run@v1", actual: "goal.child-fix-result@v1" },
+    { generic: "goal.child-run@v1", actual: "goal.child-build-result@v1" },
+    { generic: "goal.child-run@v1", actual: "goal.child-review-result@v1" },
+    { generic: "goal.child-run@v1", actual: "goal.child-explore-result@v1" },
+    { generic: "goal.child-run@v1", actual: "goal.child-pursue-result@v1" },
+    { generic: "goal.gate-review@v1", actual: "goal.gate-pass@v1" },
+    { generic: "goal.gate-review@v1", actual: "goal.gate@v1" },
+    { generic: "goal.checkpoint@v1", actual: "decision.answer@v1" }
+  ],
+  axes: {
+    allowed_depths: ["low", "medium", "high"],
+    supports_tournament: false,
+    supports_autonomous: true,
+    default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
+  },
+  // Stage 3 (first-class composition): goal DECLARES the terminal-outcome bind on
+  // its schematic; the compiler propagates it to the compiled manifest and the
+  // engine reads it through `resolveEngineFlags`.
+  engine_flags: {
+    binds_terminal_outcome_to_primary_result: true
+  },
+  items: goalBlockItems,
+  stageLabels: goalStageLabels,
+  stagePathRationale: GOAL_STAGE_PATH_RATIONALE
+};
 
 // dist/flows/goal/reports.js
 var NonEmptyStringArray3 = external_exports.array(external_exports.string().min(1)).min(1);
@@ -39926,47 +39918,6 @@ var goalRecoveryBuilder = {
 };
 
 // dist/flows/goal/data.js
-var CHILD_PASS_VERDICTS = [
-  "accept",
-  "accept-with-fixes",
-  "accept-with-fold-ins",
-  "NO_ISSUES_FOUND",
-  "ISSUES_FOUND",
-  "clean",
-  "needs-followup",
-  "decided"
-];
-var childGoal = "Execute the selected child flow for reports/goal/contract.json. Preserve the operator objective and produce a report-backed proof packet.";
-function childRunStep(input) {
-  return {
-    id: input.id,
-    title: input.title,
-    stage: "act",
-    block: "goal-child-run",
-    input: {
-      contract: "goal.contract@v1"
-    },
-    output: input.output,
-    evidence_requirements: ["static child flow target", "child result file", "parent trace link"],
-    execution: {
-      kind: "sub-run",
-      flow_ref: { flow_id: input.flowId, entry_mode: "default" },
-      goal: childGoal,
-      depth: "medium"
-    },
-    protocol: `${input.id}@v1`,
-    writes: {
-      result_path: input.resultPath
-    },
-    check: {
-      pass: [...CHILD_PASS_VERDICTS]
-    },
-    routes: {
-      continue: "goal-attempt",
-      stop: "@stop"
-    }
-  };
-}
 var goalFlowData = {
   id: "goal",
   // S8: frozen to internal. Goal's contract/gate semantics moved into the Run
@@ -39977,436 +39928,15 @@ var goalFlowData = {
   paths: {
     schematic: "src/flows/goal/schematic.json"
   },
-  schematic: {
-    schema_version: "2",
-    id: "goal",
-    title: "Goal Schematic",
-    purpose: "Goal flow. Circuit writes a bounded goal contract, runs one statically authored child flow target, evaluates evidence, runs a two-pass safety review, and closes from typed Goal reports.",
-    status: "active",
-    version: "0.1.0",
-    starts_at: "clarify-goal",
-    initial_contracts: ["task.intake@v1", "route.decision@v1", "flow.question@v1"],
-    contract_aliases: [
-      { generic: "clarified.task@v1", actual: "goal.clarified-task@v1" },
-      // First-class composition (goal split): per-role goal blocks own synthetic
-      // output contracts so each block has a unique typed output. These aliases
-      // let the re-homed items bind generics to those real report outputs. Every
-      // generic below is referenced by no other item, so it cannot mask an
-      // unrelated mismatch.
-      //
-      // M8.3 removed 11 legacy goal.contract@v1 aliases that mapped that name
-      // onto every other goal report (the child results, attempt, evaluation,
-      // recovery, gate-pass, gate, result). They were pure masking: each of
-      // those reports is already the unique output_contract of its own goal
-      // block, so each item matches its block by identity without an alias, and
-      // the items that CONSUME goal.contract@v1 (recovery, gate, close) bind to
-      // the real goal-contract producer, which is always upstream. Removing them
-      // leaves goal.contract@v1 single-actual (its true producer), so it is no
-      // longer a multi-actual catch-all the M8.4 gate would have to forgive.
-      { generic: "goal.child-run@v1", actual: "goal.child-fix-result@v1" },
-      { generic: "goal.child-run@v1", actual: "goal.child-build-result@v1" },
-      { generic: "goal.child-run@v1", actual: "goal.child-review-result@v1" },
-      { generic: "goal.child-run@v1", actual: "goal.child-explore-result@v1" },
-      { generic: "goal.child-run@v1", actual: "goal.child-pursue-result@v1" },
-      { generic: "goal.gate-review@v1", actual: "goal.gate-pass@v1" },
-      { generic: "goal.gate-review@v1", actual: "goal.gate@v1" },
-      { generic: "goal.checkpoint@v1", actual: "decision.answer@v1" }
-    ],
-    axes: {
-      allowed_depths: ["low", "medium", "high"],
-      supports_tournament: false,
-      supports_autonomous: true,
-      default: {
-        depth: "medium",
-        tournament: false,
-        tournament_n: 3,
-        autonomous: false
-      }
-    },
-    stage_path_policy: {
-      mode: "partial",
-      omits: ["analyze", "plan"],
-      rationale: "Goal supervises a child flow through Frame, Act, Verify, Review, and Close. Analyze and Plan are delegated to the selected static child flow."
-    },
-    stages: [
-      { id: "goal-frame-stage", canonical: "frame", title: "Frame" },
-      { id: "goal-act-stage", canonical: "act", title: "Act" },
-      { id: "goal-verify-stage", canonical: "verify", title: "Verify" },
-      { id: "goal-review-stage", canonical: "review", title: "Review" },
-      { id: "goal-close-stage", canonical: "close", title: "Close" }
-    ],
-    items: [
-      {
-        id: "clarify-goal",
-        title: "Clarify - shape Goal task",
-        stage: "frame",
-        block: "clarify",
-        input: {
-          task: "task.intake@v1",
-          route: "route.decision@v1"
-        },
-        output: "goal.clarified-task@v1",
-        evidence_requirements: [
-          "original request",
-          "clarified task",
-          "desired outcome",
-          "proof needed",
-          "constraints",
-          "scope",
-          "assumptions",
-          "missing information",
-          "stop conditions"
-        ],
-        execution: { kind: "relay", role: "researcher" },
-        protocol: "goal-clarify@v1",
-        writes: {
-          report_path: "reports/goal/clarified-task.json",
-          request_path: "reports/relay/goal-clarify.request.json",
-          receipt_path: "reports/relay/goal-clarify.receipt.txt",
-          result_path: "reports/relay/goal-clarify.result.json"
-        },
-        check: {
-          pass: ["continue", "ask", "stop"]
-        },
-        route_from_report: {
-          path: ["verdict"]
-        },
-        routes: {
-          continue: "goal-contract",
-          ask: "@stop",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-contract",
-        title: "Goal - write contract and select static target",
-        stage: "frame",
-        block: "goal",
-        input: {
-          task: "task.intake@v1",
-          route: "route.decision@v1",
-          clarified: "goal.clarified-task@v1"
-        },
-        output: "goal.contract@v1",
-        evidence_requirements: [
-          "goal contract",
-          "done claims",
-          "proof requirements",
-          "allowed flow targets",
-          "recovery routes",
-          "safety review policy"
-        ],
-        execution: { kind: "compose" },
-        protocol: "goal-contract@v1",
-        writes: {
-          report_path: "reports/goal/contract.json"
-        },
-        check: {
-          required: ["schema", "objective", "done_when", "selected_flow_target"]
-        },
-        route_from_report: {
-          path: ["selected_flow_target"]
-        },
-        // The goal-contract block routes on selected_flow_target, whose schema
-        // (GoalFlowTarget) only admits fix/build/review/explore/pursue. There is
-        // no report value that selects "ask", so the old ask -> recovery
-        // checkpoint edge could never fire. Removing it is runtime-neutral and
-        // deletes the phantom route that made goal-recovery-checkpoint and
-        // goal-close look like they read contracts their real routes never
-        // produce.
-        routes: {
-          continue: "goal-run-build",
-          fix: "goal-run-fix",
-          build: "goal-run-build",
-          review: "goal-run-review",
-          explore: "goal-run-explore",
-          pursue: "goal-run-pursue",
-          stop: "@stop"
-        }
-      },
-      childRunStep({
-        id: "goal-run-fix",
-        title: "Child Flow - run Fix",
-        flowId: "fix",
-        output: "goal.child-fix-result@v1",
-        resultPath: "reports/goal/child-results/fix-result.json"
-      }),
-      childRunStep({
-        id: "goal-run-build",
-        title: "Child Flow - run Build",
-        flowId: "build",
-        output: "goal.child-build-result@v1",
-        resultPath: "reports/goal/child-results/build-result.json"
-      }),
-      childRunStep({
-        id: "goal-run-review",
-        title: "Child Flow - run Review",
-        flowId: "review",
-        output: "goal.child-review-result@v1",
-        resultPath: "reports/goal/child-results/review-result.json"
-      }),
-      childRunStep({
-        id: "goal-run-explore",
-        title: "Child Flow - run Explore",
-        flowId: "explore",
-        output: "goal.child-explore-result@v1",
-        resultPath: "reports/goal/child-results/explore-result.json"
-      }),
-      childRunStep({
-        id: "goal-run-pursue",
-        title: "Child Flow - run Pursue",
-        flowId: "pursue",
-        output: "goal.child-pursue-result@v1",
-        resultPath: "reports/goal/child-results/pursue-result.json"
-      }),
-      {
-        id: "goal-attempt",
-        title: "Attempt - summarize child result",
-        stage: "act",
-        block: "goal-attempt",
-        input: {
-          contract: "goal.contract@v1"
-        },
-        output: "goal.attempt@v1",
-        evidence_requirements: ["child result path", "child report paths", "attempt outcome"],
-        execution: { kind: "compose" },
-        protocol: "goal-attempt@v1",
-        writes: {
-          report_path: "reports/goal/attempts/attempt-1.json"
-        },
-        check: {
-          required: ["schema", "attempt_id", "flow_target", "outcome"]
-        },
-        routes: {
-          continue: "goal-evidence-evaluation",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-evidence-evaluation",
-        title: "Evaluate - compare attempt evidence to done claims",
-        stage: "verify",
-        block: "goal-evaluate",
-        input: {
-          contract: "goal.contract@v1",
-          attempt: "goal.attempt@v1"
-        },
-        output: "goal.evidence-evaluation@v1",
-        evidence_requirements: ["claim results", "evidence gaps", "next typed route"],
-        execution: { kind: "compose" },
-        protocol: "goal-evidence-evaluation@v1",
-        writes: {
-          report_path: "reports/goal/evidence-evaluation.json"
-        },
-        check: {
-          required: ["schema", "verdict", "claim_results", "next_route"]
-        },
-        route_from_report: {
-          path: ["next_route"]
-        },
-        routes: {
-          continue: "goal-gate-pass-1",
-          "completion-gate": "goal-gate-pass-1",
-          "retry-selected-flow": "goal-recovery",
-          "run-fix": "goal-recovery",
-          "run-review": "goal-recovery",
-          "run-explore": "goal-recovery",
-          "split-to-pursue": "goal-recovery",
-          checkpoint: "goal-recovery",
-          handoff: "@handoff",
-          blocked: "goal-recovery",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-recovery",
-        title: "Recovery - choose typed next action",
-        stage: "verify",
-        block: "goal-recover",
-        input: {
-          evaluation: "goal.evidence-evaluation@v1",
-          attempt: "goal.attempt@v1"
-        },
-        output: "goal.recovery@v1",
-        evidence_requirements: ["recovery reason", "selected route", "operator input need"],
-        execution: { kind: "compose" },
-        protocol: "goal-recovery@v1",
-        writes: {
-          report_path: "reports/goal/recovery.json"
-        },
-        check: {
-          required: ["schema", "reason", "selected_route", "rationale"]
-        },
-        route_from_report: {
-          path: ["selected_route"]
-        },
-        routes: {
-          continue: "goal-recovery-checkpoint",
-          "retry-selected-flow": "goal-recovery-checkpoint",
-          "run-fix": "goal-recovery-checkpoint",
-          "run-review": "goal-recovery-checkpoint",
-          "run-explore": "goal-recovery-checkpoint",
-          "split-to-pursue": "goal-recovery-checkpoint",
-          checkpoint: "goal-recovery-checkpoint",
-          blocked: "goal-close",
-          handoff: "@handoff",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-recovery-checkpoint",
-        title: "Checkpoint - operator judgment required",
-        stage: "verify",
-        block: "goal-checkpoint",
-        input: {
-          question: "flow.question@v1",
-          evidence: "goal.recovery@v1"
-        },
-        output: "decision.answer@v1",
-        evidence_requirements: [
-          "question",
-          "available options",
-          "selected option",
-          "answer source"
-        ],
-        execution: { kind: "checkpoint" },
-        protocol: "goal-recovery-checkpoint@v1",
-        writes: {
-          checkpoint_request_path: "reports/checkpoints/goal-recovery-request.json",
-          checkpoint_response_path: "reports/checkpoints/goal-recovery-response.json"
-        },
-        check: {
-          allow: ["continue", "blocked", "handoff"]
-        },
-        checkpoint_policy: {
-          prompt: "Goal needs operator judgment before continuing.",
-          choices: [
-            { id: "continue", label: "Close as-is" },
-            { id: "blocked", label: "Close Blocked" },
-            { id: "handoff", label: "Hand Off" }
-          ],
-          safe_default_choice: "blocked"
-        },
-        routes: {
-          continue: "goal-close",
-          blocked: "goal-close",
-          handoff: "@handoff",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-gate-pass-1",
-        title: "Safety review - pass 1",
-        stage: "review",
-        block: "goal-gate-review",
-        input: {
-          contract: "goal.contract@v1",
-          evaluation: "goal.evidence-evaluation@v1"
-        },
-        output: "goal.gate-pass@v1",
-        evidence_requirements: ["safety review pass", "review lens", "evidence checked"],
-        execution: { kind: "relay", role: "reviewer" },
-        protocol: "goal-gate-pass-1@v1",
-        writes: {
-          report_path: "reports/goal/gate-pass-1.json",
-          request_path: "reports/relay/goal-gate-pass-1.request.json",
-          receipt_path: "reports/relay/goal-gate-pass-1.receipt.txt",
-          result_path: "reports/relay/goal-gate-pass-1.result.json"
-        },
-        check: {
-          pass: ["gate-pass", "blocked"]
-        },
-        route_from_report: {
-          path: ["next_route"]
-        },
-        routes: {
-          continue: "goal-gate-pass-2",
-          "run-next-gate-pass": "goal-gate-pass-2",
-          recover: "goal-recovery",
-          retry: "goal-recovery",
-          close: "goal-recovery",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-gate-pass-2",
-        title: "Safety review - pass 2",
-        stage: "review",
-        block: "goal-gate-review",
-        input: {
-          contract: "goal.contract@v1",
-          evaluation: "goal.evidence-evaluation@v1",
-          gate: "goal.gate-pass@v1"
-        },
-        output: "goal.gate@v1",
-        evidence_requirements: ["safety review pass", "review lens", "evidence checked"],
-        execution: { kind: "relay", role: "reviewer" },
-        protocol: "goal-gate-pass-2@v1",
-        writes: {
-          report_path: "reports/goal/gate.json",
-          request_path: "reports/relay/goal-gate-pass-2.request.json",
-          receipt_path: "reports/relay/goal-gate-pass-2.receipt.txt",
-          result_path: "reports/relay/goal-gate-pass-2.result.json"
-        },
-        check: {
-          pass: ["gate-pass", "blocked"]
-        },
-        route_from_report: {
-          path: ["next_route"]
-        },
-        routes: {
-          continue: "goal-close",
-          close: "goal-close",
-          "run-next-gate-pass": "goal-gate-pass-2",
-          recover: "goal-recovery",
-          retry: "goal-recovery",
-          stop: "@stop"
-        }
-      },
-      {
-        id: "goal-close",
-        title: "Close - emit Goal result",
-        stage: "close",
-        block: "goal-close",
-        input: {
-          contract: "goal.contract@v1",
-          attempt: "goal.attempt@v1",
-          evaluation: "goal.evidence-evaluation@v1",
-          recovery: "goal.recovery@v1",
-          gate: "goal.gate@v1"
-        },
-        // recovery and gate arrive on disjoint routes: the gate path
-        // (gate-pass-2 -> close) never runs recovery, and the recovery path
-        // (recovery/checkpoint -> close) never runs the second gate pass. The
-        // close writer already reads both with `optional: true`, so declaring
-        // them optional lifts that runtime truth into the model: each is valid
-        // as long as some reachable route produces it.
-        optional_inputs: ["recovery", "gate"],
-        output: "goal.result@v1",
-        evidence_requirements: ["outcome", "evidence pointers", "residual risks", "follow-ups"],
-        execution: { kind: "compose" },
-        protocol: "goal-close@v1",
-        writes: {
-          report_path: "reports/goal-result.json"
-        },
-        check: {
-          required: ["schema", "outcome", "summary", "evidence_links", "gate"]
-        },
-        routes: {
-          complete: "@complete",
-          stop: "@stop"
-        }
-      }
-    ],
-    // Stage 3 (first-class composition): goal is the first flow rehomed off the
-    // by-id catalog package onto its manifest. It DECLARES the terminal-outcome
-    // bind here on the schematic; the compiler propagates it to the compiled
-    // manifest, and the engine reads it through `resolveEngineFlags`. The
-    // package no longer carries engineFlags (see below).
-    engine_flags: {
-      binds_terminal_outcome_to_primary_result: true
-    }
-  },
+  // First-class composition (A5): goal is one of the assembler's production
+  // customers, and its generality stress-test. Its block sequence (including the
+  // five sub-run child-flow steps), scaffolding, and engine_flags live in
+  // ./assembly-spec.ts; `assembleFlowSchematic` derives starts_at / stages /
+  // stage_path_policy and returns the validated FlowSchematic that used to be a
+  // hand-authored literal here. The prove-by-equivalence test proves byte-
+  // identity (schematic + compiled), and the M9 truth test proves the assembled
+  // goal RUNS its sub-run path on the shared graph runner.
+  schematic: assembleFlowSchematic(goalAssemblySpec),
   canonicalStagePolicy: {
     kind: "enforce",
     canonicals: ["frame", "act", "verify", "review", "close"],
@@ -40561,6 +40091,380 @@ var goalFlowData = {
 
 // dist/flows/goal/flow.js
 var goalFlowDefinition = defineFlowData(goalFlowData);
+
+// dist/flows/prototype/assembly-spec.js
+var PROTOTYPE_STAGE_PATH_RATIONALE = "Prototype follows Frame, Plan, Act, Verify, Review, Close. Analyze is omitted because V1 frames enough context to build a small disposable artifact; research-first work should use Explore.";
+var prototypeBlockItems = [
+  {
+    id: "frame-step",
+    title: "Frame - define Prototype boundary",
+    stage: "frame",
+    block: "frame",
+    input: { task: "task.intake@v1", route: "route.decision@v1" },
+    output: "prototype.brief@v1",
+    execution: { kind: "compose" },
+    protocol: "prototype-frame@v1",
+    writes: { report_path: "reports/prototype/brief.json" },
+    check: { required: ["objective", "prototype_root", "claim_limits"] },
+    routes: { continue: "plan-step", stop: "@stop" }
+  },
+  {
+    id: "plan-step",
+    title: "Plan - choose disposable artifact files",
+    stage: "plan",
+    block: "plan",
+    input: { brief: "prototype.brief@v1" },
+    output: "prototype.plan@v1",
+    execution: { kind: "compose" },
+    protocol: "prototype-plan@v1",
+    writes: { report_path: "reports/prototype/plan.json" },
+    check: { required: ["objective", "files_to_create", "verification"] },
+    routeOverrides: { continue: { tournament: "variant-options-step" } },
+    routes: { continue: "act-step", stop: "@stop" }
+  },
+  {
+    id: "act-step",
+    title: "Act - create disposable prototype artifact",
+    stage: "act",
+    block: "act",
+    input: { brief: "prototype.brief@v1", plan: "prototype.plan@v1" },
+    output: "prototype.artifact@v1",
+    execution: { kind: "relay", role: "implementer" },
+    protocol: "prototype-act@v1",
+    writes: {
+      report_path: "reports/prototype/artifact.json",
+      request_path: "reports/relay/prototype-act.request.json",
+      receipt_path: "reports/relay/prototype-act.receipt.txt",
+      result_path: "reports/relay/prototype-act.result.json"
+    },
+    check: { pass: ["accept"] },
+    routes: { continue: "verify-step", stop: "close-step" }
+  },
+  {
+    id: "variant-options-step",
+    title: "Plan - resolve Prototype model variants",
+    stage: "plan",
+    block: "plan",
+    input: { brief: "prototype.brief@v1", plan: "prototype.plan@v1" },
+    output: "prototype.variant-options@v1",
+    execution: { kind: "compose" },
+    protocol: "prototype-variant-options@v1",
+    writes: { report_path: "reports/prototype/variant-options.json" },
+    check: { required: ["variants", "variant_count"] },
+    routes: { continue: "variant-fanout-step", stop: "@stop" }
+  },
+  {
+    id: "variant-fanout-step",
+    title: "Act - create model-comparison Prototype variants",
+    stage: "act",
+    block: "act",
+    input: {
+      brief: "prototype.brief@v1",
+      plan: "prototype.plan@v1",
+      options: "prototype.variant-options@v1"
+    },
+    output: "prototype.variant-aggregate@v1",
+    execution: { kind: "fanout" },
+    protocol: "prototype-variant-fanout@v1",
+    writes: {
+      report_path: "reports/prototype/variant-aggregate.json",
+      branches_dir_path: "reports/prototype/variant-branches"
+    },
+    check: { pass: ["accept"] },
+    routes: { continue: "variant-provider-evidence-step", stop: "@stop" },
+    fanout: {
+      branches: {
+        kind: "dynamic",
+        source_report: "reports/prototype/variant-options.json",
+        items_path: "variants",
+        template: {
+          branch_id: "$item.variant_id",
+          execution: {
+            kind: "relay",
+            role: "implementer",
+            goal: "$item.goal",
+            report_schema: "prototype.variant-artifact@v1",
+            provenance_field: "variant_id"
+          },
+          connector: "$item.connector_name",
+          selection: {
+            model: { provider: "$item.provider", model: "$item.model" },
+            effort: "$item.effort"
+          }
+        },
+        max_branches: { kind: "axis", axis: "tournament_n" },
+        required_count: { kind: "axis", axis: "tournament_n" }
+      },
+      concurrency: { kind: "bounded", max: 2 },
+      on_child_failure: "continue-others",
+      join: { policy: "aggregate-survivors" },
+      rubric: {
+        model_judgments_path: "rubric_model_judgments",
+        ordered_dims: [...THREE_AXIS_RUBRIC_TIE_BREAK_ORDER],
+        runtime_signals: {
+          evidence_rigor: { kind: "non_empty_array", path: "evidence" },
+          actionability: { kind: "non_empty_array", path: "entry_points" },
+          coverage_adequacy: { kind: "non_empty_string", path: "summary" },
+          scope_discipline: { kind: "constant", signal: "met" },
+          honest_calibration: { kind: "non_empty_array", path: "claim_limits" },
+          project_specificity: { kind: "non_empty_string", path: "variant_root" },
+          insight_density: { kind: "constant", signal: "n/a" },
+          branch_distinctness: { kind: "constant", signal: "n/a" }
+        }
+      }
+    }
+  },
+  {
+    id: "variant-provider-evidence-step",
+    title: "Verify - capture variant provider evidence",
+    stage: "verify",
+    block: "prototype-variant-evidence",
+    input: {
+      brief: "prototype.brief@v1",
+      options: "prototype.variant-options@v1",
+      aggregate: "prototype.variant-aggregate@v1"
+    },
+    protocol: "prototype-variant-provider-evidence@v1",
+    writes: { report_path: "reports/prototype/variant-provider-evidence.json" },
+    check: { required: ["captured_count", "variants"] },
+    routes: { complete: "variant-verification-step", stop: "@stop" }
+  },
+  {
+    id: "variant-verification-step",
+    title: "Verify - check Prototype variants",
+    stage: "verify",
+    block: "run-verification",
+    input: {
+      plan: "prototype.plan@v1",
+      aggregate: "prototype.variant-aggregate@v1",
+      provider_evidence: "prototype.variant-provider-evidence@v1"
+    },
+    output: "prototype.variant-verification@v1",
+    protocol: "prototype-variant-verify@v1",
+    writes: { report_path: "reports/prototype/variant-verification.json" },
+    check: { required: ["overall_status", "commands", "variant_results"] },
+    routes: { continue: "variant-review-step", stop: "close-model-comparison-step" }
+  },
+  {
+    id: "variant-review-step",
+    title: "Review - compare Prototype variants",
+    stage: "review",
+    block: "review",
+    input: {
+      brief: "prototype.brief@v1",
+      options: "prototype.variant-options@v1",
+      aggregate: "prototype.variant-aggregate@v1",
+      provider_evidence: "prototype.variant-provider-evidence@v1",
+      verification: "prototype.variant-verification@v1"
+    },
+    output: "prototype.variant-review@v1",
+    execution: { kind: "relay", role: "reviewer" },
+    protocol: "prototype-variant-review@v1",
+    writes: {
+      report_path: "reports/prototype/variant-review.json",
+      request_path: "reports/relay/prototype-variant-review.request.json",
+      receipt_path: "reports/relay/prototype-variant-review.receipt.txt",
+      result_path: "reports/relay/prototype-variant-review.result.json"
+    },
+    check: { pass: ["recommend", "no-clear-winner", "needs-operator"] },
+    routes: { continue: "variant-choice-options-step", stop: "close-model-comparison-step" }
+  },
+  {
+    id: "variant-choice-options-step",
+    title: "Review - prepare variant checkpoint choices",
+    stage: "review",
+    block: "review",
+    input: {
+      brief: "prototype.brief@v1",
+      aggregate: "prototype.variant-aggregate@v1",
+      provider_evidence: "prototype.variant-provider-evidence@v1",
+      verification: "prototype.variant-verification@v1",
+      review: "prototype.variant-review@v1"
+    },
+    output: "prototype.variant-choice-options@v1",
+    execution: { kind: "compose" },
+    protocol: "prototype-variant-choice-options@v1",
+    writes: { report_path: "reports/prototype/variant-choice-options.json" },
+    check: { required: ["choices", "recommended_variant_id"] },
+    routes: { continue: "prototype-variant-checkpoint-step", stop: "close-model-comparison-step" }
+  },
+  {
+    id: "prototype-variant-checkpoint-step",
+    title: "Review - choose Prototype variant",
+    stage: "review",
+    block: "human-decision",
+    input: {
+      choices: "prototype.variant-choice-options@v1",
+      aggregate: "prototype.variant-aggregate@v1"
+    },
+    protocol: "prototype-variant-checkpoint@v1",
+    writes: {
+      checkpoint_request_path: "reports/checkpoints/prototype-variant-choice-request.json",
+      checkpoint_response_path: "reports/checkpoints/prototype-variant-choice-response.json"
+    },
+    check: { allow_from: { kind: "policy_choices" } },
+    checkpointPolicy: {
+      prompt: "Choose which local Prototype variant Circuit should keep. This checkpoint does not run Build or claim deployment.",
+      choices_from: {
+        kind: "report_items",
+        source_report: "reports/prototype/variant-choice-options.json",
+        items_path: "choices",
+        id_path: "id",
+        label_path: "label",
+        description_path: "description"
+      },
+      auto_resolution: {
+        policy: "highest-score",
+        source_report: "reports/prototype/variant-aggregate.json",
+        branches_path: "branches",
+        id_path: "branch_id",
+        rubric_result_path: "rubric_result"
+      }
+    },
+    routes: { continue: "close-model-comparison-step", stop: "@stop" }
+  },
+  {
+    id: "close-model-comparison-step",
+    title: "Close - emit Prototype model-comparison result",
+    stage: "close",
+    block: "close-with-evidence",
+    input: {
+      brief: "prototype.brief@v1",
+      plan: "prototype.plan@v1",
+      options: "prototype.variant-options@v1",
+      aggregate: "prototype.variant-aggregate@v1",
+      provider_evidence: "prototype.variant-provider-evidence@v1",
+      verification: "prototype.variant-verification@v1"
+    },
+    output: "prototype.result@v1",
+    execution: { kind: "compose" },
+    protocol: "prototype-close-model-comparison@v1",
+    writes: { report_path: "reports/prototype-result.json" },
+    check: { required: ["summary", "outcome", "evidence_links"] },
+    routes: { complete: "@complete", stop: "@stop" }
+  },
+  {
+    id: "verify-step",
+    title: "Verify - check Prototype artifact integrity",
+    stage: "verify",
+    block: "run-verification",
+    input: { plan: "prototype.plan@v1", artifact: "prototype.artifact@v1" },
+    output: "prototype.verification@v1",
+    protocol: "prototype-verify@v1",
+    writes: { report_path: "reports/prototype/verification.json" },
+    check: { required: ["overall_status", "commands"] },
+    routes: { continue: "prototype-checkpoint-step", stop: "close-step" }
+  },
+  {
+    id: "prototype-checkpoint-step",
+    title: "Review - decide Prototype disposition",
+    stage: "review",
+    block: "prototype-checkpoint",
+    input: { artifact: "prototype.artifact@v1", verification: "prototype.verification@v1" },
+    protocol: "prototype-checkpoint@v1",
+    writes: {
+      checkpoint_request_path: "reports/checkpoints/prototype-review-request.json",
+      checkpoint_response_path: "reports/checkpoints/prototype-review-response.json"
+    },
+    check: { allow: ["keep-prototype", "save-build-input", "discard-prototype"] },
+    checkpointPolicy: {
+      prompt: "Decide what to do with this verified Prototype artifact.",
+      choices: [
+        {
+          id: "keep-prototype",
+          label: "Keep Prototype",
+          description: "Save the prototype as useful evidence and stop here."
+        },
+        {
+          id: "save-build-input",
+          label: "Save Build Input",
+          description: "Close with a Build-ready follow-up prompt, without running Build."
+        },
+        {
+          id: "discard-prototype",
+          label: "Discard Prototype",
+          description: "Mark the prototype as discarded while keeping the evidence trail."
+        }
+      ],
+      safe_default_choice: "keep-prototype"
+    },
+    routes: { continue: "close-step", stop: "@stop" }
+  },
+  {
+    id: "close-step",
+    title: "Close - emit Prototype result",
+    stage: "close",
+    block: "close-with-evidence",
+    input: {
+      brief: "prototype.brief@v1",
+      plan: "prototype.plan@v1",
+      artifact: "prototype.artifact@v1"
+    },
+    output: "prototype.result@v1",
+    execution: { kind: "compose" },
+    protocol: "prototype-close@v1",
+    writes: { report_path: "reports/prototype-result.json" },
+    check: { required: ["summary", "outcome", "evidence_links"] },
+    routes: { complete: "@complete", stop: "@stop" }
+  }
+];
+var prototypeStageLabels = {
+  frame: { id: "frame-stage", title: "Frame" },
+  plan: { id: "plan-stage", title: "Plan" },
+  act: { id: "act-stage", title: "Act" },
+  verify: { id: "verify-stage", title: "Verify" },
+  review: { id: "review-stage", title: "Review" },
+  close: { id: "close-stage", title: "Close" }
+};
+var prototypeAssemblySpec = {
+  id: "prototype",
+  title: "Prototype Schematic",
+  purpose: "Prototype flow. Circuit frames a disposable artifact, plans its local prototype files, either relays one artifact or fans out configured model variants, verifies reported files under prototype_root, asks which local prototype evidence to keep, and closes with evidence. Prototype does not edit production code outside prototype_root or claim deployment, branch previews, screenshots, provider behavior, model behavior, or production readiness.",
+  status: "active",
+  version: "0.1.0",
+  initial_contracts: ["task.intake@v1", "route.decision@v1", "verification.plan@v1"],
+  contract_aliases: [
+    { generic: "flow.brief@v1", actual: "prototype.brief@v1" },
+    { generic: "plan.strategy@v1", actual: "prototype.plan@v1" },
+    { generic: "verification.plan@v1", actual: "prototype.plan@v1" },
+    { generic: "change.evidence@v1", actual: "prototype.artifact@v1" },
+    { generic: "verification.result@v1", actual: "prototype.verification@v1" },
+    { generic: "plan.strategy@v1", actual: "prototype.variant-options@v1" },
+    { generic: "change.evidence@v1", actual: "prototype.variant-aggregate@v1" },
+    { generic: "flow.evidence@v1", actual: "prototype.variant-aggregate@v1" },
+    { generic: "verification.result@v1", actual: "prototype.variant-verification@v1" },
+    { generic: "review.verdict@v1", actual: "prototype.variant-review@v1" },
+    { generic: "review.verdict@v1", actual: "prototype.variant-choice-options@v1" },
+    { generic: "flow.question@v1", actual: "prototype.variant-choice-options@v1" },
+    { generic: "flow.result@v1", actual: "prototype.result@v1" }
+  ],
+  axes: {
+    allowed_depths: ["medium", "high"],
+    supports_tournament: true,
+    supports_autonomous: true,
+    default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false },
+    tournament_fan_out_stage: "act-stage"
+  },
+  // Stage 3b (first-class composition): prototype's engine flag rides the
+  // schematic onto the compiled manifest, so the engine reads it through
+  // resolveEngineFlags without a by-id lookup.
+  engine_flags: {
+    binds_execution_depth_to_relay_selection: true
+  },
+  // Stage 3b (first-class composition): prototype's up-front config gate rides
+  // the schematic onto the compiled manifest, so the CLI validates the
+  // requirement off the loaded flow, not the by-id catalog package.
+  required_config: [
+    {
+      axis: "tournament",
+      path: "circuits.prototype.variant_models",
+      message: "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament."
+    }
+  ],
+  items: prototypeBlockItems,
+  stageLabels: prototypeStageLabels,
+  stagePathRationale: PROTOTYPE_STAGE_PATH_RATIONALE
+};
 
 // dist/flows/prototype/relay-hints.js
 var prototypeArtifactShapeHint = {
@@ -42221,542 +42125,16 @@ var prototypeFlowData = {
     schematic: "src/flows/prototype/schematic.json",
     contract: "src/flows/prototype/contract.md"
   },
-  schematic: {
-    schema_version: "2",
-    id: "prototype",
-    title: "Prototype Schematic",
-    purpose: "Prototype flow. Circuit frames a disposable artifact, plans its local prototype files, either relays one artifact or fans out configured model variants, verifies reported files under prototype_root, asks which local prototype evidence to keep, and closes with evidence. Prototype does not edit production code outside prototype_root or claim deployment, branch previews, screenshots, provider behavior, model behavior, or production readiness.",
-    status: "active",
-    version: "0.1.0",
-    starts_at: "frame-step",
-    initial_contracts: ["task.intake@v1", "route.decision@v1", "verification.plan@v1"],
-    contract_aliases: [
-      {
-        generic: "flow.brief@v1",
-        actual: "prototype.brief@v1"
-      },
-      {
-        generic: "plan.strategy@v1",
-        actual: "prototype.plan@v1"
-      },
-      {
-        generic: "verification.plan@v1",
-        actual: "prototype.plan@v1"
-      },
-      {
-        generic: "change.evidence@v1",
-        actual: "prototype.artifact@v1"
-      },
-      {
-        generic: "verification.result@v1",
-        actual: "prototype.verification@v1"
-      },
-      {
-        generic: "plan.strategy@v1",
-        actual: "prototype.variant-options@v1"
-      },
-      {
-        generic: "change.evidence@v1",
-        actual: "prototype.variant-aggregate@v1"
-      },
-      {
-        generic: "flow.evidence@v1",
-        actual: "prototype.variant-aggregate@v1"
-      },
-      {
-        generic: "verification.result@v1",
-        actual: "prototype.variant-verification@v1"
-      },
-      {
-        generic: "review.verdict@v1",
-        actual: "prototype.variant-review@v1"
-      },
-      {
-        generic: "review.verdict@v1",
-        actual: "prototype.variant-choice-options@v1"
-      },
-      {
-        generic: "flow.question@v1",
-        actual: "prototype.variant-choice-options@v1"
-      },
-      {
-        generic: "flow.result@v1",
-        actual: "prototype.result@v1"
-      }
-    ],
-    axes: {
-      allowed_depths: ["medium", "high"],
-      supports_tournament: true,
-      supports_autonomous: true,
-      default: {
-        depth: "medium",
-        tournament: false,
-        tournament_n: 3,
-        autonomous: false
-      },
-      tournament_fan_out_stage: "act-stage"
-    },
-    stage_path_policy: {
-      mode: "partial",
-      omits: ["analyze"],
-      rationale: "Prototype follows Frame, Plan, Act, Verify, Review, Close. Analyze is omitted because V1 frames enough context to build a small disposable artifact; research-first work should use Explore."
-    },
-    stages: [
-      {
-        id: "frame-stage",
-        canonical: "frame",
-        title: "Frame"
-      },
-      {
-        id: "plan-stage",
-        canonical: "plan",
-        title: "Plan"
-      },
-      {
-        id: "act-stage",
-        canonical: "act",
-        title: "Act"
-      },
-      {
-        id: "verify-stage",
-        canonical: "verify",
-        title: "Verify"
-      },
-      {
-        id: "review-stage",
-        canonical: "review",
-        title: "Review"
-      },
-      {
-        id: "close-stage",
-        canonical: "close",
-        title: "Close"
-      }
-    ],
-    items: [
-      expandBlockStepUse({
-        id: "frame-step",
-        title: "Frame - define Prototype boundary",
-        stage: "frame",
-        block: "frame",
-        input: {
-          task: "task.intake@v1",
-          route: "route.decision@v1"
-        },
-        output: "prototype.brief@v1",
-        execution: {
-          kind: "compose"
-        },
-        protocol: "prototype-frame@v1",
-        reportPath: "reports/prototype/brief.json",
-        required: ["objective", "prototype_root", "claim_limits"],
-        routes: {
-          continue: "plan-step",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "plan-step",
-        title: "Plan - choose disposable artifact files",
-        stage: "plan",
-        block: "plan",
-        input: {
-          brief: "prototype.brief@v1"
-        },
-        output: "prototype.plan@v1",
-        execution: {
-          kind: "compose"
-        },
-        protocol: "prototype-plan@v1",
-        reportPath: "reports/prototype/plan.json",
-        required: ["objective", "files_to_create", "verification"],
-        routes: {
-          continue: "act-step",
-          stop: "@stop"
-        },
-        routeOverrides: {
-          continue: {
-            tournament: "variant-options-step"
-          }
-        }
-      }),
-      expandBlockStepUse({
-        id: "act-step",
-        title: "Act - create disposable prototype artifact",
-        stage: "act",
-        block: "act",
-        input: {
-          brief: "prototype.brief@v1",
-          plan: "prototype.plan@v1"
-        },
-        output: "prototype.artifact@v1",
-        execution: {
-          kind: "relay",
-          role: "implementer"
-        },
-        protocol: "prototype-act@v1",
-        reportPath: "reports/prototype/artifact.json",
-        requestPath: "reports/relay/prototype-act.request.json",
-        receiptPath: "reports/relay/prototype-act.receipt.txt",
-        resultPath: "reports/relay/prototype-act.result.json",
-        pass: ["accept"],
-        routes: {
-          continue: "verify-step",
-          stop: "close-step"
-        }
-      }),
-      expandBlockStepUse({
-        id: "variant-options-step",
-        title: "Plan - resolve Prototype model variants",
-        stage: "plan",
-        block: "plan",
-        input: {
-          brief: "prototype.brief@v1",
-          plan: "prototype.plan@v1"
-        },
-        output: "prototype.variant-options@v1",
-        execution: {
-          kind: "compose"
-        },
-        protocol: "prototype-variant-options@v1",
-        reportPath: "reports/prototype/variant-options.json",
-        required: ["variants", "variant_count"],
-        routes: {
-          continue: "variant-fanout-step",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "variant-fanout-step",
-        title: "Act - create model-comparison Prototype variants",
-        stage: "act",
-        block: "act",
-        input: {
-          brief: "prototype.brief@v1",
-          plan: "prototype.plan@v1",
-          options: "prototype.variant-options@v1"
-        },
-        output: "prototype.variant-aggregate@v1",
-        execution: {
-          kind: "fanout"
-        },
-        protocol: "prototype-variant-fanout@v1",
-        reportPath: "reports/prototype/variant-aggregate.json",
-        branchesDirPath: "reports/prototype/variant-branches",
-        pass: ["accept"],
-        fanout: {
-          branches: {
-            kind: "dynamic",
-            source_report: "reports/prototype/variant-options.json",
-            items_path: "variants",
-            template: {
-              branch_id: "$item.variant_id",
-              execution: {
-                kind: "relay",
-                role: "implementer",
-                goal: "$item.goal",
-                report_schema: "prototype.variant-artifact@v1",
-                provenance_field: "variant_id"
-              },
-              connector: "$item.connector_name",
-              selection: {
-                model: {
-                  provider: "$item.provider",
-                  model: "$item.model"
-                },
-                effort: "$item.effort"
-              }
-            },
-            max_branches: { kind: "axis", axis: "tournament_n" },
-            required_count: { kind: "axis", axis: "tournament_n" }
-          },
-          concurrency: {
-            kind: "bounded",
-            max: 2
-          },
-          on_child_failure: "continue-others",
-          join: {
-            policy: "aggregate-survivors"
-          },
-          rubric: {
-            model_judgments_path: "rubric_model_judgments",
-            ordered_dims: [...THREE_AXIS_RUBRIC_TIE_BREAK_ORDER],
-            runtime_signals: {
-              evidence_rigor: { kind: "non_empty_array", path: "evidence" },
-              actionability: { kind: "non_empty_array", path: "entry_points" },
-              coverage_adequacy: { kind: "non_empty_string", path: "summary" },
-              scope_discipline: { kind: "constant", signal: "met" },
-              honest_calibration: { kind: "non_empty_array", path: "claim_limits" },
-              project_specificity: { kind: "non_empty_string", path: "variant_root" },
-              insight_density: { kind: "constant", signal: "n/a" },
-              branch_distinctness: { kind: "constant", signal: "n/a" }
-            }
-          }
-        },
-        routes: {
-          continue: "variant-provider-evidence-step",
-          stop: "@stop"
-        }
-      }),
-      // A verify-stage compose that captures provider evidence for the variants
-      // before they are verified. It is not a flow close, so it uses the
-      // dedicated prototype-variant-evidence block; its output and evidence are
-      // inherited from the block rather than restated here.
-      expandBlockStepUse({
-        id: "variant-provider-evidence-step",
-        title: "Verify - capture variant provider evidence",
-        stage: "verify",
-        block: "prototype-variant-evidence",
-        input: {
-          brief: "prototype.brief@v1",
-          options: "prototype.variant-options@v1",
-          aggregate: "prototype.variant-aggregate@v1"
-        },
-        protocol: "prototype-variant-provider-evidence@v1",
-        reportPath: "reports/prototype/variant-provider-evidence.json",
-        required: ["captured_count", "variants"],
-        routes: {
-          complete: "variant-verification-step",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "variant-verification-step",
-        title: "Verify - check Prototype variants",
-        stage: "verify",
-        block: "run-verification",
-        input: {
-          plan: "prototype.plan@v1",
-          aggregate: "prototype.variant-aggregate@v1",
-          provider_evidence: "prototype.variant-provider-evidence@v1"
-        },
-        output: "prototype.variant-verification@v1",
-        protocol: "prototype-variant-verify@v1",
-        reportPath: "reports/prototype/variant-verification.json",
-        required: ["overall_status", "commands", "variant_results"],
-        routes: {
-          continue: "variant-review-step",
-          stop: "close-model-comparison-step"
-        }
-      }),
-      expandBlockStepUse({
-        id: "variant-review-step",
-        title: "Review - compare Prototype variants",
-        stage: "review",
-        block: "review",
-        input: {
-          brief: "prototype.brief@v1",
-          options: "prototype.variant-options@v1",
-          aggregate: "prototype.variant-aggregate@v1",
-          provider_evidence: "prototype.variant-provider-evidence@v1",
-          verification: "prototype.variant-verification@v1"
-        },
-        output: "prototype.variant-review@v1",
-        execution: {
-          kind: "relay",
-          role: "reviewer"
-        },
-        protocol: "prototype-variant-review@v1",
-        reportPath: "reports/prototype/variant-review.json",
-        requestPath: "reports/relay/prototype-variant-review.request.json",
-        receiptPath: "reports/relay/prototype-variant-review.receipt.txt",
-        resultPath: "reports/relay/prototype-variant-review.result.json",
-        pass: ["recommend", "no-clear-winner", "needs-operator"],
-        routes: {
-          continue: "variant-choice-options-step",
-          stop: "close-model-comparison-step"
-        }
-      }),
-      expandBlockStepUse({
-        id: "variant-choice-options-step",
-        title: "Review - prepare variant checkpoint choices",
-        stage: "review",
-        block: "review",
-        input: {
-          brief: "prototype.brief@v1",
-          aggregate: "prototype.variant-aggregate@v1",
-          provider_evidence: "prototype.variant-provider-evidence@v1",
-          verification: "prototype.variant-verification@v1",
-          review: "prototype.variant-review@v1"
-        },
-        output: "prototype.variant-choice-options@v1",
-        execution: {
-          kind: "compose"
-        },
-        protocol: "prototype-variant-choice-options@v1",
-        reportPath: "reports/prototype/variant-choice-options.json",
-        required: ["choices", "recommended_variant_id"],
-        routes: {
-          continue: "prototype-variant-checkpoint-step",
-          stop: "close-model-comparison-step"
-        }
-      }),
-      expandBlockStepUse({
-        id: "prototype-variant-checkpoint-step",
-        title: "Review - choose Prototype variant",
-        stage: "review",
-        block: "human-decision",
-        input: {
-          choices: "prototype.variant-choice-options@v1",
-          aggregate: "prototype.variant-aggregate@v1"
-        },
-        protocol: "prototype-variant-checkpoint@v1",
-        checkpointRequestPath: "reports/checkpoints/prototype-variant-choice-request.json",
-        checkpointResponsePath: "reports/checkpoints/prototype-variant-choice-response.json",
-        allowFrom: { kind: "policy_choices" },
-        checkpointPolicy: {
-          prompt: "Choose which local Prototype variant Circuit should keep. This checkpoint does not run Build or claim deployment.",
-          choices_from: {
-            kind: "report_items",
-            source_report: "reports/prototype/variant-choice-options.json",
-            items_path: "choices",
-            id_path: "id",
-            label_path: "label",
-            description_path: "description"
-          },
-          auto_resolution: {
-            policy: "highest-score",
-            source_report: "reports/prototype/variant-aggregate.json",
-            branches_path: "branches",
-            id_path: "branch_id",
-            rubric_result_path: "rubric_result"
-          }
-        },
-        routes: {
-          continue: "close-model-comparison-step",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "close-model-comparison-step",
-        title: "Close - emit Prototype model-comparison result",
-        stage: "close",
-        block: "close-with-evidence",
-        input: {
-          brief: "prototype.brief@v1",
-          plan: "prototype.plan@v1",
-          options: "prototype.variant-options@v1",
-          aggregate: "prototype.variant-aggregate@v1",
-          provider_evidence: "prototype.variant-provider-evidence@v1",
-          verification: "prototype.variant-verification@v1"
-        },
-        output: "prototype.result@v1",
-        execution: {
-          kind: "compose"
-        },
-        protocol: "prototype-close-model-comparison@v1",
-        reportPath: "reports/prototype-result.json",
-        required: ["summary", "outcome", "evidence_links"],
-        routes: {
-          complete: "@complete",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "verify-step",
-        title: "Verify - check Prototype artifact integrity",
-        stage: "verify",
-        block: "run-verification",
-        input: {
-          plan: "prototype.plan@v1",
-          artifact: "prototype.artifact@v1"
-        },
-        output: "prototype.verification@v1",
-        protocol: "prototype-verify@v1",
-        reportPath: "reports/prototype/verification.json",
-        required: ["overall_status", "commands"],
-        routes: {
-          continue: "prototype-checkpoint-step",
-          stop: "close-step"
-        }
-      }),
-      // A checkpoint over a built and verified artifact (inputs {artifact,
-      // verification}), not the generic question/evidence human-decision shape.
-      // It uses the dedicated prototype-checkpoint block, whose generic input
-      // contracts the flow's existing change.evidence and verification.result
-      // aliases already satisfy.
-      expandBlockStepUse({
-        id: "prototype-checkpoint-step",
-        title: "Review - decide Prototype disposition",
-        stage: "review",
-        block: "prototype-checkpoint",
-        input: {
-          artifact: "prototype.artifact@v1",
-          verification: "prototype.verification@v1"
-        },
-        protocol: "prototype-checkpoint@v1",
-        checkpointRequestPath: "reports/checkpoints/prototype-review-request.json",
-        checkpointResponsePath: "reports/checkpoints/prototype-review-response.json",
-        allow: ["keep-prototype", "save-build-input", "discard-prototype"],
-        checkpointPolicy: {
-          prompt: "Decide what to do with this verified Prototype artifact.",
-          choices: [
-            {
-              id: "keep-prototype",
-              label: "Keep Prototype",
-              description: "Save the prototype as useful evidence and stop here."
-            },
-            {
-              id: "save-build-input",
-              label: "Save Build Input",
-              description: "Close with a Build-ready follow-up prompt, without running Build."
-            },
-            {
-              id: "discard-prototype",
-              label: "Discard Prototype",
-              description: "Mark the prototype as discarded while keeping the evidence trail."
-            }
-          ],
-          safe_default_choice: "keep-prototype"
-        },
-        routes: {
-          continue: "close-step",
-          stop: "@stop"
-        }
-      }),
-      expandBlockStepUse({
-        id: "close-step",
-        title: "Close - emit Prototype result",
-        stage: "close",
-        block: "close-with-evidence",
-        input: {
-          brief: "prototype.brief@v1",
-          plan: "prototype.plan@v1",
-          artifact: "prototype.artifact@v1"
-        },
-        output: "prototype.result@v1",
-        execution: {
-          kind: "compose"
-        },
-        protocol: "prototype-close@v1",
-        reportPath: "reports/prototype-result.json",
-        required: ["summary", "outcome", "evidence_links"],
-        routes: {
-          complete: "@complete",
-          stop: "@stop"
-        }
-      })
-    ],
-    // Stage 3b (first-class composition): prototype's engine flag is rehomed
-    // off the by-id catalog package onto the schematic, so the compiled manifest
-    // carries it and the engine reads it through resolveEngineFlags without a
-    // by-id lookup. Mirrors goal's rehome; the package no longer carries it.
-    engine_flags: {
-      binds_execution_depth_to_relay_selection: true
-    },
-    // Stage 3b (first-class composition): prototype's up-front config gate rides
-    // the schematic onto the compiled manifest, so the CLI validates the
-    // requirement off the loaded flow, not the by-id catalog package. Mirrors the
-    // package's requiredConfig; a drift-guard test keeps the two in sync until M6
-    // collapses the duplicate authoring.
-    required_config: [
-      {
-        axis: "tournament",
-        path: "circuits.prototype.variant_models",
-        message: "prototype --tournament requires 'circuits.prototype.variant_models' in your Circuit config (one variant model per tournament branch). Add it under circuits.prototype.variant_models, or run prototype without --tournament."
-      }
-    ]
-  },
+  // First-class composition (A5): prototype is one of the assembler's
+  // production customers, and its fanout / tournament stress-test. Its block
+  // sequence (including the dynamic variant fanout, two checkpoints, and the
+  // non-monotonic single-artifact vs model-comparison branches), scaffolding,
+  // engine_flags, and required_config live in ./assembly-spec.ts;
+  // `assembleFlowSchematic` derives starts_at / stages / stage_path_policy and
+  // returns the validated FlowSchematic that used to be a hand-authored literal
+  // here. The prove-by-equivalence test proves byte-identity (schematic +
+  // compiled).
+  schematic: assembleFlowSchematic(prototypeAssemblySpec),
   canonicalStagePolicy: {
     kind: "enforce",
     canonicals: ["frame", "plan", "act", "verify", "review", "close"],
@@ -44484,6 +43862,81 @@ var pursueFlowData = {
 // dist/flows/pursue/flow.js
 var pursueFlowDefinition = defineFlowData(pursueFlowData);
 
+// dist/flows/review/assembly-spec.js
+var REVIEW_STAGE_PATH_RATIONALE = "Review is an audit-only flow: Intake frames the scope, Independent Audit performs the reviewer relay, and Verdict aggregates findings. There is no planning stage, no implementation/action stage, no verification rerun, and no nested review stage in this narrowed variant.";
+var reviewBlockItems = [
+  // Review's intake is a structurally distinct frame: it captures the
+  // working-tree state to audit against, not the generic scope/constraints/
+  // proof-plan a build-style frame produces. It uses the dedicated
+  // review-intake block, so its output and evidence are inherited from the
+  // block rather than restated here.
+  {
+    id: "intake-step",
+    title: "Intake \u2014 resolve review scope",
+    stage: "frame",
+    block: "review-intake",
+    input: { task: "task.intake@v1", route: "route.decision@v1" },
+    protocol: "review-intake@v1",
+    reportPath: "reports/review-intake.json",
+    required: ["scope", "evidence"],
+    routes: { continue: "audit-step", stop: "@stop" }
+  },
+  {
+    id: "audit-step",
+    title: "Independent Audit \u2014 reviewer relay",
+    stage: "analyze",
+    block: "review",
+    input: { brief: "review.intake@v1" },
+    execution: { kind: "relay", role: "reviewer" },
+    protocol: "review-audit@v1",
+    requestPath: "reports/relay/review.request.json",
+    receiptPath: "reports/relay/review.receipt.txt",
+    resultPath: "stages/analyze/review-raw-findings.json",
+    pass: ["NO_ISSUES_FOUND", "ISSUES_FOUND"],
+    routes: { continue: "verdict-step", retry: "audit-step", stop: "@stop" }
+  },
+  {
+    id: "verdict-step",
+    title: "Verdict \u2014 emit review.result",
+    stage: "close",
+    block: "close-with-evidence",
+    input: { brief: "review.intake@v1", review: "review.verdict@v1" },
+    output: "review.result@v1",
+    execution: { kind: "compose" },
+    protocol: "review-verdict@v1",
+    reportPath: "reports/review-result.json",
+    required: ["scope", "findings", "verdict"],
+    routes: { complete: "@complete", stop: "@stop" }
+  }
+];
+var reviewStageLabels = {
+  frame: { id: "intake-stage", title: "Intake" },
+  analyze: { id: "audit-stage", title: "Independent Audit" },
+  close: { id: "verdict-stage", title: "Verdict" }
+};
+var reviewAssemblySpec = {
+  id: "review",
+  title: "Review Schematic",
+  purpose: "Review flow: frame the audit scope, relay independent review to a reviewer, and close with a verdict report. The schematic uses a compact Intake, Independent Audit, and Verdict shape because Review is audit-only and does not implement or verify a change.",
+  status: "active",
+  version: "0.1.0",
+  initial_contracts: ["task.intake@v1", "route.decision@v1"],
+  contract_aliases: [
+    { generic: "flow.brief@v1", actual: "review.intake@v1" },
+    { generic: "review.verdict@v1", actual: "review.verdict@v1" },
+    { generic: "flow.result@v1", actual: "review.result@v1" }
+  ],
+  axes: {
+    allowed_depths: ["medium"],
+    supports_tournament: false,
+    supports_autonomous: false,
+    default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
+  },
+  items: reviewBlockItems,
+  stageLabels: reviewStageLabels,
+  stagePathRationale: REVIEW_STAGE_PATH_RATIONALE
+};
+
 // dist/flows/review/relay-hints.js
 var reviewRelayShapeHint = {
   kind: "structural",
@@ -44970,125 +44423,13 @@ var reviewFlowData = {
     schematic: "src/flows/review/schematic.json",
     contract: "src/flows/review/contract.md"
   },
-  schematic: {
-    schema_version: "2",
-    id: "review",
-    title: "Review Schematic",
-    purpose: "Review flow: frame the audit scope, relay independent review to a reviewer, and close with a verdict report. The schematic uses a compact Intake, Independent Audit, and Verdict shape because Review is audit-only and does not implement or verify a change.",
-    status: "active",
-    version: "0.1.0",
-    starts_at: "intake-step",
-    initial_contracts: ["task.intake@v1", "route.decision@v1"],
-    contract_aliases: [
-      {
-        generic: "flow.brief@v1",
-        actual: "review.intake@v1"
-      },
-      {
-        generic: "review.verdict@v1",
-        actual: "review.verdict@v1"
-      },
-      {
-        generic: "flow.result@v1",
-        actual: "review.result@v1"
-      }
-    ],
-    axes: {
-      allowed_depths: ["medium"],
-      supports_tournament: false,
-      supports_autonomous: false,
-      default: {
-        depth: "medium",
-        tournament: false,
-        tournament_n: 3,
-        autonomous: false
-      }
-    },
-    stage_path_policy: {
-      mode: "partial",
-      omits: ["plan", "act", "verify", "review"],
-      rationale: "Review is an audit-only flow: Intake frames the scope, Independent Audit performs the reviewer relay, and Verdict aggregates findings. There is no planning stage, no implementation/action stage, no verification rerun, and no nested review stage in this narrowed variant."
-    },
-    stages: [
-      {
-        id: "intake-stage",
-        canonical: "frame",
-        title: "Intake"
-      },
-      {
-        id: "audit-stage",
-        canonical: "analyze",
-        title: "Independent Audit"
-      },
-      {
-        id: "verdict-stage",
-        canonical: "close",
-        title: "Verdict"
-      }
-    ],
-    items: [
-      // Review's intake is a structurally distinct frame: it captures the
-      // working-tree state to audit against, not the generic scope/constraints/
-      // proof-plan a build-style frame produces. It uses the dedicated
-      // review-intake block, so its output and evidence are inherited from the
-      // block rather than restated here.
-      expandBlockStepUse({
-        id: "intake-step",
-        title: "Intake \u2014 resolve review scope",
-        stage: "frame",
-        block: "review-intake",
-        input: {
-          task: "task.intake@v1",
-          route: "route.decision@v1"
-        },
-        protocol: "review-intake@v1",
-        reportPath: "reports/review-intake.json",
-        required: ["scope", "evidence"],
-        routes: {
-          continue: "audit-step",
-          stop: "@stop"
-        }
-      }),
-      relayBlockStep({
-        id: "audit-step",
-        title: "Independent Audit \u2014 reviewer relay",
-        stage: "analyze",
-        block: "review",
-        input: {
-          brief: "review.intake@v1"
-        },
-        role: "reviewer",
-        protocol: "review-audit@v1",
-        requestPath: "reports/relay/review.request.json",
-        receiptPath: "reports/relay/review.receipt.txt",
-        resultPath: "stages/analyze/review-raw-findings.json",
-        pass: ["NO_ISSUES_FOUND", "ISSUES_FOUND"],
-        routes: {
-          continue: "verdict-step",
-          retry: "audit-step",
-          stop: "@stop"
-        }
-      }),
-      composeBlockStep({
-        id: "verdict-step",
-        title: "Verdict \u2014 emit review.result",
-        stage: "close",
-        block: "close-with-evidence",
-        input: {
-          brief: "review.intake@v1",
-          review: "review.verdict@v1"
-        },
-        output: "review.result@v1",
-        protocol: "review-verdict@v1",
-        reportPath: "reports/review-result.json",
-        required: ["scope", "findings", "verdict"],
-        routes: {
-          complete: "@complete",
-          stop: "@stop"
-        }
-      })
-    ]
-  },
+  // First-class composition (A5): review is one of the assembler's production
+  // customers. Its block sequence and scaffolding live in ./assembly-spec.ts;
+  // `assembleFlowSchematic` derives starts_at / stages / stage_path_policy and
+  // returns the validated FlowSchematic that used to be a hand-authored literal
+  // here. The prove-by-equivalence test proves the assembled schematic is
+  // byte-identical to the former literal (schematic + compiled).
+  schematic: assembleFlowSchematic(reviewAssemblySpec),
   canonicalStagePolicy: {
     kind: "enforce",
     canonicals: ["frame", "analyze", "close"],
@@ -45253,6 +44594,59 @@ var reviewResultProjector = (ctx) => {
   });
 };
 
+// dist/flows/runtime-proof/assembly-spec.js
+var RUNTIME_PROOF_STAGE_PATH_RATIONALE = "Runtime Proof is a narrow proof flow; only plan and act are needed to exercise compose and relay through the runtime boundary.";
+var runtimeProofBlockItems = [
+  {
+    id: "compose-step",
+    title: "Compose runtime proof report",
+    stage: "plan",
+    block: "plan",
+    input: { brief: "flow.brief@v1" },
+    execution: { kind: "compose" },
+    protocol: "runtime-proof-compose@v1",
+    reportPath: "reports/compose.json",
+    required: ["summary"],
+    routes: { continue: "relay-step" }
+  },
+  {
+    id: "relay-step",
+    title: "Relay dry-run connector",
+    stage: "act",
+    block: "act",
+    input: { brief: "flow.brief@v1", plan: "plan.strategy@v1" },
+    execution: { kind: "relay", role: "implementer" },
+    protocol: "runtime-proof-relay@v1",
+    requestPath: "reports/relay.request.json",
+    receiptPath: "reports/relay.receipt.json",
+    resultPath: "reports/relay.result.json",
+    pass: ["ok"],
+    routes: { continue: "@complete" }
+  }
+];
+var runtimeProofStageLabels = {
+  plan: { id: "plan-stage", title: "Plan" },
+  act: { id: "act-stage", title: "Act" }
+};
+var runtimeProofAssemblySpec = {
+  id: "runtime-proof",
+  title: "Runtime Proof Schematic",
+  purpose: "Runtime Proof flow: exercise one compose step and one relay step end-to-end so the runtime boundary can be observed closing a real run.",
+  status: "active",
+  version: "0.1.0",
+  initial_contracts: ["flow.brief@v1"],
+  contract_aliases: [],
+  axes: {
+    allowed_depths: ["medium"],
+    supports_tournament: false,
+    supports_autonomous: false,
+    default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
+  },
+  items: runtimeProofBlockItems,
+  stageLabels: runtimeProofStageLabels,
+  stagePathRationale: RUNTIME_PROOF_STAGE_PATH_RATIONALE
+};
+
 // dist/flows/runtime-proof/reports.js
 var RuntimeProofCompose = external_exports.object({
   summary: external_exports.string().min(1)
@@ -45272,99 +44666,7 @@ var runtimeProofComposeBuilder = {
 var runtimeProofPaths = {
   schematic: "src/flows/runtime-proof/schematic.json"
 };
-var runtimeProofSchematic = {
-  schema_version: "2",
-  id: "runtime-proof",
-  title: "Runtime Proof Schematic",
-  purpose: "Runtime Proof flow: exercise one compose step and one relay step end-to-end so the runtime boundary can be observed closing a real run.",
-  status: "active",
-  version: "0.1.0",
-  starts_at: "compose-step",
-  initial_contracts: ["flow.brief@v1"],
-  contract_aliases: [],
-  axes: {
-    allowed_depths: ["medium"],
-    supports_tournament: false,
-    supports_autonomous: false,
-    default: {
-      depth: "medium",
-      tournament: false,
-      tournament_n: 3,
-      autonomous: false
-    }
-  },
-  stage_path_policy: {
-    mode: "partial",
-    omits: ["frame", "analyze", "verify", "review", "close"],
-    rationale: "Runtime Proof is a narrow proof flow; only plan and act are needed to exercise compose and relay through the runtime boundary."
-  },
-  stages: [
-    {
-      id: "plan-stage",
-      canonical: "plan",
-      title: "Plan"
-    },
-    {
-      id: "act-stage",
-      canonical: "act",
-      title: "Act"
-    }
-  ],
-  items: [
-    {
-      id: "compose-step",
-      title: "Compose runtime proof report",
-      stage: "plan",
-      block: "plan",
-      input: {
-        brief: "flow.brief@v1"
-      },
-      output: "plan.strategy@v1",
-      evidence_requirements: ["ordered steps", "risk notes", "proof strategy"],
-      execution: {
-        kind: "compose"
-      },
-      protocol: "runtime-proof-compose@v1",
-      writes: {
-        report_path: "reports/compose.json"
-      },
-      check: {
-        required: ["summary"]
-      },
-      routes: {
-        continue: "relay-step"
-      }
-    },
-    {
-      id: "relay-step",
-      title: "Relay dry-run connector",
-      stage: "act",
-      block: "act",
-      input: {
-        brief: "flow.brief@v1",
-        plan: "plan.strategy@v1"
-      },
-      output: "change.evidence@v1",
-      evidence_requirements: ["changed files", "change rationale", "declared follow-up proof"],
-      execution: {
-        kind: "relay",
-        role: "implementer"
-      },
-      protocol: "runtime-proof-relay@v1",
-      writes: {
-        request_path: "reports/relay.request.json",
-        receipt_path: "reports/relay.receipt.json",
-        result_path: "reports/relay.result.json"
-      },
-      check: {
-        pass: ["ok"]
-      },
-      routes: {
-        continue: "@complete"
-      }
-    }
-  ]
-};
+var runtimeProofSchematic = assembleFlowSchematic(runtimeProofAssemblySpec);
 var runtimeProofCanonicalStagePolicy = {
   kind: "exempt",
   reason: "partial-stage path, recorded"
