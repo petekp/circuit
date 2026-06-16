@@ -908,6 +908,102 @@
       "current_reading": "Proposal for product framing around typed coordination. Separates shipped behavior from proposed direction where that distinction matters.",
       "related": ["docs/ideas/skill-hooks-uncovered-cases.md"],
       "last_checked": "2026-06-04"
+    },
+    {
+      "path": "docs/ideas/overnight-foundation-frontier-brief.md",
+      "title": "Overnight brief - foundation completion plus frontier spike",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["overnight", "foundation", "frontier", "assembler", "durability", "held-prs"],
+      "current_reading": "Controlling brief for the 2026-06-15 overnight run: finish the composition and durability foundation as held PRs and spike-and-surface the reserved deep forks. Foundation chunks were built as separate held PRs; the grain experiment was skipped at its Step-0 gate; the deep forks were surfaced as specs, not committed. See overnight-run-report.md for what landed.",
+      "related": [
+        "docs/ideas/overnight-run-report.md",
+        "docs/ideas/fallible-executor-audit.md",
+        "docs/ideas/grain-separability-experiment-design.md"
+      ],
+      "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/overnight-run-report.md",
+      "title": "Overnight run report - foundation completion plus frontier spike",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["overnight", "run-report", "merge-order", "findings", "held-prs"],
+      "current_reading": "Live record of the overnight foundation-plus-frontier run: per-chunk status, the grain skip verdict and its evidence, the A1 to A2/A3 dependency outcome, the surfaced deep-fork decisions, and the recommended merge order for the held PRs. The resume point is the STATE section at the top.",
+      "related": ["docs/ideas/overnight-foundation-frontier-brief.md"],
+      "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/grain-experiment-deferred.md",
+      "title": "Grain separability experiment - deferred (not run) plus the remedy",
+      "status": "current-gap-analysis",
+      "category": "verification-and-evals",
+      "tags": ["grain", "separability", "experiment", "deferred", "taskset", "harness-gap"],
+      "current_reading": "Records the B0-gate decision to skip the grain experiment with no model spend: the eval taskset has no entangled tasks, so the experiment would be null by construction (the design's own Step-0 stop). Surfaces the remedy: the harness K-repeat and interleave gap, and a pre-scored entangled-plus-mixed taskset spec so a future run executes cleanly.",
+      "related": ["docs/ideas/grain-separability-experiment-design.md"],
+      "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/durability-tier3-linkage-spec.md",
+      "title": "Durability Tier-3 - crash-safe sub-run and fanout linkage (surface-only)",
+      "status": "pre-implementation",
+      "category": "run-inspection-and-output",
+      "tags": ["durability", "tier-3", "fanout", "sub-run", "worktree-reaper", "surface-only"],
+      "current_reading": "Surface-only, decision-ready spec for crash-safe sub-run and fanout linkage. Recommends shipping the startup worktree reaper now (the orphaned-worktree leak is a live, A1-independent disk bug) and deferring the deterministic child-id intent linkage into the A1 cursor milestone. Gated on A1; not built.",
+      "related": [
+        "docs/ideas/fallible-executor-audit.md",
+        "docs/ideas/parallel-decision-inbox-spec.md"
+      ],
+      "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/parallel-decision-inbox-spec.md",
+      "title": "Parallel decision inbox (surface-only)",
+      "status": "pre-implementation",
+      "category": "run-inspection-and-output",
+      "tags": ["decision-inbox", "hitl", "parked-runs", "resume", "triage", "surface-only"],
+      "current_reading": "Surface-only spec for an inbox that surfaces, triages, and resumes runs parked on a fork. Recommends shipping a read-only inbox now (discovery plus a checkpoint-waiting filter plus staleness triage on existing facts) and deferring the bulk-resume driver until the A1 cursor exists. Warns the inbox must filter on the resumable checkpoint-waiting outcome, not the broader needs-attention flag. Gated on A1; not built.",
+      "related": ["docs/ideas/fallible-executor-audit.md"],
+      "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/deepfork-uniform-recursion-e3-spec.md",
+      "title": "Deep fork - uniform recursion E3 (surface-only spike)",
+      "status": "pre-implementation",
+      "category": "flows-and-blocks",
+      "tags": ["recursion", "e3", "deep-fork", "spike", "surface-only", "assembler"],
+      "current_reading": "Surface-only spike plus decision-ready spec for treating a sub-run as a leaf step so flows compose recursively. Recommends shipping the two safety pieces first (a depth cap plus a cycle guard threaded child-to-child, and a non-empty reduced-bindings oracle) and taking the path unification behind an engine flag afterward. Must never be merged into src/.",
+      "related": [
+        "docs/ideas/deepfork-resolver-abstraction-spec.md",
+        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md"
+      ],
+      "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/deepfork-resolver-abstraction-spec.md",
+      "title": "Deep fork - resolver abstraction (surface-only spike)",
+      "status": "pre-implementation",
+      "category": "flows-and-blocks",
+      "tags": ["resolver", "abstraction", "deep-fork", "spike", "surface-only", "assembler"],
+      "current_reading": "Surface-only spike plus decision-ready spec on whether to extract a unified Resolver type from the structure and equipment resolvers. Recommends NOT extracting yet: build a third instance (context is the strongest candidate) before committing the interface, since the two existing resolvers disagree on three of four divergences. The abstraction is earnable but not yet earned. Must never be merged into src/.",
+      "related": [
+        "docs/ideas/deepfork-uniform-recursion-e3-spec.md",
+        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md"
+      ],
+      "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
+      "title": "Deep fork - adaptive bubble-up recompile (surface-only spike)",
+      "status": "pre-implementation",
+      "category": "flows-and-blocks",
+      "tags": ["adaptive", "recompile", "bubble-up", "deep-fork", "spike", "surface-only"],
+      "current_reading": "Surface-only spike plus decision-ready spec for a run that re-decomposes itself mid-flight when a step surfaces new structure. Recommends building the offline demonstrator now (the assemble-to-compile chain is pure with the catalog gate as the safety floor) but gating the live path conservatively: ship the finding and checkpoint hand-off as default, allow additive equipment reshape first, hold structural re-decomposition behind a bounded reshape budget. Must never be merged into src/.",
+      "related": [
+        "docs/ideas/deepfork-uniform-recursion-e3-spec.md",
+        "docs/ideas/deepfork-resolver-abstraction-spec.md"
+      ],
+      "last_checked": "2026-06-16"
     }
   ]
 }
