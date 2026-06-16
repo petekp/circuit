@@ -46374,6 +46374,87 @@ function compileSchematicToCompiledFlow(schematic) {
   return { kind: "per-mode", flows };
 }
 
+// dist/flows/resolvers/structure.js
+function resolveStructure(task, _prior = {}) {
+  const reasons = [];
+  if (task.explicit_decompose === true)
+    reasons.push("operator asked to decompose");
+  if (task.surface_area === "large")
+    reasons.push("large surface area");
+  if (task.risk === "high")
+    reasons.push("high risk");
+  if (reasons.length > 0) {
+    return {
+      axis: "structure",
+      choice: "decomposed",
+      binding_time: "assembly",
+      enforcement: "enforced",
+      rationale: `Chop: ${reasons.join(", ")}.`
+    };
+  }
+  return {
+    axis: "structure",
+    choice: "whole",
+    binding_time: "assembly",
+    enforcement: "enforced",
+    rationale: "Hold (conservative default): no strong decompose signal, so one folded work spine."
+  };
+}
+var WHOLE_FOLD_DROP_IDS = [
+  "analyze-step",
+  "build-baseline",
+  "build-touch-area",
+  "review-step"
+];
+var clone2 = (value) => JSON.parse(JSON.stringify(value));
+function foldToWhole(seed, dropIds) {
+  const drop = new Set(dropIds);
+  const items = seed.items;
+  const droppedContracts = /* @__PURE__ */ new Set();
+  for (const item of items) {
+    if (drop.has(item.id) && typeof item.output === "string") {
+      droppedContracts.add(item.output);
+    }
+  }
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const redirect = (target, seen = /* @__PURE__ */ new Set()) => {
+    if (!drop.has(target))
+      return target;
+    if (seen.has(target))
+      return "@stop";
+    seen.add(target);
+    const dropped = byId.get(target);
+    const next = dropped?.routes?.continue ?? "@stop";
+    return redirect(next, seen);
+  };
+  return items.filter((item) => !drop.has(item.id)).map((item) => {
+    const copy = clone2(item);
+    const input = copy.input;
+    if (input) {
+      for (const [key, contract] of Object.entries(input)) {
+        if (droppedContracts.has(contract))
+          delete input[key];
+      }
+    }
+    const routes = {};
+    for (const [outcome, target] of Object.entries(copy.routes)) {
+      routes[outcome] = redirect(target);
+    }
+    return { ...copy, input, routes };
+  });
+}
+function applyStructure(seed, resolution) {
+  if (resolution.choice === "decomposed") {
+    return { ...clone2(seed), id: `${seed.id}-decomposed` };
+  }
+  return {
+    ...clone2(seed),
+    id: `${seed.id}-whole`,
+    items: foldToWhole(seed, WHOLE_FOLD_DROP_IDS),
+    stagePathRationale: "Whole grain: analyze folds into act and review folds into close; one folded work spine."
+  };
+}
+
 // dist/schemas/custom-flow-descriptor.js
 var CustomFlowPackageDescriptor = external_exports.object({
   schema_version: external_exports.literal(1),
@@ -46750,7 +46831,7 @@ function utilityProgress(input) {
 // dist/cli/create.js
 var RESERVED_FLOW_IDS = /* @__PURE__ */ new Set([...catalogFlowIds, ...CLI_COMMAND_NAMES]);
 function parseArgs(argv) {
-  const program2 = new Command("circuit create").option("--name <slug>").option("--description <flow idea>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--progress <format>");
+  const program2 = new Command("circuit create").option("--name <slug>").option("--description <flow idea>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--decompose").option("--progress <format>");
   parseCommanderOrThrow(program2, argv);
   if (program2.args.length > 0)
     throw new Error(`unexpected argument: ${program2.args[0]}`);
@@ -46761,6 +46842,7 @@ function parseArgs(argv) {
   return {
     publish: opts.publish === true,
     yes: opts.yes === true,
+    decompose: opts.decompose === true,
     progress: opts.progress === "jsonl",
     ...opts.name === void 0 ? {} : { name: opts.name },
     ...opts.description === void 0 ? {} : { description: opts.description },
@@ -46827,12 +46909,23 @@ function validateCustomFlow(slug, flow, source) {
     throw new Error(`${source} validation failed: ${policy2.reason}`);
   }
 }
+function structureTaskFromCreate(input) {
+  return {
+    summary: input.description,
+    surface_area: "small",
+    risk: "low",
+    ...input.decompose ? { explicit_decompose: true } : {}
+  };
+}
 function assembleCustomFlow(input) {
-  const schematic = assembleFlowSchematic({
+  const seed = {
     ...buildAssemblySpec,
     id: input.slug,
     purpose: input.description
-  });
+  };
+  const resolution = resolveStructure(structureTaskFromCreate({ description: input.description, decompose: input.decompose }));
+  const grained = applyStructure(seed, resolution);
+  const schematic = assembleFlowSchematic({ ...grained, id: input.slug });
   const compiled = compileSchematicToCompiledFlow(schematic);
   if (compiled.kind !== "single") {
     throw new Error(`custom flow assembled to an unexpected '${compiled.kind}' package`);
@@ -47044,7 +47137,7 @@ async function runCreateCommand(argv, options = {}) {
     }
     const createdAt = args.createdAt ?? now().toISOString();
     const draftExists = existsSync9(join4(draftRoot(home, slug), "circuit.json"));
-    const flow = args.publish && draftExists ? loadDraftFlow(home, slug) : assembleCustomFlow({ slug, description: args.description });
+    const flow = args.publish && draftExists ? loadDraftFlow(home, slug) : assembleCustomFlow({ slug, description: args.description, decompose: args.decompose });
     const outputDescription = args.publish && draftExists ? flow.purpose : args.description;
     if (args.publish && draftExists) {
       writeValidationResult({ home, slug, flow, source: "draft" });
