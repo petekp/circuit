@@ -35,8 +35,8 @@ the surfaced remedy (entangled-task spec + harness K-repeat gap).
 | A5 | migrate 6 built-ins onto assembler | **DONE — verify green, held PR #94** | `feat/assembler-builtins-migration` |
 | A1 | durability Tier-2 foundation slice | **DONE — verify green, held PR #93** | `feat/durability-tier2-foundation` |
 | B2 | structure chooser (thin) | **DONE — verify green, held PR #95** | `feat/structure-chooser` |
-| B3 | two resolvers same shape | building (off B2 / PR #95) | `feat/equipment-resolver` |
-| A6 | equipment skills injection | building (off A5 / PR #94) | `feat/equipment-skills-injection` |
+| B3 | two resolvers same shape | **DONE — verify green, held PR #96** | `feat/equipment-resolver` |
+| A6 | equipment skills injection | **DONE — verify green, held PR #97** | `feat/equipment-skills-injection` |
 | A2 | Tier-3 crash-safe linkage | spec DONE + committed (f6916e4e) | docs only |
 | A3 | parallel decision inbox | spec DONE + committed (f6916e4e) | docs only |
 | B4 | three deep forks | specs DONE + committed (f6916e4e) | docs only (spikes sketched in-spec) |
@@ -51,16 +51,30 @@ cache races. All four foundation PRs are open and independently verify-green:
 host runtime bundles (its new runtime code changes the compiled CLI — the known
 "runtime change drifts host bundles" gotcha); re-verified green after.
 
-### Recommended next step for a fresh session
+### RUN COMPLETE — all chunks landed as held PRs
 
-1. B3 (`feat/equipment-resolver`, off B2) and A6 (`feat/equipment-skills-injection`,
-   off A5) are the last two chunks, building now. When each finishes: in its
-   worktree run full `npm run verify` (regenerate host bundles with
-   `npm run build-plugin-runtime` if `check-flow-drift` complains), then
-   `gh pr create` with HOLD MERGE.
-2. Commit the report's final pass + any open findings to the docs branch.
-3. Every PR is held and independently verify-green; do not merge here. See
-   **Recommended merge order** at the bottom.
+Six foundation+frontier code PRs, all independently `npm run verify`-green and
+**held for the operator** (no merges, no rebases, no force-pushes):
+
+| PR | Chunk | One line |
+|---|---|---|
+| #92 | A4 | vocabulary regression lock (pantry already stocked by M9) |
+| #93 | A1 | durability Tier-2 foundation slice + cursor spec (honest payload-gap) |
+| #94 | A5 | all 6 built-ins migrated onto the assembler, byte-identical |
+| #95 | B2 | structure chooser, thin-conservative (whole-grain-can't-run finding) |
+| #96 | B3 | equipment resolver #2, same shape, abstraction NOT extracted |
+| #97 | A6 | real house-style injection; skill-slot ratchet 15 → 1 |
+
+Plus the docs branch `overnight/foundation-frontier` (surface-only: A2/A3 specs,
+three B4 deep-fork specs, the grain skip verdict, this report).
+
+**Nothing left to build.** The only open actions are the operator's: review and
+merge in the recommended order below, and ratify the surfaced deep-fork decisions.
+
+What was NOT done, by design: the grain experiment (skipped at its B0 gate, no
+spend); A2/A3 beyond specs (gated on the multi-week A1 cursor); the B4 deep forks
+beyond specs (reserved as ratifiable, never merged into `src/`); the enforced
+tools-axis ratchet (#89's half, A6 Increment 2).
 
 ---
 
@@ -164,6 +178,20 @@ proof, app→runtime staleness-gate boundary). Decision-ready spec written.
   writer hard-requires `build.review@v1` + `build.touch-area@v1`. The runnable
   path today is `--decompose`. Concrete input to the B4 resolver/abstraction
   fork: chop/hold interacts with built-in close-writer contracts.
+- **B3 shared-shape finding:** the resolver shared shape **held up with no new
+  divergence** once both resolvers (structure + equipment) live in `src/`. The
+  four recorded divergences (scope, enforcement, downgrade channel, binding time)
+  are the whole design content; a shared `Resolver` type is earnable but
+  deliberately NOT extracted — a third instance is the trigger. The equipment
+  axis needed **zero engine accommodation** (additive per-step `skill_slots` rides
+  the assembler unchanged), unlike structure's whole-grain fold.
+- **A6 injection finding:** real house-style injection is **genuinely general —
+  no engine support needed**. Slot descriptions ride the manifest `skill_slots`
+  and render through the shared prompt composer for any relay role on any flow.
+  The skill-slot quality ratchet dropped **15 → 1** (only runtime-proof's
+  do-nothing dry-run relay remains, by design). The enforced *tools* half
+  (`TOOL_SCOPE_GAP_BASELINE = 5`) is untouched — that is #89's axis, for a later
+  increment.
 
 ---
 
