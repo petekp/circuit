@@ -37,3 +37,4 @@ Compares the checked-in original Circuit snapshot with the current capability sn
 | prototype | autonomous, default, high, tournament | complete, continue, stop |  |
 | build | autonomous, default, high, low | advance, ask, complete, continue, retry, revise, stop | advance |
 | explore | autonomous, default, high, low, tournament | complete, continue, retry, revise, stop |  |
+| explainer | autonomous, default, high, low, tournament | blocked, complete, continue, handoff, retry, stop | blocked |
