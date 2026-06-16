@@ -159,13 +159,18 @@ describe('WorkContractProjectionV0', () => {
 
     const projection = buildProjection(mutated);
 
-    expect(projection.work_contract.authority.skill_slots).toEqual([
-      {
-        step_id: firstStep.id,
-        slot_id: 'review-assistant',
-        description: 'Optional local skill for reviewing relay output.',
-      },
-    ]);
+    // The shipped flows now declare house-style skill slots on their work relays,
+    // so the projection carries those too; assert the mutated slot is classified
+    // into the capability bucket rather than asserting it is the only one.
+    expect(projection.work_contract.authority.skill_slots).toEqual(
+      expect.arrayContaining([
+        {
+          step_id: firstStep.id,
+          slot_id: 'review-assistant',
+          description: 'Optional local skill for reviewing relay output.',
+        },
+      ]),
+    );
   });
 
   it('rejects hidden checkpoint autonomy before projection', () => {

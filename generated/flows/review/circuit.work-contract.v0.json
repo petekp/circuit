@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/review/circuit.work-contract.v0.json",
-    "sha256": "a3eb00fa92caeb5e92a92193f329448cac9b898a5b10de89cd00ee6af28dbb81",
+    "sha256": "f6340ccd87dc58a36e254f45212ced2a080b24604030f1c705a5f0c4ec0b72be",
     "flow_id": "review"
   },
   "work_contract": {
@@ -201,7 +201,13 @@
       "checkpoints": [],
       "sub_runs": [],
       "fanouts": [],
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "step_id": "audit-step",
+          "slot_id": "review-independent-audit",
+          "description": "A skill for independently auditing code or a change for correctness, regressions, and scope creep."
+        }
+      ],
       "equipment_scopes": []
     },
     "proof": {
@@ -275,7 +281,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/intake-step/routes/stop",
-          "sha256": "617d7ef729ffdb1b5cf75023d59e6933673778a597f0d9a6f9b69661107448c7",
+          "sha256": "d57c6fc5485608e81d8c8bcf529aa440ed83e08b5fab53803db51dd106b05dda",
           "flow_id": "review"
         }
       },
@@ -304,7 +310,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/audit-step/routes/retry",
-          "sha256": "617d7ef729ffdb1b5cf75023d59e6933673778a597f0d9a6f9b69661107448c7",
+          "sha256": "d57c6fc5485608e81d8c8bcf529aa440ed83e08b5fab53803db51dd106b05dda",
           "flow_id": "review"
         }
       },
@@ -335,7 +341,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/audit-step/routes/stop",
-          "sha256": "617d7ef729ffdb1b5cf75023d59e6933673778a597f0d9a6f9b69661107448c7",
+          "sha256": "d57c6fc5485608e81d8c8bcf529aa440ed83e08b5fab53803db51dd106b05dda",
           "flow_id": "review"
         }
       },
@@ -366,7 +372,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verdict-step/routes/stop",
-          "sha256": "617d7ef729ffdb1b5cf75023d59e6933673778a597f0d9a6f9b69661107448c7",
+          "sha256": "d57c6fc5485608e81d8c8bcf529aa440ed83e08b5fab53803db51dd106b05dda",
           "flow_id": "review"
         }
       }

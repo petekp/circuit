@@ -77,6 +77,13 @@ export const exploreBlockItems: readonly BlockStepUse[] = [
       result_path: 'reports/relay/synthesize.result.json',
     },
     check: { pass: ['accept'] },
+    skillSlots: [
+      {
+        id: 'explore-synthesis',
+        description:
+          'A skill for turning analysis into a clear, well-argued recommendation a reader can act on.',
+      },
+    ],
     routes: { continue: 'review-step', retry: 'synthesize-step', stop: '@stop' },
   },
   {
@@ -99,6 +106,13 @@ export const exploreBlockItems: readonly BlockStepUse[] = [
       result_path: 'reports/relay/review.result.json',
     },
     check: { pass: ['accept', 'accept-with-fold-ins'] },
+    skillSlots: [
+      {
+        id: 'explore-adversarial-review',
+        description:
+          'A skill for adversarially testing a recommendation: probing its weakest claims and unstated assumptions.',
+      },
+    ],
     routes: {
       continue: 'close-step',
       retry: 'synthesize-step',
@@ -191,6 +205,13 @@ export const exploreBlockItems: readonly BlockStepUse[] = [
       result_path: 'reports/relay/tournament-review.result.json',
     },
     check: { pass: ['recommend', 'no-clear-winner', 'needs-operator'] },
+    skillSlots: [
+      {
+        id: 'explore-proposal-stress-test',
+        description:
+          'A skill for stress-testing competing proposals against each other and naming the strongest on the evidence.',
+      },
+    ],
     routes: {
       continue: 'tradeoff-checkpoint-step',
       revise: 'decision-options-step',

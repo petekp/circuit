@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/build/circuit.work-contract.v0.json",
-    "sha256": "280766aa9bcfa87f2ddc62eff223ad38c7452052f6820f9190907112068f1655",
+    "sha256": "7e9bc6823b7c72a99cc28d74bd940f6d4eb2d37cb630fc961a127870b5a40732",
     "flow_id": "build"
   },
   "work_contract": {
@@ -610,7 +610,23 @@
       ],
       "sub_runs": [],
       "fanouts": [],
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "step_id": "analyze-step",
+          "slot_id": "build-codebase-search",
+          "description": "A skill for reading the codebase and tracing the call paths a change will touch before any plan is written."
+        },
+        {
+          "step_id": "act-step",
+          "slot_id": "build-implementation",
+          "description": "A skill for implementing the planned change in the existing code style, keeping edits scoped to the plan."
+        },
+        {
+          "step_id": "review-step",
+          "slot_id": "build-change-audit",
+          "description": "A skill for independently auditing a change for correctness, scope creep, and regressions."
+        }
+      ],
       "equipment_scopes": []
     },
     "proof": {
@@ -798,7 +814,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -827,7 +843,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/retry",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -857,7 +873,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/ask",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -888,7 +904,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/stop",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -913,7 +929,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/revise",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -944,7 +960,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/stop",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -975,7 +991,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/build-baseline/routes/stop",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -1004,7 +1020,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/act-step/routes/retry",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -1035,7 +1051,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/act-step/routes/stop",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -1060,7 +1076,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/retry",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -1091,7 +1107,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/stop",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -1122,7 +1138,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/build-touch-area/routes/stop",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -1147,7 +1163,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/retry",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -1172,7 +1188,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/revise",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -1203,7 +1219,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/stop",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       },
@@ -1234,7 +1250,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/stop",
-          "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+          "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
           "flow_id": "build"
         }
       }
@@ -1251,7 +1267,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/frame-step/policy/safe_default_choice",
-        "sha256": "53585375e3f15c661b4ebe48af332ef03e57be6b6c34e7b612cacdcb6972df9a",
+        "sha256": "b0619bfd08278a6dee417add58b8e6a029955af9ccc262b937ea658bee71b6b1",
         "flow_id": "build"
       }
     ],

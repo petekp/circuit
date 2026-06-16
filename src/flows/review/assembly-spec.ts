@@ -51,6 +51,13 @@ export const reviewBlockItems: readonly BlockStepUse[] = [
     receiptPath: 'reports/relay/review.receipt.txt',
     resultPath: 'stages/analyze/review-raw-findings.json',
     pass: ['NO_ISSUES_FOUND', 'ISSUES_FOUND'],
+    skillSlots: [
+      {
+        id: 'review-independent-audit',
+        description:
+          'A skill for independently auditing code or a change for correctness, regressions, and scope creep.',
+      },
+    ],
     routes: { continue: 'verdict-step', retry: 'audit-step', stop: '@stop' },
   },
   {

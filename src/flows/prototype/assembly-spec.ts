@@ -71,6 +71,13 @@ export const prototypeBlockItems: readonly BlockStepUse[] = [
       result_path: 'reports/relay/prototype-act.result.json',
     },
     check: { pass: ['accept'] },
+    skillSlots: [
+      {
+        id: 'prototype-rapid-build',
+        description:
+          'A skill for quickly building a disposable prototype that demonstrates the idea, optimizing for speed over polish.',
+      },
+    ],
     routes: { continue: 'verify-step', stop: 'close-step' },
   },
   {
@@ -200,6 +207,13 @@ export const prototypeBlockItems: readonly BlockStepUse[] = [
       result_path: 'reports/relay/prototype-variant-review.result.json',
     },
     check: { pass: ['recommend', 'no-clear-winner', 'needs-operator'] },
+    skillSlots: [
+      {
+        id: 'prototype-variant-comparison',
+        description:
+          'A skill for comparing prototype variants on their evidence and naming which one the operator should carry forward.',
+      },
+    ],
     routes: { continue: 'variant-choice-options-step', stop: 'close-model-comparison-step' },
   },
   {

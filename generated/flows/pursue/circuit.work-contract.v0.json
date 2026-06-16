@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/pursue/circuit.work-contract.v0.json",
-    "sha256": "0bc272c70b69269dfdc5871d13d4c91dd4478ee67ac8510ed019606d0dc1b708",
+    "sha256": "00f95d05aef361095bc99a8ad487ba196f4c4c2a9aadfba90bfd8d09bcdb01fa",
     "flow_id": "pursue"
   },
   "work_contract": {
@@ -462,7 +462,18 @@
       "checkpoints": [],
       "sub_runs": [],
       "fanouts": [],
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "step_id": "batch-step",
+          "slot_id": "pursuit-serial-execution",
+          "description": "A skill for executing a queue of related goals one at a time, verifying each before moving to the next."
+        },
+        {
+          "step_id": "review-step",
+          "slot_id": "pursuit-coordination-audit",
+          "description": "A skill for checking that a multi-goal pursuit stayed coordinated: no goal left half-done and no cross-goal regression."
+        }
+      ],
       "equipment_scopes": []
     },
     "proof": {
@@ -598,7 +609,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/contract-step/routes/stop",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       },
@@ -629,7 +640,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/graph-step/routes/stop",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       },
@@ -660,7 +671,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/wave-plan-step/routes/stop",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       },
@@ -689,7 +700,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/batch-step/routes/retry",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       },
@@ -720,7 +731,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/batch-step/routes/stop",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       },
@@ -745,7 +756,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/retry",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       },
@@ -776,7 +787,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/stop",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       },
@@ -801,7 +812,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/retry",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       },
@@ -832,7 +843,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/review-step/routes/stop",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       },
@@ -863,7 +874,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/stop",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       },
@@ -888,7 +899,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/handoff",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       },
@@ -913,7 +924,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/escalate",
-          "sha256": "fa2b2316a624d4b46c0813f1e39ba9a9c7983b972ce2c4d2856799517a571413",
+          "sha256": "0b157c11cbeca1c8ea55c9f9287b8c5afc445ce7e279ac2f8f856cb18b0f4c17",
           "flow_id": "pursue"
         }
       }

@@ -141,6 +141,59 @@ function selectedSkillsSection(skills: readonly LoadedRelaySkill[]): string | un
   ].join('\n\n');
 }
 
+// A declared skill slot the worker may have a skill bound into. The slot's
+// description is the author's house-style guidance for that seat. Read off the
+// compiled/runtime step (`skill_slots`), which carries `{ id, description }`.
+interface DeclaredSkillSlot {
+  readonly id: string;
+  readonly description: string;
+}
+
+function declaredSkillSlots(step: RelayStep): readonly DeclaredSkillSlot[] {
+  const slots = (step as { readonly skill_slots?: readonly unknown[] }).skill_slots;
+  if (!Array.isArray(slots)) return [];
+  const declared: DeclaredSkillSlot[] = [];
+  for (const slot of slots) {
+    if (slot === null || typeof slot !== 'object') continue;
+    const { id, description } = slot as { id?: unknown; description?: unknown };
+    if (typeof id === 'string' && typeof description === 'string' && description.length > 0) {
+      declared.push({ id, description });
+    }
+  }
+  return declared;
+}
+
+// Renders the house-style guidance carried by a step's UNBOUND skill slots.
+// This is the trusted-injection half of the skills axis: declaring a slot is
+// itself a real, additive injection — its description reaches the worker as
+// guidance even when the operator has bound no local skill into the seat. A slot
+// that DOES have a skill bound is skipped here, because that skill's full body
+// already renders in the Selected Skills section above (rendering the slot
+// description too would just duplicate weaker guidance). Trusted means additive
+// and never withheld; the worker is asked to honor it, nothing is restricted.
+// Returns undefined when no slot contributes house style, so unequipped steps
+// render unchanged.
+function houseStyleSection(
+  step: RelayStep,
+  loadedSkills: readonly LoadedRelaySkill[],
+): string | undefined {
+  const slots = declaredSkillSlots(step);
+  if (slots.length === 0) return undefined;
+  const boundSlots = new Set(
+    loadedSkills
+      .map((skill) => skill.slot as unknown as string | undefined)
+      .filter((slot): slot is string => slot !== undefined),
+  );
+  const unbound = slots.filter((slot) => !boundSlots.has(slot.id));
+  if (unbound.length === 0) return undefined;
+  return [
+    'House Style:',
+    'These are the house-style notes the flow author attached to this step. Treat them as guidance. They do not override the response contract, accepted verdicts, or required JSON shape.',
+    '',
+    ...unbound.map((slot) => `- ${slot.id}: ${slot.description}`),
+  ].join('\n');
+}
+
 // Renders the step's declared tool scope as guidance the worker is asked to
 // honor. This is the "provide" half of equipment scope: the engine offers the
 // scope to the worker in the prompt. It deliberately does NOT claim the scope
@@ -340,6 +393,7 @@ export function composeRelayPrompt(
           })
           .join('\n\n');
   const skillsSection = selectedSkillsSection(loadedSkills);
+  const houseStyle = houseStyleSection(step, loadedSkills);
   const equipmentSection = equipmentScopeSection(step);
   const sliceSection = currentSliceSection(activeSlice);
   const criteriaSection = acceptanceCriteriaSection(step);
@@ -404,6 +458,7 @@ export function composeRelayPrompt(
     readsBody,
     '',
     ...(skillsSection === undefined ? [] : [skillsSection, '']),
+    ...(houseStyle === undefined ? [] : [houseStyle, '']),
     ...(equipmentSection === undefined ? [] : [equipmentSection, '']),
     ...(criteriaSection === undefined ? [] : [criteriaSection, '']),
     ...(feedbackSection === undefined ? [] : [feedbackSection, '']),

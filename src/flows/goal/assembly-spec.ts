@@ -92,6 +92,13 @@ export const goalBlockItems: readonly BlockStepUse[] = [
     },
     check: { pass: ['continue', 'ask', 'stop'] },
     route_from_report: { path: ['verdict'] },
+    skillSlots: [
+      {
+        id: 'goal-task-shaping',
+        description:
+          'A skill for turning a loose request into a precise, testable task with clear success criteria.',
+      },
+    ],
     routes: { continue: 'goal-contract', ask: '@stop', stop: '@stop' },
   },
   {
@@ -253,6 +260,13 @@ export const goalBlockItems: readonly BlockStepUse[] = [
     },
     check: { pass: ['gate-pass', 'blocked'] },
     route_from_report: { path: ['next_route'] },
+    skillSlots: [
+      {
+        id: 'goal-safety-review',
+        description:
+          'A skill for judging whether a goal contract was actually met by its evidence before the work is allowed to close.',
+      },
+    ],
     routes: {
       continue: 'goal-gate-pass-2',
       'run-next-gate-pass': 'goal-gate-pass-2',
@@ -283,6 +297,13 @@ export const goalBlockItems: readonly BlockStepUse[] = [
     },
     check: { pass: ['gate-pass', 'blocked'] },
     route_from_report: { path: ['next_route'] },
+    skillSlots: [
+      {
+        id: 'goal-safety-review',
+        description:
+          'A skill for judging whether a goal contract was actually met by its evidence before the work is allowed to close.',
+      },
+    ],
     routes: {
       continue: 'goal-close',
       close: 'goal-close',

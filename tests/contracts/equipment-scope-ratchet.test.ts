@@ -22,7 +22,15 @@ import type { FlowSchematic } from '../../src/schemas/flow-schematic.js';
 import { shippedFlowSchematics } from '../helpers/in-memory-schematics.js';
 
 // Ceilings, summed across every shipped schematic. Filling a seat lowers these.
-const SKILL_SLOT_GAP_BASELINE = 15;
+//
+// The skill-slot ceiling dropped 15 -> 1 when the shipped product flows (build,
+// explore, goal, prototype, pursue, review) had house-style skill slots declared
+// on every work relay (analyze/act/synthesize/clarify/batch/audit and their
+// review steps). The one remaining gap is runtime-proof's `relay-step`: that flow
+// is a smoke harness whose only purpose is to drive one compose + one relay step
+// end-to-end, so its relay does no real work and gets no house-style seat. If
+// that intentional gap is ever filled, lower this to 0.
+const SKILL_SLOT_GAP_BASELINE = 1;
 const TOOL_SCOPE_GAP_BASELINE = 5;
 
 function isRelay(item: FlowSchematic['items'][number]): boolean {
@@ -91,6 +99,19 @@ describe('equipment-scope ratchet (shipped schematics)', () => {
     // ceilings would.
     expect(skillSlotGaps().byFlow.fix ?? 0).toBe(0);
     expect(toolScopeGaps().byFlow.fix ?? 0).toBe(0);
+  });
+
+  it('records every shipped product flow as fully skill-scoped (only the proof harness lags)', () => {
+    // Increment 1 of the skills axis: declaring a skill slot is itself a real
+    // injection (its description reaches the worker as House Style guidance), so
+    // every work relay on the product flows now carries a seat. Only the
+    // runtime-proof smoke harness is allowed an empty seat. Asserting per-flow,
+    // not just the summed ceiling, stops a future edit re-opening one product
+    // flow's gap while another's drops to keep the sum flat.
+    const gaps = skillSlotGaps().byFlow;
+    for (const flow of ['build', 'explore', 'goal', 'prototype', 'pursue', 'review', 'fix']) {
+      expect(gaps[flow] ?? 0, `${flow} re-opened a skill-slot gap`).toBe(0);
+    }
   });
 
   it('pins the fix implementer step to an ENFORCED scope with its exact write-tier tool list', () => {
