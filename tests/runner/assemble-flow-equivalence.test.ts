@@ -25,8 +25,14 @@ import type { BlockStepUse } from '../../src/flows/block-step-expansion.js';
 import { buildBlockItems } from '../../src/flows/build/assembly-spec.js';
 import { flowDefinitions } from '../../src/flows/catalog.js';
 import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
+import { exploreBlockItems } from '../../src/flows/explore/assembly-spec.js';
+import { fixBlockItems } from '../../src/flows/fix/assembly-spec.js';
 import { schematicForFlowDefinition } from '../../src/flows/flow-definition.js';
+import { goalBlockItems } from '../../src/flows/goal/assembly-spec.js';
+import { prototypeBlockItems } from '../../src/flows/prototype/assembly-spec.js';
 import { pursueBlockItems } from '../../src/flows/pursue/assembly-spec.js';
+import { reviewBlockItems } from '../../src/flows/review/assembly-spec.js';
+import { runtimeProofBlockItems } from '../../src/flows/runtime-proof/assembly-spec.js';
 import type { FlowSchematic as FlowSchematicValue } from '../../src/schemas/flow-schematic.js';
 
 // The catalog (not a per-flow data.ts) is the supported surface for reaching a
@@ -137,4 +143,41 @@ describe('assembleFlowSchematic — prove-by-equivalence', () => {
     const assembled = assembleFlowSchematic(scaffoldingFrom(shipped, pursueBlockItems));
     expect(singleCompiled(assembled)).toEqual(singleCompiled(shipped));
   });
+
+  // A5: the six remaining built-ins, migrated onto the assembler. Each pair
+  // re-expresses the flow's block sequence and proves the assembled schematic is
+  // byte-equal to the shipped one AND compiles to the same CompiledFlow.
+  const remainingBuiltins: ReadonlyArray<{
+    readonly id: string;
+    readonly items: readonly BlockStepUse[];
+    readonly startsAt: string;
+  }> = [
+    { id: 'runtime-proof', items: runtimeProofBlockItems, startsAt: 'compose-step' },
+    { id: 'review', items: reviewBlockItems, startsAt: 'intake-step' },
+    { id: 'goal', items: goalBlockItems, startsAt: 'clarify-goal' },
+    { id: 'fix', items: fixBlockItems, startsAt: 'fix-frame' },
+    { id: 'prototype', items: prototypeBlockItems, startsAt: 'frame-step' },
+    { id: 'explore', items: exploreBlockItems, startsAt: 'frame-step' },
+  ];
+
+  for (const { id, items, startsAt } of remainingBuiltins) {
+    it(`reconstructs the ${id} schematic from its block sequence`, () => {
+      const shipped = shippedSchematicFor(id);
+      const assembled = assembleFlowSchematic(scaffoldingFrom(shipped, items));
+      expect(assembled.starts_at).toBe(startsAt);
+      expect(assembled).toEqual(shipped);
+    });
+
+    it(`compiles the assembled ${id} flow to the same CompiledFlow`, () => {
+      const shipped = shippedSchematicFor(id);
+      const assembled = assembleFlowSchematic(scaffoldingFrom(shipped, items));
+      // Compare the whole compile result, not singleCompiled: tournament/depth
+      // flows (fix, prototype, explore) compile to a 'per-mode' bundle of
+      // variants, not a single flow. Equating the full result proves every
+      // compiled variant is byte-identical, not just the single-mode ones.
+      expect(compileSchematicToCompiledFlow(assembled)).toEqual(
+        compileSchematicToCompiledFlow(shipped),
+      );
+    });
+  }
 });
