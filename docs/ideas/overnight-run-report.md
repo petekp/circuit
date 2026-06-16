@@ -30,22 +30,34 @@ the surfaced remedy (entangled-task spec + harness K-repeat gap).
 | Chunk | What | Status | PR / branch |
 |---|---|---|---|
 | Infra | base off origin/main, report backbone | DONE | `overnight/foundation-frontier` |
-| B0/B1 | grain experiment | **SKIP+SURFACE (no spend)** | finding below |
-| A4 | typed vocabulary | in progress | `feat/vocabulary-finding` |
-| A5 | migrate 6 built-ins onto assembler | in progress | `feat/assembler-builtins-migration` |
-| A1 | durability Tier-2 foundation slice | in progress | `feat/durability-tier2-foundation` |
-| B2 | structure chooser (thin) | not started | — |
-| B3 | two resolvers same shape | not started | — |
-| A6 | equipment skills injection | not started | — |
-| A2 | Tier-3 crash-safe linkage | surface-as-spec (not started) | docs only |
-| A3 | parallel decision inbox | surface-as-spec (not started) | docs only |
-| B4 | three deep forks | surface-as-spec (not started) | docs/experiments only |
+| B0/B1 | grain experiment | **SKIP+SURFACE (no spend)** — DECIDED | `grain-experiment-deferred.md` |
+| A4 | typed vocabulary | build DONE (commit 69504af2), verify+PR pending | `feat/vocabulary-finding` |
+| A5 | migrate 6 built-ins onto assembler | building | `feat/assembler-builtins-migration` |
+| A1 | durability Tier-2 foundation slice | building | `feat/durability-tier2-foundation` |
+| B2 | structure chooser (thin) | building | `feat/structure-chooser` |
+| B3 | two resolvers same shape | not started (after A5+B2) | — |
+| A6 | equipment skills injection | not started (after A5) | — |
+| A2 | Tier-3 crash-safe linkage | spec being written | docs only |
+| A3 | parallel decision inbox | spec being written | docs only |
+| B4 | three deep forks | specs being written | docs only (spikes sketched in-spec) |
+
+### Verify + PR strategy
+
+Build agents work in isolated worktrees off `origin/main` with a shared
+(symlinked) `node_modules`. To avoid vitest cache races, full `npm run verify`
+gates + `gh pr create` (HOLD MERGE) are **serialized after the build agents
+finish**, not run concurrently. Committed branches already bank the value; PRs
+are wrappers. If budget ends before PRs open, the branches + this report let a
+fresh session open them.
 
 ### Recommended next step for a fresh session
 
-Pick up from the chunk-status table. Schematic-touching chunks (A5, B3, A6)
-collide at merge — see **Recommended merge order** at the bottom. Each PR is
-held and independently verify-green off `origin/main`; do not merge here.
+1. For each branch with "build DONE", in its worktree: sweep any `zzz-*` scratch,
+   run full `npm run verify`, then `gh pr create` with HOLD MERGE.
+2. Launch B3 (off `feat/structure-chooser`) then A6 (off
+   `feat/assembler-builtins-migration`) — the remaining schematic-touching
+   cluster. See **Recommended merge order** at the bottom.
+3. Each PR is held and independently verify-green; do not merge here.
 
 ---
 

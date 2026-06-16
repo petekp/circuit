@@ -62,6 +62,11 @@ every later extension in the note shipped.
 | [`paper-to-site-flow-brief.md`](paper-to-site-flow-brief.md) | `partially-implemented` | Build brief for the explainer flow, the operator's research-paper to interactive-site pipeline codified as the first hand-authored, non-build-shaped flow. A runnable v1 is authored (held PR): the end-to-end spine of intake, lossless digest, persona-lensed ideation, a six-criteria tournament, an adversarial fidelity hardening pass, an operator pick, a house-style spec, a child build sub-run, verification, an operator fidelity sign-off, and an honest close. Internals are deliberately thin pending a second-paper refinement pass. |
 | [`sandboxed-parallel-pursuits.md`](sandboxed-parallel-pursuits.md) | `current-idea` | Idea for safe parallel code-changing Pursuits through isolated worktrees and verified change packets. Not shipped. |
 | [`spec-driven-flow-opportunities.md`](spec-driven-flow-opportunities.md) | `current-proposal` | Research-backed proposal for a Circuit-native spec flow that uses typed Reports and Checkpoints before exporting a packet plus readable views. Not current behavior. |
+| [`overnight-foundation-frontier-brief.md`](overnight-foundation-frontier-brief.md) | `partially-implemented` | Controlling brief for the 2026-06-15 overnight run: finish the composition and durability foundation as held PRs, spike-and-surface the reserved deep forks. Foundation built as held PRs; grain skipped at Step 0; deep forks surfaced not committed. |
+| [`overnight-run-report.md`](overnight-run-report.md) | `partially-implemented` | Live record of the overnight run: per-chunk status, grain skip verdict and evidence, the A1 to A2/A3 dependency outcome, surfaced deep-fork decisions, and the recommended merge order for the held PRs. STATE section at top is the resume point. |
+| [`deepfork-uniform-recursion-e3-spec.md`](deepfork-uniform-recursion-e3-spec.md) | `pre-implementation` | Surface-only spike plus decision-ready spec for treating a sub-run as a leaf step so flows compose recursively. Ship safety pieces first (depth cap, cycle guard, reduced-bindings oracle); take path unification behind an engine flag. Never merged into src/. |
+| [`deepfork-resolver-abstraction-spec.md`](deepfork-resolver-abstraction-spec.md) | `pre-implementation` | Surface-only spike plus decision-ready spec on extracting a unified Resolver type. Recommends not yet: build a third instance first since the two existing resolvers disagree on three of four divergences. Earnable but not yet earned. Never merged into src/. |
+| [`deepfork-adaptive-bubble-up-recompile-spec.md`](deepfork-adaptive-bubble-up-recompile-spec.md) | `pre-implementation` | Surface-only spike plus decision-ready spec for a run that re-decomposes itself mid-flight. Build the offline demonstrator now; gate the live path conservatively (finding/checkpoint hand-off default, additive equipment reshape first, bounded reshape budget). Never merged into src/. |
 
 ### Verification And Evals
 
@@ -73,6 +78,7 @@ every later extension in the note shipped.
 | [`flow-eval-suites-implementation.md`](flow-eval-suites-implementation.md) | `current-proposal` | Proposal for suite manifests, adapter runners, and a standard result envelope around existing evals. Not current behavior. |
 | [`grain-separability-experiment-design.md`](grain-separability-experiment-design.md) | `pre-implementation` | Pre-registered experiment design pitting two opposing hypotheses (coherence-loss vs verification-gain) about whether chopping a task into separated steps helps or hurts, to settle the assembler's chop/hold default. Designed, not run; built on the E1 harness, now fireable against the post-M9 composed runtime. |
 | [`per-step-validation-check.md`](per-step-validation-check.md) | `partially-implemented` | Runtime steps validate typed reports, but the specific per-step validation-check product idea is not a separate shipped block. |
+| [`grain-experiment-deferred.md`](grain-experiment-deferred.md) | `current-gap-analysis` | Records the B0-gate decision to skip the grain experiment with no model spend (the eval taskset has no entangled tasks, so the result is null by construction). Surfaces the remedy: the harness K-repeat/interleave gap and a pre-scored entangled-plus-mixed taskset spec. |
 
 ### Memory And Ratchet
 
@@ -113,6 +119,8 @@ every later extension in the note shipped.
 | [`output-model.md`](output-model.md) | `current-proposal` | Proposal for a three-channel output model, flow status indicator, routing checkpoint, and final digest. Revised after adversarial review; not yet built. |
 | [`portable-run-captures.md`](portable-run-captures.md) | `current-idea` | Idea for exporting successful Runs as reusable team or personal process patterns. Future behavior. |
 | [`run-inspection-implementation.md`](run-inspection-implementation.md) | `current-proposal` | Proposal for read-only run inspection over existing run folders. Adds list/events/why concepts and defers liveness claims. |
+| [`durability-tier3-linkage-spec.md`](durability-tier3-linkage-spec.md) | `pre-implementation` | Surface-only, decision-ready spec for crash-safe sub-run and fanout linkage. Ship the startup worktree reaper now (live orphaned-worktree leak); defer deterministic child-id linkage into the A1 cursor milestone. Gated on A1; not built. |
+| [`parallel-decision-inbox-spec.md`](parallel-decision-inbox-spec.md) | `pre-implementation` | Surface-only spec for an inbox that surfaces, triages, and resumes runs parked on a fork. Ship a read-only inbox now; defer the bulk-resume driver until the A1 cursor exists. Must filter on the resumable checkpoint-waiting outcome, not needs-attention. Gated on A1; not built. |
 
 ### Hosts, Connectors, And HITL
 
