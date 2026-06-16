@@ -80,6 +80,12 @@ describe('shipped schematics vs the block catalog (per-flow zero ratchet)', () =
     // build.verification@v1. contract_aliases are authoring/validation-only and
     // never compiled, so this is runtime byte-identical. build is pinned at 0.
     build: 0,
+    // explainer is catalog-clean from authoring: every item names a generic block
+    // it is structurally compatible with (frame / diagnose / plan / fanout /
+    // human-decision / goal-child-run / run-verification / close-with-evidence),
+    // and the flow-scoped outputs bind through contract_aliases, never by editing
+    // a block. So it lands at the zero ceiling the M5 compile gate now requires.
+    explainer: 0,
     // explore 7 -> 6 (gate-recognition reconciliation cleared `retry`, a recovery
     // route) -> 5 (block-model honesty pass) -> 4 (M1 route-conditional
     // availability) -> 0 (M3a block-model correction). The 6->5 cleared issue was

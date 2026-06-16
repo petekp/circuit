@@ -9,6 +9,7 @@ import { registerHtmlProjector } from '../shared/html/index.js';
 import { buildFlowDefinition } from './build/flow.js';
 import { buildCheckpointProjector } from './build/writers/checkpoint-html.js';
 import { buildRuntimeSurfaceRegistry, deriveFlowCatalog } from './catalog-derivations.js';
+import { explainerFlowDefinition } from './explainer/flow.js';
 import { exploreFlowDefinition } from './explore/flow.js';
 import { exploreTournamentProjector } from './explore/writers/tournament-html.js';
 import { fixFlowDefinition } from './fix/flow.js';
@@ -32,6 +33,7 @@ export const flowDefinitions: readonly FlowDefinition[] = [
   buildFlowDefinition,
   exploreFlowDefinition,
   goalFlowDefinition,
+  explainerFlowDefinition,
 ];
 
 export const flowPackages: readonly CompiledFlowPackage[] = compileFlowDefinitions(flowDefinitions);

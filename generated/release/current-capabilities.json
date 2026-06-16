@@ -224,13 +224,59 @@
       },
       "route_outcomes": ["complete", "continue", "retry", "revise", "stop"],
       "unsupported_route_outcomes": []
+    },
+    {
+      "id": "explainer",
+      "source": "src/flows/explainer/schematic.json",
+      "contract_path": "src/flows/explainer/contract.md",
+      "axis_support": {
+        "allowed_depths": ["low", "medium", "high"],
+        "supports_tournament": true,
+        "supports_autonomous": true,
+        "default": {
+          "depth": "medium",
+          "tournament": false,
+          "tournament_n": 3,
+          "autonomous": false
+        },
+        "tournament_fan_out_stage": "plan-stage"
+      },
+      "stages": ["Frame", "Digest", "Ideate & Choose", "Build", "Verify", "Sign Off", "Close"],
+      "reports": [
+        "explainer.build-result@v1",
+        "explainer.digest@v1",
+        "explainer.hardening@v1",
+        "explainer.ideas@v1",
+        "explainer.intake@v1",
+        "explainer.result@v1",
+        "explainer.spec@v1",
+        "explainer.tournament-aggregate@v1",
+        "explainer.tournament-proposal@v1",
+        "explainer.verification@v1"
+      ],
+      "writers": {
+        "compose": 4,
+        "close": 1,
+        "verification": 1,
+        "checkpoint": 0
+      },
+      "route_outcomes": ["blocked", "complete", "continue", "handoff", "retry", "stop"],
+      "unsupported_route_outcomes": ["blocked"]
     }
   ],
   "commands": {
     "source": ["create", "handoff", "run", "uninstall"],
     "claude_plugin": ["handoff", "pursue", "run"],
     "codex_plugin": ["handoff", "pursue", "run"],
-    "claude_plugin_skills": ["build", "explore", "fix", "prototype", "pursue", "review"]
+    "claude_plugin_skills": [
+      "build",
+      "explainer",
+      "explore",
+      "fix",
+      "prototype",
+      "pursue",
+      "review"
+    ]
   },
   "connectors": [
     {
@@ -488,6 +534,45 @@
       }
     },
     {
+      "id": "flow:explainer",
+      "kind": "flow",
+      "title": "explainer flow",
+      "status": "implemented",
+      "summary": "Flow explainer is registered in the catalog.",
+      "evidence": ["src/flows/explainer/schematic.json", "generated/flows/explainer/circuit.json"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": ["autonomous", "default", "high", "low", "tournament"],
+        "stage_path": [
+          "Frame",
+          "Digest",
+          "Ideate & Choose",
+          "Build",
+          "Verify",
+          "Sign Off",
+          "Close"
+        ],
+        "outputs": [
+          "explainer.build-result@v1",
+          "explainer.digest@v1",
+          "explainer.hardening@v1",
+          "explainer.ideas@v1",
+          "explainer.intake@v1",
+          "explainer.result@v1",
+          "explainer.spec@v1",
+          "explainer.tournament-aggregate@v1",
+          "explainer.tournament-proposal@v1",
+          "explainer.verification@v1"
+        ],
+        "checkpoint": "Compiled checkpoints can pause, auto-resolve safe defaults, or resume from operator input.",
+        "review": "Compiled review stages or reviewer relays are present.",
+        "verification": "Compiled verification steps write command-result reports before close.",
+        "worker_handoff": "Compiled worker handoffs write request, receipt, result, and report evidence where applicable.",
+        "continuity": "Runs persist manifest, trace, result, and checkpoint resume data in the run folder."
+      }
+    },
+    {
       "id": "flow:explore",
       "kind": "flow",
       "title": "explore flow",
@@ -724,6 +809,81 @@
       "status": "implemented",
       "summary": "build supports the low axis selection.",
       "evidence": ["generated/flows/build"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "mode:explainer:autonomous",
+      "kind": "mode",
+      "title": "explainer autonomous",
+      "status": "implemented",
+      "summary": "explainer supports the autonomous axis selection.",
+      "evidence": ["generated/flows/explainer"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "mode:explainer:default",
+      "kind": "mode",
+      "title": "explainer default",
+      "status": "implemented",
+      "summary": "explainer supports the default axis selection.",
+      "evidence": ["generated/flows/explainer"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "mode:explainer:high",
+      "kind": "mode",
+      "title": "explainer high",
+      "status": "implemented",
+      "summary": "explainer supports the high axis selection.",
+      "evidence": ["generated/flows/explainer"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "mode:explainer:low",
+      "kind": "mode",
+      "title": "explainer low",
+      "status": "implemented",
+      "summary": "explainer supports the low axis selection.",
+      "evidence": ["generated/flows/explainer"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "mode:explainer:tournament",
+      "kind": "mode",
+      "title": "explainer tournament",
+      "status": "implemented",
+      "summary": "explainer supports the tournament axis selection.",
+      "evidence": ["generated/flows/explainer"],
       "readiness_refs": [],
       "axes": {
         "intent_hints": [],
@@ -1084,6 +1244,96 @@
       "status": "implemented",
       "summary": "stop maps to an executable compiled route.",
       "evidence": ["src/flows/build/schematic.json"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "route-outcome:explainer:blocked",
+      "kind": "route_outcome",
+      "title": "explainer route blocked",
+      "status": "partial",
+      "summary": "blocked is declared in the schematic but not executable in compiled routes.",
+      "evidence": ["src/flows/explainer/schematic.json"],
+      "readiness_refs": ["REL-003"],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "route-outcome:explainer:complete",
+      "kind": "route_outcome",
+      "title": "explainer route complete",
+      "status": "implemented",
+      "summary": "complete maps to an executable compiled route.",
+      "evidence": ["src/flows/explainer/schematic.json"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "route-outcome:explainer:continue",
+      "kind": "route_outcome",
+      "title": "explainer route continue",
+      "status": "implemented",
+      "summary": "continue maps to an executable compiled route.",
+      "evidence": ["src/flows/explainer/schematic.json"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "route-outcome:explainer:handoff",
+      "kind": "route_outcome",
+      "title": "explainer route handoff",
+      "status": "implemented",
+      "summary": "handoff maps to an executable compiled route.",
+      "evidence": ["src/flows/explainer/schematic.json"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "route-outcome:explainer:retry",
+      "kind": "route_outcome",
+      "title": "explainer route retry",
+      "status": "implemented",
+      "summary": "retry maps to an executable compiled route.",
+      "evidence": ["src/flows/explainer/schematic.json"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "route-outcome:explainer:stop",
+      "kind": "route_outcome",
+      "title": "explainer route stop",
+      "status": "implemented",
+      "summary": "stop maps to an executable compiled route.",
+      "evidence": ["src/flows/explainer/schematic.json"],
       "readiness_refs": [],
       "axes": {
         "intent_hints": [],

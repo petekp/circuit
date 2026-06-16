@@ -92,6 +92,15 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
     },
   ],
   [
+    'explainer',
+    {
+      allowed_depths: ['low', 'medium', 'high'],
+      supports_tournament: true,
+      supports_autonomous: true,
+      tournament_fan_out_stage: 'plan-stage',
+    },
+  ],
+  [
     'prototype',
     {
       allowed_depths: ['medium', 'high'],
