@@ -30921,22 +30921,37 @@ var BuildResultReportId = external_exports.enum([
   "build.verification",
   "build.review"
 ]);
+var BUILD_RESULT_REQUIRED_REPORT_IDS = [
+  "build.brief",
+  "build.plan",
+  "build.implementation",
+  "build.verification"
+];
+var BuildResultReviewVerdict = external_exports.enum([...BuildReviewVerdict.options, "not_assessed"]);
 var BuildResultReportPointer = resultReportPointer(BuildResultReportId, BUILD_RESULT_SCHEMA_BY_ARTIFACT_ID);
 var BuildScope = external_exports.object({
   adherence: external_exports.enum(["within_scope", "exceeds_scope"]),
   violated_guardrails: external_exports.array(external_exports.string().min(1)).default([]).describe("declared guardrails the reviewer marked violated"),
   unassessed_guardrails: external_exports.array(external_exports.string().min(1)).default([]).describe("plan-declared guardrails the reviewer did not assess in alignment")
 }).strict();
+var BuildResultTouchAreaEnforcement = external_exports.enum([
+  ...BuildTouchAreaEnforcement.options,
+  "not_assessed"
+]);
+var BuildResultTouchAreaContainment = external_exports.enum([
+  ...BuildTouchAreaContainment.options,
+  "not_assessed"
+]);
 var BuildTouchAreaSummary = external_exports.object({
-  enforcement: BuildTouchAreaEnforcement,
-  containment: BuildTouchAreaContainment,
+  enforcement: BuildResultTouchAreaEnforcement,
+  containment: BuildResultTouchAreaContainment,
   out_of_bounds_paths: external_exports.array(external_exports.string().min(1)).default([]).describe("git-proven changed paths outside the allowed area")
 }).strict();
 var BuildResult = external_exports.object({
   summary: external_exports.string().min(1),
   outcome: external_exports.enum(["complete", "needs_attention", "failed"]),
   verification_status: external_exports.enum(["passed", "failed"]),
-  review_verdict: BuildReviewVerdict,
+  review_verdict: BuildResultReviewVerdict,
   scope: BuildScope.default({
     adherence: "within_scope",
     violated_guardrails: [],
@@ -30947,7 +30962,13 @@ var BuildResult = external_exports.object({
     containment: "within",
     out_of_bounds_paths: []
   }),
-  evidence_links: external_exports.array(BuildResultReportPointer).length(5)
+  // The full build flow points at all five reports. A folded flow with no
+  // review step points at the four always-present reports only; the missing
+  // 'build.review' link is dropped, never faked with an empty path. The
+  // superRefine below requires the four always-present ids and allows the
+  // review link to be absent exactly when the verdict says it was not
+  // assessed.
+  evidence_links: external_exports.array(BuildResultReportPointer).min(4).max(5)
 }).strict().superRefine((result, ctx) => {
   const seen = /* @__PURE__ */ new Set();
   for (const [index, pointer] of result.evidence_links.entries()) {
@@ -30960,7 +30981,7 @@ var BuildResult = external_exports.object({
     }
     seen.add(pointer.report_id);
   }
-  for (const reportId of BuildResultReportId.options) {
+  for (const reportId of BUILD_RESULT_REQUIRED_REPORT_IDS) {
     if (!seen.has(reportId)) {
       ctx.addIssue({
         code: "custom",
@@ -30968,6 +30989,21 @@ var BuildResult = external_exports.object({
         message: `missing report_id '${reportId}'`
       });
     }
+  }
+  const reviewLinked = seen.has("build.review");
+  if (reviewLinked && result.review_verdict === "not_assessed") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["review_verdict"],
+      message: "review_verdict may not be 'not_assessed' when the build.review report is linked"
+    });
+  }
+  if (!reviewLinked && result.review_verdict !== "not_assessed") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["evidence_links"],
+      message: "evidence_links must include 'build.review' unless review_verdict is 'not_assessed'"
+    });
   }
   if (result.outcome === "complete") {
     if (result.verification_status !== "passed") {
@@ -31722,6 +31758,13 @@ function summarizeTouchArea(touchArea) {
 function normalizeStatement(statement) {
   return statement.trim().replace(/\s+/g, " ").toLowerCase();
 }
+function unassessedScope(plan) {
+  return BuildScope.parse({
+    adherence: "within_scope",
+    violated_guardrails: [],
+    unassessed_guardrails: [...plan.guardrails.non_goals, ...plan.guardrails.invariants]
+  });
+}
 function computeScope(plan, review) {
   const { alignment } = review;
   const violated = [
@@ -31741,16 +31784,18 @@ function computeScope(plan, review) {
   });
 }
 function projectBuildResult(inputs) {
-  const scope = computeScope(inputs.plan, inputs.review);
+  const { review, touchArea: touchAreaReport } = inputs;
+  const scope = review === void 0 ? unassessedScope(inputs.plan) : computeScope(inputs.plan, review);
   const scopeClean = scope.adherence === "within_scope" && scope.violated_guardrails.length === 0 && scope.unassessed_guardrails.length === 0;
-  const touchArea = summarizeTouchArea(inputs.touchArea);
+  const touchArea = touchAreaReport === void 0 ? { enforcement: "not_assessed", containment: "not_assessed", out_of_bounds_paths: [] } : summarizeTouchArea(touchAreaReport);
   const touchAreaClean = touchArea.containment === "within";
-  const outcome = inputs.verification.overall_status !== "passed" ? "failed" : inputs.review.verdict === "reject" ? "failed" : inputs.review.verdict === "accept" && scopeClean && touchAreaClean ? "complete" : "needs_attention";
+  const reviewVerdict = review === void 0 ? "not_assessed" : review.verdict;
+  const outcome = inputs.verification.overall_status !== "passed" ? "failed" : reviewVerdict === "reject" ? "failed" : reviewVerdict === "accept" && scopeClean && touchAreaClean ? "complete" : "needs_attention";
   return BuildResult.parse({
     summary: `Build result for ${inputs.brief.objective}: ${inputs.implementation.summary}`,
     outcome,
     verification_status: inputs.verification.overall_status,
-    review_verdict: inputs.review.verdict,
+    review_verdict: reviewVerdict,
     scope,
     touch_area: touchArea,
     evidence_links: inputs.evidenceLinks
@@ -31758,13 +31803,13 @@ function projectBuildResult(inputs) {
 }
 
 // dist/flows/build/writers/close.js
-var POINTERS = [
+var ALWAYS_PRESENT_POINTERS = [
   { report_id: "build.brief", schema: "build.brief@v1" },
   { report_id: "build.plan", schema: "build.plan@v1" },
   { report_id: "build.implementation", schema: "build.implementation@v1" },
-  { report_id: "build.verification", schema: "build.verification@v1" },
-  { report_id: "build.review", schema: "build.review@v1" }
+  { report_id: "build.verification", schema: "build.verification@v1" }
 ];
+var REVIEW_POINTER = { report_id: "build.review", schema: "build.review@v1" };
 var buildCloseBuilder = {
   resultSchemaName: "build.result@v1",
   reads: [
@@ -31772,24 +31817,29 @@ var buildCloseBuilder = {
     { name: "plan", schema: "build.plan@v1", required: true },
     { name: "implementation", schema: "build.implementation@v1", required: true },
     { name: "verification", schema: "build.verification@v1", required: true },
-    { name: "review", schema: "build.review@v1", required: true },
-    { name: "touch_area", schema: "build.touch-area@v1", required: true }
+    // Optional so a folded flow with no review/touch-area step still closes.
+    // resolveCloseReadPaths resolves these normally when the flow declares the
+    // writer (build's full flow), so build's inputs are byte-identical; it
+    // returns undefined only when no step writes the schema at all.
+    { name: "review", schema: "build.review@v1", required: false },
+    { name: "touch_area", schema: "build.touch-area@v1", required: false }
   ],
   build(context) {
     const brief = BuildBrief.parse(context.inputs.brief);
     const plan = BuildPlan.parse(context.inputs.plan);
     const implementation = BuildImplementation.parse(context.inputs.implementation);
     const verification = BuildVerification.parse(context.inputs.verification);
-    const review = BuildReview.parse(context.inputs.review);
-    const touchArea = BuildTouchArea.parse(context.inputs.touch_area);
+    const review = context.inputs.review === void 0 ? void 0 : BuildReview.parse(context.inputs.review);
+    const touchArea = context.inputs.touch_area === void 0 ? void 0 : BuildTouchArea.parse(context.inputs.touch_area);
+    const pointers = review === void 0 ? ALWAYS_PRESENT_POINTERS : [...ALWAYS_PRESENT_POINTERS, REVIEW_POINTER];
     return projectBuildResult({
       brief,
       plan,
       implementation,
       verification,
-      review,
-      touchArea,
-      evidenceLinks: POINTERS.map((p) => ({
+      ...review === void 0 ? {} : { review },
+      ...touchArea === void 0 ? {} : { touchArea },
+      evidenceLinks: pointers.map((p) => ({
         ...p,
         path: reportPathForSchemaInRuntimeFlow(context.flow, p.schema)
       }))
@@ -36326,7 +36376,7 @@ function projectExploreResult(inputs) {
 }
 
 // dist/flows/explore/writers/close.js
-var POINTERS2 = [
+var POINTERS = [
   { report_id: "explore.brief", schema: "explore.brief@v1" },
   { report_id: "explore.analysis", schema: "explore.analysis@v1" },
   { report_id: "explore.compose", schema: "explore.compose@v1" },
@@ -36390,7 +36440,7 @@ var exploreCloseBuilder = {
       brief,
       compose,
       review,
-      evidenceLinks: POINTERS2.map((p) => ({
+      evidenceLinks: POINTERS.map((p) => ({
         ...p,
         path: reportPathForSchemaInRuntimeFlow(context.flow, p.schema)
       }))
@@ -43544,7 +43594,7 @@ function projectPursuitResult(inputs) {
 }
 
 // dist/flows/pursue/writers/close.js
-var POINTERS3 = [
+var POINTERS2 = [
   { report_id: "pursuit.contract", schema: "pursuit.contract@v1" },
   { report_id: "pursuit.graph", schema: "pursuit.graph@v1" },
   { report_id: "pursuit.wave-plan", schema: "pursuit.wave-plan@v1" },
@@ -43574,7 +43624,7 @@ var pursuitCloseBuilder = {
       batch,
       verification,
       review,
-      evidenceLinks: POINTERS3.map((pointer) => ({
+      evidenceLinks: POINTERS2.map((pointer) => ({
         ...pointer,
         path: reportPathForSchemaInRuntimeFlow(context.flow, pointer.schema)
       }))

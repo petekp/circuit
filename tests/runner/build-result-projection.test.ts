@@ -329,6 +329,89 @@ describe('Build result scope gate', () => {
   });
 });
 
+// The whole-grain (folded) build-derived flow drops the review and touch-area
+// steps, so the close writer receives neither report. The projector must
+// tolerate that absence: it produces a schema-valid result that marks both
+// aspects "not assessed" rather than fabricating a passing review verdict or a
+// clean containment. The four always-present reports stay in the evidence
+// links; the absent review pointer is dropped, not faked.
+describe('Build result projector tolerates absent review and touch area', () => {
+  // The four evidence links a folded flow always produces (no build.review).
+  const evidenceLinksWithoutReview: BuildResult['evidence_links'] = [
+    { report_id: 'build.brief', path: 'reports/build/brief.json', schema: 'build.brief@v1' },
+    { report_id: 'build.plan', path: 'reports/build/plan.json', schema: 'build.plan@v1' },
+    {
+      report_id: 'build.implementation',
+      path: 'reports/build/implementation.json',
+      schema: 'build.implementation@v1',
+    },
+    {
+      report_id: 'build.verification',
+      path: 'reports/build/verification.json',
+      schema: 'build.verification@v1',
+    },
+  ].map((p) => BuildResultReportPointer.parse(p));
+
+  it('marks review not assessed and never fabricates a passing verdict', () => {
+    const result = projectBuildResult({
+      brief,
+      plan: plan(),
+      implementation,
+      verification: verification('passed'),
+      evidenceLinks: evidenceLinksWithoutReview,
+    });
+    // Verification passed but no reviewer looked, so the build needs a human.
+    // It must NOT read as a clean 'complete', and the verdict must be the honest
+    // 'not_assessed' sentinel, never a fabricated 'accept'.
+    expect(result.outcome).toBe('needs_attention');
+    expect(result.review_verdict).toBe('not_assessed');
+    expect(result.verification_status).toBe('passed');
+    expect(result.evidence_links).toHaveLength(4);
+    expect(result.evidence_links.some((link) => link.report_id === 'build.review')).toBe(false);
+  });
+
+  it('represents the touch area as not assessed when the gate did not run', () => {
+    const result = projectBuildResult({
+      brief,
+      plan: plan({ non_goals: ['Do not change the public API'] }),
+      implementation,
+      verification: verification('passed'),
+      evidenceLinks: evidenceLinksWithoutReview,
+    });
+    // No touch-area step ran, so containment was never proven. The honest
+    // representation is "not assessed", not a fabricated clean containment.
+    expect(result.touch_area.containment).toBe('not_assessed');
+    expect(result.touch_area.out_of_bounds_paths).toEqual([]);
+    // A declared guardrail that no reviewer assessed is named, not silently
+    // dropped, so the gap stays legible.
+    expect(result.scope.unassessed_guardrails).toEqual(['Do not change the public API']);
+  });
+
+  it('still uses a present review and touch area unchanged (full-flow regression)', () => {
+    // The full build flow ALWAYS supplies both reports. Passing them must
+    // produce exactly the same result the projector produced before tolerance
+    // was added: a clean accept stays 'complete' with the real verdict.
+    const result = projectBuildResult({
+      brief,
+      plan: plan(),
+      implementation,
+      verification: verification('passed'),
+      review: review({
+        verdict: 'accept',
+        summary: 'Looks good',
+        findings: [],
+        alignment: alignment(),
+      }),
+      touchArea: touchArea(),
+      evidenceLinks,
+    });
+    expect(result.outcome).toBe('complete');
+    expect(result.review_verdict).toBe('accept');
+    expect(result.touch_area.containment).toBe('within');
+    expect(result.evidence_links).toHaveLength(5);
+  });
+});
+
 describe('Build result touch-area gate', () => {
   const cleanAccept = () =>
     review({ verdict: 'accept', summary: 'Looks good', findings: [], alignment: alignment() });
