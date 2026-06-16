@@ -25697,6 +25697,45 @@ var EngineFlagsManifest = external_exports.object({
   }).strict().optional()
 }).strict();
 
+// dist/schemas/equipment-scope.js
+var EquipmentToolName = external_exports.string().min(1);
+var EquipmentToolAllowList = external_exports.object({
+  allow: external_exports.array(EquipmentToolName).min(1)
+}).strict().superRefine((scope, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, tool] of scope.allow.entries()) {
+    if (seen.has(tool)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["allow", index],
+        message: `duplicate tool '${tool}'`
+      });
+    }
+    seen.add(tool);
+  }
+});
+var EquipmentToolScope = external_exports.union([external_exports.literal("full"), EquipmentToolAllowList]);
+var EquipmentEnforcement = external_exports.enum(["trusted", "enforced"]);
+var EquipmentScope = external_exports.object({
+  tools: EquipmentToolScope.default("full"),
+  enforcement: EquipmentEnforcement.default("trusted")
+}).strict().superRefine((scope, ctx) => {
+  if (scope.enforcement === "enforced" && scope.tools === "full") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["enforcement"],
+      message: 'enforced equipment scope requires an explicit tools allow-list (there is nothing to restrict when tools is "full")'
+    });
+  }
+});
+var DEFAULT_EQUIPMENT_SCOPE = Object.freeze({
+  tools: "full",
+  enforcement: "trusted"
+});
+function isDefaultEquipmentScope(scope) {
+  return scope.tools === "full" && scope.enforcement === "trusted";
+}
+
 // dist/schemas/flow-blocks.js
 var FLOW_BLOCK_IDS = [
   "intake",
@@ -27557,6 +27596,11 @@ var StepBase = external_exports.object({
   selection: SelectionOverride.optional(),
   skill_hooks: SkillHookNameArray.optional(),
   skill_slots: SkillSlotArray.optional(),
+  // The tools sub-axis of equipment scope, compiled from the schematic step.
+  // Optional and omitted at the default (full, trusted) so flows that declare
+  // nothing keep byte-stable compiled output. The compiler enforces that an
+  // enforced scope only lands on the implementer relay variant.
+  equipment_scope: EquipmentScope.optional(),
   route_from_report: RouteFromReport.optional(),
   budgets: external_exports.object({
     max_attempts: external_exports.number().int().positive().max(10),
@@ -28048,6 +28092,11 @@ var SchematicStep = external_exports.object({
   execution: StepExecution,
   selection: SelectionOverride.optional(),
   skill_slots: SkillSlotArray.default([]),
+  // The tools sub-axis of equipment scope (the skills sub-axis rides
+  // `skill_slots` above). Optional so flows that declare nothing stay
+  // byte-stable; an enforced scope is constrained to the write tier by the
+  // cross-field guard in superRefine below.
+  equipment_scope: EquipmentScope.optional(),
   routes: external_exports.record(external_exports.string(), StepRouteTarget).refine((routes) => {
     return Object.keys(routes).length > 0;
   }, "schematic item must declare at least one route"),
@@ -28104,6 +28153,16 @@ var SchematicStep = external_exports.object({
         code: "custom",
         path: ["optional_inputs", key],
         message: `optional_inputs entry "${key}" is not a declared input key`
+      });
+    }
+  }
+  if (item.equipment_scope?.enforcement === "enforced") {
+    const isImplementerRelay = item.execution.kind === "relay" && item.execution.role === "implementer";
+    if (!isImplementerRelay) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment_scope", "enforcement"],
+        message: 'enforced equipment scope is only valid on an implementer relay step (the write tier); use enforcement "trusted" elsewhere'
       });
     }
   }
@@ -28936,7 +28995,7 @@ function resolveCheck(use, executionKind) {
 }
 function schematicStepInputFromBlockUse(input) {
   const { block, check: check2, execution, use, writes } = input;
-  const { checkpointPolicy, evidenceRequirements, output, routeOverrides, skillSlots, acceptanceCriteria, reportPath: _reportPath, requestPath: _requestPath, receiptPath: _receiptPath, resultPath: _resultPath, branchesDirPath: _branchesDirPath, checkpointRequestPath: _checkpointRequestPath, checkpointResponsePath: _checkpointResponsePath, required: _required, allow: _allow, allowFrom: _allowFrom, pass: _pass, writes: _writes, check: _check2, execution: _execution, ...step } = use;
+  const { checkpointPolicy, equipmentScope, evidenceRequirements, output, routeOverrides, skillSlots, acceptanceCriteria, reportPath: _reportPath, requestPath: _requestPath, receiptPath: _receiptPath, resultPath: _resultPath, branchesDirPath: _branchesDirPath, checkpointRequestPath: _checkpointRequestPath, checkpointResponsePath: _checkpointResponsePath, required: _required, allow: _allow, allowFrom: _allowFrom, pass: _pass, writes: _writes, check: _check2, execution: _execution, ...step } = use;
   return {
     ...step,
     output: output ?? block.output_contract,
@@ -28947,7 +29006,8 @@ function schematicStepInputFromBlockUse(input) {
     ...acceptanceCriteria === void 0 ? {} : { acceptance_criteria: acceptanceCriteria },
     ...checkpointPolicy === void 0 ? {} : { checkpoint_policy: checkpointPolicy },
     ...routeOverrides === void 0 ? {} : { route_overrides: routeOverrides },
-    ...skillSlots === void 0 ? {} : { skill_slots: skillSlots }
+    ...skillSlots === void 0 ? {} : { skill_slots: skillSlots },
+    ...equipmentScope === void 0 ? {} : { equipment_scope: equipmentScope }
   };
 }
 function describeExpandBlockStepUseError(error51) {
@@ -35589,6 +35649,12 @@ var fixFlowData = {
         receiptPath: "reports/relay/fix-gather-context.receipt.txt",
         resultPath: "reports/relay/fix-gather-context.result.json",
         pass: ["accept"],
+        skillSlots: [
+          {
+            id: "fix-codebase-search",
+            description: "A skill for navigating and searching the codebase to locate the code involved in the reported problem."
+          }
+        ],
         routes: {
           continue: "fix-diagnose",
           retry: "fix-gather-context",
@@ -35616,6 +35682,12 @@ var fixFlowData = {
         receiptPath: "reports/relay/fix-diagnose.receipt.txt",
         resultPath: "reports/relay/fix-diagnose.result.json",
         pass: ["accept"],
+        skillSlots: [
+          {
+            id: "fix-root-cause-analysis",
+            description: "A skill for forming and testing hypotheses about the root cause of a bug before any change is made."
+          }
+        ],
         routes: {
           continue: "fix-act",
           retry: "fix-gather-context",
@@ -35711,6 +35783,22 @@ var fixFlowData = {
         receiptPath: "reports/relay/fix-act.receipt.txt",
         resultPath: "reports/relay/fix-act.result.json",
         pass: ["accept"],
+        skillSlots: [
+          {
+            id: "fix-focused-edit",
+            description: "A skill for making the smallest correct code edit that resolves the diagnosed problem."
+          }
+        ],
+        // The write tier scoped to the file-and-shell toolset a focused fix
+        // needs: read and search, edit and write, run verification. Declared
+        // ENFORCED — on a connector that can restrict tools (claude-code's
+        // --tools), the worker is spawned with exactly this set and nothing
+        // else; on a connector that cannot, the runtime downgrades to trusted
+        // guidance and records the downgrade rather than pretending to enforce.
+        equipmentScope: {
+          tools: { allow: ["Read", "Grep", "Glob", "Edit", "Write", "Bash"] },
+          enforcement: "enforced"
+        },
         acceptanceCriteria: {
           checks: [
             {
@@ -35822,6 +35910,12 @@ var fixFlowData = {
         receiptPath: "reports/relay/fix-review.receipt.txt",
         resultPath: "reports/relay/fix-review.result.json",
         pass: ["accept", "accept-with-fixes"],
+        skillSlots: [
+          {
+            id: "fix-change-audit",
+            description: "A skill for independently auditing a change for correctness, scope creep, and regressions."
+          }
+        ],
         routes: {
           continue: "fix-close",
           "connector-failed": "fix-close",
@@ -36167,9 +36261,14 @@ var SafeApplyReasonCode = external_exports.enum([
 var EnabledConnector = external_exports.enum(["claude-code", "codex", "cursor-agent"]);
 var FilesystemCapability = external_exports.enum(["read-only", "trusted-write", "isolated-write"]);
 var StructuredOutputCapability = external_exports.enum(["json"]);
+var ToolScopeCapability = external_exports.enum(["none", "allow-list"]);
 var ConnectorCapabilities = external_exports.object({
   filesystem: FilesystemCapability,
-  structured_output: StructuredOutputCapability
+  structured_output: StructuredOutputCapability,
+  // Defaulted so a capability set serialized before this field existed (and a
+  // custom descriptor that omits it) parses as the safe "cannot restrict"
+  // value rather than failing.
+  tool_scope: ToolScopeCapability.default("none")
 }).strict();
 var PromptTransport = external_exports.enum(["prompt-file"]);
 var ConnectorOutputExtraction = external_exports.object({
@@ -36182,17 +36281,23 @@ var BUILTIN_CONNECTOR_SPECS = {
   "claude-code": {
     provider: "anthropic",
     supportedEfforts: CLAUDE_CODE_SUPPORTED_EFFORTS,
-    capabilities: { filesystem: "trusted-write", structured_output: "json" }
+    // The CLI's `--tools` flag restricts the worker's tool surface, so an
+    // enforced equipment scope becomes a real boundary on this connector.
+    capabilities: {
+      filesystem: "trusted-write",
+      structured_output: "json",
+      tool_scope: "allow-list"
+    }
   },
   codex: {
     provider: "openai",
     supportedEfforts: CODEX_SUPPORTED_EFFORTS,
-    capabilities: { filesystem: "trusted-write", structured_output: "json" }
+    capabilities: { filesystem: "trusted-write", structured_output: "json", tool_scope: "none" }
   },
   "cursor-agent": {
     provider: "gemini",
     supportedEfforts: CURSOR_AGENT_SUPPORTED_EFFORTS,
-    capabilities: { filesystem: "trusted-write", structured_output: "json" }
+    capabilities: { filesystem: "trusted-write", structured_output: "json", tool_scope: "none" }
   }
 };
 var BUILTIN_CONNECTOR_CAPABILITIES = Object.fromEntries(EnabledConnector.options.map((name) => [name, BUILTIN_CONNECTOR_SPECS[name].capabilities]));
@@ -36216,6 +36321,13 @@ var CustomConnectorDescriptor = external_exports.object({
       message: "custom connectors are read-only in V1; writable custom workers require a later isolated mode"
     });
   }
+  if (descriptor.capabilities.tool_scope !== "none") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["capabilities", "tool_scope"],
+      message: 'custom connectors cannot enforce a tool allow-list in V1; declare tool_scope "none" (an enforced equipment scope is honored only by a built-in connector that can restrict tools)'
+    });
+  }
 });
 var BuiltInConnectorRef = external_exports.object({
   kind: external_exports.literal("builtin"),
@@ -36231,6 +36343,11 @@ var ConnectorRef = external_exports.union([
   CustomConnectorDescriptor
 ]);
 var ResolvedConnector = external_exports.union([BuiltInConnectorRef, CustomConnectorDescriptor]);
+function connectorToolScopeCapability(connector) {
+  if (connector.kind === "custom")
+    return connector.capabilities.tool_scope;
+  return BUILTIN_CONNECTOR_CAPABILITIES[connector.name].tool_scope;
+}
 var ExplicitResolutionSource = external_exports.object({ source: external_exports.literal("explicit") }).strict();
 var RoleResolutionSource = external_exports.object({ source: external_exports.literal("role"), role: RelayRole }).strict();
 var CircuitResolutionSource = external_exports.object({ source: external_exports.literal("circuit"), flow_id: CompiledFlowId }).strict();
@@ -37438,6 +37555,12 @@ var CheckpointResolvedTraceEntry = TraceEntryBase.extend({
   resolution_source: external_exports.enum(["declared-default", "operator", "policy"]),
   response_path: external_exports.string().min(1)
 }).strict();
+var EquipmentEnforcementEvidence = external_exports.object({
+  declared: EquipmentEnforcement,
+  effective: EquipmentEnforcement,
+  downgraded: external_exports.boolean(),
+  enforced_tools: external_exports.array(external_exports.string().min(1)).min(1).optional()
+}).strict();
 var RelayStartedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("relay.started"),
   step_id: StepId,
@@ -37445,7 +37568,8 @@ var RelayStartedTraceEntry = TraceEntryBase.extend({
   connector: ResolvedConnector,
   role: RelayRole,
   resolved_selection: ResolvedSelection,
-  resolved_from: RelayResolutionSource
+  resolved_from: RelayResolutionSource,
+  equipment: EquipmentEnforcementEvidence.optional()
 }).strict();
 var LoadedSkillEvidence = external_exports.object({
   id: SkillId,
@@ -37807,6 +37931,37 @@ var TraceEntry = external_exports.discriminatedUnion("kind", [
       path: ["resolved_from", "role"],
       message: `resolved_from.role '${ev.resolved_from.role}' does not agree with trace_entry role '${ev.role}'`
     });
+  }
+  if (ev.kind === "relay.started" && ev.equipment !== void 0) {
+    const eq = ev.equipment;
+    if (eq.effective === "enforced" && eq.enforced_tools === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment", "enforced_tools"],
+        message: "an effectively-enforced equipment scope must record its enforced_tools"
+      });
+    }
+    if (eq.effective === "trusted" && eq.enforced_tools !== void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment", "enforced_tools"],
+        message: "a trusted equipment scope must not record enforced_tools \u2014 trusted is guidance, not a restriction"
+      });
+    }
+    if (eq.downgraded && !(eq.declared === "enforced" && eq.effective === "trusted")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment", "downgraded"],
+        message: "a downgraded equipment scope must be declared enforced and effective trusted"
+      });
+    }
+    if (eq.effective === "enforced" && eq.declared !== "enforced") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["equipment", "effective"],
+        message: "an effectively-enforced equipment scope must be declared enforced"
+      });
+    }
   }
 });
 
@@ -44845,6 +45000,7 @@ function compileItem(item, reads, routes) {
     routes,
     ...item.selection !== void 0 ? { selection: item.selection } : {},
     ...item.skill_slots.length === 0 ? {} : { skill_slots: item.skill_slots },
+    ...item.equipment_scope === void 0 || isDefaultEquipmentScope(item.equipment_scope) ? {} : { equipment_scope: item.equipment_scope },
     ...item.route_from_report === void 0 ? {} : { route_from_report: item.route_from_report }
   };
   switch (item.execution.kind) {
@@ -50841,6 +50997,11 @@ var ContractSkillSlot = external_exports.object({
   slot_id: SkillSlotId,
   description: external_exports.string().min(1)
 }).strict();
+var ContractEquipmentScope = external_exports.object({
+  step_id: StepId,
+  tools: EquipmentToolScope,
+  enforcement: EquipmentEnforcement
+}).strict();
 var ContractRelay = external_exports.object({
   step_id: StepId,
   role: external_exports.enum(["researcher", "implementer", "reviewer"]),
@@ -50922,7 +51083,8 @@ var WorkContractProjectionV0 = external_exports.object({
       checkpoints: external_exports.array(ContractCheckpoint),
       sub_runs: external_exports.array(ContractSubRun),
       fanouts: external_exports.array(ContractFanout),
-      skill_slots: external_exports.array(ContractSkillSlot)
+      skill_slots: external_exports.array(ContractSkillSlot),
+      equipment_scopes: external_exports.array(ContractEquipmentScope)
     }).strict(),
     proof: external_exports.object({
       reports: external_exports.array(ReportSlot),
@@ -54551,6 +54713,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54566,6 +54729,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54581,6 +54745,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54597,6 +54762,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54615,6 +54781,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54633,6 +54800,7 @@ var STEP_KEYS = {
     "routes",
     "selection",
     "skill_slots",
+    "equipment_scope",
     "route_from_report",
     "budgets",
     "executor",
@@ -54762,6 +54930,7 @@ function projectWorkContractProjectionV0(input) {
   const subRuns = [];
   const fanouts = [];
   const skillSlots = [];
+  const equipmentScopes = [];
   const reports = [];
   const checks = [];
   const acceptanceCriteria = [];
@@ -54789,6 +54958,13 @@ function projectWorkContractProjectionV0(input) {
         step_id: step.id,
         slot_id: slot.id,
         description: slot.description
+      });
+    }
+    if (step.equipment_scope !== void 0) {
+      equipmentScopes.push({
+        step_id: step.id,
+        tools: step.equipment_scope.tools,
+        enforcement: step.equipment_scope.enforcement
       });
     }
     for (const report of reportSlotsForStep(step))
@@ -54941,7 +55117,8 @@ function projectWorkContractProjectionV0(input) {
       checkpoints,
       sub_runs: subRuns,
       fanouts,
-      skill_slots: skillSlots
+      skill_slots: skillSlots,
+      equipment_scopes: equipmentScopes
     },
     proof: {
       reports,
@@ -55199,6 +55376,7 @@ function baseStep(step) {
     writes: toWrites(step.writes),
     ...selection === void 0 ? {} : { selection },
     ...step.skill_slots === void 0 ? {} : { skillSlots: step.skill_slots },
+    ...step.equipment_scope === void 0 ? {} : { equipmentScope: step.equipment_scope },
     ...step.route_from_report === void 0 ? {} : { routeFromReport: step.route_from_report },
     check: step.check,
     ...step.budgets === void 0 ? {} : { budgets: step.budgets }
@@ -57673,6 +57851,7 @@ var CLAUDE_CODE_DISPATCH_FLAGS = [
   "--verbose",
   "--no-session-persistence"
 ];
+var CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS = ["StructuredOutput"];
 var CLAUDE_CODE_EXECUTABLE = "claude";
 var DEFAULT_TIMEOUT_MS = 6e5;
 var SIGTERM_TO_SIGKILL_GRACE_MS = 2e3;
@@ -57693,7 +57872,11 @@ function assertClaudeCodeEffort(effort) {
   }
 }
 function buildClaudeCodeArgs(input) {
-  const args = [...CLAUDE_CODE_DISPATCH_FLAGS];
+  const args = [];
+  if (input.toolAllowList !== void 0 && input.toolAllowList.length > 0) {
+    args.push("--tools", input.toolAllowList.join(","));
+  }
+  args.push(...CLAUDE_CODE_DISPATCH_FLAGS);
   const model = selectedAnthropicModel(input.resolvedSelection);
   if (model !== void 0) {
     args.push("--model", model);
@@ -57703,11 +57886,14 @@ function buildClaudeCodeArgs(input) {
     assertClaudeCodeEffort(effort);
     args.push("--effort", effort);
   }
-  if (input.responseSchema !== void 0 && isClaudeCodeStructuredOutputCompatible(input.responseSchema)) {
+  if (claudeCodeEmitsStructuredOutputFlag(input)) {
     args.push("--json-schema", JSON.stringify(input.responseSchema));
   }
   args.push(input.prompt);
   return args;
+}
+function claudeCodeEmitsStructuredOutputFlag(input) {
+  return input.responseSchema !== void 0 && isClaudeCodeStructuredOutputCompatible(input.responseSchema);
 }
 function claudeCodeStdoutDiagnostic(stdout) {
   try {
@@ -57756,13 +57942,22 @@ async function relayClaudeCode(input) {
     throw new Error(`claude-code subprocess stdout exceeded ${STDOUT_MAX_BYTES} bytes; capability-boundary check cannot be evaluated on truncated stream`);
   }
   try {
-    return parseClaudeCodeStdout(result.stdout, input.prompt, result.durationMs);
+    return parseClaudeCodeStdout(
+      result.stdout,
+      input.prompt,
+      result.durationMs,
+      input.toolAllowList,
+      // Same predicate that decided whether buildClaudeCodeArgs emitted
+      // --json-schema, so the guard admits the CLI's return-channel tool exactly
+      // when we asked for structured output — the two can't diverge.
+      claudeCodeEmitsStructuredOutputFlag(input)
+    );
   } catch (error51) {
     const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
     throw new Error(`claude-code subprocess: ${error51.message}; stdout[:500]=${result.stdout.slice(0, 500)}; stderr[:200]=${result.stderr.slice(0, 200)}${stderrSuffix}`);
   }
 }
-function parseClaudeCodeStdout(stdout, prompt, duration_ms) {
+function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools, structuredOutputRequested = false) {
   const trace_entries = parseNdjsonObjects(stdout, "stream-json");
   if (trace_entries.length === 0) {
     throw new Error("stream-json stdout is empty");
@@ -57787,6 +57982,22 @@ function parseClaudeCodeStdout(stdout, prompt, duration_ms) {
   }
   if (!Array.isArray(slashCommands) || slashCommands.length !== 0) {
     throw new Error(`init.slash_commands must be []; got ${JSON.stringify(slashCommands)}. CLAUDE_CODE_DISPATCH_FLAGS includes --disable-slash-commands to keep this surface closed.`);
+  }
+  if (requestedTools !== void 0 && requestedTools.length > 0) {
+    const sessionTools = initTraceEntry.tools;
+    if (!Array.isArray(sessionTools)) {
+      throw new Error(`init.tools must be an array to verify the enforced equipment scope; got ${JSON.stringify(sessionTools)}`);
+    }
+    const allowed = new Set(requestedTools);
+    if (structuredOutputRequested) {
+      for (const tool of CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS)
+        allowed.add(tool);
+    }
+    const leaked = sessionTools.filter((tool) => typeof tool !== "string" || !allowed.has(tool));
+    if (leaked.length !== 0) {
+      const rendered = leaked.map((tool) => typeof tool === "string" ? tool : JSON.stringify(tool)).join(", ");
+      throw new Error(`enforced equipment scope violated: tools outside the allow-list are present in the session: ${rendered}. The relay passes --tools to restrict the surface to [${requestedTools.join(", ")}]; a tool beyond it means the restriction did not hold.`);
+    }
   }
   const receipt_id = initTraceEntry.session_id;
   const cli_version = initTraceEntry.claude_code_version;
@@ -58466,6 +58677,30 @@ async function relayCustom(input) {
   } finally {
     await rm2(tempDir, { recursive: true, force: true });
   }
+}
+
+// dist/shared/equipment-enforcement.js
+function resolveEquipmentEnforcement(scope, capability) {
+  if (scope === void 0 || scope.tools === "full") {
+    return { declared: "trusted", effective: "trusted", downgraded: false };
+  }
+  if (scope.enforcement === "trusted") {
+    return { declared: "trusted", effective: "trusted", downgraded: false };
+  }
+  if (capability === "allow-list") {
+    return {
+      declared: "enforced",
+      effective: "enforced",
+      downgraded: false,
+      toolAllowList: scope.tools.allow
+    };
+  }
+  return {
+    declared: "enforced",
+    effective: "trusted",
+    downgraded: true,
+    finding: "equipment scope declared 'enforced' but the connector cannot restrict tools (tool_scope capability 'none'); downgraded to trusted \u2014 the tool list is offered as guidance, not enforced"
+  };
 }
 
 // dist/shared/proof-assessment.js
@@ -59182,6 +59417,16 @@ function selectedSkillsSection(skills) {
     ].join("\n"))
   ].join("\n\n");
 }
+function equipmentScopeSection(step) {
+  const scope = step.equipment_scope;
+  if (scope === void 0 || scope.tools === "full")
+    return void 0;
+  return [
+    "Equipment Scope:",
+    "This step is scoped to a specific set of tools. Use only these tools to do the work; reach for nothing outside the list.",
+    `Allowed tools: ${scope.tools.allow.join(", ")}`
+  ].join("\n");
+}
 function formatAcceptanceCriterion(criterion) {
   if (criterion.kind === "report_field") {
     return `- ${criterion.id}: report field ${criterion.path.join(".")} must be ${criterion.predicate}.`;
@@ -59287,6 +59532,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     return fencedBlock("read", ` path="${path}"`, readFileSync43(abs, "utf8"));
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
+  const equipmentSection = equipmentScopeSection(step);
   const sliceSection = currentSliceSection(activeSlice);
   const criteriaSection = acceptanceCriteriaSection(step);
   const feedbackSection = acceptanceRetryFeedbackSection(acceptanceRetryFeedback);
@@ -59333,6 +59579,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     readsBody,
     "",
     ...skillsSection === void 0 ? [] : [skillsSection, ""],
+    ...equipmentSection === void 0 ? [] : [equipmentSection, ""],
     ...criteriaSection === void 0 ? [] : [criteriaSection, ""],
     ...feedbackSection === void 0 ? [] : [feedbackSection, ""],
     relayResponseInstruction(step)
@@ -59346,7 +59593,8 @@ async function relayWithResolvedConnector(connector, input) {
     ...input.timeoutMs === void 0 ? {} : { timeoutMs: input.timeoutMs },
     ...input.cwd === void 0 ? {} : { cwd: input.cwd },
     ...input.resolvedSelection === void 0 ? {} : { resolvedSelection: ResolvedSelection.parse(input.resolvedSelection) },
-    ...input.responseSchema === void 0 ? {} : { responseSchema: input.responseSchema }
+    ...input.responseSchema === void 0 ? {} : { responseSchema: input.responseSchema },
+    ...input.toolAllowList === void 0 ? {} : { toolAllowList: input.toolAllowList }
   };
   if (connector.kind === "custom") {
     return relayCustom({ ...relayInput, descriptor: connector });
@@ -59361,6 +59609,16 @@ var BUILTIN_CONNECTOR_RELAYERS = {
 function timeoutMs(step) {
   const wallClock = step.budgets?.wall_clock_ms;
   return typeof wallClock === "number" ? wallClock : void 0;
+}
+function equipmentEnforcementEvidence(scope, decision2) {
+  if (scope === void 0 || scope.tools === "full")
+    return void 0;
+  return {
+    declared: decision2.declared,
+    effective: decision2.effective,
+    downgraded: decision2.downgraded,
+    ...decision2.toolAllowList === void 0 ? {} : { enforced_tools: [...decision2.toolAllowList] }
+  };
 }
 function acceptanceProofStatus(evidence2) {
   if (evidence2.some((item) => item.result === "fail"))
@@ -59668,6 +59926,8 @@ async function executeProductionRelayAttempt(input) {
     loadedSkills,
     requestPayloadHash
   });
+  const equipmentDecision = resolveEquipmentEnforcement(compiledStep.equipment_scope, connectorToolScopeCapability(relayExecution.connector));
+  const equipmentEvidence = equipmentEnforcementEvidence(compiledStep.equipment_scope, equipmentDecision);
   await context.trace.append({
     run_id: context.runId,
     kind: "relay.started",
@@ -59676,7 +59936,8 @@ async function executeProductionRelayAttempt(input) {
     connector: relayExecution.connector,
     role: RelayRole.parse(relayExecution.role),
     resolved_selection: resolvedSelection,
-    resolved_from: relayExecution.resolvedFrom
+    resolved_from: relayExecution.resolvedFrom,
+    ...equipmentEvidence === void 0 ? {} : { equipment: equipmentEvidence }
   });
   if (loadedSkills.length > 0) {
     await context.trace.append({
@@ -59711,7 +59972,10 @@ async function executeProductionRelayAttempt(input) {
       ...relayTimeoutMs === void 0 ? {} : { timeoutMs: relayTimeoutMs },
       ...context.projectRoot === void 0 ? {} : { cwd: context.projectRoot },
       resolvedSelection,
-      ...responseSchema === void 0 ? {} : { responseSchema }
+      ...responseSchema === void 0 ? {} : { responseSchema },
+      // Enforced equipment scope only: a tool list is present here exactly
+      // when the connector can restrict tools and the scope is enforced.
+      ...equipmentDecision.toolAllowList === void 0 ? {} : { toolAllowList: equipmentDecision.toolAllowList }
     }) : await context.relayer.relay({
       prompt,
       connector: relayExecution.connectorName,
@@ -61283,6 +61547,7 @@ function baseStep2(step) {
     check: step.check,
     ...selection === void 0 ? {} : { selection },
     ...step.skillSlots === void 0 ? {} : { skill_slots: step.skillSlots },
+    ...step.equipmentScope === void 0 ? {} : { equipment_scope: step.equipmentScope },
     ...step.budgets === void 0 ? {} : { budgets: step.budgets }
   };
 }

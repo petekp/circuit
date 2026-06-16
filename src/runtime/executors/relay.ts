@@ -5,7 +5,11 @@ import { relayCustom } from '../../connectors/custom.js';
 import { runCrossReportValidator } from '../../flows/registries/cross-report-validators.js';
 import { findReportZodSchema, parseReport } from '../../flows/registries/report-schemas.js';
 import { requireRuntimeIndexedStep } from '../../flows/registries/runtime-index.js';
-import type { EnabledConnector, ResolvedConnector } from '../../schemas/connector.js';
+import {
+  type EnabledConnector,
+  type ResolvedConnector,
+  connectorToolScopeCapability,
+} from '../../schemas/connector.js';
 import { CompiledDepth } from '../../schemas/depth.js';
 import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
 import { canonicalJson, sha256OfString } from '../../schemas/hashing.js';
@@ -18,10 +22,17 @@ import {
 } from '../../schemas/proof-assessment.js';
 import { ResolvedSelection } from '../../schemas/selection-policy.js';
 import { RelayRole } from '../../schemas/step.js';
-import { CheckEvaluatedTraceEntry } from '../../schemas/trace-entry.js';
+import {
+  CheckEvaluatedTraceEntry,
+  type EquipmentEnforcementEvidence,
+} from '../../schemas/trace-entry.js';
 import { resolvePowerDialSetting } from '../../selection/power-tiers.js';
 import type { ConnectorRelayInput } from '../../shared/connector-relay.js';
 import type { RelayResult } from '../../shared/connector-relay.js';
+import {
+  type EquipmentEnforcementDecision,
+  resolveEquipmentEnforcement,
+} from '../../shared/equipment-enforcement.js';
 import { evidenceFromAcceptanceCriteriaTrace } from '../../shared/proof-assessment.js';
 import type { LoadedRelaySkill } from '../../shared/skill-loading.js';
 import { responseJsonSchemaFromZod } from '../../shared/zod-to-response-schema.js';
@@ -86,6 +97,7 @@ export async function relayWithResolvedConnector(
     readonly cwd?: string;
     readonly resolvedSelection?: unknown;
     readonly responseSchema?: Record<string, unknown>;
+    readonly toolAllowList?: readonly string[];
   },
 ): Promise<RelayResult> {
   const relayInput = {
@@ -96,6 +108,7 @@ export async function relayWithResolvedConnector(
       ? {}
       : { resolvedSelection: ResolvedSelection.parse(input.resolvedSelection) }),
     ...(input.responseSchema === undefined ? {} : { responseSchema: input.responseSchema }),
+    ...(input.toolAllowList === undefined ? {} : { toolAllowList: input.toolAllowList }),
   };
   if (connector.kind === 'custom') {
     return relayCustom({ ...relayInput, descriptor: connector });
@@ -117,6 +130,26 @@ const BUILTIN_CONNECTOR_RELAYERS = {
 function timeoutMs(step: RelayStep): number | undefined {
   const wallClock = step.budgets?.wall_clock_ms;
   return typeof wallClock === 'number' ? wallClock : undefined;
+}
+
+// Build the relay.started equipment evidence from the resolved decision.
+// Returns undefined for an undeclared or full scope so traces without a tool
+// restriction stay byte-stable. enforced_tools rides along only when the scope
+// is effectively enforced (the decision carries a tool list then, never on a
+// trusted or downgraded scope), matching the trace schema's honesty rule.
+function equipmentEnforcementEvidence(
+  scope: CompiledRelayStepV1['equipment_scope'],
+  decision: EquipmentEnforcementDecision,
+): EquipmentEnforcementEvidence | undefined {
+  if (scope === undefined || scope.tools === 'full') return undefined;
+  return {
+    declared: decision.declared,
+    effective: decision.effective,
+    downgraded: decision.downgraded,
+    ...(decision.toolAllowList === undefined
+      ? {}
+      : { enforced_tools: [...decision.toolAllowList] }),
+  };
 }
 
 function acceptanceProofStatus(evidence: readonly ProofEvidence[]): ProofStatus {
@@ -524,6 +557,18 @@ export async function executeProductionRelayAttempt(input: {
     loadedSkills,
     requestPayloadHash,
   });
+  // Equipment-scope enforcement decision: declared scope + the resolved
+  // connector's tool-scope capability → effective enforcement. Computed once
+  // here so the same decision drives both the audit trace and the dispatch
+  // (the tool allow-list passed to a connector that can restrict tools).
+  const equipmentDecision = resolveEquipmentEnforcement(
+    compiledStep.equipment_scope,
+    connectorToolScopeCapability(relayExecution.connector),
+  );
+  const equipmentEvidence = equipmentEnforcementEvidence(
+    compiledStep.equipment_scope,
+    equipmentDecision,
+  );
   await context.trace.append({
     run_id: context.runId,
     kind: 'relay.started',
@@ -533,6 +578,7 @@ export async function executeProductionRelayAttempt(input: {
     role: RelayRole.parse(relayExecution.role),
     resolved_selection: resolvedSelection,
     resolved_from: relayExecution.resolvedFrom,
+    ...(equipmentEvidence === undefined ? {} : { equipment: equipmentEvidence }),
   });
   if (loadedSkills.length > 0) {
     await context.trace.append({
@@ -574,6 +620,11 @@ export async function executeProductionRelayAttempt(input: {
             ...(context.projectRoot === undefined ? {} : { cwd: context.projectRoot }),
             resolvedSelection,
             ...(responseSchema === undefined ? {} : { responseSchema }),
+            // Enforced equipment scope only: a tool list is present here exactly
+            // when the connector can restrict tools and the scope is enforced.
+            ...(equipmentDecision.toolAllowList === undefined
+              ? {}
+              : { toolAllowList: equipmentDecision.toolAllowList }),
           })
         : await context.relayer.relay({
             prompt,

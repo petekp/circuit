@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FlowAxes } from './axes.js';
+import { EquipmentEnforcement, EquipmentToolScope } from './equipment-scope.js';
 import { CompiledFlowId, ProtocolId, SkillSlotId, StageId, StepId } from './ids.js';
 import { JsonObject } from './json.js';
 import { RecoveryRouteBindingV0 } from './recovery-route-kind.js';
@@ -51,6 +52,18 @@ const ContractSkillSlot = z
     step_id: StepId,
     slot_id: SkillSlotId,
     description: z.string().min(1),
+  })
+  .strict();
+
+// The tools sub-axis of equipment scope, surfaced as a legible authority grant:
+// which tools a step is scoped to, and whether that scope is enforced at the
+// write tier or merely offered as guidance (trusted). Only steps that declare a
+// non-default scope appear here.
+const ContractEquipmentScope = z
+  .object({
+    step_id: StepId,
+    tools: EquipmentToolScope,
+    enforcement: EquipmentEnforcement,
   })
   .strict();
 
@@ -177,6 +190,7 @@ export const WorkContractProjectionV0 = z
             sub_runs: z.array(ContractSubRun),
             fanouts: z.array(ContractFanout),
             skill_slots: z.array(ContractSkillSlot),
+            equipment_scopes: z.array(ContractEquipmentScope),
           })
           .strict(),
         proof: z

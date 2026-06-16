@@ -50,6 +50,50 @@ describe('composeRelayPrompt', () => {
     expect(prompt.indexOf('Operator Goal:')).toBeLessThan(prompt.indexOf('Context (from reads):'));
   });
 
+  it('renders an Equipment Scope section listing the declared allowed tools', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'act',
+        title: 'Implement the plan',
+        role: 'implementer',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/act.request.json' },
+          receipt: { path: 'reports/relay/act.receipt.txt' },
+          result: { path: 'reports/relay/act.result.json' },
+          report: { path: 'reports/implementation.json', schema: 'build.result@v1' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+        equipment_scope: { tools: { allow: ['Read', 'Edit', 'Write'] }, enforcement: 'enforced' },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+    );
+
+    expect(prompt).toContain('Equipment Scope:');
+    expect(prompt).toContain('Allowed tools: Read, Edit, Write');
+  });
+
+  it('omits the Equipment Scope section when no scope is declared', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'act',
+        title: 'Implement the plan',
+        role: 'implementer',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/act.request.json' },
+          receipt: { path: 'reports/relay/act.receipt.txt' },
+          result: { path: 'reports/relay/act.result.json' },
+          report: { path: 'reports/implementation.json', schema: 'build.result@v1' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+    );
+
+    expect(prompt).not.toContain('Equipment Scope:');
+  });
+
   it('threads the resolved depth into the prompt when supplied and omits it otherwise (F-M-1)', () => {
     const step = {
       id: 'act-step',

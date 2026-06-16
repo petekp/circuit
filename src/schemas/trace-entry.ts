@@ -8,6 +8,7 @@ import {
 } from './change-packet.js';
 import { RelayResolutionSource, ResolvedConnector } from './connector.js';
 import { CompiledDepth } from './depth.js';
+import { EquipmentEnforcement } from './equipment-scope.js';
 import {
   GuidanceDecisionId,
   GuidanceDecisionTraceEntryBody,
@@ -283,6 +284,25 @@ export type CheckpointResolvedTraceEntry = z.infer<typeof CheckpointResolvedTrac
 // The role ↔ resolved_from.role binding is enforced at the
 // TraceEntry-union level, not here, because `z.discriminatedUnion` cannot admit
 // ZodEffects variants (wrapped via superRefine). Mirrors the `Step` pattern.
+// The equipment-scope enforcement decision recorded at relay start. `declared`
+// preserves the author's intent; `effective` is the honest runtime state; they
+// diverge only on the downgrade path. `enforced_tools` is the exact restricted
+// surface and appears IFF the scope is effectively enforced — a trusted scope
+// never carries a list (trusted is guidance, not a restriction). Cross-field
+// consistency is enforced at the TraceEntry-union level (the variant stays a
+// plain ZodObject so discrimination works), mirroring the role binding below.
+// Present only on steps that declare a non-full equipment scope; absent
+// otherwise, keeping today's traces byte-stable.
+export const EquipmentEnforcementEvidence = z
+  .object({
+    declared: EquipmentEnforcement,
+    effective: EquipmentEnforcement,
+    downgraded: z.boolean(),
+    enforced_tools: z.array(z.string().min(1)).min(1).optional(),
+  })
+  .strict();
+export type EquipmentEnforcementEvidence = z.infer<typeof EquipmentEnforcementEvidence>;
+
 export const RelayStartedTraceEntry = TraceEntryBase.extend({
   kind: z.literal('relay.started'),
   step_id: StepId,
@@ -291,6 +311,7 @@ export const RelayStartedTraceEntry = TraceEntryBase.extend({
   role: RelayRole,
   resolved_selection: ResolvedSelection,
   resolved_from: RelayResolutionSource,
+  equipment: EquipmentEnforcementEvidence.optional(),
 }).strict();
 export type RelayStartedTraceEntry = z.infer<typeof RelayStartedTraceEntry>;
 
@@ -794,6 +815,41 @@ export const TraceEntry = z
         path: ['resolved_from', 'role'],
         message: `resolved_from.role '${ev.resolved_from.role}' does not agree with trace_entry role '${ev.role}'`,
       });
+    }
+    if (ev.kind === 'relay.started' && ev.equipment !== undefined) {
+      const eq = ev.equipment;
+      // enforced_tools appears IFF the scope is effectively enforced.
+      if (eq.effective === 'enforced' && eq.enforced_tools === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['equipment', 'enforced_tools'],
+          message: 'an effectively-enforced equipment scope must record its enforced_tools',
+        });
+      }
+      if (eq.effective === 'trusted' && eq.enforced_tools !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['equipment', 'enforced_tools'],
+          message:
+            'a trusted equipment scope must not record enforced_tools — trusted is guidance, not a restriction',
+        });
+      }
+      // A downgrade is precisely declared-enforced resolving to effective-trusted.
+      if (eq.downgraded && !(eq.declared === 'enforced' && eq.effective === 'trusted')) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['equipment', 'downgraded'],
+          message: 'a downgraded equipment scope must be declared enforced and effective trusted',
+        });
+      }
+      // Effective enforcement is only reachable from a declared-enforced scope.
+      if (eq.effective === 'enforced' && eq.declared !== 'enforced') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['equipment', 'effective'],
+          message: 'an effectively-enforced equipment scope must be declared enforced',
+        });
+      }
     }
   });
 export type TraceEntry = z.infer<typeof TraceEntry>;

@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildClaudeCodeArgs,
+  claudeCodeEmitsStructuredOutputFlag,
   isClaudeCodeStructuredOutputCompatible,
 } from '../../src/connectors/claude-code.js';
 import { assertCodexSpawnArgvBoundary, buildCodexArgs } from '../../src/connectors/codex.js';
@@ -61,6 +62,66 @@ describe('claude-code argv', () => {
     const args = buildClaudeCodeArgs({ prompt: 'hi', responseSchema: schema });
     expect(args).not.toContain('--json-schema');
     expect(args.at(-1)).toBe('hi');
+  });
+
+  it('the --json-schema emission decision is the single source the equipment-scope guard reuses', () => {
+    // The defect was these two decisions diverging: the flag was emitted but the
+    // parse-time guard didn't know, so it read the CLI's injected StructuredOutput
+    // return-channel tool as a scope leak and failed fix-act on every run. Both the
+    // argv builder and the relay's guard call MUST route through one predicate.
+    const objectSchema = { prompt: 'hi', responseSchema: { type: 'object' } };
+    const anyOfSchema = {
+      prompt: 'hi',
+      responseSchema: { anyOf: [{ type: 'object' }, { type: 'object' }] },
+    };
+    const noSchema = { prompt: 'hi' };
+    for (const input of [objectSchema, anyOfSchema, noSchema]) {
+      expect(buildClaudeCodeArgs(input).includes('--json-schema')).toBe(
+        claudeCodeEmitsStructuredOutputFlag(input),
+      );
+    }
+  });
+});
+
+describe('claude-code argv — equipment-scope tool restriction', () => {
+  it('omits --tools when no toolAllowList is supplied', () => {
+    const args = buildClaudeCodeArgs({ prompt: 'hi' });
+    expect(args).not.toContain('--tools');
+  });
+
+  it('emits --tools as a single comma-joined token of the allow-list', () => {
+    const args = buildClaudeCodeArgs({ prompt: 'hi', toolAllowList: ['Read', 'Edit', 'Write'] });
+    const flagIndex = args.indexOf('--tools');
+    expect(flagIndex).toBeGreaterThanOrEqual(0);
+    expect(args[flagIndex + 1]).toBe('Read,Edit,Write');
+  });
+
+  it('emits a single-tool allow-list as one bare token (no trailing comma)', () => {
+    // A one-element join must produce 'Read', never 'Read,' — a stray comma
+    // would read as an empty tool name to the CLI's variadic parser.
+    const args = buildClaudeCodeArgs({ prompt: 'hi', toolAllowList: ['Read'] });
+    const flagIndex = args.indexOf('--tools');
+    expect(flagIndex).toBeGreaterThanOrEqual(0);
+    expect(args[flagIndex + 1]).toBe('Read');
+    expect(args[flagIndex + 1]).not.toContain(',');
+  });
+
+  it('places --tools before every other dispatch flag (variadic safety: terminated by the next flag, never the prompt)', () => {
+    const args = buildClaudeCodeArgs({ prompt: 'hi', toolAllowList: ['Read'] });
+    // --tools is variadic and greedily eats following argv elements, so it must
+    // lead and be terminated by the next flag (-p), not be adjacent to the
+    // trailing prompt.
+    expect(args[0]).toBe('--tools');
+    expect(args[1]).toBe('Read');
+    expect(args[2]).toBe('-p');
+    // The value token is a flag, not the prompt.
+    expect(args[args.length - 1]).toBe('hi');
+    expect(args.indexOf('--tools')).toBeLessThan(args.indexOf('hi'));
+  });
+
+  it('omits --tools for an empty allow-list rather than emitting a dangling flag', () => {
+    const args = buildClaudeCodeArgs({ prompt: 'hi', toolAllowList: [] });
+    expect(args).not.toContain('--tools');
   });
 });
 

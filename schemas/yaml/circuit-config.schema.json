@@ -189,6 +189,11 @@
                       "structured_output": {
                         "type": "string",
                         "enum": ["json"]
+                      },
+                      "tool_scope": {
+                        "default": "none",
+                        "type": "string",
+                        "enum": ["none", "allow-list"]
                       }
                     },
                     "required": ["filesystem", "structured_output"],
@@ -888,6 +893,11 @@
                               "structured_output": {
                                 "type": "string",
                                 "enum": ["json"]
+                              },
+                              "tool_scope": {
+                                "default": "none",
+                                "type": "string",
+                                "enum": ["none", "allow-list"]
                               }
                             },
                             "required": ["filesystem", "structured_output"],

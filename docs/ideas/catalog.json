@@ -247,6 +247,46 @@
       "last_checked": "2026-06-14"
     },
     {
+      "path": "docs/ideas/equipment-scope-build-brief.md",
+      "title": "Equipment-scope build brief",
+      "status": "implemented",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "equipment-scope", "manifest-first", "tools", "build-brief"],
+      "current_reading": "Build brief for the equipment-scope mechanism (declared tools sub-axis + write-tier enforcement). Both increments implemented on feat/equipment-scope (held PR): declared+trusted provide, plus enforced write-tier restriction via claude-code --tools with honest downgrade on incapable connectors. See the enforcement-mechanism report for the decision and what's left.",
+      "related": [
+        "docs/ideas/e2-equipment-scope-spec.md",
+        "docs/ideas/e1-implications-for-m8.md",
+        "docs/ideas/equipment-scope-enforcement-report.md"
+      ],
+      "last_checked": "2026-06-15"
+    },
+    {
+      "path": "docs/ideas/equipment-scope-enforcement-report.md",
+      "title": "Equipment scope — enforcement-mechanism decision + status",
+      "status": "implemented",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "equipment-scope", "tools", "connectors", "report"],
+      "current_reading": "Closes the equipment-scope build brief. Records the enforcement-mechanism decision (claude-code --tools is the obviously-correct lever, no stop-and-report needed), the enforced-vs-trusted honesty model, the ratchet status, the closed review findings, and what's left (scope the other five implementer steps, real-codebase enforcement test).",
+      "related": [
+        "docs/ideas/equipment-scope-build-brief.md",
+        "docs/ideas/e2-equipment-scope-spec.md"
+      ],
+      "last_checked": "2026-06-15"
+    },
+    {
+      "path": "docs/ideas/equipment-scope-allowlist-review.md",
+      "title": "Equipment-scope enforcement — adversarial boundary review (PR #89)",
+      "status": "independent-review",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "equipment-scope", "tools", "connectors", "review", "soundness"],
+      "current_reading": "Read-only adversarial review of the equipment-scope enforcement on PR #89. All four boundary checks HOLD (a no-write worker cannot write, delegate around the restriction, or exceed its scope), but the review found a BLOCKING functional defect: the fail-closed parse guard rejected the CLI's own auto-injected StructuredOutput tool, so fix-act (the only enforced scope) failed on every real run. Defect fixed in the follow-up commit (admit StructuredOutput only when --json-schema was emitted); re-proven by regression test, a live fix-act repro, and a re-run write-escape probe.",
+      "related": [
+        "docs/ideas/equipment-scope-enforcement-report.md",
+        "docs/ideas/equipment-scope-build-brief.md"
+      ],
+      "last_checked": "2026-06-15"
+    },
+    {
       "path": "docs/ideas/effective-memory-program-review-codex.md",
       "title": "Effective Memory Program Review",
       "status": "independent-review",

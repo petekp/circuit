@@ -100,6 +100,12 @@
         "ask": "@stop",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "fix-codebase-search",
+          "description": "A skill for navigating and searching the codebase to locate the code involved in the reported problem."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "researcher",
@@ -133,6 +139,12 @@
         "ask": "fix-no-repro-decision",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "fix-root-cause-analysis",
+          "description": "A skill for forming and testing hypotheses about the root cause of a bug before any change is made."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "researcher",
@@ -259,6 +271,18 @@
         "ask": "fix-no-repro-decision",
         "stop": "@stop",
         "handoff": "fix-handoff"
+      },
+      "skill_slots": [
+        {
+          "id": "fix-focused-edit",
+          "description": "A skill for making the smallest correct code edit that resolves the diagnosed problem."
+        }
+      ],
+      "equipment_scope": {
+        "tools": {
+          "allow": ["Read", "Grep", "Glob", "Edit", "Write", "Bash"]
+        },
+        "enforcement": "enforced"
       },
       "executor": "worker",
       "kind": "relay",
