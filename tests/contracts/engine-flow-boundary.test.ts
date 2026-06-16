@@ -20,7 +20,12 @@ import {
 const RUNTIME_ROOT = 'src/runtime';
 const WORKFLOWS_ROOT = 'src/flows';
 
-const NON_FLOW_PACKAGE_DIRECTORIES = new Set(['registries']);
+// `registries` and `resolvers` are shared cross-flow infrastructure
+// directories under src/flows/, not per-flow packages. `resolvers` (B2) holds
+// axis resolvers (e.g. the structure grain chooser) that import only public
+// flow types and produce assembly specs the shared assembler eats — peer to
+// assemble-flow-schematic.ts, not a flow.
+const NON_FLOW_PACKAGE_DIRECTORIES = new Set(['registries', 'resolvers']);
 
 // Allow-list: match by suffix so engine files at any directory depth
 // get the same exemption. These are shared flow infrastructure surfaces,
@@ -57,6 +62,12 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
   // block-step-expansion.ts, exercised today only by the assembler tests. It
   // joins the engine allowlist when the compile/runtime path consumes it (M9).
   'src/flows/assemble-flow-schematic.ts',
+  // B2 (structure chooser): the axis resolvers. Shared cross-flow
+  // infrastructure under src/flows/resolvers/ — they import only public flow
+  // types and produce assembly specs the shared assembler eats. The structure
+  // resolver picks a flow's grain (whole vs decomposed); create.ts consumes it
+  // and the resolver tests exercise it.
+  'src/flows/resolvers/structure.ts',
 ];
 
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([

@@ -150,7 +150,11 @@ const NON_PACKAGE_FILES = new Set([
   'types.ts',
 ]);
 
-const NON_PACKAGE_DIRECTORIES = new Set(['registries']);
+// `registries` and `resolvers` are shared cross-flow infrastructure
+// directories, not registrable flow packages. `resolvers` (B2) holds axis
+// resolvers (e.g. the structure grain chooser) that produce assembly specs the
+// shared assembler consumes — peer to assemble-flow-schematic.ts, not a flow.
+const NON_PACKAGE_DIRECTORIES = new Set(['registries', 'resolvers']);
 
 function isFile(path: string): boolean {
   try {
