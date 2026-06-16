@@ -1,0 +1,627 @@
+{
+  "schema_version": "2",
+  "id": "explainer",
+  "title": "Explainer Schematic",
+  "purpose": "Explainer flow: turn a research paper into an interactive web explainer. Frame the subject, build a lossless digest, ideate persona-lensed concepts, run a six-criteria tournament, harden the survivors against teaching the wrong driver, take an operator pick, write a house-style spec, run a child build, verify the site, take an operator fidelity sign-off, and close honestly.",
+  "status": "active",
+  "starts_at": "intake-step",
+  "initial_contracts": ["task.intake@v1", "route.decision@v1", "context.packet@v1"],
+  "contract_aliases": [
+    {
+      "generic": "flow.brief@v1",
+      "actual": "explainer.intake@v1"
+    },
+    {
+      "generic": "diagnosis.result@v1",
+      "actual": "explainer.digest@v1"
+    },
+    {
+      "generic": "plan.strategy@v1",
+      "actual": "explainer.ideas@v1"
+    },
+    {
+      "generic": "plan.strategy@v1",
+      "actual": "explainer.tournament-aggregate@v1"
+    },
+    {
+      "generic": "plan.strategy@v1",
+      "actual": "explainer.hardening@v1"
+    },
+    {
+      "generic": "plan.strategy@v1",
+      "actual": "explainer.spec@v1"
+    },
+    {
+      "generic": "verification.result@v1",
+      "actual": "explainer.verification@v1"
+    },
+    {
+      "generic": "goal.child-run@v1",
+      "actual": "explainer.build-result@v1"
+    },
+    {
+      "generic": "flow.result@v1",
+      "actual": "explainer.result@v1"
+    },
+    {
+      "generic": "decision.answer@v1",
+      "actual": "explainer.selection@v1"
+    },
+    {
+      "generic": "decision.answer@v1",
+      "actual": "explainer.signoff@v1"
+    },
+    {
+      "generic": "flow.question@v1",
+      "actual": "explainer.hardening@v1"
+    },
+    {
+      "generic": "flow.evidence@v1",
+      "actual": "explainer.tournament-aggregate@v1"
+    },
+    {
+      "generic": "flow.question@v1",
+      "actual": "explainer.verification@v1"
+    },
+    {
+      "generic": "flow.evidence@v1",
+      "actual": "explainer.build-result@v1"
+    },
+    {
+      "generic": "goal.contract@v1",
+      "actual": "explainer.spec@v1"
+    },
+    {
+      "generic": "verification.plan@v1",
+      "actual": "explainer.spec@v1"
+    },
+    {
+      "generic": "change.evidence@v1",
+      "actual": "explainer.build-result@v1"
+    }
+  ],
+  "items": [
+    {
+      "id": "intake-step",
+      "block": "frame",
+      "title": "Frame — produce explainer.intake",
+      "stage": "frame",
+      "input": {
+        "task": "task.intake@v1",
+        "route": "route.decision@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.intake@v1",
+      "evidence_requirements": ["scope boundary", "constraints", "proof plan"],
+      "execution": {
+        "kind": "compose"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "digest-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-intake@v1",
+      "writes": {
+        "report_path": "reports/intake.json"
+      },
+      "check": {
+        "required": ["subject", "success_condition"]
+      }
+    },
+    {
+      "id": "digest-step",
+      "block": "diagnose",
+      "title": "Digest — produce the lossless outline",
+      "stage": "analyze",
+      "input": {
+        "brief": "explainer.intake@v1",
+        "context": "context.packet@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.digest@v1",
+      "evidence_requirements": [
+        "cause hypothesis",
+        "confidence",
+        "reproduction status",
+        "diagnostic path"
+      ],
+      "execution": {
+        "kind": "compose"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "ideas-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-digest@v1",
+      "writes": {
+        "report_path": "reports/digest.json"
+      },
+      "check": {
+        "required": ["lossless_principle", "outline_sections"]
+      }
+    },
+    {
+      "id": "ideas-step",
+      "block": "plan",
+      "title": "Ideate — draft persona-lensed concepts",
+      "stage": "plan",
+      "input": {
+        "brief": "explainer.intake@v1",
+        "diagnosis": "explainer.digest@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.ideas@v1",
+      "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
+      "execution": {
+        "kind": "compose"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "tournament-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-ideas@v1",
+      "writes": {
+        "report_path": "reports/ideas.json"
+      },
+      "check": {
+        "required": ["brief_question", "concepts"]
+      }
+    },
+    {
+      "id": "tournament-step",
+      "block": "plan",
+      "title": "Tournament — fan out one advocate per concept",
+      "stage": "plan",
+      "input": {
+        "brief": "explainer.intake@v1",
+        "ideas": "explainer.ideas@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.tournament-aggregate@v1",
+      "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
+      "execution": {
+        "kind": "fanout"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "hardening-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-tournament@v1",
+      "writes": {
+        "report_path": "reports/tournament-aggregate.json",
+        "branches_dir_path": "reports/tournament-branches"
+      },
+      "check": {
+        "pass": ["accept"]
+      },
+      "fanout": {
+        "branches": {
+          "kind": "dynamic",
+          "source_report": "reports/ideas.json",
+          "items_path": "concepts",
+          "template": {
+            "branch_id": "$item.id",
+            "execution": {
+              "kind": "relay",
+              "role": "researcher",
+              "goal": "$item.scoped_prompt",
+              "report_schema": "explainer.tournament-proposal@v1",
+              "provenance_field": "concept_id"
+            }
+          },
+          "max_branches": {
+            "kind": "axis",
+            "axis": "tournament_n"
+          },
+          "required_count": {
+            "kind": "axis",
+            "axis": "tournament_n"
+          }
+        },
+        "concurrency": {
+          "kind": "bounded",
+          "max": 2
+        },
+        "on_child_failure": "continue-others",
+        "join": {
+          "policy": "aggregate-survivors"
+        },
+        "rubric": {
+          "model_judgments_path": "rubric_model_judgments",
+          "ordered_dims": [
+            "fidelity",
+            "memetic_potential",
+            "entertainment",
+            "cross_audience_reach",
+            "build_feasibility",
+            "novelty"
+          ],
+          "runtime_signals": {
+            "fidelity": {
+              "kind": "non_empty_array",
+              "path": "fidelity_evidence"
+            },
+            "memetic_potential": {
+              "kind": "constant",
+              "signal": "n/a"
+            },
+            "entertainment": {
+              "kind": "constant",
+              "signal": "n/a"
+            },
+            "cross_audience_reach": {
+              "kind": "constant",
+              "signal": "n/a"
+            },
+            "build_feasibility": {
+              "kind": "non_empty_string",
+              "path": "next_action"
+            },
+            "novelty": {
+              "kind": "constant",
+              "signal": "n/a"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "hardening-step",
+      "block": "plan",
+      "title": "Harden — adversarial fidelity pass over survivors",
+      "stage": "plan",
+      "input": {
+        "brief": "explainer.intake@v1",
+        "ideas": "explainer.ideas@v1",
+        "aggregate": "explainer.tournament-aggregate@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.hardening@v1",
+      "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
+      "execution": {
+        "kind": "relay",
+        "role": "reviewer"
+      },
+      "skill_slots": [
+        {
+          "id": "explainer-fidelity-audit",
+          "description": "A skill for adversarially checking each finalist concept against the paper, catching any that would teach the seductive wrong driver instead of the real one."
+        }
+      ],
+      "routes": {
+        "continue": "pick-checkpoint-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-hardening@v1",
+      "writes": {
+        "report_path": "reports/hardening.json",
+        "request_path": "reports/relay/hardening.request.json",
+        "receipt_path": "reports/relay/hardening.receipt.txt",
+        "result_path": "reports/relay/hardening.result.json"
+      },
+      "check": {
+        "pass": ["recommend", "no-clear-winner", "needs-operator"]
+      }
+    },
+    {
+      "id": "pick-checkpoint-step",
+      "block": "human-decision",
+      "title": "Pick — operator chooses a concept to build",
+      "stage": "plan",
+      "input": {
+        "question": "explainer.hardening@v1",
+        "evidence": "explainer.tournament-aggregate@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.selection@v1",
+      "evidence_requirements": [
+        "question",
+        "available options",
+        "selected option",
+        "answer source"
+      ],
+      "execution": {
+        "kind": "checkpoint"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "spec-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-pick-checkpoint@v1",
+      "writes": {
+        "checkpoint_request_path": "reports/checkpoints/pick-request.json",
+        "checkpoint_response_path": "reports/checkpoints/pick-response.json"
+      },
+      "check": {
+        "allow_from": {
+          "kind": "policy_choices"
+        }
+      },
+      "checkpoint_policy": {
+        "prompt": "Choose the concept Circuit should build into the explainer site. The hardening pass recommends one survivor; you decide. This checkpoint only records a concept choice.",
+        "choices_from": {
+          "kind": "report_items",
+          "source_report": "reports/tournament-aggregate.json",
+          "items_path": "branches",
+          "filter": {
+            "kind": "path_equals",
+            "path": "child_outcome",
+            "value": "complete"
+          },
+          "id_path": "branch_id",
+          "label_path": "result_body.concept_label",
+          "description_path": "result_body.case_summary"
+        },
+        "safe_default_choice": "concept-1",
+        "auto_resolution": {
+          "policy": "highest-score",
+          "source_report": "reports/tournament-aggregate.json",
+          "branches_path": "branches",
+          "id_path": "branch_id",
+          "rubric_result_path": "rubric_result"
+        }
+      }
+    },
+    {
+      "id": "spec-step",
+      "block": "plan",
+      "title": "Spec — assemble the house-style build law",
+      "stage": "plan",
+      "input": {
+        "brief": "explainer.intake@v1",
+        "ideas": "explainer.ideas@v1",
+        "aggregate": "explainer.tournament-aggregate@v1",
+        "hardening": "explainer.hardening@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.spec@v1",
+      "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
+      "execution": {
+        "kind": "compose"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "build-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-spec@v1",
+      "writes": {
+        "report_path": "reports/explainer/spec.json"
+      },
+      "check": {
+        "required": ["concept_id", "build_brief", "fidelity_citations"]
+      }
+    },
+    {
+      "id": "build-step",
+      "block": "goal-child-run",
+      "title": "Build — run the child build flow on the spec",
+      "stage": "act",
+      "input": {
+        "contract": "explainer.spec@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.build-result@v1",
+      "evidence_requirements": [
+        "static child flow target",
+        "child result file",
+        "parent trace link"
+      ],
+      "execution": {
+        "kind": "sub-run",
+        "flow_ref": {
+          "flow_id": "build",
+          "entry_mode": "default"
+        },
+        "goal": "Build the interactive web explainer described in reports/explainer/spec.json. Honor the house-style specs and teach the paper’s actual driver, never the seductive wrong one. Produce a locally building site; do not deploy.",
+        "depth": "medium"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "verify-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-build@v1",
+      "writes": {
+        "result_path": "reports/explainer/build-result.json"
+      },
+      "check": {
+        "pass": [
+          "accept",
+          "accept-with-fixes",
+          "accept-with-fold-ins",
+          "clean",
+          "needs-followup",
+          "decided",
+          "NO_ISSUES_FOUND",
+          "ISSUES_FOUND"
+        ]
+      }
+    },
+    {
+      "id": "verify-step",
+      "block": "run-verification",
+      "title": "Verify — prove the built site",
+      "stage": "verify",
+      "input": {
+        "plan": "explainer.spec@v1",
+        "change": "explainer.build-result@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.verification@v1",
+      "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
+      "execution": {
+        "kind": "verification"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "signoff-checkpoint-step",
+        "retry": "verify-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-verify@v1",
+      "writes": {
+        "report_path": "reports/explainer/verification.json"
+      },
+      "check": {
+        "required": ["overall_status", "commands"]
+      }
+    },
+    {
+      "id": "signoff-checkpoint-step",
+      "block": "human-decision",
+      "title": "Sign off — operator fidelity gate and publish authorization",
+      "stage": "review",
+      "input": {
+        "question": "explainer.verification@v1",
+        "evidence": "explainer.build-result@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.signoff@v1",
+      "evidence_requirements": [
+        "question",
+        "available options",
+        "selected option",
+        "answer source"
+      ],
+      "execution": {
+        "kind": "checkpoint"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "close-step",
+        "blocked": "close-step",
+        "handoff": "@handoff",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-signoff-checkpoint@v1",
+      "writes": {
+        "checkpoint_request_path": "reports/checkpoints/signoff-request.json",
+        "checkpoint_response_path": "reports/checkpoints/signoff-response.json"
+      },
+      "check": {
+        "allow": ["continue", "blocked", "handoff"]
+      },
+      "checkpoint_policy": {
+        "prompt": "Final fidelity gate. Does the built explainer teach the paper’s actual driver, honor the house style, and pass verification? Authorize publishing only if yes. The default holds — Circuit does not publish without your explicit authorization.",
+        "choices": [
+          {
+            "id": "continue",
+            "label": "Authorize publish"
+          },
+          {
+            "id": "blocked",
+            "label": "Hold — fidelity or quality not met"
+          },
+          {
+            "id": "handoff",
+            "label": "Hand off"
+          }
+        ],
+        "safe_default_choice": "blocked"
+      }
+    },
+    {
+      "id": "close-step",
+      "block": "close-with-evidence",
+      "title": "Close — emit the explainer result",
+      "stage": "close",
+      "input": {
+        "intake": "explainer.intake@v1",
+        "spec": "explainer.spec@v1",
+        "verification": "explainer.verification@v1",
+        "build": "explainer.build-result@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.result@v1",
+      "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
+      "execution": {
+        "kind": "compose"
+      },
+      "skill_slots": [],
+      "routes": {
+        "complete": "@complete",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-close@v1",
+      "writes": {
+        "report_path": "reports/explainer-result.json"
+      },
+      "check": {
+        "required": ["outcome", "summary", "evidence_pointers"]
+      }
+    }
+  ],
+  "version": "0.1.0",
+  "axes": {
+    "allowed_depths": ["low", "medium", "high"],
+    "supports_tournament": true,
+    "supports_autonomous": true,
+    "default": {
+      "depth": "medium",
+      "tournament": false,
+      "tournament_n": 3,
+      "autonomous": false
+    },
+    "tournament_fan_out_stage": "plan-stage"
+  },
+  "stage_path_policy": {
+    "mode": "strict"
+  },
+  "stages": [
+    {
+      "canonical": "frame",
+      "id": "frame-stage",
+      "title": "Frame"
+    },
+    {
+      "canonical": "analyze",
+      "id": "analyze-stage",
+      "title": "Digest"
+    },
+    {
+      "canonical": "plan",
+      "id": "plan-stage",
+      "title": "Ideate & Choose"
+    },
+    {
+      "canonical": "act",
+      "id": "act-stage",
+      "title": "Build"
+    },
+    {
+      "canonical": "verify",
+      "id": "verify-stage",
+      "title": "Verify"
+    },
+    {
+      "canonical": "review",
+      "id": "review-stage",
+      "title": "Sign Off"
+    },
+    {
+      "canonical": "close",
+      "id": "close-stage",
+      "title": "Close"
+    }
+  ],
+  "engine_flags": {
+    "binds_terminal_outcome_to_primary_result": true
+  }
+}

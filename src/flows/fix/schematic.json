@@ -115,7 +115,12 @@
         "kind": "relay",
         "role": "researcher"
       },
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "id": "fix-codebase-search",
+          "description": "A skill for navigating and searching the codebase to locate the code involved in the reported problem."
+        }
+      ],
       "routes": {
         "continue": "fix-diagnose",
         "retry": "fix-gather-context",
@@ -155,7 +160,12 @@
         "kind": "relay",
         "role": "researcher"
       },
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "id": "fix-root-cause-analysis",
+          "description": "A skill for forming and testing hypotheses about the root cause of a bug before any change is made."
+        }
+      ],
       "routes": {
         "continue": "fix-act",
         "retry": "fix-gather-context",
@@ -296,7 +306,18 @@
         "kind": "relay",
         "role": "implementer"
       },
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "id": "fix-focused-edit",
+          "description": "A skill for making the smallest correct code edit that resolves the diagnosed problem."
+        }
+      ],
+      "equipment_scope": {
+        "tools": {
+          "allow": ["Read", "Grep", "Glob", "Edit", "Write", "Bash"]
+        },
+        "enforcement": "enforced"
+      },
       "routes": {
         "continue": "fix-verify",
         "retry": "fix-act",
@@ -449,7 +470,12 @@
         "kind": "relay",
         "role": "reviewer"
       },
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "id": "fix-change-audit",
+          "description": "A skill for independently auditing a change for correctness, scope creep, and regressions."
+        }
+      ],
       "routes": {
         "continue": "fix-close",
         "connector-failed": "fix-close",

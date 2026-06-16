@@ -1,4 +1,5 @@
 import type { AcceptanceCriteria } from '../../schemas/acceptance-criteria.js';
+import type { EquipmentScope } from '../../schemas/equipment-scope.js';
 
 export interface RuntimeIndexedReportRef {
   readonly path: string;
@@ -18,6 +19,7 @@ export interface RuntimeIndexedStepBase {
   readonly check: unknown;
   readonly selection?: unknown | undefined;
   readonly skill_slots?: readonly unknown[] | undefined;
+  readonly equipment_scope?: EquipmentScope | undefined;
   readonly budgets?: unknown | undefined;
 }
 

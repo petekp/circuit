@@ -20,6 +20,7 @@ export interface BlockStepUse
     SchematicStepInput,
     | 'check'
     | 'checkpoint_policy'
+    | 'equipment_scope'
     | 'evidence_requirements'
     | 'execution'
     | 'output'
@@ -47,6 +48,7 @@ export interface BlockStepUse
   readonly checkpointPolicy?: SchematicStepInput['checkpoint_policy'];
   readonly acceptanceCriteria?: SchematicStepInput['acceptance_criteria'];
   readonly skillSlots?: SchematicStepInput['skill_slots'];
+  readonly equipmentScope?: SchematicStepInput['equipment_scope'];
 }
 
 export type ComposeBlockStepUse = Omit<BlockStepUse, 'execution'>;
@@ -304,6 +306,7 @@ function schematicStepInputFromBlockUse(input: {
   const { block, check, execution, use, writes } = input;
   const {
     checkpointPolicy,
+    equipmentScope,
     evidenceRequirements,
     output,
     routeOverrides,
@@ -336,6 +339,7 @@ function schematicStepInputFromBlockUse(input: {
     ...(checkpointPolicy === undefined ? {} : { checkpoint_policy: checkpointPolicy }),
     ...(routeOverrides === undefined ? {} : { route_overrides: routeOverrides }),
     ...(skillSlots === undefined ? {} : { skill_slots: skillSlots }),
+    ...(equipmentScope === undefined ? {} : { equipment_scope: equipmentScope }),
   };
 }
 

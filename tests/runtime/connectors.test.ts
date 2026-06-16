@@ -314,7 +314,11 @@ describe('runtime connector safety', () => {
 
   it('keeps read-only and isolated connector write classifications distinct', () => {
     expect(
-      classifyConnectorFilesystem({ filesystem: 'read-only', structured_output: 'json' }),
+      classifyConnectorFilesystem({
+        filesystem: 'read-only',
+        structured_output: 'json',
+        tool_scope: 'none',
+      }),
     ).toEqual({
       filesystem: 'read-only',
       write_capable: false,
@@ -323,7 +327,11 @@ describe('runtime connector safety', () => {
     });
 
     expect(
-      classifyConnectorFilesystem({ filesystem: 'isolated-write', structured_output: 'json' }),
+      classifyConnectorFilesystem({
+        filesystem: 'isolated-write',
+        structured_output: 'json',
+        tool_scope: 'none',
+      }),
     ).toEqual({
       filesystem: 'isolated-write',
       write_capable: true,

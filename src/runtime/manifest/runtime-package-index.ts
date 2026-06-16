@@ -47,6 +47,7 @@ function baseStep(step: ExecutableStep) {
     check: step.check,
     ...(selection === undefined ? {} : { selection }),
     ...(step.skillSlots === undefined ? {} : { skill_slots: step.skillSlots }),
+    ...(step.equipmentScope === undefined ? {} : { equipment_scope: step.equipmentScope }),
     ...(step.budgets === undefined ? {} : { budgets: step.budgets }),
   };
 }

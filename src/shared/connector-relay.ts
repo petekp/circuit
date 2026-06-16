@@ -52,4 +52,11 @@ export interface ConnectorRelayInput {
   // connectors and any connector that does not yet honor it fall back to
   // the prose shape hint already in the prompt.
   responseSchema?: Record<string, unknown>;
+  // The exact tool names the worker is restricted to, set ONLY when the step
+  // declares an ENFORCED equipment scope and the resolved connector can honor
+  // it (tool_scope capability 'allow-list'). A connector that can restrict its
+  // tool surface translates this to its native flag (claude-code's `--tools`);
+  // a connector that cannot ignores it (the resolver never hands an enforced
+  // list to such a connector, so absence means an unrestricted tool surface).
+  toolAllowList?: readonly string[];
 }

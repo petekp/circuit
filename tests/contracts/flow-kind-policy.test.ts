@@ -294,6 +294,7 @@ describe('checkCompiledFlowKindCanonicalPolicy (audit-level, no Zod)', () => {
       { id: 'build', status: 'enforced' },
       { id: 'explore', status: 'enforced' },
       { id: 'goal', status: 'enforced' },
+      { id: 'explainer', status: 'enforced' },
     ]);
   });
 

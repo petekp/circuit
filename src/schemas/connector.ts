@@ -11,10 +11,23 @@ export type FilesystemCapability = z.infer<typeof FilesystemCapability>;
 export const StructuredOutputCapability = z.enum(['json']);
 export type StructuredOutputCapability = z.infer<typeof StructuredOutputCapability>;
 
+// Whether a connector can restrict a worker's tool surface to a declared
+// allow-list (the enforcement lever for equipment scope).
+//   "none"       — cannot restrict tools; an enforced equipment scope is
+//                  downgraded to trusted guidance against this connector.
+//   "allow-list" — can spawn the worker with exactly a named set of tools, so
+//                  an enforced equipment scope becomes a real boundary.
+export const ToolScopeCapability = z.enum(['none', 'allow-list']);
+export type ToolScopeCapability = z.infer<typeof ToolScopeCapability>;
+
 export const ConnectorCapabilities = z
   .object({
     filesystem: FilesystemCapability,
     structured_output: StructuredOutputCapability,
+    // Defaulted so a capability set serialized before this field existed (and a
+    // custom descriptor that omits it) parses as the safe "cannot restrict"
+    // value rather than failing.
+    tool_scope: ToolScopeCapability.default('none'),
   })
   .strict();
 export type ConnectorCapabilities = z.infer<typeof ConnectorCapabilities>;
@@ -62,17 +75,23 @@ export const BUILTIN_CONNECTOR_SPECS = {
   'claude-code': {
     provider: 'anthropic',
     supportedEfforts: CLAUDE_CODE_SUPPORTED_EFFORTS,
-    capabilities: { filesystem: 'trusted-write', structured_output: 'json' },
+    // The CLI's `--tools` flag restricts the worker's tool surface, so an
+    // enforced equipment scope becomes a real boundary on this connector.
+    capabilities: {
+      filesystem: 'trusted-write',
+      structured_output: 'json',
+      tool_scope: 'allow-list',
+    },
   },
   codex: {
     provider: 'openai',
     supportedEfforts: CODEX_SUPPORTED_EFFORTS,
-    capabilities: { filesystem: 'trusted-write', structured_output: 'json' },
+    capabilities: { filesystem: 'trusted-write', structured_output: 'json', tool_scope: 'none' },
   },
   'cursor-agent': {
     provider: 'gemini',
     supportedEfforts: CURSOR_AGENT_SUPPORTED_EFFORTS,
-    capabilities: { filesystem: 'trusted-write', structured_output: 'json' },
+    capabilities: { filesystem: 'trusted-write', structured_output: 'json', tool_scope: 'none' },
   },
 } as const satisfies Record<EnabledConnector, ConnectorSpec>;
 
@@ -117,6 +136,14 @@ export const CustomConnectorDescriptor = z
           'custom connectors are read-only in V1; writable custom workers require a later isolated mode',
       });
     }
+    if (descriptor.capabilities.tool_scope !== 'none') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['capabilities', 'tool_scope'],
+        message:
+          'custom connectors cannot enforce a tool allow-list in V1; declare tool_scope "none" (an enforced equipment scope is honored only by a built-in connector that can restrict tools)',
+      });
+    }
   });
 export type CustomConnectorDescriptor = z.infer<typeof CustomConnectorDescriptor>;
 
@@ -151,6 +178,14 @@ export type ConnectorRef = z.infer<typeof ConnectorRef>;
 // config and CLI parsing.
 export const ResolvedConnector = z.union([BuiltInConnectorRef, CustomConnectorDescriptor]);
 export type ResolvedConnector = z.infer<typeof ResolvedConnector>;
+
+// The tool-scope capability of a fully-resolved connector — the single lookup
+// the equipment-enforcement resolver needs. Built-ins read from the registry;
+// a custom descriptor carries its own (forced to 'none' in V1).
+export function connectorToolScopeCapability(connector: ResolvedConnector): ToolScopeCapability {
+  if (connector.kind === 'custom') return connector.capabilities.tool_scope;
+  return BUILTIN_CONNECTOR_CAPABILITIES[connector.name].tool_scope;
+}
 
 // Relay resolution source carries a category plus a disambiguator. Same
 // shape as the applied[] entries on the selection side. An audit reading

@@ -7,6 +7,7 @@ import {
   SchemaSectionsCheck,
 } from './check.js';
 import { CompiledDepth } from './depth.js';
+import { EquipmentScope } from './equipment-scope.js';
 import { CompiledFlowId, ProtocolId, StepId } from './ids.js';
 import { JsonObject } from './json.js';
 import { RubricRuntimeSignal } from './rubric.js';
@@ -47,6 +48,11 @@ const StepBase = z.object({
   selection: SelectionOverride.optional(),
   skill_hooks: SkillHookNameArray.optional(),
   skill_slots: SkillSlotArray.optional(),
+  // The tools sub-axis of equipment scope, compiled from the schematic step.
+  // Optional and omitted at the default (full, trusted) so flows that declare
+  // nothing keep byte-stable compiled output. The compiler enforces that an
+  // enforced scope only lands on the implementer relay variant.
+  equipment_scope: EquipmentScope.optional(),
   route_from_report: RouteFromReport.optional(),
   budgets: z
     .object({

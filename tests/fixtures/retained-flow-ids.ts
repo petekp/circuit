@@ -17,4 +17,5 @@ export const RETAINED_FLOW_IDS = [
   'build',
   'explore',
   'goal',
+  'explainer',
 ] as const;

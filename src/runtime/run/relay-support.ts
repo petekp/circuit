@@ -141,6 +141,23 @@ function selectedSkillsSection(skills: readonly LoadedRelaySkill[]): string | un
   ].join('\n\n');
 }
 
+// Renders the step's declared tool scope as guidance the worker is asked to
+// honor. This is the "provide" half of equipment scope: the engine offers the
+// scope to the worker in the prompt. It deliberately does NOT claim the scope
+// is enforced — at this tier nothing restricts the connector's tool surface, so
+// an honest prompt frames even an `enforced` declaration as the set to use, not
+// a wall the worker cannot cross. Returns undefined when no scope is declared or
+// the scope is the wide default (`full`), so unscoped steps render unchanged.
+function equipmentScopeSection(step: RelayStep): string | undefined {
+  const scope = step.equipment_scope;
+  if (scope === undefined || scope.tools === 'full') return undefined;
+  return [
+    'Equipment Scope:',
+    'This step is scoped to a specific set of tools. Use only these tools to do the work; reach for nothing outside the list.',
+    `Allowed tools: ${scope.tools.allow.join(', ')}`,
+  ].join('\n');
+}
+
 function formatAcceptanceCriterion(criterion: AcceptanceCriterion): string {
   if (criterion.kind === 'report_field') {
     return `- ${criterion.id}: report field ${criterion.path.join('.')} must be ${criterion.predicate}.`;
@@ -323,6 +340,7 @@ export function composeRelayPrompt(
           })
           .join('\n\n');
   const skillsSection = selectedSkillsSection(loadedSkills);
+  const equipmentSection = equipmentScopeSection(step);
   const sliceSection = currentSliceSection(activeSlice);
   const criteriaSection = acceptanceCriteriaSection(step);
   const feedbackSection = acceptanceRetryFeedbackSection(acceptanceRetryFeedback);
@@ -386,6 +404,7 @@ export function composeRelayPrompt(
     readsBody,
     '',
     ...(skillsSection === undefined ? [] : [skillsSection, '']),
+    ...(equipmentSection === undefined ? [] : [equipmentSection, '']),
     ...(criteriaSection === undefined ? [] : [criteriaSection, '']),
     ...(feedbackSection === undefined ? [] : [feedbackSection, '']),
     relayResponseInstruction(step),

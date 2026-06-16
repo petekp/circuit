@@ -3,7 +3,10 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  BUILTIN_CONNECTOR_CAPABILITIES,
+  BUILTIN_CONNECTOR_SPECS,
   Config,
+  ConnectorCapabilities,
   ConnectorName,
   ConnectorRef,
   ConnectorReference,
@@ -14,6 +17,7 @@ import {
   RelayConfig,
   RelayResolutionSource,
   ResolvedConnector,
+  ToolScopeCapability,
   TraceEntry,
 } from '../../src/index.js';
 import { RUN_A } from '../helpers/runtrace-builders.js';
@@ -637,6 +641,192 @@ describe('ConnectorReference registry-layer refusal — exported surface', () =>
     expect(
       ConnectorReference.safeParse({ kind: 'named', name: 'gemini', alias: 'g' }).success,
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RelayStartedTraceEntry.equipment — the enforcement decision recorded for the
+// audit. The trace must be honest: effective enforcement and the enforced tool
+// list cannot disagree.
+// ---------------------------------------------------------------------------
+describe('RelayStartedTraceEntry.equipment evidence', () => {
+  const base = {
+    schema_version: 1 as const,
+    sequence: 0,
+    recorded_at: '2026-04-18T05:00:00.000Z',
+    run_id: RUN_A,
+    kind: 'relay.started' as const,
+    step_id: 'act',
+    attempt: 1,
+    connector: { kind: 'builtin' as const, name: 'claude-code' as const },
+    role: 'implementer' as const,
+    resolved_selection: { skills: [] },
+    resolved_from: { source: 'role' as const, role: 'implementer' as const },
+  };
+
+  it('accepts a relay.started with no equipment field (back-compat)', () => {
+    expect(TraceEntry.safeParse(base).success).toBe(true);
+  });
+
+  it('accepts an enforced decision carrying its enforced tool list', () => {
+    const ok = TraceEntry.safeParse({
+      ...base,
+      equipment: {
+        declared: 'enforced',
+        effective: 'enforced',
+        downgraded: false,
+        enforced_tools: ['Read', 'Edit', 'Write'],
+      },
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('accepts a trusted decision with no enforced tool list', () => {
+    const ok = TraceEntry.safeParse({
+      ...base,
+      equipment: { declared: 'trusted', effective: 'trusted', downgraded: false },
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('accepts a downgraded decision (declared enforced, effective trusted)', () => {
+    const ok = TraceEntry.safeParse({
+      ...base,
+      equipment: { declared: 'enforced', effective: 'trusted', downgraded: true },
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('rejects an effective-enforced decision missing the enforced tool list', () => {
+    const bad = TraceEntry.safeParse({
+      ...base,
+      equipment: { declared: 'enforced', effective: 'enforced', downgraded: false },
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('rejects an effective-trusted decision that still carries an enforced tool list (dishonest)', () => {
+    const bad = TraceEntry.safeParse({
+      ...base,
+      equipment: {
+        declared: 'trusted',
+        effective: 'trusted',
+        downgraded: false,
+        enforced_tools: ['Read'],
+      },
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('rejects a downgraded decision whose effective enforcement is still enforced', () => {
+    const bad = TraceEntry.safeParse({
+      ...base,
+      equipment: {
+        declared: 'enforced',
+        effective: 'enforced',
+        downgraded: true,
+        enforced_tools: ['Read'],
+      },
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('rejects an effective-enforced decision whose declared intent was only trusted', () => {
+    // Effective enforcement is only reachable from a declared-enforced scope —
+    // the runtime never tightens a trusted declaration into a real boundary.
+    // This input satisfies every other rule (enforced_tools present, not flagged
+    // downgraded) so it isolates the declared/effective consistency rule.
+    const bad = TraceEntry.safeParse({
+      ...base,
+      equipment: {
+        declared: 'trusted',
+        effective: 'enforced',
+        downgraded: false,
+        enforced_tools: ['Read'],
+      },
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('rejects surplus keys on the equipment evidence (strict)', () => {
+    const bad = TraceEntry.safeParse({
+      ...base,
+      equipment: {
+        declared: 'trusted',
+        effective: 'trusted',
+        downgraded: false,
+        note: 'smuggled',
+      },
+    });
+    expect(bad.success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tool_scope capability (equipment-scope enforcement) — which connectors can
+// restrict a worker's tool surface to a declared allow-list.
+// ---------------------------------------------------------------------------
+describe('ToolScopeCapability + connector tool_scope', () => {
+  it('accepts the two capability values and rejects others', () => {
+    expect(ToolScopeCapability.safeParse('none').success).toBe(true);
+    expect(ToolScopeCapability.safeParse('allow-list').success).toBe(true);
+    expect(ToolScopeCapability.safeParse('enforced').success).toBe(false);
+    expect(ToolScopeCapability.safeParse('').success).toBe(false);
+  });
+
+  it('declares claude-code as allow-list-capable and the others as none', () => {
+    expect(BUILTIN_CONNECTOR_SPECS['claude-code'].capabilities.tool_scope).toBe('allow-list');
+    expect(BUILTIN_CONNECTOR_SPECS.codex.capabilities.tool_scope).toBe('none');
+    expect(BUILTIN_CONNECTOR_SPECS['cursor-agent'].capabilities.tool_scope).toBe('none');
+  });
+
+  it('projects the same tool_scope through BUILTIN_CONNECTOR_CAPABILITIES', () => {
+    expect(BUILTIN_CONNECTOR_CAPABILITIES['claude-code'].tool_scope).toBe('allow-list');
+    expect(BUILTIN_CONNECTOR_CAPABILITIES.codex.tool_scope).toBe('none');
+  });
+
+  it('defaults tool_scope to none when the capability set omits it (back-compat)', () => {
+    const parsed = ConnectorCapabilities.parse({
+      filesystem: 'read-only',
+      structured_output: 'json',
+    });
+    expect(parsed.tool_scope).toBe('none');
+  });
+
+  it('rejects an unknown tool_scope value on the capability set', () => {
+    expect(
+      ConnectorCapabilities.safeParse({
+        filesystem: 'read-only',
+        structured_output: 'json',
+        tool_scope: 'enforced',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('lets a custom descriptor declare tool_scope none (or omit it)', () => {
+    const omitted = customConnector('gemini', ['./bin/g']);
+    expect(CustomConnectorDescriptor.safeParse(omitted).success).toBe(true);
+    const explicitNone = {
+      ...omitted,
+      capabilities: {
+        filesystem: 'read-only' as const,
+        structured_output: 'json' as const,
+        tool_scope: 'none' as const,
+      },
+    };
+    expect(CustomConnectorDescriptor.safeParse(explicitNone).success).toBe(true);
+  });
+
+  it('rejects a custom descriptor that claims allow-list (custom connectors cannot enforce in V1)', () => {
+    const bad = {
+      ...customConnector('gemini', ['./bin/g']),
+      capabilities: {
+        filesystem: 'read-only' as const,
+        structured_output: 'json' as const,
+        tool_scope: 'allow-list' as const,
+      },
+    };
+    expect(CustomConnectorDescriptor.safeParse(bad).success).toBe(false);
   });
 });
 
