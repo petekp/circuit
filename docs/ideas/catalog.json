@@ -970,6 +970,29 @@
       "last_checked": "2026-06-16"
     },
     {
+      "path": "docs/ideas/durability-tier3-restart-linkage-spec.md",
+      "title": "Durability Tier-3 - the restart re-entry path for skip-finished children (surface-only)",
+      "status": "pre-implementation",
+      "category": "run-inspection-and-output",
+      "tags": [
+        "durability",
+        "tier-3",
+        "fanout",
+        "sub-run",
+        "restart",
+        "skip-finished",
+        "surface-only"
+      ],
+      "current_reading": "Surface-only, decision-ready spec resolving the open question the linkage spec flagged: in an Option-C (restart-cheapness, not forward-recovery) world there is no cursor to consume skip-finished, and a fresh restart gets a new parent id so it cannot recompute deterministic child ids. Evaluates three re-entry mechanisms (explicit prior-run pointer, dead-folder reanimation, content-addressed children store) and recommends the explicit pointer (circuit run --reuse-children-from <dead-run-folder>): it addresses prior children by their stable (step_id, attempt, branch_id) structural address within the referenced folder, never resumes or restarts the dead folder, and sidesteps the not-idempotent-relay blocker by reusing finished results rather than re-running steps. Inherits the refuse-on-shared-checkout safety rule and a StalenessFacts precondition gate (the cursor spec's runtime-owned port). Reanimation is rejected as the deferred cursor by another name; the content-addressed store as disproportionate. Not gated on the cursor; not built.",
+      "related": [
+        "docs/ideas/durability-tier3-linkage-spec.md",
+        "docs/ideas/durability-tier2-cursor-spec.md",
+        "docs/ideas/fallible-executor-audit.md",
+        "docs/ideas/parallel-decision-inbox-spec.md"
+      ],
+      "last_checked": "2026-06-16"
+    },
+    {
       "path": "docs/ideas/parallel-decision-inbox-spec.md",
       "title": "Parallel decision inbox (surface-only)",
       "status": "pre-implementation",
