@@ -138,7 +138,12 @@
         "kind": "relay",
         "role": "implementer"
       },
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "id": "prototype-rapid-build",
+          "description": "A skill for quickly building a disposable prototype that demonstrates the idea, optimizing for speed over polish."
+        }
+      ],
       "routes": {
         "continue": "verify-step",
         "stop": "close-step"
@@ -382,7 +387,12 @@
         "kind": "relay",
         "role": "reviewer"
       },
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "id": "prototype-variant-comparison",
+          "description": "A skill for comparing prototype variants on their evidence and naming which one the operator should carry forward."
+        }
+      ],
       "routes": {
         "continue": "variant-choice-options-step",
         "stop": "close-model-comparison-step"

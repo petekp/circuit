@@ -94,6 +94,100 @@ describe('composeRelayPrompt', () => {
     expect(prompt).not.toContain('Equipment Scope:');
   });
 
+  it('renders an unbound skill slot description as House Style guidance', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'act',
+        title: 'Implement the plan',
+        role: 'implementer',
+        reads: [],
+        skill_slots: [
+          {
+            id: 'build-focused-edit',
+            description: 'Make the smallest correct edit that satisfies the plan.',
+          },
+        ],
+        writes: {
+          request: { path: 'reports/relay/act.request.json' },
+          receipt: { path: 'reports/relay/act.receipt.txt' },
+          result: { path: 'reports/relay/act.result.json' },
+          report: { path: 'reports/implementation.json', schema: 'build.result@v1' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+      // No skill is bound into the slot, so the slot's own description is the
+      // house-style guidance offered to the worker.
+      [],
+    );
+
+    expect(prompt).toContain('House Style:');
+    expect(prompt).toContain('build-focused-edit');
+    expect(prompt).toContain('Make the smallest correct edit that satisfies the plan.');
+  });
+
+  it('omits the bound slot from House Style — its skill body already renders', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'act',
+        title: 'Implement the plan',
+        role: 'implementer',
+        reads: [],
+        skill_slots: [
+          {
+            id: 'build-focused-edit',
+            description: 'Make the smallest correct edit that satisfies the plan.',
+          },
+        ],
+        writes: {
+          request: { path: 'reports/relay/act.request.json' },
+          receipt: { path: 'reports/relay/act.receipt.txt' },
+          result: { path: 'reports/relay/act.result.json' },
+          report: { path: 'reports/implementation.json', schema: 'build.result@v1' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+      // A skill IS bound into the slot. The skill body carries the guidance, so
+      // the slot must not also render its description as house style (no dupe).
+      [
+        {
+          id: 'my-edit-skill',
+          slot: 'build-focused-edit',
+          path: '/skills/my-edit-skill/SKILL.md',
+          sha256: 'a'.repeat(64),
+          bytes: 42,
+          body: 'My local editing house style: prefer named exports.',
+        },
+      ] as unknown as Parameters<typeof composeRelayPrompt>[2],
+    );
+
+    expect(prompt).toContain('Selected Skills:');
+    expect(prompt).toContain('My local editing house style: prefer named exports.');
+    expect(prompt).not.toContain('House Style:');
+  });
+
+  it('omits the House Style section when no skill slots are declared', () => {
+    const prompt = composeRelayPrompt(
+      {
+        id: 'act',
+        title: 'Implement the plan',
+        role: 'implementer',
+        reads: [],
+        writes: {
+          request: { path: 'reports/relay/act.request.json' },
+          receipt: { path: 'reports/relay/act.receipt.txt' },
+          result: { path: 'reports/relay/act.result.json' },
+          report: { path: 'reports/implementation.json', schema: 'build.result@v1' },
+        },
+        check: { kind: 'result_verdict', pass: ['accept'] },
+      } as unknown as Parameters<typeof composeRelayPrompt>[0],
+      runFolder,
+    );
+
+    expect(prompt).not.toContain('House Style:');
+  });
+
   it('threads the resolved depth into the prompt when supplied and omits it otherwise (F-M-1)', () => {
     const step = {
       id: 'act-step',

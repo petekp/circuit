@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/explore/tournament.work-contract.v0.json",
-    "sha256": "9b091d5a5a32d7a2b0bbb70329a2d698a3fb7d55849b90d50872a3edd023103a",
+    "sha256": "62a593f90957e49b6ed0449a08e21115bf7f767fd73fa661db4c7402928021db",
     "flow_id": "explore"
   },
   "work_contract": {
@@ -523,7 +523,13 @@
           }
         }
       ],
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "step_id": "stress-proposals-step",
+          "slot_id": "explore-proposal-stress-test",
+          "description": "A skill for stress-testing competing proposals against each other and naming the strongest on the evidence."
+        }
+      ],
       "equipment_scopes": []
     },
     "proof": {
@@ -667,7 +673,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+          "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
           "flow_id": "explore"
         }
       },
@@ -696,7 +702,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/retry",
-          "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+          "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
           "flow_id": "explore"
         }
       },
@@ -727,7 +733,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/analyze-step/routes/stop",
-          "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+          "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
           "flow_id": "explore"
         }
       },
@@ -758,7 +764,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/decision-options-step/routes/stop",
-          "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+          "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
           "flow_id": "explore"
         }
       },
@@ -789,7 +795,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/proposal-fanout-step/routes/stop",
-          "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+          "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
           "flow_id": "explore"
         }
       },
@@ -814,7 +820,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/stress-proposals-step/routes/revise",
-          "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+          "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
           "flow_id": "explore"
         }
       },
@@ -845,7 +851,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/stress-proposals-step/routes/stop",
-          "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+          "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
           "flow_id": "explore"
         }
       },
@@ -876,7 +882,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/tradeoff-checkpoint-step/routes/stop",
-          "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+          "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
           "flow_id": "explore"
         }
       },
@@ -907,7 +913,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/decision-step/routes/stop",
-          "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+          "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
           "flow_id": "explore"
         }
       },
@@ -938,7 +944,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-tournament-step/routes/stop",
-          "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+          "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
           "flow_id": "explore"
         }
       }
@@ -955,7 +961,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/tradeoff-checkpoint-step/policy/safe_default_choice",
-        "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+        "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
         "flow_id": "explore"
       }
     ],
@@ -969,7 +975,7 @@
       "source_ref": {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/tradeoff-checkpoint-step/policy/auto_resolution",
-        "sha256": "2d05d6495b91b4564d628b7140c4850bb6744149c6c49612b139e14f1a47da4c",
+        "sha256": "db2e6a20fda16a2311c8f93d9a89614c403ede8d01ad3aa3979b79b672441f7d",
         "flow_id": "explore"
       }
     }

@@ -122,6 +122,12 @@
         "ask": "@stop",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "build-codebase-search",
+          "description": "A skill for reading the codebase and tracing the call paths a change will touch before any plan is written."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "researcher",
@@ -209,6 +215,12 @@
         "retry": "act-step",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "build-implementation",
+          "description": "A skill for implementing the planned change in the existing code style, keeping edits scoped to the plan."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "implementer",
@@ -327,6 +339,12 @@
         "revise": "act-step",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "build-change-audit",
+          "description": "A skill for independently auditing a change for correctness, scope creep, and regressions."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "reviewer",

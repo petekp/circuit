@@ -124,6 +124,12 @@
         "pass": "verify-step",
         "stop": "close-step"
       },
+      "skill_slots": [
+        {
+          "id": "prototype-rapid-build",
+          "description": "A skill for quickly building a disposable prototype that demonstrates the idea, optimizing for speed over polish."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "implementer",

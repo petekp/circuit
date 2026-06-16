@@ -71,6 +71,12 @@
         "ask": "@stop",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "goal-task-shaping",
+          "description": "A skill for turning a loose request into a precise, testable task with clear success criteria."
+        }
+      ],
       "route_from_report": {
         "path": ["verdict"]
       },
@@ -508,6 +514,12 @@
         "close": "goal-recovery",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "goal-safety-review",
+          "description": "A skill for judging whether a goal contract was actually met by its evidence before the work is allowed to close."
+        }
+      ],
       "route_from_report": {
         "path": ["next_route"]
       },
@@ -550,6 +562,12 @@
         "retry": "goal-recovery",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "goal-safety-review",
+          "description": "A skill for judging whether a goal contract was actually met by its evidence before the work is allowed to close."
+        }
+      ],
       "route_from_report": {
         "path": ["next_route"]
       },

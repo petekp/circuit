@@ -155,6 +155,12 @@
         "retry": "batch-step",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "pursuit-serial-execution",
+          "description": "A skill for executing a queue of related goals one at a time, verifying each before moving to the next."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "implementer",
@@ -219,6 +225,12 @@
         "retry": "batch-step",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "pursuit-coordination-audit",
+          "description": "A skill for checking that a multi-goal pursuit stayed coordinated: no goal left half-done and no cross-goal regression."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "reviewer",

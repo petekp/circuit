@@ -67,6 +67,13 @@ export const buildBlockItems: readonly BlockStepUse[] = [
     receiptPath: 'reports/relay/build-analyze.receipt.txt',
     resultPath: 'reports/relay/build-analyze.result.json',
     pass: ['accept'],
+    skillSlots: [
+      {
+        id: 'build-codebase-search',
+        description:
+          'A skill for reading the codebase and tracing the call paths a change will touch before any plan is written.',
+      },
+    ],
     routes: { continue: 'plan-step', retry: 'analyze-step', ask: '@stop', stop: '@stop' },
   },
   {
@@ -125,6 +132,13 @@ export const buildBlockItems: readonly BlockStepUse[] = [
       ],
       on_failure: { mode: 'retry-with-feedback' },
     },
+    skillSlots: [
+      {
+        id: 'build-implementation',
+        description:
+          'A skill for implementing the planned change in the existing code style, keeping edits scoped to the plan.',
+      },
+    ],
     routes: { continue: 'verify-step', retry: 'act-step', stop: '@stop' },
   },
   {
@@ -180,6 +194,13 @@ export const buildBlockItems: readonly BlockStepUse[] = [
     receiptPath: 'reports/relay/build-review.receipt.txt',
     resultPath: 'reports/relay/build-review.result.json',
     pass: ['accept', 'accept-with-fixes'],
+    skillSlots: [
+      {
+        id: 'build-change-audit',
+        description:
+          'A skill for independently auditing a change for correctness, scope creep, and regressions.',
+      },
+    ],
     routes: { continue: 'close-step', retry: 'act-step', revise: 'act-step', stop: '@stop' },
   },
   {

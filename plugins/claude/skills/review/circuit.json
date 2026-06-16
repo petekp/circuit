@@ -79,6 +79,12 @@
         "retry": "audit-step",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "review-independent-audit",
+          "description": "A skill for independently auditing code or a change for correctness, regressions, and scope creep."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "reviewer",

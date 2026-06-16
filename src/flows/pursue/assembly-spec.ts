@@ -92,6 +92,13 @@ export const pursueBlockItems: readonly BlockStepUse[] = [
     receiptPath: 'reports/relay/pursuit-batch.receipt.txt',
     resultPath: 'reports/relay/pursuit-batch.result.json',
     pass: ['accept', 'partial'],
+    skillSlots: [
+      {
+        id: 'pursuit-serial-execution',
+        description:
+          'A skill for executing a queue of related goals one at a time, verifying each before moving to the next.',
+      },
+    ],
     routes: { continue: 'verify-step', retry: 'batch-step', stop: '@stop' },
   },
   {
@@ -128,6 +135,13 @@ export const pursueBlockItems: readonly BlockStepUse[] = [
     receiptPath: 'reports/relay/pursuit-review.receipt.txt',
     resultPath: 'reports/relay/pursuit-review.result.json',
     pass: ['clean', 'needs-followup', 'blocked'],
+    skillSlots: [
+      {
+        id: 'pursuit-coordination-audit',
+        description:
+          'A skill for checking that a multi-goal pursuit stayed coordinated: no goal left half-done and no cross-goal regression.',
+      },
+    ],
     routes: { continue: 'close-step', retry: 'batch-step', stop: '@stop' },
   },
   {

@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/prototype/circuit.work-contract.v0.json",
-    "sha256": "e1fd29f4b5e806ec18087558ef927249f5cc8b54256a4805fe26b2ab17cdaae6",
+    "sha256": "ce523d3066b2f3190275bfb4381f1d5e9a2755681078593f8e208fe7e6d5f4df",
     "flow_id": "prototype"
   },
   "work_contract": {
@@ -386,7 +386,13 @@
       ],
       "sub_runs": [],
       "fanouts": [],
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "step_id": "act-step",
+          "slot_id": "prototype-rapid-build",
+          "description": "A skill for quickly building a disposable prototype that demonstrates the idea, optimizing for speed over polish."
+        }
+      ],
       "equipment_scopes": []
     },
     "proof": {
@@ -502,7 +508,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/frame-step/routes/stop",
-          "sha256": "878f3cf4e3f33a45341824cd0431b501a2cd24517bf000b8266bcdc96f6beab7",
+          "sha256": "46d03e3ea68af1c9d9a5b5d1016a8069665a93c6d24b72ea76e184a332051e51",
           "flow_id": "prototype"
         }
       },
@@ -533,7 +539,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/stop",
-          "sha256": "878f3cf4e3f33a45341824cd0431b501a2cd24517bf000b8266bcdc96f6beab7",
+          "sha256": "46d03e3ea68af1c9d9a5b5d1016a8069665a93c6d24b72ea76e184a332051e51",
           "flow_id": "prototype"
         }
       },
@@ -564,7 +570,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/act-step/routes/stop",
-          "sha256": "878f3cf4e3f33a45341824cd0431b501a2cd24517bf000b8266bcdc96f6beab7",
+          "sha256": "46d03e3ea68af1c9d9a5b5d1016a8069665a93c6d24b72ea76e184a332051e51",
           "flow_id": "prototype"
         }
       },
@@ -595,7 +601,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/stop",
-          "sha256": "878f3cf4e3f33a45341824cd0431b501a2cd24517bf000b8266bcdc96f6beab7",
+          "sha256": "46d03e3ea68af1c9d9a5b5d1016a8069665a93c6d24b72ea76e184a332051e51",
           "flow_id": "prototype"
         }
       },
@@ -626,7 +632,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/prototype-checkpoint-step/routes/stop",
-          "sha256": "878f3cf4e3f33a45341824cd0431b501a2cd24517bf000b8266bcdc96f6beab7",
+          "sha256": "46d03e3ea68af1c9d9a5b5d1016a8069665a93c6d24b72ea76e184a332051e51",
           "flow_id": "prototype"
         }
       },
@@ -657,7 +663,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/stop",
-          "sha256": "878f3cf4e3f33a45341824cd0431b501a2cd24517bf000b8266bcdc96f6beab7",
+          "sha256": "46d03e3ea68af1c9d9a5b5d1016a8069665a93c6d24b72ea76e184a332051e51",
           "flow_id": "prototype"
         }
       }
@@ -674,7 +680,7 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/prototype-checkpoint-step/policy/safe_default_choice",
-        "sha256": "878f3cf4e3f33a45341824cd0431b501a2cd24517bf000b8266bcdc96f6beab7",
+        "sha256": "46d03e3ea68af1c9d9a5b5d1016a8069665a93c6d24b72ea76e184a332051e51",
         "flow_id": "prototype"
       }
     ],

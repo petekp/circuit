@@ -71,7 +71,12 @@
         "kind": "relay",
         "role": "researcher"
       },
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "id": "goal-task-shaping",
+          "description": "A skill for turning a loose request into a precise, testable task with clear success criteria."
+        }
+      ],
       "routes": {
         "continue": "goal-contract",
         "ask": "@stop",
@@ -552,7 +557,12 @@
         "kind": "relay",
         "role": "reviewer"
       },
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "id": "goal-safety-review",
+          "description": "A skill for judging whether a goal contract was actually met by its evidence before the work is allowed to close."
+        }
+      ],
       "routes": {
         "continue": "goal-gate-pass-2",
         "run-next-gate-pass": "goal-gate-pass-2",
@@ -593,7 +603,12 @@
         "kind": "relay",
         "role": "reviewer"
       },
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "id": "goal-safety-review",
+          "description": "A skill for judging whether a goal contract was actually met by its evidence before the work is allowed to close."
+        }
+      ],
       "routes": {
         "continue": "goal-close",
         "close": "goal-close",

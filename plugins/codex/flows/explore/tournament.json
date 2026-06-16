@@ -259,6 +259,12 @@
         "revise": "decision-options-step",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "explore-proposal-stress-test",
+          "description": "A skill for stress-testing competing proposals against each other and naming the strongest on the evidence."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "reviewer",

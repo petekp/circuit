@@ -343,6 +343,12 @@
         "pass": "variant-choice-options-step",
         "stop": "close-model-comparison-step"
       },
+      "skill_slots": [
+        {
+          "id": "prototype-variant-comparison",
+          "description": "A skill for comparing prototype variants on their evidence and naming which one the operator should carry forward."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "reviewer",

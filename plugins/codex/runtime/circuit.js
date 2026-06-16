@@ -29115,6 +29115,12 @@ var buildBlockItems = [
     receiptPath: "reports/relay/build-analyze.receipt.txt",
     resultPath: "reports/relay/build-analyze.result.json",
     pass: ["accept"],
+    skillSlots: [
+      {
+        id: "build-codebase-search",
+        description: "A skill for reading the codebase and tracing the call paths a change will touch before any plan is written."
+      }
+    ],
     routes: { continue: "plan-step", retry: "analyze-step", ask: "@stop", stop: "@stop" }
   },
   {
@@ -29173,6 +29179,12 @@ var buildBlockItems = [
       ],
       on_failure: { mode: "retry-with-feedback" }
     },
+    skillSlots: [
+      {
+        id: "build-implementation",
+        description: "A skill for implementing the planned change in the existing code style, keeping edits scoped to the plan."
+      }
+    ],
     routes: { continue: "verify-step", retry: "act-step", stop: "@stop" }
   },
   {
@@ -29228,6 +29240,12 @@ var buildBlockItems = [
     receiptPath: "reports/relay/build-review.receipt.txt",
     resultPath: "reports/relay/build-review.result.json",
     pass: ["accept", "accept-with-fixes"],
+    skillSlots: [
+      {
+        id: "build-change-audit",
+        description: "A skill for independently auditing a change for correctness, scope creep, and regressions."
+      }
+    ],
     routes: { continue: "close-step", retry: "act-step", revise: "act-step", stop: "@stop" }
   },
   {
@@ -35584,6 +35602,12 @@ var exploreBlockItems = [
       result_path: "reports/relay/synthesize.result.json"
     },
     check: { pass: ["accept"] },
+    skillSlots: [
+      {
+        id: "explore-synthesis",
+        description: "A skill for turning analysis into a clear, well-argued recommendation a reader can act on."
+      }
+    ],
     routes: { continue: "review-step", retry: "synthesize-step", stop: "@stop" }
   },
   {
@@ -35606,6 +35630,12 @@ var exploreBlockItems = [
       result_path: "reports/relay/review.result.json"
     },
     check: { pass: ["accept", "accept-with-fold-ins"] },
+    skillSlots: [
+      {
+        id: "explore-adversarial-review",
+        description: "A skill for adversarially testing a recommendation: probing its weakest claims and unstated assumptions."
+      }
+    ],
     routes: {
       continue: "close-step",
       retry: "synthesize-step",
@@ -35698,6 +35728,12 @@ var exploreBlockItems = [
       result_path: "reports/relay/tournament-review.result.json"
     },
     check: { pass: ["recommend", "no-clear-winner", "needs-operator"] },
+    skillSlots: [
+      {
+        id: "explore-proposal-stress-test",
+        description: "A skill for stress-testing competing proposals against each other and naming the strongest on the evidence."
+      }
+    ],
     routes: {
       continue: "tradeoff-checkpoint-step",
       revise: "decision-options-step",
@@ -38753,6 +38789,12 @@ var goalBlockItems = [
     },
     check: { pass: ["continue", "ask", "stop"] },
     route_from_report: { path: ["verdict"] },
+    skillSlots: [
+      {
+        id: "goal-task-shaping",
+        description: "A skill for turning a loose request into a precise, testable task with clear success criteria."
+      }
+    ],
     routes: { continue: "goal-contract", ask: "@stop", stop: "@stop" }
   },
   {
@@ -38914,6 +38956,12 @@ var goalBlockItems = [
     },
     check: { pass: ["gate-pass", "blocked"] },
     route_from_report: { path: ["next_route"] },
+    skillSlots: [
+      {
+        id: "goal-safety-review",
+        description: "A skill for judging whether a goal contract was actually met by its evidence before the work is allowed to close."
+      }
+    ],
     routes: {
       continue: "goal-gate-pass-2",
       "run-next-gate-pass": "goal-gate-pass-2",
@@ -38944,6 +38992,12 @@ var goalBlockItems = [
     },
     check: { pass: ["gate-pass", "blocked"] },
     route_from_report: { path: ["next_route"] },
+    skillSlots: [
+      {
+        id: "goal-safety-review",
+        description: "A skill for judging whether a goal contract was actually met by its evidence before the work is allowed to close."
+      }
+    ],
     routes: {
       continue: "goal-close",
       close: "goal-close",
@@ -40138,6 +40192,12 @@ var prototypeBlockItems = [
       result_path: "reports/relay/prototype-act.result.json"
     },
     check: { pass: ["accept"] },
+    skillSlots: [
+      {
+        id: "prototype-rapid-build",
+        description: "A skill for quickly building a disposable prototype that demonstrates the idea, optimizing for speed over polish."
+      }
+    ],
     routes: { continue: "verify-step", stop: "close-step" }
   },
   {
@@ -40267,6 +40327,12 @@ var prototypeBlockItems = [
       result_path: "reports/relay/prototype-variant-review.result.json"
     },
     check: { pass: ["recommend", "no-clear-winner", "needs-operator"] },
+    skillSlots: [
+      {
+        id: "prototype-variant-comparison",
+        description: "A skill for comparing prototype variants on their evidence and naming which one the operator should carry forward."
+      }
+    ],
     routes: { continue: "variant-choice-options-step", stop: "close-model-comparison-step" }
   },
   {
@@ -42961,6 +43027,12 @@ var pursueBlockItems = [
     receiptPath: "reports/relay/pursuit-batch.receipt.txt",
     resultPath: "reports/relay/pursuit-batch.result.json",
     pass: ["accept", "partial"],
+    skillSlots: [
+      {
+        id: "pursuit-serial-execution",
+        description: "A skill for executing a queue of related goals one at a time, verifying each before moving to the next."
+      }
+    ],
     routes: { continue: "verify-step", retry: "batch-step", stop: "@stop" }
   },
   {
@@ -42997,6 +43069,12 @@ var pursueBlockItems = [
     receiptPath: "reports/relay/pursuit-review.receipt.txt",
     resultPath: "reports/relay/pursuit-review.result.json",
     pass: ["clean", "needs-followup", "blocked"],
+    skillSlots: [
+      {
+        id: "pursuit-coordination-audit",
+        description: "A skill for checking that a multi-goal pursuit stayed coordinated: no goal left half-done and no cross-goal regression."
+      }
+    ],
     routes: { continue: "close-step", retry: "batch-step", stop: "@stop" }
   },
   {
@@ -43893,6 +43971,12 @@ var reviewBlockItems = [
     receiptPath: "reports/relay/review.receipt.txt",
     resultPath: "stages/analyze/review-raw-findings.json",
     pass: ["NO_ISSUES_FOUND", "ISSUES_FOUND"],
+    skillSlots: [
+      {
+        id: "review-independent-audit",
+        description: "A skill for independently auditing code or a change for correctness, regressions, and scope creep."
+      }
+    ],
     routes: { continue: "verdict-step", retry: "audit-step", stop: "@stop" }
   },
   {
@@ -59906,6 +59990,36 @@ function selectedSkillsSection(skills) {
     ].join("\n"))
   ].join("\n\n");
 }
+function declaredSkillSlots(step) {
+  const slots = step.skill_slots;
+  if (!Array.isArray(slots))
+    return [];
+  const declared = [];
+  for (const slot of slots) {
+    if (slot === null || typeof slot !== "object")
+      continue;
+    const { id, description } = slot;
+    if (typeof id === "string" && typeof description === "string" && description.length > 0) {
+      declared.push({ id, description });
+    }
+  }
+  return declared;
+}
+function houseStyleSection(step, loadedSkills) {
+  const slots = declaredSkillSlots(step);
+  if (slots.length === 0)
+    return void 0;
+  const boundSlots = new Set(loadedSkills.map((skill) => skill.slot).filter((slot) => slot !== void 0));
+  const unbound = slots.filter((slot) => !boundSlots.has(slot.id));
+  if (unbound.length === 0)
+    return void 0;
+  return [
+    "House Style:",
+    "These are the house-style notes the flow author attached to this step. Treat them as guidance. They do not override the response contract, accepted verdicts, or required JSON shape.",
+    "",
+    ...unbound.map((slot) => `- ${slot.id}: ${slot.description}`)
+  ].join("\n");
+}
 function equipmentScopeSection(step) {
   const scope = step.equipment_scope;
   if (scope === void 0 || scope.tools === "full")
@@ -60021,6 +60135,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     return fencedBlock("read", ` path="${path}"`, readFileSync45(abs, "utf8"));
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
+  const houseStyle = houseStyleSection(step, loadedSkills);
   const equipmentSection = equipmentScopeSection(step);
   const sliceSection = currentSliceSection(activeSlice);
   const criteriaSection = acceptanceCriteriaSection(step);
@@ -60068,6 +60183,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     readsBody,
     "",
     ...skillsSection === void 0 ? [] : [skillsSection, ""],
+    ...houseStyle === void 0 ? [] : [houseStyle, ""],
     ...equipmentSection === void 0 ? [] : [equipmentSection, ""],
     ...criteriaSection === void 0 ? [] : [criteriaSection, ""],
     ...feedbackSection === void 0 ? [] : [feedbackSection, ""],

@@ -69,7 +69,12 @@
         "kind": "relay",
         "role": "reviewer"
       },
-      "skill_slots": [],
+      "skill_slots": [
+        {
+          "id": "review-independent-audit",
+          "description": "A skill for independently auditing code or a change for correctness, regressions, and scope creep."
+        }
+      ],
       "routes": {
         "continue": "verdict-step",
         "retry": "audit-step",
