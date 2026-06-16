@@ -323,6 +323,16 @@
       "last_checked": "2026-06-14"
     },
     {
+      "path": "docs/ideas/durability-tier2-cursor-spec.md",
+      "title": "Durability Tier-2: the forward-recovery cursor (decision-ready spec)",
+      "status": "implementation-spec",
+      "category": "run-inspection-and-output",
+      "tags": ["durability", "resumability", "crash-recovery", "recovery-corridor", "spec"],
+      "current_reading": "Decision-ready spec for Tier-2 forward recovery, companion to the fallible-executor audit. One slice is built (RecoveryCorridor.seedFromTrace, structural-only, wired inert behind resume); the rest is the fork (resumable cursor vs projection/checkpoint-only + Tier-3 restart-cheapness), three options (A general cursor, B bounded linear-only cursor, C foundation + Tier-3), and a recommendation to bank Rank-1 now and surface Option B. Two load-bearing unknowns: per-step idempotency and the app->runtime staleness boundary. A2/A3 depend on the full cursor and stay surface-only.",
+      "related": ["docs/ideas/fallible-executor-audit.md"],
+      "last_checked": "2026-06-16"
+    },
+    {
       "path": "docs/ideas/fallible-executor-audit.md",
       "title": "Fallible-executor audit - can a crashed run be reconstructed from durable state?",
       "status": "current-gap-analysis",

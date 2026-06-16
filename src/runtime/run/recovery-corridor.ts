@@ -20,6 +20,7 @@ import type {
 } from '../../schemas/recovery-route-kind.js';
 import type { Ref } from '../../schemas/ref.js';
 import type { AcceptanceRetryFeedback } from '../acceptance-criteria.js';
+import type { TraceEntry } from '../domain/trace.js';
 import type { ExecutableStep } from '../manifest/executable-flow.js';
 import type { RecoveryFailureEvidence } from './recovery-binding-verdict.js';
 
@@ -149,6 +150,57 @@ export class RecoveryCorridor {
       !input.routeHasRecoveryMechanics
     ) {
       this.active = undefined;
+    }
+  }
+
+  /**
+   * Checkpoint-resume reseed: replay the durable `step.completed` entries so a
+   * resumed run lands on the same STRUCTURAL corridor identity (which recovery
+   * route is active, with what origin step) the prior process held. Mirrors
+   * seedSkillHookInjectionsFromTrace / seedPowerInferenceFromTrace: a fold over
+   * existing trace entries into the in-memory channel, applying the exact
+   * enter / clearIfExitingOrigin transitions the live loop applies after each
+   * step completes (graph-runner: enter on a recovery-mechanics route, then
+   * clearIfExitingOrigin when the origin re-completes without mechanics).
+   *
+   * Faithfulness boundary — read before relying on this. The durable
+   * `step.completed` entry carries only `route_taken` (+ ids/attempt/slice).
+   * The live `enter()` also took executor-outcome fields — `recoveryReason`
+   * (details.reason), `recoveryFailure`, and `acceptanceFeedback`
+   * (details.acceptance_feedback) — that are NOT persisted to the trace. This
+   * reseed therefore restores ONLY the structural fields (originStepId, route)
+   * and deliberately leaves the payload fields undefined. The consequence is
+   * exact: after reseed `lastReasonSuffix()` returns '' and
+   * `acceptanceFeedbackForReentry()` returns undefined even where the live run
+   * carried a reason / feedback. `evidenceFor()` likewise has no seeded failure
+   * to surface. That payload gap is the spec line for the full cursor
+   * (docs/ideas/durability-tier2-cursor-spec.md); restoring it requires
+   * persisting those fields, which is out of scope for this foundation slice.
+   *
+   * This is plumbing ahead of its consumer: no current code path resumes at an
+   * arbitrary step.completed, so this is inert until a Tier-2 cursor calls it.
+   */
+  seedFromTrace(entries: readonly TraceEntry[]): void {
+    for (const entry of entries) {
+      if (entry.kind !== 'step.completed') continue;
+      const step = this.deps.steps.get(entry.step_id);
+      if (step === undefined) continue;
+      const route = entry.route_taken;
+      const routeHasRecoveryMechanics = this.deps.routeHasRecoveryMechanics({ step, route });
+      // Same order as the live loop (graph-runner ~697-726): enter on a
+      // recovery-mechanics route, then clear if the origin exits without
+      // mechanics. Structural fields only — payload is honestly absent (see
+      // the faithfulness note above).
+      if (routeHasRecoveryMechanics) {
+        this.enter({
+          originStepId: entry.step_id,
+          route,
+          recoveryReason: undefined,
+          recoveryFailure: undefined,
+          acceptanceFeedback: undefined,
+        });
+      }
+      this.clearIfExitingOrigin({ stepId: entry.step_id, routeHasRecoveryMechanics });
     }
   }
 
