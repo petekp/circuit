@@ -208,6 +208,68 @@ B needs. Prefer building B over C only once the linear-case idempotency probe
 comes back cheap; if it does not, C (foundation + Tier-3 restart-cheapness) is
 the better investment.
 
+## Probe findings (run 2026-06-16) and the resolved B-vs-C decision
+
+Both load-bearing probes from the Recommendation have now run as read-only
+investigations against current source. **Result: lean Option C.** The
+idempotency probe — the real decider — comes back *not* cheap, so the
+"prefer B only once the linear-case idempotency probe comes back cheap"
+condition above is not met.
+
+### Probe (i) — per-step idempotency of the linear-flow step kinds
+
+A linear flow (no slice loop, no fanout, no sub-run) reaches four step kinds.
+The crash window is the same for each: *after* the step's side effects, *before*
+its durable `step.completed` marker. Three of the four are cheaply idempotent;
+the one that does real work is not.
+
+| Step kind | Side effect in the window | Cheaply idempotent on re-run? |
+|---|---|---|
+| compose / assembly | Whole-file run artifacts written via `run-file-store.ts` → `writeJsonAtomic` / `writeTextAtomic` (`src/shared/atomic-io.ts`: stage to a temp sibling, then rename). | **Yes.** A re-run re-emits byte-identical content; the rename is atomic, so a torn write is impossible and a re-run is a no-op overwrite. |
+| verification / check | Reads the working tree + prior report, recomputes a verdict. No tree mutation. | **Yes.** Re-running recomputes the same verdict from the same inputs. |
+| checkpoint | The pause/resume boundary itself. | **Yes, by construction** — this is already the durable re-entry point Tier-1 makes sound. |
+| relay | Dispatches the host CLI (`claude-code`) as a `bypassPermissions` subprocess that **mutates the real working tree**. | **No.** The crash can land after the subprocess has partially mutated the tree. The trace cannot tell how far it got, and re-dispatching the agent onto a half-mutated tree is unsound. The only conservative escape — snapshot the working tree before the relay and reset to it on re-entry — needs a per-step working-tree snapshot/reset the runtime does not have today. |
+
+So Option B's stated escape hatch ("re-run the last step from a clean snapshot
+rather than detecting the partial") is precisely the machinery that does **not**
+exist for the only step kind where it matters. Making relay safe is net-new
+work (snapshot/reset gated on the staleness precondition), not a narrowing.
+**Probe (i) leans C.**
+
+### Probe (ii) — the app→runtime staleness boundary
+
+Resolved as a runtime-owned **port**, not "app implements it." Mirror the
+existing `WorktreeRunner` / `gitWorktreeRunner` pattern: define a
+`StalenessProbe` interface in `src/runtime`, ship a runtime-owned default git
+implementation (`realStalenessProbe`, ~94 self-contained lines lifted from
+`realBriefGitProbe` in `src/app/continuity/brief.ts`), and inject
+`context.stalenessProbe ?? realStalenessProbe`. Move the `StalenessFacts` type
+to `src/schemas/` so both layers share it without an import-direction violation.
+This keeps `src/app → src/runtime` one-directional (verified: zero runtime→app
+imports today; "app implements it" would invert that and is rejected).
+
+This lift is cheap and clean **either way** — it is not the fork decider. It does
+*not* tip the choice toward C on its own; the decider is probe (i), and probe (i)
+leans C.
+
+### Decision: Option C now; Option B stays specced, not started
+
+Build the foundation + Tier-3 restart-cheapness, not the forward-recovery
+cursor — for now:
+
+- The **worktree reaper** shipped alongside this spec is the first concrete
+  Tier-3 restart-cheapness slice: a startup reclaim of orphaned per-branch
+  worktrees from `executors/fanout.ts`'s SIGKILL-defeating `finally`. A
+  *restart* now skips that leak instead of paying it.
+- Revisit Option B only if/when a cheap per-relay-step working-tree
+  snapshot/reset becomes reachable. Until then forward-recovery's correctness
+  surface is dominated by the single non-idempotent step kind, and a fast safe
+  *restart* (Tier-3) removes most of the real pain — re-running expensive
+  finished children — without taking on the cursor's idempotency obligation.
+- When B is eventually built, the staleness layering is pre-decided (the port
+  above) and the structural channel reseed (`RecoveryCorridor.seedFromTrace`)
+  is already banked, so the lift is smaller than it looks today.
+
 ## Dependencies on the full cursor (remain surface-only)
 
 - **A2 — Tier-3 crash-safe sub-run / fanout linkage.** Durable parent→child

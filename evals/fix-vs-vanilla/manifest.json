@@ -65,7 +65,11 @@
       "heldout-sensor-frame",
       "heldout-ticket-rush",
       "heldout-triage-tier",
-      "heldout-turn-signature"
+      "heldout-turn-signature",
+      "heldout-token-bucket",
+      "heldout-invoice-rounding",
+      "heldout-pagination-cursor",
+      "heldout-retry-backoff"
     ]
   }
 }

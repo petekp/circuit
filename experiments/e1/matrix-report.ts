@@ -31,13 +31,21 @@ function costSuffix(cell: MatrixCell | undefined): string {
   return ` · ${cost.total} tok`;
 }
 
+// The row label is the task id, suffixed with the 1-based repeat number when
+// the row carries a repeat (a K>1 run). Repeat-absent rows render exactly as
+// before, so the K=1 / fixture grid is unchanged.
+function rowLabel(row: MatrixTaskRow): string {
+  if (row.repeat === undefined) return `\`${row.task_id}\``;
+  return `\`${row.task_id}\` (repeat ${row.repeat + 1})`;
+}
+
 function gridRow(row: MatrixTaskRow, variants: readonly string[]): string {
   const cells = variants.map((label) => {
     const cell = row.cells.find((candidate) => candidate.variant_label === label);
     return `${verdictCell(cell)}${costSuffix(cell)}`;
   });
   const flag = row.all_agree ? '' : ' ⚑';
-  return `| \`${row.task_id}\`${flag} | ${cells.join(' | ')} |`;
+  return `| ${rowLabel(row)}${flag} | ${cells.join(' | ')} |`;
 }
 
 function meanCostText(summary: MatrixVariantSummary): string {

@@ -1,0 +1,9 @@
+{
+  "name": "invoice-rounding-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/invoice.test.mjs"
+  }
+}

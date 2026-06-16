@@ -1,0 +1,21 @@
+{
+  "id": "heldout-token-bucket",
+  "split": "held-out",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "archetype": "entangled-two-module",
+  "prompt": "Our token-bucket rate limiter is misbehaving. A request that costs exactly the tokens currently in the bucket gets rejected even though the bucket can cover it, and a client that waits the full time to earn a steady rate still gets throttled. The limiter lives in src/limiter.mjs (it checks whether a request fits) and the token accrual lives in src/refill.mjs (it credits tokens earned over time). Fix the rate limiter so an exact-fit request is admitted, a burst past the bucket is still throttled, and a sustained earned rate is admitted. The regression command is `npm test`; it should fail before the fix and pass after the fix.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "limiter-assembled", "hidden": true, "argv": ["node", "tests/limiter.assembled.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/limiter.mjs", "src/refill.mjs"],
+  "separability": {
+    "co_change": 2,
+    "coupling": 2,
+    "cross_part_decision": 2,
+    "independent_verifiability": 2,
+    "sum": 8,
+    "band": "entangled"
+  }
+}

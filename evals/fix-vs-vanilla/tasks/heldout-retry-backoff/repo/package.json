@@ -1,0 +1,9 @@
+{
+  "name": "retry-backoff-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/retry.test.mjs"
+  }
+}

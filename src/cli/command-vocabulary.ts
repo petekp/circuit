@@ -15,6 +15,8 @@ export const CLI_COMMAND_NAMES = [
   'create',
   'uninstall',
   'runs',
+  'reclaim',
+  'inbox',
   'version',
 ] as const;
 

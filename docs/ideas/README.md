@@ -80,6 +80,7 @@ every later extension in the note shipped.
 | [`grain-separability-experiment-design.md`](grain-separability-experiment-design.md) | `pre-implementation` | Pre-registered experiment design pitting two opposing hypotheses (coherence-loss vs verification-gain) about whether chopping a task into separated steps helps or hurts, to settle the assembler's chop/hold default. Designed, not run; built on the E1 harness, now fireable against the post-M9 composed runtime. |
 | [`per-step-validation-check.md`](per-step-validation-check.md) | `partially-implemented` | Runtime steps validate typed reports, but the specific per-step validation-check product idea is not a separate shipped block. |
 | [`grain-experiment-deferred.md`](grain-experiment-deferred.md) | `current-gap-analysis` | Records the B0-gate decision to skip the grain experiment with no model spend (the eval taskset has no entangled tasks, so the result is null by construction). Surfaces the remedy: the harness K-repeat/interleave gap and a pre-scored entangled-plus-mixed taskset spec. |
+| [`grain-taskset-ready.md`](grain-taskset-ready.md) | `pre-implementation` | Go-forward surface that closes the blocking half of the deferral: the harness K-repeat/interleave gap is fixed (K=1 byte-identical) and four separability-spanning held-out tasks are built with a-priori scores pre-registered (two entangled, two mixed), each gated by a hidden assembled-only check. Flags the held-out claim set growth 14 to 18. Experiment still not run; structure chooser untouched. |
 
 ### Memory And Ratchet
 

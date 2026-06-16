@@ -9,7 +9,9 @@ import { parseCommanderOrThrow } from './commander-support.js';
 import { runCreateCommand } from './create.js';
 import { runHandoffCommand } from './handoff.js';
 import { runHistoryCommand } from './history.js';
+import { runInboxCommand } from './inbox.js';
 import { runMemoryCommand } from './memory.js';
+import { runReclaimCommand } from './reclaim.js';
 import {
   type ParsedArgs,
   type RunCommandOptions,
@@ -48,11 +50,13 @@ export function usage(): string {
     'usage: circuit run <flow-name> --goal "<goal>" [--why <why>] [--depth <low|medium|high>] [--power <auto|low|medium|high>] [--tournament [--tournament-n <2|3|4>]] [--autonomous] [--run-folder <path>] [--fixture <path>] [--flow-root <path>] [--progress jsonl]',
     '       circuit resume --run-folder <path> --checkpoint-choice <choice> [--progress jsonl]',
     '       circuit runs show --run-folder <path> --json',
+    '       circuit inbox [--project-root <path>] [--runs-base <path>] [--json]',
     '       circuit history rebuild|query|pull|status|memory-merge|memory-effect --json [options]',
     '       circuit memory note --flow <id> [--applies-to <kind>] "<text>" | memory list | memory forget <id>',
     '       circuit handoff [save|resume|done|brief|hook|hooks|harvest] [options]',
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
     '       circuit uninstall [--dir <path>] [--json]',
+    '       circuit reclaim [--json]',
     '       circuit version [--json]',
     '',
     "Axes: `--depth` controls care level (`low`, `medium`, `high`); `--power` sets the model tier (`auto`, `low`, `medium`, `high`; default `medium`; `auto` lets the run's research read pick within configured bounds); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
@@ -157,7 +161,7 @@ function parseTopLevelInvocation(argv: readonly string[]): TopLevelInvocation {
 
   if (invocation === undefined) {
     throw new Error(
-      'missing command: use run, resume, handoff, history, memory, create, uninstall, runs, or version',
+      'missing command: use run, resume, handoff, history, memory, create, uninstall, runs, reclaim, inbox, or version',
     );
   }
   return invocation;
@@ -198,6 +202,14 @@ export async function main(argv: readonly string[], options: CliMainOptions = {}
   }
   if (invocation.command === 'runs') {
     return runRunsCommand(invocation.argv);
+  }
+  if (invocation.command === 'reclaim') {
+    return runReclaimCommand(invocation.argv);
+  }
+  if (invocation.command === 'inbox') {
+    return runInboxCommand(invocation.argv, {
+      ...(options.briefGitProbe === undefined ? {} : { briefGitProbe: options.briefGitProbe }),
+    });
   }
 
   let args: ParsedArgs;
