@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -67,6 +68,71 @@ describe('worktree reaper', () => {
     expect(summary.removed).toEqual([path]);
     expect(summary.kept).toEqual([]);
     expect(summary.errors).toEqual([]);
+  });
+
+  // The critical safety case the audit names: a run that is *still running*
+  // mid-fanout has the exact same trace shape as a run that crashed between
+  // checkpoints (bootstrapped, no run.closed, no parked checkpoint), so the
+  // trace resolver returns 'dead' for both. The reaper must NOT remove the live
+  // run's worktree. The owning process advertises its liveness with an owner
+  // lock (its pid) written next to its worktrees; while that pid is alive the
+  // worktree is kept regardless of what the trace says.
+  it('keeps the worktree of a live run whose owner lock holds a live pid', async () => {
+    const path = await provisionWorktree('run-live', 'fanout-step', 'branch-a');
+    // The live process records itself as the owner. process.pid is, by
+    // definition, alive for the duration of this test.
+    await writeFile(
+      join(worktreesRoot, 'run-live', '.owner.json'),
+      JSON.stringify({ schema_version: 1, pid: process.pid }),
+      'utf8',
+    );
+    const { runner, removed } = makeRecordingRunner();
+
+    const summary = await reapWorktrees({
+      worktreesRoot,
+      worktreeRunner: runner,
+      // The trace looks definitively dead — yet the owner is alive.
+      resolveRunStatus: (): OwningRunStatus => 'dead',
+    });
+
+    expect(removed).toEqual([]);
+    expect(summary.removed).toEqual([]);
+    expect(summary.kept).toEqual([path]);
+    expect(summary.errors).toEqual([]);
+  });
+
+  it('reaps a not-live run and removes its now-stale owner lock', async () => {
+    const path = await provisionWorktree('run-crashed', 'fanout-step', 'branch-a');
+    const lockPath = join(worktreesRoot, 'run-crashed', '.owner.json');
+    await writeFile(lockPath, JSON.stringify({ schema_version: 1, pid: 424242 }), 'utf8');
+    const { runner, removed } = makeRecordingRunner();
+
+    const summary = await reapWorktrees({
+      worktreesRoot,
+      worktreeRunner: runner,
+      // The crashed owner's pid is not alive, so the trace verdict governs.
+      isRunLive: () => false,
+      resolveRunStatus: (): OwningRunStatus => 'dead',
+    });
+
+    expect(removed).toEqual([path]);
+    expect(summary.removed).toEqual([path]);
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
+  it('keeps a worktree whenever isRunLive reports the owner alive, ignoring trace status', async () => {
+    const path = await provisionWorktree('run-busy', 'fanout-step', 'branch-a');
+    const { runner, removed } = makeRecordingRunner();
+
+    const summary = await reapWorktrees({
+      worktreesRoot,
+      worktreeRunner: runner,
+      isRunLive: () => true,
+      resolveRunStatus: (): OwningRunStatus => 'dead',
+    });
+
+    expect(removed).toEqual([]);
+    expect(summary.kept).toEqual([path]);
   });
 
   it('removes the worktree of a closed run', async () => {
@@ -207,6 +273,45 @@ describe('makeTraceRunStatusResolver', () => {
     ]);
     const resolve = makeTraceRunStatusResolver(runsRoot);
     expect(await resolve('parked')).toBe('live-parked');
+  });
+
+  // A checkpoint that was requested AND resolved at the same (step_id, attempt)
+  // is no longer parked, so the run is dead (no run.closed, nothing pending).
+  // This exercises the resolved-set membership the live-parked test never
+  // reaches — a regression in the (step_id, attempt) pairing key would wrongly
+  // keep a finished run's worktrees as if it were still parked.
+  it('classifies a resolved checkpoint as dead, not live-parked', async () => {
+    const boundaryHash = 'a'.repeat(64);
+    await appendTrace('resolved', [
+      {
+        kind: 'checkpoint.requested',
+        step_id: 'cp',
+        attempt: 1,
+        options: ['continue'],
+        request_path: 'reports/checkpoint.request.json',
+        request_report_hash: 'b'.repeat(64),
+        boundary_ref: {
+          kind: 'work_contract',
+          ref: 'reports/checkpoint.boundary.json',
+          flow_id: 'build',
+          step_id: 'cp',
+          sha256: boundaryHash,
+        },
+        boundary_hash: boundaryHash,
+      },
+      {
+        kind: 'checkpoint.resolved',
+        step_id: 'cp',
+        attempt: 1,
+        selection: 'continue',
+        route_id: 'advance',
+        auto_resolved: false,
+        resolution_source: 'operator',
+        response_path: 'reports/checkpoint.response.json',
+      },
+    ]);
+    const resolve = makeTraceRunStatusResolver(runsRoot);
+    expect(await resolve('resolved')).toBe('dead');
   });
 
   // The sharp safety case: a run whose trace cannot be classified (unreadable /

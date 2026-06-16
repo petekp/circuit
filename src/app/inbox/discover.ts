@@ -80,6 +80,30 @@ export function inboxResumeCommand(runFolder: string): string {
   return `circuit resume --run-folder ${runFolder} --checkpoint-choice <choice>`;
 }
 
+/**
+ * Best-effort staleness probe for one run folder. Returns undefined when no
+ * baseline was resolved OR when the probe throws — a custom probe need not be
+ * crash-safe the way `realBriefGitProbe` is, and a thrown probe must never abort
+ * the whole inbox walk and drop every remaining parked run. A throw is treated
+ * as "no signal", exactly like a missing baseline.
+ */
+function probeStaleness(
+  baseline: CapturedBaseline | undefined,
+  gitProbe: BriefGitProbe,
+  projectRoot: string,
+): StalenessFacts | undefined {
+  if (baseline === undefined) return undefined;
+  try {
+    return gitProbe({
+      projectRoot,
+      ...(baseline.head === undefined ? {} : { capturedHead: baseline.head }),
+      ...(baseline.branch === undefined ? {} : { capturedBranch: baseline.branch }),
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 function listRunFolders(runsRoot: string): readonly string[] {
   let entries: Dirent[];
   try {
@@ -122,14 +146,7 @@ export function discoverDecisionInbox(input: DiscoverDecisionInboxInput): Decisi
     if (projection.reason !== 'checkpoint_waiting') continue;
 
     const baseline = baselineFor(runFolder);
-    const staleness =
-      baseline === undefined
-        ? undefined
-        : gitProbe({
-            projectRoot,
-            ...(baseline.head === undefined ? {} : { capturedHead: baseline.head }),
-            ...(baseline.branch === undefined ? {} : { capturedBranch: baseline.branch }),
-          });
+    const staleness = probeStaleness(baseline, gitProbe, projectRoot);
     const hasStaleness = staleness !== undefined && Object.keys(staleness).length > 0;
 
     rows.push({

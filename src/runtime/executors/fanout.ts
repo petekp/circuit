@@ -13,6 +13,7 @@ import {
   planRelayFanoutBranchGuidanceDecision,
 } from '../fanout/branch-execution.js';
 import { expandFanoutBranches } from '../fanout/branch-expansion.js';
+import { removeOwnerLock, writeOwnerLock } from '../fanout/run-owner-lock.js';
 import type { BranchOutcome, FanoutJoinPolicy, ResolvedBranch } from '../fanout/types.js';
 import { gitWorktreeRunner } from '../fanout/worktree.js';
 import type { FanoutStep } from '../manifest/executable-flow.js';
@@ -215,6 +216,22 @@ async function executeFanoutInternal(
   let branchFiles: ReadonlyMap<string, readonly string[]> | undefined;
   let branchFilesError: string | undefined;
 
+  // Announce liveness before provisioning any worktree. While this step holds
+  // worktrees the owner lock records our pid so a concurrent reaper (or a
+  // startup reclaim after a crash) keeps them instead of force-removing live
+  // work. It is removed in the `finally` below; a SIGKILL skips that `finally`,
+  // leaving a stale (dead-pid) lock the reaper then treats as reclaimable.
+  const worktreesRoot =
+    context.projectRoot === undefined
+      ? undefined
+      : joinPath(controlPlaneRoot(context.projectRoot), 'worktrees');
+  const willProvisionWorktree =
+    worktreesRoot !== undefined &&
+    branches.some((branch) => branch.kind !== 'relay' && branchNeedsWorktree(branch));
+  if (worktreesRoot !== undefined && willProvisionWorktree) {
+    writeOwnerLock(worktreesRoot, context.runId, context.now().toISOString());
+  }
+
   try {
     await runWithConcurrency(
       branches,
@@ -286,6 +303,12 @@ async function executeFanoutInternal(
         // Cleanup is best-effort here, matching the v1 runtime. A leftover
         // worktree is operator-visible but should not hide the primary failure.
       }
+    }
+    // Release the liveness lock now that this step's worktrees are gone. On a
+    // clean run this pairs with the write above; a crash skips it, which is the
+    // intended signal for the reaper.
+    if (worktreesRoot !== undefined && willProvisionWorktree) {
+      removeOwnerLock(worktreesRoot, context.runId);
     }
   }
 

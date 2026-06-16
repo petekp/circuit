@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import type { TraceEntry } from '../domain/trace.js';
 import type { WorktreeRunner } from '../run/child-runner.js';
 import { TraceStore } from '../trace/trace-store.js';
+import { isRunLiveByOwnerLock, removeOwnerLock } from './run-owner-lock.js';
 import { gitWorktreeRunner } from './worktree.js';
 
 /**
@@ -46,6 +47,16 @@ export type OwningRunStatus = 'closed' | 'dead' | 'live-parked' | 'unknown';
 export type ResolveRunStatus = (runId: string) => OwningRunStatus | Promise<OwningRunStatus>;
 
 /**
+ * Whether the run that owns a worktree is still being executed by a live
+ * process. This is the out-of-band liveness gate that the trace cannot provide:
+ * a still-running mid-fanout run and a crashed one have the same trace shape, so
+ * the reaper must keep any worktree whose owner is alive *before* it consults
+ * the trace verdict. Injected so tests can stub it; the default reads the run
+ * owner lock under the worktrees root (see `run-owner-lock.ts`).
+ */
+export type IsRunLive = (runId: string) => boolean | Promise<boolean>;
+
+/**
  * Lists the worktree leaf directories under a worktrees root, returning, for
  * each, the absolute path plus the `runId` that owns it. Injected so tests can
  * stub the filesystem walk; the default reads the real on-disk layout.
@@ -64,6 +75,12 @@ export interface ReapWorktreesOptions {
   readonly worktreesRoot: string;
   /** Resolves the owning run's status by run id. */
   readonly resolveRunStatus: ResolveRunStatus;
+  /**
+   * Whether the owning run is still being executed by a live process. Checked
+   * BEFORE the trace verdict — a live owner's worktree is always kept. Defaults
+   * to the run owner lock under `worktreesRoot`.
+   */
+  readonly isRunLive?: IsRunLive;
   /** Worktree runner whose `remove` reclaims a worktree. Defaults to git. */
   readonly worktreeRunner?: WorktreeRunner;
   /** Lists worktree leaf dirs. Defaults to a real filesystem walk. */
@@ -168,7 +185,12 @@ function hasUnresolvedCheckpoint(entries: readonly TraceEntry[]): boolean {
 export async function reapWorktrees(options: ReapWorktreesOptions): Promise<ReapWorktreesSummary> {
   const worktreeRunner = options.worktreeRunner ?? gitWorktreeRunner;
   const listWorktrees = options.listWorktrees ?? listWorktreesFromDisk;
+  const isRunLive =
+    options.isRunLive ?? ((runId) => isRunLiveByOwnerLock(options.worktreesRoot, runId));
   const summary: ReapWorktreesSummary = { removed: [], kept: [], errors: [] };
+  // Run ids whose worktrees we reaped, so we can drop their now-stale owner
+  // locks once at the end (the lock points at a dead pid by definition here).
+  const reapedRunIds = new Set<string>();
 
   let entries: readonly WorktreeEntry[];
   try {
@@ -184,6 +206,28 @@ export async function reapWorktrees(options: ReapWorktreesOptions): Promise<Reap
   }
 
   for (const entry of entries) {
+    // Liveness gate first. A run whose owning process is still alive keeps its
+    // worktree no matter what its trace says: a live mid-fanout run and a
+    // crashed one share the same trace shape, so the trace cannot be trusted to
+    // distinguish them. Force-removing a live run's worktree destroys
+    // uncommitted work, so this gate is the reaper's primary safety boundary.
+    let live: boolean;
+    try {
+      live = await Promise.resolve(isRunLive(entry.runId));
+    } catch (error) {
+      // If liveness cannot be determined, fail safe: keep the worktree rather
+      // than risk reaping a live run.
+      summary.errors.push({
+        path: entry.path,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      continue;
+    }
+    if (live) {
+      summary.kept.push(entry.path);
+      continue;
+    }
+
     let status: OwningRunStatus;
     try {
       status = await Promise.resolve(options.resolveRunStatus(entry.runId));
@@ -206,12 +250,20 @@ export async function reapWorktrees(options: ReapWorktreesOptions): Promise<Reap
     try {
       await Promise.resolve(worktreeRunner.remove(entry.path));
       summary.removed.push(entry.path);
+      reapedRunIds.add(entry.runId);
     } catch (error) {
       summary.errors.push({
         path: entry.path,
         message: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  // Drop owner locks for runs we fully reaped. The owner is provably gone (it
+  // failed the liveness gate), so the lock is stale; removing it keeps the
+  // worktrees root from accruing dead-pid markers across crashes.
+  for (const runId of reapedRunIds) {
+    removeOwnerLock(options.worktreesRoot, runId);
   }
 
   return summary;

@@ -249,6 +249,27 @@ describe('decision inbox discovery', () => {
     expect(folders).not.toContain(resolve(join(runsRoot, 'closed')));
   });
 
+  it('survives a throwing git probe: omits staleness and still lists the parked run', () => {
+    const runsRoot = newRunsRoot();
+    const parkedFolder = makeParkedFolder(runsRoot, PARKED_RUN_ID, 'Fix the checkout bug');
+
+    const throwingProbe: BriefGitProbe = () => {
+      throw new Error('git probe blew up');
+    };
+
+    const inbox = discoverDecisionInbox({
+      runsRoot,
+      gitProbe: throwingProbe,
+      // A baseline resolves, so the probe is reached — and it throws. Best-effort
+      // staleness must swallow that and keep listing rather than abort the walk.
+      capturedBaselineFor: () => ({ head: 'abc1234', branch: 'feat/x' }),
+    });
+
+    expect(inbox.rows).toHaveLength(1);
+    expect(inbox.rows[0]?.run_folder).toBe(resolve(parkedFolder));
+    expect(inbox.rows[0]?.staleness).toBeUndefined();
+  });
+
   it('omits the staleness column when no captured baseline is available', () => {
     const runsRoot = newRunsRoot();
     makeParkedFolder(runsRoot, PARKED_RUN_ID, 'Fix the checkout bug');

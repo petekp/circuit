@@ -10766,8 +10766,8 @@ var require_dist = __commonJS({
 });
 
 // dist/cli/circuit.js
-import { readFileSync as readFileSync57 } from "node:fs";
-import { dirname as dirname14, resolve as resolve28 } from "node:path";
+import { readFileSync as readFileSync58 } from "node:fs";
+import { dirname as dirname14, resolve as resolve29 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -54374,6 +54374,19 @@ import { join as join18, resolve as resolve18 } from "node:path";
 function inboxResumeCommand(runFolder) {
   return `circuit resume --run-folder ${runFolder} --checkpoint-choice <choice>`;
 }
+function probeStaleness(baseline, gitProbe, projectRoot) {
+  if (baseline === void 0)
+    return void 0;
+  try {
+    return gitProbe({
+      projectRoot,
+      ...baseline.head === void 0 ? {} : { capturedHead: baseline.head },
+      ...baseline.branch === void 0 ? {} : { capturedBranch: baseline.branch }
+    });
+  } catch {
+    return void 0;
+  }
+}
 function listRunFolders(runsRoot2) {
   let entries;
   try {
@@ -54399,11 +54412,7 @@ function discoverDecisionInbox(input) {
     if (projection.reason !== "checkpoint_waiting")
       continue;
     const baseline = baselineFor(runFolder);
-    const staleness = baseline === void 0 ? void 0 : gitProbe({
-      projectRoot,
-      ...baseline.head === void 0 ? {} : { capturedHead: baseline.head },
-      ...baseline.branch === void 0 ? {} : { capturedBranch: baseline.branch }
-    });
+    const staleness = probeStaleness(baseline, gitProbe, projectRoot);
     const hasStaleness = staleness !== void 0 && Object.keys(staleness).length > 0;
     rows.push({
       run_folder: projection.run_folder,
@@ -54972,11 +54981,11 @@ function latestRunFolder(runsBase) {
 }
 
 // dist/cli/reclaim.js
-import { join as join23 } from "node:path";
+import { join as join24, resolve as resolve21 } from "node:path";
 
 // dist/runtime/fanout/worktree-reaper.js
 import { readdir } from "node:fs/promises";
-import { join as join22 } from "node:path";
+import { join as join23 } from "node:path";
 
 // dist/runtime/trace/trace-store.js
 import { appendFile, mkdir, readFile, truncate as truncate2 } from "node:fs/promises";
@@ -55101,6 +55110,55 @@ var TraceStore = class {
   }
 };
 
+// dist/runtime/fanout/run-owner-lock.js
+import { mkdirSync as mkdirSync6, readFileSync as readFileSync44, rmSync as rmSync4, writeFileSync as writeFileSync7 } from "node:fs";
+import { join as join22 } from "node:path";
+var OWNER_LOCK_FILENAME = ".owner.json";
+function ownerLockPath(worktreesRoot, runId) {
+  return join22(worktreesRoot, runId, OWNER_LOCK_FILENAME);
+}
+function writeOwnerLock(worktreesRoot, runId, startedAt) {
+  const lock = { schema_version: 1, pid: process.pid, started_at: startedAt };
+  try {
+    mkdirSync6(join22(worktreesRoot, runId), { recursive: true });
+    writeFileSync7(ownerLockPath(worktreesRoot, runId), JSON.stringify(lock), "utf8");
+  } catch {
+  }
+}
+function removeOwnerLock(worktreesRoot, runId) {
+  try {
+    rmSync4(ownerLockPath(worktreesRoot, runId), { force: true });
+  } catch {
+  }
+}
+var defaultProcessAlive = (pid) => {
+  if (!Number.isInteger(pid) || pid <= 0)
+    return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error51) {
+    return error51.code !== "ESRCH";
+  }
+};
+function isRunLiveByOwnerLock(worktreesRoot, runId, processAlive = defaultProcessAlive) {
+  let raw;
+  try {
+    raw = readFileSync44(ownerLockPath(worktreesRoot, runId), "utf8");
+  } catch {
+    return false;
+  }
+  let pid;
+  try {
+    pid = JSON.parse(raw).pid;
+  } catch {
+    return false;
+  }
+  if (typeof pid !== "number")
+    return false;
+  return processAlive(pid);
+}
+
 // dist/runtime/fanout/worktree.js
 import { spawnSync as spawnSync3 } from "node:child_process";
 var gitWorktreeRunner = {
@@ -55137,11 +55195,11 @@ var listWorktreesFromDisk = async (worktreesRoot) => {
   const entries = [];
   const runDirs = await listSubdirectories(worktreesRoot);
   for (const runId of runDirs) {
-    const stepDirs = await listSubdirectories(join22(worktreesRoot, runId));
+    const stepDirs = await listSubdirectories(join23(worktreesRoot, runId));
     for (const stepId of stepDirs) {
-      const branchDirs = await listSubdirectories(join22(worktreesRoot, runId, stepId));
+      const branchDirs = await listSubdirectories(join23(worktreesRoot, runId, stepId));
       for (const branchId of branchDirs) {
-        entries.push({ path: join22(worktreesRoot, runId, stepId, branchId), runId });
+        entries.push({ path: join23(worktreesRoot, runId, stepId, branchId), runId });
       }
     }
   }
@@ -55161,7 +55219,7 @@ function makeTraceRunStatusResolver(runsRoot2) {
   return async (runId) => {
     let entries;
     try {
-      const trace = new TraceStore(join22(runsRoot2, runId));
+      const trace = new TraceStore(join23(runsRoot2, runId));
       entries = await trace.load();
     } catch {
       return "unknown";
@@ -55195,7 +55253,9 @@ function hasUnresolvedCheckpoint(entries) {
 async function reapWorktrees(options) {
   const worktreeRunner = options.worktreeRunner ?? gitWorktreeRunner;
   const listWorktrees = options.listWorktrees ?? listWorktreesFromDisk;
+  const isRunLive = options.isRunLive ?? ((runId) => isRunLiveByOwnerLock(options.worktreesRoot, runId));
   const summary = { removed: [], kept: [], errors: [] };
+  const reapedRunIds = /* @__PURE__ */ new Set();
   let entries;
   try {
     entries = await listWorktrees(options.worktreesRoot);
@@ -55207,6 +55267,20 @@ async function reapWorktrees(options) {
     return summary;
   }
   for (const entry of entries) {
+    let live;
+    try {
+      live = await Promise.resolve(isRunLive(entry.runId));
+    } catch (error51) {
+      summary.errors.push({
+        path: entry.path,
+        message: error51 instanceof Error ? error51.message : String(error51)
+      });
+      continue;
+    }
+    if (live) {
+      summary.kept.push(entry.path);
+      continue;
+    }
     let status;
     try {
       status = await Promise.resolve(options.resolveRunStatus(entry.runId));
@@ -55224,12 +55298,16 @@ async function reapWorktrees(options) {
     try {
       await Promise.resolve(worktreeRunner.remove(entry.path));
       summary.removed.push(entry.path);
+      reapedRunIds.add(entry.runId);
     } catch (error51) {
       summary.errors.push({
         path: entry.path,
         message: error51 instanceof Error ? error51.message : String(error51)
       });
     }
+  }
+  for (const runId of reapedRunIds) {
+    removeOwnerLock(options.worktreesRoot, runId);
   }
   return summary;
 }
@@ -55241,7 +55319,7 @@ function writeJson5(value) {
 }
 function parseReclaimArgs(argv) {
   let options;
-  const program2 = configureCommanderProgram(new Command("circuit reclaim")).option("--json").action(() => {
+  const program2 = configureCommanderProgram(new Command("circuit reclaim")).option("--json").option("--project-root <path>").allowExcessArguments(false).action(() => {
     options = program2.opts();
   });
   try {
@@ -55249,7 +55327,10 @@ function parseReclaimArgs(argv) {
   } catch (err) {
     return commanderErrorMessage(err);
   }
-  return { json: options?.json === true };
+  return {
+    json: options?.json === true,
+    projectRoot: resolve21(options?.projectRoot ?? process.cwd())
+  };
 }
 async function runReclaimCommand(argv) {
   const parsed = parseReclaimArgs(argv);
@@ -55258,8 +55339,8 @@ async function runReclaimCommand(argv) {
 `);
     return 2;
   }
-  const projectRoot = process.cwd();
-  const worktreesRoot = join23(controlPlaneRoot(projectRoot), "worktrees");
+  const projectRoot = parsed.projectRoot;
+  const worktreesRoot = join24(controlPlaneRoot(projectRoot), "worktrees");
   const summary = await reapWorktrees({
     worktreesRoot,
     resolveRunStatus: makeTraceRunStatusResolver(runsRoot(projectRoot))
@@ -55276,11 +55357,11 @@ async function runReclaimCommand(argv) {
 
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync36, mkdirSync as mkdirSync10, readFileSync as readFileSync55, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname13, join as join39, resolve as resolve26 } from "node:path";
+import { existsSync as existsSync36, mkdirSync as mkdirSync11, readFileSync as readFileSync56, writeFileSync as writeFileSync12 } from "node:fs";
+import { dirname as dirname13, join as join40, resolve as resolve27 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
-import { readFileSync as readFileSync47 } from "node:fs";
+import { readFileSync as readFileSync48 } from "node:fs";
 
 // dist/policy/policy-envelope.js
 var PolicyEnvelopeCompositionError = class extends Error {
@@ -56641,9 +56722,9 @@ function expandTemplate(template, item) {
 
 // dist/shared/user-skill-registry.js
 var import_yaml3 = __toESM(require_dist(), 1);
-import { existsSync as existsSync28, readFileSync as readFileSync44, readdirSync as readdirSync6 } from "node:fs";
+import { existsSync as existsSync28, readFileSync as readFileSync45, readdirSync as readdirSync6 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { join as join24, resolve as resolve21 } from "node:path";
+import { join as join25, resolve as resolve22 } from "node:path";
 var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
 var UserSkillFrontmatter = UserSkillEntry.pick({
   name: true,
@@ -56651,7 +56732,7 @@ var UserSkillFrontmatter = UserSkillEntry.pick({
   trigger: true
 }).loose();
 function defaultUserSkillRoots(homeDir = homedir3()) {
-  return [join24(homeDir, ".agents", "skills"), join24(homeDir, ".claude", "skills")];
+  return [join25(homeDir, ".agents", "skills"), join25(homeDir, ".claude", "skills")];
 }
 function parseSkillMarkdown(text, skillPath) {
   if (!text.startsWith("---"))
@@ -56682,7 +56763,7 @@ function parseSkillMarkdown(text, skillPath) {
 function discoverCandidates(roots) {
   const candidates = /* @__PURE__ */ new Map();
   for (const root of roots) {
-    const rootAbs = resolve21(root);
+    const rootAbs = resolve22(root);
     if (!existsSync28(rootAbs))
       continue;
     for (const entry of readdirSync6(rootAbs, { withFileTypes: true })) {
@@ -56694,7 +56775,7 @@ function discoverCandidates(roots) {
       const key = id.data;
       if (candidates.has(key))
         continue;
-      const skillPath = join24(rootAbs, entry.name, "SKILL.md");
+      const skillPath = join25(rootAbs, entry.name, "SKILL.md");
       if (!existsSync28(skillPath))
         continue;
       candidates.set(key, {
@@ -56709,7 +56790,7 @@ function discoverCandidates(roots) {
 function loadCandidate(candidate) {
   let text;
   try {
-    text = readFileSync44(candidate.path, "utf8");
+    text = readFileSync45(candidate.path, "utf8");
   } catch (err) {
     throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
   }
@@ -56727,7 +56808,7 @@ function loadCandidate(candidate) {
 function createUserSkillRegistry(options = {}) {
   const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
   const candidates = discoverCandidates(roots);
-  const searchedRoots = roots.map((root) => resolve21(root));
+  const searchedRoots = roots.map((root) => resolve22(root));
   const cache = /* @__PURE__ */ new Map();
   const loadCached = (key, candidate) => {
     const cached2 = cache.get(key);
@@ -56749,7 +56830,7 @@ function createUserSkillRegistry(options = {}) {
         throw new Error([
           `Circuit could not find skill '${key}'.`,
           "Searched:",
-          ...searchedRoots.map((root) => `- ${join24(root, key, "SKILL.md")}`)
+          ...searchedRoots.map((root) => `- ${join25(root, key, "SKILL.md")}`)
         ].join("\n"));
       }
       return loadCached(key, candidate);
@@ -58489,7 +58570,7 @@ function isRubricJudgment(value) {
 
 // dist/runtime/fanout/branch-execution.js
 import { randomUUID as randomUUID5 } from "node:crypto";
-import { dirname as dirname6, join as join26 } from "node:path";
+import { dirname as dirname6, join as join27 } from "node:path";
 
 // dist/flows/registries/cross-report-validators.js
 var REGISTRY5 = buildCrossReportValidatorRegistry(flowPackages);
@@ -58649,7 +58730,7 @@ function parseNdjsonObjects(stdout, label) {
 }
 async function runConnectorSubprocess(input) {
   const start = performance.now();
-  return await new Promise((resolve29, reject) => {
+  return await new Promise((resolve30, reject) => {
     let child;
     try {
       child = spawn(input.executable, [...input.args], {
@@ -58722,7 +58803,7 @@ async function runConnectorSubprocess(input) {
     });
     child.on("close", (code, signal) => {
       clearAllTimers();
-      resolve29({
+      resolve30({
         stdout,
         stderr,
         stdoutCapped,
@@ -59490,7 +59571,7 @@ async function relayCursorAgent(input) {
 // dist/connectors/custom.js
 import { mkdtemp as mkdtemp2, readFile as readFile2, rm as rm2, stat, writeFile as writeFile2 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join25 } from "node:path";
+import { join as join26 } from "node:path";
 var DEFAULT_TIMEOUT_MS4 = 12e4;
 var SIGTERM_TO_SIGKILL_GRACE_MS4 = 2e3;
 var OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
@@ -59532,9 +59613,9 @@ async function relayCustom(input) {
   if (executable === void 0) {
     throw new Error(`custom connector '${descriptor.name}' command is empty`);
   }
-  const tempDir = await mkdtemp2(join25(tmpdir2(), "circuit-custom-connector-"));
-  const promptFile = join25(tempDir, "prompt.txt");
-  const outputFile = join25(tempDir, "output.txt");
+  const tempDir = await mkdtemp2(join26(tmpdir2(), "circuit-custom-connector-"));
+  const promptFile = join26(tempDir, "prompt.txt");
+  const outputFile = join26(tempDir, "output.txt");
   await writeFile2(promptFile, input.prompt, "utf8");
   const args = [...baseArgs, promptFile, outputFile];
   const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS4;
@@ -60215,7 +60296,7 @@ function planRelayGuidanceDecision(input) {
 }
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync29, readFileSync as readFileSync45 } from "node:fs";
+import { existsSync as existsSync29, readFileSync as readFileSync46 } from "node:fs";
 
 // dist/flows/registries/shape-hints/registry.js
 var SCHEMA_HINTS = buildSchemaHintMap(flowPackages);
@@ -60461,7 +60542,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     const abs = resolveRunRelative(runFolder, path);
     if (!existsSync29(abs))
       return `[reads unavailable: ${path}]`;
-    return fencedBlock("read", ` path="${path}"`, readFileSync45(abs, "utf8"));
+    return fencedBlock("read", ` path="${path}"`, readFileSync46(abs, "utf8"));
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
   const houseStyle = houseStyleSection(step, loadedSkills);
@@ -61518,7 +61599,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
     if (childFlow.id !== branch.flowRef) {
       throw new Error(`resolver returned flow id '${childFlow.id}' but branch flow_ref names '${branch.flowRef}'`);
     }
-    const childRunDir = join26(dirname6(context.runDir), childRunId);
+    const childRunDir = join27(dirname6(context.runDir), childRunId);
     const child = await context.childRunner({
       flowBytes: resolved.flowBytes,
       runDir: childRunDir,
@@ -61793,6 +61874,11 @@ async function executeFanoutInternal(step, context, relayConnector) {
   const onChildFailure = step.onChildFailure ?? "abort-all";
   let branchFiles;
   let branchFilesError;
+  const worktreesRoot = context.projectRoot === void 0 ? void 0 : joinPath2(controlPlaneRoot(context.projectRoot), "worktrees");
+  const willProvisionWorktree = worktreesRoot !== void 0 && branches.some((branch) => branch.kind !== "relay" && branchNeedsWorktree(branch));
+  if (worktreesRoot !== void 0 && willProvisionWorktree) {
+    writeOwnerLock(worktreesRoot, context.runId, context.now().toISOString());
+  }
   try {
     await runWithConcurrency(branches, executionPolicy.effectiveConcurrency, async (branch, abortSignal) => {
       if (abortSignal.value)
@@ -61833,6 +61919,9 @@ async function executeFanoutInternal(step, context, relayConnector) {
         await Promise.resolve(worktreeRunner.remove(worktreePath));
       } catch {
       }
+    }
+    if (worktreesRoot !== void 0 && willProvisionWorktree) {
+      removeOwnerLock(worktreesRoot, context.runId);
     }
   }
   const orderedOutcomes = outcomesInBranchOrder(outcomes, branchIds);
@@ -61908,7 +61997,7 @@ async function executeFanout(step, context, relayConnector) {
 
 // dist/runtime/executors/sub-run.js
 import { randomUUID as randomUUID6 } from "node:crypto";
-import { dirname as dirname7, join as join27 } from "node:path";
+import { dirname as dirname7, join as join28 } from "node:path";
 function checkPassVerdicts(step) {
   const pass = step.check.pass;
   return Array.isArray(pass) ? pass.filter((entry) => typeof entry === "string") : [];
@@ -62002,7 +62091,7 @@ async function executeSubRunInternal(step, context) {
     return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': resolver returned flow id '${childFlow.id}' but flow_ref names '${step.flowRef}'`);
   }
   const childRunId = randomUUID6();
-  const childRunDir = join27(dirname7(context.runDir), childRunId);
+  const childRunDir = join28(dirname7(context.runDir), childRunId);
   await context.trace.append({
     run_id: context.runId,
     kind: "sub_run.started",
@@ -62534,10 +62623,10 @@ function resolveBindingLegibility(flow) {
 
 // dist/runtime/run/manifest-snapshot.js
 import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname8, join as join28 } from "node:path";
+import { dirname as dirname8, join as join29 } from "node:path";
 var MANIFEST_SNAPSHOT_RUN_FILE = "manifest.snapshot.json";
 function runtimeManifestSnapshotPath(runDir) {
-  return join28(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
+  return join29(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
 }
 async function writeRuntimeManifestSnapshot(input) {
   const bytes = Buffer.from(input.bytes);
@@ -62788,11 +62877,11 @@ function corridorCause(active, binding) {
 }
 
 // dist/runtime/run/run-boundary.js
-import { readFileSync as readFileSync46 } from "node:fs";
+import { readFileSync as readFileSync47 } from "node:fs";
 import { lstat, mkdir as mkdir3, readdir as readdir2 } from "node:fs/promises";
 
 // dist/runtime/projections/progress.js
-import { join as join29 } from "node:path";
+import { join as join30 } from "node:path";
 
 // dist/shared/write-capable-worker-disclosure.js
 var WRITE_CAPABLE_FLOW_IDS = /* @__PURE__ */ new Set(["build", "fix", "prototype", "pursue"]);
@@ -62872,7 +62961,7 @@ function reportTaskListProgress(input) {
   });
 }
 function readJsonReport2(files, runDir, reportPath) {
-  const text = files.readText(join29(runDir, reportPath));
+  const text = files.readText(join30(runDir, reportPath));
   if (text === void 0)
     throw new Error(`progress projection could not read ${reportPath}`);
   return JSON.parse(text);
@@ -62963,7 +63052,7 @@ function checkpointChoiceLabel(choice) {
   return choice.split(/[-_]/).filter((part) => part.length > 0).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
 function checkpointRequestPath(runDir, requestPath) {
-  return requestPath.startsWith("/") ? requestPath : join29(runDir, requestPath);
+  return requestPath.startsWith("/") ? requestPath : join30(runDir, requestPath);
 }
 function shouldWarnAboutWriteCapableWorker(flow) {
   return flowMayInvokeWriteCapableWorker(flow.id) || flow.steps.some((step) => step.kind === "relay" && step.role === "implementer");
@@ -63242,7 +63331,7 @@ function createProgressProjector(input) {
         const presentation = tournamentCheckpointPresentation({
           readJson: (path) => {
             try {
-              const text = projectionFiles.readText(join29(input.runDir, path));
+              const text = projectionFiles.readText(join30(input.runDir, path));
               return text === void 0 ? void 0 : JSON.parse(text);
             } catch {
               return void 0;
@@ -63540,7 +63629,7 @@ async function openRunBoundary(options) {
     files: {
       readText(path) {
         try {
-          return readFileSync46(path, "utf8");
+          return readFileSync47(path, "utf8");
         } catch {
           return void 0;
         }
@@ -64679,7 +64768,7 @@ function readCheckpointRequestContextResult(input) {
   const requestAbs = resolveRunFilePath(input.runDir, input.requestPath);
   let requestText;
   try {
-    requestText = readFileSync47(requestAbs, "utf8");
+    requestText = readFileSync48(requestAbs, "utf8");
   } catch (error51) {
     return checkpointResumeRejectedFrom(error51);
   }
@@ -65018,8 +65107,8 @@ async function resumeCompiledFlow(options) {
 }
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync30, readFileSync as readFileSync48 } from "node:fs";
-import { join as join30, resolve as resolve22 } from "node:path";
+import { existsSync as existsSync30, readFileSync as readFileSync49 } from "node:fs";
+import { join as join31, resolve as resolve23 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -65028,11 +65117,11 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
   }
   try {
     const relPath = fact.source.ref.ref.split("#")[0] ?? fact.source.ref.ref;
-    const abs = join30(runsBase, runId, relPath);
+    const abs = join31(runsBase, runId, relPath);
     if (!existsSync30(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
-    const currentHash = sha256OfString(readFileSync48(abs, "utf8"));
+    const currentHash = sha256OfString(readFileSync49(abs, "utf8"));
     return currentHash === sourceSha ? { status: "fresh", checked_at: checkedAt, reason_codes: ["source_hash_verified"] } : { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
   } catch {
     return { status: "unknown", checked_at: checkedAt, reason_codes: ["memory_unverified"] };
@@ -65042,7 +65131,7 @@ function loadProjectFactCandidates(options) {
   if (options.flowId === void 0) {
     return { candidates: [] };
   }
-  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve22(options.runsBase);
+  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve23(options.runsBase);
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const checkedAt = now().toISOString();
   const { facts } = readProjectFacts({
@@ -65267,11 +65356,11 @@ function prepareRunStartHistoryRecall(options) {
 }
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync32, mkdirSync as mkdirSync6, readFileSync as readFileSync50, rmSync as rmSync4, writeFileSync as writeFileSync7 } from "node:fs";
-import { dirname as dirname9, isAbsolute as isAbsolute12, join as join31, relative as relative13, resolve as resolve23 } from "node:path";
+import { existsSync as existsSync32, mkdirSync as mkdirSync7, readFileSync as readFileSync51, rmSync as rmSync5, writeFileSync as writeFileSync8 } from "node:fs";
+import { dirname as dirname9, isAbsolute as isAbsolute12, join as join32, relative as relative13, resolve as resolve24 } from "node:path";
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync31, readFileSync as readFileSync49 } from "node:fs";
+import { existsSync as existsSync31, readFileSync as readFileSync50 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -65279,7 +65368,7 @@ function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
   if (!existsSync31(path))
     return void 0;
-  const parsed = JSON.parse(readFileSync49(path, "utf8"));
+  const parsed = JSON.parse(readFileSync50(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
 }
 function stringField2(report, key) {
@@ -65878,11 +65967,11 @@ function projectSummary(input) {
 
 // dist/app/operator-summary/writer.js
 function readPriorRoute(runFolder) {
-  const path = join31(runFolder, "reports", "operator-summary.json");
+  const path = join32(runFolder, "reports", "operator-summary.json");
   if (!existsSync32(path))
     return {};
   try {
-    const raw = JSON.parse(readFileSync50(path, "utf8"));
+    const raw = JSON.parse(readFileSync51(path, "utf8"));
     if (!isObject4(raw))
       return {};
     const routedBy = raw.routed_by;
@@ -65899,13 +65988,13 @@ var HTML_REPORT_LABEL = "Operator summary (HTML)";
 var MAX_KEY_POINTS = 4;
 var MAX_CAVEATS = 3;
 function jsonPath(runFolder) {
-  return join31(runFolder, "reports", "operator-summary.json");
+  return join32(runFolder, "reports", "operator-summary.json");
 }
 function markdownPath(runFolder) {
-  return join31(runFolder, "reports", "operator-summary.md");
+  return join32(runFolder, "reports", "operator-summary.md");
 }
 function htmlPath(runFolder) {
-  return join31(runFolder, "reports", "operator-summary.html");
+  return join32(runFolder, "reports", "operator-summary.html");
 }
 function isInsideOrSame4(root, target) {
   const fromRoot = relative13(root, target);
@@ -65914,16 +66003,16 @@ function isInsideOrSame4(root, target) {
 function readCheckpointRequest(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute12(checkpoint.request_path) ? resolve23(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute12(checkpoint.request_path) ? resolve24(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     return void 0;
   }
-  if (!isInsideOrSame4(resolve23(runFolder), requestPath))
+  if (!isInsideOrSame4(resolve24(runFolder), requestPath))
     return void 0;
   if (!existsSync32(requestPath))
     return void 0;
   try {
-    const parsed = JSON.parse(readFileSync50(requestPath, "utf8"));
+    const parsed = JSON.parse(readFileSync51(requestPath, "utf8"));
     return isObject4(parsed) ? parsed : void 0;
   } catch {
     return void 0;
@@ -66299,11 +66388,11 @@ function evidenceLinks2(runFolder, report) {
   });
 }
 function readAutoResolutions(runFolder) {
-  const tracePath = join31(runFolder, "trace.ndjson");
+  const tracePath = join32(runFolder, "trace.ndjson");
   if (!existsSync32(tracePath))
     return [];
   const records = [];
-  for (const line of readFileSync50(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync51(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -66340,7 +66429,7 @@ function emptySpendTotals() {
 }
 var SPEND_ROLE_ORDER = ["researcher", "implementer", "reviewer"];
 function readRunReceipt(runFolder) {
-  const tracePath = join31(runFolder, "trace.ndjson");
+  const tracePath = join32(runFolder, "trace.ndjson");
   if (!existsSync32(tracePath))
     return void 0;
   let depth;
@@ -66359,7 +66448,7 @@ function readRunReceipt(runFolder) {
   let spendRelaysMissingUsage = 0;
   let anyUsage = false;
   let anyCostMissing = false;
-  for (const line of readFileSync50(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync51(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -66574,13 +66663,13 @@ function skillHookSourceLabel(source) {
   }
 }
 function readSkillHookSummary(runFolder) {
-  const tracePath = join31(runFolder, "trace.ndjson");
+  const tracePath = join32(runFolder, "trace.ndjson");
   if (!existsSync32(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
   const warnings = [];
-  for (const line of readFileSync50(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync51(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -66773,7 +66862,7 @@ function writeOperatorSummary(input) {
   const receipt = readRunReceipt(input.runFolder);
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
-  mkdirSync6(dirname9(outJsonPath), { recursive: true });
+  mkdirSync7(dirname9(outJsonPath), { recursive: true });
   const projector = getHtmlProjector(flowId);
   const candidateHtmlPath = htmlPath(input.runFolder);
   let outHtmlPath;
@@ -66805,14 +66894,14 @@ function writeOperatorSummary(input) {
   }
   if (renderedHtml === void 0) {
     if (existsSync32(candidateHtmlPath))
-      rmSync4(candidateHtmlPath, { force: true, recursive: true });
+      rmSync5(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
-      writeFileSync7(candidateHtmlPath, renderedHtml);
+      writeFileSync8(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
       if (existsSync32(candidateHtmlPath))
-        rmSync4(candidateHtmlPath, { force: true, recursive: true });
+        rmSync5(candidateHtmlPath, { force: true, recursive: true });
       htmlEmitWarning = {
         kind: "html_write_failed",
         message: err instanceof Error ? err.message : String(err),
@@ -66901,9 +66990,9 @@ function writeOperatorSummary(input) {
     ...receipt === void 0 ? {} : { receipt },
     ...input.runResult.outcome === "checkpoint_waiting" ? { checkpoint: input.runResult.checkpoint } : {}
   });
-  writeFileSync7(outJsonPath, `${JSON.stringify(candidate, null, 2)}
+  writeFileSync8(outJsonPath, `${JSON.stringify(candidate, null, 2)}
 `);
-  writeFileSync7(outMarkdownPath, renderMarkdown(candidate));
+  writeFileSync8(outMarkdownPath, renderMarkdown(candidate));
   return outHtmlPath === void 0 ? { summary: candidate, jsonPath: outJsonPath, markdownPath: outMarkdownPath } : {
     summary: candidate,
     jsonPath: outJsonPath,
@@ -66913,8 +67002,8 @@ function writeOperatorSummary(input) {
 }
 
 // dist/app/process-evidence/projection.js
-import { existsSync as existsSync33, mkdirSync as mkdirSync7, writeFileSync as writeFileSync8 } from "node:fs";
-import { dirname as dirname10, join as join32 } from "node:path";
+import { existsSync as existsSync33, mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
+import { dirname as dirname10, join as join33 } from "node:path";
 function traceRef2(runId) {
   return {
     kind: "trace",
@@ -66971,15 +67060,15 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync33(join32(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync33(join33(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join32(input.runFolder, path),
+    path: join33(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
   const additionalRefs = (input.additionalEvidencePaths ?? []).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join32(input.runFolder, path),
+    path: join33(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
@@ -67035,9 +67124,9 @@ function projectCheckpointWaitingProcessEvidence(input) {
 }
 function writeProcessEvidenceProjection(input) {
   const projection = ProcessEvidenceProjection.parse(input.projection);
-  const outPath = join32(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
-  mkdirSync7(dirname10(outPath), { recursive: true });
-  writeFileSync8(outPath, `${JSON.stringify(projection, null, 2)}
+  const outPath = join33(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
+  mkdirSync8(dirname10(outPath), { recursive: true });
+  writeFileSync9(outPath, `${JSON.stringify(projection, null, 2)}
 `);
   return { path: outPath, projection };
 }
@@ -67115,8 +67204,8 @@ function detectNoProgress(attempts) {
 }
 
 // dist/app/run-envelope/source-record.js
-import { mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname11, join as join33 } from "node:path";
+import { mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
+import { dirname as dirname11, join as join34 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RUN_SURFACE_RELATIVE_PATH = "reports/run-surface.md";
 var RUN_DECISION_PACKET_RELATIVE_DIR = "reports/decision-packets";
@@ -67160,7 +67249,7 @@ function renderSurfaceMarkdown(input) {
     ...input.record.surface_output.artifact_links
   ];
   const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
-  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join33(input.runFolder, ref.ref))).join(" \xB7 ");
+  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join34(input.runFolder, ref.ref))).join(" \xB7 ");
   return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
 }
 function processAttemptOutcome(outcome) {
@@ -67670,18 +67759,18 @@ function writeRunEnvelopeRecord(input) {
     }),
     outcome
   });
-  const outPath = join33(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
-  mkdirSync8(dirname11(outPath), { recursive: true });
+  const outPath = join34(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
+  mkdirSync9(dirname11(outPath), { recursive: true });
   const decisionPacketPaths = decisionArtifacts.map((artifact) => {
-    const path = join33(input.runFolder, artifact.ref.ref);
-    mkdirSync8(dirname11(path), { recursive: true });
-    writeFileSync9(path, artifact.body);
+    const path = join34(input.runFolder, artifact.ref.ref);
+    mkdirSync9(dirname11(path), { recursive: true });
+    writeFileSync10(path, artifact.body);
     return path;
   });
-  writeFileSync9(outPath, `${JSON.stringify(record2, null, 2)}
+  writeFileSync10(outPath, `${JSON.stringify(record2, null, 2)}
 `);
-  const surfacePath = join33(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
-  writeFileSync9(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
+  const surfacePath = join34(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
+  writeFileSync10(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
   return {
     path: outPath,
     processEvidencePath,
@@ -67796,16 +67885,16 @@ async function runAutonomousContinuation(input) {
 
 // dist/shared/config-loader.js
 var import_yaml4 = __toESM(require_dist(), 1);
-import { existsSync as existsSync34, readFileSync as readFileSync51 } from "node:fs";
+import { existsSync as existsSync34, readFileSync as readFileSync52 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
-import { join as join34, resolve as resolve24 } from "node:path";
+import { join as join35, resolve as resolve25 } from "node:path";
 var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
 var PROJECT_CONFIG_RELATIVE_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS;
 function userGlobalConfigPath(homeDir = homedir4()) {
-  return join34(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
+  return join35(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
 }
 function projectConfigPath2(cwd = process.cwd()) {
-  return join34(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
+  return join35(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
 }
 function parseConfigYaml(text, sourcePath) {
   try {
@@ -67815,10 +67904,10 @@ function parseConfigYaml(text, sourcePath) {
   }
 }
 function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
-  const abs = resolve24(sourcePath);
+  const abs = resolve25(sourcePath);
   if (!existsSync34(abs))
     return void 0;
-  const raw = parseConfigYaml(readFileSync51(abs, "utf8"), abs);
+  const raw = parseConfigYaml(readFileSync52(abs, "utf8"), abs);
   if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
     const schemaVersion = raw.schema_version;
     if (schemaVersion === 2) {
@@ -67876,18 +67965,18 @@ function discoverRuntimeConfigLayers(options = {}) {
 }
 
 // dist/cli/compiled-flow-loading.js
-import { existsSync as existsSync35, readFileSync as readFileSync52 } from "node:fs";
-import { resolve as resolve25 } from "node:path";
+import { existsSync as existsSync35, readFileSync as readFileSync53 } from "node:fs";
+import { resolve as resolve26 } from "node:path";
 function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   if (override !== void 0)
-    return resolve25(override);
-  const root = resolve25(flowRoot2 ?? "generated/flows");
+    return resolve26(override);
+  const root = resolve26(flowRoot2 ?? "generated/flows");
   if (modeName !== void 0) {
-    const perMode = resolve25(root, flowName, `${modeName}.json`);
+    const perMode = resolve26(root, flowName, `${modeName}.json`);
     if (existsSync35(perMode))
       return perMode;
   }
-  return resolve25(root, flowName, "circuit.json");
+  return resolve26(root, flowName, "circuit.json");
 }
 function compiledFlowSelectionNameForAxes(axes) {
   if (axes.tournament)
@@ -67912,7 +68001,7 @@ function loadCompiledFlow(compiledFlowPath) {
   if (!existsSync35(compiledFlowPath)) {
     throw new Error(`compiled flow not found: ${compiledFlowPath}`);
   }
-  const bytes = readFileSync52(compiledFlowPath);
+  const bytes = readFileSync53(compiledFlowPath);
   const raw = JSON.parse(bytes.toString("utf8"));
   const flow = CompiledFlow.parse(raw);
   const policy2 = validateCompiledFlowKindPolicy(flow);
@@ -67931,12 +68020,12 @@ function defaultChildCompiledFlowResolver(flowRoot2) {
 }
 
 // dist/cli/post-run-artifacts.js
-import { readFileSync as readFileSync53 } from "node:fs";
-import { join as join36 } from "node:path";
+import { readFileSync as readFileSync54 } from "node:fs";
+import { join as join37 } from "node:path";
 
 // dist/app/run-envelope/shadow-record.js
-import { mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname12, join as join35 } from "node:path";
+import { mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
+import { dirname as dirname12, join as join36 } from "node:path";
 var RUN_ENVELOPE_SHADOW_RELATIVE_PATH = "reports/run-envelope-shadow.json";
 function reportRef2(input) {
   return {
@@ -68025,9 +68114,9 @@ function writeRunEnvelopeShadowRecord(input) {
     child_run: childRun,
     artifact_links: artifactLinks
   });
-  const outPath = join35(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
-  mkdirSync9(dirname12(outPath), { recursive: true });
-  writeFileSync10(outPath, `${JSON.stringify(record2, null, 2)}
+  const outPath = join36(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
+  mkdirSync10(dirname12(outPath), { recursive: true });
+  writeFileSync11(outPath, `${JSON.stringify(record2, null, 2)}
 `);
   return { path: outPath, record: record2 };
 }
@@ -68062,7 +68151,7 @@ function resolveFlowPrimaryOutcome(input) {
     return void 0;
   let primaryResult;
   try {
-    primaryResult = JSON.parse(readFileSync53(join36(input.runFolder, primaryResultPath), "utf8"));
+    primaryResult = JSON.parse(readFileSync54(join37(input.runFolder, primaryResultPath), "utf8"));
   } catch {
     return void 0;
   }
@@ -68106,8 +68195,8 @@ function emitPostRunArtifacts(input) {
 
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { readFileSync as readFileSync54 } from "node:fs";
-import { join as join37 } from "node:path";
+import { readFileSync as readFileSync55 } from "node:fs";
+import { join as join38 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
   const recoveryFlowCache = /* @__PURE__ */ new Map();
@@ -68136,7 +68225,7 @@ function createRecoveryAttemptRunner(deps) {
       tournament: false,
       autonomous: parentAxes.autonomous && support.supportsAutonomous
     });
-    const attemptFolder = join37(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
+    const attemptFolder = join38(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
     const recoveryResult = await runCompiledFlowWithWaiting({
       flowBytes: recoveryFlow.bytes,
       compiledFlowPath: recoveryFlow.path,
@@ -68169,7 +68258,7 @@ function createRecoveryAttemptRunner(deps) {
         })
       };
     }
-    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync54(recoveryResult.resultPath, "utf8")));
+    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync55(recoveryResult.resultPath, "utf8")));
     return {
       projection: projectClosedProcessEvidence({
         runFolder: attemptFolder,
@@ -68237,13 +68326,13 @@ function runEnvelopeOutputFields(input) {
 }
 
 // dist/cli/run-stdout-envelope.js
-import { join as join38 } from "node:path";
+import { join as join39 } from "node:path";
 function historyRecallOutputFields(input) {
   return {
     history_recall: {
       status: input.report.status,
       memory_input_count: input.report.memory_input_count,
-      report_path: join38(input.runFolder, HISTORY_RECALL_REPORT_PATH),
+      report_path: join39(input.runFolder, HISTORY_RECALL_REPORT_PATH),
       rebuilt: input.report.rebuilt,
       ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
       warnings: input.report.warnings.map((warning) => ({
@@ -68584,7 +68673,7 @@ function shouldPrepareHistoryRecall(options) {
 }
 async function runResumeCommand(args, options) {
   if (args.command === "resume" && args.runFolder !== void 0 && args.checkpointChoice !== void 0) {
-    const runFolder = resolve26(args.runFolder);
+    const runFolder = resolve27(args.runFolder);
     const progress = progressReporter(args.progress === "jsonl");
     const hostKind = runtimeHostKind(options);
     if (await isRuntimeRunFolder(runFolder)) {
@@ -68599,7 +68688,7 @@ async function runResumeCommand(args, options) {
         ...progress === void 0 ? {} : { progress },
         progressSurfaceForFlowId
       });
-      const runResult = RunResult.parse(JSON.parse(readFileSync55(runtimeResult.resultPath, "utf8")));
+      const runResult = RunResult.parse(JSON.parse(readFileSync56(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
       const postRunArtifactContext = {
@@ -68727,7 +68816,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = args.runFolder === void 0 ? join39(runsRoot(process.cwd()), runId) : resolve26(args.runFolder);
+  const runFolder = args.runFolder === void 0 ? join40(runsRoot(process.cwd()), runId) : resolve27(args.runFolder);
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...options.configHomeDir !== void 0 ? { homeDir: options.configHomeDir } : {},
     ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {},
@@ -68750,7 +68839,7 @@ async function runExecutionCommand(args, options) {
     return 2;
   }
   const hostKind = runtimeHostKind(options);
-  const projectRoot = resolve26(options.configCwd ?? process.cwd());
+  const projectRoot = resolve27(options.configCwd ?? process.cwd());
   if (hostKind === "codex") {
     try {
       const assurance = codexInstallAssurance({ projectRoot, now });
@@ -68906,7 +68995,7 @@ async function runExecutionCommand(args, options) {
 `);
       return 0;
     }
-    const runResult = RunResult.parse(JSON.parse(readFileSync55(runtimeResult.resultPath, "utf8")));
+    const runResult = RunResult.parse(JSON.parse(readFileSync56(runtimeResult.resultPath, "utf8")));
     const selectedProcess = selectedProcessFields({
       processId: flow.id,
       routedBy: route.source,
@@ -68972,9 +69061,9 @@ async function runExecutionCommand(args, options) {
             policyLayers
           })
         });
-        const autonomousLoopPath = join39(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
-        mkdirSync10(dirname13(autonomousLoopPath), { recursive: true });
-        writeFileSync11(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
+        const autonomousLoopPath = join40(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
+        mkdirSync11(dirname13(autonomousLoopPath), { recursive: true });
+        writeFileSync12(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -69011,7 +69100,7 @@ async function runExecutionCommand(args, options) {
       postRunArtifactWarnings,
       operatorSummary,
       runEnvelope,
-      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join39(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
+      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join40(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
     }), null, 2)}
 `);
     return 0;
@@ -69090,8 +69179,8 @@ async function runRunsCommand(argv) {
 }
 
 // dist/cli/uninstall.js
-import { existsSync as existsSync37, readFileSync as readFileSync56 } from "node:fs";
-import { join as join40, resolve as resolve27 } from "node:path";
+import { existsSync as existsSync37, readFileSync as readFileSync57 } from "node:fs";
+import { join as join41, resolve as resolve28 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -69155,7 +69244,7 @@ function parseArgs3(argv, cwd) {
     throw new Error(`unexpected argument: ${program2.args[0]}`);
   const opts = program2.opts();
   return {
-    dir: resolve27(opts.dir ?? cwd),
+    dir: resolve28(opts.dir ?? cwd),
     json: opts.json === true
   };
 }
@@ -69242,14 +69331,14 @@ async function runUninstallCommand(argv, options = {}) {
   let malformedAny = false;
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
-    const path = join40(args.dir, file2);
+    const path = join41(args.dir, file2);
     if (!existsSync37(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
     }
     let content;
     try {
-      content = readFileSync56(path, "utf8");
+      content = readFileSync57(path, "utf8");
     } catch (err) {
       process.stderr.write(`error: could not read ${path}: ${err.message}
 `);
@@ -69340,12 +69429,12 @@ function readSourceVersion() {
   if (true)
     return "0.1.0-alpha.7";
   const candidates = [
-    resolve28(dirname14(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
-    resolve28(process.cwd(), "plugins/version.json")
+    resolve29(dirname14(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
+    resolve29(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync57(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync58(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {

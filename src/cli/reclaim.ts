@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { Command } from 'commander';
 import { makeTraceRunStatusResolver, reapWorktrees } from '../runtime/fanout/worktree-reaper.js';
 import { controlPlaneRoot, runsRoot } from '../shared/control-plane-paths.js';
@@ -8,28 +8,39 @@ import { commanderErrorMessage, configureCommanderProgram } from './commander-su
 //
 // A process killed mid-fanout skips the worktree-cleanup `finally`, orphaning
 // per-branch git worktrees under `.circuit/worktrees/`. This command walks that
-// layout for the current project, removes the worktrees whose owning run is
-// closed or dead, leaves a live parked run's worktrees alone, and prints a JSON
-// summary of what it did. It is safe to run any time; with nothing to reclaim
-// it reports empty lists.
+// layout for a project, removes the worktrees whose owning run is closed or
+// dead, leaves a live (still-running or parked) run's worktrees alone, and
+// prints a JSON summary of what it did. It is safe to run any time; with
+// nothing to reclaim it reports empty lists.
+//
+// The project root defaults to the current directory. Pass `--project-root` to
+// reclaim a project you are not standing in — without it, running from a
+// subdirectory resolves the wrong control plane and silently reclaims nothing.
 
 function writeJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
-function parseReclaimArgs(argv: readonly string[]): { readonly json: boolean } | string {
-  let options: { json?: boolean } | undefined;
+function parseReclaimArgs(
+  argv: readonly string[],
+): { readonly json: boolean; readonly projectRoot: string } | string {
+  let options: { json?: boolean; projectRoot?: string } | undefined;
   const program = configureCommanderProgram(new Command('circuit reclaim'))
     .option('--json')
+    .option('--project-root <path>')
+    .allowExcessArguments(false)
     .action(() => {
-      options = program.opts<{ json?: boolean }>();
+      options = program.opts<{ json?: boolean; projectRoot?: string }>();
     });
   try {
     program.parse(argv, { from: 'user' });
   } catch (err) {
     return commanderErrorMessage(err);
   }
-  return { json: options?.json === true };
+  return {
+    json: options?.json === true,
+    projectRoot: resolve(options?.projectRoot ?? process.cwd()),
+  };
 }
 
 export async function runReclaimCommand(argv: readonly string[]): Promise<number> {
@@ -39,7 +50,7 @@ export async function runReclaimCommand(argv: readonly string[]): Promise<number
     return 2;
   }
 
-  const projectRoot = process.cwd();
+  const projectRoot = parsed.projectRoot;
   const worktreesRoot = join(controlPlaneRoot(projectRoot), 'worktrees');
 
   const summary = await reapWorktrees({
