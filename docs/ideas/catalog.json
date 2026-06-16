@@ -328,7 +328,7 @@
       "status": "implementation-spec",
       "category": "run-inspection-and-output",
       "tags": ["durability", "resumability", "crash-recovery", "recovery-corridor", "spec"],
-      "current_reading": "Decision-ready spec for Tier-2 forward recovery, companion to the fallible-executor audit. One slice is built (RecoveryCorridor.seedFromTrace, structural-only, wired inert behind resume); the rest is the fork (resumable cursor vs projection/checkpoint-only + Tier-3 restart-cheapness), three options (A general cursor, B bounded linear-only cursor, C foundation + Tier-3), and a recommendation to bank Rank-1 now and surface Option B. Two load-bearing unknowns: per-step idempotency and the app->runtime staleness boundary. A2/A3 depend on the full cursor and stay surface-only.",
+      "current_reading": "Decision-ready spec for Tier-2 forward recovery, companion to the fallible-executor audit. One slice is built (RecoveryCorridor.seedFromTrace, structural-only, wired inert behind resume); the rest is the fork (resumable cursor vs projection/checkpoint-only + Tier-3 restart-cheapness), three options (A general cursor, B bounded linear-only cursor, C foundation + Tier-3). Both load-bearing probes have now run (2026-06-16): probe (i) found relay is the lone linear step kind that is not cheaply idempotent (uncatchable bypassPermissions subprocess mutates the tree, no per-step snapshot/reset exists), and probe (ii) resolved the staleness boundary as a cheap runtime-owned port. Resolved decision is Option C now (build foundation + Tier-3 restart-cheapness; the shipped worktree reaper is the first slice), with Option B kept specced but not started. A2/A3 depend on the full cursor and stay surface-only.",
       "related": ["docs/ideas/fallible-executor-audit.md"],
       "last_checked": "2026-06-16"
     },
@@ -941,6 +941,19 @@
       "tags": ["grain", "separability", "experiment", "deferred", "taskset", "harness-gap"],
       "current_reading": "Records the B0-gate decision to skip the grain experiment with no model spend: the eval taskset has no entangled tasks, so the experiment would be null by construction (the design's own Step-0 stop). Surfaces the remedy: the harness K-repeat and interleave gap, and a pre-scored entangled-plus-mixed taskset spec so a future run executes cleanly.",
       "related": ["docs/ideas/grain-separability-experiment-design.md"],
+      "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/grain-taskset-ready.md",
+      "title": "Grain separability experiment - taskset ready to vet (still not run)",
+      "status": "pre-implementation",
+      "category": "verification-and-evals",
+      "tags": ["grain", "separability", "experiment", "taskset", "held-out", "harness"],
+      "current_reading": "Go-forward surface that replaces the blocking half of the grain-experiment-deferred doc. The two things B0 needed are now in place: the harness K-repeat plus interleaving gap is closed (experiments only, K=1 byte-identical), and four separability-spanning held-out tasks are built with a-priori scores pre-registered in each task.json (two entangled at 8, two mixed at 3-4), each gated by a hidden objective check only the assembled cross-module fix passes. Flags the surfaced side effect: the held-out claim set grew 14 to 18. Decision rule and run sizing unchanged; the experiment is still not run and the structure chooser is untouched.",
+      "related": [
+        "docs/ideas/grain-experiment-deferred.md",
+        "docs/ideas/grain-separability-experiment-design.md"
+      ],
       "last_checked": "2026-06-16"
     },
     {
