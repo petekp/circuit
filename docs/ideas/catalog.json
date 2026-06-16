@@ -283,6 +283,15 @@
       "last_checked": "2026-06-14"
     },
     {
+      "path": "docs/ideas/fallible-executor-audit.md",
+      "title": "Fallible-executor audit - can a crashed run be reconstructed from durable state?",
+      "status": "current-gap-analysis",
+      "category": "run-inspection-and-output",
+      "tags": ["durability", "resumability", "trace", "crash-recovery", "audit"],
+      "current_reading": "Read-only durability audit (2026-06-16) of whether a fresh executor can reconstruct a crashed run from durable state alone. Verdict GAPS-FOUND: Circuit is graceful-park-and-resume-at-a-checkpoint, not crash-resumable. A kill between checkpoints cannot be continued, though the trace still records what happened for inspection and close-time projection. Tier-1 hardening (torn-tail tolerance, atomic whole-file writes, result.json regeneration) is being built off this audit; the Tier-2 resumable cursor is not.",
+      "last_checked": "2026-06-16"
+    },
+    {
       "path": "docs/ideas/first-class-composition-sequence.md",
       "title": "Circuit: First-Class Block Composition Migration Plan",
       "status": "superseded",

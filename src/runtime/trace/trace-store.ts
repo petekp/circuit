@@ -5,7 +5,7 @@
 // object per line, rejects writes after run.closed, and lets projection hooks
 // fail without corrupting the trace.
 
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, truncate } from 'node:fs/promises';
 import { join } from 'node:path';
 import { TraceEntry as TraceEntrySchema } from '../../schemas/trace-entry.js';
 import type { TraceEntry, TraceEntryInput } from '../domain/trace.js';
@@ -21,6 +21,10 @@ export class TraceStore {
   private nextSequence = 0;
   private closed = false;
   private appendTail: Promise<void> = Promise.resolve();
+  // Byte length of the last consistent (complete-line) prefix when load() drops
+  // a torn trailing line. The next append truncates the torn bytes first so it
+  // cannot concatenate onto a half-written record. undefined => nothing to heal.
+  private healToByteLength: number | undefined;
 
   constructor(
     readonly runDir: string,
@@ -44,10 +48,56 @@ export class TraceStore {
       throw error;
     }
 
-    const rawEntries = raw
-      .split('\n')
-      .filter((line) => line.trim().length > 0)
-      .map((line) => JSON.parse(line) as unknown);
+    // Parse one JSON object per line, tolerating a torn/unparseable FINAL line —
+    // the expected artifact of a crash mid-append. Appends are serialized and
+    // each writes one complete `${json}\n`, so only the last line can be
+    // half-written; treat the trace as ending at the last complete line. The
+    // torn record names an action that never durably happened. Any earlier
+    // unparseable line is real interior corruption and must fail loud.
+    //
+    // Scan the UNFILTERED split and accumulate true on-disk byte offsets so the
+    // heal length is measured in real bytes: a stray blank line before the torn
+    // tail must not shift it (re-joining a blank-filtered line set would drop
+    // that blank's newline and truncate into the last complete record).
+    const segments = raw.split('\n');
+    let lastContentIndex = -1;
+    for (let index = segments.length - 1; index >= 0; index -= 1) {
+      if ((segments[index] ?? '').trim().length > 0) {
+        lastContentIndex = index;
+        break;
+      }
+    }
+    const rawEntries: unknown[] = [];
+    this.healToByteLength = undefined;
+    let byteOffset = 0;
+    for (const [index, segment] of segments.entries()) {
+      // Every segment except the last was followed by a `\n` that split removed.
+      const onDiskBytes =
+        Buffer.byteLength(segment, 'utf8') + (index < segments.length - 1 ? 1 : 0);
+      if (segment.trim().length === 0) {
+        // A blank line. The writer never emits one, but a damaged file might;
+        // skip it without disturbing the byte accounting.
+        byteOffset += onDiskBytes;
+        continue;
+      }
+      try {
+        rawEntries.push(JSON.parse(segment) as unknown);
+      } catch (error) {
+        if (index === lastContentIndex) {
+          // Torn FINAL line. Remember the clean-prefix byte length (everything
+          // before this physical line) so the next append truncates the torn
+          // bytes instead of concatenating onto them. load() itself stays
+          // read-only: inspection and result regeneration must never mutate a
+          // crashed run's trace.
+          this.healToByteLength = byteOffset;
+          break;
+        }
+        throw new Error(
+          `trace entry ${index} is not valid JSON (interior corruption): ${(error as Error).message}`,
+        );
+      }
+      byteOffset += onDiskBytes;
+    }
     const entries: TraceEntry[] = [];
     for (const [index, entry] of rawEntries.entries()) {
       if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
@@ -88,6 +138,12 @@ export class TraceStore {
         sequence: this.nextSequence,
       }) as unknown as TraceEntry;
       await mkdir(this.runDir, { recursive: true });
+      if (this.healToByteLength !== undefined) {
+        // A prior load() dropped a torn trailing line. Truncate the torn bytes
+        // before appending so the new record starts on a clean line boundary.
+        await truncate(this.tracePath, this.healToByteLength);
+        this.healToByteLength = undefined;
+      }
       await appendFile(this.tracePath, `${JSON.stringify(entry)}\n`, 'utf8');
 
       this.nextSequence += 1;

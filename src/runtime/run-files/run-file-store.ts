@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { writeJsonAtomic, writeTextAtomic } from '../../shared/atomic-io.js';
 import { resolveRunFilePath } from '../../shared/run-file-paths.js';
 import type { RunFileRef } from '../domain/run-file.js';
 import type { ReportValidator } from './report-validator.js';
@@ -19,8 +19,11 @@ export class RunFileStore {
       this.validateReport?.(ref.schema, value);
     }
     const fullPath = this.resolve(ref);
-    await mkdir(dirname(fullPath), { recursive: true });
-    await writeFile(fullPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+    // Whole-file run artifacts go through atomic-io (stage to a temp sibling,
+    // then rename) so a crash mid-write can never leave a half-written file.
+    // writeJsonAtomic mkdirs the parent and emits identical bytes to the prior
+    // bare write: `${JSON.stringify(value, null, 2)}\n`.
+    writeJsonAtomic(fullPath, value);
     return fullPath;
   }
 
@@ -31,8 +34,7 @@ export class RunFileStore {
       );
     }
     const fullPath = this.resolve(ref);
-    await mkdir(dirname(fullPath), { recursive: true });
-    await writeFile(fullPath, value, 'utf8');
+    writeTextAtomic(fullPath, value);
     return fullPath;
   }
 

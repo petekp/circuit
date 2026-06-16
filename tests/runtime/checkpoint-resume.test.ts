@@ -542,6 +542,54 @@ describe('runtime checkpoint pause/resume fixture', () => {
     });
   });
 
+  it('resumes a parked checkpoint whose trace tail was torn by a crash (Fix 1 / audit Probe C)', async () => {
+    // Audit Probe C, end-to-end through the real resume path. A run parks at a
+    // checkpoint, then a crash mid-append leaves a torn final trace line. Before
+    // Fix 1 this bricked resume with a raw `Unterminated string in JSON`
+    // SyntaxError out of TraceStore.load. Now the torn final line is treated as
+    // the end of the trace: the clean checkpoint.requested still governs, the
+    // appending TraceStore truncates the torn bytes on its first write, and the
+    // run resumes to a clean, contiguous trace.
+    const runDir = join(tempDir, 'resume-torn-tail');
+    await createWaitingFixture({
+      runDir,
+      now: deterministicNow(Date.UTC(2026, 0, 2)),
+    });
+
+    // The crash artifact: a half-written record with no trailing newline,
+    // appended after the clean checkpoint.requested line.
+    const tracePath = join(runDir, 'trace.ndjson');
+    const clean = readFileSync(tracePath, 'utf8');
+    writeFileSync(
+      tracePath,
+      `${clean}{"schema_version":1,"sequence":999,"run_id":"${RUN_ID}","kind":"step.ent`,
+      'utf8',
+    );
+
+    const result = await resumeCompiledFlow({
+      runDir,
+      selection: 'continue',
+      now: deterministicNow(Date.UTC(2026, 0, 3)),
+      relayer: fixtureRelayer(),
+      executors: fixtureExecutors(),
+    });
+
+    expect(result.outcome).toBe('complete');
+
+    // The resumed trace is clean: torn bytes gone, sequence numbers contiguous,
+    // and the run closed normally. A fresh strict-enough reader sees no garbage.
+    const trace = await readTrace(runDir);
+    expect(trace.map((entry) => entry.sequence)).toEqual(trace.map((_, index) => index));
+    expect(trace.map((entry) => entry.kind)).toEqual(
+      expect.arrayContaining(['checkpoint.resolved', 'run.closed']),
+    );
+    expect(projectRunStatusFromRunFolder(runDir)).toMatchObject({
+      engine_state: 'completed',
+      reason: 'run_closed',
+      terminal_outcome: 'complete',
+    });
+  });
+
   it('rejects checkpoint requests when a static choice has no declared route', async () => {
     const runDir = join(tempDir, 'missing-choice-route');
     const result = await runCompiledFlowWithWaiting({

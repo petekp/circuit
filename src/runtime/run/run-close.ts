@@ -8,6 +8,7 @@
 import type { GuidanceDecisionTraceEntryBody } from '../../schemas/guidance-decision.js';
 import type { TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
+import type { TraceEntry } from '../domain/trace.js';
 import { resolveEngineFlags } from './engine-flags.js';
 import { type RuntimeRunResult, writeRuntimeRunResult } from './result-writer.js';
 import type { RunContext } from './run-context.js';
@@ -22,7 +23,10 @@ export interface GraphClosedOutcome {
   readonly result: GraphRunResult;
 }
 
-function resultSummary(outcome: RunClosedOutcome, terminalTarget?: TerminalTarget): string {
+// Exported so the result-recovery projection rebuilds the same summary string.
+// At recovery time the terminal route target is not durably recorded, so
+// regeneration calls this with no target and gets the outcome-only form.
+export function resultSummary(outcome: RunClosedOutcome, terminalTarget?: TerminalTarget): string {
   if (terminalTarget === undefined) return `Run closed with outcome ${outcome}.`;
   return `Run closed with outcome ${outcome} via ${terminalTarget}.`;
 }
@@ -80,8 +84,9 @@ export async function terminalOutcomeBoundToPrimaryResult(
   };
 }
 
-function latestAdmittedVerdict(context: RunContext): string | undefined {
-  const entries = context.trace.getAll();
+// Exported and entries-based (not context-based) so the result-recovery
+// projection computes the identical admitted verdict from a loaded trace.
+export function latestAdmittedVerdict(entries: readonly TraceEntry[]): string | undefined {
   const admitted = new Set<string>();
   for (const entry of entries) {
     if (
@@ -160,7 +165,8 @@ export async function closeRun(
     outcome: finalOutcome,
     ...(finalReason === undefined ? {} : { reason: finalReason }),
   });
-  const verdict = finalOutcome === 'complete' ? latestAdmittedVerdict(context) : undefined;
+  const verdict =
+    finalOutcome === 'complete' ? latestAdmittedVerdict(context.trace.getAll()) : undefined;
   const result: RuntimeRunResult = {
     schema_version: 1,
     run_id: context.runId,
