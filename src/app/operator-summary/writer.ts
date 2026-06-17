@@ -10,6 +10,8 @@ import {
   OperatorAutoResolution,
   type OperatorAutoResolution as OperatorAutoResolutionValue,
   type OperatorBriefSlots,
+  OperatorEquipmentReshape,
+  type OperatorEquipmentReshape as OperatorEquipmentReshapeValue,
   type OperatorRunReceipt,
   type OperatorRunReceiptSpend,
   type OperatorRunReceiptSpendRole,
@@ -24,7 +26,11 @@ import type { RunResult } from '../../schemas/result.js';
 import { ProviderScopedModel } from '../../schemas/selection-policy.js';
 import { RunSkillHookEvent } from '../../schemas/skill-hook.js';
 import { RelayRole } from '../../schemas/step.js';
-import { CatalogSourcedBinding, RelayUsageEvidence } from '../../schemas/trace-entry.js';
+import {
+  CatalogSourcedBinding,
+  RelayUsageEvidence,
+  RunEquipmentReshapeTraceEntry,
+} from '../../schemas/trace-entry.js';
 import { type HtmlProjectorContext, getHtmlProjector } from '../../shared/html/index.js';
 import {
   type JsonObject,
@@ -1016,6 +1022,71 @@ function skillHookActivationLine(activation: OperatorSkillHookActivationValue): 
   return `\`${activation.hook}\` ${parts.join('; ')} — ${provenance}`;
 }
 
+// Read the run's live equipment reshapes out of the trace and project them into
+// the operator surface (Step 2 / F2). The engine only appends a
+// `run.equipment-reshape` entry when a relay actually surfaced an equipment
+// discovery, so every entry is a real event — never no-op noise. An honored
+// reshape (`reshaped: true`) becomes a structured record naming the steps that
+// gained skills; a parked discovery (`reshaped: false` — found but declined
+// because it was unconfirmed, the budget was spent, or nothing remained to
+// equip) becomes a warning so the operator sees why the flow stayed unchanged.
+// One pass over trace.ndjson, deduped so a re-recorded entry is one line.
+function readEquipmentReshapeSummary(runFolder: string): {
+  readonly reshapes: OperatorEquipmentReshapeValue[];
+  readonly warnings: OperatorSummaryWarning[];
+} {
+  const tracePath = join(runFolder, 'trace.ndjson');
+  if (!existsSync(tracePath)) return { reshapes: [], warnings: [] };
+  const seen = new Set<string>();
+  const reshapes: OperatorEquipmentReshapeValue[] = [];
+  const warnings: OperatorSummaryWarning[] = [];
+  for (const line of readFileSync(tracePath, 'utf8').split(/\r?\n/)) {
+    if (line.trim().length === 0) continue;
+    let entry: unknown;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObject(entry) || entry.kind !== 'run.equipment-reshape') continue;
+    const parsed = RunEquipmentReshapeTraceEntry.safeParse(entry);
+    if (!parsed.success) continue;
+    const event = parsed.data;
+    const stepId = event.step_id as unknown as string;
+    if (event.reshaped) {
+      const record = OperatorEquipmentReshape.parse({
+        step_id: stepId,
+        domain_tags: event.domain_tags,
+        equipped_steps: (event.equipped_steps ?? []).map((id) => id as unknown as string),
+        reason: event.reason,
+      });
+      const key = JSON.stringify(record);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      reshapes.push(record);
+      continue;
+    }
+    // A parked discovery. Prefix the step id so the warning names where the
+    // discovery surfaced even when the recorded reason does not.
+    const warning: OperatorSummaryWarning = {
+      kind: 'equipment_discovery_parked',
+      message: `${stepId}: ${firstLine(event.reason)}`,
+    };
+    const key = JSON.stringify(warning);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    warnings.push(warning);
+  }
+  return { reshapes, warnings };
+}
+
+function equipmentReshapeLine(reshape: OperatorEquipmentReshapeValue): string {
+  const domains = reshape.domain_tags.length > 0 ? reshape.domain_tags.join(', ') : 'a domain';
+  const equipped =
+    reshape.equipped_steps.length > 0 ? reshape.equipped_steps.join(', ') : 'no remaining step';
+  return `\`${reshape.step_id}\` confirmed ${domains}; equipped ${equipped}`;
+}
+
 function formatScore(value: number | null | undefined): string {
   if (value === null || value === undefined) return 'n/a';
   return value.toFixed(3).replace(/\.?0+$/, '');
@@ -1068,6 +1139,12 @@ function renderMarkdown(summary: OperatorSummary): string {
         lines.push(`- ${skillHookActivationLine(activation)}`);
       }
     }
+    if (summary.equipment_reshapes !== undefined && summary.equipment_reshapes.length > 0) {
+      lines.push('', 'Live equipment:');
+      for (const reshape of summary.equipment_reshapes) {
+        lines.push(`- ${equipmentReshapeLine(reshape)}`);
+      }
+    }
     if (summary.receipt !== undefined) {
       lines.push('', receiptLine(summary.receipt));
       const spend = spendLine(summary.receipt);
@@ -1101,6 +1178,13 @@ function renderMarkdown(summary: OperatorSummary): string {
     lines.push('', '## Skill hooks', '');
     for (const activation of summary.skill_hook_activations) {
       lines.push(`- ${skillHookActivationLine(activation)}`);
+    }
+  }
+
+  if (summary.equipment_reshapes !== undefined && summary.equipment_reshapes.length > 0) {
+    lines.push('', '## Live equipment', '');
+    for (const reshape of summary.equipment_reshapes) {
+      lines.push(`- ${equipmentReshapeLine(reshape)}`);
     }
   }
 
@@ -1151,6 +1235,7 @@ export function writeOperatorSummary(input: {
       : resolveRunRelative(input.runFolder, resultRelPath);
   const autoResolutions = readAutoResolutions(input.runFolder);
   const skillHookSummary = readSkillHookSummary(input.runFolder);
+  const equipmentReshapeSummary = readEquipmentReshapeSummary(input.runFolder);
   const receipt = readRunReceipt(input.runFolder);
 
   const outJsonPath = jsonPath(input.runFolder);
@@ -1290,6 +1375,7 @@ export function writeOperatorSummary(input: {
     ...warningRecords(flowReport),
     ...(htmlEmitWarning === undefined ? [] : [htmlEmitWarning]),
     ...skillHookSummary.warnings,
+    ...equipmentReshapeSummary.warnings,
   ];
   const briefSlots = buildBriefSlots({
     runFolder: input.runFolder,
@@ -1322,6 +1408,9 @@ export function writeOperatorSummary(input: {
     ...(skillHookSummary.activations.length === 0
       ? {}
       : { skill_hook_activations: skillHookSummary.activations }),
+    ...(equipmentReshapeSummary.reshapes.length === 0
+      ? {}
+      : { equipment_reshapes: equipmentReshapeSummary.reshapes }),
     ...(receipt === undefined ? {} : { receipt }),
     ...(input.runResult.outcome === 'checkpoint_waiting'
       ? { checkpoint: input.runResult.checkpoint }
