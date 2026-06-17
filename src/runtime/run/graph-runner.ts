@@ -34,6 +34,7 @@ import { buildRuntimePackageIndex } from '../manifest/runtime-package-index.js';
 import { assertExecutableFlow } from '../manifest/validate-executable-flow.js';
 import { resolveBindingLegibility } from './binding-legibility.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
+import { type ContextPuller, extractContextRequest } from './context-pull.js';
 import { resolveEngineFlags } from './engine-flags.js';
 import { type EquipmentReshaper, extractEquipmentDiscovery } from './equipment-reshape.js';
 import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guidance.js';
@@ -77,6 +78,16 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   // downgrades to a finding. The compiled form and the per-run bound stay inside
   // this closure, so the runner only ever holds executable flows.
   readonly equipmentReshaper?: EquipmentReshaper;
+  // The live context-pull channel — the typed-lookup sibling of the reshaper. A
+  // FACTORY, not an instance: the seam builds a fresh puller for each step that
+  // asks, so the query budget is per-step (one step's pulls never starve the
+  // next). Present only on the live path (compiled-flow-runner passes
+  // createContextPuller); when present, a relay that surfaces a typed
+  // `context_request` has each named parent slice resolved and recorded in the
+  // trace. Absent => the channel is inert and a request is ignored. Resolve-and-
+  // record only: it never alters the run, so a run where no relay asks is
+  // byte-identical with or without it.
+  readonly contextPuller?: () => ContextPuller;
   readonly workContractRef?: Ref;
   readonly recoveryRouteBindings?: readonly RecoveryRouteBindingV0[];
   // Restart-cheapness pointer: a prior crashed run's folder whose finished
@@ -1018,6 +1029,78 @@ async function executeExecutableFlowOutcomeUnsafe(
       } catch {
         // Non-critical by design: a failed reshape attempt leaves the run on its
         // current, still-valid flow — exactly the finding fallback.
+      }
+    }
+
+    // On-demand context-pull — the typed-lookup channel. After a relay completes,
+    // it may have surfaced a `context_request`: a typed ask for one more named
+    // slice of a parent's report than its thin envelope carried. For each query
+    // the seam materializes the named parent's typed report, hands it to a fresh
+    // per-step channel (which owns the bound, the everything-refusal, and the
+    // fail-safe), and records the answer-or-finding in the trace. Resolve-and-
+    // record only: the value is not delivered back into the step this cut, so the
+    // run is never altered — pull-then-retry delivery is the battle-test's job.
+    // Inert unless the live path injected `contextPuller`; skipped on the terminal
+    // step and inside a slice loop, mirroring the reshape seam. The slice-loop skip
+    // is over-conservative here (context-pull never mutates, so the reshape reason
+    // — slice-scoped completion keys — does not apply): a request surfaced inside a
+    // corridor is dropped WITHOUT a finding, the one refusal path not made legible.
+    // Lifting the skip (resolve + record inside corridors too) is a battle-test
+    // item, gated on a deep-depth test; kept conservative and faithful for now.
+    // Best-effort and fail-safe: any failure leaves the run untouched.
+    const contextPullerFactory = options.contextPuller;
+    if (
+      contextPullerFactory !== undefined &&
+      targetTransition.kind !== 'terminal_close' &&
+      !sliceCorridor.isActive()
+    ) {
+      try {
+        const stepEntries = trace.getAll().slice(traceLengthBeforeStep);
+        const completed = [...stepEntries]
+          .reverse()
+          .find((entry) => entry.kind === 'relay.completed');
+        if (completed !== undefined) {
+          const body = await context.files.readJson(completed.result_path);
+          const request = extractContextRequest(body);
+          if (request !== undefined) {
+            // A fresh puller per step, so its budget is this step's alone.
+            const contextPuller = contextPullerFactory();
+            // Materialize the typed surface: parent step id -> that parent's
+            // report JSON, read once each. A parent without a readable report is
+            // simply absent from the surface — the channel parks the query as a
+            // finding. The query asks for a named slice of a parent that already
+            // RAN, so its report is settled; we never read the running step.
+            const surface = new Map<string, unknown>();
+            for (const query of request.queries) {
+              if (surface.has(query.from_step)) continue;
+              const reportPath = steps.get(query.from_step)?.writes?.report?.path;
+              if (reportPath === undefined) continue;
+              try {
+                surface.set(query.from_step, await context.files.readJson(reportPath));
+              } catch {
+                // An unreadable report leaves the parent off the surface; the
+                // channel then parks the query as a finding.
+              }
+            }
+            for (const query of request.queries) {
+              const outcome = contextPuller({ fromStepId: step.id, query, surface });
+              await trace.append({
+                run_id: runId,
+                kind: 'run.context-pull',
+                step_id: step.id,
+                from_step: query.from_step,
+                field_path: query.field_path,
+                answered: outcome.answered,
+                ...(outcome.answered ? { bytes: outcome.bytes } : {}),
+                reason: outcome.answered
+                  ? `pulled ${outcome.source} (${outcome.bytes} bytes)`
+                  : outcome.finding,
+              });
+            }
+          }
+        }
+      } catch {
+        // Non-critical by design: a failed context-pull leaves the run untouched.
       }
     }
 

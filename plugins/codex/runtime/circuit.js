@@ -30496,6 +30496,15 @@ function mechanicalTail(schema, reportPath) {
   ].join(" ");
 }
 
+// dist/schemas/context-request.js
+var ContextQuery = external_exports.object({
+  from_step: external_exports.string().min(1).max(120).describe("the parent step whose typed report this query reads"),
+  field_path: external_exports.string().min(1).max(200).describe('a dotted path naming exactly one field of the parent report; never "everything"')
+}).strict();
+var ContextRequest = external_exports.object({
+  queries: external_exports.array(ContextQuery).min(1).max(8).describe("the named parent slices this step is asking for, one field each")
+}).strict();
+
 // dist/schemas/equipment-discovery.js
 var EquipmentDiscovery = external_exports.object({
   confirmed: external_exports.boolean().describe("true ONLY on unambiguous runtime evidence; a hunch or a maybe must be false"),
@@ -30771,7 +30780,8 @@ var BuildImplementation = external_exports.object({
   verdict: external_exports.literal("accept"),
   summary: external_exports.string().min(1).describe("what changed"),
   changed_files: external_exports.array(external_exports.string().min(1).describe("project-relative path")),
-  evidence: external_exports.array(external_exports.string().min(1).describe("verification or implementation evidence")).min(1)
+  evidence: external_exports.array(external_exports.string().min(1).describe("verification or implementation evidence")).min(1),
+  context_request: ContextRequest.optional().describe(`ONLY when the thin envelope this step was handed is missing a specific named slice of an upstream report you need to do the work: a typed lookup for it (name the parent step and the one dotted field). The engine resolves each named slice from that parent's typed report and records it; an "everything"/untyped ask is refused. Omit this key entirely when the envelope is sufficient`)
 }).strict();
 var BuildVerification = VerificationResult;
 var BuildReviewVerdict = external_exports.enum(["accept", "accept-with-fixes", "reject"]);
@@ -34230,6 +34240,15 @@ var RunEquipmentReshapeTraceEntry = TraceEntryBase.extend({
   equipped_steps: external_exports.array(StepId).optional(),
   reason: external_exports.string().min(1)
 }).strict();
+var RunContextPullTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.context-pull"),
+  step_id: StepId,
+  from_step: external_exports.string(),
+  field_path: external_exports.string(),
+  answered: external_exports.boolean(),
+  bytes: external_exports.number().int().nonnegative().optional(),
+  reason: external_exports.string().min(1)
+}).strict();
 var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunBootstrappedTraceEntry,
   StepEnteredTraceEntry,
@@ -34260,6 +34279,7 @@ var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunSkillHookErrorTraceEntry,
   PowerInferenceResolvedTraceEntry,
   RunEquipmentReshapeTraceEntry,
+  RunContextPullTraceEntry,
   GuidanceDecisionTraceEntryBody
 ]).superRefine((ev, ctx) => {
   if (ev.kind === "guidance.decision") {
@@ -34843,7 +34863,7 @@ var explainerSpecComposeBuilder = {
     const proposal = branch?.result_body;
     const fidelityCitations = [
       ...proposal?.fidelity_evidence ?? [concept.fidelity_anchor],
-      ...hardening.banned_phrase_findings.filter((finding2) => finding2.present).map((finding2) => `Avoid "${finding2.phrase}": ${finding2.note}`)
+      ...hardening.banned_phrase_findings.filter((finding3) => finding3.present).map((finding3) => `Avoid "${finding3.phrase}": ${finding3.note}`)
     ];
     return ExplainerSpec.parse({
       concept_id: concept.id,
@@ -39735,7 +39755,7 @@ var goalCloseBuilder = {
     const provenClaims = evaluation.claim_results.filter((claim) => claim.status === "proved").map((claim) => claim.claim_id);
     const weakClaims = evaluation.claim_results.filter((claim) => claim.status !== "proved").map((claim) => `${claim.claim_id}: ${claim.gap ?? claim.status}`);
     const gateClean = gate?.verdict === "gate-pass" && gate.clean_streak >= 2;
-    const lowGateFindings = gate?.low_findings.map((finding2) => finding2.text) ?? [];
+    const lowGateFindings = gate?.low_findings.map((finding3) => finding3.text) ?? [];
     const outcome = evaluation.verdict === "satisfied" && gateClean ? "complete" : recovery?.selected_route === "handoff" ? "handoff" : recovery?.selected_route === "blocked" ? "blocked" : attempt.outcome === "failed" ? "failed" : "needs_attention";
     const links = RESULT_POINTERS.flatMap((pointer) => {
       if (pointer.optional && context.inputs[pointer.report_id.split(".")[1] ?? ""] === void 0) {
@@ -43490,7 +43510,7 @@ var PursuitReview = external_exports.object({
   summary: external_exports.string().min(1),
   findings: external_exports.array(PursuitReviewFinding)
 }).strict().superRefine((review, ctx) => {
-  const mediumOrHigher = review.findings.filter((finding2) => ["critical", "high", "medium"].includes(finding2.severity));
+  const mediumOrHigher = review.findings.filter((finding3) => ["critical", "high", "medium"].includes(finding3.severity));
   if (review.verdict === "clean" && review.findings.length > 0) {
     ctx.addIssue({
       code: "custom",
@@ -44196,7 +44216,7 @@ var ReviewFinding = external_exports.object({
   file_refs: external_exports.array(external_exports.string().min(1))
 }).strict();
 function computeReviewVerdict(findings) {
-  return findings.some((finding2) => finding2.severity !== "low") ? "ISSUES_FOUND" : "CLEAN";
+  return findings.some((finding3) => finding3.severity !== "low") ? "ISSUES_FOUND" : "CLEAN";
 }
 var ReviewResult = external_exports.object({
   scope: external_exports.string().min(1),
@@ -44664,9 +44684,9 @@ function severityIntent(severity) {
 function findingList(findings) {
   if (findings.length === 0)
     return '<p class="summary">No actionable findings.</p>';
-  const items = findings.map((finding2) => {
-    const refs = finding2.file_refs.length === 0 ? "" : ` <span class="chip">${escapeHtml(finding2.file_refs.join(", "))}</span>`;
-    return `<li><strong>${escapeHtml(finding2.severity.toUpperCase())}</strong>: ${escapeHtml(finding2.text)}${refs}</li>`;
+  const items = findings.map((finding3) => {
+    const refs = finding3.file_refs.length === 0 ? "" : ` <span class="chip">${escapeHtml(finding3.file_refs.join(", "))}</span>`;
+    return `<li><strong>${escapeHtml(finding3.severity.toUpperCase())}</strong>: ${escapeHtml(finding3.text)}${refs}</li>`;
   }).join("");
   return `<ul class="tradeoffs">${items}</ul>`;
 }
@@ -44708,8 +44728,8 @@ var reviewResultProjector = (ctx) => {
   const report = parsed.data;
   if (!shouldRenderHtml(report))
     return void 0;
-  const worstIntent = report.findings.reduce((intent, finding2) => {
-    const findingIntent = severityIntent(finding2.severity);
+  const worstIntent = report.findings.reduce((intent, finding3) => {
+    const findingIntent = severityIntent(finding3.severity);
     if (findingIntent === "negative")
       return "negative";
     if (findingIntent === "attention" && intent === "positive")
@@ -56767,6 +56787,72 @@ function fromCompiledFlow(flow) {
   return executable;
 }
 
+// dist/runtime/run/context-pull.js
+var CONTEXT_PULL_BUDGET = 3;
+var EVERYTHING_SENTINEL = "*";
+function extractContextRequest(report) {
+  if (report === null || typeof report !== "object")
+    return void 0;
+  const candidate = report.context_request;
+  if (candidate === void 0)
+    return void 0;
+  const parsed = ContextRequest.safeParse(candidate);
+  return parsed.success ? parsed.data : void 0;
+}
+function finding(message) {
+  return { answered: false, finding: message };
+}
+function resolveOwnFieldPath(root, path) {
+  let cursor = root;
+  for (const segment of path.split(".")) {
+    if (cursor === null || typeof cursor !== "object" || Array.isArray(cursor)) {
+      throw new Error(`field_path '${path}' descended into a non-object at segment '${segment}'`);
+    }
+    if (!Object.hasOwn(cursor, segment)) {
+      throw new Error(`field_path '${path}' names no own field at segment '${segment}'`);
+    }
+    cursor = cursor[segment];
+  }
+  return cursor;
+}
+function byteSizeOf(value) {
+  try {
+    return JSON.stringify(value)?.length ?? 0;
+  } catch {
+    return 0;
+  }
+}
+function createContextPuller() {
+  const budget = { remaining: CONTEXT_PULL_BUDGET };
+  return ({ fromStepId, query, surface }) => {
+    const path = query.field_path.trim();
+    if (path === EVERYTHING_SENTINEL || path === "") {
+      return finding(`context pull from step '${fromStepId}' asked for "everything" (field_path '${query.field_path}'); refused \u2014 name one typed slice, or narrow the envelope`);
+    }
+    if (budget.remaining <= 0) {
+      return finding(`context pull budget exhausted at step '${fromStepId}'; recorded as a finding, step proceeds on current context`);
+    }
+    if (!surface.has(query.from_step)) {
+      return finding(`context pull from step '${fromStepId}' named parent '${query.from_step}', which has no readable typed report; recorded as a finding`);
+    }
+    const root = surface.get(query.from_step);
+    let value;
+    try {
+      value = resolveOwnFieldPath(root, path);
+    } catch (error51) {
+      const message = error51 instanceof Error ? error51.message : String(error51);
+      return finding(`context pull '${query.from_step}.${path}' is unanswerable: ${message}; recorded as a finding`);
+    }
+    budget.remaining -= 1;
+    return {
+      answered: true,
+      value,
+      bytes: byteSizeOf(value),
+      source: `${query.from_step}.${path}`
+    };
+  };
+}
+
 // dist/runtime/run/equipment-reshape.js
 var EQUIPMENT_RESHAPE_BUDGET = 3;
 function extractEquipmentDiscovery(report) {
@@ -56778,7 +56864,7 @@ function extractEquipmentDiscovery(report) {
   const parsed = EquipmentDiscovery.safeParse(candidate);
   return parsed.success ? parsed.data : void 0;
 }
-function finding(message) {
+function finding2(message) {
   return { reshaped: false, finding: message };
 }
 function createEquipmentReshaper(initialCompiledFlow) {
@@ -56786,13 +56872,13 @@ function createEquipmentReshaper(initialCompiledFlow) {
   const budget = { remaining: EQUIPMENT_RESHAPE_BUDGET, touched: /* @__PURE__ */ new Set() };
   return ({ fromStepId, remainingRelayStepIds, discovery }) => {
     if (!discovery.confirmed) {
-      return finding(`equipment discovery from step '${fromStepId}' is unconfirmed; recorded as a finding, flow unchanged`);
+      return finding2(`equipment discovery from step '${fromStepId}' is unconfirmed; recorded as a finding, flow unchanged`);
     }
     if (budget.remaining <= 0) {
-      return finding(`equipment reshape budget exhausted at step '${fromStepId}'; recorded as a finding, flow unchanged`);
+      return finding2(`equipment reshape budget exhausted at step '${fromStepId}'; recorded as a finding, flow unchanged`);
     }
     if (budget.touched.has(fromStepId)) {
-      return finding(`step '${fromStepId}' already reshaped this run (cycle guard); recorded as a finding, flow unchanged`);
+      return finding2(`step '${fromStepId}' already reshaped this run (cycle guard); recorded as a finding, flow unchanged`);
     }
     const candidate = reResolveEquipmentOnCompiledFlow({
       sourceFlow: current,
@@ -56801,13 +56887,13 @@ function createEquipmentReshaper(initialCompiledFlow) {
       discovery
     });
     if (!candidate.ok)
-      return finding(candidate.reason);
+      return finding2(candidate.reason);
     let executableFlow;
     try {
       executableFlow = fromCompiledFlow(candidate.compiledFlow);
     } catch (error51) {
       const message = error51 instanceof Error ? error51.message : String(error51);
-      return finding(`equipment reshape rejected by the executable-graph safety floor: ${message}`);
+      return finding2(`equipment reshape rejected by the executable-graph safety floor: ${message}`);
     }
     budget.remaining -= 1;
     budget.touched.add(fromStepId);
@@ -65088,6 +65174,46 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       } catch {
       }
     }
+    const contextPullerFactory = options.contextPuller;
+    if (contextPullerFactory !== void 0 && targetTransition.kind !== "terminal_close" && !sliceCorridor.isActive()) {
+      try {
+        const stepEntries = trace.getAll().slice(traceLengthBeforeStep);
+        const completed = [...stepEntries].reverse().find((entry) => entry.kind === "relay.completed");
+        if (completed !== void 0) {
+          const body = await context.files.readJson(completed.result_path);
+          const request = extractContextRequest(body);
+          if (request !== void 0) {
+            const contextPuller = contextPullerFactory();
+            const surface = /* @__PURE__ */ new Map();
+            for (const query of request.queries) {
+              if (surface.has(query.from_step))
+                continue;
+              const reportPath = steps.get(query.from_step)?.writes?.report?.path;
+              if (reportPath === void 0)
+                continue;
+              try {
+                surface.set(query.from_step, await context.files.readJson(reportPath));
+              } catch {
+              }
+            }
+            for (const query of request.queries) {
+              const outcome = contextPuller({ fromStepId: step.id, query, surface });
+              await trace.append({
+                run_id: runId,
+                kind: "run.context-pull",
+                step_id: step.id,
+                from_step: query.from_step,
+                field_path: query.field_path,
+                answered: outcome.answered,
+                ...outcome.answered ? { bytes: outcome.bytes } : {},
+                reason: outcome.answered ? `pulled ${outcome.source} (${outcome.bytes} bytes)` : outcome.finding
+              });
+            }
+          }
+        }
+      } catch {
+      }
+    }
     if (targetTransition.kind === "terminal_close") {
       return await closeRun(context, outcomeForTerminal(targetTransition.terminalTarget), targetTransition.terminalTarget);
     }
@@ -65178,6 +65304,13 @@ async function runCompiledFlowWithWaiting(options) {
     // directly (tests, internal helpers) leave this undefined, and the whole
     // reshape stays inert there.
     equipmentReshaper: createEquipmentReshaper(flow),
+    // The live context-pull channel — the typed-lookup sibling of the reshaper.
+    // Passed as a FACTORY: the seam builds a fresh puller per step that asks, so
+    // the query budget is per-step. The runner calls it when a relay surfaces a
+    // typed `context_request`, resolving each named parent slice and recording it
+    // in the trace. Callers that invoke executeExecutableFlow* directly leave this
+    // undefined, keeping the channel inert there.
+    contextPuller: createContextPuller,
     workContractRef: tracedWorkContractRef,
     recoveryRouteBindings: workContractProjection.work_contract.recovery,
     ...options.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: options.reuseChildrenFrom },
@@ -66169,12 +66302,12 @@ function reviewFindingDetails(report) {
     return stringField2(report, "assessment") === void 0 ? ["Findings: 0"] : [];
   }
   const lines = [];
-  for (const finding2 of findings) {
-    if (!isObject4(finding2))
+  for (const finding3 of findings) {
+    if (!isObject4(finding3))
       continue;
-    const severity = (stringField2(finding2, "severity") ?? "unknown").toUpperCase();
-    const text = stringField2(finding2, "text") ?? "(no text)";
-    const fileRefs = stringArrayField2(finding2, "file_refs");
+    const severity = (stringField2(finding3, "severity") ?? "unknown").toUpperCase();
+    const text = stringField2(finding3, "text") ?? "(no text)";
+    const fileRefs = stringArrayField2(finding3, "file_refs");
     const summary = firstLineSummary(text, 140);
     const fileSuffix = fileRefs.length === 0 ? "" : ` \u2014 at ${fileRefs.join(", ")}`;
     lines.push(`[${severity}] ${summary}${fileSuffix}`);
@@ -67769,7 +67902,7 @@ function contractQualityReview(contract) {
       text: `A ${kind} objective needs at least one required '${minKind}' evidence entry, but the contract has none. Satisfying this contract would not prove the objective.`
     });
   }
-  const blocking = findings.some((finding2) => finding2.severity === "critical" || finding2.severity === "high" || finding2.severity === "medium");
+  const blocking = findings.some((finding3) => finding3.severity === "critical" || finding3.severity === "high" || finding3.severity === "medium");
   return {
     verdict: blocking ? "blocked" : "gate-pass",
     attack_lens: "contract-quality",

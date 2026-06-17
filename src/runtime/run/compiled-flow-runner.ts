@@ -16,6 +16,7 @@ import {
 } from '../../shared/work-contract-projection.js';
 import { fromCompiledFlow } from '../manifest/from-compiled-flow.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
+import { createContextPuller } from './context-pull.js';
 import { createEquipmentReshaper } from './equipment-reshape.js';
 import {
   type GraphExecutionResult,
@@ -116,6 +117,13 @@ export async function runCompiledFlowWithWaiting(
       // directly (tests, internal helpers) leave this undefined, and the whole
       // reshape stays inert there.
       equipmentReshaper: createEquipmentReshaper(flow),
+      // The live context-pull channel — the typed-lookup sibling of the reshaper.
+      // Passed as a FACTORY: the seam builds a fresh puller per step that asks, so
+      // the query budget is per-step. The runner calls it when a relay surfaces a
+      // typed `context_request`, resolving each named parent slice and recording it
+      // in the trace. Callers that invoke executeExecutableFlow* directly leave this
+      // undefined, keeping the channel inert there.
+      contextPuller: createContextPuller,
       workContractRef: tracedWorkContractRef,
       recoveryRouteBindings: workContractProjection.work_contract.recovery,
       ...(options.reuseChildrenFrom === undefined

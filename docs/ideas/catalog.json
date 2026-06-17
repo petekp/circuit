@@ -1271,6 +1271,20 @@
       "last_checked": "2026-06-17"
     },
     {
+      "path": "docs/ideas/context-pull-live-run-report.md",
+      "title": "Context-pull (live) run report - the typed-lookup query channel",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["context", "context-pull", "runtime-binding", "reshape", "trace"],
+      "current_reading": "The live runtime sibling of equipment reshape, built off main 99c9e679. A typed-lookup query channel: a relay may surface a typed context_request naming one parent step plus one dotted own-field of its typed report; after the step completes a post-step seam resolves each named slice against that parent's report, bounds it by a per-step budget of 3, refuses an everything/untyped ask (and prototype-chain keys) as a finding, and records each query as a run.context-pull trace entry. Additive, opt-in (declared optional on BuildImplementation, byte-identical when omitted), bounded, fail-safe, and resolve-and-record only - nothing is delivered back into the asking step this cut. 13 tests (11 unit + 2 integration through the real Build flow), verify green, reviewed by a 13-agent adversarial workflow (R1 prototype-key rail hardened). Next: wire delivery (pull-then-retry) and battle-test reshape + pull together on one starving task.",
+      "related": [
+        "docs/ideas/on-demand-context-pull.md",
+        "docs/ideas/step2-live-equipment-reshape-report.md",
+        "docs/ideas/north-star-status.md"
+      ],
+      "last_checked": "2026-06-17"
+    },
+    {
       "path": "docs/ideas/paper-to-site-2nd-run-findings.md",
       "title": "Paper-to-site explainer flow - second-run findings",
       "status": "design-evaluation",

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ContextRequest } from '../../schemas/context-request.js';
 import { EquipmentDiscovery } from '../../schemas/equipment-discovery.js';
 import { PowerRecommendation } from '../../schemas/power.js';
 import { RuntimeGitStateEntry, RuntimeHiddenIndexFlag } from '../../schemas/runtime-evidence.js';
@@ -276,6 +277,9 @@ export const BuildImplementation = z
     summary: z.string().min(1).describe('what changed'),
     changed_files: z.array(z.string().min(1).describe('project-relative path')),
     evidence: z.array(z.string().min(1).describe('verification or implementation evidence')).min(1),
+    context_request: ContextRequest.optional().describe(
+      'ONLY when the thin envelope this step was handed is missing a specific named slice of an upstream report you need to do the work: a typed lookup for it (name the parent step and the one dotted field). The engine resolves each named slice from that parent\'s typed report and records it; an "everything"/untyped ask is refused. Omit this key entirely when the envelope is sufficient',
+    ),
   })
   .strict();
 export type BuildImplementation = z.infer<typeof BuildImplementation>;
