@@ -1,12 +1,21 @@
 # E2 spec: equipment scope, manifest-first
 
-> Written 2026-06-14. This is **B3(a)** of the E1 backlog. It is a **spec only**:
-> it designs primitive 3b ("equipment scope") as a declared, enforced field, but
-> implements nothing. Implementation waits until after the first-class-composition
-> migration merges (it would otherwise collide with M8's typed-seam work in
-> `src/schemas/` and `src/flows/`). Grounding: the
+> Status: **BUILT.** Written 2026-06-14 as a spec only (B3(a) of the E1 backlog);
+> status updated 2026-06-16. The equipment-scope axis it designs has since shipped:
+> the per-step **tools** axis (declared + enforced via `claude-code --tools`, with
+> an honest downgrade) landed as **PR #89**, and the **skills** half (real
+> house-style injection through `skill_slots`, plus the `equipment` resolver that
+> chooses the kit) landed as **PRs #96/#97**. The waited-on first-class-composition
+> migration has merged, so the collision risk that gated this is gone. See
+> [`equipment-scope-enforcement-report.md`](equipment-scope-enforcement-report.md),
+> [`resolver-shared-shape.md`](resolver-shared-shape.md), and
+> [`north-star-status.md`](north-star-status.md). The design below is the record of
+> what was built.
+>
+> *(Original status: "spec only … implements nothing. Implementation waits until
+> after the first-class-composition migration merges.")* Grounding: the
 > [`primitive-readiness-audit.md`](primitive-readiness-audit.md) found 3b fully
-> absent today; this is the design that fills it. See also the
+> absent at write time; this is the design that filled it. See also the
 > [`exploration-substrate-two-track-plan.md`](exploration-substrate-two-track-plan.md)
 > (E2) and the [`e1-implementation-brief.md`](e1-implementation-brief.md).
 

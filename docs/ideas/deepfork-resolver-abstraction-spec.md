@@ -1,13 +1,23 @@
 # Deep fork (ii): the resolver abstraction
 
-> Status: **surface-only spike + decision-ready spec.** Written 2026-06-16.
-> A B4 "deep fork": a throwaway spike captured as a spec. **It must never be
-> merged into `src/`.** The interface sketch below is illustrative only - not
-> committed, not built.
+> Status: **still surfaced — the recommendation HOLDS (do not extract yet).**
+> Written 2026-06-16; status updated 2026-06-16. The two resolvers this fork is
+> about have since SHIPPED to `src/flows/resolvers/` (`structure.ts` via PR #95,
+> `equipment.ts` via PR #96, with contract tests
+> `tests/contracts/structure-resolver.test.ts` and `equipment-resolver.test.ts`)
+> — but the abstraction itself was deliberately NOT extracted, exactly as
+> recommended below. A third resolver instance (context or depth) is the honest
+> trigger, and there is no third instance yet, so the `Resolver` interface sketch
+> remains illustrative only, not built. This is the live state, not a stale
+> deferral: the abstraction is *earnable but not yet earned*.
 >
-> Grounded against the two real resolvers in
-> `/Users/petepetrash/Code/circuit-flow-lab/experiments/resolvers/` and the shared
-> shape they recorded in `SHARED-SHAPE.md`.
+> The shared shape the two instances recorded is captured in
+> [`resolver-shared-shape.md`](resolver-shared-shape.md). See also
+> [`recompile-foundation-run-report.md`](recompile-foundation-run-report.md) and
+> [`north-star-status.md`](north-star-status.md). The file:line references below
+> were written against the flow-lab spike paths (`experiments/resolvers/`) and are
+> kept as the original grounding record; the resolvers now live in
+> `src/flows/resolvers/`.
 
 ## The fork in one line
 

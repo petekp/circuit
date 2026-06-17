@@ -236,15 +236,18 @@
     {
       "path": "docs/ideas/e2-equipment-scope-spec.md",
       "title": "E2 spec: equipment scope, manifest-first",
-      "status": "pre-implementation",
+      "status": "implemented",
       "category": "flows-and-blocks",
       "tags": ["composition", "equipment-scope", "manifest-first", "decomposition", "experiments"],
-      "current_reading": "B3 spec: equipment scope (primitive 3b) as a declared, manifest-first field with write-tier enforcement, turning decomposition grain into a per-step dial. Design only; implements nothing (would collide with M8). Re-check against current schemas before use.",
+      "current_reading": "Design for equipment scope (primitive 3b) as a declared, manifest-first field with write-tier enforcement, turning decomposition grain into a per-step dial. Since built: the per-step tools axis (declared + enforced via claude-code --tools, honest downgrade) shipped as PR #89, and the skills half (real house-style injection through skill_slots plus the equipment resolver) as PRs #96/#97. The doc is now the record of what was built; verify exact field shapes against current schemas.",
       "related": [
         "docs/ideas/primitive-readiness-audit.md",
-        "docs/ideas/e1-implications-for-m8.md"
+        "docs/ideas/e1-implications-for-m8.md",
+        "docs/ideas/equipment-scope-enforcement-report.md",
+        "docs/ideas/resolver-shared-shape.md",
+        "docs/ideas/north-star-status.md"
       ],
-      "last_checked": "2026-06-14"
+      "last_checked": "2026-06-16"
     },
     {
       "path": "docs/ideas/equipment-scope-build-brief.md",
@@ -252,13 +255,14 @@
       "status": "implemented",
       "category": "flows-and-blocks",
       "tags": ["composition", "equipment-scope", "manifest-first", "tools", "build-brief"],
-      "current_reading": "Build brief for the equipment-scope mechanism (declared tools sub-axis + write-tier enforcement). Both increments implemented on feat/equipment-scope (held PR): declared+trusted provide, plus enforced write-tier restriction via claude-code --tools with honest downgrade on incapable connectors. See the enforcement-mechanism report for the decision and what's left.",
+      "current_reading": "Build brief for the equipment-scope mechanism (declared tools sub-axis + write-tier enforcement). This batch shipped to main: the tools half via claude-code --tools with honest downgrade (PR #89), then the skills half via real skill_slot injection plus the equipment resolver (PRs #96/#97). Of the four micro-harness scopes (context, equipment, model/effort, structure), equipment moved from absent to real here. See the enforcement-mechanism report and the north-star status map.",
       "related": [
         "docs/ideas/e2-equipment-scope-spec.md",
         "docs/ideas/e1-implications-for-m8.md",
-        "docs/ideas/equipment-scope-enforcement-report.md"
+        "docs/ideas/equipment-scope-enforcement-report.md",
+        "docs/ideas/north-star-status.md"
       ],
-      "last_checked": "2026-06-15"
+      "last_checked": "2026-06-16"
     },
     {
       "path": "docs/ideas/equipment-scope-enforcement-report.md",
@@ -312,24 +316,30 @@
     {
       "path": "docs/ideas/exploration-substrate-two-track-plan.md",
       "title": "Two-track plan: the M-spine and the exploration substrate",
-      "status": "current-proposal",
+      "status": "partially-implemented",
       "category": "strategy-and-comparisons",
       "tags": ["exploration", "experiments", "composition", "roadmap"],
-      "current_reading": "Plan separating the first-class-composition M-spine from an exploration substrate for measured experiments. E1 is its first milestone. Plan context, not shipped behavior.",
+      "current_reading": "Plan separating the first-class-composition M-spine from an exploration substrate for measured experiments. Largely realized: the M-spine merged, and the start-now pieces shipped (equipment scope PR #89 + the equipment resolver; the offline flow lab and quality ratchet). The framing is superseded by decision-layer-exploration.md; the gated remainder (splice-as-leaf, a fuller legible-composition surface) is still surfaced. Kept as the dependency-cut record.",
       "related": [
         "docs/ideas/e1-implementation-brief.md",
-        "docs/ideas/mini-harness-debrief-vs-circuit.md"
+        "docs/ideas/mini-harness-debrief-vs-circuit.md",
+        "docs/ideas/decision-layer-exploration.md",
+        "docs/ideas/north-star-status.md"
       ],
-      "last_checked": "2026-06-14"
+      "last_checked": "2026-06-16"
     },
     {
       "path": "docs/ideas/durability-tier2-cursor-spec.md",
       "title": "Durability Tier-2: the forward-recovery cursor (decision-ready spec)",
-      "status": "implementation-spec",
+      "status": "partially-implemented",
       "category": "run-inspection-and-output",
       "tags": ["durability", "resumability", "crash-recovery", "recovery-corridor", "spec"],
-      "current_reading": "Decision-ready spec for Tier-2 forward recovery, companion to the fallible-executor audit. One slice is built (RecoveryCorridor.seedFromTrace, structural-only, wired inert behind resume); the rest is the fork (resumable cursor vs projection/checkpoint-only + Tier-3 restart-cheapness), three options (A general cursor, B bounded linear-only cursor, C foundation + Tier-3). Both load-bearing probes have now run (2026-06-16): probe (i) found relay is the lone linear step kind that is not cheaply idempotent (uncatchable bypassPermissions subprocess mutates the tree, no per-step snapshot/reset exists), and probe (ii) resolved the staleness boundary as a cheap runtime-owned port. Resolved decision is Option C now (build foundation + Tier-3 restart-cheapness; the shipped worktree reaper is the first slice), with Option B kept specced but not started. A2/A3 depend on the full cursor and stay surface-only.",
-      "related": ["docs/ideas/fallible-executor-audit.md"],
+      "current_reading": "Decision-ready spec for Tier-2 forward recovery, companion to the fallible-executor audit. DECIDED: Option C (restart-cheapness, not a resumable cursor). Both load-bearing probes ran (2026-06-16): relay is the lone linear step kind that is not cheaply idempotent, and the staleness boundary resolved as a cheap runtime-owned port. The foundation slice shipped (RecoveryCorridor.seedFromTrace, structural-only, behind resume; PR #93) and the worktree reaper landed (PR #99); the forward-recovery cursor itself is the path NOT taken. The re-entry mechanism for skip-finished children moved to durability-tier3-restart-linkage-spec.md (circuit run --reuse-children-from, not built).",
+      "related": [
+        "docs/ideas/fallible-executor-audit.md",
+        "docs/ideas/durability-tier3-restart-linkage-spec.md",
+        "docs/ideas/north-star-status.md"
+      ],
       "last_checked": "2026-06-16"
     },
     {
@@ -391,16 +401,18 @@
     {
       "path": "docs/ideas/grain-separability-experiment-design.md",
       "title": "Experiment design: grain x task-separability",
-      "status": "pre-implementation",
+      "status": "design-evaluation",
       "category": "verification-and-evals",
       "tags": ["experiments", "composition", "evals", "grain", "methodology"],
-      "current_reading": "Pre-registered experiment design that pits two opposing hypotheses (coherence-loss vs verification-gain) about whether chopping a task into separated steps helps or hurts, to settle the assembler's chop/hold default. Designed, not run; built on the E1 harness and now fireable against the post-M9 composed runtime.",
+      "current_reading": "Pre-registered experiment design that pits two opposing hypotheses (coherence-loss vs verification-gain) about whether chopping a task into separated steps helps or hurts, to settle the assembler's chop/hold default. Designed AND run (2026-06-16): the verdict was NULL (the false-fixed rate was 0 in every cell, both grains and both bands, so the hypotheses could not be adjudicated and the thin-conservative chooser was held). This is the design record; the outcome lives in grain-chooser-run-report.md.",
       "related": [
         "docs/ideas/e1-run-report.md",
         "docs/ideas/exploration-substrate-two-track-plan.md",
+        "docs/ideas/grain-chooser-run-report.md",
+        "docs/ideas/north-star-status.md",
         "docs/architecture/first-class-composition-optimal-path.md"
       ],
-      "last_checked": "2026-06-14"
+      "last_checked": "2026-06-16"
     },
     {
       "path": "docs/ideas/intent-capture-and-enforcement-implementation.md",
@@ -483,12 +495,15 @@
       "status": "partially-implemented",
       "category": "flows-and-blocks",
       "tags": ["flows", "explainer", "paper-to-site", "hand-authored", "build-brief"],
-      "current_reading": "Build brief for the explainer flow, the operator's research-paper to interactive-site pipeline codified as the first hand-authored, non-build-shaped flow. A runnable v1 is authored (held PR): the end-to-end spine of intake, lossless digest, persona-lensed ideation, a six-criteria tournament, an adversarial fidelity hardening pass, an operator pick, a house-style spec, a child build sub-run, verification, an operator fidelity sign-off, and an honest close. Internals are deliberately thin pending a second-paper refinement pass.",
+      "current_reading": "Build brief for the explainer flow, the operator's research-paper to interactive-site pipeline codified as the first hand-authored, non-build-shaped flow. v1 shipped to main (PR #90; src/flows/explainer/): intake, lossless digest, persona-lensed ideation, a six-criteria tournament, an adversarial fidelity hardening pass, an operator pick, a house-style spec, a child build sub-run, verification, an operator fidelity sign-off, and an honest close. It was then run on a second paper, which generalized the editorial spine but exposed findings: the headline recovery-binding hard-abort is now fixed on main (PR #105), while the greenfield-scaffold gap, a post-editorial checkpoint, and craft gaps remain open. See paper-to-site-2nd-run-findings.md.",
       "related": [
         "docs/ideas/m9-grounding-brief.md",
-        "docs/ideas/spec-driven-flow-opportunities.md"
+        "docs/ideas/spec-driven-flow-opportunities.md",
+        "docs/ideas/paper-to-site-2nd-run-findings.md",
+        "docs/ideas/overnight-reliability-run-report.md",
+        "docs/ideas/north-star-status.md"
       ],
-      "last_checked": "2026-06-15"
+      "last_checked": "2026-06-17"
     },
     {
       "path": "docs/ideas/memory-phase0-failure-legibility-spec.md",
@@ -506,9 +521,12 @@
       "status": "current-comparison",
       "category": "strategy-and-comparisons",
       "tags": ["comparison", "composition", "experiments", "harness"],
-      "current_reading": "Compares an external exploratory mini-harness against Circuit's first-class composition direction. Comparison context that motivates the exploration substrate.",
-      "related": ["docs/ideas/exploration-substrate-two-track-plan.md"],
-      "last_checked": "2026-06-14"
+      "current_reading": "Compares an external exploratory mini-harness against Circuit's first-class composition direction. The comparison still stands; the in-flight work it references has since landed (the resolvers, equipment scope, the recursion bound). Comparison context that motivated the exploration substrate.",
+      "related": [
+        "docs/ideas/exploration-substrate-two-track-plan.md",
+        "docs/ideas/north-star-status.md"
+      ],
+      "last_checked": "2026-06-16"
     },
     {
       "path": "docs/ideas/modern-engineering-practices-proposals.md",
@@ -936,43 +954,49 @@
     {
       "path": "docs/ideas/grain-experiment-deferred.md",
       "title": "Grain separability experiment - deferred (not run) plus the remedy",
-      "status": "current-gap-analysis",
+      "status": "superseded",
       "category": "verification-and-evals",
       "tags": ["grain", "separability", "experiment", "deferred", "taskset", "harness-gap"],
-      "current_reading": "Records the B0-gate decision to skip the grain experiment with no model spend: the eval taskset has no entangled tasks, so the experiment would be null by construction (the design's own Step-0 stop). Surfaces the remedy: the harness K-repeat and interleave gap, and a pre-scored entangled-plus-mixed taskset spec so a future run executes cleanly.",
-      "related": ["docs/ideas/grain-separability-experiment-design.md"],
+      "current_reading": "SUPERSEDED: this records the B0-gate decision to skip the grain experiment with no model spend, but the deferral was resolved (the remedy it named was built) and the experiment has since RUN, returning a NULL verdict. Kept as the deferral-reasoning record; for outcome see grain-chooser-run-report.md.",
+      "related": [
+        "docs/ideas/grain-separability-experiment-design.md",
+        "docs/ideas/grain-chooser-run-report.md"
+      ],
       "last_checked": "2026-06-16"
     },
     {
       "path": "docs/ideas/grain-taskset-ready.md",
-      "title": "Grain separability experiment - taskset ready to vet (still not run)",
-      "status": "pre-implementation",
+      "title": "Grain separability experiment - taskset built and run (verdict null)",
+      "status": "design-evaluation",
       "category": "verification-and-evals",
       "tags": ["grain", "separability", "experiment", "taskset", "held-out", "harness"],
-      "current_reading": "Go-forward surface that replaces the blocking half of the grain-experiment-deferred doc. The two things B0 needed are now in place: the harness K-repeat plus interleaving gap is closed (experiments only, K=1 byte-identical), and four separability-spanning held-out tasks are built with a-priori scores pre-registered in each task.json (two entangled at 8, two mixed at 3-4), each gated by a hidden objective check only the assembled cross-module fix passes. Flags the surfaced side effect: the held-out claim set grew 14 to 18. Decision rule and run sizing unchanged; the experiment is still not run and the structure chooser is untouched.",
+      "current_reading": "Go-forward surface that closed the blocking half of the deferral: the harness K-repeat plus interleaving gap was closed (experiments only, K=1 byte-identical), and four separability-spanning held-out tasks were built with a-priori scores pre-registered. The experiment has since RUN and returned a NULL verdict, and the structure chooser was held unchanged. The flagged side effect (held-out claim set 14 to 18) was UNWOUND: the grain tasks were isolated into evals/grain-separability/ (PR #100) and the main held-out set restored to 14. Outcome in grain-chooser-run-report.md.",
       "related": [
         "docs/ideas/grain-experiment-deferred.md",
-        "docs/ideas/grain-separability-experiment-design.md"
+        "docs/ideas/grain-separability-experiment-design.md",
+        "docs/ideas/grain-chooser-run-report.md"
       ],
       "last_checked": "2026-06-16"
     },
     {
       "path": "docs/ideas/durability-tier3-linkage-spec.md",
-      "title": "Durability Tier-3 - crash-safe sub-run and fanout linkage (surface-only)",
-      "status": "pre-implementation",
+      "title": "Durability Tier-3 - crash-safe sub-run and fanout linkage",
+      "status": "partially-implemented",
       "category": "run-inspection-and-output",
       "tags": ["durability", "tier-3", "fanout", "sub-run", "worktree-reaper", "surface-only"],
-      "current_reading": "Surface-only, decision-ready spec for crash-safe sub-run and fanout linkage. Recommends shipping the startup worktree reaper now (the orphaned-worktree leak is a live, A1-independent disk bug) and deferring the deterministic child-id intent linkage into the A1 cursor milestone. Gated on A1; not built.",
+      "current_reading": "Decision-ready spec for crash-safe sub-run and fanout linkage. The recommended first slice SHIPPED: the startup worktree reaper (worktree-reaper.ts + run-owner-lock.ts + reclaim.ts) landed as PR #99, closing the live orphaned-worktree disk leak. The deterministic child-id intent linkage is still surfaced; with Option C decided, the re-entry path moved to durability-tier3-restart-linkage-spec.md.",
       "related": [
         "docs/ideas/fallible-executor-audit.md",
-        "docs/ideas/parallel-decision-inbox-spec.md"
+        "docs/ideas/parallel-decision-inbox-spec.md",
+        "docs/ideas/durability-tier3-restart-linkage-spec.md",
+        "docs/ideas/north-star-status.md"
       ],
       "last_checked": "2026-06-16"
     },
     {
       "path": "docs/ideas/durability-tier3-restart-linkage-spec.md",
-      "title": "Durability Tier-3 - the restart re-entry path for skip-finished children (surface-only)",
-      "status": "pre-implementation",
+      "title": "Durability Tier-3 - the restart re-entry path for skip-finished children (Option a shipped)",
+      "status": "partially-implemented",
       "category": "run-inspection-and-output",
       "tags": [
         "durability",
@@ -981,37 +1005,40 @@
         "sub-run",
         "restart",
         "skip-finished",
-        "surface-only"
+        "reuse-children"
       ],
-      "current_reading": "Surface-only, decision-ready spec resolving the open question the linkage spec flagged: in an Option-C (restart-cheapness, not forward-recovery) world there is no cursor to consume skip-finished, and a fresh restart gets a new parent id so it cannot recompute deterministic child ids. Evaluates three re-entry mechanisms (explicit prior-run pointer, dead-folder reanimation, content-addressed children store) and recommends the explicit pointer (circuit run --reuse-children-from <dead-run-folder>): it addresses prior children by their stable (step_id, attempt, branch_id) structural address within the referenced folder, never resumes or restarts the dead folder, and sidesteps the not-idempotent-relay blocker by reusing finished results rather than re-running steps. Inherits the refuse-on-shared-checkout safety rule and a StalenessFacts precondition gate (the cursor spec's runtime-owned port). Reanimation is rejected as the deferred cursor by another name; the content-addressed store as disproportionate. Not gated on the cursor; not built.",
+      "current_reading": "Decision-ready spec resolving the open question the linkage spec flagged: in an Option-C (restart-cheapness, not forward-recovery) world there is no cursor to consume skip-finished, and a fresh restart gets a new parent id so it cannot recompute deterministic child ids. It evaluated three re-entry mechanisms and recommended the explicit prior-run pointer, which has now SHIPPED: circuit run --reuse-children-from <dead-run-folder> (PR #106, merge 5fef310f, src/runtime/run/reuse-children.ts) reuses a dead run's finished sub-run children by their stable (step_id, branch_id) structural address behind a four-gate safety floor (sub-run branch, same flow id, complete+admissible, usable git worktree) that fails safe to a fresh run, never resumes the dead folder, and sidesteps the not-idempotent-relay blocker by reusing finished results rather than re-running steps. Documented limitation: the child flow version and base commit are not checked (assumes the same flow at the same goal); a run-start git baseline + staleness probe is a noted later slice. Reanimation was rejected as the deferred cursor by another name; the content-addressed store as disproportionate. The staleness probe, the bulk-resume inbox driver, and Options (b)/(c) stay surface-only.",
       "related": [
         "docs/ideas/durability-tier3-linkage-spec.md",
         "docs/ideas/durability-tier2-cursor-spec.md",
+        "docs/ideas/overnight-reliability-run-report.md",
         "docs/ideas/fallible-executor-audit.md",
         "docs/ideas/parallel-decision-inbox-spec.md"
       ],
-      "last_checked": "2026-06-16"
+      "last_checked": "2026-06-17"
     },
     {
       "path": "docs/ideas/parallel-decision-inbox-spec.md",
-      "title": "Parallel decision inbox (surface-only)",
-      "status": "pre-implementation",
+      "title": "Parallel decision inbox",
+      "status": "partially-implemented",
       "category": "run-inspection-and-output",
       "tags": ["decision-inbox", "hitl", "parked-runs", "resume", "triage", "surface-only"],
-      "current_reading": "Surface-only spec for an inbox that surfaces, triages, and resumes runs parked on a fork. Recommends shipping a read-only inbox now (discovery plus a checkpoint-waiting filter plus staleness triage on existing facts) and deferring the bulk-resume driver until the A1 cursor exists. Warns the inbox must filter on the resumable checkpoint-waiting outcome, not the broader needs-attention flag. Gated on A1; not built.",
-      "related": ["docs/ideas/fallible-executor-audit.md"],
+      "current_reading": "Spec for an inbox that surfaces, triages, and resumes runs parked on a fork. The recommended read-only inbox SHIPPED: discovery plus a checkpoint-waiting filter plus staleness triage (src/app/inbox/ + src/cli/inbox.ts) landed as PR #99. The bulk-resume driver is still gated (it waited on the cursor that Option C declined; re-entry now routes through durability-tier3-restart-linkage-spec.md). The shipped inbox filters on the resumable checkpoint-waiting outcome, not the broader needs-attention flag.",
+      "related": ["docs/ideas/fallible-executor-audit.md", "docs/ideas/north-star-status.md"],
       "last_checked": "2026-06-16"
     },
     {
       "path": "docs/ideas/deepfork-uniform-recursion-e3-spec.md",
-      "title": "Deep fork - uniform recursion E3 (surface-only spike)",
-      "status": "pre-implementation",
+      "title": "Deep fork - uniform recursion E3",
+      "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": ["recursion", "e3", "deep-fork", "spike", "surface-only", "assembler"],
-      "current_reading": "Surface-only spike plus decision-ready spec for treating a sub-run as a leaf step so flows compose recursively. Recommends shipping the two safety pieces first (a depth cap plus a cycle guard threaded child-to-child, and a non-empty reduced-bindings oracle) and taking the path unification behind an engine flag afterward. Must never be merged into src/.",
+      "tags": ["recursion", "e3", "deep-fork", "spike", "assembler"],
+      "current_reading": "Spike plus decision-ready spec for treating a sub-run as a leaf step so flows compose recursively. The first recommended safety piece SHIPPED to src/: the recursion bound (depth cap 8 + ancestor cycle guard threaded child-to-child across both child-run edges, plus a compile-time self-reference reject). The reduced-bindings oracle and the path unification (splice-as-leaf, behind an engine flag) are still surfaced, not built. See recompile-foundation-run-report.md.",
       "related": [
         "docs/ideas/deepfork-resolver-abstraction-spec.md",
-        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md"
+        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
+        "docs/ideas/recompile-foundation-run-report.md",
+        "docs/ideas/north-star-status.md"
       ],
       "last_checked": "2026-06-16"
     },
@@ -1020,26 +1047,32 @@
       "title": "Deep fork - resolver abstraction (surface-only spike)",
       "status": "pre-implementation",
       "category": "flows-and-blocks",
-      "tags": ["resolver", "abstraction", "deep-fork", "spike", "surface-only", "assembler"],
-      "current_reading": "Surface-only spike plus decision-ready spec on whether to extract a unified Resolver type from the structure and equipment resolvers. Recommends NOT extracting yet: build a third instance (context is the strongest candidate) before committing the interface, since the two existing resolvers disagree on three of four divergences. The abstraction is earnable but not yet earned. Must never be merged into src/.",
+      "tags": ["resolver", "abstraction", "deep-fork", "spike", "assembler"],
+      "current_reading": "Spike plus decision-ready spec on whether to extract a unified Resolver type. The two concrete instances now exist in src/ (the structure resolver PR #95 and the equipment resolver PR #96), but the recommendation HOLDS: do NOT extract yet. Build a third instance (context is the strongest candidate) before committing the interface, since the two existing resolvers disagree on three of four divergences. The abstraction is earnable but not yet earned. See resolver-shared-shape.md for the shared shape the two landed on.",
       "related": [
         "docs/ideas/deepfork-uniform-recursion-e3-spec.md",
-        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md"
+        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
+        "docs/ideas/resolver-shared-shape.md",
+        "docs/ideas/north-star-status.md"
       ],
       "last_checked": "2026-06-16"
     },
     {
       "path": "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
-      "title": "Deep fork - adaptive bubble-up recompile (surface-only spike)",
-      "status": "pre-implementation",
+      "title": "Deep fork - adaptive bubble-up recompile",
+      "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": ["adaptive", "recompile", "bubble-up", "deep-fork", "spike", "surface-only"],
-      "current_reading": "Surface-only spike plus decision-ready spec for a run that re-decomposes itself mid-flight when a step surfaces new structure. Recommends building the offline demonstrator now (the assemble-to-compile chain is pure with the catalog gate as the safety floor) but gating the live path conservatively: ship the finding and checkpoint hand-off as default, allow additive equipment reshape first, hold structural re-decomposition behind a bounded reshape budget. Must never be merged into src/.",
+      "tags": ["adaptive", "recompile", "bubble-up", "deep-fork", "spike"],
+      "current_reading": "Spike plus decision-ready spec for a run that re-decomposes itself mid-flight when a step surfaces new structure. Steps 0-2 shipped: the offline recompile demonstrator (experiments/flow-lab/), the Step 1 recursion bound (src/), and Step 2, the first live reshape - additive equipment injection (PR #103, merge 4fa7dae4, src/flows/equipment-reshape.ts + src/runtime/run/equipment-reshape.ts), where a relay bubbles up a confirmed equipment_discovery and the runner re-equips the remaining relay steps and re-compiles through the existing chain with no splice seam. Structural re-decomposition / splice (Step 3) is deferred behind ratification, with the finding-and-checkpoint hand-off as the conservative default. See recompile-foundation-run-report.md and step2-live-equipment-reshape-report.md.",
       "related": [
         "docs/ideas/deepfork-uniform-recursion-e3-spec.md",
-        "docs/ideas/deepfork-resolver-abstraction-spec.md"
+        "docs/ideas/deepfork-resolver-abstraction-spec.md",
+        "docs/ideas/recompile-foundation-run-report.md",
+        "docs/ideas/step2-live-equipment-reshape-report.md",
+        "docs/ideas/on-demand-context-pull.md",
+        "docs/ideas/north-star-status.md"
       ],
-      "last_checked": "2026-06-16"
+      "last_checked": "2026-06-17"
     },
     {
       "path": "docs/ideas/grain-chooser-run-report.md",
@@ -1100,11 +1133,13 @@
       "status": "current-strategy-context",
       "category": "flows-and-blocks",
       "tags": ["decision-layer", "resolver", "exploration", "design-sketch", "deep-fork"],
-      "current_reading": "Framing lens, a design sketch rather than a build plan, for making Circuit's per-step decisions (how to chop, what tools, which context) first-class and trialable. Applies the same find-the-unit-and-compose move that blocks and recursion applied to work, now to the decisions about work. Its central instruction is restraint: earn the unified resolver abstraction from two concrete instances (the chop/hold chooser and skill injection) rather than building the unifier first.",
+      "current_reading": "Framing lens, a design sketch rather than a build plan, for making Circuit's per-step decisions (how to chop, what tools, which context) first-class and trialable. Applies the same find-the-unit-and-compose move that blocks and recursion applied to work, now to the decisions about work. Both concrete instances it called for have shipped to src/ (the structure chooser PR #95 and the equipment resolver PR #96); per its central instruction of restraint the unified resolver abstraction is deliberately NOT extracted yet, pending a third instance.",
       "related": [
         "docs/ideas/next-phase-build-brief.md",
         "docs/ideas/deepfork-resolver-abstraction-spec.md",
-        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md"
+        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
+        "docs/ideas/resolver-shared-shape.md",
+        "docs/ideas/north-star-status.md"
       ],
       "last_checked": "2026-06-16"
     },
@@ -1142,6 +1177,65 @@
         "docs/ideas/durability-tier2-cursor-spec.md",
         "docs/ideas/fallible-executor-audit.md",
         "docs/ideas/step2-live-equipment-reshape-report.md"
+      ],
+      "last_checked": "2026-06-17"
+    },
+    {
+      "path": "docs/ideas/doc-cleanup-report.md",
+      "title": "Doc cleanup + reconciliation report - recursion / recompile frontier",
+      "status": "implemented-closed",
+      "category": "strategy-and-comparisons",
+      "tags": ["reconciliation", "report", "recompile", "recursion", "index", "closeout"],
+      "current_reading": "Closeout report (point-in-time) for the 2026-06-16 documentation-reconciliation pass on the recursive / adaptive-workflow line of work, refreshed 2026-06-17 after the overnight reliability batch landed on main. Records what was stale and what is now true per doc, the new canonical north-star map, the two folded-in docs, the light-touch general-doc edits, the index refresh, and the genuinely unresolved items. A record of the cleanup, not a living spec.",
+      "related": [
+        "docs/ideas/north-star-status.md",
+        "docs/ideas/recompile-foundation-run-report.md",
+        "docs/ideas/grain-chooser-run-report.md"
+      ],
+      "last_checked": "2026-06-17"
+    },
+    {
+      "path": "docs/ideas/north-star-status.md",
+      "title": "North-star status - the recursive / adaptive-workflow roadmap map",
+      "status": "current-strategy-context",
+      "category": "strategy-and-comparisons",
+      "tags": ["roadmap", "status-map", "recompile", "recursion", "resolver", "north-star"],
+      "current_reading": "The canonical status and roadmap map for the recursive / adaptive-workflow frontier. Reconciles what has shipped to main against what is still surfaced: the four micro-harness scopes (context, equipment, model/effort, structure) and their build status, the fixed-or-JIT assembler and typed seam, the durability tiers, the recompile/recursion frontier (Steps 0-2 shipped, Step 3 deferred), the paper-to-site flagship and its open findings, and what is reserved for operator ratification. A living map; verify any single claim against code and the linked run reports.",
+      "related": [
+        "docs/ideas/recompile-foundation-run-report.md",
+        "docs/ideas/step2-live-equipment-reshape-report.md",
+        "docs/ideas/overnight-reliability-run-report.md",
+        "docs/ideas/decision-layer-exploration.md",
+        "docs/ideas/resolver-shared-shape.md",
+        "docs/ideas/grain-chooser-run-report.md"
+      ],
+      "last_checked": "2026-06-17"
+    },
+    {
+      "path": "docs/ideas/on-demand-context-pull.md",
+      "title": "On-demand context pull - a step queries its parent(s) for context",
+      "status": "partially-implemented-research",
+      "category": "flows-and-blocks",
+      "tags": ["context", "runtime-binding", "recompile", "pull", "deep-fork"],
+      "current_reading": "Default each step to a minimal context envelope and let it pull more from its parent(s) on demand through a typed, queryable surface, instead of pushing a fixed envelope decided at assembly time. The runtime-binding sibling of adaptive bubble-up recompile (recompile bubbles up a discovery and re-plans; this bubbles up a request for context and has it answered). SPIKED and validated offline (PR #107): a pure-function demonstrator in experiments/flow-lab/ shows targeted typed pull reaching fat-push completeness at about a tenth of the carried bytes. No live/src channel yet; sequenced after the live recompile work matures.",
+      "related": [
+        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
+        "docs/ideas/overnight-reliability-run-report.md",
+        "docs/ideas/north-star-status.md"
+      ],
+      "last_checked": "2026-06-17"
+    },
+    {
+      "path": "docs/ideas/paper-to-site-2nd-run-findings.md",
+      "title": "Paper-to-site explainer flow - second-run findings",
+      "status": "design-evaluation",
+      "category": "flows-and-blocks",
+      "tags": ["flows", "explainer", "paper-to-site", "run-report", "findings"],
+      "current_reading": "Run report from exercising the v1 explainer flow (PR #90) on a second paper (Attention Is All You Need). The editorial spine generalized cleanly off the first paper, but the run exposed plumbing and craft gaps: a P0 recovery-binding hard-abort (since FIXED on main by PR #105, which degrades a failed sub-run child onto its recovery route on resume), a greenfield-scaffold gap in the child build sub-run, and craft gaps (responsive layout, animations). Point-in-time history; the remaining open findings feed the next explainer refinement pass.",
+      "related": [
+        "docs/ideas/paper-to-site-flow-brief.md",
+        "docs/ideas/overnight-reliability-run-report.md",
+        "docs/ideas/north-star-status.md"
       ],
       "last_checked": "2026-06-17"
     }

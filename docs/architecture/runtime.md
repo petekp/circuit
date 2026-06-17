@@ -17,6 +17,17 @@ validation, connector resolution, checkpoint resume, sub-run orchestration, and
 fanout joining. Adding or changing a flow should update the flow package and
 generated surfaces, not add flow-specific branches to the engine.
 
+Recursion through child runs is bounded. A run carries its recursion depth and
+the chain of ancestor flow ids; both child-run edges — the `sub-run` executor
+(`src/runtime/executors/sub-run.ts`) and a fanout sub-run branch
+(`src/runtime/fanout/branch-execution.ts`) — refuse to start a child that would
+exceed the depth cap (`RECURSION_DEPTH_CAP`, currently 8) or that repeats a flow
+id already on the ancestor chain (the cycle guard). A flow that references itself
+is rejected earlier still, at compile time. This bounds the otherwise-unbounded
+recursion that first-class composition makes possible; it is the Step 1 safety
+piece of the recompile / recursion frontier mapped in
+[`../ideas/north-star-status.md`](../ideas/north-star-status.md).
+
 Relay acceptance criteria follow that boundary. Flow packages author optional
 `acceptance_criteria` on relay steps; the compiler and manifest projections
 carry the field through unchanged; the relay executor evaluates the

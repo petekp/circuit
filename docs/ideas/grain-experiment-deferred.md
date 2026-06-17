@@ -1,11 +1,22 @@
 # Grain × separability experiment — DEFERRED (not run) + the remedy to make it runnable
 
-> Status: **deferred at the B0 gate, no model spend taken.** This is the
+> Status: **SUPERSEDED — the deferral was resolved and the experiment has since
+> RUN.** Status updated 2026-06-16. The remedy this doc called for was built (the
+> harness K-repeat axis + interleaving and the entangled/mixed taskset; see
+> [`grain-taskset-ready.md`](grain-taskset-ready.md)), B0 re-passed, and the run
+> executed (40 runs, ≈$24). The verdict came back **NULL on the pre-committed
+> metric** — the false-fixed rate was 0 in every cell — and the structure chooser
+> held its thin-conservative default. Full results:
+> [`grain-chooser-run-report.md`](grain-chooser-run-report.md). The text below is
+> kept as the *reasoning record* for why running was first (correctly) deferred —
+> the SKIP+SURFACE call and its evidence — not as the current state.
+>
+> *(Original status: "deferred at the B0 gate, no model spend taken." This was the
 > decision-ready surface for the overnight brief's locked "run the grain
-> experiment" item. The experiment is sound; the *taskset* is not ready, so
-> running now would buy a guaranteed null. Below: the verdict + evidence, why
-> running anyway is the wrong call, and the concrete remedy (harness gap + an
-> entangled/mixed taskset spec) so a future run executes cleanly.
+> experiment" item. The experiment is sound; the taskset was not ready, so running
+> then would have bought a guaranteed null. Below: the verdict + evidence, why
+> running anyway was the wrong call, and the concrete remedy so a future run
+> executes cleanly.)*
 
 ## Verdict: SKIP + SURFACE
 

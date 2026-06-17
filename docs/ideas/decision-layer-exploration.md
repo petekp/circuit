@@ -1,8 +1,21 @@
 # The decision layer: making Circuit's per-step choices first-class and trialable
 
-> Status: **exploration / design sketch — not a build plan.** Written 2026-06-14.
-> Successor framing to `exploration-substrate-two-track-plan.md`, after the M1–M9
-> migration landed the composed runtime.
+> Status: **exploration / design sketch — partly realized.** Written 2026-06-14;
+> progress note added 2026-06-16. Successor framing to
+> `exploration-substrate-two-track-plan.md`, after the M1–M9 migration landed the
+> composed runtime.
+>
+> **What has since shipped** (the discipline below was followed exactly): both
+> first-instance resolvers are built and live in `src/flows/resolvers/` —
+> **structure** (`structure.ts`, the chop/hold chooser, PR #95) and **equipment**
+> (`equipment.ts`, skill injection, PR #96) — and the shared `Resolver` type was
+> **deliberately NOT extracted**, awaiting a third instance, exactly as §7 asks. The
+> observed shape and its four divergences are recorded in
+> [`resolver-shared-shape.md`](resolver-shared-shape.md); the reserved extraction
+> decision is [`deepfork-resolver-abstraction-spec.md`](deepfork-resolver-abstraction-spec.md).
+> Binding time (§4) is still assembly-only on `main`; the first *runtime* deferral
+> (equipment injection) is the in-flight live-recompile work (Step 2). See
+> [`north-star-status.md`](north-star-status.md) for the consolidated status.
 >
 > The single most important thing in this doc is a piece of *restraint*: **do not
 > build this abstraction top-down.** It is the destination, earned from two
@@ -109,10 +122,12 @@ a bespoke build.
 Earn the abstraction. Build two concrete choosers first, then let the uniform
 "resolver" fall out of what they actually share:
 
-- **Resolver #1 — structure (E4, the chop/hold planner).** Already on the roadmap;
-  the grain experiment feeds it.
-- **Resolver #2 — equipment (smart skill injection).** Spec'd
-  (`e2-equipment-scope-spec.md`), not yet built; the natural second instance.
+- **Resolver #1 — structure (E4, the chop/hold planner).** ✅ **Built** —
+  `src/flows/resolvers/structure.ts` (PR #95), thin-conservative; the grain
+  experiment ran and returned null, so it holds its lean-to-whole default.
+- **Resolver #2 — equipment (smart skill injection).** ✅ **Built** —
+  `src/flows/resolvers/equipment.ts` (PR #96), spec'd in
+  `e2-equipment-scope-spec.md`, the second instance as planned.
 
 Build each **"as if it will be unified later"** — meaning give both the same
 *shape* without yet building the unifier:

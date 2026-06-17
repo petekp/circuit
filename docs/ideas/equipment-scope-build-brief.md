@@ -1,9 +1,18 @@
 # Equipment-scope build brief — the "scoped skills/tools" axis
 
-> Status: build brief for the next significant batch toward the north star.
-> Written 2026-06-14. Builds on `e2-equipment-scope-spec.md` (the design), the
-> #88 equipment resolver prototype (trusted-suggest), and
-> `decision-layer-exploration.md` §7 (the mechanism-vs-smarts split).
+> Status: **BUILT — this batch shipped.** Build brief written 2026-06-14; status
+> updated 2026-06-16. The "scoped skills/tools" axis it describes is now real on
+> `main`: the tools half landed as **PR #89** (declared + enforced per-step tools,
+> honest downgrade), and the skills half as **PRs #96/#97** (the `equipment`
+> resolver chooses the kit; real house-style injection rides `skill_slots`; the
+> skill-slot quality ratchet dropped 15 → 1). Of the four micro-harness scopes this
+> brief names (context, equipment, model/effort, structure), **equipment moved from
+> absent → real here**. See
+> [`equipment-scope-enforcement-report.md`](equipment-scope-enforcement-report.md)
+> and [`north-star-status.md`](north-star-status.md). Builds on
+> `e2-equipment-scope-spec.md` (the design), the #88 equipment resolver prototype
+> (trusted-suggest), and `decision-layer-exploration.md` §7 (the
+> mechanism-vs-smarts split).
 
 ## Why this batch
 

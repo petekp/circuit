@@ -3,8 +3,18 @@
 > Synthesized 2026-06-13 from a 17-agent re-evaluation workflow (4 grounding
 > readers → 4 independent architect proposals across distinct lenses → 8
 > adversarial critics → 1 synthesizer). This supersedes the framing in
-> `first-class-composition-sequence.md` where they disagree. Status: design,
-> not built. Holding all commits.
+> `first-class-composition-sequence.md` where they disagree.
+>
+> **Status (updated 2026-06-16): the M1–M9 plan in this doc has since shipped to
+> `main`** (M1–M5 via PR #80; M6 through M9 via PR #86). by-id resolution is
+> gone, bindings are manifest-first, the typed seam is enforced, and one
+> safety-floored assembly path runs assembled and built-in flows alike. The
+> original "design, not built / holding all commits" status is therefore
+> historical. The "honest starting truth" section below describes the
+> pre-migration starting point, not current behavior — read it as the motivation
+> record. For what has been built *beyond* M9 (the recursion bound, the structure
+> and equipment resolvers, the recompile foundation) and what is still surfaced,
+> see [`../ideas/north-star-status.md`](../ideas/north-star-status.md).
 
 ## The end-state vision (Pete's words)
 

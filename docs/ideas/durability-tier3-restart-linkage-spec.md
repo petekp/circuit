@@ -1,6 +1,14 @@
 # Durability Tier-3 — the restart re-entry path for skip-finished children
 
-> Status: SURFACE-ONLY. Decision-ready spec, not committed to the engine.
+> Status: PARTIALLY BUILT. **Option (a) — `--reuse-children-from` — shipped to
+> `src/`** (PR #106, merge `5fef310f`; `src/runtime/run/reuse-children.ts`). A fresh
+> run reuses a dead run's finished sub-run children by their stable
+> `(step_id, branch_id)` address behind a four-gate safety floor (sub-run branch,
+> same flow id, `complete`+admissible, usable git worktree) that fails safe to a
+> fresh run on any miss. **Documented limitation:** the child flow version and base
+> commit are not checked — it assumes the same flow at the same goal; a run-start
+> git baseline + staleness probe is a noted later slice. The rest of this spec (the
+> staleness probe, the bulk-resume inbox driver, Options (b)/(c)) stays surface-only.
 > Grounds against origin/main code at `src/runtime/executors/sub-run.ts`,
 > `src/runtime/executors/fanout.ts`, `src/runtime/fanout/branch-execution.ts`,
 > `src/runtime/fanout/worktree-reaper.ts`, `src/runtime/run/run-boundary.ts`,
@@ -446,5 +454,6 @@ cursor would otherwise have to do.
   on the cursor, unchanged by this spec. This spec is about restart reuse, not
   parked-run resume.
 
-Everything here is decision-ready and surface-only until an operator says yes.
-Nothing is committed to the engine.
+Option (a) (`--reuse-children-from`) is now built (PR #106). Everything else here —
+Options (b)/(c), the staleness probe, and the bulk-resume inbox driver — stays
+decision-ready and surface-only until an operator says yes.

@@ -1,8 +1,30 @@
 # Durability Tier-2: the forward-recovery cursor (decision-ready spec)
 
-Status: decision-ready. One slice (Rank-1) is **built** on
+> Status: **DECIDED (Option C) — foundation slice shipped to `main`; the
+> forward-recovery cursor itself is the path NOT taken.** Updated 2026-06-16. The
+> fork below was resolved: both load-bearing probes ran (see "Decision: Option C
+> now" lower down) and the call is **Option C — do not build the forward-recovery
+> cursor; invest the foundation + Tier-3 restart-cheapness.** Concretely:
+>
+> - The Rank-1 foundation slice (`RecoveryCorridor.seedFromTrace`,
+>   `src/runtime/run/recovery-corridor.ts`) is **on `main`** (overnight foundation
+>   batch, PR #93), wired inert behind resume.
+> - The general / bounded forward-recovery cursor (Options A and B) is **not built**
+>   and stays specced, not started — its correctness surface (a cheap per-relay-step
+>   working-tree snapshot/reset) is not reachable today.
+> - The chosen forward direction is **restart-cheapness via
+>   `circuit run --reuse-children-from`**, specified (not built) in
+>   [`durability-tier3-restart-linkage-spec.md`](durability-tier3-restart-linkage-spec.md)
+>   (PR #101). The Tier-3 reaper Option C also calls for has shipped — see
+>   [`durability-tier3-linkage-spec.md`](durability-tier3-linkage-spec.md).
+>
+> See [`north-star-status.md`](north-star-status.md) for the durability tier map.
+> The options and recommendation below are kept as the decision record.
+
+*(Original status: "decision-ready. One slice (Rank-1) is built on
 `feat/durability-tier2-foundation`; the rest of this document is options and a
-recommendation, **not** built.
+recommendation, not built." The slice has since merged to `main` and the fork was
+decided.)*
 
 ## Context
 

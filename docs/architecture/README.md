@@ -16,6 +16,10 @@ Decision record:
 
 Dated plans and evaluations:
 
+- [`first-class-composition-optimal-path.md`](first-class-composition-optimal-path.md)
+  - the M1–M9 composition plan; the plan has since shipped to `main`, so read its
+    updated status header, and see [`../ideas/north-star-status.md`](../ideas/north-star-status.md)
+    for what was built beyond M9.
 - [`architecture-revamp-staged-plan.md`](architecture-revamp-staged-plan.md)
 - [`architecture-improvement-roadmap.md`](architecture-improvement-roadmap.md)
 - [`roadmap-prefactoring-plan.md`](roadmap-prefactoring-plan.md)

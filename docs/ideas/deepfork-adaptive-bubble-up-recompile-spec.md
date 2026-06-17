@@ -1,12 +1,41 @@
 # Deep fork (iii): adaptive bubble-up-recompile
 
-> Status: **surface-only spike + decision-ready spec.** Written 2026-06-16.
-> A B4 "deep fork": a throwaway spike captured as a spec. **It must never be
-> merged into `src/`.** The code sketch below is illustrative only - not committed,
-> not built.
+> Status: **partly built — Steps 0–2 shipped; the structural live path (Step 3)
+> still surfaced.** Written 2026-06-16; status updated 2026-06-17 after Step 2
+> landed on `main`. What began as a pure surface-only spike has since had its *safe
+> foundation* and its first additive live reshape built, while the dangerous
+> structural path stays deferred:
 >
-> Grounded against `origin/main` at `571e0523` and the two resolvers in
-> `/Users/petepetrash/Code/circuit-flow-lab/experiments/resolvers/`.
+> - **Step 0 — the offline demonstrator is BUILT** (free, throwaway). It lives at
+>   `experiments/flow-lab/recompile-demonstrator.ts` (+ `.test.ts`) and never moves
+>   to `src/`. It fires the real assemble→compile chain on a simulated runtime
+>   discovery, bounded, with the catalog gate as the safety floor — proving the
+>   *mechanism* with zero engine risk.
+> - **Step 1 — the bound is SHIPPED to `src/`** (`RECURSION_DEPTH_CAP = 8` + an
+>   ancestor cycle guard; see fork (i) `deepfork-uniform-recursion-e3-spec.md`).
+>   This is the "Bounded re-compilation safety" mechanism this spec's section below
+>   calls for, and the prerequisite any live reshape needs underneath it.
+> - **Step 2 — the first live reshape is SHIPPED to `src/`** (PR #103, merge
+>   `4fa7dae4`; `src/flows/equipment-reshape.ts`, `src/runtime/run/equipment-reshape.ts`).
+>   A relay bubbles up a confirmed `equipment_discovery`; the runner re-resolves
+>   equipment for the remaining relay steps and re-compiles through the existing
+>   chain, merging skills **additively** so the step sequence, routes, and cursor are
+>   untouched — no splice seam. Bounded (budget of 3 + cycle guard), the catalog gate
+>   is the safety floor, and any miss downgrades to a recorded finding. See
+>   [`step2-live-equipment-reshape-report.md`](step2-live-equipment-reshape-report.md).
+> - **Step 3 — the structural live path is NOT built.** The
+>   `spliceIntoRemainingSteps` seam, splice-as-leaf, structural auto-reshape,
+>   and the reduced-bindings oracle remain surface-only / separately ratified. The
+>   Step 2 report recommends landing the operator surface for reshapes (F2) before
+>   Step 3.
+>
+> See the run report:
+> [`recompile-foundation-run-report.md`](recompile-foundation-run-report.md), and
+> the canonical map [`north-star-status.md`](north-star-status.md). The code sketch
+> lower down is still illustrative only. The two resolvers it grounds against have
+> since been promoted from the flow-lab spike into `src/flows/resolvers/`
+> (`structure.ts`, `equipment.ts`); the file:line references below were written
+> against the spike paths and are kept as the original grounding record.
 
 ## The fork in one line
 

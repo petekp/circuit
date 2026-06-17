@@ -1,6 +1,16 @@
 # The mini-harness debrief vs. circuit's first-class composition
 
-> Written 2026-06-13. Compares an external, exploratory "mini-harness" debrief
+> Status: **comparison stands; the "in-flight" work it references has since
+> landed.** Written 2026-06-13; status note added 2026-06-16. When this was
+> written, first-class composition (M1–M9) was in flight; it has since completed and
+> merged, and several pieces the debrief reasons about are now real on `main`: the
+> two decision-layer resolvers (structure + equipment), the equipment/tools axis,
+> and the recursion bound (depth cap + cycle guard). So read the "in-flight"
+> framing below as historical. The thesis comparison — philosophy vs. grounded
+> execution — is unchanged and still useful. See
+> [`north-star-status.md`](north-star-status.md) for current status.
+>
+> Compares an external, exploratory "mini-harness" debrief
 > against the in-flight `feat/composition-m1` work and the
 > `first-class-composition-optimal-path.md` plan. The debrief and the refactor
 > are two takes on the **same** thesis — Pete's vision of "composable, typed
