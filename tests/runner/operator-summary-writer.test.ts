@@ -2551,6 +2551,26 @@ describe('operator summary writer — live equipment reshapes (F2)', () => {
     expect(written.summary.equipment_reshapes).toBeUndefined();
     expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('Live equipment:');
   });
+
+  it('tolerates a torn reshape entry the trace gate admits but the surface schema rejects', () => {
+    // The trace schema allows `domain_tags: ['']` (no per-element min), but the
+    // operator surface requires non-empty tags. A torn or hand-edited line like
+    // this must be skipped like any other junk line, not crash the whole summary
+    // write. (Healthy runs never write empty tags; this is durability tolerance.)
+    writeTrace([reshapeEntry(5, { domain_tags: [''] })]);
+
+    let written: ReturnType<typeof writeOperatorSummary> | undefined;
+    expect(() => {
+      written = writeOperatorSummary({
+        runFolder,
+        runResult: baseResult('fix'),
+        route: { selectedFlow: 'fix' },
+      });
+    }).not.toThrow();
+
+    expect(written?.summary.equipment_reshapes).toBeUndefined();
+    expect(readFileSync(written?.markdownPath ?? '', 'utf8')).not.toContain('Live equipment:');
+  });
 });
 
 describe('operator summary writer — skill hook activations', () => {

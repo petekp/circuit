@@ -1054,16 +1054,21 @@ function readEquipmentReshapeSummary(runFolder: string): {
     const event = parsed.data;
     const stepId = event.step_id as unknown as string;
     if (event.reshaped) {
-      const record = OperatorEquipmentReshape.parse({
+      // The trace gate above is looser than the operator surface (e.g. it
+      // admits an empty-string domain tag the surface rejects). Use safeParse,
+      // not parse, so a torn or forward-version line that slips the gate is
+      // skipped like any other junk line rather than crashing the whole write.
+      const record = OperatorEquipmentReshape.safeParse({
         step_id: stepId,
         domain_tags: event.domain_tags,
         equipped_steps: (event.equipped_steps ?? []).map((id) => id as unknown as string),
         reason: event.reason,
       });
-      const key = JSON.stringify(record);
+      if (!record.success) continue;
+      const key = JSON.stringify(record.data);
       if (seen.has(key)) continue;
       seen.add(key);
-      reshapes.push(record);
+      reshapes.push(record.data);
       continue;
     }
     // A parked discovery. Prefix the step id so the warning names where the

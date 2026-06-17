@@ -67270,17 +67270,19 @@ function readEquipmentReshapeSummary(runFolder) {
     const event = parsed.data;
     const stepId = event.step_id;
     if (event.reshaped) {
-      const record2 = OperatorEquipmentReshape.parse({
+      const record2 = OperatorEquipmentReshape.safeParse({
         step_id: stepId,
         domain_tags: event.domain_tags,
         equipped_steps: (event.equipped_steps ?? []).map((id) => id),
         reason: event.reason
       });
-      const key2 = JSON.stringify(record2);
+      if (!record2.success)
+        continue;
+      const key2 = JSON.stringify(record2.data);
       if (seen.has(key2))
         continue;
       seen.add(key2);
-      reshapes.push(record2);
+      reshapes.push(record2.data);
       continue;
     }
     const warning = {
