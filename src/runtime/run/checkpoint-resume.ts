@@ -45,6 +45,7 @@ import type {
   WorktreeRunner,
 } from './child-runner.js';
 import { runCompiledFlow } from './compiled-flow-runner.js';
+import { seedEquipmentReshapeFromTrace } from './equipment-reshape.js';
 import type { ExternalFileReader } from './external-files.js';
 import {
   executeExecutableFlowOutcome,
@@ -544,7 +545,17 @@ export async function resumeCompiledFlowResult(
     return checkpointResumeRejectedFrom(error);
   }
   const { flow, flowBytes, snapshot } = saved;
-  const executable = executableFlowForResume({ flow, bootstrap });
+  // F1 — reseed any live equipment reshape honored before the checkpoint. The
+  // run is rebuilt from the original compiled-flow bytes (`flow`), which carry no
+  // injected equipment, so a reshape recorded in the trace would be silently
+  // dropped on resume. Replay it onto the flow the runner walks. This is the
+  // resume mirror of compiled-flow-runner.ts building the executable from the
+  // compiled flow. Additive only (Step 2), so it changes no step id, route, or
+  // boundary; every validation below stays on the original `flow` deliberately —
+  // the reshape never alters what those check, and keeping them on the durable
+  // bytes keeps resume identity anchored to the snapshot the manifest hash pins.
+  const reshapedFlow = seedEquipmentReshapeFromTrace(entries, flow);
+  const executable = executableFlowForResume({ flow: reshapedFlow, bootstrap });
   const requestedResult = latestUnresolvedCheckpointResult(entries);
   if (isCheckpointResumeRejectedResult(requestedResult)) return requestedResult;
   const requested = requestedResult.value;

@@ -131,13 +131,13 @@ were applied before merge:
 
 ## Open follow-ups
 
-### F1 (was F2): resume reseed of an honored reshape
+### F1 (was F2): resume reseed of an honored reshape — LANDED
 
-A reshape honored before a checkpoint is not reseeded when the run later
-resumes. The resumed run rebuilds from the original flow bytes and starts
+A reshape honored before a checkpoint was not reseeded when the run later
+resumed. The resumed run rebuilt from the original flow bytes and started
 without the injected equipment.
 
-This is inert in every shipped flow today, and the reason is precise. A
+This was inert in every shipped flow, and the reason was precise. A
 reshape fires only off a relay's passing completion, and the resume
 entrypoint is a checkpoint boundary. In every shipped flow the route that
 reaches a checkpoint is a non-passing route (for example, Fix reaches its
@@ -145,15 +145,20 @@ checkpoint only on the no-repro route, never on a pass), so a relay that
 honored a reshape never then pauses at a checkpoint. The two cannot
 coincide.
 
-The risk is a future flow that lets a passing relay route to a
+The risk was a future flow that lets a passing relay route to a
 checkpoint, which would make this gap live and silently drop the injected
-equipment on resume. The fix is a `seedEquipmentReshapeFromTrace` that
-mirrors the two reseeds already done on the resume path (skill-hook
-injections and power inference). It was deferred because it is not
-triggerable today and adding it now would be untested-against-reality
-machinery. Take it as part of, or just before, any flow that routes a
-passing relay to a checkpoint. The seam comment in `graph-runner.ts`
-carries this note so the next author cannot miss it.
+equipment on resume. The fix is `seedEquipmentReshapeFromTrace`
+(`src/runtime/run/equipment-reshape.ts`), which mirrors the two reseeds
+already done on the resume path (skill-hook injections and power
+inference): on resume it replays every honored, confirmed
+`run.equipment-reshape` trace entry back onto the loaded flow, in trace
+order, through the same compiled-flow gate, before the executable is built.
+It is wired at the resume edge in `checkpoint-resume.ts` (the mirror of the
+live path building the executable from the compiled flow); every resume
+validation stays on the original bytes because the reshape is additive. It
+is fail-safe: a parked, unconfirmed, or gate-rejected replay leaves the flow
+exactly as an un-reseeded resume would. The `graph-runner.ts` seam comment
+now records that the reseed happens one level up.
 
 ### F2 (was F5): operator surface for reshapes and reshape findings
 
