@@ -22,6 +22,7 @@ import {
   type RelayStep as CompiledRelayStepV1,
   composeInjectedFanoutBranchPrompt,
 } from '../run/relay-support.js';
+import { lookupReusableSubRunBranch } from '../run/reuse-children.js';
 import type { RunContext } from '../run/run-context.js';
 import {
   type BranchOutcome,
@@ -517,6 +518,55 @@ export async function executeSubRunFanoutBranch(
     return await refuseBranch(
       `fanout step '${step.id}': sub-run branch '${branch.branch_id}' targets flow '${branch.flowRef}' which is already in the recursion ancestor chain [${chain}]; refusing to start it to avoid an unbounded recursion cycle`,
     );
+  }
+
+  // Restart cheapness (`--reuse-children-from`): if this fresh run was pointed at
+  // a prior crashed run's folder and that run already finished this exact branch
+  // in an isolating worktree, admit its result instead of re-running the child.
+  // The branch's real file effect lives in the prior worktree, which the
+  // disjoint-merge collector reads from `outcome.worktree_path`; we point there
+  // and skip both `worktreeRunner.add` and the expensive child run. The prior
+  // result is copied into this run's branch folder so its artifacts stay
+  // self-contained, and the completion entry carries `reused_from` so the trace
+  // stays honest that the work was reused, not freshly executed. The lookup's
+  // safety floor (sub-run branch only, complete+admissible result, worktree still
+  // on disk) lives in reuse-children.ts; any miss falls through to a fresh run.
+  if (context.reuseChildrenFrom !== undefined) {
+    const reused = await lookupReusableSubRunBranch({
+      priorRunFolder: context.reuseChildrenFrom,
+      stepId: step.id,
+      branchId: branch.branch_id,
+      expectedFlowRef: branch.flowRef,
+    });
+    if (reused !== undefined) {
+      await context.files.writeJson(resultPath, reused.resultBody);
+      const evaluation = branchResult(reused.resultBody, admitList(step));
+      const admitted = reused.resultBody.outcome === 'complete' && evaluation.admitted;
+      const durationMs = Math.max(0, Date.now() - startMs);
+      await appendFanoutBranchCompleted(context, {
+        step_id: step.id,
+        attempt,
+        branch_id: branch.branch_id,
+        branch_kind: 'sub-run',
+        child_run_id: childRunId,
+        child_outcome: reused.resultBody.outcome,
+        verdict: evaluation.verdict,
+        duration_ms: durationMs,
+        result_path: resultPath,
+        reused_from: reused.childRunId,
+      });
+      return {
+        branch_id: branch.branch_id,
+        child_run_id: childRunId,
+        worktree_path: reused.worktreePath,
+        child_outcome: reused.resultBody.outcome,
+        verdict: evaluation.verdict,
+        result_path: resultPath,
+        result_body: reused.resultBody,
+        duration_ms: durationMs,
+        admitted,
+      };
+    }
   }
 
   try {

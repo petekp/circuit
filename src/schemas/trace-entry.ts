@@ -577,6 +577,11 @@ export const FanoutBranchCompletedTraceEntry = TraceEntryBase.extend({
   verdict: z.string().min(1),
   duration_ms: z.number().int().nonnegative(),
   result_path: z.string().min(1),
+  // Set only when this branch was admitted from a prior crashed run's finished
+  // child instead of being re-run (a `--reuse-children-from` restart). Carries
+  // the prior child's run id so the trace stays honest that the work was reused,
+  // not freshly executed. Absent on a normally-run branch.
+  reused_from: RunId.optional(),
 }).strict();
 export type FanoutBranchCompletedTraceEntry = z.infer<typeof FanoutBranchCompletedTraceEntry>;
 

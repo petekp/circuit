@@ -87,6 +87,10 @@ export interface ParsedArgs {
   checkpointChoice?: string;
   progress?: 'jsonl';
   includeUntrackedContent: boolean;
+  // A prior crashed run's folder to reuse finished sub-run children from
+  // (`--reuse-children-from`). Fresh-run only; resolved to an absolute path at
+  // the run call site, like runFolder.
+  reuseChildrenFrom?: string;
 }
 
 interface ResolvedCompiledFlowRoute {
@@ -151,6 +155,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     progress?: string;
     dryRun?: boolean;
     includeUntrackedContent?: boolean;
+    reuseChildrenFrom?: string;
   }>();
 
   const flowName = program.args[0];
@@ -213,6 +218,10 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   const checkpointChoice = opts.checkpointChoice;
   const progress = opts.progress === 'jsonl' ? 'jsonl' : undefined;
   const includeUntrackedContent = opts.includeUntrackedContent === true;
+  const reuseChildrenFrom = opts.reuseChildrenFrom;
+  if (reuseChildrenFrom !== undefined && reuseChildrenFrom.length === 0) {
+    throw new Error('--reuse-children-from requires a non-empty path');
+  }
 
   if (command === 'resume' || checkpointChoice !== undefined) {
     if (command !== 'resume') {
@@ -253,6 +262,11 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
         'checkpoint resume reuses the saved evidence policy; omit --include-untracked-content',
       );
     }
+    if (reuseChildrenFrom !== undefined) {
+      throw new Error(
+        'checkpoint resume continues this run in place; --reuse-children-from starts a fresh run that reuses children from a dead run folder, so omit it on resume',
+      );
+    }
   } else if (goal === undefined || goal.length === 0) {
     throw new Error('--goal is required and must be non-empty');
   }
@@ -287,6 +301,7 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
   if (flowRoot !== undefined) result.flowRoot = flowRoot;
   if (checkpointChoice !== undefined) result.checkpointChoice = checkpointChoice;
   if (progress !== undefined) result.progress = progress;
+  if (reuseChildrenFrom !== undefined) result.reuseChildrenFrom = reuseChildrenFrom;
   return result;
 }
 
@@ -770,6 +785,9 @@ export async function runExecutionCommand(
       ...(args.includeUntrackedContent
         ? { evidencePolicy: { includeUntrackedFileContent: true } }
         : {}),
+      ...(args.reuseChildrenFrom === undefined
+        ? {}
+        : { reuseChildrenFrom: resolve(args.reuseChildrenFrom) }),
     });
     if (isGraphCheckpointWaitingResult(runtimeResult)) {
       const waitingResult = {

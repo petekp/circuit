@@ -127,6 +127,43 @@ describe('--power CLI flag parsing', () => {
   });
 });
 
+describe('--reuse-children-from CLI flag parsing', () => {
+  it('carries the prior run folder on a fresh run', () => {
+    const args = parseExecutionArgs('run', [
+      'review',
+      '--goal',
+      'g',
+      '--reuse-children-from',
+      '/tmp/dead-run',
+    ]);
+    expect(args.reuseChildrenFrom).toBe('/tmp/dead-run');
+  });
+
+  it('leaves the pointer unset when the flag is absent', () => {
+    const args = parseExecutionArgs('run', ['review', '--goal', 'g']);
+    expect(args.reuseChildrenFrom).toBeUndefined();
+  });
+
+  it('rejects an empty path', () => {
+    expect(() =>
+      parseExecutionArgs('run', ['review', '--goal', 'g', '--reuse-children-from', '']),
+    ).toThrow(/--reuse-children-from requires a non-empty path/);
+  });
+
+  it('rejects --reuse-children-from on checkpoint resume (fresh-run only)', () => {
+    expect(() =>
+      parseExecutionArgs('resume', [
+        '--run-folder',
+        '/tmp/some-run',
+        '--checkpoint-choice',
+        'approve',
+        '--reuse-children-from',
+        '/tmp/dead-run',
+      ]),
+    ).toThrow(/--reuse-children-from/);
+  });
+});
+
 describe('--power dial reaches relay selection as an invocation config layer', () => {
   it('materializes the reviewer tier from the shipped claude-code table', async () => {
     // Dial low allocates reviewer → medium → the durable sonnet alias.
