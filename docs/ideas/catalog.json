@@ -895,6 +895,19 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/splice-phase01-run-report.md",
+      "title": "Splice-seam foundation Phases 0 and 1 run report",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["splice", "equipment-reshape", "resume", "recompile", "structural-reshape"],
+      "current_reading": "Run report for the splice-seam foundation. Phase 1 (the resume reseed, F1 = seedEquipmentReshapeFromTrace) is built and landed as PR #110 against src/; the Step 2 resume gap is closed. Phase 0 is a throwaway offline demonstrator (experiments/flow-lab/) proving the structural splice's run-state migration is sound and the gate fails closed, with four honest Phase-2 seam caveats (outbound re-home laundering, two gates not one, decompose migrates more than the four named pieces, single-producer rule is load-bearing). Recommends proceeding to design Phase 2 behind an engine flag, with the four caveats as the spec and no flow wired until ratified. Phase 2 (structural seam in src/) and Phase 3 (splice-as-leaf) deliberately not built.",
+      "related": [
+        "docs/ideas/deepfork-splice-seam-spec.md",
+        "docs/ideas/step2-live-equipment-reshape-report.md"
+      ],
+      "last_checked": "2026-06-17"
+    },
+    {
       "path": "docs/ideas/swarm-memory-pooling.md",
       "title": "Pooling Circuit Memory Across an Agent Swarm",
       "status": "current-proposal",
