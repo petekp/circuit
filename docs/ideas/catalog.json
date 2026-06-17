@@ -1037,6 +1037,7 @@
       "related": [
         "docs/ideas/deepfork-resolver-abstraction-spec.md",
         "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
+        "docs/ideas/deepfork-splice-seam-spec.md",
         "docs/ideas/recompile-foundation-run-report.md",
         "docs/ideas/north-star-status.md"
       ],
@@ -1070,6 +1071,37 @@
         "docs/ideas/recompile-foundation-run-report.md",
         "docs/ideas/step2-live-equipment-reshape-report.md",
         "docs/ideas/on-demand-context-pull.md",
+        "docs/ideas/deepfork-splice-seam-spec.md",
+        "docs/ideas/north-star-status.md"
+      ],
+      "last_checked": "2026-06-17"
+    },
+    {
+      "path": "docs/ideas/deepfork-splice-seam-spec.md",
+      "title": "Deep fork - the splice seam (structural reshape + splice-as-leaf)",
+      "status": "pre-implementation",
+      "category": "flows-and-blocks",
+      "tags": ["deep-fork", "splice", "structural-reshape", "recursion", "resume", "surface-only"],
+      "current_reading": "Surface-only, ratification-gated design for the one runner branch two forks both need: structural recompile (decompose a running step into a subtree) and splice-as-leaf (inline a sub-tree where a leaf relay sits). Both reshape the live step set and both name the same spliceIntoRemainingSteps seam. Grounded in why Step 2's additive equipment reshape was safe (step set unchanged) and why structural is a different class: it must migrate the cursor, routes, slice corridor, and completion counts across a changed step set, re-run the block-catalog gate the additive path skips (routes and contracts can regress), and add a structural resume reseed that rebuilds the spliced shape, not just state on a fixed shape. Conservative defaults (decompose-down only, bounded by the shipped budget + cycle guard, refuse inside a slice loop, fail-closed) and a four-phase build plan, each phase its own gate. Builds nothing in src/. See deepfork-adaptive-bubble-up-recompile-spec.md and deepfork-uniform-recursion-e3-spec.md.",
+      "related": [
+        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
+        "docs/ideas/deepfork-uniform-recursion-e3-spec.md",
+        "docs/ideas/step2-live-equipment-reshape-report.md",
+        "docs/ideas/recompile-foundation-run-report.md",
+        "docs/ideas/north-star-status.md"
+      ],
+      "last_checked": "2026-06-17"
+    },
+    {
+      "path": "docs/ideas/f2-and-splice-spec-run-report.md",
+      "title": "Run report - F2 reshape surface + splice-seam spec (2026-06-17)",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["run-report", "f2", "reshape", "operator-surface", "splice", "deep-fork"],
+      "current_reading": "Run report for the F2 + splice-spec run. F2 (the operator surface for live equipment reshapes) is BUILT and verified: honored reshapes surface as equipment_reshapes records and a Live equipment section, parked discoveries as an equipment_discovery_parked warning folded into the brief's caveats; additive surface only, no engine change, failing-test-first, one adversarial-review finding fixed (a torn trace line that slipped the gate would crash the summary write). The splice-seam spec (deepfork-splice-seam-spec.md) was surfaced, building nothing. Also records the one-line repair of main's broken check-ideas gate (a deleted doc restored). The Step 3 decision is now in front of the operator: take Phase 0 (free offline demonstrator) and F1 (additive resume reseed) when ready; hold the structural seam (Phase 2) and splice-as-leaf (Phase 3) for explicit ratification.",
+      "related": [
+        "docs/ideas/deepfork-splice-seam-spec.md",
+        "docs/ideas/step2-live-equipment-reshape-report.md",
         "docs/ideas/north-star-status.md"
       ],
       "last_checked": "2026-06-17"

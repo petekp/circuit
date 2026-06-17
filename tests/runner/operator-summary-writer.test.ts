@@ -2408,6 +2408,171 @@ describe('operator summary writer', () => {
   });
 });
 
+describe('operator summary writer — live equipment reshapes (F2)', () => {
+  const RUN = '87000000-0000-0000-0000-000000000001';
+
+  function reshapeEntry(
+    sequence: number,
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      schema_version: 1,
+      sequence,
+      recorded_at: '2026-06-17T12:00:00.000Z',
+      run_id: RUN,
+      kind: 'run.equipment-reshape',
+      step_id: 'research',
+      confirmed: true,
+      reshaped: true,
+      domain_tags: ['react'],
+      equipped_steps: ['implement', 'review'],
+      reason: 'Equipped 2 step(s) with react skills.',
+      ...overrides,
+    };
+  }
+
+  it('surfaces an honored reshape in the structured field and the report (which steps gained equipment, and why)', () => {
+    writeTrace([reshapeEntry(5)]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const reshapes = written.summary.equipment_reshapes ?? [];
+    expect(reshapes).toHaveLength(1);
+    expect(reshapes[0]).toMatchObject({
+      step_id: 'research',
+      domain_tags: ['react'],
+      equipped_steps: ['implement', 'review'],
+    });
+
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('Live equipment:');
+    // Names the discovering step, the confirmed domain, and the steps that gained skills.
+    expect(markdown).toContain('research');
+    expect(markdown).toContain('react');
+    expect(markdown).toContain('implement');
+    expect(markdown).toContain('review');
+  });
+
+  it('surfaces a parked discovery as a caveat/warning so the operator sees why it was not applied', () => {
+    writeTrace([
+      reshapeEntry(5, {
+        confirmed: false,
+        reshaped: false,
+        equipped_steps: undefined,
+        reason:
+          'equipment discovery from research is unconfirmed; recorded as a finding, flow unchanged',
+      }),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    // A parked discovery produces no honored reshape...
+    expect(written.summary.equipment_reshapes).toBeUndefined();
+    // ...but raises an evidence warning naming the step and the reason.
+    const warning = written.summary.evidence_warnings.find(
+      (w) => w.kind === 'equipment_discovery_parked',
+    );
+    expect(warning).toBeDefined();
+    expect(warning?.message).toContain('research');
+    expect(warning?.message).toContain('unconfirmed');
+    // The brief form folds the warning into a caveat the operator reads.
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain('equipment_discovery_parked');
+    expect(markdown).toContain('unconfirmed');
+  });
+
+  it('surfaces an honored reshape and a parked discovery together in one run', () => {
+    writeTrace([
+      reshapeEntry(5),
+      reshapeEntry(9, {
+        step_id: 'implement',
+        confirmed: true,
+        reshaped: false,
+        equipped_steps: undefined,
+        domain_tags: ['graphql'],
+        reason: 'equipment reshape budget exhausted; recorded as a finding, flow unchanged',
+      }),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.equipment_reshapes).toHaveLength(1);
+    expect(written.summary.equipment_reshapes?.[0]).toMatchObject({ step_id: 'research' });
+    const warning = written.summary.evidence_warnings.find(
+      (w) => w.kind === 'equipment_discovery_parked',
+    );
+    expect(warning?.message).toContain('implement');
+    expect(warning?.message).toContain('budget');
+  });
+
+  it('dedups an identical reshape record so a re-recorded entry is one line, not two', () => {
+    writeTrace([reshapeEntry(5), reshapeEntry(9)]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.equipment_reshapes).toHaveLength(1);
+  });
+
+  it('omits the equipment surface entirely on a run with no reshape records (byte-stable)', () => {
+    writeTrace([
+      {
+        schema_version: 1,
+        sequence: 1,
+        recorded_at: '2026-06-17T12:00:00.000Z',
+        run_id: RUN,
+        kind: 'step.completed',
+        step_id: 'apply-step',
+        attempt: 1,
+      },
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.summary.equipment_reshapes).toBeUndefined();
+    expect(readFileSync(written.markdownPath, 'utf8')).not.toContain('Live equipment:');
+  });
+
+  it('tolerates a torn reshape entry the trace gate admits but the surface schema rejects', () => {
+    // The trace schema allows `domain_tags: ['']` (no per-element min), but the
+    // operator surface requires non-empty tags. A torn or hand-edited line like
+    // this must be skipped like any other junk line, not crash the whole summary
+    // write. (Healthy runs never write empty tags; this is durability tolerance.)
+    writeTrace([reshapeEntry(5, { domain_tags: [''] })]);
+
+    let written: ReturnType<typeof writeOperatorSummary> | undefined;
+    expect(() => {
+      written = writeOperatorSummary({
+        runFolder,
+        runResult: baseResult('fix'),
+        route: { selectedFlow: 'fix' },
+      });
+    }).not.toThrow();
+
+    expect(written?.summary.equipment_reshapes).toBeUndefined();
+    expect(readFileSync(written?.markdownPath ?? '', 'utf8')).not.toContain('Live equipment:');
+  });
+});
+
 describe('operator summary writer — skill hook activations', () => {
   const RUN = '87000000-0000-0000-0000-000000000001';
 

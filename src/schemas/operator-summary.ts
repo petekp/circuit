@@ -95,6 +95,25 @@ export const OperatorSkillHookActivation = z
   .strict();
 export type OperatorSkillHookActivation = z.infer<typeof OperatorSkillHookActivation>;
 
+// One honored live equipment reshape (Step 2: the engine adapted a running
+// flow), projected from the run's `run.equipment-reshape` trace entries so the
+// operator can see, without reading the raw trace, that a later relay gained
+// skills mid-run and why. `step_id` is the step whose confirmed discovery
+// triggered the reshape; `domain_tags` are the domains it confirmed;
+// `equipped_steps` are the steps that gained skills; `reason` is the rationale
+// recorded in the trace. Only honored reshapes (reshaped=true) appear here; a
+// discovery that parked as a finding is surfaced as an evidence warning instead,
+// so the operator sees why nothing changed.
+export const OperatorEquipmentReshape = z
+  .object({
+    step_id: z.string().min(1),
+    domain_tags: z.array(z.string().min(1)),
+    equipped_steps: z.array(z.string().min(1)),
+    reason: z.string().min(1),
+  })
+  .strict();
+export type OperatorEquipmentReshape = z.infer<typeof OperatorEquipmentReshape>;
+
 // Per-role model spend, joined reader-side from the trace: role and model come
 // from `relay.started`, the usage meter from `relay.completed`, on the shared
 // `(step_id, attempt)` key. Only completed relays count — a failed attempt
@@ -197,6 +216,7 @@ export const OperatorSummary = z
     report_paths: z.array(OperatorSummaryReportLink),
     auto_resolutions: z.array(OperatorAutoResolution).optional(),
     skill_hook_activations: z.array(OperatorSkillHookActivation).optional(),
+    equipment_reshapes: z.array(OperatorEquipmentReshape).optional(),
     receipt: OperatorRunReceipt.optional(),
     checkpoint: z
       .object({

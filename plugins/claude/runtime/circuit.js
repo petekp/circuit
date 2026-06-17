@@ -50543,6 +50543,12 @@ var OperatorSkillHookActivation = external_exports.object({
     reason: external_exports.string().min(1).optional()
   }).strict())
 }).strict();
+var OperatorEquipmentReshape = external_exports.object({
+  step_id: external_exports.string().min(1),
+  domain_tags: external_exports.array(external_exports.string().min(1)),
+  equipped_steps: external_exports.array(external_exports.string().min(1)),
+  reason: external_exports.string().min(1)
+}).strict();
 var OperatorRunReceiptSpendRole = external_exports.object({
   role: RelayRole,
   relays: external_exports.number().int().positive(),
@@ -50603,6 +50609,7 @@ var OperatorSummary = external_exports.object({
   report_paths: external_exports.array(OperatorSummaryReportLink),
   auto_resolutions: external_exports.array(OperatorAutoResolution).optional(),
   skill_hook_activations: external_exports.array(OperatorSkillHookActivation).optional(),
+  equipment_reshapes: external_exports.array(OperatorEquipmentReshape).optional(),
   receipt: OperatorRunReceipt.optional(),
   checkpoint: external_exports.object({
     step_id: external_exports.string().min(1),
@@ -67239,6 +67246,62 @@ function skillHookActivationLine(activation) {
     parts.push("matched but injected nothing");
   return `\`${activation.hook}\` ${parts.join("; ")} \u2014 ${provenance}`;
 }
+function readEquipmentReshapeSummary(runFolder) {
+  const tracePath = join33(runFolder, "trace.ndjson");
+  if (!existsSync33(tracePath))
+    return { reshapes: [], warnings: [] };
+  const seen = /* @__PURE__ */ new Set();
+  const reshapes = [];
+  const warnings = [];
+  for (const line of readFileSync52(tracePath, "utf8").split(/\r?\n/)) {
+    if (line.trim().length === 0)
+      continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isObject4(entry) || entry.kind !== "run.equipment-reshape")
+      continue;
+    const parsed = RunEquipmentReshapeTraceEntry.safeParse(entry);
+    if (!parsed.success)
+      continue;
+    const event = parsed.data;
+    const stepId = event.step_id;
+    if (event.reshaped) {
+      const record2 = OperatorEquipmentReshape.safeParse({
+        step_id: stepId,
+        domain_tags: event.domain_tags,
+        equipped_steps: (event.equipped_steps ?? []).map((id) => id),
+        reason: event.reason
+      });
+      if (!record2.success)
+        continue;
+      const key2 = JSON.stringify(record2.data);
+      if (seen.has(key2))
+        continue;
+      seen.add(key2);
+      reshapes.push(record2.data);
+      continue;
+    }
+    const warning = {
+      kind: "equipment_discovery_parked",
+      message: `${stepId}: ${firstLine(event.reason)}`
+    };
+    const key = JSON.stringify(warning);
+    if (seen.has(key))
+      continue;
+    seen.add(key);
+    warnings.push(warning);
+  }
+  return { reshapes, warnings };
+}
+function equipmentReshapeLine(reshape) {
+  const domains = reshape.domain_tags.length > 0 ? reshape.domain_tags.join(", ") : "a domain";
+  const equipped = reshape.equipped_steps.length > 0 ? reshape.equipped_steps.join(", ") : "no remaining step";
+  return `\`${reshape.step_id}\` confirmed ${domains}; equipped ${equipped}`;
+}
 function formatScore2(value) {
   if (value === null || value === void 0)
     return "n/a";
@@ -67292,6 +67355,12 @@ function renderMarkdown(summary) {
         lines2.push(`- ${skillHookActivationLine(activation)}`);
       }
     }
+    if (summary.equipment_reshapes !== void 0 && summary.equipment_reshapes.length > 0) {
+      lines2.push("", "Live equipment:");
+      for (const reshape of summary.equipment_reshapes) {
+        lines2.push(`- ${equipmentReshapeLine(reshape)}`);
+      }
+    }
     if (summary.receipt !== void 0) {
       lines2.push("", receiptLine(summary.receipt));
       const spend = spendLine(summary.receipt);
@@ -67324,6 +67393,12 @@ function renderMarkdown(summary) {
     lines.push("", "## Skill hooks", "");
     for (const activation of summary.skill_hook_activations) {
       lines.push(`- ${skillHookActivationLine(activation)}`);
+    }
+  }
+  if (summary.equipment_reshapes !== void 0 && summary.equipment_reshapes.length > 0) {
+    lines.push("", "## Live equipment", "");
+    for (const reshape of summary.equipment_reshapes) {
+      lines.push(`- ${equipmentReshapeLine(reshape)}`);
     }
   }
   const visibleDetails = summary.details.filter((detail) => !detail.startsWith("Run note:"));
@@ -67362,6 +67437,7 @@ function writeOperatorSummary(input) {
   const resultPath2 = input.runResult.outcome === "checkpoint_waiting" ? void 0 : resolveRunRelative(input.runFolder, resultRelPath);
   const autoResolutions = readAutoResolutions(input.runFolder);
   const skillHookSummary = readSkillHookSummary(input.runFolder);
+  const equipmentReshapeSummary = readEquipmentReshapeSummary(input.runFolder);
   const receipt = readRunReceipt(input.runFolder);
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
@@ -67460,7 +67536,8 @@ function writeOperatorSummary(input) {
   const warnings = [
     ...warningRecords(flowReport),
     ...htmlEmitWarning === void 0 ? [] : [htmlEmitWarning],
-    ...skillHookSummary.warnings
+    ...skillHookSummary.warnings,
+    ...equipmentReshapeSummary.warnings
   ];
   const briefSlots = buildBriefSlots({
     runFolder: input.runFolder,
@@ -67490,6 +67567,7 @@ function writeOperatorSummary(input) {
     report_paths: reportPaths,
     ...autoResolutions.length === 0 ? {} : { auto_resolutions: autoResolutions },
     ...skillHookSummary.activations.length === 0 ? {} : { skill_hook_activations: skillHookSummary.activations },
+    ...equipmentReshapeSummary.reshapes.length === 0 ? {} : { equipment_reshapes: equipmentReshapeSummary.reshapes },
     ...receipt === void 0 ? {} : { receipt },
     ...input.runResult.outcome === "checkpoint_waiting" ? { checkpoint: input.runResult.checkpoint } : {}
   });
