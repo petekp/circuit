@@ -522,6 +522,10 @@ export async function executeProductionRelayAttempt(input: {
       context.powerInference?.get() === undefined &&
       resolvePowerDialSetting(context.selectionConfigLayers ?? []).kind === 'auto',
     input.branchGoal,
+    // Pull-then-retry delivery: on the bounded re-run of a step whose typed
+    // context_request was resolved, fold the answered slices into the prompt.
+    // Undefined on every first pass, so non-retry prompts are unchanged.
+    context.deliveredContextSlices,
   );
 
   const request = step.writes?.request;

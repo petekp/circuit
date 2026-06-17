@@ -34,7 +34,13 @@ import { buildRuntimePackageIndex } from '../manifest/runtime-package-index.js';
 import { assertExecutableFlow } from '../manifest/validate-executable-flow.js';
 import { resolveBindingLegibility } from './binding-legibility.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
-import { type ContextPuller, extractContextRequest } from './context-pull.js';
+import {
+  type ContextDeliveryGuard,
+  type DeliveredContextSlice,
+  type RetryEvaluation,
+  decideContextDeliveryOutcome,
+} from './context-delivery.js';
+import { type ContextPuller, type ContextRequest, extractContextRequest } from './context-pull.js';
 import { resolveEngineFlags } from './engine-flags.js';
 import { type EquipmentReshaper, extractEquipmentDiscovery } from './equipment-reshape.js';
 import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guidance.js';
@@ -88,6 +94,15 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   // record only: it never alters the run, so a run where no relay asks is
   // byte-identical with or without it.
   readonly contextPuller?: () => ContextPuller;
+  // Pull-then-retry delivery — the value half of context-pull. Present only when
+  // the live path opts in (`enableContextDelivery`). When present (and a puller
+  // is too), a relay that surfaces a typed `context_request` has its answered
+  // slices FOLDED into the envelope and the step RE-RUN ONCE on the enriched
+  // context; the guard owns the per-run bound (one delivery per step, a global
+  // cap). Absent => the resolve-and-record seam runs instead and a request is
+  // recorded but not delivered (today's behavior). Requires `contextPuller`; on
+  // its own it is inert.
+  readonly contextDelivery?: ContextDeliveryGuard;
   readonly workContractRef?: Ref;
   readonly recoveryRouteBindings?: readonly RecoveryRouteBindingV0[];
   // Restart-cheapness pointer: a prior crashed run's folder whose finished
@@ -527,6 +542,59 @@ async function executeExecutableFlowOutcomeUnsafe(
   // bound; absent it, the whole reshape is inert.
   let activeFlow = flow;
   let activePackageIndex = packageIndex;
+
+  // Shared resolve-and-record for the typed-lookup channel. Both context-pull
+  // seams use it, so a recorded `run.context-pull` entry is identical whether the
+  // run only records (delivery off) or goes on to deliver (delivery on). For each
+  // query it materializes the named parent's typed report, resolves the one named
+  // slice through a fresh per-step puller (which owns the budget and the
+  // everything-refusal), records the answer-or-finding, and returns the answered
+  // slices for the caller to fold in. A fresh puller per call keeps the budget
+  // per-step. Returns [] when no puller is configured.
+  const resolveAndRecordContextPull = async (input: {
+    readonly stepId: string;
+    readonly request: ContextRequest;
+  }): Promise<DeliveredContextSlice[]> => {
+    const factory = options.contextPuller;
+    if (factory === undefined) return [];
+    const contextPuller = factory();
+    // Materialize the typed surface: parent step id -> that parent's report JSON,
+    // read once each. A parent without a readable report is simply absent — the
+    // channel parks the query as a finding. The query names a parent that already
+    // RAN, so its report is settled; we never read the running step.
+    const surface = new Map<string, unknown>();
+    for (const query of input.request.queries) {
+      if (surface.has(query.from_step)) continue;
+      const reportPath = steps.get(query.from_step)?.writes?.report?.path;
+      if (reportPath === undefined) continue;
+      try {
+        surface.set(query.from_step, await context.files.readJson(reportPath));
+      } catch {
+        // Unreadable report -> parent off the surface -> the query parks.
+      }
+    }
+    const answered: DeliveredContextSlice[] = [];
+    for (const query of input.request.queries) {
+      const outcome = contextPuller({ fromStepId: input.stepId, query, surface });
+      await trace.append({
+        run_id: runId,
+        kind: 'run.context-pull',
+        step_id: input.stepId,
+        from_step: query.from_step,
+        field_path: query.field_path,
+        answered: outcome.answered,
+        ...(outcome.answered ? { bytes: outcome.bytes } : {}),
+        reason: outcome.answered
+          ? `pulled ${outcome.source} (${outcome.bytes} bytes)`
+          : outcome.finding,
+      });
+      if (outcome.answered) {
+        answered.push({ source: outcome.source, value: outcome.value, bytes: outcome.bytes });
+      }
+    }
+    return answered;
+  };
+
   for (let index = 0; index < maxSteps; index += 1) {
     const step = steps.get(currentStepId);
     if (step === undefined) {
@@ -556,7 +624,17 @@ async function executeExecutableFlowOutcomeUnsafe(
       stepId: step.id,
       route: incomingRouteTaken,
     });
-    const attempt = isResumedCheckpoint ? options.resumeCheckpoint.attempt : completedCount + 1;
+    // `attempt` is the relay attempt number for this step+slice this iteration.
+    // It is `let`, not `const`, because a kept pull-then-retry delivery (below)
+    // advances it to the re-run's attempt so the post-step evidence lookups bind
+    // to the kept attempt, not the discarded starved one.
+    let attempt = isResumedCheckpoint ? options.resumeCheckpoint.attempt : completedCount + 1;
+    // A delivery re-run consumes one extra attempt slot (it runs the step a second
+    // time at attempt+1). When that happens this records the extra so the step's
+    // completion count advances past BOTH attempts and a later recovery re-entry
+    // never reuses the re-run's attempt number. Stays 0 on every run without a
+    // delivery re-run, so the completion count is unchanged from today.
+    let deliveryConsumedAttempts = 0;
     if (
       !isResumedCheckpoint &&
       isCompletedStepReentryAbort({
@@ -593,7 +671,10 @@ async function executeExecutableFlowOutcomeUnsafe(
 
     // Mark where this step's trace begins, so skill-hook dispatch can scan only
     // the entries this step appends (its check.evaluated / proof.assessed signals).
-    const traceLengthBeforeStep = trace.getAll().length;
+    // A kept pull-then-retry delivery advances this past the discarded starved
+    // attempt, so the post-step seams read the re-run's signals, not the first
+    // attempt's (see the delivery seam below).
+    let traceLengthBeforeStep = trace.getAll().length;
     let route: string;
     let details: Record<string, unknown>;
     try {
@@ -617,7 +698,7 @@ async function executeExecutableFlowOutcomeUnsafe(
           ? { resumeCheckpoint: options.resumeCheckpoint }
           : {}),
       };
-      const outcome = await executors[step.kind](step, stepContext);
+      let outcome = await executors[step.kind](step, stepContext);
       if (isWaitingCheckpointStepOutcome(outcome)) {
         return {
           kind: 'checkpoint_waiting',
@@ -629,6 +710,125 @@ async function executeExecutableFlowOutcomeUnsafe(
           checkpoint: outcome.checkpoint,
         };
       }
+
+      // On-demand context-pull DELIVERY — pull-then-retry. The value half of the
+      // typed-lookup channel: when delivery is enabled and this relay surfaced a
+      // typed `context_request`, resolve the named slices (recording each as
+      // run.context-pull — the same record the resolve-and-record seam writes),
+      // fold the answered slices into the step's envelope, and RE-RUN the step
+      // ONCE on the enriched context. Bounded: the per-step query budget caps the
+      // slices, and the per-run guard caps a step to one delivery. Fail-safe: if
+      // the re-run errors or its connector fails before producing a result, the
+      // starved result is untouched and we keep the original outcome; otherwise we
+      // keep the enriched re-run. Additive: it only adds context, never
+      // restructures. It runs here, BEFORE route classification, so exactly one
+      // chosen outcome flows through the rest of the pipeline. Inert unless the
+      // live path injected `contextDelivery` (default off); when off, the
+      // resolve-and-record seam further below runs instead, byte-identical to
+      // today. Best-effort: any failure leaves the run on the starved outcome.
+      const contextDelivery = options.contextDelivery;
+      const deliveryRoute = outcome.route;
+      if (
+        contextDelivery !== undefined &&
+        options.contextPuller !== undefined &&
+        step.kind === 'relay' &&
+        step.routes[deliveryRoute] !== undefined &&
+        step.routes[deliveryRoute]?.kind !== 'terminal' &&
+        !sliceCorridor.isActive()
+      ) {
+        try {
+          const starvedEntries = trace.getAll().slice(traceLengthBeforeStep);
+          const starvedCompleted = [...starvedEntries]
+            .reverse()
+            .find((entry) => entry.kind === 'relay.completed');
+          if (starvedCompleted !== undefined) {
+            const starvedBody = await context.files.readJson(starvedCompleted.result_path);
+            const request = extractContextRequest(starvedBody);
+            if (request !== undefined) {
+              const delivered = await resolveAndRecordContextPull({
+                stepId: step.id,
+                request,
+              });
+              if (delivered.length > 0 && contextDelivery.claim(step.id)) {
+                const traceLengthBeforeRetry = trace.getAll().length;
+                // The re-run is a distinct attempt (attempt + 1), so its relay
+                // entries — including a relay.failed if its connector fails — are
+                // keyed to their own attempt and never contaminate the starved
+                // attempt's recovery evidence on a fall-back. On keep we advance
+                // `attempt` to this number so the post-step evidence lookups bind to
+                // the kept re-run instead.
+                const retryAttempt = attempt + 1;
+                let retryEvaluation: RetryEvaluation;
+                let retried = false;
+                try {
+                  const enrichedContext: RunContext = {
+                    ...stepContext,
+                    activeStepAttempt: retryAttempt,
+                    deliveredContextSlices: delivered,
+                  };
+                  const retryOutcome = await executors[step.kind](step, enrichedContext);
+                  retried = true;
+                  if (isWaitingCheckpointStepOutcome(retryOutcome)) {
+                    // A relay never parks; treat an impossible checkpoint here as a
+                    // non-result and keep the starved outcome.
+                    retryEvaluation = { kind: 'errored' };
+                  } else {
+                    // The re-run writes to the same fixed result path. If the worker
+                    // connector failed it wrote nothing (the engine recorded a
+                    // relay.failed), so the starved result is intact and we keep it;
+                    // otherwise the enriched result is persisted and we keep it.
+                    const retryEntries = trace.getAll().slice(traceLengthBeforeRetry);
+                    const connectorFailed = retryEntries.some(
+                      (entry) => entry.kind === 'relay.failed',
+                    );
+                    retryEvaluation = connectorFailed
+                      ? { kind: 'connector_failed' }
+                      : { kind: 'produced' };
+                    if (retryEvaluation.kind === 'produced') {
+                      outcome = retryOutcome;
+                    }
+                  }
+                } catch {
+                  retried = true;
+                  retryEvaluation = { kind: 'errored' };
+                }
+                const decision = decideContextDeliveryOutcome(retryEvaluation);
+                await trace.append({
+                  run_id: runId,
+                  kind: 'run.context-delivery',
+                  step_id: step.id,
+                  delivered_slices: delivered.length,
+                  delivered_bytes: delivered.reduce((sum, slice) => sum + slice.bytes, 0),
+                  retried,
+                  kept: decision.keep,
+                  reason: decision.reason,
+                });
+                if (retried) {
+                  // The re-run consumed attempt `retryAttempt`. Record the extra so
+                  // the step's completion count advances past it and no later
+                  // recovery re-entry of this step reuses that attempt number,
+                  // whether we kept the re-run or fell back.
+                  deliveryConsumedAttempts = retryAttempt - attempt;
+                }
+                if (decision.keep === 'retry') {
+                  // The kept outcome is the re-run: bind the rest of the pipeline to
+                  // its attempt and its trace window. Advancing `attempt` makes the
+                  // recovery-evidence lookups read the re-run's signals; advancing
+                  // the trace boundary makes skill-hook dispatch, power inference,
+                  // reshape, and the close pipeline scan the re-run's entries, not
+                  // the discarded starved attempt's.
+                  attempt = retryAttempt;
+                  traceLengthBeforeStep = traceLengthBeforeRetry;
+                }
+              }
+            }
+          }
+        } catch {
+          // Fail-safe by design: any delivery failure leaves the run on the
+          // starved outcome, exactly as if delivery were off.
+        }
+      }
+
       route = outcome.route;
       details = outcome.details ?? {};
     } catch (error) {
@@ -816,8 +1016,10 @@ async function executeExecutableFlowOutcomeUnsafe(
     });
     // Keyed to this step's captured slice index (pre-advance), so a tail step
     // that just advanced still records its own slice's completion, not the
-    // next slice's.
-    completedStepCounts.set(stepCountKey, completedCount + 1);
+    // next slice's. `deliveryConsumedAttempts` (0 unless a pull-then-retry re-run
+    // ran) advances the count past the re-run's attempt slot so a later recovery
+    // re-entry never reuses it.
+    completedStepCounts.set(stepCountKey, completedCount + 1 + deliveryConsumedAttempts);
 
     // Skill-hook dispatch: record any hook events this step's signals trigger
     // under the run's config, then actuate the `auto` ones. Best-effort and
@@ -1032,14 +1234,16 @@ async function executeExecutableFlowOutcomeUnsafe(
       }
     }
 
-    // On-demand context-pull — the typed-lookup channel. After a relay completes,
-    // it may have surfaced a `context_request`: a typed ask for one more named
-    // slice of a parent's report than its thin envelope carried. For each query
-    // the seam materializes the named parent's typed report, hands it to a fresh
-    // per-step channel (which owns the bound, the everything-refusal, and the
-    // fail-safe), and records the answer-or-finding in the trace. Resolve-and-
-    // record only: the value is not delivered back into the step this cut, so the
-    // run is never altered — pull-then-retry delivery is the battle-test's job.
+    // On-demand context-pull — the typed-lookup channel, RESOLVE-AND-RECORD seam.
+    // After a relay completes, it may have surfaced a `context_request`: a typed
+    // ask for one more named slice of a parent's report than its thin envelope
+    // carried. The shared helper materializes each named parent's typed report,
+    // resolves the slice through a fresh per-step channel, and records the
+    // answer-or-finding in the trace. Resolve-and-record only: the value is not
+    // delivered back into the step here, so the run is never altered. When
+    // delivery is ENABLED the early seam above already resolved, recorded, AND
+    // delivered this step's request, so this seam is skipped (guarded on
+    // `contextDelivery === undefined`) to avoid recording the same pull twice.
     // Inert unless the live path injected `contextPuller`; skipped on the terminal
     // step and inside a slice loop, mirroring the reshape seam. The slice-loop skip
     // is over-conservative here (context-pull never mutates, so the reshape reason
@@ -1048,9 +1252,9 @@ async function executeExecutableFlowOutcomeUnsafe(
     // Lifting the skip (resolve + record inside corridors too) is a battle-test
     // item, gated on a deep-depth test; kept conservative and faithful for now.
     // Best-effort and fail-safe: any failure leaves the run untouched.
-    const contextPullerFactory = options.contextPuller;
     if (
-      contextPullerFactory !== undefined &&
+      options.contextPuller !== undefined &&
+      options.contextDelivery === undefined &&
       targetTransition.kind !== 'terminal_close' &&
       !sliceCorridor.isActive()
     ) {
@@ -1063,40 +1267,7 @@ async function executeExecutableFlowOutcomeUnsafe(
           const body = await context.files.readJson(completed.result_path);
           const request = extractContextRequest(body);
           if (request !== undefined) {
-            // A fresh puller per step, so its budget is this step's alone.
-            const contextPuller = contextPullerFactory();
-            // Materialize the typed surface: parent step id -> that parent's
-            // report JSON, read once each. A parent without a readable report is
-            // simply absent from the surface — the channel parks the query as a
-            // finding. The query asks for a named slice of a parent that already
-            // RAN, so its report is settled; we never read the running step.
-            const surface = new Map<string, unknown>();
-            for (const query of request.queries) {
-              if (surface.has(query.from_step)) continue;
-              const reportPath = steps.get(query.from_step)?.writes?.report?.path;
-              if (reportPath === undefined) continue;
-              try {
-                surface.set(query.from_step, await context.files.readJson(reportPath));
-              } catch {
-                // An unreadable report leaves the parent off the surface; the
-                // channel then parks the query as a finding.
-              }
-            }
-            for (const query of request.queries) {
-              const outcome = contextPuller({ fromStepId: step.id, query, surface });
-              await trace.append({
-                run_id: runId,
-                kind: 'run.context-pull',
-                step_id: step.id,
-                from_step: query.from_step,
-                field_path: query.field_path,
-                answered: outcome.answered,
-                ...(outcome.answered ? { bytes: outcome.bytes } : {}),
-                reason: outcome.answered
-                  ? `pulled ${outcome.source} (${outcome.bytes} bytes)`
-                  : outcome.finding,
-              });
-            }
+            await resolveAndRecordContextPull({ stepId: step.id, request });
           }
         }
       } catch {

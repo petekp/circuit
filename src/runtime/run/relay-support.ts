@@ -10,6 +10,7 @@ import {
 } from '../../schemas/index.js';
 import { resolveRunRelative } from '../../shared/run-relative-path.js';
 import type { LoadedRelaySkill } from '../../shared/skill-loading.js';
+import type { DeliveredContextSlice } from './context-delivery.js';
 
 export type RelayStep = RuntimeIndexedRelayStep;
 
@@ -361,6 +362,34 @@ function currentSliceSection(activeSlice: unknown): string | undefined {
   ].join('\n');
 }
 
+// Pull-then-retry delivery: when a step's typed `context_request` was resolved
+// and the engine is re-running the step on the enriched context, the answered
+// slices render here as labeled, fenced data — exactly what the worker asked for,
+// one block per slice, sourced to the parent field it came from. Returns undefined
+// for the common case (no delivery), so a non-retry prompt is byte-identical to a
+// pre-delivery run: the section only ever appears on the bounded second attempt.
+// The values are interpolated inside a fence under the data-not-instructions
+// notice, so a pulled value cannot smuggle directives into the prompt.
+function deliveredContextSection(
+  slices: readonly DeliveredContextSlice[] | undefined,
+): string | undefined {
+  if (slices === undefined || slices.length === 0) return undefined;
+  const blocks = slices.map((slice) => {
+    let rendered: string;
+    try {
+      rendered = JSON.stringify(slice.value, null, 2) ?? String(slice.value);
+    } catch {
+      rendered = String(slice.value);
+    }
+    return fencedBlock('delivered-context', ` source="${slice.source}"`, rendered);
+  });
+  return [
+    'Delivered Context (you asked for these named slices; the engine pulled them from a parent step):',
+    FENCED_DATA_NOTICE,
+    ...blocks,
+  ].join('\n');
+}
+
 export function composeRelayPrompt(
   step: RelayStep,
   runFolder: string,
@@ -381,6 +410,10 @@ export function composeRelayPrompt(
   // labeled segment so a multi-line goal cannot break the one-line Title
   // header. Undefined on every non-branch relay.
   branchGoal?: string,
+  // Pull-then-retry delivery: the answered context slices folded into this
+  // re-run. Empty/undefined on every first-pass relay, so prompts on runs that
+  // never deliver are byte-identical to before this channel.
+  deliveredContextSlices?: readonly DeliveredContextSlice[],
 ): string {
   const readsBody =
     step.reads.length === 0
@@ -396,6 +429,7 @@ export function composeRelayPrompt(
   const houseStyle = houseStyleSection(step, loadedSkills);
   const equipmentSection = equipmentScopeSection(step);
   const sliceSection = currentSliceSection(activeSlice);
+  const deliveredSection = deliveredContextSection(deliveredContextSlices);
   const criteriaSection = acceptanceCriteriaSection(step);
   const feedbackSection = acceptanceRetryFeedbackSection(acceptanceRetryFeedback);
   const memorySection = memoryInputsSection(memoryInputs);
@@ -451,6 +485,7 @@ export function composeRelayPrompt(
       : ['Branch Goal:', branchGoal, '']),
     ...(memorySection === undefined ? [] : [memorySection, '']),
     ...(sliceSection === undefined ? [] : [sliceSection, '']),
+    ...(deliveredSection === undefined ? [] : [deliveredSection, '']),
     pullSection,
     '',
     'Context (from reads):',

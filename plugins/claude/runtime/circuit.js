@@ -34249,6 +34249,15 @@ var RunContextPullTraceEntry = TraceEntryBase.extend({
   bytes: external_exports.number().int().nonnegative().optional(),
   reason: external_exports.string().min(1)
 }).strict();
+var RunContextDeliveryTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.context-delivery"),
+  step_id: StepId,
+  delivered_slices: external_exports.number().int().nonnegative(),
+  delivered_bytes: external_exports.number().int().nonnegative(),
+  retried: external_exports.boolean(),
+  kept: external_exports.enum(["retry", "original"]),
+  reason: external_exports.string().min(1)
+}).strict();
 var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunBootstrappedTraceEntry,
   StepEnteredTraceEntry,
@@ -34280,6 +34289,7 @@ var TraceEntry = external_exports.discriminatedUnion("kind", [
   PowerInferenceResolvedTraceEntry,
   RunEquipmentReshapeTraceEntry,
   RunContextPullTraceEntry,
+  RunContextDeliveryTraceEntry,
   GuidanceDecisionTraceEntryBody
 ]).superRefine((ev, ctx) => {
   if (ev.kind === "guidance.decision") {
@@ -56787,6 +56797,42 @@ function fromCompiledFlow(flow) {
   return executable;
 }
 
+// dist/runtime/run/context-delivery.js
+var CONTEXT_DELIVERY_BUDGET = 3;
+function createContextDelivery() {
+  const budget = { remaining: CONTEXT_DELIVERY_BUDGET, touched: /* @__PURE__ */ new Set() };
+  return {
+    claim(stepId) {
+      if (budget.remaining <= 0)
+        return false;
+      if (budget.touched.has(stepId))
+        return false;
+      budget.remaining -= 1;
+      budget.touched.add(stepId);
+      return true;
+    }
+  };
+}
+function decideContextDeliveryOutcome(retry) {
+  switch (retry.kind) {
+    case "errored":
+      return {
+        keep: "original",
+        reason: "the enriched retry errored before producing a result; kept the starved original"
+      };
+    case "connector_failed":
+      return {
+        keep: "original",
+        reason: "the enriched retry connector-failed before producing a result; kept the starved original"
+      };
+    case "produced":
+      return {
+        keep: "retry",
+        reason: "the enriched retry produced a result on the delivered context; kept the retry"
+      };
+  }
+}
+
 // dist/runtime/run/context-pull.js
 var CONTEXT_PULL_BUDGET = 3;
 var EVERYTHING_SENTINEL = "*";
@@ -60930,7 +60976,25 @@ function currentSliceSection(activeSlice) {
     ...exts.length === 0 ? [] : [`- anticipated file extensions: ${exts.join(", ")}`]
   ].join("\n");
 }
-function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy, powerDialAuto, branchGoal) {
+function deliveredContextSection(slices) {
+  if (slices === void 0 || slices.length === 0)
+    return void 0;
+  const blocks = slices.map((slice) => {
+    let rendered;
+    try {
+      rendered = JSON.stringify(slice.value, null, 2) ?? String(slice.value);
+    } catch {
+      rendered = String(slice.value);
+    }
+    return fencedBlock("delivered-context", ` source="${slice.source}"`, rendered);
+  });
+  return [
+    "Delivered Context (you asked for these named slices; the engine pulled them from a parent step):",
+    FENCED_DATA_NOTICE,
+    ...blocks
+  ].join("\n");
+}
+function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy, powerDialAuto, branchGoal, deliveredContextSlices) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
     if (!existsSync29(abs))
@@ -60941,6 +61005,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
   const houseStyle = houseStyleSection(step, loadedSkills);
   const equipmentSection = equipmentScopeSection(step);
   const sliceSection = currentSliceSection(activeSlice);
+  const deliveredSection = deliveredContextSection(deliveredContextSlices);
   const criteriaSection = acceptanceCriteriaSection(step);
   const feedbackSection = acceptanceRetryFeedbackSection(acceptanceRetryFeedback);
   const memorySection = memoryInputsSection(memoryInputs);
@@ -60979,6 +61044,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     ...branchGoal === void 0 || branchGoal.length === 0 ? [] : ["Branch Goal:", branchGoal, ""],
     ...memorySection === void 0 ? [] : [memorySection, ""],
     ...sliceSection === void 0 ? [] : [sliceSection, ""],
+    ...deliveredSection === void 0 ? [] : [deliveredSection, ""],
     pullSection,
     "",
     "Context (from reads):",
@@ -61301,7 +61367,11 @@ async function executeProductionRelayAttempt(input) {
     // Auto-power: tell a researcher relay to include recommended_power when
     // the dial setting is auto and the run's tier has not resolved yet.
     relayExecution.role === "researcher" && context.powerInference?.get() === void 0 && resolvePowerDialSetting(context.selectionConfigLayers ?? []).kind === "auto",
-    input.branchGoal
+    input.branchGoal,
+    // Pull-then-retry delivery: on the bounded re-run of a step whose typed
+    // context_request was resolved, fold the answered slices into the prompt.
+    // Undefined on every first pass, so non-retry prompts are unchanged.
+    context.deliveredContextSlices
   );
   const request = step.writes?.request;
   const receipt = step.writes?.receipt;
@@ -64832,6 +64902,42 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   }
   let activeFlow = flow;
   let activePackageIndex = packageIndex;
+  const resolveAndRecordContextPull = async (input) => {
+    const factory = options.contextPuller;
+    if (factory === void 0)
+      return [];
+    const contextPuller = factory();
+    const surface = /* @__PURE__ */ new Map();
+    for (const query of input.request.queries) {
+      if (surface.has(query.from_step))
+        continue;
+      const reportPath = steps.get(query.from_step)?.writes?.report?.path;
+      if (reportPath === void 0)
+        continue;
+      try {
+        surface.set(query.from_step, await context.files.readJson(reportPath));
+      } catch {
+      }
+    }
+    const answered = [];
+    for (const query of input.request.queries) {
+      const outcome = contextPuller({ fromStepId: input.stepId, query, surface });
+      await trace.append({
+        run_id: runId,
+        kind: "run.context-pull",
+        step_id: input.stepId,
+        from_step: query.from_step,
+        field_path: query.field_path,
+        answered: outcome.answered,
+        ...outcome.answered ? { bytes: outcome.bytes } : {},
+        reason: outcome.answered ? `pulled ${outcome.source} (${outcome.bytes} bytes)` : outcome.finding
+      });
+      if (outcome.answered) {
+        answered.push({ source: outcome.source, value: outcome.value, bytes: outcome.bytes });
+      }
+    }
+    return answered;
+  };
   for (let index = 0; index < maxSteps; index += 1) {
     const step = steps.get(currentStepId);
     if (step === void 0) {
@@ -64851,7 +64957,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       stepId: step.id,
       route: incomingRouteTaken
     });
-    const attempt = isResumedCheckpoint ? options.resumeCheckpoint.attempt : completedCount + 1;
+    let attempt = isResumedCheckpoint ? options.resumeCheckpoint.attempt : completedCount + 1;
+    let deliveryConsumedAttempts = 0;
     if (!isResumedCheckpoint && isCompletedStepReentryAbort({
       completedCount,
       isRecoveryReturnToOrigin: isRecoveryOriginReentry,
@@ -64878,7 +64985,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         ...isLoopBodyStep ? { slice_index: stepSliceIndex } : {}
       });
     }
-    const traceLengthBeforeStep = trace.getAll().length;
+    let traceLengthBeforeStep = trace.getAll().length;
     let route;
     let details;
     try {
@@ -64900,7 +65007,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         ...activeSlice === void 0 ? {} : { activeSlice },
         ...isResumedCheckpoint && options.resumeCheckpoint !== void 0 ? { resumeCheckpoint: options.resumeCheckpoint } : {}
       };
-      const outcome = await executors[step.kind](step, stepContext);
+      let outcome = await executors[step.kind](step, stepContext);
       if (isWaitingCheckpointStepOutcome(outcome)) {
         return {
           kind: "checkpoint_waiting",
@@ -64911,6 +65018,71 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
           traceEntriesObserved: trace.getAll().length,
           checkpoint: outcome.checkpoint
         };
+      }
+      const contextDelivery = options.contextDelivery;
+      const deliveryRoute = outcome.route;
+      if (contextDelivery !== void 0 && options.contextPuller !== void 0 && step.kind === "relay" && step.routes[deliveryRoute] !== void 0 && step.routes[deliveryRoute]?.kind !== "terminal" && !sliceCorridor.isActive()) {
+        try {
+          const starvedEntries = trace.getAll().slice(traceLengthBeforeStep);
+          const starvedCompleted = [...starvedEntries].reverse().find((entry) => entry.kind === "relay.completed");
+          if (starvedCompleted !== void 0) {
+            const starvedBody = await context.files.readJson(starvedCompleted.result_path);
+            const request = extractContextRequest(starvedBody);
+            if (request !== void 0) {
+              const delivered = await resolveAndRecordContextPull({
+                stepId: step.id,
+                request
+              });
+              if (delivered.length > 0 && contextDelivery.claim(step.id)) {
+                const traceLengthBeforeRetry = trace.getAll().length;
+                const retryAttempt = attempt + 1;
+                let retryEvaluation;
+                let retried = false;
+                try {
+                  const enrichedContext = {
+                    ...stepContext,
+                    activeStepAttempt: retryAttempt,
+                    deliveredContextSlices: delivered
+                  };
+                  const retryOutcome = await executors[step.kind](step, enrichedContext);
+                  retried = true;
+                  if (isWaitingCheckpointStepOutcome(retryOutcome)) {
+                    retryEvaluation = { kind: "errored" };
+                  } else {
+                    const retryEntries = trace.getAll().slice(traceLengthBeforeRetry);
+                    const connectorFailed = retryEntries.some((entry) => entry.kind === "relay.failed");
+                    retryEvaluation = connectorFailed ? { kind: "connector_failed" } : { kind: "produced" };
+                    if (retryEvaluation.kind === "produced") {
+                      outcome = retryOutcome;
+                    }
+                  }
+                } catch {
+                  retried = true;
+                  retryEvaluation = { kind: "errored" };
+                }
+                const decision2 = decideContextDeliveryOutcome(retryEvaluation);
+                await trace.append({
+                  run_id: runId,
+                  kind: "run.context-delivery",
+                  step_id: step.id,
+                  delivered_slices: delivered.length,
+                  delivered_bytes: delivered.reduce((sum, slice) => sum + slice.bytes, 0),
+                  retried,
+                  kept: decision2.keep,
+                  reason: decision2.reason
+                });
+                if (retried) {
+                  deliveryConsumedAttempts = retryAttempt - attempt;
+                }
+                if (decision2.keep === "retry") {
+                  attempt = retryAttempt;
+                  traceLengthBeforeStep = traceLengthBeforeRetry;
+                }
+              }
+            }
+          }
+        } catch {
+        }
       }
       route = outcome.route;
       details = outcome.details ?? {};
@@ -65056,7 +65228,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       route_taken: route,
       ...isLoopBodyStep ? { slice_index: stepSliceIndex } : {}
     });
-    completedStepCounts.set(stepCountKey, completedCount + 1);
+    completedStepCounts.set(stepCountKey, completedCount + 1 + deliveryConsumedAttempts);
     try {
       const hookEvents = await dispatchSkillHooks({
         entries: trace.getAll().slice(traceLengthBeforeStep),
@@ -65174,8 +65346,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       } catch {
       }
     }
-    const contextPullerFactory = options.contextPuller;
-    if (contextPullerFactory !== void 0 && targetTransition.kind !== "terminal_close" && !sliceCorridor.isActive()) {
+    if (options.contextPuller !== void 0 && options.contextDelivery === void 0 && targetTransition.kind !== "terminal_close" && !sliceCorridor.isActive()) {
       try {
         const stepEntries = trace.getAll().slice(traceLengthBeforeStep);
         const completed = [...stepEntries].reverse().find((entry) => entry.kind === "relay.completed");
@@ -65183,32 +65354,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
           const body = await context.files.readJson(completed.result_path);
           const request = extractContextRequest(body);
           if (request !== void 0) {
-            const contextPuller = contextPullerFactory();
-            const surface = /* @__PURE__ */ new Map();
-            for (const query of request.queries) {
-              if (surface.has(query.from_step))
-                continue;
-              const reportPath = steps.get(query.from_step)?.writes?.report?.path;
-              if (reportPath === void 0)
-                continue;
-              try {
-                surface.set(query.from_step, await context.files.readJson(reportPath));
-              } catch {
-              }
-            }
-            for (const query of request.queries) {
-              const outcome = contextPuller({ fromStepId: step.id, query, surface });
-              await trace.append({
-                run_id: runId,
-                kind: "run.context-pull",
-                step_id: step.id,
-                from_step: query.from_step,
-                field_path: query.field_path,
-                answered: outcome.answered,
-                ...outcome.answered ? { bytes: outcome.bytes } : {},
-                reason: outcome.answered ? `pulled ${outcome.source} (${outcome.bytes} bytes)` : outcome.finding
-              });
-            }
+            await resolveAndRecordContextPull({ stepId: step.id, request });
           }
         }
       } catch {
@@ -65311,6 +65457,11 @@ async function runCompiledFlowWithWaiting(options) {
     // in the trace. Callers that invoke executeExecutableFlow* directly leave this
     // undefined, keeping the channel inert there.
     contextPuller: createContextPuller,
+    // Pull-then-retry delivery (the value half of context-pull). Built once per
+    // run when the operator opts in, so the per-run delivery bound is correctly
+    // scoped here. Off by default: without it the channel only resolves and
+    // records, never re-runs a step.
+    ...options.enableContextDelivery === true ? { contextDelivery: createContextDelivery() } : {},
     workContractRef: tracedWorkContractRef,
     recoveryRouteBindings: workContractProjection.work_contract.recovery,
     ...options.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: options.reuseChildrenFrom },

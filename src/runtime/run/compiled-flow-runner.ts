@@ -16,6 +16,7 @@ import {
 } from '../../shared/work-contract-projection.js';
 import { fromCompiledFlow } from '../manifest/from-compiled-flow.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
+import { createContextDelivery } from './context-delivery.js';
 import { createContextPuller } from './context-pull.js';
 import { createEquipmentReshaper } from './equipment-reshape.js';
 import {
@@ -51,6 +52,13 @@ export interface CompiledFlowRunOptions extends RuntimeExecutionCapabilities {
   // folder whose finished sub-run fanout branches this fresh run reuses instead
   // of re-running. Inert when absent. Deliberately not forwarded to child runs.
   readonly reuseChildrenFrom?: string;
+  // Pull-then-retry context-delivery — opt-in, default off. When true, a relay
+  // that surfaces a typed `context_request` has its answered slices folded into
+  // its envelope and the step re-run once on the enriched context (the value half
+  // of context-pull). When false/absent, the typed request is still resolved and
+  // recorded, but not delivered — today's resolve-and-record behavior. Off by
+  // default so enabling delivery is an explicit, measured choice.
+  readonly enableContextDelivery?: boolean;
 }
 
 function depthForAxisSelectionName(entryModeName: string | undefined): string | undefined {
@@ -124,6 +132,13 @@ export async function runCompiledFlowWithWaiting(
       // in the trace. Callers that invoke executeExecutableFlow* directly leave this
       // undefined, keeping the channel inert there.
       contextPuller: createContextPuller,
+      // Pull-then-retry delivery (the value half of context-pull). Built once per
+      // run when the operator opts in, so the per-run delivery bound is correctly
+      // scoped here. Off by default: without it the channel only resolves and
+      // records, never re-runs a step.
+      ...(options.enableContextDelivery === true
+        ? { contextDelivery: createContextDelivery() }
+        : {}),
       workContractRef: tracedWorkContractRef,
       recoveryRouteBindings: workContractProjection.work_contract.recovery,
       ...(options.reuseChildrenFrom === undefined

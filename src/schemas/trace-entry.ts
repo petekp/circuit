@@ -697,6 +697,27 @@ export const RunContextPullTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type RunContextPullTraceEntry = z.infer<typeof RunContextPullTraceEntry>;
 
+// Pull-then-retry context-delivery — the durable record of the value half of the
+// typed-lookup channel. Where run.context-pull records that a slice was resolved,
+// this records that the resolved slices were FOLDED into the starving step's
+// envelope and the step was RE-RUN once on the enriched context. `delivered_slices`
+// / `delivered_bytes` are what was folded in; `retried` is whether the re-run ran;
+// `kept` says which outcome the run carried forward — `retry` when the enriched
+// re-run produced a result, `original` when it fell back (the retry errored or its
+// connector failed before producing a result, leaving the starved result intact).
+// Written only when a step had at least one answered slice to deliver, so a run
+// that delivers nothing — and any run with delivery off — carries no such entry.
+export const RunContextDeliveryTraceEntry = TraceEntryBase.extend({
+  kind: z.literal('run.context-delivery'),
+  step_id: StepId,
+  delivered_slices: z.number().int().nonnegative(),
+  delivered_bytes: z.number().int().nonnegative(),
+  retried: z.boolean(),
+  kept: z.enum(['retry', 'original']),
+  reason: z.string().min(1),
+}).strict();
+export type RunContextDeliveryTraceEntry = z.infer<typeof RunContextDeliveryTraceEntry>;
+
 // Cross-variant superRefine enforces the
 // `RelayStartedTraceEntry.role === resolved_from.role` binding when
 // `resolved_from.source === 'role'`. Mirrors the Step pattern: keep each
@@ -734,6 +755,7 @@ export const TraceEntry = z
     PowerInferenceResolvedTraceEntry,
     RunEquipmentReshapeTraceEntry,
     RunContextPullTraceEntry,
+    RunContextDeliveryTraceEntry,
     GuidanceDecisionTraceEntryBody,
   ])
   .superRefine((ev, ctx) => {
