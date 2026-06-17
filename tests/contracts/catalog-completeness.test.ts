@@ -141,6 +141,12 @@ const NON_PACKAGE_FILES = new Set([
   'catalog-derivations.ts',
   'compile-schematic-to-flow.ts',
   'contract-body-signature.ts',
+  // Step 2 — the compile-layer half of the live equipment reshape: re-resolves
+  // equipment on a flow's remaining relay steps and re-validates through the
+  // compiled-flow schema gate. Shared cross-flow infrastructure (it operates on
+  // any compiled flow), reached by the engine only through the sanctioned
+  // compile seam (compile-schematic-to-flow.ts re-exports it), not a flow package.
+  'equipment-reshape.ts',
   'flow-definition.ts',
   'report-declarations.ts',
   'report-schema-kit.ts',

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EquipmentDiscovery } from '../../schemas/equipment-discovery.js';
 import { PowerRecommendation } from '../../schemas/power.js';
 import { RuntimeGitStateEntry, RuntimeHiddenIndexFlag } from '../../schemas/runtime-evidence.js';
 import {
@@ -230,6 +231,9 @@ export const BuildContext = z
     allowed_touch_area: AllowedTouchArea,
     recommended_power: PowerRecommendation.optional().describe(
       'ONLY when the relay context states the power dial is auto: the tier the downstream work needs, judged from the codebase read. Omit this key entirely otherwise',
+    ),
+    equipment_discovery: EquipmentDiscovery.optional().describe(
+      'ONLY when the codebase read confirms a technology the downstream steps should be equipped for (e.g. React): the engine re-equips the remaining work steps for it. Set confirmed:true ONLY on unambiguous evidence; omit this key entirely when nothing is confirmed',
     ),
   })
   .strict();

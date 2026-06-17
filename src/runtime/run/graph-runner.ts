@@ -35,6 +35,7 @@ import { assertExecutableFlow } from '../manifest/validate-executable-flow.js';
 import { resolveBindingLegibility } from './binding-legibility.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
 import { resolveEngineFlags } from './engine-flags.js';
+import { type EquipmentReshaper, extractEquipmentDiscovery } from './equipment-reshape.js';
 import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guidance.js';
 import { writeRuntimeManifestSnapshot } from './manifest-snapshot.js';
 import { recoveryBindingVerdict, recoveryCauseAllowed } from './recovery-binding-verdict.js';
@@ -69,6 +70,13 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   readonly why?: string;
   readonly manifestHash?: string;
   readonly manifestBytes?: Uint8Array;
+  // The live equipment reshaper. Present only on the live path
+  // (compiled-flow-runner builds it once per run); when present, a confirmed
+  // runtime equipment discovery re-equips the remaining relay steps and returns
+  // a re-validated executable tail. Absent => reshape is inert and a discovery
+  // downgrades to a finding. The compiled form and the per-run bound stay inside
+  // this closure, so the runner only ever holds executable flows.
+  readonly equipmentReshaper?: EquipmentReshaper;
   readonly workContractRef?: Ref;
   readonly recoveryRouteBindings?: readonly RecoveryRouteBindingV0[];
   readonly entryModeName?: string;
@@ -403,6 +411,21 @@ async function executeExecutableFlowOutcomeUnsafe(
     // the prior process recorded instead of re-inferring (or worse, falling
     // back to medium after the researcher step was checkpointed past).
     seedPowerInferenceFromTrace(existingTrace, context.powerInference);
+    // KNOWN GAP (Step 2, deliberately deferred): a live equipment reshape that
+    // was honored in the prior process is NOT reseeded here. The resumed run
+    // starts on the original, un-reshaped flow. This is inert today, but the
+    // reason is precise: a reshape fires only off a relay's `relay.completed`
+    // (a PASSING verdict), and the resume entrypoint is a checkpoint boundary.
+    // In every shipped flow the route that reaches a checkpoint is a non-passing
+    // route (e.g. Fix's fix-diagnose reaches its checkpoint only on the no-repro
+    // route, never on a pass), so a relay that honored a reshape never then
+    // pauses at a checkpoint — the two cannot coincide. (NOTE: this is a routing
+    // property, NOT "the checkpoint precedes the researcher" — Fix structurally
+    // has a checkpoint after its discovering relay.) A future flow that lets a
+    // PASSING relay route to a checkpoint would make this gap live and silently
+    // drop the reshape on resume. The fix is a seedEquipmentReshapeFromTrace
+    // mirroring the two reseeds above; see
+    // docs/ideas/step2-live-equipment-reshape-report.md for the follow-up.
   }
   const defaultMaxSteps = Math.max(flow.steps.length * 4, 8);
   // A slice loop runs the body once per slice, each with its own retry budget,
@@ -482,6 +505,15 @@ async function executeExecutableFlowOutcomeUnsafe(
   if (isResume) {
     corridor.seedFromTrace(existingTrace);
   }
+  // Step 2 — the live equipment reshape. A confirmed runtime equipment discovery
+  // can re-equip the remaining relay steps mid-run; when that happens the active
+  // flow, its package index, and the steps map are swapped for the re-validated
+  // executable tail the reshaper returns. These start as the loaded flow and only
+  // change on an honored reshape, so a run that never reshapes is byte-identical
+  // to before. The reshaper (when present) owns the compiled form and the per-run
+  // bound; absent it, the whole reshape is inert.
+  let activeFlow = flow;
+  let activePackageIndex = packageIndex;
   for (let index = 0; index < maxSteps; index += 1) {
     const step = steps.get(currentStepId);
     if (step === undefined) {
@@ -559,6 +591,11 @@ async function executeExecutableFlowOutcomeUnsafe(
       const activeSlice = isLoopBodyStep ? sliceCorridor.currentSlice() : undefined;
       const stepContext: RunContext = {
         ...context,
+        // The active flow and its package index may have been swapped by a prior
+        // step's honored equipment reshape; override the run-scoped defaults so a
+        // re-equipped step's relay reads its injected skill slots.
+        flow: activeFlow,
+        packageIndex: activePackageIndex,
         activeStepAttempt: attempt,
         ...(acceptanceRetryFeedback === undefined ? {} : { acceptanceRetryFeedback }),
         ...(isLoopBodyStep ? { activeSliceIndex: stepSliceIndex } : {}),
@@ -883,6 +920,103 @@ async function executeExecutableFlowOutcomeUnsafe(
     } catch {
       // Non-critical by design: an unreadable result body or a trace-append
       // failure leaves the dial at the documented medium fallback.
+    }
+
+    // Step 2 — the live equipment reshape. The first time the engine adapts a
+    // RUNNING flow. After a step completes, if its relay surfaced a CONFIRMED
+    // equipment discovery (e.g. "this turned out to be a React app"), the
+    // reshaper re-equips the remaining relay steps and returns a re-validated
+    // executable tail to continue on. Additive only: equipment never changes the
+    // step sequence, so there is NO splice seam (structural reshape is Step 3).
+    // Inert unless the live path injected `equipmentReshaper`. Best-effort and
+    // fail-safe — any failure leaves the run on its current, still-valid flow,
+    // which is exactly the finding fallback. Skipped inside a slice loop
+    // (completion-count keys are slice-scoped there) and on the terminal step
+    // (nothing remains to equip). The reshaper owns the bound, the cycle guard,
+    // and the confirmed-only default; this seam reads the signal and swaps the
+    // executable flow — it never touches the compiled form.
+    const equipmentReshaper = options.equipmentReshaper;
+    if (
+      equipmentReshaper !== undefined &&
+      targetTransition.kind !== 'terminal_close' &&
+      !sliceCorridor.isActive()
+    ) {
+      try {
+        const stepEntries = trace.getAll().slice(traceLengthBeforeStep);
+        const completed = [...stepEntries]
+          .reverse()
+          .find((entry) => entry.kind === 'relay.completed');
+        if (completed !== undefined) {
+          const body = await context.files.readJson(completed.result_path);
+          const discovery = extractEquipmentDiscovery(body);
+          if (discovery !== undefined) {
+            // The remaining relay steps: relay steps other than the one that
+            // surfaced the discovery, not yet run this pass. A completed step's
+            // equipment is settled — re-equipping the past is meaningless.
+            const remainingRelayStepIds = new Set(
+              activeFlow.steps
+                .filter(
+                  (candidate) =>
+                    candidate.kind === 'relay' &&
+                    candidate.id !== step.id &&
+                    (completedStepCounts.get(candidate.id) ?? 0) === 0,
+                )
+                .map((candidate) => candidate.id),
+            );
+            const outcome = equipmentReshaper({
+              fromStepId: step.id,
+              remainingRelayStepIds,
+              discovery,
+            });
+            if (outcome.reshaped) {
+              // Record the durable reason BEFORE committing the swap. The append
+              // is the only operator-visible trace of why a later relay gained
+              // skills; writing it first means a record failure aborts into the
+              // catch with the flow still unchanged, rather than leaving skills
+              // that appear mid-run with no recorded cause.
+              await trace.append({
+                run_id: runId,
+                kind: 'run.equipment-reshape',
+                step_id: step.id,
+                confirmed: discovery.confirmed,
+                reshaped: true,
+                domain_tags: discovery.domain_tags,
+                equipped_steps: [...outcome.equippedSteps],
+                reason: outcome.rationale,
+              });
+              // Swap the running flow for the re-validated tail. The step
+              // sequence is unchanged (additive equipment), so the cursor,
+              // routes, and corridor — which read structure, not slots — keep
+              // working; only the steps' skill slots and the package index move.
+              // Build the index into a local FIRST, then assign the three pieces
+              // of run state together: the swap is atomic by construction, so a
+              // throw from buildRuntimePackageIndex can never leave activeFlow
+              // ahead of its index (it cannot throw on an assertExecutableFlow-
+              // validated flow, but we do not lean on that to stay consistent).
+              const nextFlow = outcome.executableFlow;
+              const nextPackageIndex = buildRuntimePackageIndex(nextFlow);
+              activeFlow = nextFlow;
+              activePackageIndex = nextPackageIndex;
+              for (const updated of activeFlow.steps) {
+                steps.set(updated.id, updated);
+              }
+            } else {
+              await trace.append({
+                run_id: runId,
+                kind: 'run.equipment-reshape',
+                step_id: step.id,
+                confirmed: discovery.confirmed,
+                reshaped: false,
+                domain_tags: discovery.domain_tags,
+                reason: outcome.finding,
+              });
+            }
+          }
+        }
+      } catch {
+        // Non-critical by design: a failed reshape attempt leaves the run on its
+        // current, still-valid flow — exactly the finding fallback.
+      }
     }
 
     if (targetTransition.kind === 'terminal_close') {

@@ -46,6 +46,15 @@ import { findCheckpointBriefBuilder } from './registries/checkpoint-writers/regi
 import { findVerificationWriter } from './registries/verification-writers/registry.js';
 import { collectSchematicCatalogIssues } from './schematic-catalog-check.js';
 
+// Step 2 — the live equipment reshape's compile-layer half. Re-exported here so
+// the engine reaches it through the sanctioned compile seam (the engine→flow
+// boundary allowlists this module, not the resolver), keeping the runtime free
+// of any per-flow resolver import. See src/flows/equipment-reshape.ts.
+export {
+  type EquipmentReshapeCandidate,
+  reResolveEquipmentOnCompiledFlow,
+} from './equipment-reshape.js';
+
 export class FlowSchematicCompileError extends Error {
   constructor(message: string) {
     super(message);
