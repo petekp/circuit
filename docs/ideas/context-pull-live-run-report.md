@@ -3,7 +3,7 @@
 > Status: **built, reviewed, merged.** The live runtime sibling of equipment
 > reshape. Where reshape injects equipment into the remaining steps, context-pull
 > lets a running step ask its parent(s) for one more named typed slice of context
-> on demand. Built off `origin/main` 99c9e679; merged to main at `<FINAL_SHA>`.
+> on demand. Built off `origin/main` 99c9e679; merged to main at `c0bc37db`.
 
 ## What landed
 
@@ -151,6 +151,6 @@ and nothing else about the run moves.
 ## Final state
 
 - Base: `origin/main` 99c9e679.
-- Branch: `feat/context-pull-live`.
-- Merged to main: `<FINAL_SHA>` (CI green).
+- Branch: `feat/context-pull-live` (PR #112).
+- Merged to main: `c0bc37db` (CI green on ubuntu + macos).
 - Spend: $0 (offline tests only; no live model runs).
