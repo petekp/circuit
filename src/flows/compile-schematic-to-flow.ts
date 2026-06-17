@@ -701,18 +701,42 @@ function composeStagePathRationale(
   return declared !== undefined && declared.length > 0 ? `${declared} ${autoNote}` : autoNote;
 }
 
+// Finds a child-run target that names the schematic's own id, or undefined.
+// Covers the two statically knowable child-run shapes the runtime cycle guard
+// would otherwise catch only mid-run: a sub-run item, and a static fanout
+// branch that sub-runs the flow's own id. A dynamic fanout template is left to
+// the runtime guard on purpose — its flow_ref can be a runtime placeholder, not
+// a statically known id, so rejecting it here could be wrong.
+function findSchematicSelfReference(schematic: FlowSchematic): string | undefined {
+  for (const item of schematic.items) {
+    if (item.execution.kind === 'sub-run' && item.execution.flow_ref.flow_id === schematic.id) {
+      return `item '${item.id}' is a sub-run whose flow_ref names the schematic's own id`;
+    }
+    const branches = item.fanout?.branches;
+    if (branches?.kind === 'static') {
+      const selfBranch = branches.branches.find(
+        (branch) => 'flow_ref' in branch && branch.flow_ref.flow_id === schematic.id,
+      );
+      if (selfBranch !== undefined) {
+        return `item '${item.id}' has a fanout branch '${selfBranch.branch_id}' that sub-runs the schematic's own id`;
+      }
+    }
+  }
+  return undefined;
+}
+
 export function compileSchematicToCompiledFlow(schematic: FlowSchematic): CompileResult {
-  // A flow that names itself as a sub-run target can never make progress: every
-  // entry into it re-enters the same flow. This is statically obvious, so reject
-  // it at compile time rather than leaving it for the runtime cycle guard to
-  // catch mid-run. Checked before the catalog gate so self-reference is reported
-  // as the most fundamental structural problem, not a downstream symptom.
-  const selfReference = schematic.items.find(
-    (item) => item.execution.kind === 'sub-run' && item.execution.flow_ref.flow_id === schematic.id,
-  );
+  // A flow that names itself as a child-run target can never make progress:
+  // every entry into it re-enters the same flow. This is statically obvious, so
+  // reject it at compile time rather than leaving it for the runtime cycle guard
+  // to catch mid-run. Both child-run edges are covered so they report
+  // self-reference identically. Checked before the catalog gate so self-reference
+  // is reported as the most fundamental structural problem, not a downstream
+  // symptom.
+  const selfReference = findSchematicSelfReference(schematic);
   if (selfReference !== undefined) {
     fail(
-      `schematic '${schematic.id}' refers to itself: item '${selfReference.id}' is a sub-run whose flow_ref names the schematic's own id, which can never make progress`,
+      `schematic '${schematic.id}' refers to itself: ${selfReference}, which can never make progress`,
     );
   }
 

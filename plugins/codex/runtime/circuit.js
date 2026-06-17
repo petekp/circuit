@@ -45789,10 +45789,25 @@ function composeStagePathRationale(declared, autoOmits, mode) {
   const autoNote = `mode '${mode.name}' (depth '${mode.depth}') also omits ${autoOmits.map((c) => `'${c}'`).join(", ")} because route_overrides leave those canonicals with no reachable items.`;
   return declared !== void 0 && declared.length > 0 ? `${declared} ${autoNote}` : autoNote;
 }
+function findSchematicSelfReference(schematic) {
+  for (const item of schematic.items) {
+    if (item.execution.kind === "sub-run" && item.execution.flow_ref.flow_id === schematic.id) {
+      return `item '${item.id}' is a sub-run whose flow_ref names the schematic's own id`;
+    }
+    const branches = item.fanout?.branches;
+    if (branches?.kind === "static") {
+      const selfBranch = branches.branches.find((branch) => "flow_ref" in branch && branch.flow_ref.flow_id === schematic.id);
+      if (selfBranch !== void 0) {
+        return `item '${item.id}' has a fanout branch '${selfBranch.branch_id}' that sub-runs the schematic's own id`;
+      }
+    }
+  }
+  return void 0;
+}
 function compileSchematicToCompiledFlow(schematic) {
-  const selfReference = schematic.items.find((item) => item.execution.kind === "sub-run" && item.execution.flow_ref.flow_id === schematic.id);
+  const selfReference = findSchematicSelfReference(schematic);
   if (selfReference !== void 0) {
-    fail(`schematic '${schematic.id}' refers to itself: item '${selfReference.id}' is a sub-run whose flow_ref names the schematic's own id, which can never make progress`);
+    fail(`schematic '${schematic.id}' refers to itself: ${selfReference}, which can never make progress`);
   }
   const catalogIssues = collectSchematicCatalogIssues(schematic);
   if (catalogIssues.length > 0) {
@@ -64278,7 +64293,16 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.unattended === void 0 ? {} : { unattended: options.unattended },
     // Seed the recursion bound. A top-level run starts at depth 0 with itself as
     // the only ancestor; a child run inherits the forwarded depth and chain. The
-    // sub-run executor reads these to enforce the cap and the cycle guard.
+    // sub-run executor and the fanout sub-run branch read these to enforce the
+    // cap and the cycle guard. Two invariants protect this bound:
+    //   - The ancestor chain is a Set, forwarded in-process by reference. It must
+    //     never cross a JSON or disk boundary (a Set stringifies to `{}` and the
+    //     guard would go dark). It is intentionally absent from every report and
+    //     trace schema; keep it that way.
+    //   - Any path that spawns a child run must thread these through, or the
+    //     child re-seeds to depth 0 and the bound stops accumulating. Recovery
+    //     attempts and standalone resume deliberately do NOT thread them — each
+    //     is a fresh top-level run whose own descent is capped independently.
     recursionDepth: options.recursionDepth ?? 0,
     recursionAncestors: options.recursionAncestors ?? /* @__PURE__ */ new Set([flow.id]),
     now: boundary.clock.now,

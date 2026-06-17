@@ -38,9 +38,56 @@ function selfReferentialGoalSchematic(): FlowSchematic {
   return { ...schematic, items } as FlowSchematic;
 }
 
+// The other child-run edge is a fanout sub-run branch. No built-in declares a
+// static sub-run fanout branch (the shipped fanouts are dynamic relay
+// tournaments), so manufacture one: take the explore flow's fanout item and
+// replace its branches with a single static sub-run branch that targets the
+// explore flow's own id. The compiler's self-reference check reads structure
+// before any deeper validation, so this faithfully exercises the fanout edge.
+function fanoutSelfReferentialSchematic(): FlowSchematic {
+  const exploreDefinition = flowDefinitions.find((definition) => definition.id === 'explore');
+  if (exploreDefinition === undefined) throw new Error('explore flow missing from catalog');
+  const schematic = schematicForFlowDefinition(exploreDefinition);
+
+  let mutatedOne = false;
+  const items = schematic.items.map((item) => {
+    if (!mutatedOne && item.fanout !== undefined) {
+      mutatedOne = true;
+      return {
+        ...item,
+        fanout: {
+          ...item.fanout,
+          branches: {
+            kind: 'static',
+            branches: [
+              {
+                branch_id: 'self',
+                flow_ref: { flow_id: schematic.id, entry_mode: 'default' },
+                goal: 'recurse into the flow itself',
+                depth: 'medium',
+              },
+            ],
+          },
+        },
+      };
+    }
+    return item;
+  });
+  if (!mutatedOne)
+    throw new Error('expected explore schematic to declare at least one fanout item');
+  return { ...schematic, items } as FlowSchematic;
+}
+
 describe('compile-time self-reference reject', () => {
   it('refuses to compile a schematic whose sub-run targets its own flow id', () => {
     const schematic = selfReferentialGoalSchematic();
+    expect(() => compileSchematicToCompiledFlow(schematic)).toThrow(
+      /refers to itself|self-referenc/i,
+    );
+  });
+
+  it('refuses to compile a schematic whose fanout branch sub-runs its own flow id', () => {
+    const schematic = fanoutSelfReferentialSchematic();
     expect(() => compileSchematicToCompiledFlow(schematic)).toThrow(
       /refers to itself|self-referenc/i,
     );

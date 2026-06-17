@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
 
+import { RECURSION_DEPTH_CAP } from '../../src/runtime/executors/sub-run.js';
 import type { ChildCompiledFlowResolver } from '../../src/runtime/run/child-runner.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
@@ -143,5 +144,73 @@ describe('recursion bound — real A -> B -> A cycle', () => {
     expect(cycleFail.reason).toContain(FLOW_A_ID);
     // The chain names how the cycle was reached: A is the ancestor, B re-enters A.
     expect(cycleFail.reason).toContain(`${FLOW_A_ID} -> ${FLOW_B_ID}`);
+  });
+
+  it('refuses the child that would exceed the depth cap, on a chain of distinct flows (real recursive run)', async () => {
+    // Sister to the cycle test, but the descent here never repeats a flow id, so
+    // only the depth cap — not the cycle guard — can stop it. A chain
+    // d0 -> d1 -> ... where every flow is distinct: d0 runs at depth 0, each child
+    // is one level deeper, the child at exactly the cap runs, and ITS child (cap+1)
+    // is refused. So flows d0..d_CAP run (CAP+1 run folders) and the cap+1 target is
+    // never started. This is the only test that proves the depth counter — not just
+    // the ancestor chain — accumulates across real run boundaries.
+    //
+    // It is safe to run red: a broken cap would descend through the finitely many
+    // defined flows and then throw on the first undefined target id, failing the
+    // assertions rather than recursing forever.
+    const ids = Array.from({ length: RECURSION_DEPTH_CAP + 2 }, (_, i) => `depth-chain-${i}`);
+    const bytesById = new Map<string, Buffer>();
+    ids.forEach((id, i) => {
+      const target = ids[i + 1] ?? `depth-chain-${ids.length}`;
+      bytesById.set(id, Buffer.from(JSON.stringify(buildSubRunOnlyFlow(id, target))));
+    });
+
+    const resolver: ChildCompiledFlowResolver = (ref) => {
+      const bytes = bytesById.get(ref.flowId);
+      if (bytes === undefined) throw new Error(`unexpected child flow id '${ref.flowId}'`);
+      return { flowBytes: bytes };
+    };
+
+    const topRunId = '55555555-5555-5555-5555-555555555555';
+    const topRunFolder = join(runFolderBase, topRunId);
+    const topBytes = bytesById.get('depth-chain-0');
+    if (topBytes === undefined) throw new Error('expected top flow bytes');
+    const outcome = await runCompiledFlow({
+      runDir: topRunFolder,
+      flowBytes: topBytes,
+      runId: topRunId,
+      goal: 'top run — exercise the real depth cap on a distinct-flow chain',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 3, 27, 0, 0, 0)),
+      childCompiledFlowResolver: resolver,
+    });
+
+    // The cap refuses the deepest child, which has no stop route, so the refusal
+    // propagates up as an abort.
+    expect(outcome.outcome).toBe('aborted');
+
+    // Exactly CAP+1 run folders exist — one per depth 0..CAP. The depth CAP+1
+    // child was refused before it could start, so no folder for it.
+    const runFolders = readdirSync(runFolderBase);
+    expect(runFolders.length).toBe(RECURSION_DEPTH_CAP + 1);
+
+    // Exactly one run carries the depth-cap refusal, and that run never started a
+    // sub-run (the refusal happened before childRunner was ever called).
+    let capFailures = 0;
+    for (const folder of runFolders) {
+      const trace = await readTrace(join(runFolderBase, folder));
+      const capFail = trace.find(
+        (e) =>
+          e.kind === 'check.evaluated' &&
+          e.outcome === 'fail' &&
+          typeof e.reason === 'string' &&
+          e.reason.includes(`exceed the recursion depth cap of ${RECURSION_DEPTH_CAP}`),
+      );
+      if (capFail !== undefined) {
+        capFailures++;
+        expect(trace.find((e) => e.kind === 'sub_run.started')).toBeUndefined();
+      }
+    }
+    expect(capFailures).toBe(1);
   });
 });
