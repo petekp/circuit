@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "last_swept": "2026-06-04",
+  "last_swept": "2026-06-16",
   "note": "Idea docs are context, not canonical behavior. Check current code, contracts, tests, generated surfaces, and canonical docs before treating any entry as implementation truth.",
   "status_values": [
     "archived",
@@ -1062,6 +1062,49 @@
         "docs/ideas/grain-experiment-deferred.md",
         "docs/ideas/durability-tier3-restart-linkage-spec.md",
         "docs/ideas/resolver-shared-shape.md"
+      ],
+      "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/recompile-foundation-run-report.md",
+      "title": "Recompile foundation run report",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["recompile", "recursion", "bound", "deep-fork", "run-report", "foundation"],
+      "current_reading": "Run report for the recompile foundation. Records the Step 0 offline recompile demonstrator (a spike in experiments/, proving the assemble-to-compile chain re-resolves and re-compiles the remaining flow with the catalog gate as the safety floor) and the Step 1 recursion bound in src/ (a depth cap plus a cycle guard on both child-run edges, with a compile-time self-reference reject). Measures which reshapes are safe to auto-apply (equipment injection is additive) versus finding-only (re-hold removes verification surface), confirms the conservative defaults hold and selection-under-abundance does not bite, and recommends taking equipment injection as the first live reshape in Step 2.",
+      "related": [
+        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
+        "docs/ideas/deepfork-uniform-recursion-e3-spec.md",
+        "docs/ideas/next-phase-build-brief.md",
+        "docs/ideas/decision-layer-exploration.md"
+      ],
+      "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/decision-layer-exploration.md",
+      "title": "The decision layer - making per-step choices first-class and trialable",
+      "status": "current-strategy-context",
+      "category": "flows-and-blocks",
+      "tags": ["decision-layer", "resolver", "exploration", "design-sketch", "deep-fork"],
+      "current_reading": "Framing lens, a design sketch rather than a build plan, for making Circuit's per-step decisions (how to chop, what tools, which context) first-class and trialable. Applies the same find-the-unit-and-compose move that blocks and recursion applied to work, now to the decisions about work. Its central instruction is restraint: earn the unified resolver abstraction from two concrete instances (the chop/hold chooser and skill injection) rather than building the unifier first.",
+      "related": [
+        "docs/ideas/next-phase-build-brief.md",
+        "docs/ideas/deepfork-resolver-abstraction-spec.md",
+        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md"
+      ],
+      "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/next-phase-build-brief.md",
+      "title": "Next-phase build brief - the offline flow lab and the first two resolvers",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["flow-lab", "resolver", "structure", "equipment", "build-brief", "offline"],
+      "current_reading": "Build brief for an offline, cheap flow lab that generates assembled flows, inspects their shape, and ratchets their quality before anything touches a real codebase, plus the first two resolvers (structure chop/hold and equipment skill injection) shaped as if they will be unified later. The flow lab and resolvers were built as a held PR; the recompile foundation run reused the flow-lab quality ratchet to score its demonstrator.",
+      "related": [
+        "docs/ideas/decision-layer-exploration.md",
+        "docs/ideas/deepfork-resolver-abstraction-spec.md",
+        "docs/ideas/recompile-foundation-run-report.md"
       ],
       "last_checked": "2026-06-16"
     }
