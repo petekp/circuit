@@ -820,6 +820,18 @@ async function executeExecutableFlowOutcomeUnsafe(
                   attempt = retryAttempt;
                   traceLengthBeforeStep = traceLengthBeforeRetry;
                 }
+                // Known bound: if the kept enriched body ITSELF surfaces a new
+                // context_request (the worker, now richer, asks for yet more),
+                // that second request is neither delivered (the per-step guard is
+                // spent — one delivery per step) nor recorded. With delivery off
+                // the late resolve-and-record seam would record it; with delivery
+                // on that seam is skipped, so this is a minor legibility
+                // asymmetry on an uncommon path (the design intent is that one
+                // delivery satisfies the need). Honesty, correctness, and
+                // durability are unaffected: the kept body is the real result. A
+                // cheap fix exists (a record-only resolveAndRecordContextPull on
+                // the kept body), deliberately deferred to keep this
+                // safety-critical seam minimal.
               }
             }
           }

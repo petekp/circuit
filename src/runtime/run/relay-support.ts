@@ -243,13 +243,27 @@ function acceptanceCriteriaSection(step: RelayStep): string | undefined {
 // prompt inside a tagged fence so a worker can tell engine instructions apart
 // from data. The closing tag must not be forgeable from inside the fence, so
 // when the content itself contains `</tag>` the tag name grows (read -> read-2
-// -> read-3 ...) until the content cannot terminate it early.
+// -> read-3 ...) until the content cannot terminate it early. This defends the
+// CONTENT only; `attrs` is assumed caller-controlled — a caller that interpolates
+// untrusted text into an attribute must sanitize it first (see attributeSafe),
+// or a `"` could close the attribute and a `>` the opening tag, breaking out.
 function fencedBlock(tagBase: string, attrs: string, content: string): string {
   let tag = tagBase;
   for (let n = 2; content.includes(`</${tag}>`); n += 1) {
     tag = `${tagBase}-${n}`;
   }
   return `<${tag}${attrs}>\n${content}\n</${tag}>`;
+}
+
+// Neutralize model-authored text before it goes inside a double-quoted fence
+// attribute. fencedBlock defends the fence content but not its attrs, so a raw
+// `"` in the value would close the attribute and a following `>` would close the
+// opening tag — landing the rest as top-level prompt text. Strip the breakout
+// set (quote, angle brackets) and control whitespace, collapsing runs to one
+// space. A legitimate source (a dotted own-field path) contains none of these,
+// so the common case is unchanged; only a hostile key is altered.
+function attributeSafe(value: string): string {
+  return value.replace(/["<>\n\r\t]+/g, ' ').trim();
 }
 
 const FENCED_DATA_NOTICE =
@@ -369,7 +383,9 @@ function currentSliceSection(activeSlice: unknown): string | undefined {
 // for the common case (no delivery), so a non-retry prompt is byte-identical to a
 // pre-delivery run: the section only ever appears on the bounded second attempt.
 // The values are interpolated inside a fence under the data-not-instructions
-// notice, so a pulled value cannot smuggle directives into the prompt.
+// notice, and the source label (built from a model-authored field_path) is
+// attribute-sanitized, so neither a pulled value nor its source can smuggle
+// directives into the prompt.
 function deliveredContextSection(
   slices: readonly DeliveredContextSlice[] | undefined,
 ): string | undefined {
@@ -381,7 +397,7 @@ function deliveredContextSection(
     } catch {
       rendered = String(slice.value);
     }
-    return fencedBlock('delivered-context', ` source="${slice.source}"`, rendered);
+    return fencedBlock('delivered-context', ` source="${attributeSafe(slice.source)}"`, rendered);
   });
   return [
     'Delivered Context (you asked for these named slices; the engine pulled them from a parent step):',
