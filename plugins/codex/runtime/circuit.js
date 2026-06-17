@@ -56820,6 +56820,31 @@ function createEquipmentReshaper(initialCompiledFlow) {
     };
   };
 }
+function seedEquipmentReshapeFromTrace(entries, initialFlow) {
+  let current = initialFlow;
+  for (const entry of entries) {
+    if (entry.kind !== "run.equipment-reshape")
+      continue;
+    if (!entry.reshaped || !entry.confirmed)
+      continue;
+    try {
+      const candidate = reResolveEquipmentOnCompiledFlow({
+        sourceFlow: current,
+        fromStepId: entry.step_id,
+        remainingRelayStepIds: new Set(entry.equipped_steps ?? []),
+        discovery: {
+          confirmed: true,
+          domain_tags: entry.domain_tags,
+          evidence: "replayed from a durable run.equipment-reshape trace entry on resume"
+        }
+      });
+      if (candidate.ok)
+        current = candidate.compiledFlow;
+    } catch {
+    }
+  }
+  return current;
+}
 
 // dist/runtime/run/graph-runner.js
 import { randomUUID as randomUUID7 } from "node:crypto";
@@ -65492,7 +65517,8 @@ async function resumeCompiledFlowResult(options) {
     return checkpointResumeRejectedFrom(error51);
   }
   const { flow, flowBytes, snapshot } = saved;
-  const executable = executableFlowForResume({ flow, bootstrap });
+  const reshapedFlow = seedEquipmentReshapeFromTrace(entries, flow);
+  const executable = executableFlowForResume({ flow: reshapedFlow, bootstrap });
   const requestedResult = latestUnresolvedCheckpointResult(entries);
   if (isCheckpointResumeRejectedResult(requestedResult))
     return requestedResult;

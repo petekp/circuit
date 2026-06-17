@@ -418,21 +418,16 @@ async function executeExecutableFlowOutcomeUnsafe(
     // the prior process recorded instead of re-inferring (or worse, falling
     // back to medium after the researcher step was checkpointed past).
     seedPowerInferenceFromTrace(existingTrace, context.powerInference);
-    // KNOWN GAP (Step 2, deliberately deferred): a live equipment reshape that
-    // was honored in the prior process is NOT reseeded here. The resumed run
-    // starts on the original, un-reshaped flow. This is inert today, but the
-    // reason is precise: a reshape fires only off a relay's `relay.completed`
-    // (a PASSING verdict), and the resume entrypoint is a checkpoint boundary.
-    // In every shipped flow the route that reaches a checkpoint is a non-passing
-    // route (e.g. Fix's fix-diagnose reaches its checkpoint only on the no-repro
-    // route, never on a pass), so a relay that honored a reshape never then
-    // pauses at a checkpoint — the two cannot coincide. (NOTE: this is a routing
-    // property, NOT "the checkpoint precedes the researcher" — Fix structurally
-    // has a checkpoint after its discovering relay.) A future flow that lets a
-    // PASSING relay route to a checkpoint would make this gap live and silently
-    // drop the reshape on resume. The fix is a seedEquipmentReshapeFromTrace
-    // mirroring the two reseeds above; see
-    // docs/ideas/step2-live-equipment-reshape-report.md for the follow-up.
+    // A live equipment reshape (Step 2) honored before the checkpoint is the
+    // third thing the prior process recorded that a resumed run must re-apply —
+    // but unlike the two channels above, it lives in the FLOW, not a runtime
+    // channel, so it is reseeded one level up where the flow is rebuilt:
+    // checkpoint-resume.ts replays it via seedEquipmentReshapeFromTrace before
+    // building the executable this runner walks. By the time we are here the flow
+    // already carries the injected equipment, so there is nothing to reseed at
+    // this seam. (The reshape is additive — no step id, route, or boundary
+    // changes — which is why it can ride on the rebuilt flow without a structural
+    // splice; that remains Step 3, out of scope.)
   }
   const defaultMaxSteps = Math.max(flow.steps.length * 4, 8);
   // A slice loop runs the body once per slice, each with its own retry budget,

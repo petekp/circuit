@@ -19,6 +19,7 @@
 import { reResolveEquipmentOnCompiledFlow } from '../../flows/compile-schematic-to-flow.js';
 import type { CompiledFlow } from '../../schemas/compiled-flow.js';
 import { EquipmentDiscovery } from '../../schemas/equipment-discovery.js';
+import type { TraceEntry } from '../domain/trace.js';
 import type { ExecutableFlow } from '../manifest/executable-flow.js';
 import { fromCompiledFlow } from '../manifest/from-compiled-flow.js';
 
@@ -138,4 +139,59 @@ export function createEquipmentReshaper(initialCompiledFlow: CompiledFlow): Equi
       rationale: candidate.rationale,
     };
   };
+}
+
+// F1 — the resume reseed (closes the Step 2 KNOWN GAP in graph-runner).
+//
+// A reshape honored in the PRIOR process is recorded durably as a
+// `run.equipment-reshape` trace entry (reshaped:true, confirmed:true). On resume
+// the run is rebuilt from the original, un-reshaped compiled-flow bytes, so
+// without this reseed the resumed run silently drops the injected equipment and
+// can feed a later step a different skill set (and different check outcomes) than
+// a single-process run. This replays every honored reshape, in trace order, back
+// onto the loaded flow — the deterministic mirror of seedSkillHookInjectionsFromTrace
+// and seedPowerInferenceFromTrace, which reseed the injection and power channels
+// the same way.
+//
+// The replay is exact, not re-derived: the trace persists the two inputs the
+// re-resolution needs — `domain_tags` (the confirmed signal) and `equipped_steps`
+// (the steps that gained equipment) — so it re-runs reResolveEquipmentOnCompiledFlow
+// with those and reaches the same merged slots, through the same compiled-flow
+// schema gate. `evidence` is reconstructed as a provenance note because the
+// re-resolution never reads it (it keys only on confirmed + domain_tags).
+//
+// Fail-safe by construction: a parked or unconfirmed entry is skipped, and any
+// replay that the gate rejects (or that throws) leaves the flow as it was for
+// that entry — identical to today's un-reseeded resume — and the fold continues.
+// A reshaped, confirmed entry always carries the inputs, so on a healthy trace
+// the reseed reproduces the prior tail exactly. Returns the loaded flow
+// unchanged when the trace holds no honored reshape (the common case).
+export function seedEquipmentReshapeFromTrace(
+  entries: readonly TraceEntry[],
+  initialFlow: CompiledFlow,
+): CompiledFlow {
+  let current = initialFlow;
+  for (const entry of entries) {
+    if (entry.kind !== 'run.equipment-reshape') continue;
+    if (!entry.reshaped || !entry.confirmed) continue;
+    try {
+      const candidate = reResolveEquipmentOnCompiledFlow({
+        sourceFlow: current,
+        fromStepId: entry.step_id,
+        remainingRelayStepIds: new Set(entry.equipped_steps ?? []),
+        discovery: {
+          confirmed: true,
+          domain_tags: entry.domain_tags,
+          evidence: 'replayed from a durable run.equipment-reshape trace entry on resume',
+        },
+      });
+      if (candidate.ok) current = candidate.compiledFlow;
+      // ok:false → leave `current` unchanged for this entry (today's behavior).
+    } catch {
+      // A re-resolution that throws must never abort the resume; fall through on
+      // the still-valid current flow, exactly as if the reshape had not been
+      // recorded.
+    }
+  }
+  return current;
 }
