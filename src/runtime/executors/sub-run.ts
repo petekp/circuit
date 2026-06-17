@@ -22,6 +22,13 @@ import {
   unwrapStepExecutionResult,
 } from './result.js';
 
+// The maximum recursion depth a run may reach through sub-runs. A top-level run
+// is depth 0; its child is depth 1; and so on. The cap bounds an otherwise
+// unbounded descent (a chain of distinct flows that nests deeper and deeper).
+// It is generous on purpose: real composition nests a handful of levels, so
+// hitting this means the run is misbehaving, not merely deep.
+export const RECURSION_DEPTH_CAP = 8;
+
 function checkPassVerdicts(step: SubRunStep): readonly string[] {
   const pass = step.check.pass;
   return Array.isArray(pass)
@@ -124,6 +131,29 @@ async function executeSubRunInternal(step: SubRunStep, context: RunContext): Pro
     );
   }
 
+  // Recursion bound. Decided here, before any child run folder or
+  // sub_run.started exists, using the flow_ref the resolver is contracted to
+  // honor (it is verified to equal the resolved child id below). Both refusals
+  // are legible check failures, and neither starts the child.
+  const currentDepth = context.recursionDepth ?? 0;
+  const childDepth = currentDepth + 1;
+  const ancestors = context.recursionAncestors ?? new Set<string>();
+  if (childDepth > RECURSION_DEPTH_CAP) {
+    return await recordSubRunCheckFailure(
+      step,
+      context,
+      `sub-run step '${step.id}': starting child flow '${step.flowRef}' at recursion depth ${childDepth} would exceed the recursion depth cap of ${RECURSION_DEPTH_CAP}`,
+    );
+  }
+  if (ancestors.has(step.flowRef)) {
+    const chain = [...ancestors].join(' -> ');
+    return await recordSubRunCheckFailure(
+      step,
+      context,
+      `sub-run step '${step.id}': child flow '${step.flowRef}' is already in the recursion ancestor chain [${chain}]; refusing to start it to avoid an unbounded recursion cycle`,
+    );
+  }
+
   let resolved: Awaited<ReturnType<NonNullable<RunContext['childCompiledFlowResolver']>>>;
   try {
     resolved = await context.childCompiledFlowResolver({
@@ -191,6 +221,11 @@ async function executeSubRunInternal(step: SubRunStep, context: RunContext): Pro
         ? {}
         : { childCompiledFlowResolver: context.childCompiledFlowResolver }),
       childRunner: context.childRunner,
+      // Carry the bound forward so each descent accumulates: the child runs one
+      // level deeper, and its own flow id joins the ancestor chain so a later
+      // re-entry of this flow is caught as a cycle.
+      recursionDepth: childDepth,
+      recursionAncestors: new Set([...ancestors, step.flowRef]),
       externalFiles: context.externalFiles,
       ...(context.projectRoot === undefined ? {} : { projectRoot: context.projectRoot }),
       ...(context.evidencePolicy === undefined ? {} : { evidencePolicy: context.evidencePolicy }),

@@ -45789,7 +45789,26 @@ function composeStagePathRationale(declared, autoOmits, mode) {
   const autoNote = `mode '${mode.name}' (depth '${mode.depth}') also omits ${autoOmits.map((c) => `'${c}'`).join(", ")} because route_overrides leave those canonicals with no reachable items.`;
   return declared !== void 0 && declared.length > 0 ? `${declared} ${autoNote}` : autoNote;
 }
+function findSchematicSelfReference(schematic) {
+  for (const item of schematic.items) {
+    if (item.execution.kind === "sub-run" && item.execution.flow_ref.flow_id === schematic.id) {
+      return `item '${item.id}' is a sub-run whose flow_ref names the schematic's own id`;
+    }
+    const branches = item.fanout?.branches;
+    if (branches?.kind === "static") {
+      const selfBranch = branches.branches.find((branch) => "flow_ref" in branch && branch.flow_ref.flow_id === schematic.id);
+      if (selfBranch !== void 0) {
+        return `item '${item.id}' has a fanout branch '${selfBranch.branch_id}' that sub-runs the schematic's own id`;
+      }
+    }
+  }
+  return void 0;
+}
 function compileSchematicToCompiledFlow(schematic) {
+  const selfReference = findSchematicSelfReference(schematic);
+  if (selfReference !== void 0) {
+    fail(`schematic '${schematic.id}' refers to itself: ${selfReference}, which can never make progress`);
+  }
   const catalogIssues = collectSchematicCatalogIssues(schematic);
   if (catalogIssues.length > 0) {
     const noun = catalogIssues.length === 1 ? "issue" : "issues";
@@ -58619,8 +58638,8 @@ function isRubricJudgment(value) {
 }
 
 // dist/runtime/fanout/branch-execution.js
-import { randomUUID as randomUUID5 } from "node:crypto";
-import { dirname as dirname6, join as join27 } from "node:path";
+import { randomUUID as randomUUID6 } from "node:crypto";
+import { dirname as dirname7, join as join28 } from "node:path";
 
 // dist/flows/registries/cross-report-validators.js
 var REGISTRY5 = buildCrossReportValidatorRegistry(flowPackages);
@@ -61300,6 +61319,239 @@ async function executeProductionRelay(step, context) {
   throw new Error(evaluation.reason);
 }
 
+// dist/runtime/executors/sub-run.js
+import { randomUUID as randomUUID5 } from "node:crypto";
+import { dirname as dirname6, join as join27 } from "node:path";
+var RECURSION_DEPTH_CAP = 8;
+function checkPassVerdicts(step) {
+  const pass = step.check.pass;
+  return Array.isArray(pass) ? pass.filter((entry) => typeof entry === "string") : [];
+}
+async function recordSubRunCheckFailure(step, context, reason) {
+  const attempt = context.activeStepAttempt ?? 1;
+  await context.trace.append({
+    run_id: context.runId,
+    kind: "check.evaluated",
+    step_id: step.id,
+    attempt,
+    check_kind: "result_verdict",
+    outcome: "fail",
+    reason
+  });
+  throw new Error(reason);
+}
+function evaluateChildResult(step, resultBody) {
+  const verdict = resultBody.verdict;
+  if (typeof verdict !== "string" || verdict.length === 0) {
+    return {
+      verdict: NO_VERDICT_SENTINEL,
+      admitted: false,
+      failureReason: `sub-run step '${step.id}': child result body lacks a non-empty string 'verdict' field`
+    };
+  }
+  const pass = checkPassVerdicts(step);
+  if (!pass.includes(verdict)) {
+    return {
+      verdict,
+      admitted: false,
+      failureReason: `sub-run step '${step.id}': child verdict '${verdict}' is not in check.pass [${pass.join(", ")}]`
+    };
+  }
+  return { verdict, admitted: true };
+}
+function parseChildResultBody(step, childResultText) {
+  let parsed;
+  try {
+    parsed = JSON.parse(childResultText);
+  } catch (error51) {
+    return {
+      failureReason: `sub-run step '${step.id}': child result body did not parse as JSON (${error51.message})`
+    };
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {
+      failureReason: `sub-run step '${step.id}': child result body parsed but is not a JSON object`
+    };
+  }
+  try {
+    return { body: RunResult.parse(parsed) };
+  } catch (error51) {
+    return {
+      failureReason: `sub-run step '${step.id}': child result body failed result schema (${error51.message})`
+    };
+  }
+}
+async function executeSubRunInternal(step, context) {
+  const attempt = context.activeStepAttempt ?? 1;
+  const resultWrite = step.writes?.result;
+  if (resultWrite === void 0) {
+    throw new Error(`sub-run step '${step.id}' is missing writes.result`);
+  }
+  if (step.writes?.report !== void 0 && step.writes.report.path !== resultWrite.path) {
+    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': writes.report materialization at a path different from writes.result is not yet supported`);
+  }
+  if (context.childCompiledFlowResolver === void 0) {
+    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': childCompiledFlowResolver is required to resolve child flow '${step.flowRef}'`);
+  }
+  if (context.childRunner === void 0) {
+    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': childRunner is required to run child flow '${step.flowRef}'`);
+  }
+  const currentDepth = context.recursionDepth ?? 0;
+  const childDepth = currentDepth + 1;
+  const ancestors = context.recursionAncestors ?? /* @__PURE__ */ new Set();
+  if (childDepth > RECURSION_DEPTH_CAP) {
+    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': starting child flow '${step.flowRef}' at recursion depth ${childDepth} would exceed the recursion depth cap of ${RECURSION_DEPTH_CAP}`);
+  }
+  if (ancestors.has(step.flowRef)) {
+    const chain = [...ancestors].join(" -> ");
+    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': child flow '${step.flowRef}' is already in the recursion ancestor chain [${chain}]; refusing to start it to avoid an unbounded recursion cycle`);
+  }
+  let resolved;
+  try {
+    resolved = await context.childCompiledFlowResolver({
+      flowId: step.flowRef,
+      entryMode: step.entryMode,
+      ...step.version === void 0 ? {} : { version: step.version }
+    });
+  } catch (error51) {
+    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': child flow resolution failed (${error51.message})`);
+  }
+  let childFlow;
+  try {
+    childFlow = CompiledFlow.parse(JSON.parse(Buffer.from(resolved.flowBytes).toString("utf8")));
+  } catch (error51) {
+    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': child flow resolution returned invalid compiled flow (${error51.message})`);
+  }
+  if (childFlow.id !== step.flowRef) {
+    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': resolver returned flow id '${childFlow.id}' but flow_ref names '${step.flowRef}'`);
+  }
+  const childRunId = randomUUID5();
+  const childRunDir = join27(dirname6(context.runDir), childRunId);
+  await context.trace.append({
+    run_id: context.runId,
+    kind: "sub_run.started",
+    step_id: step.id,
+    attempt,
+    child_run_id: childRunId,
+    child_flow_id: childFlow.id,
+    child_entry_mode: step.entryMode,
+    child_depth: step.depth
+  });
+  const startMs = Date.now();
+  let childResult;
+  try {
+    childResult = await context.childRunner({
+      flowBytes: resolved.flowBytes,
+      runDir: childRunDir,
+      runId: childRunId,
+      goal: step.goal,
+      entryModeName: step.entryMode,
+      depth: step.depth,
+      now: context.now,
+      // A child run has no operator of its own; inherit the parent's unattended
+      // signal so the child's checkpoints reach a terminal outcome rather than
+      // parking unanswerable. Inert while the parent is attended (unset).
+      ...context.unattended === void 0 ? {} : { unattended: context.unattended },
+      ...context.childExecutors === void 0 ? {} : { executors: context.childExecutors },
+      ...context.childCompiledFlowResolver === void 0 ? {} : { childCompiledFlowResolver: context.childCompiledFlowResolver },
+      childRunner: context.childRunner,
+      // Carry the bound forward so each descent accumulates: the child runs one
+      // level deeper, and its own flow id joins the ancestor chain so a later
+      // re-entry of this flow is caught as a cycle.
+      recursionDepth: childDepth,
+      recursionAncestors: /* @__PURE__ */ new Set([...ancestors, step.flowRef]),
+      externalFiles: context.externalFiles,
+      ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot },
+      ...context.evidencePolicy === void 0 ? {} : { evidencePolicy: context.evidencePolicy },
+      ...context.worktreeRunner === void 0 ? {} : { worktreeRunner: context.worktreeRunner },
+      ...context.relayConnector === void 0 ? {} : { relayConnector: context.relayConnector },
+      ...context.relayer === void 0 ? {} : { relayer: context.relayer },
+      ...context.hostKind === void 0 ? {} : { hostKind: context.hostKind },
+      ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers },
+      ...context.policyLayers === void 0 ? {} : { policyLayers: context.policyLayers },
+      ...context.progress === void 0 ? {} : { progress: context.progress }
+    });
+  } catch (error51) {
+    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': child flow invocation failed (${error51.message})`);
+  }
+  const durationMs = Math.max(0, Date.now() - startMs);
+  const childResultText = await context.externalFiles.readText(childResult.resultPath);
+  await context.files.writeText(resultWrite, childResultText);
+  const parsedChildResult = parseChildResultBody(step, childResultText);
+  if (parsedChildResult.body === void 0) {
+    const reason = parsedChildResult.failureReason ?? `sub-run step '${step.id}': child result body could not be parsed`;
+    await context.trace.append({
+      run_id: context.runId,
+      kind: "sub_run.completed",
+      step_id: step.id,
+      attempt,
+      child_run_id: childRunId,
+      child_outcome: childResult.outcome,
+      verdict: NO_VERDICT_SENTINEL,
+      duration_ms: durationMs,
+      result_path: resultWrite.path
+    });
+    return await recordSubRunCheckFailure(step, context, reason);
+  }
+  const childResultBody = parsedChildResult.body;
+  const verdict = evaluateChildResult(step, childResultBody);
+  const childComplete = childResultBody.outcome === "complete";
+  const admitted = verdict.admitted && childComplete;
+  await context.trace.append({
+    run_id: context.runId,
+    kind: "sub_run.completed",
+    step_id: step.id,
+    attempt,
+    child_run_id: childRunId,
+    child_outcome: childResultBody.outcome,
+    verdict: verdict.verdict,
+    duration_ms: durationMs,
+    result_path: resultWrite.path
+  });
+  if (admitted) {
+    await context.trace.append({
+      run_id: context.runId,
+      kind: "check.evaluated",
+      step_id: step.id,
+      attempt,
+      check_kind: "result_verdict",
+      outcome: "pass"
+    });
+    return { route: "pass", details: { child_run_id: childRunId, verdict: verdict.verdict } };
+  }
+  if (!childComplete && step.routes.stop !== void 0) {
+    const reason = `sub-run step '${step.id}': child closed with outcome '${childResultBody.outcome}'`;
+    await context.trace.append({
+      run_id: context.runId,
+      kind: "check.evaluated",
+      step_id: step.id,
+      attempt,
+      check_kind: "result_verdict",
+      outcome: "fail",
+      reason
+    });
+    return {
+      route: "stop",
+      details: {
+        child_run_id: childRunId,
+        child_outcome: childResultBody.outcome,
+        verdict: verdict.verdict
+      }
+    };
+  }
+  return await recordSubRunCheckFailure(step, context, verdict.failureReason ?? `sub-run step '${step.id}': child closed with outcome '${childResultBody.outcome}'`);
+}
+async function executeSubRunResult(step, context) {
+  try {
+    return stepExecutionOutcome(await executeSubRunInternal(step, context));
+  } catch (error51) {
+    return stepExecutionFailedFrom(error51);
+  }
+}
+async function executeSubRun(step, context) {
+  return unwrapStepExecutionResult(await executeSubRunResult(step, context));
+}
+
 // dist/runtime/fanout/branch-execution.js
 async function appendFanoutBranchStarted(context, fields) {
   await context.trace.append({
@@ -61455,7 +61707,7 @@ function planRelayFanoutBranchGuidanceDecision(input) {
 async function executeRelayFanoutBranch(step, context, branch, relayConnector, branchDirRel, branchDirAbs) {
   const startMs = Date.now();
   const attempt = context.activeStepAttempt ?? 1;
-  const childRunId = randomUUID5();
+  const childRunId = randomUUID6();
   const resultPath2 = `${branchDirRel}/result.json`;
   const reportPath = `${branchDirRel}/report.json`;
   await appendFanoutBranchStarted(context, {
@@ -61601,7 +61853,7 @@ async function executeRelayFanoutBranch(step, context, branch, relayConnector, b
 async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, branchDirRel, worktreePath) {
   const startMs = Date.now();
   const attempt = context.activeStepAttempt ?? 1;
-  const childRunId = randomUUID5();
+  const childRunId = randomUUID6();
   const resultPath2 = `${branchDirRel}/result.json`;
   await appendFanoutBranchStarted(context, {
     step_id: step.id,
@@ -61637,6 +61889,41 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
       failure_reason: failureReason
     };
   }
+  const currentDepth = context.recursionDepth ?? 0;
+  const childDepth = currentDepth + 1;
+  const ancestors = context.recursionAncestors ?? /* @__PURE__ */ new Set();
+  const refuseBranch = async (failureReason) => {
+    const durationMs = Math.max(0, Date.now() - startMs);
+    await appendFanoutBranchCompleted(context, {
+      step_id: step.id,
+      attempt,
+      branch_id: branch.branch_id,
+      branch_kind: "sub-run",
+      child_run_id: childRunId,
+      child_outcome: "aborted",
+      verdict: NO_VERDICT_SENTINEL,
+      duration_ms: durationMs,
+      result_path: resultPath2
+    });
+    return {
+      branch_id: branch.branch_id,
+      child_run_id: childRunId,
+      worktree_path: worktreePath,
+      child_outcome: "aborted",
+      verdict: NO_VERDICT_SENTINEL,
+      result_path: resultPath2,
+      duration_ms: durationMs,
+      admitted: false,
+      failure_reason: failureReason
+    };
+  };
+  if (childDepth > RECURSION_DEPTH_CAP) {
+    return await refuseBranch(`fanout step '${step.id}': starting sub-run branch '${branch.branch_id}' into '${branch.flowRef}' at recursion depth ${childDepth} would exceed the recursion depth cap of ${RECURSION_DEPTH_CAP}`);
+  }
+  if (ancestors.has(branch.flowRef)) {
+    const chain = [...ancestors].join(" -> ");
+    return await refuseBranch(`fanout step '${step.id}': sub-run branch '${branch.branch_id}' targets flow '${branch.flowRef}' which is already in the recursion ancestor chain [${chain}]; refusing to start it to avoid an unbounded recursion cycle`);
+  }
   try {
     const branchName = `circuit/${context.runId}/${step.id}/${branch.branch_id}`;
     await Promise.resolve(worktreeRunner.add({ worktreePath, baseRef: "HEAD", branchName }));
@@ -61649,7 +61936,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
     if (childFlow.id !== branch.flowRef) {
       throw new Error(`resolver returned flow id '${childFlow.id}' but branch flow_ref names '${branch.flowRef}'`);
     }
-    const childRunDir = join27(dirname6(context.runDir), childRunId);
+    const childRunDir = join28(dirname7(context.runDir), childRunId);
     const child = await context.childRunner({
       flowBytes: resolved.flowBytes,
       runDir: childRunDir,
@@ -61665,6 +61952,10 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
       ...context.childExecutors === void 0 ? {} : { executors: context.childExecutors },
       ...context.childCompiledFlowResolver === void 0 ? {} : { childCompiledFlowResolver: context.childCompiledFlowResolver },
       childRunner: context.childRunner,
+      // Carry the bound forward so a branch's own descendants keep accumulating
+      // depth and the ancestor chain (this branch's target id joins it).
+      recursionDepth: childDepth,
+      recursionAncestors: /* @__PURE__ */ new Set([...ancestors, branch.flowRef]),
       externalFiles: context.externalFiles,
       projectRoot: worktreePath,
       ...context.evidencePolicy === void 0 ? {} : { evidencePolicy: context.evidencePolicy },
@@ -62043,223 +62334,6 @@ async function executeFanoutResult(step, context, relayConnector) {
 }
 async function executeFanout(step, context, relayConnector) {
   return unwrapStepExecutionResult(await executeFanoutResult(step, context, relayConnector));
-}
-
-// dist/runtime/executors/sub-run.js
-import { randomUUID as randomUUID6 } from "node:crypto";
-import { dirname as dirname7, join as join28 } from "node:path";
-function checkPassVerdicts(step) {
-  const pass = step.check.pass;
-  return Array.isArray(pass) ? pass.filter((entry) => typeof entry === "string") : [];
-}
-async function recordSubRunCheckFailure(step, context, reason) {
-  const attempt = context.activeStepAttempt ?? 1;
-  await context.trace.append({
-    run_id: context.runId,
-    kind: "check.evaluated",
-    step_id: step.id,
-    attempt,
-    check_kind: "result_verdict",
-    outcome: "fail",
-    reason
-  });
-  throw new Error(reason);
-}
-function evaluateChildResult(step, resultBody) {
-  const verdict = resultBody.verdict;
-  if (typeof verdict !== "string" || verdict.length === 0) {
-    return {
-      verdict: NO_VERDICT_SENTINEL,
-      admitted: false,
-      failureReason: `sub-run step '${step.id}': child result body lacks a non-empty string 'verdict' field`
-    };
-  }
-  const pass = checkPassVerdicts(step);
-  if (!pass.includes(verdict)) {
-    return {
-      verdict,
-      admitted: false,
-      failureReason: `sub-run step '${step.id}': child verdict '${verdict}' is not in check.pass [${pass.join(", ")}]`
-    };
-  }
-  return { verdict, admitted: true };
-}
-function parseChildResultBody(step, childResultText) {
-  let parsed;
-  try {
-    parsed = JSON.parse(childResultText);
-  } catch (error51) {
-    return {
-      failureReason: `sub-run step '${step.id}': child result body did not parse as JSON (${error51.message})`
-    };
-  }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return {
-      failureReason: `sub-run step '${step.id}': child result body parsed but is not a JSON object`
-    };
-  }
-  try {
-    return { body: RunResult.parse(parsed) };
-  } catch (error51) {
-    return {
-      failureReason: `sub-run step '${step.id}': child result body failed result schema (${error51.message})`
-    };
-  }
-}
-async function executeSubRunInternal(step, context) {
-  const attempt = context.activeStepAttempt ?? 1;
-  const resultWrite = step.writes?.result;
-  if (resultWrite === void 0) {
-    throw new Error(`sub-run step '${step.id}' is missing writes.result`);
-  }
-  if (step.writes?.report !== void 0 && step.writes.report.path !== resultWrite.path) {
-    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': writes.report materialization at a path different from writes.result is not yet supported`);
-  }
-  if (context.childCompiledFlowResolver === void 0) {
-    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': childCompiledFlowResolver is required to resolve child flow '${step.flowRef}'`);
-  }
-  if (context.childRunner === void 0) {
-    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': childRunner is required to run child flow '${step.flowRef}'`);
-  }
-  let resolved;
-  try {
-    resolved = await context.childCompiledFlowResolver({
-      flowId: step.flowRef,
-      entryMode: step.entryMode,
-      ...step.version === void 0 ? {} : { version: step.version }
-    });
-  } catch (error51) {
-    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': child flow resolution failed (${error51.message})`);
-  }
-  let childFlow;
-  try {
-    childFlow = CompiledFlow.parse(JSON.parse(Buffer.from(resolved.flowBytes).toString("utf8")));
-  } catch (error51) {
-    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': child flow resolution returned invalid compiled flow (${error51.message})`);
-  }
-  if (childFlow.id !== step.flowRef) {
-    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': resolver returned flow id '${childFlow.id}' but flow_ref names '${step.flowRef}'`);
-  }
-  const childRunId = randomUUID6();
-  const childRunDir = join28(dirname7(context.runDir), childRunId);
-  await context.trace.append({
-    run_id: context.runId,
-    kind: "sub_run.started",
-    step_id: step.id,
-    attempt,
-    child_run_id: childRunId,
-    child_flow_id: childFlow.id,
-    child_entry_mode: step.entryMode,
-    child_depth: step.depth
-  });
-  const startMs = Date.now();
-  let childResult;
-  try {
-    childResult = await context.childRunner({
-      flowBytes: resolved.flowBytes,
-      runDir: childRunDir,
-      runId: childRunId,
-      goal: step.goal,
-      entryModeName: step.entryMode,
-      depth: step.depth,
-      now: context.now,
-      // A child run has no operator of its own; inherit the parent's unattended
-      // signal so the child's checkpoints reach a terminal outcome rather than
-      // parking unanswerable. Inert while the parent is attended (unset).
-      ...context.unattended === void 0 ? {} : { unattended: context.unattended },
-      ...context.childExecutors === void 0 ? {} : { executors: context.childExecutors },
-      ...context.childCompiledFlowResolver === void 0 ? {} : { childCompiledFlowResolver: context.childCompiledFlowResolver },
-      childRunner: context.childRunner,
-      externalFiles: context.externalFiles,
-      ...context.projectRoot === void 0 ? {} : { projectRoot: context.projectRoot },
-      ...context.evidencePolicy === void 0 ? {} : { evidencePolicy: context.evidencePolicy },
-      ...context.worktreeRunner === void 0 ? {} : { worktreeRunner: context.worktreeRunner },
-      ...context.relayConnector === void 0 ? {} : { relayConnector: context.relayConnector },
-      ...context.relayer === void 0 ? {} : { relayer: context.relayer },
-      ...context.hostKind === void 0 ? {} : { hostKind: context.hostKind },
-      ...context.selectionConfigLayers === void 0 ? {} : { selectionConfigLayers: context.selectionConfigLayers },
-      ...context.policyLayers === void 0 ? {} : { policyLayers: context.policyLayers },
-      ...context.progress === void 0 ? {} : { progress: context.progress }
-    });
-  } catch (error51) {
-    return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': child flow invocation failed (${error51.message})`);
-  }
-  const durationMs = Math.max(0, Date.now() - startMs);
-  const childResultText = await context.externalFiles.readText(childResult.resultPath);
-  await context.files.writeText(resultWrite, childResultText);
-  const parsedChildResult = parseChildResultBody(step, childResultText);
-  if (parsedChildResult.body === void 0) {
-    const reason = parsedChildResult.failureReason ?? `sub-run step '${step.id}': child result body could not be parsed`;
-    await context.trace.append({
-      run_id: context.runId,
-      kind: "sub_run.completed",
-      step_id: step.id,
-      attempt,
-      child_run_id: childRunId,
-      child_outcome: childResult.outcome,
-      verdict: NO_VERDICT_SENTINEL,
-      duration_ms: durationMs,
-      result_path: resultWrite.path
-    });
-    return await recordSubRunCheckFailure(step, context, reason);
-  }
-  const childResultBody = parsedChildResult.body;
-  const verdict = evaluateChildResult(step, childResultBody);
-  const childComplete = childResultBody.outcome === "complete";
-  const admitted = verdict.admitted && childComplete;
-  await context.trace.append({
-    run_id: context.runId,
-    kind: "sub_run.completed",
-    step_id: step.id,
-    attempt,
-    child_run_id: childRunId,
-    child_outcome: childResultBody.outcome,
-    verdict: verdict.verdict,
-    duration_ms: durationMs,
-    result_path: resultWrite.path
-  });
-  if (admitted) {
-    await context.trace.append({
-      run_id: context.runId,
-      kind: "check.evaluated",
-      step_id: step.id,
-      attempt,
-      check_kind: "result_verdict",
-      outcome: "pass"
-    });
-    return { route: "pass", details: { child_run_id: childRunId, verdict: verdict.verdict } };
-  }
-  if (!childComplete && step.routes.stop !== void 0) {
-    const reason = `sub-run step '${step.id}': child closed with outcome '${childResultBody.outcome}'`;
-    await context.trace.append({
-      run_id: context.runId,
-      kind: "check.evaluated",
-      step_id: step.id,
-      attempt,
-      check_kind: "result_verdict",
-      outcome: "fail",
-      reason
-    });
-    return {
-      route: "stop",
-      details: {
-        child_run_id: childRunId,
-        child_outcome: childResultBody.outcome,
-        verdict: verdict.verdict
-      }
-    };
-  }
-  return await recordSubRunCheckFailure(step, context, verdict.failureReason ?? `sub-run step '${step.id}': child closed with outcome '${childResultBody.outcome}'`);
-}
-async function executeSubRunResult(step, context) {
-  try {
-    return stepExecutionOutcome(await executeSubRunInternal(step, context));
-  } catch (error51) {
-    return stepExecutionFailedFrom(error51);
-  }
-}
-async function executeSubRun(step, context) {
-  return unwrapStepExecutionResult(await executeSubRunResult(step, context));
 }
 
 // dist/runtime/executors/verification.js
@@ -64217,6 +64291,20 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.depth === void 0 ? {} : { depth: options.depth },
     ...options.axes === void 0 ? {} : { axes: options.axes },
     ...options.unattended === void 0 ? {} : { unattended: options.unattended },
+    // Seed the recursion bound. A top-level run starts at depth 0 with itself as
+    // the only ancestor; a child run inherits the forwarded depth and chain. The
+    // sub-run executor and the fanout sub-run branch read these to enforce the
+    // cap and the cycle guard. Two invariants protect this bound:
+    //   - The ancestor chain is a Set, forwarded in-process by reference. It must
+    //     never cross a JSON or disk boundary (a Set stringifies to `{}` and the
+    //     guard would go dark). It is intentionally absent from every report and
+    //     trace schema; keep it that way.
+    //   - Any path that spawns a child run must thread these through, or the
+    //     child re-seeds to depth 0 and the bound stops accumulating. Recovery
+    //     attempts and standalone resume deliberately do NOT thread them — each
+    //     is a fresh top-level run whose own descent is capped independently.
+    recursionDepth: options.recursionDepth ?? 0,
+    recursionAncestors: options.recursionAncestors ?? /* @__PURE__ */ new Set([flow.id]),
     now: boundary.clock.now,
     files,
     trace,
@@ -64709,6 +64797,8 @@ async function runCompiledFlowWithWaiting(options) {
     depth,
     ...options.axes === void 0 ? {} : { axes: options.axes },
     ...options.unattended === void 0 ? {} : { unattended: options.unattended },
+    ...options.recursionDepth === void 0 ? {} : { recursionDepth: options.recursionDepth },
+    ...options.recursionAncestors === void 0 ? {} : { recursionAncestors: options.recursionAncestors },
     ...options.now === void 0 ? {} : { now: options.now },
     ...options.executors === void 0 ? {} : { executors: options.executors },
     ...options.childExecutors === void 0 ? {} : { childExecutors: options.childExecutors },

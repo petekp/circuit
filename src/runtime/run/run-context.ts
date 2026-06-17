@@ -36,6 +36,16 @@ export interface RunContext
   // of parking at checkpoint_waiting forever (see resolveCheckpoint). Absent on
   // every interactive top-level run, so attended runs are unaffected.
   readonly unattended?: boolean;
+  // Recursion bound, threaded parent-to-child like unattended (run-state, not a
+  // capability). A top-level run seeds depth 0 and ancestors = { this flow id };
+  // the sub-run executor descends one level and adds the child id before handing
+  // off, so the depth cap and the cycle guard both have what they need. Absent on
+  // a freshly constructed context defaults to depth 0 / a single-id ancestor set.
+  // The ancestor set is forwarded in-process by reference and must never be
+  // serialized to JSON or disk (a Set stringifies to `{}`); see the seed comment
+  // in graph-runner for the invariants that keep this bound intact.
+  readonly recursionDepth?: number;
+  readonly recursionAncestors?: ReadonlySet<string>;
   readonly guidanceSelection?: {
     readonly bindsExecutionDepthToGuidanceSelection: boolean;
   };

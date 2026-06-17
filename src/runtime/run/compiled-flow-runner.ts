@@ -37,6 +37,13 @@ export interface CompiledFlowRunOptions extends RuntimeExecutionCapabilities {
   // child run): a checkpoint must reach a terminal outcome instead of parking.
   // See RunContext.unattended and resolveCheckpoint.
   readonly unattended?: boolean;
+  // Recursion bound forwarded from a parent sub-run into this (child) run, so the
+  // child's graph-runner seeds depth and the ancestor chain from the parent
+  // rather than resetting to the top-level defaults. This is the link that makes
+  // the bound accumulate across a real recursive run boundary. Absent on a
+  // top-level run, where the graph-runner seeds depth 0 / { this flow id }.
+  readonly recursionDepth?: number;
+  readonly recursionAncestors?: ReadonlySet<string>;
   readonly maxSteps?: number;
 }
 
@@ -100,6 +107,10 @@ export async function runCompiledFlowWithWaiting(
       depth,
       ...(options.axes === undefined ? {} : { axes: options.axes }),
       ...(options.unattended === undefined ? {} : { unattended: options.unattended }),
+      ...(options.recursionDepth === undefined ? {} : { recursionDepth: options.recursionDepth }),
+      ...(options.recursionAncestors === undefined
+        ? {}
+        : { recursionAncestors: options.recursionAncestors }),
       ...(options.now === undefined ? {} : { now: options.now }),
       ...(options.executors === undefined ? {} : { executors: options.executors }),
       ...(options.childExecutors === undefined ? {} : { childExecutors: options.childExecutors }),

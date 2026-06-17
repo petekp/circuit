@@ -78,6 +78,12 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   // a terminal outcome rather than park. Threaded onto RunContext; see
   // RunContext.unattended and resolveCheckpoint.
   readonly unattended?: boolean;
+  // Recursion bound. On a top-level run both are absent and the context seeds
+  // depth 0 with the run's own flow id as the sole ancestor. On a child run the
+  // sub-run executor forwards the parent's incremented depth and extended
+  // ancestor chain, so the bound accumulates rather than resetting per run.
+  readonly recursionDepth?: number;
+  readonly recursionAncestors?: ReadonlySet<string>;
   readonly maxSteps?: number;
   readonly resumeCheckpoint?: {
     readonly stepId: string;
@@ -298,6 +304,20 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...(options.depth === undefined ? {} : { depth: options.depth }),
     ...(options.axes === undefined ? {} : { axes: options.axes }),
     ...(options.unattended === undefined ? {} : { unattended: options.unattended }),
+    // Seed the recursion bound. A top-level run starts at depth 0 with itself as
+    // the only ancestor; a child run inherits the forwarded depth and chain. The
+    // sub-run executor and the fanout sub-run branch read these to enforce the
+    // cap and the cycle guard. Two invariants protect this bound:
+    //   - The ancestor chain is a Set, forwarded in-process by reference. It must
+    //     never cross a JSON or disk boundary (a Set stringifies to `{}` and the
+    //     guard would go dark). It is intentionally absent from every report and
+    //     trace schema; keep it that way.
+    //   - Any path that spawns a child run must thread these through, or the
+    //     child re-seeds to depth 0 and the bound stops accumulating. Recovery
+    //     attempts and standalone resume deliberately do NOT thread them — each
+    //     is a fresh top-level run whose own descent is capped independently.
+    recursionDepth: options.recursionDepth ?? 0,
+    recursionAncestors: options.recursionAncestors ?? new Set([flow.id]),
     now: boundary.clock.now,
     files,
     trace,
