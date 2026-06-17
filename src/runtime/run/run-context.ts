@@ -24,6 +24,14 @@ export interface RunContext
   // when absent, relay prompts are byte-identical to runs before the flag.
   readonly why?: string;
   readonly manifestHash: string;
+  // A prior crashed run's folder to reuse finished children from (the
+  // `--reuse-children-from` restart pointer). Run-state, not a capability:
+  // present only on a fresh top-level run an operator explicitly pointed at a
+  // dead folder, and deliberately NOT forwarded to child runs (children never
+  // reuse-from). A sub-run fanout branch consults it before running its child;
+  // when set, a prior finished isolating-worktree branch is admitted from disk
+  // instead of re-run. Absent => reuse is inert and every child runs fresh.
+  readonly reuseChildrenFrom?: string;
   readonly workContractRef?: Ref;
   readonly recoveryRouteBindings?: readonly RecoveryRouteBindingV0[];
   readonly entryModeName?: string;

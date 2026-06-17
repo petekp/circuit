@@ -46,6 +46,10 @@ export interface CompiledFlowRunOptions extends RuntimeExecutionCapabilities {
   readonly recursionDepth?: number;
   readonly recursionAncestors?: ReadonlySet<string>;
   readonly maxSteps?: number;
+  // Restart-cheapness pointer (`--reuse-children-from`): a prior crashed run's
+  // folder whose finished sub-run fanout branches this fresh run reuses instead
+  // of re-running. Inert when absent. Deliberately not forwarded to child runs.
+  readonly reuseChildrenFrom?: string;
 }
 
 function depthForAxisSelectionName(entryModeName: string | undefined): string | undefined {
@@ -114,6 +118,9 @@ export async function runCompiledFlowWithWaiting(
       equipmentReshaper: createEquipmentReshaper(flow),
       workContractRef: tracedWorkContractRef,
       recoveryRouteBindings: workContractProjection.work_contract.recovery,
+      ...(options.reuseChildrenFrom === undefined
+        ? {}
+        : { reuseChildrenFrom: options.reuseChildrenFrom }),
       entryModeName,
       depth,
       ...(options.axes === undefined ? {} : { axes: options.axes }),

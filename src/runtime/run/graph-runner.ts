@@ -79,6 +79,10 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   readonly equipmentReshaper?: EquipmentReshaper;
   readonly workContractRef?: Ref;
   readonly recoveryRouteBindings?: readonly RecoveryRouteBindingV0[];
+  // Restart-cheapness pointer: a prior crashed run's folder whose finished
+  // sub-run fanout branches a fresh run reuses instead of re-running. Threaded
+  // onto RunContext; consumed by the fanout branch executor. Absent => inert.
+  readonly reuseChildrenFrom?: string;
   readonly entryModeName?: string;
   readonly depth?: string;
   readonly axes?: Axes;
@@ -308,6 +312,9 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...(options.recoveryRouteBindings === undefined
       ? {}
       : { recoveryRouteBindings: options.recoveryRouteBindings }),
+    ...(options.reuseChildrenFrom === undefined
+      ? {}
+      : { reuseChildrenFrom: options.reuseChildrenFrom }),
     ...(options.entryModeName === undefined ? {} : { entryModeName: options.entryModeName }),
     ...(options.depth === undefined ? {} : { depth: options.depth }),
     ...(options.axes === undefined ? {} : { axes: options.axes }),

@@ -45,4 +45,8 @@ export const RUN_EXECUTION_FLAGS: readonly RunExecutionFlag[] = [
   // Declared so the parser owns the rejection message; never teachable.
   { flag: '--dry-run', docValid: false },
   { flag: '--include-untracked-content', docValid: true },
+  // Restart cheapness: a prior crashed run's folder whose finished sub-run
+  // fanout branches this fresh run reuses by structural address instead of
+  // re-running. Fresh-run only; rejected on resume.
+  { flag: '--reuse-children-from', valueHint: '<path>', docValid: true },
 ];
