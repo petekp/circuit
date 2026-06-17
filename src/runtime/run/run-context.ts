@@ -11,6 +11,7 @@ import type { ExecutableFlow } from '../manifest/executable-flow.js';
 import type { RunFileStore } from '../run-files/run-file-store.js';
 import type { TraceStore } from '../trace/trace-store.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
+import type { DeliveredContextSlice } from './context-delivery.js';
 import type { ExternalFileReader } from './external-files.js';
 
 export interface RunContext
@@ -69,6 +70,12 @@ export interface RunContext
   // can scope the worker to the current slice. Absent on single-pass runs.
   readonly activeSliceIndex?: number;
   readonly activeSlice?: unknown;
+  // Pull-then-retry delivery: set by the graph-runner ONLY on the bounded re-run
+  // of a step whose typed context_request was resolved. Carries the answered
+  // slices the relay prompt folds in (deliveredContextSection). Absent on every
+  // first-pass step and every run with delivery off, so those prompts are
+  // byte-identical to before this channel. In-process only — never serialized.
+  readonly deliveredContextSlices?: readonly DeliveredContextSlice[];
   // Run-scoped accumulator for skill-hook actuation: the post-step dispatcher
   // adds an `auto` hook event's resolved skills here, and planRelayGuidanceDecision
   // merges them into the next relay step's loaded skills. A mutable container on

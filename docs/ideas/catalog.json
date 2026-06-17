@@ -1297,6 +1297,21 @@
         "docs/ideas/north-star-status.md"
       ],
       "last_checked": "2026-06-17"
+    },
+    {
+      "path": "docs/ideas/runtime-binding-battle-test-report.md",
+      "title": "Runtime-binding battle-test report - pull-then-retry delivery, measured",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["context", "context-pull", "delivery", "runtime-binding", "run-report"],
+      "current_reading": "Built the value half of context-pull - pull-then-retry delivery (PR #114, opt-in, default off): when a step's typed context_request is answered, the engine folds the answered slices into the step's envelope and re-runs the step once on the enriched context. Bounded (one re-run per step, per-step budget), additive, fail-safe (a failed re-run keeps the starved result, never launders it). Then battle-tested it on the real Build flow. MEASURED carried bytes vs a fat-push baseline from real engine artifacts: 1.8x on a small real fix (heldout-wrap-index, the step needs most of its small research) and 11x on a wide investigation feeding a narrow step (matching the offline demonstrator's ~10x), so the saving scales with parent-richness-minus-need. Honesty holds: an unpullable slice is refused and recorded, nothing fabricated. R3 decided with deep-depth data - at depth >= high the implementer is the slice-corridor head step, so 100% of deep-depth pulls are dropped silently (no delivery AND no finding); decision: lift the safe resolve-and-record skip inside corridors, defer delivery-in-corridor (needs corridor-aware re-run accounting). Open reach gaps before it earns its keep in production: the pull trigger affordance is half-surfaced (the context_request object-level describe is dropped by the shape renderer and the implementer relay-hints say nothing about it), and the checkpoint-resume path does not re-wire the channel. Harness is experiments/flow-lab/runtime-binding-battle-test.test.ts. Verify green.",
+      "related": [
+        "docs/ideas/context-pull-live-run-report.md",
+        "docs/ideas/on-demand-context-pull.md",
+        "docs/ideas/step2-live-equipment-reshape-report.md",
+        "docs/ideas/north-star-status.md"
+      ],
+      "last_checked": "2026-06-17"
     }
   ]
 }
