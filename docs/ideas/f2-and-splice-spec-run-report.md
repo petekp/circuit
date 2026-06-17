@@ -17,7 +17,7 @@
   - `dd8558b2` - the splice-seam spec + catalog/README/north-star wiring.
 - **Verify:** full `npm run verify` green (exit 0) on the F2 src change; the two
   doc gates (`check-ideas`, `check-doc-paths`) green after the spec landed.
-- **Final main SHA:** recorded on merge of the PR for this branch.
+- **Final main SHA:** `a7559a5f` (merge of PR #108; CI green both runners).
 - **Spend:** coding only. No model-spend experiments were run.
 
 ## CHUNK 1 - F2: the operator surface for reshapes (built)
