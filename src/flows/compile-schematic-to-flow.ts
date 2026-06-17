@@ -702,6 +702,20 @@ function composeStagePathRationale(
 }
 
 export function compileSchematicToCompiledFlow(schematic: FlowSchematic): CompileResult {
+  // A flow that names itself as a sub-run target can never make progress: every
+  // entry into it re-enters the same flow. This is statically obvious, so reject
+  // it at compile time rather than leaving it for the runtime cycle guard to
+  // catch mid-run. Checked before the catalog gate so self-reference is reported
+  // as the most fundamental structural problem, not a downstream symptom.
+  const selfReference = schematic.items.find(
+    (item) => item.execution.kind === 'sub-run' && item.execution.flow_ref.flow_id === schematic.id,
+  );
+  if (selfReference !== undefined) {
+    fail(
+      `schematic '${schematic.id}' refers to itself: item '${selfReference.id}' is a sub-run whose flow_ref names the schematic's own id, which can never make progress`,
+    );
+  }
+
   // M5 (first-class composition): the fail-closed catalog gate. Every flow that
   // reaches the compiler — the eight built-ins at emit time and any composed or
   // edited flow at run time — must fit the block catalog. This is the route-aware

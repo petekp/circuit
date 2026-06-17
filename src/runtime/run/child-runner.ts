@@ -52,6 +52,12 @@ export interface CompiledFlowRunOptions {
   // Forwarded by the sub-run and fanout-branch executors; consumed in
   // resolveCheckpoint. Latent until a run invocation sets the parent unattended.
   readonly unattended?: boolean;
+  // Recursion bound carried from the parent's sub-run executor into this child
+  // invocation: the child's run-context seeds itself from these instead of the
+  // top-level defaults, so depth and the ancestor chain accumulate across the
+  // real run boundary. Absent on a top-level invocation (seeds depth 0).
+  readonly recursionDepth?: number;
+  readonly recursionAncestors?: ReadonlySet<string>;
   readonly now?: () => Date;
   readonly executors?: Partial<ExecutorRegistry>;
   readonly childExecutors?: Partial<ExecutorRegistry>;

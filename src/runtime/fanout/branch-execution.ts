@@ -14,6 +14,7 @@ import {
   type RelayConnector,
   executeProductionRelayAttempt,
 } from '../executors/relay.js';
+import { RECURSION_DEPTH_CAP } from '../executors/sub-run.js';
 import type { FanoutStep, RelayStep } from '../manifest/executable-flow.js';
 import type { WorktreeRunner } from '../run/child-runner.js';
 import { planRelayGuidanceDecision } from '../run/relay-guidance.js';
@@ -473,6 +474,51 @@ export async function executeSubRunFanoutBranch(
     };
   }
 
+  // Recursion bound, the fanout-branch twin of the single-child sub-run guard.
+  // A fanout branch spawns a child run through the same childRunner, so it can
+  // recurse unbounded the same way. Decided before childRunner is called, so a
+  // refused branch never starts a child run, and recorded as a legible branch
+  // failure (admitted: false) the join policy then weighs, rather than a crash.
+  const currentDepth = context.recursionDepth ?? 0;
+  const childDepth = currentDepth + 1;
+  const ancestors = context.recursionAncestors ?? new Set<string>();
+  const refuseBranch = async (failureReason: string): Promise<BranchOutcome> => {
+    const durationMs = Math.max(0, Date.now() - startMs);
+    await appendFanoutBranchCompleted(context, {
+      step_id: step.id,
+      attempt,
+      branch_id: branch.branch_id,
+      branch_kind: 'sub-run',
+      child_run_id: childRunId,
+      child_outcome: 'aborted',
+      verdict: NO_VERDICT_SENTINEL,
+      duration_ms: durationMs,
+      result_path: resultPath,
+    });
+    return {
+      branch_id: branch.branch_id,
+      child_run_id: childRunId,
+      worktree_path: worktreePath,
+      child_outcome: 'aborted',
+      verdict: NO_VERDICT_SENTINEL,
+      result_path: resultPath,
+      duration_ms: durationMs,
+      admitted: false,
+      failure_reason: failureReason,
+    };
+  };
+  if (childDepth > RECURSION_DEPTH_CAP) {
+    return await refuseBranch(
+      `fanout step '${step.id}': starting sub-run branch '${branch.branch_id}' into '${branch.flowRef}' at recursion depth ${childDepth} would exceed the recursion depth cap of ${RECURSION_DEPTH_CAP}`,
+    );
+  }
+  if (ancestors.has(branch.flowRef)) {
+    const chain = [...ancestors].join(' -> ');
+    return await refuseBranch(
+      `fanout step '${step.id}': sub-run branch '${branch.branch_id}' targets flow '${branch.flowRef}' which is already in the recursion ancestor chain [${chain}]; refusing to start it to avoid an unbounded recursion cycle`,
+    );
+  }
+
   try {
     const branchName = `circuit/${context.runId}/${step.id}/${branch.branch_id}`;
     await Promise.resolve(worktreeRunner.add({ worktreePath, baseRef: 'HEAD', branchName }));
@@ -507,6 +553,10 @@ export async function executeSubRunFanoutBranch(
         ? {}
         : { childCompiledFlowResolver: context.childCompiledFlowResolver }),
       childRunner: context.childRunner,
+      // Carry the bound forward so a branch's own descendants keep accumulating
+      // depth and the ancestor chain (this branch's target id joins it).
+      recursionDepth: childDepth,
+      recursionAncestors: new Set([...ancestors, branch.flowRef]),
       externalFiles: context.externalFiles,
       projectRoot: worktreePath,
       ...(context.evidencePolicy === undefined ? {} : { evidencePolicy: context.evidencePolicy }),

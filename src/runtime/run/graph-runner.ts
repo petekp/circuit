@@ -78,6 +78,12 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   // a terminal outcome rather than park. Threaded onto RunContext; see
   // RunContext.unattended and resolveCheckpoint.
   readonly unattended?: boolean;
+  // Recursion bound. On a top-level run both are absent and the context seeds
+  // depth 0 with the run's own flow id as the sole ancestor. On a child run the
+  // sub-run executor forwards the parent's incremented depth and extended
+  // ancestor chain, so the bound accumulates rather than resetting per run.
+  readonly recursionDepth?: number;
+  readonly recursionAncestors?: ReadonlySet<string>;
   readonly maxSteps?: number;
   readonly resumeCheckpoint?: {
     readonly stepId: string;
@@ -298,6 +304,11 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...(options.depth === undefined ? {} : { depth: options.depth }),
     ...(options.axes === undefined ? {} : { axes: options.axes }),
     ...(options.unattended === undefined ? {} : { unattended: options.unattended }),
+    // Seed the recursion bound. A top-level run starts at depth 0 with itself as
+    // the only ancestor; a child run inherits the forwarded depth and chain. The
+    // sub-run executor reads these to enforce the cap and the cycle guard.
+    recursionDepth: options.recursionDepth ?? 0,
+    recursionAncestors: options.recursionAncestors ?? new Set([flow.id]),
     now: boundary.clock.now,
     files,
     trace,
