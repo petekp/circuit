@@ -1,14 +1,23 @@
 # Parallel decision inbox (chunk A3)
 
-> Status: SURFACE-ONLY. Decision-ready spec, not committed to the engine.
-> Written for the overnight run. Grounds against origin/main code in
-> `src/app/run-status/`, `src/app/process-evidence/`, `src/app/operator-summary/`,
-> `src/app/run-envelope/`, `src/cli/`, and `src/app/continuity/`.
+> Status: **PARTLY BUILT — the read-only inbox (A3-now) SHIPPED; bulk resume
+> (A3-later) still gated.** Updated 2026-06-16. The recommendation below was
+> followed: the read-only inbox (discovery + filter on `checkpoint_waiting` +
+> staleness triage + links to per-run resume) shipped as
+> `src/app/inbox/discover.ts` + `src/app/inbox/render.ts` + `src/cli/inbox.ts`
+> (PR #99). The **A3-later bulk-resume driver** remains a spec — its real value is
+> reviving crashes, which needs a substrate that can revive non-checkpoint parks,
+> and that path is now the Option-C restart-cheapness work
+> ([`durability-tier3-restart-linkage-spec.md`](durability-tier3-restart-linkage-spec.md)),
+> not the abandoned forward-recovery cursor. See
+> [`north-star-status.md`](north-star-status.md).
 >
-> **Gating: A3 is gated on A1 (the Tier-2 resumable cursor).** A1 only banked its
-> foundation slice this run. An inbox that promises *bulk resume* is promising
-> something the substrate can only honor for one shape of parked run today. See
-> "Why this is gated on A1" at the end.
+> *(Original status: "SURFACE-ONLY. … Gating: A3 is gated on A1." The gating
+> applied to bulk resume only; the read-only surface promised nothing the substrate
+> could not honor, which is why it shipped first.)* Grounds against origin/main
+> code in `src/app/run-status/`, `src/app/process-evidence/`,
+> `src/app/operator-summary/`, `src/app/run-envelope/`, `src/cli/`, and
+> `src/app/continuity/`.
 
 ---
 

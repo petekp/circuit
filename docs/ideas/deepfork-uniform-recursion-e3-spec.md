@@ -1,12 +1,20 @@
 # Deep fork (i): uniform recursion (E3)
 
-> Status: **surface-only spike + decision-ready spec.** Written 2026-06-16.
-> This is a B4 "deep fork." It is a throwaway spike captured as a spec, not a
-> build. **It must never be merged into `src/`.** The code sketch below is
-> illustrative only - it shows the shape, it is not committed and not tested.
+> Status: **partly built — the bound (Step 1) SHIPPED to `src/`; splice-as-leaf
+> and the reduced-bindings oracle still surfaced.** Written 2026-06-16; status
+> updated 2026-06-16 after the recompile foundation run.
 >
-> Grounded against `origin/main` at `571e0523`. File:line references verified
-> in `/Users/petepetrash/Code/circuit`.
+> The recommendation below sequences three pieces: (1) depth cap + cycle guard,
+> (2) the non-empty `reducedBindings` oracle, (3) splice-as-leaf behind a flag.
+> **Piece (1) is now built.** `RECURSION_DEPTH_CAP = 8` plus an ancestor-flow-id
+> cycle guard is threaded child-to-child across BOTH child-run edges
+> (`src/runtime/executors/sub-run.ts`, `src/runtime/fanout/branch-execution.ts`),
+> with a compile-time self-reference reject. So the "No recursion bound" gap in
+> "What's true today" below is RESOLVED; the rest of the fork stands unchanged.
+> Pieces (2) and (3) are NOT built and remain surface-only / separately ratified.
+> See [`recompile-foundation-run-report.md`](recompile-foundation-run-report.md)
+> and [`north-star-status.md`](north-star-status.md). The code sketch lower down is
+> still illustrative only; file:line references were verified at write time.
 
 ## The fork in one line
 
@@ -44,7 +52,9 @@ Three concrete gaps make the inline case not yet real:
    docblock at `:92-95` says the non-empty case "needs the block-level needs
    model composed flows bring." The run-bootstrap trace writes that empty set
    today (`src/runtime/run/graph-runner.ts:425`).
-3. **No recursion bound.** `child_depth: step.depth`
+3. **No recursion bound.** *(RESOLVED — see the status note above. This gap was
+   the original write-time state; the bound has since shipped to `src/`.)*
+   `child_depth: step.depth`
    (`src/runtime/executors/sub-run.ts:171`) is an **axis dial**, not a recursion
    counter. The sub-run executor passes `childRunner` straight to the child
    (`src/runtime/executors/sub-run.ts:193`), so a flow that sub-ran itself would
@@ -83,15 +93,27 @@ being unbounded and stops being illegible.
 
 ## Recommendation
 
+> **Progress (2026-06-16):** step (1) of the sequence below — **the depth cap +
+> cycle guard — is SHIPPED to `src/`.** Steps (2) the `reducedBindings` oracle and
+> (3) splice-as-leaf remain unbuilt / surfaced.
+
 **Option A is the destination; ship Option B's two safety pieces first, then take
 A behind a flag.** The bound and the oracle are needed under *both* options and are
 cheap, so build them now regardless. Splice-as-leaf is the real prize but it
 relocates the isolation boundary, which is a deliberate design choice that wants
 its own ratification - do not fold it into the safety pass. Sequence:
-(1) depth cap + cycle guard, (2) non-empty `reducedBindings`, (3) splice-as-leaf
-behind an engine flag, proven against the existing sub-run machinery first.
+(1) depth cap + cycle guard ✅ **built**, (2) non-empty `reducedBindings`, (3)
+splice-as-leaf behind an engine flag, proven against the existing sub-run
+machinery first.
 
 ## The bounded-recursion design (needed under both options)
+
+> **Built as recommended.** The shipped bound took the run-context option below
+> (depth + ancestor set threaded child-to-child), added the compile-time
+> self-reference reject, and — beyond this section's original scope — closed the
+> *second* child-run edge (the fanout sub-run branch), not just the named one.
+> The cycle guard fails an `a -> b -> a` chain on the first repeat with a legible
+> message. See `recompile-foundation-run-report.md` for the proof and the tests.
 
 The question is *where the counter lives*. Three candidates, picked by where the
 recursion edge is actually created:

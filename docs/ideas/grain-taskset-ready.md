@@ -1,13 +1,25 @@
 # Grain × separability — the taskset is now ready to vet (still not run)
 
-> Status: **taskset built and pre-registered; harness gap closed; B0 not yet
-> re-run; no model spend taken.** This is the go-forward surface that replaces
-> the blocking half of [`grain-experiment-deferred.md`](grain-experiment-deferred.md).
-> That doc deferred the experiment at its own Step-0 (B0) precondition because
-> the eval taskset had no entangled or mixed tasks — both grains would pass
-> everything and the result would be null-by-construction. The two things B0
-> needed are now in place. **Vet the four new tasks, then re-run B0; do not run
-> the experiment or touch the structure chooser until that vet passes.**
+> Status: **DONE — B0 re-passed, the experiment RAN (2026-06-16), verdict NULL.**
+> Status updated 2026-06-16. The four tasks were vetted, B0 re-passed, and the
+> standard-tier run executed (40 runs, ≈$24). The false-fixed rate was 0 in every
+> cell, so the verdict is **null on the pre-committed metric** and the structure
+> chooser held its thin-conservative default. Full results:
+> [`grain-chooser-run-report.md`](grain-chooser-run-report.md).
+>
+> **One important correction to the side effect below:** the "held-out claim set
+> grew 14 → 18" consequence was *unwound*, not kept. The four grain tasks were
+> isolated into their own eval set `evals/grain-separability/` (PR #100), and the
+> `fix-vs-vanilla` held-out split was **restored to its original 14 tasks**, so the
+> grain experiment can never contaminate the claim suite. See the "Side effect"
+> section below for the now-superseded plan.
+>
+> *(Original status: "taskset built and pre-registered; harness gap closed; B0 not
+> yet re-run; no model spend taken." The go-forward surface that replaced the
+> blocking half of [`grain-experiment-deferred.md`](grain-experiment-deferred.md):
+> that doc deferred the experiment at its Step-0 (B0) precondition because the eval
+> taskset had no entangled or mixed tasks. The two things B0 needed were put in
+> place here.)*
 
 ## What changed since the deferral
 
@@ -54,6 +66,13 @@ single-module tasks used flat `fixtures/naive.mjs`). This is additive and only
 affects the new tasks.
 
 ## Side effect to vet loudly: the held-out claim set grew 14 → 18
+
+> **SUPERSEDED (2026-06-16):** this side effect was *not* kept. PR #100 isolated
+> the four grain tasks into a separate `evals/grain-separability/` set (claim
+> level: discovery; claim-eligible: false) and restored the `fix-vs-vanilla`
+> held-out split to its original **14** tasks. The held-out claim set did not grow.
+> The decision below ("either keep them in the held-out set or pull them") was made
+> by pulling them into their own set. The original analysis is kept for the record.
 
 These four tasks are `split: held-out`, `provenance: held-out-created`,
 `tuning_used: false` — required by the manifest hygiene contract

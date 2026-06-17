@@ -1,6 +1,20 @@
 # Two-track plan: the M-spine and the exploration substrate
 
-> Written 2026-06-13. A plan for making the recursion / holism-separation /
+> Status: **largely realized; superseded in framing.** Written 2026-06-13;
+> status note added 2026-06-16. The decision-layer framing in
+> [`decision-layer-exploration.md`](decision-layer-exploration.md) is the successor
+> to this plan, and the substrate this plan scoped has since been built: the M-spine
+> (Track A — the typed seam M5/M8) merged with the first-class-composition work, and
+> the start-now-additive pieces shipped — **equipment scope** (primitive 3b, PR #89
+> + the equipment resolver) and **commensurable traces / the quality ratchet** (the
+> offline flow lab, `experiments/flow-lab/`). What remains on the gated track is the
+> self-similar-unit merge (splice-as-leaf) and a fuller legible-composition surface,
+> both still surfaced — see
+> [`deepfork-uniform-recursion-e3-spec.md`](deepfork-uniform-recursion-e3-spec.md)
+> and [`north-star-status.md`](north-star-status.md). The plan below is kept as the
+> dependency-cut record.
+>
+> A plan for making the recursion / holism-separation /
 > re-integration techniques *cheap to explore*, without destabilizing the
 > in-flight first-class-composition migration. The core claim from the prior
 > analysis: finishing M1–M9 does **not** by itself hand you an exploration

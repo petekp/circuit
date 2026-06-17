@@ -1,12 +1,28 @@
 # Experiment design: grain × task-separability
 
-> Pre-registered design. **Status: designed, not run.** Fire at **M7** (when it
-> informs the assembler's chop/hold heuristic) or earlier if a specific M7 design
-> fork needs grain evidence to settle it. Built on E1's harness and methodology
-> (`experiments/e1/`, the B1 matrix runner) and the E1 run report. Designed now,
-> while the thinking is fresh, so the run — when it comes — is well-formed rather
-> than hasty. Pre-registering the hypotheses and the decision rule guards against
-> fitting a story to noisy data (the n=1 lesson from the first live run).
+> Pre-registered design. **Status: designed AND RUN (2026-06-16) — verdict NULL on
+> the pre-committed metric.** The experiment was first deferred at its Step-0 gate
+> (no entangled tasks; see
+> [`grain-experiment-deferred.md`](grain-experiment-deferred.md)), then the taskset
+> was built and the harness gap closed
+> ([`grain-taskset-ready.md`](grain-taskset-ready.md)), B0 re-passed, and the run
+> executed: 40 live runs (4 tasks × 2 grains × 5 repeats), ≈$24. **The false-fixed
+> rate was 0 in every cell** — both grains, both bands — so neither H-coherence nor
+> H-verification could be adjudicated: the honesty metric the design hinges on
+> never fired. The decision rule routed the null to its explicit branch: **hold the
+> thin-conservative chooser and surface "needs more data."** No chooser code
+> changed. The design below stands as written and was followed faithfully; what it
+> taught is that these held-out fix tasks induce *honest* failure (abort/miss), not
+> dishonest completion, regardless of grain. The real follow-up is tasks that
+> actually provoke a false claim of done, not more repeats. Full results:
+> [`grain-chooser-run-report.md`](grain-chooser-run-report.md).
+>
+> *(Original framing, kept as the design record: "designed, not run. Fire at M7 …")*
+> Built on E1's harness and methodology (`experiments/e1/`, the B1 matrix runner)
+> and the E1 run report. Designed while the thinking was fresh, so the run — when it
+> came — was well-formed rather than hasty. Pre-registering the hypotheses and the
+> decision rule guards against fitting a story to noisy data (the n=1 lesson from
+> the first live run).
 
 ## The question it answers
 

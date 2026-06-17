@@ -1,12 +1,33 @@
 # Paper→site flow — build brief
 
-> Status: build brief for the first **hand-authored, non-`build`-shaped** Circuit
-> flow. Written 2026-06-14. Codifies the "research paper → public interactive
-> site" pipeline the operator ran once by hand (on *Some Simple Economics of AGI*
-> → the `the-gap` site) into a reusable flow, so future papers run with the
-> operator steering at **two** genuine forks instead of hours of back-and-forth.
-> Goal is a **runnable v1 to refine by testing on a second paper** — not a perfect
-> flow. Ground every step against the real artifacts in `~/Code/human-in-the-loop`.
+> Status: **BUILT (v1 shipped to `main`, PR #90) AND run on a second paper.** Build
+> brief written 2026-06-14; status updated 2026-06-16. The flow is the `explainer`
+> flow on `main` (`src/flows/explainer/`, in the catalog and generated surfaces),
+> the first **hand-authored, non-`build`-shaped** Circuit flow. v1 was then run on
+> a second, unseen paper ("Attention Is All You Need") as the generalization test
+> this brief calls for — see
+> [`paper-to-site-2nd-run-findings.md`](paper-to-site-2nd-run-findings.md).
+>
+> **What the 2nd run taught:** the *editorial* spine generalized well (faithful,
+> notation-preserving, house-style output on a paper it had never seen), but the
+> *operational plumbing* did not. It surfaced concrete, still-open findings: a
+> greenfield-scaffold gap (the flow assumes a Node project already exists), the
+> headline **recovery-binding hard-abort bug** (`build-step` selects recovery route
+> `stop` but the WorkContract declares no matching binding, so a child build abort
+> hard-aborts the whole parent and re-spends the editorial fan-out), a build-child
+> budget ceiling, faked digest/ideate steps that want to become real model-backed
+> blocks, and verify-stage gaps (no automated fidelity or a11y check) — plus
+> operator-noted craft gaps (responsive layout + animations). None are fixed on
+> `main` yet; the recovery fix is in flight on `feat/paper-to-site-flow`. The
+> open-findings list is tracked in [`north-star-status.md`](north-star-status.md).
+>
+> *(Original goal, kept for the record: "a runnable v1 to refine by testing on a
+> second paper — not a perfect flow.")* Codifies the "research paper → public
+> interactive site" pipeline the operator ran once by hand (on *Some Simple
+> Economics of AGI* → the `the-gap` site) into a reusable flow, so future papers run
+> with the operator steering at **two** genuine forks instead of hours of
+> back-and-forth. Ground every step against the real artifacts in
+> `~/Code/human-in-the-loop`.
 
 ## What this is (and why it's a good first non-build flow)
 

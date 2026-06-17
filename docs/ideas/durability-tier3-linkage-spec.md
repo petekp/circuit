@@ -1,14 +1,22 @@
 # Durability Tier-3 — crash-safe sub-run / fanout linkage (chunk A2)
 
-> Status: SURFACE-ONLY. Decision-ready spec, not committed to the engine.
-> Written for the overnight run. Grounds against the fallible-executor audit
-> (`fallible-executor-audit.md`, Check 6 and the Tier-3 sizing) and origin/main
-> code at `src/runtime/executors/sub-run.ts` and `src/runtime/executors/fanout.ts`.
+> Status: **PARTLY BUILT — the reaper (A2-now) SHIPPED; the linkage (A2-later)
+> still surfaced.** Updated 2026-06-16. The recommendation below was followed: the
+> startup worktree reaper (Option 1) shipped as an A1-independent fix
+> (`src/runtime/fanout/worktree-reaper.ts` + `src/runtime/fanout/run-owner-lock.ts`
+> + `src/cli/reclaim.ts`, PR #99). The deeper **A2-later linkage** — deterministic
+> child ids + intent records + skip-finished — remains a spec, and is now folded
+> into the Option-C restart path
+> ([`durability-tier3-restart-linkage-spec.md`](durability-tier3-restart-linkage-spec.md)),
+> not the abandoned forward-recovery cursor. See
+> [`north-star-status.md`](north-star-status.md).
 >
-> **Gating: A2 is gated on A1 (the Tier-2 resumable cursor).** A1 only banked its
-> foundation slice this run (`RecoveryCorridor.seedFromTrace`, inert until a cursor
-> consumes it). The full cursor is multi-week. So A2 stays a spec until A1 lands.
-> See "Why this is gated on A1" at the end.
+> *(Original status: "SURFACE-ONLY. Decision-ready spec, not committed to the
+> engine. … Gating: A2 is gated on A1." The gating applied to A2-later only; the
+> reaper was always A1-independent, which is exactly why it shipped first.)*
+> Grounds against the fallible-executor audit (`fallible-executor-audit.md`,
+> Check 6 and the Tier-3 sizing) and origin/main code at
+> `src/runtime/executors/sub-run.ts` and `src/runtime/executors/fanout.ts`.
 
 ---
 
