@@ -65457,9 +65457,8 @@ async function resumeCompiledFlowResult(options) {
   });
   if (isCheckpointResumeRejectedResult(boundaryValidation))
     return boundaryValidation;
-  const projectedWorkContractRef = runtimeWorkContractRefForProjectedRef(projectWorkContractProjectionV0({
-    flow
-  }).contract_ref);
+  const workContractProjection = projectWorkContractProjectionV0({ flow });
+  const projectedWorkContractRef = runtimeWorkContractRefForProjectedRef(workContractProjection.contract_ref);
   if (requestContext.workContractRef !== void 0 && !sameWorkContractIdentity(requestContext.workContractRef, projectedWorkContractRef)) {
     return checkpointResumeRejected("runtime checkpoint resume rejected: work_contract_ref does not match saved flow");
   }
@@ -65480,6 +65479,14 @@ async function resumeCompiledFlowResult(options) {
     manifestHash: snapshot.hash,
     manifestBytes: flowBytes,
     workContractRef,
+    // Thread the recovery route bindings the top-level run path already supplies
+    // (compiled-flow-runner.ts). Without them, graph-runner defaults the binding
+    // list to [] whenever a work_contract_ref is present, so a step that takes a
+    // recovery route after resume (e.g. a failed sub-run child degrading onto
+    // `stop`) finds no matching binding and HARD-ABORTS the parent instead of
+    // routing the degrade. The bindings derive from the flow's routes, so the
+    // projection here yields the same list the top-level path projected.
+    recoveryRouteBindings: workContractProjection.work_contract.recovery,
     ...depth === void 0 ? {} : { depth },
     ...requestContext.axes === void 0 ? {} : { axes: requestContext.axes },
     ...options.now === void 0 ? {} : { now: options.now },

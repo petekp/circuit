@@ -619,10 +619,9 @@ export async function resumeCompiledFlowResult(
     traceBoundaryHash: traceBoundary.boundaryHash,
   });
   if (isCheckpointResumeRejectedResult(boundaryValidation)) return boundaryValidation;
+  const workContractProjection = projectWorkContractProjectionV0({ flow });
   const projectedWorkContractRef = runtimeWorkContractRefForProjectedRef(
-    projectWorkContractProjectionV0({
-      flow,
-    }).contract_ref,
+    workContractProjection.contract_ref,
   );
   if (
     requestContext.workContractRef !== undefined &&
@@ -649,6 +648,14 @@ export async function resumeCompiledFlowResult(
     manifestHash: snapshot.hash,
     manifestBytes: flowBytes,
     workContractRef,
+    // Thread the recovery route bindings the top-level run path already supplies
+    // (compiled-flow-runner.ts). Without them, graph-runner defaults the binding
+    // list to [] whenever a work_contract_ref is present, so a step that takes a
+    // recovery route after resume (e.g. a failed sub-run child degrading onto
+    // `stop`) finds no matching binding and HARD-ABORTS the parent instead of
+    // routing the degrade. The bindings derive from the flow's routes, so the
+    // projection here yields the same list the top-level path projected.
+    recoveryRouteBindings: workContractProjection.work_contract.recovery,
     ...(depth === undefined ? {} : { depth }),
     ...(requestContext.axes === undefined ? {} : { axes: requestContext.axes }),
     ...(options.now === undefined ? {} : { now: options.now }),

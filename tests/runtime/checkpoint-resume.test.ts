@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { projectRunStatusFromRunFolder } from '../../src/app/run-status/run-folder-projector.js';
 import { main } from '../../src/cli/circuit.js';
@@ -14,14 +14,20 @@ import {
   resumeCompiledFlow,
   resumeCompiledFlowResult,
 } from '../../src/runtime/run/checkpoint-resume.js';
+import type {
+  CompiledFlowRunOptions,
+  CompiledFlowRunner,
+} from '../../src/runtime/run/child-runner.js';
 import { runCompiledFlowWithWaiting } from '../../src/runtime/run/compiled-flow-runner.js';
 import { isGraphCheckpointWaitingResult } from '../../src/runtime/run/graph-runner.js';
+import type { GraphRunResult } from '../../src/runtime/run/run-close.js';
 import { LayeredConfig } from '../../src/schemas/config.js';
 import { PolicyLayer } from '../../src/schemas/policy-envelope.js';
 import { ProgressEvent } from '../../src/schemas/progress-event.js';
 import { RunResult } from '../../src/schemas/result.js';
 import { sha256Hex } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
+import { runResultPath } from '../../src/shared/result-path.js';
 import { captureJson, deterministicNow, makeStubRelayer } from '../helpers/runtime-fixtures.js';
 import { withScopedEnv } from '../helpers/scoped-env.js';
 
@@ -230,6 +236,154 @@ function completedAttemptFixtureFlow(): unknown {
       },
       ...base.steps,
     ],
+  };
+}
+
+// A flow shaped like the explainer: an operator checkpoint that resumes into a
+// sub-run "build" step. The sub-run declares a `stop` recovery route, so a child
+// that closes non-complete degrades onto `stop -> @stop` (the parent reaches a
+// clean `stopped` terminal it can route) rather than crashing. The explainer
+// always parks at its PICK checkpoint, so its build step is only ever reached
+// via resume — which is exactly the path that used to drop the recovery
+// bindings and hard-abort. This fixture reproduces that path.
+function checkpointThenSubRunFixtureFlow(): unknown {
+  return {
+    schema_version: '3',
+    id: 'checkpoint-subrun-fixture',
+    version: '0.1.0',
+    purpose: 'Checkpoint then a sub-run build step — resume recovery-binding parity.',
+    axes: {
+      allowed_depths: ['high'],
+      supports_tournament: false,
+      supports_autonomous: false,
+      default: { depth: 'high', tournament: false, tournament_n: 3, autonomous: false },
+    },
+    starts_at: 'checkpoint-step',
+    stages: [
+      { id: 'frame-stage', title: 'Frame', canonical: 'frame', steps: ['checkpoint-step'] },
+      { id: 'act-stage', title: 'Act', canonical: 'act', steps: ['build-step'] },
+    ],
+    stage_path_policy: {
+      mode: 'partial',
+      omits: ['analyze', 'plan', 'verify', 'review', 'close'],
+      rationale: 'Mirrors the explainer: a checkpoint that resumes into a sub-run build step.',
+    },
+    steps: [
+      {
+        id: 'checkpoint-step',
+        title: 'Checkpoint - wait for operator',
+        protocol: 'checkpoint-subrun-frame@v1',
+        reads: [],
+        routes: { continue: 'build-step', pass: 'build-step', stop: '@stop' },
+        executor: 'orchestrator',
+        kind: 'checkpoint',
+        policy: {
+          prompt: 'Choose whether the runtime fixture should continue.',
+          choices: [{ id: 'continue', label: 'Continue' }],
+          safe_default_choice: 'continue',
+        },
+        writes: {
+          request: 'reports/checkpoints/checkpoint-step-request.json',
+          response: 'reports/checkpoints/checkpoint-step-response.json',
+        },
+        check: {
+          kind: 'checkpoint_selection',
+          source: { kind: 'checkpoint_response', ref: 'response' },
+          allow: ['continue'],
+        },
+      },
+      {
+        id: 'build-step',
+        title: 'Build - sub-run child (mirrors explainer build-step)',
+        protocol: 'checkpoint-subrun-build@v1',
+        reads: [],
+        routes: { pass: '@complete', stop: '@stop' },
+        executor: 'orchestrator',
+        kind: 'sub-run',
+        flow_ref: { flow_id: 'checkpoint-subrun-child', entry_mode: 'default' },
+        goal: 'sub-run child goal',
+        depth: 'high',
+        writes: { result: 'reports/build-child-result.json' },
+        check: {
+          kind: 'result_verdict',
+          source: { kind: 'sub_run_result', ref: 'result' },
+          pass: ['accept'],
+        },
+      },
+    ],
+  };
+}
+
+function checkpointSubRunChildFlow(): unknown {
+  return {
+    schema_version: '3',
+    id: 'checkpoint-subrun-child',
+    version: '0.1.0',
+    purpose: 'Stub child for the checkpoint sub-run resume fixture.',
+    axes: {
+      allowed_depths: ['high'],
+      supports_tournament: false,
+      supports_autonomous: false,
+      default: { depth: 'high', tournament: false, tournament_n: 3, autonomous: false },
+    },
+    starts_at: 'child-step',
+    stages: [{ id: 'act-stage', title: 'Act', canonical: 'act', steps: ['child-step'] }],
+    stage_path_policy: {
+      mode: 'partial',
+      omits: ['frame', 'analyze', 'plan', 'verify', 'review', 'close'],
+      rationale: 'Narrow stub child for the resume sub-run fixture.',
+    },
+    steps: [
+      {
+        id: 'child-step',
+        title: 'Child compose',
+        protocol: 'child-compose@v1',
+        reads: [],
+        routes: { pass: '@complete' },
+        executor: 'orchestrator',
+        kind: 'compose',
+        writes: { report: { path: 'reports/child-compose.json', schema: 'child-compose@v1' } },
+        check: {
+          kind: 'schema_sections',
+          source: { kind: 'report', ref: 'report' },
+          required: ['summary'],
+        },
+      },
+    ],
+  };
+}
+
+// A stub child runner that closes the child with a non-complete outcome, so the
+// parent's sub-run step takes its `stop` recovery route (sub-run.ts) rather than
+// admitting a verdict. This is the "failed build child" the explainer hit.
+function makeAbortingChildRunner(): CompiledFlowRunner {
+  return async (options: CompiledFlowRunOptions): Promise<GraphRunResult> => {
+    const childResultAbs = runResultPath(options.runDir);
+    mkdirSync(dirname(childResultAbs), { recursive: true });
+    const body = RunResult.parse({
+      schema_version: 1,
+      run_id: options.runId ?? 'child-run',
+      flow_id: 'checkpoint-subrun-child',
+      goal: options.goal,
+      outcome: 'aborted',
+      summary: 'stub child aborted to exercise parent recovery routing',
+      closed_at: new Date(0).toISOString(),
+      trace_entries_observed: 1,
+      manifest_hash: 'stub-manifest-hash',
+    });
+    writeFileSync(childResultAbs, `${JSON.stringify(body, null, 2)}\n`);
+    return {
+      schema_version: body.schema_version,
+      run_id: body.run_id,
+      flow_id: body.flow_id,
+      goal: body.goal,
+      outcome: body.outcome,
+      summary: body.summary,
+      closed_at: body.closed_at,
+      trace_entries_observed: body.trace_entries_observed,
+      manifest_hash: body.manifest_hash,
+      resultPath: childResultAbs,
+    };
   };
 }
 
@@ -458,6 +612,45 @@ describe('runtime checkpoint pause/resume fixture', () => {
     const progressTypes = progressEvents.map((event) => (event as { readonly type: string }).type);
     expect(progressTypes).toContain('checkpoint.waiting');
     expect(progressTypes).toContain('user_input.requested');
+  });
+
+  it('resumes into a sub-run whose child fails and degrades onto stop -> @stop instead of hard-aborting', async () => {
+    const runDir = join(tempDir, 'resume-subrun-degrade');
+    await createWaitingFixture({
+      runDir,
+      now: deterministicNow(Date.UTC(2026, 0, 2)),
+      flowBytes: fixtureBytes(checkpointThenSubRunFixtureFlow()),
+    });
+
+    const result = await resumeCompiledFlow({
+      runDir,
+      selection: 'continue',
+      now: deterministicNow(Date.UTC(2026, 0, 3)),
+      childCompiledFlowResolver: () => ({ flowBytes: fixtureBytes(checkpointSubRunChildFlow()) }),
+      childRunner: makeAbortingChildRunner(),
+    });
+
+    // A failed child must degrade onto the parent's stop -> @stop recovery route,
+    // reaching a clean `stopped` terminal the parent can route — NOT a hard-abort
+    // that forces a full re-run. Before the resume binding fix this closed
+    // `aborted` with "...does not declare a matching recovery binding".
+    expect(result.outcome).toBe('stopped');
+    expect(result.reason ?? '').not.toMatch(/recovery binding/i);
+
+    const trace = await readTrace(runDir);
+    const kinds = trace.map((entry) => entry.kind);
+    // The sub-run recorded its child's non-success as a failed check (the degrade
+    // signal), and the parent did NOT abort the step.
+    expect(
+      trace.some(
+        (entry) =>
+          entry.kind === 'check.evaluated' &&
+          entry.step_id === ('build-step' as unknown as typeof entry.step_id) &&
+          entry.outcome === 'fail',
+      ),
+    ).toBe(true);
+    expect(kinds).not.toContain('step.aborted');
+    expect(kinds).toContain('run.closed');
   });
 
   it('resumes a runtime checkpoint, restores saved context, continues the graph, and closes', async () => {
