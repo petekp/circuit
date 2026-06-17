@@ -1121,6 +1121,29 @@
         "docs/ideas/recompile-foundation-run-report.md"
       ],
       "last_checked": "2026-06-16"
+    },
+    {
+      "path": "docs/ideas/overnight-reliability-run-report.md",
+      "title": "Overnight reliability run report",
+      "status": "implemented",
+      "category": "run-inspection-and-output",
+      "tags": [
+        "durability",
+        "reliability",
+        "recovery-binding",
+        "reuse-children",
+        "restart",
+        "context-pull",
+        "run-report"
+      ],
+      "current_reading": "Run report for the 2026-06-17 overnight reliability batch. Two safe, no-ratification changes landed in src/. CHUNK 1 threads recovery-route bindings into the checkpoint-resume path so a failed sub-run child degrades onto its recovery route instead of hard-aborting the resumed parent (PR #105). CHUNK 2 adds circuit run --reuse-children-from, a fresh run that reuses a dead run's finished sub-run fanout children by their stable (step_id, branch_id) structural address instead of re-running the expensive child, behind a four-gate safety floor that fails safe to a fresh run (PR #106). The optional on-demand context-pull spike is captured as a pure-function offline demonstrator in experiments/flow-lab/, where targeted typed pull reaches fat-push completeness at about a tenth of the carried bytes. The ratification-gated frontier (Step 3 structural reshape, the splice seam, splice-as-leaf recursion, resolver extraction) was held out. Final main SHA after the two chunks: 5fef310f.",
+      "related": [
+        "docs/ideas/durability-tier3-restart-linkage-spec.md",
+        "docs/ideas/durability-tier2-cursor-spec.md",
+        "docs/ideas/fallible-executor-audit.md",
+        "docs/ideas/step2-live-equipment-reshape-report.md"
+      ],
+      "last_checked": "2026-06-17"
     }
   ]
 }
