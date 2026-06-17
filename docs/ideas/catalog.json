@@ -1081,6 +1081,20 @@
       "last_checked": "2026-06-16"
     },
     {
+      "path": "docs/ideas/step2-live-equipment-reshape-report.md",
+      "title": "Step 2 run report - the live equipment reshape",
+      "status": "implemented",
+      "category": "flows-and-blocks",
+      "tags": ["recompile", "equipment", "reshape", "live", "run-report", "deep-fork"],
+      "current_reading": "Run report for Step 2 of the recompile foundation, the first time the engine adapts a flow that is already running. A relay can bubble up a confirmed runtime equipment discovery in its report; on a confirmed discovery the runner re-resolves equipment for the remaining relay steps and re-compiles through the existing pure chain, additively merging extra skills into those steps without touching the step sequence, so there is no splice seam. The catalog gate inside compile is the safety floor and an unconfirmed signal or a failed reshape falls back to the existing finding/checkpoint path. A per-run reshaper bounds the loop with a budget and cycle guard. Landed on main at 4fa7dae4 with full verify green. Records the two follow-ups (resume reseed, operator surface) and the recommendation to hold Step 3 structural reshape for ratification.",
+      "related": [
+        "docs/ideas/recompile-foundation-run-report.md",
+        "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
+        "docs/ideas/next-phase-build-brief.md"
+      ],
+      "last_checked": "2026-06-17"
+    },
+    {
       "path": "docs/ideas/decision-layer-exploration.md",
       "title": "The decision layer - making per-step choices first-class and trialable",
       "status": "current-strategy-context",
