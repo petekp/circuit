@@ -675,6 +675,28 @@ export const RunEquipmentReshapeTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type RunEquipmentReshapeTraceEntry = z.infer<typeof RunEquipmentReshapeTraceEntry>;
 
+// On-demand context-pull — the durable record of one typed lookup a running
+// step made against a parent's typed report. The sibling of equipment reshape:
+// reshape adapts the remaining steps, this records a step asking a parent for
+// one more named slice of context on demand. Written in the post-step seam for
+// each query a relay surfaced in its `context_request`. `answered:true` means
+// the named slice resolved and `bytes` is its serialized size; `answered:false`
+// means it parked as a finding (an "everything" ask, an exhausted budget, an
+// unknown parent, or an unanswerable path) and `reason` says which. Resolve-and-
+// record only — no step gains the value back in this cut, so the run is never
+// altered. Absent entirely on runs where no relay asks, keeping today's traces
+// byte-stable.
+export const RunContextPullTraceEntry = TraceEntryBase.extend({
+  kind: z.literal('run.context-pull'),
+  step_id: StepId,
+  from_step: z.string(),
+  field_path: z.string(),
+  answered: z.boolean(),
+  bytes: z.number().int().nonnegative().optional(),
+  reason: z.string().min(1),
+}).strict();
+export type RunContextPullTraceEntry = z.infer<typeof RunContextPullTraceEntry>;
+
 // Cross-variant superRefine enforces the
 // `RelayStartedTraceEntry.role === resolved_from.role` binding when
 // `resolved_from.source === 'role'`. Mirrors the Step pattern: keep each
@@ -711,6 +733,7 @@ export const TraceEntry = z
     RunSkillHookErrorTraceEntry,
     PowerInferenceResolvedTraceEntry,
     RunEquipmentReshapeTraceEntry,
+    RunContextPullTraceEntry,
     GuidanceDecisionTraceEntryBody,
   ])
   .superRefine((ev, ctx) => {

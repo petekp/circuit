@@ -34,6 +34,7 @@ export * from './axes.js';
 export * from './axis-config-requirement.js';
 export * from './acceptance-criteria.js';
 export * from './depth.js';
+export * from './context-request.js';
 export * from './engine-flags.js';
 export * from './equipment-discovery.js';
 export * from './equipment-scope.js';
