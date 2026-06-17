@@ -16,6 +16,7 @@ import {
 } from '../../shared/work-contract-projection.js';
 import { fromCompiledFlow } from '../manifest/from-compiled-flow.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
+import { createEquipmentReshaper } from './equipment-reshape.js';
 import {
   type GraphExecutionResult,
   executeExecutableFlowWithWaiting,
@@ -101,6 +102,16 @@ export async function runCompiledFlowWithWaiting(
       ...(options.why === undefined ? {} : { why: options.why }),
       manifestHash: computeManifestHash(options.flowBytes),
       manifestBytes: options.flowBytes,
+      // Step 2 — the live equipment reshaper, built once per run from the parsed
+      // compiled flow. The runner calls it when a relay surfaces a confirmed
+      // discovery; it re-resolves equipment and returns a re-validated executable
+      // tail, keeping the compiled form and the per-run bound encapsulated here.
+      // Every compiled-flow run flows through this — the standard run path and
+      // each recovery attempt alike — and each builds its own reshaper, so the
+      // bound is correctly scoped per run. Callers that invoke executeExecutableFlow*
+      // directly (tests, internal helpers) leave this undefined, and the whole
+      // reshape stays inert there.
+      equipmentReshaper: createEquipmentReshaper(flow),
       workContractRef: tracedWorkContractRef,
       recoveryRouteBindings: workContractProjection.work_contract.recovery,
       entryModeName,

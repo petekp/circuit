@@ -27178,8 +27178,8 @@ var SkillSlot = external_exports.object({
 }).strict();
 var SkillSlotArray = external_exports.array(SkillSlot).superRefine((slots, ctx) => {
   const seen = /* @__PURE__ */ new Set();
-  for (const [index, slot] of slots.entries()) {
-    const key = slot.id;
+  for (const [index, slot2] of slots.entries()) {
+    const key = slot2.id;
     if (seen.has(key)) {
       ctx.addIssue({
         code: "custom",
@@ -27904,13 +27904,13 @@ var Step = external_exports.discriminatedUnion("kind", [
   SubRunStep,
   FanoutStep
 ]).superRefine((step, ctx) => {
-  const slot = step.check.source.ref;
+  const slot2 = step.check.source.ref;
   const writes = step.writes;
-  if (!Object.hasOwn(writes, slot) || writes[slot] === void 0) {
+  if (!Object.hasOwn(writes, slot2) || writes[slot2] === void 0) {
     ctx.addIssue({
       code: "custom",
       path: ["check", "source", "ref"],
-      message: `check.source.ref "${slot}" does not resolve to a usable slot in step.writes (available: ${Object.keys(writes).join(", ")})`
+      message: `check.source.ref "${slot2}" does not resolve to a usable slot in step.writes (available: ${Object.keys(writes).join(", ")})`
     });
   }
   if (step.kind === "checkpoint") {
@@ -29874,12 +29874,12 @@ var BUILTIN_ROUTING_CONTRACT_SCHEMAS = Object.freeze({
 });
 
 // dist/flows/catalog-derivations.js
-function collectBuilderRegistry(packages, slot, pluck) {
+function collectBuilderRegistry(packages, slot2, pluck) {
   const map2 = /* @__PURE__ */ new Map();
   for (const pkg of packages) {
     for (const builder of pluck(pkg)) {
       if (map2.has(builder.resultSchemaName)) {
-        throw new Error(`duplicate ${slot} builder registered for schema '${builder.resultSchemaName}' (flow ${pkg.id})`);
+        throw new Error(`duplicate ${slot2} builder registered for schema '${builder.resultSchemaName}' (flow ${pkg.id})`);
       }
       map2.set(builder.resultSchemaName, builder);
     }
@@ -30097,13 +30097,13 @@ function validateFlowDataReports(input) {
     errors.push({ kind: "duplicate-flow-data-report", schemaName });
   }
   for (const report of reports) {
-    for (const slot of ["compose", "close", "verification", "checkpoint"]) {
-      for (const writer of report.writers?.[slot] ?? []) {
+    for (const slot2 of ["compose", "close", "verification", "checkpoint"]) {
+      for (const writer of report.writers?.[slot2] ?? []) {
         if (writer.resultSchemaName !== report.schemaName && !writerSchemaAliases.has(writer.resultSchemaName)) {
           errors.push({
             kind: "flow-data-report-writer-drift",
             schemaName: report.schemaName,
-            slot,
+            slot: slot2,
             resultSchemaName: writer.resultSchemaName
           });
         }
@@ -30226,13 +30226,13 @@ function validatePackageSet(packages) {
         throw new Error(`report file surface '${schemaName}' is not registered as a report schema for flow '${pkg.id}'`);
       }
     }
-    for (const [slot, builders] of Object.entries(pkg.writers)) {
+    for (const [slot2, builders] of Object.entries(pkg.writers)) {
       for (const builder of builders) {
         const owner = writerNames.get(builder.resultSchemaName);
         if (owner !== void 0) {
-          throw new Error(`duplicate writer result schema '${builder.resultSchemaName}' registered by ${owner} and ${pkg.id}.${slot}`);
+          throw new Error(`duplicate writer result schema '${builder.resultSchemaName}' registered by ${owner} and ${pkg.id}.${slot2}`);
         }
-        writerNames.set(builder.resultSchemaName, `${pkg.id}.${slot}`);
+        writerNames.set(builder.resultSchemaName, `${pkg.id}.${slot2}`);
       }
     }
   }
@@ -30496,6 +30496,18 @@ function mechanicalTail(schema, reportPath) {
   ].join(" ");
 }
 
+// dist/schemas/equipment-discovery.js
+var EquipmentDiscovery = external_exports.object({
+  confirmed: external_exports.boolean().describe("true ONLY on unambiguous runtime evidence; a hunch or a maybe must be false"),
+  // Bounded on both axes: the value is model-controlled and is copied verbatim
+  // into the durable run.equipment-reshape trace entry. Only a handful of tags
+  // map to a domain skill (the closed DOMAIN_SKILL table), so a long list is
+  // never useful — the caps just keep a pathological report from bloating the
+  // trace. Mirrors the evidence cap above.
+  domain_tags: external_exports.array(external_exports.string().min(1).max(40)).max(16).describe('technology signals confirmed at runtime, e.g. ["react"], that map to domain skills'),
+  evidence: external_exports.string().min(1).max(280).describe("one short sentence grounding the discovery in what was read")
+}).strict();
+
 // dist/schemas/runtime-evidence.js
 var RuntimeGitStateEntry = external_exports.object({
   status_code: external_exports.string().length(2),
@@ -30741,7 +30753,8 @@ var BuildContext = external_exports.object({
   slices: external_exports.array(BuildSlice).default([]).describe("ordered units of implementation work the change decomposes into, inferred from the codebase read; empty when the change is a single indivisible unit (the plan then runs one pass)"),
   guardrails: BuildGuardrails.default({ non_goals: [], invariants: [] }).describe("negative space: operator-stated non_goals extracted from the goal and code-grounded invariants the change must preserve; empty when none apply"),
   allowed_touch_area: AllowedTouchArea,
-  recommended_power: PowerRecommendation.optional().describe("ONLY when the relay context states the power dial is auto: the tier the downstream work needs, judged from the codebase read. Omit this key entirely otherwise")
+  recommended_power: PowerRecommendation.optional().describe("ONLY when the relay context states the power dial is auto: the tier the downstream work needs, judged from the codebase read. Omit this key entirely otherwise"),
+  equipment_discovery: EquipmentDiscovery.optional().describe("ONLY when the codebase read confirms a technology the downstream steps should be equipped for (e.g. React): the engine re-equips the remaining work steps for it. Set confirmed:true ONLY on unambiguous evidence; omit this key entirely when nothing is confirmed")
 }).strict();
 var BuildPlan = external_exports.object({
   objective: external_exports.string().min(1),
@@ -34203,6 +34216,15 @@ var PowerInferenceResolvedTraceEntry = TraceEntryBase.extend({
   resolved: Power,
   clamped: external_exports.boolean()
 }).strict();
+var RunEquipmentReshapeTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.equipment-reshape"),
+  step_id: StepId,
+  confirmed: external_exports.boolean(),
+  reshaped: external_exports.boolean(),
+  domain_tags: external_exports.array(external_exports.string()),
+  equipped_steps: external_exports.array(StepId).optional(),
+  reason: external_exports.string().min(1)
+}).strict();
 var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunBootstrappedTraceEntry,
   StepEnteredTraceEntry,
@@ -34232,6 +34254,7 @@ var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunSkillHookTraceEntry,
   RunSkillHookErrorTraceEntry,
   PowerInferenceResolvedTraceEntry,
+  RunEquipmentReshapeTraceEntry,
   GuidanceDecisionTraceEntryBody
 ]).superRefine((ev, ctx) => {
   if (ev.kind === "guidance.decision") {
@@ -34815,7 +34838,7 @@ var explainerSpecComposeBuilder = {
     const proposal = branch?.result_body;
     const fidelityCitations = [
       ...proposal?.fidelity_evidence ?? [concept.fidelity_anchor],
-      ...hardening.banned_phrase_findings.filter((finding) => finding.present).map((finding) => `Avoid "${finding.phrase}": ${finding.note}`)
+      ...hardening.banned_phrase_findings.filter((finding2) => finding2.present).map((finding2) => `Avoid "${finding2.phrase}": ${finding2.note}`)
     ];
     return ExplainerSpec.parse({
       concept_id: concept.id,
@@ -37481,7 +37504,8 @@ var FixDiagnosis = external_exports.object({
   confidence: external_exports.enum(["low", "medium", "high"]),
   evidence: LenientNonEmptyStringArray,
   residual_uncertainty: external_exports.array(external_exports.string().min(1).describe("remaining unknown that could still affect the fix")),
-  recommended_power: PowerRecommendation.optional().describe("ONLY when the relay context states the power dial is auto: the tier the downstream work needs, judged from the code you read. Omit this key entirely otherwise")
+  recommended_power: PowerRecommendation.optional().describe("ONLY when the relay context states the power dial is auto: the tier the downstream work needs, judged from the code you read. Omit this key entirely otherwise"),
+  equipment_discovery: EquipmentDiscovery.optional().describe("ONLY when the code you read confirms a technology the downstream steps should be equipped for (e.g. React): the engine re-equips the remaining work steps for it. Set confirmed:true ONLY on unambiguous evidence; omit this key entirely when nothing is confirmed")
 }).strict().transform((diagnosis) => {
   if (diagnosis.reproduction_status === "reproduced" || diagnosis.residual_uncertainty.length > 0) {
     return diagnosis;
@@ -39706,7 +39730,7 @@ var goalCloseBuilder = {
     const provenClaims = evaluation.claim_results.filter((claim) => claim.status === "proved").map((claim) => claim.claim_id);
     const weakClaims = evaluation.claim_results.filter((claim) => claim.status !== "proved").map((claim) => `${claim.claim_id}: ${claim.gap ?? claim.status}`);
     const gateClean = gate?.verdict === "gate-pass" && gate.clean_streak >= 2;
-    const lowGateFindings = gate?.low_findings.map((finding) => finding.text) ?? [];
+    const lowGateFindings = gate?.low_findings.map((finding2) => finding2.text) ?? [];
     const outcome = evaluation.verdict === "satisfied" && gateClean ? "complete" : recovery?.selected_route === "handoff" ? "handoff" : recovery?.selected_route === "blocked" ? "blocked" : attempt.outcome === "failed" ? "failed" : "needs_attention";
     const links = RESULT_POINTERS.flatMap((pointer) => {
       if (pointer.optional && context.inputs[pointer.report_id.split(".")[1] ?? ""] === void 0) {
@@ -43461,7 +43485,7 @@ var PursuitReview = external_exports.object({
   summary: external_exports.string().min(1),
   findings: external_exports.array(PursuitReviewFinding)
 }).strict().superRefine((review, ctx) => {
-  const mediumOrHigher = review.findings.filter((finding) => ["critical", "high", "medium"].includes(finding.severity));
+  const mediumOrHigher = review.findings.filter((finding2) => ["critical", "high", "medium"].includes(finding2.severity));
   if (review.verdict === "clean" && review.findings.length > 0) {
     ctx.addIssue({
       code: "custom",
@@ -44167,7 +44191,7 @@ var ReviewFinding = external_exports.object({
   file_refs: external_exports.array(external_exports.string().min(1))
 }).strict();
 function computeReviewVerdict(findings) {
-  return findings.some((finding) => finding.severity !== "low") ? "ISSUES_FOUND" : "CLEAN";
+  return findings.some((finding2) => finding2.severity !== "low") ? "ISSUES_FOUND" : "CLEAN";
 }
 var ReviewResult = external_exports.object({
   scope: external_exports.string().min(1),
@@ -44635,9 +44659,9 @@ function severityIntent(severity) {
 function findingList(findings) {
   if (findings.length === 0)
     return '<p class="summary">No actionable findings.</p>';
-  const items = findings.map((finding) => {
-    const refs = finding.file_refs.length === 0 ? "" : ` <span class="chip">${escapeHtml(finding.file_refs.join(", "))}</span>`;
-    return `<li><strong>${escapeHtml(finding.severity.toUpperCase())}</strong>: ${escapeHtml(finding.text)}${refs}</li>`;
+  const items = findings.map((finding2) => {
+    const refs = finding2.file_refs.length === 0 ? "" : ` <span class="chip">${escapeHtml(finding2.file_refs.join(", "))}</span>`;
+    return `<li><strong>${escapeHtml(finding2.severity.toUpperCase())}</strong>: ${escapeHtml(finding2.text)}${refs}</li>`;
   }).join("");
   return `<ul class="tradeoffs">${items}</ul>`;
 }
@@ -44679,8 +44703,8 @@ var reviewResultProjector = (ctx) => {
   const report = parsed.data;
   if (!shouldRenderHtml(report))
     return void 0;
-  const worstIntent = report.findings.reduce((intent, finding) => {
-    const findingIntent = severityIntent(finding.severity);
+  const worstIntent = report.findings.reduce((intent, finding2) => {
+    const findingIntent = severityIntent(finding2.severity);
     if (findingIntent === "negative")
       return "negative";
     if (findingIntent === "attention" && intent === "positive")
@@ -45346,6 +45370,129 @@ function collectSchematicCatalogIssues(schematic) {
     });
   }
   return issues;
+}
+
+// dist/flows/resolvers/equipment.js
+var slot = (id, description) => ({
+  id,
+  description
+});
+var ROLE_BASE_SKILL = {
+  researcher: slot("codebase-navigator", "Locate and read the code paths a task touches."),
+  implementer: slot("implementation-patterns", "Apply the smallest safe change idioms."),
+  reviewer: slot("review-rubric", "Check a change against correctness and scope.")
+};
+var DOMAIN_SKILL = {
+  react: slot("react-expert", "React component, hook, and JSX patterns."),
+  typescript: slot("typescript-strict", "Strict-mode TypeScript types and inference."),
+  sql: slot("sql-schema", "SQL schema, query, and migration patterns."),
+  database: slot("sql-schema", "SQL schema, query, and migration patterns."),
+  css: slot("css-layout", "CSS layout, spacing, and responsive patterns.")
+};
+function selectSkills(ctx) {
+  const base = ROLE_BASE_SKILL[ctx.role];
+  const slots = [base];
+  const seen = /* @__PURE__ */ new Set([base.id]);
+  for (const tag of ctx.domain_tags) {
+    const skill = DOMAIN_SKILL[tag.toLowerCase()];
+    if (skill === void 0)
+      continue;
+    const id = skill.id;
+    if (seen.has(id))
+      continue;
+    seen.add(id);
+    slots.push(skill);
+  }
+  return slots;
+}
+var ENFORCEMENT_DOWNGRADE_FINDING = "Requested enforced equipment, but skill_slots is additive injection with no withhold/allow-list \u2014 the kit is offered to the worker, not imposed as its only tools. Real enforcement needs the equipment_scope field (tool allow-list + write-tier), which this resolver does not set. Resolution downgraded to trusted.";
+function resolveEquipment(ctx, options = {}) {
+  const requested = options.requested ?? "trusted";
+  const choice = selectSkills(ctx);
+  const ids = choice.map((s) => s.id).join(", ");
+  const downgraded = requested === "enforced";
+  return {
+    axis: "equipment",
+    step_id: ctx.step_id,
+    choice,
+    binding_time: "assembly",
+    requested_enforcement: requested,
+    enforcement: "trusted",
+    downgraded,
+    finding: downgraded ? ENFORCEMENT_DOWNGRADE_FINDING : null,
+    rationale: `Attach [${ids}] to ${ctx.role} step '${ctx.step_id}' (trusted: offered to the worker, not enforced as its only kit).`
+  };
+}
+
+// dist/flows/equipment-reshape.js
+function mergeSlots(existing, injected) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const s of existing)
+    byId.set(s.id, s);
+  const added = [];
+  for (const s of injected) {
+    const id = s.id;
+    if (byId.has(id))
+      continue;
+    byId.set(id, s);
+    added.push(id);
+  }
+  return { merged: [...byId.values()], added };
+}
+function reResolveEquipmentOnCompiledFlow(input) {
+  const { sourceFlow, fromStepId, remainingRelayStepIds, discovery } = input;
+  if (!discovery.confirmed) {
+    return {
+      ok: false,
+      reason: `equipment discovery from step '${fromStepId}' is unconfirmed; recorded as a finding, flow unchanged`
+    };
+  }
+  const tags = discovery.domain_tags.filter((tag) => tag.trim().length > 0);
+  if (tags.length === 0) {
+    return {
+      ok: false,
+      reason: `equipment discovery from step '${fromStepId}' carried no usable domain tags; nothing to equip`
+    };
+  }
+  const equippedSteps = [];
+  let addedAny = false;
+  const steps = sourceFlow.steps.map((step) => {
+    if (step.kind !== "relay" || !remainingRelayStepIds.has(step.id))
+      return step;
+    const resolution = resolveEquipment({
+      step_id: step.id,
+      role: step.role,
+      domain_tags: tags
+    });
+    const { merged, added } = mergeSlots(step.skill_slots ?? [], resolution.choice);
+    if (added.length === 0)
+      return step;
+    addedAny = true;
+    equippedSteps.push(step.id);
+    return { ...step, skill_slots: merged };
+  });
+  if (!addedAny) {
+    return {
+      ok: false,
+      reason: `the remaining relay steps already carry the discovered equipment; nothing to inject (from step '${fromStepId}')`
+    };
+  }
+  let compiledFlow;
+  try {
+    compiledFlow = CompiledFlow.parse({ ...sourceFlow, steps });
+  } catch (error51) {
+    const message = error51 instanceof Error ? error51.message : String(error51);
+    return {
+      ok: false,
+      reason: `equipment reshape rejected by the compiled-flow schema gate: ${message}`
+    };
+  }
+  return {
+    ok: true,
+    compiledFlow,
+    equippedSteps,
+    rationale: `confirmed ${tags.join(", ")}; equipped ${equippedSteps.join(", ")} and re-validated the flow`
+  };
 }
 
 // dist/flows/compile-schematic-to-flow.js
@@ -55990,10 +56137,10 @@ function rejectUnknownKeys(label, value, allowed) {
 }
 function reportSlotsForStep(step) {
   const reports = [];
-  for (const [slot, value] of Object.entries(step.writes)) {
+  for (const [slot2, value] of Object.entries(step.writes)) {
     if (value !== null && typeof value === "object" && !Array.isArray(value) && "path" in value && "schema" in value) {
       const report = value;
-      reports.push({ step_id: step.id, slot, path: report.path, schema: report.schema });
+      reports.push({ step_id: step.id, slot: slot2, path: report.path, schema: report.schema });
     }
   }
   return reports;
@@ -56093,11 +56240,11 @@ function projectWorkContractProjectionV0(input) {
     if (step.selection !== void 0) {
       selectionHints.push(sourceRef(flow, flowHash, `compiled-flow/steps/${step.id}/selection`));
     }
-    for (const slot of step.skill_slots ?? []) {
+    for (const slot2 of step.skill_slots ?? []) {
       skillSlots.push({
         step_id: step.id,
-        slot_id: slot.id,
-        description: slot.description
+        slot_id: slot2.id,
+        description: slot2.description
       });
     }
     if (step.equipment_scope !== void 0) {
@@ -56419,8 +56566,8 @@ function validateExecutableFlow(flow) {
     for (const [index, ref] of (step.reads ?? []).entries()) {
       addRunFilePathIssues(issues, `step '${step.id}' read[${index}]`, ref);
     }
-    for (const [slot, ref] of Object.entries(step.writes ?? {})) {
-      addRunFilePathIssues(issues, `step '${step.id}' write '${slot}'`, ref);
+    for (const [slot2, ref] of Object.entries(step.writes ?? {})) {
+      addRunFilePathIssues(issues, `step '${step.id}' write '${slot2}'`, ref);
     }
     if (step.kind === "relay" && step.report !== void 0) {
       addRunFilePathIssues(issues, `relay step '${step.id}' report`, step.report);
@@ -56479,10 +56626,10 @@ function toRunFileRef(value) {
 }
 function toWrites(writes) {
   const mapped = {};
-  for (const [slot, value] of Object.entries(writes)) {
+  for (const [slot2, value] of Object.entries(writes)) {
     if (value === void 0)
       continue;
-    mapped[slot] = toRunFileRef(value);
+    mapped[slot2] = toRunFileRef(value);
   }
   return mapped;
 }
@@ -56606,6 +56753,60 @@ function fromCompiledFlow(flow) {
   };
   assertExecutableFlow(executable);
   return executable;
+}
+
+// dist/runtime/run/equipment-reshape.js
+var EQUIPMENT_RESHAPE_BUDGET = 3;
+function extractEquipmentDiscovery(report) {
+  if (report === null || typeof report !== "object")
+    return void 0;
+  const candidate = report.equipment_discovery;
+  if (candidate === void 0)
+    return void 0;
+  const parsed = EquipmentDiscovery.safeParse(candidate);
+  return parsed.success ? parsed.data : void 0;
+}
+function finding(message) {
+  return { reshaped: false, finding: message };
+}
+function createEquipmentReshaper(initialCompiledFlow) {
+  let current = initialCompiledFlow;
+  const budget = { remaining: EQUIPMENT_RESHAPE_BUDGET, touched: /* @__PURE__ */ new Set() };
+  return ({ fromStepId, remainingRelayStepIds, discovery }) => {
+    if (!discovery.confirmed) {
+      return finding(`equipment discovery from step '${fromStepId}' is unconfirmed; recorded as a finding, flow unchanged`);
+    }
+    if (budget.remaining <= 0) {
+      return finding(`equipment reshape budget exhausted at step '${fromStepId}'; recorded as a finding, flow unchanged`);
+    }
+    if (budget.touched.has(fromStepId)) {
+      return finding(`step '${fromStepId}' already reshaped this run (cycle guard); recorded as a finding, flow unchanged`);
+    }
+    const candidate = reResolveEquipmentOnCompiledFlow({
+      sourceFlow: current,
+      fromStepId,
+      remainingRelayStepIds,
+      discovery
+    });
+    if (!candidate.ok)
+      return finding(candidate.reason);
+    let executableFlow;
+    try {
+      executableFlow = fromCompiledFlow(candidate.compiledFlow);
+    } catch (error51) {
+      const message = error51 instanceof Error ? error51.message : String(error51);
+      return finding(`equipment reshape rejected by the executable-graph safety floor: ${message}`);
+    }
+    budget.remaining -= 1;
+    budget.touched.add(fromStepId);
+    current = candidate.compiledFlow;
+    return {
+      reshaped: true,
+      executableFlow,
+      equippedSteps: candidate.equippedSteps,
+      rationale: candidate.rationale
+    };
+  };
 }
 
 // dist/runtime/run/graph-runner.js
@@ -60063,18 +60264,18 @@ function resolveSkillBindingsForFlow(flowId, configLayers = []) {
   const flowBindings = /* @__PURE__ */ new Map();
   const flowKey = flowId;
   for (const layer of configLayers) {
-    for (const [slot, skill] of Object.entries(layer.config.skills.bindings)) {
+    for (const [slot2, skill] of Object.entries(layer.config.skills.bindings)) {
       if (skill === void 0)
         continue;
-      globalBindings.set(slot, skill);
+      globalBindings.set(slot2, skill);
     }
     const circuit = layer.config.circuits[flowKey];
     if (circuit === void 0)
       continue;
-    for (const [slot, skill] of Object.entries(circuit.skill_bindings)) {
+    for (const [slot2, skill] of Object.entries(circuit.skill_bindings)) {
       if (skill === void 0)
         continue;
-      flowBindings.set(slot, skill);
+      flowBindings.set(slot2, skill);
     }
   }
   return new Map([...globalBindings, ...flowBindings]);
@@ -60084,7 +60285,7 @@ function resolveLoadedRelaySkills(input) {
   const bindings = resolveSkillBindingsForFlow(input.flowId, input.configLayers);
   const loaded = [];
   const seen = /* @__PURE__ */ new Set();
-  const addSkill = (id, slot) => {
+  const addSkill = (id, slot2) => {
     const key = id;
     if (seen.has(key))
       return;
@@ -60092,14 +60293,14 @@ function resolveLoadedRelaySkills(input) {
     try {
       resolved = registry2.resolve(id);
     } catch (err) {
-      const slotText = slot === void 0 ? "" : ` for slot '${slot}'`;
+      const slotText = slot2 === void 0 ? "" : ` for slot '${slot2}'`;
       throw new Error(`relay step '${input.stepId}' selected skill '${key}'${slotText} could not be resolved:
 ${err.message}`);
     }
     seen.add(key);
     loaded.push({
       id: resolved.entry.id,
-      ...slot === void 0 ? {} : { slot },
+      ...slot2 === void 0 ? {} : { slot: slot2 },
       path: resolved.entry.path,
       sha256: resolved.entry.sha256,
       bytes: resolved.entry.bytes,
@@ -60109,11 +60310,11 @@ ${err.message}`);
   for (const id of input.resolvedSelection.skills) {
     addSkill(id);
   }
-  for (const slot of input.skillSlots) {
-    const skill = bindings.get(slot.id);
+  for (const slot2 of input.skillSlots) {
+    const skill = bindings.get(slot2.id);
     if (skill === void 0)
       continue;
-    addSkill(skill, slot.id);
+    addSkill(skill, slot2.id);
   }
   for (const id of input.injectedSkillIds ?? []) {
     addSkill(id);
@@ -60474,10 +60675,10 @@ function declaredSkillSlots(step) {
   if (!Array.isArray(slots))
     return [];
   const declared = [];
-  for (const slot of slots) {
-    if (slot === null || typeof slot !== "object")
+  for (const slot2 of slots) {
+    if (slot2 === null || typeof slot2 !== "object")
       continue;
-    const { id, description } = slot;
+    const { id, description } = slot2;
     if (typeof id === "string" && typeof description === "string" && description.length > 0) {
       declared.push({ id, description });
     }
@@ -60488,15 +60689,15 @@ function houseStyleSection(step, loadedSkills) {
   const slots = declaredSkillSlots(step);
   if (slots.length === 0)
     return void 0;
-  const boundSlots = new Set(loadedSkills.map((skill) => skill.slot).filter((slot) => slot !== void 0));
-  const unbound = slots.filter((slot) => !boundSlots.has(slot.id));
+  const boundSlots = new Set(loadedSkills.map((skill) => skill.slot).filter((slot2) => slot2 !== void 0));
+  const unbound = slots.filter((slot2) => !boundSlots.has(slot2.id));
   if (unbound.length === 0)
     return void 0;
   return [
     "House Style:",
     "These are the house-style notes the flow author attached to this step. Treat them as guidance. They do not override the response contract, accepted verdicts, or required JSON shape.",
     "",
-    ...unbound.map((slot) => `- ${slot.id}: ${slot.description}`)
+    ...unbound.map((slot2) => `- ${slot2.id}: ${slot2.description}`)
   ].join("\n");
 }
 function equipmentScopeSection(step) {
@@ -62659,7 +62860,7 @@ function baseStep2(step) {
       route,
       target.kind === "terminal" ? target.target : target.stepId
     ])),
-    writes: Object.fromEntries(Object.entries(step.writes ?? {}).map(([slot, ref]) => [slot, writeRef(ref)])),
+    writes: Object.fromEntries(Object.entries(step.writes ?? {}).map(([slot2, ref]) => [slot2, writeRef(ref)])),
     check: step.check,
     ...selection === void 0 ? {} : { selection },
     ...step.skillSlots === void 0 ? {} : { skill_slots: step.skillSlots },
@@ -64423,6 +64624,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   if (isResume) {
     corridor.seedFromTrace(existingTrace);
   }
+  let activeFlow = flow;
+  let activePackageIndex = packageIndex;
   for (let index = 0; index < maxSteps; index += 1) {
     const step = steps.get(currentStepId);
     if (step === void 0) {
@@ -64480,6 +64683,11 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       const activeSlice = isLoopBodyStep ? sliceCorridor.currentSlice() : void 0;
       const stepContext = {
         ...context,
+        // The active flow and its package index may have been swapped by a prior
+        // step's honored equipment reshape; override the run-scoped defaults so a
+        // re-equipped step's relay reads its injected skill slots.
+        flow: activeFlow,
+        packageIndex: activePackageIndex,
         activeStepAttempt: attempt,
         ...acceptanceRetryFeedback === void 0 ? {} : { acceptanceRetryFeedback },
         ...isLoopBodyStep ? { activeSliceIndex: stepSliceIndex } : {},
@@ -64711,6 +64919,55 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       }
     } catch {
     }
+    const equipmentReshaper = options.equipmentReshaper;
+    if (equipmentReshaper !== void 0 && targetTransition.kind !== "terminal_close" && !sliceCorridor.isActive()) {
+      try {
+        const stepEntries = trace.getAll().slice(traceLengthBeforeStep);
+        const completed = [...stepEntries].reverse().find((entry) => entry.kind === "relay.completed");
+        if (completed !== void 0) {
+          const body = await context.files.readJson(completed.result_path);
+          const discovery = extractEquipmentDiscovery(body);
+          if (discovery !== void 0) {
+            const remainingRelayStepIds = new Set(activeFlow.steps.filter((candidate) => candidate.kind === "relay" && candidate.id !== step.id && (completedStepCounts.get(candidate.id) ?? 0) === 0).map((candidate) => candidate.id));
+            const outcome = equipmentReshaper({
+              fromStepId: step.id,
+              remainingRelayStepIds,
+              discovery
+            });
+            if (outcome.reshaped) {
+              await trace.append({
+                run_id: runId,
+                kind: "run.equipment-reshape",
+                step_id: step.id,
+                confirmed: discovery.confirmed,
+                reshaped: true,
+                domain_tags: discovery.domain_tags,
+                equipped_steps: [...outcome.equippedSteps],
+                reason: outcome.rationale
+              });
+              const nextFlow = outcome.executableFlow;
+              const nextPackageIndex = buildRuntimePackageIndex(nextFlow);
+              activeFlow = nextFlow;
+              activePackageIndex = nextPackageIndex;
+              for (const updated of activeFlow.steps) {
+                steps.set(updated.id, updated);
+              }
+            } else {
+              await trace.append({
+                run_id: runId,
+                kind: "run.equipment-reshape",
+                step_id: step.id,
+                confirmed: discovery.confirmed,
+                reshaped: false,
+                domain_tags: discovery.domain_tags,
+                reason: outcome.finding
+              });
+            }
+          }
+        }
+      } catch {
+      }
+    }
     if (targetTransition.kind === "terminal_close") {
       return await closeRun(context, outcomeForTerminal(targetTransition.terminalTarget), targetTransition.terminalTarget);
     }
@@ -64791,6 +65048,16 @@ async function runCompiledFlowWithWaiting(options) {
     ...options.why === void 0 ? {} : { why: options.why },
     manifestHash: computeManifestHash(options.flowBytes),
     manifestBytes: options.flowBytes,
+    // Step 2 — the live equipment reshaper, built once per run from the parsed
+    // compiled flow. The runner calls it when a relay surfaces a confirmed
+    // discovery; it re-resolves equipment and returns a re-validated executable
+    // tail, keeping the compiled form and the per-run bound encapsulated here.
+    // Every compiled-flow run flows through this — the standard run path and
+    // each recovery attempt alike — and each builds its own reshaper, so the
+    // bound is correctly scoped per run. Callers that invoke executeExecutableFlow*
+    // directly (tests, internal helpers) leave this undefined, and the whole
+    // reshape stays inert there.
+    equipmentReshaper: createEquipmentReshaper(flow),
     workContractRef: tracedWorkContractRef,
     recoveryRouteBindings: workContractProjection.work_contract.recovery,
     entryModeName,
@@ -65773,12 +66040,12 @@ function reviewFindingDetails(report) {
     return stringField2(report, "assessment") === void 0 ? ["Findings: 0"] : [];
   }
   const lines = [];
-  for (const finding of findings) {
-    if (!isObject4(finding))
+  for (const finding2 of findings) {
+    if (!isObject4(finding2))
       continue;
-    const severity = (stringField2(finding, "severity") ?? "unknown").toUpperCase();
-    const text = stringField2(finding, "text") ?? "(no text)";
-    const fileRefs = stringArrayField2(finding, "file_refs");
+    const severity = (stringField2(finding2, "severity") ?? "unknown").toUpperCase();
+    const text = stringField2(finding2, "text") ?? "(no text)";
+    const fileRefs = stringArrayField2(finding2, "file_refs");
     const summary = firstLineSummary(text, 140);
     const fileSuffix = fileRefs.length === 0 ? "" : ` \u2014 at ${fileRefs.join(", ")}`;
     lines.push(`[${severity}] ${summary}${fileSuffix}`);
@@ -67302,7 +67569,7 @@ function contractQualityReview(contract) {
       text: `A ${kind} objective needs at least one required '${minKind}' evidence entry, but the contract has none. Satisfying this contract would not prove the objective.`
     });
   }
-  const blocking = findings.some((finding) => finding.severity === "critical" || finding.severity === "high" || finding.severity === "medium");
+  const blocking = findings.some((finding2) => finding2.severity === "critical" || finding2.severity === "high" || finding2.severity === "medium");
   return {
     verdict: blocking ? "blocked" : "gate-pass",
     attack_lens: "contract-quality",

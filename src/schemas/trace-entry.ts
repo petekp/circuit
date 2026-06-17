@@ -649,6 +649,27 @@ export const PowerInferenceResolvedTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type PowerInferenceResolvedTraceEntry = z.infer<typeof PowerInferenceResolvedTraceEntry>;
 
+// Step 2 — the durable record of a live equipment-reshape decision: the first
+// time the engine adapts a RUNNING flow. Written in the post-step seam when a
+// relay surfaces an equipment discovery. `reshaped:true` means the discovery was
+// confirmed, re-resolved, and re-validated through the compiled-flow gate, and
+// the run continued on the re-equipped tail (`equipped_steps` lists the steps
+// that gained skills). `reshaped:false` means it parked as a finding (Option B),
+// the flow unchanged, and `reason` says why (unconfirmed, budget exhausted,
+// cycle guard, a no-op, or a safety-floor rejection). The reshape is additive,
+// so the step sequence never changes — there is no splice. Absent entirely on
+// runs where no relay surfaces a discovery, keeping today's traces byte-stable.
+export const RunEquipmentReshapeTraceEntry = TraceEntryBase.extend({
+  kind: z.literal('run.equipment-reshape'),
+  step_id: StepId,
+  confirmed: z.boolean(),
+  reshaped: z.boolean(),
+  domain_tags: z.array(z.string()),
+  equipped_steps: z.array(StepId).optional(),
+  reason: z.string().min(1),
+}).strict();
+export type RunEquipmentReshapeTraceEntry = z.infer<typeof RunEquipmentReshapeTraceEntry>;
+
 // Cross-variant superRefine enforces the
 // `RelayStartedTraceEntry.role === resolved_from.role` binding when
 // `resolved_from.source === 'role'`. Mirrors the Step pattern: keep each
@@ -684,6 +705,7 @@ export const TraceEntry = z
     RunSkillHookTraceEntry,
     RunSkillHookErrorTraceEntry,
     PowerInferenceResolvedTraceEntry,
+    RunEquipmentReshapeTraceEntry,
     GuidanceDecisionTraceEntryBody,
   ])
   .superRefine((ev, ctx) => {
