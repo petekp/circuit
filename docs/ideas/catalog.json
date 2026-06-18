@@ -1366,6 +1366,32 @@
         "docs/ideas/dynamic-assembly-shape-check.md"
       ],
       "last_checked": "2026-06-18"
+    },
+    {
+      "path": "docs/ideas/flow-composition-preregistration.md",
+      "title": "Pre-registration - genuine flow-shape composition",
+      "status": "pre-implementation",
+      "category": "verification-and-evals",
+      "tags": ["composition", "pre-registration", "eval", "decision-rule", "anti-fitting"],
+      "current_reading": "Pre-registered (committed before any data) rubric and numeric decision rule for the genuine flow-shape composer: a Phase 0 make-or-break gate (>=1 novel, valid, sensible flow offline), a Phase 1 classification across 8 topologies (WORKS / PARTIAL / INTRACTABLE on Val/Nov/Sen/App/Pass/Con), and a confirmatory Phase 2 live arm with a live-failure downgrade (a shape that composes but cannot run drops one tier). The anti-fitting hard line: bind only registered actuals, never invent a contract body, report unreachable topologies rather than swap them. Outcome in flow-composition-run-report.md.",
+      "related": [
+        "docs/ideas/flow-composition-run-report.md",
+        "docs/ideas/assembler-rebuild-preregistration.md"
+      ],
+      "last_checked": "2026-06-18"
+    },
+    {
+      "path": "docs/ideas/flow-composition-run-report.md",
+      "title": "Run report - genuine flow-shape composition",
+      "status": "partially-implemented-research",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "run-report", "flows", "writers", "research-problem"],
+      "current_reading": "Outcome of the genuine flow-shape composition run. Phase 0 PASS (a novel research-then-build flow is valid, novel, sensible offline). Phase 1 PARTIAL offline (5/8 topologies valid, novel, sensible; 3 principled catalog walls reported not swapped). Phase 2 live: composed flows do NOT run - the runtime compose/close writers are coupled to their origin family's exact contract schemas and full pipeline reads, so they reject cross-family and short-tail composed wiring (two concrete runtime aborts captured). By the pre-registered live-failure downgrade, PARTIAL becomes INTRACTABLE-as-built. The frontier advanced one layer: the typing gate is solved (binds registered actuals), the wall is now the writer contract. Next target: writers read by generic + fold-tolerant evidence + an offline writer-required-reads-closure check. The composer module is additive and default-OFF (nothing imports it); built-ins byte-identical; verify green.",
+      "related": [
+        "docs/ideas/flow-composition-preregistration.md",
+        "docs/ideas/assembler-rebuild-run-report.md"
+      ],
+      "last_checked": "2026-06-18"
     }
   ]
 }
