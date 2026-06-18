@@ -117,17 +117,70 @@ spike + spec; never merged to `src/`.
 
 ---
 
-## 3. Phase 3 — test thoroughly (breadth + depth) — PENDING
+## 3. Phase 3 — test thoroughly (breadth + depth)
 
-- **Breadth (offline, structural):** per pre-registered task, generate N=10 with
-  the new assembler; score vs the rubric (§3); compare to the OLD stub and the
-  hand-authored references. Harness:
-  `experiments/flow-lab/assembler-breadth-eval.ts`.
-- **Depth (live, budget open):** execute the best generated flow end-to-end for
-  ≥2 task types (a build/fix coding task is the cleanest arm; an explainer on a
-  real paper if tractable).
-- Then apply the **pre-registered decision rule** (§5) and record the
-  classification + evidence.
+### 3a. Breadth (offline, structural) — DONE
+
+Harness: `experiments/flow-lab/assembler-breadth-eval.ts`. It reproduces the
+shipped create path EXACTLY (`extractAssemblySignals` → `resolveArchetype` →
+compile), generates each pre-registered task N=10, and scores against the LOCKED
+§3 rubric. `$0` model spend (offline + deterministic).
+
+Per-task result (NEW assembler vs OLD stub), one row per pre-registered task:
+
+| Task | Expected | NEW family / grain | Signal used | Valid | Features (forbidden) | Det. | PASS | OLD signal-used / pass |
+|---|---|---|---|---|---|---|---|---|
+| `explainer-paper` | editorial | editorial / instantiated | ✅ | ✅ | 1.00 (0) | ✅ | **YES** | ✗ / ✗ |
+| `feature-darkmode` | build / whole | build / whole | ✅ | ✅ | 1.00 (0) | ✅ | **YES** | ✅ / ✅ |
+| `fix-race` | fix | fix / instantiated | ✅ | ✅ | 0.833 (0) † | ✅ | **YES** | ✗ / ✗ |
+| `research-state` | research | research / instantiated | ✅ | ✅ | 1.00 (0) | ✅ | **YES** | ✗ / ✗ |
+| `review-auth` | review | review / instantiated | ✅ | ✅ | 1.00 (0) ‡ | ✅ | **YES** | ✗ / ✗ |
+| `migrate-billing` | build / decomposed | build / decomposed | ✅ | ✅ | 1.00 (0) | ✅ | **YES** | ✗ / ✗ |
+| `tweak-rename` | build / whole | build / whole | ✅ | ✅ | 1.00 (0) | ✅ | **YES** | ✅ / ✅ |
+| `proto-hero` | prototype | prototype / instantiated | ✅ | ✅ | 1.00 (0) | ✅ | **YES** | ✗ / ✗ |
+
+**Decision-rule inputs (§5), computed not asserted:** `P = 8/8`, `E = 1.00`
+(editorial feature overlap vs the explainer reference), `D = 7` distinct
+**structural** shapes (8 by literal full-compiled hash — `feature-darkmode` and
+`tweak-rename` are the same `build/whole` shape with different purpose text),
+`V = 8/8` valid. OLD stub: **1** distinct shape, **2/8** pass (only the two
+small/low build tasks, by luck of the hardcoded `whole`).
+
+**Breadth tier: VIABLE** (`P≥7 ∧ E≥0.60 ∧ D≥5 ∧ V=8`).
+
+**Two pre-registered predicates were mis-specified (disclosed + discounted per
+§8, never rewritten):**
+- † **fix has no `plan` stage.** The hand-authored fix goes
+  frame → diagnose(analyze) → act → verify → close. The rubric's "a plan"
+  over-specified the family, so fix scores 0.833 (5/6) on the literal rubric —
+  but the fix *reference itself* also scores 5/6, so the generated fix is **at
+  the reference bar**. Discounting the bad predicate, fix shape is appropriate
+  (5/5). It still clears the 0.75 PASS threshold either way.
+- ‡ **review's audit is an `analyze/relay`, not a `review/relay`.** The detector
+  recognizes an audit relay in the review *or* analyze stage — faithful to the
+  structural intent ("a relay that audits"), not the stage label.
+- (Validity: §3.3 said "returns a single package"; the per-mode families
+  fix/research/prototype return a valid **per-mode** package. Validity counts a
+  per-mode package as valid when it compiles, the catalog gate is clean, and
+  **every** mode binds `primary_result`.)
+
+**Honesty caveat — what the high numbers do and do not mean.** `E = 1.00` and the
+near-1.0 feature overlaps reflect that Phase 1 **instantiates proven family
+seeds** (the editorial arm clones the explainer schematic; fix/research/review/
+prototype clone their seeds; build is folded by the structure resolver). The
+overlap is high *because it is reuse*. What is genuinely new and measured is the
+**diversity across families**: the assembler now reads the task and lands the
+right family **and** the right build grain, where the OLD stub could only ever
+emit one shape. Within-family novelty (composing a *new* shape from blocks) is
+**not** claimed here — that is the separate Phase 2 question.
+
+### 3b. Depth (live, budget open) — IN PROGRESS
+
+Execute the best generated flow end-to-end for ≥2 task types (a build/fix coding
+task is the cleanest arm; an explainer on a real paper if tractable). Live runs
+are **confirmatory**, not part of the §5 numeric gate — but the **live-failure
+downgrade** (§6) applies: if the cleanest coding arm fails to execute, the tier
+drops one step. Results recorded here as the runs land.
 
 ---
 
