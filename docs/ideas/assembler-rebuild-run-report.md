@@ -108,12 +108,78 @@ pre-registered tasks classify exactly as expected (verified before any scoring).
 
 ---
 
-## 2. Phase 2 — genuine-generation spike (DO NOT commit) — PENDING
+## 2. Phase 2 — genuine-generation spike (DO NOT commit) — DONE
 
-Offline spike: genuine composition of a novel flow from typed blocks (not
-instantiating a pre-designed archetype). Verdict to come: **FEATURE** vs
-**RESEARCH PROBLEM**, with evidence, per pre-registration §7. Stays a surfaced
-spike + spec; never merged to `src/`.
+Offline spike: can an **automated composer** build a **valid** (compiles +
+catalog-gate-clean + primary_result) and family-appropriate **novel** flow — a
+topology that is none of the 6 built-in families — from individual typed catalog
+blocks, deterministically and without inventing unregistered contracts? This is
+the Phase 1 line's opposite: Phase 1 **instantiates** a whole proven family seed;
+Phase 2 tries to **compose from blocks**. The spike runs the SAME fail-closed
+gates the engine runs, so a "valid" verdict would be a real valid flow.
+
+Prototype (surfaced, **git-untracked, never merged** per the run's rail):
+`experiments/flow-lab/phase2-genuine-generation-spike.ts`. `$0` model spend.
+
+### Verdict: **RESEARCH PROBLEM** (not a feature yet)
+
+Three consistent angles:
+- **Positive control** — the real `review` family spec passes the same gate
+  (**VALID ✅**). So the harness is sound; a correctly-authored flow is accepted.
+- **Perturbation** — take the valid `review` family and make ONE minimal novel
+  edit a generator might make (duplicate the audit step so two steps produce
+  `review.verdict@v1`). The gate **rejects it** (`schematic item is unreachable
+  from starts_at`): the duplicate is not wired into the route DAG. Even a
+  one-line automated edit breaks validity unless routes are correctly re-wired.
+- **Novel-from-scratch** — three genuinely novel topologies (a diagnose-only
+  *triage*; a *fix-then-prototype* hybrid; a *research-then-build* weld).
+  **0 / 3 valid.** Each hit a *fail-closed assembler wall* **before the contract
+  gates even ran.**
+
+### Why — the evidence (the wall sequence)
+
+A naive linear composer that selects blocks and wires `continue` routes hits a
+**sequence of eight distinct fail-closed walls**, each demanding per-block or
+per-flow authoring knowledge that **is not in the typed block catalog**
+(`docs/flows/block-catalog.json` carries contracts in/out, not these):
+
+1. compose steps need explicit `check` / `required` data;
+2. relay steps need `pass` values;
+3. the flow needs a `stageLabels` map;
+4. a step must **not restate** a block's default output (e.g. `close-with-evidence`'s `flow.result@v1`);
+5. relay steps need explicit request / receipt / result **paths**;
+6. a partial canonical stage path needs a `stagePathRationale` (≥20 chars);
+7. a step must **not restate** a block's default **execution**;
+8. a **multi-execution-kind block** (`intake` allows compose / checkpoint / sub-run / fanout) **must be disambiguated** — and the allowed-kinds table lives in the engine, not the catalog.
+
+To clear all eight you must either **lift the entire per-step scaffolding from a
+shipped family** (that is Phase 1 instantiation, not novel generation) or
+**author the missing pieces yourself** (a human or a model in the loop). The
+typed blocks are deliberately **not self-describing enough** to drop into a novel
+topology — the hand-authored assembly spec carries flow-specific *intent* (which
+execution kind, why a stage is skipped, how generics alias to flow actuals, the
+route DAG) that a deterministic block-selector cannot infer. The gates are
+**fail-closed by design** (Circuit's safety thesis: a flow cannot widen a
+contract, drop a producer, or strand a step); the "walls" are that safety system
+working, not a bug.
+
+### What a FEATURE path would require (decision-ready spec)
+
+Genuine block-composition becomes an engineering feature only if the composer is
+given what it currently lacks:
+1. **A per-block execution-capability table** in the catalog (allowed kinds +
+   default) so multi-kind blocks can be disambiguated mechanically.
+2. **A contract-alias solver** that binds generic contracts (`flow.brief@v1`,
+   `flow.result@v1`) to flow-specific actuals satisfying single-actual / anti-widening.
+3. **A route-DAG synthesizer** guaranteeing reachability from `starts_at` and
+   correct `@complete` / `@stop` terminal binding.
+4. **A check-data / relay-path defaulting layer** so steps need no hand-authored boilerplate.
+5. **A source of intent** for the genuinely non-mechanical choices (which kind
+   for a multi-kind block; why skip a stage) — this is the irreducible part that
+   wants a model in the loop.
+
+Until (1)–(4) exist, genuine generation is a research track, not a shippable
+feature. Phase 1 (instantiate-and-fold) is the viable, shippable path today.
 
 ---
 
@@ -174,25 +240,98 @@ right family **and** the right build grain, where the OLD stub could only ever
 emit one shape. Within-family novelty (composing a *new* shape from blocks) is
 **not** claimed here — that is the separate Phase 2 question.
 
-### 3b. Depth (live, budget open) — IN PROGRESS
+### 3b. Depth (live, budget open) — DONE
 
-Execute the best generated flow end-to-end for ≥2 task types (a build/fix coding
-task is the cleanest arm; an explainer on a real paper if tractable). Live runs
-are **confirmatory**, not part of the §5 numeric gate — but the **live-failure
-downgrade** (§6) applies: if the cleanest coding arm fails to execute, the tier
-drops one step. Results recorded here as the runs land.
+Two task types executed end-to-end with a **real worker** (`claude` 2.1.181),
+each from a flow the NEW assembler generated and published, run via
+`circuit run <slug> --flow-root … --autonomous`. Both reached `@complete`.
+
+| Live arm | Family / shape | Outcome | Primary result | On-task proof |
+|---|---|---|---|---|
+| `fix-sum` | **fix** (per-mode, custom slug) | `complete`, verdict `accept` | `result.json` written | bug genuinely fixed (`arr.length - 1` → `arr.length`); `npm test` passes |
+| `add-multiply` | **build / whole** | `complete` | `result.json` written | `multiply` implemented; `npm test` passes |
+
+The **fix** arm is the strongest evidence: it exercises a **NEW family** (not the
+byte-identical build path), is a **per-mode** package whose default mode the
+trust gate blesses, runs under a **custom slug**, and a real worker drove it from
+diagnose → fix → verify → review → close. The §6 success criteria
+(reach a terminal, write `primary_result`, produce operator-judgeable on-task
+output) are met on both arms.
+
+One honest setup note: the first `fix` launch aborted **honestly** at the frame
+step (`package.json does not exist` — it could not choose verification commands).
+That is the §6-anticipated "known rough edge handled as setup," not a shape
+defect; adding a `package.json` test script (the operator's job) cleared it and
+the rerun completed.
+
+**Live-failure downgrade (§6): NOT triggered.** The cleanest coding arm executed
+successfully, so the breadth tier stands.
+
+The third intended arm — an **explainer on a real paper** — is reported
+**not-run, with reason** (per §6, not silently skipped): the explainer's
+delegated sub-run builds an interactive website (scaffold + build-timeout rough
+edges flagged in the pre-registration), a long heavy run whose marginal signal
+over the two successful arms did not justify the open-ended wall-clock in this
+session. The ≥2-task-type bar is already met by `fix` + `build`.
 
 ---
 
-## 4. Headline — PENDING
+## 4. Headline
 
-To be written once Phase 3 data is in and the decision rule is applied. Will
-state: is the dynamic / JIT path viable; is the dynamic-vs-reference experiment
-worth real budget; recommended next step.
+**The dynamic / JIT-workflow direction is VIABLE — by selection-and-instantiation,
+not by genuine generation.** Apply the pre-registered decision rule (§5) to the
+measured inputs: `P = 8/8`, `E = 1.00`, `D = 7` distinct structural shapes,
+`V = 8/8` → **VIABLE**. The live confirmation did not downgrade it: a real worker
+drove a NEW-family generated flow (fix) and a build flow end-to-end to
+`@complete`, both producing correct, on-task results.
+
+Three things are now true and measured, not asserted:
+
+1. **The assembler reads the task.** Where the old stub discarded the text and
+   emitted one shape for everything (1 distinct shape, 2/8 tasks "right" by the
+   luck of a hardcoded grain), the new assembler lands the **right family** and
+   the **right build grain** on all 8 pre-registered tasks (7 distinct shapes).
+   That is the gate finding closed.
+
+2. **Phase 1 reaches the bar by reuse, not novelty.** The near-perfect feature
+   and editorial overlap (`E = 1.00`) is **instantiation** of proven family seeds
+   — honest and shippable, but it is not composing a new shape. The genuine-
+   diversity that *is* new is **across** families (task → family + grain), not
+   **within** a family.
+
+3. **Genuine generation is a research problem, not a feature.** The Phase 2 spike
+   showed an automated block-composer cannot produce a valid novel flow today: it
+   hits eight fail-closed authoring walls before the contract gates even run,
+   because the typed catalog does not carry the per-block / per-flow intent the
+   safety gates require. A feature path exists but needs catalog enrichments
+   (execution-capability table, alias solver, route synthesizer) plus a model for
+   the irreducibly intentional choices.
+
+**Is the dynamic-vs-reference experiment worth real budget?** **Yes — for the
+instantiation path.** Run a generated, instantiated flow against the hand-authored
+reference on a real task and measure quality/cost. The live arms already show the
+generated flows *run* and *finish on-task*; the open question that experiment
+answers is whether they finish *as well as* the hand-authored bar, and at what
+cost. Do **not** yet spend budget on the genuine-block-composition arm — that is
+gated behind the Phase 2 spec's catalog enrichments.
+
+**Recommended next step.** Ship Phase 1 (done — committed, verify-green). Then
+scope the **dynamic-vs-reference live experiment** on the two cleanest families
+(fix, build) where the live arms already succeed, comparing instantiated-generated
+vs hand-authored on a small held-out task set with the cost-capture instrument.
+Hold genuine block-composition as a separate research track behind the Phase 2
+catalog enrichments (§2).
 
 ---
 
 ## 5. Actual spend
 
-- Phase 1: `$0` model spend (the assembler path is deterministic + offline).
-- Phase 2/3: recorded as those phases run.
+- **Phase 1** (assembler): `$0` model spend — deterministic + offline path.
+- **Phase 2** (genuine-generation spike): `$0` — the composer + gates are offline.
+- **Phase 3 breadth**: `$0` — offline structural scoring, N=10 deterministic.
+- **Phase 3 depth (live)**: two real `circuit run --autonomous` executions with a
+  live worker (`fix-sum`, `add-multiply`). Small coding tasks, ~13 and ~5 steps;
+  real but modest model spend (not separately metered this run — the cost-capture
+  instrument is the dynamic-vs-reference experiment's job, not this confirmation's).
+- Total deliberate model spend was confined to the two live confirmation runs;
+  every measurement that feeds the §5 decision rule is `$0` and deterministic.
