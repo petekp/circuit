@@ -35,16 +35,9 @@
       "title": "Adversarial verification gates and verify-then-escalate",
       "status": "current-idea",
       "category": "verification-and-evals",
-      "tags": [
-        "verification",
-        "adversarial-review",
-        "fanout",
-        "retries"
-      ],
+      "tags": ["verification", "adversarial-review", "fanout", "retries"],
       "current_reading": "Independent refutation gate for model-judged claims plus verify-then-escalate retries. Companion to per-step validation.",
-      "related": [
-        "docs/ideas/per-step-validation-check.md"
-      ],
+      "related": ["docs/ideas/per-step-validation-check.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -52,11 +45,7 @@
       "title": "Align flow - operator/model intent alignment",
       "status": "current-idea",
       "category": "flows-and-blocks",
-      "tags": [
-        "align",
-        "flow",
-        "operator-intent"
-      ],
+      "tags": ["align", "flow", "operator-intent"],
       "current_reading": "Future flow sketch for establishing shared understanding between operator and model. No Align flow is registered today.",
       "last_checked": "2026-06-04"
     },
@@ -65,16 +54,9 @@
       "title": "Ambitious Applications Of Circuit",
       "status": "current-strategy-context",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "applications",
-        "strategy",
-        "flows",
-        "engine-boundaries"
-      ],
+      "tags": ["applications", "strategy", "flows", "engine-boundaries"],
       "current_reading": "Catalog of potential Circuit application areas and feasibility labels. Strategy context only; verify each claim before using it as implementation guidance.",
-      "related": [
-        "docs/ideas/future-proofing-circuit.md"
-      ],
+      "related": ["docs/ideas/future-proofing-circuit.md"],
       "last_checked": "2026-06-05"
     },
     {
@@ -82,12 +64,7 @@
       "title": "Circuit Architecture Hardening - Authoritative Plan (v2)",
       "status": "implemented-closed",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "architecture",
-        "hardening",
-        "roadmap",
-        "closed-out"
-      ],
+      "tags": ["architecture", "hardening", "roadmap", "closed-out"],
       "current_reading": "Authoritative architecture-hardening plan with 2026-05-30 closeout. Use as historical implementation context, not an open idea queue.",
       "last_checked": "2026-06-04"
     },
@@ -96,11 +73,7 @@
       "title": "Build flow: a best-practice evaluation",
       "status": "design-evaluation",
       "category": "verification-and-evals",
-      "tags": [
-        "build",
-        "evaluation",
-        "best-practices"
-      ],
+      "tags": ["build", "evaluation", "best-practices"],
       "current_reading": "Design evaluation of Build behavior and proposed changes. Its own status says nothing there is shipped.",
       "last_checked": "2026-06-04"
     },
@@ -109,12 +82,7 @@
       "title": "Build slice decomposition + per-slice verify",
       "status": "pre-implementation",
       "category": "flows-and-blocks",
-      "tags": [
-        "build",
-        "slicing",
-        "verification",
-        "runtime-loop"
-      ],
+      "tags": ["build", "slicing", "verification", "runtime-loop"],
       "current_reading": "Pre-implementation design for sequential Build slices and per-slice verification. Check current Build runtime before using it as implementation truth.",
       "last_checked": "2026-06-04"
     },
@@ -123,11 +91,7 @@
       "title": "Circuit vs. Compound Engineering - capability and synergy",
       "status": "current-strategy-context",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "compound-engineering",
-        "strategy",
-        "comparison"
-      ],
+      "tags": ["compound-engineering", "strategy", "comparison"],
       "current_reading": "Positioning context comparing Circuit with Every's Compound Engineering plugin. Useful for strategy, not implementation truth.",
       "last_checked": "2026-06-04"
     },
@@ -144,9 +108,7 @@
         "implementation-spec"
       ],
       "current_reading": "Two-part spec from the 2026-06-09 Fable 5 prompting-guide review. Workstream A slims src/commands/run.md and the pursue/handoff command sources (11 examples to 5, merged routing prose, tightened rendering sections) behind a test-pinned phrase inventory that must survive. Workstream B adds an optional --why CLI flag threaded through RunContext into composeRelayPrompt as a Why line under Operator Goal and persisted on RunResult. Spec only; not built.",
-      "related": [
-        "docs/ideas/intent-capture-and-enforcement-implementation.md"
-      ],
+      "related": ["docs/ideas/intent-capture-and-enforcement-implementation.md"],
       "last_checked": "2026-06-09"
     },
     {
@@ -163,9 +125,7 @@
         "implementation-spec"
       ],
       "current_reading": "Thin spec for Steps 0-2 of docs/architecture/continuity-first-principles-evaluation.md. Step 0 ran 2026-06-07 and returned NO-GO: the capture-side satisfaction classifier does not beat recency (0.74x false-resurrection vs a 0.50x gate, over-buries 10% of open work); 58% of sessions give the deterministic scan no usable signal and the harvest is a no-model every-turn CLI. So Step 1 and the ambient half of Step 2 are CANCELLED. Step 3 shipped (PR #47). Surviving build set: Step 2a (render run_ref.runtime_status, a real recorded field) and Step 4 (compaction + host-parity coverage). Full numbers in the eval's Step 0 results section.",
-      "related": [
-        "docs/ideas/continuity-staleness-implementation.md"
-      ],
+      "related": ["docs/ideas/continuity-staleness-implementation.md"],
       "last_checked": "2026-06-07"
     },
     {
@@ -173,13 +133,7 @@
       "title": "Faster, more robust continuity restore",
       "status": "implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "continuity",
-        "handoff",
-        "ambient",
-        "restore",
-        "robustness"
-      ],
+      "tags": ["continuity", "handoff", "ambient", "restore", "robustness"],
       "current_reading": "Probe-grounded design exploration of the SessionStart brief and Stop/SessionEnd harvest paths. All recommendations shipped in PR #44 (merge 18e13ac1): visible restore failures with fall-through, staleness signal, Codex nudge, incremental harvest cursor, summary spine, per-session records, and clear semantics. Pre-implementation probes inside are historical.",
       "last_checked": "2026-06-12"
     },
@@ -188,13 +142,7 @@
       "title": "Continuity staleness check",
       "status": "pre-implementation",
       "category": "memory-and-ratchet",
-      "tags": [
-        "continuity",
-        "handoff",
-        "ambient",
-        "staleness",
-        "git"
-      ],
+      "tags": ["continuity", "handoff", "ambient", "staleness", "git"],
       "current_reading": "Design exploration that orients the ambient brief against current git, plus a frame-check that surfaces harvest-side intent quality as a sibling lever. Report-only and ambient-only; deterministic git facts, never an engine done verdict. Slice 0 (intent-quality drop) is the first build; verify current handoff behavior before treating later slices as shipped.",
       "related": [
         "docs/ideas/continuity-staleness-implementation.md",
@@ -207,17 +155,9 @@
       "title": "Continuity staleness check: implementation spec",
       "status": "implementation-spec",
       "category": "memory-and-ratchet",
-      "tags": [
-        "continuity",
-        "handoff",
-        "ambient",
-        "staleness",
-        "implementation-spec"
-      ],
+      "tags": ["continuity", "handoff", "ambient", "staleness", "implementation-spec"],
       "current_reading": "Build-ready spec for the intent-quality drop (Slice 0) and the brief-time staleness facts and render (Slices 1-3). Every code citation source-verified. Only Slice 0 is being built; treat Slices 1-3 as design, not current behavior.",
-      "related": [
-        "docs/ideas/continuity-staleness-check.md"
-      ],
+      "related": ["docs/ideas/continuity-staleness-check.md"],
       "last_checked": "2026-06-07"
     },
     {
@@ -225,12 +165,7 @@
       "title": "Doc checkpoint block - let the operator mark up the agent's markdown",
       "status": "current-idea",
       "category": "flows-and-blocks",
-      "tags": [
-        "checkpoint",
-        "docs",
-        "markdown",
-        "operator-feedback"
-      ],
+      "tags": ["checkpoint", "docs", "markdown", "operator-feedback"],
       "current_reading": "Markdown-specific checkpoint block idea. Checkpoints exist, but this doc-review block is not a shipped flow block.",
       "last_checked": "2026-06-04"
     },
@@ -239,13 +174,7 @@
       "title": "Doc-rot gates, phase 2",
       "status": "current-proposal",
       "category": "verification-and-evals",
-      "tags": [
-        "doc-rot",
-        "deterministic-gates",
-        "doc-classes",
-        "circuit-land",
-        "release-blocker"
-      ],
+      "tags": ["doc-rot", "deterministic-gates", "doc-classes", "circuit-land", "release-blocker"],
       "current_reading": "Phase-2 proposal from the 2026-06-12 pristine sweep. Phase-1 gates (doc-class manifest, path gate, retired-vocabulary registry, command-claims lint, site content gate) are built; everything in this doc is proposed, not shipped.",
       "last_checked": "2026-06-12"
     },
@@ -254,11 +183,7 @@
       "title": "Dynamic flow composition as a ratchet for coding agents",
       "status": "current-idea",
       "category": "flows-and-blocks",
-      "tags": [
-        "dynamic-flows",
-        "ratchet",
-        "flow-composition"
-      ],
+      "tags": ["dynamic-flows", "ratchet", "flow-composition"],
       "current_reading": "Future-facing idea for runtime-generated flows and eventual crystallization into reusable structures. Dynamic composition is not shipped.",
       "last_checked": "2026-06-04"
     },
@@ -267,16 +192,9 @@
       "title": "Circuit and host dynamic workflows",
       "status": "current-comparison",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "dynamic-workflows",
-        "claude-code",
-        "comparison",
-        "host-backend"
-      ],
+      "tags": ["dynamic-workflows", "claude-code", "comparison", "host-backend"],
       "current_reading": "Comparison with Claude Code's Workflow tool. Net-new path is a compile-to-host-Workflow backend; not current behavior.",
-      "related": [
-        "docs/ideas/dynamic-flow-ratchet.md"
-      ],
+      "related": ["docs/ideas/dynamic-flow-ratchet.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -284,12 +202,7 @@
       "title": "E1 implementation brief — one task, two shapes, measured",
       "status": "implementation-spec",
       "category": "verification-and-evals",
-      "tags": [
-        "evals",
-        "experiments",
-        "decomposition",
-        "fix-vs-build"
-      ],
+      "tags": ["evals", "experiments", "decomposition", "fix-vs-build"],
       "current_reading": "Build brief for the E1 experiment-runner: one task under two decomposition grains, measured. Implemented under experiments/e1/; see the run report.",
       "related": [
         "docs/ideas/exploration-substrate-two-track-plan.md",
@@ -302,13 +215,7 @@
       "title": "E1 implications for M8: what the typed seam must express",
       "status": "pre-implementation",
       "category": "flows-and-blocks",
-      "tags": [
-        "composition",
-        "typed-seam",
-        "m8",
-        "verification",
-        "experiments"
-      ],
+      "tags": ["composition", "typed-seam", "m8", "verification", "experiments"],
       "current_reading": "B3 spec: from the E1 framing, the payload shapes M8's typed seam must express so holism/separation seams are locally checkable. Design only; implements no M8 code. Re-check against current schemas before use.",
       "related": [
         "docs/ideas/primitive-readiness-audit.md",
@@ -321,16 +228,9 @@
       "title": "E1 run report — one task, two shapes, measured",
       "status": "partially-implemented",
       "category": "verification-and-evals",
-      "tags": [
-        "evals",
-        "experiments",
-        "harness",
-        "report"
-      ],
+      "tags": ["evals", "experiments", "harness", "report"],
       "current_reading": "Build report for the E1 harness: Step 0 GO, two-lane (fixture + live) design, fixture-proven, one live comparison pending. Code under experiments/e1/.",
-      "related": [
-        "docs/ideas/e1-implementation-brief.md"
-      ],
+      "related": ["docs/ideas/e1-implementation-brief.md"],
       "last_checked": "2026-06-14"
     },
     {
@@ -338,13 +238,7 @@
       "title": "E2 spec: equipment scope, manifest-first",
       "status": "implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "composition",
-        "equipment-scope",
-        "manifest-first",
-        "decomposition",
-        "experiments"
-      ],
+      "tags": ["composition", "equipment-scope", "manifest-first", "decomposition", "experiments"],
       "current_reading": "Design for equipment scope (primitive 3b) as a declared, manifest-first field with write-tier enforcement, turning decomposition grain into a per-step dial. Since built: the per-step tools axis (declared + enforced via claude-code --tools, honest downgrade) shipped as PR #89, and the skills half (real house-style injection through skill_slots plus the equipment resolver) as PRs #96/#97. The doc is now the record of what was built; verify exact field shapes against current schemas.",
       "related": [
         "docs/ideas/primitive-readiness-audit.md",
@@ -360,13 +254,7 @@
       "title": "Equipment-scope build brief",
       "status": "implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "composition",
-        "equipment-scope",
-        "manifest-first",
-        "tools",
-        "build-brief"
-      ],
+      "tags": ["composition", "equipment-scope", "manifest-first", "tools", "build-brief"],
       "current_reading": "Build brief for the equipment-scope mechanism (declared tools sub-axis + write-tier enforcement). This batch shipped to main: the tools half via claude-code --tools with honest downgrade (PR #89), then the skills half via real skill_slot injection plus the equipment resolver (PRs #96/#97). Of the four micro-harness scopes (context, equipment, model/effort, structure), equipment moved from absent to real here. See the enforcement-mechanism report and the north-star status map.",
       "related": [
         "docs/ideas/e2-equipment-scope-spec.md",
@@ -381,13 +269,7 @@
       "title": "Equipment scope — enforcement-mechanism decision + status",
       "status": "implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "composition",
-        "equipment-scope",
-        "tools",
-        "connectors",
-        "report"
-      ],
+      "tags": ["composition", "equipment-scope", "tools", "connectors", "report"],
       "current_reading": "Closes the equipment-scope build brief. Records the enforcement-mechanism decision (claude-code --tools is the obviously-correct lever, no stop-and-report needed), the enforced-vs-trusted honesty model, the ratchet status, the closed review findings, and what's left (scope the other five implementer steps, real-codebase enforcement test).",
       "related": [
         "docs/ideas/equipment-scope-build-brief.md",
@@ -400,14 +282,7 @@
       "title": "Equipment-scope enforcement — adversarial boundary review (PR #89)",
       "status": "independent-review",
       "category": "flows-and-blocks",
-      "tags": [
-        "composition",
-        "equipment-scope",
-        "tools",
-        "connectors",
-        "review",
-        "soundness"
-      ],
+      "tags": ["composition", "equipment-scope", "tools", "connectors", "review", "soundness"],
       "current_reading": "Read-only adversarial review of the equipment-scope enforcement on PR #89. All four boundary checks HOLD (a no-write worker cannot write, delegate around the restriction, or exceed its scope), but the review found a BLOCKING functional defect: the fail-closed parse guard rejected the CLI's own auto-injected StructuredOutput tool, so fix-act (the only enforced scope) failed on every real run. Defect fixed in the follow-up commit (admit StructuredOutput only when --json-schema was emitted); re-proven by regression test, a live fix-act repro, and a re-run write-escape probe.",
       "related": [
         "docs/ideas/equipment-scope-enforcement-report.md",
@@ -420,15 +295,9 @@
       "title": "Effective Memory Program Review",
       "status": "independent-review",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "review",
-        "soundness"
-      ],
+      "tags": ["memory", "review", "soundness"],
       "current_reading": "Independent review of the memory program. Use as critique and risk context, not as a separate implementation plan.",
-      "related": [
-        "docs/ideas/effective-memory-program.md"
-      ],
+      "related": ["docs/ideas/effective-memory-program.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -436,12 +305,7 @@
       "title": "The Effective Memory Program",
       "status": "partially-implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "ratchet",
-        "history",
-        "project-facts"
-      ],
+      "tags": ["memory", "ratchet", "history", "project-facts"],
       "current_reading": "Memory substrate, pull surface, recall precision, failure legibility, and local project facts exist; automatic lesson capture and measured value claims remain open.",
       "related": [
         "docs/ideas/self-auditing-memory.md",
@@ -454,12 +318,7 @@
       "title": "Two-track plan: the M-spine and the exploration substrate",
       "status": "partially-implemented",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "exploration",
-        "experiments",
-        "composition",
-        "roadmap"
-      ],
+      "tags": ["exploration", "experiments", "composition", "roadmap"],
       "current_reading": "Plan separating the first-class-composition M-spine from an exploration substrate for measured experiments. Largely realized: the M-spine merged, and the start-now pieces shipped (equipment scope PR #89 + the equipment resolver; the offline flow lab and quality ratchet). The framing is superseded by decision-layer-exploration.md; the gated remainder (splice-as-leaf, a fuller legible-composition surface) is still surfaced. Kept as the dependency-cut record.",
       "related": [
         "docs/ideas/e1-implementation-brief.md",
@@ -474,13 +333,7 @@
       "title": "Durability Tier-2: the forward-recovery cursor (decision-ready spec)",
       "status": "partially-implemented",
       "category": "run-inspection-and-output",
-      "tags": [
-        "durability",
-        "resumability",
-        "crash-recovery",
-        "recovery-corridor",
-        "spec"
-      ],
+      "tags": ["durability", "resumability", "crash-recovery", "recovery-corridor", "spec"],
       "current_reading": "Decision-ready spec for Tier-2 forward recovery, companion to the fallible-executor audit. DECIDED: Option C (restart-cheapness, not a resumable cursor). Both load-bearing probes ran (2026-06-16): relay is the lone linear step kind that is not cheaply idempotent, and the staleness boundary resolved as a cheap runtime-owned port. The foundation slice shipped (RecoveryCorridor.seedFromTrace, structural-only, behind resume; PR #93) and the worktree reaper landed (PR #99); the forward-recovery cursor itself is the path NOT taken. The re-entry mechanism for skip-finished children moved to durability-tier3-restart-linkage-spec.md (circuit run --reuse-children-from, not built).",
       "related": [
         "docs/ideas/fallible-executor-audit.md",
@@ -494,13 +347,7 @@
       "title": "Fallible-executor audit - can a crashed run be reconstructed from durable state?",
       "status": "current-gap-analysis",
       "category": "run-inspection-and-output",
-      "tags": [
-        "durability",
-        "resumability",
-        "trace",
-        "crash-recovery",
-        "audit"
-      ],
+      "tags": ["durability", "resumability", "trace", "crash-recovery", "audit"],
       "current_reading": "Read-only durability audit (2026-06-16) of whether a fresh executor can reconstruct a crashed run from durable state alone. Verdict GAPS-FOUND: Circuit is graceful-park-and-resume-at-a-checkpoint, not crash-resumable. A kill between checkpoints cannot be continued, though the trace still records what happened for inspection and close-time projection. Tier-1 hardening (torn-tail tolerance, atomic whole-file writes, result.json regeneration) is being built off this audit; the Tier-2 resumable cursor is not.",
       "last_checked": "2026-06-16"
     },
@@ -509,13 +356,7 @@
       "title": "Circuit: First-Class Block Composition Migration Plan",
       "status": "superseded",
       "category": "archived-or-superseded",
-      "tags": [
-        "composition",
-        "flows-and-blocks",
-        "migration",
-        "superseded",
-        "historical-lineage"
-      ],
+      "tags": ["composition", "flows-and-blocks", "migration", "superseded", "historical-lineage"],
       "current_reading": "Superseded staged migration plan (Stages 1-6) for making block composition first-class. The work shipped as milestones M1-M9; where it disagrees with the optimal-path architecture doc, that doc governs. Kept as the design record the merged code cites by stage number.",
       "related": [
         "docs/architecture/first-class-composition-optimal-path.md",
@@ -528,12 +369,7 @@
       "title": "Flow Eval Suites: Implementation Exploration",
       "status": "current-proposal",
       "category": "verification-and-evals",
-      "tags": [
-        "evals",
-        "flow-suites",
-        "verification",
-        "fix"
-      ],
+      "tags": ["evals", "flow-suites", "verification", "fix"],
       "current_reading": "Proposal for suite manifests, adapter runners, and a standard result envelope around existing evals. Not current behavior.",
       "last_checked": "2026-06-04"
     },
@@ -542,13 +378,7 @@
       "title": "Frontier-Lab Circuit Strategy",
       "status": "current-strategy-context",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "strategy",
-        "frontier-agents",
-        "trust-layer",
-        "typed-coordination",
-        "evals"
-      ],
+      "tags": ["strategy", "frontier-agents", "trust-layer", "typed-coordination", "evals"],
       "current_reading": "12-month strategy proposal for making Circuit a friendly coordination and trust layer for AI software work. Not current behavior.",
       "related": [
         "docs/ideas/typed-coordination-alignment-proposal.md",
@@ -564,11 +394,7 @@
       "title": "Future-proofing Circuit",
       "status": "current-strategy-context",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "strategy",
-        "model-improvement",
-        "orchestration"
-      ],
+      "tags": ["strategy", "model-improvement", "orchestration"],
       "current_reading": "Strategy note on which Circuit bets compound as models improve and which erode. No direct implementation status.",
       "last_checked": "2026-06-04"
     },
@@ -577,13 +403,7 @@
       "title": "Experiment design: grain x task-separability",
       "status": "design-evaluation",
       "category": "verification-and-evals",
-      "tags": [
-        "experiments",
-        "composition",
-        "evals",
-        "grain",
-        "methodology"
-      ],
+      "tags": ["experiments", "composition", "evals", "grain", "methodology"],
       "current_reading": "Pre-registered experiment design that pits two opposing hypotheses (coherence-loss vs verification-gain) about whether chopping a task into separated steps helps or hurts, to settle the assembler's chop/hold default. Designed AND run (2026-06-16): the verdict was NULL (the false-fixed rate was 0 in every cell, both grains and both bands, so the hypotheses could not be adjudicated and the thin-conservative chooser was held). This is the design record; the outcome lives in grain-chooser-run-report.md.",
       "related": [
         "docs/ideas/e1-run-report.md",
@@ -599,13 +419,7 @@
       "title": "Intent capture and enforcement: implementation spec (Build v1)",
       "status": "implementation-spec",
       "category": "flows-and-blocks",
-      "tags": [
-        "intent",
-        "enforcement",
-        "build-flow",
-        "guardrails",
-        "alignment"
-      ],
+      "tags": ["intent", "enforcement", "build-flow", "guardrails", "alignment"],
       "current_reading": "Build-only implementation spec for the v2 intent design. Guardrails (non_goals + invariants) flow context -> plan; the reviewer's alignment block is a required field on build.review@v1 with a superRefine that forbids accepting a scope or guardrail breach. Records why acceptance-retry was abandoned after a runtime routing probe. Implemented and verified; no engine change.",
       "related": [
         "docs/ideas/intent-capture-and-enforcement.md",
@@ -618,13 +432,7 @@
       "title": "Intent capture and enforcement in Circuit flows (v2)",
       "status": "current-proposal",
       "category": "flows-and-blocks",
-      "tags": [
-        "intent",
-        "enforcement",
-        "build-flow",
-        "guardrails",
-        "spec-driven"
-      ],
+      "tags": ["intent", "enforcement", "build-flow", "guardrails", "spec-driven"],
       "current_reading": "Revamped proposal that reframes the Codex pre-execution-memory idea as typed intent enforced inside existing flow reports and checks, not a new preflight gate. Grounded in a codebase read and one runtime probe. Build-flow slice is implemented; broader direction is not current behavior.",
       "related": [
         "docs/ideas/pre-execution-memory-comparison.md",
@@ -638,12 +446,7 @@
       "title": "Long-horizon supervision - heartbeat course-correction and crow's-nest views",
       "status": "current-idea",
       "category": "run-inspection-and-output",
-      "tags": [
-        "long-horizon",
-        "supervision",
-        "heartbeat",
-        "status-view"
-      ],
+      "tags": ["long-horizon", "supervision", "heartbeat", "status-view"],
       "current_reading": "Idea for executor/supervisor heartbeat and overview surfaces. Future work, not current behavior.",
       "last_checked": "2026-06-04"
     },
@@ -652,15 +455,9 @@
       "title": "Longitudinal Evidence Memory",
       "status": "archived",
       "category": "archived-or-superseded",
-      "tags": [
-        "memory",
-        "historical-lineage"
-      ],
+      "tags": ["memory", "historical-lineage"],
       "current_reading": "Archived in place. Its useful direction was absorbed into self-auditing memory specs, the effective-memory program, and current history memory implementation.",
-      "related": [
-        "docs/ideas/self-auditing-memory.md",
-        "docs/ideas/effective-memory-program.md"
-      ],
+      "related": ["docs/ideas/self-auditing-memory.md", "docs/ideas/effective-memory-program.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -668,13 +465,7 @@
       "title": "Local SQLite Read Model For Circuit",
       "status": "current-proposal",
       "category": "memory-and-ratchet",
-      "tags": [
-        "sqlite",
-        "history",
-        "run-inspection",
-        "memory",
-        "evals"
-      ],
+      "tags": ["sqlite", "history", "run-inspection", "memory", "evals"],
       "current_reading": "Proposal to use SQLite first as a derived local read model over existing run artifacts, not as runtime authority.",
       "related": [
         "docs/ideas/pull-query-memory-engineering-proposal.md",
@@ -689,13 +480,7 @@
       "title": "M9 grounding brief - open the composed runtime (the finale)",
       "status": "implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "composition",
-        "milestone",
-        "runtime",
-        "assembler",
-        "safety-floor"
-      ],
+      "tags": ["composition", "milestone", "runtime", "assembler", "safety-floor"],
       "current_reading": "Grounding brief for M9, the finale of the first-class-composition migration: open one shared assembly/runtime path so a flow assembled per task runs exactly the way a built-in does, floor-first (close the safety gaps before opening the door). M9 has since landed; this is the record of the intent and sequencing.",
       "related": [
         "docs/architecture/first-class-composition-optimal-path.md",
@@ -709,13 +494,7 @@
       "title": "Paper-to-site flow - build brief",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "flows",
-        "explainer",
-        "paper-to-site",
-        "hand-authored",
-        "build-brief"
-      ],
+      "tags": ["flows", "explainer", "paper-to-site", "hand-authored", "build-brief"],
       "current_reading": "Build brief for the explainer flow, the operator's research-paper to interactive-site pipeline codified as the first hand-authored, non-build-shaped flow. v1 shipped to main (PR #90; src/flows/explainer/): intake, lossless digest, persona-lensed ideation, a six-criteria tournament, an adversarial fidelity hardening pass, an operator pick, a house-style spec, a child build sub-run, verification, an operator fidelity sign-off, and an honest close. It was then run on a second paper, which generalized the editorial spine but exposed findings: the headline recovery-binding hard-abort is now fixed on main (PR #105), while the greenfield-scaffold gap, a post-editorial checkpoint, and craft gaps remain open. See paper-to-site-2nd-run-findings.md.",
       "related": [
         "docs/ideas/m9-grounding-brief.md",
@@ -731,16 +510,9 @@
       "title": "Implementation spec: failure-outcome reconciliation + Phase 0 legibility",
       "status": "implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "failure-legibility",
-        "history",
-        "implementation-spec"
-      ],
+      "tags": ["memory", "failure-legibility", "history", "implementation-spec"],
       "current_reading": "Implemented failure outcome reconciliation and failure-query ranking slice. Current code lives in history, run-envelope, outcome, and related tests.",
-      "related": [
-        "docs/ideas/effective-memory-program.md"
-      ],
+      "related": ["docs/ideas/effective-memory-program.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -748,12 +520,7 @@
       "title": "The mini-harness debrief vs. circuit's first-class composition",
       "status": "current-comparison",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "comparison",
-        "composition",
-        "experiments",
-        "harness"
-      ],
+      "tags": ["comparison", "composition", "experiments", "harness"],
       "current_reading": "Compares an external exploratory mini-harness against Circuit's first-class composition direction. The comparison still stands; the in-flight work it references has since landed (the resolvers, equipment scope, the recursion bound). Comparison context that motivated the exploration substrate.",
       "related": [
         "docs/ideas/exploration-substrate-two-track-plan.md",
@@ -766,11 +533,7 @@
       "title": "Modern Engineering Practices: Circuit Proposals",
       "status": "current-proposal",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "modern-engineering",
-        "practice-comparison",
-        "proposals"
-      ],
+      "tags": ["modern-engineering", "practice-comparison", "proposals"],
       "current_reading": "Proposal set from comparing Circuit with Christoph Nakazawa's Modern Engineering Values workflow. Not shipped unless a section says otherwise.",
       "last_checked": "2026-06-04"
     },
@@ -779,17 +542,9 @@
       "title": "Multi-Channel HITL Proposal",
       "status": "current-proposal",
       "category": "hosts-connectors-and-hitl",
-      "tags": [
-        "hitl",
-        "checkpoint",
-        "email",
-        "sms",
-        "mcp"
-      ],
+      "tags": ["hitl", "checkpoint", "email", "sms", "mcp"],
       "current_reading": "Architecture proposal for multi-channel HITL as a delivery gateway around existing Human Decision and Checkpoint semantics. Not current runtime behavior.",
-      "related": [
-        "docs/ideas/multi-channel-hitl-unlocks.md"
-      ],
+      "related": ["docs/ideas/multi-channel-hitl-unlocks.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -797,17 +552,9 @@
       "title": "Multi-Channel HITL: Unlocks And Combinations",
       "status": "current-proposal",
       "category": "hosts-connectors-and-hitl",
-      "tags": [
-        "hitl",
-        "checkpoint",
-        "run-inspection",
-        "mcp",
-        "supervision"
-      ],
+      "tags": ["hitl", "checkpoint", "run-inspection", "mcp", "supervision"],
       "current_reading": "Opportunity exploration for what multi-channel HITL unlocks alone and with adjacent features. Not current behavior or roadmap commitment.",
-      "related": [
-        "docs/ideas/multi-channel-hitl-proposal.md"
-      ],
+      "related": ["docs/ideas/multi-channel-hitl-proposal.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -815,11 +562,7 @@
       "title": "OpenCode as a third host",
       "status": "current-idea",
       "category": "hosts-connectors-and-hitl",
-      "tags": [
-        "opencode",
-        "host",
-        "local-models"
-      ],
+      "tags": ["opencode", "host", "local-models"],
       "current_reading": "Idea for evaluating OpenCode as a third host alongside Claude Code and Codex. OpenCode is not a supported host today.",
       "last_checked": "2026-06-04"
     },
@@ -828,12 +571,7 @@
       "title": "Output Model: Flow Status Indicator and Final Digest",
       "status": "current-proposal",
       "category": "run-inspection-and-output",
-      "tags": [
-        "output",
-        "host-rendering",
-        "status",
-        "digest"
-      ],
+      "tags": ["output", "host-rendering", "status", "digest"],
       "current_reading": "Proposal for a three-channel output model, flow status indicator, routing checkpoint, and final digest. Revised after adversarial review; not yet built.",
       "last_checked": "2026-06-04"
     },
@@ -842,15 +580,9 @@
       "title": "Per-step validation check - stop and fix before the next step",
       "status": "partially-implemented",
       "category": "verification-and-evals",
-      "tags": [
-        "validation",
-        "verification",
-        "step-contracts"
-      ],
+      "tags": ["validation", "verification", "step-contracts"],
       "current_reading": "Runtime steps validate typed reports, but the specific per-step validation-check product idea is not a separate shipped block.",
-      "related": [
-        "docs/ideas/adversarial-verification-gates.md"
-      ],
+      "related": ["docs/ideas/adversarial-verification-gates.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -858,11 +590,7 @@
       "title": "Portable Run captures",
       "status": "current-idea",
       "category": "run-inspection-and-output",
-      "tags": [
-        "run-captures",
-        "portability",
-        "sharing"
-      ],
+      "tags": ["run-captures", "portability", "sharing"],
       "current_reading": "Idea for exporting successful Runs as reusable team or personal process patterns. Future behavior.",
       "last_checked": "2026-06-04"
     },
@@ -871,12 +599,7 @@
       "title": "Circuit positioning and strategy workshop notes",
       "status": "current-strategy-context",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "positioning",
-        "strategy",
-        "messaging",
-        "market-scan"
-      ],
+      "tags": ["positioning", "strategy", "messaging", "market-scan"],
       "current_reading": "Point-in-time positioning workshop notes from May 2026, moved from docs/ root. The Section 4 control matrix predates the power dial and the Prototype flow; validate claims against code and release evidence before reuse.",
       "last_checked": "2026-06-12"
     },
@@ -885,17 +608,9 @@
       "title": "Circuit today vs. typed pre-execution memory",
       "status": "current-comparison",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "intent",
-        "pre-execution-memory",
-        "comparison",
-        "preflight",
-        "codex-proposal"
-      ],
+      "tags": ["intent", "pre-execution-memory", "comparison", "preflight", "codex-proposal"],
       "current_reading": "The Codex source proposal: a source-backed comparison of Circuit today against a typed pre-execution-memory / preflight-contract direction. The analysis stands as context; its specific recommendation is revised by intent-capture-and-enforcement.md, which enforces intent inside existing flow reports rather than adding a preflight gate.",
-      "related": [
-        "docs/ideas/intent-capture-and-enforcement.md"
-      ],
+      "related": ["docs/ideas/intent-capture-and-enforcement.md"],
       "last_checked": "2026-06-08"
     },
     {
@@ -903,13 +618,7 @@
       "title": "Primitive-readiness audit: the six substrate primitives at M5",
       "status": "current-gap-analysis",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "exploration",
-        "experiments",
-        "composition",
-        "primitives",
-        "readiness"
-      ],
+      "tags": ["exploration", "experiments", "composition", "primitives", "readiness"],
       "current_reading": "B2 of the E1 backlog. Grounds the six-primitive substrate analysis in the post-M5 codebase: per primitive, the implementing file(s) today and the remaining gap. Audit context as of M5, not shipped behavior; re-check citations against current src.",
       "related": [
         "docs/ideas/exploration-substrate-two-track-plan.md",
@@ -922,15 +631,9 @@
       "title": "Project Execution Memory",
       "status": "partially-implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "project-facts",
-        "distillation"
-      ],
+      "tags": ["memory", "project-facts", "distillation"],
       "current_reading": "Project memory note/list/forget, local project facts, identity, injection, and distiller exist; automatic run-close write-back remains future work.",
-      "related": [
-        "docs/ideas/self-auditing-memory-slice-5-spec.md"
-      ],
+      "related": ["docs/ideas/self-auditing-memory-slice-5-spec.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -938,15 +641,9 @@
       "title": "Pull Query Memory Engineering Proposal",
       "status": "partially-implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "history-pull",
-        "host-surface"
-      ],
+      "tags": ["memory", "history-pull", "host-surface"],
       "current_reading": "The bounded history pull substrate exists; the broader host-facing History Ask wrapper remains proposal material.",
-      "related": [
-        "docs/ideas/pull-query-memory.md"
-      ],
+      "related": ["docs/ideas/pull-query-memory.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -954,15 +651,9 @@
       "title": "Pull Query Memory",
       "status": "superseded",
       "category": "archived-or-superseded",
-      "tags": [
-        "memory",
-        "history-pull",
-        "superseded"
-      ],
+      "tags": ["memory", "history-pull", "superseded"],
       "current_reading": "Superseded by the engineering proposal and implemented circuit history pull surface. Keep only for lineage.",
-      "related": [
-        "docs/ideas/pull-query-memory-engineering-proposal.md"
-      ],
+      "related": ["docs/ideas/pull-query-memory-engineering-proposal.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -970,16 +661,9 @@
       "title": "Ratchet Data Requirements",
       "status": "partially-implemented-research",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "ratchet",
-        "data-requirements",
-        "research"
-      ],
+      "tags": ["memory", "ratchet", "data-requirements", "research"],
       "current_reading": "Research report plus selected prototype. Several data requirements now have code homes; use newer slice specs for exact current status.",
-      "related": [
-        "docs/ideas/self-auditing-memory.md"
-      ],
+      "related": ["docs/ideas/self-auditing-memory.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -987,16 +671,9 @@
       "title": "Closing the Recall-to-Lesson Gap",
       "status": "partially-implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "recall",
-        "lessons",
-        "project-facts"
-      ],
+      "tags": ["memory", "recall", "lessons", "project-facts"],
       "current_reading": "Failure legibility, memory reports, recall precision, pull, and project facts exist; automatic lesson write-back remains open.",
-      "related": [
-        "docs/ideas/effective-memory-program.md"
-      ],
+      "related": ["docs/ideas/effective-memory-program.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -1004,12 +681,7 @@
       "title": "Run Inspection: Implementation Exploration",
       "status": "current-proposal",
       "category": "run-inspection-and-output",
-      "tags": [
-        "run-inspection",
-        "runs-list",
-        "runs-events",
-        "runs-why"
-      ],
+      "tags": ["run-inspection", "runs-list", "runs-events", "runs-why"],
       "current_reading": "Proposal for read-only run inspection over existing run folders. Adds list/events/why concepts and defers liveness claims.",
       "last_checked": "2026-06-04"
     },
@@ -1018,12 +690,7 @@
       "title": "Sandboxed parallel Pursue",
       "status": "current-idea",
       "category": "flows-and-blocks",
-      "tags": [
-        "pursue",
-        "parallelism",
-        "sandbox",
-        "change-packets"
-      ],
+      "tags": ["pursue", "parallelism", "sandbox", "change-packets"],
       "current_reading": "Idea for safe parallel code-changing Pursuits through isolated worktrees and verified change packets. Not shipped.",
       "last_checked": "2026-06-04"
     },
@@ -1032,14 +699,7 @@
       "title": "The resolver shared shape (observed, not extracted)",
       "status": "current-gap-analysis",
       "category": "flows-and-blocks",
-      "tags": [
-        "resolvers",
-        "decision-layer",
-        "assembly",
-        "abstraction",
-        "equipment",
-        "structure"
-      ],
+      "tags": ["resolvers", "decision-layer", "assembly", "abstraction", "equipment", "structure"],
       "current_reading": "Records the four-part shape the two in-src decision-layer resolvers (src/flows/resolvers/structure.ts + equipment.ts) independently landed on, plus the four load-bearing divergences (per-flow vs per-step scope, enforced vs trusted-only, downgrade/finding channel, binding time). The shared Resolver type is earnable but deliberately NOT extracted; a third instance (context or depth) is the honest trigger.",
       "related": [
         "docs/ideas/e2-equipment-scope-spec.md",
@@ -1052,13 +712,7 @@
       "title": "Circuit-native spec-driven development flow opportunities",
       "status": "current-proposal",
       "category": "flows-and-blocks",
-      "tags": [
-        "spec-driven-development",
-        "spec-flow",
-        "reports",
-        "checkpoints",
-        "research"
-      ],
+      "tags": ["spec-driven-development", "spec-flow", "reports", "checkpoints", "research"],
       "current_reading": "Research-backed proposal for a Circuit-native `spec` flow that uses typed Reports and Checkpoints before exporting a packet plus readable views. Not current behavior.",
       "related": [
         "docs/ideas/doc-checkpoint-block.md",
@@ -1097,15 +751,9 @@
       "title": "Self-Auditing Memory: Soundness and Durability Review",
       "status": "archived",
       "category": "archived-or-superseded",
-      "tags": [
-        "memory",
-        "review",
-        "historical"
-      ],
+      "tags": ["memory", "review", "historical"],
       "current_reading": "Archived in place. Useful historical critique, but prefer parent memory docs, slice specs, and current code for active guidance.",
-      "related": [
-        "docs/ideas/self-auditing-memory.md"
-      ],
+      "related": ["docs/ideas/self-auditing-memory.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -1113,16 +761,9 @@
       "title": "Slice 1 Spec: The Report-Only Memory-Merge Artifact",
       "status": "implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "memory-merge",
-        "history",
-        "slice-spec"
-      ],
+      "tags": ["memory", "memory-merge", "history", "slice-spec"],
       "current_reading": "Implemented memory-merge artifact and CLI slice. Some path references inside use older source locations.",
-      "related": [
-        "docs/ideas/self-auditing-memory.md"
-      ],
+      "related": ["docs/ideas/self-auditing-memory.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -1130,16 +771,9 @@
       "title": "Slice 2 Spec: Cross-Run Effect Aggregation (report-only)",
       "status": "implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "memory-effect",
-        "history",
-        "slice-spec"
-      ],
+      "tags": ["memory", "memory-effect", "history", "slice-spec"],
       "current_reading": "Implemented cross-run memory-effect aggregation slice. Some path references inside use older source locations.",
-      "related": [
-        "docs/ideas/self-auditing-memory.md"
-      ],
+      "related": ["docs/ideas/self-auditing-memory.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -1147,16 +781,9 @@
       "title": "Slice 3 Spec: Earned-Precision Injection (first behavior change)",
       "status": "implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "recall-precision",
-        "injection",
-        "slice-spec"
-      ],
+      "tags": ["memory", "recall-precision", "injection", "slice-spec"],
       "current_reading": "Implemented flow-scoped earned-precision run-start recall. Some path references inside use older source locations.",
-      "related": [
-        "docs/ideas/self-auditing-memory.md"
-      ],
+      "related": ["docs/ideas/self-auditing-memory.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -1164,16 +791,9 @@
       "title": "Slice 4 Spec: The Gated Pull Surface (cited, hint-only, logged)",
       "status": "implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "history-pull",
-        "pull-log",
-        "slice-spec"
-      ],
+      "tags": ["memory", "history-pull", "pull-log", "slice-spec"],
       "current_reading": "Implemented history pull, pull-log schema, suppression path, and relay affordance. Some path references inside use older source locations.",
-      "related": [
-        "docs/ideas/self-auditing-memory.md"
-      ],
+      "related": ["docs/ideas/self-auditing-memory.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -1181,17 +801,9 @@
       "title": "Slice 5 Spec: The Cited-Fact Producer",
       "status": "partially-implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "project-facts",
-        "distillation",
-        "slice-spec"
-      ],
+      "tags": ["memory", "project-facts", "distillation", "slice-spec"],
       "current_reading": "Operator-filed project memory and distillation substrate exist; full run-close write-back remains deferred.",
-      "related": [
-        "docs/ideas/self-auditing-memory.md",
-        "docs/ideas/project-execution-memory.md"
-      ],
+      "related": ["docs/ideas/self-auditing-memory.md", "docs/ideas/project-execution-memory.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -1199,12 +811,7 @@
       "title": "Self-Auditing Memory: Circuit's Effectiveness Ratchet",
       "status": "partially-implemented",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "ratchet",
-        "history",
-        "effectiveness"
-      ],
+      "tags": ["memory", "ratchet", "history", "effectiveness"],
       "current_reading": "Design thesis with slices 1-4 implemented and slice 5 partial; lifecycle promotion/retirement and automatic run-close fact write-back remain future work.",
       "related": [
         "docs/ideas/self-auditing-memory-slice-1-spec.md",
@@ -1220,11 +827,7 @@
       "title": "Self-improving Circuit",
       "status": "current-idea",
       "category": "memory-and-ratchet",
-      "tags": [
-        "self-improvement",
-        "learning-loop",
-        "ratchet"
-      ],
+      "tags": ["self-improvement", "learning-loop", "ratchet"],
       "current_reading": "Idea seed for a learning loop in Circuit flows. Product idea only, not shipped behavior.",
       "last_checked": "2026-06-04"
     },
@@ -1233,11 +836,7 @@
       "title": "Skill Hooks: Alternative Implementations (V1 exploration)",
       "status": "archived",
       "category": "skill-hooks-and-expertise",
-      "tags": [
-        "skill-hooks",
-        "alternatives",
-        "historical"
-      ],
+      "tags": ["skill-hooks", "alternatives", "historical"],
       "current_reading": "Option-by-option archive. Its early file-surface-hook framing is historical; prefer first-principles, dispatch, vocabulary, and current code for shipped behavior.",
       "related": [
         "docs/ideas/skill-hooks-first-principles.md",
@@ -1250,12 +849,7 @@
       "title": "Skill Hooks: dispatch implementation spec",
       "status": "implementation-spec",
       "category": "skill-hooks-and-expertise",
-      "tags": [
-        "skill-hooks",
-        "dispatch",
-        "auto",
-        "runtime"
-      ],
+      "tags": ["skill-hooks", "dispatch", "auto", "runtime"],
       "current_reading": "Implementation spec for Skill Hooks dispatch slices. Use as build lineage; verify exact mode names and hook names against current code and vocabulary docs.",
       "related": [
         "docs/ideas/skill-hooks-first-principles.md",
@@ -1269,11 +863,7 @@
       "title": "Skill Hooks: A First-Principles Pass",
       "status": "archived",
       "category": "skill-hooks-and-expertise",
-      "tags": [
-        "skill-hooks",
-        "expertise-routing",
-        "historical"
-      ],
+      "tags": ["skill-hooks", "expertise-routing", "historical"],
       "current_reading": "Historical design exploration from before runtime dispatch shipped. Useful for framing, but stale names and behavior claims need current-code checks.",
       "related": [
         "docs/ideas/skill-hooks-dispatch-spec.md",
@@ -1286,12 +876,7 @@
       "title": "Skill Hooks: uncovered cases",
       "status": "current-gap-analysis",
       "category": "skill-hooks-and-expertise",
-      "tags": [
-        "skill-hooks",
-        "gap-analysis",
-        "observability",
-        "deferred-slices"
-      ],
+      "tags": ["skill-hooks", "gap-analysis", "observability", "deferred-slices"],
       "current_reading": "Adversarially verified catalog of Skill Hooks cases the shipped design does not handle. Recommends docs reconcile plus an observability slice first.",
       "related": [
         "docs/ideas/skill-hooks-dispatch-spec.md",
@@ -1305,12 +890,7 @@
       "title": "Smithers And Circuit: Comparison And Takeaways",
       "status": "current-comparison",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "smithers",
-        "comparison",
-        "workflow-runtime",
-        "takeaways"
-      ],
+      "tags": ["smithers", "comparison", "workflow-runtime", "takeaways"],
       "current_reading": "Source-backed comparison and recommendation. Smithers overlaps with Circuit on structured work but is a durable TSX workflow runtime.",
       "last_checked": "2026-06-04"
     },
@@ -1319,13 +899,7 @@
       "title": "Splice-seam foundation Phases 0 and 1 run report",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "splice",
-        "equipment-reshape",
-        "resume",
-        "recompile",
-        "structural-reshape"
-      ],
+      "tags": ["splice", "equipment-reshape", "resume", "recompile", "structural-reshape"],
       "current_reading": "Run report for the splice-seam foundation. Phase 1 (the resume reseed, F1 = seedEquipmentReshapeFromTrace) is built and landed as PR #110 against src/; the Step 2 resume gap is closed. Phase 0 is a throwaway offline demonstrator (experiments/flow-lab/) proving the structural splice's run-state migration is sound and the gate fails closed, with four honest Phase-2 seam caveats (outbound re-home laundering, two gates not one, decompose migrates more than the four named pieces, single-producer rule is load-bearing). Recommends proceeding to design Phase 2 behind an engine flag, with the four caveats as the spec and no flow wired until ratified. Phase 2 (structural seam in src/) and Phase 3 (splice-as-leaf) deliberately not built.",
       "related": [
         "docs/ideas/deepfork-splice-seam-spec.md",
@@ -1338,14 +912,7 @@
       "title": "Pooling Circuit Memory Across an Agent Swarm",
       "status": "current-proposal",
       "category": "memory-and-ratchet",
-      "tags": [
-        "memory",
-        "pooling",
-        "swarm",
-        "cite-and-verify",
-        "crdt",
-        "project-facts"
-      ],
+      "tags": ["memory", "pooling", "swarm", "cite-and-verify", "crdt", "project-facts"],
       "current_reading": "Design-only proposal (not built) for pooling Circuit's per-worktree project memory across a same-machine swarm first, then a cross-machine team. Densest kernel is a re-anchored, cite-and-verify-backed pooled read projection that converts the cross-worktree write race into a grow-only set (G-Set union merge) and replicates cited-artifact bytes so foreign facts still re-verify. Stage 0 (query-rankable, corroboration-aware recall) is the read-only slice that ships value first; the query-ranking half is being built behind a recall-side flag. External arXiv citations are post-cutoff and unverified; link-check before trusting numbers.",
       "related": [
         "docs/ideas/self-auditing-memory.md",
@@ -1359,13 +926,7 @@
       "title": "Tracker connector - emit flow output as tracked issues",
       "status": "current-idea",
       "category": "hosts-connectors-and-hitl",
-      "tags": [
-        "tracker",
-        "connectors",
-        "issues",
-        "linear",
-        "github-issues"
-      ],
+      "tags": ["tracker", "connectors", "issues", "linear", "github-issues"],
       "current_reading": "Idea for reading task intent from trackers and writing structured flow output back at boundaries. Tracker issue emission is not implemented.",
       "last_checked": "2026-06-04"
     },
@@ -1374,16 +935,9 @@
       "title": "Typed Coordination Alignment Proposal",
       "status": "current-proposal",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "typed-coordination",
-        "positioning",
-        "skill-hooks",
-        "runtime-signals"
-      ],
+      "tags": ["typed-coordination", "positioning", "skill-hooks", "runtime-signals"],
       "current_reading": "Proposal for product framing around typed coordination. Separates shipped behavior from proposed direction where that distinction matters.",
-      "related": [
-        "docs/ideas/skill-hooks-uncovered-cases.md"
-      ],
+      "related": ["docs/ideas/skill-hooks-uncovered-cases.md"],
       "last_checked": "2026-06-04"
     },
     {
@@ -1391,14 +945,7 @@
       "title": "Overnight brief - foundation completion plus frontier spike",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "overnight",
-        "foundation",
-        "frontier",
-        "assembler",
-        "durability",
-        "held-prs"
-      ],
+      "tags": ["overnight", "foundation", "frontier", "assembler", "durability", "held-prs"],
       "current_reading": "Controlling brief for the 2026-06-15 overnight run: finish the composition and durability foundation as held PRs and spike-and-surface the reserved deep forks. Foundation chunks were built as separate held PRs; the grain experiment was skipped at its Step-0 gate; the deep forks were surfaced as specs, not committed. See overnight-run-report.md for what landed.",
       "related": [
         "docs/ideas/overnight-run-report.md",
@@ -1412,17 +959,9 @@
       "title": "Overnight run report - foundation completion plus frontier spike",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "overnight",
-        "run-report",
-        "merge-order",
-        "findings",
-        "held-prs"
-      ],
+      "tags": ["overnight", "run-report", "merge-order", "findings", "held-prs"],
       "current_reading": "Live record of the overnight foundation-plus-frontier run: per-chunk status, the grain skip verdict and its evidence, the A1 to A2/A3 dependency outcome, the surfaced deep-fork decisions, and the recommended merge order for the held PRs. The resume point is the STATE section at the top.",
-      "related": [
-        "docs/ideas/overnight-foundation-frontier-brief.md"
-      ],
+      "related": ["docs/ideas/overnight-foundation-frontier-brief.md"],
       "last_checked": "2026-06-16"
     },
     {
@@ -1430,14 +969,7 @@
       "title": "Grain separability experiment - deferred (not run) plus the remedy",
       "status": "superseded",
       "category": "verification-and-evals",
-      "tags": [
-        "grain",
-        "separability",
-        "experiment",
-        "deferred",
-        "taskset",
-        "harness-gap"
-      ],
+      "tags": ["grain", "separability", "experiment", "deferred", "taskset", "harness-gap"],
       "current_reading": "SUPERSEDED: this records the B0-gate decision to skip the grain experiment with no model spend, but the deferral was resolved (the remedy it named was built) and the experiment has since RUN, returning a NULL verdict. Kept as the deferral-reasoning record; for outcome see grain-chooser-run-report.md.",
       "related": [
         "docs/ideas/grain-separability-experiment-design.md",
@@ -1450,14 +982,7 @@
       "title": "Grain separability experiment - taskset built and run (verdict null)",
       "status": "design-evaluation",
       "category": "verification-and-evals",
-      "tags": [
-        "grain",
-        "separability",
-        "experiment",
-        "taskset",
-        "held-out",
-        "harness"
-      ],
+      "tags": ["grain", "separability", "experiment", "taskset", "held-out", "harness"],
       "current_reading": "Go-forward surface that closed the blocking half of the deferral: the harness K-repeat plus interleaving gap was closed (experiments only, K=1 byte-identical), and four separability-spanning held-out tasks were built with a-priori scores pre-registered. The experiment has since RUN and returned a NULL verdict, and the structure chooser was held unchanged. The flagged side effect (held-out claim set 14 to 18) was UNWOUND: the grain tasks were isolated into evals/grain-separability/ (PR #100) and the main held-out set restored to 14. Outcome in grain-chooser-run-report.md.",
       "related": [
         "docs/ideas/grain-experiment-deferred.md",
@@ -1471,14 +996,7 @@
       "title": "Durability Tier-3 - crash-safe sub-run and fanout linkage",
       "status": "partially-implemented",
       "category": "run-inspection-and-output",
-      "tags": [
-        "durability",
-        "tier-3",
-        "fanout",
-        "sub-run",
-        "worktree-reaper",
-        "surface-only"
-      ],
+      "tags": ["durability", "tier-3", "fanout", "sub-run", "worktree-reaper", "surface-only"],
       "current_reading": "Decision-ready spec for crash-safe sub-run and fanout linkage. The recommended first slice SHIPPED: the startup worktree reaper (worktree-reaper.ts + run-owner-lock.ts + reclaim.ts) landed as PR #99, closing the live orphaned-worktree disk leak. The deterministic child-id intent linkage is still surfaced; with Option C decided, the re-entry path moved to durability-tier3-restart-linkage-spec.md.",
       "related": [
         "docs/ideas/fallible-executor-audit.md",
@@ -1517,19 +1035,9 @@
       "title": "Parallel decision inbox",
       "status": "partially-implemented",
       "category": "run-inspection-and-output",
-      "tags": [
-        "decision-inbox",
-        "hitl",
-        "parked-runs",
-        "resume",
-        "triage",
-        "surface-only"
-      ],
+      "tags": ["decision-inbox", "hitl", "parked-runs", "resume", "triage", "surface-only"],
       "current_reading": "Spec for an inbox that surfaces, triages, and resumes runs parked on a fork. The recommended read-only inbox SHIPPED: discovery plus a checkpoint-waiting filter plus staleness triage (src/app/inbox/ + src/cli/inbox.ts) landed as PR #99. The bulk-resume driver is still gated (it waited on the cursor that Option C declined; re-entry now routes through durability-tier3-restart-linkage-spec.md). The shipped inbox filters on the resumable checkpoint-waiting outcome, not the broader needs-attention flag.",
-      "related": [
-        "docs/ideas/fallible-executor-audit.md",
-        "docs/ideas/north-star-status.md"
-      ],
+      "related": ["docs/ideas/fallible-executor-audit.md", "docs/ideas/north-star-status.md"],
       "last_checked": "2026-06-16"
     },
     {
@@ -1537,13 +1045,7 @@
       "title": "Deep fork - uniform recursion E3",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "recursion",
-        "e3",
-        "deep-fork",
-        "spike",
-        "assembler"
-      ],
+      "tags": ["recursion", "e3", "deep-fork", "spike", "assembler"],
       "current_reading": "Spike plus decision-ready spec for treating a sub-run as a leaf step so flows compose recursively. The first recommended safety piece SHIPPED to src/: the recursion bound (depth cap 8 + ancestor cycle guard threaded child-to-child across both child-run edges, plus a compile-time self-reference reject). The reduced-bindings oracle and the path unification (splice-as-leaf, behind an engine flag) are still surfaced, not built. See recompile-foundation-run-report.md.",
       "related": [
         "docs/ideas/deepfork-resolver-abstraction-spec.md",
@@ -1559,13 +1061,7 @@
       "title": "Deep fork - resolver abstraction (surface-only spike)",
       "status": "pre-implementation",
       "category": "flows-and-blocks",
-      "tags": [
-        "resolver",
-        "abstraction",
-        "deep-fork",
-        "spike",
-        "assembler"
-      ],
+      "tags": ["resolver", "abstraction", "deep-fork", "spike", "assembler"],
       "current_reading": "Spike plus decision-ready spec on whether to extract a unified Resolver type. The two concrete instances now exist in src/ (the structure resolver PR #95 and the equipment resolver PR #96), but the recommendation HOLDS: do NOT extract yet. Build a third instance (context is the strongest candidate) before committing the interface, since the two existing resolvers disagree on three of four divergences. The abstraction is earnable but not yet earned. See resolver-shared-shape.md for the shared shape the two landed on.",
       "related": [
         "docs/ideas/deepfork-uniform-recursion-e3-spec.md",
@@ -1580,13 +1076,7 @@
       "title": "Deep fork - adaptive bubble-up recompile",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "adaptive",
-        "recompile",
-        "bubble-up",
-        "deep-fork",
-        "spike"
-      ],
+      "tags": ["adaptive", "recompile", "bubble-up", "deep-fork", "spike"],
       "current_reading": "Spike plus decision-ready spec for a run that re-decomposes itself mid-flight when a step surfaces new structure. Steps 0-2 shipped: the offline recompile demonstrator (experiments/flow-lab/), the Step 1 recursion bound (src/), and Step 2, the first live reshape - additive equipment injection (PR #103, merge 4fa7dae4, src/flows/equipment-reshape.ts + src/runtime/run/equipment-reshape.ts), where a relay bubbles up a confirmed equipment_discovery and the runner re-equips the remaining relay steps and re-compiles through the existing chain with no splice seam. Structural re-decomposition / splice (Step 3) is deferred behind ratification, with the finding-and-checkpoint hand-off as the conservative default. See recompile-foundation-run-report.md and step2-live-equipment-reshape-report.md.",
       "related": [
         "docs/ideas/deepfork-uniform-recursion-e3-spec.md",
@@ -1604,14 +1094,7 @@
       "title": "Deep fork - the splice seam (structural reshape + splice-as-leaf)",
       "status": "pre-implementation",
       "category": "flows-and-blocks",
-      "tags": [
-        "deep-fork",
-        "splice",
-        "structural-reshape",
-        "recursion",
-        "resume",
-        "surface-only"
-      ],
+      "tags": ["deep-fork", "splice", "structural-reshape", "recursion", "resume", "surface-only"],
       "current_reading": "Surface-only, ratification-gated design for the one runner branch two forks both need: structural recompile (decompose a running step into a subtree) and splice-as-leaf (inline a sub-tree where a leaf relay sits). Both reshape the live step set and both name the same spliceIntoRemainingSteps seam. Grounded in why Step 2's additive equipment reshape was safe (step set unchanged) and why structural is a different class: it must migrate the cursor, routes, slice corridor, and completion counts across a changed step set, re-run the block-catalog gate the additive path skips (routes and contracts can regress), and add a structural resume reseed that rebuilds the spliced shape, not just state on a fixed shape. Conservative defaults (decompose-down only, bounded by the shipped budget + cycle guard, refuse inside a slice loop, fail-closed) and a four-phase build plan, each phase its own gate. Builds nothing in src/. See deepfork-adaptive-bubble-up-recompile-spec.md and deepfork-uniform-recursion-e3-spec.md.",
       "related": [
         "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
@@ -1627,14 +1110,7 @@
       "title": "Run report - F2 reshape surface + splice-seam spec (2026-06-17)",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "run-report",
-        "f2",
-        "reshape",
-        "operator-surface",
-        "splice",
-        "deep-fork"
-      ],
+      "tags": ["run-report", "f2", "reshape", "operator-surface", "splice", "deep-fork"],
       "current_reading": "Run report for the F2 + splice-spec run. F2 (the operator surface for live equipment reshapes) is BUILT and verified: honored reshapes surface as equipment_reshapes records and a Live equipment section, parked discoveries as an equipment_discovery_parked warning folded into the brief's caveats; additive surface only, no engine change, failing-test-first, one adversarial-review finding fixed (a torn trace line that slipped the gate would crash the summary write). The splice-seam spec (deepfork-splice-seam-spec.md) was surfaced, building nothing. Also records the one-line repair of main's broken check-ideas gate (a deleted doc restored). The Step 3 decision is now in front of the operator: take Phase 0 (free offline demonstrator) and F1 (additive resume reseed) when ready; hold the structural seam (Phase 2) and splice-as-leaf (Phase 3) for explicit ratification.",
       "related": [
         "docs/ideas/deepfork-splice-seam-spec.md",
@@ -1672,14 +1148,7 @@
       "title": "Recompile foundation run report",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "recompile",
-        "recursion",
-        "bound",
-        "deep-fork",
-        "run-report",
-        "foundation"
-      ],
+      "tags": ["recompile", "recursion", "bound", "deep-fork", "run-report", "foundation"],
       "current_reading": "Run report for the recompile foundation. Records the Step 0 offline recompile demonstrator (a spike in experiments/, proving the assemble-to-compile chain re-resolves and re-compiles the remaining flow with the catalog gate as the safety floor) and the Step 1 recursion bound in src/ (a depth cap plus a cycle guard on both child-run edges, with a compile-time self-reference reject). Measures which reshapes are safe to auto-apply (equipment injection is additive) versus finding-only (re-hold removes verification surface), confirms the conservative defaults hold and selection-under-abundance does not bite, and recommends taking equipment injection as the first live reshape in Step 2.",
       "related": [
         "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
@@ -1694,14 +1163,7 @@
       "title": "Step 2 run report - the live equipment reshape",
       "status": "implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "recompile",
-        "equipment",
-        "reshape",
-        "live",
-        "run-report",
-        "deep-fork"
-      ],
+      "tags": ["recompile", "equipment", "reshape", "live", "run-report", "deep-fork"],
       "current_reading": "Run report for Step 2 of the recompile foundation, the first time the engine adapts a flow that is already running. A relay can bubble up a confirmed runtime equipment discovery in its report; on a confirmed discovery the runner re-resolves equipment for the remaining relay steps and re-compiles through the existing pure chain, additively merging extra skills into those steps without touching the step sequence, so there is no splice seam. The catalog gate inside compile is the safety floor and an unconfirmed signal or a failed reshape falls back to the existing finding/checkpoint path. A per-run reshaper bounds the loop with a budget and cycle guard. Landed on main at 4fa7dae4 with full verify green. Records the two follow-ups (resume reseed, operator surface) and the recommendation to hold Step 3 structural reshape for ratification.",
       "related": [
         "docs/ideas/recompile-foundation-run-report.md",
@@ -1715,13 +1177,7 @@
       "title": "The decision layer - making per-step choices first-class and trialable",
       "status": "current-strategy-context",
       "category": "flows-and-blocks",
-      "tags": [
-        "decision-layer",
-        "resolver",
-        "exploration",
-        "design-sketch",
-        "deep-fork"
-      ],
+      "tags": ["decision-layer", "resolver", "exploration", "design-sketch", "deep-fork"],
       "current_reading": "Framing lens, a design sketch rather than a build plan, for making Circuit's per-step decisions (how to chop, what tools, which context) first-class and trialable. Applies the same find-the-unit-and-compose move that blocks and recursion applied to work, now to the decisions about work. Both concrete instances it called for have shipped to src/ (the structure chooser PR #95 and the equipment resolver PR #96); per its central instruction of restraint the unified resolver abstraction is deliberately NOT extracted yet, pending a third instance.",
       "related": [
         "docs/ideas/next-phase-build-brief.md",
@@ -1737,14 +1193,7 @@
       "title": "Next-phase build brief - the offline flow lab and the first two resolvers",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "flow-lab",
-        "resolver",
-        "structure",
-        "equipment",
-        "build-brief",
-        "offline"
-      ],
+      "tags": ["flow-lab", "resolver", "structure", "equipment", "build-brief", "offline"],
       "current_reading": "Build brief for an offline, cheap flow lab that generates assembled flows, inspects their shape, and ratchets their quality before anything touches a real codebase, plus the first two resolvers (structure chop/hold and equipment skill injection) shaped as if they will be unified later. The flow lab and resolvers were built as a held PR; the recompile foundation run reused the flow-lab quality ratchet to score its demonstrator.",
       "related": [
         "docs/ideas/decision-layer-exploration.md",
@@ -1781,14 +1230,7 @@
       "title": "Doc cleanup + reconciliation report - recursion / recompile frontier",
       "status": "implemented-closed",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "reconciliation",
-        "report",
-        "recompile",
-        "recursion",
-        "index",
-        "closeout"
-      ],
+      "tags": ["reconciliation", "report", "recompile", "recursion", "index", "closeout"],
       "current_reading": "Closeout report (point-in-time) for the 2026-06-16 documentation-reconciliation pass on the recursive / adaptive-workflow line of work, refreshed 2026-06-17 after the overnight reliability batch landed on main. Records what was stale and what is now true per doc, the new canonical north-star map, the two folded-in docs, the light-touch general-doc edits, the index refresh, and the genuinely unresolved items. A record of the cleanup, not a living spec.",
       "related": [
         "docs/ideas/north-star-status.md",
@@ -1802,14 +1244,7 @@
       "title": "North-star status - the recursive / adaptive-workflow roadmap map",
       "status": "current-strategy-context",
       "category": "strategy-and-comparisons",
-      "tags": [
-        "roadmap",
-        "status-map",
-        "recompile",
-        "recursion",
-        "resolver",
-        "north-star"
-      ],
+      "tags": ["roadmap", "status-map", "recompile", "recursion", "resolver", "north-star"],
       "current_reading": "The canonical status and roadmap map for the recursive / adaptive-workflow frontier. Reconciles what has shipped to main against what is still surfaced: the four micro-harness scopes (context, equipment, model/effort, structure) and their build status, the fixed-or-JIT assembler and typed seam, the durability tiers, the recompile/recursion frontier (Steps 0-2 shipped, Step 3 deferred), the paper-to-site flagship and its open findings, and what is reserved for operator ratification. A living map; verify any single claim against code and the linked run reports.",
       "related": [
         "docs/ideas/recompile-foundation-run-report.md",
@@ -1826,13 +1261,7 @@
       "title": "On-demand context pull - a step queries its parent(s) for context",
       "status": "partially-implemented-research",
       "category": "flows-and-blocks",
-      "tags": [
-        "context",
-        "runtime-binding",
-        "recompile",
-        "pull",
-        "deep-fork"
-      ],
+      "tags": ["context", "runtime-binding", "recompile", "pull", "deep-fork"],
       "current_reading": "Default each step to a minimal context envelope and let it pull more from its parent(s) on demand through a typed, queryable surface, instead of pushing a fixed envelope decided at assembly time. The runtime-binding sibling of adaptive bubble-up recompile (recompile bubbles up a discovery and re-plans; this bubbles up a request for context and has it answered). SPIKED and validated offline (PR #107): a pure-function demonstrator in experiments/flow-lab/ shows targeted typed pull reaching fat-push completeness at about a tenth of the carried bytes. No live/src channel yet; sequenced after the live recompile work matures.",
       "related": [
         "docs/ideas/deepfork-adaptive-bubble-up-recompile-spec.md",
@@ -1846,13 +1275,7 @@
       "title": "Context-pull (live) run report - the typed-lookup query channel",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "context",
-        "context-pull",
-        "runtime-binding",
-        "reshape",
-        "trace"
-      ],
+      "tags": ["context", "context-pull", "runtime-binding", "reshape", "trace"],
       "current_reading": "The live runtime sibling of equipment reshape, built off main 99c9e679. A typed-lookup query channel: a relay may surface a typed context_request naming one parent step plus one dotted own-field of its typed report; after the step completes a post-step seam resolves each named slice against that parent's report, bounds it by a per-step budget of 3, refuses an everything/untyped ask (and prototype-chain keys) as a finding, and records each query as a run.context-pull trace entry. Additive, opt-in (declared optional on BuildImplementation, byte-identical when omitted), bounded, fail-safe, and resolve-and-record only - nothing is delivered back into the asking step this cut. 13 tests (11 unit + 2 integration through the real Build flow), verify green, reviewed by a 13-agent adversarial workflow (R1 prototype-key rail hardened). Next: wire delivery (pull-then-retry) and battle-test reshape + pull together on one starving task.",
       "related": [
         "docs/ideas/on-demand-context-pull.md",
@@ -1866,13 +1289,7 @@
       "title": "Paper-to-site explainer flow - second-run findings",
       "status": "design-evaluation",
       "category": "flows-and-blocks",
-      "tags": [
-        "flows",
-        "explainer",
-        "paper-to-site",
-        "run-report",
-        "findings"
-      ],
+      "tags": ["flows", "explainer", "paper-to-site", "run-report", "findings"],
       "current_reading": "Run report from exercising the v1 explainer flow (PR #90) on a second paper (Attention Is All You Need). The editorial spine generalized cleanly off the first paper, but the run exposed plumbing and craft gaps: a P0 recovery-binding hard-abort (since FIXED on main by PR #105, which degrades a failed sub-run child onto its recovery route on resume), a greenfield-scaffold gap in the child build sub-run, and craft gaps (responsive layout, animations). Point-in-time history; the remaining open findings feed the next explainer refinement pass.",
       "related": [
         "docs/ideas/paper-to-site-flow-brief.md",
@@ -1886,13 +1303,7 @@
       "title": "Runtime-binding battle-test report - pull-then-retry delivery, measured",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "context",
-        "context-pull",
-        "delivery",
-        "runtime-binding",
-        "run-report"
-      ],
+      "tags": ["context", "context-pull", "delivery", "runtime-binding", "run-report"],
       "current_reading": "Built the value half of context-pull - pull-then-retry delivery (PR #114, opt-in, default off): when a step's typed context_request is answered, the engine folds the answered slices into the step's envelope and re-runs the step once on the enriched context. Bounded (one re-run per step, per-step budget), additive, fail-safe (a failed re-run keeps the starved result, never launders it). Then battle-tested it on the real Build flow. MEASURED carried bytes vs a fat-push baseline from real engine artifacts: 1.8x on a small real fix (heldout-wrap-index, the step needs most of its small research) and 11x on a wide investigation feeding a narrow step (matching the offline demonstrator's ~10x), so the saving scales with parent-richness-minus-need. Honesty holds: an unpullable slice is refused and recorded, nothing fabricated. R3 decided with deep-depth data - at depth >= high the implementer is the slice-corridor head step, so 100% of deep-depth pulls are dropped silently (no delivery AND no finding); decision: lift the safe resolve-and-record skip inside corridors, defer delivery-in-corridor (needs corridor-aware re-run accounting). Open reach gaps before it earns its keep in production: the pull trigger affordance is half-surfaced (the context_request object-level describe is dropped by the shape renderer and the implementer relay-hints say nothing about it), and the checkpoint-resume path does not re-wire the channel. Harness is experiments/flow-lab/runtime-binding-battle-test.test.ts. Verify green.",
       "related": [
         "docs/ideas/context-pull-live-run-report.md",
@@ -1907,13 +1318,7 @@
       "title": "Context-pull last-mile report - real guided worker pulls; payoff gated on a thin envelope",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "context",
-        "context-pull",
-        "delivery",
-        "runtime-binding",
-        "run-report"
-      ],
+      "tags": ["context", "context-pull", "delivery", "runtime-binding", "run-report"],
       "current_reading": "Closed the two reach gaps the battle-test named, on feat/context-pull-last-mile (13db4fa8, verify green, pushed not merged): (1) un-dropped the affordance - the shape renderer now renders non-leaf carried .describe() as a <desc> {shape} prefix, so the context_request field renders its full object-level describe into the act-step prompt; (2) a conservative implementer relay-hint tells a worker to pull a named slice ONLY when genuinely starved (never reflexive, never an everything ask) and to refuse honestly when unpullable; (3) seedContextDeliveryFromTrace re-threads the delivery bound on resume (mirrors seedEquipmentReshapeFromTrace). Adversarial review 0 confirmed / 6 dismissed. CONFIRM (real Opus workers on the exact engine-built prompt, 4 arms, all clean): a real guided worker NOW pulls the named slice when starved (one parent, one field, not everything), stays conservative when the envelope suffices, refuses honestly with no fabrication when unpullable, and reaches equal completeness on the delivered slice; a $0 capstone replayed the worker's verbatim context_request through the live engine and it resolved end-to-end (answered:true, clean close). HONEST CATCH: plan.ts inlines the researcher's observations into the plan, so under today's fat envelope a real worker is rarely starved of the narrow synthesis (the 11x case) - it's starved of the bulky sources (1.31x). The ~10x payoff is real but gated on THINNING the envelope (stop inlining observations) plus lifting the deep-depth corridor skip. Verdict: mechanism+affordance+guidance+safety all in place and proven; pull today is correct/safe but low-yield (a fail-safe recovery channel, not a routine byte-saver); KEEP OPT-IN, default-ON stays a separate operator ratification. Next unlock: thin the Build envelope. Harnesses: experiments/flow-lab/{capture-act-prompt,real-worker-capstone}.test.ts.",
       "related": [
         "docs/ideas/runtime-binding-battle-test-report.md",
@@ -1928,13 +1333,7 @@
       "title": "Dynamic assembly shape check - the gate that found circuit create task-blind",
       "status": "design-evaluation",
       "category": "flows-and-blocks",
-      "tags": [
-        "flows",
-        "assembler",
-        "circuit-create",
-        "shape",
-        "gate"
-      ],
+      "tags": ["flows", "assembler", "circuit-create", "shape", "gate"],
       "current_reading": "Offline gate (experiments/flow-lab/dynamic-shape-check.ts) that measured the dynamic NL->flow path and found it task-BLIND: circuit create discards the task text, hardcodes surface_area:small/risk:low, and can emit only two shapes (build folded whole=5 steps, build full decomposed=9 steps). Every task became build with a different label; editorial-feature overlap vs the explainer reference was ~0. The bottleneck is the assembler's shape vocabulary, not context passing. This gate is the direct predecessor of the task-aware assembler rebuild.",
       "related": [
         "docs/ideas/assembler-rebuild-preregistration.md",
@@ -1947,13 +1346,7 @@
       "title": "Pre-registration - task-aware assembler evaluation",
       "status": "pre-implementation",
       "category": "verification-and-evals",
-      "tags": [
-        "assembler",
-        "pre-registration",
-        "eval",
-        "decision-rule",
-        "anti-fitting"
-      ],
+      "tags": ["assembler", "pre-registration", "eval", "decision-rule", "anti-fitting"],
       "current_reading": "Pre-registered (committed before any eval data) task set, structural rubric, and numeric decision rule for evaluating a task-aware flow assembler. Locks 8 NL tasks spanning the archetype families plus a surface/risk pair, a per-family structural feature checklist scored offline over the compiled flow, a per-task PASS definition, and the VIABLE / PROMISING / RESEARCH-GRADE-NOT-READY classification thresholds (with a validity override and a live-failure downgrade). The scientific spine of the assembler rebuild run; no fitting the story to the data later.",
       "related": [
         "docs/ideas/dynamic-assembly-shape-check.md",
@@ -1966,13 +1359,7 @@
       "title": "Run report - task-aware assembler rebuild",
       "status": "partially-implemented",
       "category": "flows-and-blocks",
-      "tags": [
-        "assembler",
-        "circuit-create",
-        "run-report",
-        "flows",
-        "jit-workflow"
-      ],
+      "tags": ["assembler", "circuit-create", "run-report", "flows", "jit-workflow"],
       "current_reading": "Living report for the task-aware assembler rebuild. Phase 1 (SHIP) DONE: signals.ts reads the task into assembly signals (word-boundary cue matching), archetype.ts picks an archetype family and instantiates a task-appropriate shape reusing a registered contract family, compiled-flow-file-plan.ts lays out per-mode packages, and create.ts is rewired task-aware; built-ins stay byte-identical (check-flow-drift) and the manifest stays identity-only (M9-C honored). Phase 2 (genuine-generation spike, never merged) and Phase 3 (offline breadth + live depth, then the pre-registered decision rule) PENDING. Verify the decision tier against this report once Phase 3 lands.",
       "related": [
         "docs/ideas/assembler-rebuild-preregistration.md",
@@ -1985,13 +1372,7 @@
       "title": "Pre-registration - genuine flow-shape composition",
       "status": "pre-implementation",
       "category": "verification-and-evals",
-      "tags": [
-        "composition",
-        "pre-registration",
-        "eval",
-        "decision-rule",
-        "anti-fitting"
-      ],
+      "tags": ["composition", "pre-registration", "eval", "decision-rule", "anti-fitting"],
       "current_reading": "Pre-registered (committed before any data) rubric and numeric decision rule for the genuine flow-shape composer: a Phase 0 make-or-break gate (>=1 novel, valid, sensible flow offline), a Phase 1 classification across 8 topologies (WORKS / PARTIAL / INTRACTABLE on Val/Nov/Sen/App/Pass/Con), and a confirmatory Phase 2 live arm with a live-failure downgrade (a shape that composes but cannot run drops one tier). The anti-fitting hard line: bind only registered actuals, never invent a contract body, report unreachable topologies rather than swap them. Outcome in flow-composition-run-report.md.",
       "related": [
         "docs/ideas/flow-composition-run-report.md",
@@ -2004,13 +1385,7 @@
       "title": "Run report - genuine flow-shape composition",
       "status": "partially-implemented-research",
       "category": "flows-and-blocks",
-      "tags": [
-        "composition",
-        "run-report",
-        "flows",
-        "writers",
-        "research-problem"
-      ],
+      "tags": ["composition", "run-report", "flows", "writers", "research-problem"],
       "current_reading": "Outcome of the genuine flow-shape composition run. Phase 0 PASS (a novel research-then-build flow is valid, novel, sensible offline). Phase 1 PARTIAL offline (5/8 topologies valid, novel, sensible; 3 principled catalog walls reported not swapped). Phase 2 live: composed flows do NOT run - the runtime compose/close writers are coupled to their origin family's exact contract schemas and full pipeline reads, so they reject cross-family and short-tail composed wiring (two concrete runtime aborts captured). By the pre-registered live-failure downgrade, PARTIAL becomes INTRACTABLE-as-built. The frontier advanced one layer: the typing gate is solved (binds registered actuals), the wall is now the writer contract. Next target: writers read by generic + fold-tolerant evidence + an offline writer-required-reads-closure check. The composer module is additive and default-OFF (nothing imports it); built-ins byte-identical; verify green.",
       "related": [
         "docs/ideas/flow-composition-preregistration.md",
@@ -2023,13 +1398,7 @@
       "title": "Brief + pre-registration: the dynamic-vs-reference live experiment",
       "status": "pre-implementation",
       "category": "verification-and-evals",
-      "tags": [
-        "evals",
-        "assembler",
-        "cost-capture",
-        "pre-registration",
-        "experiments"
-      ],
+      "tags": ["evals", "assembler", "cost-capture", "pre-registration", "experiments"],
       "current_reading": "Decision-ready brief + pre-registration for the task-aware assembler's recommended next step: run a generated (instantiated) flow against the hand-authored reference on fix + build, on a held-out task set with the committed cost instrument, against a locked WORTH-INVESTING / MIXED / NOT-YET rule. Build is where the real divergence lives (folded whole vs the reference's full decomposed grain); fix is mainly a pipeline + cost confirmation. Builds an evals/dynamic-vs-reference harness; not yet run.",
       "related": [
         "docs/ideas/assembler-rebuild-run-report.md",
@@ -2044,13 +1413,7 @@
       "title": "Brief: thin the Build envelope to cash in context-pull",
       "status": "implementation-spec",
       "category": "flows-and-blocks",
-      "tags": [
-        "context-pull",
-        "build-flow",
-        "runtime",
-        "envelope",
-        "corridor-skip"
-      ],
+      "tags": ["context-pull", "build-flow", "runtime", "envelope", "corridor-skip"],
       "current_reading": "Decision-ready brief to convert context-pull from a low-yield fail-safe into its designed ~10x saving: stop inlining the researcher's observations synthesis into the Build plan's approach (expose it as the pullable analyze-step.observations slice), and lift the deep-depth corridor skip so head-step pulls are resolved-and-recorded inside an active slice loop. Does NOT flip enableContextDelivery default-ON. Not yet built; a feat/thin-envelope-unlock branch may exist.",
       "related": [
         "docs/ideas/context-pull-last-mile-report.md",
@@ -2064,13 +1427,7 @@
       "title": "Brief: close the per-mode runtime-trust gap",
       "status": "implementation-spec",
       "category": "flows-and-blocks",
-      "tags": [
-        "assembler",
-        "custom-flows",
-        "trust-gate",
-        "per-mode",
-        "publish"
-      ],
+      "tags": ["assembler", "custom-flows", "trust-gate", "per-mode", "publish"],
       "current_reading": "Decision-ready brief for the task-aware assembler follow-up: a published custom fix/research/prototype flow run in a non-default mode resolves to an unblessed <mode>.json sibling and rejects with a confusing 'untrusted fixture' error. Frames Option A (bless siblings in the manifest, keep a clean fail-closed message for unrecorded siblings) vs Option B (clean mode-unsupported message, default-only trust); recommends A. Trust-surface decision — STOP-AND-REPORT for operator choice. Not yet built.",
       "related": [
         "docs/ideas/assembler-rebuild-run-report.md",
@@ -2083,13 +1440,7 @@
       "title": "Brief: explainer post-editorial checkpoint (remaining P0)",
       "status": "implementation-spec",
       "category": "flows-and-blocks",
-      "tags": [
-        "explainer",
-        "checkpoint",
-        "resume",
-        "durability",
-        "paper-to-site"
-      ],
+      "tags": ["explainer", "checkpoint", "resume", "durability", "paper-to-site"],
       "current_reading": "Decision-ready brief closing the explainer flow's remaining P0: insert a resumable post-editorial checkpoint between spec-step and build-step so a build failure does not throw away (and re-spend ~$6 of) editorial output. Reuses the existing checkpoint + resume machinery; the open decision (checkpoint-only vs + a recovery binding on build-step's stop route) is probe-first, STOP-AND-REPORT. Not yet built.",
       "related": [
         "docs/ideas/paper-to-site-2nd-run-findings.md",
