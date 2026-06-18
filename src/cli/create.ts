@@ -314,6 +314,7 @@ function publishManifest(input: {
   readonly slug: string;
   readonly description: string;
   readonly createdAt: string;
+  readonly filenames: readonly string[];
 }): void {
   let existing: { schema_version: 1; custom_flows: unknown[] } = {
     schema_version: 1,
@@ -329,8 +330,11 @@ function publishManifest(input: {
   // M9-C: the manifest entry records IDENTITY, not "what shape this is". The
   // chosen archetype family is legibility metadata, so it lives in the draft's
   // validation-result.json + the operator summary — never on the descriptor the
-  // runtime trusts. The runtime resolves by slug → flow_path and loads per-mode
-  // siblings by disk presence; it never needs the family here.
+  // runtime trusts. The runtime resolves by slug → flow_path (the default mode)
+  // and loads per-mode siblings by disk presence. flow_paths names exactly which
+  // compiled-flow files this flow published (circuit.json + any <mode>.json
+  // siblings) so the trust gate can bless the per-mode siblings the loader
+  // serves. These are published-PATH facts, not shape — M9-C still holds.
   writeJson(manifestPath(input.home), {
     schema_version: 1,
     custom_flows: [
@@ -339,6 +343,9 @@ function publishManifest(input: {
         id: input.slug,
         description: input.description,
         flow_path: join(flowRoot(input.home), input.slug, 'circuit.json'),
+        flow_paths: input.filenames.map((filename) =>
+          join(flowRoot(input.home), input.slug, filename),
+        ),
         skill_path: join(publishedRoot(input.home, input.slug), 'SKILL.md'),
         command_path: join(commandRoot(input.home), `${input.slug}.md`),
         published_at: input.createdAt,
@@ -471,7 +478,7 @@ function publishDraft(input: {
     join(commandRoot(input.home), `${input.slug}.md`),
     readFileSync(join(draft, 'command.md'), 'utf8'),
   );
-  publishManifest(input);
+  publishManifest({ ...input, filenames });
 }
 
 function summaryMarkdown(input: {

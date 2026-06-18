@@ -46728,7 +46728,7 @@ function progressPresentation(input) {
 
 // dist/cli/runtime-routing-policy.js
 import { readFileSync as readFileSync25 } from "node:fs";
-import { dirname, relative as relative8, resolve as resolve6 } from "node:path";
+import { basename, dirname, relative as relative8, resolve as resolve6 } from "node:path";
 var GENERATED_FLOW_MIRROR_ROOT_ENV = "CIRCUIT_GENERATED_FLOW_MIRROR_ROOT";
 var COMPOSE_WRITER_UNSUPPORTED_REASON = "programmatic composeWriter injections are not supported by the CLI runtime; use executor injection or generated reports";
 var RUNTIME_POLICY_REASONS = {
@@ -46759,24 +46759,55 @@ function fixtureEligibleForRuntime(input) {
   const trustedMirrorRoot = resolve6(mirrorRoot);
   return resolve6(input.args.flowRoot) === trustedMirrorRoot && pathIsInside(trustedMirrorRoot, fixturePath);
 }
-function publishedCustomFlowMatches(flowRoot2, fixturePath) {
+function readCustomFlowEntries(flowRoot2) {
   try {
     const manifest = JSON.parse(readFileSync25(resolve6(dirname(resolve6(flowRoot2)), "manifest.json"), "utf8"));
     if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest))
-      return false;
+      return [];
     const customFlows = manifest.custom_flows;
     if (!Array.isArray(customFlows))
-      return false;
-    return customFlows.some((candidate) => {
-      if (candidate === null || typeof candidate !== "object" || Array.isArray(candidate)) {
-        return false;
-      }
-      const flowPath = candidate.flow_path;
-      return typeof flowPath === "string" && resolve6(flowPath) === fixturePath;
-    });
+      return [];
+    return customFlows.filter((candidate) => candidate !== null && typeof candidate === "object" && !Array.isArray(candidate));
   } catch {
-    return false;
+    return [];
   }
+}
+function recordedFlowPaths(candidate) {
+  const paths = [];
+  const flowPath = candidate.flow_path;
+  if (typeof flowPath === "string")
+    paths.push(resolve6(flowPath));
+  const flowPaths = candidate.flow_paths;
+  if (Array.isArray(flowPaths)) {
+    for (const entry of flowPaths) {
+      if (typeof entry === "string")
+        paths.push(resolve6(entry));
+    }
+  }
+  return paths;
+}
+function publishedCustomFlowMatches(flowRoot2, fixturePath) {
+  return readCustomFlowEntries(flowRoot2).some((candidate) => recordedFlowPaths(candidate).includes(fixturePath));
+}
+function unrecordedPublishedSiblingReason(input) {
+  const flowRoot2 = input.args.flowRoot;
+  if (flowRoot2 === void 0)
+    return void 0;
+  const fixturePath = resolve6(input.fixturePath);
+  const fixtureDir = dirname(fixturePath);
+  for (const candidate of readCustomFlowEntries(flowRoot2)) {
+    const recorded = recordedFlowPaths(candidate);
+    if (recorded.length === 0)
+      continue;
+    if (dirname(recorded[0]) !== fixtureDir)
+      continue;
+    if (recorded.includes(fixturePath))
+      continue;
+    const id = typeof candidate.id === "string" ? candidate.id : basename(fixtureDir);
+    const mode = basename(fixturePath).replace(/\.json$/, "");
+    return `mode '${mode}' is not published for flow '${id}'. Only the published modes are available; re-publish the flow to enable other modes.`;
+  }
+  return void 0;
 }
 function applyFixturePolicy(decision2, input) {
   if (decision2.kind !== "supported")
@@ -46786,7 +46817,7 @@ function applyFixturePolicy(decision2, input) {
   return {
     ...decision2,
     kind: "unsupported",
-    reason: RUNTIME_POLICY_REASONS.externalFixtureOrRoot
+    reason: unrecordedPublishedSiblingReason(input) ?? RUNTIME_POLICY_REASONS.externalFixtureOrRoot
   };
 }
 function applyComposeWriterPolicy(decision2, input) {
@@ -47017,6 +47048,7 @@ function publishManifest(input) {
         id: input.slug,
         description: input.description,
         flow_path: join4(flowRoot(input.home), input.slug, "circuit.json"),
+        flow_paths: input.filenames.map((filename) => join4(flowRoot(input.home), input.slug, filename)),
         skill_path: join4(publishedRoot(input.home, input.slug), "SKILL.md"),
         command_path: join4(commandRoot(input.home), `${input.slug}.md`),
         published_at: input.createdAt
@@ -47100,7 +47132,7 @@ function publishDraft(input) {
     writeText(join4(customFlowRoot, filename), readFileSync26(join4(draft, filename), "utf8"));
   }
   writeText(join4(commandRoot(input.home), `${input.slug}.md`), readFileSync26(join4(draft, "command.md"), "utf8"));
-  publishManifest(input);
+  publishManifest({ ...input, filenames });
 }
 function summaryMarkdown(input) {
   const invocation = customFlowInvocation(input.slug, input.home);
@@ -47269,7 +47301,7 @@ import { resolve as resolve14 } from "node:path";
 // dist/app/continuity/brief.js
 import { execFileSync as execFileSync2 } from "node:child_process";
 import { existsSync as existsSync14, readFileSync as readFileSync32 } from "node:fs";
-import { basename as basename2, resolve as resolve12 } from "node:path";
+import { basename as basename3, resolve as resolve12 } from "node:path";
 
 // dist/schemas/snapshot.js
 var StepStatus = external_exports.enum(["pending", "in_progress", "check_failed", "complete", "aborted"]);
@@ -47425,7 +47457,7 @@ var ContinuityIndex = indexOwnPropertyGuard.pipe(ContinuityIndexBody);
 import { execFileSync } from "node:child_process";
 import { createHash as createHash4 } from "node:crypto";
 import { closeSync as closeSync2, existsSync as existsSync13, openSync as openSync2, readFileSync as readFileSync31, readSync as readSync2, readdirSync, rmSync as rmSync3, statSync as statSync2 } from "node:fs";
-import { basename, join as join10, resolve as resolve11 } from "node:path";
+import { basename as basename2, join as join10, resolve as resolve11 } from "node:path";
 
 // dist/shared/atomic-io.js
 import { randomUUID as randomUUID3 } from "node:crypto";
@@ -48827,7 +48859,7 @@ function deriveAmbientStem(sessionId, transcriptPath) {
   const fromSession = sessionId === void 0 ? void 0 : ambientStemForSessionId(sessionId);
   if (fromSession !== void 0)
     return fromSession;
-  const base = basename(transcriptPath).replace(/\.jsonl$/i, "");
+  const base = basename2(transcriptPath).replace(/\.jsonl$/i, "");
   const fromTranscript = sanitizeStemPart(base);
   if (fromTranscript !== void 0)
     return `ambient-${fromTranscript}`;
@@ -48979,7 +49011,7 @@ function harvestAmbientContinuity(input) {
   }
   const createdAt = input.createdAt ?? input.now().toISOString();
   const latestIntent = parsed.intents[parsed.intents.length - 1];
-  const goal = latestIntent ?? `Resume the mechanically captured session in ${basename(projectRoot) || projectRoot}`;
+  const goal = latestIntent ?? `Resume the mechanically captured session in ${basename2(projectRoot) || projectRoot}`;
   const record2 = ContinuityRecord.parse({
     schema_version: 1,
     record_id: recordId,
@@ -49147,7 +49179,7 @@ function stalenessBlockLines(record2, staleness) {
   return lines.length > 1 ? lines : [];
 }
 function composeAmbientBrief(record2, state, debt, ageLabel, staleness) {
-  const repo = basename2(record2.git.cwd) || record2.git.cwd;
+  const repo = basename3(record2.git.cwd) || record2.git.cwd;
   const capturedSuffix = ageLabel === void 0 ? "" : ` (captured ${ageLabel})`;
   const stalenessLines = stalenessBlockLines(record2, staleness);
   const boundary = staleness !== void 0 && stalenessDiverged(staleness) ? AMBIENT_BOUNDARY_ADVANCED : AMBIENT_BOUNDARY_DEFAULT;
@@ -50339,7 +50371,7 @@ async function runHandoffCommand(argv, options = {}) {
 }
 
 // dist/cli/history.js
-import { basename as basename5 } from "node:path";
+import { basename as basename6 } from "node:path";
 
 // dist/app/history/indexer.js
 import { existsSync as existsSync20, mkdirSync as mkdirSync5, readFileSync as readFileSync36, renameSync as renameSync2, writeFileSync as writeFileSync6 } from "node:fs";
@@ -50347,7 +50379,7 @@ import { join as join13, resolve as resolve17 } from "node:path";
 
 // dist/history/run-corpus.js
 import { existsSync as existsSync17, readdirSync as readdirSync2, statSync as statSync3 } from "node:fs";
-import { basename as basename3, join as join12 } from "node:path";
+import { basename as basename4, join as join12 } from "node:path";
 var HistoryCommandError = class extends Error {
   code;
   paths;
@@ -50378,13 +50410,13 @@ function listCandidateRunFolders(runsBase) {
     });
   }
   try {
-    return readdirSync2(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join12(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename3(left).localeCompare(basename3(right)));
+    return readdirSync2(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join12(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename4(left).localeCompare(basename4(right)));
   } catch (error51) {
     throw new HistoryCommandError("runs_base_unreadable", `runs base unreadable: ${error51 instanceof Error ? error51.message : String(error51)}`, { runsBase });
   }
 }
 function computeRunFolderNamesHash(runFolders) {
-  return sha256OfString(runFolders.map((folder) => basename3(folder)).sort().join("\n"));
+  return sha256OfString(runFolders.map((folder) => basename4(folder)).sort().join("\n"));
 }
 
 // dist/schemas/checkpoint-boundary.js
@@ -52899,7 +52931,7 @@ function mtimeMs(path) {
 
 // dist/app/history/extract.js
 import { existsSync as existsSync19, lstatSync as lstatSync6, readFileSync as readFileSync35, readdirSync as readdirSync4, realpathSync as realpathSync5 } from "node:fs";
-import { basename as basename4, isAbsolute as isAbsolute11, relative as relative12, resolve as resolve16 } from "node:path";
+import { basename as basename5, isAbsolute as isAbsolute11, relative as relative12, resolve as resolve16 } from "node:path";
 
 // dist/shared/outcome.js
 var FAILURE_OUTCOMES = /* @__PURE__ */ new Set([
@@ -53273,7 +53305,7 @@ function docId(input) {
   return `${input.runId}/${input.docKind}/${sha256OfString(`${input.sourcePath}#${input.selector}`).slice(0, 12)}`;
 }
 function skipReport(relPath) {
-  const name = basename4(relPath);
+  const name = basename5(relPath);
   if (!relPath.endsWith(".json"))
     return true;
   if (relPath.startsWith("reports/relay/"))
@@ -53534,7 +53566,7 @@ function makeTraceDocument(input) {
 }
 function extractRunHistoryDocuments(runFolder) {
   const runFolderAbs = resolve16(runFolder);
-  const runFolderName = basename4(runFolderAbs);
+  const runFolderName = basename5(runFolderAbs);
   const warnings = [];
   const documents = [];
   const manifestPath2 = resolve16(runFolderAbs, "manifest.snapshot.json");
@@ -54968,7 +55000,7 @@ function runPull(parsed) {
     entry,
     // The pull-log header's run_id is the active run that pulled; derive it
     // from the run folder name (the run-folder layout convention).
-    runId: basename5(runFolder)
+    runId: basename6(runFolder)
   }).warnings;
   const printed = HistoryMemoryInputPreviewV1.parse({
     ...suppressed,
@@ -55209,7 +55241,7 @@ function runInboxCommand(argv, options = {}) {
 // dist/cli/memory.js
 import { createHash as createHash5 } from "node:crypto";
 import { existsSync as existsSync27, readFileSync as readFileSync43 } from "node:fs";
-import { basename as basename6, join as join20 } from "node:path";
+import { basename as basename7, join as join20 } from "node:path";
 
 // dist/memory/project-identity.js
 var import_yaml2 = __toESM(require_dist(), 1);
@@ -55497,7 +55529,7 @@ function resolveNoteSource(input) {
   }
   const tracePath = join20(input.runFolder, "trace.ndjson");
   if (existsSync27(tracePath)) {
-    const runId = basename6(input.runFolder);
+    const runId = basename7(input.runFolder);
     const sha2564 = sha256Text(readFileSync43(tracePath, "utf8"));
     const trace = Ref.safeParse({
       kind: "trace",
