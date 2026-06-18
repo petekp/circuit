@@ -76,12 +76,14 @@ abstraction trigger remains open. Observed shape:
   arms (`fix`, `build`) reached `@complete` with correct on-task output. The win is
   **selection-and-instantiation** — it reads the task and lands the right family and
   grain — **not** genuine generation (the high overlap is *reuse* of proven seeds).
-  Report: [`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md). Two
-  **recorded follow-ups** (non-blocking, both fail-closed): per-mode runtime trust (a
-  published fix/research/prototype flow run in a **non-default** mode resolves to an
-  unblessed `<mode>.json` sibling and rejects with a confusing "untrusted fixture"
-  error rather than a clean "mode unsupported"), and signing off the loosened
-  `src/flows/resolvers/` intra-flows import zone.
+  Report: [`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md). Of the
+  two **recorded follow-ups** (non-blocking, both fail-closed): per-mode runtime trust
+  is **CLOSED** (PR #119 — publish now records every compiled-flow file under
+  `flow_paths`; the trust gate blesses the default `circuit.json` or any recorded
+  `<mode>.json` sibling; an unrecorded sibling still fails closed, now with a clear
+  "mode not published" reason; default-mode trust byte-identical, M9-C intact). The
+  remaining follow-up is signing off the loosened `src/flows/resolvers/` intra-flows
+  import zone.
 - **Genuine block-composition — 📋 RESEARCH PROBLEM, not a feature.** An offline
   Phase 2 spike (git-untracked, never merged) tried to compose a **novel** flow (a
   topology none of the six families) from typed catalog blocks. It hit **eight
@@ -240,10 +242,10 @@ list below; the rows above carry the detail.
 2. **Paper-to-site — the remaining P0**: a post-editorial checkpoint, so a build
    failure does not throw away correct, expensive editorial output. (The
    recovery-binding hard-abort P0 is now fixed.)
-3. **The two task-aware-assembler follow-ups** (non-blocking, both fail-closed):
-   decide per-mode runtime trust (bless `<mode>.json` siblings into the manifest, or
-   emit a clean "mode unsupported" message rather than the confusing "untrusted
-   fixture" reject), and sign off the loosened `src/flows/resolvers/` import zone.
+3. **The remaining task-aware-assembler follow-up** (non-blocking): sign off the
+   loosened `src/flows/resolvers/` import zone. (Per-mode runtime trust is **done** —
+   PR #119 blesses recorded `<mode>.json` siblings and fails closed with a clear
+   reason for unrecorded ones.)
 4. **The two `--reuse-children-from` follow-ups** — a run-start git baseline +
    staleness probe (close the documented version/base limitation), and a
    `reclaim`/inbox discovery surface for reusable dead-run folders. Both non-gating.
