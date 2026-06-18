@@ -161,11 +161,15 @@ const NON_PACKAGE_FILES = new Set([
   'types.ts',
 ]);
 
-// `registries` and `resolvers` are shared cross-flow infrastructure
-// directories, not registrable flow packages. `resolvers` (B2) holds axis
-// resolvers (e.g. the structure grain chooser) that produce assembly specs the
-// shared assembler consumes — peer to assemble-flow-schematic.ts, not a flow.
-const NON_PACKAGE_DIRECTORIES = new Set(['registries', 'resolvers']);
+// `registries`, `resolvers`, and `composition` are shared cross-flow
+// infrastructure directories, not registrable flow packages. `resolvers` (B2)
+// holds axis resolvers (e.g. the structure grain chooser) that produce assembly
+// specs the shared assembler consumes — peer to assemble-flow-schematic.ts, not
+// a flow. `composition` is the experimental, default-OFF flow-shape composer:
+// from a role set + the catalog it emits a FlowSchematicAssemblySpec the shared
+// assembler consumes (same as resolvers), so it is infrastructure that produces
+// a flow, not a flow package itself. Nothing in the product path imports it.
+const NON_PACKAGE_DIRECTORIES = new Set(['registries', 'resolvers', 'composition']);
 
 function isFile(path: string): boolean {
   try {
