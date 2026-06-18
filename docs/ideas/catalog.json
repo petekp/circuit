@@ -1392,6 +1392,61 @@
         "docs/ideas/assembler-rebuild-run-report.md"
       ],
       "last_checked": "2026-06-18"
+    },
+    {
+      "path": "docs/ideas/dynamic-vs-reference-experiment-brief.md",
+      "title": "Brief + pre-registration: the dynamic-vs-reference live experiment",
+      "status": "pre-implementation",
+      "category": "verification-and-evals",
+      "tags": ["evals", "assembler", "cost-capture", "pre-registration", "experiments"],
+      "current_reading": "Decision-ready brief + pre-registration for the task-aware assembler's recommended next step: run a generated (instantiated) flow against the hand-authored reference on fix + build, on a held-out task set with the committed cost instrument, against a locked WORTH-INVESTING / MIXED / NOT-YET rule. Build is where the real divergence lives (folded whole vs the reference's full decomposed grain); fix is mainly a pipeline + cost confirmation. Builds an evals/dynamic-vs-reference harness; not yet run.",
+      "related": [
+        "docs/ideas/assembler-rebuild-run-report.md",
+        "docs/ideas/assembler-rebuild-preregistration.md",
+        "docs/evals/cost-capture-design.md",
+        "docs/ideas/per-mode-runtime-trust-brief.md"
+      ],
+      "last_checked": "2026-06-18"
+    },
+    {
+      "path": "docs/ideas/thin-build-envelope-brief.md",
+      "title": "Brief: thin the Build envelope to cash in context-pull",
+      "status": "implementation-spec",
+      "category": "flows-and-blocks",
+      "tags": ["context-pull", "build-flow", "runtime", "envelope", "corridor-skip"],
+      "current_reading": "Decision-ready brief to convert context-pull from a low-yield fail-safe into its designed ~10x saving: stop inlining the researcher's observations synthesis into the Build plan's approach (expose it as the pullable analyze-step.observations slice), and lift the deep-depth corridor skip so head-step pulls are resolved-and-recorded inside an active slice loop. Does NOT flip enableContextDelivery default-ON. Not yet built; a feat/thin-envelope-unlock branch may exist.",
+      "related": [
+        "docs/ideas/context-pull-last-mile-report.md",
+        "docs/ideas/on-demand-context-pull.md",
+        "docs/ideas/runtime-binding-battle-test-report.md"
+      ],
+      "last_checked": "2026-06-18"
+    },
+    {
+      "path": "docs/ideas/per-mode-runtime-trust-brief.md",
+      "title": "Brief: close the per-mode runtime-trust gap",
+      "status": "implementation-spec",
+      "category": "flows-and-blocks",
+      "tags": ["assembler", "custom-flows", "trust-gate", "per-mode", "publish"],
+      "current_reading": "Decision-ready brief for the task-aware assembler follow-up: a published custom fix/research/prototype flow run in a non-default mode resolves to an unblessed <mode>.json sibling and rejects with a confusing 'untrusted fixture' error. Frames Option A (bless siblings in the manifest, keep a clean fail-closed message for unrecorded siblings) vs Option B (clean mode-unsupported message, default-only trust); recommends A. Trust-surface decision — STOP-AND-REPORT for operator choice. Not yet built.",
+      "related": [
+        "docs/ideas/assembler-rebuild-run-report.md",
+        "docs/ideas/dynamic-vs-reference-experiment-brief.md"
+      ],
+      "last_checked": "2026-06-18"
+    },
+    {
+      "path": "docs/ideas/explainer-post-editorial-checkpoint-brief.md",
+      "title": "Brief: explainer post-editorial checkpoint (remaining P0)",
+      "status": "implementation-spec",
+      "category": "flows-and-blocks",
+      "tags": ["explainer", "checkpoint", "resume", "durability", "paper-to-site"],
+      "current_reading": "Decision-ready brief closing the explainer flow's remaining P0: insert a resumable post-editorial checkpoint between spec-step and build-step so a build failure does not throw away (and re-spend ~$6 of) editorial output. Reuses the existing checkpoint + resume machinery; the open decision (checkpoint-only vs + a recovery binding on build-step's stop route) is probe-first, STOP-AND-REPORT. Not yet built.",
+      "related": [
+        "docs/ideas/paper-to-site-2nd-run-findings.md",
+        "docs/ideas/paper-to-site-flow-brief.md"
+      ],
+      "last_checked": "2026-06-18"
     }
   ]
 }
