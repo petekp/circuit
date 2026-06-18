@@ -45,6 +45,8 @@ import type {
   WorktreeRunner,
 } from './child-runner.js';
 import { runCompiledFlow } from './compiled-flow-runner.js';
+import { seedContextDeliveryFromTrace } from './context-delivery.js';
+import { createContextPuller } from './context-pull.js';
 import { seedEquipmentReshapeFromTrace } from './equipment-reshape.js';
 import type { ExternalFileReader } from './external-files.js';
 import {
@@ -69,6 +71,12 @@ export interface ResumeCompiledFlowOptions {
   readonly executors?: Partial<ExecutorRegistry>;
   readonly progress?: ProgressReporter;
   readonly progressSurfaceForFlowId?: (flowId: string) => CompiledFlowProgressSurface | undefined;
+  // Opt-in pull-then-retry delivery on the resumed run, mirroring the top-level
+  // run path. Off by default: the resolve-and-record channel (the puller) is
+  // always threaded, but a resumed run only re-runs a starved step when the
+  // operator opts in here. The resume CLI command does not set this, keeping
+  // delivery opt-in rather than default-on.
+  readonly enableContextDelivery?: boolean;
 }
 
 export interface CheckpointResumeSuccessResult {
@@ -667,6 +675,19 @@ export async function resumeCompiledFlowResult(
     // routing the degrade. The bindings derive from the flow's routes, so the
     // projection here yields the same list the top-level path projected.
     recoveryRouteBindings: workContractProjection.work_contract.recovery,
+    // Re-thread the typed-lookup context channel on resume, mirroring the
+    // top-level run path (compiled-flow-runner.ts). Without this the resumed
+    // graph carries no contextPuller, so a step that asks its parent for one
+    // more named slice after resume finds the channel dead and the request is
+    // silently dropped. The puller is a stateless factory (the budget is
+    // per-step), so threading it always is safe and matches the live default
+    // (resolve-and-record). Delivery is reseeded from the trace so a step that
+    // already delivered before the crash does not deliver twice and the per-run
+    // bound resumes where it left off; it stays opt-in via enableContextDelivery.
+    contextPuller: createContextPuller,
+    ...(options.enableContextDelivery === true
+      ? { contextDelivery: seedContextDeliveryFromTrace(entries) }
+      : {}),
     ...(depth === undefined ? {} : { depth }),
     ...(requestContext.axes === undefined ? {} : { axes: requestContext.axes }),
     ...(options.now === undefined ? {} : { now: options.now }),

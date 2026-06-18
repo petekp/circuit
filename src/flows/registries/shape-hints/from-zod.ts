@@ -10,8 +10,12 @@
 // Field-level placeholders default to `<string>`, `<number>`, etc. An
 // author can override the placeholder for any leaf field by calling
 // `.describe('what the field carries')` on the Zod schema; the renderer
-// renders that description as the placeholder text. Object and array
-// shapes always recurse, so descriptions only matter on leaves.
+// renders that description as the placeholder text. A `.describe()` carried
+// on an OBJECT or ARRAY shape (including one attached through a transparent
+// wrapper like `.optional()`) is not a leaf placeholder, so it renders as a
+// leading `<...>` annotation in front of the recursed shape rather than being
+// dropped — that is how the context-pull channel's "when to ask" guidance
+// reaches the worker.
 //
 // Limitations the renderer degrades on intentionally:
 //   - ZodUnion (non-discriminated) renders each option separated by ` |
@@ -92,16 +96,75 @@ function escapeJsonInner(value: string): string {
   return serialized.slice(1, serialized.length - 1);
 }
 
-function leafDescriptionOr(node: ZodSchema, fallback: string): string {
+// The non-empty `.describe()` text carried directly on a node, checking the
+// instance-level description first (where `.describe()` writes in Zod v4) and
+// falling back to the def. Returns undefined when no description is present.
+function carriedDescription(node: ZodSchema): string | undefined {
   const nodeDescription = (node as unknown as { readonly description?: unknown }).description;
-  const description =
-    typeof nodeDescription === 'string' && nodeDescription.length > 0
-      ? nodeDescription
-      : defOf(node).description;
-  if (typeof description === 'string' && description.length > 0) {
+  if (typeof nodeDescription === 'string' && nodeDescription.length > 0) {
+    return nodeDescription;
+  }
+  const defDescription = defOf(node).description;
+  if (typeof defDescription === 'string' && defDescription.length > 0) {
+    return defDescription;
+  }
+  return undefined;
+}
+
+function leafDescriptionOr(node: ZodSchema, fallback: string): string {
+  const description = carriedDescription(node);
+  if (description !== undefined) {
     return `"<${escapeJsonInner(description)}>"`;
   }
   return fallback;
+}
+
+// Base Zod types whose `.describe()` is structural guidance about a shape, not
+// a leaf placeholder. A description carried on (or wrapping) one of these is
+// surfaced as a `<...>` annotation rather than dropped.
+const NON_LEAF_BASE_TYPES = new Set(['object', 'array', 'tuple', 'record', 'map']);
+
+// Peel transparent wrappers (`.optional()`, `.default()`, `.pipe()`, etc.) to
+// find the base type a node ultimately stands for, so a description attached to
+// a wrapper is attributed to the object/array it wraps. Used only to decide
+// whether a carried description annotates a non-leaf shape — leaves fold their
+// own describe into the placeholder via `leafDescriptionOr`, so they must not
+// also be annotated here.
+function annotatesAsNonLeaf(node: ZodSchema): boolean {
+  let current: ZodSchema = node;
+  for (let depth = 0; depth <= MAX_RECURSION_DEPTH; depth += 1) {
+    const def = defOf(current);
+    switch (def.type) {
+      case 'optional':
+      case 'nullable':
+      case 'default':
+      case 'readonly':
+      case 'catch':
+      case 'nonoptional':
+      case 'success':
+        current = def.innerType as ZodSchema;
+        continue;
+      case 'pipe':
+        current = (def.in ?? def.out) as ZodSchema;
+        continue;
+      default:
+        return NON_LEAF_BASE_TYPES.has(def.type);
+    }
+  }
+  return false;
+}
+
+// Prepend a non-leaf node's carried `.describe()` text as a leading `<...>`
+// annotation in front of its rendered shape. The text is left unescaped on
+// purpose: unlike a leaf placeholder it sits OUTSIDE any JSON string literal,
+// so it reads as inline guidance, not as a parseable value. Returns the
+// rendered shape unchanged when there is no description or the node is a leaf.
+function withCarriedAnnotation(node: ZodSchema, rendered: string): string {
+  const description = carriedDescription(node);
+  if (description === undefined || !annotatesAsNonLeaf(node)) {
+    return rendered;
+  }
+  return `<${description}> ${rendered}`;
 }
 
 // Render-time recursion guard. The visited set captures Zod nodes already
@@ -166,7 +229,8 @@ function renderNode(node: ZodSchema, visited: Set<ZodSchema>, depth: number): st
   }
   visited.add(node);
   try {
-    return renderNodeInner(node, visited, depth + 1);
+    const rendered = renderNodeInner(node, visited, depth + 1);
+    return withCarriedAnnotation(node, rendered);
   } finally {
     visited.delete(node);
   }

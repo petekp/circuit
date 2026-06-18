@@ -35,3 +35,7 @@ coverage/
 # E1 experiment live-run output: worktrees, run folders, and raw stdout/stderr
 # from `run-comparison.ts --live`. Per-run scratch, never a deliverable.
 /experiments/e1/.runs/
+
+# Context-pull last-mile capture scratch: the engine-built act-step prompts the
+# capture harness dumps for the real-worker probes. Regenerable, never a deliverable.
+/experiments/flow-lab/.capture/

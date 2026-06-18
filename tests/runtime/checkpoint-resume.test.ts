@@ -401,6 +401,22 @@ function fixtureRelayer(): RelayFn {
   );
 }
 
+// A resumed relay that asks its parent for more context — it carries a
+// context_request in its result body. Used to prove the typed-lookup channel is
+// re-threaded on resume: the post-step seam must resolve-and-record the request.
+function fixtureRelayerWithContextRequest(): RelayFn {
+  return makeStubRelayer(
+    JSON.stringify({
+      verdict: 'accept',
+      summary: 'Resumed relay asked its parent for one more named slice.',
+      context_request: {
+        queries: [{ from_step: 'checkpoint-step', field_path: 'observations' }],
+      },
+    }),
+    { receipt_id: 'checkpoint-fixture-context-receipt' },
+  );
+}
+
 function fixtureExecutors(
   observed: {
     verificationContexts?: Array<{
@@ -732,6 +748,43 @@ describe('runtime checkpoint pause/resume fixture', () => {
       engine_state: 'completed',
       reason: 'run_closed',
       terminal_outcome: 'complete',
+    });
+  });
+
+  it('re-threads the typed-lookup context channel on resume so a resumed step that asks for context is recorded', async () => {
+    // BUILD 3 — the resume re-thread. A run parks at a checkpoint, then resumes
+    // into a relay step that emits a context_request. The resume path rebuilds
+    // the run from the saved manifest and, before this fix, threaded NO
+    // contextPuller into the resumed graph — so the request was silently dropped
+    // and no run.context-pull entry was ever written. With the channel
+    // re-applied on resume (mirror of the equipment-reshape reseed) the post-step
+    // seam resolves and records the request. Here the named parent has no typed
+    // report, so the pull PARKS as a finding — but the durable record is exactly
+    // the proof the channel is live on the resumed path.
+    const runDir = join(tempDir, 'resume-context-pull');
+    await createWaitingFixture({
+      runDir,
+      now: deterministicNow(Date.UTC(2026, 0, 2)),
+    });
+
+    const result = await resumeCompiledFlow({
+      runDir,
+      selection: 'continue',
+      now: deterministicNow(Date.UTC(2026, 0, 3)),
+      relayer: fixtureRelayerWithContextRequest(),
+      executors: fixtureExecutors(),
+    });
+
+    expect(result.outcome).toBe('complete');
+
+    const trace = await readTrace(runDir);
+    const pulls = trace.filter((entry) => entry.kind === 'run.context-pull');
+    expect(pulls.length).toBeGreaterThan(0);
+    expect(pulls[0]).toMatchObject({
+      step_id: 'relay-step',
+      from_step: 'checkpoint-step',
+      field_path: 'observations',
+      answered: false,
     });
   });
 

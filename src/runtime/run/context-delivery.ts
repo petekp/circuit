@@ -20,6 +20,8 @@
 // (`enableContextDelivery`); off the opt-in there is no guard, the resolve-and-
 // record seam runs instead, and a run is byte-identical to today.
 
+import type { TraceEntry } from '../domain/trace.js';
+
 // One answered slice, ready to fold into a relay prompt. The shape mirrors the
 // answered branch of ContextPullOutcome: where it came from, the value, and its
 // serialized size (so the delivery record can report bytes folded in).
@@ -55,6 +57,27 @@ export function createContextDelivery(): ContextDeliveryGuard {
       return true;
     },
   };
+}
+
+// Re-thread the per-run delivery bound on resume. A crash can land mid-run after
+// a step already delivered, and the durable `run.context-delivery` trace entry
+// is the proof it did. The fresh guard a resumed run builds knows nothing of
+// that history, so without this it would let an already-delivered step deliver
+// again (double-spending its once-per-step claim) and ignore budget the run had
+// already spent. The mirror of `seedEquipmentReshapeFromTrace`: fold the trace
+// forward and re-claim each recorded delivery on a fresh guard. Each
+// `run.context-delivery` entry is written only after a `claim()` succeeded, so
+// re-claiming it reproduces exactly that spend — the per-step touched-set and
+// the global counter both land where the pre-crash guard left them. Skips every
+// other entry kind; an empty or delivery-free trace yields a guard identical to
+// a fresh `createContextDelivery()`.
+export function seedContextDeliveryFromTrace(entries: readonly TraceEntry[]): ContextDeliveryGuard {
+  const guard = createContextDelivery();
+  for (const entry of entries) {
+    if (entry.kind !== 'run.context-delivery') continue;
+    guard.claim(entry.step_id);
+  }
+  return guard;
 }
 
 // How the enriched re-run turned out, as the seam observed it:
