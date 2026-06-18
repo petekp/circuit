@@ -432,6 +432,15 @@ async function executeExecutableFlowOutcomeUnsafe(
       }
     },
   });
+  // On-demand context-pull delivery is "active" for this run's relays when
+  // delivery is opted in AND this run is not a delivery-blind slice corridor.
+  // Inside a corridor (deep depth) the delivery seam skips the head step
+  // (delivery-in-corridor stays deferred), so a relay there could not recover a
+  // withheld slice — a compose writer must NOT thin its envelope in that case.
+  // Both operands are run-wide constants, so this is too: a stable signal a
+  // compose writer keys its envelope thickness on. False on every run with
+  // delivery off (the default), keeping those runs byte-identical.
+  const contextDeliveryActive = options.contextDelivery !== undefined && !sliceCorridor.isActive();
   const completedStepCounts = isResume
     ? completedStepCountsFromTrace(existingTrace, sliceCorridor)
     : new Map<string, number>();
@@ -691,6 +700,11 @@ async function executeExecutableFlowOutcomeUnsafe(
         flow: activeFlow,
         packageIndex: activePackageIndex,
         activeStepAttempt: attempt,
+        // Assign only when true, so a default run (and every run at deep depth)
+        // leaves the key ABSENT on RunContext — keeping the "absent => fat / full
+        // provisioning" contract that RunValue, ComposeBuildContext, and plan.ts
+        // document literally true end to end, not present-but-false.
+        ...(contextDeliveryActive ? { contextDeliveryActive } : {}),
         ...(acceptanceRetryFeedback === undefined ? {} : { acceptanceRetryFeedback }),
         ...(isLoopBodyStep ? { activeSliceIndex: stepSliceIndex } : {}),
         ...(activeSlice === undefined ? {} : { activeSlice }),
@@ -1252,23 +1266,29 @@ async function executeExecutableFlowOutcomeUnsafe(
     // carried. The shared helper materializes each named parent's typed report,
     // resolves the slice through a fresh per-step channel, and records the
     // answer-or-finding in the trace. Resolve-and-record only: the value is not
-    // delivered back into the step here, so the run is never altered. When
-    // delivery is ENABLED the early seam above already resolved, recorded, AND
-    // delivered this step's request, so this seam is skipped (guarded on
-    // `contextDelivery === undefined`) to avoid recording the same pull twice.
-    // Inert unless the live path injected `contextPuller`; skipped on the terminal
-    // step and inside a slice loop, mirroring the reshape seam. The slice-loop skip
-    // is over-conservative here (context-pull never mutates, so the reshape reason
-    // — slice-scoped completion keys — does not apply): a request surfaced inside a
-    // corridor is dropped WITHOUT a finding, the one refusal path not made legible.
-    // Lifting the skip (resolve + record inside corridors too) is a battle-test
-    // item, gated on a deep-depth test; kept conservative and faithful for now.
-    // Best-effort and fail-safe: any failure leaves the run untouched.
+    // delivered back into the step here, so the run is never altered.
+    //
+    // This seam runs when EITHER of two conditions holds:
+    //   - delivery is off (`contextDelivery === undefined`): the resolve-and-record
+    //     channel is the only one wired, so it handles every request.
+    //   - we are inside a slice corridor (`sliceCorridor.isActive()`): the early
+    //     delivery seam above is guarded on `!sliceCorridor.isActive()`, so it never
+    //     fires for a corridor step. Delivery-in-corridor stays deferred (re-running
+    //     a corridor head on enriched context would interact with slice-scoped
+    //     completion keys — out of scope here), but the pull must still be made
+    //     LEGIBLE: record it as a finding instead of dropping it silently. This is
+    //     the lift of the formerly over-conservative slice-loop skip; context-pull
+    //     never mutates, so recording inside a corridor is safe.
+    // The combined guard avoids double-recording: with delivery on AND outside a
+    // corridor, the early seam already resolved+recorded+delivered, so both
+    // conditions are false and this seam is skipped.
+    //
+    // Inert unless the live path injected `contextPuller`; always skipped on the
+    // terminal step. Best-effort and fail-safe: any failure leaves the run untouched.
     if (
       options.contextPuller !== undefined &&
-      options.contextDelivery === undefined &&
-      targetTransition.kind !== 'terminal_close' &&
-      !sliceCorridor.isActive()
+      (options.contextDelivery === undefined || sliceCorridor.isActive()) &&
+      targetTransition.kind !== 'terminal_close'
     ) {
       try {
         const stepEntries = trace.getAll().slice(traceLengthBeforeStep);

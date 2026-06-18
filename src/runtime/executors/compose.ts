@@ -71,6 +71,9 @@ async function writeRegisteredComposeReport(
       ...(context.ports.selection.configLayers === undefined
         ? {}
         : { selectionConfigLayers: context.ports.selection.configLayers }),
+      ...(context.run.contextDeliveryActive === undefined
+        ? {}
+        : { contextDeliveryActive: context.run.contextDeliveryActive }),
       connectorPlanner: runtimeConnectorPlanner,
       inputs,
     });

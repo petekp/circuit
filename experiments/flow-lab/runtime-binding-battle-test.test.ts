@@ -536,7 +536,7 @@ describe('Runtime-binding battle-test (live Build flow, real wrap-index task)', 
   );
 
   it(
-    'R3 deep-depth probe: at deep depth (slice loop active) the implementer runs inside the corridor, so its pull is silently dropped',
+    'R3 deep-depth probe: at deep depth (slice loop active) the implementer runs inside the corridor; its pull is now RECORDED (resolve-and-record lifted) though delivery-in-corridor stays deferred',
     async () => {
       // Medium-depth control: the implementer is NOT in a corridor, so the pull
       // resolves and (with delivery on) re-runs — the baseline the deep run breaks.
@@ -558,8 +558,13 @@ describe('Runtime-binding battle-test (live Build flow, real wrap-index task)', 
         enableContextDelivery: true,
       });
       const mediumEntries = await readTrace(mediumFolder);
-      const mediumDeliveries = byKind(mediumEntries, 'run.context-delivery');
-      const mediumPulls = byKind(mediumEntries, 'run.context-pull');
+      // Scope the pull/delivery counts to the act-step (the requesting step) the
+      // way the sibling relay count below does, so a future fixture change that
+      // makes another step emit a request cannot silently inflate these.
+      const isActStep = (e: Awaited<ReturnType<typeof readTrace>>[number]) =>
+        (e as { step_id?: string }).step_id === 'act-step';
+      const mediumDeliveries = byKind(mediumEntries, 'run.context-delivery').filter(isActStep);
+      const mediumPulls = byKind(mediumEntries, 'run.context-pull').filter(isActStep);
 
       // Deep-depth probe: same report, same starving implementer, run at the
       // 'autonomous' depth. The slice loop activates at depth >= 'high'; both
@@ -587,8 +592,8 @@ describe('Runtime-binding battle-test (live Build flow, real wrap-index task)', 
         enableContextDelivery: true,
       });
       const deepEntries = await readTrace(deepFolder);
-      const deepDeliveries = byKind(deepEntries, 'run.context-delivery');
-      const deepPulls = byKind(deepEntries, 'run.context-pull');
+      const deepDeliveries = byKind(deepEntries, 'run.context-delivery').filter(isActStep);
+      const deepPulls = byKind(deepEntries, 'run.context-pull').filter(isActStep);
       // The corridor genuinely iterated: act-step ran more than once (per slice).
       const deepActRelays = deepEntries.filter(
         (e) => e.kind === 'relay.completed' && (e as { step_id: string }).step_id === 'act-step',
@@ -598,11 +603,13 @@ describe('Runtime-binding battle-test (live Build flow, real wrap-index task)', 
       expect(mediumDeliveries.length).toBe(1);
       expect(mediumPulls.length).toBeGreaterThan(0);
       // PROBE: deep depth ran the implementer inside the corridor (multiple act
-      // passes), and the corridor skip dropped the pull on EVERY pass — no
-      // delivery, and (the legibility gap) NOT EVEN a recorded context-pull finding.
+      // passes). Delivery-in-corridor stays deferred, so NO delivery re-runs the
+      // step — but the lifted resolve-and-record seam now RECORDS the pull as a
+      // finding on the corridor passes, closing the legibility gap the prior cut
+      // documented (the pull is no longer silently dropped).
       expect(deepActRelays.length).toBeGreaterThan(1);
       expect(deepDeliveries.length).toBe(0);
-      expect(deepPulls.length).toBe(0);
+      expect(deepPulls.length).toBeGreaterThan(0);
       expect(deepResult.outcome).not.toBe('aborted');
 
       // eslint-disable-next-line no-console
@@ -626,7 +633,7 @@ describe('Runtime-binding battle-test (live Build flow, real wrap-index task)', 
               outcome: deepResult.outcome,
             },
             finding:
-              'at deep depth the implementer is the corridor head step, so 100% of its pulls are dropped silently (no delivery AND no finding) — not an occasional corridor case',
+              'at deep depth the implementer is the corridor head step; the lifted resolve-and-record seam now records its pull as a finding on the corridor passes (legible), while delivery-in-corridor stays deferred so the step is not re-run on enriched context',
           },
           null,
           2,

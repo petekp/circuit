@@ -30,10 +30,23 @@ export const buildPlanComposeBuilder: ComposeBuilder = {
     const grounding =
       context.inputs.context === undefined ? undefined : BuildContext.parse(context.inputs.context);
     const baseApproach = `Make the smallest safe change inside scope: ${brief.scope}`;
+    // When on-demand context-pull DELIVERY is active for the implementer
+    // (delivery opted in and the act-step is not inside a delivery-blind slice
+    // corridor — context.contextDeliveryActive), THIN the plan: hand the
+    // implementer the source count and a pointer to the pullable analyze-step
+    // observations instead of inlining the full synthesis. The implementer then
+    // starts lean and pulls the narrow observations only if it genuinely needs
+    // them (context_request {from_step: "analyze-step", field_path:
+    // "observations"}), which is what makes the pull channel load-bearing rather
+    // than a rarely-exercised fallback. Off (the default), the full synthesis is
+    // inlined exactly as before — byte-identical — because an implementer that
+    // cannot pull-and-receive a withheld slice would only be starved by thinning.
     const approach =
       grounding === undefined
         ? baseApproach
-        : `Grounded in a codebase read (${grounding.sources.length} sources): ${grounding.observations.join(' ')} Then ${baseApproach}`;
+        : context.contextDeliveryActive === true
+          ? `Grounded in a codebase read (${grounding.sources.length} sources); the detailed observations are recorded in the analyze-step report and available to pull on demand if this step needs them (context_request from_step "analyze-step", field_path "observations"). Then ${baseApproach}`
+          : `Grounded in a codebase read (${grounding.sources.length} sources): ${grounding.observations.join(' ')} Then ${baseApproach}`;
     // Carry the researcher's ordered work-unit slices. When the analyze
     // step found no decomposition (single indivisible change, or a reduced
     // fixture with no context), fall back to one slice covering the whole

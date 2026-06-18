@@ -738,17 +738,19 @@ describe('Build plan writer surfaces grounding from build.context@v1', () => {
     },
   });
 
-  function buildPlan(inputs: Record<string, unknown>) {
+  function buildPlan(inputs: Record<string, unknown>, extra: Partial<ComposeBuildContext> = {}) {
     const builder = findComposeBuilder('build.plan@v1');
     if (builder === undefined) throw new Error('build.plan@v1 compose builder is not registered');
-    // The plan builder reads only its declared inputs (brief, context); the
-    // runFolder/flow/step fields are unused for this writer, so a minimal
-    // ComposeBuildContext is enough to exercise the surfacing logic in isolation.
+    // The plan builder reads only its declared inputs (brief, context) plus the
+    // optional contextDeliveryActive signal; the runFolder/flow/step fields are
+    // unused for this writer, so a minimal ComposeBuildContext is enough to
+    // exercise the surfacing logic in isolation.
     return BuildPlan.parse(
       builder.build({
         runFolder: '.',
         goal: brief.objective,
         inputs,
+        ...extra,
       } as unknown as ComposeBuildContext),
     );
   }
@@ -794,5 +796,41 @@ describe('Build plan writer surfaces grounding from build.context@v1', () => {
   it('falls back to empty guardrails when context is absent', () => {
     const plan = buildPlan({ brief });
     expect(plan.guardrails).toEqual({ non_goals: [], invariants: [] });
+  });
+
+  it('thins the approach to a pullable pointer when context delivery is active', () => {
+    const context = BuildContext.parse({
+      verdict: 'accept',
+      sources: [{ kind: 'file', ref: 'src/example.ts', summary: 'Touched module.' }],
+      observations: [
+        'The target module is small and self-contained.',
+        'No schema migration is needed.',
+      ],
+      open_questions: [],
+      anticipated_file_extensions: ['.ts'],
+    });
+
+    // Default (delivery not active): the full observations synthesis is inlined
+    // into the approach — the fat envelope, byte-identical to before this gate.
+    const fat = buildPlan({ brief, context });
+    expect(fat.approach).toContain('The target module is small and self-contained.');
+    expect(fat.approach).toContain('No schema migration is needed.');
+
+    // Delivery active: the synthesis is withheld from the plan and replaced by a
+    // pointer to the pullable analyze-step slice, so the implementer starts lean
+    // and pulls the narrow observations only when it genuinely needs them. The
+    // slices, guardrails, and base instruction are unaffected — only the bulky
+    // synthesis moves from a push to a pull.
+    const thin = buildPlan({ brief, context }, { contextDeliveryActive: true });
+    expect(thin.approach).not.toContain('The target module is small and self-contained.');
+    expect(thin.approach).not.toContain('No schema migration is needed.');
+    // Still honest that a read happened, and names where the detail now lives.
+    expect(thin.approach).toContain('Grounded in a codebase read');
+    expect(thin.approach).toMatch(/analyze-step/);
+    // The base instruction survives the thinning in both shapes.
+    expect(thin.approach).toContain('Make the smallest safe change inside scope');
+    // The slices the implementer iterates are still carried — only the synthesis
+    // is withheld, never the work decomposition.
+    expect(thin.slices).toEqual(fat.slices);
   });
 });
