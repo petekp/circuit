@@ -1312,6 +1312,21 @@
         "docs/ideas/north-star-status.md"
       ],
       "last_checked": "2026-06-17"
+    },
+    {
+      "path": "docs/ideas/context-pull-last-mile-report.md",
+      "title": "Context-pull last-mile report - real guided worker pulls; payoff gated on a thin envelope",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["context", "context-pull", "delivery", "runtime-binding", "run-report"],
+      "current_reading": "Closed the two reach gaps the battle-test named, on feat/context-pull-last-mile (13db4fa8, verify green, pushed not merged): (1) un-dropped the affordance - the shape renderer now renders non-leaf carried .describe() as a <desc> {shape} prefix, so the context_request field renders its full object-level describe into the act-step prompt; (2) a conservative implementer relay-hint tells a worker to pull a named slice ONLY when genuinely starved (never reflexive, never an everything ask) and to refuse honestly when unpullable; (3) seedContextDeliveryFromTrace re-threads the delivery bound on resume (mirrors seedEquipmentReshapeFromTrace). Adversarial review 0 confirmed / 6 dismissed. CONFIRM (real Opus workers on the exact engine-built prompt, 4 arms, all clean): a real guided worker NOW pulls the named slice when starved (one parent, one field, not everything), stays conservative when the envelope suffices, refuses honestly with no fabrication when unpullable, and reaches equal completeness on the delivered slice; a $0 capstone replayed the worker's verbatim context_request through the live engine and it resolved end-to-end (answered:true, clean close). HONEST CATCH: plan.ts inlines the researcher's observations into the plan, so under today's fat envelope a real worker is rarely starved of the narrow synthesis (the 11x case) - it's starved of the bulky sources (1.31x). The ~10x payoff is real but gated on THINNING the envelope (stop inlining observations) plus lifting the deep-depth corridor skip. Verdict: mechanism+affordance+guidance+safety all in place and proven; pull today is correct/safe but low-yield (a fail-safe recovery channel, not a routine byte-saver); KEEP OPT-IN, default-ON stays a separate operator ratification. Next unlock: thin the Build envelope. Harnesses: experiments/flow-lab/{capture-act-prompt,real-worker-capstone}.test.ts.",
+      "related": [
+        "docs/ideas/runtime-binding-battle-test-report.md",
+        "docs/ideas/context-pull-live-run-report.md",
+        "docs/ideas/on-demand-context-pull.md",
+        "docs/ideas/north-star-status.md"
+      ],
+      "last_checked": "2026-06-17"
     }
   ]
 }
