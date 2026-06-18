@@ -4,19 +4,16 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Command } from 'commander';
 import { parse as parseYaml } from 'yaml';
-import {
-  type FlowSchematicAssemblySpec,
-  assembleFlowSchematic,
-} from '../flows/assemble-flow-schematic.js';
-import { buildAssemblySpec } from '../flows/build/assembly-spec.js';
 import { validateCompiledFlowKindPolicy } from '../flows/canonical-stage-policy.js';
 import { catalogFlowIds } from '../flows/catalog.js';
 import { compileSchematicToCompiledFlow } from '../flows/compile-schematic-to-flow.js';
+import { type CompiledFlowFile, planCompiledFlowFiles } from '../flows/compiled-flow-file-plan.js';
 import {
-  type StructureTaskContext,
-  applyStructure,
-  resolveStructure,
-} from '../flows/resolvers/structure.js';
+  type ArchetypeResolution,
+  describeArchetypeFamily,
+  resolveArchetype,
+} from '../flows/resolvers/archetype.js';
+import { extractAssemblySignals } from '../flows/resolvers/signals.js';
 import { CompiledFlow } from '../schemas/compiled-flow.js';
 import { CustomFlowPackageDescriptor } from '../schemas/custom-flow-descriptor.js';
 import { progressPresentation } from '../shared/progress-output.js';
@@ -169,63 +166,59 @@ function validateCustomFlow(slug: string, flow: CompiledFlow, source: string): v
   }
 }
 
-// Derive the structure chooser's task context from the create args. The chooser
-// is THIN and lean-to-whole: with no clear decompose signal a created flow folds
-// to the whole grain. create has no reliable surface-area/risk signal in a
-// one-line description, so those default to the conservative `small`/`low`; the
-// only explicit lever is the operator's `--decompose` flag, which maps to
-// `explicit_decompose` and earns build's full spine. This keeps the DEFAULT
-// thin-conservative (whole) when signals are absent — the common case.
-function structureTaskFromCreate(input: {
-  readonly description: string;
-  readonly decompose: boolean;
-}): StructureTaskContext {
-  return {
-    summary: input.description,
-    surface_area: 'small',
-    risk: 'low',
-    ...(input.decompose ? { explicit_decompose: true } : {}),
-  };
+// The task-aware assembler. The old seam was task-BLIND: it discarded the
+// description and always seeded build's spine, so the only shape it could emit
+// was build (folded or full). Now create READS the description into signals
+// (extractAssemblySignals), picks an archetype FAMILY from them, and instantiates
+// a task-appropriate shape (resolveArchetype) — editorial, fix, review, research,
+// prototype, or build. The `--decompose` flag still forces the build family's
+// full decomposed spine when the task lands on build.
+//
+// Every family reuses a registered contract family (build.*, fix.*, explore.*,
+// review.*, prototype.*, explainer.*) whose bodies are registered globally by
+// namespace, and single-producer is checked PER-GRAPH — so a custom-slug flow
+// that reuses a proven family passes the fail-closed catalog + kind gates exactly
+// as the built-in does. See src/flows/resolvers/archetype.ts and the proof in
+// tests/runner/task-aware-assembler.test.ts.
+//
+// A schematic with route_overrides (fix, research, prototype) compiles to a
+// per-mode package — one graph per runtime mode. planCompiledFlowFiles lays those
+// out the way the runtime loader expects: the largest graph to circuit.json,
+// remaining modes to <mode>.json siblings. The DEFAULT mode (circuit.json) runs
+// live today; non-default-mode runtime trust is a recorded follow-up (the trust
+// gate matches the manifest's single circuit.json flow_path).
+export interface AssembledCustomFlow {
+  // [circuit.json, <mode>.json...] — every compiled graph this flow needs.
+  readonly files: readonly CompiledFlowFile[];
+  readonly resolution: ArchetypeResolution;
 }
 
-// First-class composition (M9) + the B2 structure chooser. A custom flow is
-// produced through the SAME sanctioned path build's own data.ts uses — assemble
-// a block spec with the custom id/purpose, then compile — rather than reading
-// and cloning build's COMPILED bytes off disk. B2 adds the grain choice: the
-// structure resolver picks `whole` (a folded frame->plan->act->verify->close
-// spine, the conservative default) or `decomposed` (build's full spine) and
-// transforms the seed spec accordingly via `applyStructure`. Folding reuses
-// build's body-registered actuals, so the folded flow rides the same typed seams
-// and passes the fail-closed catalog/contract gates the full spine does.
-//
-// `applyStructure` stamps a grain suffix onto the seed id (for offline
-// measurement); create re-sets `id` to the slug so the published flow's identity
-// stays the slug and `validateCustomFlow`'s id check holds. The decomposed path
-// is byte-identical to the former full-spine clone (modulo id/purpose); see
-// tests/contracts/custom-flow-descriptor.test.ts, tests/runner/structure-chooser.test.ts,
-// and the create assertions in tests/runner/utility-cli.test.ts.
+function mainFlowOf(files: readonly CompiledFlowFile[]): CompiledFlow {
+  const main = files.find((file) => file.filename === 'circuit.json');
+  if (main === undefined) throw new Error('custom flow package has no circuit.json');
+  return main.flow;
+}
+
 function assembleCustomFlow(input: {
   readonly slug: string;
   readonly description: string;
   readonly decompose: boolean;
-}): CompiledFlow {
-  const seed: FlowSchematicAssemblySpec = {
-    ...buildAssemblySpec,
-    id: input.slug,
-    purpose: input.description,
-  };
-  const resolution = resolveStructure(
-    structureTaskFromCreate({ description: input.description, decompose: input.decompose }),
+}): AssembledCustomFlow {
+  const signals = extractAssemblySignals(input.description, {
+    explicit_decompose: input.decompose,
+  });
+  const resolution = resolveArchetype(input.slug, signals);
+  const compiled = compileSchematicToCompiledFlow(resolution.schematic);
+  const files = planCompiledFlowFiles(compiled).map(
+    (file): CompiledFlowFile => ({
+      filename: file.filename,
+      flow: CompiledFlow.parse(file.flow),
+    }),
   );
-  const grained = applyStructure(seed, resolution);
-  const schematic = assembleFlowSchematic({ ...grained, id: input.slug });
-  const compiled = compileSchematicToCompiledFlow(schematic);
-  if (compiled.kind !== 'single') {
-    throw new Error(`custom flow assembled to an unexpected '${compiled.kind}' package`);
+  for (const { filename, flow } of files) {
+    validateCustomFlow(input.slug, flow, `custom flow (${filename})`);
   }
-  const parsed = CompiledFlow.parse(compiled.flow);
-  validateCustomFlow(input.slug, parsed, 'custom flow');
-  return parsed;
+  return { files, resolution };
 }
 
 function skillMarkdown(slug: string, description: string, home: string): string {
@@ -308,6 +301,14 @@ function commandMarkdown(slug: string, description: string, home: string): strin
   ].join('\n');
 }
 
+// The archetype facts the published surfaces record for operator legibility.
+// Recovered from validation-result.json when publishing a pre-existing draft.
+interface CustomFlowArchetype {
+  readonly family: string;
+  readonly composition: string;
+  readonly signals_used: readonly string[];
+}
+
 function publishManifest(input: {
   readonly home: string;
   readonly slug: string;
@@ -325,6 +326,11 @@ function publishManifest(input: {
     (flow) =>
       !(typeof flow === 'object' && flow !== null && 'id' in flow && flow.id === input.slug),
   );
+  // M9-C: the manifest entry records IDENTITY, not "what shape this is". The
+  // chosen archetype family is legibility metadata, so it lives in the draft's
+  // validation-result.json + the operator summary — never on the descriptor the
+  // runtime trusts. The runtime resolves by slug → flow_path and loads per-mode
+  // siblings by disk presence; it never needs the family here.
   writeJson(manifestPath(input.home), {
     schema_version: 1,
     custom_flows: [
@@ -346,20 +352,54 @@ function writeValidationResult(input: {
   readonly slug: string;
   readonly flow: CompiledFlow;
   readonly source: 'template' | 'draft';
+  readonly files: readonly CompiledFlowFile[];
+  readonly archetype: CustomFlowArchetype;
 }): void {
   writeJson(join(draftRoot(input.home, input.slug), 'validation-result.json'), {
     schema_version: 1,
     status: 'valid',
     validated_flow_id: input.flow.id,
     source: input.source,
+    // The compiled-flow files this package owns ([circuit.json, <mode>.json...]).
+    // publish-from-draft copies and re-validates exactly this set.
+    flow_files: input.files.map((file) => file.filename),
+    archetype: input.archetype.family,
+    composition: input.archetype.composition,
+    signals_used: input.archetype.signals_used,
   });
+}
+
+// Recover the file list + archetype facts a draft recorded. Falls back to a
+// single circuit.json for drafts written before this field existed.
+function readDraftMetadata(
+  home: string,
+  slug: string,
+): { filenames: readonly string[]; archetype: CustomFlowArchetype } {
+  const raw = JSON.parse(
+    readFileSync(join(draftRoot(home, slug), 'validation-result.json'), 'utf8'),
+  ) as Record<string, unknown>;
+  const filenames =
+    Array.isArray(raw.flow_files) && raw.flow_files.every((f) => typeof f === 'string')
+      ? (raw.flow_files as string[])
+      : ['circuit.json'];
+  return {
+    filenames,
+    archetype: {
+      family: typeof raw.archetype === 'string' ? raw.archetype : 'build',
+      composition: typeof raw.composition === 'string' ? raw.composition : 'instantiated',
+      signals_used: Array.isArray(raw.signals_used)
+        ? (raw.signals_used.filter((s) => typeof s === 'string') as string[])
+        : [],
+    },
+  };
 }
 
 function writeDraft(input: {
   readonly home: string;
   readonly slug: string;
   readonly description: string;
-  readonly flow: CompiledFlow;
+  readonly files: readonly CompiledFlowFile[];
+  readonly archetype: CustomFlowArchetype;
 }): void {
   const root = draftRoot(input.home, input.slug);
   rmSync(root, { recursive: true, force: true });
@@ -368,21 +408,34 @@ function writeDraft(input: {
   validateCircuitYamlDescriptor(descriptor, join(root, 'circuit.yaml'), input.slug);
   writeText(join(root, 'SKILL.md'), skillMarkdown(input.slug, input.description, input.home));
   writeText(join(root, 'circuit.yaml'), descriptor);
-  writeJson(join(root, 'circuit.json'), input.flow);
+  for (const { filename, flow } of input.files) {
+    writeJson(join(root, filename), flow);
+  }
   writeText(join(root, 'command.md'), commandMarkdown(input.slug, input.description, input.home));
   writeValidationResult({
     home: input.home,
     slug: input.slug,
-    flow: input.flow,
+    flow: mainFlowOf(input.files),
     source: 'template',
+    files: input.files,
+    archetype: input.archetype,
   });
 }
 
-function loadDraftFlow(home: string, slug: string): CompiledFlow {
-  const path = join(draftRoot(home, slug), 'circuit.json');
-  const flow = CompiledFlow.parse(JSON.parse(readFileSync(path, 'utf8')));
-  validateCustomFlow(slug, flow, 'custom flow draft');
-  return flow;
+// Load + re-validate every compiled-flow file a draft owns. Returns the file
+// list (so publish can copy exactly them) and the main (circuit.json) flow.
+function loadDraftFlow(
+  home: string,
+  slug: string,
+): { files: CompiledFlowFile[]; mainFlow: CompiledFlow } {
+  const { filenames } = readDraftMetadata(home, slug);
+  const files = filenames.map((filename): CompiledFlowFile => {
+    const path = join(draftRoot(home, slug), filename);
+    const flow = CompiledFlow.parse(JSON.parse(readFileSync(path, 'utf8')));
+    validateCustomFlow(slug, flow, `custom flow draft (${filename})`);
+    return { filename, flow };
+  });
+  return { files, mainFlow: mainFlowOf(files) };
 }
 
 function publishDraft(input: {
@@ -397,16 +450,23 @@ function publishDraft(input: {
   }
   const descriptor = readFileSync(join(draft, 'circuit.yaml'), 'utf8');
   validateCircuitYamlDescriptor(descriptor, join(draft, 'circuit.yaml'), input.slug);
+  const { filenames } = readDraftMetadata(input.home, input.slug);
   const skillRoot = publishedRoot(input.home, input.slug);
   const customFlowRoot = join(flowRoot(input.home), input.slug);
+  // Clear the target first so a stale <mode>.json sibling from an earlier publish
+  // (or a crash mid-publish) cannot survive and be served by the loader. The
+  // publish then writes exactly the files this draft owns. (writeDraft does the
+  // same for the draft directory.)
+  rmSync(customFlowRoot, { recursive: true, force: true });
   mkdirSync(skillRoot, { recursive: true });
   mkdirSync(customFlowRoot, { recursive: true });
   writeText(join(skillRoot, 'SKILL.md'), readFileSync(join(draft, 'SKILL.md'), 'utf8'));
   writeText(join(skillRoot, 'circuit.yaml'), descriptor);
-  writeText(
-    join(customFlowRoot, 'circuit.json'),
-    readFileSync(join(draft, 'circuit.json'), 'utf8'),
-  );
+  // Copy every compiled-flow file the draft owns: circuit.json (default mode)
+  // plus any <mode>.json siblings produced by a per-mode family.
+  for (const filename of filenames) {
+    writeText(join(customFlowRoot, filename), readFileSync(join(draft, filename), 'utf8'));
+  }
   writeText(
     join(commandRoot(input.home), `${input.slug}.md`),
     readFileSync(join(draft, 'command.md'), 'utf8'),
@@ -419,8 +479,13 @@ function summaryMarkdown(input: {
   readonly description: string;
   readonly status: 'draft_created' | 'published';
   readonly home: string;
+  readonly archetype: CustomFlowArchetype;
 }): string {
   const invocation = customFlowInvocation(input.slug, input.home);
+  const signalsLine =
+    input.archetype.signals_used.length > 0
+      ? input.archetype.signals_used.map((s) => `- ${s}`)
+      : ['- No specific cue fired; used the conservative build default.'];
   return [
     '# Circuit Create',
     '',
@@ -429,6 +494,15 @@ function summaryMarkdown(input: {
     '',
     '## Purpose',
     input.description,
+    '',
+    '## Shape',
+    `This flow was generated with the **${input.archetype.family}** shape (${input.archetype.composition}).`,
+    describeArchetypeFamily(
+      input.archetype.family as Parameters<typeof describeArchetypeFamily>[0],
+    ),
+    '',
+    'Signals read from the task:',
+    ...signalsLine,
     '',
     '## Validation',
     'The generated compiled flow parsed successfully and passed flow-kind policy validation.',
@@ -491,21 +565,50 @@ export async function runCreateCommand(
     }
     const createdAt = args.createdAt ?? now().toISOString();
     const draftExists = existsSync(join(draftRoot(home, slug), 'circuit.json'));
-    const flow =
-      args.publish && draftExists
-        ? loadDraftFlow(home, slug)
-        : assembleCustomFlow({ slug, description: args.description, decompose: args.decompose });
-    const outputDescription = args.publish && draftExists ? flow.purpose : args.description;
+
+    // Two paths to the compiled-flow files + archetype facts: publish a
+    // pre-existing draft (recover both from disk), or assemble fresh from the
+    // task description (the task-aware assembler).
+    let files: readonly CompiledFlowFile[];
+    let mainFlow: CompiledFlow;
+    let archetype: CustomFlowArchetype;
     if (args.publish && draftExists) {
-      writeValidationResult({ home, slug, flow, source: 'draft' });
+      const loaded = loadDraftFlow(home, slug);
+      files = loaded.files;
+      mainFlow = loaded.mainFlow;
+      archetype = readDraftMetadata(home, slug).archetype;
     } else {
-      writeDraft({ home, slug, description: outputDescription, flow });
+      const assembled = assembleCustomFlow({
+        slug,
+        description: args.description,
+        decompose: args.decompose,
+      });
+      files = assembled.files;
+      mainFlow = mainFlowOf(assembled.files);
+      archetype = {
+        family: assembled.resolution.family,
+        composition: assembled.resolution.composition,
+        signals_used: assembled.resolution.signals_used,
+      };
+    }
+
+    const outputDescription = args.publish && draftExists ? mainFlow.purpose : args.description;
+    if (args.publish && draftExists) {
+      writeValidationResult({ home, slug, flow: mainFlow, source: 'draft', files, archetype });
+    } else {
+      writeDraft({ home, slug, description: outputDescription, files, archetype });
     }
     const status = args.publish ? 'published' : 'draft_created';
     if (args.publish) {
       publishDraft({ home, slug, description: outputDescription, createdAt });
     }
-    const summary = summaryMarkdown({ slug, description: outputDescription, status, home });
+    const summary = summaryMarkdown({
+      slug,
+      description: outputDescription,
+      status,
+      home,
+      archetype,
+    });
     writeText(summaryPath(home, slug), summary);
     const result = {
       schema_version: 1,

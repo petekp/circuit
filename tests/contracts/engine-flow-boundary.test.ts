@@ -73,6 +73,19 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
   // and rides the existing skill_slots manifest field via the shared assembler.
   // The equipment resolver tests exercise it.
   'src/flows/resolvers/equipment.ts',
+  // Task-aware assembler (resolver #0 + family chooser): signals.ts reads the
+  // task description into assembly signals; archetype.ts picks an archetype
+  // family from them and instantiates its seed shape. Both live under
+  // src/flows/resolvers/ as shared cross-flow infrastructure; create.ts consumes
+  // them and tests/runner/task-aware-assembler.test.ts exercises them directly.
+  'src/flows/resolvers/signals.ts',
+  'src/flows/resolvers/archetype.ts',
+  // Task-aware assembler (per-mode file plan): given a CompileResult, decides
+  // which compiled graph goes to circuit.json and which to <mode>.json siblings.
+  // Root-level shared infrastructure (operates on any CompileResult, not tied to
+  // a flow package), peer to compile-schematic-to-flow.ts; create.ts consumes it
+  // and tests/unit/compiled-flow-file-plan.test.ts exercises it directly.
+  'src/flows/compiled-flow-file-plan.ts',
 ];
 
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
@@ -81,14 +94,15 @@ const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
   'tests/runner/build-touch-area-projection.test.ts -> src/flows/build/writers/touch-area-projection.ts',
 ]);
 
-// M9 (first-class composition): custom-flow creation deliberately reuses
-// build's assembly spec — a custom flow is build-shaped by design, so it is
-// assembled from the same block sequence and compiled through the same path.
-// This is the ONE sanctioned src→flow-internal import outside the catalog;
-// any other is a boundary break.
-const ALLOWED_SRC_INTERNAL_FLOW_IMPORTS = new Set([
-  'src/cli/create.ts -> src/flows/build/assembly-spec.ts',
-]);
+// Sanctioned src→flow-internal imports outside the catalog (other than the
+// src/flows/ tree itself, which composes freely). Currently empty: the
+// task-aware assembler moved custom-flow composition out of src/cli/create.ts
+// and into src/flows/resolvers/archetype.ts. The resolver lives INSIDE the
+// flows tree, so its reuse of each family's assembly-spec (build/fix/explore/
+// review/prototype) is unrestricted intra-flows composition, not a boundary
+// crossing. create.ts now only touches the shared assembler infra (the
+// resolvers + compile + file-plan), never a flow package directly.
+const ALLOWED_SRC_INTERNAL_FLOW_IMPORTS = new Set<string>([]);
 
 function flowImportTarget(file: string, importPath: string): string | undefined {
   const target = relativeImportTarget(file, importPath);

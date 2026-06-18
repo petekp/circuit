@@ -140,6 +140,11 @@ const NON_PACKAGE_FILES = new Set([
   'catalog.ts',
   'catalog-derivations.ts',
   'compile-schematic-to-flow.ts',
+  // The per-mode file-layout planner for a compiled flow package: maps a
+  // CompileResult (single or per-mode) to its on-disk files (circuit.json +
+  // <mode>.json siblings). Shared cross-flow infrastructure consumed by the
+  // custom-flow create path; operates on any CompileResult, not a flow package.
+  'compiled-flow-file-plan.ts',
   'contract-body-signature.ts',
   // Step 2 — the compile-layer half of the live equipment reshape: re-resolves
   // equipment on a flow's remaining relay steps and re-validates through the
