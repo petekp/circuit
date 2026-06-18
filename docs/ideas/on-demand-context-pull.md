@@ -103,7 +103,82 @@ does a richer (semantic/retrieval) queryable format earn its place.
 - Typed lookup before semantic retrieval; offline spike before any engine seam.
 - Budgeted + trace-recorded, so it can never silently widen a step back into a blob.
 
+## The broader design space — who provisions context, and from what surface?
+
+The section above is one answer (child-pull, option B below): the step asks when it
+starves. But that is only one slice of a larger question, and the battle-test finding
+(pull is low-yield because the parent over-provisions) showed the real lever is *who
+decides and how context flows*, not just whether a starved child can recover. Two axes
+organize the space:
+
+- **Who decides** what a step gets: the assembler (up front), the parent (at handoff),
+  the step itself (by pulling), or a dedicated context policy.
+- **What surface is queryable**: just the parent's outputs, any ancestor's, or the whole
+  run's typed outputs (a shared store).
+
+### The options
+
+- **A — Assembly-time push (today's default).** The assembler fixes each envelope before
+  anything runs. Legible and simple, but static: it cannot adapt to what a step discovers
+  at runtime, so it over- or under-provisions.
+- **B — Child-pull (spiked; the design above).** Thin envelope, and the running step asks
+  its parent when it turns out short. Adaptive and legible (typed, traced), but *reactive*
+  — starve, then recover with a re-run — and low-yield whenever the parent over-provisions.
+- **C — Parent-driven runtime provisioning.** The parent decides and fetches each child's
+  context at handoff, asking up its *own* chain when it lacks something. The decision sits
+  where the broad view is (the parent decomposed the work) and it skips the re-run — "good
+  delegation." Architecturally it moves the context decision from *assembly time* to
+  *runtime in the parent*, which is strictly richer (the parent knows more after running
+  than the assembler knew up front). The catch: it *relocates* the "how much" judgment to
+  the parent rather than removing it, and the parent has the same temptation to over-provision
+  defensively — the very thing that made B low-yield.
+- **D — Central context manager / blackboard.** A dedicated agent, or a passive typed
+  queryable store, that owns context and serves each step out of band — context no longer
+  threads through ancestors; any step queries the store. Appeal: one specialized place for
+  the "what does each step need" judgment, steps stay clean, the store can dedup/summarize/
+  (later) retrieve semantically, and any step can reach anything without it being passed
+  down. The tension: an *active, omniscient broker* re-centralizes exactly the context the
+  micro-harness thesis works to scope and isolate — to serve everyone it must hold the whole
+  picture, so the fat-context problem moves *into* the broker — and it weakens the
+  tree-as-legibility (today the typed seams record what crossed each boundary; a broker
+  serving out of band makes "what did this step see" a property of the broker's choices
+  unless every serve is typed and traced). The *aligned* form of D is the passive one: a
+  typed, queryable shared surface (a blackboard) over the run's outputs, with the *deciding*
+  still done by a parent or a step and every query + answer typed and recorded — which is
+  really just B/C's queryable surface widened from "your parent" to "the whole run."
+
+### The deep fork: hierarchical vs central
+
+Underneath, the space splits on one question: does context flow *through the step tree*
+(A/B/C — each level hands down or asks up, across typed seams) or *out of band from a
+central source* (D — steps query a shared store)? Hierarchical keeps strong legibility and
+replay (the tree itself records what each step saw) and gives the parent the natural
+deciding role, but a step can only reach context via its ancestors. Central is more flexible
+(any step reaches anything, decoupled from the tree) but re-centralizes context and weakens
+the tree-as-record unless the store is fully typed and traced.
+
+### The likely synthesis
+
+These are probably not exclusive. The most defensible shape is a **hybrid**:
+parent-driven provisioning (C) as the *primary* (decide well where the broad view is, no
+re-run), child-pull (B) as the *fallback* for the genuine runtime needs the parent could
+not foresee, both over a **typed, queryable substrate** (the aligned, passive form of D) —
+the substrate is the mechanism (the typed surface the spike began, widened to the run), and
+the policy is parent-primary + child-fallback. That keeps the seam discipline (every query
+typed and traced) while gaining the flexibility (query the run, not just the parent) and
+putting the deciding where the knowledge is.
+
+### Status: open fork
+
+This is an open design fork to resolve *before* the next context build. The child-pull
+mechanism (B) is spiked and safe but low-yield; C and the passive-substrate form of D are
+the higher-leverage directions. The choice of who-decides + what-surface should be made
+deliberately and validated the same way everything else was — an offline demonstrator
+scoring each shape on the same need — before any live engine seam.
+
 ## Sequencing
 
 After the live recompile work (Steps 2–3) lands and the runtime-binding seam is proven,
-this is the natural next runtime-binding capability. Until then: captured, not built.
+this is the natural next runtime-binding capability — but the design fork above
+(who-decides + what-surface) should be settled first, since it decides *what* the next
+context build actually is. Until then: captured, not built.
