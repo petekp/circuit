@@ -9,10 +9,21 @@ import type { CompileResult } from './compile-schematic-to-flow.js';
 // graphs are deduplicated by structural identity. The layout the runtime LOADER
 // expects (src/cli/compiled-flow-loading.ts#resolveCompiledFlowPath) is:
 //
-//   - the largest graph group  → circuit.json   (the default the loader falls
-//                                                 back to when no mode matches)
-//   - each remaining mode       → <mode>.json    (the loader prefers this when an
+//   - the 'default' mode's graph → circuit.json  (the blessed default — the
+//                                                 manifest's flow_path and the
+//                                                 only path the trust gate trusts;
+//                                                 also the loader's fallback when
+//                                                 no mode matches)
+//   - each remaining mode        → <mode>.json    (the loader prefers this when an
 //                                                  axis selection names that mode)
+//
+// circuit.json is keyed off the DEFAULT mode, not whichever group is largest:
+// the publisher blesses circuit.json by name, so the graph that runs live must be
+// the default one. (Today the default mode always co-resides in the largest
+// group, so this is belt-and-suspenders — but a future family whose default graph
+// is a size-1 group would otherwise publish a non-default graph as the blessed
+// flow.) Modes that share the default's graph need no sibling; the loader falls
+// back to circuit.json for them.
 //
 // scripts/flows/emit.ts implements the SAME grouping for the generated-flows
 // layout (plus work-contract sidecars), but it loads the compiler from built
@@ -50,20 +61,23 @@ export function planCompiledFlowFiles(result: CompileResult): CompiledFlowFile[]
     }
   }
 
-  // Largest group first; break ties by first mode name for determinism.
+  // Deterministic order for the SIBLING files: largest group first, ties broken
+  // by first mode name. circuit.json itself is chosen by the default-mode rule
+  // below, independent of this ordering.
   const ordered = [...groups.values()].sort((a, b) => {
     if (b.modes.length !== a.modes.length) return b.modes.length - a.modes.length;
     return (a.modes[0] ?? '').localeCompare(b.modes[0] ?? '');
   });
 
-  const plan: CompiledFlowFile[] = [];
-  const main = ordered[0];
-  if (main === undefined) return plan;
-  plan.push({ filename: 'circuit.json', flow: main.flow });
+  // circuit.json is the graph of the 'default' axis selection (the blessed,
+  // live-running mode). Fall back to the largest group only if the compiler
+  // somehow emitted no 'default' mode — it always does, so this is defensive.
+  const main = ordered.find((group) => group.modes.includes('default')) ?? ordered[0];
+  if (main === undefined) return [];
 
-  for (let i = 1; i < ordered.length; i++) {
-    const group = ordered[i];
-    if (group === undefined) continue;
+  const plan: CompiledFlowFile[] = [{ filename: 'circuit.json', flow: main.flow }];
+  for (const group of ordered) {
+    if (group === main) continue;
     for (const modeName of group.modes) {
       const flow = result.flows.get(modeName);
       if (flow === undefined) {

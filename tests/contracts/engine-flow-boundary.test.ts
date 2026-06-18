@@ -80,6 +80,12 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
   // them and tests/runner/task-aware-assembler.test.ts exercises them directly.
   'src/flows/resolvers/signals.ts',
   'src/flows/resolvers/archetype.ts',
+  // Task-aware assembler (per-mode file plan): given a CompileResult, decides
+  // which compiled graph goes to circuit.json and which to <mode>.json siblings.
+  // Root-level shared infrastructure (operates on any CompileResult, not tied to
+  // a flow package), peer to compile-schematic-to-flow.ts; create.ts consumes it
+  // and tests/unit/compiled-flow-file-plan.test.ts exercises it directly.
+  'src/flows/compiled-flow-file-plan.ts',
 ];
 
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([

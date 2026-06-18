@@ -46079,14 +46079,12 @@ function planCompiledFlowFiles(result) {
       return b.modes.length - a.modes.length;
     return (a.modes[0] ?? "").localeCompare(b.modes[0] ?? "");
   });
-  const plan = [];
-  const main2 = ordered[0];
+  const main2 = ordered.find((group) => group.modes.includes("default")) ?? ordered[0];
   if (main2 === void 0)
-    return plan;
-  plan.push({ filename: "circuit.json", flow: main2.flow });
-  for (let i = 1; i < ordered.length; i++) {
-    const group = ordered[i];
-    if (group === void 0)
+    return [];
+  const plan = [{ filename: "circuit.json", flow: main2.flow }];
+  for (const group of ordered) {
+    if (group === main2)
       continue;
     for (const modeName of group.modes) {
       const flow = result.flows.get(modeName);
@@ -46261,7 +46259,7 @@ var FAMILY_CUES = [
       "regression",
       "failing",
       "flaky",
-      "repro",
+      "repro*",
       "defect",
       "memory leak",
       "race condition",
@@ -46270,7 +46268,7 @@ var FAMILY_CUES = [
       "doesn't work",
       "does not work",
       "not working",
-      "misbehav"
+      "misbehav*"
     ]
   },
   {
@@ -46299,7 +46297,7 @@ var FAMILY_CUES = [
       "walk through",
       "interactive explainer",
       "explainer",
-      "demystif",
+      "demystif*",
       "intuition for",
       "visualize how",
       "illustrate how"
@@ -46307,23 +46305,15 @@ var FAMILY_CUES = [
   },
   {
     family: "review",
-    cues: [
-      "review",
-      "audit",
-      "inspect",
-      "critique",
-      "assess",
-      "look over",
-      "go over the"
-    ]
+    cues: ["review", "audit", "inspect", "critique", "assess", "look over", "go over the"]
   },
   {
     family: "research",
     cues: [
       "research",
-      "investigat",
+      "investigat*",
       "explore",
-      "compar",
+      "compar*",
       "evaluate option",
       "options for",
       "spike",
@@ -46336,7 +46326,7 @@ var FAMILY_CUES = [
   }
 ];
 var LARGE_SURFACE_CUES = [
-  "migrat",
+  "migrat*",
   "across every",
   "across all",
   "across the",
@@ -46355,18 +46345,18 @@ var MEDIUM_SURFACE_CUES = [
   "several",
   "multiple",
   "subsystem",
-  "integrat",
+  "integrat*",
   "overhaul"
 ];
 var HIGH_RISK_CUES = [
-  "auth",
+  "auth*",
   "security",
   "password",
   "credential",
   "payment",
   "billing",
   "production",
-  "migrat",
+  "migrat*",
   "data loss",
   "breaking change",
   "encryption",
@@ -46384,7 +46374,7 @@ var MEDIUM_RISK_CUES = [
   "access control"
 ];
 var DOMAIN_CUES = [
-  ["auth", ["auth", "login", "password", "credential", "session"]],
+  ["auth", ["auth*", "login", "password", "credential", "session"]],
   ["billing", ["billing", "payment", "invoice", "subscription", "pricing"]],
   ["data", ["database", "schema", "migration", "data model", "query"]],
   ["api", ["api", "endpoint", "route handler", "rest", "graphql"]],
@@ -46392,13 +46382,18 @@ var DOMAIN_CUES = [
   ["docs", ["docs", "documentation", "readme", "release note", "tutorial"]],
   ["perf", ["performance", "latency", "throughput", "slow", "optimize"]]
 ];
+function cueLabel(cue) {
+  return cue.endsWith("*") ? cue.slice(0, -1) : cue;
+}
 var cueMatchers = /* @__PURE__ */ new Map();
 function cueMatcher(cue) {
   const cached2 = cueMatchers.get(cue);
   if (cached2 !== void 0)
     return cached2;
-  const escaped = cue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const matcher = new RegExp(`\\b${escaped}`);
+  const isStem = cue.endsWith("*");
+  const literal2 = isStem ? cue.slice(0, -1) : cue;
+  const escaped = literal2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matcher = isStem ? new RegExp(`\\b${escaped}`) : new RegExp(`\\b${escaped}(?:s|es|ed|ing)?\\b`);
   cueMatchers.set(cue, matcher);
   return matcher;
 }
@@ -46443,14 +46438,14 @@ function extractAssemblySignals(description, options = {}) {
   const used = [];
   const { family, cue: familyCue } = classifyFamily(text);
   if (familyCue !== void 0)
-    used.push(`family:${family} (matched "${familyCue.trim()}")`);
+    used.push(`family:${family} (matched "${cueLabel(familyCue)}")`);
   const { surface, cue: surfaceCue } = classifySurface(text);
   if (surfaceCue !== void 0) {
-    used.push(`surface:${surface} (matched "${surfaceCue.trim()}")`);
+    used.push(`surface:${surface} (matched "${cueLabel(surfaceCue)}")`);
   }
   const { risk, cue: riskCue } = classifyRisk(text);
   if (riskCue !== void 0)
-    used.push(`risk:${risk} (matched "${riskCue.trim()}")`);
+    used.push(`risk:${risk} (matched "${cueLabel(riskCue)}")`);
   const domain2 = classifyDomain(text);
   if (domain2 !== null)
     used.push(`domain:${domain2}`);
@@ -47096,6 +47091,7 @@ function publishDraft(input) {
   const { filenames } = readDraftMetadata(input.home, input.slug);
   const skillRoot = publishedRoot(input.home, input.slug);
   const customFlowRoot = join4(flowRoot(input.home), input.slug);
+  rmSync(customFlowRoot, { recursive: true, force: true });
   mkdirSync(skillRoot, { recursive: true });
   mkdirSync(customFlowRoot, { recursive: true });
   writeText(join4(skillRoot, "SKILL.md"), readFileSync26(join4(draft, "SKILL.md"), "utf8"));

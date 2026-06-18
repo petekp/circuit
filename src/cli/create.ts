@@ -453,6 +453,11 @@ function publishDraft(input: {
   const { filenames } = readDraftMetadata(input.home, input.slug);
   const skillRoot = publishedRoot(input.home, input.slug);
   const customFlowRoot = join(flowRoot(input.home), input.slug);
+  // Clear the target first so a stale <mode>.json sibling from an earlier publish
+  // (or a crash mid-publish) cannot survive and be served by the loader. The
+  // publish then writes exactly the files this draft owns. (writeDraft does the
+  // same for the draft directory.)
+  rmSync(customFlowRoot, { recursive: true, force: true });
   mkdirSync(skillRoot, { recursive: true });
   mkdirSync(customFlowRoot, { recursive: true });
   writeText(join(skillRoot, 'SKILL.md'), readFileSync(join(draft, 'SKILL.md'), 'utf8'));

@@ -56,10 +56,20 @@ interface CueSet {
 // fix / prototype / editorial verbs are near-unambiguous, so they win over the
 // softer review / research cues that can merely precede a build. build is the
 // fallthrough default — the conservative choice when no cue fires.
-// Cues are matched at a WORD BOUNDARY START (see firstMatchingCue): a cue may be
-// a stem ('migrat' matches migration/migrating) but never fires mid-word ('hang'
-// must not match inside "changelog"). This kills the substring-collision class
-// that naive includes() would let through. Cues curated to avoid common-noun
+//
+// Two cue kinds (see cueMatcher):
+//   - WHOLE-WORD cues ('fix', 'audit', 'explore') match the word plus its simple
+//     inflections (-s/-es/-ed/-ing) and NOTHING else: 'fix' fires on fix/fixes/
+//     fixing but never inside 'fixture', 'audit' never inside 'auditorium',
+//     'explore' never inside 'explorer'. This is the default and what kills the
+//     derivational-collision class.
+//   - STEM cues, marked with a trailing '*' ('migrat*', 'investigat*'), match
+//     from a word-boundary START with no trailing anchor, so a deliberately
+//     truncated stem fires across a whole inflection family ('migrat*' →
+//     migration/migrating). Use only where the stem has no unwanted
+//     longer-word neighbour.
+// Either kind anchors the START at a word boundary, so a cue never fires mid-word
+// ('hang' cannot match inside "changelog"). Cues curated to avoid common-noun
 // collisions (e.g. no bare 'option', which would fire on "add an options page").
 export const FAMILY_CUES: readonly CueSet[] = [
   {
@@ -72,7 +82,7 @@ export const FAMILY_CUES: readonly CueSet[] = [
       'regression',
       'failing',
       'flaky',
-      'repro',
+      'repro*',
       'defect',
       'memory leak',
       'race condition',
@@ -81,7 +91,7 @@ export const FAMILY_CUES: readonly CueSet[] = [
       "doesn't work",
       'does not work',
       'not working',
-      'misbehav',
+      'misbehav*',
     ],
   },
   {
@@ -110,7 +120,7 @@ export const FAMILY_CUES: readonly CueSet[] = [
       'walk through',
       'interactive explainer',
       'explainer',
-      'demystif',
+      'demystif*',
       'intuition for',
       'visualize how',
       'illustrate how',
@@ -124,9 +134,9 @@ export const FAMILY_CUES: readonly CueSet[] = [
     family: 'research',
     cues: [
       'research',
-      'investigat',
+      'investigat*',
       'explore',
-      'compar',
+      'compar*',
       'evaluate option',
       'options for',
       'spike',
@@ -142,7 +152,7 @@ export const FAMILY_CUES: readonly CueSet[] = [
 // Surface-area cues. A large surface earns the decomposed (full-spine) build
 // grain; otherwise the build family leans conservative-whole.
 export const LARGE_SURFACE_CUES: readonly string[] = [
-  'migrat',
+  'migrat*',
   'across every',
   'across all',
   'across the',
@@ -162,7 +172,7 @@ export const MEDIUM_SURFACE_CUES: readonly string[] = [
   'several',
   'multiple',
   'subsystem',
-  'integrat',
+  'integrat*',
   'overhaul',
 ];
 
@@ -170,14 +180,14 @@ export const MEDIUM_SURFACE_CUES: readonly string[] = [
 // which (for the build family) also earns the decomposed grain so the full
 // review + verification spine survives.
 export const HIGH_RISK_CUES: readonly string[] = [
-  'auth',
+  'auth*',
   'security',
   'password',
   'credential',
   'payment',
   'billing',
   'production',
-  'migrat',
+  'migrat*',
   'data loss',
   'breaking change',
   'encryption',
@@ -199,7 +209,7 @@ export const MEDIUM_RISK_CUES: readonly string[] = [
 // Coarse subject labels for legibility (operator summary + trace). Order matters
 // only for which label is reported first; it never affects the shape.
 const DOMAIN_CUES: readonly (readonly [string, readonly string[]])[] = [
-  ['auth', ['auth', 'login', 'password', 'credential', 'session']],
+  ['auth', ['auth*', 'login', 'password', 'credential', 'session']],
   ['billing', ['billing', 'payment', 'invoice', 'subscription', 'pricing']],
   ['data', ['database', 'schema', 'migration', 'data model', 'query']],
   ['api', ['api', 'endpoint', 'route handler', 'rest', 'graphql']],
@@ -208,16 +218,31 @@ const DOMAIN_CUES: readonly (readonly [string, readonly string[]])[] = [
   ['perf', ['performance', 'latency', 'throughput', 'slow', 'optimize']],
 ];
 
-// Compiled word-boundary matchers, cached per cue. A cue matches only at a WORD
-// BOUNDARY START: 'migrat' fires on migration/migrating (stem), but 'hang' can
-// never fire inside "changelog" (no boundary before the 'h'). This is the whole
-// reason the classifier reads cleanly instead of colliding mid-word.
+// The human-readable form of a cue (drops the stem '*' marker), for signals_used
+// trace lines: the cue 'migrat*' is reported as "migrat".
+export function cueLabel(cue: string): string {
+  return cue.endsWith('*') ? cue.slice(0, -1) : cue;
+}
+
+// Compiled matchers, cached per cue. Every cue anchors its START at a word
+// boundary, so a cue never fires mid-word ('hang' cannot match inside
+// "changelog" — no boundary before the 'h'). The trailing anchor differs by kind:
+//   - STEM cue ('migrat*'): no trailing anchor, so the truncated stem fires
+//     across its whole inflection family (migration/migrating).
+//   - WHOLE-WORD cue ('fix'): a trailing boundary that permits only simple
+//     inflectional suffixes (-s/-es/-ed/-ing). This matches fix/fixes/fixing but
+//     NOT 'fixture', 'audit' but not 'auditorium', 'explore' but not 'explorer' —
+//     the derivational-noun collision class a bare start-anchor would let through.
 const cueMatchers = new Map<string, RegExp>();
 function cueMatcher(cue: string): RegExp {
   const cached = cueMatchers.get(cue);
   if (cached !== undefined) return cached;
-  const escaped = cue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const matcher = new RegExp(`\\b${escaped}`);
+  const isStem = cue.endsWith('*');
+  const literal = isStem ? cue.slice(0, -1) : cue;
+  const escaped = literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const matcher = isStem
+    ? new RegExp(`\\b${escaped}`)
+    : new RegExp(`\\b${escaped}(?:s|es|ed|ing)?\\b`);
   cueMatchers.set(cue, matcher);
   return matcher;
 }
@@ -267,15 +292,15 @@ export function extractAssemblySignals(
   const used: string[] = [];
 
   const { family, cue: familyCue } = classifyFamily(text);
-  if (familyCue !== undefined) used.push(`family:${family} (matched "${familyCue.trim()}")`);
+  if (familyCue !== undefined) used.push(`family:${family} (matched "${cueLabel(familyCue)}")`);
 
   const { surface, cue: surfaceCue } = classifySurface(text);
   if (surfaceCue !== undefined) {
-    used.push(`surface:${surface} (matched "${surfaceCue.trim()}")`);
+    used.push(`surface:${surface} (matched "${cueLabel(surfaceCue)}")`);
   }
 
   const { risk, cue: riskCue } = classifyRisk(text);
-  if (riskCue !== undefined) used.push(`risk:${risk} (matched "${riskCue.trim()}")`);
+  if (riskCue !== undefined) used.push(`risk:${risk} (matched "${cueLabel(riskCue)}")`);
 
   const domain = classifyDomain(text);
   if (domain !== null) used.push(`domain:${domain}`);

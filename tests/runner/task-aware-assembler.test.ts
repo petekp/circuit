@@ -80,6 +80,57 @@ describe('extractAssemblySignals reads the task into signals', () => {
   });
 });
 
+describe('cue matching is word-aware (no mid-word / derivational collisions)', () => {
+  // A whole-word family cue must NOT fire as a prefix of an unrelated longer
+  // word: 'explore' must not match inside 'explorer', 'fix' not inside 'fixture',
+  // 'audit' not inside 'auditorium'. Each of these tasks is a plain build/UI
+  // request with no real family intent, so the conservative build fallthrough is
+  // the correct family. Before the trailing word-boundary fix these silently
+  // misrouted to research/review/editorial/fix (impl-less shapes).
+  const COLLISION_BUILD: readonly string[] = [
+    'build a file explorer component for the sidebar', // explorer != explore
+    'build a log analyzer tool for the dashboard', // analyzer != analyze
+    'add a teacher profile page to the school portal', // teacher != teach
+    'build an auditorium booking page for the venue', // auditorium != audit
+    'add an inspector panel to the layout editor', // inspector != inspect
+    'set up a test fixture for the shopping cart', // fixture != fix
+  ];
+
+  it('does not misroute build/UI tasks whose words merely contain a cue', () => {
+    for (const desc of COLLISION_BUILD) {
+      expect(extractAssemblySignals(desc).family, desc).toBe('build');
+    }
+  });
+
+  // The flip side: stem cues and ordinary inflections of whole-word cues must
+  // STILL fire, so the boundary fix doesn't cost real recall.
+  interface RouteCase {
+    readonly desc: string;
+    readonly family: ArchetypeFamily;
+  }
+  const STILL_ROUTES: readonly RouteCase[] = [
+    { desc: 'the login crashes intermittently on submit', family: 'fix' }, // crashes -> crash
+    { desc: 'authentication keeps failing for SSO users', family: 'fix' }, // failing -> fix family
+    { desc: 'investigate why the dashboard renders slowly', family: 'research' }, // investigat* stem
+    { desc: 'compare three caching strategies and recommend one', family: 'research' }, // compar* stem
+    { desc: 'reproduce the intermittent deadlock in the scheduler', family: 'fix' }, // repro* stem
+    { desc: 'audit the payment service for PCI compliance gaps', family: 'review' }, // audit base word
+  ];
+
+  it('still fires for stems and ordinary inflections of cues', () => {
+    for (const { desc, family } of STILL_ROUTES) {
+      expect(extractAssemblySignals(desc).family, desc).toBe(family);
+    }
+  });
+
+  it('still escalates surface/risk from stem cues (migrat*, auth*)', () => {
+    const migrate = extractAssemblySignals('migrate the user records to the new schema');
+    expect(migrate.surface_area, 'migration -> large surface').toBe('large');
+    const authn = extractAssemblySignals('authentication is broken for SSO logins');
+    expect(authn.risk, 'authentication -> high risk').toBe('high');
+  });
+});
+
 describe('resolveArchetype instantiates a sound, task-appropriate shape', () => {
   it('every family compiles clean: catalog 0, kind policy ok, primary_result bound', () => {
     for (const { desc, family } of FAMILY_CASES) {

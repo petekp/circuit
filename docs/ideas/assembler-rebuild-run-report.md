@@ -88,23 +88,71 @@ Three new resolver/assembler modules + a rewired create path, no engine edit:
 ### Verification
 
 `npm run verify` green (full canonical gate). Focused proof: the task-aware
-suite (6/6), `structure-chooser`, `utility-cli` (38/38, including the live
-end-to-end run), the descriptor contract tests, and the engine↔flow boundary +
-catalog-completeness contracts (allowlists updated for the two new resolvers and
-the file-plan module).
+suite (9/9, including the word-boundary collision pins), the new
+`compiled-flow-file-plan` and `create-publish-cleanup` unit suites,
+`structure-chooser`, `utility-cli` (including the live end-to-end run), the
+descriptor contract tests, and the engine↔flow boundary + catalog-completeness
+contracts (allowlists updated for the two new resolvers and the file-plan
+module).
 
 ### Classifier honesty (a documented limitation, not fitted away)
 
 The classifier is a deterministic **keyword heuristic**, not a semantic model.
-The word-boundary fix kills the mid-word collision class
-(`changelog`↛`hang`). A residual collision class remains and is reported
-honestly: a build verb governing a noun that is also a family cue —
-"Build an **audit** log" classifies as review, "Build a file **explor**er" as
-research. This is the **same** precedence mechanism that *correctly* sends
-pre-registered task T1 ("**build** an interactive **explainer** website") to
-editorial; a keyword classifier cannot have one without the other. Resolving it
-needs semantics (or an operator override, which exists via `--name`). All 8
-pre-registered tasks classify exactly as expected (verified before any scoring).
+Cue matching is word-aware on both ends (see the adversarial-review fix below):
+it kills the mid-word collision class (`changelog`↛`hang`) **and** the
+derivational-noun class (`explorer`↛`explore`, `auditorium`↛`audit`,
+`fixture`↛`fix`) while still matching ordinary inflections (`crashes`→`crash`)
+and deliberate stems (`migrat*`→migration). A residual class remains and is
+reported honestly: **genuine compound intent** where two real cues co-occur and
+precedence picks one — "review the design, then build the page" classifies as
+review (no implementation step), "audit and refactor the module" as review. This
+is the **same** precedence mechanism that *correctly* sends pre-registered task
+T1 ("build an interactive **explainer** website") to editorial; a keyword
+classifier resolves the ambiguity by a fixed order, not by understanding. The
+operator override (`--name` plus an explicit description verb) is the escape
+hatch; closing it properly needs semantics. All 8 pre-registered tasks classify
+exactly as expected (verified before any scoring).
+
+### Adversarial review (integration gate) — 3 fixes, failing-test-first
+
+Three independent reviewers (signal/archetype logic; engine↔flow boundary +
+file-plan; CLI/publish safety) swept the Phase 1 diff. They surfaced one real
+correctness bug and two latent edges; each was fixed test-first, with the test
+shown failing on the pre-fix code before the change.
+
+1. **HIGH — cue matcher had no trailing word boundary.** `\b${cue}` anchored only
+   the *start*, so whole-word family cues fired as prefixes of unrelated nouns:
+   `explore`⊂explorer, `analyze`⊂analyzer, `audit`⊂auditorium, `inspect`⊂inspector,
+   `teach`⊂teacher, `fix`⊂fixture — silently misrouting real build/UI tasks into
+   impl-less review/research/editorial shapes (7 verified misroutes). Fix:
+   whole-word cues now match `\b${cue}(?:s|es|ed|ing)?\b` (word + simple
+   inflections, nothing else); cues that must span an inflection family are marked
+   with a trailing `*` stem sentinel (`migrat*`, `investigat*`, `repro*`, …) and
+   keep the start-only anchor. Recall for stems and inflections is preserved
+   (proved by test). The reassuring code comment that claimed the old anchor
+   already killed this class was factually wrong and was corrected.
+2. **LOW (latent) — file plan blessed the largest group, not the default mode.**
+   `planCompiledFlowFiles` wrote whichever mode-group was largest to
+   `circuit.json`, but the manifest blesses `circuit.json` by name and the trust
+   gate only trusts that path. Not reachable from any current family (the default
+   mode always co-resides in the largest group today), but a future family with a
+   size-1 default group would publish a non-default graph as the live flow. Fixed
+   to bless the `default` mode's graph explicitly; siblings keep deterministic
+   ordering.
+3. **LOW — publish did not clear stale siblings.** Now that a per-mode family owns
+   `circuit.json` + `<mode>.json` siblings, republishing a different shape (or a
+   crash mid-publish) could leave an orphaned `<mode>.json` the loader would still
+   serve. `publishDraft` now clears the target directory before copying, mirroring
+   `writeDraft`.
+
+Two findings were **kept as documented follow-ups, not fixed** (out of scope for a
+clean Phase 1 ship; both fail-closed/safe): per-mode published flows are untrusted
+at runtime in any *non-default* mode (the trust gate matches only the single
+blessed `circuit.json`; a `--depth low` run of a published fix/research/prototype
+flow rejects as "untrusted fixture" rather than a clean "mode unsupported"); and
+`resolvers/` is now an unguarded zone for intra-`src/flows` imports by design
+(the engine boundary still holds — `src/runtime` and `src/cli` reach no flow
+package internals). Both are recorded in the next-step list (§4).
 
 ---
 
@@ -315,12 +363,27 @@ answers is whether they finish *as well as* the hand-authored bar, and at what
 cost. Do **not** yet spend budget on the genuine-block-composition arm — that is
 gated behind the Phase 2 spec's catalog enrichments.
 
-**Recommended next step.** Ship Phase 1 (done — committed, verify-green). Then
-scope the **dynamic-vs-reference live experiment** on the two cleanest families
-(fix, build) where the live arms already succeed, comparing instantiated-generated
-vs hand-authored on a small held-out task set with the cost-capture instrument.
-Hold genuine block-composition as a separate research track behind the Phase 2
-catalog enrichments (§2).
+**Recommended next step.** Ship Phase 1 (done — committed, verify-green, hardened
+by the integration review in §1). Then scope the **dynamic-vs-reference live
+experiment** on the two cleanest families (fix, build) where the live arms already
+succeed, comparing instantiated-generated vs hand-authored on a small held-out
+task set with the cost-capture instrument. Hold genuine block-composition as a
+separate research track behind the Phase 2 catalog enrichments (§2).
+
+**Recorded follow-ups (from the integration review, not blocking the ship):**
+
+- **Per-mode runtime trust.** A published fix/research/prototype flow run in a
+  non-default mode (`--depth low`, etc.) resolves to a `<mode>.json` sibling that
+  the trust gate does not bless (only `circuit.json` is). It fails closed, but
+  with a confusing "untrusted fixture" error rather than a clean "this mode isn't
+  published yet." Decide whether to bless siblings into the manifest or to emit a
+  clear mode-unsupported message. (This is a trust-surface decision, deliberately
+  not made unilaterally.)
+- **`resolvers/` import zone.** The boundary test now treats everything under
+  `src/flows/resolvers/` as shared intra-flows infra (it may import any flow
+  package's internals). The engine boundary still holds — `src/runtime` and
+  `src/cli` reach no flow-package internals — but the loosening should be a
+  conscious, signed-off model, not an accident.
 
 ---
 
