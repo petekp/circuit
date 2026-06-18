@@ -10831,6 +10831,215 @@ import { homedir } from "node:os";
 import { dirname as dirname2, join as join4, resolve as resolve7 } from "node:path";
 var import_yaml = __toESM(require_dist(), 1);
 
+// dist/policy/flow-kind-policy-core.js
+function objectRecord(value) {
+  return value !== null && typeof value === "object" ? value : void 0;
+}
+function stringStepIdsForCanonical(stages, canonical) {
+  const ids = [];
+  for (const stage of stages) {
+    const p = objectRecord(stage);
+    if (p === void 0 || p.canonical !== canonical || !Array.isArray(p.steps))
+      continue;
+    for (const id of p.steps) {
+      if (typeof id === "string")
+        ids.push(id);
+    }
+  }
+  return ids;
+}
+function isReviewResultReportWriter(step) {
+  const s = objectRecord(step);
+  if (s === void 0 || s.kind !== "compose")
+    return false;
+  const writes = objectRecord(s.writes);
+  const report = objectRecord(writes?.report);
+  return report?.schema === "review.result@v1";
+}
+function isReviewerRelay(step) {
+  const s = objectRecord(step);
+  return s !== void 0 && s.kind === "relay" && s.role === "reviewer";
+}
+function declaredCanonicalsFor(fixture) {
+  const declared = /* @__PURE__ */ new Set();
+  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
+  for (const stage of stages) {
+    const stageRecord = objectRecord(stage);
+    if (typeof stageRecord?.canonical === "string") {
+      declared.add(stageRecord.canonical);
+    }
+  }
+  return declared;
+}
+function checkCanonicalStagePolicyVariant(id, fixture, variant, optionalCanonicals, authority) {
+  const declared = declaredCanonicalsFor(fixture);
+  const optional2 = new Set(optionalCanonicals);
+  const required2 = new Set(variant.canonicals.filter((c) => !optional2.has(c)));
+  const acceptedDeclared = /* @__PURE__ */ new Set([...required2, ...optional2]);
+  const missing = [...required2].filter((c) => !declared.has(c));
+  const extra = [...declared].filter((c) => !acceptedDeclared.has(c));
+  if (missing.length > 0 || extra.length > 0) {
+    const parts = [];
+    if (missing.length > 0)
+      parts.push(`missing canonical(s): ${missing.join(", ")}`);
+    if (extra.length > 0)
+      parts.push(`unexpected canonical(s): ${extra.join(", ")}`);
+    return {
+      ok: false,
+      detail: `${id}: canonical stage-set mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
+    };
+  }
+  const sp = objectRecord(fixture.stage_path_policy);
+  if (sp === void 0) {
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy missing or not an object`
+    };
+  }
+  const omits = Array.isArray(sp.omits) ? sp.omits.filter((s) => typeof s === "string") : [];
+  const optionalOmitted = [...optional2].filter((c) => !declared.has(c));
+  const expectedOmits = /* @__PURE__ */ new Set([...variant.omits, ...optionalOmitted]);
+  const expectedMode = expectedOmits.size === 0 ? "strict" : "partial";
+  if (sp.mode !== expectedMode) {
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy.mode must be '${expectedMode}' for kind-canonical enforcement; got '${String(sp.mode)}'`
+    };
+  }
+  const missingOmits = [...expectedOmits].filter((o) => !omits.includes(o));
+  const extraOmits = omits.filter((o) => !expectedOmits.has(o));
+  if (missingOmits.length > 0 || extraOmits.length > 0) {
+    const parts = [];
+    if (missingOmits.length > 0)
+      parts.push(`missing omit(s): ${missingOmits.join(", ")}`);
+    if (extraOmits.length > 0)
+      parts.push(`unexpected omit(s): ${extraOmits.join(", ")}`);
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy.omits mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
+    };
+  }
+  return {
+    ok: true,
+    detail: `${id}: canonical set {${variant.canonicals.join(", ")}} + omits {${variant.omits.join(", ")}} enforced (authority: ${authority})`
+  };
+}
+function checkReviewIdentitySeparationPolicy(fixture) {
+  const f = objectRecord(fixture);
+  if (f === void 0) {
+    return { ok: false, detail: "fixture is not an object" };
+  }
+  const stages = Array.isArray(f.stages) ? f.stages : [];
+  const steps = Array.isArray(f.steps) ? f.steps : [];
+  const analyzeStepIds = stringStepIdsForCanonical(stages, "analyze");
+  const closeStepIds = stringStepIdsForCanonical(stages, "close");
+  const stepsById = /* @__PURE__ */ new Map();
+  for (let index = 0; index < steps.length; index++) {
+    const step = objectRecord(steps[index]);
+    if (typeof step?.id === "string")
+      stepsById.set(step.id, { step, index });
+  }
+  const reviewerRelayIndices = analyzeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewerRelay(entry.step)).map((entry) => entry.index);
+  if (reviewerRelayIndices.length === 0) {
+    return {
+      ok: false,
+      detail: "analyze stage must contain a relay step with role=reviewer before the close report writer"
+    };
+  }
+  const closeWriterIndices = closeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewResultReportWriter(entry.step)).map((entry) => entry.index);
+  if (closeWriterIndices.length === 0) {
+    return {
+      ok: false,
+      detail: "close stage must contain a compose step that writes the primary review.result report"
+    };
+  }
+  const everyCloseWriterPreceded = closeWriterIndices.every((closeIndex) => reviewerRelayIndices.some((reviewerIndex) => reviewerIndex < closeIndex));
+  if (!everyCloseWriterPreceded) {
+    return {
+      ok: false,
+      detail: "each close-stage review.result report writer must be preceded in steps[] by an analyze-stage reviewer relay"
+    };
+  }
+  return {
+    ok: true,
+    detail: "close review.result report writer is preceded by an analyze-stage reviewer relay"
+  };
+}
+var REVIEW_IDENTITY_SEPARATION_AUTHORITY = "flow-kind review-identity-separation policy";
+function hasCloseStageReviewResultWriter(fixture) {
+  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
+  const steps = Array.isArray(fixture.steps) ? fixture.steps : [];
+  const closeStepIds = new Set(stringStepIdsForCanonical(stages, "close"));
+  for (const step of steps) {
+    const s = objectRecord(step);
+    if (s === void 0 || typeof s.id !== "string")
+      continue;
+    if (closeStepIds.has(s.id) && isReviewResultReportWriter(s))
+      return true;
+  }
+  return false;
+}
+function reviewIdentitySeparationViolation(id, fixture) {
+  if (!hasCloseStageReviewResultWriter(fixture))
+    return void 0;
+  const identity = checkReviewIdentitySeparationPolicy(fixture);
+  if (identity.ok)
+    return void 0;
+  return {
+    kind: "red",
+    detail: `${id}: ${identity.detail} (authority: ${REVIEW_IDENTITY_SEPARATION_AUTHORITY})`
+  };
+}
+function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
+  const f = objectRecord(fixture);
+  if (f === void 0) {
+    return {
+      kind: "red",
+      detail: "fixture is not an object"
+    };
+  }
+  const id = f.id;
+  if (typeof id !== "string") {
+    return {
+      kind: "red",
+      detail: "fixture missing top-level `id` string field"
+    };
+  }
+  const identityViolation = reviewIdentitySeparationViolation(id, f);
+  if (identityViolation !== void 0) {
+    return identityViolation;
+  }
+  if (table.exemptFlowIds.has(id)) {
+    return {
+      kind: "exempt",
+      detail: `${id}: exempt from kind-canonical enforcement (partial-stage path, recorded)`
+    };
+  }
+  const expected = table.canonicalSets[id];
+  if (expected === void 0) {
+    return {
+      kind: "pass_through",
+      detail: `${id}: no canonical-set entry (unknown or composed flow kind; pass-through \u2014 intrinsic identity policy enforced)`
+    };
+  }
+  const variants = [
+    { canonicals: expected.canonicals, omits: expected.omits, title: expected.title },
+    ...expected.variants ?? []
+  ];
+  const checkedVariants = variants.map((variant) => checkCanonicalStagePolicyVariant(id, f, variant, expected.optional_canonicals, expected.authority));
+  const acceptedVariant = checkedVariants.find((variant) => variant.ok);
+  if (acceptedVariant === void 0) {
+    return {
+      kind: "red",
+      detail: checkedVariants.map((variant) => variant.detail).join(" OR ")
+    };
+  }
+  return {
+    kind: "green",
+    detail: acceptedVariant.detail
+  };
+}
+
 // node_modules/zod/v4/classic/external.js
 var external_exports = {};
 __export(external_exports, {
@@ -25345,6 +25554,353 @@ function date4(params) {
 // node_modules/zod/v4/classic/external.js
 config(en_default());
 
+// dist/schemas/depth.js
+var Depth = external_exports.enum(["low", "medium", "high"]);
+var CompiledDepth = external_exports.enum(["low", "medium", "high", "tournament", "autonomous"]);
+
+// dist/schemas/ids.js
+var slugPattern = /^[a-z][a-z0-9-]*$/;
+var CompiledFlowId = external_exports.string().regex(slugPattern).brand();
+var StageId = external_exports.string().regex(slugPattern).brand();
+var StepId = external_exports.string().regex(slugPattern).brand();
+var RunId = external_exports.guid({ error: "Invalid UUID" }).brand();
+var InvocationId = external_exports.string().regex(/^inv_[a-f0-9-]+$/).brand();
+var SkillId = external_exports.string().regex(slugPattern).brand();
+var SkillSlotId = external_exports.string().regex(slugPattern).brand();
+var ProtocolId = external_exports.string().regex(/^[a-z][a-z0-9-]*@v\d+$/).brand();
+
+// dist/schemas/axes.js
+var TournamentN = external_exports.number().int().min(2).max(4);
+var Axes = external_exports.object({
+  depth: Depth.default("medium"),
+  tournament: external_exports.boolean().default(false),
+  tournament_n: TournamentN.default(3),
+  autonomous: external_exports.boolean().default(false)
+}).strict();
+var DEFAULT_AXES = Axes.parse({});
+var FlowAxes = external_exports.object({
+  allowed_depths: external_exports.array(Depth).min(1),
+  supports_tournament: external_exports.boolean().default(false),
+  supports_autonomous: external_exports.boolean().default(false),
+  default: Axes.default(DEFAULT_AXES),
+  tournament_fan_out_stage: StageId.optional()
+}).strict().superRefine((axes, ctx) => {
+  const seenDepths = /* @__PURE__ */ new Set();
+  for (const [index, depth] of axes.allowed_depths.entries()) {
+    if (seenDepths.has(depth)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["allowed_depths", index],
+        message: `duplicate allowed depth: ${depth}`
+      });
+    }
+    seenDepths.add(depth);
+  }
+  if (!seenDepths.has(axes.default.depth)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["default", "depth"],
+      message: `default depth '${axes.default.depth}' is not in allowed_depths`
+    });
+  }
+  if (axes.default.tournament && !axes.supports_tournament) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["default", "tournament"],
+      message: "default tournament cannot be true when supports_tournament is false"
+    });
+  }
+  if (axes.default.autonomous && !axes.supports_autonomous) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["default", "autonomous"],
+      message: "default autonomous cannot be true when supports_autonomous is false"
+    });
+  }
+  if (axes.supports_tournament && axes.tournament_fan_out_stage === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["tournament_fan_out_stage"],
+      message: "tournament_fan_out_stage is required when supports_tournament is true"
+    });
+  }
+  if (!axes.supports_tournament && axes.tournament_fan_out_stage !== void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["tournament_fan_out_stage"],
+      message: "tournament_fan_out_stage is only allowed when supports_tournament is true"
+    });
+  }
+});
+
+// dist/schemas/axis-config-requirement.js
+var AxisConfigRequirement = external_exports.object({
+  // The boolean axis whose selection makes the config mandatory.
+  axis: external_exports.enum(["tournament", "autonomous"]),
+  // Dot path into the layered selection config, e.g.
+  // 'circuits.prototype.variant_models'. The last layer that defines it wins.
+  path: external_exports.string().min(1),
+  // Operator-facing reason printed on rejection.
+  message: external_exports.string().min(1)
+}).strict();
+var AxisConfigRequirementList = external_exports.array(AxisConfigRequirement).min(1);
+
+// dist/schemas/engine-flags.js
+var EngineFlagsManifest = external_exports.object({
+  binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
+  binds_terminal_outcome_to_primary_result: external_exports.boolean().optional(),
+  iterates_slice_loop: external_exports.object({
+    head_step: external_exports.string().min(1),
+    tail_step: external_exports.string().min(1),
+    advance_route: external_exports.string().min(1),
+    slices_from: external_exports.object({
+      report: external_exports.string().min(1),
+      items_path: external_exports.string().min(1)
+    }).strict(),
+    max_slices: external_exports.number().int().positive(),
+    activate_when_depth_at_least: external_exports.literal("high")
+  }).strict().optional()
+}).strict();
+
+// dist/schemas/report-file-surface.js
+var ReportFileSurfaceExtractor = external_exports.discriminatedUnion("kind", [
+  external_exports.object({ kind: external_exports.literal("string-array-field"), field: external_exports.string().min(1) }).strict(),
+  external_exports.object({ kind: external_exports.literal("build-plan-and-slices-anticipated-file-extensions") }).strict()
+]);
+var ReportFileSurface = external_exports.object({
+  timing: external_exports.enum(["before", "after"]),
+  extractor: ReportFileSurfaceExtractor
+}).strict();
+var ReportFileSurfaceMap = external_exports.record(external_exports.string().min(1), ReportFileSurface);
+
+// dist/schemas/route-policy.js
+var RUNTIME_SUCCESS_ROUTE = "pass";
+var SCHEMATIC_SUCCESS_ROUTE_ALIASES = ["continue", "complete"];
+var SUCCESS_ROUTE_ALIAS_SET = new Set(SCHEMATIC_SUCCESS_ROUTE_ALIASES);
+function schematicOutcomeToRuntimeRoute(outcome) {
+  if (!SUCCESS_ROUTE_ALIAS_SET.has(outcome))
+    return void 0;
+  return RUNTIME_SUCCESS_ROUTE;
+}
+
+// dist/schemas/scalars.js
+var ControlPlaneFileStem = external_exports.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9._-]*$/, {
+  message: "must match /^[a-z0-9][a-z0-9._-]*$/ (lowercase alnum start; alnum, dot, underscore, hyphen thereafter)"
+}).refine((value) => value !== "." && value !== "..", {
+  message: "must not be a current or parent directory segment"
+}).refine((value) => !value.includes(".."), {
+  message: "must not contain parent-directory traversal"
+}).refine((value) => !value.includes("/") && !value.includes("\\"), {
+  message: "must not contain path separators"
+});
+var RunRelativePath = external_exports.string().min(1, { message: "run-relative path must be non-empty" }).refine((value) => !value.startsWith("/"), {
+  message: "run-relative path must not be absolute"
+}).refine((value) => !value.includes("\\"), {
+  message: 'run-relative path must use POSIX "/" separators, not backslashes'
+}).refine((value) => !value.includes(":"), {
+  message: "run-relative path must not contain drive-letter or colon forms"
+}).refine((value) => value.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== ".."), {
+  message: "run-relative path must not contain empty, current-directory, or parent-directory segments"
+}).brand();
+
+// dist/schemas/json.js
+var JsonPrimitive = external_exports.union([
+  external_exports.string(),
+  external_exports.number().refine((n) => Number.isFinite(n), {
+    message: "JSON numbers must be finite"
+  }),
+  external_exports.boolean(),
+  external_exports.null()
+]);
+var JsonValue = external_exports.lazy(() => external_exports.union([JsonPrimitive, external_exports.array(JsonValue), JsonObject]));
+var JsonObject = external_exports.record(external_exports.string(), JsonValue);
+
+// dist/schemas/power.js
+var Power = external_exports.enum(["low", "medium", "high"]);
+var POWER_ORDER = ["low", "medium", "high"];
+function powerIndex(tier) {
+  return POWER_ORDER.indexOf(tier);
+}
+var PowerDialSetting = external_exports.enum(["auto", "low", "medium", "high"]);
+var PowerRecommendation = external_exports.object({
+  value: Power.describe("the power tier this job needs: low, medium, or high"),
+  rationale: external_exports.string().min(1).max(280).describe("one short sentence grounding the tier in what you read")
+}).strict();
+
+// dist/schemas/selection-policy.js
+var ProviderScopedModel = external_exports.object({
+  provider: external_exports.enum(["openai", "anthropic", "gemini", "custom"]),
+  model: external_exports.string().min(1)
+}).strict();
+var Effort = external_exports.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+var UniqueSkillArray = external_exports.array(SkillId).superRefine((arr, ctx) => {
+  const duplicates = [...new Set(arr.filter((skill, index) => arr.indexOf(skill) !== index))];
+  if (duplicates.length === 0)
+    return;
+  ctx.addIssue({
+    code: "custom",
+    message: `skills array contains duplicates: ${duplicates.join(", ")}`
+  });
+});
+var SkillOverride = external_exports.discriminatedUnion("mode", [
+  external_exports.object({ mode: external_exports.literal("inherit") }).strict(),
+  external_exports.object({ mode: external_exports.literal("replace"), skills: UniqueSkillArray }).strict(),
+  external_exports.object({ mode: external_exports.literal("append"), skills: UniqueSkillArray }).strict(),
+  external_exports.object({ mode: external_exports.literal("remove"), skills: UniqueSkillArray }).strict()
+]);
+var SelectionOverride = external_exports.object({
+  model: ProviderScopedModel.optional(),
+  effort: Effort.optional(),
+  skills: SkillOverride.default({ mode: "inherit" }),
+  depth: CompiledDepth.optional(),
+  invocation_options: JsonObject.default({})
+}).strict();
+var ResolvedSelection = external_exports.object({
+  model: ProviderScopedModel.optional(),
+  effort: Effort.optional(),
+  skills: UniqueSkillArray,
+  depth: CompiledDepth.optional(),
+  invocation_options: JsonObject.default({}),
+  // Present only when the Power dial materialized this selection's model or
+  // effort from a tier table. Absent when explicit model config won, when
+  // the connector has no tier table, or on pre-dial artifacts. Carried here
+  // so RelayStartedTraceEntry.resolved_selection self-reports dial
+  // application and the run receipt never has to guess.
+  power: Power.optional(),
+  // True only when a retry (attempt > 1) actually bumped the allocated tier
+  // up. A retry whose role was already at the top tier records no
+  // escalation — the receipt counts real bumps, not retries.
+  power_escalated: external_exports.boolean().optional(),
+  // Present only when the dial setting was `auto`: the dial value above came
+  // from the run's clamped researcher inference (or the medium fallback when
+  // no inference had resolved yet), not from a fixed operator setting.
+  power_source: external_exports.literal("auto").optional()
+}).strict();
+var SelectionSource = external_exports.enum([
+  "default",
+  "user-global",
+  "project",
+  "flow",
+  "stage",
+  "step",
+  "invocation"
+]);
+var SELECTION_PRECEDENCE = [
+  "default",
+  "user-global",
+  "project",
+  "flow",
+  "stage",
+  "step",
+  "invocation"
+];
+var PRECEDENCE_INDEX = Object.fromEntries(SELECTION_PRECEDENCE.map((s, i) => [s, i]));
+var AppliedEntry = external_exports.discriminatedUnion("source", [
+  external_exports.object({ source: external_exports.literal("default"), override: SelectionOverride }).strict(),
+  external_exports.object({ source: external_exports.literal("user-global"), override: SelectionOverride }).strict(),
+  external_exports.object({ source: external_exports.literal("project"), override: SelectionOverride }).strict(),
+  external_exports.object({ source: external_exports.literal("flow"), override: SelectionOverride }).strict(),
+  external_exports.object({
+    source: external_exports.literal("stage"),
+    stage_id: StageId,
+    override: SelectionOverride
+  }).strict(),
+  external_exports.object({ source: external_exports.literal("step"), step_id: StepId, override: SelectionOverride }).strict(),
+  external_exports.object({ source: external_exports.literal("invocation"), override: SelectionOverride }).strict()
+]);
+function overrideContributes(o) {
+  if (o.model !== void 0)
+    return true;
+  if (o.effort !== void 0)
+    return true;
+  if (o.depth !== void 0)
+    return true;
+  if (o.skills.mode !== "inherit")
+    return true;
+  if (Object.keys(o.invocation_options).length > 0)
+    return true;
+  return false;
+}
+var SelectionResolutionBody = external_exports.object({
+  resolved: ResolvedSelection,
+  applied: external_exports.array(AppliedEntry)
+}).strict();
+var issueAt = (ctx, path, message) => {
+  ctx.addIssue({ code: "custom", path, message });
+};
+function identityKey(entry) {
+  switch (entry.source) {
+    case "stage":
+      return `stage:${entry.stage_id}`;
+    case "step":
+      return `step:${entry.step_id}`;
+    default:
+      return entry.source;
+  }
+}
+var SelectionResolution = SelectionResolutionBody.superRefine((res, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  let lastIndex = -1;
+  for (let i = 0; i < res.applied.length; i++) {
+    const entry = res.applied[i];
+    if (entry === void 0)
+      continue;
+    const key = identityKey(entry);
+    if (seen.has(key)) {
+      issueAt(ctx, ["applied", i, "source"], `duplicate applied identity '${key}' at index ${i}; each identity may contribute at most once (stage/step are disambiguated by their id)`);
+      continue;
+    }
+    seen.add(key);
+    const idx = PRECEDENCE_INDEX[entry.source];
+    if (idx < lastIndex) {
+      issueAt(ctx, ["applied", i, "source"], `applied entry '${entry.source}' at index ${i} is out of precedence order; entries must appear in SELECTION_PRECEDENCE order (default < user-global < project < flow < stage < step < invocation). Two entries with equal precedence (two stages, two steps) are legal and must appear contiguously; a later category cannot precede an earlier one.`);
+    } else {
+      lastIndex = idx;
+    }
+    if (!overrideContributes(entry.override)) {
+      issueAt(ctx, ["applied", i, "override"], `applied entry at index ${i} has an empty override (no model, effort, depth, skills operation, or invocation_options); a layer that contributes nothing must NOT appear in the applied chain (ghost provenance)`);
+    }
+  }
+});
+
+// dist/schemas/stage.js
+var CanonicalStage = external_exports.enum([
+  "frame",
+  "analyze",
+  "plan",
+  "act",
+  "verify",
+  "review",
+  "close"
+]);
+var Stage = external_exports.object({
+  id: StageId,
+  title: external_exports.string().min(1),
+  canonical: CanonicalStage.optional(),
+  steps: external_exports.array(StepId).min(1),
+  selection: SelectionOverride.optional()
+}).strict();
+var CANONICAL_STAGES = [
+  "frame",
+  "analyze",
+  "plan",
+  "act",
+  "verify",
+  "review",
+  "close"
+];
+var PARTIAL_SPINE_RATIONALE_MIN_LENGTH = 20;
+var SpinePolicy = external_exports.discriminatedUnion("mode", [
+  external_exports.object({
+    mode: external_exports.literal("strict")
+  }).strict(),
+  external_exports.object({
+    mode: external_exports.literal("partial"),
+    omits: external_exports.array(CanonicalStage).min(1),
+    rationale: external_exports.string().min(PARTIAL_SPINE_RATIONALE_MIN_LENGTH)
+  }).strict()
+]);
+
 // dist/schemas/verification.js
 var SHELL_BINARIES = /* @__PURE__ */ new Set([
   "sh",
@@ -25471,132 +26027,6 @@ var AcceptanceCriteria = external_exports.object({
   on_failure: AcceptanceCriteriaFailurePolicy.default({ mode: "hard-fail" })
 }).strict();
 
-// dist/schemas/depth.js
-var Depth = external_exports.enum(["low", "medium", "high"]);
-var CompiledDepth = external_exports.enum(["low", "medium", "high", "tournament", "autonomous"]);
-
-// dist/schemas/ids.js
-var slugPattern = /^[a-z][a-z0-9-]*$/;
-var CompiledFlowId = external_exports.string().regex(slugPattern).brand();
-var StageId = external_exports.string().regex(slugPattern).brand();
-var StepId = external_exports.string().regex(slugPattern).brand();
-var RunId = external_exports.guid({ error: "Invalid UUID" }).brand();
-var InvocationId = external_exports.string().regex(/^inv_[a-f0-9-]+$/).brand();
-var SkillId = external_exports.string().regex(slugPattern).brand();
-var SkillSlotId = external_exports.string().regex(slugPattern).brand();
-var ProtocolId = external_exports.string().regex(/^[a-z][a-z0-9-]*@v\d+$/).brand();
-
-// dist/schemas/axes.js
-var TournamentN = external_exports.number().int().min(2).max(4);
-var Axes = external_exports.object({
-  depth: Depth.default("medium"),
-  tournament: external_exports.boolean().default(false),
-  tournament_n: TournamentN.default(3),
-  autonomous: external_exports.boolean().default(false)
-}).strict();
-var DEFAULT_AXES = Axes.parse({});
-var FlowAxes = external_exports.object({
-  allowed_depths: external_exports.array(Depth).min(1),
-  supports_tournament: external_exports.boolean().default(false),
-  supports_autonomous: external_exports.boolean().default(false),
-  default: Axes.default(DEFAULT_AXES),
-  tournament_fan_out_stage: StageId.optional()
-}).strict().superRefine((axes, ctx) => {
-  const seenDepths = /* @__PURE__ */ new Set();
-  for (const [index, depth] of axes.allowed_depths.entries()) {
-    if (seenDepths.has(depth)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["allowed_depths", index],
-        message: `duplicate allowed depth: ${depth}`
-      });
-    }
-    seenDepths.add(depth);
-  }
-  if (!seenDepths.has(axes.default.depth)) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["default", "depth"],
-      message: `default depth '${axes.default.depth}' is not in allowed_depths`
-    });
-  }
-  if (axes.default.tournament && !axes.supports_tournament) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["default", "tournament"],
-      message: "default tournament cannot be true when supports_tournament is false"
-    });
-  }
-  if (axes.default.autonomous && !axes.supports_autonomous) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["default", "autonomous"],
-      message: "default autonomous cannot be true when supports_autonomous is false"
-    });
-  }
-  if (axes.supports_tournament && axes.tournament_fan_out_stage === void 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["tournament_fan_out_stage"],
-      message: "tournament_fan_out_stage is required when supports_tournament is true"
-    });
-  }
-  if (!axes.supports_tournament && axes.tournament_fan_out_stage !== void 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["tournament_fan_out_stage"],
-      message: "tournament_fan_out_stage is only allowed when supports_tournament is true"
-    });
-  }
-});
-
-// dist/schemas/axis-config-requirement.js
-var AxisConfigRequirement = external_exports.object({
-  // The boolean axis whose selection makes the config mandatory.
-  axis: external_exports.enum(["tournament", "autonomous"]),
-  // Dot path into the layered selection config, e.g.
-  // 'circuits.prototype.variant_models'. The last layer that defines it wins.
-  path: external_exports.string().min(1),
-  // Operator-facing reason printed on rejection.
-  message: external_exports.string().min(1)
-}).strict();
-var AxisConfigRequirementList = external_exports.array(AxisConfigRequirement).min(1);
-
-// dist/schemas/change-kind.js
-var ChangeKind = external_exports.enum([
-  "ratchet-advance",
-  "equivalence-refactor",
-  "migration-escrow",
-  "discovery",
-  "disposable",
-  "break-glass"
-]);
-var ChangeKindBase = external_exports.object({
-  failure_mode: external_exports.string().min(1),
-  acceptance_evidence: external_exports.string().min(1),
-  alternate_framing: external_exports.string().min(1)
-});
-var MigrationEscrowChangeKind = ChangeKindBase.extend({
-  change_kind: external_exports.literal("migration-escrow"),
-  expires_at: external_exports.iso.datetime(),
-  restoration_plan: external_exports.string().min(1)
-}).strict();
-var BreakGlassChangeKind = ChangeKindBase.extend({
-  change_kind: external_exports.literal("break-glass"),
-  post_hoc_adr_deadline_at: external_exports.iso.datetime()
-}).strict();
-var StandardChangeKind = ChangeKindBase.extend({
-  change_kind: external_exports.enum(["ratchet-advance", "equivalence-refactor", "discovery", "disposable"])
-});
-var ChangeKindDeclaration = external_exports.discriminatedUnion("change_kind", [
-  StandardChangeKind.extend({ change_kind: external_exports.literal("ratchet-advance") }).strict(),
-  StandardChangeKind.extend({ change_kind: external_exports.literal("equivalence-refactor") }).strict(),
-  StandardChangeKind.extend({ change_kind: external_exports.literal("discovery") }).strict(),
-  StandardChangeKind.extend({ change_kind: external_exports.literal("disposable") }).strict(),
-  MigrationEscrowChangeKind,
-  BreakGlassChangeKind
-]);
-
 // dist/schemas/check.js
 var ReportSource = external_exports.object({
   kind: external_exports.literal("report"),
@@ -25682,23 +26112,6 @@ var Check = external_exports.discriminatedUnion("kind", [
   FanoutAggregateCheck
 ]);
 
-// dist/schemas/engine-flags.js
-var EngineFlagsManifest = external_exports.object({
-  binds_execution_depth_to_relay_selection: external_exports.boolean().optional(),
-  binds_terminal_outcome_to_primary_result: external_exports.boolean().optional(),
-  iterates_slice_loop: external_exports.object({
-    head_step: external_exports.string().min(1),
-    tail_step: external_exports.string().min(1),
-    advance_route: external_exports.string().min(1),
-    slices_from: external_exports.object({
-      report: external_exports.string().min(1),
-      items_path: external_exports.string().min(1)
-    }).strict(),
-    max_slices: external_exports.number().int().positive(),
-    activate_when_depth_at_least: external_exports.literal("high")
-  }).strict().optional()
-}).strict();
-
 // dist/schemas/equipment-scope.js
 var EquipmentToolName = external_exports.string().min(1);
 var EquipmentToolAllowList = external_exports.object({
@@ -25737,6 +26150,1282 @@ var DEFAULT_EQUIPMENT_SCOPE = Object.freeze({
 function isDefaultEquipmentScope(scope) {
   return scope.tools === "full" && scope.enforcement === "trusted";
 }
+
+// dist/schemas/rubric.js
+var RubricRuntimeSignal = external_exports.enum(["met", "missing", "n/a"]);
+var RubricJudgment = external_exports.enum(["pass", "concern", "fail"]);
+var RubricDimScore = external_exports.union([external_exports.literal(1), external_exports.literal(0.5), external_exports.literal(0)]);
+var RUBRIC_DIM_SCORE_BY_JUDGMENT = {
+  pass: 1,
+  concern: 0.5,
+  fail: 0
+};
+function roundRubricScore(value) {
+  return Number(value.toFixed(3));
+}
+function aggregateRubricScore(scores) {
+  const total = scores.reduce((sum, score) => sum + score, 0);
+  return roundRubricScore(total / scores.length);
+}
+var RubricDimResult = external_exports.object({
+  runtime_signal: RubricRuntimeSignal,
+  model_judgment: RubricJudgment,
+  final_score: RubricJudgment,
+  dim_score: RubricDimScore,
+  runtime_vetoed: external_exports.boolean()
+}).strict().superRefine((dim, ctx) => {
+  const expectedFinalScore = dim.runtime_signal === "missing" ? "fail" : dim.model_judgment;
+  const expectedDimScore = RUBRIC_DIM_SCORE_BY_JUDGMENT[expectedFinalScore];
+  const expectedRuntimeVetoed = dim.runtime_signal === "missing";
+  if (dim.final_score !== expectedFinalScore) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["final_score"],
+      message: dim.runtime_signal === "missing" ? "missing runtime evidence must force final_score to fail" : "final_score must match model_judgment when runtime_signal is met or n/a"
+    });
+  }
+  if (dim.dim_score !== expectedDimScore) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["dim_score"],
+      message: `dim_score must be ${expectedDimScore} for final_score '${expectedFinalScore}'`
+    });
+  }
+  if (dim.runtime_vetoed !== expectedRuntimeVetoed) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["runtime_vetoed"],
+      message: `runtime_vetoed must be ${String(expectedRuntimeVetoed)} when runtime_signal is '${dim.runtime_signal}'`
+    });
+  }
+});
+var RubricTieBreak = external_exports.object({
+  ordered_dims: external_exports.array(external_exports.string().min(1)).min(1),
+  final_reason: external_exports.string().min(1)
+}).strict().superRefine((tieBreak, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, dimId] of tieBreak.ordered_dims.entries()) {
+    if (seen.has(dimId)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ordered_dims", index],
+        message: `duplicate tie-break dim '${dimId}'`
+      });
+    }
+    seen.add(dimId);
+  }
+});
+var RubricResult = external_exports.object({
+  dims: external_exports.record(external_exports.string().min(1), RubricDimResult),
+  aggregate_score: external_exports.number().min(0).max(1),
+  runtime_veto_count: external_exports.number().int().nonnegative(),
+  tie_break: RubricTieBreak
+}).strict().superRefine((result, ctx) => {
+  const dims = Object.entries(result.dims);
+  if (dims.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["dims"],
+      message: "rubric result must include at least one dim"
+    });
+    return;
+  }
+  const expectedAggregate = aggregateRubricScore(dims.map(([, dim]) => dim.dim_score));
+  if (result.aggregate_score !== expectedAggregate) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["aggregate_score"],
+      message: `aggregate_score must be the equal-weight rounded mean (${expectedAggregate})`
+    });
+  }
+  const expectedRuntimeVetoCount = dims.filter(([, dim]) => dim.runtime_vetoed).length;
+  if (result.runtime_veto_count !== expectedRuntimeVetoCount) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["runtime_veto_count"],
+      message: `runtime_veto_count must be ${expectedRuntimeVetoCount}`
+    });
+  }
+  for (const [index, dimId] of result.tie_break.ordered_dims.entries()) {
+    if (result.dims[dimId] === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tie_break", "ordered_dims", index],
+        message: `tie-break dim '${dimId}' must exist in dims`
+      });
+    }
+  }
+});
+
+// dist/schemas/runtime-source.js
+var RuntimeNumberSource = external_exports.discriminatedUnion("kind", [
+  external_exports.object({
+    kind: external_exports.literal("constant"),
+    value: external_exports.number().int().nonnegative().max(256)
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("axis"),
+    axis: external_exports.literal("tournament_n")
+  }).strict()
+]);
+var ReportItemsFilter = external_exports.discriminatedUnion("kind", [
+  external_exports.object({
+    kind: external_exports.literal("path_equals"),
+    path: external_exports.string().min(1),
+    value: external_exports.union([external_exports.string(), external_exports.number(), external_exports.boolean(), external_exports.null()])
+  }).strict()
+]);
+var ReportItemsSource = external_exports.object({
+  kind: external_exports.literal("report_items"),
+  source_report: RunRelativePath,
+  items_path: external_exports.string().min(1),
+  filter: ReportItemsFilter.optional(),
+  required_count: RuntimeNumberSource.optional()
+}).strict();
+var CheckpointChoiceSource = ReportItemsSource.extend({
+  id_path: external_exports.string().min(1),
+  label_path: external_exports.string().min(1).optional(),
+  description_path: external_exports.string().min(1).optional()
+}).strict();
+
+// dist/schemas/skill-hook.js
+var SKILL_HOOK_VOCABULARY = [
+  {
+    hook: "before:high-impact-alignment",
+    detected_from: ["goal-contract:impact=high", "operator-flag:high-impact"],
+    cardinality: "per-run",
+    // High-impact alignment defaults to observe-only (record, do not inject) so a
+    // high-impact step is never auto-augmented without the operator opting in.
+    default_mode: "mute"
+  },
+  {
+    hook: "before:architecture-analysis",
+    detected_from: ["selected-process:explore-architecture", "step-metadata:architecture-analysis"],
+    cardinality: "per-step",
+    default_mode: "auto"
+  },
+  {
+    hook: "before:plan-implementation",
+    detected_from: ["stage-transition:Plan", "step-metadata:plan"],
+    cardinality: "per-stage",
+    default_mode: "auto"
+  },
+  {
+    hook: "before:implementation",
+    detected_from: ["stage-transition:Plan->Act", "stage-transition:Act"],
+    cardinality: "per-stage",
+    default_mode: "auto"
+  },
+  {
+    hook: "before:verification",
+    detected_from: ["stage-transition:Verify", "step-metadata:verify"],
+    cardinality: "per-stage",
+    default_mode: "auto"
+  },
+  // Parameterized file-edit anchors. One pair replaces the five named
+  // file-surface hooks (after:react-ui-change/test-change/schema-change/
+  // api-surface-change/dependency-change) and the four *_surfaces config
+  // buckets. The operator writes the predicate as a key suffix
+  // (`after:edit-files:.tsx`); the engine matches a literal extension suffix and
+  // never interprets the meaning. See docs/ideas/skill-hooks-first-principles.md
+  // (the reframe) and docs/ideas/skill-hooks-dispatch-spec.md (D1).
+  {
+    hook: "before:edit-files",
+    detected_from: ["plan-report:anticipated-file-extensions", "plan-report:likely-touched"],
+    cardinality: "per-step",
+    default_mode: "auto"
+  },
+  {
+    hook: "after:edit-files",
+    detected_from: ["change-report:touched-files", "change-set:observed"],
+    cardinality: "per-step",
+    default_mode: "auto"
+  },
+  {
+    hook: "after:verification-failed",
+    detected_from: ["evidence-map:required-check-failed"],
+    cardinality: "per-step",
+    default_mode: "auto"
+  },
+  {
+    hook: "after:evidence-gap",
+    detected_from: ["evidence-map:required-claim-missing-after-verify"],
+    cardinality: "per-stage",
+    default_mode: "auto"
+  },
+  {
+    hook: "before:close-run",
+    detected_from: ["run-envelope:close-decision", "stage-transition:Close"],
+    cardinality: "per-run",
+    default_mode: "auto"
+  },
+  {
+    hook: "before:handoff",
+    detected_from: ["command:handoff", "run-envelope:handoff-decision"],
+    cardinality: "per-run",
+    default_mode: "auto"
+  }
+];
+var SkillHookCardinality = external_exports.enum(["per-run", "per-stage", "per-step"]);
+var SkillHookPolicyMode = external_exports.enum(["auto", "mute"]);
+var SHIPPED_HOOKS = new Set(SKILL_HOOK_VOCABULARY.map((entry) => entry.hook));
+var CUSTOM_HOOK_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
+var SHIPPED_SHAPE_RE = /^(before|after):[a-z][a-z0-9-]*$/;
+var PARAMETERIZED_EDIT_FILE_RE = /^(before|after):edit-files:(\.[A-Za-z0-9]+)+$/;
+function hookBody(value) {
+  const slash = value.indexOf("/");
+  return slash === -1 ? value : value.slice(slash + 1);
+}
+var SkillHookName = external_exports.string().superRefine((value, ctx) => {
+  if (SHIPPED_HOOKS.has(value))
+    return;
+  if (PARAMETERIZED_EDIT_FILE_RE.test(value))
+    return;
+  if (SHIPPED_SHAPE_RE.test(value)) {
+    ctx.addIssue({
+      code: "custom",
+      message: `unknown shipped Skill Hook '${value}'`
+    });
+    return;
+  }
+  if (!CUSTOM_HOOK_RE.test(value)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "custom Skill Hooks must be namespaced as <namespace>/<before|after>:<name>"
+    });
+    return;
+  }
+  if (SHIPPED_HOOKS.has(hookBody(value))) {
+    ctx.addIssue({
+      code: "custom",
+      message: "custom Skill Hooks must not reuse shipped hook names"
+    });
+  }
+});
+var SkillHookNameArray = external_exports.array(SkillHookName).superRefine((hooks, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, hook] of hooks.entries()) {
+    if (seen.has(hook)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [index],
+        message: `duplicate Skill Hook '${hook}'`
+      });
+    }
+    seen.add(hook);
+  }
+});
+var SkillHookPolicyRule = external_exports.object({
+  // Omitting mode means auto: listing skills under a hook is enough to load them.
+  mode: SkillHookPolicyMode.default("auto"),
+  skills: external_exports.array(SkillId).optional(),
+  strict: external_exports.boolean().default(false)
+}).strict().superRefine((rule, ctx) => {
+  if (rule.mode === "mute") {
+    if (rule.skills !== void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["skills"],
+        message: "mute Skill Hook policy must not declare skills"
+      });
+    }
+    return;
+  }
+  if (rule.skills === void 0 || rule.skills.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["skills"],
+      message: `${rule.mode} Skill Hook policy requires at least one skill`
+    });
+    return;
+  }
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, skill] of rule.skills.entries()) {
+    const key = skill;
+    if (seen.has(key)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["skills", index],
+        message: `duplicate Skill Hook skill '${key}'`
+      });
+    }
+    seen.add(key);
+  }
+});
+var SkillHookDetectionConfig = external_exports.object({
+  disabled_patterns: external_exports.record(SkillHookName, external_exports.array(external_exports.string().min(1))).default({})
+}).strict();
+var SkillHookConfig = external_exports.object({
+  policy: external_exports.record(SkillHookName, SkillHookPolicyRule).default({}),
+  detection: SkillHookDetectionConfig.default({ disabled_patterns: {} })
+}).strict();
+var SkillHookSkillState = external_exports.enum([
+  "planned",
+  "staged",
+  "requested",
+  "observed",
+  "unplanned",
+  "unavailable"
+]);
+var SkillHookPolicyResolution = external_exports.discriminatedUnion("source", [
+  external_exports.object({
+    mode: external_exports.literal("none"),
+    source: external_exports.literal("none")
+  }).strict(),
+  external_exports.object({
+    mode: SkillHookPolicyMode,
+    source: external_exports.enum(["project-policy", "user-global-policy", "default-mapping"]),
+    strict: external_exports.boolean(),
+    policy_ref: external_exports.string().min(1).optional()
+  }).strict()
+]);
+var SkillHookSkillRef = external_exports.object({
+  id: SkillId,
+  state: SkillHookSkillState,
+  source: external_exports.enum(["project-policy", "user-global-policy", "default-mapping", "host-observed"]),
+  reason: external_exports.string().min(1).optional()
+}).strict().superRefine((skill, ctx) => {
+  if (["observed", "unplanned"].includes(skill.state) && skill.source !== "host-observed") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["source"],
+      message: `${skill.state} Skill Hook activity requires host-observed source`
+    });
+  }
+});
+var RunSkillHookEvent = external_exports.object({
+  schema: external_exports.literal("run.skill-hook@v0"),
+  event_id: external_exports.string().min(1),
+  hook: SkillHookName,
+  detected_from: external_exports.array(external_exports.string().min(1)).min(1),
+  cardinality: SkillHookCardinality,
+  policy: SkillHookPolicyResolution,
+  flow_id: CompiledFlowId.optional(),
+  stage_id: StageId.optional(),
+  step_id: StepId.optional(),
+  attempt_id: external_exports.string().min(1).optional(),
+  decision_packet_id: external_exports.string().min(1).optional(),
+  triggered_skills: external_exports.array(SkillHookSkillRef),
+  unavailable_skills: external_exports.array(SkillHookSkillRef).optional()
+}).strict().superRefine((event, ctx) => {
+  if ((event.policy.mode === "none" || event.policy.mode === "mute") && event.triggered_skills.length > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["triggered_skills"],
+      message: `${event.policy.mode} Skill Hook policy must not trigger skills`
+    });
+  }
+  for (const [index, skill] of event.unavailable_skills?.entries() ?? []) {
+    if (skill.state !== "unavailable") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["unavailable_skills", index, "state"],
+        message: "unavailable_skills entries must use unavailable state"
+      });
+    }
+  }
+  for (const [index, skill] of event.triggered_skills.entries()) {
+    if (skill.state === "unavailable") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["triggered_skills", index, "state"],
+        message: "unavailable skills belong in unavailable_skills, not triggered_skills"
+      });
+    }
+  }
+});
+
+// dist/schemas/ref.js
+var Sha256 = external_exports.string().regex(/^[0-9a-f]{64}$/, {
+  message: "must be a 64-character lowercase hex SHA-256 digest"
+});
+var RefKind = external_exports.enum([
+  "work_contract",
+  "policy",
+  "trace",
+  "report",
+  "evidence",
+  "request",
+  "context_packet",
+  "diff",
+  "patch",
+  "command",
+  "change_packet",
+  "safe_apply",
+  "worktree",
+  "generated_surface",
+  "memory",
+  "operator_input"
+]);
+var ContentRefKinds = /* @__PURE__ */ new Set([
+  "work_contract",
+  "report",
+  "evidence",
+  "request",
+  "context_packet",
+  "diff",
+  "patch",
+  "command",
+  "change_packet",
+  "safe_apply",
+  "worktree",
+  "generated_surface",
+  "memory"
+]);
+var Ref = external_exports.object({
+  kind: RefKind,
+  ref: external_exports.string().min(1),
+  sha256: Sha256.optional(),
+  run_id: RunId.optional(),
+  flow_id: CompiledFlowId.optional(),
+  step_id: StepId.optional(),
+  attempt: external_exports.number().int().positive().optional(),
+  sequence: external_exports.number().int().nonnegative().optional()
+}).strict().superRefine((ref, ctx) => {
+  if (ContentRefKinds.has(ref.kind) && ref.sha256 === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sha256"],
+      message: `${ref.kind} refs require sha256`
+    });
+  }
+  if (ref.kind === "work_contract" && ref.flow_id === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["flow_id"],
+      message: "work_contract refs require flow_id"
+    });
+  }
+  if (ref.kind !== "trace")
+    return;
+  if (ref.run_id === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["run_id"],
+      message: "trace refs require run_id"
+    });
+  }
+  if (ref.sequence === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sequence"],
+      message: "trace refs require sequence"
+    });
+    return;
+  }
+  const expected = `trace.ndjson#sequence=${ref.sequence}`;
+  if (ref.ref !== expected) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["ref"],
+      message: `trace refs must use ${expected}`
+    });
+  }
+});
+
+// dist/schemas/skill.js
+var SkillDomain = external_exports.enum(["coding", "design", "research", "ops", "domain-general"]);
+var descriptorOwnPropertyGuard = external_exports.custom((raw) => {
+  if (raw === null || typeof raw !== "object")
+    return true;
+  const guarded = ["id", "title", "description", "trigger"];
+  for (const f of guarded)
+    if (!Object.hasOwn(raw, f))
+      return false;
+  return true;
+}, "skill descriptor has inherited (not own) required field; prototype-chain smuggle rejected");
+var SkillDescriptorBody = external_exports.object({
+  id: SkillId,
+  title: external_exports.string().min(1),
+  description: external_exports.string().min(1),
+  trigger: external_exports.string().min(1),
+  /**
+   * `capabilities`, when present, is a non-empty array of non-empty
+   * strings. A catalog entry that has not declared any capabilities
+   * should omit the field; an empty list `[]` is an ambiguity bug
+   * and rejected.
+   */
+  capabilities: external_exports.array(external_exports.string().min(1)).min(1).optional(),
+  domain: SkillDomain.default("domain-general")
+}).strict();
+var SkillDescriptor = descriptorOwnPropertyGuard.pipe(SkillDescriptorBody);
+var UserSkillEntry = external_exports.object({
+  id: SkillId,
+  name: external_exports.string().min(1).optional(),
+  description: external_exports.string().min(1).optional(),
+  trigger: external_exports.string().min(1).optional(),
+  root: external_exports.string().min(1),
+  path: external_exports.string().min(1),
+  sha256: Sha256,
+  bytes: external_exports.number().int().nonnegative()
+}).strict();
+var SkillSlot = external_exports.object({
+  id: SkillSlotId,
+  description: external_exports.string().min(1)
+}).strict();
+var SkillSlotArray = external_exports.array(SkillSlot).superRefine((slots, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, slot2] of slots.entries()) {
+    const key = slot2.id;
+    if (seen.has(key)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [index, "id"],
+        message: `duplicate skill slot '${key}'`
+      });
+    }
+    seen.add(key);
+  }
+});
+
+// dist/schemas/step.js
+var RelayRole = external_exports.enum(["researcher", "implementer", "reviewer"]);
+var RelayConnectorName = external_exports.string().regex(/^[a-z][a-z0-9-]*$/, {
+  message: "connector must be a kebab-case connector name"
+});
+var ReportRef = external_exports.object({
+  path: RunRelativePath,
+  schema: external_exports.string().min(1)
+});
+var RouteFromReport = external_exports.object({
+  path: external_exports.array(external_exports.string().min(1)).min(1)
+}).strict();
+var StepBase = external_exports.object({
+  id: StepId,
+  title: external_exports.string().min(1),
+  protocol: ProtocolId,
+  reads: external_exports.array(RunRelativePath).default([]),
+  routes: external_exports.record(external_exports.string(), external_exports.string()).refine((m) => Object.keys(m).length > 0, {
+    message: "Step must declare at least one route (including `@complete`)."
+  }),
+  selection: SelectionOverride.optional(),
+  skill_hooks: SkillHookNameArray.optional(),
+  skill_slots: SkillSlotArray.optional(),
+  // The tools sub-axis of equipment scope, compiled from the schematic step.
+  // Optional and omitted at the default (full, trusted) so flows that declare
+  // nothing keep byte-stable compiled output. The compiler enforces that an
+  // enforced scope only lands on the implementer relay variant.
+  equipment_scope: EquipmentScope.optional(),
+  route_from_report: RouteFromReport.optional(),
+  budgets: external_exports.object({
+    max_attempts: external_exports.number().int().positive().max(10),
+    wall_clock_ms: external_exports.number().int().positive().optional()
+  }).optional()
+});
+var ComposeStep = StepBase.extend({
+  executor: external_exports.literal("orchestrator"),
+  kind: external_exports.literal("compose"),
+  writes: external_exports.object({
+    report: ReportRef
+  }).strict(),
+  check: SchemaSectionsCheck
+}).strict();
+var VerificationStep = StepBase.extend({
+  executor: external_exports.literal("orchestrator"),
+  kind: external_exports.literal("verification"),
+  writes: external_exports.object({
+    report: ReportRef
+  }).strict(),
+  check: SchemaSectionsCheck
+}).strict();
+var AutoResolutionPolicy = external_exports.discriminatedUnion("policy", [
+  external_exports.object({
+    policy: external_exports.literal("highest-score"),
+    source_report: RunRelativePath,
+    branches_path: external_exports.string().min(1).default("branches"),
+    id_path: external_exports.string().min(1).default("branch_id"),
+    rubric_result_path: external_exports.string().min(1).default("rubric_result")
+  }).strict()
+]);
+var CheckpointPolicy = external_exports.object({
+  prompt: external_exports.string().min(1),
+  choices: external_exports.array(external_exports.object({
+    id: external_exports.string().min(1),
+    label: external_exports.string().min(1).optional(),
+    description: external_exports.string().min(1).optional()
+  }).strict()).min(1).optional(),
+  choices_from: CheckpointChoiceSource.optional(),
+  safe_default_choice: external_exports.string().min(1).optional(),
+  auto_resolution: AutoResolutionPolicy.optional(),
+  // Opt-in: when this checkpoint is reached in an unattended run (a
+  // composed/nested child or a headless host, where there is no operator to
+  // answer the gate and no resume driver to clear it), may the engine
+  // auto-continue it through its fail-safe path (auto-resolution rubric, then
+  // declared safe default) instead of failing closed? Defaults to absent =
+  // false: an unattended run hitting a human gate that is NOT declared
+  // auto-continuable reaches a loud terminal failure rather than silently
+  // auto-skipping the gate. Top-level attended and autonomous runs ignore this
+  // field — it governs only the unattended path. See resolveCheckpoint in
+  // src/runtime/executors/checkpoint.ts.
+  auto_continuable_when_nested: external_exports.boolean().optional(),
+  report_template: JsonObject.optional()
+}).strict().superRefine((policy2, ctx) => {
+  const hasStaticChoices = policy2.choices !== void 0;
+  const hasDynamicChoices = policy2.choices_from !== void 0;
+  if (hasStaticChoices === hasDynamicChoices) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["choices"],
+      message: "checkpoint policy must declare exactly one of choices or choices_from"
+    });
+  }
+  const choiceIds = /* @__PURE__ */ new Set();
+  if (policy2.choices !== void 0) {
+    for (const [index, choice] of policy2.choices.entries()) {
+      if (choiceIds.has(choice.id)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["choices", index, "id"],
+          message: `duplicate checkpoint choice '${choice.id}'`
+        });
+      }
+      choiceIds.add(choice.id);
+    }
+  }
+  for (const [field, value] of [["safe_default_choice", policy2.safe_default_choice]]) {
+    if (value !== void 0 && policy2.choices !== void 0 && !choiceIds.has(value)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [field],
+        message: `${field} must reference a declared checkpoint choice`
+      });
+    }
+  }
+});
+var CheckpointStep = StepBase.extend({
+  executor: external_exports.literal("orchestrator"),
+  kind: external_exports.literal("checkpoint"),
+  policy: CheckpointPolicy,
+  writes: external_exports.object({
+    request: RunRelativePath,
+    response: RunRelativePath,
+    report: ReportRef.optional()
+  }).strict(),
+  check: CheckpointSelectionCheck
+}).strict();
+var RelayStep = StepBase.extend({
+  executor: external_exports.literal("worker"),
+  kind: external_exports.literal("relay"),
+  role: RelayRole,
+  connector: RelayConnectorName.optional(),
+  acceptance_criteria: AcceptanceCriteria.optional(),
+  writes: external_exports.object({
+    report: ReportRef.optional(),
+    request: RunRelativePath,
+    receipt: RunRelativePath,
+    result: RunRelativePath
+  }).strict(),
+  check: ResultVerdictCheck
+}).strict();
+var CompiledFlowRef = external_exports.object({
+  flow_id: CompiledFlowId,
+  entry_mode: external_exports.string().regex(/^[a-z][a-z0-9-]*$/, { message: "entry_mode must be a kebab-case slug" }),
+  // Optional pin to a specific schematic version. Default is the version
+  // resolved by the schematic loader at child-bootstrap time.
+  version: external_exports.string().min(1).optional()
+}).strict();
+var SubRunStep = StepBase.extend({
+  executor: external_exports.literal("orchestrator"),
+  kind: external_exports.literal("sub-run"),
+  flow_ref: CompiledFlowRef,
+  // Goal string handed to the child flow at bootstrap. Templating is
+  // a runtime concern (e.g., `$upstream_report.field` substitution) that
+  // resolves before child bootstrap; the schema accepts a plain string.
+  goal: external_exports.string().min(1),
+  depth: CompiledDepth,
+  writes: external_exports.object({
+    // The child run's terminal result.json copied into the parent's
+    // run-folder after the child closes. The parent check reads this slot.
+    result: RunRelativePath,
+    // Optional materialized child report (e.g., child build-result.json
+    // republished verbatim into a parent slot for downstream readers).
+    report: ReportRef.optional()
+  }).strict(),
+  check: ResultVerdictCheck
+}).strict();
+var FANOUT_BRANCH_ID_REGEX = /^[a-z0-9][a-z0-9-]*$/;
+var FanoutSubRunBranch = external_exports.object({
+  // Branch identifier; unique across the fanout's branches. Used to
+  // derive the per-branch worktree name and the per-branch result
+  // directory under `writes.branches_dir/<branch_id>/`.
+  branch_id: external_exports.string().min(1).max(64).regex(FANOUT_BRANCH_ID_REGEX, { message: "branch_id must be a kebab-case slug" }),
+  flow_ref: CompiledFlowRef,
+  goal: external_exports.string().min(1),
+  depth: CompiledDepth,
+  // Per-branch selection override — useful for tournament-style fanouts
+  // where the variation is in connector / model selection, not flow.
+  selection: SelectionOverride.optional()
+}).strict();
+var FanoutRelayBranchExecution = external_exports.object({
+  kind: external_exports.literal("relay"),
+  role: RelayRole,
+  goal: external_exports.string().min(1),
+  report_schema: external_exports.string().min(1),
+  provenance_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
+    message: "provenance_field must be a top-level JSON field name"
+  }).optional()
+}).strict();
+var FanoutRelayBranch = external_exports.object({
+  branch_id: external_exports.string().min(1).max(64).regex(FANOUT_BRANCH_ID_REGEX, { message: "branch_id must be a kebab-case slug" }),
+  execution: FanoutRelayBranchExecution,
+  connector: RelayConnectorName.optional(),
+  selection: SelectionOverride.optional()
+}).strict();
+var FanoutBranch = external_exports.union([FanoutSubRunBranch, FanoutRelayBranch]);
+var FanoutSubRunBranchTemplate = external_exports.object({
+  branch_id: external_exports.string().min(1).max(64),
+  flow_ref: CompiledFlowRef,
+  goal: external_exports.string().min(1),
+  depth: CompiledDepth,
+  // Dynamic fanout selection may contain `$item.*` placeholders. The
+  // expanded branch is parsed through FanoutBranch before execution, so
+  // runtime still enforces the real SelectionOverride shape.
+  selection: external_exports.unknown().optional()
+}).strict();
+var FanoutRelayBranchTemplate = external_exports.object({
+  branch_id: external_exports.string().min(1).max(64),
+  execution: FanoutRelayBranchExecution,
+  connector: external_exports.string().min(1).optional(),
+  selection: external_exports.unknown().optional()
+}).strict();
+var FanoutBranchTemplate = external_exports.union([
+  FanoutSubRunBranchTemplate,
+  FanoutRelayBranchTemplate
+]);
+var FanoutBranchesStatic = external_exports.object({
+  kind: external_exports.literal("static"),
+  // Author lists every branch upfront. Used by tournaments (N attempts at
+  // one flow, varying selection / depth) and small fixed crucibles.
+  branches: external_exports.array(FanoutBranch).min(1).max(64)
+}).strict();
+var FanoutBranchesDynamic = external_exports.object({
+  kind: external_exports.literal("dynamic"),
+  // Branches computed at runtime from an upstream report. Authors
+  // declare the source report + a JSONPath-like dotted path to the
+  // iterable + a template branch with `$item.<field>` placeholders.
+  // Runtime expands the template per item at fanout.start time and
+  // re-parses each expansion through FanoutBranch (strict regex).
+  //
+  // Used when batch count is determined by an upstream inventory report.
+  source_report: RunRelativePath,
+  items_path: external_exports.string().min(1),
+  template: FanoutBranchTemplate,
+  // Hard cap to prevent runaway fanouts when the source report is
+  // unexpectedly large.
+  max_branches: external_exports.union([external_exports.number().int().positive().max(256), RuntimeNumberSource]).default(16),
+  // Optional exact count. Tournament fanouts use this to fail before any
+  // child relay launches when option generation drifts from the resolved N.
+  required_count: RuntimeNumberSource.optional()
+}).strict();
+var FanoutBranches = external_exports.discriminatedUnion("kind", [
+  FanoutBranchesStatic,
+  FanoutBranchesDynamic
+]);
+var FanoutConcurrency = external_exports.discriminatedUnion("kind", [
+  external_exports.object({ kind: external_exports.literal("unbounded") }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("bounded"),
+    max: external_exports.number().int().positive().max(64)
+  }).strict()
+]);
+var FanoutFailurePolicy = external_exports.enum(["abort-all", "continue-others"]);
+var FanoutRubricRuntimeSignalSource = external_exports.discriminatedUnion("kind", [
+  external_exports.object({
+    kind: external_exports.literal("constant"),
+    signal: RubricRuntimeSignal
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("non_empty_array"),
+    path: external_exports.string().min(1)
+  }).strict(),
+  external_exports.object({
+    kind: external_exports.literal("non_empty_string"),
+    path: external_exports.string().min(1)
+  }).strict()
+]);
+var FanoutRubric = external_exports.object({
+  model_judgments_path: external_exports.string().min(1),
+  ordered_dims: external_exports.array(external_exports.string().min(1)).min(1),
+  runtime_signals: external_exports.record(external_exports.string().min(1), FanoutRubricRuntimeSignalSource)
+}).strict().superRefine((rubric, ctx) => {
+  const orderedDims = /* @__PURE__ */ new Set();
+  for (const [index, dimId] of rubric.ordered_dims.entries()) {
+    if (orderedDims.has(dimId)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ordered_dims", index],
+        message: `duplicate rubric dim '${dimId}'`
+      });
+    }
+    orderedDims.add(dimId);
+  }
+  for (const [dimId] of Object.entries(rubric.runtime_signals)) {
+    if (!orderedDims.has(dimId)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["runtime_signals", dimId],
+        message: `runtime signal dim '${dimId}' must appear in ordered_dims`
+      });
+    }
+  }
+  for (const [index, dimId] of rubric.ordered_dims.entries()) {
+    if (rubric.runtime_signals[dimId] === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ordered_dims", index],
+        message: `ordered dim '${dimId}' must declare a runtime signal source`
+      });
+    }
+  }
+});
+var FanoutStep = StepBase.extend({
+  executor: external_exports.literal("orchestrator"),
+  kind: external_exports.literal("fanout"),
+  branches: FanoutBranches,
+  // Default bounded(4) keeps disk and rate-limit pressure sane on
+  // unattended runs. Authors who know their parallelism budget can opt
+  // into unbounded explicitly.
+  concurrency: FanoutConcurrency.default({ kind: "bounded", max: 4 }),
+  on_child_failure: FanoutFailurePolicy.default("abort-all"),
+  rubric: FanoutRubric.optional(),
+  writes: external_exports.object({
+    // Parent directory under which the runtime materialises each
+    // branch's result.json at `<branches_dir>/<branch_id>/result.json`.
+    // The directory is runtime-owned; schematic authors declare its location.
+    branches_dir: RunRelativePath,
+    // Aggregate report summarising all child results, built by the
+    // runtime after join. This is the slot the check reads.
+    aggregate: ReportRef
+  }).strict(),
+  check: FanoutAggregateCheck
+}).strict();
+var Step = external_exports.discriminatedUnion("kind", [
+  ComposeStep,
+  VerificationStep,
+  CheckpointStep,
+  RelayStep,
+  SubRunStep,
+  FanoutStep
+]).superRefine((step, ctx) => {
+  const slot2 = step.check.source.ref;
+  const writes = step.writes;
+  if (!Object.hasOwn(writes, slot2) || writes[slot2] === void 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["check", "source", "ref"],
+      message: `check.source.ref "${slot2}" does not resolve to a usable slot in step.writes (available: ${Object.keys(writes).join(", ")})`
+    });
+  }
+  if (step.kind === "checkpoint") {
+    const hasStaticAllow = step.check.allow !== void 0;
+    const hasDynamicAllow = step.check.allow_from !== void 0;
+    if (hasStaticAllow === hasDynamicAllow) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["check", "allow"],
+        message: "checkpoint check must declare exactly one of allow or allow_from"
+      });
+    }
+    if (hasStaticAllow && step.policy.choices === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["check", "allow"],
+        message: "checkpoint check.allow requires static policy.choices"
+      });
+    }
+    if (hasDynamicAllow && step.check.allow_from?.kind !== "policy_choices") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["check", "allow_from"],
+        message: "checkpoint check.allow_from must reference policy_choices"
+      });
+    }
+    if (step.check.allow !== void 0 && step.policy.choices !== void 0) {
+      const policyChoiceIds = step.policy.choices.map((choice) => choice.id).sort();
+      const checkChoiceIds = [...step.check.allow].sort();
+      if (policyChoiceIds.join("\0") !== checkChoiceIds.join("\0")) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["check", "allow"],
+          message: "checkpoint check.allow must exactly match policy.choices ids"
+        });
+      }
+    }
+    if (hasDynamicAllow && step.policy.choices === void 0 && step.policy.choices_from === void 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["policy", "choices_from"],
+        message: "checkpoint check.allow_from requires policy.choices or policy.choices_from"
+      });
+    }
+    if (step.writes.report !== void 0) {
+      if (step.policy.report_template === void 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["policy", "report_template"],
+          message: "checkpoint report writing requires policy.report_template"
+        });
+      }
+    }
+  }
+  if (step.kind === "fanout") {
+    if (step.branches.kind === "static") {
+      const seen = /* @__PURE__ */ new Set();
+      for (let i = 0; i < step.branches.branches.length; i++) {
+        const branch = step.branches.branches[i];
+        if (branch === void 0)
+          continue;
+        if (seen.has(branch.branch_id)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["branches", "branches", i, "branch_id"],
+            message: `duplicate branch_id '${branch.branch_id}'`
+          });
+        } else {
+          seen.add(branch.branch_id);
+        }
+      }
+    }
+    if (step.branches.kind === "dynamic") {
+      if (!step.branches.template.branch_id.includes("$item")) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["branches", "template", "branch_id"],
+          message: "dynamic fanout template.branch_id must contain `$item` placeholder so per-item expansion produces unique branch ids"
+        });
+      }
+    }
+  }
+});
+var RouteMap = StepBase.shape.routes;
+
+// dist/schemas/compiled-flow.js
+var TERMINAL_ROUTE_TARGETS = /* @__PURE__ */ new Set(["@complete", "@stop", "@escalate", "@handoff"]);
+var CompiledFlowManifestEngineFlags = EngineFlagsManifest;
+var CompiledFlowManifestRuntimeSurface = external_exports.object({
+  primary_result: external_exports.object({
+    schema_name: external_exports.string().min(1),
+    path: RunRelativePath
+  }).strict().optional()
+}).strict();
+var CompiledFlowBody = external_exports.object({
+  schema_version: external_exports.literal("3"),
+  id: CompiledFlowId,
+  version: external_exports.string().min(1),
+  purpose: external_exports.string().min(1),
+  axes: FlowAxes,
+  starts_at: StepId,
+  stages: external_exports.array(Stage).min(1),
+  stage_path_policy: SpinePolicy,
+  steps: external_exports.array(Step).min(1),
+  // Seed skill set is expressed through
+  // `default_selection.skills = {mode: 'replace', skills: [...]}` so every
+  // skill contribution flows through the typed SkillOverride operations,
+  // closing the untyped-bypass path.
+  default_selection: SelectionOverride.optional(),
+  // Optional engine-visible behavior flags carried on the manifest. Absent =
+  // resolve from the catalog package alone (the pre-migration path).
+  engine_flags: CompiledFlowManifestEngineFlags.optional(),
+  // Stage 3b (first-class composition): execution-bearing declarations the
+  // engine reads off the manifest, so a composed flow carries them without a
+  // by-id catalog package. `report_file_surfaces` feeds the skill-hook
+  // edit-file surface table; `runtime_surface.primary_result` binds the
+  // terminal outcome to the result report; `required_config` is the CLI's
+  // up-front config gate. Each absent = the flow declares none.
+  report_file_surfaces: ReportFileSurfaceMap.optional(),
+  runtime_surface: CompiledFlowManifestRuntimeSurface.optional(),
+  required_config: AxisConfigRequirementList.optional()
+}).strict();
+var issueAt2 = (ctx, path, message) => {
+  ctx.addIssue({ code: "custom", path, message });
+};
+var TOURNAMENT_FANOUT_CONTRACT_MESSAGE = "tournament fanout requires on_child_failure: continue-others and join.policy: aggregate-survivors";
+var CompiledFlowStrict = CompiledFlowBody.superRefine((wf, ctx) => {
+  const stepIds = /* @__PURE__ */ new Set();
+  const stepById = /* @__PURE__ */ new Map();
+  for (let i = 0; i < wf.steps.length; i++) {
+    const step = wf.steps[i];
+    if (step === void 0)
+      continue;
+    if (stepIds.has(step.id)) {
+      issueAt2(ctx, ["steps", i, "id"], `duplicate step id: ${step.id}`);
+    } else {
+      stepIds.add(step.id);
+      stepById.set(step.id, { step, index: i });
+    }
+  }
+  const stageIds = /* @__PURE__ */ new Set();
+  for (let i = 0; i < wf.stages.length; i++) {
+    const stage = wf.stages[i];
+    if (stage === void 0)
+      continue;
+    if (stageIds.has(stage.id)) {
+      issueAt2(ctx, ["stages", i, "id"], `duplicate stage id: ${stage.id}`);
+    } else {
+      stageIds.add(stage.id);
+    }
+    for (let j = 0; j < stage.steps.length; j++) {
+      const sid = stage.steps[j];
+      if (sid === void 0)
+        continue;
+      if (!stepIds.has(sid)) {
+        issueAt2(ctx, ["stages", i, "steps", j], `stage references unknown step: ${sid}`);
+      }
+    }
+  }
+  if (!stepIds.has(wf.starts_at)) {
+    issueAt2(ctx, ["starts_at"], `starts_at references unknown step: ${wf.starts_at}`);
+  }
+  if (wf.axes.supports_tournament && wf.axes.tournament_fan_out_stage !== void 0) {
+    const fanOutStageId = wf.axes.tournament_fan_out_stage;
+    const fanOutStage = wf.stages.find((stage) => stage.id === fanOutStageId);
+    if (fanOutStage === void 0) {
+      issueAt2(ctx, ["axes", "tournament_fan_out_stage"], `tournament_fan_out_stage references unknown stage id: ${fanOutStageId}`);
+    } else {
+      for (const stepId of fanOutStage.steps) {
+        const entry = stepById.get(stepId);
+        if (entry === void 0 || entry.step.kind !== "fanout")
+          continue;
+        if (entry.step.on_child_failure !== "continue-others" || entry.step.check.join.policy !== "aggregate-survivors") {
+          issueAt2(ctx, ["steps", entry.index, "check", "join"], TOURNAMENT_FANOUT_CONTRACT_MESSAGE);
+        }
+      }
+    }
+  }
+  for (let i = 0; i < wf.steps.length; i++) {
+    const step = wf.steps[i];
+    if (step === void 0)
+      continue;
+    for (const [label, target] of Object.entries(step.routes)) {
+      if (TERMINAL_ROUTE_TARGETS.has(target))
+        continue;
+      if (!stepIds.has(target)) {
+        issueAt2(ctx, ["steps", i, "routes", label], `route target is not @complete/@stop/@escalate/@handoff and not a known step: ${target}`);
+      }
+    }
+    if (!Object.hasOwn(step.routes, RUNTIME_SUCCESS_ROUTE)) {
+      issueAt2(ctx, ["steps", i, "routes"], `WF-I10: step '${step.id}' is missing a '${RUNTIME_SUCCESS_ROUTE}' route key \u2014 check.evaluated emits outcome \u2208 {pass, fail} uniformly, so routes must contain '${RUNTIME_SUCCESS_ROUTE}' to route on a successful check outcome`);
+    }
+  }
+  const canonicalSeenAt = /* @__PURE__ */ new Map();
+  for (let i = 0; i < wf.stages.length; i++) {
+    const stage = wf.stages[i];
+    if (stage === void 0)
+      continue;
+    if (stage.canonical === void 0)
+      continue;
+    const prior = canonicalSeenAt.get(stage.canonical);
+    if (prior !== void 0) {
+      issueAt2(ctx, ["stages", i, "canonical"], `duplicate canonical '${stage.canonical}' \u2014 also declared by stage at index ${prior}`);
+    } else {
+      canonicalSeenAt.set(stage.canonical, i);
+    }
+  }
+  const declaredCanonicals = new Set(canonicalSeenAt.keys());
+  const omits = /* @__PURE__ */ new Set();
+  if (wf.stage_path_policy.mode === "partial") {
+    const seenOmits = /* @__PURE__ */ new Set();
+    for (let i = 0; i < wf.stage_path_policy.omits.length; i++) {
+      const o = wf.stage_path_policy.omits[i];
+      if (o === void 0)
+        continue;
+      if (seenOmits.has(o)) {
+        issueAt2(ctx, ["stage_path_policy", "omits", i], `duplicate omit: '${o}' is listed more than once`);
+      } else {
+        seenOmits.add(o);
+      }
+      omits.add(o);
+    }
+  }
+  for (const o of omits) {
+    if (declaredCanonicals.has(o)) {
+      issueAt2(ctx, ["stage_path_policy", "omits"], `canonical '${o}' is both declared as a Stage.canonical AND listed in stage_path_policy.omits \u2014 omits must be disjoint from declared canonicals`);
+    }
+  }
+  for (const canonical of CANONICAL_STAGES) {
+    if (omits.has(canonical))
+      continue;
+    if (!declaredCanonicals.has(canonical)) {
+      issueAt2(ctx, ["stages"], `stage_path_policy requires canonical stage '${canonical}' \u2014 declare a Stage with canonical: '${canonical}', or move it into stage_path_policy.omits with a rationale`);
+    }
+  }
+  const noDuplicateIds = stepIds.size === wf.steps.length;
+  const adjacency = /* @__PURE__ */ new Map();
+  let allRouteTargetsKnown = true;
+  for (const step of wf.steps) {
+    if (step === void 0)
+      continue;
+    const targets = Object.values(step.routes);
+    adjacency.set(step.id, targets);
+    for (const t of targets) {
+      if (TERMINAL_ROUTE_TARGETS.has(t))
+        continue;
+      if (!stepIds.has(t)) {
+        allRouteTargetsKnown = false;
+      }
+    }
+  }
+  const allEntryStartsKnown = stepIds.has(wf.starts_at);
+  if (noDuplicateIds && allRouteTargetsKnown && allEntryStartsKnown) {
+    const terminalReaching = /* @__PURE__ */ new Set();
+    for (const [sid, targets] of adjacency) {
+      for (const t of targets) {
+        if (TERMINAL_ROUTE_TARGETS.has(t)) {
+          terminalReaching.add(sid);
+          break;
+        }
+      }
+    }
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const [sid, targets] of adjacency) {
+        if (terminalReaching.has(sid))
+          continue;
+        for (const t of targets) {
+          if (terminalReaching.has(t)) {
+            terminalReaching.add(sid);
+            changed = true;
+            break;
+          }
+        }
+      }
+    }
+    for (let i = 0; i < wf.steps.length; i++) {
+      const step = wf.steps[i];
+      if (step === void 0)
+        continue;
+      if (!terminalReaching.has(step.id)) {
+        issueAt2(ctx, ["steps", i], `WF-I8: step '${step.id}' cannot reach any terminal route target (@complete/@stop/@escalate/@handoff) through its routes graph \u2014 run bootstrapped from this step (or routed here) could never emit run.closed`);
+      }
+    }
+    const stepsById = new Map(wf.steps.map((step) => [step.id, step]));
+    for (let i = 0; i < wf.steps.length; i++) {
+      const step = wf.steps[i];
+      if (step === void 0)
+        continue;
+      const startId = step.id;
+      const seen = /* @__PURE__ */ new Set();
+      let cur = startId;
+      while (cur !== void 0) {
+        if (seen.has(cur)) {
+          issueAt2(ctx, ["steps", i, "routes", RUNTIME_SUCCESS_ROUTE], `WF-I11: step '${startId}' cannot reach a terminal by following only routes.${RUNTIME_SUCCESS_ROUTE} \u2014 ${RUNTIME_SUCCESS_ROUTE} chain cycles at '${cur}'`);
+          break;
+        }
+        seen.add(cur);
+        const curStep = stepsById.get(cur);
+        if (curStep === void 0)
+          break;
+        const passTarget = curStep.routes[RUNTIME_SUCCESS_ROUTE];
+        if (passTarget === void 0)
+          break;
+        if (TERMINAL_ROUTE_TARGETS.has(passTarget))
+          break;
+        cur = passTarget;
+      }
+    }
+    const reachableFromEntry = /* @__PURE__ */ new Set();
+    const queue = [wf.starts_at];
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      if (cur === void 0)
+        continue;
+      if (reachableFromEntry.has(cur))
+        continue;
+      reachableFromEntry.add(cur);
+      const targets = adjacency.get(cur) ?? [];
+      for (const t of targets) {
+        if (TERMINAL_ROUTE_TARGETS.has(t))
+          continue;
+        if (stepIds.has(t))
+          queue.push(t);
+      }
+    }
+    for (let i = 0; i < wf.steps.length; i++) {
+      const step = wf.steps[i];
+      if (step === void 0)
+        continue;
+      if (!reachableFromEntry.has(step.id)) {
+        issueAt2(ctx, ["steps", i], `WF-I9: step '${step.id}' is not reachable from starts_at via the routes graph \u2014 declared but dead`);
+      }
+    }
+  }
+});
+var CompiledFlow = CompiledFlowStrict;
+
+// dist/policy/flow-kind-policy.js
+function humanizeZodIssueMessage(message) {
+  return message.replace(/, received undefined/g, " (missing)").replace(/\breceived undefined\b/g, "missing");
+}
+function validateCompiledFlowKindPolicyWithTable(flow, table) {
+  const parsed = CompiledFlow.safeParse(flow);
+  if (!parsed.success) {
+    const issueSummary = parsed.error.issues.slice(0, 5).map((i) => `  ${i.path.join(".") || "<root>"}: ${humanizeZodIssueMessage(i.message)}`).join("\n");
+    const more = parsed.error.issues.length > 5 ? `
+  ... +${parsed.error.issues.length - 5} more` : "";
+    return {
+      ok: false,
+      reason: `CompiledFlow.safeParse failed:
+${issueSummary}${more}`
+    };
+  }
+  const policyResult = checkCompiledFlowKindCanonicalPolicyWithTable(parsed.data, table);
+  if (policyResult.kind === "red") {
+    return {
+      ok: false,
+      reason: `flow-kind canonical policy violation: ${policyResult.detail}`
+    };
+  }
+  return {
+    ok: true,
+    kind: policyResult.kind,
+    detail: policyResult.detail
+  };
+}
+
+// dist/shared/html/index.js
+var HTML_PROJECTORS = /* @__PURE__ */ new Map();
+function registerHtmlProjector(flowId, projector) {
+  HTML_PROJECTORS.set(flowId, projector);
+}
+function getHtmlProjector(flowId) {
+  return HTML_PROJECTORS.get(flowId);
+}
+
+// dist/schemas/change-kind.js
+var ChangeKind = external_exports.enum([
+  "ratchet-advance",
+  "equivalence-refactor",
+  "migration-escrow",
+  "discovery",
+  "disposable",
+  "break-glass"
+]);
+var ChangeKindBase = external_exports.object({
+  failure_mode: external_exports.string().min(1),
+  acceptance_evidence: external_exports.string().min(1),
+  alternate_framing: external_exports.string().min(1)
+});
+var MigrationEscrowChangeKind = ChangeKindBase.extend({
+  change_kind: external_exports.literal("migration-escrow"),
+  expires_at: external_exports.iso.datetime(),
+  restoration_plan: external_exports.string().min(1)
+}).strict();
+var BreakGlassChangeKind = ChangeKindBase.extend({
+  change_kind: external_exports.literal("break-glass"),
+  post_hoc_adr_deadline_at: external_exports.iso.datetime()
+}).strict();
+var StandardChangeKind = ChangeKindBase.extend({
+  change_kind: external_exports.enum(["ratchet-advance", "equivalence-refactor", "discovery", "disposable"])
+});
+var ChangeKindDeclaration = external_exports.discriminatedUnion("change_kind", [
+  StandardChangeKind.extend({ change_kind: external_exports.literal("ratchet-advance") }).strict(),
+  StandardChangeKind.extend({ change_kind: external_exports.literal("equivalence-refactor") }).strict(),
+  StandardChangeKind.extend({ change_kind: external_exports.literal("discovery") }).strict(),
+  StandardChangeKind.extend({ change_kind: external_exports.literal("disposable") }).strict(),
+  MigrationEscrowChangeKind,
+  BreakGlassChangeKind
+]);
 
 // dist/schemas/flow-blocks.js
 var FLOW_BLOCK_IDS = [
@@ -25944,204 +27633,6 @@ var FlowBlockCatalog = external_exports.object({
     }
   }
 });
-
-// dist/schemas/json.js
-var JsonPrimitive = external_exports.union([
-  external_exports.string(),
-  external_exports.number().refine((n) => Number.isFinite(n), {
-    message: "JSON numbers must be finite"
-  }),
-  external_exports.boolean(),
-  external_exports.null()
-]);
-var JsonValue = external_exports.lazy(() => external_exports.union([JsonPrimitive, external_exports.array(JsonValue), JsonObject]));
-var JsonObject = external_exports.record(external_exports.string(), JsonValue);
-
-// dist/schemas/power.js
-var Power = external_exports.enum(["low", "medium", "high"]);
-var POWER_ORDER = ["low", "medium", "high"];
-function powerIndex(tier) {
-  return POWER_ORDER.indexOf(tier);
-}
-var PowerDialSetting = external_exports.enum(["auto", "low", "medium", "high"]);
-var PowerRecommendation = external_exports.object({
-  value: Power.describe("the power tier this job needs: low, medium, or high"),
-  rationale: external_exports.string().min(1).max(280).describe("one short sentence grounding the tier in what you read")
-}).strict();
-
-// dist/schemas/selection-policy.js
-var ProviderScopedModel = external_exports.object({
-  provider: external_exports.enum(["openai", "anthropic", "gemini", "custom"]),
-  model: external_exports.string().min(1)
-}).strict();
-var Effort = external_exports.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
-var UniqueSkillArray = external_exports.array(SkillId).superRefine((arr, ctx) => {
-  const duplicates = [...new Set(arr.filter((skill, index) => arr.indexOf(skill) !== index))];
-  if (duplicates.length === 0)
-    return;
-  ctx.addIssue({
-    code: "custom",
-    message: `skills array contains duplicates: ${duplicates.join(", ")}`
-  });
-});
-var SkillOverride = external_exports.discriminatedUnion("mode", [
-  external_exports.object({ mode: external_exports.literal("inherit") }).strict(),
-  external_exports.object({ mode: external_exports.literal("replace"), skills: UniqueSkillArray }).strict(),
-  external_exports.object({ mode: external_exports.literal("append"), skills: UniqueSkillArray }).strict(),
-  external_exports.object({ mode: external_exports.literal("remove"), skills: UniqueSkillArray }).strict()
-]);
-var SelectionOverride = external_exports.object({
-  model: ProviderScopedModel.optional(),
-  effort: Effort.optional(),
-  skills: SkillOverride.default({ mode: "inherit" }),
-  depth: CompiledDepth.optional(),
-  invocation_options: JsonObject.default({})
-}).strict();
-var ResolvedSelection = external_exports.object({
-  model: ProviderScopedModel.optional(),
-  effort: Effort.optional(),
-  skills: UniqueSkillArray,
-  depth: CompiledDepth.optional(),
-  invocation_options: JsonObject.default({}),
-  // Present only when the Power dial materialized this selection's model or
-  // effort from a tier table. Absent when explicit model config won, when
-  // the connector has no tier table, or on pre-dial artifacts. Carried here
-  // so RelayStartedTraceEntry.resolved_selection self-reports dial
-  // application and the run receipt never has to guess.
-  power: Power.optional(),
-  // True only when a retry (attempt > 1) actually bumped the allocated tier
-  // up. A retry whose role was already at the top tier records no
-  // escalation — the receipt counts real bumps, not retries.
-  power_escalated: external_exports.boolean().optional(),
-  // Present only when the dial setting was `auto`: the dial value above came
-  // from the run's clamped researcher inference (or the medium fallback when
-  // no inference had resolved yet), not from a fixed operator setting.
-  power_source: external_exports.literal("auto").optional()
-}).strict();
-var SelectionSource = external_exports.enum([
-  "default",
-  "user-global",
-  "project",
-  "flow",
-  "stage",
-  "step",
-  "invocation"
-]);
-var SELECTION_PRECEDENCE = [
-  "default",
-  "user-global",
-  "project",
-  "flow",
-  "stage",
-  "step",
-  "invocation"
-];
-var PRECEDENCE_INDEX = Object.fromEntries(SELECTION_PRECEDENCE.map((s, i) => [s, i]));
-var AppliedEntry = external_exports.discriminatedUnion("source", [
-  external_exports.object({ source: external_exports.literal("default"), override: SelectionOverride }).strict(),
-  external_exports.object({ source: external_exports.literal("user-global"), override: SelectionOverride }).strict(),
-  external_exports.object({ source: external_exports.literal("project"), override: SelectionOverride }).strict(),
-  external_exports.object({ source: external_exports.literal("flow"), override: SelectionOverride }).strict(),
-  external_exports.object({
-    source: external_exports.literal("stage"),
-    stage_id: StageId,
-    override: SelectionOverride
-  }).strict(),
-  external_exports.object({ source: external_exports.literal("step"), step_id: StepId, override: SelectionOverride }).strict(),
-  external_exports.object({ source: external_exports.literal("invocation"), override: SelectionOverride }).strict()
-]);
-function overrideContributes(o) {
-  if (o.model !== void 0)
-    return true;
-  if (o.effort !== void 0)
-    return true;
-  if (o.depth !== void 0)
-    return true;
-  if (o.skills.mode !== "inherit")
-    return true;
-  if (Object.keys(o.invocation_options).length > 0)
-    return true;
-  return false;
-}
-var SelectionResolutionBody = external_exports.object({
-  resolved: ResolvedSelection,
-  applied: external_exports.array(AppliedEntry)
-}).strict();
-var issueAt = (ctx, path, message) => {
-  ctx.addIssue({ code: "custom", path, message });
-};
-function identityKey(entry) {
-  switch (entry.source) {
-    case "stage":
-      return `stage:${entry.stage_id}`;
-    case "step":
-      return `step:${entry.step_id}`;
-    default:
-      return entry.source;
-  }
-}
-var SelectionResolution = SelectionResolutionBody.superRefine((res, ctx) => {
-  const seen = /* @__PURE__ */ new Set();
-  let lastIndex = -1;
-  for (let i = 0; i < res.applied.length; i++) {
-    const entry = res.applied[i];
-    if (entry === void 0)
-      continue;
-    const key = identityKey(entry);
-    if (seen.has(key)) {
-      issueAt(ctx, ["applied", i, "source"], `duplicate applied identity '${key}' at index ${i}; each identity may contribute at most once (stage/step are disambiguated by their id)`);
-      continue;
-    }
-    seen.add(key);
-    const idx = PRECEDENCE_INDEX[entry.source];
-    if (idx < lastIndex) {
-      issueAt(ctx, ["applied", i, "source"], `applied entry '${entry.source}' at index ${i} is out of precedence order; entries must appear in SELECTION_PRECEDENCE order (default < user-global < project < flow < stage < step < invocation). Two entries with equal precedence (two stages, two steps) are legal and must appear contiguously; a later category cannot precede an earlier one.`);
-    } else {
-      lastIndex = idx;
-    }
-    if (!overrideContributes(entry.override)) {
-      issueAt(ctx, ["applied", i, "override"], `applied entry at index ${i} has an empty override (no model, effort, depth, skills operation, or invocation_options); a layer that contributes nothing must NOT appear in the applied chain (ghost provenance)`);
-    }
-  }
-});
-
-// dist/schemas/stage.js
-var CanonicalStage = external_exports.enum([
-  "frame",
-  "analyze",
-  "plan",
-  "act",
-  "verify",
-  "review",
-  "close"
-]);
-var Stage = external_exports.object({
-  id: StageId,
-  title: external_exports.string().min(1),
-  canonical: CanonicalStage.optional(),
-  steps: external_exports.array(StepId).min(1),
-  selection: SelectionOverride.optional()
-}).strict();
-var CANONICAL_STAGES = [
-  "frame",
-  "analyze",
-  "plan",
-  "act",
-  "verify",
-  "review",
-  "close"
-];
-var PARTIAL_SPINE_RATIONALE_MIN_LENGTH = 20;
-var SpinePolicy = external_exports.discriminatedUnion("mode", [
-  external_exports.object({
-    mode: external_exports.literal("strict")
-  }).strict(),
-  external_exports.object({
-    mode: external_exports.literal("partial"),
-    omits: external_exports.array(CanonicalStage).min(1),
-    rationale: external_exports.string().min(PARTIAL_SPINE_RATIONALE_MIN_LENGTH)
-  }).strict()
-]);
 
 // dist/schemas/flow-block-definitions.js
 var BASE_REQUIRED_AUTHORING_FIELDS = [
@@ -27017,985 +28508,6 @@ function schematicStagesForBlock(block) {
   return FLOW_BLOCK_SCHEMATIC_POLICY[block.id].stages;
 }
 
-// dist/schemas/report-file-surface.js
-var ReportFileSurfaceExtractor = external_exports.discriminatedUnion("kind", [
-  external_exports.object({ kind: external_exports.literal("string-array-field"), field: external_exports.string().min(1) }).strict(),
-  external_exports.object({ kind: external_exports.literal("build-plan-and-slices-anticipated-file-extensions") }).strict()
-]);
-var ReportFileSurface = external_exports.object({
-  timing: external_exports.enum(["before", "after"]),
-  extractor: ReportFileSurfaceExtractor
-}).strict();
-var ReportFileSurfaceMap = external_exports.record(external_exports.string().min(1), ReportFileSurface);
-
-// dist/schemas/scalars.js
-var ControlPlaneFileStem = external_exports.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9._-]*$/, {
-  message: "must match /^[a-z0-9][a-z0-9._-]*$/ (lowercase alnum start; alnum, dot, underscore, hyphen thereafter)"
-}).refine((value) => value !== "." && value !== "..", {
-  message: "must not be a current or parent directory segment"
-}).refine((value) => !value.includes(".."), {
-  message: "must not contain parent-directory traversal"
-}).refine((value) => !value.includes("/") && !value.includes("\\"), {
-  message: "must not contain path separators"
-});
-var RunRelativePath = external_exports.string().min(1, { message: "run-relative path must be non-empty" }).refine((value) => !value.startsWith("/"), {
-  message: "run-relative path must not be absolute"
-}).refine((value) => !value.includes("\\"), {
-  message: 'run-relative path must use POSIX "/" separators, not backslashes'
-}).refine((value) => !value.includes(":"), {
-  message: "run-relative path must not contain drive-letter or colon forms"
-}).refine((value) => value.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== ".."), {
-  message: "run-relative path must not contain empty, current-directory, or parent-directory segments"
-}).brand();
-
-// dist/schemas/ref.js
-var Sha256 = external_exports.string().regex(/^[0-9a-f]{64}$/, {
-  message: "must be a 64-character lowercase hex SHA-256 digest"
-});
-var RefKind = external_exports.enum([
-  "work_contract",
-  "policy",
-  "trace",
-  "report",
-  "evidence",
-  "request",
-  "context_packet",
-  "diff",
-  "patch",
-  "command",
-  "change_packet",
-  "safe_apply",
-  "worktree",
-  "generated_surface",
-  "memory",
-  "operator_input"
-]);
-var ContentRefKinds = /* @__PURE__ */ new Set([
-  "work_contract",
-  "report",
-  "evidence",
-  "request",
-  "context_packet",
-  "diff",
-  "patch",
-  "command",
-  "change_packet",
-  "safe_apply",
-  "worktree",
-  "generated_surface",
-  "memory"
-]);
-var Ref = external_exports.object({
-  kind: RefKind,
-  ref: external_exports.string().min(1),
-  sha256: Sha256.optional(),
-  run_id: RunId.optional(),
-  flow_id: CompiledFlowId.optional(),
-  step_id: StepId.optional(),
-  attempt: external_exports.number().int().positive().optional(),
-  sequence: external_exports.number().int().nonnegative().optional()
-}).strict().superRefine((ref, ctx) => {
-  if (ContentRefKinds.has(ref.kind) && ref.sha256 === void 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["sha256"],
-      message: `${ref.kind} refs require sha256`
-    });
-  }
-  if (ref.kind === "work_contract" && ref.flow_id === void 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["flow_id"],
-      message: "work_contract refs require flow_id"
-    });
-  }
-  if (ref.kind !== "trace")
-    return;
-  if (ref.run_id === void 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["run_id"],
-      message: "trace refs require run_id"
-    });
-  }
-  if (ref.sequence === void 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["sequence"],
-      message: "trace refs require sequence"
-    });
-    return;
-  }
-  const expected = `trace.ndjson#sequence=${ref.sequence}`;
-  if (ref.ref !== expected) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["ref"],
-      message: `trace refs must use ${expected}`
-    });
-  }
-});
-
-// dist/schemas/skill.js
-var SkillDomain = external_exports.enum(["coding", "design", "research", "ops", "domain-general"]);
-var descriptorOwnPropertyGuard = external_exports.custom((raw) => {
-  if (raw === null || typeof raw !== "object")
-    return true;
-  const guarded = ["id", "title", "description", "trigger"];
-  for (const f of guarded)
-    if (!Object.hasOwn(raw, f))
-      return false;
-  return true;
-}, "skill descriptor has inherited (not own) required field; prototype-chain smuggle rejected");
-var SkillDescriptorBody = external_exports.object({
-  id: SkillId,
-  title: external_exports.string().min(1),
-  description: external_exports.string().min(1),
-  trigger: external_exports.string().min(1),
-  /**
-   * `capabilities`, when present, is a non-empty array of non-empty
-   * strings. A catalog entry that has not declared any capabilities
-   * should omit the field; an empty list `[]` is an ambiguity bug
-   * and rejected.
-   */
-  capabilities: external_exports.array(external_exports.string().min(1)).min(1).optional(),
-  domain: SkillDomain.default("domain-general")
-}).strict();
-var SkillDescriptor = descriptorOwnPropertyGuard.pipe(SkillDescriptorBody);
-var UserSkillEntry = external_exports.object({
-  id: SkillId,
-  name: external_exports.string().min(1).optional(),
-  description: external_exports.string().min(1).optional(),
-  trigger: external_exports.string().min(1).optional(),
-  root: external_exports.string().min(1),
-  path: external_exports.string().min(1),
-  sha256: Sha256,
-  bytes: external_exports.number().int().nonnegative()
-}).strict();
-var SkillSlot = external_exports.object({
-  id: SkillSlotId,
-  description: external_exports.string().min(1)
-}).strict();
-var SkillSlotArray = external_exports.array(SkillSlot).superRefine((slots, ctx) => {
-  const seen = /* @__PURE__ */ new Set();
-  for (const [index, slot2] of slots.entries()) {
-    const key = slot2.id;
-    if (seen.has(key)) {
-      ctx.addIssue({
-        code: "custom",
-        path: [index, "id"],
-        message: `duplicate skill slot '${key}'`
-      });
-    }
-    seen.add(key);
-  }
-});
-
-// dist/schemas/rubric.js
-var RubricRuntimeSignal = external_exports.enum(["met", "missing", "n/a"]);
-var RubricJudgment = external_exports.enum(["pass", "concern", "fail"]);
-var RubricDimScore = external_exports.union([external_exports.literal(1), external_exports.literal(0.5), external_exports.literal(0)]);
-var RUBRIC_DIM_SCORE_BY_JUDGMENT = {
-  pass: 1,
-  concern: 0.5,
-  fail: 0
-};
-function roundRubricScore(value) {
-  return Number(value.toFixed(3));
-}
-function aggregateRubricScore(scores) {
-  const total = scores.reduce((sum, score) => sum + score, 0);
-  return roundRubricScore(total / scores.length);
-}
-var RubricDimResult = external_exports.object({
-  runtime_signal: RubricRuntimeSignal,
-  model_judgment: RubricJudgment,
-  final_score: RubricJudgment,
-  dim_score: RubricDimScore,
-  runtime_vetoed: external_exports.boolean()
-}).strict().superRefine((dim, ctx) => {
-  const expectedFinalScore = dim.runtime_signal === "missing" ? "fail" : dim.model_judgment;
-  const expectedDimScore = RUBRIC_DIM_SCORE_BY_JUDGMENT[expectedFinalScore];
-  const expectedRuntimeVetoed = dim.runtime_signal === "missing";
-  if (dim.final_score !== expectedFinalScore) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["final_score"],
-      message: dim.runtime_signal === "missing" ? "missing runtime evidence must force final_score to fail" : "final_score must match model_judgment when runtime_signal is met or n/a"
-    });
-  }
-  if (dim.dim_score !== expectedDimScore) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["dim_score"],
-      message: `dim_score must be ${expectedDimScore} for final_score '${expectedFinalScore}'`
-    });
-  }
-  if (dim.runtime_vetoed !== expectedRuntimeVetoed) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["runtime_vetoed"],
-      message: `runtime_vetoed must be ${String(expectedRuntimeVetoed)} when runtime_signal is '${dim.runtime_signal}'`
-    });
-  }
-});
-var RubricTieBreak = external_exports.object({
-  ordered_dims: external_exports.array(external_exports.string().min(1)).min(1),
-  final_reason: external_exports.string().min(1)
-}).strict().superRefine((tieBreak, ctx) => {
-  const seen = /* @__PURE__ */ new Set();
-  for (const [index, dimId] of tieBreak.ordered_dims.entries()) {
-    if (seen.has(dimId)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["ordered_dims", index],
-        message: `duplicate tie-break dim '${dimId}'`
-      });
-    }
-    seen.add(dimId);
-  }
-});
-var RubricResult = external_exports.object({
-  dims: external_exports.record(external_exports.string().min(1), RubricDimResult),
-  aggregate_score: external_exports.number().min(0).max(1),
-  runtime_veto_count: external_exports.number().int().nonnegative(),
-  tie_break: RubricTieBreak
-}).strict().superRefine((result, ctx) => {
-  const dims = Object.entries(result.dims);
-  if (dims.length === 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["dims"],
-      message: "rubric result must include at least one dim"
-    });
-    return;
-  }
-  const expectedAggregate = aggregateRubricScore(dims.map(([, dim]) => dim.dim_score));
-  if (result.aggregate_score !== expectedAggregate) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["aggregate_score"],
-      message: `aggregate_score must be the equal-weight rounded mean (${expectedAggregate})`
-    });
-  }
-  const expectedRuntimeVetoCount = dims.filter(([, dim]) => dim.runtime_vetoed).length;
-  if (result.runtime_veto_count !== expectedRuntimeVetoCount) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["runtime_veto_count"],
-      message: `runtime_veto_count must be ${expectedRuntimeVetoCount}`
-    });
-  }
-  for (const [index, dimId] of result.tie_break.ordered_dims.entries()) {
-    if (result.dims[dimId] === void 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["tie_break", "ordered_dims", index],
-        message: `tie-break dim '${dimId}' must exist in dims`
-      });
-    }
-  }
-});
-
-// dist/schemas/runtime-source.js
-var RuntimeNumberSource = external_exports.discriminatedUnion("kind", [
-  external_exports.object({
-    kind: external_exports.literal("constant"),
-    value: external_exports.number().int().nonnegative().max(256)
-  }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("axis"),
-    axis: external_exports.literal("tournament_n")
-  }).strict()
-]);
-var ReportItemsFilter = external_exports.discriminatedUnion("kind", [
-  external_exports.object({
-    kind: external_exports.literal("path_equals"),
-    path: external_exports.string().min(1),
-    value: external_exports.union([external_exports.string(), external_exports.number(), external_exports.boolean(), external_exports.null()])
-  }).strict()
-]);
-var ReportItemsSource = external_exports.object({
-  kind: external_exports.literal("report_items"),
-  source_report: RunRelativePath,
-  items_path: external_exports.string().min(1),
-  filter: ReportItemsFilter.optional(),
-  required_count: RuntimeNumberSource.optional()
-}).strict();
-var CheckpointChoiceSource = ReportItemsSource.extend({
-  id_path: external_exports.string().min(1),
-  label_path: external_exports.string().min(1).optional(),
-  description_path: external_exports.string().min(1).optional()
-}).strict();
-
-// dist/schemas/skill-hook.js
-var SKILL_HOOK_VOCABULARY = [
-  {
-    hook: "before:high-impact-alignment",
-    detected_from: ["goal-contract:impact=high", "operator-flag:high-impact"],
-    cardinality: "per-run",
-    // High-impact alignment defaults to observe-only (record, do not inject) so a
-    // high-impact step is never auto-augmented without the operator opting in.
-    default_mode: "mute"
-  },
-  {
-    hook: "before:architecture-analysis",
-    detected_from: ["selected-process:explore-architecture", "step-metadata:architecture-analysis"],
-    cardinality: "per-step",
-    default_mode: "auto"
-  },
-  {
-    hook: "before:plan-implementation",
-    detected_from: ["stage-transition:Plan", "step-metadata:plan"],
-    cardinality: "per-stage",
-    default_mode: "auto"
-  },
-  {
-    hook: "before:implementation",
-    detected_from: ["stage-transition:Plan->Act", "stage-transition:Act"],
-    cardinality: "per-stage",
-    default_mode: "auto"
-  },
-  {
-    hook: "before:verification",
-    detected_from: ["stage-transition:Verify", "step-metadata:verify"],
-    cardinality: "per-stage",
-    default_mode: "auto"
-  },
-  // Parameterized file-edit anchors. One pair replaces the five named
-  // file-surface hooks (after:react-ui-change/test-change/schema-change/
-  // api-surface-change/dependency-change) and the four *_surfaces config
-  // buckets. The operator writes the predicate as a key suffix
-  // (`after:edit-files:.tsx`); the engine matches a literal extension suffix and
-  // never interprets the meaning. See docs/ideas/skill-hooks-first-principles.md
-  // (the reframe) and docs/ideas/skill-hooks-dispatch-spec.md (D1).
-  {
-    hook: "before:edit-files",
-    detected_from: ["plan-report:anticipated-file-extensions", "plan-report:likely-touched"],
-    cardinality: "per-step",
-    default_mode: "auto"
-  },
-  {
-    hook: "after:edit-files",
-    detected_from: ["change-report:touched-files", "change-set:observed"],
-    cardinality: "per-step",
-    default_mode: "auto"
-  },
-  {
-    hook: "after:verification-failed",
-    detected_from: ["evidence-map:required-check-failed"],
-    cardinality: "per-step",
-    default_mode: "auto"
-  },
-  {
-    hook: "after:evidence-gap",
-    detected_from: ["evidence-map:required-claim-missing-after-verify"],
-    cardinality: "per-stage",
-    default_mode: "auto"
-  },
-  {
-    hook: "before:close-run",
-    detected_from: ["run-envelope:close-decision", "stage-transition:Close"],
-    cardinality: "per-run",
-    default_mode: "auto"
-  },
-  {
-    hook: "before:handoff",
-    detected_from: ["command:handoff", "run-envelope:handoff-decision"],
-    cardinality: "per-run",
-    default_mode: "auto"
-  }
-];
-var SkillHookCardinality = external_exports.enum(["per-run", "per-stage", "per-step"]);
-var SkillHookPolicyMode = external_exports.enum(["auto", "mute"]);
-var SHIPPED_HOOKS = new Set(SKILL_HOOK_VOCABULARY.map((entry) => entry.hook));
-var CUSTOM_HOOK_RE = /^[a-z][a-z0-9-]*\/(before|after):[a-z][a-z0-9-]*$/;
-var SHIPPED_SHAPE_RE = /^(before|after):[a-z][a-z0-9-]*$/;
-var PARAMETERIZED_EDIT_FILE_RE = /^(before|after):edit-files:(\.[A-Za-z0-9]+)+$/;
-function hookBody(value) {
-  const slash = value.indexOf("/");
-  return slash === -1 ? value : value.slice(slash + 1);
-}
-var SkillHookName = external_exports.string().superRefine((value, ctx) => {
-  if (SHIPPED_HOOKS.has(value))
-    return;
-  if (PARAMETERIZED_EDIT_FILE_RE.test(value))
-    return;
-  if (SHIPPED_SHAPE_RE.test(value)) {
-    ctx.addIssue({
-      code: "custom",
-      message: `unknown shipped Skill Hook '${value}'`
-    });
-    return;
-  }
-  if (!CUSTOM_HOOK_RE.test(value)) {
-    ctx.addIssue({
-      code: "custom",
-      message: "custom Skill Hooks must be namespaced as <namespace>/<before|after>:<name>"
-    });
-    return;
-  }
-  if (SHIPPED_HOOKS.has(hookBody(value))) {
-    ctx.addIssue({
-      code: "custom",
-      message: "custom Skill Hooks must not reuse shipped hook names"
-    });
-  }
-});
-var SkillHookNameArray = external_exports.array(SkillHookName).superRefine((hooks, ctx) => {
-  const seen = /* @__PURE__ */ new Set();
-  for (const [index, hook] of hooks.entries()) {
-    if (seen.has(hook)) {
-      ctx.addIssue({
-        code: "custom",
-        path: [index],
-        message: `duplicate Skill Hook '${hook}'`
-      });
-    }
-    seen.add(hook);
-  }
-});
-var SkillHookPolicyRule = external_exports.object({
-  // Omitting mode means auto: listing skills under a hook is enough to load them.
-  mode: SkillHookPolicyMode.default("auto"),
-  skills: external_exports.array(SkillId).optional(),
-  strict: external_exports.boolean().default(false)
-}).strict().superRefine((rule, ctx) => {
-  if (rule.mode === "mute") {
-    if (rule.skills !== void 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["skills"],
-        message: "mute Skill Hook policy must not declare skills"
-      });
-    }
-    return;
-  }
-  if (rule.skills === void 0 || rule.skills.length === 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["skills"],
-      message: `${rule.mode} Skill Hook policy requires at least one skill`
-    });
-    return;
-  }
-  const seen = /* @__PURE__ */ new Set();
-  for (const [index, skill] of rule.skills.entries()) {
-    const key = skill;
-    if (seen.has(key)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["skills", index],
-        message: `duplicate Skill Hook skill '${key}'`
-      });
-    }
-    seen.add(key);
-  }
-});
-var SkillHookDetectionConfig = external_exports.object({
-  disabled_patterns: external_exports.record(SkillHookName, external_exports.array(external_exports.string().min(1))).default({})
-}).strict();
-var SkillHookConfig = external_exports.object({
-  policy: external_exports.record(SkillHookName, SkillHookPolicyRule).default({}),
-  detection: SkillHookDetectionConfig.default({ disabled_patterns: {} })
-}).strict();
-var SkillHookSkillState = external_exports.enum([
-  "planned",
-  "staged",
-  "requested",
-  "observed",
-  "unplanned",
-  "unavailable"
-]);
-var SkillHookPolicyResolution = external_exports.discriminatedUnion("source", [
-  external_exports.object({
-    mode: external_exports.literal("none"),
-    source: external_exports.literal("none")
-  }).strict(),
-  external_exports.object({
-    mode: SkillHookPolicyMode,
-    source: external_exports.enum(["project-policy", "user-global-policy", "default-mapping"]),
-    strict: external_exports.boolean(),
-    policy_ref: external_exports.string().min(1).optional()
-  }).strict()
-]);
-var SkillHookSkillRef = external_exports.object({
-  id: SkillId,
-  state: SkillHookSkillState,
-  source: external_exports.enum(["project-policy", "user-global-policy", "default-mapping", "host-observed"]),
-  reason: external_exports.string().min(1).optional()
-}).strict().superRefine((skill, ctx) => {
-  if (["observed", "unplanned"].includes(skill.state) && skill.source !== "host-observed") {
-    ctx.addIssue({
-      code: "custom",
-      path: ["source"],
-      message: `${skill.state} Skill Hook activity requires host-observed source`
-    });
-  }
-});
-var RunSkillHookEvent = external_exports.object({
-  schema: external_exports.literal("run.skill-hook@v0"),
-  event_id: external_exports.string().min(1),
-  hook: SkillHookName,
-  detected_from: external_exports.array(external_exports.string().min(1)).min(1),
-  cardinality: SkillHookCardinality,
-  policy: SkillHookPolicyResolution,
-  flow_id: CompiledFlowId.optional(),
-  stage_id: StageId.optional(),
-  step_id: StepId.optional(),
-  attempt_id: external_exports.string().min(1).optional(),
-  decision_packet_id: external_exports.string().min(1).optional(),
-  triggered_skills: external_exports.array(SkillHookSkillRef),
-  unavailable_skills: external_exports.array(SkillHookSkillRef).optional()
-}).strict().superRefine((event, ctx) => {
-  if ((event.policy.mode === "none" || event.policy.mode === "mute") && event.triggered_skills.length > 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["triggered_skills"],
-      message: `${event.policy.mode} Skill Hook policy must not trigger skills`
-    });
-  }
-  for (const [index, skill] of event.unavailable_skills?.entries() ?? []) {
-    if (skill.state !== "unavailable") {
-      ctx.addIssue({
-        code: "custom",
-        path: ["unavailable_skills", index, "state"],
-        message: "unavailable_skills entries must use unavailable state"
-      });
-    }
-  }
-  for (const [index, skill] of event.triggered_skills.entries()) {
-    if (skill.state === "unavailable") {
-      ctx.addIssue({
-        code: "custom",
-        path: ["triggered_skills", index, "state"],
-        message: "unavailable skills belong in unavailable_skills, not triggered_skills"
-      });
-    }
-  }
-});
-
-// dist/schemas/step.js
-var RelayRole = external_exports.enum(["researcher", "implementer", "reviewer"]);
-var RelayConnectorName = external_exports.string().regex(/^[a-z][a-z0-9-]*$/, {
-  message: "connector must be a kebab-case connector name"
-});
-var ReportRef = external_exports.object({
-  path: RunRelativePath,
-  schema: external_exports.string().min(1)
-});
-var RouteFromReport = external_exports.object({
-  path: external_exports.array(external_exports.string().min(1)).min(1)
-}).strict();
-var StepBase = external_exports.object({
-  id: StepId,
-  title: external_exports.string().min(1),
-  protocol: ProtocolId,
-  reads: external_exports.array(RunRelativePath).default([]),
-  routes: external_exports.record(external_exports.string(), external_exports.string()).refine((m) => Object.keys(m).length > 0, {
-    message: "Step must declare at least one route (including `@complete`)."
-  }),
-  selection: SelectionOverride.optional(),
-  skill_hooks: SkillHookNameArray.optional(),
-  skill_slots: SkillSlotArray.optional(),
-  // The tools sub-axis of equipment scope, compiled from the schematic step.
-  // Optional and omitted at the default (full, trusted) so flows that declare
-  // nothing keep byte-stable compiled output. The compiler enforces that an
-  // enforced scope only lands on the implementer relay variant.
-  equipment_scope: EquipmentScope.optional(),
-  route_from_report: RouteFromReport.optional(),
-  budgets: external_exports.object({
-    max_attempts: external_exports.number().int().positive().max(10),
-    wall_clock_ms: external_exports.number().int().positive().optional()
-  }).optional()
-});
-var ComposeStep = StepBase.extend({
-  executor: external_exports.literal("orchestrator"),
-  kind: external_exports.literal("compose"),
-  writes: external_exports.object({
-    report: ReportRef
-  }).strict(),
-  check: SchemaSectionsCheck
-}).strict();
-var VerificationStep = StepBase.extend({
-  executor: external_exports.literal("orchestrator"),
-  kind: external_exports.literal("verification"),
-  writes: external_exports.object({
-    report: ReportRef
-  }).strict(),
-  check: SchemaSectionsCheck
-}).strict();
-var AutoResolutionPolicy = external_exports.discriminatedUnion("policy", [
-  external_exports.object({
-    policy: external_exports.literal("highest-score"),
-    source_report: RunRelativePath,
-    branches_path: external_exports.string().min(1).default("branches"),
-    id_path: external_exports.string().min(1).default("branch_id"),
-    rubric_result_path: external_exports.string().min(1).default("rubric_result")
-  }).strict()
-]);
-var CheckpointPolicy = external_exports.object({
-  prompt: external_exports.string().min(1),
-  choices: external_exports.array(external_exports.object({
-    id: external_exports.string().min(1),
-    label: external_exports.string().min(1).optional(),
-    description: external_exports.string().min(1).optional()
-  }).strict()).min(1).optional(),
-  choices_from: CheckpointChoiceSource.optional(),
-  safe_default_choice: external_exports.string().min(1).optional(),
-  auto_resolution: AutoResolutionPolicy.optional(),
-  // Opt-in: when this checkpoint is reached in an unattended run (a
-  // composed/nested child or a headless host, where there is no operator to
-  // answer the gate and no resume driver to clear it), may the engine
-  // auto-continue it through its fail-safe path (auto-resolution rubric, then
-  // declared safe default) instead of failing closed? Defaults to absent =
-  // false: an unattended run hitting a human gate that is NOT declared
-  // auto-continuable reaches a loud terminal failure rather than silently
-  // auto-skipping the gate. Top-level attended and autonomous runs ignore this
-  // field — it governs only the unattended path. See resolveCheckpoint in
-  // src/runtime/executors/checkpoint.ts.
-  auto_continuable_when_nested: external_exports.boolean().optional(),
-  report_template: JsonObject.optional()
-}).strict().superRefine((policy2, ctx) => {
-  const hasStaticChoices = policy2.choices !== void 0;
-  const hasDynamicChoices = policy2.choices_from !== void 0;
-  if (hasStaticChoices === hasDynamicChoices) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["choices"],
-      message: "checkpoint policy must declare exactly one of choices or choices_from"
-    });
-  }
-  const choiceIds = /* @__PURE__ */ new Set();
-  if (policy2.choices !== void 0) {
-    for (const [index, choice] of policy2.choices.entries()) {
-      if (choiceIds.has(choice.id)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["choices", index, "id"],
-          message: `duplicate checkpoint choice '${choice.id}'`
-        });
-      }
-      choiceIds.add(choice.id);
-    }
-  }
-  for (const [field, value] of [["safe_default_choice", policy2.safe_default_choice]]) {
-    if (value !== void 0 && policy2.choices !== void 0 && !choiceIds.has(value)) {
-      ctx.addIssue({
-        code: "custom",
-        path: [field],
-        message: `${field} must reference a declared checkpoint choice`
-      });
-    }
-  }
-});
-var CheckpointStep = StepBase.extend({
-  executor: external_exports.literal("orchestrator"),
-  kind: external_exports.literal("checkpoint"),
-  policy: CheckpointPolicy,
-  writes: external_exports.object({
-    request: RunRelativePath,
-    response: RunRelativePath,
-    report: ReportRef.optional()
-  }).strict(),
-  check: CheckpointSelectionCheck
-}).strict();
-var RelayStep = StepBase.extend({
-  executor: external_exports.literal("worker"),
-  kind: external_exports.literal("relay"),
-  role: RelayRole,
-  connector: RelayConnectorName.optional(),
-  acceptance_criteria: AcceptanceCriteria.optional(),
-  writes: external_exports.object({
-    report: ReportRef.optional(),
-    request: RunRelativePath,
-    receipt: RunRelativePath,
-    result: RunRelativePath
-  }).strict(),
-  check: ResultVerdictCheck
-}).strict();
-var CompiledFlowRef = external_exports.object({
-  flow_id: CompiledFlowId,
-  entry_mode: external_exports.string().regex(/^[a-z][a-z0-9-]*$/, { message: "entry_mode must be a kebab-case slug" }),
-  // Optional pin to a specific schematic version. Default is the version
-  // resolved by the schematic loader at child-bootstrap time.
-  version: external_exports.string().min(1).optional()
-}).strict();
-var SubRunStep = StepBase.extend({
-  executor: external_exports.literal("orchestrator"),
-  kind: external_exports.literal("sub-run"),
-  flow_ref: CompiledFlowRef,
-  // Goal string handed to the child flow at bootstrap. Templating is
-  // a runtime concern (e.g., `$upstream_report.field` substitution) that
-  // resolves before child bootstrap; the schema accepts a plain string.
-  goal: external_exports.string().min(1),
-  depth: CompiledDepth,
-  writes: external_exports.object({
-    // The child run's terminal result.json copied into the parent's
-    // run-folder after the child closes. The parent check reads this slot.
-    result: RunRelativePath,
-    // Optional materialized child report (e.g., child build-result.json
-    // republished verbatim into a parent slot for downstream readers).
-    report: ReportRef.optional()
-  }).strict(),
-  check: ResultVerdictCheck
-}).strict();
-var FANOUT_BRANCH_ID_REGEX = /^[a-z0-9][a-z0-9-]*$/;
-var FanoutSubRunBranch = external_exports.object({
-  // Branch identifier; unique across the fanout's branches. Used to
-  // derive the per-branch worktree name and the per-branch result
-  // directory under `writes.branches_dir/<branch_id>/`.
-  branch_id: external_exports.string().min(1).max(64).regex(FANOUT_BRANCH_ID_REGEX, { message: "branch_id must be a kebab-case slug" }),
-  flow_ref: CompiledFlowRef,
-  goal: external_exports.string().min(1),
-  depth: CompiledDepth,
-  // Per-branch selection override — useful for tournament-style fanouts
-  // where the variation is in connector / model selection, not flow.
-  selection: SelectionOverride.optional()
-}).strict();
-var FanoutRelayBranchExecution = external_exports.object({
-  kind: external_exports.literal("relay"),
-  role: RelayRole,
-  goal: external_exports.string().min(1),
-  report_schema: external_exports.string().min(1),
-  provenance_field: external_exports.string().regex(/^[a-z_][a-z0-9_]*$/i, {
-    message: "provenance_field must be a top-level JSON field name"
-  }).optional()
-}).strict();
-var FanoutRelayBranch = external_exports.object({
-  branch_id: external_exports.string().min(1).max(64).regex(FANOUT_BRANCH_ID_REGEX, { message: "branch_id must be a kebab-case slug" }),
-  execution: FanoutRelayBranchExecution,
-  connector: RelayConnectorName.optional(),
-  selection: SelectionOverride.optional()
-}).strict();
-var FanoutBranch = external_exports.union([FanoutSubRunBranch, FanoutRelayBranch]);
-var FanoutSubRunBranchTemplate = external_exports.object({
-  branch_id: external_exports.string().min(1).max(64),
-  flow_ref: CompiledFlowRef,
-  goal: external_exports.string().min(1),
-  depth: CompiledDepth,
-  // Dynamic fanout selection may contain `$item.*` placeholders. The
-  // expanded branch is parsed through FanoutBranch before execution, so
-  // runtime still enforces the real SelectionOverride shape.
-  selection: external_exports.unknown().optional()
-}).strict();
-var FanoutRelayBranchTemplate = external_exports.object({
-  branch_id: external_exports.string().min(1).max(64),
-  execution: FanoutRelayBranchExecution,
-  connector: external_exports.string().min(1).optional(),
-  selection: external_exports.unknown().optional()
-}).strict();
-var FanoutBranchTemplate = external_exports.union([
-  FanoutSubRunBranchTemplate,
-  FanoutRelayBranchTemplate
-]);
-var FanoutBranchesStatic = external_exports.object({
-  kind: external_exports.literal("static"),
-  // Author lists every branch upfront. Used by tournaments (N attempts at
-  // one flow, varying selection / depth) and small fixed crucibles.
-  branches: external_exports.array(FanoutBranch).min(1).max(64)
-}).strict();
-var FanoutBranchesDynamic = external_exports.object({
-  kind: external_exports.literal("dynamic"),
-  // Branches computed at runtime from an upstream report. Authors
-  // declare the source report + a JSONPath-like dotted path to the
-  // iterable + a template branch with `$item.<field>` placeholders.
-  // Runtime expands the template per item at fanout.start time and
-  // re-parses each expansion through FanoutBranch (strict regex).
-  //
-  // Used when batch count is determined by an upstream inventory report.
-  source_report: RunRelativePath,
-  items_path: external_exports.string().min(1),
-  template: FanoutBranchTemplate,
-  // Hard cap to prevent runaway fanouts when the source report is
-  // unexpectedly large.
-  max_branches: external_exports.union([external_exports.number().int().positive().max(256), RuntimeNumberSource]).default(16),
-  // Optional exact count. Tournament fanouts use this to fail before any
-  // child relay launches when option generation drifts from the resolved N.
-  required_count: RuntimeNumberSource.optional()
-}).strict();
-var FanoutBranches = external_exports.discriminatedUnion("kind", [
-  FanoutBranchesStatic,
-  FanoutBranchesDynamic
-]);
-var FanoutConcurrency = external_exports.discriminatedUnion("kind", [
-  external_exports.object({ kind: external_exports.literal("unbounded") }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("bounded"),
-    max: external_exports.number().int().positive().max(64)
-  }).strict()
-]);
-var FanoutFailurePolicy = external_exports.enum(["abort-all", "continue-others"]);
-var FanoutRubricRuntimeSignalSource = external_exports.discriminatedUnion("kind", [
-  external_exports.object({
-    kind: external_exports.literal("constant"),
-    signal: RubricRuntimeSignal
-  }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("non_empty_array"),
-    path: external_exports.string().min(1)
-  }).strict(),
-  external_exports.object({
-    kind: external_exports.literal("non_empty_string"),
-    path: external_exports.string().min(1)
-  }).strict()
-]);
-var FanoutRubric = external_exports.object({
-  model_judgments_path: external_exports.string().min(1),
-  ordered_dims: external_exports.array(external_exports.string().min(1)).min(1),
-  runtime_signals: external_exports.record(external_exports.string().min(1), FanoutRubricRuntimeSignalSource)
-}).strict().superRefine((rubric, ctx) => {
-  const orderedDims = /* @__PURE__ */ new Set();
-  for (const [index, dimId] of rubric.ordered_dims.entries()) {
-    if (orderedDims.has(dimId)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["ordered_dims", index],
-        message: `duplicate rubric dim '${dimId}'`
-      });
-    }
-    orderedDims.add(dimId);
-  }
-  for (const [dimId] of Object.entries(rubric.runtime_signals)) {
-    if (!orderedDims.has(dimId)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["runtime_signals", dimId],
-        message: `runtime signal dim '${dimId}' must appear in ordered_dims`
-      });
-    }
-  }
-  for (const [index, dimId] of rubric.ordered_dims.entries()) {
-    if (rubric.runtime_signals[dimId] === void 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["ordered_dims", index],
-        message: `ordered dim '${dimId}' must declare a runtime signal source`
-      });
-    }
-  }
-});
-var FanoutStep = StepBase.extend({
-  executor: external_exports.literal("orchestrator"),
-  kind: external_exports.literal("fanout"),
-  branches: FanoutBranches,
-  // Default bounded(4) keeps disk and rate-limit pressure sane on
-  // unattended runs. Authors who know their parallelism budget can opt
-  // into unbounded explicitly.
-  concurrency: FanoutConcurrency.default({ kind: "bounded", max: 4 }),
-  on_child_failure: FanoutFailurePolicy.default("abort-all"),
-  rubric: FanoutRubric.optional(),
-  writes: external_exports.object({
-    // Parent directory under which the runtime materialises each
-    // branch's result.json at `<branches_dir>/<branch_id>/result.json`.
-    // The directory is runtime-owned; schematic authors declare its location.
-    branches_dir: RunRelativePath,
-    // Aggregate report summarising all child results, built by the
-    // runtime after join. This is the slot the check reads.
-    aggregate: ReportRef
-  }).strict(),
-  check: FanoutAggregateCheck
-}).strict();
-var Step = external_exports.discriminatedUnion("kind", [
-  ComposeStep,
-  VerificationStep,
-  CheckpointStep,
-  RelayStep,
-  SubRunStep,
-  FanoutStep
-]).superRefine((step, ctx) => {
-  const slot2 = step.check.source.ref;
-  const writes = step.writes;
-  if (!Object.hasOwn(writes, slot2) || writes[slot2] === void 0) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["check", "source", "ref"],
-      message: `check.source.ref "${slot2}" does not resolve to a usable slot in step.writes (available: ${Object.keys(writes).join(", ")})`
-    });
-  }
-  if (step.kind === "checkpoint") {
-    const hasStaticAllow = step.check.allow !== void 0;
-    const hasDynamicAllow = step.check.allow_from !== void 0;
-    if (hasStaticAllow === hasDynamicAllow) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["check", "allow"],
-        message: "checkpoint check must declare exactly one of allow or allow_from"
-      });
-    }
-    if (hasStaticAllow && step.policy.choices === void 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["check", "allow"],
-        message: "checkpoint check.allow requires static policy.choices"
-      });
-    }
-    if (hasDynamicAllow && step.check.allow_from?.kind !== "policy_choices") {
-      ctx.addIssue({
-        code: "custom",
-        path: ["check", "allow_from"],
-        message: "checkpoint check.allow_from must reference policy_choices"
-      });
-    }
-    if (step.check.allow !== void 0 && step.policy.choices !== void 0) {
-      const policyChoiceIds = step.policy.choices.map((choice) => choice.id).sort();
-      const checkChoiceIds = [...step.check.allow].sort();
-      if (policyChoiceIds.join("\0") !== checkChoiceIds.join("\0")) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["check", "allow"],
-          message: "checkpoint check.allow must exactly match policy.choices ids"
-        });
-      }
-    }
-    if (hasDynamicAllow && step.policy.choices === void 0 && step.policy.choices_from === void 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["policy", "choices_from"],
-        message: "checkpoint check.allow_from requires policy.choices or policy.choices_from"
-      });
-    }
-    if (step.writes.report !== void 0) {
-      if (step.policy.report_template === void 0) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["policy", "report_template"],
-          message: "checkpoint report writing requires policy.report_template"
-        });
-      }
-    }
-  }
-  if (step.kind === "fanout") {
-    if (step.branches.kind === "static") {
-      const seen = /* @__PURE__ */ new Set();
-      for (let i = 0; i < step.branches.branches.length; i++) {
-        const branch = step.branches.branches[i];
-        if (branch === void 0)
-          continue;
-        if (seen.has(branch.branch_id)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["branches", "branches", i, "branch_id"],
-            message: `duplicate branch_id '${branch.branch_id}'`
-          });
-        } else {
-          seen.add(branch.branch_id);
-        }
-      }
-    }
-    if (step.branches.kind === "dynamic") {
-      if (!step.branches.template.branch_id.includes("$item")) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["branches", "template", "branch_id"],
-          message: "dynamic fanout template.branch_id must contain `$item` placeholder so per-item expansion produces unique branch ids"
-        });
-      }
-    }
-  }
-});
-var RouteMap = StepBase.shape.routes;
-
 // dist/schemas/flow-schematic.js
 var FlowSchematicStatus = external_exports.enum(["candidate", "active", "deprecated"]);
 var StepRouteTerminalTarget = external_exports.enum(["@complete", "@stop", "@handoff", "@escalate"]);
@@ -28382,7 +28894,7 @@ var SchematicStage = external_exports.object({
   id: StageId,
   title: external_exports.string().min(1)
 }).strict();
-var TOURNAMENT_FANOUT_CONTRACT_MESSAGE = "tournament fanout requires on_child_failure: continue-others and join.policy: aggregate-survivors";
+var TOURNAMENT_FANOUT_CONTRACT_MESSAGE2 = "tournament fanout requires on_child_failure: continue-others and join.policy: aggregate-survivors";
 var FlowSchematic = external_exports.object({
   schema_version: external_exports.literal("2"),
   id: CompiledFlowId,
@@ -28524,7 +29036,7 @@ var FlowSchematic = external_exports.object({
           ctx.addIssue({
             code: "custom",
             path: ["items", index, "fanout"],
-            message: TOURNAMENT_FANOUT_CONTRACT_MESSAGE
+            message: TOURNAMENT_FANOUT_CONTRACT_MESSAGE2
           });
         }
       }
@@ -28825,6 +29337,420 @@ function validateFlowSchematicCatalogCompatibility(schematic, catalog, options =
     }
   }
   return issues;
+}
+
+// dist/schemas/routing-contract-schemas.js
+var TaskIntakeShape = external_exports.object({
+  // The user's goal, preserved through normalization (the block check
+  // requires the normalized task to preserve the goal).
+  normalized_goal: external_exports.string().min(1),
+  // The flow the operator explicitly asked for, when they named one.
+  requested_flow: external_exports.string().min(1).optional(),
+  // Immediate operator constraints carried into the flow (may be empty).
+  constraints: external_exports.array(external_exports.string().min(1))
+}).strict();
+var RouteDecisionShape = external_exports.object({
+  // The chosen flow id, or null when the router stopped instead of routing.
+  selected_flow: external_exports.string().min(1).nullable(),
+  // Why this flow was chosen (or why the router stopped).
+  selection_reason: external_exports.string().min(1),
+  // Why the router stayed conservative, when it fell back to a safer choice.
+  fallback_reason: external_exports.string().min(1).optional()
+}).strict();
+var FlowCatalogShape = external_exports.object({
+  flows: external_exports.array(external_exports.object({
+    id: external_exports.string().min(1),
+    title: external_exports.string().min(1),
+    purpose: external_exports.string().min(1)
+  }).strict()).min(1)
+}).strict();
+var BUILTIN_ROUTING_CONTRACT_SCHEMAS = Object.freeze({
+  "task.intake@v1": TaskIntakeShape,
+  "route.decision@v1": RouteDecisionShape,
+  "flow.catalog@v1": FlowCatalogShape
+});
+
+// dist/flows/catalog-derivations.js
+function collectBuilderRegistry(packages, slot2, pluck) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    for (const builder of pluck(pkg)) {
+      if (map2.has(builder.resultSchemaName)) {
+        throw new Error(`duplicate ${slot2} builder registered for schema '${builder.resultSchemaName}' (flow ${pkg.id})`);
+      }
+      map2.set(builder.resultSchemaName, builder);
+    }
+  }
+  return map2;
+}
+function buildComposeRegistry(packages) {
+  return collectBuilderRegistry(packages, "compose", (pkg) => pkg.writers.compose);
+}
+function buildCloseRegistry(packages) {
+  return collectBuilderRegistry(packages, "close", (pkg) => pkg.writers.close);
+}
+function buildVerificationRegistry(packages) {
+  return collectBuilderRegistry(packages, "verification", (pkg) => pkg.writers.verification);
+}
+function buildCheckpointRegistry(packages) {
+  return collectBuilderRegistry(packages, "checkpoint", (pkg) => pkg.writers.checkpoint);
+}
+function buildReportSchemaRegistry(packages, options) {
+  const out = { ...options.fixtures ?? {} };
+  const register = (schemaName, schema, flowId) => {
+    if (Object.hasOwn(out, schemaName)) {
+      throw new Error(`duplicate report schema '${schemaName}' registered (flow ${flowId})`);
+    }
+    out[schemaName] = schema;
+  };
+  for (const pkg of packages) {
+    for (const report of pkg.relayReports) {
+      register(report.schemaName, report.schema, pkg.id);
+    }
+    if (options.channels === "relay+report") {
+      for (const report of pkg.reportSchemas ?? []) {
+        register(report.schemaName, report.schema, pkg.id);
+      }
+    }
+  }
+  return Object.freeze(out);
+}
+function buildSchemaHintMap(packages) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    for (const report of pkg.relayReports) {
+      if (report.relayHint === void 0)
+        continue;
+      if (map2.has(report.schemaName)) {
+        throw new Error(`duplicate shape hint registered for schema '${report.schemaName}' (flow ${pkg.id})`);
+      }
+      map2.set(report.schemaName, report.relayHint);
+    }
+  }
+  return map2;
+}
+function buildCrossReportValidatorRegistry(packages) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    for (const report of pkg.relayReports) {
+      if (report.crossReportValidate === void 0)
+        continue;
+      if (map2.has(report.schemaName)) {
+        throw new Error(`duplicate cross-report validator registered for schema '${report.schemaName}' (flow ${pkg.id})`);
+      }
+      map2.set(report.schemaName, report.crossReportValidate);
+    }
+  }
+  return map2;
+}
+function buildStructuralHintList(packages) {
+  const list = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const pkg of packages) {
+    if (pkg.structuralHints === void 0)
+      continue;
+    for (const hint of pkg.structuralHints) {
+      if (seen.has(hint.id)) {
+        throw new Error(`duplicate structural shape hint id '${hint.id}' (flow ${pkg.id})`);
+      }
+      seen.add(hint.id);
+      list.push(hint);
+    }
+  }
+  return list;
+}
+function buildRuntimeSurfaceRegistry(packages) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    if (pkg.runtimeSurface === void 0)
+      continue;
+    if (map2.has(pkg.id)) {
+      throw new Error(`duplicate runtime surface registered for flow '${pkg.id}'`);
+    }
+    map2.set(pkg.id, pkg.runtimeSurface);
+  }
+  return map2;
+}
+function buildReportFileSurfaceRegistry(packages) {
+  const out = {};
+  for (const pkg of packages) {
+    for (const [schemaName, declaration] of Object.entries(pkg.reportFileSurfaces ?? {})) {
+      if (Object.hasOwn(out, schemaName)) {
+        throw new Error(`duplicate report file surface registered for schema '${schemaName}' (flow ${pkg.id})`);
+      }
+      out[schemaName] = declaration;
+    }
+  }
+  return Object.freeze(out);
+}
+function deriveFlowCatalog(sources) {
+  const flows = sources.filter((source) => source.visibility === "public").map((source) => ({
+    id: source.id,
+    title: source.schematic.title,
+    purpose: source.schematic.purpose
+  }));
+  return FlowCatalogShape.parse({ flows });
+}
+
+// dist/flows/report-declarations.js
+function projectFlowReportDeclarations(declarations) {
+  const relayReports = [];
+  const reportSchemas = [];
+  const compose = [];
+  const close = [];
+  const verification = [];
+  const checkpoint = [];
+  const reportFileSurfaces = {};
+  for (const declaration of declarations) {
+    if (declaration.channel === "relay") {
+      relayReports.push({
+        schemaName: declaration.schemaName,
+        schema: declaration.schema,
+        ...declaration.relayHint === void 0 ? {} : { relayHint: declaration.relayHint },
+        ...declaration.crossReportValidate === void 0 ? {} : { crossReportValidate: declaration.crossReportValidate }
+      });
+    } else {
+      reportSchemas.push({
+        schemaName: declaration.schemaName,
+        schema: declaration.schema
+      });
+    }
+    if (declaration.fileSurface !== void 0) {
+      reportFileSurfaces[declaration.schemaName] = declaration.fileSurface;
+    }
+    compose.push(...declaration.writers?.compose ?? []);
+    close.push(...declaration.writers?.close ?? []);
+    verification.push(...declaration.writers?.verification ?? []);
+    checkpoint.push(...declaration.writers?.checkpoint ?? []);
+  }
+  return {
+    relayReports,
+    reportSchemas,
+    reportFileSurfaces,
+    writers: {
+      compose,
+      close,
+      verification,
+      checkpoint
+    }
+  };
+}
+
+// dist/flows/flow-definition.js
+function defaultSchematicPath(flowId) {
+  return `src/flows/${flowId}/schematic.json`;
+}
+function defineFlow(definition) {
+  const schematic = FlowSchematic.parse(definition.schematic);
+  if (definition.id !== schematic.id) {
+    throw new Error(`flow definition id '${definition.id}' does not match schematic id '${schematic.id}'`);
+  }
+  return {
+    ...definition,
+    paths: definition.paths ?? {},
+    schematic
+  };
+}
+function defineFlowDataValue(data) {
+  const reportErrors = validateFlowDataReports({
+    reports: data.reports ?? [],
+    writerSchemaAliases: data.reportWriterSchemaAliases ?? []
+  });
+  if (reportErrors.length > 0)
+    return { ok: false, errors: reportErrors };
+  try {
+    return { ok: true, value: defineFlow(flowDefinitionInputFromData(data)) };
+  } catch (error51) {
+    return {
+      ok: false,
+      errors: [{ kind: "flow-data-parse-error", message: errorMessage(error51) }]
+    };
+  }
+}
+function defineFlowData(data) {
+  const result = defineFlowDataValue(data);
+  if (result.ok)
+    return result.value;
+  throw new Error(result.errors.map(describeDefineFlowDataError).join("\n"));
+}
+function flowDefinitionInputFromData(data) {
+  const { reports, reportWriterSchemaAliases: _reportWriterSchemaAliases, ...definition } = data;
+  const reportProjection = reports === void 0 ? void 0 : projectFlowReportDeclarations(reports);
+  return {
+    ...definition,
+    ...reports === void 0 ? {} : {
+      reportDeclarations: reports,
+      relayReports: definition.relayReports ?? reportProjection?.relayReports ?? [],
+      reportSchemas: definition.reportSchemas ?? reportProjection?.reportSchemas ?? [],
+      writers: definition.writers ?? reportProjection?.writers ?? {}
+    }
+  };
+}
+function validateFlowDataReports(input) {
+  const errors = [];
+  const writerSchemaAliases = new Set(input.writerSchemaAliases);
+  const reports = input.reports;
+  for (const schemaName of duplicateValues(reports.map((report) => report.schemaName))) {
+    errors.push({ kind: "duplicate-flow-data-report", schemaName });
+  }
+  for (const report of reports) {
+    for (const slot2 of ["compose", "close", "verification", "checkpoint"]) {
+      for (const writer of report.writers?.[slot2] ?? []) {
+        if (writer.resultSchemaName !== report.schemaName && !writerSchemaAliases.has(writer.resultSchemaName)) {
+          errors.push({
+            kind: "flow-data-report-writer-drift",
+            schemaName: report.schemaName,
+            slot: slot2,
+            resultSchemaName: writer.resultSchemaName
+          });
+        }
+      }
+    }
+  }
+  return errors;
+}
+function describeDefineFlowDataError(error51) {
+  if (error51.kind === "flow-data-parse-error")
+    return error51.message;
+  if (error51.kind === "duplicate-flow-data-report") {
+    return `duplicate FlowData report schema '${error51.schemaName}'`;
+  }
+  return `FlowData report '${error51.schemaName}' binds ${error51.slot} writer for '${error51.resultSchemaName}'`;
+}
+function duplicateValues(values) {
+  const seen = /* @__PURE__ */ new Set();
+  const duplicates = /* @__PURE__ */ new Set();
+  for (const value of values) {
+    if (seen.has(value))
+      duplicates.add(value);
+    seen.add(value);
+  }
+  return [...duplicates];
+}
+function errorMessage(error51) {
+  return error51 instanceof Error ? error51.message : String(error51);
+}
+function compilePaths(definition) {
+  const paths = {
+    schematic: definition.paths.schematic ?? defaultSchematicPath(definition.id)
+  };
+  if (definition.paths.command !== void 0) {
+    return definition.paths.contract === void 0 ? { ...paths, command: definition.paths.command } : { ...paths, command: definition.paths.command, contract: definition.paths.contract };
+  }
+  return definition.paths.contract === void 0 ? paths : { ...paths, contract: definition.paths.contract };
+}
+function validateProgressSurface(definition, progress) {
+  if (progress === void 0)
+    return;
+  const itemIds = new Set(definition.schematic.items.map((item) => item.id));
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, step] of progress.steps.entries()) {
+    if (seen.has(step.stepId)) {
+      throw new Error(`flow definition '${definition.id}' declares duplicate progress step '${step.stepId}'`);
+    }
+    seen.add(step.stepId);
+    if (!itemIds.has(step.stepId)) {
+      throw new Error(`flow definition '${definition.id}' progress step '${step.stepId}' is not a schematic item`);
+    }
+    if (step.taskTitle.length === 0 || step.activeText.length === 0) {
+      throw new Error(`flow definition '${definition.id}' progress step ${index} must declare operator text`);
+    }
+  }
+}
+function compileRuntimeSurface(definition) {
+  const runtimeSurface = definition.runtimeSurface;
+  if (runtimeSurface === void 0)
+    return void 0;
+  validateProgressSurface(definition, runtimeSurface.progress);
+  return {
+    ...runtimeSurface.primaryResult === void 0 ? {} : { primaryResult: runtimeSurface.primaryResult },
+    ...runtimeSurface.progress === void 0 ? {} : { progress: runtimeSurface.progress }
+  };
+}
+function projectDefinitionReportSurfaces(definition) {
+  const reportProjection = definition.reportDeclarations === void 0 ? void 0 : projectFlowReportDeclarations(definition.reportDeclarations);
+  return {
+    relayReports: definition.relayReports ?? reportProjection?.relayReports ?? [],
+    ...definition.reportSchemas !== void 0 ? { reportSchemas: definition.reportSchemas } : reportProjection?.reportSchemas === void 0 ? {} : { reportSchemas: reportProjection.reportSchemas },
+    ...reportProjection === void 0 || Object.keys(reportProjection.reportFileSurfaces).length === 0 ? {} : { reportFileSurfaces: reportProjection.reportFileSurfaces },
+    writers: definition.writers ?? reportProjection?.writers ?? {}
+  };
+}
+function compileFlowDefinition(definition) {
+  const runtimeSurface = compileRuntimeSurface(definition);
+  const reportSurfaces = projectDefinitionReportSurfaces(definition);
+  return {
+    id: definition.id,
+    visibility: definition.visibility,
+    paths: compilePaths(definition),
+    relayReports: reportSurfaces.relayReports,
+    ...reportSurfaces.reportSchemas === void 0 ? {} : { reportSchemas: reportSurfaces.reportSchemas },
+    ...reportSurfaces.reportFileSurfaces === void 0 ? {} : { reportFileSurfaces: reportSurfaces.reportFileSurfaces },
+    writers: {
+      compose: reportSurfaces.writers.compose ?? [],
+      close: reportSurfaces.writers.close ?? [],
+      verification: reportSurfaces.writers.verification ?? [],
+      checkpoint: reportSurfaces.writers.checkpoint ?? []
+    },
+    ...definition.structuralHints === void 0 ? {} : { structuralHints: definition.structuralHints },
+    ...runtimeSurface === void 0 ? {} : { runtimeSurface },
+    ...definition.engineFlags === void 0 ? {} : { engineFlags: definition.engineFlags },
+    ...definition.requiredConfig === void 0 ? {} : { requiredConfig: definition.requiredConfig }
+  };
+}
+function validatePackageSet(packages) {
+  const ids = /* @__PURE__ */ new Set();
+  const reportNames = /* @__PURE__ */ new Map();
+  const writerNames = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    if (ids.has(pkg.id)) {
+      throw new Error(`duplicate flow definition id '${pkg.id}'`);
+    }
+    ids.add(pkg.id);
+    for (const report of [...pkg.relayReports, ...pkg.reportSchemas ?? []]) {
+      const owner = reportNames.get(report.schemaName);
+      if (owner !== void 0) {
+        throw new Error(`duplicate report schema '${report.schemaName}' registered by '${owner}' and '${pkg.id}'`);
+      }
+      reportNames.set(report.schemaName, pkg.id);
+    }
+    const knownPackageReports = /* @__PURE__ */ new Set([
+      ...pkg.relayReports.map((report) => report.schemaName),
+      ...(pkg.reportSchemas ?? []).map((report) => report.schemaName)
+    ]);
+    for (const schemaName of Object.keys(pkg.reportFileSurfaces ?? {})) {
+      if (!knownPackageReports.has(schemaName)) {
+        throw new Error(`report file surface '${schemaName}' is not registered as a report schema for flow '${pkg.id}'`);
+      }
+    }
+    for (const [slot2, builders] of Object.entries(pkg.writers)) {
+      for (const builder of builders) {
+        const owner = writerNames.get(builder.resultSchemaName);
+        if (owner !== void 0) {
+          throw new Error(`duplicate writer result schema '${builder.resultSchemaName}' registered by ${owner} and ${pkg.id}.${slot2}`);
+        }
+        writerNames.set(builder.resultSchemaName, `${pkg.id}.${slot2}`);
+      }
+    }
+  }
+}
+function assertCatalogInvariants(packages) {
+  validatePackageSet(packages);
+  buildComposeRegistry(packages);
+  buildCloseRegistry(packages);
+  buildVerificationRegistry(packages);
+  buildCheckpointRegistry(packages);
+  buildReportSchemaRegistry(packages, { channels: "relay+report" });
+  buildSchemaHintMap(packages);
+  buildStructuralHintList(packages);
+  buildCrossReportValidatorRegistry(packages);
+  buildRuntimeSurfaceRegistry(packages);
+  buildReportFileSurfaceRegistry(packages);
+}
+function compileFlowDefinitions(definitions) {
+  const packages = definitions.map(compileFlowDefinition);
+  assertCatalogInvariants(packages);
+  return packages;
 }
 
 // dist/flows/block-step-expansion.js
@@ -29329,932 +30255,6 @@ var buildAssemblySpec = {
   items: buildBlockItems,
   stageLabels: buildStageLabels
 };
-
-// dist/policy/flow-kind-policy-core.js
-function objectRecord(value) {
-  return value !== null && typeof value === "object" ? value : void 0;
-}
-function stringStepIdsForCanonical(stages, canonical) {
-  const ids = [];
-  for (const stage of stages) {
-    const p = objectRecord(stage);
-    if (p === void 0 || p.canonical !== canonical || !Array.isArray(p.steps))
-      continue;
-    for (const id of p.steps) {
-      if (typeof id === "string")
-        ids.push(id);
-    }
-  }
-  return ids;
-}
-function isReviewResultReportWriter(step) {
-  const s = objectRecord(step);
-  if (s === void 0 || s.kind !== "compose")
-    return false;
-  const writes = objectRecord(s.writes);
-  const report = objectRecord(writes?.report);
-  return report?.schema === "review.result@v1";
-}
-function isReviewerRelay(step) {
-  const s = objectRecord(step);
-  return s !== void 0 && s.kind === "relay" && s.role === "reviewer";
-}
-function declaredCanonicalsFor(fixture) {
-  const declared = /* @__PURE__ */ new Set();
-  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
-  for (const stage of stages) {
-    const stageRecord = objectRecord(stage);
-    if (typeof stageRecord?.canonical === "string") {
-      declared.add(stageRecord.canonical);
-    }
-  }
-  return declared;
-}
-function checkCanonicalStagePolicyVariant(id, fixture, variant, optionalCanonicals, authority) {
-  const declared = declaredCanonicalsFor(fixture);
-  const optional2 = new Set(optionalCanonicals);
-  const required2 = new Set(variant.canonicals.filter((c) => !optional2.has(c)));
-  const acceptedDeclared = /* @__PURE__ */ new Set([...required2, ...optional2]);
-  const missing = [...required2].filter((c) => !declared.has(c));
-  const extra = [...declared].filter((c) => !acceptedDeclared.has(c));
-  if (missing.length > 0 || extra.length > 0) {
-    const parts = [];
-    if (missing.length > 0)
-      parts.push(`missing canonical(s): ${missing.join(", ")}`);
-    if (extra.length > 0)
-      parts.push(`unexpected canonical(s): ${extra.join(", ")}`);
-    return {
-      ok: false,
-      detail: `${id}: canonical stage-set mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
-    };
-  }
-  const sp = objectRecord(fixture.stage_path_policy);
-  if (sp === void 0) {
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy missing or not an object`
-    };
-  }
-  const omits = Array.isArray(sp.omits) ? sp.omits.filter((s) => typeof s === "string") : [];
-  const optionalOmitted = [...optional2].filter((c) => !declared.has(c));
-  const expectedOmits = /* @__PURE__ */ new Set([...variant.omits, ...optionalOmitted]);
-  const expectedMode = expectedOmits.size === 0 ? "strict" : "partial";
-  if (sp.mode !== expectedMode) {
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy.mode must be '${expectedMode}' for kind-canonical enforcement; got '${String(sp.mode)}'`
-    };
-  }
-  const missingOmits = [...expectedOmits].filter((o) => !omits.includes(o));
-  const extraOmits = omits.filter((o) => !expectedOmits.has(o));
-  if (missingOmits.length > 0 || extraOmits.length > 0) {
-    const parts = [];
-    if (missingOmits.length > 0)
-      parts.push(`missing omit(s): ${missingOmits.join(", ")}`);
-    if (extraOmits.length > 0)
-      parts.push(`unexpected omit(s): ${extraOmits.join(", ")}`);
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy.omits mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
-    };
-  }
-  return {
-    ok: true,
-    detail: `${id}: canonical set {${variant.canonicals.join(", ")}} + omits {${variant.omits.join(", ")}} enforced (authority: ${authority})`
-  };
-}
-function checkReviewIdentitySeparationPolicy(fixture) {
-  const f = objectRecord(fixture);
-  if (f === void 0) {
-    return { ok: false, detail: "fixture is not an object" };
-  }
-  const stages = Array.isArray(f.stages) ? f.stages : [];
-  const steps = Array.isArray(f.steps) ? f.steps : [];
-  const analyzeStepIds = stringStepIdsForCanonical(stages, "analyze");
-  const closeStepIds = stringStepIdsForCanonical(stages, "close");
-  const stepsById = /* @__PURE__ */ new Map();
-  for (let index = 0; index < steps.length; index++) {
-    const step = objectRecord(steps[index]);
-    if (typeof step?.id === "string")
-      stepsById.set(step.id, { step, index });
-  }
-  const reviewerRelayIndices = analyzeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewerRelay(entry.step)).map((entry) => entry.index);
-  if (reviewerRelayIndices.length === 0) {
-    return {
-      ok: false,
-      detail: "analyze stage must contain a relay step with role=reviewer before the close report writer"
-    };
-  }
-  const closeWriterIndices = closeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewResultReportWriter(entry.step)).map((entry) => entry.index);
-  if (closeWriterIndices.length === 0) {
-    return {
-      ok: false,
-      detail: "close stage must contain a compose step that writes the primary review.result report"
-    };
-  }
-  const everyCloseWriterPreceded = closeWriterIndices.every((closeIndex) => reviewerRelayIndices.some((reviewerIndex) => reviewerIndex < closeIndex));
-  if (!everyCloseWriterPreceded) {
-    return {
-      ok: false,
-      detail: "each close-stage review.result report writer must be preceded in steps[] by an analyze-stage reviewer relay"
-    };
-  }
-  return {
-    ok: true,
-    detail: "close review.result report writer is preceded by an analyze-stage reviewer relay"
-  };
-}
-var REVIEW_IDENTITY_SEPARATION_AUTHORITY = "flow-kind review-identity-separation policy";
-function hasCloseStageReviewResultWriter(fixture) {
-  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
-  const steps = Array.isArray(fixture.steps) ? fixture.steps : [];
-  const closeStepIds = new Set(stringStepIdsForCanonical(stages, "close"));
-  for (const step of steps) {
-    const s = objectRecord(step);
-    if (s === void 0 || typeof s.id !== "string")
-      continue;
-    if (closeStepIds.has(s.id) && isReviewResultReportWriter(s))
-      return true;
-  }
-  return false;
-}
-function reviewIdentitySeparationViolation(id, fixture) {
-  if (!hasCloseStageReviewResultWriter(fixture))
-    return void 0;
-  const identity = checkReviewIdentitySeparationPolicy(fixture);
-  if (identity.ok)
-    return void 0;
-  return {
-    kind: "red",
-    detail: `${id}: ${identity.detail} (authority: ${REVIEW_IDENTITY_SEPARATION_AUTHORITY})`
-  };
-}
-function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
-  const f = objectRecord(fixture);
-  if (f === void 0) {
-    return {
-      kind: "red",
-      detail: "fixture is not an object"
-    };
-  }
-  const id = f.id;
-  if (typeof id !== "string") {
-    return {
-      kind: "red",
-      detail: "fixture missing top-level `id` string field"
-    };
-  }
-  const identityViolation = reviewIdentitySeparationViolation(id, f);
-  if (identityViolation !== void 0) {
-    return identityViolation;
-  }
-  if (table.exemptFlowIds.has(id)) {
-    return {
-      kind: "exempt",
-      detail: `${id}: exempt from kind-canonical enforcement (partial-stage path, recorded)`
-    };
-  }
-  const expected = table.canonicalSets[id];
-  if (expected === void 0) {
-    return {
-      kind: "pass_through",
-      detail: `${id}: no canonical-set entry (unknown or composed flow kind; pass-through \u2014 intrinsic identity policy enforced)`
-    };
-  }
-  const variants = [
-    { canonicals: expected.canonicals, omits: expected.omits, title: expected.title },
-    ...expected.variants ?? []
-  ];
-  const checkedVariants = variants.map((variant) => checkCanonicalStagePolicyVariant(id, f, variant, expected.optional_canonicals, expected.authority));
-  const acceptedVariant = checkedVariants.find((variant) => variant.ok);
-  if (acceptedVariant === void 0) {
-    return {
-      kind: "red",
-      detail: checkedVariants.map((variant) => variant.detail).join(" OR ")
-    };
-  }
-  return {
-    kind: "green",
-    detail: acceptedVariant.detail
-  };
-}
-
-// dist/schemas/route-policy.js
-var RUNTIME_SUCCESS_ROUTE = "pass";
-var SCHEMATIC_SUCCESS_ROUTE_ALIASES = ["continue", "complete"];
-var SUCCESS_ROUTE_ALIAS_SET = new Set(SCHEMATIC_SUCCESS_ROUTE_ALIASES);
-function schematicOutcomeToRuntimeRoute(outcome) {
-  if (!SUCCESS_ROUTE_ALIAS_SET.has(outcome))
-    return void 0;
-  return RUNTIME_SUCCESS_ROUTE;
-}
-
-// dist/schemas/compiled-flow.js
-var TERMINAL_ROUTE_TARGETS = /* @__PURE__ */ new Set(["@complete", "@stop", "@escalate", "@handoff"]);
-var CompiledFlowManifestEngineFlags = EngineFlagsManifest;
-var CompiledFlowManifestRuntimeSurface = external_exports.object({
-  primary_result: external_exports.object({
-    schema_name: external_exports.string().min(1),
-    path: RunRelativePath
-  }).strict().optional()
-}).strict();
-var CompiledFlowBody = external_exports.object({
-  schema_version: external_exports.literal("3"),
-  id: CompiledFlowId,
-  version: external_exports.string().min(1),
-  purpose: external_exports.string().min(1),
-  axes: FlowAxes,
-  starts_at: StepId,
-  stages: external_exports.array(Stage).min(1),
-  stage_path_policy: SpinePolicy,
-  steps: external_exports.array(Step).min(1),
-  // Seed skill set is expressed through
-  // `default_selection.skills = {mode: 'replace', skills: [...]}` so every
-  // skill contribution flows through the typed SkillOverride operations,
-  // closing the untyped-bypass path.
-  default_selection: SelectionOverride.optional(),
-  // Optional engine-visible behavior flags carried on the manifest. Absent =
-  // resolve from the catalog package alone (the pre-migration path).
-  engine_flags: CompiledFlowManifestEngineFlags.optional(),
-  // Stage 3b (first-class composition): execution-bearing declarations the
-  // engine reads off the manifest, so a composed flow carries them without a
-  // by-id catalog package. `report_file_surfaces` feeds the skill-hook
-  // edit-file surface table; `runtime_surface.primary_result` binds the
-  // terminal outcome to the result report; `required_config` is the CLI's
-  // up-front config gate. Each absent = the flow declares none.
-  report_file_surfaces: ReportFileSurfaceMap.optional(),
-  runtime_surface: CompiledFlowManifestRuntimeSurface.optional(),
-  required_config: AxisConfigRequirementList.optional()
-}).strict();
-var issueAt2 = (ctx, path, message) => {
-  ctx.addIssue({ code: "custom", path, message });
-};
-var TOURNAMENT_FANOUT_CONTRACT_MESSAGE2 = "tournament fanout requires on_child_failure: continue-others and join.policy: aggregate-survivors";
-var CompiledFlowStrict = CompiledFlowBody.superRefine((wf, ctx) => {
-  const stepIds = /* @__PURE__ */ new Set();
-  const stepById = /* @__PURE__ */ new Map();
-  for (let i = 0; i < wf.steps.length; i++) {
-    const step = wf.steps[i];
-    if (step === void 0)
-      continue;
-    if (stepIds.has(step.id)) {
-      issueAt2(ctx, ["steps", i, "id"], `duplicate step id: ${step.id}`);
-    } else {
-      stepIds.add(step.id);
-      stepById.set(step.id, { step, index: i });
-    }
-  }
-  const stageIds = /* @__PURE__ */ new Set();
-  for (let i = 0; i < wf.stages.length; i++) {
-    const stage = wf.stages[i];
-    if (stage === void 0)
-      continue;
-    if (stageIds.has(stage.id)) {
-      issueAt2(ctx, ["stages", i, "id"], `duplicate stage id: ${stage.id}`);
-    } else {
-      stageIds.add(stage.id);
-    }
-    for (let j = 0; j < stage.steps.length; j++) {
-      const sid = stage.steps[j];
-      if (sid === void 0)
-        continue;
-      if (!stepIds.has(sid)) {
-        issueAt2(ctx, ["stages", i, "steps", j], `stage references unknown step: ${sid}`);
-      }
-    }
-  }
-  if (!stepIds.has(wf.starts_at)) {
-    issueAt2(ctx, ["starts_at"], `starts_at references unknown step: ${wf.starts_at}`);
-  }
-  if (wf.axes.supports_tournament && wf.axes.tournament_fan_out_stage !== void 0) {
-    const fanOutStageId = wf.axes.tournament_fan_out_stage;
-    const fanOutStage = wf.stages.find((stage) => stage.id === fanOutStageId);
-    if (fanOutStage === void 0) {
-      issueAt2(ctx, ["axes", "tournament_fan_out_stage"], `tournament_fan_out_stage references unknown stage id: ${fanOutStageId}`);
-    } else {
-      for (const stepId of fanOutStage.steps) {
-        const entry = stepById.get(stepId);
-        if (entry === void 0 || entry.step.kind !== "fanout")
-          continue;
-        if (entry.step.on_child_failure !== "continue-others" || entry.step.check.join.policy !== "aggregate-survivors") {
-          issueAt2(ctx, ["steps", entry.index, "check", "join"], TOURNAMENT_FANOUT_CONTRACT_MESSAGE2);
-        }
-      }
-    }
-  }
-  for (let i = 0; i < wf.steps.length; i++) {
-    const step = wf.steps[i];
-    if (step === void 0)
-      continue;
-    for (const [label, target] of Object.entries(step.routes)) {
-      if (TERMINAL_ROUTE_TARGETS.has(target))
-        continue;
-      if (!stepIds.has(target)) {
-        issueAt2(ctx, ["steps", i, "routes", label], `route target is not @complete/@stop/@escalate/@handoff and not a known step: ${target}`);
-      }
-    }
-    if (!Object.hasOwn(step.routes, RUNTIME_SUCCESS_ROUTE)) {
-      issueAt2(ctx, ["steps", i, "routes"], `WF-I10: step '${step.id}' is missing a '${RUNTIME_SUCCESS_ROUTE}' route key \u2014 check.evaluated emits outcome \u2208 {pass, fail} uniformly, so routes must contain '${RUNTIME_SUCCESS_ROUTE}' to route on a successful check outcome`);
-    }
-  }
-  const canonicalSeenAt = /* @__PURE__ */ new Map();
-  for (let i = 0; i < wf.stages.length; i++) {
-    const stage = wf.stages[i];
-    if (stage === void 0)
-      continue;
-    if (stage.canonical === void 0)
-      continue;
-    const prior = canonicalSeenAt.get(stage.canonical);
-    if (prior !== void 0) {
-      issueAt2(ctx, ["stages", i, "canonical"], `duplicate canonical '${stage.canonical}' \u2014 also declared by stage at index ${prior}`);
-    } else {
-      canonicalSeenAt.set(stage.canonical, i);
-    }
-  }
-  const declaredCanonicals = new Set(canonicalSeenAt.keys());
-  const omits = /* @__PURE__ */ new Set();
-  if (wf.stage_path_policy.mode === "partial") {
-    const seenOmits = /* @__PURE__ */ new Set();
-    for (let i = 0; i < wf.stage_path_policy.omits.length; i++) {
-      const o = wf.stage_path_policy.omits[i];
-      if (o === void 0)
-        continue;
-      if (seenOmits.has(o)) {
-        issueAt2(ctx, ["stage_path_policy", "omits", i], `duplicate omit: '${o}' is listed more than once`);
-      } else {
-        seenOmits.add(o);
-      }
-      omits.add(o);
-    }
-  }
-  for (const o of omits) {
-    if (declaredCanonicals.has(o)) {
-      issueAt2(ctx, ["stage_path_policy", "omits"], `canonical '${o}' is both declared as a Stage.canonical AND listed in stage_path_policy.omits \u2014 omits must be disjoint from declared canonicals`);
-    }
-  }
-  for (const canonical of CANONICAL_STAGES) {
-    if (omits.has(canonical))
-      continue;
-    if (!declaredCanonicals.has(canonical)) {
-      issueAt2(ctx, ["stages"], `stage_path_policy requires canonical stage '${canonical}' \u2014 declare a Stage with canonical: '${canonical}', or move it into stage_path_policy.omits with a rationale`);
-    }
-  }
-  const noDuplicateIds = stepIds.size === wf.steps.length;
-  const adjacency = /* @__PURE__ */ new Map();
-  let allRouteTargetsKnown = true;
-  for (const step of wf.steps) {
-    if (step === void 0)
-      continue;
-    const targets = Object.values(step.routes);
-    adjacency.set(step.id, targets);
-    for (const t of targets) {
-      if (TERMINAL_ROUTE_TARGETS.has(t))
-        continue;
-      if (!stepIds.has(t)) {
-        allRouteTargetsKnown = false;
-      }
-    }
-  }
-  const allEntryStartsKnown = stepIds.has(wf.starts_at);
-  if (noDuplicateIds && allRouteTargetsKnown && allEntryStartsKnown) {
-    const terminalReaching = /* @__PURE__ */ new Set();
-    for (const [sid, targets] of adjacency) {
-      for (const t of targets) {
-        if (TERMINAL_ROUTE_TARGETS.has(t)) {
-          terminalReaching.add(sid);
-          break;
-        }
-      }
-    }
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const [sid, targets] of adjacency) {
-        if (terminalReaching.has(sid))
-          continue;
-        for (const t of targets) {
-          if (terminalReaching.has(t)) {
-            terminalReaching.add(sid);
-            changed = true;
-            break;
-          }
-        }
-      }
-    }
-    for (let i = 0; i < wf.steps.length; i++) {
-      const step = wf.steps[i];
-      if (step === void 0)
-        continue;
-      if (!terminalReaching.has(step.id)) {
-        issueAt2(ctx, ["steps", i], `WF-I8: step '${step.id}' cannot reach any terminal route target (@complete/@stop/@escalate/@handoff) through its routes graph \u2014 run bootstrapped from this step (or routed here) could never emit run.closed`);
-      }
-    }
-    const stepsById = new Map(wf.steps.map((step) => [step.id, step]));
-    for (let i = 0; i < wf.steps.length; i++) {
-      const step = wf.steps[i];
-      if (step === void 0)
-        continue;
-      const startId = step.id;
-      const seen = /* @__PURE__ */ new Set();
-      let cur = startId;
-      while (cur !== void 0) {
-        if (seen.has(cur)) {
-          issueAt2(ctx, ["steps", i, "routes", RUNTIME_SUCCESS_ROUTE], `WF-I11: step '${startId}' cannot reach a terminal by following only routes.${RUNTIME_SUCCESS_ROUTE} \u2014 ${RUNTIME_SUCCESS_ROUTE} chain cycles at '${cur}'`);
-          break;
-        }
-        seen.add(cur);
-        const curStep = stepsById.get(cur);
-        if (curStep === void 0)
-          break;
-        const passTarget = curStep.routes[RUNTIME_SUCCESS_ROUTE];
-        if (passTarget === void 0)
-          break;
-        if (TERMINAL_ROUTE_TARGETS.has(passTarget))
-          break;
-        cur = passTarget;
-      }
-    }
-    const reachableFromEntry = /* @__PURE__ */ new Set();
-    const queue = [wf.starts_at];
-    while (queue.length > 0) {
-      const cur = queue.shift();
-      if (cur === void 0)
-        continue;
-      if (reachableFromEntry.has(cur))
-        continue;
-      reachableFromEntry.add(cur);
-      const targets = adjacency.get(cur) ?? [];
-      for (const t of targets) {
-        if (TERMINAL_ROUTE_TARGETS.has(t))
-          continue;
-        if (stepIds.has(t))
-          queue.push(t);
-      }
-    }
-    for (let i = 0; i < wf.steps.length; i++) {
-      const step = wf.steps[i];
-      if (step === void 0)
-        continue;
-      if (!reachableFromEntry.has(step.id)) {
-        issueAt2(ctx, ["steps", i], `WF-I9: step '${step.id}' is not reachable from starts_at via the routes graph \u2014 declared but dead`);
-      }
-    }
-  }
-});
-var CompiledFlow = CompiledFlowStrict;
-
-// dist/policy/flow-kind-policy.js
-function humanizeZodIssueMessage(message) {
-  return message.replace(/, received undefined/g, " (missing)").replace(/\breceived undefined\b/g, "missing");
-}
-function validateCompiledFlowKindPolicyWithTable(flow, table) {
-  const parsed = CompiledFlow.safeParse(flow);
-  if (!parsed.success) {
-    const issueSummary = parsed.error.issues.slice(0, 5).map((i) => `  ${i.path.join(".") || "<root>"}: ${humanizeZodIssueMessage(i.message)}`).join("\n");
-    const more = parsed.error.issues.length > 5 ? `
-  ... +${parsed.error.issues.length - 5} more` : "";
-    return {
-      ok: false,
-      reason: `CompiledFlow.safeParse failed:
-${issueSummary}${more}`
-    };
-  }
-  const policyResult = checkCompiledFlowKindCanonicalPolicyWithTable(parsed.data, table);
-  if (policyResult.kind === "red") {
-    return {
-      ok: false,
-      reason: `flow-kind canonical policy violation: ${policyResult.detail}`
-    };
-  }
-  return {
-    ok: true,
-    kind: policyResult.kind,
-    detail: policyResult.detail
-  };
-}
-
-// dist/shared/html/index.js
-var HTML_PROJECTORS = /* @__PURE__ */ new Map();
-function registerHtmlProjector(flowId, projector) {
-  HTML_PROJECTORS.set(flowId, projector);
-}
-function getHtmlProjector(flowId) {
-  return HTML_PROJECTORS.get(flowId);
-}
-
-// dist/schemas/routing-contract-schemas.js
-var TaskIntakeShape = external_exports.object({
-  // The user's goal, preserved through normalization (the block check
-  // requires the normalized task to preserve the goal).
-  normalized_goal: external_exports.string().min(1),
-  // The flow the operator explicitly asked for, when they named one.
-  requested_flow: external_exports.string().min(1).optional(),
-  // Immediate operator constraints carried into the flow (may be empty).
-  constraints: external_exports.array(external_exports.string().min(1))
-}).strict();
-var RouteDecisionShape = external_exports.object({
-  // The chosen flow id, or null when the router stopped instead of routing.
-  selected_flow: external_exports.string().min(1).nullable(),
-  // Why this flow was chosen (or why the router stopped).
-  selection_reason: external_exports.string().min(1),
-  // Why the router stayed conservative, when it fell back to a safer choice.
-  fallback_reason: external_exports.string().min(1).optional()
-}).strict();
-var FlowCatalogShape = external_exports.object({
-  flows: external_exports.array(external_exports.object({
-    id: external_exports.string().min(1),
-    title: external_exports.string().min(1),
-    purpose: external_exports.string().min(1)
-  }).strict()).min(1)
-}).strict();
-var BUILTIN_ROUTING_CONTRACT_SCHEMAS = Object.freeze({
-  "task.intake@v1": TaskIntakeShape,
-  "route.decision@v1": RouteDecisionShape,
-  "flow.catalog@v1": FlowCatalogShape
-});
-
-// dist/flows/catalog-derivations.js
-function collectBuilderRegistry(packages, slot2, pluck) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const pkg of packages) {
-    for (const builder of pluck(pkg)) {
-      if (map2.has(builder.resultSchemaName)) {
-        throw new Error(`duplicate ${slot2} builder registered for schema '${builder.resultSchemaName}' (flow ${pkg.id})`);
-      }
-      map2.set(builder.resultSchemaName, builder);
-    }
-  }
-  return map2;
-}
-function buildComposeRegistry(packages) {
-  return collectBuilderRegistry(packages, "compose", (pkg) => pkg.writers.compose);
-}
-function buildCloseRegistry(packages) {
-  return collectBuilderRegistry(packages, "close", (pkg) => pkg.writers.close);
-}
-function buildVerificationRegistry(packages) {
-  return collectBuilderRegistry(packages, "verification", (pkg) => pkg.writers.verification);
-}
-function buildCheckpointRegistry(packages) {
-  return collectBuilderRegistry(packages, "checkpoint", (pkg) => pkg.writers.checkpoint);
-}
-function buildReportSchemaRegistry(packages, options) {
-  const out = { ...options.fixtures ?? {} };
-  const register = (schemaName, schema, flowId) => {
-    if (Object.hasOwn(out, schemaName)) {
-      throw new Error(`duplicate report schema '${schemaName}' registered (flow ${flowId})`);
-    }
-    out[schemaName] = schema;
-  };
-  for (const pkg of packages) {
-    for (const report of pkg.relayReports) {
-      register(report.schemaName, report.schema, pkg.id);
-    }
-    if (options.channels === "relay+report") {
-      for (const report of pkg.reportSchemas ?? []) {
-        register(report.schemaName, report.schema, pkg.id);
-      }
-    }
-  }
-  return Object.freeze(out);
-}
-function buildSchemaHintMap(packages) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const pkg of packages) {
-    for (const report of pkg.relayReports) {
-      if (report.relayHint === void 0)
-        continue;
-      if (map2.has(report.schemaName)) {
-        throw new Error(`duplicate shape hint registered for schema '${report.schemaName}' (flow ${pkg.id})`);
-      }
-      map2.set(report.schemaName, report.relayHint);
-    }
-  }
-  return map2;
-}
-function buildCrossReportValidatorRegistry(packages) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const pkg of packages) {
-    for (const report of pkg.relayReports) {
-      if (report.crossReportValidate === void 0)
-        continue;
-      if (map2.has(report.schemaName)) {
-        throw new Error(`duplicate cross-report validator registered for schema '${report.schemaName}' (flow ${pkg.id})`);
-      }
-      map2.set(report.schemaName, report.crossReportValidate);
-    }
-  }
-  return map2;
-}
-function buildStructuralHintList(packages) {
-  const list = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const pkg of packages) {
-    if (pkg.structuralHints === void 0)
-      continue;
-    for (const hint of pkg.structuralHints) {
-      if (seen.has(hint.id)) {
-        throw new Error(`duplicate structural shape hint id '${hint.id}' (flow ${pkg.id})`);
-      }
-      seen.add(hint.id);
-      list.push(hint);
-    }
-  }
-  return list;
-}
-function buildRuntimeSurfaceRegistry(packages) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const pkg of packages) {
-    if (pkg.runtimeSurface === void 0)
-      continue;
-    if (map2.has(pkg.id)) {
-      throw new Error(`duplicate runtime surface registered for flow '${pkg.id}'`);
-    }
-    map2.set(pkg.id, pkg.runtimeSurface);
-  }
-  return map2;
-}
-function buildReportFileSurfaceRegistry(packages) {
-  const out = {};
-  for (const pkg of packages) {
-    for (const [schemaName, declaration] of Object.entries(pkg.reportFileSurfaces ?? {})) {
-      if (Object.hasOwn(out, schemaName)) {
-        throw new Error(`duplicate report file surface registered for schema '${schemaName}' (flow ${pkg.id})`);
-      }
-      out[schemaName] = declaration;
-    }
-  }
-  return Object.freeze(out);
-}
-function deriveFlowCatalog(sources) {
-  const flows = sources.filter((source) => source.visibility === "public").map((source) => ({
-    id: source.id,
-    title: source.schematic.title,
-    purpose: source.schematic.purpose
-  }));
-  return FlowCatalogShape.parse({ flows });
-}
-
-// dist/flows/report-declarations.js
-function projectFlowReportDeclarations(declarations) {
-  const relayReports = [];
-  const reportSchemas = [];
-  const compose = [];
-  const close = [];
-  const verification = [];
-  const checkpoint = [];
-  const reportFileSurfaces = {};
-  for (const declaration of declarations) {
-    if (declaration.channel === "relay") {
-      relayReports.push({
-        schemaName: declaration.schemaName,
-        schema: declaration.schema,
-        ...declaration.relayHint === void 0 ? {} : { relayHint: declaration.relayHint },
-        ...declaration.crossReportValidate === void 0 ? {} : { crossReportValidate: declaration.crossReportValidate }
-      });
-    } else {
-      reportSchemas.push({
-        schemaName: declaration.schemaName,
-        schema: declaration.schema
-      });
-    }
-    if (declaration.fileSurface !== void 0) {
-      reportFileSurfaces[declaration.schemaName] = declaration.fileSurface;
-    }
-    compose.push(...declaration.writers?.compose ?? []);
-    close.push(...declaration.writers?.close ?? []);
-    verification.push(...declaration.writers?.verification ?? []);
-    checkpoint.push(...declaration.writers?.checkpoint ?? []);
-  }
-  return {
-    relayReports,
-    reportSchemas,
-    reportFileSurfaces,
-    writers: {
-      compose,
-      close,
-      verification,
-      checkpoint
-    }
-  };
-}
-
-// dist/flows/flow-definition.js
-function defaultSchematicPath(flowId) {
-  return `src/flows/${flowId}/schematic.json`;
-}
-function defineFlow(definition) {
-  const schematic = FlowSchematic.parse(definition.schematic);
-  if (definition.id !== schematic.id) {
-    throw new Error(`flow definition id '${definition.id}' does not match schematic id '${schematic.id}'`);
-  }
-  return {
-    ...definition,
-    paths: definition.paths ?? {},
-    schematic
-  };
-}
-function defineFlowDataValue(data) {
-  const reportErrors = validateFlowDataReports({
-    reports: data.reports ?? [],
-    writerSchemaAliases: data.reportWriterSchemaAliases ?? []
-  });
-  if (reportErrors.length > 0)
-    return { ok: false, errors: reportErrors };
-  try {
-    return { ok: true, value: defineFlow(flowDefinitionInputFromData(data)) };
-  } catch (error51) {
-    return {
-      ok: false,
-      errors: [{ kind: "flow-data-parse-error", message: errorMessage(error51) }]
-    };
-  }
-}
-function defineFlowData(data) {
-  const result = defineFlowDataValue(data);
-  if (result.ok)
-    return result.value;
-  throw new Error(result.errors.map(describeDefineFlowDataError).join("\n"));
-}
-function flowDefinitionInputFromData(data) {
-  const { reports, reportWriterSchemaAliases: _reportWriterSchemaAliases, ...definition } = data;
-  const reportProjection = reports === void 0 ? void 0 : projectFlowReportDeclarations(reports);
-  return {
-    ...definition,
-    ...reports === void 0 ? {} : {
-      reportDeclarations: reports,
-      relayReports: definition.relayReports ?? reportProjection?.relayReports ?? [],
-      reportSchemas: definition.reportSchemas ?? reportProjection?.reportSchemas ?? [],
-      writers: definition.writers ?? reportProjection?.writers ?? {}
-    }
-  };
-}
-function validateFlowDataReports(input) {
-  const errors = [];
-  const writerSchemaAliases = new Set(input.writerSchemaAliases);
-  const reports = input.reports;
-  for (const schemaName of duplicateValues(reports.map((report) => report.schemaName))) {
-    errors.push({ kind: "duplicate-flow-data-report", schemaName });
-  }
-  for (const report of reports) {
-    for (const slot2 of ["compose", "close", "verification", "checkpoint"]) {
-      for (const writer of report.writers?.[slot2] ?? []) {
-        if (writer.resultSchemaName !== report.schemaName && !writerSchemaAliases.has(writer.resultSchemaName)) {
-          errors.push({
-            kind: "flow-data-report-writer-drift",
-            schemaName: report.schemaName,
-            slot: slot2,
-            resultSchemaName: writer.resultSchemaName
-          });
-        }
-      }
-    }
-  }
-  return errors;
-}
-function describeDefineFlowDataError(error51) {
-  if (error51.kind === "flow-data-parse-error")
-    return error51.message;
-  if (error51.kind === "duplicate-flow-data-report") {
-    return `duplicate FlowData report schema '${error51.schemaName}'`;
-  }
-  return `FlowData report '${error51.schemaName}' binds ${error51.slot} writer for '${error51.resultSchemaName}'`;
-}
-function duplicateValues(values) {
-  const seen = /* @__PURE__ */ new Set();
-  const duplicates = /* @__PURE__ */ new Set();
-  for (const value of values) {
-    if (seen.has(value))
-      duplicates.add(value);
-    seen.add(value);
-  }
-  return [...duplicates];
-}
-function errorMessage(error51) {
-  return error51 instanceof Error ? error51.message : String(error51);
-}
-function compilePaths(definition) {
-  const paths = {
-    schematic: definition.paths.schematic ?? defaultSchematicPath(definition.id)
-  };
-  if (definition.paths.command !== void 0) {
-    return definition.paths.contract === void 0 ? { ...paths, command: definition.paths.command } : { ...paths, command: definition.paths.command, contract: definition.paths.contract };
-  }
-  return definition.paths.contract === void 0 ? paths : { ...paths, contract: definition.paths.contract };
-}
-function validateProgressSurface(definition, progress) {
-  if (progress === void 0)
-    return;
-  const itemIds = new Set(definition.schematic.items.map((item) => item.id));
-  const seen = /* @__PURE__ */ new Set();
-  for (const [index, step] of progress.steps.entries()) {
-    if (seen.has(step.stepId)) {
-      throw new Error(`flow definition '${definition.id}' declares duplicate progress step '${step.stepId}'`);
-    }
-    seen.add(step.stepId);
-    if (!itemIds.has(step.stepId)) {
-      throw new Error(`flow definition '${definition.id}' progress step '${step.stepId}' is not a schematic item`);
-    }
-    if (step.taskTitle.length === 0 || step.activeText.length === 0) {
-      throw new Error(`flow definition '${definition.id}' progress step ${index} must declare operator text`);
-    }
-  }
-}
-function compileRuntimeSurface(definition) {
-  const runtimeSurface = definition.runtimeSurface;
-  if (runtimeSurface === void 0)
-    return void 0;
-  validateProgressSurface(definition, runtimeSurface.progress);
-  return {
-    ...runtimeSurface.primaryResult === void 0 ? {} : { primaryResult: runtimeSurface.primaryResult },
-    ...runtimeSurface.progress === void 0 ? {} : { progress: runtimeSurface.progress }
-  };
-}
-function projectDefinitionReportSurfaces(definition) {
-  const reportProjection = definition.reportDeclarations === void 0 ? void 0 : projectFlowReportDeclarations(definition.reportDeclarations);
-  return {
-    relayReports: definition.relayReports ?? reportProjection?.relayReports ?? [],
-    ...definition.reportSchemas !== void 0 ? { reportSchemas: definition.reportSchemas } : reportProjection?.reportSchemas === void 0 ? {} : { reportSchemas: reportProjection.reportSchemas },
-    ...reportProjection === void 0 || Object.keys(reportProjection.reportFileSurfaces).length === 0 ? {} : { reportFileSurfaces: reportProjection.reportFileSurfaces },
-    writers: definition.writers ?? reportProjection?.writers ?? {}
-  };
-}
-function compileFlowDefinition(definition) {
-  const runtimeSurface = compileRuntimeSurface(definition);
-  const reportSurfaces = projectDefinitionReportSurfaces(definition);
-  return {
-    id: definition.id,
-    visibility: definition.visibility,
-    paths: compilePaths(definition),
-    relayReports: reportSurfaces.relayReports,
-    ...reportSurfaces.reportSchemas === void 0 ? {} : { reportSchemas: reportSurfaces.reportSchemas },
-    ...reportSurfaces.reportFileSurfaces === void 0 ? {} : { reportFileSurfaces: reportSurfaces.reportFileSurfaces },
-    writers: {
-      compose: reportSurfaces.writers.compose ?? [],
-      close: reportSurfaces.writers.close ?? [],
-      verification: reportSurfaces.writers.verification ?? [],
-      checkpoint: reportSurfaces.writers.checkpoint ?? []
-    },
-    ...definition.structuralHints === void 0 ? {} : { structuralHints: definition.structuralHints },
-    ...runtimeSurface === void 0 ? {} : { runtimeSurface },
-    ...definition.engineFlags === void 0 ? {} : { engineFlags: definition.engineFlags },
-    ...definition.requiredConfig === void 0 ? {} : { requiredConfig: definition.requiredConfig }
-  };
-}
-function validatePackageSet(packages) {
-  const ids = /* @__PURE__ */ new Set();
-  const reportNames = /* @__PURE__ */ new Map();
-  const writerNames = /* @__PURE__ */ new Map();
-  for (const pkg of packages) {
-    if (ids.has(pkg.id)) {
-      throw new Error(`duplicate flow definition id '${pkg.id}'`);
-    }
-    ids.add(pkg.id);
-    for (const report of [...pkg.relayReports, ...pkg.reportSchemas ?? []]) {
-      const owner = reportNames.get(report.schemaName);
-      if (owner !== void 0) {
-        throw new Error(`duplicate report schema '${report.schemaName}' registered by '${owner}' and '${pkg.id}'`);
-      }
-      reportNames.set(report.schemaName, pkg.id);
-    }
-    const knownPackageReports = /* @__PURE__ */ new Set([
-      ...pkg.relayReports.map((report) => report.schemaName),
-      ...(pkg.reportSchemas ?? []).map((report) => report.schemaName)
-    ]);
-    for (const schemaName of Object.keys(pkg.reportFileSurfaces ?? {})) {
-      if (!knownPackageReports.has(schemaName)) {
-        throw new Error(`report file surface '${schemaName}' is not registered as a report schema for flow '${pkg.id}'`);
-      }
-    }
-    for (const [slot2, builders] of Object.entries(pkg.writers)) {
-      for (const builder of builders) {
-        const owner = writerNames.get(builder.resultSchemaName);
-        if (owner !== void 0) {
-          throw new Error(`duplicate writer result schema '${builder.resultSchemaName}' registered by ${owner} and ${pkg.id}.${slot2}`);
-        }
-        writerNames.set(builder.resultSchemaName, `${pkg.id}.${slot2}`);
-      }
-    }
-  }
-}
-function assertCatalogInvariants(packages) {
-  validatePackageSet(packages);
-  buildComposeRegistry(packages);
-  buildCloseRegistry(packages);
-  buildVerificationRegistry(packages);
-  buildCheckpointRegistry(packages);
-  buildReportSchemaRegistry(packages, { channels: "relay+report" });
-  buildSchemaHintMap(packages);
-  buildStructuralHintList(packages);
-  buildCrossReportValidatorRegistry(packages);
-  buildRuntimeSurfaceRegistry(packages);
-  buildReportFileSurfaceRegistry(packages);
-}
-function compileFlowDefinitions(definitions) {
-  const packages = definitions.map(compileFlowDefinition);
-  assertCatalogInvariants(packages);
-  return packages;
-}
 
 // dist/flows/registries/shape-hints/from-zod.js
 function defOf(node) {
@@ -46056,6 +46056,49 @@ function compileSchematicToCompiledFlow(schematic) {
   return { kind: "per-mode", flows };
 }
 
+// dist/flows/compiled-flow-file-plan.js
+function graphIdentityHash(flow) {
+  return JSON.stringify(flow);
+}
+function planCompiledFlowFiles(result) {
+  if (result.kind === "single") {
+    return [{ filename: "circuit.json", flow: result.flow }];
+  }
+  const groups = /* @__PURE__ */ new Map();
+  for (const [modeName, flow] of result.flows) {
+    const hash2 = graphIdentityHash(flow);
+    const existing = groups.get(hash2);
+    if (existing === void 0) {
+      groups.set(hash2, { modes: [modeName], flow });
+    } else {
+      existing.modes.push(modeName);
+    }
+  }
+  const ordered = [...groups.values()].sort((a, b) => {
+    if (b.modes.length !== a.modes.length)
+      return b.modes.length - a.modes.length;
+    return (a.modes[0] ?? "").localeCompare(b.modes[0] ?? "");
+  });
+  const plan = [];
+  const main2 = ordered[0];
+  if (main2 === void 0)
+    return plan;
+  plan.push({ filename: "circuit.json", flow: main2.flow });
+  for (let i = 1; i < ordered.length; i++) {
+    const group = ordered[i];
+    if (group === void 0)
+      continue;
+    for (const modeName of group.modes) {
+      const flow = result.flows.get(modeName);
+      if (flow === void 0) {
+        throw new Error(`compiler returned no flow for mode '${modeName}'`);
+      }
+      plan.push({ filename: `${modeName}.json`, flow });
+    }
+  }
+  return plan;
+}
+
 // dist/flows/resolvers/structure.js
 function resolveStructure(task, _prior = {}) {
   const reasons = [];
@@ -46134,6 +46177,291 @@ function applyStructure(seed, resolution) {
     id: `${seed.id}-whole`,
     items: foldToWhole(seed, WHOLE_FOLD_DROP_IDS),
     stagePathRationale: "Whole grain: analyze folds into act and review folds into close; one folded work spine."
+  };
+}
+
+// dist/flows/resolvers/archetype.js
+var clone3 = (value) => JSON.parse(JSON.stringify(value));
+var SEED_BY_FAMILY = {
+  build: buildAssemblySpec,
+  fix: fixAssemblySpec,
+  research: exploreAssemblySpec,
+  review: reviewAssemblySpec,
+  prototype: prototypeAssemblySpec
+};
+var FAMILY_RATIONALE = {
+  editorial: "Editorial shape: the task asks to explain or teach a concept, so the flow digests the subject, ideates and hardens explanations, then builds and verifies an interactive explainer.",
+  fix: "Fix shape: the task asks to repair broken behavior, so the flow reproduces and diagnoses first, captures a regression baseline, makes the change, then re-verifies.",
+  review: "Review shape: the task asks to audit existing work without changing it, so the flow intakes the scope, audits it, and writes a verdict \u2014 no implementation step.",
+  research: "Research shape: the task asks to investigate or compare options, so the flow analyzes the question and runs a decision tournament rather than committing to one build.",
+  prototype: "Prototype shape: the task asks for a throwaway visual exploration, so the flow plans and fans out variant directions for an operator to pick from.",
+  build: "Build shape: a general change with no fix/review/research/prototype/explain signal, so the flow uses the standard frame-plan-act-verify spine."
+};
+function describeArchetypeFamily(family) {
+  return FAMILY_RATIONALE[family];
+}
+function instantiateEditorial(slug, signals) {
+  const raw = clone3(explainerFlowData.schematic);
+  raw.id = slug;
+  raw.purpose = signals.summary;
+  return FlowSchematic.parse(raw);
+}
+function instantiateFromSeed(family, slug, signals) {
+  const seed = SEED_BY_FAMILY[family];
+  if (seed === void 0) {
+    throw new Error(`archetype family '${family}' has no seed spec`);
+  }
+  if (family === "build") {
+    const resolution = resolveStructure({
+      summary: signals.summary,
+      surface_area: signals.surface_area,
+      risk: signals.risk,
+      explicit_decompose: signals.explicit_decompose
+    });
+    const grained = applyStructure({ ...seed, id: slug, purpose: signals.summary }, resolution);
+    return {
+      schematic: assembleFlowSchematic({ ...grained, id: slug }),
+      composition: `grain:${resolution.choice}`
+    };
+  }
+  return {
+    schematic: assembleFlowSchematic({ ...clone3(seed), id: slug, purpose: signals.summary }),
+    composition: "instantiated"
+  };
+}
+function resolveArchetype(slug, signals) {
+  if (signals.family === "editorial") {
+    return {
+      family: "editorial",
+      schematic: instantiateEditorial(slug, signals),
+      rationale: FAMILY_RATIONALE.editorial,
+      composition: "instantiated",
+      signals_used: signals.signals_used
+    };
+  }
+  const { schematic, composition } = instantiateFromSeed(signals.family, slug, signals);
+  return {
+    family: signals.family,
+    schematic,
+    rationale: FAMILY_RATIONALE[signals.family],
+    composition,
+    signals_used: signals.signals_used
+  };
+}
+
+// dist/flows/resolvers/signals.js
+var FAMILY_CUES = [
+  {
+    family: "fix",
+    cues: [
+      "fix",
+      "bug",
+      "broken",
+      "crash",
+      "regression",
+      "failing",
+      "flaky",
+      "repro",
+      "defect",
+      "memory leak",
+      "race condition",
+      "deadlock",
+      "hang",
+      "doesn't work",
+      "does not work",
+      "not working",
+      "misbehav"
+    ]
+  },
+  {
+    family: "prototype",
+    cues: [
+      "prototype",
+      "mockup",
+      "mock up",
+      "mock-up",
+      "proof of concept",
+      "proof-of-concept",
+      "wireframe",
+      "visual direction",
+      "design exploration",
+      "experiment with the ui"
+    ]
+  },
+  {
+    family: "editorial",
+    cues: [
+      "explain",
+      "explanation",
+      "teach",
+      "tutorial",
+      "walkthrough",
+      "walk through",
+      "interactive explainer",
+      "explainer",
+      "demystif",
+      "intuition for",
+      "visualize how",
+      "illustrate how"
+    ]
+  },
+  {
+    family: "review",
+    cues: [
+      "review",
+      "audit",
+      "inspect",
+      "critique",
+      "assess",
+      "look over",
+      "go over the"
+    ]
+  },
+  {
+    family: "research",
+    cues: [
+      "research",
+      "investigat",
+      "explore",
+      "compar",
+      "evaluate option",
+      "options for",
+      "spike",
+      "analyze",
+      "analysis",
+      "figure out",
+      "trade-off",
+      "tradeoff"
+    ]
+  }
+];
+var LARGE_SURFACE_CUES = [
+  "migrat",
+  "across every",
+  "across all",
+  "across the",
+  "system-wide",
+  "systemwide",
+  "entire",
+  "rewrite",
+  "whole codebase",
+  "end-to-end",
+  "throughout",
+  "every service",
+  "all services"
+];
+var MEDIUM_SURFACE_CUES = [
+  "refactor",
+  "several",
+  "multiple",
+  "subsystem",
+  "integrat",
+  "overhaul"
+];
+var HIGH_RISK_CUES = [
+  "auth",
+  "security",
+  "password",
+  "credential",
+  "payment",
+  "billing",
+  "production",
+  "migrat",
+  "data loss",
+  "breaking change",
+  "encryption",
+  "secret",
+  "irreversible"
+];
+var MEDIUM_RISK_CUES = [
+  "database",
+  "schema",
+  "api",
+  "concurrency",
+  "race",
+  "performance",
+  "permission",
+  "access control"
+];
+var DOMAIN_CUES = [
+  ["auth", ["auth", "login", "password", "credential", "session"]],
+  ["billing", ["billing", "payment", "invoice", "subscription", "pricing"]],
+  ["data", ["database", "schema", "migration", "data model", "query"]],
+  ["api", ["api", "endpoint", "route handler", "rest", "graphql"]],
+  ["ui", ["ui", "page", "component", "button", "layout", "hero", "styling", "css"]],
+  ["docs", ["docs", "documentation", "readme", "release note", "tutorial"]],
+  ["perf", ["performance", "latency", "throughput", "slow", "optimize"]]
+];
+var cueMatchers = /* @__PURE__ */ new Map();
+function cueMatcher(cue) {
+  const cached2 = cueMatchers.get(cue);
+  if (cached2 !== void 0)
+    return cached2;
+  const escaped = cue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matcher = new RegExp(`\\b${escaped}`);
+  cueMatchers.set(cue, matcher);
+  return matcher;
+}
+function firstMatchingCue(haystack, cues) {
+  return cues.find((cue) => cueMatcher(cue).test(haystack));
+}
+function classifyFamily(text) {
+  for (const { family, cues } of FAMILY_CUES) {
+    const cue = firstMatchingCue(text, cues);
+    if (cue !== void 0)
+      return { family, cue };
+  }
+  return { family: "build", cue: void 0 };
+}
+function classifySurface(text) {
+  const large = firstMatchingCue(text, LARGE_SURFACE_CUES);
+  if (large !== void 0)
+    return { surface: "large", cue: large };
+  const medium = firstMatchingCue(text, MEDIUM_SURFACE_CUES);
+  if (medium !== void 0)
+    return { surface: "medium", cue: medium };
+  return { surface: "small", cue: void 0 };
+}
+function classifyRisk(text) {
+  const high = firstMatchingCue(text, HIGH_RISK_CUES);
+  if (high !== void 0)
+    return { risk: "high", cue: high };
+  const medium = firstMatchingCue(text, MEDIUM_RISK_CUES);
+  if (medium !== void 0)
+    return { risk: "medium", cue: medium };
+  return { risk: "low", cue: void 0 };
+}
+function classifyDomain(text) {
+  for (const [label, cues] of DOMAIN_CUES) {
+    if (firstMatchingCue(text, cues) !== void 0)
+      return label;
+  }
+  return null;
+}
+function extractAssemblySignals(description, options = {}) {
+  const text = ` ${description.toLowerCase().trim()} `;
+  const used = [];
+  const { family, cue: familyCue } = classifyFamily(text);
+  if (familyCue !== void 0)
+    used.push(`family:${family} (matched "${familyCue.trim()}")`);
+  const { surface, cue: surfaceCue } = classifySurface(text);
+  if (surfaceCue !== void 0) {
+    used.push(`surface:${surface} (matched "${surfaceCue.trim()}")`);
+  }
+  const { risk, cue: riskCue } = classifyRisk(text);
+  if (riskCue !== void 0)
+    used.push(`risk:${risk} (matched "${riskCue.trim()}")`);
+  const domain2 = classifyDomain(text);
+  if (domain2 !== null)
+    used.push(`domain:${domain2}`);
+  return {
+    summary: description,
+    surface_area: surface,
+    risk,
+    family,
+    domain: domain2,
+    explicit_decompose: options.explicit_decompose === true,
+    signals_used: used
   };
 }
 
@@ -46591,30 +46919,26 @@ function validateCustomFlow(slug, flow, source) {
     throw new Error(`${source} validation failed: ${policy2.reason}`);
   }
 }
-function structureTaskFromCreate(input) {
-  return {
-    summary: input.description,
-    surface_area: "small",
-    risk: "low",
-    ...input.decompose ? { explicit_decompose: true } : {}
-  };
+function mainFlowOf(files) {
+  const main2 = files.find((file2) => file2.filename === "circuit.json");
+  if (main2 === void 0)
+    throw new Error("custom flow package has no circuit.json");
+  return main2.flow;
 }
 function assembleCustomFlow(input) {
-  const seed = {
-    ...buildAssemblySpec,
-    id: input.slug,
-    purpose: input.description
-  };
-  const resolution = resolveStructure(structureTaskFromCreate({ description: input.description, decompose: input.decompose }));
-  const grained = applyStructure(seed, resolution);
-  const schematic = assembleFlowSchematic({ ...grained, id: input.slug });
-  const compiled = compileSchematicToCompiledFlow(schematic);
-  if (compiled.kind !== "single") {
-    throw new Error(`custom flow assembled to an unexpected '${compiled.kind}' package`);
+  const signals = extractAssemblySignals(input.description, {
+    explicit_decompose: input.decompose
+  });
+  const resolution = resolveArchetype(input.slug, signals);
+  const compiled = compileSchematicToCompiledFlow(resolution.schematic);
+  const files = planCompiledFlowFiles(compiled).map((file2) => ({
+    filename: file2.filename,
+    flow: CompiledFlow.parse(file2.flow)
+  }));
+  for (const { filename, flow } of files) {
+    validateCustomFlow(input.slug, flow, `custom flow (${filename})`);
   }
-  const parsed = CompiledFlow.parse(compiled.flow);
-  validateCustomFlow(input.slug, parsed, "custom flow");
-  return parsed;
+  return { files, resolution };
 }
 function skillMarkdown(slug, description, home) {
   return [
@@ -46710,8 +47034,26 @@ function writeValidationResult(input) {
     schema_version: 1,
     status: "valid",
     validated_flow_id: input.flow.id,
-    source: input.source
+    source: input.source,
+    // The compiled-flow files this package owns ([circuit.json, <mode>.json...]).
+    // publish-from-draft copies and re-validates exactly this set.
+    flow_files: input.files.map((file2) => file2.filename),
+    archetype: input.archetype.family,
+    composition: input.archetype.composition,
+    signals_used: input.archetype.signals_used
   });
+}
+function readDraftMetadata(home, slug) {
+  const raw = JSON.parse(readFileSync26(join4(draftRoot(home, slug), "validation-result.json"), "utf8"));
+  const filenames = Array.isArray(raw.flow_files) && raw.flow_files.every((f) => typeof f === "string") ? raw.flow_files : ["circuit.json"];
+  return {
+    filenames,
+    archetype: {
+      family: typeof raw.archetype === "string" ? raw.archetype : "build",
+      composition: typeof raw.composition === "string" ? raw.composition : "instantiated",
+      signals_used: Array.isArray(raw.signals_used) ? raw.signals_used.filter((s) => typeof s === "string") : []
+    }
+  };
 }
 function writeDraft(input) {
   const root = draftRoot(input.home, input.slug);
@@ -46721,20 +47063,28 @@ function writeDraft(input) {
   validateCircuitYamlDescriptor(descriptor, join4(root, "circuit.yaml"), input.slug);
   writeText(join4(root, "SKILL.md"), skillMarkdown(input.slug, input.description, input.home));
   writeText(join4(root, "circuit.yaml"), descriptor);
-  writeJson(join4(root, "circuit.json"), input.flow);
+  for (const { filename, flow } of input.files) {
+    writeJson(join4(root, filename), flow);
+  }
   writeText(join4(root, "command.md"), commandMarkdown(input.slug, input.description, input.home));
   writeValidationResult({
     home: input.home,
     slug: input.slug,
-    flow: input.flow,
-    source: "template"
+    flow: mainFlowOf(input.files),
+    source: "template",
+    files: input.files,
+    archetype: input.archetype
   });
 }
 function loadDraftFlow(home, slug) {
-  const path = join4(draftRoot(home, slug), "circuit.json");
-  const flow = CompiledFlow.parse(JSON.parse(readFileSync26(path, "utf8")));
-  validateCustomFlow(slug, flow, "custom flow draft");
-  return flow;
+  const { filenames } = readDraftMetadata(home, slug);
+  const files = filenames.map((filename) => {
+    const path = join4(draftRoot(home, slug), filename);
+    const flow = CompiledFlow.parse(JSON.parse(readFileSync26(path, "utf8")));
+    validateCustomFlow(slug, flow, `custom flow draft (${filename})`);
+    return { filename, flow };
+  });
+  return { files, mainFlow: mainFlowOf(files) };
 }
 function publishDraft(input) {
   const draft = draftRoot(input.home, input.slug);
@@ -46743,18 +47093,22 @@ function publishDraft(input) {
   }
   const descriptor = readFileSync26(join4(draft, "circuit.yaml"), "utf8");
   validateCircuitYamlDescriptor(descriptor, join4(draft, "circuit.yaml"), input.slug);
+  const { filenames } = readDraftMetadata(input.home, input.slug);
   const skillRoot = publishedRoot(input.home, input.slug);
   const customFlowRoot = join4(flowRoot(input.home), input.slug);
   mkdirSync(skillRoot, { recursive: true });
   mkdirSync(customFlowRoot, { recursive: true });
   writeText(join4(skillRoot, "SKILL.md"), readFileSync26(join4(draft, "SKILL.md"), "utf8"));
   writeText(join4(skillRoot, "circuit.yaml"), descriptor);
-  writeText(join4(customFlowRoot, "circuit.json"), readFileSync26(join4(draft, "circuit.json"), "utf8"));
+  for (const filename of filenames) {
+    writeText(join4(customFlowRoot, filename), readFileSync26(join4(draft, filename), "utf8"));
+  }
   writeText(join4(commandRoot(input.home), `${input.slug}.md`), readFileSync26(join4(draft, "command.md"), "utf8"));
   publishManifest(input);
 }
 function summaryMarkdown(input) {
   const invocation = customFlowInvocation(input.slug, input.home);
+  const signalsLine = input.archetype.signals_used.length > 0 ? input.archetype.signals_used.map((s) => `- ${s}`) : ["- No specific cue fired; used the conservative build default."];
   return [
     "# Circuit Create",
     "",
@@ -46763,6 +47117,13 @@ function summaryMarkdown(input) {
     "",
     "## Purpose",
     input.description,
+    "",
+    "## Shape",
+    `This flow was generated with the **${input.archetype.family}** shape (${input.archetype.composition}).`,
+    describeArchetypeFamily(input.archetype.family),
+    "",
+    "Signals read from the task:",
+    ...signalsLine,
     "",
     "## Validation",
     "The generated compiled flow parsed successfully and passed flow-kind policy validation.",
@@ -46819,18 +47180,45 @@ async function runCreateCommand(argv, options = {}) {
     }
     const createdAt = args.createdAt ?? now().toISOString();
     const draftExists = existsSync9(join4(draftRoot(home, slug), "circuit.json"));
-    const flow = args.publish && draftExists ? loadDraftFlow(home, slug) : assembleCustomFlow({ slug, description: args.description, decompose: args.decompose });
-    const outputDescription = args.publish && draftExists ? flow.purpose : args.description;
+    let files;
+    let mainFlow;
+    let archetype;
     if (args.publish && draftExists) {
-      writeValidationResult({ home, slug, flow, source: "draft" });
+      const loaded = loadDraftFlow(home, slug);
+      files = loaded.files;
+      mainFlow = loaded.mainFlow;
+      archetype = readDraftMetadata(home, slug).archetype;
     } else {
-      writeDraft({ home, slug, description: outputDescription, flow });
+      const assembled = assembleCustomFlow({
+        slug,
+        description: args.description,
+        decompose: args.decompose
+      });
+      files = assembled.files;
+      mainFlow = mainFlowOf(assembled.files);
+      archetype = {
+        family: assembled.resolution.family,
+        composition: assembled.resolution.composition,
+        signals_used: assembled.resolution.signals_used
+      };
+    }
+    const outputDescription = args.publish && draftExists ? mainFlow.purpose : args.description;
+    if (args.publish && draftExists) {
+      writeValidationResult({ home, slug, flow: mainFlow, source: "draft", files, archetype });
+    } else {
+      writeDraft({ home, slug, description: outputDescription, files, archetype });
     }
     const status = args.publish ? "published" : "draft_created";
     if (args.publish) {
       publishDraft({ home, slug, description: outputDescription, createdAt });
     }
-    const summary = summaryMarkdown({ slug, description: outputDescription, status, home });
+    const summary = summaryMarkdown({
+      slug,
+      description: outputDescription,
+      status,
+      home,
+      archetype
+    });
     writeText(summaryPath(home, slug), summary);
     const result = {
       schema_version: 1,

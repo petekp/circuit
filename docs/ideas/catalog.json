@@ -1327,6 +1327,45 @@
         "docs/ideas/north-star-status.md"
       ],
       "last_checked": "2026-06-17"
+    },
+    {
+      "path": "docs/ideas/dynamic-assembly-shape-check.md",
+      "title": "Dynamic assembly shape check - the gate that found circuit create task-blind",
+      "status": "design-evaluation",
+      "category": "flows-and-blocks",
+      "tags": ["flows", "assembler", "circuit-create", "shape", "gate"],
+      "current_reading": "Offline gate (experiments/flow-lab/dynamic-shape-check.ts) that measured the dynamic NL->flow path and found it task-BLIND: circuit create discards the task text, hardcodes surface_area:small/risk:low, and can emit only two shapes (build folded whole=5 steps, build full decomposed=9 steps). Every task became build with a different label; editorial-feature overlap vs the explainer reference was ~0. The bottleneck is the assembler's shape vocabulary, not context passing. This gate is the direct predecessor of the task-aware assembler rebuild.",
+      "related": [
+        "docs/ideas/assembler-rebuild-preregistration.md",
+        "docs/ideas/assembler-rebuild-run-report.md"
+      ],
+      "last_checked": "2026-06-18"
+    },
+    {
+      "path": "docs/ideas/assembler-rebuild-preregistration.md",
+      "title": "Pre-registration - task-aware assembler evaluation",
+      "status": "pre-implementation",
+      "category": "verification-and-evals",
+      "tags": ["assembler", "pre-registration", "eval", "decision-rule", "anti-fitting"],
+      "current_reading": "Pre-registered (committed before any eval data) task set, structural rubric, and numeric decision rule for evaluating a task-aware flow assembler. Locks 8 NL tasks spanning the archetype families plus a surface/risk pair, a per-family structural feature checklist scored offline over the compiled flow, a per-task PASS definition, and the VIABLE / PROMISING / RESEARCH-GRADE-NOT-READY classification thresholds (with a validity override and a live-failure downgrade). The scientific spine of the assembler rebuild run; no fitting the story to the data later.",
+      "related": [
+        "docs/ideas/dynamic-assembly-shape-check.md",
+        "docs/ideas/assembler-rebuild-run-report.md"
+      ],
+      "last_checked": "2026-06-18"
+    },
+    {
+      "path": "docs/ideas/assembler-rebuild-run-report.md",
+      "title": "Run report - task-aware assembler rebuild",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["assembler", "circuit-create", "run-report", "flows", "jit-workflow"],
+      "current_reading": "Living report for the task-aware assembler rebuild. Phase 1 (SHIP) DONE: signals.ts reads the task into assembly signals (word-boundary cue matching), archetype.ts picks an archetype family and instantiates a task-appropriate shape reusing a registered contract family, compiled-flow-file-plan.ts lays out per-mode packages, and create.ts is rewired task-aware; built-ins stay byte-identical (check-flow-drift) and the manifest stays identity-only (M9-C honored). Phase 2 (genuine-generation spike, never merged) and Phase 3 (offline breadth + live depth, then the pre-registered decision rule) PENDING. Verify the decision tier against this report once Phase 3 lands.",
+      "related": [
+        "docs/ideas/assembler-rebuild-preregistration.md",
+        "docs/ideas/dynamic-assembly-shape-check.md"
+      ],
+      "last_checked": "2026-06-18"
     }
   ]
 }

@@ -108,7 +108,8 @@ function detectEditorial(items: Schematic['items']): ShapeMetrics['editorial'] {
     // Ideation: the plan stage carries MORE than one authored step (build's plan
     // is a single compose; the explainer plan has 5). >=2 plan composes, or a
     // plan compose alongside a plan fanout/relay, signals real ideation.
-    ideateStep: planComposeCount >= 2 || (planComposeCount >= 1 && (tournamentFanout || planRelayCount > 0)),
+    ideateStep:
+      planComposeCount >= 2 || (planComposeCount >= 1 && (tournamentFanout || planRelayCount > 0)),
     tournamentFanout,
     // Hardening: a relay in the plan stage (adversarial pass over candidates).
     hardeningPass: planRelayCount > 0,
@@ -171,7 +172,13 @@ function shapeMetricsOf(schematic: Schematic): ShapeMetrics {
 function generateDynamicFlow(
   task: string,
   decompose: boolean,
-): { schematic: Schematic; compiledJson: string; compileOk: boolean; compileError?: string; primaryResultBound: boolean } {
+): {
+  schematic: Schematic;
+  compiledJson: string;
+  compileOk: boolean;
+  compileError?: string;
+  primaryResultBound: boolean;
+} {
   const seed: FlowSchematicAssemblySpec = {
     ...buildAssemblySpec,
     id: 'explainer-dynamic',
@@ -201,8 +208,8 @@ function generateDynamicFlow(
     const flow = compiled.flow;
     const json = JSON.stringify(flow);
     const primaryResultBound =
-      (flow as { runtime_surface?: { primary_result?: unknown } }).runtime_surface?.primary_result !==
-      undefined;
+      (flow as { runtime_surface?: { primary_result?: unknown } }).runtime_surface
+        ?.primary_result !== undefined;
     return { schematic, compiledJson: json, compileOk: true, primaryResultBound };
   } catch (err) {
     return {
@@ -221,7 +228,11 @@ function hash(s: string): string {
 
 function scoreSchematic(schematic: Schematic) {
   const issues = collectFlowQualityIssues(schematic);
-  return { issueCount: issues.length, tally: tallyByClass(issues), issues: issues.map((i) => i.key) };
+  return {
+    issueCount: issues.length,
+    tally: tallyByClass(issues),
+    issues: issues.map((i) => i.key),
+  };
 }
 
 // Canonical-stage Jaccard (the trivial engine-skeleton overlap) and editorial
@@ -235,8 +246,12 @@ function overlap(a: ShapeMetrics, ref: ShapeMetrics) {
   const editorialOverlap =
     ref.editorialScore === 0
       ? 0
-      : EDITORIAL_KEYS.filter((k) => a.editorial[k] && ref.editorial[k]).length / ref.editorialScore;
-  return { stageJaccard: Number(stageJaccard.toFixed(3)), editorialOverlap: Number(editorialOverlap.toFixed(3)) };
+      : EDITORIAL_KEYS.filter((k) => a.editorial[k] && ref.editorial[k]).length /
+        ref.editorialScore;
+  return {
+    stageJaccard: Number(stageJaccard.toFixed(3)),
+    editorialOverlap: Number(editorialOverlap.toFixed(3)),
+  };
 }
 
 function main(): void {
@@ -254,8 +269,10 @@ function main(): void {
   const wholeHashes = wholeDraws.map((d) => hash(d.compiledJson));
   const distinctWholeHashes = new Set(wholeHashes);
 
-  const wholeMetrics = shapeMetricsOf(wholeDraws[0]!.schematic);
-  const wholeScore = scoreSchematic(wholeDraws[0]!.schematic);
+  const firstWhole = wholeDraws[0];
+  if (firstWhole === undefined) throw new Error('expected at least one whole draw');
+  const wholeMetrics = shapeMetricsOf(firstWhole.schematic);
+  const wholeScore = scoreSchematic(firstWhole.schematic);
   const decMetrics = shapeMetricsOf(decomposed.schematic);
   const decScore = scoreSchematic(decomposed.schematic);
 
@@ -276,7 +293,7 @@ function main(): void {
         deterministic: distinctWholeHashes.size === 1,
         compiled_hash: wholeHashes[0],
         compile_ok: wholeDraws.every((d) => d.compileOk),
-        primary_result_bound: wholeDraws[0]!.primaryResultBound,
+        primary_result_bound: firstWhole.primaryResultBound,
         metrics: wholeMetrics,
         quality: wholeScore,
         overlap_vs_reference: overlap(wholeMetrics, refMetrics),
