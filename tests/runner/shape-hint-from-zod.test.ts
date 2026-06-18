@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
+import { BuildImplementation } from '../../src/flows/build/reports.js';
 import { FixChange, FixContext, FixDiagnosis, FixReview } from '../../src/flows/fix/reports.js';
 import { renderShapeSkeleton } from '../../src/flows/registries/shape-hints/from-zod.js';
 
@@ -50,6 +51,63 @@ describe('renderShapeSkeleton', () => {
       items: z.array(z.object({ id: z.string() })),
     });
     expect(renderShapeSkeleton(schema)).toBe('{ "items": [{ "id": "<string>" }] }');
+  });
+
+  // The leaf renderer folds a leaf's .describe() into its placeholder, but an
+  // OBJECT- or ARRAY-level .describe() (like the context_request pull channel's
+  // "when to ask" guidance) was silently dropped. It now renders as a leading
+  // `<...>` annotation — the same not-literal marker the leaf placeholders use —
+  // so the worker sees the guidance, not just the bare shape.
+  it('renders an object-level .describe() as a leading annotation', () => {
+    const schema = z.object({
+      payload: z.object({ id: z.string() }).describe('only when you really need it'),
+    });
+    expect(renderShapeSkeleton(schema)).toBe(
+      '{ "payload": <only when you really need it> { "id": "<string>" } }',
+    );
+  });
+
+  it('renders an array-level .describe() as a leading annotation', () => {
+    const schema = z.object({
+      items: z.array(z.string()).describe('the named things, one each'),
+    });
+    expect(renderShapeSkeleton(schema)).toBe(
+      '{ "items": <the named things, one each> ["<string>"] }',
+    );
+  });
+
+  // The describe is commonly attached to a wrapper (.optional()/.default()), as
+  // build.implementation's context_request is (ContextRequest.optional().describe()).
+  // The annotation must surface through the transparent wrapper, once, not twice.
+  it('surfaces a non-leaf describe carried on an optional wrapper', () => {
+    const schema = z.object({
+      maybe: z.object({ x: z.string() }).optional().describe('present only sometimes'),
+    });
+    expect(renderShapeSkeleton(schema)).toBe(
+      '{ "maybe": <present only sometimes> { "x": "<string>" } }',
+    );
+  });
+
+  // Byte-identical when no object/array-level describe is present: a leaf's own
+  // describe is NOT double-rendered as an annotation, and a describe-less shape
+  // is untouched.
+  it('does not annotate a leaf field that carries its own describe', () => {
+    const schema = z.object({
+      ref: z.string().describe('project-relative path'),
+      nested: z.object({ id: z.string() }),
+    });
+    expect(renderShapeSkeleton(schema)).toBe(
+      '{ "ref": "<project-relative path>", "nested": { "id": "<string>" } }',
+    );
+  });
+
+  // The real motivating case: the context_request affordance on build.implementation
+  // now reaches the worker through the rendered skeleton.
+  it('surfaces the context_request affordance text in build.implementation', () => {
+    const out = renderShapeSkeleton(BuildImplementation);
+    expect(out).toContain('"context_request":');
+    expect(out).toContain('ONLY when the thin envelope this step was handed is missing');
+    expect(out).toContain('an "everything"/untyped ask is refused');
   });
 
   it('renders fix.context@v1 with the same fields as the hand-written hint', () => {

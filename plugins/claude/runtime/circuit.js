@@ -30289,13 +30289,54 @@ function escapeJsonInner(value) {
   const serialized = JSON.stringify(value);
   return serialized.slice(1, serialized.length - 1);
 }
-function leafDescriptionOr(node, fallback) {
+function carriedDescription(node) {
   const nodeDescription = node.description;
-  const description = typeof nodeDescription === "string" && nodeDescription.length > 0 ? nodeDescription : defOf(node).description;
-  if (typeof description === "string" && description.length > 0) {
+  if (typeof nodeDescription === "string" && nodeDescription.length > 0) {
+    return nodeDescription;
+  }
+  const defDescription = defOf(node).description;
+  if (typeof defDescription === "string" && defDescription.length > 0) {
+    return defDescription;
+  }
+  return void 0;
+}
+function leafDescriptionOr(node, fallback) {
+  const description = carriedDescription(node);
+  if (description !== void 0) {
     return `"<${escapeJsonInner(description)}>"`;
   }
   return fallback;
+}
+var NON_LEAF_BASE_TYPES = /* @__PURE__ */ new Set(["object", "array", "tuple", "record", "map"]);
+function annotatesAsNonLeaf(node) {
+  let current = node;
+  for (let depth = 0; depth <= MAX_RECURSION_DEPTH; depth += 1) {
+    const def = defOf(current);
+    switch (def.type) {
+      case "optional":
+      case "nullable":
+      case "default":
+      case "readonly":
+      case "catch":
+      case "nonoptional":
+      case "success":
+        current = def.innerType;
+        continue;
+      case "pipe":
+        current = def.in ?? def.out;
+        continue;
+      default:
+        return NON_LEAF_BASE_TYPES.has(def.type);
+    }
+  }
+  return false;
+}
+function withCarriedAnnotation(node, rendered) {
+  const description = carriedDescription(node);
+  if (description === void 0 || !annotatesAsNonLeaf(node)) {
+    return rendered;
+  }
+  return `<${description}> ${rendered}`;
 }
 var MAX_RECURSION_DEPTH = 32;
 function renderShapeSkeleton(schema) {
@@ -30344,7 +30385,8 @@ function renderNode(node, visited, depth) {
   }
   visited.add(node);
   try {
-    return renderNodeInner(node, visited, depth + 1);
+    const rendered = renderNodeInner(node, visited, depth + 1);
+    return withCarriedAnnotation(node, rendered);
   } finally {
     visited.delete(node);
   }
@@ -31123,6 +31165,7 @@ var buildImplementationShapeHint = {
     "The plan's anticipated_file_extensions (and the current slice's, when named) list the file types the grounding read expects to touch. Treat them as an advisory starting scope, not a hard limit: if the real change needs other file types, make the change and report the files you actually touched.",
     "The plan may also carry allowed_touch_area: the paths the grounding read predicted this change should reach. It is advisory to you, not a cage - implement what the slice and goal actually require and report every file you really changed. After you finish, the engine compares your git-proven changes against that area; reaching outside it does not fail the build but surfaces for a human to confirm, so do not pad the change with edits it does not need, and do not trim a necessary change just to stay inside the predicted box.",
     "Use an empty changed_files array only when no file changed. Evidence must contain at least one item.",
+    "When the thin envelope you were handed is missing a specific named slice of an upstream report you genuinely need to do the work, you may ask for it through context_request: name one parent step and one dotted field, and request only the slice you are truly missing - never reflexively, and never an everything ask. If the slice you need is not available to pull, say so honestly in your evidence and proceed on the context you have; do not invent what you could not read.",
     mechanicalTail("build.implementation@v1", "reports/build/implementation.json")
   ].join(" ")
 };
@@ -56813,6 +56856,15 @@ function createContextDelivery() {
     }
   };
 }
+function seedContextDeliveryFromTrace(entries) {
+  const guard = createContextDelivery();
+  for (const entry of entries) {
+    if (entry.kind !== "run.context-delivery")
+      continue;
+    guard.claim(entry.step_id);
+  }
+  return guard;
+}
 function decideContextDeliveryOutcome(retry) {
   switch (retry.kind) {
     case "errored":
@@ -65896,6 +65948,17 @@ async function resumeCompiledFlowResult(options) {
     // routing the degrade. The bindings derive from the flow's routes, so the
     // projection here yields the same list the top-level path projected.
     recoveryRouteBindings: workContractProjection.work_contract.recovery,
+    // Re-thread the typed-lookup context channel on resume, mirroring the
+    // top-level run path (compiled-flow-runner.ts). Without this the resumed
+    // graph carries no contextPuller, so a step that asks its parent for one
+    // more named slice after resume finds the channel dead and the request is
+    // silently dropped. The puller is a stateless factory (the budget is
+    // per-step), so threading it always is safe and matches the live default
+    // (resolve-and-record). Delivery is reseeded from the trace so a step that
+    // already delivered before the crash does not deliver twice and the per-run
+    // bound resumes where it left off; it stays opt-in via enableContextDelivery.
+    contextPuller: createContextPuller,
+    ...options.enableContextDelivery === true ? { contextDelivery: seedContextDeliveryFromTrace(entries) } : {},
     ...depth === void 0 ? {} : { depth },
     ...requestContext.axes === void 0 ? {} : { axes: requestContext.axes },
     ...options.now === void 0 ? {} : { now: options.now },

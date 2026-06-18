@@ -101,6 +101,22 @@ describe('relay shape-hint registry', () => {
     expect(review).toContain('scope_adherence');
   });
 
+  it('Build implementation hint tells a starved worker how and when to pull context', () => {
+    const implementation = findRelayShapeHint(relayStepWithSchema('build.implementation@v1'));
+
+    // The worker is told the typed pull channel exists by name...
+    expect(implementation).toContain('context_request');
+    // ...and to reach for it ONLY when genuinely starved, never reflexively.
+    expect(implementation).toContain('genuinely');
+    expect(implementation).toContain('never reflexively');
+    // ...naming one parent step and one dotted field, not an everything ask.
+    expect(implementation).toContain('one parent step');
+    expect(implementation).toContain('everything');
+    // ...and to refuse honestly rather than fabricate when the slice is unpullable.
+    expect(implementation).toContain('honestly');
+    expect(implementation).toContain('do not invent');
+  });
+
   it('Build context hint asks the researcher to capture guardrails', () => {
     const context = findRelayShapeHint(relayStepWithSchema('build.context@v1'));
     expect(context).toContain('guardrails');
