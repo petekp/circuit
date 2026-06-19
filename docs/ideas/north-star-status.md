@@ -28,7 +28,7 @@ See [`decision-layer-exploration.md`](decision-layer-exploration.md).
 
 | Scope | Status | Where it stands |
 |---|---|---|
-| **context** | ✅ Built (basic + live pull, opt-in) | Route-aware context availability shipped with the M-spine (primitive 3a). The richer idea — let a step **pull more context on demand** from its parents through a typed surface — is now ✅ **built live** (PRs #112–#115), opt-in behind `enableContextDelivery` (default OFF): a typed query channel (`src/runtime/run/context-pull.ts`), pull-then-retry delivery + resume reseed (`context-delivery.ts`), and the prompt affordance + worker guidance (`shape-hints/from-zod.ts`, `build/relay-hints.ts`). A real guided worker pulls the named slice it needs (narrowly, not reflexively) and refuses honestly when a fact is unpullable. The ~10x carried-byte payoff is **not yet realized** — today's Build plan inlines the narrow synthesis, so a genuine starve hits the bulky slice (≈1.3x), not the narrow one; pull is currently a **correct, safe, low-yield fail-safe channel**, not a routine byte-saver, and stays opt-in (see §4 and §7). [`context-pull-last-mile-report.md`](context-pull-last-mile-report.md), [`on-demand-context-pull.md`](on-demand-context-pull.md). |
+| **context** | ✅ Built (basic + live pull, opt-in) | Route-aware context availability shipped with the M-spine (primitive 3a). The richer idea — let a step **pull more context on demand** from its parents through a typed surface — is now ✅ **built live** (PRs #112–#115), opt-in behind `enableContextDelivery` (default OFF): a typed query channel (`src/runtime/run/context-pull.ts`), pull-then-retry delivery + resume reseed (`context-delivery.ts`), and the prompt affordance + worker guidance (`shape-hints/from-zod.ts`, `build/relay-hints.ts`). A real guided worker pulls the named slice it needs (narrowly, not reflexively) and refuses honestly when a fact is unpullable. PR #116 then **thinned the Build plan** (when delivery is active it names the literal pull path instead of inlining the full synthesis; byte-identical when off/at deep depth) and **lifted the corridor skip** (head-step pulls inside a slice loop are now resolved-and-recorded, resume-safe). Measured: **quality holds** (10/10 thin workers correct, pull goes load-bearing only when the plan distillation is lossy), but plan thinning alone is **~3.9% in-flow** — the ~11x is the delivery channel's *selectivity*, not a whole-envelope shrink; the dominant fat (`checkpoint_packet`, ~31%) is the real next lever. Pull stays a **correct, safe, opt-in channel**; the recommendation is to ratify the mechanism, not default-ON (see §4 and §7). [`thin-envelope-unlock-report.md`](thin-envelope-unlock-report.md), [`context-pull-last-mile-report.md`](context-pull-last-mile-report.md), [`on-demand-context-pull.md`](on-demand-context-pull.md). |
 | **equipment** | ✅ Built | Two halves on `main`: the **tools** axis (declared + enforced per-step tools via `claude-code --tools`, with an honest downgrade, PR #89) and the **skills** axis (the `equipment` resolver chooses the kit, real house-style injection rides `skill_slots`, PRs #96/#97; the skill-slot ratchet dropped 15 → 1). The enforced-tools ratchet still has one increment left (`TOOL_SCOPE_GAP_BASELINE = 5`). Specs: [`e2-equipment-scope-spec.md`](e2-equipment-scope-spec.md), [`equipment-scope-build-brief.md`](equipment-scope-build-brief.md), report: [`equipment-scope-enforcement-report.md`](equipment-scope-enforcement-report.md). |
 | **model/effort** | ✅ Built (as a dial); 📋 not yet a resolver | The depth/power dial is real (`build --depth medium|high`, the power/model tier). It is **not yet a swappable resolver** — a `depth` resolver is one of the two candidate **third instances** that would earn the resolver abstraction. See [`depth-and-power.md`](depth-and-power.md). |
 | **structure** | ✅ Built | The `structure` resolver (`src/flows/resolvers/structure.ts`, PR #95) is thin-conservative: it leans to **whole** and chops to **decomposed** only on a clear signal (operator ask, large surface, or high risk). The grain experiment ran and returned **null** on its metric, so the conservative default holds (see §6). The whole-grain fold is now **runnable** for build-derived flows after the close-writer fold tolerance landed (PR #102): a folded flow with passing verification lands at `needs_attention` rather than aborting. |
@@ -156,14 +156,21 @@ reseed (`seedContextDeliveryFromTrace`), and the prompt affordance + conservativ
 worker guidance. A battle-test and a real-guided-worker confirmation showed a
 starving worker pulls the **one named slice** it needs, stays conservative when the
 envelope suffices, and refuses honestly when a fact is unpullable; the engine
-resolves the real model's request end-to-end. **It stays opt-in
-(`enableContextDelivery` default OFF) and is not yet ready to default ON**, for two
-reasons: (1) the ~10x payoff is **gated on a thinner envelope** — today's Build plan
-inlines the narrow synthesis, so real workers are rarely narrowly starved and the
-pulls that do arise save little (≈1.3x); (2) a known **corridor skip** silently drops
-the head-step's pulls at deep depth. The unlock is to thin the Build envelope (stop
-inlining the full `observations` synthesis so the narrow slice becomes the
-withheld-and-pulled thing) and lift the corridor skip, then revisit default-ON.
+resolves the real model's request end-to-end. The two blockers the last-mile report
+named are now **both built** (PR #116, opt-in, verify green): the Build plan **thins**
+when delivery is active (stops inlining the full `observations` synthesis and names
+the literal pull path instead, gated on a new `contextDeliveryActive` signal;
+byte-identical when off or at deep depth), and the **corridor skip is lifted** so a
+head-step pull inside an active slice loop is now resolved-and-recorded (legible,
+fail-safe, resume-safe). The measured result reframed the payoff honestly: **quality
+holds** (10/10 thin workers correct; pull goes load-bearing exactly when the plan
+distillation is lossy), but **plan thinning alone is ~3.9% in-flow**, not 10x — the
+~11x is the **delivery channel's selectivity** (a narrow pull vs a full push), not a
+whole-envelope shrink. The dominant remaining fat is the `checkpoint_packet` (~31% of
+the act-step envelope, which the implementer never reads); thinning **that** is the
+real next byte lever. **It stays opt-in (`enableContextDelivery` default OFF); the
+report's recommendation is to ratify the mechanism, NOT default-ON for byte reduction.**
+[`thin-envelope-unlock-report.md`](thin-envelope-unlock-report.md),
 [`context-pull-last-mile-report.md`](context-pull-last-mile-report.md),
 [`runtime-binding-battle-test-report.md`](runtime-binding-battle-test-report.md),
 [`on-demand-context-pull.md`](on-demand-context-pull.md).
@@ -225,9 +232,12 @@ interactive site, with two genuine operator forks (PICK, SIGN-OFF).
 the F2 reshape operator surface + the splice-seam spec (PR #108), the F1
 equipment-reshape resume reseed + the Phase 0 splice demonstrator (PRs #110, #111),
 the on-demand context-pull **live channel** (PRs #112–#115 — typed query channel,
-pull-then-retry delivery, real-guided-worker last-mile, opt-in/default-OFF), and the
-**task-aware assembler** (PR #117 — verdict VIABLE). All moved off the "next/in-flight"
-list below; the rows above carry the detail.
+pull-then-retry delivery, real-guided-worker last-mile, opt-in/default-OFF), the
+**task-aware assembler** (PR #117 — verdict VIABLE), the **per-mode runtime trust**
+gate (PR #119), and the **thin-envelope unlock** (PR #116 — thinned Build plan +
+lifted corridor skip; quality holds, payoff reframed as ~3.9% in-flow vs the delivery
+channel's selectivity, still opt-in). All moved off the "next/in-flight" list below;
+the rows above carry the detail.
 
 **Next (sequenced, low ambiguity):**
 
@@ -267,9 +277,15 @@ list below; the rows above carry the detail.
   intentional choices. Hold as a separate track.
   [`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md).
 - **Defaulting on-demand context-pull ON.** The live channel is built and opt-in
-  (`enableContextDelivery` default OFF). Defaulting ON waits on thinning the Build
-  envelope (so the high-value narrow pull actually arises) and lifting the corridor
-  skip; until then pull is a low-yield fail-safe, correctly kept opt-in.
+  (`enableContextDelivery` default OFF). The two prerequisites it used to wait on —
+  thinning the Build envelope and lifting the corridor skip — are now **both built**
+  (PR #116), and the measurement says quality holds. But defaulting ON still should
+  **not** be done for byte reduction: plan thinning alone is ~3.9% in-flow, and the
+  dominant fat (`checkpoint_packet`, ~31% of the act-step envelope, which the
+  implementer never reads) is untouched. The honest next move toward a real
+  whole-envelope win is to thin the `checkpoint_packet`, then revisit a default flip
+  with the two thinnings stacked. The mechanism is **ratifiable now**; the default
+  flip is not. [`thin-envelope-unlock-report.md`](thin-envelope-unlock-report.md).
 - **The resolver abstraction extraction** — earnable, but still waiting on a **third
   axis-resolver** (context or depth) to confirm the parameters. The new
   `signals`/`archetype` resolvers are a different layer (§1), not that third instance.
