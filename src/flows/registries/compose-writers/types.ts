@@ -48,6 +48,15 @@ export interface ComposeBuildContext {
   readonly evidencePolicy?: RuntimeEvidencePolicy;
   readonly selectionConfigLayers?: readonly LayeredConfigValue[];
   readonly connectorPlanner?: PrototypeVariantConnectorPlanner;
+  // True when this run's on-demand context-pull DELIVERY is active for the
+  // relays this writer feeds: delivery is opted in AND the consuming relay is not
+  // inside a delivery-blind slice corridor, so a step handed a thin envelope can
+  // pull a withheld named slice and have it delivered back. A compose writer may
+  // key its envelope thickness on this — under-provision (thin) when the relay
+  // can recover the rest on demand, provision fully (fat) otherwise. Absent /
+  // false on every run with delivery off (the default) and at deep depth, so a
+  // writer that reads it stays byte-identical to before this signal existed.
+  readonly contextDeliveryActive?: boolean;
   // Pre-resolved inputs from declared reads (or empty if no reads
   // declared). Builders narrow each via their own Zod schema.
   readonly inputs: Record<string, unknown | undefined>;

@@ -31,6 +31,10 @@ export interface RunValue {
   readonly axes?: RunContext['axes'];
   readonly activeStepAttempt?: number;
   readonly resumeCheckpoint?: RunContext['resumeCheckpoint'];
+  // Run-wide context-pull delivery signal, projected so a compose writer can read
+  // it via context.run. Absent on every run with delivery off (the default) and at
+  // deep depth, keeping the projected value byte-identical to before this signal.
+  readonly contextDeliveryActive?: boolean;
 }
 
 export interface ClockPort {
@@ -115,6 +119,9 @@ export function runValueFromContext(context: RunContext): RunValue {
     ...(context.resumeCheckpoint === undefined
       ? {}
       : { resumeCheckpoint: context.resumeCheckpoint }),
+    ...(context.contextDeliveryActive === undefined
+      ? {}
+      : { contextDeliveryActive: context.contextDeliveryActive }),
   };
 }
 

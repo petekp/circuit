@@ -39,3 +39,6 @@ coverage/
 # Context-pull last-mile capture scratch: the engine-built act-step prompts the
 # capture harness dumps for the real-worker probes. Regenerable, never a deliverable.
 /experiments/flow-lab/.capture/
+
+# thin-envelope quality-probe scratch (throwaway, never committed)
+.probe-scratch/

@@ -76,6 +76,14 @@ export interface RunContext
   // first-pass step and every run with delivery off, so those prompts are
   // byte-identical to before this channel. In-process only — never serialized.
   readonly deliveredContextSlices?: readonly DeliveredContextSlice[];
+  // True when on-demand context-pull DELIVERY is active for this run's relays:
+  // delivery is opted in (`enableContextDelivery`) AND this run is not a
+  // delivery-blind slice corridor (deep depth, where delivery-in-corridor stays
+  // deferred). Run-wide and stable. A compose writer reads it (via
+  // ComposeBuildContext) to decide whether it may hand a downstream relay a thin
+  // envelope and let the relay pull what it withheld. Absent => fat/full
+  // provisioning, byte-identical to before this signal. Never serialized.
+  readonly contextDeliveryActive?: boolean;
   // Run-scoped accumulator for skill-hook actuation: the post-step dispatcher
   // adds an `auto` hook event's resolved skills here, and planRelayGuidanceDecision
   // merges them into the next relay step's loaded skills. A mutable container on

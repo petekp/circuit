@@ -153,6 +153,24 @@ function keptActStepSummary(runFolder: string, entries: Awaited<ReturnType<typeo
   return body.summary;
 }
 
+// The plan report the run actually wrote: find the build.plan@v1 compose report by
+// its step.report_written trace entry and read its `approach`. This is what proves
+// the THINNING threaded all the way through — graph-runner sets contextDeliveryActive,
+// compose.ts forwards it into the ComposeBuildContext, and plan.ts keys the envelope
+// on it — rather than just unit-testing plan.ts in isolation.
+function planApproach(runFolder: string, entries: Awaited<ReturnType<typeof readTrace>>) {
+  const written = entries.find(
+    (entry) =>
+      entry.kind === 'step.report_written' &&
+      (entry as { report_schema?: string }).report_schema === 'build.plan@v1',
+  ) as { report_path: string } | undefined;
+  if (written === undefined) return undefined;
+  const body = JSON.parse(readFileSync(join(runFolder, written.report_path), 'utf8')) as {
+    approach?: string;
+  };
+  return body.approach;
+}
+
 describe('Context-delivery (Build, act-step pulls then re-runs on the enriched context)', () => {
   it(
     'folds the answered slices into the envelope, re-runs the step once, and keeps the enriched result',
@@ -247,6 +265,77 @@ describe('Context-delivery (Build, act-step pulls then re-runs on the enriched c
       const pulls = entries.filter((entry) => entry.kind === 'run.context-pull');
       expect(pulls.length).toBeGreaterThan(0);
       expect(result.outcome).not.toBe('aborted');
+    },
+    TIMEOUT_MS,
+  );
+});
+
+// The thin-envelope unlock, proved end to end through the real Build flow: when
+// delivery is active the plan writer THINS the act-step's envelope (a pullable
+// pointer instead of the inlined synthesis), and when delivery is off it stays FAT
+// (byte-identical to before this channel). This is the threading proof — the
+// signal originates in the graph-runner, rides RunContext → compose.ts →
+// ComposeBuildContext, and lands in plan.ts — not a unit test of plan.ts alone.
+describe('Thin-envelope unlock (Build plan thins only when delivery is active)', () => {
+  it(
+    'thins the plan approach to a pullable pointer when delivery is opted in',
+    async () => {
+      const runFolder = join(runFolderBase, 'thin');
+      await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: fixtureBytes(),
+        runId: 'd0000000-0000-0000-0000-00000000000a',
+        goal: 'Make a small change',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 5, 17, 8, 0, 0)),
+        relayer: buildRelayer(),
+        projectRoot: passingProjectRoot(),
+        selectionConfigLayers: [],
+        enableContextDelivery: true,
+      });
+
+      const approach = planApproach(runFolder, await readTrace(runFolder));
+      // The withheld synthesis is NOT inlined…
+      expect(approach).not.toContain('the change is small and self-contained');
+      expect(approach).not.toContain('no schema migration needed');
+      // …it is replaced by a pointer at the pullable analyze-step report.
+      expect(approach).toContain('Grounded in a codebase read');
+      expect(approach).toMatch(/analyze-step/);
+      expect(approach).toContain('available to pull on demand');
+      // The pointer names the LITERAL pull path so the worker never has to infer
+      // it from prose — the pull stays deterministic, not inference-dependent.
+      expect(approach).toContain(
+        'context_request from_step "analyze-step", field_path "observations"',
+      );
+      // The base instruction the implementer always gets survives the thinning.
+      expect(approach).toContain('Make the smallest safe change inside scope');
+    },
+    TIMEOUT_MS,
+  );
+
+  it(
+    'keeps the plan approach fat (synthesis inlined) when delivery is off',
+    async () => {
+      const runFolder = join(runFolderBase, 'fat');
+      await runCompiledFlow({
+        runDir: runFolder,
+        flowBytes: fixtureBytes(),
+        runId: 'd0000000-0000-0000-0000-00000000000b',
+        goal: 'Make a small change',
+        depth: 'medium',
+        now: deterministicNow(Date.UTC(2026, 5, 17, 8, 30, 0)),
+        relayer: buildRelayer(),
+        projectRoot: passingProjectRoot(),
+        selectionConfigLayers: [],
+        // enableContextDelivery omitted — delivery off, so the plan stays fat.
+      });
+
+      const approach = planApproach(runFolder, await readTrace(runFolder));
+      // The full synthesis is inlined exactly as before this channel existed.
+      expect(approach).toContain('the change is small and self-contained');
+      expect(approach).toContain('no schema migration needed');
+      // …and none of the thin-pointer language appears.
+      expect(approach).not.toContain('available to pull on demand');
     },
     TIMEOUT_MS,
   );

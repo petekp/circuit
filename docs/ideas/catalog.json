@@ -1447,6 +1447,21 @@
         "docs/ideas/paper-to-site-flow-brief.md"
       ],
       "last_checked": "2026-06-18"
+    },
+    {
+      "path": "docs/ideas/thin-envelope-unlock-report.md",
+      "title": "Thin-envelope unlock - make context-pull load-bearing; quality holds, byte win is scoped",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["context", "context-pull", "delivery", "runtime-binding", "run-report"],
+      "current_reading": "Thins the Build plan when context-pull DELIVERY is active so the implementer starts lean and pulls the analyze synthesis only if it needs it, on feat/thin-envelope-unlock (based on main 54461f8b, verify green). Two pieces, failing-test-first: (1) plan.ts replaces the inlined observations synthesis with a pointer naming the LITERAL pull path (context_request from_step \"analyze-step\", field_path \"observations\") when a new run-wide signal contextDeliveryActive is true (delivery opted in AND not inside a delivery-blind slice corridor); when false (the default, and at deep depth) the full synthesis is inlined exactly as before, byte-identical. Signal threaded graph-runner -> RunContext -> RunValue (narrow whitelist projection; the wiring bug was the projection silently dropping it) -> compose.ts -> ComposeBuildContext -> plan.ts; assigned only when true so default runs leave the key absent. (2) Lifts the deep-depth resolve-and-record corridor skip so a pull raised inside a slice corridor is RECORDED (legible) instead of silently dropped; delivery-in-corridor stays deferred. MEASURE (real Opus workers, deterministic correctness judge, 5 reps/arm): QUALITY HOLDS (make-or-break) - 10/10 thin workers fully correct across two tasks, matching the fat baseline (wrap-index 5/5=5/5 with 0 pulls because the constraint survived in the plan invariant; computeDiscount 5/5=5/5 with 5/5 pulls because the 0.40-clamp/floor fact lived ONLY in the withheld observations). CENTRAL MECHANISM: pull becomes load-bearing AND quality holds precisely when plan distillation is LOSSY; when the plan already carries the constraint, pull correctly stays unfired - thinning is safe by construction, never thinner-but-worse. BYTE: scoped plan thinning ~3.9% in-flow (fat 10752 -> thin 10330; the literal-path pointer adds ~74 bytes back); the ~11x is the DELIVERY channel's selectivity when pull fires (629 vs 7141 wide), NOT whole-envelope reduction; the dominant fat is the checkpoint_packet (~31%, untouched) - the real next target. HONESTY held (unpullable -> 1 refusal, 0 fabrication; decisive workers pulled rather than guessed the cap). Adversarial review 6 dimensions x verify: 0 critical/high, 3 low + 1 nit confirmed (literal-path pointer, conditional-assign comment accuracy, R3 probe step_id filter - all fixed in-branch), 4 refuted. RATIFICATION GATE: landed behind the existing opt-in; enableContextDelivery stays default OFF (production byte-identical); recommend ratifying the mechanism but NOT default-ON for byte reduction - pair with thinning the checkpoint_packet first. Harnesses: experiments/flow-lab/{thin-envelope-measure,runtime-binding-battle-test}.test.ts.",
+      "related": [
+        "docs/ideas/context-pull-last-mile-report.md",
+        "docs/ideas/context-pull-live-run-report.md",
+        "docs/ideas/on-demand-context-pull.md",
+        "docs/ideas/north-star-status.md"
+      ],
+      "last_checked": "2026-06-18"
     }
   ]
 }

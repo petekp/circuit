@@ -31924,7 +31924,7 @@ var buildPlanComposeBuilder = {
     const brief = BuildBrief.parse(context.inputs.brief);
     const grounding = context.inputs.context === void 0 ? void 0 : BuildContext.parse(context.inputs.context);
     const baseApproach = `Make the smallest safe change inside scope: ${brief.scope}`;
-    const approach = grounding === void 0 ? baseApproach : `Grounded in a codebase read (${grounding.sources.length} sources): ${grounding.observations.join(" ")} Then ${baseApproach}`;
+    const approach = grounding === void 0 ? baseApproach : context.contextDeliveryActive === true ? `Grounded in a codebase read (${grounding.sources.length} sources); the detailed observations are recorded in the analyze-step report and available to pull on demand if this step needs them (context_request from_step "analyze-step", field_path "observations"). Then ${baseApproach}` : `Grounded in a codebase read (${grounding.sources.length} sources): ${grounding.observations.join(" ")} Then ${baseApproach}`;
     const slices = grounding !== void 0 && grounding.slices.length > 0 ? grounding.slices : [
       {
         id: "slice-1",
@@ -59124,7 +59124,8 @@ function runValueFromContext(context) {
     ...context.depth === void 0 ? {} : { depth: context.depth },
     ...context.axes === void 0 ? {} : { axes: context.axes },
     ...context.activeStepAttempt === void 0 ? {} : { activeStepAttempt: context.activeStepAttempt },
-    ...context.resumeCheckpoint === void 0 ? {} : { resumeCheckpoint: context.resumeCheckpoint }
+    ...context.resumeCheckpoint === void 0 ? {} : { resumeCheckpoint: context.resumeCheckpoint },
+    ...context.contextDeliveryActive === void 0 ? {} : { contextDeliveryActive: context.contextDeliveryActive }
   };
 }
 function runPortsFromContext(context) {
@@ -59247,6 +59248,7 @@ async function writeRegisteredComposeReport(step, context) {
       ...context.ports.worktree.projectRoot === void 0 ? {} : { projectRoot: context.ports.worktree.projectRoot },
       ...context.ports.worktree.evidencePolicy === void 0 ? {} : { evidencePolicy: context.ports.worktree.evidencePolicy },
       ...context.ports.selection.configLayers === void 0 ? {} : { selectionConfigLayers: context.ports.selection.configLayers },
+      ...context.run.contextDeliveryActive === void 0 ? {} : { contextDeliveryActive: context.run.contextDeliveryActive },
       connectorPlanner: runtimeConnectorPlanner,
       inputs
     });
@@ -65316,6 +65318,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       }
     }
   });
+  const contextDeliveryActive = options.contextDelivery !== void 0 && !sliceCorridor.isActive();
   const completedStepCounts = isResume ? completedStepCountsFromTrace(existingTrace, sliceCorridor) : /* @__PURE__ */ new Map();
   if (isResume) {
     seedSkillHookInjectionsFromTrace(existingTrace, context.skillHookInjections);
@@ -65473,6 +65476,11 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         flow: activeFlow,
         packageIndex: activePackageIndex,
         activeStepAttempt: attempt,
+        // Assign only when true, so a default run (and every run at deep depth)
+        // leaves the key ABSENT on RunContext — keeping the "absent => fat / full
+        // provisioning" contract that RunValue, ComposeBuildContext, and plan.ts
+        // document literally true end to end, not present-but-false.
+        ...contextDeliveryActive ? { contextDeliveryActive } : {},
         ...acceptanceRetryFeedback === void 0 ? {} : { acceptanceRetryFeedback },
         ...isLoopBodyStep ? { activeSliceIndex: stepSliceIndex } : {},
         ...activeSlice === void 0 ? {} : { activeSlice },
@@ -65817,7 +65825,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       } catch {
       }
     }
-    if (options.contextPuller !== void 0 && options.contextDelivery === void 0 && targetTransition.kind !== "terminal_close" && !sliceCorridor.isActive()) {
+    if (options.contextPuller !== void 0 && (options.contextDelivery === void 0 || sliceCorridor.isActive()) && targetTransition.kind !== "terminal_close") {
       try {
         const stepEntries = trace.getAll().slice(traceLengthBeforeStep);
         const completed = [...stepEntries].reverse().find((entry) => entry.kind === "relay.completed");
