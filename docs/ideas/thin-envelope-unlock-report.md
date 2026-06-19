@@ -1,7 +1,7 @@
 # The thin-envelope unlock: making context-pull load-bearing
 
 **Date:** 2026-06-18
-**Branch:** `feat/thin-envelope-unlock` (based on `main` `54461f8b`)
+**Branch:** `feat/thin-envelope-unlock` (rebased onto `main` `35e5d0dd`, post per-mode-trust PR #119)
 **Status:** Code landed behind the existing opt-in (verify green). This is a
 **measurement + ratification gate**, not a default flip. Delivery stays opt-in
 (`enableContextDelivery` default OFF); production runs are byte-identical.
@@ -28,7 +28,7 @@ The answer is **no**, with a precise mechanism for why.
 | # | Piece | Where | Proof |
 |---|---|---|---|
 | 1 | **Thin the plan, gated on a new run-wide signal.** When `contextDeliveryActive` is true (delivery opted in AND not inside a delivery-blind slice corridor), the plan's `approach` replaces the inlined observations synthesis with a pointer: *"recorded in the analyze-step report and available to pull on demand."* When false (the default, and at deep depth), the full synthesis is inlined exactly as before — **byte-identical**. | `src/flows/build/writers/plan.ts`; signal threaded `graph-runner.ts` → `run-context.ts` → `run-values.ts` → `compose.ts` → `compose-writers/types.ts` | `tests/runner/context-delivery-real.test.ts` (thin-when-on / fat-when-off + E2E threading); `tests/runner/build-report-writer.test.ts` |
-| 2 | **Lift the deep-depth resolve-and-record skip.** A `context_request` raised inside a slice corridor used to be dropped *without* a trace finding (the one refusal path not made legible). The seam guard was rewritten so resolve-and-record fires when *(delivery off)* OR *(inside a corridor)*, and is skipped only when delivery is on AND outside a corridor — where the early delivery seam already resolved+recorded+delivered. Delivery-*in*-corridor stays deferred (re-running a corridor head on enriched context interacts with slice-scoped completion keys, out of scope), but the pull is now **legible**. | `src/runtime/run/graph-runner.ts` (~line 1277) | `experiments/flow-lab/runtime-binding-battle-test.test.ts` R3 deep-depth probe (4 pulls **recorded**, 0 delivered) |
+| 2 | **Lift the deep-depth resolve-and-record skip.** A `context_request` raised inside a slice corridor used to be dropped *without* a trace finding (the one refusal path not made legible). The seam guard was rewritten so resolve-and-record fires when *(delivery off)* OR *(inside a corridor)*, and is skipped only when delivery is on AND outside a corridor — where the early delivery seam already resolved+recorded+delivered. Delivery-*in*-corridor stays deferred (re-running a corridor head on enriched context interacts with slice-scoped completion keys, out of scope), but the pull is now **legible**. | `src/runtime/run/graph-runner.ts` (~line 1277) | `tests/runner/build-corridor-context-pull.test.ts` (corridor record + resume-safe + no-double-count, all failing-test-first); `experiments/flow-lab/runtime-binding-battle-test.test.ts` R3 deep-depth probe (4 pulls **recorded**, 0 delivered) |
 
 The wiring bug worth calling out: `RunValue` (`run-values.ts`) is a deliberately **narrow
 whitelist projection** of `RunContext`. Adding the field to `RunContext` was not enough —
@@ -124,13 +124,33 @@ double-record, no silent drop). Three confirmed items were addressed in this bra
 | `run-values.ts` comment said the signal is "Absent on every run with delivery off," but graph-runner assigned the boolean unconditionally, so RunContext carried `contextDeliveryActive: false` (present-but-false). Zero behavioral impact, but the comment was inaccurate and the spreads' absent-branch was dead on the live path. | nit | **Fixed.** graph-runner now assigns the key only when true (`...(contextDeliveryActive ? { contextDeliveryActive } : {})`), so default runs genuinely leave it absent — every "absent => fat" comment is now literally true end to end. |
 | The R3 deep-depth probe counted `run.context-pull` entries run-wide (unfiltered `byKind`) while its sibling relay count filtered by `step_id`. Works in this fixture (only the act-step emits a request); hypothetical future inflation. Experiments-only throwaway. | low | **Fixed.** The probe's pull/delivery counts are now scoped to the act-step, matching the sibling. |
 
-The remaining low item — that the lifted corridor resolve-and-record branch has no dedicated
-`src/` unit test — is left as a noted follow-up: the `experiments/flow-lab` R3 probe runs in
-the verify suite and the verifier proved it catches a regression (reverting the guard turns
-it red), so the branch has live coverage; a focused `src/` test would be cleaner and is named
-in the in-code comment as a deferred battle-test item. The four refuted findings were a
-hallucinated test file, two "this confirms the invariant holds" non-defects, and a harmless
-latent seam asymmetry the diff's own comments already explain.
+The remaining low item from the first review — that the lifted corridor resolve-and-record
+branch had no dedicated `src/`-suite test — is now **closed**. A focused
+`tests/runner/build-corridor-context-pull.test.ts` (3 tests) drives the real Build flow at
+deep depth (slice loop active, act-step is the corridor head) and pins the lift directly:
+(1) a head-step `context_request` is **resolved-and-recorded** inside an active corridor;
+(2) a no-ask deep-depth run records **zero** context-pull entries (byte-identical); and
+(3) the channel is **resume-safe** — pausing at the frame checkpoint and resuming drives the
+corridor entirely post-resume, the head-step pull is recorded across the boundary, and a
+differential against the unbroken autonomous baseline shows **no double-count** (identical
+act-step pull counts). All three were confirmed failing-test-first: reverting the seam guard
+turns each red. This discharges the brief's §4/§5 "resume re-thread (no double-count)" line
+with a tracked test rather than the experiments-only R3 probe alone.
+
+**Relay-hint decision (brief §2 Change A, deliberate deviation).** The brief instructs
+updating `src/flows/build/relay-hints.ts` to name `analyze-step.observations` as the pullable
+slice. This branch deliberately does **not** touch that shared hint, and the multi-lens review
+confirmed leaving it is the superior choice: the line-39 hint is read by **every** Build run,
+including delivery-OFF runs where the observations are still inlined in `approach` and are
+**not** pullable — naming the literal slice there would tell a delivery-off worker to pull
+something it already holds and that would never be delivered. Instead the literal pull path
+(`context_request from_step "analyze-step", field_path "observations"`) is named in `plan.ts`'s
+`approach` **exactly when** `contextDeliveryActive` is true and the slice is genuinely
+withheld, with the generic "ask via context_request, refuse honestly when unpullable" guidance
+staying generic. So "the implementer hint points at it" (§5 DoD) is met more precisely — via
+the per-run channel that is only present when the pull is real. The four refuted findings from
+the first review were a hallucinated test file, two "this confirms the invariant holds"
+non-defects, and a harmless latent seam asymmetry the diff's own comments already explain.
 
 ---
 
@@ -163,6 +183,7 @@ is the ratification gate.
 |---|---|
 | Plan thinning + threading | `src/flows/build/writers/plan.ts`, `run-context.ts`, `run-values.ts`, `compose.ts`, `compose-writers/types.ts` |
 | Lifted resolve-and-record seam | `src/runtime/run/graph-runner.ts` (~line 1277) |
+| Corridor resolve-and-record + resume-safe + no-double-count (deep depth) | `tests/runner/build-corridor-context-pull.test.ts` |
 | Thin-when-on / fat-when-off + E2E threading | `tests/runner/context-delivery-real.test.ts` |
 | In-flow byte measurement (keeper) | `experiments/flow-lab/thin-envelope-measure.test.ts` |
 | Delivery-channel carried-bytes + R3 deep-depth + honesty | `experiments/flow-lab/runtime-binding-battle-test.test.ts` |
