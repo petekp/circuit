@@ -199,8 +199,21 @@ interactive site, with two genuine operator forks (PICK, SIGN-OFF).
   `recoveryRouteBindings`, so the graph-runner defaulted the binding list to `[]`.
   The fix threads the same bindings the top-level path projects, so a failed child
   now **degrades onto its recovery route** instead of aborting the resumed parent.
-- **P0 — resumable runs / a checkpoint after editorial** (still open), so a build
-  failure does not throw away correct, expensive editorial output.
+- **P0 — resumable runs / a checkpoint after editorial. ✅ Fixed (PR #120).** The
+  flow did its expensive editorial fan-out (digest → ideate → tournament → harden →
+  PICK → spec) and then delegated the build to a child sub-run, with no durable
+  boundary between "editorial done" and "build done" — so a build failure re-spent
+  the editorial (about $6). The fix inserts **two** checkpoints: a post-editorial
+  `build-gate-step` (plan, after `spec`), and a fresh `retry-gate-step` (act) that
+  `build-step`'s `stop` recovery route lands on when the child build closes
+  non-complete. A 3-arm offline engine probe ($0) proved checkpoint-**only** is
+  insufficient (a build failure closes the run terminally with the gate already
+  resolved → not resumable → editorial re-run); routing back to the resolved gate
+  aborts; only the second, never-resolved gate parks the run **resumably**, so the
+  editorial is recorded once and reused. Pure flow wiring in
+  `src/flows/explainer/data.ts`; no engine change. A real-explainer end-to-end test
+  drives intake → failed build → retry-gate and asserts `digest`/`tournament`/
+  `hardening`/`spec`/`build` each enter exactly once across all resumes.
 - **P1 — greenfield-scaffold gap** (the flow assumes a Node project already exists),
   the build-flow verify-contract mismatch, and the single-shot build-child budget
   ceiling.
@@ -234,10 +247,12 @@ equipment-reshape resume reseed + the Phase 0 splice demonstrator (PRs #110, #11
 the on-demand context-pull **live channel** (PRs #112–#115 — typed query channel,
 pull-then-retry delivery, real-guided-worker last-mile, opt-in/default-OFF), the
 **task-aware assembler** (PR #117 — verdict VIABLE), the **per-mode runtime trust**
-gate (PR #119), and the **thin-envelope unlock** (PR #116 — thinned Build plan +
+gate (PR #119), the **thin-envelope unlock** (PR #116 — thinned Build plan +
 lifted corridor skip; quality holds, payoff reframed as ~3.9% in-flow vs the delivery
-channel's selectivity, still opt-in). All moved off the "next/in-flight" list below;
-the rows above carry the detail.
+channel's selectivity, still opt-in), and the **paper-to-site post-editorial
+checkpoint** (PR #120 — the §5 P0; a build-gate + a fresh retry-gate so a child-build
+failure parks resumably and the editorial fan-out is recorded once, not re-spent).
+All moved off the "next/in-flight" list below; the rows above carry the detail.
 
 **Next (sequenced, low ambiguity):**
 
@@ -249,14 +264,11 @@ the rows above carry the detail.
    hand-authored bar and at what cost. Do **not** yet spend on the
    genuine-block-composition arm (gated behind the Phase 2 catalog enrichments).
    [`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md).
-2. **Paper-to-site — the remaining P0**: a post-editorial checkpoint, so a build
-   failure does not throw away correct, expensive editorial output. (The
-   recovery-binding hard-abort P0 is now fixed.)
-3. **The remaining task-aware-assembler follow-up** (non-blocking): sign off the
+2. **The remaining task-aware-assembler follow-up** (non-blocking): sign off the
    loosened `src/flows/resolvers/` import zone. (Per-mode runtime trust is **done** —
    PR #119 blesses recorded `<mode>.json` siblings and fails closed with a clear
    reason for unrecorded ones.)
-4. **The two `--reuse-children-from` follow-ups** — a run-start git baseline +
+3. **The two `--reuse-children-from` follow-ups** — a run-start git baseline +
    staleness probe (close the documented version/base limitation), and a
    `reclaim`/inbox discovery surface for reusable dead-run folders. Both non-gating.
 
