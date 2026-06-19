@@ -260,7 +260,7 @@
         "verification": 1,
         "checkpoint": 0
       },
-      "route_outcomes": ["blocked", "complete", "continue", "handoff", "retry", "stop"],
+      "route_outcomes": ["blocked", "complete", "continue", "handoff", "retry", "revise", "stop"],
       "unsupported_route_outcomes": ["blocked"]
     }
   ],
@@ -1318,6 +1318,21 @@
       "title": "explainer route retry",
       "status": "implemented",
       "summary": "retry maps to an executable compiled route.",
+      "evidence": ["src/flows/explainer/schematic.json"],
+      "readiness_refs": [],
+      "axes": {
+        "intent_hints": [],
+        "modes": [],
+        "stage_path": [],
+        "outputs": []
+      }
+    },
+    {
+      "id": "route-outcome:explainer:revise",
+      "kind": "route_outcome",
+      "title": "explainer route revise",
+      "status": "implemented",
+      "summary": "revise maps to an executable compiled route.",
       "evidence": ["src/flows/explainer/schematic.json"],
       "readiness_refs": [],
       "axes": {

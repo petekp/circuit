@@ -8,6 +8,24 @@
 > build failure does not throw away correct, expensive editorial output." The other
 > P0 (the recovery-binding hard-abort) is already fixed (PR #105).
 
+> **Outcome (2026-06-18) — built on `feat/explainer-post-editorial-checkpoint`.**
+> Probe decision (the §2/§6 open question): **checkpoint + recovery binding ("two
+> gates"), not checkpoint-only.** A three-arm offline probe against the real engine
+> ($0, deterministic) proved a single post-editorial checkpoint is insufficient: in
+> autonomous mode the gate auto-resolves `continue`, the build runs, and a build
+> failure closes the run **terminally** with the gate already resolved — not
+> resumable, so a retry re-runs editorial (Arm 1). Routing the failed build back to
+> the already-resolved gate **aborts** (Arm 2). The minimum that preserves editorial
+> is a **second, fresh** checkpoint: `build-step`'s `stop` recovery route lands on a
+> never-resolved `retry-gate-step`, so a failed build parks the run **resumably** at
+> an unresolved checkpoint and the editorial upstream is recorded once and reused
+> (Arm 3). Shipped: `build-gate-step` (plan, after spec; routes
+> `continue → build-step`, `revise → spec-step`, `stop → @stop`; safe-default
+> `continue`) and `retry-gate-step` (act, on `build-step.stop`; routes
+> `continue → build-step`, `stop → @stop`; safe-default `stop` so an unattended run
+> does not loop on a deterministically-failing build). Pure flow placement + wiring
+> in `src/flows/explainer/data.ts`; no engine change.
+
 ---
 
 ## 0. The problem (why this, why now)

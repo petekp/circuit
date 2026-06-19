@@ -52,6 +52,14 @@
       "actual": "explainer.signoff@v1"
     },
     {
+      "generic": "decision.answer@v1",
+      "actual": "explainer.build-authorization@v1"
+    },
+    {
+      "generic": "decision.answer@v1",
+      "actual": "explainer.build-retry@v1"
+    },
+    {
       "generic": "flow.question@v1",
       "actual": "explainer.hardening@v1"
     },
@@ -66,6 +74,10 @@
     {
       "generic": "flow.evidence@v1",
       "actual": "explainer.build-result@v1"
+    },
+    {
+      "generic": "flow.question@v1",
+      "actual": "explainer.spec@v1"
     },
     {
       "generic": "goal.contract@v1",
@@ -392,7 +404,7 @@
       },
       "skill_slots": [],
       "routes": {
-        "continue": "build-step",
+        "continue": "build-gate-step",
         "stop": "@stop"
       },
       "route_overrides": {},
@@ -402,6 +414,56 @@
       },
       "check": {
         "required": ["concept_id", "build_brief", "fidelity_citations"]
+      }
+    },
+    {
+      "id": "build-gate-step",
+      "block": "human-decision",
+      "title": "Build gate — confirm the spec before spending the build",
+      "stage": "plan",
+      "input": {
+        "question": "explainer.spec@v1",
+        "evidence": "explainer.tournament-aggregate@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.build-authorization@v1",
+      "evidence_requirements": [
+        "question",
+        "available options",
+        "selected option",
+        "answer source"
+      ],
+      "execution": {
+        "kind": "checkpoint"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "build-step",
+        "revise": "spec-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-build-gate-checkpoint@v1",
+      "writes": {
+        "checkpoint_request_path": "reports/checkpoints/build-gate-request.json",
+        "checkpoint_response_path": "reports/checkpoints/build-gate-response.json"
+      },
+      "check": {
+        "allow": ["continue", "revise"]
+      },
+      "checkpoint_policy": {
+        "prompt": "The editorial work is complete: the spec captures the concept choice and the house-style direction. Build will now construct the site. Confirm to proceed, or send the spec back for revision. This is the durable boundary — the expensive editorial output is recorded here, so a build failure resumes from this point instead of re-running the digest, ideation, tournament, and hardening from scratch.",
+        "choices": [
+          {
+            "id": "continue",
+            "label": "Proceed to build"
+          },
+          {
+            "id": "revise",
+            "label": "Send the spec back for revision"
+          }
+        ],
+        "safe_default_choice": "continue"
       }
     },
     {
@@ -431,7 +493,7 @@
       "skill_slots": [],
       "routes": {
         "continue": "verify-step",
-        "stop": "@stop"
+        "stop": "retry-gate-step"
       },
       "route_overrides": {},
       "protocol": "explainer-build@v1",
@@ -449,6 +511,55 @@
           "NO_ISSUES_FOUND",
           "ISSUES_FOUND"
         ]
+      }
+    },
+    {
+      "id": "retry-gate-step",
+      "block": "human-decision",
+      "title": "Retry gate — the build failed; retry or stop without losing editorial",
+      "stage": "act",
+      "input": {
+        "question": "explainer.spec@v1",
+        "evidence": "explainer.tournament-aggregate@v1"
+      },
+      "optional_inputs": [],
+      "output": "explainer.build-retry@v1",
+      "evidence_requirements": [
+        "question",
+        "available options",
+        "selected option",
+        "answer source"
+      ],
+      "execution": {
+        "kind": "checkpoint"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "build-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "explainer-retry-gate-checkpoint@v1",
+      "writes": {
+        "checkpoint_request_path": "reports/checkpoints/retry-gate-request.json",
+        "checkpoint_response_path": "reports/checkpoints/retry-gate-response.json"
+      },
+      "check": {
+        "allow": ["continue", "stop"]
+      },
+      "checkpoint_policy": {
+        "prompt": "The build did not succeed. The expensive editorial work upstream is preserved and will be reused. Retry the build (for example after preparing the build environment), or stop. The default holds and stops, so an unattended run does not loop on a build that keeps failing.",
+        "choices": [
+          {
+            "id": "continue",
+            "label": "Retry the build"
+          },
+          {
+            "id": "stop",
+            "label": "Stop — keep the editorial output"
+          }
+        ],
+        "safe_default_choice": "stop"
       }
     },
     {

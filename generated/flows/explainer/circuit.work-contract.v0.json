@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/explainer/circuit.work-contract.v0.json",
-    "sha256": "d7639c6482386e477782ab72aed6b8f1b7f61fa57ee54f08c7f7587be7d30876",
+    "sha256": "5e16791856a2fdee57f0b475398a42932c049e42116fa4d8669f2a1af749d394",
     "flow_id": "explainer"
   },
   "work_contract": {
@@ -48,14 +48,15 @@
             "tournament-step",
             "hardening-step",
             "pick-checkpoint-step",
-            "spec-step"
+            "spec-step",
+            "build-gate-step"
           ]
         },
         {
           "id": "act-stage",
           "title": "Build",
           "canonical": "act",
-          "steps": ["build-step"]
+          "steps": ["build-step", "retry-gate-step"]
         },
         {
           "id": "verify-stage",
@@ -173,15 +174,35 @@
         {
           "step_id": "spec-step",
           "route_id": "continue",
-          "target": "build-step"
+          "target": "build-gate-step"
         },
         {
           "step_id": "spec-step",
           "route_id": "pass",
-          "target": "build-step"
+          "target": "build-gate-step"
         },
         {
           "step_id": "spec-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "build-gate-step",
+          "route_id": "continue",
+          "target": "build-step"
+        },
+        {
+          "step_id": "build-gate-step",
+          "route_id": "pass",
+          "target": "build-step"
+        },
+        {
+          "step_id": "build-gate-step",
+          "route_id": "revise",
+          "target": "spec-step"
+        },
+        {
+          "step_id": "build-gate-step",
           "route_id": "stop",
           "target": "@stop"
         },
@@ -197,6 +218,21 @@
         },
         {
           "step_id": "build-step",
+          "route_id": "stop",
+          "target": "retry-gate-step"
+        },
+        {
+          "step_id": "retry-gate-step",
+          "route_id": "continue",
+          "target": "build-step"
+        },
+        {
+          "step_id": "retry-gate-step",
+          "route_id": "pass",
+          "target": "build-step"
+        },
+        {
+          "step_id": "retry-gate-step",
           "route_id": "stop",
           "target": "@stop"
         },
@@ -461,8 +497,34 @@
           "required": ["concept_id", "build_brief", "fidelity_citations"]
         },
         "routes": {
+          "continue": "build-gate-step",
+          "pass": "build-gate-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "build-gate-step",
+        "title": "Build gate — confirm the spec before spending the build",
+        "kind": "checkpoint",
+        "executor": "orchestrator",
+        "protocol": "explainer-build-gate-checkpoint@v1",
+        "reads": ["reports/explainer/spec.json", "reports/tournament-aggregate.json"],
+        "writes": {
+          "request": "reports/checkpoints/build-gate-request.json",
+          "response": "reports/checkpoints/build-gate-response.json"
+        },
+        "check": {
+          "kind": "checkpoint_selection",
+          "source": {
+            "kind": "checkpoint_response",
+            "ref": "response"
+          },
+          "allow": ["continue", "revise"]
+        },
+        "routes": {
           "continue": "build-step",
           "pass": "build-step",
+          "revise": "spec-step",
           "stop": "@stop"
         }
       },
@@ -500,6 +562,31 @@
         "routes": {
           "continue": "verify-step",
           "pass": "verify-step",
+          "stop": "retry-gate-step"
+        }
+      },
+      {
+        "step_id": "retry-gate-step",
+        "title": "Retry gate — the build failed; retry or stop without losing editorial",
+        "kind": "checkpoint",
+        "executor": "orchestrator",
+        "protocol": "explainer-retry-gate-checkpoint@v1",
+        "reads": ["reports/explainer/spec.json", "reports/tournament-aggregate.json"],
+        "writes": {
+          "request": "reports/checkpoints/retry-gate-request.json",
+          "response": "reports/checkpoints/retry-gate-response.json"
+        },
+        "check": {
+          "kind": "checkpoint_selection",
+          "source": {
+            "kind": "checkpoint_response",
+            "ref": "response"
+          },
+          "allow": ["continue", "stop"]
+        },
+        "routes": {
+          "continue": "build-step",
+          "pass": "build-step",
           "stop": "@stop"
         }
       },
@@ -635,6 +722,28 @@
           "writes": {
             "request": "reports/checkpoints/pick-request.json",
             "response": "reports/checkpoints/pick-response.json"
+          }
+        },
+        {
+          "step_id": "build-gate-step",
+          "choices": {
+            "kind": "static",
+            "ids": ["continue", "revise"]
+          },
+          "writes": {
+            "request": "reports/checkpoints/build-gate-request.json",
+            "response": "reports/checkpoints/build-gate-response.json"
+          }
+        },
+        {
+          "step_id": "retry-gate-step",
+          "choices": {
+            "kind": "static",
+            "ids": ["continue", "stop"]
+          },
+          "writes": {
+            "request": "reports/checkpoints/retry-gate-request.json",
+            "response": "reports/checkpoints/retry-gate-response.json"
           }
         },
         {
@@ -826,11 +935,27 @@
           }
         },
         {
+          "step_id": "build-gate-step",
+          "check_kind": "checkpoint_selection",
+          "source": {
+            "kind": "checkpoint_response",
+            "ref": "response"
+          }
+        },
+        {
           "step_id": "build-step",
           "check_kind": "result_verdict",
           "source": {
             "kind": "sub_run_result",
             "ref": "result"
+          }
+        },
+        {
+          "step_id": "retry-gate-step",
+          "check_kind": "checkpoint_selection",
+          "source": {
+            "kind": "checkpoint_response",
+            "ref": "response"
           }
         },
         {
@@ -888,7 +1013,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/intake-step/routes/stop",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -919,7 +1044,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/digest-step/routes/stop",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -950,7 +1075,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/ideas-step/routes/stop",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -981,7 +1106,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/tournament-step/routes/stop",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -1012,7 +1137,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/hardening-step/routes/stop",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -1043,7 +1168,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/pick-checkpoint-step/routes/stop",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -1074,13 +1199,38 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/spec-step/routes/stop",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
       {
         "schema_version": 0,
-        "step_id": "build-step",
+        "step_id": "build-gate-step",
+        "route_id": "revise",
+        "route_target": "spec-step",
+        "kind": "narrow_scope",
+        "allowed_failure_causes": ["failed_check", "scope_drift", "weak_proof", "unproved_claim"],
+        "required_refs": ["proof_assessment", "runtime_diff"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/build-gate-step/routes/revise",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
+          "flow_id": "explainer"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "build-gate-step",
         "route_id": "stop",
         "route_target": "@stop",
         "kind": "stop_unsafe",
@@ -1104,8 +1254,70 @@
         },
         "source_ref": {
           "kind": "work_contract",
+          "ref": "compiled-flow/steps/build-gate-step/routes/stop",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
+          "flow_id": "explainer"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "build-step",
+        "route_id": "stop",
+        "route_target": "retry-gate-step",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
           "ref": "compiled-flow/steps/build-step/routes/stop",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
+          "flow_id": "explainer"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "retry-gate-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/retry-gate-step/routes/stop",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -1134,7 +1346,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/retry",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -1165,7 +1377,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/stop",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -1196,7 +1408,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/signoff-checkpoint-step/routes/blocked",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -1221,7 +1433,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/signoff-checkpoint-step/routes/handoff",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -1252,7 +1464,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/signoff-checkpoint-step/routes/stop",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       },
@@ -1283,7 +1495,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/close-step/routes/stop",
-          "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+          "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
           "flow_id": "explainer"
         }
       }
@@ -1300,13 +1512,25 @@
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/pick-checkpoint-step/policy/safe_default_choice",
-        "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+        "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
+        "flow_id": "explainer"
+      },
+      {
+        "kind": "work_contract",
+        "ref": "compiled-flow/steps/build-gate-step/policy/safe_default_choice",
+        "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
+        "flow_id": "explainer"
+      },
+      {
+        "kind": "work_contract",
+        "ref": "compiled-flow/steps/retry-gate-step/policy/safe_default_choice",
+        "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
         "flow_id": "explainer"
       },
       {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/signoff-checkpoint-step/policy/safe_default_choice",
-        "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+        "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
         "flow_id": "explainer"
       }
     ],
@@ -1320,7 +1544,7 @@
       "source_ref": {
         "kind": "work_contract",
         "ref": "compiled-flow/steps/pick-checkpoint-step/policy/auto_resolution",
-        "sha256": "36a9f7ce0dd58c031ff6ff66694a3246492733166c2d5b4787a488d6a5e9a802",
+        "sha256": "2b489416a2105f34a94282d913c11be938d9d56e01609415ffa85a05a3257a00",
         "flow_id": "explainer"
       }
     }
