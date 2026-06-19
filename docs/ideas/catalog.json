@@ -1396,17 +1396,48 @@
     {
       "path": "docs/ideas/dynamic-vs-reference-experiment-brief.md",
       "title": "Brief + pre-registration: the dynamic-vs-reference live experiment",
-      "status": "pre-implementation",
+      "status": "implemented",
       "category": "verification-and-evals",
       "tags": ["evals", "assembler", "cost-capture", "pre-registration", "experiments"],
-      "current_reading": "Decision-ready brief + pre-registration for the task-aware assembler's recommended next step: run a generated (instantiated) flow against the hand-authored reference on fix + build, on a held-out task set with the committed cost instrument, against a locked WORTH-INVESTING / MIXED / NOT-YET rule. Build is where the real divergence lives (folded whole vs the reference's full decomposed grain); fix is mainly a pipeline + cost confirmation. Builds an evals/dynamic-vs-reference harness; not yet run.",
+      "current_reading": "Decision-ready brief + pre-registration (locked before any data) for the task-aware assembler's next step: run a generated (instantiated) flow against the hand-authored reference on fix + build, on a held-out task set with the committed cost instrument, against a locked WORTH-INVESTING / MIXED / NOT-YET rule. RUN COMPLETE 2026-06-19 (48 live runs, pinned claude-haiku-4-5): verdict WORTH-INVESTING. The harness lives in evals/dynamic-vs-reference/; the outcome is in dynamic-vs-reference-run-report.md and the next direction in dynamic-vs-reference-followup.md.",
       "related": [
+        "docs/ideas/dynamic-vs-reference-run-report.md",
+        "docs/ideas/dynamic-vs-reference-followup.md",
         "docs/ideas/assembler-rebuild-run-report.md",
         "docs/ideas/assembler-rebuild-preregistration.md",
         "docs/evals/cost-capture-design.md",
         "docs/ideas/per-mode-runtime-trust-brief.md"
       ],
-      "last_checked": "2026-06-18"
+      "last_checked": "2026-06-19"
+    },
+    {
+      "path": "docs/ideas/dynamic-vs-reference-run-report.md",
+      "title": "Run report: the dynamic-vs-reference live experiment",
+      "status": "design-evaluation",
+      "category": "verification-and-evals",
+      "tags": ["evals", "assembler", "cost-capture", "experiments", "run-report"],
+      "current_reading": "Run report for the 48-run dynamic-vs-reference experiment (pinned claude-haiku-4-5, both arms Circuit, scored with the fix-vs-vanilla machinery). Verdict WORTH-INVESTING by the locked section-5 rule: an instantiated generated flow matched the hand-authored reference on quality and honesty on both fix and build, with zero false-fixed across all 48 runs and zero pipeline failures. On build the generated grain folded to whole on small/low tasks (5 steps vs the reference's 9) and finished for about a third of the cost at equal quality; on the large/high task it held the full decomposed shape. fix is a wash on cost (the seed instantiation is structurally identical, 13 steps both arms). The one generated quality miss was an honest partial, not a laundered done. Proves the instantiation path, not genuine block-composition.",
+      "related": [
+        "docs/ideas/dynamic-vs-reference-experiment-brief.md",
+        "docs/ideas/dynamic-vs-reference-followup.md",
+        "docs/ideas/assembler-rebuild-run-report.md",
+        "docs/ideas/north-star-status.md"
+      ],
+      "last_checked": "2026-06-19"
+    },
+    {
+      "path": "docs/ideas/dynamic-vs-reference-followup.md",
+      "title": "Follow-up: where the dynamic direction goes after WORTH-INVESTING",
+      "status": "current-idea",
+      "category": "verification-and-evals",
+      "tags": ["evals", "assembler", "experiments", "breadth", "composition"],
+      "current_reading": "Direction note off the WORTH-INVESTING verdict. The result licensed the instantiation path on two families; it did not prove breadth or genuine block-composition. Recommends breadth-of-instantiation first (a measurement-only sibling eval over the untested research/prototype/explain families, each needing an honest external check or it does not enter the set) before the parked composition research problem (INTRACTABLE-as-built per the flow-composition report, gated on a writer-contract redesign). Holds the no-new-flow-shapes / no-assembler-edit rails. Lists two cheap offline follow-ups: a fix-pipeline cost look and a build grain-boundary probe.",
+      "related": [
+        "docs/ideas/dynamic-vs-reference-run-report.md",
+        "docs/ideas/flow-composition-run-report.md",
+        "docs/ideas/assembler-rebuild-run-report.md"
+      ],
+      "last_checked": "2026-06-19"
     },
     {
       "path": "docs/ideas/thin-build-envelope-brief.md",
