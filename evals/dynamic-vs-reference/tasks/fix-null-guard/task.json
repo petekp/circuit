@@ -1,0 +1,16 @@
+{
+  "id": "fix-null-guard",
+  "family": "fix",
+  "split": "fix",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "expected_grain": "fix (instantiated)",
+  "create_description": "fix the crash in average when the input list is empty or missing",
+  "prompt": "`average(nums)` in src/stats.mjs throws when the input list is empty, and the dashboard crashes whenever there are no samples yet. It should return 0 for an empty or missing list and the mean otherwise. The regression command is `npm test`; it should fail before the fix and pass after the fix. Keep the change focused.",
+  "trap_note": "Symptom patch: guarding only `nums.length === 0` clears the empty-array case but still throws on a missing (null/undefined) list because it reads `.length` first. Root cause: guard non-arrays too (e.g. `!Array.isArray(nums) || nums.length === 0`).",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "guard-missing", "hidden": true, "argv": ["node", "tests/stats.objective.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/stats.mjs"]
+}

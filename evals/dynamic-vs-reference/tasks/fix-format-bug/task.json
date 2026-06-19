@@ -1,0 +1,16 @@
+{
+  "id": "fix-format-bug",
+  "family": "fix",
+  "split": "fix",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "expected_grain": "fix (instantiated)",
+  "create_description": "fix the date formatter dropping leading zeros on single-digit months and days",
+  "prompt": "`formatDate(year, month, day)` in src/format.mjs should produce a zero-padded `YYYY-MM-DD` string, but single-digit months and days lose their leading zero (e.g. it renders `2026-3-15` instead of `2026-03-15`). Fix the padding. The regression command is `npm test`; it should fail before the fix and pass after the fix. Keep the change focused.",
+  "trap_note": "The visible test uses a single-digit MONTH only, so a symptom patch that pads the month but leaves the day unpadded passes it. The hidden check uses a single-digit DAY (and a both-single-digit date), so only padding both fields passes.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "pad-day-too", "hidden": true, "argv": ["node", "tests/format.objective.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/format.mjs"]
+}

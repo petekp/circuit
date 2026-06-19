@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "dynamic-vs-reference",
+  "status": "pilot-internal",
+  "purpose": "Measure whether a flow generated from a natural-language task (circuit create) finishes as well as the hand-authored reference flow, and at what cost, on the fix and build families.",
+  "primary_metric": "objective_fixed_rate",
+  "secondary_metrics": [
+    "false_fixed_rate",
+    "verification_pass_rate",
+    "cost_usd_computed_median",
+    "wallclock_ms",
+    "outside_allowed_changed_files"
+  ],
+  "arms": ["reference", "generated"],
+  "default_provider": "claude-code",
+  "default_model": "claude-haiku-4-5-20251001",
+  "default_effort": "medium",
+  "default_depth": "low",
+  "default_timeout_ms": 900000,
+  "reps_per_task": 3,
+  "generated_arm_mode": "default-only",
+  "claim_rule": "This eval is discovery-grade. It does not produce a product claim; it classifies the dynamic/JIT direction as WORTH-INVESTING, MIXED, or NOT-YET against the locked rule in README.md (section 5). The reference arm is the bar, measured alongside.",
+  "families": {
+    "fix": [
+      "fix-off-by-one",
+      "fix-null-guard",
+      "fix-async-race",
+      "fix-format-bug"
+    ],
+    "build": [
+      "build-add-helper",
+      "build-validate-input",
+      "build-feature-flag",
+      "build-migrate-store"
+    ]
+  },
+  "expected_grain": {
+    "fix-off-by-one": "fix (instantiated)",
+    "fix-null-guard": "fix (instantiated)",
+    "fix-async-race": "fix (instantiated)",
+    "fix-format-bug": "fix (instantiated)",
+    "build-add-helper": "build / whole (small surface, low risk)",
+    "build-validate-input": "build / whole (small surface, low risk)",
+    "build-feature-flag": "build / whole or decomposed (medium — observed, not asserted)",
+    "build-migrate-store": "build / decomposed (large surface, across the module)"
+  },
+  "fold_cost_tasks": ["build-add-helper", "build-validate-input"]
+}

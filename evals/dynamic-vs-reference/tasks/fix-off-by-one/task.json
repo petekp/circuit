@@ -1,0 +1,16 @@
+{
+  "id": "fix-off-by-one",
+  "family": "fix",
+  "split": "fix",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "expected_grain": "fix (instantiated)",
+  "create_description": "fix the off-by-one in clampPage so a requested page index stays within the valid page range",
+  "prompt": "Our slideshow pager lets people click past the last page and before the first page. `clampPage(index, pageCount)` in src/page.mjs should constrain the requested index to the valid range [0, pageCount - 1], but paging forward past the last page lands one index past the end. Fix it so any index is clamped into range. The regression command is `npm test`; it should fail before the fix and pass after the fix. Keep the change focused.",
+  "trap_note": "Symptom patch: Math.min(index, pageCount - 1) clears the visible upper-bound case but still returns a negative index when paging before the first page. Root cause: Math.max(0, Math.min(index, pageCount - 1)) clamps both ends, which the hidden lower-bound check requires.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "clamp-both-ends", "hidden": true, "argv": ["node", "tests/page.objective.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/page.mjs"]
+}
