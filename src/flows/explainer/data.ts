@@ -92,6 +92,12 @@ export const explainerFlowData = {
       // their response files, never consumed by name.
       { generic: 'decision.answer@v1', actual: 'explainer.selection@v1' },
       { generic: 'decision.answer@v1', actual: 'explainer.signoff@v1' },
+      // Two more checkpoints guard the build: a post-editorial build-gate (confirm
+      // the spec before spending the build) and a retry-gate a failed build parks
+      // on (so editorial is preserved across a build failure). Distinct actuals so
+      // single-producer-per-contract holds; read via their response files.
+      { generic: 'decision.answer@v1', actual: 'explainer.build-authorization@v1' },
+      { generic: 'decision.answer@v1', actual: 'explainer.build-retry@v1' },
       // Input-side: lets the checkpoint/sub-run/verify steps bind their declared
       // actuals to the block's generic input contracts. flow.question@v1 and
       // flow.evidence@v1 each map to two actuals (one per checkpoint); inert
@@ -100,6 +106,10 @@ export const explainerFlowData = {
       { generic: 'flow.evidence@v1', actual: 'explainer.tournament-aggregate@v1' },
       { generic: 'flow.question@v1', actual: 'explainer.verification@v1' },
       { generic: 'flow.evidence@v1', actual: 'explainer.build-result@v1' },
+      // The build-gate and retry-gate read the spec as their question; both reuse
+      // explainer.tournament-aggregate@v1 (already a flow.evidence actual) as
+      // evidence. Inert aliases — the steps read the actual names.
+      { generic: 'flow.question@v1', actual: 'explainer.spec@v1' },
       { generic: 'goal.contract@v1', actual: 'explainer.spec@v1' },
       { generic: 'verification.plan@v1', actual: 'explainer.spec@v1' },
       { generic: 'change.evidence@v1', actual: 'explainer.build-result@v1' },
@@ -369,10 +379,39 @@ export const explainerFlowData = {
           required: ['concept_id', 'build_brief', 'fidelity_citations'],
         },
         routes: {
-          continue: 'build-step',
+          continue: 'build-gate-step',
           stop: '@stop',
         },
       },
+      expandBlockStepUse({
+        id: 'build-gate-step',
+        title: 'Build gate — confirm the spec before spending the build',
+        stage: 'plan',
+        block: 'human-decision',
+        input: {
+          question: 'explainer.spec@v1',
+          evidence: 'explainer.tournament-aggregate@v1',
+        },
+        output: 'explainer.build-authorization@v1',
+        protocol: 'explainer-build-gate-checkpoint@v1',
+        checkpointRequestPath: 'reports/checkpoints/build-gate-request.json',
+        checkpointResponsePath: 'reports/checkpoints/build-gate-response.json',
+        allow: ['continue', 'revise'],
+        checkpointPolicy: {
+          prompt:
+            'The editorial work is complete: the spec captures the concept choice and the house-style direction. Build will now construct the site. Confirm to proceed, or send the spec back for revision. This is the durable boundary — the expensive editorial output is recorded here, so a build failure resumes from this point instead of re-running the digest, ideation, tournament, and hardening from scratch.',
+          choices: [
+            { id: 'continue', label: 'Proceed to build' },
+            { id: 'revise', label: 'Send the spec back for revision' },
+          ],
+          safe_default_choice: 'continue',
+        },
+        routes: {
+          continue: 'build-step',
+          revise: 'spec-step',
+          stop: '@stop',
+        },
+      }),
       {
         id: 'build-step',
         title: 'Build — run the child build flow on the spec',
@@ -402,9 +441,37 @@ export const explainerFlowData = {
         },
         routes: {
           continue: 'verify-step',
-          stop: '@stop',
+          stop: 'retry-gate-step',
         },
       },
+      expandBlockStepUse({
+        id: 'retry-gate-step',
+        title: 'Retry gate — the build failed; retry or stop without losing editorial',
+        stage: 'act',
+        block: 'human-decision',
+        input: {
+          question: 'explainer.spec@v1',
+          evidence: 'explainer.tournament-aggregate@v1',
+        },
+        output: 'explainer.build-retry@v1',
+        protocol: 'explainer-retry-gate-checkpoint@v1',
+        checkpointRequestPath: 'reports/checkpoints/retry-gate-request.json',
+        checkpointResponsePath: 'reports/checkpoints/retry-gate-response.json',
+        allow: ['continue', 'stop'],
+        checkpointPolicy: {
+          prompt:
+            'The build did not succeed. The expensive editorial work upstream is preserved and will be reused. Retry the build (for example after preparing the build environment), or stop. The default holds and stops, so an unattended run does not loop on a build that keeps failing.',
+          choices: [
+            { id: 'continue', label: 'Retry the build' },
+            { id: 'stop', label: 'Stop — keep the editorial output' },
+          ],
+          safe_default_choice: 'stop',
+        },
+        routes: {
+          continue: 'build-step',
+          stop: '@stop',
+        },
+      }),
       {
         id: 'verify-step',
         title: 'Verify — prove the built site',
@@ -576,6 +643,18 @@ export const explainerFlowData = {
       channel: 'report',
       schema: ExplainerCheckpointResponse,
     },
+    // The two build-guarding checkpoints reuse the same engine-written response
+    // body as PICK and SIGN-OFF. No writer — the checkpoint executor writes these.
+    {
+      schemaName: 'explainer.build-authorization@v1',
+      channel: 'report',
+      schema: ExplainerCheckpointResponse,
+    },
+    {
+      schemaName: 'explainer.build-retry@v1',
+      channel: 'report',
+      schema: ExplainerCheckpointResponse,
+    },
   ],
   runtimeSurface: {
     primaryResult: {
@@ -624,9 +703,19 @@ export const explainerFlowData = {
           activeText: 'Writing the build spec',
         },
         {
+          stepId: 'build-gate-step',
+          taskTitle: 'Confirm the spec',
+          activeText: 'Waiting to start the build',
+        },
+        {
           stepId: 'build-step',
           taskTitle: 'Build the site',
           activeText: 'Building the site',
+        },
+        {
+          stepId: 'retry-gate-step',
+          taskTitle: 'Retry or stop',
+          activeText: 'Waiting on the retry decision',
         },
         {
           stepId: 'verify-step',

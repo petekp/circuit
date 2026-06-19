@@ -38,14 +38,15 @@
         "tournament-step",
         "hardening-step",
         "pick-checkpoint-step",
-        "spec-step"
+        "spec-step",
+        "build-gate-step"
       ]
     },
     {
       "id": "act-stage",
       "title": "Build",
       "canonical": "act",
-      "steps": ["build-step"]
+      "steps": ["build-step", "retry-gate-step"]
     },
     {
       "id": "verify-stage",
@@ -348,8 +349,8 @@
         "reports/hardening.json"
       ],
       "routes": {
-        "continue": "build-step",
-        "pass": "build-step",
+        "continue": "build-gate-step",
+        "pass": "build-gate-step",
         "stop": "@stop"
       },
       "executor": "orchestrator",
@@ -370,6 +371,46 @@
       }
     },
     {
+      "id": "build-gate-step",
+      "title": "Build gate — confirm the spec before spending the build",
+      "protocol": "explainer-build-gate-checkpoint@v1",
+      "reads": ["reports/explainer/spec.json", "reports/tournament-aggregate.json"],
+      "routes": {
+        "continue": "build-step",
+        "pass": "build-step",
+        "revise": "spec-step",
+        "stop": "@stop"
+      },
+      "executor": "orchestrator",
+      "kind": "checkpoint",
+      "policy": {
+        "prompt": "The editorial work is complete: the spec captures the concept choice and the house-style direction. Build will now construct the site. Confirm to proceed, or send the spec back for revision. This is the durable boundary — the expensive editorial output is recorded here, so a build failure resumes from this point instead of re-running the digest, ideation, tournament, and hardening from scratch.",
+        "choices": [
+          {
+            "id": "continue",
+            "label": "Proceed to build"
+          },
+          {
+            "id": "revise",
+            "label": "Send the spec back for revision"
+          }
+        ],
+        "safe_default_choice": "continue"
+      },
+      "writes": {
+        "request": "reports/checkpoints/build-gate-request.json",
+        "response": "reports/checkpoints/build-gate-response.json"
+      },
+      "check": {
+        "kind": "checkpoint_selection",
+        "source": {
+          "kind": "checkpoint_response",
+          "ref": "response"
+        },
+        "allow": ["continue", "revise"]
+      }
+    },
+    {
       "id": "build-step",
       "title": "Build — run the child build flow on the spec",
       "protocol": "explainer-build@v1",
@@ -377,7 +418,7 @@
       "routes": {
         "continue": "verify-step",
         "pass": "verify-step",
-        "stop": "@stop"
+        "stop": "retry-gate-step"
       },
       "executor": "orchestrator",
       "kind": "sub-run",
@@ -410,6 +451,45 @@
           "NO_ISSUES_FOUND",
           "ISSUES_FOUND"
         ]
+      }
+    },
+    {
+      "id": "retry-gate-step",
+      "title": "Retry gate — the build failed; retry or stop without losing editorial",
+      "protocol": "explainer-retry-gate-checkpoint@v1",
+      "reads": ["reports/explainer/spec.json", "reports/tournament-aggregate.json"],
+      "routes": {
+        "continue": "build-step",
+        "pass": "build-step",
+        "stop": "@stop"
+      },
+      "executor": "orchestrator",
+      "kind": "checkpoint",
+      "policy": {
+        "prompt": "The build did not succeed. The expensive editorial work upstream is preserved and will be reused. Retry the build (for example after preparing the build environment), or stop. The default holds and stops, so an unattended run does not loop on a build that keeps failing.",
+        "choices": [
+          {
+            "id": "continue",
+            "label": "Retry the build"
+          },
+          {
+            "id": "stop",
+            "label": "Stop — keep the editorial output"
+          }
+        ],
+        "safe_default_choice": "stop"
+      },
+      "writes": {
+        "request": "reports/checkpoints/retry-gate-request.json",
+        "response": "reports/checkpoints/retry-gate-response.json"
+      },
+      "check": {
+        "kind": "checkpoint_selection",
+        "source": {
+          "kind": "checkpoint_response",
+          "ref": "response"
+        },
+        "allow": ["continue", "stop"]
       }
     },
     {
