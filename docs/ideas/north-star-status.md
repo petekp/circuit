@@ -2,9 +2,9 @@
 
 > The one doc to read to know what is built, what is in flight, and what is
 > reserved for operator ratification. Written 2026-06-16; last refreshed
-> 2026-06-18. This is a **living status map**, not a design doc: it points at the
+> 2026-06-19. This is a **living status map**, not a design doc: it points at the
 > design docs and run reports, and it is grounded against the actual state of
-> `main` at the time of writing (HEAD `c8026ef2`, PR #117 merged), verified
+> `main` at the time of writing (HEAD `94fe670d`, PR #121 merged), verified
 > against `src/`. Each row links to the doc that owns the detail.
 
 ## Status legend
@@ -76,7 +76,17 @@ abstraction trigger remains open. Observed shape:
   arms (`fix`, `build`) reached `@complete` with correct on-task output. The win is
   **selection-and-instantiation** — it reads the task and lands the right family and
   grain — **not** genuine generation (the high overlap is *reuse* of proven seeds).
-  Report: [`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md). Of the
+  Report: [`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md). The
+  recommended next step then **ran and returned a verdict (PR #121):** a live
+  experiment compared an **instantiated-generated** flow against the hand-authored
+  reference on `fix` + `build` (48 runs, pinned `claude-haiku-4-5`, both arms
+  Circuit) and scored **WORTH-INVESTING** on the pre-registered §5 rule — the
+  generated flow matched the reference on quality and honesty (**0% false-fixed
+  across all 48 runs**, 0 pipeline failures), and on `build` the grain fold paid for
+  itself (whole on small/low tasks at ~1/3 the cost at equal quality; full
+  decomposed shape held on large/high). It proves the **instantiation** path on two
+  families, not genuine block-composition.
+  [`dynamic-vs-reference-run-report.md`](dynamic-vs-reference-run-report.md). Of the
   two **recorded follow-ups** (non-blocking, both fail-closed): per-mode runtime trust
   is **CLOSED** (PR #119 — publish now records every compiled-flow file under
   `flow_paths`; the trust gate blesses the default `circuit.json` or any recorded
@@ -226,6 +236,20 @@ interactive site, with two genuine operator forks (PICK, SIGN-OFF).
 
 ## 6. Experiments that returned a verdict
 
+- **Dynamic vs reference — WORTH-INVESTING.** 48 live runs (8 held-out tasks × 2
+  arms × 3 reps, pinned `claude-haiku-4-5`). A flow **instantiated** from a
+  plain-English task (`circuit create`, default mode) finished *as well as* the
+  hand-authored reference on `fix` and `build`: quality within margin, **0%
+  false-fixed across all 48 runs**, 0 pipeline failures. `fix` is a cost wash (same
+  seed, 13 steps both arms); `build` folds to a thinner `whole` shape on small/low
+  tasks (~1/3 the cost at equal quality) and holds the full `decomposed` shape on the
+  large/high task. Proves the **instantiation** path, not genuine block-composition.
+  The pre-registered §5 rule was locked before any data; the one generated miss was
+  an honest partial, not a laundered done. Report:
+  [`dynamic-vs-reference-run-report.md`](dynamic-vs-reference-run-report.md); brief +
+  rule: [`dynamic-vs-reference-experiment-brief.md`](dynamic-vs-reference-experiment-brief.md);
+  next direction (breadth-first):
+  [`dynamic-vs-reference-followup.md`](dynamic-vs-reference-followup.md).
 - **Grain × separability — null.** 40 live runs (≈$24); the false-fixed rate was 0
   in every cell, so neither coherence nor verification hypothesis could be
   adjudicated. The structure chooser held its thin-conservative default. The real
@@ -241,7 +265,7 @@ interactive site, with two genuine operator forks (PICK, SIGN-OFF).
 
 ## 7. What's next, and what's reserved for operator ratification
 
-**Recently shipped (between 2026-06-17 `f4d260b1` and 2026-06-18 `c8026ef2`):**
+**Recently shipped (between 2026-06-17 `f4d260b1` and 2026-06-19 `94fe670d`):**
 the F2 reshape operator surface + the splice-seam spec (PR #108), the F1
 equipment-reshape resume reseed + the Phase 0 splice demonstrator (PRs #110, #111),
 the on-demand context-pull **live channel** (PRs #112–#115 — typed query channel,
@@ -251,19 +275,25 @@ gate (PR #119), the **thin-envelope unlock** (PR #116 — thinned Build plan +
 lifted corridor skip; quality holds, payoff reframed as ~3.9% in-flow vs the delivery
 channel's selectivity, still opt-in), and the **paper-to-site post-editorial
 checkpoint** (PR #120 — the §5 P0; a build-gate + a fresh retry-gate so a child-build
-failure parks resumably and the editorial fan-out is recorded once, not re-spent).
-All moved off the "next/in-flight" list below; the rows above carry the detail.
+failure parks resumably and the editorial fan-out is recorded once, not re-spent),
+and the **dynamic-vs-reference live experiment** (PR #121 — verdict
+**WORTH-INVESTING**; an instantiated-generated flow matched the hand-authored
+reference on `fix` + `build` over 48 runs at 0% false-fixed, with the `build` grain
+fold paying for itself; see §2 and §6). All moved off the "next/in-flight" list
+below; the rows above carry the detail.
 
 **Next (sequenced, low ambiguity):**
 
-1. **The dynamic-vs-reference live experiment** — the task-aware assembler report's
-   recommended next step. On the two cleanest families (`fix`, `build`, where the
-   live arms already succeed), compare an **instantiated-generated** flow against the
-   hand-authored reference on a small held-out task set, with the cost-capture
-   instrument, to learn whether the generated arm finishes *as well as* the
-   hand-authored bar and at what cost. Do **not** yet spend on the
+1. **Breadth of instantiation** — the dynamic-vs-reference follow-up's recommended
+   next step now that the two-family result is in. A measurement-only sibling eval
+   over the **untested** families (`research`, `prototype`, `explain`/editorial),
+   same two arms / same pinned model / same cost instrument, to learn whether the
+   WORTH-INVESTING result is a two-family property or generalizes. The hard part is
+   an **honest external check** per family (a document's quality is not a passing
+   test) — a family with no such check does not enter the set. Pure measurement on
+   the existing generator; no assembler/resolver edit. Do **not** yet spend on the
    genuine-block-composition arm (gated behind the Phase 2 catalog enrichments).
-   [`assembler-rebuild-run-report.md`](assembler-rebuild-run-report.md).
+   [`dynamic-vs-reference-followup.md`](dynamic-vs-reference-followup.md).
 2. **The remaining task-aware-assembler follow-up** (non-blocking): sign off the
    loosened `src/flows/resolvers/` import zone. (Per-mode runtime trust is **done** —
    PR #119 blesses recorded `<mode>.json` siblings and fails closed with a clear
@@ -314,7 +344,8 @@ All moved off the "next/in-flight" list below; the rows above carry the detail.
   `splice-phase01-run-report.md`, `context-pull-live-run-report.md`,
   `runtime-binding-battle-test-report.md`, `context-pull-last-mile-report.md`,
   `dynamic-assembly-shape-check.md`, `assembler-rebuild-preregistration.md`,
-  `assembler-rebuild-run-report.md`, `overnight-reliability-run-report.md`,
+  `assembler-rebuild-run-report.md`, `dynamic-vs-reference-run-report.md`,
+  `overnight-reliability-run-report.md`,
   `grain-chooser-run-report.md`, `overnight-run-report.md`,
   `paper-to-site-2nd-run-findings.md`, `equipment-scope-enforcement-report.md`,
   `e1-run-report.md`.

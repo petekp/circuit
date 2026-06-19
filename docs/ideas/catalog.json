@@ -1252,9 +1252,10 @@
         "docs/ideas/overnight-reliability-run-report.md",
         "docs/ideas/decision-layer-exploration.md",
         "docs/ideas/resolver-shared-shape.md",
-        "docs/ideas/grain-chooser-run-report.md"
+        "docs/ideas/grain-chooser-run-report.md",
+        "docs/ideas/dynamic-vs-reference-run-report.md"
       ],
-      "last_checked": "2026-06-17"
+      "last_checked": "2026-06-19"
     },
     {
       "path": "docs/ideas/on-demand-context-pull.md",
