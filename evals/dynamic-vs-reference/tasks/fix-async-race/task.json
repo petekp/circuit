@@ -1,0 +1,16 @@
+{
+  "id": "fix-async-race",
+  "family": "fix",
+  "split": "fix",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "expected_grain": "fix (instantiated)",
+  "create_description": "fix the race in Counter.bump where two concurrent calls double-count",
+  "prompt": "`Counter.bump()` in src/counter.mjs reads the current value, awaits, then writes value + 1. When two callers bump concurrently they both read the same value and one increment is lost. Fix it so concurrent bumps never lose an update. The regression command is `npm test`; it should fail before the fix and pass after the fix. Keep the change focused.",
+  "trap_note": "The visible test bumps twice concurrently (expects 2). The hidden check raises the bar to 50 concurrent bumps plus a separate 3-way race, so any fix that still interleaves the read and write, or that drops increments under load, is caught.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "no-lost-updates", "hidden": true, "argv": ["node", "tests/counter.objective.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/counter.mjs"]
+}

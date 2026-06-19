@@ -1,0 +1,15 @@
+{
+  "id": "build-migrate-store",
+  "family": "build",
+  "split": "build",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "expected_grain": "build / decomposed (large surface, across the module)",
+  "create_description": "migrate the store from callbacks to async/await across the module",
+  "prompt": "Migrate the key/value store in src/store.mjs from Node-style callbacks to async/await across the module: `get(key)` and `set(key, value)` should return promises, and the consumer `recordVisit(store, user)` in src/app.mjs should await them and return the new visit count. The regression command is `npm test`; it should fail before the work and pass after. Keep the change focused to the allowed files.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "async-store", "hidden": true, "argv": ["node", "tests/store.objective.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/store.mjs", "src/app.mjs"]
+}

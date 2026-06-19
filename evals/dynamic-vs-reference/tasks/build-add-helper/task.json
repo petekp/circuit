@@ -1,0 +1,15 @@
+{
+  "id": "build-add-helper",
+  "family": "build",
+  "split": "build",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "expected_grain": "build / whole (small surface, low risk)",
+  "create_description": "add a clamp(min, max, n) helper and use it in the volume setter",
+  "prompt": "Add a `clamp(min, max, n)` helper in src/clamp.mjs that constrains `n` to the inclusive range [min, max], and wire it into `setVolume` in src/volume.mjs so volume stays within 0..100. `clamp` is currently a stub that throws. The regression command is `npm test`; it should fail before the work and pass after. Keep the change focused to the allowed files.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "clamp-bounds", "hidden": true, "argv": ["node", "tests/clamp.objective.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/clamp.mjs", "src/volume.mjs"]
+}

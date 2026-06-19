@@ -1,0 +1,9 @@
+{
+  "name": "fix-async-race-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/counter.test.mjs"
+  }
+}

@@ -128,6 +128,28 @@
       "cadence": "ad-hoc",
       "claim_eligible": false,
       "readme_path": "evals/grain-separability/README.md"
+    },
+    {
+      "id": "dynamic-vs-reference",
+      "claim_level": "discovery",
+      "flow": "auto",
+      "primary_metric": "objective_fixed_rate",
+      "secondary_metrics": [
+        "false_fixed_rate",
+        "verification_pass_rate",
+        "cost_usd_computed_median",
+        "wallclock_ms",
+        "outside_allowed_changed_files"
+      ],
+      "default_command": [
+        "node",
+        "evals/dynamic-vs-reference/run-dynamic-comparison.ts",
+        "--dry-run"
+      ],
+      "cost_class": "live-model",
+      "cadence": "ad-hoc",
+      "claim_eligible": false,
+      "readme_path": "evals/dynamic-vs-reference/README.md"
     }
   ]
 }

@@ -1,0 +1,15 @@
+{
+  "id": "build-feature-flag",
+  "family": "build",
+  "split": "build",
+  "provenance": "held-out-created",
+  "tuning_used": false,
+  "expected_grain": "build / whole or decomposed (medium — observed, not asserted)",
+  "create_description": "add a feature-flag gate around the new free-shipping checkout path",
+  "prompt": "`checkoutTotal(subtotal, flags)` in src/checkout.mjs currently always adds a flat $5 shipping fee. Add a new free-shipping path (orders over $50 ship free) BEHIND a feature flag: when `flags.freeShipOver50` is true, orders over 50 pay no shipping. When the flag is off or absent, behavior must be unchanged. The regression command is `npm test`; it should fail before the work and pass after. Keep the change focused.",
+  "checks": [
+    { "id": "node-test", "argv": ["npm", "test"] },
+    { "id": "flag-gated", "hidden": true, "argv": ["node", "tests/checkout.objective.test.mjs"] }
+  ],
+  "allowed_changed_files": ["src/checkout.mjs"]
+}
