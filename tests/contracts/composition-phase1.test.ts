@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { flowDefinitions } from '../../src/flows/catalog.js';
 import {
   type CompositionRoleSet,
+  GOAL_THEN_FIX,
   composeFlow,
   evaluateSensibility,
   evaluateValidity,
@@ -117,6 +118,34 @@ describe('Phase 1 — verification of existing state is sensible (intent not ove
     });
     if (!sensibility.sensible) throw new Error(`not sensible: ${sensibility.failures.join(' | ')}`);
     expect(sensibility.intentClosure).toBe(true);
+  });
+});
+
+describe('Phase 1 — a composed sub-run is SENSIBLE, not just VALID', () => {
+  // The sub-run shape (PR #124) was locked VALID + LIVE + BOUNDED, but its test
+  // deliberately never asserted SENSIBLE: the `goal` and `goal-child-run` blocks
+  // had no BLOCK_INTENT entry, so intent closure failed and the flow scored
+  // VALID-ONLY. That gap matters now — the §5.2 rule downgrades a VALID-but-not-
+  // SENSIBLE flow to INTRACTABLE, so a delegate-to-child flow could never be
+  // judged a sensible process. The goal family's intents are additive metadata
+  // (the eight built-ins and the catalog are untouched): `goal` establishes the
+  // same 'task-framed' state `frame` does, and `goal-child-run` requires it. With
+  // those two entries, a frame-then-delegate-then-close flow closes its intent.
+  it('goal-then-fix closes intent: goal frames the task, delegate needs it, close reports it', () => {
+    const outcome = composeFlow(GOAL_THEN_FIX, { definitions: flowDefinitions });
+    if (!outcome.ok) {
+      throw new Error(`walls: ${outcome.walls.map((w) => `${w.block}: ${w.reason}`).join(' | ')}`);
+    }
+    const validity = evaluateValidity(outcome.spec);
+    if (!validity.valid || !validity.schematic) {
+      throw new Error(`not valid: ${validity.error ?? validity.catalogIssues.join('; ')}`);
+    }
+    const sensibility = evaluateSensibility(validity.schematic, {
+      boundPrimaryResult: validity.boundPrimaryResult,
+    });
+    if (!sensibility.sensible) throw new Error(`not sensible: ${sensibility.failures.join(' | ')}`);
+    expect(sensibility.intentClosure).toBe(true);
+    expect(sensibility.sensible).toBe(true);
   });
 });
 
