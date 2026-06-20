@@ -60,6 +60,21 @@ export interface CompositionRole {
   readonly flowId?: 'fix' | 'build' | 'review' | 'explore' | 'pursue';
   readonly goalText?: string;
   readonly subRunDepth?: CompiledDepth;
+  // Static fanout: run a fixed set of child flows IN PARALLEL as this step, and
+  // admit the survivors. Each branch is a sub-run leaf (a `flow_ref`/`goal`/`depth`
+  // plus a kebab-case `branchId`). The `aggregate-survivors` join the composer
+  // emits needs at least TWO branches to survive, so a fanout role with fewer than
+  // two branches walls honestly; a branch with no goalText walls too (the sub-run
+  // goalText invariant, per branch). Inert on non-fanout roles.
+  readonly fanoutBranches?: readonly FanoutBranchRole[];
+}
+
+export interface FanoutBranchRole {
+  // Kebab-case slug, unique within the fanout; names the per-branch result dir.
+  readonly branchId: string;
+  readonly flowId: 'fix' | 'build' | 'review' | 'explore' | 'pursue';
+  readonly goalText: string;
+  readonly depth?: CompiledDepth;
 }
 
 export interface CompositionRoleSet {
@@ -330,18 +345,26 @@ function stepWrites(
     // report_path for sub-run (the result IS the readable output).
     return { result_path: `reports/${flowId}/${stepId}.result.json` };
   }
+  if (executionKind === 'fanout') {
+    // A fanout writes the joined aggregate report AND a per-branch directory the
+    // runtime fills with each child's result; the schema requires both.
+    return {
+      report_path: reportPath,
+      branches_dir_path: `reports/${stepId}-branches`,
+    };
+  }
   // compose + verification
   return { report_path: reportPath };
 }
 
 // Construct the typed execution descriptor for a block. The composer supports
-// compose, relay, verification, checkpoint, and sub-run; fanout carries
-// per-branch sub-fields the composer does not synthesize yet, so it refuses that
-// kind honestly rather than emit an invalid step. The sub-run descriptor's
-// flow_ref/entry_mode come from the bound donor actual (`pick`) so the child it
-// runs matches the actual it produces; goal/depth come from the role (the
-// per-task params). The goalText invariant is enforced upstream by the sub-run
-// wall, so `role.goalText` is present here.
+// compose, relay, verification, checkpoint, sub-run, and fanout. The sub-run
+// descriptor's flow_ref/entry_mode come from the bound donor actual (`pick`) so
+// the child it runs matches the actual it produces; goal/depth come from the role
+// (the per-task params). The goalText invariant is enforced upstream by the
+// sub-run wall, so `role.goalText` is present here. A fanout's execution is the
+// bare `{ kind: 'fanout' }` marker; its branch/join metadata rides in the sibling
+// `fanout` field the caller attaches from `buildFanoutMetadata`.
 function buildExecution(
   role: CompositionRole,
   pick: MenuEntry,
@@ -365,9 +388,32 @@ function buildExecution(
         goal: role.goalText as string,
         depth: role.subRunDepth ?? 'medium',
       };
+    case 'fanout':
+      return { kind: 'fanout' };
     default:
       throw new Error(`composer does not synthesize execution kind '${role.executionKind}'`);
   }
+}
+
+// Build the SchematicFanout metadata for a fanout role: a STATIC set of sub-run
+// branches run in parallel and joined as aggregate-survivors. The composer emits
+// no rubric (the join does not consult one) and uses continue-others so one
+// branch failing does not abort the others — the join then keeps the survivors.
+// The branch invariants (at least two branches, each with a goalText) are enforced
+// upstream by the fanout wall, so `role.fanoutBranches` is present and valid here.
+function buildFanoutMetadata(role: CompositionRole): NonNullable<BlockStepUse['fanout']> {
+  const branches = (role.fanoutBranches ?? []).map((branch) => ({
+    branch_id: branch.branchId,
+    flow_ref: { flow_id: branch.flowId, entry_mode: 'default' },
+    goal: branch.goalText,
+    depth: branch.depth ?? 'medium',
+  }));
+  return {
+    branches: { kind: 'static', branches },
+    concurrency: { kind: 'bounded', max: 2 },
+    on_child_failure: 'continue-others',
+    join: { policy: 'aggregate-survivors' },
+  };
 }
 
 // Whether a block's execution kind is unambiguous (one allowed kind). The block
@@ -421,6 +467,32 @@ export function composeFlow(
         reason: `sub-run role for '${role.block}' requires goalText (the child run's objective)`,
       });
       return;
+    }
+    // A fanout joins its survivors with `aggregate-survivors`, which needs at
+    // least TWO branches to survive, so a fanout role with fewer than two branches
+    // walls honestly rather than emit a join that can never succeed. Each branch
+    // is a sub-run leaf, so each carries the same goalText invariant.
+    if (role.executionKind === 'fanout') {
+      const fanoutBranches = role.fanoutBranches ?? [];
+      if (fanoutBranches.length < 2) {
+        walls.push({
+          roleIndex: index,
+          block: role.block,
+          reason: `fanout role for '${role.block}' requires at least two branches (aggregate-survivors needs two survivors)`,
+        });
+        return;
+      }
+      const branchMissingGoal = fanoutBranches.find(
+        (branch) => branch.goalText === undefined || branch.goalText.trim().length === 0,
+      );
+      if (branchMissingGoal !== undefined) {
+        walls.push({
+          roleIndex: index,
+          block: role.block,
+          reason: `fanout branch '${branchMissingGoal.branchId}' requires goalText (the child run's objective)`,
+        });
+        return;
+      }
     }
     const pick = selectActual(role, outputGeneric, menu, familyRank, nonRawCells);
     if (pick === undefined) {
@@ -576,6 +648,11 @@ export function composeFlow(
       ...(role.executionKind === 'sub-run' || !blockHasSingleKind(block)
         ? { execution: buildExecution(role, pick) }
         : {}),
+      // A fanout step carries a sibling `fanout` descriptor (the bare `{kind:'fanout'}`
+      // execution above only marks the step; the branch set, concurrency, failure
+      // policy, and join live here). The fanout wall upstream guaranteed at least
+      // two goal-bearing branches, so the descriptor is well-formed.
+      ...(role.executionKind === 'fanout' ? { fanout: buildFanoutMetadata(role) } : {}),
       routes,
     };
     items.push(use);
@@ -717,6 +794,58 @@ export const GOAL_THEN_FIX: CompositionRoleSet = {
       goalText:
         'Satisfy the framed goal contract: diagnose the failure, make the change, and prove it with a report-backed verification packet.',
       subRunDepth: 'medium',
+    },
+    {
+      stage: 'close',
+      block: 'close-with-evidence',
+      executionKind: 'compose',
+      terminal: true,
+    },
+  ],
+};
+
+// ----------------------------------------------------------------------------
+// Rung 2 milestone target: frame, plan, then FAN OUT parallel child runs.
+//
+// "Frame the task, form a plan, then run two child flows IN PARALLEL and close
+// with whichever survives." The act step is a STATIC FANOUT: a fixed set of
+// sub-run branches launched concurrently, joined as `aggregate-survivors` — the
+// first composed shape that is BOTH non-linear AND multi-child. Each branch is a
+// sub-run leaf, so the recursion cap bounds every branch exactly as it bounds a
+// lone sub-run; with the cap reached, all branches refuse, the join collapses,
+// and the step aborts (no child runner ever spawns). Static branches list their
+// children upfront, so there is no upstream `source_report` to place and the
+// shape is provable offline with stub children. None of the eight built-ins is
+// this shape: the dynamic fanouts (prototype, explore, explainer) read their
+// branch set from an upstream report and run relay children, not parallel sub-runs.
+export const FANOUT_PARALLEL_BUILD: CompositionRoleSet = {
+  id: 'fanout-parallel-build',
+  title: 'Frame, plan, then fan out parallel child runs',
+  purpose:
+    'Frame the task into a brief, form a plan, then fan out two child flows as parallel sub-runs and close with the surviving evidence. A composed frame-plan-fanout shape; the fanout runs whole flows in parallel and admits the survivors through an aggregate-survivors join.',
+  roles: [
+    { stage: 'frame', block: 'frame', executionKind: 'compose' },
+    { stage: 'plan', block: 'plan', executionKind: 'compose' },
+    {
+      stage: 'act',
+      block: 'act',
+      executionKind: 'fanout',
+      fanoutBranches: [
+        {
+          branchId: 'fix-path',
+          flowId: 'fix',
+          goalText:
+            'Satisfy the plan by repairing the existing implementation: diagnose, change, and prove it with a verification packet.',
+          depth: 'medium',
+        },
+        {
+          branchId: 'build-path',
+          flowId: 'build',
+          goalText:
+            'Satisfy the plan by building the change from the plan: implement, verify, and prove it with a report-backed packet.',
+          depth: 'medium',
+        },
+      ],
     },
     {
       stage: 'close',
