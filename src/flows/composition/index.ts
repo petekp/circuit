@@ -27,11 +27,15 @@ export {
   evaluateValidity,
   evaluateNovelty,
   evaluateSensibility,
+  evaluateTopology,
   blockSequence,
   outputIsReadableContract,
   type ValidityVerdict,
   type NoveltyVerdict,
   type SensibilityVerdict,
+  type TopologyVerdict,
+  type TopologyBackEdge,
+  type TopologyBranch,
   type SequenceStep,
 } from './evaluate.js';
 export { BLOCK_INTENT, blockIntent, type BlockIntent, type IntentState } from './intent.js';

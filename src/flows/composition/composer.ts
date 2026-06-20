@@ -43,6 +43,13 @@ export interface CompositionRole {
   readonly relayRole?: RelayRole;
   // The close-stage step whose @complete route binds the runtime primary result.
   readonly terminal?: boolean;
+  // Bounded back-edge: when set, this role's step emits a `retry` route to the
+  // nearest earlier step using this block, so a `retry` outcome re-enters the
+  // graph upstream — the inspect->fix->verify loop the fix flow hand-authors
+  // (fix-verify routes retry -> fix-act). The composer only wires the edge; the
+  // runtime's depth-cap / cycle-guard bounds the iteration count. A loopBackTo
+  // with no upstream producer is a dangling edge and walls honestly.
+  readonly loopBackTo?: FlowBlockId;
 }
 
 export interface CompositionRoleSet {
@@ -410,6 +417,31 @@ export function composeFlow(
       : nextId === undefined
         ? { complete: '@complete', stop: '@stop' }
         : { continue: nextId, stop: '@stop' };
+
+    // Bounded back-edge — the one non-linear shape the composer proposes. The
+    // role asks to loop back to an upstream block on a `retry` outcome; resolve
+    // the nearest earlier step using that block and wire `retry -> <stepId>`.
+    // A verify step's required-style check does not constrain route keys, so the
+    // added route compiles exactly as the hand-authored fix-verify retry does.
+    // No upstream match means a dangling edge: wall rather than emit it.
+    if (role.loopBackTo !== undefined) {
+      let targetIndex = -1;
+      for (let j = index - 1; j >= 0; j--) {
+        if (roleSet.roles[j]?.block === role.loopBackTo) {
+          targetIndex = j;
+          break;
+        }
+      }
+      if (targetIndex === -1) {
+        walls.push({
+          roleIndex: index,
+          block: role.block,
+          reason: `loopBackTo '${role.loopBackTo}' has no upstream step to loop back to`,
+        });
+        return;
+      }
+      routes.retry = stepIds[targetIndex] as string;
+    }
 
     // A checkpoint step must carry a checkpoint_policy and a check whose allowed
     // route matches a real route. The composer synthesizes a minimal go/no-go:
