@@ -56,6 +56,16 @@ export const BLOCK_INTENT: Partial<Record<FlowBlockId, BlockIntent>> = {
     precondition: [],
     postcondition: ['task-framed'],
   },
+  clarify: {
+    // The frame analog for an ambiguous ask: clarify reads the raw operator
+    // intake (catalog input task.intake@v1 — no prior brief) and turns it into a
+    // precise task, so its precondition is empty and it establishes the same
+    // 'task-framed' state `frame` and `goal` do. A flow that opens with clarify
+    // (a vague bug report) instead of frame therefore still closes its intent.
+    role: 'Clarify an ambiguous request into a precise task',
+    precondition: [],
+    postcondition: ['task-framed'],
+  },
   'gather-context': {
     role: 'Collect the code and context the task touches',
     precondition: ['task-framed'],
