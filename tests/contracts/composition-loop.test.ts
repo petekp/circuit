@@ -20,6 +20,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { flowDefinitions } from '../../src/flows/catalog.js';
+import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
 import {
   type CompositionRoleSet,
   RESEARCH_THEN_BUILD,
@@ -28,6 +29,7 @@ import {
   evaluateTopology,
   evaluateValidity,
 } from '../../src/flows/composition/index.js';
+import { projectWorkContractProjectionV0 } from '../../src/shared/work-contract-projection.js';
 
 // RESEARCH_THEN_BUILD with one added directive: the verify step loops back to
 // the act step on a `retry` outcome — a bounded inspect->fix->verify loop.
@@ -110,6 +112,37 @@ describe('flow-shape composition — bounded loop', () => {
     // The signature must differ — this is the whole point: a loop is a
     // different process than a line over the same blocks.
     expect(linTopo.signature).not.toBe(loopTopo.signature);
+  });
+
+  it('the back-edge is LIVE and BOUNDED: it projects a narrow_scope recovery binding for failed_check', () => {
+    // Validity proves the loop COMPILES; this proves it RUNS. A composed
+    // `retry` route is not a dead declaration — the work-contract projection
+    // auto-derives a recovery binding for it, exactly as it does for the
+    // hand-authored fix flow. On a failed verification (cause `failed_check`)
+    // the runtime's recovery selection returns `retry` and loops back to act;
+    // the binding's attempt budget (`must_respect_max_attempts`) bounds it. This
+    // is the difference between a valid-but-dead route and a real loop.
+    if (!looped.ok) throw new Error('compose failed');
+    const validity = evaluateValidity(looped.spec);
+    if (!validity.schematic) throw new Error('no schematic');
+    const compiled = compileSchematicToCompiledFlow(validity.schematic);
+    const flow = compiled.kind === 'single' ? compiled.flow : [...compiled.flows.values()][0];
+    if (!flow) throw new Error('no compiled flow');
+
+    const verify = looped.spec.items.find((it) => String(it.block) === 'run-verification');
+    const act = looped.spec.items.find((it) => String(it.block) === 'act');
+    const projection = projectWorkContractProjectionV0({ flow });
+    const binding = projection.work_contract.recovery.find(
+      (b) => b.step_id === String(verify?.id) && b.route_id === 'retry',
+    );
+    expect(binding).toBeDefined();
+    expect(binding?.kind).toBe('narrow_scope');
+    expect(binding?.route_target).toBe(String(act?.id));
+    // The cause a failed verification raises must be one the binding accepts,
+    // else the loop never fires.
+    expect(binding?.allowed_failure_causes).toContain('failed_check');
+    // Bounded: the runtime cycle guard caps re-entry by max_attempts.
+    expect(binding?.attempt_budget.must_respect_max_attempts).toBe(true);
   });
 
   it('evaluateNovelty (locked rubric) is unchanged: loop reports the SAME sequence as the line', () => {
