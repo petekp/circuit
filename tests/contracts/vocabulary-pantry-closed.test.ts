@@ -32,6 +32,16 @@
 //       registration is dropped). The name enters UNRESOLVED but belongs to no
 //       exempt class → this test fails.
 //
+// ONE write-only umbrella is DELIBERATELY typed and therefore RESOLVED:
+// flow.result@v1, the close block's default output. The genuine-linear-LIVE
+// unlock registered a loose body for it (mirroring fanout.aggregate@v1, #126) so
+// the engine's reads-agnostic generic close builder can emit it as a composed
+// linear flow's terminal. This does NOT trip direction (a)'s anti-widening
+// concern: flow.result@v1 is the terminal OUTPUT and is never CONSUMED via the
+// generic name, so the gate has nothing to inspect (the "both gates stay inert"
+// PRIMARY assertion proves this stays true). It therefore moves from the exempt
+// UNRESOLVED set into RESOLVED, and the partition below reflects that.
+//
 // The PRIMARY assertion is the partition rule (UNRESOLVED === documented exempt
 // union, and the two typing gates stay inert). A snapshot of the exact resolved /
 // unresolved name lists is a SECONDARY assertion, for legibility and to make a
@@ -95,7 +105,8 @@ const WRITE_ONLY_UMBRELLAS: readonly string[] = [
   'decision.answer@v1',
   'diagnosis.result@v1',
   'flow.evidence@v1',
-  'flow.result@v1',
+  // flow.result@v1 is intentionally typed (genuine-linear-LIVE) and now RESOLVED;
+  // see the header note and EXPECTED_RESOLVED below.
   'goal.checkpoint@v1',
   'prototype.checkpoint@v1',
   'risk.decision@v1',
@@ -212,6 +223,7 @@ describe('vocabulary pantry is closed (A4 lock test)', () => {
 
     const EXPECTED_RESOLVED = [
       'flow.catalog@v1',
+      'flow.result@v1',
       'goal.attempt@v1',
       'goal.child-run@v1',
       'goal.contract@v1',
@@ -231,9 +243,10 @@ describe('vocabulary pantry is closed (A4 lock test)', () => {
 
     expect(resolved).toEqual(EXPECTED_RESOLVED);
     expect(unresolved).toEqual(EXPECTED_UNRESOLVED);
-    // Exact counts at A4: 36 total = 16 resolved + 20 unresolved.
-    expect(resolved.length).toBe(16);
-    expect(unresolved.length).toBe(20);
+    // Exact counts after genuine-linear-LIVE typed flow.result@v1: 36 total =
+    // 17 resolved + 19 unresolved (flow.result@v1 moved resolved←unresolved).
+    expect(resolved.length).toBe(17);
+    expect(unresolved.length).toBe(19);
     expect(resolved.length + unresolved.length).toBe(36);
   });
 

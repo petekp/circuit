@@ -129,6 +129,39 @@ describe('close-with-evidence registry', () => {
     expect(findCloseBuilder('pursuit.result@v1')?.resultSchemaName).toBe('pursuit.result@v1');
   });
 
+  it('exposes the engine-built-in generic close builder for flow.result@v1', () => {
+    // The close-with-evidence block defaults to the generic flow.result@v1; every
+    // shipped flow aliases it to a family result, so the generic builder is only
+    // reached by a composed flow whose terminal the composer left at the generic.
+    // It is reads-agnostic (no required reads) so a novel short-tail shape can
+    // close without a family pipeline.
+    const generic = findCloseBuilder('flow.result@v1');
+    expect(generic?.resultSchemaName).toBe('flow.result@v1');
+    expect(generic?.reads).toEqual([]);
+  });
+
+  it('the generic close builder folds the close step reads into evidence_links', () => {
+    const generic = findCloseBuilder('flow.result@v1');
+    if (generic === undefined) throw new Error('generic close builder must be registered');
+    const body = generic.build({
+      runFolder: '/tmp/run',
+      flow: { id: 'composed-x', version: '0.1.0', stages: [], steps: [] } as RuntimeIndexedFlow,
+      closeStep: {
+        id: 'close',
+        reads: ['reports/composed-x/frame.json', 'reports/composed-x/diagnose.json'],
+        writes: { report: { path: 'reports/composed-x/close.json', schema: 'flow.result@v1' } },
+      } as unknown as Parameters<typeof generic.build>[0]['closeStep'],
+      goal: 'investigate',
+      inputs: {},
+    }) as { schema_version: number; outcome: string; evidence_links: string[]; summary: string };
+    expect(body.schema_version).toBe(1);
+    expect(body.outcome).toBe('complete');
+    expect(body.evidence_links).toEqual([
+      'reports/composed-x/frame.json',
+      'reports/composed-x/diagnose.json',
+    ]);
+  });
+
   it('returns undefined for an unregistered schema', () => {
     expect(findCloseBuilder('synthetic.flow-result@v1')).toBeUndefined();
   });
