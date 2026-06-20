@@ -28,12 +28,15 @@ export {
 } from './actual-menu.js';
 export {
   evaluateValidity,
+  evaluateRunnability,
   evaluateNovelty,
   evaluateSensibility,
   evaluateTopology,
   blockSequence,
   outputIsReadableContract,
   type ValidityVerdict,
+  type RunnabilityVerdict,
+  type RunnabilityAbort,
   type NoveltyVerdict,
   type SensibilityVerdict,
   type TopologyVerdict,
