@@ -9,9 +9,20 @@ import {
   flowHasReportSchemaInRuntimeFlow,
   reportPathForSchemaInRuntimeFlow,
 } from '../runtime-index.js';
+import { GENERIC_CLOSE_BUILDER } from './generic-close-builder.js';
 import type { CloseBuildContext, CloseBuilder } from './types.js';
 
-const REGISTRY = buildCloseRegistry(flowPackages);
+// The flow-derived close builders, plus the engine-built-in generic close
+// builder keyed by the generic flow.result@v1 contract. No flow registers a
+// builder under that key (each aliases the generic to its family result), so the
+// merge cannot collide — assert it rather than trust it.
+const REGISTRY = new Map(buildCloseRegistry(flowPackages));
+if (REGISTRY.has(GENERIC_CLOSE_BUILDER.resultSchemaName)) {
+  throw new Error(
+    `generic close builder collides with a flow-registered close builder for schema '${GENERIC_CLOSE_BUILDER.resultSchemaName}'`,
+  );
+}
+REGISTRY.set(GENERIC_CLOSE_BUILDER.resultSchemaName, GENERIC_CLOSE_BUILDER);
 
 export function findCloseBuilder(resultSchemaName: string): CloseBuilder | undefined {
   return REGISTRY.get(resultSchemaName);

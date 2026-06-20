@@ -45367,6 +45367,7 @@ function collectUnregisteredConsumedContractIssues(schematic, resolveSignature) 
 
 // dist/schemas/builtin-report-schemas.js
 var FANOUT_AGGREGATE_CONTRACT = "fanout.aggregate@v1";
+var FLOW_RESULT_CONTRACT = "flow.result@v1";
 var MinimalVerdictShape = external_exports.looseObject({ verdict: external_exports.string().min(1) });
 var StrictPayloadShape = external_exports.object({
   verdict: external_exports.string().min(1),
@@ -45388,11 +45389,18 @@ var FanoutAggregateFixtureShape = external_exports.looseObject({
   winner_branch_id: external_exports.string().min(1).optional(),
   branches: external_exports.array(FanoutAggregateFixtureBranchShape)
 });
+var FlowResultShape = external_exports.looseObject({
+  schema_version: external_exports.literal(1),
+  summary: external_exports.string().min(1),
+  outcome: external_exports.enum(["complete", "stopped", "handoff"]),
+  evidence_links: external_exports.array(external_exports.string().min(1))
+});
 var BUILTIN_REPORT_SCHEMAS = Object.freeze({
   "runtime-proof-canonical@v1": MinimalVerdictShape,
   "runtime-proof-strict@v1": StrictPayloadShape,
   "fanout-aggregate@v1": FanoutAggregateFixtureShape,
-  [FANOUT_AGGREGATE_CONTRACT]: FanoutAggregateFixtureShape
+  [FANOUT_AGGREGATE_CONTRACT]: FanoutAggregateFixtureShape,
+  [FLOW_RESULT_CONTRACT]: FlowResultShape
 });
 
 // dist/shared/zod-to-response-schema.js
@@ -59003,8 +59011,36 @@ async function executeCheckpoint(step, context) {
   return unwrapStepExecutionResult(await executeCheckpointResult(step, context));
 }
 
+// dist/flows/registries/close-writers/generic-close-builder.js
+var GENERIC_CLOSE_BUILDER = {
+  resultSchemaName: FLOW_RESULT_CONTRACT,
+  reads: [],
+  build(context) {
+    const evidenceLinks3 = [...context.closeStep.reads];
+    const linkCount = evidenceLinks3.length;
+    return {
+      schema_version: 1,
+      summary: linkCount === 0 ? `Composed flow '${context.flow.id}' closed with no upstream evidence.` : `Composed flow '${context.flow.id}' closed with ${linkCount} evidence link${linkCount === 1 ? "" : "s"}.`,
+      // INFORMATIONAL ONLY. The run's honest outcome is derived from the terminal
+      // ROUTE (@complete/@stop/@handoff), not from this body — a composed flow
+      // never sets engineFlags.bindsTerminalOutcomeToPrimaryResult, so run-close
+      // never reads this field to decide the run outcome. This builder only sits on
+      // the @complete close compose step, so 'complete' is faithful here. Do NOT
+      // make this the outcome bind source (set that flag on a composed flow)
+      // without re-deriving the value from real upstream state — hardcoded
+      // 'complete' would then mask a degraded run.
+      outcome: "complete",
+      evidence_links: evidenceLinks3
+    };
+  }
+};
+
 // dist/flows/registries/close-writers/registry.js
-var REGISTRY3 = buildCloseRegistry(flowPackages);
+var REGISTRY3 = new Map(buildCloseRegistry(flowPackages));
+if (REGISTRY3.has(GENERIC_CLOSE_BUILDER.resultSchemaName)) {
+  throw new Error(`generic close builder collides with a flow-registered close builder for schema '${GENERIC_CLOSE_BUILDER.resultSchemaName}'`);
+}
+REGISTRY3.set(GENERIC_CLOSE_BUILDER.resultSchemaName, GENERIC_CLOSE_BUILDER);
 function findCloseBuilder(resultSchemaName) {
   return REGISTRY3.get(resultSchemaName);
 }

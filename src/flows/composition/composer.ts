@@ -17,7 +17,10 @@
 // same gate passes. Whether that is enough to produce novel, valid, SENSIBLE
 // flows across a task set is what the eval measures.
 
-import { FANOUT_AGGREGATE_CONTRACT } from '../../schemas/builtin-report-schemas.js';
+import {
+  FANOUT_AGGREGATE_CONTRACT,
+  FLOW_RESULT_CONTRACT,
+} from '../../schemas/builtin-report-schemas.js';
 import type { CompiledDepth } from '../../schemas/depth.js';
 import {
   FLOW_BLOCK_DEFINITIONS,
@@ -28,6 +31,7 @@ import { CANONICAL_STAGES, type CanonicalStage } from '../../schemas/stage.js';
 import type { FlowSchematicAssemblySpec, StageLabelMap } from '../assemble-flow-schematic.js';
 import type { BlockStepUse } from '../block-step-expansion.js';
 import type { FlowDefinition } from '../flow-definition.js';
+import { findCloseBuilder } from '../registries/close-writers/registry.js';
 import {
   type ExecutionKind,
   type MenuEntry,
@@ -635,7 +639,35 @@ export function composeFlow(
     // validates AND the aggregate-survivors join admits any complete child. The
     // generic carries a registered body, so the anti-widening gate still passes.
     // Non-fanout roles bind the selected actual unchanged.
-    const boundOutput = role.executionKind === 'fanout' ? FANOUT_AGGREGATE_CONTRACT : pick.actual;
+    let boundOutput = role.executionKind === 'fanout' ? FANOUT_AGGREGATE_CONTRACT : pick.actual;
+
+    // Terminal close rebind (genuine-linear-LIVE). selectActual binds the close
+    // to a FAMILY result (e.g. fix.result@v1) — the close block's generic
+    // flow.result@v1 default aliased to a registered family actual. But every
+    // family close builder declares REQUIRED upstream reads: fix.result@v1 needs
+    // change/verification/regression evidence, build.result@v1 needs
+    // plan/implementation/verification. A novel short-tail topology (a triage
+    // that closes after diagnose) cannot produce those, so binding the family
+    // result emits a flow that ABORTS at close time — the runtime close-read
+    // resolver throws on the first unproduced required read. When the bound
+    // family's required reads are not all produced by an upstream selection,
+    // leave the terminal at the close block's own generic flow.result@v1 (a
+    // registered schema with a reads-agnostic engine close builder) instead. The
+    // flow then runs to @complete and reports the evidence it DID produce. A full
+    // fix/build-shaped composition still binds its family result unchanged,
+    // because its required reads ARE produced upstream. This rebinds the OUTPUT
+    // only; the evidence-soak above still folds every upstream actual into the
+    // close's INPUT, so the generic close reports them all.
+    if (isTerminal && role.executionKind !== 'fanout' && boundOutput !== outputGeneric) {
+      const familyClose = findCloseBuilder(boundOutput);
+      if (familyClose !== undefined) {
+        const producedActuals = new Set(selections.map((selection) => selection.actual));
+        const missingRequiredRead = familyClose.reads.some(
+          (read) => read.required && !producedActuals.has(read.schema),
+        );
+        if (missingRequiredRead) boundOutput = FLOW_RESULT_CONTRACT;
+      }
+    }
 
     const writes = stepWrites(roleSet.id, stepId, role.executionKind);
     const use: BlockStepUse = {

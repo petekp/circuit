@@ -33,8 +33,17 @@ describe('Phase 0 — flow-shape composition make-or-break', () => {
   it('binds only registered actuals (no invented contract bodies)', () => {
     if (!outcome.ok) throw new Error('compose failed');
     // Every selected actual must differ from its block generic (it is a real
-    // specialization) — the composer never emits a block output raw.
+    // specialization) — the composer never emits a block output raw — with ONE
+    // documented exception: the terminal close may bind the generic
+    // flow.result@v1 raw (the genuine-linear-LIVE rebind). When no family
+    // result's required upstream reads are produced (a short-tail topology, or a
+    // multi-family flow whose terminal family demands evidence it never makes),
+    // the composer leaves the close at its registered generic flow.result@v1
+    // instead of an un-runnable family bind. That generic carries a registered
+    // body and a reads-agnostic engine close builder, so it is NOT an invented
+    // contract — the "no invented bodies" intent holds.
     for (const selection of outcome.selections) {
+      if (selection.actual === 'flow.result@v1') continue;
       expect(selection.actual).not.toEqual(selection.generic);
     }
     // The aliases map generics to actuals; none introduces an unregistered body
