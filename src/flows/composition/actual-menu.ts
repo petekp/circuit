@@ -31,6 +31,12 @@ export interface MenuEntry {
   readonly block: FlowBlockId;
   readonly executionKind: ExecutionKind;
   readonly relayRole?: string;
+  // For a sub-run donor step: the child flow it runs and the entry mode it uses.
+  // The composer reads these to synthesize a sub-run execution descriptor that
+  // targets the same child the donor did, rather than parsing the actual name
+  // (which is not a reliable encoding — explainer.build-result@v1 runs `build`).
+  readonly subRunFlowRef?: string;
+  readonly subRunEntryMode?: string;
   readonly stage: SchematicStep['stage'];
   // The concrete actual the donor flow bound the block's generic output to.
   readonly actual: string;
@@ -134,6 +140,12 @@ export function deriveActualMenu(definitions: readonly FlowDefinition[]): readon
         block: item.block as unknown as FlowBlockId,
         executionKind: execution.kind,
         ...(execution.kind === 'relay' ? { relayRole: execution.role } : {}),
+        ...(execution.kind === 'sub-run'
+          ? {
+              subRunFlowRef: asString(execution.flow_ref.flow_id),
+              subRunEntryMode: asString(execution.flow_ref.entry_mode),
+            }
+          : {}),
         stage: item.stage,
         actual,
         generic,

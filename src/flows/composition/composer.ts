@@ -17,6 +17,7 @@
 // same gate passes. Whether that is enough to produce novel, valid, SENSIBLE
 // flows across a task set is what the eval measures.
 
+import type { CompiledDepth } from '../../schemas/depth.js';
 import {
   FLOW_BLOCK_DEFINITIONS,
   type FlowBlockDefinition,
@@ -50,6 +51,15 @@ export interface CompositionRole {
   // runtime's depth-cap / cycle-guard bounds the iteration count. A loopBackTo
   // with no upstream producer is a dangling edge and walls honestly.
   readonly loopBackTo?: FlowBlockId;
+  // Sub-run leaf: run a whole child flow as this step. `flowId` names the child
+  // (it both constrains actual selection — only the donor actual that ran this
+  // child is eligible — and becomes the execution's flow_ref). `goalText` is the
+  // child run's objective; a sub-run role without it walls honestly, since a
+  // child with no goal is meaningless. `subRunDepth` is the child's depth dial
+  // (default medium). All three are inert on non-sub-run roles.
+  readonly flowId?: 'fix' | 'build' | 'review' | 'explore' | 'pursue';
+  readonly goalText?: string;
+  readonly subRunDepth?: CompiledDepth;
 }
 
 export interface CompositionRoleSet {
@@ -160,6 +170,7 @@ const BLOCK_BY_ID = new Map<string, FlowBlockDefinition>(
 function rankFamilies(
   roles: readonly CompositionRole[],
   menu: readonly MenuEntry[],
+  nonRawCells: ReadonlySet<string>,
 ): Map<string, number> {
   const coverage = new Map<string, Set<number>>();
   roles.forEach((role, index) => {
@@ -167,7 +178,7 @@ function rankFamilies(
     if (block === undefined) return;
     const outputGeneric = asString(block.output_contract);
     for (const entry of menu) {
-      if (!candidateMatchesRole(entry, role, outputGeneric)) continue;
+      if (!candidateMatchesRole(entry, role, outputGeneric, nonRawCells)) continue;
       const set = coverage.get(entry.family) ?? new Set<number>();
       set.add(index);
       coverage.set(entry.family, set);
@@ -178,19 +189,60 @@ function rankFamilies(
   return ranked;
 }
 
+// A "cell" is one (block, executionKind, generic) the composer may fill. Two
+// actuals in the same cell type-check for the same role; the selector picks
+// between them. The key ignores relay role: the raw-generic question is about
+// the output contract, not the worker seat.
+function cellKey(block: string, executionKind: string, generic: string): string {
+  return `${block}|${executionKind}|${generic}`;
+}
+
+// The cells that have at least one SPECIALIZED actual (actual !== its block's
+// generic). For these the raw generic is excluded (a specialized override is
+// available). A handful of blocks — the goal family, the pursuit family —
+// register ONLY their raw generic: their output IS the specialized contract,
+// with no generic-vs-specialized split, so the raw generic is the one way to use
+// the block. Those cells are absent here, so the filter admits the raw generic.
+function computeNonRawCells(menu: readonly MenuEntry[]): ReadonlySet<string> {
+  const cells = new Set<string>();
+  for (const entry of menu) {
+    if (entry.actual !== entry.generic) {
+      cells.add(cellKey(entry.block, entry.executionKind, entry.generic));
+    }
+  }
+  return cells;
+}
+
 function candidateMatchesRole(
   entry: MenuEntry,
   role: CompositionRole,
   outputGeneric: string,
+  nonRawCells: ReadonlySet<string>,
 ): boolean {
   if (entry.block !== role.block) return false;
   if (entry.executionKind !== role.executionKind) return false;
   if (role.executionKind === 'relay' && entry.relayRole !== role.relayRole) return false;
   if (entry.generic !== outputGeneric) return false;
-  // A raw generic output (actual === generic) cannot be re-emitted as an
-  // override (it would restate the block default), and carries no specialized
-  // body — exclude it.
-  if (entry.actual === outputGeneric) return false;
+  // A raw generic output (actual === generic) restates the block default and
+  // carries no specialized body, so it is excluded WHEN the cell also has a
+  // specialized actual. When the raw generic is the cell's ONLY actual (the goal
+  // and pursuit families), excluding it would make the block uncomposable, so it
+  // is admitted as the sole way to use the block.
+  if (
+    entry.actual === outputGeneric &&
+    nonRawCells.has(cellKey(role.block, role.executionKind, outputGeneric))
+  ) {
+    return false;
+  }
+  // A sub-run role names the child flow it runs; only the donor actual that ran
+  // that child is eligible, so the synthesized flow_ref matches the bound actual.
+  if (
+    role.executionKind === 'sub-run' &&
+    role.flowId !== undefined &&
+    entry.subRunFlowRef !== role.flowId
+  ) {
+    return false;
+  }
   if (!entryIsRegisteredFor(entry, role.executionKind)) return false;
   if (role.terminal && !entry.hasCloseWriter) return false;
   return true;
@@ -206,9 +258,10 @@ function selectActual(
   outputGeneric: string,
   menu: readonly MenuEntry[],
   familyRank: Map<string, number>,
+  nonRawCells: ReadonlySet<string>,
 ): MenuEntry | undefined {
   const candidates = menu
-    .filter((entry) => candidateMatchesRole(entry, role, outputGeneric))
+    .filter((entry) => candidateMatchesRole(entry, role, outputGeneric, nonRawCells))
     .sort((a, b) => {
       const rankA = familyRank.get(a.family) ?? 0;
       const rankB = familyRank.get(b.family) ?? 0;
@@ -272,16 +325,27 @@ function stepWrites(
       checkpoint_response_path: `reports/checkpoints/${stepId}-response.json`,
     };
   }
+  if (executionKind === 'sub-run') {
+    // The child's RunResult is copied into this slot; the schema forbids a
+    // report_path for sub-run (the result IS the readable output).
+    return { result_path: `reports/${flowId}/${stepId}.result.json` };
+  }
   // compose + verification
   return { report_path: reportPath };
 }
 
-// Construct the typed execution descriptor for a multi-kind block. The composer
-// supports the kinds the role sets use (compose, relay, verification,
-// checkpoint); sub-run and fanout carry required sub-fields the composer does
-// not synthesize yet, so it refuses them honestly rather than emitting an
-// invalid step.
-function buildExecution(role: CompositionRole): NonNullable<BlockStepUse['execution']> {
+// Construct the typed execution descriptor for a block. The composer supports
+// compose, relay, verification, checkpoint, and sub-run; fanout carries
+// per-branch sub-fields the composer does not synthesize yet, so it refuses that
+// kind honestly rather than emit an invalid step. The sub-run descriptor's
+// flow_ref/entry_mode come from the bound donor actual (`pick`) so the child it
+// runs matches the actual it produces; goal/depth come from the role (the
+// per-task params). The goalText invariant is enforced upstream by the sub-run
+// wall, so `role.goalText` is present here.
+function buildExecution(
+  role: CompositionRole,
+  pick: MenuEntry,
+): NonNullable<BlockStepUse['execution']> {
   switch (role.executionKind) {
     case 'relay':
       return { kind: 'relay', role: role.relayRole as RelayRole };
@@ -291,6 +355,16 @@ function buildExecution(role: CompositionRole): NonNullable<BlockStepUse['execut
       return { kind: 'verification' };
     case 'checkpoint':
       return { kind: 'checkpoint' };
+    case 'sub-run':
+      return {
+        kind: 'sub-run',
+        flow_ref: {
+          flow_id: (pick.subRunFlowRef ?? role.flowId) as string,
+          entry_mode: pick.subRunEntryMode ?? 'default',
+        },
+        goal: role.goalText as string,
+        depth: role.subRunDepth ?? 'medium',
+      };
     default:
       throw new Error(`composer does not synthesize execution kind '${role.executionKind}'`);
   }
@@ -313,7 +387,8 @@ export function composeFlow(
 ): ComposeOutcome {
   const menu = deriveActualMenu(options.definitions);
   const ambient = deriveAmbientGenerics(options.definitions);
-  const familyRank = rankFamilies(roleSet.roles, menu);
+  const nonRawCells = computeNonRawCells(menu);
+  const familyRank = rankFamilies(roleSet.roles, menu, nonRawCells);
 
   const walls: CompositionWall[] = [];
   const aliasByGeneric = new Map<string, string>();
@@ -332,14 +407,31 @@ export function composeFlow(
       return;
     }
     const outputGeneric = asString(block.output_contract);
-    const pick = selectActual(role, outputGeneric, menu, familyRank);
+    // A sub-run leaf runs a whole child flow; a child with no objective is
+    // meaningless, so a sub-run role without goalText walls honestly rather than
+    // emit an execution whose `goal` would be empty (and fail the schema's
+    // min(1)). This is the sub-run analog of the loop's dangling-back-edge wall.
+    if (
+      role.executionKind === 'sub-run' &&
+      (role.goalText === undefined || role.goalText.trim().length === 0)
+    ) {
+      walls.push({
+        roleIndex: index,
+        block: role.block,
+        reason: `sub-run role for '${role.block}' requires goalText (the child run's objective)`,
+      });
+      return;
+    }
+    const pick = selectActual(role, outputGeneric, menu, familyRank, nonRawCells);
     if (pick === undefined) {
       walls.push({
         roleIndex: index,
         block: role.block,
         reason: `no registered actual for ${role.block}/${role.executionKind} producing ${outputGeneric}${
-          role.terminal ? ' with a close writer' : ''
-        }`,
+          role.executionKind === 'sub-run' && role.flowId !== undefined
+            ? ` running child flow '${role.flowId}'`
+            : ''
+        }${role.terminal ? ' with a close writer' : ''}`,
       });
       return;
     }
@@ -466,14 +558,24 @@ export function composeFlow(
       stage: role.stage,
       block: role.block,
       input,
-      output: pick.actual,
+      // A raw-generic pick (actual === the block's default output) must OMIT
+      // output: restating the default is rejected by the expander. The step
+      // defaults to the same generic, so the binding is unchanged. A specialized
+      // actual is kept as an override.
+      ...(pick.actual === outputGeneric ? {} : { output: pick.actual }),
       protocol: `${roleSet.id}-${stepId}@v1`,
       writes,
       ...(check === undefined ? {} : { check }),
       ...(checkpointPolicy === undefined ? {} : { checkpointPolicy }),
-      // Single-kind blocks must omit execution (restating the default is
-      // rejected); multi-kind blocks must declare it.
-      ...(blockHasSingleKind(block) ? {} : { execution: buildExecution(role) }),
+      // Single-kind blocks must omit execution (restating the bare default is
+      // rejected); multi-kind blocks must declare it. A sub-run is the exception:
+      // its execution carries required flow_ref/goal/depth that are NOT the bare
+      // default, so it must be emitted even when sub-run is the block's only kind
+      // (goal-child-run). The expander only rejects a single-key `{kind}`, so the
+      // four-key sub-run descriptor passes.
+      ...(role.executionKind === 'sub-run' || !blockHasSingleKind(block)
+        ? { execution: buildExecution(role, pick) }
+        : {}),
       routes,
     };
     items.push(use);
@@ -494,6 +596,10 @@ export function composeFlow(
   if (walls.length > 0) return { ok: false, walls };
 
   const contractAliases = [...aliasByGeneric.entries()]
+    // A raw-generic pick binds a contract to itself (actual === generic); that
+    // is an identity alias the assembler would reject as a restated default.
+    // Skip it — the contract already flows under its own name.
+    .filter(([generic, actual]) => generic !== actual)
     .map(([generic, actual]) => ({ generic, actual }))
     .sort((a, b) => (a.generic < b.generic ? -1 : a.generic > b.generic ? 1 : 0));
 
@@ -577,6 +683,41 @@ export const RESEARCH_THEN_BUILD: CompositionRoleSet = {
     { stage: 'act', block: 'act', executionKind: 'relay', relayRole: 'implementer' },
     { stage: 'verify', block: 'run-verification', executionKind: 'verification' },
     { stage: 'review', block: 'review', executionKind: 'relay', relayRole: 'reviewer' },
+    {
+      stage: 'close',
+      block: 'close-with-evidence',
+      executionKind: 'compose',
+      terminal: true,
+    },
+  ],
+};
+
+// ----------------------------------------------------------------------------
+// Rung 1 milestone target: frame-a-contract, then DELEGATE to a child flow.
+//
+// "Frame the task into a goal contract, then run the Fix flow to satisfy it, and
+// close with the child's evidence." The middle step is a SUB-RUN: a whole child
+// flow executed as one step, admitted back only through its RunResult verdict —
+// the first non-linear shape that crosses a flow boundary (the loop stayed inline).
+// The leaf binds the donor goal-child-run actual for `fix`; the close soaks the
+// child result forward. None of the eight built-ins is this two-line shape: goal
+// wraps the same delegation in a five-step attempt/evaluate/recover loop.
+export const GOAL_THEN_FIX: CompositionRoleSet = {
+  id: 'goal-then-fix',
+  title: 'Frame a contract then delegate to Fix',
+  purpose:
+    'Frame the task into a goal contract, delegate the work to the Fix child flow as a sub-run, and close with the child run’s evidence. A composed frame-then-delegate shape; the sub-run runs a whole flow as one step, gated on its result verdict.',
+  roles: [
+    { stage: 'frame', block: 'goal', executionKind: 'compose' },
+    {
+      stage: 'act',
+      block: 'goal-child-run',
+      executionKind: 'sub-run',
+      flowId: 'fix',
+      goalText:
+        'Satisfy the framed goal contract: diagnose the failure, make the change, and prove it with a report-backed verification packet.',
+      subRunDepth: 'medium',
+    },
     {
       stage: 'close',
       block: 'close-with-evidence',

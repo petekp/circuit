@@ -10,6 +10,7 @@
 export {
   composeFlow,
   RESEARCH_THEN_BUILD,
+  GOAL_THEN_FIX,
   type CompositionRole,
   type CompositionRoleSet,
   type CompositionWall,
