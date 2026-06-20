@@ -1,0 +1,152 @@
+// The dynamic-vs-reference COMPOSED arm: offline plumbing proof.
+//
+// The composed arm runs a fix flow GENUINELY COMPOSED block by block (no family
+// template) against the same fixtures as the reference and generated arms. Its
+// one novel step is publishComposedFlow: it compiles a role set in process and
+// writes it to disk exactly as `circuit create --publish` does — circuit.json
+// under <home>/flows/<slug>/ plus a manifest.json the trust gate path-matches.
+//
+// This file proves, at $0, the two things that must hold for the live run to be
+// meaningful:
+//   1. FIX_LINEAR_FULL is a genuine fix arc — VALID, RUNNABLE, and NOVEL (its
+//      block sequence is not any built-in's), so the comparison can separate
+//      composed from hand-authored rather than being parity by construction.
+//   2. publishComposedFlow writes a flow the runtime ACCEPTS: the trust gate
+//      blesses it (manifest path-match) and the loader resolves + loads it with
+//      flow.id === slug. This is the same trust gate + loader the subprocess run
+//      uses, driven directly so no relay spend is needed.
+
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import {
+  type ComposeDeps,
+  FIX_LINEAR_FULL,
+  FIX_LINEAR_LOOP,
+  publishComposedFlowWith,
+} from '../../evals/dynamic-vs-reference/composed-fix-shapes.js';
+import { loadCompiledFlow, resolveCompiledFlowPath } from '../../src/cli/compiled-flow-loading.js';
+import { fixtureEligibleForRuntime } from '../../src/cli/runtime-routing-policy.js';
+import { assembleFlowSchematic } from '../../src/flows/assemble-flow-schematic.js';
+import { flowDefinitions } from '../../src/flows/catalog.js';
+import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
+import { planCompiledFlowFiles } from '../../src/flows/compiled-flow-file-plan.js';
+import {
+  composeFlow,
+  evaluateNovelty,
+  evaluateRunnability,
+  evaluateValidity,
+} from '../../src/flows/composition/index.js';
+
+// The test binds the src exports as deps (vitest resolves the src .ts graph).
+// The harness binds the built dist exports instead; both go through the same
+// publishComposedFlowWith logic.
+const srcDeps: ComposeDeps = {
+  composeFlow,
+  evaluateValidity,
+  evaluateRunnability,
+  assembleFlowSchematic,
+  compileSchematicToCompiledFlow,
+  planCompiledFlowFiles,
+  flowDefinitions,
+};
+
+function tempHome(): string {
+  return mkdtempSync(join(tmpdir(), 'composed-arm-'));
+}
+
+describe('composed fix arc — genuine, runnable, novel', () => {
+  it('FIX_LINEAR_FULL is offline-valid and runtime-runnable', () => {
+    const outcome = composeFlow(FIX_LINEAR_FULL, { definitions: flowDefinitions });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const validity = evaluateValidity(outcome.spec);
+    expect(validity.valid).toBe(true);
+    expect(validity.compiles).toBe(true);
+
+    const runnability = evaluateRunnability(outcome.spec);
+    expect(runnability.runnable).toBe(true);
+    expect(runnability.aborts).toEqual([]);
+  });
+
+  it('FIX_LINEAR_FULL is NOVEL — not any built-in (so the comparison discriminates)', () => {
+    const outcome = composeFlow(FIX_LINEAR_FULL, { definitions: flowDefinitions });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const validity = evaluateValidity(outcome.spec);
+    expect(validity.schematic).toBeDefined();
+    if (validity.schematic === undefined) return;
+
+    const novelty = evaluateNovelty(validity.schematic, flowDefinitions);
+    expect(novelty.novel).toBe(true);
+    // Closest built-in is the fix flow, but not a match — a low-overlap neighbor.
+    // Pinning the neighbor identity (not the exact jaccard) keeps this stable.
+    expect(novelty.closest?.flowId).toBe('fix');
+    expect(novelty.matches).toBeUndefined();
+  });
+
+  it('FIX_LINEAR_LOOP (recovery variant) is also valid and runnable', () => {
+    const outcome = composeFlow(FIX_LINEAR_LOOP, { definitions: flowDefinitions });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const validity = evaluateValidity(outcome.spec);
+    expect(validity.valid).toBe(true);
+    const runnability = evaluateRunnability(outcome.spec);
+    expect(runnability.runnable).toBe(true);
+  });
+});
+
+describe('publishComposedFlow — trust-accepted and loadable', () => {
+  it('writes a flow the trust gate blesses and the loader resolves', () => {
+    const home = tempHome();
+    try {
+      const published = publishComposedFlowWith(srcDeps, {
+        roleSet: FIX_LINEAR_FULL,
+        home,
+        description: 'composed fix arc (plumbing test)',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      });
+
+      expect(published.slug).toBe('fix-linear-full');
+      const flowRoot = join(home, 'flows');
+      const expectedPath = resolve(flowRoot, published.slug, 'circuit.json');
+      expect(published.flowPath).toBe(expectedPath);
+
+      // The trust gate: same call the CLI makes for a `run --flow-root` of a
+      // published custom flow. The manifest beside flowRoot must path-match the
+      // resolved circuit.json, or the runtime fails closed.
+      const trusted = fixtureEligibleForRuntime({
+        args: { flowRoot },
+        fixturePath: published.flowPath,
+      });
+      expect(trusted).toBe(true);
+
+      // The loader: resolve the slug to circuit.json (default mode) and load it.
+      const resolved = resolveCompiledFlowPath(published.slug, undefined, undefined, flowRoot);
+      expect(resolved).toBe(expectedPath);
+      const { flow } = loadCompiledFlow(resolved);
+      // validateCustomFlow requires flow.id === slug; the publish keeps them in step.
+      expect(flow.id).toBe(published.slug);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed: the trust gate rejects a flow with no manifest beside it', () => {
+    const home = tempHome();
+    try {
+      const flowRoot = join(home, 'flows');
+      // A path inside an unpublished flow root — no manifest.json written.
+      const orphan = resolve(flowRoot, 'fix-linear-full', 'circuit.json');
+      const trusted = fixtureEligibleForRuntime({
+        args: { flowRoot },
+        fixturePath: orphan,
+      });
+      expect(trusted).toBe(false);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
