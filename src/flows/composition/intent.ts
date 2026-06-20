@@ -103,6 +103,28 @@ export const BLOCK_INTENT: Partial<Record<FlowBlockId, BlockIntent>> = {
     precondition: ['task-framed'],
     postcondition: ['decision-made'],
   },
+  goal: {
+    // The sub-run analog of `frame`: instead of a brief, it captures the task as
+    // a goal CONTRACT a child flow can be delegated against. It establishes the
+    // same 'task-framed' state `frame` does, so a downstream close/verify/review
+    // precondition is satisfied whether the flow opened with a brief or a goal.
+    role: 'Capture the task as a goal contract for delegation',
+    precondition: [],
+    postcondition: ['task-framed'],
+  },
+  'goal-child-run': {
+    // Delegates the whole task to a child flow and is admitted back only through
+    // the child's result verdict. It needs the goal framed (the contract the
+    // delegation rides on) but establishes no UNIVERSAL downstream state: the
+    // child may fix (change made + verified), build, explore (no change), or
+    // review, so claiming any one post-state would be a false universal — the same
+    // reasoning that keeps run-verification/review preconditions minimal. What the
+    // child produced is carried by the CONTRACT layer (its result_path), which the
+    // terminal close consumes, not by an intent token.
+    role: 'Delegate the task to a child flow and admit its verdict',
+    precondition: ['task-framed'],
+    postcondition: [],
+  },
   'close-with-evidence': {
     role: 'Compose the terminal result with evidence',
     precondition: ['task-framed'],
