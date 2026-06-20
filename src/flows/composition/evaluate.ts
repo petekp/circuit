@@ -187,6 +187,86 @@ export function evaluateNovelty(
   };
 }
 
+// One back-edge in the route graph: a route whose target resolves to a step at
+// or before the producing step (a self-loop or an upstream loop).
+export interface TopologyBackEdge {
+  readonly from: string;
+  readonly to: string;
+  readonly route: string;
+}
+
+// A step whose routes fan out to two or more distinct forward steps (a branch).
+export interface TopologyBranch {
+  readonly step: string;
+  readonly forwardTargets: number;
+}
+
+export interface TopologyVerdict {
+  readonly stepCount: number;
+  readonly backEdges: readonly TopologyBackEdge[];
+  readonly branchPoints: readonly TopologyBranch[];
+  readonly hasLoop: boolean;
+  readonly hasBranch: boolean;
+  // A canonical fingerprint of the route GRAPH, not just the step list. Two
+  // flows over the same blocks but with different edges (a line vs a bounded
+  // loop) get different signatures. This fills the blind spot in the locked
+  // `evaluateNovelty` rubric, which compares only the (block, kind) sequence and
+  // so cannot tell a loop from a line.
+  readonly signature: string;
+}
+
+// Read the route graph of an assembled schematic. A route target is a graph
+// edge unless it is a terminal ('@complete', '@stop', '@handoff', ...). An edge
+// to a step at index <= the producer's is a back-edge (loop); a step with two or
+// more distinct forward edges is a branch point. The signature folds the block
+// sequence together with the loops and branches so topology-distinct flows are
+// distinguishable.
+export function evaluateTopology(schematic: FlowSchematic): TopologyVerdict {
+  const items = schematic.items;
+  const indexById = new Map<string, number>();
+  items.forEach((item, i) => indexById.set(asString(item.id), i));
+  const blockByIndex = items.map((item) => asString(item.block));
+
+  const backEdges: TopologyBackEdge[] = [];
+  const branchPoints: TopologyBranch[] = [];
+
+  items.forEach((item, i) => {
+    const forwardTargets = new Set<number>();
+    for (const [route, target] of Object.entries(item.routes)) {
+      const t = asString(target);
+      if (t.startsWith('@')) continue; // terminal sink, not a graph edge
+      const j = indexById.get(t);
+      if (j === undefined) continue; // unresolved id — the compiler gate owns this
+      if (j <= i) backEdges.push({ from: asString(item.id), to: t, route });
+      else forwardTargets.add(j);
+    }
+    if (forwardTargets.size >= 2) {
+      branchPoints.push({ step: asString(item.id), forwardTargets: forwardTargets.size });
+    }
+  });
+
+  const blockOf = (id: string): string => blockByIndex[indexById.get(id) ?? -1] ?? id;
+  const seqSig = items.map((item) => `${asString(item.block)}:${item.execution.kind}`).join('>');
+  const loopSig = backEdges
+    .map((edge) => `${blockOf(edge.from)}-${edge.route}->${blockOf(edge.to)}`)
+    .sort()
+    .join(',');
+  const branchSig = branchPoints
+    .map((branch) => `${blockOf(branch.step)}*${branch.forwardTargets}`)
+    .sort()
+    .join(',');
+  const signature = `seq:[${seqSig}]|loops:[${loopSig}]|branches:[${branchSig}]`;
+
+  return {
+    stepCount: items.length,
+    backEdges,
+    branchPoints,
+    hasLoop: backEdges.length > 0,
+    hasBranch: branchPoints.length > 0,
+    signature,
+  };
+}
+
 export interface SensibilityVerdict {
   readonly sensible: boolean;
   readonly contractClosure: boolean;
