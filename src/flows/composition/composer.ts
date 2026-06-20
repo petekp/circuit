@@ -38,7 +38,7 @@ import {
   deriveActualMenu,
   entryIsRegisteredFor,
 } from './actual-menu.js';
-import { outputIsReadableContract } from './evaluate.js';
+import { evaluateRunnability, outputIsReadableContract } from './evaluate.js';
 
 export type RelayRole = 'researcher' | 'implementer' | 'reviewer';
 
@@ -430,6 +430,13 @@ function blockHasSingleKind(block: FlowBlockDefinition): boolean {
 
 export interface ComposeFlowOptions {
   readonly definitions: readonly FlowDefinition[];
+  // Opt-in (default off): after composing a structurally-sound spec, reject it if
+  // any compose/close writer would abort at runtime for an unproduced required
+  // read (the producibility wall). Off keeps historical behavior byte-identical —
+  // the composer emits the spec and the offline floor still passes it, which is
+  // why a separate evaluateRunnability check exists for callers that judge after
+  // the fact. On, the composer never hands back an un-runnable composition.
+  readonly enforceRunnability?: boolean;
 }
 
 export function composeFlow(
@@ -769,6 +776,39 @@ export function composeFlow(
     stageLabels,
     ...(stagePathRationale === undefined ? {} : { stagePathRationale }),
   };
+
+  // Producibility wall (opt-in). The spec is structurally sound, but a compose or
+  // close writer can still declare a REQUIRED upstream read with no producer — a
+  // family mismatch the offline floor does not model (e.g. a build-family `plan`
+  // writer that needs build.brief@v1 welded onto a frame that can only produce
+  // fix.brief@v1, because build.brief@v1 is checkpoint-only). Such a flow aborts
+  // the instant that writer runs. Unlike the terminal close, an intermediate
+  // writer has no generic fallback to rebind to, so the honest move is to reject.
+  if (options.enforceRunnability === true) {
+    const runnability = evaluateRunnability(spec);
+    if (!runnability.runnable) {
+      // A wall names a block, not a free step id; map the aborting step back to
+      // its block so the wall stays typed and legible. The step id rides in the
+      // reason so the operator sees exactly where the run would have stopped.
+      const blockByStepId = new Map<string, FlowBlockId>(
+        items.map((item) => [item.id, item.block]),
+      );
+      const fallbackBlock = items[0]?.block ?? roleSet.roles[0]?.block;
+      const runnabilityWalls: CompositionWall[] = runnability.aborts.map((abort) => ({
+        roleIndex: -1,
+        block: blockByStepId.get(abort.stepId) ?? (fallbackBlock as FlowBlockId),
+        reason: `step '${abort.stepId}' (${abort.schema}) is not runnable: ${abort.reason}`,
+      }));
+      if (runnabilityWalls.length === 0) {
+        runnabilityWalls.push({
+          roleIndex: -1,
+          block: fallbackBlock as FlowBlockId,
+          reason: runnability.error ?? 'composed flow is not runnable',
+        });
+      }
+      return { ok: false, walls: runnabilityWalls };
+    }
+  }
 
   return { ok: true, spec, selections };
 }

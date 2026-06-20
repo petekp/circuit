@@ -12,11 +12,18 @@
 // Pure analysis over the assembled schematic; no model spend. Used by the Phase
 // 0 make-or-break test and the Phase 1 breadth harness alike.
 
+import type { CompiledFlow as CompiledFlowValue } from '../../schemas/compiled-flow.js';
 import type { FlowSchematic } from '../../schemas/flow-schematic.js';
 import type { FlowSchematicAssemblySpec } from '../assemble-flow-schematic.js';
 import { assembleFlowSchematic } from '../assemble-flow-schematic.js';
 import { compileSchematicToCompiledFlow } from '../compile-schematic-to-flow.js';
 import type { FlowDefinition } from '../flow-definition.js';
+import { findCloseBuilder, resolveCloseReadPaths } from '../registries/close-writers/registry.js';
+import {
+  findComposeBuilder,
+  resolveComposeReadPaths,
+} from '../registries/compose-writers/registry.js';
+import type { RuntimeIndexedFlow, RuntimeIndexedStep } from '../registries/runtime-index.js';
 import { collectSchematicCatalogIssues } from '../schematic-catalog-check.js';
 import { type IntentState, blockIntent } from './intent.js';
 
@@ -125,6 +132,119 @@ export function evaluateValidity(spec: FlowSchematicAssemblySpec): ValidityVerdi
     ...(compileError === undefined ? {} : { error: compileError }),
     schematic,
   };
+}
+
+// One step that would abort the run at its writer: a compose or close step whose
+// builder declares a REQUIRED upstream read with no producer in the flow.
+export interface RunnabilityAbort {
+  readonly stepId: string;
+  readonly schema: string;
+  readonly reason: string;
+}
+
+export interface RunnabilityVerdict {
+  // True iff no checked writer would abort. A non-compiling spec is not runnable.
+  readonly runnable: boolean;
+  readonly aborts: readonly RunnabilityAbort[];
+  // How many compose/close writers were actually resolved (a guard against a
+  // vacuous pass — a flow with zero registered writers cannot abort but also was
+  // not really exercised).
+  readonly checkedSteps: number;
+  readonly error?: string;
+}
+
+// Present a compiled flow as the minimal runtime-index shape the read-path
+// resolvers consume. A compiled step already carries `reads: string[]` and
+// `writes.report: { path, schema }` — exactly what reportPathForSchemaInRuntimeFlow
+// and the compose/close resolvers read — so this is an identity on the fields that
+// matter. Keeping it here (a flows/ module) avoids importing the runtime/ adapter
+// chain (fromCompiledFlow + buildRuntimePackageIndex), which would invert the
+// engine boundary (runtime depends on flows, never the reverse). The FIDELITY test
+// in composition-runnability.test.ts pins this against the engine's real
+// CompiledFlow -> RuntimePackageIndex path so the shortcut cannot silently drift.
+function runtimeIndexShape(flow: CompiledFlowValue): RuntimeIndexedFlow {
+  return {
+    id: flow.id,
+    version: flow.version,
+    stages: [],
+    steps: flow.steps as unknown as RuntimeIndexedStep[],
+  };
+}
+
+function reportSchemaOf(step: RuntimeIndexedStep): { path: string; schema: string } | undefined {
+  const report = step.writes.report;
+  if (typeof report !== 'object' || report === null) return undefined;
+  return report;
+}
+
+// RUNNABLE — would the composed flow survive its compose/close writers, or abort
+// the instant one runs? evaluateValidity proves a spec is STRUCTURALLY sound
+// (assemble + compile + catalog + a bound primary result), but a compose or close
+// builder also declares REQUIRED upstream reads by family schema, and the runtime
+// aborts the step the moment a required read has no producer (the writer-coupling
+// wall). This runs the SAME resolvers the runtime uses — resolveComposeReadPaths /
+// resolveCloseReadPaths — against the compiled flow, offline, and reports every
+// step that would throw. Closing the false-negative the floor was blind to.
+//
+// SCOPE: compose and close writers declare their reads as static `reads`
+// descriptors, so they are inspectable without invocation. VERIFICATION writers
+// resolve their source path imperatively inside loadCommands (e.g. build's reads
+// build.plan@v1), so they are NOT covered here — a verification step whose source
+// schema is unproduced would still abort at runtime, uncaught by this check. That
+// case did not arise in any composed shape to date; covering it would need a
+// declared-reads field on VerificationBuilder, deferred as its own change.
+export function evaluateRunnability(spec: FlowSchematicAssemblySpec): RunnabilityVerdict {
+  let schematic: FlowSchematic;
+  try {
+    schematic = assembleFlowSchematic(spec);
+  } catch (error) {
+    return {
+      runnable: false,
+      aborts: [],
+      checkedSteps: 0,
+      error: `assemble: ${errorMessage(error)}`,
+    };
+  }
+
+  let compiled: ReturnType<typeof compileSchematicToCompiledFlow>;
+  try {
+    compiled = compileSchematicToCompiledFlow(schematic);
+  } catch (error) {
+    return {
+      runnable: false,
+      aborts: [],
+      checkedSteps: 0,
+      error: `compile: ${errorMessage(error)}`,
+    };
+  }
+
+  const flows = compiled.kind === 'single' ? [compiled.flow] : [...compiled.flows.values()];
+  const aborts: RunnabilityAbort[] = [];
+  let checkedSteps = 0;
+  for (const compiledFlow of flows) {
+    const flow = runtimeIndexShape(compiledFlow);
+    for (const step of flow.steps) {
+      const report = reportSchemaOf(step);
+      if (report === undefined) continue;
+      const composeBuilder = findComposeBuilder(report.schema);
+      const closeBuilder = findCloseBuilder(report.schema);
+      // Relay and verification writers are not in these registries; their reads
+      // are not declared here, so there is nothing to resolve. Skip — not abort.
+      if (composeBuilder === undefined && closeBuilder === undefined) continue;
+      checkedSteps += 1;
+      try {
+        if (composeBuilder !== undefined) {
+          resolveComposeReadPaths(composeBuilder, flow, step as never);
+        } else if (closeBuilder !== undefined) {
+          resolveCloseReadPaths(closeBuilder, flow, step as never);
+        }
+      } catch (error) {
+        aborts.push({ stepId: step.id, schema: report.schema, reason: errorMessage(error) });
+      }
+    }
+  }
+
+  return { runnable: aborts.length === 0, aborts, checkedSteps };
 }
 
 export interface NoveltyVerdict {
