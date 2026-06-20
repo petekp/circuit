@@ -149,6 +149,56 @@ describe('Phase 1 — a composed sub-run is SENSIBLE, not just VALID', () => {
   });
 });
 
+describe('Phase 2 — a clarify-opened flow is SENSIBLE, not just VALID', () => {
+  // The Phase 2 model proposer, told that `clarify` is a frame-stage block, opens
+  // an ambiguous-bug flow with clarify instead of frame: clarify turns a rough
+  // request into a precise task, which is exactly a framing act. But `clarify` had
+  // no BLOCK_INTENT entry, so it established no 'task-framed' state and every
+  // downstream step's precondition went unmet — the flow scored VALID but
+  // INSENSIBLE (the §5.2 rule then downgrades the run to INTRACTABLE). The fix is
+  // the same additive move the goal family got in PR #127: declare clarify's
+  // intent. clarify reads the raw operator intake (catalog input task.intake@v1,
+  // no prior brief), so its precondition is empty and it establishes 'task-framed'
+  // — the frame analog. This locks that a clarify-opened flow closes its intent.
+  const CLARIFY_OPENS: CompositionRoleSet = {
+    id: 'clarify-opened-fix',
+    title: 'Clarify Then Fix',
+    purpose:
+      'Clarify a vague bug report into a precise task, then gather context, diagnose, fix, verify, review, and close.',
+    roles: [
+      { stage: 'frame', block: 'clarify', executionKind: 'relay', relayRole: 'researcher' },
+      {
+        stage: 'analyze',
+        block: 'gather-context',
+        executionKind: 'relay',
+        relayRole: 'researcher',
+      },
+      { stage: 'analyze', block: 'diagnose', executionKind: 'relay', relayRole: 'researcher' },
+      { stage: 'act', block: 'act', executionKind: 'relay', relayRole: 'implementer' },
+      { stage: 'verify', block: 'run-verification', executionKind: 'verification' },
+      { stage: 'review', block: 'review', executionKind: 'relay', relayRole: 'reviewer' },
+      { stage: 'close', block: 'close-with-evidence', executionKind: 'compose', terminal: true },
+    ],
+  };
+
+  it('clarify frames the task: it establishes task-framed so downstream preconditions close', () => {
+    const outcome = composeFlow(CLARIFY_OPENS, { definitions: flowDefinitions });
+    if (!outcome.ok) {
+      throw new Error(`walls: ${outcome.walls.map((w) => `${w.block}: ${w.reason}`).join(' | ')}`);
+    }
+    const validity = evaluateValidity(outcome.spec);
+    if (!validity.valid || !validity.schematic) {
+      throw new Error(`not valid: ${validity.error ?? validity.catalogIssues.join('; ')}`);
+    }
+    const sensibility = evaluateSensibility(validity.schematic, {
+      boundPrimaryResult: validity.boundPrimaryResult,
+    });
+    if (!sensibility.sensible) throw new Error(`not sensible: ${sensibility.failures.join(' | ')}`);
+    expect(sensibility.intentClosure).toBe(true);
+    expect(sensibility.sensible).toBe(true);
+  });
+});
+
 describe('Phase 1 — a mid-flow operator checkpoint walls honestly', () => {
   it('diagnose-plan-checkpoint WALLS: human-decision needs flow.evidence@v1 with no legitimate producer', () => {
     // human-decision reads flow.evidence@v1, but diagnose produces
