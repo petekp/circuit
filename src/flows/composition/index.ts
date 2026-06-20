@@ -11,11 +11,13 @@ export {
   composeFlow,
   RESEARCH_THEN_BUILD,
   GOAL_THEN_FIX,
+  FANOUT_PARALLEL_BUILD,
   type CompositionRole,
   type CompositionRoleSet,
   type CompositionWall,
   type ComposeOutcome,
   type ComposedSelection,
+  type FanoutBranchRole,
   type RelayRole,
 } from './composer.js';
 export {
