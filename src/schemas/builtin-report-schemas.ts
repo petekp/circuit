@@ -10,6 +10,14 @@
 // - `fanout-aggregate@v1` is the PRODUCTION default aggregate report
 //   schema for fanout steps (src/runtime/executors/fanout.ts applies it
 //   whenever a fanout aggregate does not name its own schema).
+// - `fanout.aggregate@v1` is the SAME body under a dotted, first-class
+//   CONTRACT id. The composer binds it as the output of a composed static
+//   sub-run fanout: a typed aggregate envelope that leaves each branch's
+//   result_body open, so the aggregate write validates while the
+//   aggregate-survivors join admits any complete child RunResult. The
+//   non-dotted id above is a report-schema id (the runtime default); a block
+//   output_contract must be a dotted contract id, hence this sibling. Both
+//   point at one shape so they cannot drift.
 // - `runtime-proof-canonical@v1` is the minimal-shape positive case used
 //   by the runtime-proof internal flow path and runtime tests.
 // - `runtime-proof-strict@v1` is used by
@@ -17,6 +25,11 @@
 //   check-pass + schema-fail mode.
 
 import { z } from 'zod';
+
+// The first-class contract id the composer binds for a static sub-run fanout's
+// aggregate output. Exported so the composer and the registry share one string
+// and cannot drift apart.
+export const FANOUT_AGGREGATE_CONTRACT = 'fanout.aggregate@v1';
 
 const MinimalVerdictShape = z.looseObject({ verdict: z.string().min(1) });
 
@@ -49,4 +62,5 @@ export const BUILTIN_REPORT_SCHEMAS: Readonly<Record<string, z.ZodType<unknown>>
   'runtime-proof-canonical@v1': MinimalVerdictShape,
   'runtime-proof-strict@v1': StrictPayloadShape,
   'fanout-aggregate@v1': FanoutAggregateFixtureShape,
+  [FANOUT_AGGREGATE_CONTRACT]: FanoutAggregateFixtureShape,
 });

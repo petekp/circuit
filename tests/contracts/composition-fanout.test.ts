@@ -8,21 +8,19 @@
 // `fanout` descriptor (branch set, concurrency, failure policy, join) that no
 // composed step ever produced.
 //
-// These tests lock the shape with the same proof discipline as the sub-run, with
-// one honest difference at the LIVE rung:
+// These tests lock the shape with the same proof discipline as the sub-run:
 //   - VALID  — the real assemble+compile+catalog gate accepts the composed fanout.
 //   - BOUNDED — the runtime recursion cap refuses EVERY branch before any child
 //     runs, so the join collapses (0 survivors) and the step aborts.
-//   - LIVE FRONTIER — the compiled fanout RUNS: both children are really invoked.
-//     But the aggregate write then validates each survivor's RunResult body against
-//     the bound donor aggregate schema (`prototype.variant-aggregate@v1`), which is
-//     shaped for the donor's RELAY child artifacts, not sub-run RunResults — so the
-//     step aborts. This is the writer-coupling wall: the composer's graph machinery
-//     is complete (it emits a runnable fanout), but multi-child LIVE is blocked by
-//     the engine's aggregate-schema coupling, NOT by the composer. We assert the
-//     wall PRECISELY rather than claim a LIVE pass the shape does not have. The
-//     generic-aggregate-output path that would lift it is an engine seam tracked
-//     separately.
+//   - LIVE — the compiled fanout RUNS: both children are really invoked, the
+//     aggregate write validates each survivor's RunResult body against the GENERIC
+//     fanout aggregate contract the composer now binds for a sub-run fanout
+//     (`fanout.aggregate@v1`, a typed envelope that leaves result_body open), and the
+//     `aggregate-survivors` join admits the two survivors. The earlier rung bound the
+//     fanout step to a donor's RELAY aggregate (`prototype.variant-aggregate@v1`),
+//     which types result_body as a relay variant artifact a sub-run RunResult is not;
+//     minting and binding the generic aggregate contract lifted that wall. This is the
+//     first GENUINE multi-child LIVE pass for a composed flow.
 //
 // They never assert SENSIBLE — whether a parallel-build fanout is a GOOD process is
 // an efficacy question only a scored live run can answer — so this file imports
@@ -274,14 +272,14 @@ describe('flow-shape composition — static fanout', () => {
     }
   });
 
-  it('LIVE FRONTIER: the fanout runs both children, but the aggregate rejects RunResult survivors against the bound donor schema', async () => {
+  it('LIVE: the fanout runs both children and the aggregate-survivors join admits the RunResult survivors', async () => {
     // Validity proves the step COMPILES; this proves the composer emits a RUNNABLE
-    // fanout — both child flows are really invoked — and locates the one wall that
-    // stops a sub-run fanout short of a clean pass: the bound aggregate actual
-    // (prototype.variant-aggregate@v1) types each survivor's body as a RELAY variant
-    // artifact, which a sub-run RunResult is not, so the aggregate write fails. The
-    // blocker is the engine's aggregate-schema coupling, not the composer.
-    const runDir = join(baseDir, 'live-frontier');
+    // fanout that PASSES live: both child flows are really invoked, the aggregate
+    // write validates each survivor's RunResult against the generic fanout aggregate
+    // contract the composer binds (fanout.aggregate@v1, result_body left open), and the
+    // aggregate-survivors join admits the two survivors. The first genuine multi-child
+    // LIVE pass for a composed flow.
+    const runDir = join(baseDir, 'live');
     let childRunnerCalls = 0;
     const childIds = new Set<string>();
     const result = await executeExecutableFlow(isolatedFanoutFlow(), {
@@ -302,19 +300,23 @@ describe('flow-shape composition — static fanout', () => {
     // Both children REALLY ran — the composer's fanout machinery is complete.
     expect(childRunnerCalls).toBe(2);
     expect([...childIds].sort()).toEqual(['build', 'fix']);
-    // The step aborts at the aggregate write, pinned to the donor-schema coupling so
-    // a future engine change that lifts the wall flips this assertion deliberately
-    // rather than silently.
-    expect(result.outcome).toBe('aborted');
-    expect(result.reason).toContain(
-      "did not validate against schema 'prototype.variant-aggregate@v1'",
-    );
+    // The step completes: the aggregate validated and the join admitted two survivors.
+    expect(result.outcome).toBe('complete');
     const entries = await trace(runDir);
     expect(entries).toContainEqual(
       expect.objectContaining({ kind: 'fanout.branch_started', branch_id: 'fix-path' }),
     );
     expect(entries).toContainEqual(
       expect.objectContaining({ kind: 'fanout.branch_started', branch_id: 'build-path' }),
+    );
+    // The fanout_aggregate check evaluated PASS — the survivors were admitted, not
+    // rejected against a relay-coupled donor schema.
+    expect(entries).toContainEqual(
+      expect.objectContaining({
+        kind: 'check.evaluated',
+        check_kind: 'fanout_aggregate',
+        outcome: 'pass',
+      }),
     );
   });
 
