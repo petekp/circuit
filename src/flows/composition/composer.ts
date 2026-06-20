@@ -654,12 +654,19 @@ export function composeFlow(
       ...(check === undefined ? {} : { check }),
       ...(checkpointPolicy === undefined ? {} : { checkpointPolicy }),
       // Single-kind blocks must omit execution (restating the bare default is
-      // rejected); multi-kind blocks must declare it. A sub-run is the exception:
-      // its execution carries required flow_ref/goal/depth that are NOT the bare
-      // default, so it must be emitted even when sub-run is the block's only kind
-      // (goal-child-run). The expander only rejects a single-key `{kind}`, so the
-      // four-key sub-run descriptor passes.
-      ...(role.executionKind === 'sub-run' || !blockHasSingleKind(block)
+      // rejected); multi-kind blocks must declare it. Two execution kinds are
+      // exceptions even when they are a block's ONLY kind, because their
+      // descriptor carries a required field that is NOT the bare default, so the
+      // expander accepts it (it only rejects a single-key `{kind}`):
+      //   - sub-run carries flow_ref/goal/depth (goal-child-run);
+      //   - relay carries a required `role` (researcher | implementer | reviewer).
+      // A single-kind relay block (clarify, goal-gate-review) whose execution was
+      // omitted lost its role, and assemble then threw on the missing role enum.
+      // Multi-kind relay blocks (gather-context, diagnose, review) were already
+      // covered by the multi-kind branch below.
+      ...(role.executionKind === 'sub-run' ||
+      role.executionKind === 'relay' ||
+      !blockHasSingleKind(block)
         ? { execution: buildExecution(role, pick) }
         : {}),
       // A fanout step carries a sibling `fanout` descriptor (the bare `{kind:'fanout'}`
