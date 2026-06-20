@@ -17,6 +17,7 @@
 // same gate passes. Whether that is enough to produce novel, valid, SENSIBLE
 // flows across a task set is what the eval measures.
 
+import { FANOUT_AGGREGATE_CONTRACT } from '../../schemas/builtin-report-schemas.js';
 import type { CompiledDepth } from '../../schemas/depth.js';
 import {
   FLOW_BLOCK_DEFINITIONS,
@@ -623,6 +624,19 @@ export function composeFlow(
         : undefined;
     const check = role.executionKind === 'checkpoint' ? { allow: ['continue'] } : pick.check;
 
+    // A composed fanout always launches a STATIC sub-run set joined as
+    // aggregate-survivors. selectActual hands back a flow-specific STRICT aggregate
+    // (e.g. prototype.variant-aggregate@v1) — proof a real donor shape exists — but
+    // that donor types each branch's result_body as the donor flow's report. A
+    // sub-run survivor is a RunResult, not that shape, so binding the donor would
+    // wall the aggregate write at runtime (the write validates the aggregate body
+    // before the join verdict). Bind the generic fanout aggregate contract instead:
+    // a typed envelope that leaves each branch's result_body open, so the aggregate
+    // validates AND the aggregate-survivors join admits any complete child. The
+    // generic carries a registered body, so the anti-widening gate still passes.
+    // Non-fanout roles bind the selected actual unchanged.
+    const boundOutput = role.executionKind === 'fanout' ? FANOUT_AGGREGATE_CONTRACT : pick.actual;
+
     const writes = stepWrites(roleSet.id, stepId, role.executionKind);
     const use: BlockStepUse = {
       id: stepId,
@@ -633,8 +647,8 @@ export function composeFlow(
       // A raw-generic pick (actual === the block's default output) must OMIT
       // output: restating the default is rejected by the expander. The step
       // defaults to the same generic, so the binding is unchanged. A specialized
-      // actual is kept as an override.
-      ...(pick.actual === outputGeneric ? {} : { output: pick.actual }),
+      // actual (or the fanout aggregate override above) is kept as an override.
+      ...(boundOutput === outputGeneric ? {} : { output: boundOutput }),
       protocol: `${roleSet.id}-${stepId}@v1`,
       writes,
       ...(check === undefined ? {} : { check }),
@@ -660,13 +674,13 @@ export function composeFlow(
       stepId,
       block: role.block,
       executionKind: role.executionKind,
-      actual: pick.actual,
+      actual: boundOutput,
       generic: outputGeneric,
       inputs: input,
       producesReadableContract: outputIsReadableContract(writes),
     });
 
-    aliasByGeneric.set(outputGeneric, pick.actual);
+    aliasByGeneric.set(outputGeneric, boundOutput);
     producedGenerics.add(outputGeneric);
   });
 

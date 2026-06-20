@@ -45366,6 +45366,7 @@ function collectUnregisteredConsumedContractIssues(schematic, resolveSignature) 
 }
 
 // dist/schemas/builtin-report-schemas.js
+var FANOUT_AGGREGATE_CONTRACT = "fanout.aggregate@v1";
 var MinimalVerdictShape = external_exports.looseObject({ verdict: external_exports.string().min(1) });
 var StrictPayloadShape = external_exports.object({
   verdict: external_exports.string().min(1),
@@ -45390,7 +45391,8 @@ var FanoutAggregateFixtureShape = external_exports.looseObject({
 var BUILTIN_REPORT_SCHEMAS = Object.freeze({
   "runtime-proof-canonical@v1": MinimalVerdictShape,
   "runtime-proof-strict@v1": StrictPayloadShape,
-  "fanout-aggregate@v1": FanoutAggregateFixtureShape
+  "fanout-aggregate@v1": FanoutAggregateFixtureShape,
+  [FANOUT_AGGREGATE_CONTRACT]: FanoutAggregateFixtureShape
 });
 
 // dist/shared/zod-to-response-schema.js
