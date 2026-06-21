@@ -669,9 +669,23 @@ export function composeFlow(
     if (isTerminal && role.executionKind !== 'fanout' && boundOutput !== outputGeneric) {
       const familyClose = findCloseBuilder(boundOutput);
       if (familyClose !== undefined) {
-        const producedActuals = new Set(selections.map((selection) => selection.actual));
+        // Check the close's RESOLVED INPUT, not global upstream production. The
+        // runtime close-read resolver throws on a required read whose path is not
+        // in the close step's reads, and the step's reads are derived from this
+        // `input` map (the close block's declared reads plus the evidence-soak
+        // above). A read can be PRODUCED upstream yet absent from `input` because an
+        // intermediate step CONSUMED it — the soak folds only unconsumed orphans, so
+        // a consumed actual never reaches the terminal's input. The earlier
+        // production-based check (`producedActuals.has`) missed exactly that case:
+        // the composed fanout's plan output is consumed by the fanout step, so the
+        // family close (which requires reading it) aborts at runtime even though the
+        // plan WAS produced. Keying on the close's input values matches the runtime
+        // success condition precisely: preserve the family bind iff every required
+        // read is one the terminal will actually read; otherwise fall back to the
+        // reads-agnostic generic flow.result@v1.
+        const closeReadSchemas = new Set(Object.values(input));
         const missingRequiredRead = familyClose.reads.some(
-          (read) => read.required && !producedActuals.has(read.schema),
+          (read) => read.required && !closeReadSchemas.has(read.schema),
         );
         if (missingRequiredRead) boundOutput = FLOW_RESULT_CONTRACT;
       }
