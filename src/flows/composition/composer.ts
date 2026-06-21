@@ -167,7 +167,11 @@ function asString(value: unknown): string {
   return value as unknown as string;
 }
 
-function keyFor(contract: string): string {
+// Exported for the compose-reads collision guard: the intermediate compose-reads
+// wiring pass keys a wired read by its `read.name`, and the step's declared inputs
+// are keyed by `keyFor(contract)`. The guard uses this exact function to prove no
+// compose-writer read name collides with a different-schema declared input key.
+export function keyFor(contract: string): string {
   const known = KEY_BY_CONTRACT[contract];
   if (known !== undefined) return known;
   // Fall back to the contract's local name, sanitized to a valid input key.
@@ -833,6 +837,46 @@ export function composeFlow(
       }
     }
 
+    // Intermediate compose-writer source reads (genuine-composition compose
+    // wiring). A compose writer can source REQUIRED evidence from an upstream typed
+    // report the same way a verification writer sources its command list: the goal
+    // contract writer (goal.contract@v1) requires reading goal.clarified-task@v1 —
+    // the precise task an upstream `clarify` relay produces — yet the `goal` block's
+    // declared input_contracts capture only task.intake@v1 / route.decision@v1. A
+    // composed goal step therefore omits the read and ABORTS the instant the
+    // contract writer runs (resolveComposeReadPaths throws "requires step 'goal' to
+    // read .../clarify.json"). Wire each required read that an upstream selection
+    // PRODUCES into the step input.
+    //
+    // Two choices make this safe. First, KEY by the writer's own read name, not
+    // keyFor(generic) the way the verification pass does: the clarified task's
+    // generic is clarified.task@v1, which keyFor reduces to 'task' — clashing with
+    // the declared intake key 'task'. The alreadyRead guard would then treat the
+    // read as already wired and drop it, and the goal step would still abort. The
+    // read name 'clarified' has no such clash; composition-compose-reads.test.ts
+    // locks that no compose-writer read name shadows a different-schema declared
+    // input key. Second, SKIP an unproduced required read silently rather than
+    // walling: a non-terminal compose opener whose read no upstream step produces
+    // (research-then-build's build.brief plan opener) stays composable, and the
+    // runnability gate — not a compose-time wall — reports its abort, preserving
+    // that flow's default-ok behavior. The terminal close is handled by its own
+    // rebind above, so this skips it; a verification role is handled by the pass
+    // above.
+    if (role.executionKind === 'compose' && !isTerminal) {
+      const composeWriter = findComposeBuilder(boundOutput);
+      if (composeWriter?.reads !== undefined) {
+        const producedActuals = new Set(selections.map((sel) => sel.actual));
+        const alreadyRead = new Set(Object.values(input));
+        for (const read of composeWriter.reads) {
+          if (!read.required) continue;
+          if (!producedActuals.has(read.schema)) continue; // unproduced: skip, do not wall
+          if (alreadyRead.has(read.schema)) continue; // already wired via the declared input set
+          input[read.name] = read.schema;
+          alreadyRead.add(read.schema);
+        }
+      }
+    }
+
     const writes = stepWrites(roleSet.id, stepId, role.executionKind);
     const use: BlockStepUse = {
       id: stepId,
@@ -1035,6 +1079,46 @@ export const GOAL_THEN_FIX: CompositionRoleSet = {
   purpose:
     'Frame the task into a goal contract, delegate the work to the Fix child flow as a sub-run, and close with the child run’s evidence. A composed frame-then-delegate shape; the sub-run runs a whole flow as one step, gated on its result verdict.',
   roles: [
+    { stage: 'frame', block: 'goal', executionKind: 'compose' },
+    {
+      stage: 'act',
+      block: 'goal-child-run',
+      executionKind: 'sub-run',
+      flowId: 'fix',
+      goalText:
+        'Satisfy the framed goal contract: diagnose the failure, make the change, and prove it with a report-backed verification packet.',
+      subRunDepth: 'medium',
+    },
+    {
+      stage: 'close',
+      block: 'close-with-evidence',
+      executionKind: 'compose',
+      terminal: true,
+    },
+  ],
+};
+
+// ----------------------------------------------------------------------------
+// Goal-family REACHABILITY target: the runnable goal arc, end to end.
+//
+// GOAL_THEN_FIX above opens on the `goal` block, which composes a goal CONTRACT —
+// and the goal-contract writer REQUIRES reading the clarified task (the precise
+// task statement an upstream `clarify` relay produces in the real goal flow).
+// Open on `goal` with nothing upstream and that read has no producer, so the flow
+// is VALID offline but ABORTS the instant the contract writer runs. The real goal
+// family solves this by clarifying first; this role set does the same. `clarify`
+// turns the raw operator intake into a precise task (binding the goal family's own
+// goal.clarified-task@v1 actual), then `goal` frames the contract FROM it, then the
+// Fix child runs as a sub-run, and the close soaks the child evidence. This is the
+// goal analog of CLARIFY_OPENS (a clarify-opened fix arc): a composed flow the
+// composer can run end to end, not merely validate.
+export const GOAL_CLARIFY_THEN_FIX: CompositionRoleSet = {
+  id: 'goal-clarify-then-fix',
+  title: 'Clarify the task, frame a contract, then delegate to Fix',
+  purpose:
+    'Clarify the raw request into a precise task, frame that task into a goal contract, delegate the work to the Fix child flow as a sub-run, and close with the child run’s evidence. A composed clarify-frame-then-delegate shape that runs end to end.',
+  roles: [
+    { stage: 'frame', block: 'clarify', executionKind: 'relay', relayRole: 'researcher' },
     { stage: 'frame', block: 'goal', executionKind: 'compose' },
     {
       stage: 'act',
