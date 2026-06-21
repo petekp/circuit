@@ -97,6 +97,12 @@ export interface ComposeDeps {
   compileSchematicToCompiledFlow: typeof CompileModule.compileSchematicToCompiledFlow;
   planCompiledFlowFiles: typeof FilePlanModule.planCompiledFlowFiles;
   flowDefinitions: typeof CatalogModule.flowDefinitions;
+  // The build-family composed shape — the genuine linear build arc the engine
+  // locks (Phase B). It lives in the composer (composition/index), not here,
+  // because its offline test owns it; the harness reuses that one definition
+  // through the deps rather than keeping a drift-prone copy. FIX_LINEAR_FULL is
+  // harness-local (no engine twin); BUILD_LINEAR_FULL is engine-owned.
+  BUILD_LINEAR_FULL: typeof CompositionModule.BUILD_LINEAR_FULL;
 }
 
 export interface PublishedComposedFlow {
@@ -202,6 +208,7 @@ export async function loadComposeDepsFromDist(repoRoot: string): Promise<Compose
     compileSchematicToCompiledFlow: compile.compileSchematicToCompiledFlow,
     planCompiledFlowFiles: filePlan.planCompiledFlowFiles,
     flowDefinitions: catalog.flowDefinitions,
+    BUILD_LINEAR_FULL: composition.BUILD_LINEAR_FULL,
   };
 }
 
