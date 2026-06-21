@@ -26,6 +26,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type ComposeDeps,
   FIX_LINEAR_FULL,
+  FIX_LINEAR_LEAN,
   FIX_LINEAR_LOOP,
   publishComposedFlowWith,
 } from '../../evals/dynamic-vs-reference/composed-fix-shapes.js';
@@ -100,6 +101,34 @@ describe('composed fix arc — genuine, runnable, novel', () => {
     expect(validity.valid).toBe(true);
     const runnability = evaluateRunnability(outcome.spec);
     expect(runnability.runnable).toBe(true);
+  });
+
+  it('FIX_LINEAR_LEAN (no gather-context) is valid, runnable, and NOVEL', () => {
+    // The lean arc drops gather-context: frame -> diagnose -> act -> verify ->
+    // close (5 blocks). It keeps diagnose because the composer's `act` block
+    // requires an analysis precursor (the writer-coupling wall) — a bare
+    // frame->act->verify->close walls at act. So LEAN is the shortest arc that
+    // still runs, the low end of the shape-sensitivity sweep.
+    const outcome = composeFlow(FIX_LINEAR_LEAN, { definitions: flowDefinitions });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const validity = evaluateValidity(outcome.spec);
+    expect(validity.valid).toBe(true);
+    expect(validity.compiles).toBe(true);
+
+    const runnability = evaluateRunnability(outcome.spec);
+    expect(runnability.runnable).toBe(true);
+    expect(runnability.aborts).toEqual([]);
+
+    expect(validity.schematic).toBeDefined();
+    if (validity.schematic === undefined) return;
+    const novelty = evaluateNovelty(validity.schematic, flowDefinitions);
+    expect(novelty.novel).toBe(true);
+    // Still closest to the fix flow, but a more distant neighbor than FULL
+    // (one fewer shared block), so the comparison discriminates.
+    expect(novelty.closest?.flowId).toBe('fix');
+    expect(novelty.matches).toBeUndefined();
   });
 });
 
