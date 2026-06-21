@@ -9,8 +9,10 @@
 
 export {
   composeFlow,
+  keyFor,
   RESEARCH_THEN_BUILD,
   GOAL_THEN_FIX,
+  GOAL_CLARIFY_THEN_FIX,
   FANOUT_PARALLEL_BUILD,
   type CompositionRole,
   type CompositionRoleSet,

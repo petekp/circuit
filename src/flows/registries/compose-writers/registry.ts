@@ -17,6 +17,13 @@ export function findComposeBuilder(resultSchemaName: string): ComposeBuilder | u
   return REGISTRY.get(resultSchemaName);
 }
 
+// Every registered compose builder, keyed by output schema. The compose-reads
+// collision guard enumerates these to prove no required read name shadows a
+// declared input key (mirrors listVerificationWriters for the verification side).
+export function listComposeWriters(): readonly (readonly [string, ComposeBuilder])[] {
+  return [...REGISTRY.entries()];
+}
+
 // Resolve declared reads to run-relative paths and check that each
 // required read is actually present in the compose step's reads
 // list. Required-but-missing throws with the same phrasing the
