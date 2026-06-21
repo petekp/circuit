@@ -1,0 +1,316 @@
+{
+  "spike": "proposer-task-to-roleset",
+  "model": "claude-haiku-4-5",
+  "effort": "low",
+  "model_calls": 28,
+  "tasks": 8,
+  "reps": 2,
+  "totals": {
+    "shape_selection_correct": "4/6",
+    "raw_runnable": "0/6",
+    "post_repair_runnable": "2/6"
+  },
+  "per_rep": {
+    "1": {
+      "raw": 0,
+      "final": 1,
+      "n": 3
+    },
+    "2": {
+      "raw": 0,
+      "final": 1,
+      "n": 3
+    }
+  },
+  "non_converging": [
+    {
+      "task": "multi-flow",
+      "proposed_shape": "sub-run",
+      "expected": "sub-run",
+      "last_errors": [
+        "close: unknown block id"
+      ]
+    },
+    {
+      "task": "multi-flow",
+      "proposed_shape": "sub-run",
+      "expected": "sub-run",
+      "last_errors": [
+        "goal: no registered actual for goal/relay producing goal.contract@v1 with a close writer"
+      ]
+    },
+    {
+      "task": "build-feature",
+      "proposed_shape": "loop",
+      "expected": "linear",
+      "last_errors": [
+        "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1] + ambient"
+      ]
+    },
+    {
+      "task": "build-feature",
+      "proposed_shape": "linear",
+      "expected": "linear",
+      "last_errors": [
+        "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [goal.contract@v1, context.packet@v1] + ambient",
+        "run-verification: run-verification verification writer 'build.verification@v1' requires reading 'build.plan@v1', produced by no upstream step",
+        "wrap: unknown block id"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "taskId": "multi-flow",
+      "expected": "sub-run",
+      "rep": 1,
+      "rawShape": "sub-run",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "goal-close: no input set satisfiable; needs one of [goal.contract@v1, goal.attempt@v1, goal.evidence-evaluation@v1], have produced [goal.contract@v1, goal.child-run@v1] + ambient"
+          ],
+          "newShape": "sub-run",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "run-verification: no registered actual for run-verification/relay producing verification.result@v1",
+            "goal-close: no input set satisfiable; needs one of [goal.contract@v1, goal.attempt@v1, goal.evidence-evaluation@v1], have produced [goal.contract@v1, goal.child-run@v1] + ambient"
+          ],
+          "newShape": "sub-run",
+          "runnable": false
+        },
+        {
+          "round": 3,
+          "errorsFedBack": [
+            "diagnose: no registered actual for diagnose/relay producing diagnosis.result@v1",
+            "goal-close: no input set satisfiable; needs one of [goal.contract@v1, goal.attempt@v1, goal.evidence-evaluation@v1], have produced [goal.contract@v1, goal.child-run@v1] + ambient"
+          ],
+          "newShape": "sub-run",
+          "runnable": false
+        },
+        {
+          "round": 4,
+          "errorsFedBack": [
+            "close: unknown block id"
+          ],
+          "newShape": "sub-run",
+          "runnable": false
+        }
+      ],
+      "finalRunnable": false,
+      "convergedRound": null
+    },
+    {
+      "taskId": "multi-flow",
+      "expected": "sub-run",
+      "rep": 2,
+      "rawShape": "sub-run",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "goal-close: no input set satisfiable; needs one of [goal.contract@v1, goal.attempt@v1, goal.evidence-evaluation@v1], have produced [goal.contract@v1, goal.child-run@v1] + ambient"
+          ],
+          "newShape": "sub-run",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "close: unknown block id"
+          ],
+          "newShape": "sub-run",
+          "runnable": false
+        },
+        {
+          "round": 3,
+          "errorsFedBack": [
+            "goal-child-run: no registered actual for goal-child-run/sub-run producing goal.child-run@v1 running child flow 'pursue' with a close writer"
+          ],
+          "newShape": "sub-run",
+          "runnable": false
+        },
+        {
+          "round": 4,
+          "errorsFedBack": [
+            "goal: no registered actual for goal/relay producing goal.contract@v1 with a close writer"
+          ],
+          "newShape": "sub-run",
+          "runnable": false
+        }
+      ],
+      "finalRunnable": false,
+      "convergedRound": null
+    },
+    {
+      "taskId": "build-feature",
+      "expected": "linear",
+      "rep": 1,
+      "rawShape": "loop",
+      "rawRunnable": false,
+      "shapeMatchedExpected": false,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "plan(build.plan@v1): expected exactly one report writer for schema 'build.brief@v1', found 0"
+          ],
+          "newShape": "loop",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1, context.packet@v1] + ambient"
+          ],
+          "newShape": "loop",
+          "runnable": false
+        },
+        {
+          "round": 3,
+          "errorsFedBack": [
+            "assemble: Invalid option: expected one of \"frame\"|\"analyze\"|\"plan\"|\"act\"|\"verify\"|\"review\"|\"close\""
+          ],
+          "newShape": "loop",
+          "runnable": false
+        },
+        {
+          "round": 4,
+          "errorsFedBack": [
+            "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1] + ambient"
+          ],
+          "newShape": "loop",
+          "runnable": false
+        }
+      ],
+      "finalRunnable": false,
+      "convergedRound": null
+    },
+    {
+      "taskId": "build-feature",
+      "expected": "linear",
+      "rep": 2,
+      "rawShape": "linear",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "plan(build.plan@v1): expected exactly one report writer for schema 'build.brief@v1', found 0"
+          ],
+          "newShape": "linear",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "build: unknown block id"
+          ],
+          "newShape": "linear",
+          "runnable": false
+        },
+        {
+          "round": 3,
+          "errorsFedBack": [
+            "flow: unknown block id",
+            "close: unknown block id"
+          ],
+          "newShape": "linear",
+          "runnable": false
+        },
+        {
+          "round": 4,
+          "errorsFedBack": [
+            "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [goal.contract@v1, context.packet@v1] + ambient",
+            "run-verification: run-verification verification writer 'build.verification@v1' requires reading 'build.plan@v1', produced by no upstream step",
+            "wrap: unknown block id"
+          ],
+          "newShape": "linear",
+          "runnable": false
+        }
+      ],
+      "finalRunnable": false,
+      "convergedRound": null
+    },
+    {
+      "taskId": "refactor",
+      "expected": "linear",
+      "rep": 1,
+      "rawShape": "linear",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "plan(build.plan@v1): expected exactly one report writer for schema 'build.brief@v1', found 0"
+          ],
+          "newShape": "linear",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1, context.packet@v1] + ambient"
+          ],
+          "newShape": "linear",
+          "runnable": true
+        }
+      ],
+      "finalRunnable": true,
+      "convergedRound": 2
+    },
+    {
+      "taskId": "refactor",
+      "expected": "linear",
+      "rep": 2,
+      "rawShape": "loop",
+      "rawRunnable": false,
+      "shapeMatchedExpected": false,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "plan(build.plan@v1): expected exactly one report writer for schema 'build.brief@v1', found 0"
+          ],
+          "newShape": "loop",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1, context.packet@v1] + ambient"
+          ],
+          "newShape": "loop",
+          "runnable": false
+        },
+        {
+          "round": 3,
+          "errorsFedBack": [
+            "assemble: Invalid option: expected one of \"frame\"|\"analyze\"|\"plan\"|\"act\"|\"verify\"|\"review\"|\"close\""
+          ],
+          "newShape": "loop",
+          "runnable": false
+        },
+        {
+          "round": 4,
+          "errorsFedBack": [
+            "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1, context.packet@v1] + ambient"
+          ],
+          "newShape": "loop",
+          "runnable": true
+        }
+      ],
+      "finalRunnable": true,
+      "convergedRound": 4
+    }
+  ]
+}

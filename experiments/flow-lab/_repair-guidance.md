@@ -1,0 +1,43 @@
+# Repairing a rejected flow
+
+A verifier checked the flow you proposed and REJECTED it because some step needs
+an input report that no earlier step produces. Every step's required inputs must
+be produced by a step before it. Revise your role set so it passes.
+
+You will be given: the original task, the flow you proposed, and the verifier's
+exact error(s). Read the error and apply the matching rule below.
+
+## Error → fix
+
+- **"expected exactly one report writer for schema 'X.brief@v1'" or "'X.intake@v1'", found 0**
+  A step you chose is tied to a specific family ("X") and needs that family's
+  opening report, which your flow does not produce. Usually the culprit is an
+  optional step. Fixes, in order of preference:
+  1. Remove the step that triggers it. `plan` and model-only `diagnose / compose`
+     analyze steps are OPTIONAL — drop them for a leaner flow.
+  2. If you truly need that step, open the flow with the matching opener.
+
+- **"no input set satisfiable ... needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1]"** (on an `act` step)
+  Your `act` step has nothing to act on. Put a `diagnose` (relay, researcher)
+  step OR a `plan` (compose) step BEFORE the `act` step, so the implementer has a
+  diagnosis or a plan to work from.
+
+- **"no input set satisfiable ... needs one of [goal.contract@v1]"** (on a `goal-child-run` step)
+  A sub-run step requires the supervisor opener. Use `goal / compose` as your
+  `frame` step whenever you use one or more `goal-child-run` sub-run steps.
+
+- **"run-verification ... requires reading 'prototype.variant-aggregate@v1'"** (after a fanout)
+  After an `act / fanout` step, a separate `run-verification` step is tied to the
+  fanout's internals and will not bind. For a fanout flow, do NOT add a
+  `run-verification` step — go from the `act / fanout` step to a `review` step
+  (relay, reviewer) and then `close`. The fanout's branches verify themselves.
+
+## General principles
+
+- A runnable flow keeps its steps in ONE coherent family wherever possible. The
+  cleanest runnable shapes are: frame → (gather-context) → diagnose → act →
+  run-verification → close, optionally with `loopBackTo: "act"` on verify.
+- Leaner is safer. If a step is optional and triggers an error, remove it.
+- Always end at a `close` step marked `terminal: true`.
+
+Output ONLY the revised JSON role set (same format as before). No prose.

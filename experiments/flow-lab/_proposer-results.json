@@ -1,0 +1,430 @@
+{
+  "spike": "proposer-task-to-roleset",
+  "model": "claude-haiku-4-5",
+  "effort": "low",
+  "model_calls": 35,
+  "tasks": 8,
+  "reps": 2,
+  "totals": {
+    "shape_selection_correct": "12/16",
+    "raw_runnable": "4/16",
+    "post_repair_runnable": "9/16"
+  },
+  "per_rep": {
+    "1": {
+      "raw": 2,
+      "final": 5,
+      "n": 8
+    },
+    "2": {
+      "raw": 2,
+      "final": 4,
+      "n": 8
+    }
+  },
+  "non_converging": [
+    {
+      "task": "fix-simple",
+      "proposed_shape": "loop",
+      "expected": "linear",
+      "last_errors": [
+        "assemble: Invalid option: expected one of \"frame\"|\"analyze\"|\"plan\"|\"act\"|\"verify\"|\"review\"|\"close\""
+      ]
+    },
+    {
+      "task": "multi-flow",
+      "proposed_shape": "sub-run",
+      "expected": "sub-run",
+      "last_errors": [
+        "run-verification: no registered actual for run-verification/compose producing verification.result@v1",
+        "goal-close: no input set satisfiable; needs one of [goal.contract@v1, goal.attempt@v1, goal.evidence-evaluation@v1], have produced [goal.contract@v1, goal.child-run@v1] + ambient"
+      ]
+    },
+    {
+      "task": "multi-flow",
+      "proposed_shape": "sub-run",
+      "expected": "sub-run",
+      "last_errors": [
+        "goal-run-verification: unknown block id",
+        "goal-close: no input set satisfiable; needs one of [goal.contract@v1, goal.attempt@v1, goal.evidence-evaluation@v1], have produced [goal.contract@v1, goal.child-run@v1] + ambient"
+      ]
+    },
+    {
+      "task": "build-feature",
+      "proposed_shape": "linear",
+      "expected": "linear",
+      "last_errors": [
+        "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1, context.packet@v1] + ambient"
+      ]
+    },
+    {
+      "task": "build-feature",
+      "proposed_shape": "linear",
+      "expected": "linear",
+      "last_errors": [
+        "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1, context.packet@v1] + ambient"
+      ]
+    },
+    {
+      "task": "refactor",
+      "proposed_shape": "loop",
+      "expected": "linear",
+      "last_errors": [
+        "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1, context.packet@v1] + ambient"
+      ]
+    },
+    {
+      "task": "refactor",
+      "proposed_shape": "linear",
+      "expected": "linear",
+      "last_errors": [
+        "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1] + ambient"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "taskId": "fix-simple",
+      "expected": "linear",
+      "rep": 1,
+      "rawShape": "linear",
+      "rawRunnable": true,
+      "shapeMatchedExpected": true,
+      "repairs": [],
+      "finalRunnable": true,
+      "convergedRound": 0
+    },
+    {
+      "taskId": "fix-simple",
+      "expected": "linear",
+      "rep": 2,
+      "rawShape": "loop",
+      "rawRunnable": false,
+      "shapeMatchedExpected": false,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1, context.packet@v1] + ambient"
+          ],
+          "newShape": "loop",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "assemble: Invalid option: expected one of \"frame\"|\"analyze\"|\"plan\"|\"act\"|\"verify\"|\"review\"|\"close\""
+          ],
+          "newShape": "loop",
+          "runnable": false
+        }
+      ],
+      "finalRunnable": false,
+      "convergedRound": null
+    },
+    {
+      "taskId": "fix-flaky",
+      "expected": "loop",
+      "rep": 1,
+      "rawShape": "loop",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "plan(prototype.plan@v1): expected exactly one report writer for schema 'prototype.brief@v1', found 0"
+          ],
+          "newShape": "loop",
+          "runnable": true
+        }
+      ],
+      "finalRunnable": true,
+      "convergedRound": 1
+    },
+    {
+      "taskId": "fix-flaky",
+      "expected": "loop",
+      "rep": 2,
+      "rawShape": "loop",
+      "rawRunnable": true,
+      "shapeMatchedExpected": true,
+      "repairs": [],
+      "finalRunnable": true,
+      "convergedRound": 0
+    },
+    {
+      "taskId": "compare-approaches",
+      "expected": "fanout",
+      "rep": 1,
+      "rawShape": "fanout",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "run-verification: run-verification verification writer 'prototype.variant-verification@v1' requires reading 'prototype.variant-aggregate@v1', produced by no upstream step"
+          ],
+          "newShape": "fanout",
+          "runnable": true
+        }
+      ],
+      "finalRunnable": true,
+      "convergedRound": 1
+    },
+    {
+      "taskId": "compare-approaches",
+      "expected": "fanout",
+      "rep": 2,
+      "rawShape": "fanout",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "run-verification: run-verification verification writer 'prototype.variant-verification@v1' requires reading 'prototype.variant-aggregate@v1', produced by no upstream step"
+          ],
+          "newShape": "fanout",
+          "runnable": true
+        }
+      ],
+      "finalRunnable": true,
+      "convergedRound": 1
+    },
+    {
+      "taskId": "multi-flow",
+      "expected": "sub-run",
+      "rep": 1,
+      "rawShape": "sub-run",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "goal-close: no input set satisfiable; needs one of [goal.contract@v1, goal.attempt@v1, goal.evidence-evaluation@v1], have produced [goal.contract@v1, goal.child-run@v1] + ambient"
+          ],
+          "newShape": "sub-run",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "run-verification: no registered actual for run-verification/compose producing verification.result@v1",
+            "goal-close: no input set satisfiable; needs one of [goal.contract@v1, goal.attempt@v1, goal.evidence-evaluation@v1], have produced [goal.contract@v1, goal.child-run@v1] + ambient"
+          ],
+          "newShape": null,
+          "runnable": false,
+          "note": "relay failed: claude-code subprocess timed out after 90000ms; group-kill sent; final signal=none; stdout[:500]={\"type\":\"system\",\"subtype\":\"init\",\"cwd\":\"/Users/petepetrash/Code/circuit\",\"session_id\":\"eb47a99f-0d11-4ded-ab51-2438dfac3788\",\"tools\":[\"Task\",\"AskUserQuestion\",\"Bash\",\"CronCreate\",\"CronDelete\",\"CronList\",\"DesignSync\",\"Edit\",\"EnterPlanMode\",\"EnterWorktree\",\"ExitPlanMode\",\"ExitWorktree\",\"Monitor\",\"NotebookEdit\",\"PushNotification\",\"Read\",\"RemoteTrigger\",\"ScheduleWakeup\",\"TaskCreate\",\"TaskGet\",\"TaskList\",\"TaskOutput\",\"TaskStop\",\"TaskUpdate\",\"ToolSearch\",\"WebFetch\",\"WebSearch\",\"Workflow\",\"Write\"],\"mc; stderr[:500]="
+        }
+      ],
+      "finalRunnable": false,
+      "convergedRound": null
+    },
+    {
+      "taskId": "multi-flow",
+      "expected": "sub-run",
+      "rep": 2,
+      "rawShape": "sub-run",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "goal-close: no input set satisfiable; needs one of [goal.contract@v1, goal.attempt@v1, goal.evidence-evaluation@v1], have produced [goal.contract@v1, goal.child-run@v1] + ambient"
+          ],
+          "newShape": "sub-run",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "goal-run-verification: unknown block id",
+            "goal-close: no input set satisfiable; needs one of [goal.contract@v1, goal.attempt@v1, goal.evidence-evaluation@v1], have produced [goal.contract@v1, goal.child-run@v1] + ambient"
+          ],
+          "newShape": "sub-run",
+          "runnable": false
+        }
+      ],
+      "finalRunnable": false,
+      "convergedRound": null
+    },
+    {
+      "taskId": "audit",
+      "expected": "review-only",
+      "rep": 1,
+      "rawShape": "review-only",
+      "rawRunnable": true,
+      "shapeMatchedExpected": true,
+      "repairs": [],
+      "finalRunnable": true,
+      "convergedRound": 0
+    },
+    {
+      "taskId": "audit",
+      "expected": "review-only",
+      "rep": 2,
+      "rawShape": "review-only",
+      "rawRunnable": true,
+      "shapeMatchedExpected": true,
+      "repairs": [],
+      "finalRunnable": true,
+      "convergedRound": 0
+    },
+    {
+      "taskId": "research-decide",
+      "expected": "no-act",
+      "rep": 1,
+      "rawShape": "review-only",
+      "rawRunnable": false,
+      "shapeMatchedExpected": false,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "diagnose(explainer.digest@v1): expected exactly one report writer for schema 'explainer.intake@v1', found 0"
+          ],
+          "newShape": "review-only",
+          "runnable": true
+        }
+      ],
+      "finalRunnable": true,
+      "convergedRound": 1
+    },
+    {
+      "taskId": "research-decide",
+      "expected": "no-act",
+      "rep": 2,
+      "rawShape": "review-only",
+      "rawRunnable": false,
+      "shapeMatchedExpected": false,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "diagnose(explainer.digest@v1): expected exactly one report writer for schema 'explainer.intake@v1', found 0"
+          ],
+          "newShape": "review-only",
+          "runnable": true
+        }
+      ],
+      "finalRunnable": true,
+      "convergedRound": 1
+    },
+    {
+      "taskId": "build-feature",
+      "expected": "linear",
+      "rep": 1,
+      "rawShape": "linear",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "plan(build.plan@v1): expected exactly one report writer for schema 'build.brief@v1', found 0"
+          ],
+          "newShape": "linear",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1, context.packet@v1] + ambient"
+          ],
+          "newShape": "linear",
+          "runnable": false
+        }
+      ],
+      "finalRunnable": false,
+      "convergedRound": null
+    },
+    {
+      "taskId": "build-feature",
+      "expected": "linear",
+      "rep": 2,
+      "rawShape": "linear",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "plan(build.plan@v1): expected exactly one report writer for schema 'build.brief@v1', found 0"
+          ],
+          "newShape": "linear",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1, context.packet@v1] + ambient"
+          ],
+          "newShape": "linear",
+          "runnable": false
+        }
+      ],
+      "finalRunnable": false,
+      "convergedRound": null
+    },
+    {
+      "taskId": "refactor",
+      "expected": "linear",
+      "rep": 1,
+      "rawShape": "loop",
+      "rawRunnable": false,
+      "shapeMatchedExpected": false,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "plan(build.plan@v1): expected exactly one report writer for schema 'build.brief@v1', found 0"
+          ],
+          "newShape": "loop",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1, context.packet@v1] + ambient"
+          ],
+          "newShape": "loop",
+          "runnable": false
+        }
+      ],
+      "finalRunnable": false,
+      "convergedRound": null
+    },
+    {
+      "taskId": "refactor",
+      "expected": "linear",
+      "rep": 2,
+      "rawShape": "linear",
+      "rawRunnable": false,
+      "shapeMatchedExpected": true,
+      "repairs": [
+        {
+          "round": 1,
+          "errorsFedBack": [
+            "plan(build.plan@v1): expected exactly one report writer for schema 'build.brief@v1', found 0"
+          ],
+          "newShape": "linear",
+          "runnable": false
+        },
+        {
+          "round": 2,
+          "errorsFedBack": [
+            "act: no input set satisfiable; needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1] OR [flow.brief@v1, plan.strategy@v1, diagnosis.result@v1], have produced [flow.brief@v1] + ambient"
+          ],
+          "newShape": "linear",
+          "runnable": false
+        }
+      ],
+      "finalRunnable": false,
+      "convergedRound": null
+    }
+  ]
+}

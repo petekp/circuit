@@ -14,7 +14,8 @@
       "docs/release/proofs/runs",
       "experiments/e1/fixtures",
       "experiments/e1/.runs",
-      "experiments/flow-lab/.capture"
+      "experiments/flow-lab/.capture",
+      "experiments/flow-lab/_proposer-results*.json"
     ]
   },
   "organizeImports": {
