@@ -433,6 +433,7 @@ function stepWrites(
   flowId: string,
   stepId: string,
   executionKind: ExecutionKind,
+  checkpointWritesReport: boolean,
 ): NonNullable<BlockStepUse['writes']> {
   const reportPath = `reports/${flowId}/${stepId}.json`;
   if (executionKind === 'relay') {
@@ -444,7 +445,19 @@ function stepWrites(
     };
   }
   if (executionKind === 'checkpoint') {
+    // A checkpoint always carries its request/response routing paths. A CONTENT
+    // checkpoint — one whose donor wrote a typed report (the build family's frame
+    // produces build.brief@v1, which `plan` reads) — ALSO writes a report_path so
+    // the brief it produces has a read path; without it the compile walls
+    // ("produces build.brief@v1 but has no writes.report_path"). The schema allows
+    // report_path on a checkpoint (required only for compose/verification/fanout),
+    // and the real build frame-step writes reports/build/brief.json the same way.
+    // A ROUTING-only checkpoint (no donor report) writes no report_path, exactly as
+    // before. The report_path rides with policy.report_template (see the call site):
+    // a checkpoint that writes a report requires the template, so the two are kept
+    // in lockstep — a checkpoint never half-writes a report it cannot populate.
     return {
+      ...(checkpointWritesReport ? { report_path: reportPath } : {}),
       checkpoint_request_path: `reports/checkpoints/${stepId}-request.json`,
       checkpoint_response_path: `reports/checkpoints/${stepId}-response.json`,
     };
@@ -730,18 +743,36 @@ export function composeFlow(
       routes.retry = stepIds[targetIndex] as string;
     }
 
+    // A CONTENT checkpoint writes a typed report (the build frame produces
+    // build.brief@v1); its donor carries the policy.report_template the checkpoint
+    // writer reads to populate that report. report_path and report_template are
+    // emitted together — a checkpoint that writes a report it cannot populate would
+    // fail the compiler ("checkpoint report writing requires policy.report_template")
+    // — so this one flag gates BOTH the writes.report_path below and the policy's
+    // report_template. A routing-only checkpoint (no donor template) keeps the old
+    // request/response-only shape. The non-terminal guard mirrors the policy guard:
+    // a checkpoint only writes a report when it also gets a synthesized go/no-go
+    // policy to hang the template on.
+    const checkpointWritesReport =
+      role.executionKind === 'checkpoint' &&
+      routes.continue !== undefined &&
+      pick.checkpointReportTemplate !== undefined;
+
     // A checkpoint step must carry a checkpoint_policy and a check whose allowed
     // route matches a real route. The composer synthesizes a minimal go/no-go:
     // one 'continue' choice (the route a non-terminal checkpoint advances on),
     // safe-defaulting to continue so an unattended run proceeds. This replaces
     // the donor's flow-specific policy/check, which would reference routes this
-    // composed step does not have.
+    // composed step does not have. A content checkpoint additionally carries the
+    // donor's report_template (reused verbatim, drift-free), the only donor-policy
+    // field that is route-independent and that the report writer needs.
     const checkpointPolicy =
       role.executionKind === 'checkpoint' && routes.continue !== undefined
         ? {
             prompt: `${block.title}: operator go/no-go before continuing.`,
             choices: [{ id: 'continue', label: 'Continue' }],
             safe_default_choice: 'continue',
+            ...(checkpointWritesReport ? { report_template: pick.checkpointReportTemplate } : {}),
           }
         : undefined;
     const check = role.executionKind === 'checkpoint' ? { allow: ['continue'] } : pick.check;
@@ -877,7 +908,7 @@ export function composeFlow(
       }
     }
 
-    const writes = stepWrites(roleSet.id, stepId, role.executionKind);
+    const writes = stepWrites(roleSet.id, stepId, role.executionKind, checkpointWritesReport);
     const use: BlockStepUse = {
       id: stepId,
       title: `${titleCase(role.stage)} — ${block.title}`,
@@ -1181,6 +1212,42 @@ export const FANOUT_PARALLEL_BUILD: CompositionRoleSet = {
         },
       ],
     },
+    {
+      stage: 'close',
+      block: 'close-with-evidence',
+      executionKind: 'compose',
+      terminal: true,
+    },
+  ],
+};
+
+// ----------------------------------------------------------------------------
+// Build-family REACHABILITY target: the full build arc, composed end to end.
+//
+// The build family opens on a CHECKPOINT frame — the `frame` block run as a
+// checkpoint produces build.brief@v1, the brief the operator blesses before any
+// work begins. Every downstream step needs that brief: `plan` reads it directly
+// (its compose writer requires build.brief@v1), and the close soaks it forward as
+// evidence. A composed checkpoint, though, historically wrote only its
+// request/response routing paths — never a report_path — so the brief it produced
+// had no read path and the compile WALLED ("frame produces build.brief@v1 but has
+// no writes.report_path"). The real build flow's frame-step writes
+// reports/build/brief.json alongside its checkpoint paths; this role set is the
+// composed analog, and it runs only once stepWrites gives a checkpoint the same
+// readable report_path. None of the other composed shapes opens on a content
+// checkpoint (RESEARCH_THEN_BUILD frames with a plain compose), so this is the
+// shape that exercises the readable-checkpoint path.
+export const BUILD_LINEAR_FULL: CompositionRoleSet = {
+  id: 'build-linear-full',
+  title: 'Frame a build brief, plan, build, verify, review, close',
+  purpose:
+    'Checkpoint-frame the task into a build brief the operator blesses, form a plan from it, implement the change, verify it, review it, and close with evidence. A composed full build arc; the frame is a content checkpoint whose brief every later step reads.',
+  roles: [
+    { stage: 'frame', block: 'frame', executionKind: 'checkpoint' },
+    { stage: 'plan', block: 'plan', executionKind: 'compose' },
+    { stage: 'act', block: 'act', executionKind: 'relay', relayRole: 'implementer' },
+    { stage: 'verify', block: 'run-verification', executionKind: 'verification' },
+    { stage: 'review', block: 'review', executionKind: 'relay', relayRole: 'reviewer' },
     {
       stage: 'close',
       block: 'close-with-evidence',

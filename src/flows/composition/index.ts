@@ -14,6 +14,7 @@ export {
   GOAL_THEN_FIX,
   GOAL_CLARIFY_THEN_FIX,
   FANOUT_PARALLEL_BUILD,
+  BUILD_LINEAR_FULL,
   type CompositionRole,
   type CompositionRoleSet,
   type CompositionWall,
