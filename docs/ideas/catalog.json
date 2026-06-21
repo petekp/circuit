@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "last_swept": "2026-06-16",
+  "last_swept": "2026-06-21",
   "note": "Idea docs are context, not canonical behavior. Check current code, contracts, tests, generated surfaces, and canonical docs before treating any entry as implementation truth.",
   "status_values": [
     "archived",
@@ -1253,9 +1253,10 @@
         "docs/ideas/decision-layer-exploration.md",
         "docs/ideas/resolver-shared-shape.md",
         "docs/ideas/grain-chooser-run-report.md",
-        "docs/ideas/dynamic-vs-reference-run-report.md"
+        "docs/ideas/dynamic-vs-reference-run-report.md",
+        "docs/ideas/non-linear-composition-frontier.md"
       ],
-      "last_checked": "2026-06-19"
+      "last_checked": "2026-06-21"
     },
     {
       "path": "docs/ideas/on-demand-context-pull.md",
@@ -1494,6 +1495,36 @@
         "docs/ideas/north-star-status.md"
       ],
       "last_checked": "2026-06-18"
+    },
+    {
+      "path": "docs/ideas/bespoke-flow-generation-design.md",
+      "title": "Bespoke flow generation: a design dossier",
+      "status": "pre-implementation",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "generation", "assembler", "propose-and-verify", "sub-run", "evals"],
+      "current_reading": "Design dossier toward genuine novel-flow generation. Built from a grounded multi-agent audit plus an adversarial review that returned OVERCLAIMS; the six corrections are folded in. Spine: the validity-vs-efficacy distinction (validity is checkable offline and inherited free by instantiation; efficacy must be earned by running and scoring); the floor-as-verifier reframe (a generator proposes a topology from registered blocks, the deterministic assemble/compile/catalog gates dispose, so a model in the proposer seat is safe for VALIDITY on static proposals only, structural not semantic); the eight spike walls, dissolved only for the registered 9-block linear band; the real frontier is catalog coverage (16 of 29 blocks unplaceable, composeFlow throws on sub-run/fanout). Lays a Rung 0/1/2 ladder, a Rung 1 first slice (a single-leaf sub-run orchestration that clears the real floor offline), an efficacy-certification plan, and a zero-cost catalog-coverage probe. SUPERSEDED IN PART by what was since walked: the eight walls have been dissolved across the non-linear shapes (loop/sub-run/fanout all run live, PRs #123-133) and the two composer-intelligence layers this dossier reserved — producibility-aware selection and family reachability — both SHIPPED as frontier phases A-D (PRs #134-138), with a second family (build) now composing and running live and a topology efficacy-flat finding. See non-linear-composition-frontier.md for the as-walked record. This dossier remains the design rationale and the propose-half plan (a model that PROPOSES topologies, not just linearizes a hand-authored role-set) is still un-built. No src change; the genuine-generation spike stays untracked.",
+      "related": [
+        "docs/ideas/north-star-status.md",
+        "docs/ideas/non-linear-composition-frontier.md",
+        "docs/ideas/dynamic-vs-reference-run-report.md",
+        "docs/ideas/dynamic-vs-reference-followup.md",
+        "docs/ideas/flow-composition-run-report.md"
+      ],
+      "last_checked": "2026-06-21"
+    },
+    {
+      "path": "docs/ideas/non-linear-composition-frontier.md",
+      "title": "The non-linear composition frontier",
+      "status": "partially-implemented-research",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "generation", "non-linear", "sub-run", "fanout"],
+      "current_reading": "Empirical companion to the bespoke-generation dossier: the non-linear frontier as actually walked, now well past the original three-tier sweep. The whole validity ladder is built and on main: the bounded inspect/fix/verify LOOP (PR #123), SUB-RUN across a flow boundary (#124), static FANOUT joined by aggregate-survivors (#125/#126), a plain-LINEAR triage close (#130), and an offline RUNNABILITY detector that catches un-runnable composed flows the structural floor was blind to (#131). The composed-vs-reference efficacy arm then landed COMPOSITION-VIABLE (#132), and the fanout terminal-close fix (PR #133, f42c2e4e) made the composed FANOUT shape run LIVE end-to-end. The 2026-06-20 synthesis named the remaining composer-intelligence frontier as TWO LAYERS — producibility-aware SELECTION and family REACHABILITY — and BOTH HAVE SINCE SHIPPED (frontier phases A-D, all merged to main): Phase A (PR #134) turned the runnability gate from detect-only into repair-then-wall via a family-coherence tiebreak in selectActual; Phase C (PR #135) made the goal opener's clarified-task producible (the goal family's own clarify relay) plus an always-on intermediate compose-reads wiring pass, closing the last shape that wasn't full-flow runnable; Phase B-offline (PR #136) made the build family reachable (checkpointWritesReport + donor report_template) so build composes end-to-end. Phase B-live (PR #137) then ran a composed BUILD flow vs the hand-authored reference — 4/4 objective-fixed, 0 false-fixed, strictly cheaper every task — an EXISTENCE PROOF that a second family composes and runs live, not just fix. Phase D (PR #138) ran the same composed fix arc at three topologies (lean 5-block / full 6-block / loop 6-block+retry) and found flow topology EFFICACY-FLAT and COST-REAL: extra blocks bought cost (lean ~32% cheaper, ~31% faster), not capability; the recovery loop never fired; step-level judgement, not graph shape, is the scarce ingredient. Findings in evals/dynamic-vs-reference/{composed-build-arm-finding,composed-shape-sensitivity-finding}.md. RESEARCH_THEN_BUILD still walls honestly (no runnable family). Remaining open: the proof-richness gap (generic flow.result@v1 closes leaner than a family's full proof bundle — disclosed, not laundered), a discriminating (failure-inducing) task set so the loop's recovery branch can fire, and the low-value Tier-2 forward branch / self-loop. Default-OFF; built-ins byte-identical throughout.",
+      "related": [
+        "docs/ideas/bespoke-flow-generation-design.md",
+        "docs/ideas/north-star-status.md",
+        "docs/ideas/flow-composition-run-report.md"
+      ],
+      "last_checked": "2026-06-21"
     }
   ]
 }
