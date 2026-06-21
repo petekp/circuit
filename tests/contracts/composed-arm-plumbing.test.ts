@@ -1,16 +1,19 @@
 // The dynamic-vs-reference COMPOSED arm: offline plumbing proof.
 //
-// The composed arm runs a fix flow GENUINELY COMPOSED block by block (no family
+// The composed arm runs a flow GENUINELY COMPOSED block by block (no family
 // template) against the same fixtures as the reference and generated arms. Its
 // one novel step is publishComposedFlow: it compiles a role set in process and
 // writes it to disk exactly as `circuit create --publish` does — circuit.json
 // under <home>/flows/<slug>/ plus a manifest.json the trust gate path-matches.
 //
 // This file proves, at $0, the two things that must hold for the live run to be
-// meaningful:
-//   1. FIX_LINEAR_FULL is a genuine fix arc — VALID, RUNNABLE, and NOVEL (its
-//      block sequence is not any built-in's), so the comparison can separate
-//      composed from hand-authored rather than being parity by construction.
+// meaningful, on BOTH composed shapes the harness runs:
+//   1. The composed arc is genuine — VALID, RUNNABLE, and NOVEL (its block
+//      sequence is not any built-in's), so the comparison can separate composed
+//      from hand-authored rather than being parity by construction. FIX_LINEAR_FULL
+//      is the fix arc; BUILD_LINEAR_FULL is the build arc (a content-checkpoint
+//      frame, then plan/act/verify/review/close — leaner than the built-in build's
+//      baseline + touch-area verifications, so novel).
 //   2. publishComposedFlow writes a flow the runtime ACCEPTS: the trust gate
 //      blesses it (manifest path-match) and the loader resolves + loads it with
 //      flow.id === slug. This is the same trust gate + loader the subprocess run
@@ -33,6 +36,7 @@ import { flowDefinitions } from '../../src/flows/catalog.js';
 import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
 import { planCompiledFlowFiles } from '../../src/flows/compiled-flow-file-plan.js';
 import {
+  BUILD_LINEAR_FULL,
   composeFlow,
   evaluateNovelty,
   evaluateRunnability,
@@ -50,6 +54,7 @@ const srcDeps: ComposeDeps = {
   compileSchematicToCompiledFlow,
   planCompiledFlowFiles,
   flowDefinitions,
+  BUILD_LINEAR_FULL,
 };
 
 function tempHome(): string {
@@ -98,6 +103,39 @@ describe('composed fix arc — genuine, runnable, novel', () => {
   });
 });
 
+describe('composed build arc — genuine, runnable, novel', () => {
+  it('BUILD_LINEAR_FULL is offline-valid and runtime-runnable', () => {
+    const outcome = composeFlow(BUILD_LINEAR_FULL, { definitions: flowDefinitions });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const validity = evaluateValidity(outcome.spec);
+    expect(validity.valid).toBe(true);
+    expect(validity.compiles).toBe(true);
+
+    const runnability = evaluateRunnability(outcome.spec);
+    expect(runnability.runnable).toBe(true);
+    expect(runnability.aborts).toEqual([]);
+  });
+
+  it('BUILD_LINEAR_FULL is NOVEL — not the built-in build (so the comparison discriminates)', () => {
+    const outcome = composeFlow(BUILD_LINEAR_FULL, { definitions: flowDefinitions });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const validity = evaluateValidity(outcome.spec);
+    expect(validity.schematic).toBeDefined();
+    if (validity.schematic === undefined) return;
+
+    const novelty = evaluateNovelty(validity.schematic, flowDefinitions);
+    expect(novelty.novel).toBe(true);
+    // Closest built-in is the build flow, a low-overlap neighbor (the built-in
+    // adds a baseline + touch-area verifications the composed linear arc omits).
+    // Pinning the neighbor identity (not the exact jaccard) keeps this stable.
+    expect(novelty.closest?.flowId).toBe('build');
+    expect(novelty.matches).toBeUndefined();
+  });
+});
+
 describe('publishComposedFlow — trust-accepted and loadable', () => {
   it('writes a flow the trust gate blesses and the loader resolves', () => {
     const home = tempHome();
@@ -128,6 +166,36 @@ describe('publishComposedFlow — trust-accepted and loadable', () => {
       expect(resolved).toBe(expectedPath);
       const { flow } = loadCompiledFlow(resolved);
       // validateCustomFlow requires flow.id === slug; the publish keeps them in step.
+      expect(flow.id).toBe(published.slug);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('writes the build arc as a trust-accepted, loadable flow too', () => {
+    const home = tempHome();
+    try {
+      const published = publishComposedFlowWith(srcDeps, {
+        roleSet: BUILD_LINEAR_FULL,
+        home,
+        description: 'composed build arc (plumbing test)',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      });
+
+      expect(published.slug).toBe('build-linear-full');
+      const flowRoot = join(home, 'flows');
+      const expectedPath = resolve(flowRoot, published.slug, 'circuit.json');
+      expect(published.flowPath).toBe(expectedPath);
+
+      const trusted = fixtureEligibleForRuntime({
+        args: { flowRoot },
+        fixturePath: published.flowPath,
+      });
+      expect(trusted).toBe(true);
+
+      const resolved = resolveCompiledFlowPath(published.slug, undefined, undefined, flowRoot);
+      expect(resolved).toBe(expectedPath);
+      const { flow } = loadCompiledFlow(resolved);
       expect(flow.id).toBe(published.slug);
     } finally {
       rmSync(home, { recursive: true, force: true });
