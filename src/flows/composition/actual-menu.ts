@@ -50,6 +50,13 @@ export interface MenuEntry {
   // The donor step's check — reused verbatim because it describes the actual's
   // own output shape, which the composer is reusing unchanged.
   readonly check?: NonNullable<SchematicStep['check']>;
+  // For a CONTENT checkpoint donor (a checkpoint that writes a typed report, like
+  // the build frame producing build.brief@v1): the donor's policy.report_template,
+  // the template object the checkpoint writer reads to populate that report. The
+  // composer reuses it verbatim so a composed content-checkpoint produces a brief
+  // its writer can fill — read live from the catalog, so it tracks the donor's
+  // template with no drift. Absent for routing-only checkpoints (no donor report).
+  readonly checkpointReportTemplate?: Record<string, unknown>;
   // Whether this entry is the donor flow's PRIMARY use of its block. A block
   // reused several times in one flow (run-verification appears as a pre-change
   // baseline, the post-change verification, a touch-area proof) yields several
@@ -153,6 +160,9 @@ export function deriveActualMenu(definitions: readonly FlowDefinition[]): readon
         donorFlowId: definition.id,
         donorStepId: asString(item.id),
         ...(item.check === undefined ? {} : { check: item.check }),
+        ...(execution.kind === 'checkpoint' && item.checkpoint_policy?.report_template !== undefined
+          ? { checkpointReportTemplate: item.checkpoint_policy.report_template }
+          : {}),
         donorPrimaryForBlock: primaryStepIds.has(asString(item.id)),
         bodyRegistered: resolveFieldSignature(actual) !== null,
         hasVerificationWriter: findVerificationWriter(actual) !== undefined,
