@@ -36,6 +36,11 @@ import { projectFixRegressionRerun } from './regression-projection.js';
 
 export const fixRegressionRerunWriter: VerificationBuilder = {
   resultSchemaName: 'fix.regression-rerun@v1',
+  // Re-runs the same regression command the brief declared (which the baseline
+  // writer also sources), so it reads the brief. Declared so a composer wires the
+  // read and the offline floor resolves it; loadCommands below is the enforcing
+  // source of truth.
+  reads: [{ name: 'brief', schema: 'fix.brief@v1', required: true }],
   loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
     const briefPath = reportPathForSchemaInRuntimeFlow(context.flow, 'fix.brief@v1');
     if (!context.step.reads.includes(briefPath as never)) {

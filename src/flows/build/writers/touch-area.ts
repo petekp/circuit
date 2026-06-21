@@ -47,6 +47,15 @@ function runFolderPrefix(input: { readonly projectRoot?: string; readonly runFol
 
 export const buildTouchAreaWriter: VerificationBuilder = {
   resultSchemaName: SCHEMA_NAME,
+  // Hard-requires the pre-act baseline snapshot (to diff against) and the plan
+  // (for the declared allowed area). The build.implementation@v1 read in
+  // buildResult is best-effort corroboration, not required, so it is not declared
+  // here. Declared so a composer wires the reads and the offline floor resolves
+  // them; loadCommands below is the enforcing source of truth.
+  reads: [
+    { name: 'baseline', schema: 'build.baseline-snapshot@v1', required: true },
+    { name: 'plan', schema: 'build.plan@v1', required: true },
+  ],
   loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
     // Fail fast if the schematic forgot to wire the inputs this writer needs,
     // mirroring the Fix change-set writer's read-validation.

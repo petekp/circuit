@@ -53,6 +53,12 @@ import {
   type PriceTable,
   readCircuitRunUsage,
 } from '../../scripts/evals/shared/usage.ts';
+import {
+  type ComposeDeps,
+  FIX_LINEAR_FULL,
+  loadComposeDepsFromDist,
+  publishComposedFlowWith,
+} from './composed-fix-shapes.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -72,7 +78,11 @@ const HONESTY_MARGIN = 0.1;
 
 type JsonRecord = Record<string, any>;
 type Family = 'fix' | 'build';
-type ArmId = 'reference' | 'generated';
+// 'composed' is the opt-in third arm (--with-composed): a fix flow genuinely
+// composed block by block, not instantiated from a family template. It runs only
+// for fix tasks (build-family composition is unproven). The locked reference-vs-
+// generated decision rule never sees it.
+type ArmId = 'reference' | 'generated' | 'composed';
 
 type CheckDefinition = { id: string; argv: string[]; hidden?: boolean };
 
@@ -113,6 +123,7 @@ export type DynArgs = {
   outDir: string;
   skipBuild: boolean;
   dryRun: boolean;
+  withComposed: boolean;
 };
 
 type CheckRun = JsonRecord & { id: string; argv: string[]; passed: boolean };
@@ -134,7 +145,7 @@ type TaskSummary = JsonRecord & {
   family: Family;
   rep: number;
   baseline_failed_as_expected: boolean;
-  arms: Record<ArmId, ArmRunRecord | undefined>;
+  arms: Partial<Record<ArmId, ArmRunRecord>>;
 };
 
 // ---------------------------------------------------------------------------
@@ -147,11 +158,17 @@ function usage(): string {
     [--model <model-id>] [--pin-model <model-id>] [--no-pin-model] \\
     [--effort low|medium|high|xhigh] [--timeout-ms 900000] \\
     [--reps N] [--out-dir evals/dynamic-vs-reference/results] \\
-    [--skip-build] [--dry-run]
+    [--skip-build] [--dry-run] [--with-composed]
 
 Compares a hand-authored reference flow against the flow circuit create
 instantiates from the task text, both pinned to one model, on fix and build.
 The generated arm runs its DEFAULT mode only.
+
+--with-composed adds a third arm on FIX tasks only: a fix flow genuinely
+composed block by block (FIX_LINEAR_FULL), published in process and run through
+the same trust gate, scorer, and subprocess as the other arms. Build tasks skip
+it (build-family composition is unproven). The reference-vs-generated decision
+rule is unchanged.
 `;
 }
 
@@ -176,6 +193,7 @@ export function parseDynArgs(argv: string[], manifest: DynManifest): DynArgs {
     outDir: DEFAULT_RESULTS_ROOT,
     skipBuild: false,
     dryRun: false,
+    withComposed: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -214,6 +232,8 @@ export function parseDynArgs(argv: string[], manifest: DynManifest): DynArgs {
       args.skipBuild = true;
     } else if (arg === '--dry-run') {
       args.dryRun = true;
+    } else if (arg === '--with-composed') {
+      args.withComposed = true;
     } else {
       throw new Error(`unknown arg: ${arg}`);
     }
@@ -716,14 +736,108 @@ function scanLastJsonObject(text: string): JsonRecord | undefined {
   return undefined;
 }
 
+// The composer's compile chain, bound from the built dist tree once and reused
+// across tasks. Loaded lazily so a run without --with-composed never touches dist.
+let composeDepsPromise: Promise<ComposeDeps> | undefined;
+function getComposeDeps(): Promise<ComposeDeps> {
+  if (composeDepsPromise === undefined) {
+    composeDepsPromise = loadComposeDepsFromDist(REPO_ROOT);
+  }
+  return composeDepsPromise;
+}
+
+// The COMPOSED arm (opt-in, fix-only). A near-clone of runGeneratedArm: same
+// fixture, same isolated repo/home, same subprocess run and same scorer. The ONLY
+// difference is the flow-production step — instead of shelling out to `circuit
+// create --publish` (which INSTANTIATES a family template), it composes a fix flow
+// block by block in process and writes it to disk exactly as publish would, so the
+// trust gate and loader accept it unchanged. Fix-only because build-family
+// composition is unproven; runTask gates the call on task.family === 'fix'.
+async function runComposedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.ProcessEnv, taskDir: string, priceTable: PriceTable | undefined): Promise<{ record: ArmRunRecord; baseline: CheckRun[]; fixtureCommit: string }> {
+  const dir = resolve(taskDir, 'composed');
+  const repo = resolve(dir, 'repo');
+  const home = resolve(dir, 'home');
+  const runFolder = resolve(dir, 'circuit-run');
+  const fixtureCommit = copyFixtureRepo(task, repo);
+  const baseline = runAllChecks(repo, task, dir, 'baseline');
+  mkdirSync(home, { recursive: true });
+
+  // Compose + publish in process ($0, deterministic). The compile chain comes from
+  // the BUILT dist tree (the harness runs npm run build first); publishComposedFlowWith
+  // asserts the spec is valid AND runnable before writing, so a broken role set throws
+  // here rather than aborting mid-run. The proof that the written flow is trust-accepted
+  // and loadable is tests/contracts/composed-arm-plumbing.test.ts.
+  let published: { slug: string; flowPath: string };
+  try {
+    const deps = await getComposeDeps();
+    published = publishComposedFlowWith(deps, {
+      roleSet: FIX_LINEAR_FULL,
+      home,
+      description: task.create_description,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    const claim = { claimed_fixed: false, parse_status: 'compose-failed', proof_quality: 0 };
+    const diff = diffState(repo, dir);
+    const score = scoreFromRun({ task, armId: 'composed', exitCode: null, timedOut: false, wallclockMs: 0, checks: runAllChecks(repo, task, dir, 'post'), diff, claim, priceTable, runFolder });
+    return {
+      record: { arm_id: 'composed', score, pipeline_status: 'compose-failed', pipeline_detail: err instanceof Error ? err.message : String(err) },
+      baseline,
+      fixtureCommit,
+    };
+  }
+
+  const flowRoot = resolve(home, 'flows');
+  const argv = [
+    BIN_CIRCUIT, 'run', published.slug,
+    '--goal', taskGoal(task),
+    '--run-folder', runFolder,
+    '--flow-root', flowRoot,
+    '--progress', 'jsonl',
+  ];
+  const driven = await driveCircuitRun({
+    label: `${task.id}:composed`,
+    argv,
+    cwd: repo,
+    // No mirror root: the in-process publish blesses the composed flow's default mode.
+    env: wrapperEnv,
+    runFolder,
+    outputDir: dir,
+    timeoutMs: args.timeoutMs,
+  });
+  const post = runAllChecks(repo, task, dir, 'post');
+  const diff = diffState(repo, dir);
+  const { claim, resultLocated } = parseFlowClaim(task.family, published.flowPath, runFolder);
+  const pipeline = pipelineStatusForRun(resultLocated, driven.exit_code, claim);
+  const score = scoreFromRun({ task, armId: 'composed', exitCode: driven.exit_code, timedOut: driven.timed_out, wallclockMs: driven.wallclock_ms, checks: post, diff, claim, priceTable, runFolder });
+  return {
+    record: {
+      arm_id: 'composed',
+      score,
+      pipeline_status: pipeline.status,
+      ...(pipeline.detail ? { pipeline_detail: pipeline.detail } : {}),
+      generated_slug: published.slug,
+      generated_step_count: readStepCount(published.flowPath),
+    },
+    baseline,
+    fixtureCommit,
+  };
+}
+
 async function runTask(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.ProcessEnv, taskDir: string, rep: number, priceTable: PriceTable | undefined): Promise<TaskSummary> {
   mkdirSync(taskDir, { recursive: true });
   writeJson(resolve(taskDir, 'task.json'), task);
   writeFileSync(resolve(taskDir, 'goal.md'), `${taskGoal(task)}\n`);
   const reference = await runReferenceArm(task, args, wrapperEnv, taskDir, priceTable);
   const generated = await runGeneratedArm(task, args, wrapperEnv, taskDir, priceTable);
-  const baselines = [reference.baseline, generated.baseline];
-  const fixtureCommits = [reference.fixtureCommit, generated.fixtureCommit];
+  // Opt-in third arm, fix-only. Build-family composition is unproven, so it is
+  // skipped there (the reference-vs-generated comparison is unaffected either way).
+  const composed =
+    args.withComposed && task.family === 'fix'
+      ? await runComposedArm(task, args, wrapperEnv, taskDir, priceTable)
+      : undefined;
+  const baselines = [reference.baseline, generated.baseline, ...(composed ? [composed.baseline] : [])];
+  const fixtureCommits = [reference.fixtureCommit, generated.fixtureCommit, ...(composed ? [composed.fixtureCommit] : [])];
   const summary: TaskSummary = {
     task_id: task.id,
     family: task.family,
@@ -731,7 +845,7 @@ async function runTask(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.ProcessE
     rep,
     fixture_commits_match: new Set(fixtureCommits).size <= 1,
     baseline_failed_as_expected: baselines.length > 0 && baselines.every((checks) => checks.some((check) => !check.passed)),
-    arms: { reference: reference.record, generated: generated.record },
+    arms: { reference: reference.record, generated: generated.record, ...(composed ? { composed: composed.record } : {}) },
   };
   writeJson(resolve(taskDir, 'summary.json'), summary);
   return summary;
@@ -864,6 +978,111 @@ export function classifyDynamicVsReference(input: DecisionInput): Classification
 }
 
 // ---------------------------------------------------------------------------
+// Section-5 single-family honesty guard (OUTSIDE the locked rule).
+//
+// classifyDynamicVsReference is a BOTH-families rule: it reads fix AND build
+// aggregates, and (correctly, for a full run) treats a null aggregate as failing —
+// no data cannot pass. But a `--family fix` run produces EMPTY build aggregates,
+// which the rule reads as a failing build family and returns a spurious NOT-YET.
+// That verdict is a both-families claim the run never earned. This guard sits
+// outside the locked rule — neither classifyDynamicVsReference nor its
+// decision-rule test is touched: when only one family ran, it reports the §5
+// verdict as INCONCLUSIVE rather than letting an absent family's null aggregates
+// masquerade as a measured NOT-YET. When both families ran, the real verdict
+// passes through unchanged. The raw classification is kept alongside for
+// transparency (and the ledger), flagged non-authoritative.
+export type Section5Outcome = {
+  verdict: string;
+  authoritative: boolean;
+  ranFamilies: Family[];
+  classification: Classification;
+};
+
+export function resolveSection5Outcome(input: {
+  ranFamilies: ReadonlySet<Family>;
+  classification: Classification;
+}): Section5Outcome {
+  const ran = (['fix', 'build'] as const).filter((family) => input.ranFamilies.has(family));
+  if (ran.length === 2) {
+    return {
+      verdict: input.classification.verdict,
+      authoritative: true,
+      ranFamilies: ran,
+      classification: input.classification,
+    };
+  }
+  const only = ran.length === 1 ? `${ran[0]} only` : 'no families';
+  return {
+    verdict: `INCONCLUSIVE — single-family run (${only}); §5 is a both-families rule`,
+    authoritative: false,
+    ranFamilies: ran,
+    classification: input.classification,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Composed-vs-reference decision rule (sibling, locked before data).
+//
+// Distinct from the section-5 rule above: that one asks whether the INSTANTIATED
+// flow (circuit create) is worth investing in. This one asks a different question
+// — does a GENUINELY COMPOSED fix flow, assembled block by block with no family
+// template, reach the hand-authored reference on quality and honesty?
+//
+// Fix-only (composition for build is unproven). It reuses the SAME pre-registered
+// margins as the locked rule, but drops the build fold-cost criterion (meaningless
+// for a short composed fix topology) and adds a pipeline-integrity predicate that
+// folds in the composer's failure modes: a compose wall, a runnability abort, or a
+// missing result all show up as a non-'ok' pipeline_status and cap the verdict —
+// efficacy cannot be judged when the composed flow never produced a clean run.
+export type ComposedDecisionInput = {
+  fix: { reference: FamilyArmAggregate; composed: FamilyArmAggregate };
+};
+export type ComposedClassification = {
+  verdict: 'COMPOSITION-VIABLE' | 'BELOW-REFERENCE' | 'PIPELINE-BROKEN';
+  reasons: string[];
+  predicates: JsonRecord;
+};
+
+export function classifyComposedVsReference(input: ComposedDecisionInput): ComposedClassification {
+  const reasons: string[] = [];
+  const quality = withinMargin(
+    input.fix.composed.objective_fixed_rate,
+    input.fix.reference.objective_fixed_rate,
+    QUALITY_MARGIN,
+  );
+  const honesty = notWorse(
+    input.fix.composed.false_fixed_rate,
+    input.fix.reference.false_fixed_rate,
+    HONESTY_MARGIN,
+  );
+  const pipelineClean = input.fix.composed.pipeline_failure_count === 0;
+  const predicates = {
+    quality_fix_within_margin: quality,
+    honesty_fix_ok: honesty,
+    pipeline_fix_clean: pipelineClean,
+  };
+
+  if (!pipelineClean) {
+    reasons.push(
+      'Composed arm had pipeline failures on fix (compose wall, runnability abort, or missing result) — efficacy cannot be judged; PIPELINE-BROKEN.',
+    );
+    return { verdict: 'PIPELINE-BROKEN', reasons, predicates };
+  }
+  if (!quality) {
+    reasons.push('Composed objective-fixed rate fell more than 10pp below the hand-authored reference on fix.');
+    return { verdict: 'BELOW-REFERENCE', reasons, predicates };
+  }
+  if (!honesty) {
+    reasons.push('Composed false-fixed rate rose more than 10pp above the hand-authored reference on fix.');
+    return { verdict: 'BELOW-REFERENCE', reasons, predicates };
+  }
+  reasons.push(
+    'On fix, the genuinely composed flow matches the hand-authored reference within margin on both objective-fixed and false-fixed rate, with a clean composed pipeline.',
+  );
+  return { verdict: 'COMPOSITION-VIABLE', reasons, predicates };
+}
+
+// ---------------------------------------------------------------------------
 // Projected spend (dry-run only). Anchors are documented estimates, not
 // measurements; the live run records the real cost.
 
@@ -882,14 +1101,17 @@ function generatedBuildAnchor(expectedGrain: string): number {
   return /decompos/i.test(expectedGrain) ? COST_ANCHOR_USD.build_generated_decomposed : COST_ANCHOR_USD.build_generated_whole;
 }
 
-function projectSpend(manifest: DynManifest, taskIds: string[], reps: number): { rows: Array<{ task: string; arm: string; runs: number; anchor: number; subtotal: number }>; expected: number; low: number; high: number } {
+function projectSpend(manifest: DynManifest, taskIds: string[], reps: number, withComposed: boolean): { rows: Array<{ task: string; arm: string; runs: number; anchor: number; subtotal: number }>; expected: number; low: number; high: number } {
   const rows: Array<{ task: string; arm: string; runs: number; anchor: number; subtotal: number }> = [];
   let expected = 0;
   for (const id of taskIds) {
     const family: Family = manifest.families.fix.includes(id) ? 'fix' : 'build';
     const refAnchor = family === 'fix' ? COST_ANCHOR_USD.fix_reference : COST_ANCHOR_USD.build_reference;
     const genAnchor = family === 'fix' ? COST_ANCHOR_USD.fix_generated : generatedBuildAnchor(manifest.expected_grain[id] ?? '');
-    for (const [arm, anchor] of [['reference', refAnchor], ['generated', genAnchor]] as Array<[string, number]>) {
+    const arms: Array<[string, number]> = [['reference', refAnchor], ['generated', genAnchor]];
+    // The composed arm runs only on fix tasks; anchor it at the fix per-run cost.
+    if (withComposed && family === 'fix') arms.push(['composed', COST_ANCHOR_USD.fix_generated]);
+    for (const [arm, anchor] of arms) {
       const subtotal = anchor * reps;
       expected += subtotal;
       rows.push({ task: id, arm, runs: reps, anchor, subtotal });
@@ -940,7 +1162,15 @@ export function buildDynamicVsReferenceLedgerEntry(summary: JsonRecord, options:
       provider: typeof summary.provider === 'string' ? summary.provider : 'unknown',
       effort: typeof summary.effort === 'string' ? summary.effort : 'unknown',
       pin_model: String(summary.pin_model === true),
-      verdict: typeof summary.classification?.verdict === 'string' ? summary.classification.verdict : 'unknown',
+      // Prefer the §5 single-family-honest verdict (INCONCLUSIVE on a one-family
+      // run) over the raw both-families classification, which returns a spurious
+      // NOT-YET when the absent family's null aggregates are treated as failing.
+      verdict:
+        typeof summary.section5?.verdict === 'string'
+          ? summary.section5.verdict
+          : typeof summary.classification?.verdict === 'string'
+            ? summary.classification.verdict
+            : 'unknown',
     },
     metrics,
   };
@@ -970,10 +1200,48 @@ function renderFamilyTable(family: Family, agg: { reference: FamilyArmAggregate;
 | generated | ${fmtRate(g.objective_fixed_rate)} | ${fmtRate(g.false_fixed_rate)} | ${fmtRate(g.verification_pass_rate)} | ${fmtUsd(g.median_cost_usd_computed)} | ${fmtMs(g.mean_wallclock_ms)} | ${g.pipeline_failure_count} |`;
 }
 
+function renderComposedSection(summary: JsonRecord): string {
+  const cmp = summary.composed_vs_reference as
+    | { fix: { reference: FamilyArmAggregate; composed: FamilyArmAggregate }; classification: ComposedClassification }
+    | undefined;
+  if (cmp === undefined) return '';
+  const r = cmp.fix.reference;
+  const c = cmp.fix.composed;
+  return `
+## Composed-vs-reference (fix, genuine block-level composition)
+
+This arm runs a fix flow composed block by block (FIX_LINEAR_FULL), not
+instantiated from a family template. It is scored by the same hidden objective
+tests as the other arms. The verdict below uses the sibling composed rule, not
+the section-5 rule.
+
+**${cmp.classification.verdict}**
+
+${cmp.classification.reasons.map((reason) => `- ${reason}`).join('\n')}
+
+Predicates: ${JSON.stringify(cmp.classification.predicates)}
+
+| Arm | Objective-fixed (Q) | False-fixed (FF) | Verification | Median cost | Wallclock | Pipeline failures |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| reference | ${fmtRate(r.objective_fixed_rate)} | ${fmtRate(r.false_fixed_rate)} | ${fmtRate(r.verification_pass_rate)} | ${fmtUsd(r.median_cost_usd_computed)} | ${fmtMs(r.mean_wallclock_ms)} | ${r.pipeline_failure_count} |
+| composed | ${fmtRate(c.objective_fixed_rate)} | ${fmtRate(c.false_fixed_rate)} | ${fmtRate(c.verification_pass_rate)} | ${fmtUsd(c.median_cost_usd_computed)} | ${fmtMs(c.mean_wallclock_ms)} | ${c.pipeline_failure_count} |
+`;
+}
+
 function renderReport(summary: JsonRecord): string {
   const aggregates = summary.aggregates as Record<Family, { reference: FamilyArmAggregate; generated: FamilyArmAggregate }>;
   const classification = summary.classification as Classification;
+  const section5 = summary.section5 as Section5Outcome | undefined;
   const build = summary.build_fold_cost as { reference: number | null; generated: number | null };
+  // Headline the honest §5 verdict: INCONCLUSIVE on a single-family run, where the
+  // locked both-families rule's NOT-YET is an artifact of the absent family's null
+  // aggregates, not a measured result. Fall back to the raw verdict for older
+  // summaries written before this field existed.
+  const section5Verdict = section5?.verdict ?? classification.verdict;
+  const section5Note =
+    section5 !== undefined && !section5.authoritative
+      ? `\n_Only ${section5.ranFamilies.join(', ') || 'no'} family ran. The section-5 rule reads both families, so it is not authoritative here; the raw both-families verdict below (${classification.verdict}) reflects the absent family's empty aggregates, not a measured outcome._\n`
+      : '';
   return `# Dynamic-vs-Reference Report
 
 Run: ${summary.result_root}
@@ -983,8 +1251,8 @@ Repo commit: ${summary.repo_commit}
 
 ## Verdict (section-5 rule applied to the measured numbers)
 
-**${classification.verdict}**
-
+**${section5Verdict}**
+${section5Note}
 ${classification.reasons.map((r) => `- ${r}`).join('\n')}
 
 Predicates: ${JSON.stringify(classification.predicates)}
@@ -996,18 +1264,20 @@ ${renderFamilyTable('fix', aggregates.fix)}
 ${renderFamilyTable('build', aggregates.build)}
 
 Build fold cost (median per-task computed cost on B1/B2): reference ${fmtUsd(build.reference)} vs generated ${fmtUsd(build.generated)}.
-
+${renderComposedSection(summary)}
 ## Tasks
 
 ${(summary.tasks as TaskSummary[])
   .map((t) => {
     const ref = t.arms.reference;
     const gen = t.arms.generated;
+    const composed = t.arms.composed;
     const cell = (rec: ArmRunRecord | undefined) =>
       rec === undefined
         ? 'not run'
         : `fixed=${rec.score.objective_fixed}, false-fixed=${rec.score.false_fixed}, pipeline=${rec.pipeline_status}${rec.generated_step_count != null ? `, steps=${rec.generated_step_count}` : ''}`;
-    return `- ${t.task_id} (${t.family}, rep ${t.rep}): reference [${cell(ref)}]; generated [${cell(gen)}]`;
+    const composedCell = composed ? `; composed [${cell(composed)}]` : '';
+    return `- ${t.task_id} (${t.family}, rep ${t.rep}): reference [${cell(ref)}]; generated [${cell(gen)}]${composedCell}`;
   })
   .join('\n')}
 `;
@@ -1024,7 +1294,7 @@ async function main(): Promise<void> {
   const runLabel = args.taskId ?? args.family ?? 'all';
   const resultRoot = createResultRoot(args.outDir, runLabel);
 
-  const projection = projectSpend(manifest, taskIds, args.reps);
+  const projection = projectSpend(manifest, taskIds, args.reps, args.withComposed);
   const metadata = {
     schema_version: 1,
     benchmark_id: manifest.benchmark_id,
@@ -1041,7 +1311,7 @@ async function main(): Promise<void> {
     generated_arm_mode: 'default-only',
     task_ids: taskIds,
     dry_run: args.dryRun,
-    projected_spend_usd: { expected: projection.expected, low: projection.low, high: projection.high, total_live_runs: taskIds.length * 2 * args.reps },
+    projected_spend_usd: { expected: projection.expected, low: projection.low, high: projection.high, total_live_runs: projection.rows.reduce((sum, r) => sum + r.runs, 0) },
   };
   writeJson(resolve(resultRoot, 'metadata.json'), metadata);
 
@@ -1051,7 +1321,7 @@ async function main(): Promise<void> {
     for (const row of projection.rows) {
       process.stdout.write(`  ${row.task.padEnd(22)} ${row.arm.padEnd(10)} ${row.runs} run(s) x $${row.anchor.toFixed(2)} = $${row.subtotal.toFixed(2)}\n`);
     }
-    process.stdout.write(`\n  Total live runs: ${taskIds.length * 2 * args.reps}\n`);
+    process.stdout.write(`\n  Total live runs: ${projection.rows.reduce((sum, r) => sum + r.runs, 0)}\n`);
     process.stdout.write(`  Projected spend: ~$${projection.expected.toFixed(2)} (band $${projection.low.toFixed(2)}-$${projection.high.toFixed(2)})\n`);
     process.stdout.write(`  Model to pin: ${args.model} (pin_model=${args.pinModel})\n`);
     process.stdout.write(`\nDry run only. No model spend. Results directory prepared at ${resultRoot}\n`);
@@ -1104,6 +1374,26 @@ async function main(): Promise<void> {
     fix: aggregates.fix,
     build: { ...aggregates.build, foldCostReference, foldCostGenerated },
   });
+  // The locked rule reads both families; on a single-family run the absent
+  // family's null aggregates make it a spurious NOT-YET. Report the §5 verdict
+  // honestly: authoritative only when both families ran.
+  const ranFamilies = new Set<Family>(summaries.map((s) => s.family));
+  const section5 = resolveSection5Outcome({ ranFamilies, classification });
+
+  // Opt-in composed-vs-reference comparison (fix-only). Additive: it never feeds
+  // the section-5 verdict above. Present only when the composed arm actually ran.
+  const composedFixRecords = summaries
+    .filter((s) => s.family === 'fix')
+    .map((s) => s.arms.composed)
+    .filter((r): r is ArmRunRecord => r !== undefined);
+  const composedComparison =
+    composedFixRecords.length > 0
+      ? (() => {
+          const composed = aggregateArm(composedFixRecords);
+          const fix = { reference: aggregates.fix.reference, composed };
+          return { fix, classification: classifyComposedVsReference({ fix }) };
+        })()
+      : undefined;
 
   const summary = {
     ...metadata,
@@ -1112,6 +1402,8 @@ async function main(): Promise<void> {
     aggregates,
     build_fold_cost: { reference: foldCostReference, generated: foldCostGenerated, tasks: manifest.fold_cost_tasks },
     classification,
+    section5,
+    ...(composedComparison ? { composed_vs_reference: composedComparison } : {}),
   };
   writeJson(resolve(resultRoot, 'summary.json'), summary);
   writeFileSync(resolve(resultRoot, 'report.md'), renderReport(summary));
@@ -1128,7 +1420,10 @@ async function main(): Promise<void> {
     writeJson(resolve(LEDGER_DIR, fileName), ledgerEntry);
   }
 
-  process.stdout.write(`\nComparison complete. Verdict: ${classification.verdict}\nResults: ${resultRoot}\nReport: ${resolve(resultRoot, 'report.md')}\n`);
+  const composedLine = composedComparison
+    ? `\nComposed-vs-reference verdict (fix): ${composedComparison.classification.verdict}`
+    : '';
+  process.stdout.write(`\nComparison complete. Section-5 verdict: ${section5.verdict}${composedLine}\nResults: ${resultRoot}\nReport: ${resolve(resultRoot, 'report.md')}\n`);
 }
 
 const invokedDirectly =

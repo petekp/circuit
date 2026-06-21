@@ -32,6 +32,7 @@ import type { FlowSchematicAssemblySpec, StageLabelMap } from '../assemble-flow-
 import type { BlockStepUse } from '../block-step-expansion.js';
 import type { FlowDefinition } from '../flow-definition.js';
 import { findCloseBuilder } from '../registries/close-writers/registry.js';
+import { findVerificationWriter } from '../registries/verification-writers/registry.js';
 import {
   type ExecutionKind,
   type MenuEntry,
@@ -673,6 +674,42 @@ export function composeFlow(
           (read) => read.required && !producedActuals.has(read.schema),
         );
         if (missingRequiredRead) boundOutput = FLOW_RESULT_CONTRACT;
+      }
+    }
+
+    // Verification source reads (genuine-composition verification wiring). A
+    // verification writer sources its command list from an upstream typed report
+    // (fix.verification reads fix.brief@v1; build.verification reads build.plan@v1),
+    // a coupling the runtime enforces imperatively inside loadCommands. The block's
+    // declared input_contracts do NOT capture it — run-verification declares the
+    // ambient verification.plan@v1, never the brief — so a composed verification
+    // step would omit the read and ABORT the instant the writer runs (the failure
+    // the live composed-arm run hit). Wire each required read here: it is a produced
+    // upstream ACTUAL, so add it to the step input under its conventional key.
+    // Unlike the terminal close, a verification writer has NO reads-agnostic generic
+    // to rebind to — its commands ARE that source — so an unproduced required read
+    // walls honestly rather than emitting a flow that aborts at verify time.
+    if (role.executionKind === 'verification') {
+      const verifier = findVerificationWriter(boundOutput);
+      if (verifier?.reads !== undefined) {
+        const genericOfActual = new Map(selections.map((sel) => [sel.actual, sel.generic]));
+        let walled = false;
+        for (const read of verifier.reads) {
+          if (!read.required) continue;
+          const generic = genericOfActual.get(read.schema);
+          if (generic === undefined) {
+            walls.push({
+              roleIndex: index,
+              block: role.block,
+              reason: `${role.block} verification writer '${boundOutput}' requires reading '${read.schema}', produced by no upstream step`,
+            });
+            walled = true;
+            break;
+          }
+          const key = keyFor(generic);
+          if (input[key] === undefined) input[key] = read.schema;
+        }
+        if (walled) return;
       }
     }
 

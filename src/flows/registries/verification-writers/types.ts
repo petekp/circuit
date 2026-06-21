@@ -55,11 +55,39 @@ export interface VerificationBuildContext {
   readonly step: VerificationStep;
 }
 
+// Each verification writer sources its command list from one upstream typed
+// report (Fix from fix.brief@v1; Build from build.plan@v1). loadCommands enforces
+// that read imperatively, throwing if the step does not declare it. Declaring the
+// SAME read here, as inspectable static descriptors, lets a composer wire the read
+// in when it synthesizes the step (the block's input_contracts do not capture it)
+// and lets the offline runnability check resolve it without invoking the writer —
+// the verification analog of CloseReadDescriptor. The runtime guard stays the
+// source of truth; these descriptors mirror it.
+export interface VerificationReadDescriptor {
+  // Stable name the step input uses to address this read (e.g. 'brief', 'plan').
+  readonly name: string;
+  // Report schema string (e.g. 'fix.brief@v1'). Resolved to a path via
+  // reportPathForSchema(flow, schema), exactly as the runtime guard does.
+  readonly schema: string;
+  // When true, the read must be present or the run aborts at the writer. A
+  // composer either produces it upstream and wires it, or walls.
+  readonly required: boolean;
+}
+
 export interface VerificationBuilder {
   // Schema name of the report this builder produces (e.g.
   // 'build.verification@v1', 'fix.verification@v1'). Acts as the
   // registry key.
   readonly resultSchemaName: string;
+  // The upstream typed reports loadCommands (and buildResult) source from, declared
+  // so a composer can wire them and the offline floor can resolve them. Optional
+  // ONLY for a writer with no typed source coupling — one whose loadCommands does
+  // not guard on step.reads (explainer.verification, whose commands are intrinsic).
+  // Every source-coupled writer MUST declare its reads here; the
+  // verification-writer-source-coverage test enforces that pairing so a new writer
+  // cannot silently reintroduce the unwired-source gap. When present, it MUST match
+  // what the writer actually reads.
+  readonly reads?: readonly VerificationReadDescriptor[];
   // Source the command list for this verification step. CompiledFlow-
   // specific: Build reads from build.plan@v1; Fix reads from
   // fix.brief@v1.

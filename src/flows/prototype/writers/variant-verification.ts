@@ -174,6 +174,14 @@ function projectVariantVerification(
 
 export const prototypeVariantVerificationWriter: VerificationBuilder = {
   resultSchemaName: 'prototype.variant-verification@v1',
+  // Reads the variant aggregate (for the integrity command) and the variant
+  // provider evidence (for the projected result). Declared so a composer wires the
+  // reads and the offline floor resolves them; loadCommands/buildResult below are
+  // the enforcing source of truth.
+  reads: [
+    { name: 'aggregate', schema: 'prototype.variant-aggregate@v1', required: true },
+    { name: 'providerEvidence', schema: 'prototype.variant-provider-evidence@v1', required: true },
+  ],
   loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
     return [integrityCommand(context)];
   },

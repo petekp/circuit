@@ -160,11 +160,21 @@ describe('Phase 2 — a clarify-opened flow is SENSIBLE, not just VALID', () => 
   // intent. clarify reads the raw operator intake (catalog input task.intake@v1,
   // no prior brief), so its precondition is empty and it establishes 'task-framed'
   // — the frame analog. This locks that a clarify-opened flow closes its intent.
+  //
+  // The arc deliberately omits run-verification: the fix verification writer
+  // sources its command list from the frame brief (fix.brief@v1), and a
+  // clarify opener produces clarified.task@v1, not that brief. A clarify-opened
+  // fix flow therefore cannot feed the fix verification writer, and the composer
+  // now correctly WALLS that combination (composition-verification-reads.test.ts
+  // locks both the wall and the frame-opened pass). Intent closure here turns on
+  // clarify establishing task-framed for every downstream precondition, which
+  // run-verification is not needed to exercise — gather/diagnose/act/review/close
+  // all require task-framed and clarify satisfies it.
   const CLARIFY_OPENS: CompositionRoleSet = {
     id: 'clarify-opened-fix',
     title: 'Clarify Then Fix',
     purpose:
-      'Clarify a vague bug report into a precise task, then gather context, diagnose, fix, verify, review, and close.',
+      'Clarify a vague bug report into a precise task, then gather context, diagnose, fix, review, and close.',
     roles: [
       { stage: 'frame', block: 'clarify', executionKind: 'relay', relayRole: 'researcher' },
       {
@@ -175,7 +185,6 @@ describe('Phase 2 — a clarify-opened flow is SENSIBLE, not just VALID', () => 
       },
       { stage: 'analyze', block: 'diagnose', executionKind: 'relay', relayRole: 'researcher' },
       { stage: 'act', block: 'act', executionKind: 'relay', relayRole: 'implementer' },
-      { stage: 'verify', block: 'run-verification', executionKind: 'verification' },
       { stage: 'review', block: 'review', executionKind: 'relay', relayRole: 'reviewer' },
       { stage: 'close', block: 'close-with-evidence', executionKind: 'compose', terminal: true },
     ],

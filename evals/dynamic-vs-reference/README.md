@@ -125,6 +125,36 @@ errors, publish errors, trust-gate rejects in the **default** mode, no
 quality numbers, and the failure is the headline. A dynamic path that cannot
 reliably run is not worth comparing.
 
+## 6. The composed-vs-reference rule (sibling, locked before data)
+
+Section 5 asks whether the **instantiated** flow (`circuit create` picks a family
+template) is worth investing in. The opt-in `--with-composed` arm asks a different
+question: does a **genuinely composed** fix flow — assembled block by block with no
+family template (`FIX_LINEAR_FULL`: frame → gather-context → diagnose → act →
+run-verification → close) — reach the hand-authored reference?
+
+This arm runs on **fix only** (block-level composition for build is unproven). It
+is scored by the same hidden objective tests and reuses the same pre-registered
+margins as section 5, but drops the build fold-cost criterion (meaningless for a
+short composed fix topology). Let `Q_comp` / `Q_ref` and `FF_comp` / `FF_ref` be
+the composed and reference objective-fixed / false-fixed rates on fix.
+
+- **COMPOSITION-VIABLE** — `Q_comp ≥ Q_ref − 0.10` **and** `FF_comp ≤ FF_ref + 0.10`
+  **and** the composed pipeline is clean. Genuine composition reaches the
+  hand-authored bar; the north-star path is efficacious, not just expressible.
+- **BELOW-REFERENCE** — pipeline clean, but composed quality falls more than 10pp
+  or composed false-fixed rises more than 10pp. A named, measured gap.
+- **PIPELINE-BROKEN** — any composed run failed to produce a clean result (a
+  compose wall, a runnability abort, or a missing result). This overrides the
+  efficacy numbers: you cannot judge a flow that never ran cleanly. The composer's
+  offline validity + runnability checks should prevent this; if it fires, the
+  composer admitted a spec it should have walled.
+
+The composed verdict is **additive** — it never feeds the section-5 verdict. The
+sibling rule is locked in `composed-decision-rule.test.ts`; the composed arm's
+publish plumbing (trust-gate acceptance + loader resolution) is proven offline in
+`tests/contracts/composed-arm-plumbing.test.ts`.
+
 ## Run
 
 Dry-run (plumbing only, $0, prints projected live spend):
@@ -140,10 +170,19 @@ node evals/dynamic-vs-reference/run-dynamic-comparison.ts \
   --pin-model claude-haiku-4-5-20251001 --reps 3
 ```
 
+Add the composed arm (section 6; fix tasks only, real spend on top of the two
+base arms):
+
+```bash
+node evals/dynamic-vs-reference/run-dynamic-comparison.ts \
+  --pin-model claude-haiku-4-5-20251001 --family fix --reps 3 --with-composed
+```
+
 Results land in `results/<ts>/summary.json` + `report.md` (gitignored), and a
 numeric, poison-scanned row is appended to the ledger. The human run report is
 written to `docs/ideas/dynamic-vs-reference-run-report.md`, applying the section
-5 rule to the measured numbers.
+5 rule to the measured numbers; when `--with-composed` is set, the report also
+carries the section-6 composed-vs-reference table and verdict.
 
 ## Anti-fitting commitments
 
