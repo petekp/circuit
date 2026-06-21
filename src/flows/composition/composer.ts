@@ -325,6 +325,15 @@ function computeFamilyCoherence(
     let starved = 0;
     bound.forEach((entry, index) => {
       if (entry === undefined) return;
+      // A terminal close never ABORTS on an unproduced required read: the
+      // bind-time terminal-close rebind below falls it back to the reads-agnostic
+      // generic flow.result@v1. Counting its reads here would wrongly penalize a
+      // family whose ONLY deficit is at the close and pass over a genuinely
+      // runnable binding (a missed repair). Skip it so the score matches what the
+      // binder actually does. (A fanout act step is never terminal; the close is.)
+      const role = roles[index];
+      const isTerminalRole = role?.terminal === true || index === roles.length - 1;
+      if (isTerminalRole && role?.executionKind !== 'fanout') return;
       const writer =
         findComposeBuilder(entry.actual) ??
         findCloseBuilder(entry.actual) ??
@@ -332,9 +341,14 @@ function computeFamilyCoherence(
       for (const read of writer?.reads ?? []) {
         if (!read.required) continue;
         // Producible iff some UPSTREAM role's F-representative produces it. The
-        // read schema names a specific upstream actual (e.g. prototype.brief@v1),
+        // read schema names a specific upstream ACTUAL (e.g. prototype.brief@v1),
         // matched directly against the bound actuals — the same actual-keyed
-        // matching the verification-reads wall uses.
+        // matching the verification-reads wall uses. INVARIANT: every required
+        // read declared across compose/close/verification writers names a
+        // family-namespaced actual, never an ambient/initial contract
+        // (task.intake@v1, route.decision@v1), so an actual-only match is
+        // complete; a future writer with an ambient required read would need an
+        // ambient check added here and in the verification-reads wall both.
         const producedUpstream = bound
           .slice(0, index)
           .some((up) => up !== undefined && up.actual === read.schema);
