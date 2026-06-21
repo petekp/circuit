@@ -82,7 +82,28 @@ export const FIX_LINEAR_LOOP: CompositionRoleSet = {
   ],
 };
 
+// The LEAN fix arc — the shortest fix shape that still runs end-to-end. It drops
+// gather-context: frame (compose) -> diagnose -> act -> run-verification ->
+// close-with-evidence (terminal), 5 blocks. diagnose stays because the composer's
+// `act` block requires an analysis precursor (the writer-coupling wall); a bare
+// frame->act->verify->close walls at act. LEAN is the low end of the
+// shape-sensitivity sweep (FULL adds gather-context; LOOP adds bounded recovery).
+export const FIX_LINEAR_LEAN: CompositionRoleSet = {
+  id: 'fix-linear-lean',
+  title: 'Lean fix arc (no gather-context)',
+  purpose:
+    'Frame the defect, diagnose the cause, make the change, verify it, and close with evidence — the shortest fix arc that still runs, assembled block by block.',
+  roles: [
+    { stage: 'frame', block: 'frame', executionKind: 'compose' },
+    { stage: 'analyze', block: 'diagnose', executionKind: 'relay', relayRole: 'researcher' },
+    { stage: 'act', block: 'act', executionKind: 'relay', relayRole: 'implementer' },
+    { stage: 'verify', block: 'run-verification', executionKind: 'verification' },
+    { stage: 'close', block: 'close-with-evidence', executionKind: 'compose', terminal: true },
+  ],
+};
+
 export const COMPOSED_FIX_SHAPES: Record<string, CompositionRoleSet> = {
+  'fix-linear-lean': FIX_LINEAR_LEAN,
   'fix-linear-full': FIX_LINEAR_FULL,
   'fix-linear-loop': FIX_LINEAR_LOOP,
 };

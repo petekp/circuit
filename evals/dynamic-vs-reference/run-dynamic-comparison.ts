@@ -55,6 +55,7 @@ import {
 } from '../../scripts/evals/shared/usage.ts';
 import {
   type ComposeDeps,
+  COMPOSED_FIX_SHAPES,
   FIX_LINEAR_FULL,
   loadComposeDepsFromDist,
   publishComposedFlowWith,
@@ -124,6 +125,13 @@ export type DynArgs = {
   skipBuild: boolean;
   dryRun: boolean;
   withComposed: boolean;
+  // Which fix-family composed shape to run (id in COMPOSED_FIX_SHAPES). Undefined
+  // = FIX_LINEAR_FULL. Build always runs BUILD_LINEAR_FULL regardless.
+  composedShape: string | undefined;
+  // Run ONLY the composed arm (skip reference + generated). Used by the
+  // shape-sensitivity sweep, which compares composed shapes against each other,
+  // not against the reference. Implies withComposed.
+  composedOnly: boolean;
 };
 
 type CheckRun = JsonRecord & { id: string; argv: string[]; passed: boolean };
@@ -158,7 +166,8 @@ function usage(): string {
     [--model <model-id>] [--pin-model <model-id>] [--no-pin-model] \\
     [--effort low|medium|high|xhigh] [--timeout-ms 900000] \\
     [--reps N] [--out-dir evals/dynamic-vs-reference/results] \\
-    [--skip-build] [--dry-run] [--with-composed]
+    [--skip-build] [--dry-run] [--with-composed] \\
+    [--composed-shape fix-linear-lean|fix-linear-full|fix-linear-loop] [--composed-only]
 
 Compares a hand-authored reference flow against the flow circuit create
 instantiates from the task text, both pinned to one model, on fix and build.
@@ -169,6 +178,16 @@ composed block by block (FIX_LINEAR_FULL for fix, BUILD_LINEAR_FULL for build),
 published in process and run through the same trust gate, scorer, and subprocess
 as the other arms. Each composed arc is novel against its nearest built-in. The
 reference-vs-generated decision rule is unchanged.
+
+--composed-shape picks WHICH fix composed shape runs (default fix-linear-full):
+fix-linear-lean (5 blocks, no gather-context), fix-linear-full (6 blocks), or
+fix-linear-loop (6 blocks + bounded recovery). Implies --with-composed. Build
+always runs BUILD_LINEAR_FULL.
+
+--composed-only runs ONLY the composed arm (skips reference + generated) — for
+the shape-sensitivity sweep, which compares composed shapes against each other
+across runs rather than against the hand-authored reference. Implies
+--with-composed; the composed aggregate is reported RAW (no verdict).
 `;
 }
 
@@ -194,6 +213,8 @@ export function parseDynArgs(argv: string[], manifest: DynManifest): DynArgs {
     skipBuild: false,
     dryRun: false,
     withComposed: false,
+    composedShape: undefined,
+    composedOnly: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -234,6 +255,14 @@ export function parseDynArgs(argv: string[], manifest: DynManifest): DynArgs {
       args.dryRun = true;
     } else if (arg === '--with-composed') {
       args.withComposed = true;
+    } else if (arg === '--composed-shape') {
+      args.composedShape = requireValue(argv, i, arg);
+      args.withComposed = true;
+      i += 1;
+    } else if (arg === '--composed-only') {
+      // Run only the composed arm. Implies --with-composed so the gate opens.
+      args.composedOnly = true;
+      args.withComposed = true;
     } else {
       throw new Error(`unknown arg: ${arg}`);
     }
@@ -250,6 +279,14 @@ export function parseDynArgs(argv: string[], manifest: DynManifest): DynArgs {
   if (!Number.isInteger(args.reps) || args.reps <= 0) throw new Error('--reps must be a positive integer');
   if (!Number.isFinite(args.timeoutMs) || args.timeoutMs <= 0) {
     throw new Error('--timeout-ms must be a positive integer');
+  }
+  if (args.composedShape !== undefined && COMPOSED_FIX_SHAPES[args.composedShape] === undefined) {
+    const known = Object.keys(COMPOSED_FIX_SHAPES).join(', ');
+    throw new Error(`--composed-shape must be one of: ${known}`);
+  }
+  // The shape sweep is fix-family only (build always runs BUILD_LINEAR_FULL).
+  if (args.composedShape !== undefined && args.family === 'build') {
+    throw new Error('--composed-shape applies to the fix family; build runs BUILD_LINEAR_FULL');
   }
   return args;
 }
@@ -773,9 +810,17 @@ async function runComposedArm(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.P
     const deps = await getComposeDeps();
     // Select the composed shape by family: the build family runs the engine-locked
     // linear build arc (frame checkpoint -> plan -> act -> verify -> review ->
-    // close), the fix family runs the harness-local fix arc. Both are genuine
-    // block-level compositions, novel against their nearest built-in.
-    const roleSet = task.family === 'build' ? deps.BUILD_LINEAR_FULL : FIX_LINEAR_FULL;
+    // close), the fix family runs the harness-local fix arc — FIX_LINEAR_FULL by
+    // default, or the --composed-shape pick (the shape-sensitivity sweep varies
+    // this: lean/full/loop). Both are genuine block-level compositions, novel
+    // against their nearest built-in.
+    // parseDynArgs already validated composedShape is a known key; the ?? keeps
+    // the type non-optional under noUncheckedIndexedAccess (it never fires).
+    const fixShape =
+      args.composedShape !== undefined
+        ? (COMPOSED_FIX_SHAPES[args.composedShape] ?? FIX_LINEAR_FULL)
+        : FIX_LINEAR_FULL;
+    const roleSet = task.family === 'build' ? deps.BUILD_LINEAR_FULL : fixShape;
     published = publishComposedFlowWith(deps, {
       roleSet,
       home,
@@ -834,8 +879,15 @@ async function runTask(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.ProcessE
   mkdirSync(taskDir, { recursive: true });
   writeJson(resolve(taskDir, 'task.json'), task);
   writeFileSync(resolve(taskDir, 'goal.md'), `${taskGoal(task)}\n`);
-  const reference = await runReferenceArm(task, args, wrapperEnv, taskDir, priceTable);
-  const generated = await runGeneratedArm(task, args, wrapperEnv, taskDir, priceTable);
+  // --composed-only skips the reference + generated arms entirely (the
+  // shape-sensitivity sweep compares composed shapes against each other, not
+  // against the hand-authored reference).
+  const reference = args.composedOnly
+    ? undefined
+    : await runReferenceArm(task, args, wrapperEnv, taskDir, priceTable);
+  const generated = args.composedOnly
+    ? undefined
+    : await runGeneratedArm(task, args, wrapperEnv, taskDir, priceTable);
   // Opt-in third arm, on the fix and build families (each has an engine-proven
   // composed linear arc). Other families are skipped (the reference-vs-generated
   // comparison is unaffected either way).
@@ -843,8 +895,16 @@ async function runTask(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.ProcessE
     args.withComposed && (task.family === 'fix' || task.family === 'build')
       ? await runComposedArm(task, args, wrapperEnv, taskDir, priceTable)
       : undefined;
-  const baselines = [reference.baseline, generated.baseline, ...(composed ? [composed.baseline] : [])];
-  const fixtureCommits = [reference.fixtureCommit, generated.fixtureCommit, ...(composed ? [composed.fixtureCommit] : [])];
+  const baselines = [
+    ...(reference ? [reference.baseline] : []),
+    ...(generated ? [generated.baseline] : []),
+    ...(composed ? [composed.baseline] : []),
+  ];
+  const fixtureCommits = [
+    ...(reference ? [reference.fixtureCommit] : []),
+    ...(generated ? [generated.fixtureCommit] : []),
+    ...(composed ? [composed.fixtureCommit] : []),
+  ];
   const summary: TaskSummary = {
     task_id: task.id,
     family: task.family,
@@ -852,7 +912,11 @@ async function runTask(task: DynTask, args: DynArgs, wrapperEnv: NodeJS.ProcessE
     rep,
     fixture_commits_match: new Set(fixtureCommits).size <= 1,
     baseline_failed_as_expected: baselines.length > 0 && baselines.every((checks) => checks.some((check) => !check.passed)),
-    arms: { reference: reference.record, generated: generated.record, ...(composed ? { composed: composed.record } : {}) },
+    arms: {
+      ...(reference ? { reference: reference.record } : {}),
+      ...(generated ? { generated: generated.record } : {}),
+      ...(composed ? { composed: composed.record } : {}),
+    },
   };
   writeJson(resolve(taskDir, 'summary.json'), summary);
   return summary;
@@ -1108,14 +1172,17 @@ function generatedBuildAnchor(expectedGrain: string): number {
   return /decompos/i.test(expectedGrain) ? COST_ANCHOR_USD.build_generated_decomposed : COST_ANCHOR_USD.build_generated_whole;
 }
 
-function projectSpend(manifest: DynManifest, taskIds: string[], reps: number, withComposed: boolean): { rows: Array<{ task: string; arm: string; runs: number; anchor: number; subtotal: number }>; expected: number; low: number; high: number } {
+function projectSpend(manifest: DynManifest, taskIds: string[], reps: number, withComposed: boolean, composedOnly = false): { rows: Array<{ task: string; arm: string; runs: number; anchor: number; subtotal: number }>; expected: number; low: number; high: number } {
   const rows: Array<{ task: string; arm: string; runs: number; anchor: number; subtotal: number }> = [];
   let expected = 0;
   for (const id of taskIds) {
     const family: Family = manifest.families.fix.includes(id) ? 'fix' : 'build';
     const refAnchor = family === 'fix' ? COST_ANCHOR_USD.fix_reference : COST_ANCHOR_USD.build_reference;
     const genAnchor = family === 'fix' ? COST_ANCHOR_USD.fix_generated : generatedBuildAnchor(manifest.expected_grain[id] ?? '');
-    const arms: Array<[string, number]> = [['reference', refAnchor], ['generated', genAnchor]];
+    // --composed-only runs only the composed arm; do not project ref/gen rows.
+    const arms: Array<[string, number]> = composedOnly
+      ? []
+      : [['reference', refAnchor], ['generated', genAnchor]];
     // The composed arm runs on fix and build tasks. Anchor fix at the fix per-run
     // cost; anchor build at the whole-grain generated cost — the composed build arc
     // is linear (no slice decomposition), so it tracks the whole-build anchor.
@@ -1150,7 +1217,10 @@ export function buildDynamicVsReferenceLedgerEntry(summary: JsonRecord, options:
   for (const family of ['fix', 'build'] as Family[]) {
     const f = fams[family];
     if (!f) continue;
-    for (const arm of ['reference', 'generated'] as ArmId[]) {
+    // Only reference + generated are laddered (composed metrics are intentionally
+    // excluded). Type the loop to the two keys f actually has — `as ArmId[]` would
+    // widen `arm` to include 'composed', which is not a key of f.
+    for (const arm of ['reference', 'generated'] as Array<'reference' | 'generated'>) {
       const a = f[arm];
       const p = `${family}_${arm}_`;
       put(`${p}task_count`, a.task_count);
@@ -1265,6 +1335,26 @@ analysis.
 `;
 }
 
+function renderComposedOnlySection(summary: JsonRecord): string {
+  const block = summary.composed_only_aggregate as
+    | { shape: string; aggregate: FamilyArmAggregate }
+    | undefined;
+  if (block === undefined) return '';
+  const c = block.aggregate;
+  return `
+## Composed-only (fix, shape ${block.shape})
+
+This run executed ONLY the composed arm for one fix shape (--composed-only). There
+is no reference or generated arm, so this is a RAW aggregate (no verdict). The
+shape-sensitivity comparison is made ACROSS runs (lean vs full vs loop), not within
+one run.
+
+| Arm | Objective-fixed (Q) | False-fixed (FF) | Verification | Median cost | Wallclock | Pipeline failures |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| composed (${block.shape}) | ${fmtRate(c.objective_fixed_rate)} | ${fmtRate(c.false_fixed_rate)} | ${fmtRate(c.verification_pass_rate)} | ${fmtUsd(c.median_cost_usd_computed)} | ${fmtMs(c.mean_wallclock_ms)} | ${c.pipeline_failure_count} |
+`;
+}
+
 function renderReport(summary: JsonRecord): string {
   const aggregates = summary.aggregates as Record<Family, { reference: FamilyArmAggregate; generated: FamilyArmAggregate }>;
   const classification = summary.classification as Classification;
@@ -1303,6 +1393,7 @@ ${renderFamilyTable('build', aggregates.build)}
 Build fold cost (median per-task computed cost on B1/B2): reference ${fmtUsd(build.reference)} vs generated ${fmtUsd(build.generated)}.
 ${renderComposedSection(summary)}
 ${renderComposedBuildSection(summary)}
+${renderComposedOnlySection(summary)}
 ## Tasks
 
 ${(summary.tasks as TaskSummary[])
@@ -1332,7 +1423,7 @@ async function main(): Promise<void> {
   const runLabel = args.taskId ?? args.family ?? 'all';
   const resultRoot = createResultRoot(args.outDir, runLabel);
 
-  const projection = projectSpend(manifest, taskIds, args.reps, args.withComposed);
+  const projection = projectSpend(manifest, taskIds, args.reps, args.withComposed, args.composedOnly);
   const metadata = {
     schema_version: 1,
     benchmark_id: manifest.benchmark_id,
@@ -1428,15 +1519,26 @@ async function main(): Promise<void> {
 
   // Fix: the composed-vs-reference DECISION RULE is pre-registered for fix
   // (classifyComposedVsReference, locked before data), so the fix arm carries a
-  // verdict.
+  // verdict — BUT only when the reference arm actually ran. The shape-sensitivity
+  // sweep (--composed-only) runs composed shapes WITHOUT a reference, so the
+  // pre-registered rule has no reference to compare against; emit a RAW composed
+  // aggregate (no verdict, labeled with the shape) instead, the same honesty the
+  // build arm uses. Comparing shapes against each other is done across runs, not
+  // via this rule.
   const composedFixRecords = composedRecordsFor('fix');
   const composedComparison =
-    composedFixRecords.length > 0
+    composedFixRecords.length > 0 && !args.composedOnly
       ? (() => {
           const composed = aggregateArm(composedFixRecords);
           const fix = { reference: aggregates.fix.reference, composed };
           return { fix, classification: classifyComposedVsReference({ fix }) };
         })()
+      : undefined;
+  // Composed-only: the composed aggregate for the chosen shape, as a RAW block
+  // with no reference and no verdict (the reference arm did not run).
+  const composedOnlyAggregate =
+    args.composedOnly && composedFixRecords.length > 0
+      ? { shape: args.composedShape ?? 'fix-linear-full', aggregate: aggregateArm(composedFixRecords) }
       : undefined;
 
   // Build: no pre-registered decision rule, so the build composed arm reports a
@@ -1458,20 +1560,29 @@ async function main(): Promise<void> {
     section5,
     ...(composedComparison ? { composed_vs_reference: composedComparison } : {}),
     ...(composedBuildComparison ? { composed_vs_reference_build: composedBuildComparison } : {}),
+    ...(composedOnlyAggregate ? { composed_only_aggregate: composedOnlyAggregate } : {}),
   };
   writeJson(resolve(resultRoot, 'summary.json'), summary);
   writeFileSync(resolve(resultRoot, 'report.md'), renderReport(summary));
 
-  // Append the scrubbed ledger row (validated before write).
+  // Append the scrubbed ledger row (validated before write). The ledger records
+  // only the reference + generated aggregates (composed is intentionally not
+  // laddered), so a --composed-only run has no metrics to record — skip the row
+  // rather than write an empty, verdict-only entry into the tracked ledger. The
+  // composed-only data lives in summary.json + report.md.
   const ranAt = new Date().toISOString();
-  const ledgerEntry = buildDynamicVsReferenceLedgerEntry(summary, { ranAt, repoCommit: summary.repo_commit, model: args.model });
-  const problems = validateLedgerEntry(ledgerEntry, 'dynamic-vs-reference ledger');
-  if (problems.length > 0) {
-    process.stderr.write(`warning: ledger entry not written (validation failed):\n${problems.join('\n')}\n`);
+  if (args.composedOnly) {
+    process.stderr.write('composed-only run: no laddered metrics, ledger row skipped.\n');
   } else {
-    mkdirSync(LEDGER_DIR, { recursive: true });
-    const fileName = `${ranAt.replace(/[:.]/g, '-')}-${safeSegment(args.model)}.json`;
-    writeJson(resolve(LEDGER_DIR, fileName), ledgerEntry);
+    const ledgerEntry = buildDynamicVsReferenceLedgerEntry(summary, { ranAt, repoCommit: summary.repo_commit, model: args.model });
+    const problems = validateLedgerEntry(ledgerEntry, 'dynamic-vs-reference ledger');
+    if (problems.length > 0) {
+      process.stderr.write(`warning: ledger entry not written (validation failed):\n${problems.join('\n')}\n`);
+    } else {
+      mkdirSync(LEDGER_DIR, { recursive: true });
+      const fileName = `${ranAt.replace(/[:.]/g, '-')}-${safeSegment(args.model)}.json`;
+      writeJson(resolve(LEDGER_DIR, fileName), ledgerEntry);
+    }
   }
 
   const composedLine = composedComparison
