@@ -32,6 +32,7 @@ import type { FlowSchematicAssemblySpec, StageLabelMap } from '../assemble-flow-
 import type { BlockStepUse } from '../block-step-expansion.js';
 import type { FlowDefinition } from '../flow-definition.js';
 import { findCloseBuilder } from '../registries/close-writers/registry.js';
+import { findComposeBuilder } from '../registries/compose-writers/registry.js';
 import { findVerificationWriter } from '../registries/verification-writers/registry.js';
 import {
   type ExecutionKind,
@@ -269,17 +270,110 @@ function candidateMatchesRole(
   return true;
 }
 
-// Deterministic pick: highest family coverage first (coherence), then the donor
-// flow's primary use of the block (so a reused block lands its canonical
-// post-change output, not an auxiliary pre-change variant), then actual name
-// ascending. Family rank stays the top key so this never grafts a foreign
-// family's actual into a role the chosen family already serves.
+// The family's OWN representative actual for a role: its donorPrimary-then-name
+// pick, the same deterministic order selectActual uses minus the family-rank key
+// (we are already inside one family). Undefined where the family cannot serve
+// the role. Reused by the whole-line coherence score below.
+function representativeActualForFamily(
+  family: string,
+  role: CompositionRole,
+  menu: readonly MenuEntry[],
+  nonRawCells: ReadonlySet<string>,
+): MenuEntry | undefined {
+  const block = BLOCK_BY_ID.get(role.block);
+  if (block === undefined) return undefined;
+  const outputGeneric = asString(block.output_contract);
+  return menu
+    .filter(
+      (entry) =>
+        entry.family === family && candidateMatchesRole(entry, role, outputGeneric, nonRawCells),
+    )
+    .sort((a, b) => {
+      if (a.donorPrimaryForBlock !== b.donorPrimaryForBlock) {
+        return a.donorPrimaryForBlock ? -1 : 1;
+      }
+      return a.actual < b.actual ? -1 : a.actual > b.actual ? 1 : 0;
+    })[0];
+}
+
+// Whole-line family coherence (opt-in look-ahead, used only under
+// enforceRunnability). selectActual picks each role's actual INDEPENDENTLY,
+// breaking a family-rank TIE on actual name. That can land a tie-top family
+// whose writer needs an upstream read the topology never produces — explainer's
+// `plan` writer reads a diagnose-stage digest no compose-only line emits — even
+// though a SIBLING tie-top family binds the identical role set runnably
+// (prototype: brief -> plan reads brief -> result). The per-role greedy pick
+// cannot see this: at the FRAME step every family's opener is read-free, so the
+// incoherence only surfaces two steps later. The fix is a whole-line score: if
+// the ENTIRE role set committed to family F, how many of F's writers' REQUIRED
+// reads would be STARVED (no upstream producer within F)? Lower is more
+// coherent. selectActual uses it as a tie-break AFTER familyRank, so it only
+// reorders equally-top-ranked families and pulls the whole line onto the
+// runnable one — turning the opt-in runnability gate from detect-only into
+// repair-then-wall.
+function computeFamilyCoherence(
+  roles: readonly CompositionRole[],
+  menu: readonly MenuEntry[],
+  nonRawCells: ReadonlySet<string>,
+): Map<string, number> {
+  const starvedByFamily = new Map<string, number>();
+  for (const family of new Set(menu.map((entry) => entry.family))) {
+    // Hypothetically bind family F across the whole line.
+    const bound = roles.map((role) =>
+      representativeActualForFamily(family, role, menu, nonRawCells),
+    );
+    let starved = 0;
+    bound.forEach((entry, index) => {
+      if (entry === undefined) return;
+      // A terminal close never ABORTS on an unproduced required read: the
+      // bind-time terminal-close rebind below falls it back to the reads-agnostic
+      // generic flow.result@v1. Counting its reads here would wrongly penalize a
+      // family whose ONLY deficit is at the close and pass over a genuinely
+      // runnable binding (a missed repair). Skip it so the score matches what the
+      // binder actually does. (A fanout act step is never terminal; the close is.)
+      const role = roles[index];
+      const isTerminalRole = role?.terminal === true || index === roles.length - 1;
+      if (isTerminalRole && role?.executionKind !== 'fanout') return;
+      const writer =
+        findComposeBuilder(entry.actual) ??
+        findCloseBuilder(entry.actual) ??
+        findVerificationWriter(entry.actual);
+      for (const read of writer?.reads ?? []) {
+        if (!read.required) continue;
+        // Producible iff some UPSTREAM role's F-representative produces it. The
+        // read schema names a specific upstream ACTUAL (e.g. prototype.brief@v1),
+        // matched directly against the bound actuals — the same actual-keyed
+        // matching the verification-reads wall uses. INVARIANT: every required
+        // read declared across compose/close/verification writers names a
+        // family-namespaced actual, never an ambient/initial contract
+        // (task.intake@v1, route.decision@v1), so an actual-only match is
+        // complete; a future writer with an ambient required read would need an
+        // ambient check added here and in the verification-reads wall both.
+        const producedUpstream = bound
+          .slice(0, index)
+          .some((up) => up !== undefined && up.actual === read.schema);
+        if (!producedUpstream) starved += 1;
+      }
+    });
+    starvedByFamily.set(family, starved);
+  }
+  return starvedByFamily;
+}
+
+// Deterministic pick: highest family coverage first (coherence), then — under
+// the opt-in runnability gate — the family whose whole-line writer reads are
+// least starved, then the donor flow's primary use of the block (so a reused
+// block lands its canonical post-change output, not an auxiliary pre-change
+// variant), then actual name ascending. Family rank stays the top key so this
+// never grafts a foreign family's actual into a role the chosen family already
+// serves; the coherence key only reorders families ALREADY tied on rank.
 function selectActual(
   role: CompositionRole,
   outputGeneric: string,
   menu: readonly MenuEntry[],
   familyRank: Map<string, number>,
   nonRawCells: ReadonlySet<string>,
+  familyCoherence?: ReadonlyMap<string, number>,
 ): MenuEntry | undefined {
   const candidates = menu
     .filter((entry) => candidateMatchesRole(entry, role, outputGeneric, nonRawCells))
@@ -287,6 +381,11 @@ function selectActual(
       const rankA = familyRank.get(a.family) ?? 0;
       const rankB = familyRank.get(b.family) ?? 0;
       if (rankA !== rankB) return rankB - rankA;
+      if (familyCoherence !== undefined) {
+        const starvedA = familyCoherence.get(a.family) ?? Number.POSITIVE_INFINITY;
+        const starvedB = familyCoherence.get(b.family) ?? Number.POSITIVE_INFINITY;
+        if (starvedA !== starvedB) return starvedA - starvedB;
+      }
       if (a.donorPrimaryForBlock !== b.donorPrimaryForBlock) {
         return a.donorPrimaryForBlock ? -1 : 1;
       }
@@ -448,6 +547,13 @@ export function composeFlow(
   const ambient = deriveAmbientGenerics(options.definitions);
   const nonRawCells = computeNonRawCells(menu);
   const familyRank = rankFamilies(roleSet.roles, menu, nonRawCells);
+  // Producibility-aware selection look-ahead: only computed (and only consulted
+  // by selectActual) under the opt-in runnability gate, so the default path is
+  // byte-identical. See computeFamilyCoherence.
+  const familyCoherence =
+    options.enforceRunnability === true
+      ? computeFamilyCoherence(roleSet.roles, menu, nonRawCells)
+      : undefined;
 
   const walls: CompositionWall[] = [];
   const aliasByGeneric = new Map<string, string>();
@@ -507,7 +613,7 @@ export function composeFlow(
         return;
       }
     }
-    const pick = selectActual(role, outputGeneric, menu, familyRank, nonRawCells);
+    const pick = selectActual(role, outputGeneric, menu, familyRank, nonRawCells, familyCoherence);
     if (pick === undefined) {
       walls.push({
         roleIndex: index,
