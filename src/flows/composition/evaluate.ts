@@ -24,6 +24,10 @@ import {
   resolveComposeReadPaths,
 } from '../registries/compose-writers/registry.js';
 import type { RuntimeIndexedFlow, RuntimeIndexedStep } from '../registries/runtime-index.js';
+import {
+  findVerificationWriter,
+  resolveVerificationReadPaths,
+} from '../registries/verification-writers/registry.js';
 import { collectSchematicCatalogIssues } from '../schematic-catalog-check.js';
 import { type IntentState, blockIntent } from './intent.js';
 
@@ -187,12 +191,20 @@ function reportSchemaOf(step: RuntimeIndexedStep): { path: string; schema: strin
 // step that would throw. Closing the false-negative the floor was blind to.
 //
 // SCOPE: compose and close writers declare their reads as static `reads`
-// descriptors, so they are inspectable without invocation. VERIFICATION writers
-// resolve their source path imperatively inside loadCommands (e.g. build's reads
-// build.plan@v1), so they are NOT covered here — a verification step whose source
-// schema is unproduced would still abort at runtime, uncaught by this check. That
-// case did not arise in any composed shape to date; covering it would need a
-// declared-reads field on VerificationBuilder, deferred as its own change.
+// descriptors, so they are inspectable without invocation. EVERY source-coupled
+// VERIFICATION writer now does too — each writer whose loadCommands sources its
+// command list from an upstream report (fix.verification reads fix.brief@v1;
+// build.verification reads build.plan@v1; prototype.verification reads
+// prototype.plan@v1 + artifact; pursuit.verification reads pursuit.contract@v1;
+// prototype.variant-verification reads the variant aggregate + provider evidence)
+// declares that source as a static `reads` descriptor, so all of them are resolved
+// here. That closes the blind spot a composed verification step hit when its source
+// went unwired (the live composed-arm abort), for every family the composer can
+// select, not just fix/build. A verification writer with NO source coupling
+// (explainer.verification — its commands are intrinsic) declares no `reads` and is
+// correctly skipped: there is nothing to resolve. The
+// verification-writer-source-coverage test locks that pairing so a future writer
+// cannot reintroduce the silent-skip gap.
 export function evaluateRunnability(spec: FlowSchematicAssemblySpec): RunnabilityVerdict {
   let schematic: FlowSchematic;
   try {
@@ -228,15 +240,27 @@ export function evaluateRunnability(spec: FlowSchematicAssemblySpec): Runnabilit
       if (report === undefined) continue;
       const composeBuilder = findComposeBuilder(report.schema);
       const closeBuilder = findCloseBuilder(report.schema);
-      // Relay and verification writers are not in these registries; their reads
-      // are not declared here, so there is nothing to resolve. Skip — not abort.
-      if (composeBuilder === undefined && closeBuilder === undefined) continue;
+      const verificationBuilder = findVerificationWriter(report.schema);
+      // Relay writers are not in any of these registries. A verification writer
+      // that declares no `reads` (its imperative source coupling not modeled) is
+      // likewise skipped — there is nothing to resolve. Skip — not abort.
+      const verificationDeclaresReads =
+        verificationBuilder !== undefined && verificationBuilder.reads !== undefined;
+      if (
+        composeBuilder === undefined &&
+        closeBuilder === undefined &&
+        !verificationDeclaresReads
+      ) {
+        continue;
+      }
       checkedSteps += 1;
       try {
         if (composeBuilder !== undefined) {
           resolveComposeReadPaths(composeBuilder, flow, step as never);
         } else if (closeBuilder !== undefined) {
           resolveCloseReadPaths(closeBuilder, flow, step as never);
+        } else if (verificationBuilder !== undefined) {
+          resolveVerificationReadPaths(verificationBuilder, flow, step as never);
         }
       } catch (error) {
         aborts.push({ stepId: step.id, schema: report.schema, reason: errorMessage(error) });

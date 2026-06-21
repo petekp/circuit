@@ -50,6 +50,14 @@ function runFolderPrefix(input: { readonly projectRoot?: string; readonly runFol
 
 export const fixChangeSetWriter: VerificationBuilder = {
   resultSchemaName: 'fix.change-set@v1',
+  // Hard-requires the pre-fix baseline snapshot (to diff against) and the change
+  // report (the implementer's declared changed_files). Declared so a composer
+  // wires the reads and the offline floor resolves them; loadCommands below is the
+  // enforcing source of truth.
+  reads: [
+    { name: 'baseline', schema: 'fix.baseline-snapshot@v1', required: true },
+    { name: 'change', schema: 'fix.change@v1', required: true },
+  ],
   loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
     // Verify that this step reads the inputs the writer requires; mirror the
     // pattern in regression-baseline so misconfigured schematics fail fast.

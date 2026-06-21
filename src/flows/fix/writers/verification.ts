@@ -21,6 +21,10 @@ import { projectFixVerification } from './verification-projection.js';
 
 export const fixVerificationWriter: VerificationBuilder = {
   resultSchemaName: 'fix.verification@v1',
+  // Commands come from the brief's verification_command_candidates. Declared so a
+  // composer wires the read and the offline floor resolves it; loadCommands below
+  // is the enforcing source of truth.
+  reads: [{ name: 'brief', schema: 'fix.brief@v1', required: true }],
   loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
     const briefPath = reportPathForSchemaInRuntimeFlow(context.flow, 'fix.brief@v1');
     if (!context.step.reads.includes(briefPath as never)) {

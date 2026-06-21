@@ -99,6 +99,13 @@ function projectPrototypeVerification(
 
 export const prototypeVerificationWriter: VerificationBuilder = {
   resultSchemaName: 'prototype.verification@v1',
+  // Sources commands from the prototype plan and reads the artifact for the
+  // integrity command. Declared so a composer wires the reads and the offline
+  // floor resolves them; loadCommands below is the enforcing source of truth.
+  reads: [
+    { name: 'plan', schema: 'prototype.plan@v1', required: true },
+    { name: 'artifact', schema: 'prototype.artifact@v1', required: true },
+  ],
   loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
     const plan = readReport(context, 'prototype.plan@v1', (raw) => PrototypePlan.parse(raw));
     const artifact = readReport(context, 'prototype.artifact@v1', (raw) =>

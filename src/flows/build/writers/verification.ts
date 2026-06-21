@@ -20,6 +20,10 @@ import { projectBuildVerification } from './verification-projection.js';
 
 export const buildVerificationWriter: VerificationBuilder = {
   resultSchemaName: 'build.verification@v1',
+  // Commands come from the plan's verification command list. Declared so a
+  // composer wires the read and the offline floor resolves it; loadCommands below
+  // is the enforcing source of truth.
+  reads: [{ name: 'plan', schema: 'build.plan@v1', required: true }],
   loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
     const planPath = reportPathForSchemaInRuntimeFlow(context.flow, 'build.plan@v1');
     if (!context.step.reads.includes(planPath as never)) {

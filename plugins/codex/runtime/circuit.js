@@ -31290,6 +31290,10 @@ function planDeclaresTouchArea(context) {
 }
 var buildBaselineSnapshotWriter = {
   resultSchemaName: "build.baseline-snapshot@v1",
+  // Reads the plan to decide whether the touch-area gate is on (planDeclaresTouchArea).
+  // Declared so a composer wires the read and the offline floor resolves it;
+  // loadCommands below is the enforcing source of truth.
+  reads: [{ name: "plan", schema: "build.plan@v1", required: true }],
   loadCommands(context) {
     if (!planDeclaresTouchArea(context))
       return [];
@@ -32155,6 +32159,15 @@ function runFolderPrefix(input) {
 }
 var buildTouchAreaWriter = {
   resultSchemaName: SCHEMA_NAME,
+  // Hard-requires the pre-act baseline snapshot (to diff against) and the plan
+  // (for the declared allowed area). The build.implementation@v1 read in
+  // buildResult is best-effort corroboration, not required, so it is not declared
+  // here. Declared so a composer wires the reads and the offline floor resolves
+  // them; loadCommands below is the enforcing source of truth.
+  reads: [
+    { name: "baseline", schema: "build.baseline-snapshot@v1", required: true },
+    { name: "plan", schema: "build.plan@v1", required: true }
+  ],
   loadCommands(context) {
     const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "build.baseline-snapshot@v1");
     const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
@@ -32243,6 +32256,10 @@ function projectBuildVerification(observations) {
 // dist/flows/build/writers/verification.js
 var buildVerificationWriter = {
   resultSchemaName: "build.verification@v1",
+  // Commands come from the plan's verification command list. Declared so a
+  // composer wires the read and the offline floor resolves it; loadCommands below
+  // is the enforcing source of truth.
+  reads: [{ name: "plan", schema: "build.plan@v1", required: true }],
   loadCommands(context) {
     const planPath = reportPathForSchemaInRuntimeFlow(context.flow, "build.plan@v1");
     if (!context.step.reads.includes(planPath)) {
@@ -38489,6 +38506,14 @@ function runFolderPrefix2(input) {
 }
 var fixChangeSetWriter = {
   resultSchemaName: "fix.change-set@v1",
+  // Hard-requires the pre-fix baseline snapshot (to diff against) and the change
+  // report (the implementer's declared changed_files). Declared so a composer
+  // wires the reads and the offline floor resolves them; loadCommands below is the
+  // enforcing source of truth.
+  reads: [
+    { name: "baseline", schema: "fix.baseline-snapshot@v1", required: true },
+    { name: "change", schema: "fix.change@v1", required: true }
+  ],
   loadCommands(context) {
     const baselinePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.baseline-snapshot@v1");
     const changePath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.change@v1");
@@ -38703,6 +38728,10 @@ function projectFixRegressionRerun(observations) {
 // dist/flows/fix/writers/regression-baseline.js
 var fixRegressionBaselineWriter = {
   resultSchemaName: "fix.regression-proof@v1",
+  // Reads the brief's regression_test contract to source the pre-fix proof
+  // command. Declared so a composer wires the read and the offline floor resolves
+  // it; loadCommands below is the enforcing source of truth.
+  reads: [{ name: "brief", schema: "fix.brief@v1", required: true }],
   loadCommands(context) {
     const briefPath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.brief@v1");
     if (!context.step.reads.includes(briefPath)) {
@@ -38723,6 +38752,11 @@ var fixRegressionBaselineWriter = {
 import { readFileSync as readFileSync14 } from "node:fs";
 var fixRegressionRerunWriter = {
   resultSchemaName: "fix.regression-rerun@v1",
+  // Re-runs the same regression command the brief declared (which the baseline
+  // writer also sources), so it reads the brief. Declared so a composer wires the
+  // read and the offline floor resolves it; loadCommands below is the enforcing
+  // source of truth.
+  reads: [{ name: "brief", schema: "fix.brief@v1", required: true }],
   loadCommands(context) {
     const briefPath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.brief@v1");
     if (!context.step.reads.includes(briefPath)) {
@@ -38766,6 +38800,10 @@ function projectFixVerification(observations) {
 // dist/flows/fix/writers/verification.js
 var fixVerificationWriter = {
   resultSchemaName: "fix.verification@v1",
+  // Commands come from the brief's verification_command_candidates. Declared so a
+  // composer wires the read and the offline floor resolves it; loadCommands below
+  // is the enforcing source of truth.
+  reads: [{ name: "brief", schema: "fix.brief@v1", required: true }],
   loadCommands(context) {
     const briefPath = reportPathForSchemaInRuntimeFlow(context.flow, "fix.brief@v1");
     if (!context.step.reads.includes(briefPath)) {
@@ -42331,6 +42369,14 @@ function projectVariantVerification(observations, context) {
 }
 var prototypeVariantVerificationWriter = {
   resultSchemaName: "prototype.variant-verification@v1",
+  // Reads the variant aggregate (for the integrity command) and the variant
+  // provider evidence (for the projected result). Declared so a composer wires the
+  // reads and the offline floor resolves them; loadCommands/buildResult below are
+  // the enforcing source of truth.
+  reads: [
+    { name: "aggregate", schema: "prototype.variant-aggregate@v1", required: true },
+    { name: "providerEvidence", schema: "prototype.variant-provider-evidence@v1", required: true }
+  ],
   loadCommands(context) {
     return [integrityCommand(context)];
   },
@@ -42414,6 +42460,13 @@ function projectPrototypeVerification(observations) {
 }
 var prototypeVerificationWriter = {
   resultSchemaName: "prototype.verification@v1",
+  // Sources commands from the prototype plan and reads the artifact for the
+  // integrity command. Declared so a composer wires the reads and the offline
+  // floor resolves them; loadCommands below is the enforcing source of truth.
+  reads: [
+    { name: "plan", schema: "prototype.plan@v1", required: true },
+    { name: "artifact", schema: "prototype.artifact@v1", required: true }
+  ],
   loadCommands(context) {
     const plan = readReport2(context, "prototype.plan@v1", (raw) => PrototypePlan.parse(raw));
     const artifact = readReport2(context, "prototype.artifact@v1", (raw) => PrototypeArtifact.parse(raw));
@@ -44012,6 +44065,10 @@ function projectPursuitVerification(observations) {
 // dist/flows/pursue/writers/verification.js
 var pursuitVerificationWriter = {
   resultSchemaName: "pursuit.verification@v1",
+  // Sources verification command candidates from the pursuit contract. Declared so
+  // a composer wires the read and the offline floor resolves it; loadCommands below
+  // is the enforcing source of truth.
+  reads: [{ name: "contract", schema: "pursuit.contract@v1", required: true }],
   loadCommands(context) {
     const contractPath = reportPathForSchemaInRuntimeFlow(context.flow, "pursuit.contract@v1");
     if (!context.step.reads.includes(contractPath)) {

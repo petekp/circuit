@@ -978,6 +978,49 @@ export function classifyDynamicVsReference(input: DecisionInput): Classification
 }
 
 // ---------------------------------------------------------------------------
+// Section-5 single-family honesty guard (OUTSIDE the locked rule).
+//
+// classifyDynamicVsReference is a BOTH-families rule: it reads fix AND build
+// aggregates, and (correctly, for a full run) treats a null aggregate as failing —
+// no data cannot pass. But a `--family fix` run produces EMPTY build aggregates,
+// which the rule reads as a failing build family and returns a spurious NOT-YET.
+// That verdict is a both-families claim the run never earned. This guard sits
+// outside the locked rule — neither classifyDynamicVsReference nor its
+// decision-rule test is touched: when only one family ran, it reports the §5
+// verdict as INCONCLUSIVE rather than letting an absent family's null aggregates
+// masquerade as a measured NOT-YET. When both families ran, the real verdict
+// passes through unchanged. The raw classification is kept alongside for
+// transparency (and the ledger), flagged non-authoritative.
+export type Section5Outcome = {
+  verdict: string;
+  authoritative: boolean;
+  ranFamilies: Family[];
+  classification: Classification;
+};
+
+export function resolveSection5Outcome(input: {
+  ranFamilies: ReadonlySet<Family>;
+  classification: Classification;
+}): Section5Outcome {
+  const ran = (['fix', 'build'] as const).filter((family) => input.ranFamilies.has(family));
+  if (ran.length === 2) {
+    return {
+      verdict: input.classification.verdict,
+      authoritative: true,
+      ranFamilies: ran,
+      classification: input.classification,
+    };
+  }
+  const only = ran.length === 1 ? `${ran[0]} only` : 'no families';
+  return {
+    verdict: `INCONCLUSIVE — single-family run (${only}); §5 is a both-families rule`,
+    authoritative: false,
+    ranFamilies: ran,
+    classification: input.classification,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Composed-vs-reference decision rule (sibling, locked before data).
 //
 // Distinct from the section-5 rule above: that one asks whether the INSTANTIATED
@@ -1119,7 +1162,15 @@ export function buildDynamicVsReferenceLedgerEntry(summary: JsonRecord, options:
       provider: typeof summary.provider === 'string' ? summary.provider : 'unknown',
       effort: typeof summary.effort === 'string' ? summary.effort : 'unknown',
       pin_model: String(summary.pin_model === true),
-      verdict: typeof summary.classification?.verdict === 'string' ? summary.classification.verdict : 'unknown',
+      // Prefer the §5 single-family-honest verdict (INCONCLUSIVE on a one-family
+      // run) over the raw both-families classification, which returns a spurious
+      // NOT-YET when the absent family's null aggregates are treated as failing.
+      verdict:
+        typeof summary.section5?.verdict === 'string'
+          ? summary.section5.verdict
+          : typeof summary.classification?.verdict === 'string'
+            ? summary.classification.verdict
+            : 'unknown',
     },
     metrics,
   };
@@ -1180,7 +1231,17 @@ Predicates: ${JSON.stringify(cmp.classification.predicates)}
 function renderReport(summary: JsonRecord): string {
   const aggregates = summary.aggregates as Record<Family, { reference: FamilyArmAggregate; generated: FamilyArmAggregate }>;
   const classification = summary.classification as Classification;
+  const section5 = summary.section5 as Section5Outcome | undefined;
   const build = summary.build_fold_cost as { reference: number | null; generated: number | null };
+  // Headline the honest §5 verdict: INCONCLUSIVE on a single-family run, where the
+  // locked both-families rule's NOT-YET is an artifact of the absent family's null
+  // aggregates, not a measured result. Fall back to the raw verdict for older
+  // summaries written before this field existed.
+  const section5Verdict = section5?.verdict ?? classification.verdict;
+  const section5Note =
+    section5 !== undefined && !section5.authoritative
+      ? `\n_Only ${section5.ranFamilies.join(', ') || 'no'} family ran. The section-5 rule reads both families, so it is not authoritative here; the raw both-families verdict below (${classification.verdict}) reflects the absent family's empty aggregates, not a measured outcome._\n`
+      : '';
   return `# Dynamic-vs-Reference Report
 
 Run: ${summary.result_root}
@@ -1190,8 +1251,8 @@ Repo commit: ${summary.repo_commit}
 
 ## Verdict (section-5 rule applied to the measured numbers)
 
-**${classification.verdict}**
-
+**${section5Verdict}**
+${section5Note}
 ${classification.reasons.map((r) => `- ${r}`).join('\n')}
 
 Predicates: ${JSON.stringify(classification.predicates)}
@@ -1313,6 +1374,11 @@ async function main(): Promise<void> {
     fix: aggregates.fix,
     build: { ...aggregates.build, foldCostReference, foldCostGenerated },
   });
+  // The locked rule reads both families; on a single-family run the absent
+  // family's null aggregates make it a spurious NOT-YET. Report the §5 verdict
+  // honestly: authoritative only when both families ran.
+  const ranFamilies = new Set<Family>(summaries.map((s) => s.family));
+  const section5 = resolveSection5Outcome({ ranFamilies, classification });
 
   // Opt-in composed-vs-reference comparison (fix-only). Additive: it never feeds
   // the section-5 verdict above. Present only when the composed arm actually ran.
@@ -1336,6 +1402,7 @@ async function main(): Promise<void> {
     aggregates,
     build_fold_cost: { reference: foldCostReference, generated: foldCostGenerated, tasks: manifest.fold_cost_tasks },
     classification,
+    section5,
     ...(composedComparison ? { composed_vs_reference: composedComparison } : {}),
   };
   writeJson(resolve(resultRoot, 'summary.json'), summary);
@@ -1356,7 +1423,7 @@ async function main(): Promise<void> {
   const composedLine = composedComparison
     ? `\nComposed-vs-reference verdict (fix): ${composedComparison.classification.verdict}`
     : '';
-  process.stdout.write(`\nComparison complete. Verdict: ${classification.verdict}${composedLine}\nResults: ${resultRoot}\nReport: ${resolve(resultRoot, 'report.md')}\n`);
+  process.stdout.write(`\nComparison complete. Section-5 verdict: ${section5.verdict}${composedLine}\nResults: ${resultRoot}\nReport: ${resolve(resultRoot, 'report.md')}\n`);
 }
 
 const invokedDirectly =

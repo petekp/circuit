@@ -25,6 +25,10 @@ import { projectFixRegressionBaseline } from './regression-projection.js';
 
 export const fixRegressionBaselineWriter: VerificationBuilder = {
   resultSchemaName: 'fix.regression-proof@v1',
+  // Reads the brief's regression_test contract to source the pre-fix proof
+  // command. Declared so a composer wires the read and the offline floor resolves
+  // it; loadCommands below is the enforcing source of truth.
+  reads: [{ name: 'brief', schema: 'fix.brief@v1', required: true }],
   loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
     const briefPath = reportPathForSchemaInRuntimeFlow(context.flow, 'fix.brief@v1');
     if (!context.step.reads.includes(briefPath as never)) {

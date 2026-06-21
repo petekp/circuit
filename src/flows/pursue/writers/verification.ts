@@ -12,6 +12,10 @@ import { projectPursuitVerification } from './verification-projection.js';
 
 export const pursuitVerificationWriter: VerificationBuilder = {
   resultSchemaName: 'pursuit.verification@v1',
+  // Sources verification command candidates from the pursuit contract. Declared so
+  // a composer wires the read and the offline floor resolves it; loadCommands below
+  // is the enforcing source of truth.
+  reads: [{ name: 'contract', schema: 'pursuit.contract@v1', required: true }],
   loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
     const contractPath = reportPathForSchemaInRuntimeFlow(context.flow, 'pursuit.contract@v1');
     if (!context.step.reads.includes(contractPath as never)) {

@@ -51,6 +51,10 @@ export function planDeclaresTouchArea(context: VerificationBuildContext): boolea
 
 export const buildBaselineSnapshotWriter: VerificationBuilder = {
   resultSchemaName: 'build.baseline-snapshot@v1',
+  // Reads the plan to decide whether the touch-area gate is on (planDeclaresTouchArea).
+  // Declared so a composer wires the read and the offline floor resolves it;
+  // loadCommands below is the enforcing source of truth.
+  reads: [{ name: 'plan', schema: 'build.plan@v1', required: true }],
   loadCommands(context: VerificationBuildContext): readonly VerificationCommand[] {
     // Opt-in: no declared area means no gate to back, so capture no git state.
     // The buildResult below then records the inert `captured: false` baseline.
