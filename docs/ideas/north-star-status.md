@@ -2,12 +2,15 @@
 
 > The one doc to read to know what is built, what is in flight, and what is
 > reserved for operator ratification. Written 2026-06-16; last refreshed
-> 2026-06-19. This is a **living status map**, not a design doc: it points at the
+> 2026-06-21. This is a **living status map**, not a design doc: it points at the
 > design docs and run reports, and it is grounded against the actual state of
 > `main` at the time of writing (HEAD `a8b2f6c8`, PR #123 merged), verified
 > against `src/`. Each row links to the doc that owns the detail.
-> Last refreshed against HEAD `2983ec2b` (PR #138 merged — Phase D, the
-> shape-sensitivity live experiment). This refresh lands the **frontier phases A–D**:
+> Last refreshed against HEAD `21e44911` (PR #140 merged — the generator's
+> **PROPOSE half** wired into `src` as the `proposeFlow` callable; engine-first, no
+> product command yet; see §2 and §7). Previously refreshed against HEAD `2983ec2b`
+> (PR #138 merged — Phase D, the shape-sensitivity live experiment), which landed the
+> **frontier phases A–D**:
 > the two-layer composer-intelligence frontier (producibility-aware *selection* and
 > family *reachability*) is now **shipped** for fix, build, and goal; a **second
 > family** (build) composes from blocks and runs end-to-end; and the topology question
@@ -460,7 +463,24 @@ interactive site, with two genuine operator forks (PICK, SIGN-OFF).
 
 ## 7. What's next, and what's reserved for operator ratification
 
-**Most recent (frontier phases A–D, 2026-06-21, merged `67594dfa`…`2983ec2b`):** the
+**Most recent (the generator's PROPOSE half, 2026-06-21, merged `21e44911`, PR #140):**
+the composer (§2) is a *linearizer* — it turns a hand-authored role set into a runnable
+flow but never *proposed* the role set itself. That proposing half now lands in `src` as
+**`proposeFlow`** (`src/flows/composition/propose.ts`): a task goes in, an injected model
+proposes a `CompositionRoleSet`, the **same proven offline floor** (`composeFlow →
+evaluateValidity → evaluateRunnability`) verifies it, and on a wall the verifier's exact
+errors feed back for bounded repair — out comes either a runnable flow (role set + spec) or
+an honest fail-closed `parse`/`relay`/`wall`. It is **engine-first, no product command yet**
+(the deliberate v1 shape): default-OFF, zero production callers, inert at import,
+selection-agnostic, the model reached only through an injected relay. Live on 4 real tasks
+(pinned haiku): **2/4 runnable** (a loop for a flaky test, review-only for an audit; two
+honest walls on a build-plan gap and a verification execution-kind confusion). This is the
+first piece of the **generator** (as opposed to the *linearizer*) to reach `main`. The next
+step — *raise that rate* with cheap repair-guidance fixes, then add the command — is in
+flight (see Next). Tests: `tests/contracts/composition-propose.test.ts`; driver:
+[`propose-real-tasks.ts`](../../experiments/flow-lab/propose-real-tasks.ts).
+
+**Before that (frontier phases A–D, 2026-06-21, merged `67594dfa`…`2983ec2b`):** the
 two-layer composer-intelligence frontier this doc previously held *reserved for
 ratification* is now **shipped**, a second efficacy family runs, and the topology
 question is answered. **A** (PR #134) producibility-aware *selection* (repair-then-wall
@@ -495,7 +515,15 @@ below; the rows above carry the detail.
 
 **Next (sequenced, low ambiguity):**
 
-1. **Breadth of instantiation** — the dynamic-vs-reference follow-up's recommended
+1. **Raise `proposeFlow`'s runnable rate** (🚧 in flight) — the live run walled on two
+   *guidance* gaps, not engine limits: the build family's plan/act oscillation, and the
+   model picking the wrong execution kind for `run-verification` (plus invalid stage
+   names / unknown block ids). Fix is cheap: sharpen the proposer prompt + repair
+   guidance (kept byte-pinned to the `.md` artifacts) and lift the default repair
+   budget; the one *structural* residual (the family-locked goal-close sub-run terminal)
+   is a separate engine unlock. Then add the product command (the deferred "command
+   after"). Driver: [`propose-real-tasks.ts`](../../experiments/flow-lab/propose-real-tasks.ts).
+2. **Breadth of instantiation** — the dynamic-vs-reference follow-up's recommended
    next step now that the two-family result is in. A measurement-only sibling eval
    over the **untested** families (`research`, `prototype`, `explain`/editorial),
    same two arms / same pinned model / same cost instrument, to learn whether the
@@ -505,11 +533,11 @@ below; the rows above carry the detail.
    the existing generator; no assembler/resolver edit. Do **not** yet spend on the
    genuine-block-composition arm (gated behind the Phase 2 catalog enrichments).
    [`dynamic-vs-reference-followup.md`](dynamic-vs-reference-followup.md).
-2. **The remaining task-aware-assembler follow-up** (non-blocking): sign off the
+3. **The remaining task-aware-assembler follow-up** (non-blocking): sign off the
    loosened `src/flows/resolvers/` import zone. (Per-mode runtime trust is **done** —
    PR #119 blesses recorded `<mode>.json` siblings and fails closed with a clear
    reason for unrecorded ones.)
-3. **The two `--reuse-children-from` follow-ups** — a run-start git baseline +
+4. **The two `--reuse-children-from` follow-ups** — a run-start git baseline +
    staleness probe (close the documented version/base limitation), and a
    `reclaim`/inbox discovery surface for reusable dead-run folders. Both non-gating.
 
