@@ -6,9 +6,11 @@
 > design docs and run reports, and it is grounded against the actual state of
 > `main` at the time of writing (HEAD `a8b2f6c8`, PR #123 merged), verified
 > against `src/`. Each row links to the doc that owns the detail.
-> Last refreshed against HEAD `21e44911` (PR #140 merged — the generator's
-> **PROPOSE half** wired into `src` as the `proposeFlow` callable; engine-first, no
-> product command yet; see §2 and §7). Previously refreshed against HEAD `2983ec2b`
+> Last refreshed against HEAD `a07960a0` (PR #141 merged — the generator's
+> **PROPOSE half** now runs **4/4 runnable** on the real-task driver after the
+> vocabulary-class repair-guidance fix + raised repair budget; still engine-first,
+> no product command yet; see §2 and §7). Previously refreshed against HEAD
+> `21e44911` (PR #140 — `proposeFlow` first landed). Before that, HEAD `2983ec2b`
 > (PR #138 merged — Phase D, the shape-sensitivity live experiment), which landed the
 > **frontier phases A–D**:
 > the two-layer composer-intelligence frontier (producibility-aware *selection* and
@@ -463,21 +465,26 @@ interactive site, with two genuine operator forks (PICK, SIGN-OFF).
 
 ## 7. What's next, and what's reserved for operator ratification
 
-**Most recent (the generator's PROPOSE half, 2026-06-21, merged `21e44911`, PR #140):**
-the composer (§2) is a *linearizer* — it turns a hand-authored role set into a runnable
-flow but never *proposed* the role set itself. That proposing half now lands in `src` as
-**`proposeFlow`** (`src/flows/composition/propose.ts`): a task goes in, an injected model
-proposes a `CompositionRoleSet`, the **same proven offline floor** (`composeFlow →
-evaluateValidity → evaluateRunnability`) verifies it, and on a wall the verifier's exact
-errors feed back for bounded repair — out comes either a runnable flow (role set + spec) or
-an honest fail-closed `parse`/`relay`/`wall`. It is **engine-first, no product command yet**
-(the deliberate v1 shape): default-OFF, zero production callers, inert at import,
-selection-agnostic, the model reached only through an injected relay. Live on 4 real tasks
-(pinned haiku): **2/4 runnable** (a loop for a flaky test, review-only for an audit; two
-honest walls on a build-plan gap and a verification execution-kind confusion). This is the
-first piece of the **generator** (as opposed to the *linearizer*) to reach `main`. The next
-step — *raise that rate* with cheap repair-guidance fixes, then add the command — is in
-flight (see Next). Tests: `tests/contracts/composition-propose.test.ts`; driver:
+**Most recent (the generator's PROPOSE half now runs 4/4, 2026-06-21, merged `a07960a0`,
+PR #141):** the composer (§2) is a *linearizer* — it turns a hand-authored role set into a
+runnable flow but never *proposed* the role set itself. That proposing half lives in `src`
+as **`proposeFlow`** (`src/flows/composition/propose.ts`, first landed PR #140): a task goes
+in, an injected model proposes a `CompositionRoleSet`, the **same proven offline floor**
+(`composeFlow → evaluateValidity → evaluateRunnability`) verifies it, and on a wall the
+verifier's exact errors feed back for bounded repair — out comes either a runnable flow
+(role set + spec) or an honest fail-closed `parse`/`relay`/`wall`. It is **engine-first, no
+product command yet** (the deliberate v1 shape): default-OFF, zero production callers, inert
+at import, selection-agnostic, the model reached only through an injected relay. The first
+live run was **2/4 runnable**; the two walls were both *vocabulary* errors (the model naming
+a stage / block / execution kind outside the closed menu) that the repair guidance had been
+mis-framing as missing-input problems. PR #141 fixed that — generalized the repair preamble,
+added three vocabulary-class repair rules keyed to the floor's real wall strings, and raised
+the default repair budget 2 → 4. Re-proven live (pinned haiku): **4/4 runnable** — a linear
+fix, a loop for a flaky test, review-only for an audit, and the build-family CSV export that
+previously walled (now converges at repair round 1). This is the first piece of the
+**generator** (as opposed to the *linearizer*) to reach `main` and clear its real-task bar.
+The next step is the deferred product command. Tests:
+`tests/contracts/composition-propose.test.ts`; driver:
 [`propose-real-tasks.ts`](../../experiments/flow-lab/propose-real-tasks.ts).
 
 **Before that (frontier phases A–D, 2026-06-21, merged `67594dfa`…`2983ec2b`):** the
@@ -515,14 +522,15 @@ below; the rows above carry the detail.
 
 **Next (sequenced, low ambiguity):**
 
-1. **Raise `proposeFlow`'s runnable rate** (🚧 in flight) — the live run walled on two
-   *guidance* gaps, not engine limits: the build family's plan/act oscillation, and the
-   model picking the wrong execution kind for `run-verification` (plus invalid stage
-   names / unknown block ids). Fix is cheap: sharpen the proposer prompt + repair
-   guidance (kept byte-pinned to the `.md` artifacts) and lift the default repair
-   budget; the one *structural* residual (the family-locked goal-close sub-run terminal)
-   is a separate engine unlock. Then add the product command (the deferred "command
-   after"). Driver: [`propose-real-tasks.ts`](../../experiments/flow-lab/propose-real-tasks.ts).
+1. **Add the `proposeFlow` product command** (the deferred "command after") — the
+   runnable-rate work is **done** (PR #141 took the live driver from 2/4 to 4/4 by fixing
+   the vocabulary-class repair guidance + raising the budget). What remains is the v1
+   shape's second half: a command that resolves the session power dial into a
+   `ResolvedSelection`, wraps the real connector as the relay, calls `proposeFlow`, and on
+   success publishes the composed flow (the driver already proves this path end-to-end with
+   `--publish`). The one *structural* residual (the family-locked goal-close sub-run
+   terminal) is a separate engine unlock, not a blocker for the command. Driver:
+   [`propose-real-tasks.ts`](../../experiments/flow-lab/propose-real-tasks.ts).
 2. **Breadth of instantiation** — the dynamic-vs-reference follow-up's recommended
    next step now that the two-family result is in. A measurement-only sibling eval
    over the **untested** families (`research`, `prototype`, `explain`/editorial),
