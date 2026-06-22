@@ -20,12 +20,17 @@ import {
 const RUNTIME_ROOT = 'src/runtime';
 const WORKFLOWS_ROOT = 'src/flows';
 
-// `registries` and `resolvers` are shared cross-flow infrastructure
-// directories under src/flows/, not per-flow packages. `resolvers` (B2) holds
-// axis resolvers (e.g. the structure grain chooser) that import only public
-// flow types and produce assembly specs the shared assembler eats — peer to
-// assemble-flow-schematic.ts, not a flow.
-const NON_FLOW_PACKAGE_DIRECTORIES = new Set(['registries', 'resolvers']);
+// `registries`, `resolvers`, and `composition` are shared cross-flow
+// infrastructure directories under src/flows/, not per-flow packages.
+// `resolvers` (B2) holds axis resolvers (e.g. the structure grain chooser) that
+// import only public flow types and produce assembly specs the shared assembler
+// eats — peer to assemble-flow-schematic.ts, not a flow. `composition` is the
+// block-level composition subsystem (composeFlow / proposeFlow /
+// deriveActualMenu): it imports no per-flow internals, is absent from the flow
+// catalog, and its public index surfaces composition primitives, not a flow's
+// blocks/schematic/writers. The generate CLI (src/cli/generate.ts) imports
+// proposeFlow from this index to genuinely compose a bespoke flow.
+const NON_FLOW_PACKAGE_DIRECTORIES = new Set(['registries', 'resolvers', 'composition']);
 
 // Allow-list: match by suffix so engine files at any directory depth
 // get the same exemption. These are shared flow infrastructure surfaces,

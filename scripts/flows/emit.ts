@@ -139,7 +139,7 @@ const GENERATED_SURFACE_MAP_REL = 'docs/generated-surfaces.md';
 const BLOCK_CATALOG_REL = 'docs/flows/block-catalog.json';
 const FLOW_CATALOG_REL = 'generated/flows/catalog.json';
 const HOST_DIRECT_COMMANDS = ['handoff', 'run'];
-const CLI_ONLY_COMMANDS = ['create', 'uninstall'];
+const CLI_ONLY_COMMANDS = ['create', 'generate', 'uninstall'];
 const ROOT_CLAUDE_MARKETPLACE_REL = '.claude-plugin/marketplace.json';
 const OBSOLETE_ROOT_HOST_SURFACES = ['commands', 'hooks'];
 

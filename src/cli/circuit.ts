@@ -7,6 +7,7 @@ import type { BriefGitProbe } from '../app/continuity/brief.js';
 import { CLI_COMMAND_NAMES, type CliCommandName } from './command-vocabulary.js';
 import { parseCommanderOrThrow } from './commander-support.js';
 import { runCreateCommand } from './create.js';
+import { runGenerateCommand } from './generate.js';
 import { runHandoffCommand } from './handoff.js';
 import { runHistoryCommand } from './history.js';
 import { runInboxCommand } from './inbox.js';
@@ -161,7 +162,7 @@ function parseTopLevelInvocation(argv: readonly string[]): TopLevelInvocation {
 
   if (invocation === undefined) {
     throw new Error(
-      'missing command: use run, resume, handoff, history, memory, create, uninstall, runs, reclaim, inbox, or version',
+      'missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, inbox, or version',
     );
   }
   return invocation;
@@ -195,6 +196,14 @@ export async function main(argv: readonly string[], options: CliMainOptions = {}
   if (invocation.command === 'create') {
     return runCreateCommand(invocation.argv, {
       ...(options.now === undefined ? {} : { now: options.now }),
+    });
+  }
+  if (invocation.command === 'generate') {
+    // generate calls a model, so it needs the relay channel run/resume use (the
+    // runtime builds the production relay when none is injected). create does not.
+    return runGenerateCommand(invocation.argv, {
+      ...(options.now === undefined ? {} : { now: options.now }),
+      ...(options.relayer === undefined ? {} : { relayer: options.relayer }),
     });
   }
   if (invocation.command === 'uninstall') {

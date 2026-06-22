@@ -128,6 +128,7 @@ describe('documentation surface', () => {
       'docs/reference/script-inventory.md',
       'src/commands/README.md',
       'src/commands/create.md',
+      'src/commands/generate.md',
       'src/commands/run.md',
       'src/commands/uninstall.md',
     ];
@@ -219,6 +220,7 @@ describe('documentation surface', () => {
       'docs/contracts/host-rendering.md',
       'src/commands/README.md',
       'src/commands/create.md',
+      'src/commands/generate.md',
       'src/commands/handoff.md',
       'src/commands/run.md',
       'src/commands/uninstall.md',

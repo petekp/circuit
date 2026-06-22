@@ -76,6 +76,7 @@ CLI-only utilities are source files under `src/commands/` that remain callable t
 | Utility | Source | Host mirrors | Edit rule |
 | --- | --- | --- | --- |
 | `create` | `src/commands/create.md` | none | Edit the CLI utility source and run focused CLI tests. No host mirrors should exist. |
+| `generate` | `src/commands/generate.md` | none | Edit the CLI utility source and run focused CLI tests. No host mirrors should exist. |
 | `uninstall` | `src/commands/uninstall.md` | none | Edit the CLI utility source and run focused CLI tests. No host mirrors should exist. |
 
 ## Drift Check
