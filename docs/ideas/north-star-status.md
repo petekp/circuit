@@ -6,10 +6,13 @@
 > design docs and run reports, and it is grounded against the actual state of
 > `main` at the time of writing (HEAD `a8b2f6c8`, PR #123 merged), verified
 > against `src/`. Each row links to the doc that owns the detail.
-> Last refreshed against HEAD `a07960a0` (PR #141 merged — the generator's
-> **PROPOSE half** now runs **4/4 runnable** on the real-task driver after the
-> vocabulary-class repair-guidance fix + raised repair budget; still engine-first,
-> no product command yet; see §2 and §7). Previously refreshed against HEAD
+> Last refreshed against HEAD `72884320` (PR #142 merged — the **`circuit generate`
+> product command** shipped, closing the "engine first, command after" v1: a model
+> PROPOSES a block-level flow shape, the proven offline floor verifies it, and the
+> genuinely-composed flow publishes through the **same publish tail** `create` uses;
+> see §2 and §7). Previously refreshed against HEAD `a07960a0` (PR #141 — the
+> generator's **PROPOSE half** reached **4/4 runnable** on the real-task driver after
+> the vocabulary-class repair-guidance fix + raised repair budget) and HEAD
 > `21e44911` (PR #140 — `proposeFlow` first landed). Before that, HEAD `2983ec2b`
 > (PR #138 merged — Phase D, the shape-sensitivity live experiment), which landed the
 > **frontier phases A–D**:
@@ -465,7 +468,25 @@ interactive site, with two genuine operator forks (PICK, SIGN-OFF).
 
 ## 7. What's next, and what's reserved for operator ratification
 
-**Most recent (the generator's PROPOSE half now runs 4/4, 2026-06-21, merged `a07960a0`,
+**Most recent (the `generate` product command shipped, 2026-06-21, merged `72884320`,
+PR #142):** the deferred "command after" is built, closing the "engine first, command
+after" v1. `circuit generate` is the genuine-composition sibling of `circuit create`:
+where `create` **instantiates** a family template offline, `generate` asks a model to
+**propose** a block-level flow shape (`proposeFlow`), runs the same proven offline floor
+(`composeFlow → evaluateValidity → evaluateRunnability` with verifier-driven repair), and
+publishes the genuinely-composed flow through the **same publish tail** `create` uses —
+extracted to `src/cli/custom-flow-package.ts` so both producers share one
+draft/publish/manifest path (one tail, two producers; the validation result records
+`source: 'composed'` so "instantiation is not generation" stays honest on disk). Both
+halves of the generator — propose and publish — are now on `main` and reachable as a
+product command (`src/cli/generate.ts`, a default-OFF CLI-only utility; 7 offline tests
+drive it with an injected stub relay so they spend nothing). The proposer model is pinned
+(`claude-haiku-4-5`/low); wiring the session power dial into that selection is the
+documented follow-up (Next #1). The one *structural* residual (the family-locked
+goal-close sub-run terminal) is a separate engine unlock, not a command blocker. Tests:
+`tests/unit/generate.test.ts`; command source: [`generate.md`](../../src/commands/generate.md).
+
+**Before that (the generator's PROPOSE half reached 4/4, 2026-06-21, merged `a07960a0`,
 PR #141):** the composer (§2) is a *linearizer* — it turns a hand-authored role set into a
 runnable flow but never *proposed* the role set itself. That proposing half lives in `src`
 as **`proposeFlow`** (`src/flows/composition/propose.ts`, first landed PR #140): a task goes
@@ -487,7 +508,7 @@ The next step is the deferred product command. Tests:
 `tests/contracts/composition-propose.test.ts`; driver:
 [`propose-real-tasks.ts`](../../experiments/flow-lab/propose-real-tasks.ts).
 
-**Before that (frontier phases A–D, 2026-06-21, merged `67594dfa`…`2983ec2b`):** the
+**Earlier (frontier phases A–D, 2026-06-21, merged `67594dfa`…`2983ec2b`):** the
 two-layer composer-intelligence frontier this doc previously held *reserved for
 ratification* is now **shipped**, a second efficacy family runs, and the topology
 question is answered. **A** (PR #134) producibility-aware *selection* (repair-then-wall
@@ -522,15 +543,13 @@ below; the rows above carry the detail.
 
 **Next (sequenced, low ambiguity):**
 
-1. **Add the `proposeFlow` product command** (the deferred "command after") — the
-   runnable-rate work is **done** (PR #141 took the live driver from 2/4 to 4/4 by fixing
-   the vocabulary-class repair guidance + raising the budget). What remains is the v1
-   shape's second half: a command that resolves the session power dial into a
-   `ResolvedSelection`, wraps the real connector as the relay, calls `proposeFlow`, and on
-   success publishes the composed flow (the driver already proves this path end-to-end with
-   `--publish`). The one *structural* residual (the family-locked goal-close sub-run
-   terminal) is a separate engine unlock, not a blocker for the command. Driver:
-   [`propose-real-tasks.ts`](../../experiments/flow-lab/propose-real-tasks.ts).
+1. **Wire the session power dial into `generate`'s proposer selection** — the command is
+   shipped (PR #142) but ships with a *pinned* proposer (`claude-haiku-4-5`/low,
+   `PROPOSER_SELECTION` in `src/cli/generate.ts`). The next increment is resolving the
+   operator's power dial into that `ResolvedSelection` the way `run` does, so the proposer
+   model tracks the session's power tier instead of a hardcoded pin. Small, low-ambiguity,
+   no engine change. (The command itself already resolves the real connector as the relay,
+   calls `proposeFlow`, and publishes on success via the shared tail.)
 2. **Breadth of instantiation** — the dynamic-vs-reference follow-up's recommended
    next step now that the two-family result is in. A measurement-only sibling eval
    over the **untested** families (`research`, `prototype`, `explain`/editorial),
