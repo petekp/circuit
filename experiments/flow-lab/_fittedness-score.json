@@ -1,0 +1,120 @@
+{
+  "headline": {
+    "discriminating_tasks": 5,
+    "context_helped": 3,
+    "context_hurt": 2,
+    "ties_no_signal": 2,
+    "shift_helped": [
+      "export-feature",
+      "audit-then-fix"
+    ],
+    "shift_hurt": [
+      "flaky-test",
+      "auth-migration"
+    ],
+    "control_helped": [
+      "simple-fix-control"
+    ],
+    "control_hurt": []
+  },
+  "rows": [
+    {
+      "taskId": "flaky-test",
+      "contextClass": "shift",
+      "shapeA": "loop",
+      "shapeB": "linear",
+      "counts": {
+        "X": 3,
+        "Y": 0,
+        "tie": 0
+      },
+      "majority": "X",
+      "winnerArm": "A",
+      "outcome": "hurt"
+    },
+    {
+      "taskId": "export-feature",
+      "contextClass": "shift",
+      "shapeA": "linear",
+      "shapeB": "linear",
+      "counts": {
+        "X": 3,
+        "Y": 0,
+        "tie": 0
+      },
+      "majority": "X",
+      "winnerArm": "B",
+      "outcome": "helped"
+    },
+    {
+      "taskId": "auth-migration",
+      "contextClass": "shift",
+      "shapeA": "linear",
+      "shapeB": "linear",
+      "counts": {
+        "X": 3,
+        "Y": 0,
+        "tie": 0
+      },
+      "majority": "X",
+      "winnerArm": "A",
+      "outcome": "hurt"
+    },
+    {
+      "taskId": "audit-then-fix",
+      "contextClass": "shift",
+      "shapeA": "review-only",
+      "shapeB": "linear",
+      "counts": {
+        "X": 3,
+        "Y": 0,
+        "tie": 0
+      },
+      "majority": "X",
+      "winnerArm": "B",
+      "outcome": "helped"
+    },
+    {
+      "taskId": "vague-improve",
+      "contextClass": "shift",
+      "shapeA": "linear",
+      "shapeB": "linear",
+      "counts": {
+        "X": 0,
+        "Y": 0,
+        "tie": 3
+      },
+      "majority": "tie",
+      "winnerArm": "none",
+      "outcome": "tie"
+    },
+    {
+      "taskId": "simple-fix-control",
+      "contextClass": "control",
+      "shapeA": "linear",
+      "shapeB": "linear",
+      "counts": {
+        "X": 3,
+        "Y": 0,
+        "tie": 0
+      },
+      "majority": "X",
+      "winnerArm": "B",
+      "outcome": "helped"
+    },
+    {
+      "taskId": "audit-readonly-control",
+      "contextClass": "control",
+      "shapeA": "review-only",
+      "shapeB": "review-only",
+      "counts": {
+        "X": 0,
+        "Y": 0,
+        "tie": 3
+      },
+      "majority": "tie",
+      "winnerArm": "none",
+      "outcome": "tie"
+    }
+  ]
+}

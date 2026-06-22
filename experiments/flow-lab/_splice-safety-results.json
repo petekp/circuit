@@ -1,0 +1,115 @@
+{
+  "meta": {
+    "spike": "splice-safety-battery",
+    "seedFlow": "build-whole: frame -> plan -> act(displaced) -> verify -> close",
+    "displaced": "act-step",
+    "gatesInSeam": [
+      "FlowSchematic.safeParse (schema)",
+      "tryCompile (catalog)"
+    ],
+    "fullerFloorChecks": [
+      "writerCouplingRunnable (replicates evaluateRunnability post-compile loop)",
+      "missingProducers (broader: every step input read needs a producer)"
+    ]
+  },
+  "headline": {
+    "baseline_floor_holds": true,
+    "legal_splice_honored_and_clean": true,
+    "launder_blocked": true,
+    "input_contract_break_caught_by_seam": true,
+    "input_contract_break_failopen": false,
+    "writer_sourced_gap_confirmed": true,
+    "isolation_preserved": true
+  },
+  "baselineFloor": {
+    "migration": {
+      "cursorWasDisplaced": true,
+      "cursorLandsOnEntry": true,
+      "displacedAbsentFromSteps": true,
+      "allRouteTargetsResolve": true,
+      "danglingTargets": [],
+      "displacedCountDropped": true,
+      "survivorsKept": true,
+      "noSubtreeIdInCounts": true,
+      "inboundRehomedToEntry": [
+        "plan-step",
+        "verify-step"
+      ]
+    },
+    "safetyFloor": {
+      "spliced": false,
+      "finding": "splice rejected by the schema safety floor (dangling route / shape): route target references unknown schematic item id: no-such-step-xyz",
+      "chainRejected": true
+    },
+    "conservativeDefaults": {
+      "decomposeDownHonored": true,
+      "reHoldFindingOnly": true,
+      "refusedInsideSliceLoop": true,
+      "zeroBudgetFindingOnly": true,
+      "sameStepCycleFindingOnly": true,
+      "completedDisplacedRefused": true,
+      "idCollisionRefused": true
+    }
+  },
+  "legalBaseline": {
+    "id": "baseline-legal",
+    "spliced": true,
+    "writerCouplingRunnable": true,
+    "missingProducers": [],
+    "producedAfter": [
+      "build.brief@v1",
+      "build.plan@v1",
+      "build.context@v1",
+      "build.implementation@v1",
+      "build.verification@v1",
+      "build.result@v1"
+    ],
+    "note": "a legal decompose-down: honored, and both fuller-floor checks pass (control for the H2 gap)"
+  },
+  "probes": {
+    "h1": {
+      "id": "H1-laundered-exit",
+      "hazard": "subtree exit self-declares continue -> @complete to skip the verify step",
+      "spliced": true,
+      "finding": null,
+      "splicedExitContinue": "verify-step",
+      "launderBlocked": true,
+      "note": "outbound re-home FORCED continue -> verify-step; the self-declared @complete was overridden (launder structurally blocked)"
+    },
+    "h2": {
+      "id": "H2-contract-break",
+      "hazard": "replacement stops producing build.implementation@v1 (verify + close lose their input)",
+      "spliced": false,
+      "finding": "splice rejected by the catalog safety floor: schematic 'build-whole' is not compatible with the block catalog (2 issues): verify-step: input \"change\" references unavailable contract \"build.implementation@v1\" on at least one reachable route; close-step: input \"implementation\" references unavailable contract \"build.implementation@v1\" on at least one reachable route",
+      "compiledOk": null,
+      "writerCouplingRunnable": null,
+      "writerCouplingAborts": [],
+      "missingProducers": [],
+      "classification": "CAUGHT_BY_SEAM",
+      "note": "seam rejected the producer break at schema or catalog gate"
+    },
+    "h3": {
+      "id": "H3-isolation",
+      "hazard": "splice mutates the caller-owned schematic or run state in place",
+      "schematicUnmutated": true,
+      "runStateUnmutated": true,
+      "note": "a splice that fails its gate must leave the run on its current, still-valid flow"
+    },
+    "h4": {
+      "id": "H4-writer-sourced-gap",
+      "hazard": "a composed tail introduces a writer whose internal required read has no producer",
+      "catalogValid": true,
+      "seamGatesAccept": true,
+      "fullFloorRunnable": false,
+      "aborts": [
+        {
+          "stepId": "plan",
+          "schema": "build.plan@v1",
+          "reason": "expected exactly one report writer for schema 'build.brief@v1', found 0"
+        }
+      ],
+      "gapConfirmed": true,
+      "note": "seam gates (schema + catalog) ACCEPT a flow the full floor (evaluateRunnability) REJECTS — the producer-chain gap a composed-tail thicken must close by re-running the full floor"
+    }
+  }
+}

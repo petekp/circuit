@@ -1,0 +1,128 @@
+{
+  "meta": {
+    "spike": "build-brief-reframe-spike",
+    "question": "Can a mid-flow content checkpoint that mints build.brief@v1 make a research-head-then-build-tail shape runnable through the full floor?",
+    "method": "four locked role sets through evaluateValidity + evaluateRunnability (no model)",
+    "builds_on": "composer.ts checkpointWritesReport (447-463, 756-759), aliasByGeneric (961), step-id dedupe (1056-1065), BUILD_LINEAR_FULL (1240-1258)"
+  },
+  "headline": {
+    "baseline_runnable": false,
+    "control_runnable": true,
+    "hypothesis_runnable": false,
+    "hypothesis_mints_build_brief": true,
+    "hypothesis_blocked_at_catalog_not_runnability": true,
+    "contract_alias_collision_confirmed": true,
+    "hypothesis_catalog_issues": [
+      "output \"fix.brief@v1\" is not compatible with block output \"flow.brief@v1\"",
+      "inputs do not satisfy block \"gather-context\"; expected one of [flow.brief@v1, context.request@v1]",
+      "inputs do not satisfy block \"diagnose\"; expected one of [flow.brief@v1, context.packet@v1]"
+    ],
+    "falsifier_runnable": false
+  },
+  "verdict": "PHASE-2 BLOCKER REFUTED, DEEPER WALL FOUND. The mid-flow content checkpoint DID mint build.brief@v1 (so \"build.brief@v1 is unproducible from compose\" is false). The shape is instead blocked at the CATALOG gate by a contract-alias collision: two frame steps produce two brief families (fix.brief@v1, build.brief@v1) that share one generic (flow.brief@v1), and the composer binds one actual per generic (composer.ts:961), orphaning the first. The real unlock for cross-family \"thin then thicken\" is per-scope contract aliasing, not a new producer — an engine change to the composer alias model, separately trackable.",
+  "shapes": {
+    "baseline": {
+      "id": "research-then-build",
+      "label": "BASELINE — compose frame + build tail (Phase 2 failing shape)",
+      "composed": true,
+      "composeWalls": [],
+      "topology": [
+        "frame =>fix.brief@v1",
+        "gather-context =>build.context@v1",
+        "plan =>build.plan@v1",
+        "act =>build.implementation@v1",
+        "run-verification =>build.verification@v1",
+        "review =>build.review@v1",
+        "close-with-evidence =>flow.result@v1"
+      ],
+      "stepCount": 7,
+      "valid": true,
+      "seamGatesAccept": true,
+      "runnable": false,
+      "catalogIssues": [],
+      "aborts": [
+        {
+          "stepId": "plan",
+          "schema": "build.plan@v1",
+          "reason": "expected exactly one report writer for schema 'build.brief@v1', found 0"
+        }
+      ],
+      "blockedBy": "runnability",
+      "verdict": "BLOCKED at runnability (a writer required-read has no producer) — passes seam gates"
+    },
+    "control": {
+      "id": "build-linear-full",
+      "label": "CONTROL — checkpoint frame at position 0 (known runnable)",
+      "composed": true,
+      "composeWalls": [],
+      "topology": [
+        "frame =>build.brief@v1",
+        "plan =>build.plan@v1",
+        "act =>build.implementation@v1",
+        "run-verification =>build.verification@v1",
+        "review =>build.review@v1",
+        "close-with-evidence =>flow.result@v1"
+      ],
+      "stepCount": 6,
+      "valid": true,
+      "seamGatesAccept": true,
+      "runnable": true,
+      "catalogIssues": [],
+      "aborts": [],
+      "blockedBy": "none",
+      "verdict": "ACCEPTED: valid AND runnable — a flow that runs to completion"
+    },
+    "hypothesis": {
+      "id": "research-reframe-build",
+      "label": "HYPOTHESIS — research head + mid-flow checkpoint re-frame + build tail",
+      "composed": true,
+      "composeWalls": [],
+      "topology": [
+        "frame-1 =>fix.brief@v1",
+        "gather-context =>build.context@v1",
+        "diagnose =>fix.diagnosis@v1",
+        "frame-2 =>build.brief@v1",
+        "plan =>build.plan@v1",
+        "act =>build.implementation@v1",
+        "run-verification =>build.verification@v1",
+        "close-with-evidence =>flow.result@v1"
+      ],
+      "stepCount": 8,
+      "valid": false,
+      "seamGatesAccept": false,
+      "runnable": false,
+      "catalogIssues": [
+        "output \"fix.brief@v1\" is not compatible with block output \"flow.brief@v1\"",
+        "inputs do not satisfy block \"gather-context\"; expected one of [flow.brief@v1, context.request@v1]",
+        "inputs do not satisfy block \"diagnose\"; expected one of [flow.brief@v1, context.packet@v1]"
+      ],
+      "aborts": [],
+      "blockedBy": "catalog",
+      "verdict": "BLOCKED at the catalog gate (structure / contract-alias) — fails before runnability"
+    },
+    "falsifier": {
+      "id": "research-reframe-build-no-checkpoint",
+      "label": "FALSIFIER — same shape but re-frame is a plain compose",
+      "composed": true,
+      "composeWalls": [],
+      "topology": [
+        "frame-1 =>fix.brief@v1",
+        "gather-context =>fix.context@v1",
+        "diagnose =>fix.diagnosis@v1",
+        "frame-2 =>fix.brief@v1",
+        "plan =>prototype.plan@v1",
+        "act =>fix.change@v1",
+        "run-verification =>fix.verification@v1",
+        "close-with-evidence =>flow.result@v1"
+      ],
+      "stepCount": 8,
+      "valid": false,
+      "seamGatesAccept": false,
+      "runnable": false,
+      "catalogIssues": [],
+      "aborts": [],
+      "blockedBy": "catalog",
+      "verdict": "BLOCKED at the catalog gate (structure / contract-alias) — fails before runnability"
+    }
+  }
+}

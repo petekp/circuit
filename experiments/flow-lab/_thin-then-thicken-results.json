@@ -1,0 +1,62 @@
+{
+  "meta": {
+    "spike": "thin-then-thicken-demo",
+    "idea": "a flow researches first, then thickens its remaining steps to fit the findings",
+    "method": "two locked role sets through the real floor (no model): THIN triage vs THICK research-then-build",
+    "seamGates": "evaluateValidity (assemble + compile + catalog)",
+    "fullFloor": "evaluateValidity + evaluateRunnability (writer-coupling producer chain)"
+  },
+  "headline": {
+    "thin_is_runnable": true,
+    "thick_passes_seam_gates": true,
+    "thick_is_runnable": false,
+    "thicken_blocked_by_runnability_not_seam": true,
+    "blocking_abort": "plan (build.plan@v1): expected exactly one report writer for schema 'build.brief@v1', found 0"
+  },
+  "shapes": {
+    "thin": {
+      "id": "thin-triage",
+      "title": "THIN — research and report",
+      "composed": true,
+      "topology": [
+        "frame:frame",
+        "gather-context:gather-context",
+        "diagnose:diagnose",
+        "close-with-evidence:close-with-evidence"
+      ],
+      "stepCount": 4,
+      "valid": true,
+      "seamGatesAccept": true,
+      "runnable": true,
+      "aborts": [],
+      "verdict": "ACCEPTED: valid AND runnable — a flow that runs to completion"
+    },
+    "thick": {
+      "id": "research-then-build",
+      "title": "THICK — research, then build",
+      "composed": true,
+      "topology": [
+        "frame:frame",
+        "gather-context:gather-context",
+        "plan:plan",
+        "act:act",
+        "run-verification:run-verification",
+        "review:review",
+        "close-with-evidence:close-with-evidence"
+      ],
+      "stepCount": 7,
+      "valid": true,
+      "seamGatesAccept": true,
+      "runnable": false,
+      "aborts": [
+        {
+          "stepId": "plan",
+          "schema": "build.plan@v1",
+          "reason": "expected exactly one report writer for schema 'build.brief@v1', found 0"
+        }
+      ],
+      "verdict": "BLOCKED: passes the seam gates but the full floor finds a runtime abort (fail-closed)"
+    }
+  },
+  "lesson": "The thicken mechanism and safety envelope are proven (Phase 3). The blocker for thickening into a real BUILD tail is composer COVERAGE: the welded build-plan writer needs build.brief@v1, which only a checkpoint writer produces, so no composed role can satisfy it. Closing build.brief@v1 producibility-from-compose is the unlock for the north-star \"research, then build\" thicken — a known, separately-tracked gap, not a new one."
+}
