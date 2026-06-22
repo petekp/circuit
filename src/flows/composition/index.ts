@@ -56,3 +56,11 @@ export {
   type ProposeStage,
 } from './propose.js';
 export { PROPOSER_PROMPT, REPAIR_GUIDANCE } from './propose-prompts.js';
+export {
+  EQUIPMENT_PROFILES,
+  EQUIPMENT_PROFILE_IDS,
+  EquipmentProfileId,
+  isEquipmentProfileId,
+  profileToScope,
+  renderEquipmentProfileMenu,
+} from './equipment-profiles.js';

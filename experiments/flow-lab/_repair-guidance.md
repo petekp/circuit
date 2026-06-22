@@ -45,6 +45,11 @@ exact error(s). Read the error and apply the matching rule below.
   review, close-with-evidence, goal-close, goal-child-run. Do not invent a block —
   the close block is `close-with-evidence`, not `close`.
 
+- **"equipment profile 'X' is not in the allowed set [...]"**
+  A step's `equipment` names a profile that does not exist. Use exactly one of:
+  `read-only`, `editor`, `tester`, `full` — or remove the `equipment` field to
+  leave that step at the full tool surface.
+
 - **"no registered actual for <block>/<kind> ..."**
   The block is real but paired with the wrong execution kind. The fixed kinds are:
   frame → compose or checkpoint; plan → compose; gather-context, act, and review →

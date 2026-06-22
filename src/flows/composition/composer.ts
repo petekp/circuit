@@ -40,6 +40,12 @@ import {
   deriveActualMenu,
   entryIsRegisteredFor,
 } from './actual-menu.js';
+import {
+  EQUIPMENT_PROFILE_IDS,
+  type EquipmentProfileId,
+  isEquipmentProfileId,
+  profileToScope,
+} from './equipment-profiles.js';
 import { evaluateRunnability, outputIsReadableContract } from './evaluate.js';
 
 export type RelayRole = 'researcher' | 'implementer' | 'reviewer';
@@ -74,6 +80,16 @@ export interface CompositionRole {
   // two branches walls honestly; a branch with no goalText walls too (the sub-run
   // goalText invariant, per branch). Inert on non-fanout roles.
   readonly fanoutBranches?: readonly FanoutBranchRole[];
+  // Per-block equipment: the tool scope this step's worker is given, chosen from
+  // the closed profile menu (read-only | editor | tester | full). Topology says
+  // WHERE a block runs; equipment says WHAT capability it runs with — the lever
+  // that makes a generated flow fitted rather than a graph of identical
+  // do-everything workers. Omitted (or 'full') leaves the step at the
+  // connector's full surface, so a role set that declares nothing is byte-stable.
+  // A name outside the menu walls honestly (a vocabulary error). All profiles are
+  // trusted (guidance, not write-tier enforcement), so equipment is legal on any
+  // role's step.
+  readonly equipment?: EquipmentProfileId;
 }
 
 export interface FanoutBranchRole {
@@ -622,6 +638,28 @@ export function composeFlow(
       walls.push({ roleIndex: index, block: role.block, reason: 'unknown block id' });
       return;
     }
+    // Equipment is a closed menu: a profile name outside it is a vocabulary
+    // error (the proposer's JSON.parse would accept any string). Wall with a
+    // stable reason that names the bad value and the allowed set, so the repair
+    // pass can self-correct — the same shape as the (block, kind) menu wall.
+    if (role.equipment !== undefined && !isEquipmentProfileId(role.equipment)) {
+      walls.push({
+        roleIndex: index,
+        block: role.block,
+        reason: `equipment profile '${role.equipment}' is not in the allowed set [${EQUIPMENT_PROFILE_IDS.join(
+          ', ',
+        )}]`,
+      });
+      return;
+    }
+    // 'full' is the default surface, so it collapses to omission: attaching
+    // nothing keeps the schematic — not just the compiled step — byte-identical
+    // to a flow that never declared equipment. Only a tightening profile
+    // (read-only | editor | tester) attaches a scope.
+    const equipmentScope =
+      role.equipment === undefined || role.equipment === 'full'
+        ? undefined
+        : profileToScope(role.equipment);
     const outputGeneric = asString(block.output_contract);
     // A sub-run leaf runs a whole child flow; a child with no objective is
     // meaningless, so a sub-run role without goalText walls honestly rather than
@@ -956,6 +994,10 @@ export function composeFlow(
       ...(boundOutput === outputGeneric ? {} : { output: boundOutput }),
       protocol: `${roleSet.id}-${stepId}@v1`,
       writes,
+      // Per-block equipment: a non-default profile attaches its tool scope here;
+      // an omitted/'full' choice attaches nothing, so the compiled step is
+      // byte-identical to a flow that never declared equipment.
+      ...(equipmentScope === undefined ? {} : { equipmentScope }),
       ...(check === undefined ? {} : { check }),
       ...(checkpointPolicy === undefined ? {} : { checkpointPolicy }),
       // Single-kind blocks must omit execution (restating the bare default is

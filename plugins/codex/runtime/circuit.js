@@ -48094,6 +48094,36 @@ function entryIsRegisteredFor(entry, executionKind) {
   return true;
 }
 
+// dist/flows/composition/equipment-profiles.js
+var READ_TOOLS = ["Read", "Grep", "Glob"];
+var EquipmentProfileId = external_exports.enum(["read-only", "editor", "tester", "full"]);
+var EQUIPMENT_PROFILE_IDS = EquipmentProfileId.options;
+var EQUIPMENT_PROFILES = {
+  "read-only": {
+    scope: { tools: { allow: [...READ_TOOLS] }, enforcement: "trusted" },
+    purpose: "read, search, and list files; no edits or commands. For steps that investigate or gather context."
+  },
+  editor: {
+    scope: { tools: { allow: [...READ_TOOLS, "Edit", "Write"] }, enforcement: "trusted" },
+    purpose: "read, search, and edit or write files; no shell commands. For steps that change code or docs."
+  },
+  tester: {
+    scope: { tools: { allow: [...READ_TOOLS, "Bash"] }, enforcement: "trusted" },
+    purpose: "read, search, and run commands like tests and builds; no file edits. For steps that verify."
+  },
+  full: {
+    scope: DEFAULT_EQUIPMENT_SCOPE,
+    purpose: "the full tool surface (the default): read, edit, and run commands. For steps that need everything."
+  }
+};
+function isEquipmentProfileId(value) {
+  return EquipmentProfileId.safeParse(value).success;
+}
+function profileToScope(id) {
+  const { scope } = EQUIPMENT_PROFILES[id];
+  return scope.tools === "full" ? { tools: "full", enforcement: scope.enforcement } : { tools: { allow: [...scope.tools.allow] }, enforcement: scope.enforcement };
+}
+
 // dist/flows/composition/evaluate.js
 function asString2(value) {
   return value;
@@ -48501,6 +48531,15 @@ function composeFlow(roleSet, options) {
       walls.push({ roleIndex: index, block: role.block, reason: "unknown block id" });
       return;
     }
+    if (role.equipment !== void 0 && !isEquipmentProfileId(role.equipment)) {
+      walls.push({
+        roleIndex: index,
+        block: role.block,
+        reason: `equipment profile '${role.equipment}' is not in the allowed set [${EQUIPMENT_PROFILE_IDS.join(", ")}]`
+      });
+      return;
+    }
+    const equipmentScope = role.equipment === void 0 || role.equipment === "full" ? void 0 : profileToScope(role.equipment);
     const outputGeneric = asString3(block.output_contract);
     if (role.executionKind === "sub-run" && (role.goalText === void 0 || role.goalText.trim().length === 0)) {
       walls.push({
@@ -48680,6 +48719,10 @@ function composeFlow(roleSet, options) {
       ...boundOutput === outputGeneric ? {} : { output: boundOutput },
       protocol: `${roleSet.id}-${stepId}@v1`,
       writes,
+      // Per-block equipment: a non-default profile attaches its tool scope here;
+      // an omitted/'full' choice attaches nothing, so the compiled step is
+      // byte-identical to a flow that never declared equipment.
+      ...equipmentScope === void 0 ? {} : { equipmentScope },
       ...check2 === void 0 ? {} : { check: check2 },
       ...checkpointPolicy === void 0 ? {} : { checkpointPolicy },
       // Single-kind blocks must omit execution (restating the bare default is
@@ -48861,6 +48904,23 @@ but never go backwards).
 - Always end at a \`close\` step marked \`terminal: true\`.
 - Reach for loop / fanout / sub-run ONLY when the task shape calls for it. Picking the right shape matters more than using a fancy one.
 
+## Equipment (optional \u2014 scope each worker step's tools)
+
+By default every step's worker gets the full tool surface. You may give a worker
+step (analyze / act / verify) a tighter scope with an \`equipment\` field, so the
+step is steered toward the tools its job needs. The scope is offered to the worker
+as guidance, not a hard limit. Pick ONE profile per step from this closed list, or
+omit \`equipment\` to keep the full surface:
+
+- \`read-only\` \u2014 read, search, and list files; no edits or commands. For steps that investigate or gather context.
+- \`editor\` \u2014 read, search, and edit or write files; no shell commands. For steps that change code or docs.
+- \`tester\` \u2014 read, search, and run commands like tests and builds; no file edits. For steps that verify.
+- \`full\` \u2014 the full tool surface (the default): read, edit, and run commands. For steps that need everything.
+
+Fit the profile to the step: \`read-only\` for \`gather-context\`/\`diagnose\`, \`editor\`
+for \`act\`, \`tester\` for \`run-verification\`. Leave it off when a step truly needs
+everything.
+
 ## Output format
 
 Emit ONLY this JSON (no prose, no markdown fence), filling in the roles:
@@ -48872,9 +48932,9 @@ Emit ONLY this JSON (no prose, no markdown fence), filling in the roles:
   "purpose": "One sentence: what this flow does for the task.",
   "roles": [
     { "stage": "frame", "block": "frame", "executionKind": "compose" },
-    { "stage": "analyze", "block": "gather-context", "executionKind": "relay", "relayRole": "researcher" },
-    { "stage": "act", "block": "act", "executionKind": "relay", "relayRole": "implementer" },
-    { "stage": "verify", "block": "run-verification", "executionKind": "verification" },
+    { "stage": "analyze", "block": "gather-context", "executionKind": "relay", "relayRole": "researcher", "equipment": "read-only" },
+    { "stage": "act", "block": "act", "executionKind": "relay", "relayRole": "implementer", "equipment": "editor" },
+    { "stage": "verify", "block": "run-verification", "executionKind": "verification", "equipment": "tester" },
     { "stage": "close", "block": "close-with-evidence", "executionKind": "compose", "terminal": true }
   ]
 }
@@ -48882,7 +48942,8 @@ Emit ONLY this JSON (no prose, no markdown fence), filling in the roles:
 
 Per-role fields: \`stage\`, \`block\`, \`executionKind\` always; add \`relayRole\` for relay
 steps; \`loopBackTo\` to make a verify step retry; \`flowId\`+\`goalText\` for a sub-run;
-\`fanoutBranches\` for a fanout; \`terminal: true\` on the close step.
+\`fanoutBranches\` for a fanout; \`terminal: true\` on the close step; \`equipment\`
+(read-only | editor | tester | full) to scope a worker step's tools.
 
 ## Common mistakes to avoid
 
@@ -48939,6 +49000,11 @@ exact error(s). Read the error and apply the matching rule below.
   review-intake, goal, gather-context, diagnose, plan, act, run-verification,
   review, close-with-evidence, goal-close, goal-child-run. Do not invent a block \u2014
   the close block is \`close-with-evidence\`, not \`close\`.
+
+- **"equipment profile 'X' is not in the allowed set [...]"**
+  A step's \`equipment\` names a profile that does not exist. Use exactly one of:
+  \`read-only\`, \`editor\`, \`tester\`, \`full\` \u2014 or remove the \`equipment\` field to
+  leave that step at the full tool surface.
 
 - **"no registered actual for <block>/<kind> ..."**
   The block is real but paired with the wrong execution kind. The fixed kinds are:

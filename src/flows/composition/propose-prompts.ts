@@ -75,6 +75,23 @@ but never go backwards).
 - Always end at a \`close\` step marked \`terminal: true\`.
 - Reach for loop / fanout / sub-run ONLY when the task shape calls for it. Picking the right shape matters more than using a fancy one.
 
+## Equipment (optional — scope each worker step's tools)
+
+By default every step's worker gets the full tool surface. You may give a worker
+step (analyze / act / verify) a tighter scope with an \`equipment\` field, so the
+step is steered toward the tools its job needs. The scope is offered to the worker
+as guidance, not a hard limit. Pick ONE profile per step from this closed list, or
+omit \`equipment\` to keep the full surface:
+
+- \`read-only\` — read, search, and list files; no edits or commands. For steps that investigate or gather context.
+- \`editor\` — read, search, and edit or write files; no shell commands. For steps that change code or docs.
+- \`tester\` — read, search, and run commands like tests and builds; no file edits. For steps that verify.
+- \`full\` — the full tool surface (the default): read, edit, and run commands. For steps that need everything.
+
+Fit the profile to the step: \`read-only\` for \`gather-context\`/\`diagnose\`, \`editor\`
+for \`act\`, \`tester\` for \`run-verification\`. Leave it off when a step truly needs
+everything.
+
 ## Output format
 
 Emit ONLY this JSON (no prose, no markdown fence), filling in the roles:
@@ -86,9 +103,9 @@ Emit ONLY this JSON (no prose, no markdown fence), filling in the roles:
   "purpose": "One sentence: what this flow does for the task.",
   "roles": [
     { "stage": "frame", "block": "frame", "executionKind": "compose" },
-    { "stage": "analyze", "block": "gather-context", "executionKind": "relay", "relayRole": "researcher" },
-    { "stage": "act", "block": "act", "executionKind": "relay", "relayRole": "implementer" },
-    { "stage": "verify", "block": "run-verification", "executionKind": "verification" },
+    { "stage": "analyze", "block": "gather-context", "executionKind": "relay", "relayRole": "researcher", "equipment": "read-only" },
+    { "stage": "act", "block": "act", "executionKind": "relay", "relayRole": "implementer", "equipment": "editor" },
+    { "stage": "verify", "block": "run-verification", "executionKind": "verification", "equipment": "tester" },
     { "stage": "close", "block": "close-with-evidence", "executionKind": "compose", "terminal": true }
   ]
 }
@@ -96,7 +113,8 @@ Emit ONLY this JSON (no prose, no markdown fence), filling in the roles:
 
 Per-role fields: \`stage\`, \`block\`, \`executionKind\` always; add \`relayRole\` for relay
 steps; \`loopBackTo\` to make a verify step retry; \`flowId\`+\`goalText\` for a sub-run;
-\`fanoutBranches\` for a fanout; \`terminal: true\` on the close step.
+\`fanoutBranches\` for a fanout; \`terminal: true\` on the close step; \`equipment\`
+(read-only | editor | tester | full) to scope a worker step's tools.
 
 ## Common mistakes to avoid
 
@@ -154,6 +172,11 @@ exact error(s). Read the error and apply the matching rule below.
   review-intake, goal, gather-context, diagnose, plan, act, run-verification,
   review, close-with-evidence, goal-close, goal-child-run. Do not invent a block —
   the close block is \`close-with-evidence\`, not \`close\`.
+
+- **"equipment profile 'X' is not in the allowed set [...]"**
+  A step's \`equipment\` names a profile that does not exist. Use exactly one of:
+  \`read-only\`, \`editor\`, \`tester\`, \`full\` — or remove the \`equipment\` field to
+  leave that step at the full tool surface.
 
 - **"no registered actual for <block>/<kind> ..."**
   The block is real but paired with the wrong execution kind. The fixed kinds are:
