@@ -98,14 +98,23 @@ Per-role fields: \`stage\`, \`block\`, \`executionKind\` always; add \`relayRole
 steps; \`loopBackTo\` to make a verify step retry; \`flowId\`+\`goalText\` for a sub-run;
 \`fanoutBranches\` for a fanout; \`terminal: true\` on the close step.
 
+## Common mistakes to avoid
+
+- Use ONLY the exact block ids and execution kinds from the menu above. The close
+  block is \`close-with-evidence\`, not \`close\`. \`run-verification\` runs as
+  \`verification\`, not \`relay\`. Every \`stage\` must be one of: frame, analyze, plan,
+  act, verify, review, close.
+
 Output ONLY the JSON object for the TASK below. No explanation.
 `;
 
 export const REPAIR_GUIDANCE = `# Repairing a rejected flow
 
-A verifier checked the flow you proposed and REJECTED it because some step needs
-an input report that no earlier step produces. Every step's required inputs must
-be produced by a step before it. Revise your role set so it passes.
+A verifier checked the flow you proposed and REJECTED it. The cause is specific:
+it might be a step whose required input no earlier step produces, OR a step that
+uses a name outside the allowed vocabulary (a wrong stage, block id, or execution
+kind). Read the verifier's exact error, match it to a rule below, and change only
+what the error names. Revise your role set so it passes.
 
 You will be given: the original task, the flow you proposed, and the verifier's
 exact error(s). Read the error and apply the matching rule below.
@@ -134,6 +143,24 @@ exact error(s). Read the error and apply the matching rule below.
   fanout's internals and will not bind. For a fanout flow, do NOT add a
   \`run-verification\` step — go from the \`act / fanout\` step to a \`review\` step
   (relay, reviewer) and then \`close\`. The fanout's branches verify themselves.
+
+- **"Invalid option: expected one of ..." (naming the stage names)**
+  A step's \`stage\` is not one of the seven allowed stages. Set every step's \`stage\`
+  to one of, and keep them in this order: frame, analyze, plan, act, verify,
+  review, close.
+
+- **"... unknown block id"**
+  A step's \`block\` is not in the menu. Use only these exact block ids: frame,
+  review-intake, goal, gather-context, diagnose, plan, act, run-verification,
+  review, close-with-evidence, goal-close, goal-child-run. Do not invent a block —
+  the close block is \`close-with-evidence\`, not \`close\`.
+
+- **"no registered actual for <block>/<kind> ..."**
+  The block is real but paired with the wrong execution kind. The fixed kinds are:
+  frame → compose or checkpoint; plan → compose; gather-context, act, and review →
+  relay; diagnose → relay or compose; run-verification → verification (NOT relay);
+  close-with-evidence and goal-close → compose; goal-child-run → sub-run; a parallel
+  act → fanout. Set this step's \`executionKind\` to the one its block supports.
 
 ## General principles
 

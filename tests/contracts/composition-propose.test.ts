@@ -61,6 +61,24 @@ const REPAIRED: CompositionRoleSet = {
   ],
 };
 
+// A VOCABULARY error (not a writer-coupling one): run-verification paired with the
+// wrong execution kind. The block is real but `relay` is not a kind it produces an
+// actual in, so the floor walls with "no registered actual for run-verification/relay".
+// This is one of the two real live-run walls; the repair guidance must steer it back
+// to the menu's `verification` kind rather than misdiagnosing it as a missing input.
+const WRONG_VERIFY_KIND: CompositionRoleSet = {
+  id: 'wrong-verify-kind',
+  title: 'Wrong Verify Kind',
+  purpose: 'run-verification paired with the wrong execution kind (relay, not verification).',
+  roles: [
+    { stage: 'frame', block: 'frame', executionKind: 'compose' },
+    { stage: 'analyze', block: 'diagnose', executionKind: 'relay', relayRole: 'researcher' },
+    { stage: 'act', block: 'act', executionKind: 'relay', relayRole: 'implementer' },
+    { stage: 'verify', block: 'run-verification', executionKind: 'relay' },
+    { stage: 'close', block: 'close-with-evidence', executionKind: 'compose', terminal: true },
+  ],
+};
+
 // --- scripted stub relay: a queue of responses, one consumed per call -------
 // A response is a role set (serialized to result_body), a raw string (to drive
 // the parse path), or an Error (to drive the relay-failure path).
@@ -199,6 +217,42 @@ describe('proposeFlow — propose + verifier-driven repair', () => {
     if (outcome.ok) return;
     expect(outcome.reason).toBe('relay');
     expect(outcome.errors.some((e) => e.includes('connector timed out'))).toBe(true);
+  });
+
+  it('VOCAB-REPAIR: a wrong execution kind walls, and the guidance steers it back to the menu', async () => {
+    const { relay, calls } = scriptedRelay([WRONG_VERIFY_KIND, REPAIRED]);
+
+    const outcome = await proposeFlow({ task: TASK, relay, maxRepair: 2 });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.convergedRound).toBe(1);
+    // The exact vocabulary wall from the floor is fed back into the repair round.
+    const fedBack = outcome.rounds[1]?.errorsFedBack ?? [];
+    expect(fedBack.some((e) => e.includes('no registered actual for run-verification/relay'))).toBe(
+      true,
+    );
+    // Discriminating: the SPECIFIC floor wall (not just the always-present guidance
+    // text) must reach the model in the repair prompt. This fails if the verbatim
+    // error is not fed in — a check for the guidance text alone could not.
+    const repairPrompt = calls[1]?.prompt ?? '';
+    expect(repairPrompt).toContain('no registered actual for run-verification/relay');
+    // And the guidance the model reads carries the rule that names the fix for this
+    // class — asserted against the constant, so it fails if the rule is removed.
+    expect(REPAIR_GUIDANCE).toContain('run-verification → verification (NOT relay)');
+  });
+
+  it('DEFAULT BUDGET: with no maxRepair, the default allows four repair rounds', async () => {
+    // 1 propose + 4 repairs, every emission walling: proves the default budget is 4.
+    const { relay, calls } = scriptedRelay([WALLING, WALLING, WALLING, WALLING, WALLING]);
+
+    const outcome = await proposeFlow({ task: TASK, relay });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toBe('wall');
+    expect(outcome.rounds).toHaveLength(5);
+    expect(calls).toHaveLength(5);
   });
 
   it('INERT + FIDELITY: the inlined prompts are byte-identical to the validated .md artifacts', () => {

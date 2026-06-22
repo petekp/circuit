@@ -81,4 +81,11 @@ Per-role fields: `stage`, `block`, `executionKind` always; add `relayRole` for r
 steps; `loopBackTo` to make a verify step retry; `flowId`+`goalText` for a sub-run;
 `fanoutBranches` for a fanout; `terminal: true` on the close step.
 
+## Common mistakes to avoid
+
+- Use ONLY the exact block ids and execution kinds from the menu above. The close
+  block is `close-with-evidence`, not `close`. `run-verification` runs as
+  `verification`, not `relay`. Every `stage` must be one of: frame, analyze, plan,
+  act, verify, review, close.
+
 Output ONLY the JSON object for the TASK below. No explanation.
