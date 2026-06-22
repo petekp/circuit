@@ -1,0 +1,93 @@
+[
+  {
+    "taskId": "flaky-test",
+    "contextClass": "shift",
+    "situation": "An integration test for the file-upload endpoint fails intermittently, about one run in four, and the cause is unknown. Make it reliably pass.\n\nWhat investigation found:\nThe failure is a genuine race condition in the shared ConnectionPool.acquire() path under concurrent requests, not a test-only timing issue. Two other endpoints (export, import) use the same pool and could hit the same race. There is no existing harness for exercising concurrency. A test-level retry would hide the race while leaving the production bug in place. The pool code itself has no unit tests.",
+    "optionX": "frame:frame(compose)  ->  analyze:gather-context(relay/researcher)  ->  analyze:diagnose(relay/researcher)  ->  plan:plan(compose)  ->  act:act(relay/implementer)  ->  verify:run-verification(verification)  ->  close:close-with-evidence(compose) [end]",
+    "optionY": "frame:frame(compose)  ->  analyze:gather-context(relay/researcher)  ->  plan:plan(compose)  ->  act:act(relay/implementer)  ->  verify:run-verification(verification)  ->  close:close-with-evidence(compose) [end]",
+    "_mapping": {
+      "X": "A",
+      "Y": "B"
+    },
+    "_rawShapeA": "loop",
+    "_rawShapeB": "linear"
+  },
+  {
+    "taskId": "export-feature",
+    "contextClass": "shift",
+    "situation": "Build a CSV export feature for the reports page: add an endpoint, a serializer, and a download button, with tests.\n\nWhat investigation found:\nsrc/export/ already provides a generic StreamingExporter with a documented Serializer interface; JSON, XLSX, and PDF formats already plug in by implementing that one interface and registering it in a format map. Adding CSV is implementing one Serializer plus one registry line. The download button is a shared component that already takes a format prop. A golden-file test pattern exists for the other formats.",
+    "optionX": "frame:frame(compose)  ->  analyze:gather-context(relay/researcher)  ->  act:act(relay/implementer)  ->  verify:run-verification(verification)  ->  close:close-with-evidence(compose) [end]",
+    "optionY": "frame:frame(compose)  ->  analyze:gather-context(relay/researcher)  ->  plan:plan(compose)  ->  act:act(relay/implementer)  ->  verify:run-verification(verification)  ->  close:close-with-evidence(compose) [end]",
+    "_mapping": {
+      "X": "B",
+      "Y": "A"
+    },
+    "_rawShapeA": "linear",
+    "_rawShapeB": "linear"
+  },
+  {
+    "taskId": "auth-migration",
+    "contextClass": "shift",
+    "situation": "Decide whether to move our internal service auth from session cookies to JWTs, and if it is the right call, carry out the migration.\n\nWhat investigation found:\nAll 43 internal endpoints route through a single requireSession() middleware; a vetted token utility (sign/verify) already exists and is used for password resets; a feature-flag system can gate a phased rollout; a staging environment mirrors production; no third-party integrations depend on the cookie format. The change is mechanical but touches every endpoint.",
+    "optionX": "frame:frame(compose)  ->  analyze:gather-context(relay/researcher)  ->  analyze:diagnose(compose)  ->  plan:plan(compose)  ->  act:act(relay/implementer)  ->  verify:run-verification(verification)  ->  review:review(relay/reviewer)  ->  close:close-with-evidence(compose) [end]",
+    "optionY": "frame:frame(compose)  ->  analyze:gather-context(relay/researcher)  ->  plan:plan(compose)  ->  act:act(relay/implementer)  ->  verify:run-verification(verification)  ->  close:close-with-evidence(compose) [end]",
+    "_mapping": {
+      "X": "A",
+      "Y": "B"
+    },
+    "_rawShapeA": "linear",
+    "_rawShapeB": "linear"
+  },
+  {
+    "taskId": "audit-then-fix",
+    "contextClass": "shift",
+    "situation": "Take a look at the authentication module for security problems.\n\nWhat investigation found:\nA confirmed SQL-injection in the login query (user input concatenated into SQL), plus two lower-severity issues (a permissive CORS rule and a missing rate limit on login). The team has asked for the confirmed injection to be fixed in this same change, and the others triaged.",
+    "optionX": "frame:frame(compose)  ->  analyze:gather-context(relay/researcher)  ->  plan:plan(compose)  ->  act:act(relay/implementer)  ->  verify:run-verification(verification)  ->  review:review(relay/reviewer)  ->  close:close-with-evidence(compose) [end]",
+    "optionY": "frame:review-intake(compose)  ->  analyze:gather-context(relay/researcher)  ->  analyze:diagnose(compose)  ->  review:review(relay/reviewer)  ->  close:close-with-evidence(compose) [end]",
+    "_mapping": {
+      "X": "B",
+      "Y": "A"
+    },
+    "_rawShapeA": "review-only",
+    "_rawShapeB": "linear"
+  },
+  {
+    "taskId": "vague-improve",
+    "contextClass": "shift",
+    "situation": "Make the checkout flow better.\n\nWhat investigation found:\nThe checkout has no automated tests; the main CheckoutContainer is a single 640-line component mixing data-fetching, validation, and rendering; there is one open, reproducible bug where applying a discount code after editing the cart silently drops the discount; analytics show a 12% drop-off at the payment step.",
+    "optionX": "frame:frame(compose)  ->  analyze:gather-context(relay/researcher)  ->  plan:plan(compose)  ->  act:act(relay/implementer)  ->  verify:run-verification(verification)  ->  review:review(relay/reviewer)  ->  close:close-with-evidence(compose) [end]",
+    "optionY": "frame:frame(compose)  ->  analyze:gather-context(relay/researcher)  ->  plan:plan(compose)  ->  act:act(relay/implementer)  ->  verify:run-verification(verification)  ->  review:review(relay/reviewer)  ->  close:close-with-evidence(compose) [end]",
+    "_mapping": {
+      "X": "A",
+      "Y": "B"
+    },
+    "_rawShapeA": "linear",
+    "_rawShapeB": "linear"
+  },
+  {
+    "taskId": "simple-fix-control",
+    "contextClass": "control",
+    "situation": "A date helper returns the wrong month for the last day of any 31-day month (an off-by-one). Fix it so the existing unit tests pass.\n\nWhat investigation found:\nThe bug is a single off-by-one in getMonthIndex() at src/date/helpers.ts:42; the existing unit test file already covers the failing cases; nothing else in the codebase relies on the incorrect behavior.",
+    "optionX": "frame:frame(compose)  ->  act:act(relay/implementer)  ->  verify:run-verification(verification)  ->  close:close-with-evidence(compose) [end]",
+    "optionY": "frame:frame(compose)  ->  analyze:diagnose(relay/researcher)  ->  act:act(relay/implementer)  ->  verify:run-verification(verification)  ->  close:close-with-evidence(compose) [end]",
+    "_mapping": {
+      "X": "B",
+      "Y": "A"
+    },
+    "_rawShapeA": "linear",
+    "_rawShapeB": "linear"
+  },
+  {
+    "taskId": "audit-readonly-control",
+    "contextClass": "control",
+    "situation": "Do a security review of the payments module before release. Do not change any code; just write up what you find.\n\nWhat investigation found:\nThe module is small (about 300 lines), already has good test coverage, and the review is genuinely read-only; no issues were pre-identified, and the release process forbids code changes in this window.",
+    "optionX": "frame:review-intake(compose)  ->  analyze:gather-context(relay/researcher)  ->  analyze:diagnose(relay/researcher)  ->  close:close-with-evidence(compose) [end]",
+    "optionY": "frame:review-intake(compose)  ->  analyze:gather-context(relay/researcher)  ->  analyze:diagnose(relay/researcher)  ->  close:close-with-evidence(compose) [end]",
+    "_mapping": {
+      "X": "A",
+      "Y": "B"
+    },
+    "_rawShapeA": "review-only",
+    "_rawShapeB": "review-only"
+  }
+]

@@ -27,6 +27,10 @@
 > (genuine-LINEAR live close + the offline runnability wall). With Phase C (#135),
 > **all four composed shapes (linear, loop, sub-run, fanout) now run a full composed
 > flow to `@complete`** — sub-run was the last that had only run its step in isolation.
+> Also refreshed for the **thin-then-thicken night run** (offline dossier + one live
+> premise probe, no `src/` change): verdict **HELD**, blocker sharpened to two walls —
+> a composer contract-alias collision and an unreliable per-step necessity judgement;
+> see §6 and §7.
 
 ## Status legend
 
@@ -463,6 +467,31 @@ interactive site, with two genuine operator forks (PICK, SIGN-OFF).
   ingredient** — graph shape is near-free on efficacy and not free on cost. Bounded claim: "no
   topology effect detected on **non-discriminating** tasks," not "topology doesn't matter."
   [`composed-shape-sensitivity-finding`](../../evals/dynamic-vs-reference/composed-shape-sensitivity-finding.md).
+- **Thin-then-thicken ("generate thin, then thicken") — HELD, with the blocker sharpened to
+  two walls.** Pete's idea: a flow starts thin (a research step), then *thickens* its remaining
+  steps to fit what research found. Night run, offline spikes ($0) plus one small live premise
+  probe (pinned `claude-haiku-4-5`). Three findings. **(Phase 3, offline)** the splice mechanism
+  is *safe*: a `spliceIntoRemainingSteps` seam re-runs the schema + catalog gates and catches an
+  in-position producer break, but a model-**composed** tail can introduce a writer whose internal
+  read has no producer — fail-open through the seam, caught only by the full `evaluateRunnability`.
+  So any thicken that splices a composed tail must re-run the full floor, not just schema+catalog.
+  **(Phase 2.5, offline)** the thing it would thicken *into* — a real build tail grown from a
+  compose-framed research head — does not assemble today, and the blocker is **not** a missing
+  producer (a mid-flow content checkpoint *does* mint `build.brief@v1`) but a **contract-alias
+  collision**: the composer binds one actual per generic contract (`aliasByGeneric`,
+  `composer.ts:961`), so a flow cannot hold two brief families (research head + build tail) at once.
+  Narrow, tractable engine fix; unbuilt. **(Phase 1, live)** the premise that richer context yields
+  a *better-fitted* proposal came back a **wash** on the five shift tasks (2 helped / 2 hurt / 1
+  tie, blind 3-lens judge panel); context mostly makes the proposal *leaner*, and pruning drops a
+  needed step about as often as ceremony. The one clean failure (an auth migration that dropped its
+  decision/review step although the task explicitly asked to "decide whether") is a **per-step
+  necessity-judgement** failure, not an information deficit — corroborating PR #138's read that
+  step judgement, not graph shape, is the scarce ingredient. Caveat: the judge model shows a
+  pro-ceremony lean, so "leaner judged worse" is partly entangled with "context makes it leaner";
+  n is tiny and directional only. Verdict: **hold the bounded-thicken `src` capability; ship the
+  safety findings as a dossier.** Even if the alias-collision wall were fixed, the live probe says
+  the *benefit* (better-fitted flows from research) is not yet reliable. The dossier:
+  [`_thicken-finding.md`](../../experiments/flow-lab/_thicken-finding.md).
 
 ---
 
@@ -576,7 +605,17 @@ below; the rows above carry the detail.
   remaining step *sequence*, fail open if rushed, and need a green light — ideally
   designed *with* the first concrete flow that wants to decompose a step mid-run, and
   treating the demonstrator's four caveats as the spec.
-  [`deepfork-splice-seam-spec.md`](deepfork-splice-seam-spec.md).
+  [`deepfork-splice-seam-spec.md`](deepfork-splice-seam-spec.md). **Thin-then-thicken
+  night-run note (HELD):** the bounded-thicken capability that would sit on this seam
+  is reserved for two reasons, not one. (1) Cross-family thicken (a research head + a
+  build tail) does not assemble — the composer binds one actual per generic contract
+  (`aliasByGeneric`, `composer.ts:961`), so two brief families collide; **per-scope
+  contract aliasing** is the precise engine unlock. (2) The *benefit* is unproven — a
+  live probe found richer context yields a better-fitted proposal only at chance on the
+  shift tasks, because the per-step necessity judgement is unreliable in both directions.
+  Build the alias fix and a reliable step-necessity judge **before** the thicken seam, and
+  build the seam **additive** (grow from minimal) not regenerative.
+  [`_thicken-finding.md`](../../experiments/flow-lab/_thicken-finding.md).
 - **Genuine block-composition (the Phase 2 assembler research track).** The dynamic
   assembler is VIABLE *by instantiation*; composing a **novel** flow from typed
   blocks via the **instantiation assembler** is a RESEARCH PROBLEM (eight fail-closed

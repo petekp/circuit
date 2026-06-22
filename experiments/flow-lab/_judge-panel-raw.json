@@ -1,0 +1,391 @@
+{
+  "summary": "Blind A/B judge panel: which proposed dev-flow shape better fits each task situation",
+  "agentCount": 21,
+  "logs": [
+    "judged 7 tasks, 21/21 verdicts returned"
+  ],
+  "result": {
+    "perTask": [
+      {
+        "taskId": "flaky-test",
+        "contextClass": "shift",
+        "votes": [
+          {
+            "lens": "task-fit",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The situation has an unknown root cause (a subtle race in shared pool code), so Flow X's dedicated analyze:diagnose step after gather-context is exactly the right fit; Flow Y omits diagnosis and jumps from context to plan, under-built for a cause that must be analyzed before fixing."
+          },
+          {
+            "lens": "sufficiency",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The situation states the cause is unknown and is a subtle race condition in shared pool code; Flow X's dedicated analyze:diagnose step forces root-cause analysis before planning, which Flow Y skips, risking a plan built on an unconfirmed cause."
+          },
+          {
+            "lens": "minimality",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The explicit diagnose step decides it: the failure is intermittent with an unknown cause and a masking trap (a test retry would hide the real ConnectionPool race), so pinning root cause before planning is exactly what this situation requires. Flow Y folds diagnosis into plan and risks jumping to a fix shape before the race is understood."
+          }
+        ],
+        "counts": {
+          "X": 3,
+          "Y": 0,
+          "tie": 0
+        },
+        "majority": "X"
+      },
+      {
+        "taskId": "export-feature",
+        "contextClass": "shift",
+        "votes": [
+          {
+            "lens": "task-fit",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The plan step in Flow Y is the deciding step: the investigation shows a fully-paved path (one Serializer + one registry line against a documented interface, a shared button, an existing golden-file test pattern), so there is no design decision for a plan step to resolve, making Flow Y over-built. Flow X's gather-context, act, verify, close is the right fit."
+          },
+          {
+            "lens": "sufficiency",
+            "winner": "X",
+            "confidence": "medium",
+            "reason": "Both flows are identical except Y adds a plan:plan(compose) step. Investigation showed the work is a mechanical, well-scoped implementation against a documented interface (one Serializer plus one registry line, shared button, existing golden-file test pattern), so the dedicated planning step in Y is a wasted step and the leaner X fits better."
+          },
+          {
+            "lens": "minimality",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The plan step in Flow Y is the only difference and it adds no value here: investigation already reduced the task to implementing one documented Serializer interface plus one registry line with an existing button and golden-test pattern, so there is no design decision left to plan."
+          }
+        ],
+        "counts": {
+          "X": 3,
+          "Y": 0,
+          "tie": 0
+        },
+        "majority": "X"
+      },
+      {
+        "taskId": "auth-migration",
+        "contextClass": "shift",
+        "votes": [
+          {
+            "lens": "task-fit",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The task explicitly asks to first decide whether the migration is the right call, which is exactly what X's diagnose step provides and Y omits; X's reviewer step also fits an auth change touching all 43 endpoints, whereas Y is under-built for both the decision and the security stakes."
+          },
+          {
+            "lens": "sufficiency",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The situation asks to first decide whether to migrate, then execute; Flow X's analyze:diagnose step makes that go/no-go decision Flow Y lacks, and its review step independently verifies a security-sensitive auth change touching all 43 endpoints."
+          },
+          {
+            "lens": "minimality",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The situation explicitly asks to first decide whether the migration is the right call, which the diagnose step in X provides and Y lacks; and touching all 43 auth endpoints is a high-blast-radius security change where X's reviewer step earns its place."
+          }
+        ],
+        "counts": {
+          "X": 3,
+          "Y": 0,
+          "tie": 0
+        },
+        "majority": "X"
+      },
+      {
+        "taskId": "audit-then-fix",
+        "contextClass": "shift",
+        "votes": [
+          {
+            "lens": "task-fit",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The situation requires the confirmed SQL-injection to be fixed in this same change, but Flow Y is read-only (no act, no run-verification) so it cannot deliver or prove the fix. Flow X's act + run-verification steps match the requirement to implement and verify the fix."
+          },
+          {
+            "lens": "sufficiency",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The situation requires the confirmed SQL-injection to be fixed in this same change, which needs the act:act(implementer) and verify:run-verification steps that only Flow X has. Flow Y is read-only (diagnose then review/close), so it would leave the requested fix unimplemented and unverified."
+          },
+          {
+            "lens": "minimality",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The task requires fixing the confirmed SQL-injection in this same change, but Flow Y is read-only with no act or run-verification step, so it cannot deliver or prove the fix. Flow X's act + run-verification steps are exactly what this confirmed-defect situation demands."
+          }
+        ],
+        "counts": {
+          "X": 3,
+          "Y": 0,
+          "tie": 0
+        },
+        "majority": "X"
+      },
+      {
+        "taskId": "vague-improve",
+        "contextClass": "shift",
+        "votes": [
+          {
+            "lens": "task-fit",
+            "winner": "tie",
+            "confidence": "high",
+            "reason": "Flow X and Flow Y are identical step-for-step (frame, gather-context, plan, act, run-verification, review, close-with-evidence), so neither fits the situation better than the other."
+          },
+          {
+            "lens": "sufficiency",
+            "winner": "tie",
+            "confidence": "high",
+            "reason": "Both flows are identical step-for-step (frame -> gather-context -> plan -> act -> run-verification -> review -> close-with-evidence), so neither has any edge for this situation."
+          },
+          {
+            "lens": "minimality",
+            "winner": "tie",
+            "confidence": "high",
+            "reason": "Flow X and Flow Y are identical step-for-step (frame -> gather-context -> plan -> act -> run-verification -> review -> close-with-evidence), so neither can win on the merits."
+          }
+        ],
+        "counts": {
+          "X": 0,
+          "Y": 0,
+          "tie": 3
+        },
+        "majority": "tie"
+      },
+      {
+        "taskId": "simple-fix-control",
+        "contextClass": "control",
+        "votes": [
+          {
+            "lens": "task-fit",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "Root cause is already pinned (single off-by-one at helpers.ts:42), so Flow Y's diagnose step is redundant work; Flow X goes straight to act + run-verification, which fits a known one-line fix with existing tests."
+          },
+          {
+            "lens": "sufficiency",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The diagnose step in Y is wasted work because the situation already names the exact root cause and location; X reaches the same fix-and-verify outcome without it."
+          },
+          {
+            "lens": "minimality",
+            "winner": "X",
+            "confidence": "high",
+            "reason": "The root cause is already pinned to one line (getMonthIndex off-by-one), so Flow Y's diagnose step is redundant ceremony; Flow X's act->verify->close is minimal-but-sufficient since the existing tests prove the fix."
+          }
+        ],
+        "counts": {
+          "X": 3,
+          "Y": 0,
+          "tie": 0
+        },
+        "majority": "X"
+      },
+      {
+        "taskId": "audit-readonly-control",
+        "contextClass": "control",
+        "votes": [
+          {
+            "lens": "task-fit",
+            "winner": "tie",
+            "confidence": "high",
+            "reason": "The two flows are byte-identical (review-intake -> gather-context -> diagnose -> close-with-evidence), so neither can win on the merits; both are correctly read-only for this code-frozen security review."
+          },
+          {
+            "lens": "sufficiency",
+            "winner": "tie",
+            "confidence": "high",
+            "reason": "Both flows are identical: review-intake -> gather-context -> diagnose -> close-with-evidence, a read-only shape that correctly omits act/verification per the \"do not change code\" constraint."
+          },
+          {
+            "lens": "minimality",
+            "winner": "tie",
+            "confidence": "high",
+            "reason": "The two flows are identical step-for-step (review-intake -> gather-context -> diagnose -> close-with-evidence), and that read-only shape is exactly right for a no-code-change security review."
+          }
+        ],
+        "counts": {
+          "X": 0,
+          "Y": 0,
+          "tie": 3
+        },
+        "majority": "tie"
+      }
+    ],
+    "rawVerdicts": [
+      {
+        "taskId": "flaky-test",
+        "contextClass": "shift",
+        "lens": "task-fit",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The situation has an unknown root cause (a subtle race in shared pool code), so Flow X's dedicated analyze:diagnose step after gather-context is exactly the right fit; Flow Y omits diagnosis and jumps from context to plan, under-built for a cause that must be analyzed before fixing."
+      },
+      {
+        "taskId": "flaky-test",
+        "contextClass": "shift",
+        "lens": "sufficiency",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The situation states the cause is unknown and is a subtle race condition in shared pool code; Flow X's dedicated analyze:diagnose step forces root-cause analysis before planning, which Flow Y skips, risking a plan built on an unconfirmed cause."
+      },
+      {
+        "taskId": "flaky-test",
+        "contextClass": "shift",
+        "lens": "minimality",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The explicit diagnose step decides it: the failure is intermittent with an unknown cause and a masking trap (a test retry would hide the real ConnectionPool race), so pinning root cause before planning is exactly what this situation requires. Flow Y folds diagnosis into plan and risks jumping to a fix shape before the race is understood."
+      },
+      {
+        "taskId": "export-feature",
+        "contextClass": "shift",
+        "lens": "task-fit",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The plan step in Flow Y is the deciding step: the investigation shows a fully-paved path (one Serializer + one registry line against a documented interface, a shared button, an existing golden-file test pattern), so there is no design decision for a plan step to resolve, making Flow Y over-built. Flow X's gather-context, act, verify, close is the right fit."
+      },
+      {
+        "taskId": "export-feature",
+        "contextClass": "shift",
+        "lens": "sufficiency",
+        "winner": "X",
+        "confidence": "medium",
+        "reason": "Both flows are identical except Y adds a plan:plan(compose) step. Investigation showed the work is a mechanical, well-scoped implementation against a documented interface (one Serializer plus one registry line, shared button, existing golden-file test pattern), so the dedicated planning step in Y is a wasted step and the leaner X fits better."
+      },
+      {
+        "taskId": "export-feature",
+        "contextClass": "shift",
+        "lens": "minimality",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The plan step in Flow Y is the only difference and it adds no value here: investigation already reduced the task to implementing one documented Serializer interface plus one registry line with an existing button and golden-test pattern, so there is no design decision left to plan."
+      },
+      {
+        "taskId": "auth-migration",
+        "contextClass": "shift",
+        "lens": "task-fit",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The task explicitly asks to first decide whether the migration is the right call, which is exactly what X's diagnose step provides and Y omits; X's reviewer step also fits an auth change touching all 43 endpoints, whereas Y is under-built for both the decision and the security stakes."
+      },
+      {
+        "taskId": "auth-migration",
+        "contextClass": "shift",
+        "lens": "sufficiency",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The situation asks to first decide whether to migrate, then execute; Flow X's analyze:diagnose step makes that go/no-go decision Flow Y lacks, and its review step independently verifies a security-sensitive auth change touching all 43 endpoints."
+      },
+      {
+        "taskId": "auth-migration",
+        "contextClass": "shift",
+        "lens": "minimality",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The situation explicitly asks to first decide whether the migration is the right call, which the diagnose step in X provides and Y lacks; and touching all 43 auth endpoints is a high-blast-radius security change where X's reviewer step earns its place."
+      },
+      {
+        "taskId": "audit-then-fix",
+        "contextClass": "shift",
+        "lens": "task-fit",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The situation requires the confirmed SQL-injection to be fixed in this same change, but Flow Y is read-only (no act, no run-verification) so it cannot deliver or prove the fix. Flow X's act + run-verification steps match the requirement to implement and verify the fix."
+      },
+      {
+        "taskId": "audit-then-fix",
+        "contextClass": "shift",
+        "lens": "sufficiency",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The situation requires the confirmed SQL-injection to be fixed in this same change, which needs the act:act(implementer) and verify:run-verification steps that only Flow X has. Flow Y is read-only (diagnose then review/close), so it would leave the requested fix unimplemented and unverified."
+      },
+      {
+        "taskId": "audit-then-fix",
+        "contextClass": "shift",
+        "lens": "minimality",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The task requires fixing the confirmed SQL-injection in this same change, but Flow Y is read-only with no act or run-verification step, so it cannot deliver or prove the fix. Flow X's act + run-verification steps are exactly what this confirmed-defect situation demands."
+      },
+      {
+        "taskId": "vague-improve",
+        "contextClass": "shift",
+        "lens": "task-fit",
+        "winner": "tie",
+        "confidence": "high",
+        "reason": "Flow X and Flow Y are identical step-for-step (frame, gather-context, plan, act, run-verification, review, close-with-evidence), so neither fits the situation better than the other."
+      },
+      {
+        "taskId": "vague-improve",
+        "contextClass": "shift",
+        "lens": "sufficiency",
+        "winner": "tie",
+        "confidence": "high",
+        "reason": "Both flows are identical step-for-step (frame -> gather-context -> plan -> act -> run-verification -> review -> close-with-evidence), so neither has any edge for this situation."
+      },
+      {
+        "taskId": "vague-improve",
+        "contextClass": "shift",
+        "lens": "minimality",
+        "winner": "tie",
+        "confidence": "high",
+        "reason": "Flow X and Flow Y are identical step-for-step (frame -> gather-context -> plan -> act -> run-verification -> review -> close-with-evidence), so neither can win on the merits."
+      },
+      {
+        "taskId": "simple-fix-control",
+        "contextClass": "control",
+        "lens": "task-fit",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "Root cause is already pinned (single off-by-one at helpers.ts:42), so Flow Y's diagnose step is redundant work; Flow X goes straight to act + run-verification, which fits a known one-line fix with existing tests."
+      },
+      {
+        "taskId": "simple-fix-control",
+        "contextClass": "control",
+        "lens": "sufficiency",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The diagnose step in Y is wasted work because the situation already names the exact root cause and location; X reaches the same fix-and-verify outcome without it."
+      },
+      {
+        "taskId": "simple-fix-control",
+        "contextClass": "control",
+        "lens": "minimality",
+        "winner": "X",
+        "confidence": "high",
+        "reason": "The root cause is already pinned to one line (getMonthIndex off-by-one), so Flow Y's diagnose step is redundant ceremony; Flow X's act->verify->close is minimal-but-sufficient since the existing tests prove the fix."
+      },
+      {
+        "taskId": "audit-readonly-control",
+        "contextClass": "control",
+        "lens": "task-fit",
+        "winner": "tie",
+        "confidence": "high",
+        "reason": "The two flows are byte-identical (review-intake -> gather-context -> diagnose -> close-with-evidence), so neither can win on the merits; both are correctly read-only for this code-frozen security review."
+      },
+      {
+        "taskId": "audit-readonly-control",
+        "contextClass": "control",
+        "lens": "sufficiency",
+        "winner": "tie",
+        "confidence": "high",
+        "reason": "Both flows are identical: review-intake -> gather-context -> diagnose -> close-with-evidence, a read-only shape that correctly omits act/verification per the \"do not change code\" constraint."
+      },
+      {
+        "taskId": "audit-readonly-control",
+        "contextClass": "control",
+        "lens": "minimality",
+        "winner": "tie",
+        "confidence": "high",
+        "reason": "The two flows are identical step-for-step (review-intake -> gather-context -> diagnose -> close-with-evidence), and that read-only shape is exactly right for a no-code-change security review."
+      }
+    ]
+  }
+}
