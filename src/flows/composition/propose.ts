@@ -38,7 +38,10 @@ import { type CompositionRoleSet, composeFlow } from './composer.js';
 import { evaluateRunnability, evaluateValidity } from './evaluate.js';
 import { PROPOSER_PROMPT, REPAIR_GUIDANCE } from './propose-prompts.js';
 
-const DEFAULT_MAX_REPAIR = 2;
+// Four repair rounds: the proposer-spike re-probe found the runnable rate keeps
+// climbing past two rounds (~9/16 at 2 → ~11/16 at 4) because the floor's errors
+// genuinely steer the model. Two was the spike's measurement budget, not a ceiling.
+const DEFAULT_MAX_REPAIR = 4;
 const DEFAULT_TIMEOUT_MS = 90_000;
 
 export interface ProposeOptions {
