@@ -48,3 +48,11 @@ export {
   type SequenceStep,
 } from './evaluate.js';
 export { BLOCK_INTENT, blockIntent, type BlockIntent, type IntentState } from './intent.js';
+export {
+  proposeFlow,
+  type ProposeOptions,
+  type ProposeOutcome,
+  type ProposeRound,
+  type ProposeStage,
+} from './propose.js';
+export { PROPOSER_PROMPT, REPAIR_GUIDANCE } from './propose-prompts.js';
