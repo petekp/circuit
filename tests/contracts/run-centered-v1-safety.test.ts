@@ -43,13 +43,20 @@ const sourceEnvelopeFiles = [
 
 describe('Run-centered V1 safety ratchets', () => {
   it('keeps internal Supervisor vocabulary out of operator-facing surfaces', () => {
+    // The proposer prompt (composition/propose-prompts.ts) is a MODEL-facing
+    // string: the proposer reads it to learn the block menu; no operator ever
+    // sees it. Its text is pinned byte-for-byte to a validated experiment
+    // artifact (experiments/flow-lab/_proposer-prompt.md) by a separate
+    // equality test, so it cannot be reworded here without diverging from what
+    // was validated. It is excluded from this operator-surface scan for the same
+    // reason the test excludes itself from the skill-hook scan below.
     const operatorSurfaceFiles = [
       'README.md',
       ...walk('src/commands'),
       ...walk('src/flows'),
       ...walk('plugins'),
       ...walk('docs/release'),
-    ];
+    ].filter((path) => path !== 'src/flows/composition/propose-prompts.ts');
 
     expect(matchingLines(operatorSurfaceFiles, /\bsupervisor\b/i)).toEqual([]);
   });
