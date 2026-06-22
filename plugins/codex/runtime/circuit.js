@@ -3858,8 +3858,8 @@ var require_anchors = __commonJS({
     function anchorIsValid(anchor) {
       if (/[\x00-\x19\s,[\]{}]/.test(anchor)) {
         const sa = JSON.stringify(anchor);
-        const msg = `Anchor must not contain whitespace or control characters: ${sa}`;
-        throw new Error(msg);
+        const msg2 = `Anchor must not contain whitespace or control characters: ${sa}`;
+        throw new Error(msg2);
       }
       return true;
     }
@@ -4093,8 +4093,8 @@ var require_Alias = __commonJS({
         const { anchors: anchors2, doc, maxAliasCount } = ctx;
         const source = this.resolve(doc, ctx);
         if (!source) {
-          const msg = `Unresolved alias (the anchor must be set before the alias): ${this.source}`;
-          throw new ReferenceError(msg);
+          const msg2 = `Unresolved alias (the anchor must be set before the alias): ${this.source}`;
+          throw new ReferenceError(msg2);
         }
         let data = anchors2.get(source);
         if (!data) {
@@ -4102,16 +4102,16 @@ var require_Alias = __commonJS({
           data = anchors2.get(source);
         }
         if (data?.res === void 0) {
-          const msg = "This should not happen: Alias anchor was not resolved?";
-          throw new ReferenceError(msg);
+          const msg2 = "This should not happen: Alias anchor was not resolved?";
+          throw new ReferenceError(msg2);
         }
         if (maxAliasCount >= 0) {
           data.count += 1;
           if (data.aliasCount === 0)
             data.aliasCount = getAliasCount(doc, source, anchors2);
           if (data.count * data.aliasCount > maxAliasCount) {
-            const msg = "Excessive alias count indicates a resource exhaustion attack";
-            throw new ReferenceError(msg);
+            const msg2 = "Excessive alias count indicates a resource exhaustion attack";
+            throw new ReferenceError(msg2);
           }
         }
         return data.res;
@@ -4121,8 +4121,8 @@ var require_Alias = __commonJS({
         if (ctx) {
           anchors.anchorIsValid(this.source);
           if (ctx.options.verifyAliasOrder && !ctx.anchors.has(this.source)) {
-            const msg = `Unresolved alias (the anchor must be set before the alias): ${this.source}`;
-            throw new Error(msg);
+            const msg2 = `Unresolved alias (the anchor must be set before the alias): ${this.source}`;
+            throw new Error(msg2);
           }
           if (ctx.implicitKey)
             return `${src} `;
@@ -4978,8 +4978,8 @@ var require_stringifyPair = __commonJS({
           throw new Error("With simple keys, key nodes cannot have comments");
         }
         if (identity.isCollection(key) || !identity.isNode(key) && typeof key === "object") {
-          const msg = "With simple keys, collection cannot be used as a key value";
-          throw new Error(msg);
+          const msg2 = "With simple keys, collection cannot be used as a key value";
+          throw new Error(msg2);
         }
       }
       let explicitKey = !simpleKeys && (!key || keyComment && value == null && !ctx.inFlow || identity.isCollection(key) || (identity.isScalar(key) ? key.type === Scalar.Scalar.BLOCK_FOLDED || key.type === Scalar.Scalar.BLOCK_LITERAL : typeof key === "object"));
@@ -7375,8 +7375,8 @@ var require_util_flow_indent_check = __commonJS({
       if (fc?.type === "flow-collection") {
         const end = fc.end[0];
         if (end.indent === indent && (end.source === "]" || end.source === "}") && utilContainsNewline.containsNewline(fc)) {
-          const msg = "Flow end indicator should be more indented than parent";
-          onError(end, "BAD_INDENT", msg, true);
+          const msg2 = "Flow end indicator should be more indented than parent";
+          onError(end, "BAD_INDENT", msg2, true);
         }
       }
     }
@@ -7773,8 +7773,8 @@ var require_resolve_flow_collection = __commonJS({
         cePos = ce.offset + ce.source.length;
       else {
         const name = fcName[0].toUpperCase() + fcName.substring(1);
-        const msg = atRoot ? `${name} must end with a ${expectedEnd}` : `${name} in block collection must be sufficiently indented and end with a ${expectedEnd}`;
-        onError(offset, atRoot ? "MISSING_CHAR" : "BAD_INDENT", msg);
+        const msg2 = atRoot ? `${name} must end with a ${expectedEnd}` : `${name} in block collection must be sufficiently indented and end with a ${expectedEnd}`;
+        onError(offset, atRoot ? "MISSING_CHAR" : "BAD_INDENT", msg2);
         if (ce && ce.source.length !== 1)
           ee.unshift(ce);
       }
@@ -7820,7 +7820,7 @@ var require_compose_collection = __commonJS({
     }
     function composeCollection(CN, ctx, token, props, onError) {
       const tagToken = props.tag;
-      const tagName = !tagToken ? null : ctx.directives.tagName(tagToken.source, (msg) => onError(tagToken, "TAG_RESOLVE_FAILED", msg));
+      const tagName = !tagToken ? null : ctx.directives.tagName(tagToken.source, (msg2) => onError(tagToken, "TAG_RESOLVE_FAILED", msg2));
       if (token.type === "block-seq") {
         const { anchor, newlineAfterProp: nl } = props;
         const lastProp = anchor && tagToken ? anchor.offset > tagToken.offset ? anchor : tagToken : anchor ?? tagToken;
@@ -7849,7 +7849,7 @@ var require_compose_collection = __commonJS({
         }
       }
       const coll = resolveCollection(CN, ctx, token, onError, tagName, tag);
-      const res = tag.resolve?.(coll, (msg) => onError(tagToken, "TAG_RESOLVE_FAILED", msg), ctx.options) ?? coll;
+      const res = tag.resolve?.(coll, (msg2) => onError(tagToken, "TAG_RESOLVE_FAILED", msg2), ctx.options) ?? coll;
       const node = identity.isNode(res) ? res : new Scalar.Scalar(res);
       node.range = coll.range;
       node.tag = tagName;
@@ -8054,7 +8054,7 @@ var require_resolve_flow_scalar = __commonJS({
       const { offset, type, source, end } = scalar;
       let _type;
       let value;
-      const _onError = (rel, code, msg) => onError(offset + rel, code, msg);
+      const _onError = (rel, code, msg2) => onError(offset + rel, code, msg2);
       switch (type) {
         case "scalar":
           _type = Scalar.Scalar.PLAIN;
@@ -8273,7 +8273,7 @@ var require_compose_scalar = __commonJS({
     var resolveFlowScalar = require_resolve_flow_scalar();
     function composeScalar(ctx, token, tagToken, onError) {
       const { value, type, comment, range } = token.type === "block-scalar" ? resolveBlockScalar.resolveBlockScalar(ctx, token, onError) : resolveFlowScalar.resolveFlowScalar(token, ctx.options.strict, onError);
-      const tagName = tagToken ? ctx.directives.tagName(tagToken.source, (msg) => onError(tagToken, "TAG_RESOLVE_FAILED", msg)) : null;
+      const tagName = tagToken ? ctx.directives.tagName(tagToken.source, (msg2) => onError(tagToken, "TAG_RESOLVE_FAILED", msg2)) : null;
       let tag;
       if (ctx.options.stringKeys && ctx.atKey) {
         tag = ctx.schema[identity.SCALAR];
@@ -8285,11 +8285,11 @@ var require_compose_scalar = __commonJS({
         tag = ctx.schema[identity.SCALAR];
       let scalar;
       try {
-        const res = tag.resolve(value, (msg) => onError(tagToken ?? token, "TAG_RESOLVE_FAILED", msg), ctx.options);
+        const res = tag.resolve(value, (msg2) => onError(tagToken ?? token, "TAG_RESOLVE_FAILED", msg2), ctx.options);
         scalar = identity.isScalar(res) ? res : new Scalar.Scalar(res);
       } catch (error51) {
-        const msg = error51 instanceof Error ? error51.message : String(error51);
-        onError(tagToken ?? token, "TAG_RESOLVE_FAILED", msg);
+        const msg2 = error51 instanceof Error ? error51.message : String(error51);
+        onError(tagToken ?? token, "TAG_RESOLVE_FAILED", msg2);
         scalar = new Scalar.Scalar(value);
       }
       scalar.range = range;
@@ -8334,8 +8334,8 @@ var require_compose_scalar = __commonJS({
         if (tag.tag !== compat.tag) {
           const ts = directives.tagString(tag.tag);
           const cs = directives.tagString(compat.tag);
-          const msg = `Value may be parsed as either ${ts} or ${cs}`;
-          onError(token, "TAG_RESOLVE_FAILED", msg, true);
+          const msg2 = `Value may be parsed as either ${ts} or ${cs}`;
+          onError(token, "TAG_RESOLVE_FAILED", msg2, true);
         }
       }
       return tag;
@@ -8426,8 +8426,8 @@ var require_compose_node = __commonJS({
       if (anchor && node.anchor === "")
         onError(anchor, "BAD_ALIAS", "Anchor cannot be an empty string");
       if (atKey && ctx.options.stringKeys && (!identity.isScalar(node) || typeof node.value !== "string" || node.tag && node.tag !== "tag:yaml.org,2002:str")) {
-        const msg = "With stringKeys, all keys must be strings";
-        onError(tag ?? token, "NON_STRING_KEY", msg);
+        const msg2 = "With stringKeys, all keys must be strings";
+        onError(tag ?? token, "NON_STRING_KEY", msg2);
       }
       if (spaceBefore)
         node.spaceBefore = true;
@@ -8674,8 +8674,8 @@ ${cb}` : comment;
             this.prelude.push(token.source);
             break;
           case "error": {
-            const msg = token.source ? `${token.message}: ${JSON.stringify(token.source)}` : token.message;
-            const error51 = new errors.YAMLParseError(getErrorPos(token), "UNEXPECTED_TOKEN", msg);
+            const msg2 = token.source ? `${token.message}: ${JSON.stringify(token.source)}` : token.message;
+            const error51 = new errors.YAMLParseError(getErrorPos(token), "UNEXPECTED_TOKEN", msg2);
             if (this.atDirectives || !this.doc)
               this.errors.push(error51);
             else
@@ -8684,8 +8684,8 @@ ${cb}` : comment;
           }
           case "doc-end": {
             if (!this.doc) {
-              const msg = "Unexpected doc-end without preceding document";
-              this.errors.push(new errors.YAMLParseError(getErrorPos(token), "UNEXPECTED_TOKEN", msg));
+              const msg2 = "Unexpected doc-end without preceding document";
+              this.errors.push(new errors.YAMLParseError(getErrorPos(token), "UNEXPECTED_TOKEN", msg2));
               break;
             }
             this.doc.directives.docEnd = true;
@@ -10795,6 +10795,7 @@ var CLI_COMMAND_NAMES = [
   "history",
   "memory",
   "create",
+  "generate",
   "uninstall",
   "runs",
   "reclaim",
@@ -10825,220 +10826,8 @@ function parseCommanderOrThrow(program2, argv) {
 }
 
 // dist/cli/create.js
-import { randomUUID as randomUUID2 } from "node:crypto";
-import { existsSync as existsSync9, mkdirSync, readFileSync as readFileSync26, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname as dirname2, join as join4, resolve as resolve7 } from "node:path";
-var import_yaml = __toESM(require_dist(), 1);
-
-// dist/policy/flow-kind-policy-core.js
-function objectRecord(value) {
-  return value !== null && typeof value === "object" ? value : void 0;
-}
-function stringStepIdsForCanonical(stages, canonical) {
-  const ids = [];
-  for (const stage of stages) {
-    const p = objectRecord(stage);
-    if (p === void 0 || p.canonical !== canonical || !Array.isArray(p.steps))
-      continue;
-    for (const id of p.steps) {
-      if (typeof id === "string")
-        ids.push(id);
-    }
-  }
-  return ids;
-}
-function isReviewResultReportWriter(step) {
-  const s = objectRecord(step);
-  if (s === void 0 || s.kind !== "compose")
-    return false;
-  const writes = objectRecord(s.writes);
-  const report = objectRecord(writes?.report);
-  return report?.schema === "review.result@v1";
-}
-function isReviewerRelay(step) {
-  const s = objectRecord(step);
-  return s !== void 0 && s.kind === "relay" && s.role === "reviewer";
-}
-function declaredCanonicalsFor(fixture) {
-  const declared = /* @__PURE__ */ new Set();
-  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
-  for (const stage of stages) {
-    const stageRecord = objectRecord(stage);
-    if (typeof stageRecord?.canonical === "string") {
-      declared.add(stageRecord.canonical);
-    }
-  }
-  return declared;
-}
-function checkCanonicalStagePolicyVariant(id, fixture, variant, optionalCanonicals, authority) {
-  const declared = declaredCanonicalsFor(fixture);
-  const optional2 = new Set(optionalCanonicals);
-  const required2 = new Set(variant.canonicals.filter((c) => !optional2.has(c)));
-  const acceptedDeclared = /* @__PURE__ */ new Set([...required2, ...optional2]);
-  const missing = [...required2].filter((c) => !declared.has(c));
-  const extra = [...declared].filter((c) => !acceptedDeclared.has(c));
-  if (missing.length > 0 || extra.length > 0) {
-    const parts = [];
-    if (missing.length > 0)
-      parts.push(`missing canonical(s): ${missing.join(", ")}`);
-    if (extra.length > 0)
-      parts.push(`unexpected canonical(s): ${extra.join(", ")}`);
-    return {
-      ok: false,
-      detail: `${id}: canonical stage-set mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
-    };
-  }
-  const sp = objectRecord(fixture.stage_path_policy);
-  if (sp === void 0) {
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy missing or not an object`
-    };
-  }
-  const omits = Array.isArray(sp.omits) ? sp.omits.filter((s) => typeof s === "string") : [];
-  const optionalOmitted = [...optional2].filter((c) => !declared.has(c));
-  const expectedOmits = /* @__PURE__ */ new Set([...variant.omits, ...optionalOmitted]);
-  const expectedMode = expectedOmits.size === 0 ? "strict" : "partial";
-  if (sp.mode !== expectedMode) {
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy.mode must be '${expectedMode}' for kind-canonical enforcement; got '${String(sp.mode)}'`
-    };
-  }
-  const missingOmits = [...expectedOmits].filter((o) => !omits.includes(o));
-  const extraOmits = omits.filter((o) => !expectedOmits.has(o));
-  if (missingOmits.length > 0 || extraOmits.length > 0) {
-    const parts = [];
-    if (missingOmits.length > 0)
-      parts.push(`missing omit(s): ${missingOmits.join(", ")}`);
-    if (extraOmits.length > 0)
-      parts.push(`unexpected omit(s): ${extraOmits.join(", ")}`);
-    return {
-      ok: false,
-      detail: `${id}: stage_path_policy.omits mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
-    };
-  }
-  return {
-    ok: true,
-    detail: `${id}: canonical set {${variant.canonicals.join(", ")}} + omits {${variant.omits.join(", ")}} enforced (authority: ${authority})`
-  };
-}
-function checkReviewIdentitySeparationPolicy(fixture) {
-  const f = objectRecord(fixture);
-  if (f === void 0) {
-    return { ok: false, detail: "fixture is not an object" };
-  }
-  const stages = Array.isArray(f.stages) ? f.stages : [];
-  const steps = Array.isArray(f.steps) ? f.steps : [];
-  const analyzeStepIds = stringStepIdsForCanonical(stages, "analyze");
-  const closeStepIds = stringStepIdsForCanonical(stages, "close");
-  const stepsById = /* @__PURE__ */ new Map();
-  for (let index = 0; index < steps.length; index++) {
-    const step = objectRecord(steps[index]);
-    if (typeof step?.id === "string")
-      stepsById.set(step.id, { step, index });
-  }
-  const reviewerRelayIndices = analyzeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewerRelay(entry.step)).map((entry) => entry.index);
-  if (reviewerRelayIndices.length === 0) {
-    return {
-      ok: false,
-      detail: "analyze stage must contain a relay step with role=reviewer before the close report writer"
-    };
-  }
-  const closeWriterIndices = closeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewResultReportWriter(entry.step)).map((entry) => entry.index);
-  if (closeWriterIndices.length === 0) {
-    return {
-      ok: false,
-      detail: "close stage must contain a compose step that writes the primary review.result report"
-    };
-  }
-  const everyCloseWriterPreceded = closeWriterIndices.every((closeIndex) => reviewerRelayIndices.some((reviewerIndex) => reviewerIndex < closeIndex));
-  if (!everyCloseWriterPreceded) {
-    return {
-      ok: false,
-      detail: "each close-stage review.result report writer must be preceded in steps[] by an analyze-stage reviewer relay"
-    };
-  }
-  return {
-    ok: true,
-    detail: "close review.result report writer is preceded by an analyze-stage reviewer relay"
-  };
-}
-var REVIEW_IDENTITY_SEPARATION_AUTHORITY = "flow-kind review-identity-separation policy";
-function hasCloseStageReviewResultWriter(fixture) {
-  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
-  const steps = Array.isArray(fixture.steps) ? fixture.steps : [];
-  const closeStepIds = new Set(stringStepIdsForCanonical(stages, "close"));
-  for (const step of steps) {
-    const s = objectRecord(step);
-    if (s === void 0 || typeof s.id !== "string")
-      continue;
-    if (closeStepIds.has(s.id) && isReviewResultReportWriter(s))
-      return true;
-  }
-  return false;
-}
-function reviewIdentitySeparationViolation(id, fixture) {
-  if (!hasCloseStageReviewResultWriter(fixture))
-    return void 0;
-  const identity = checkReviewIdentitySeparationPolicy(fixture);
-  if (identity.ok)
-    return void 0;
-  return {
-    kind: "red",
-    detail: `${id}: ${identity.detail} (authority: ${REVIEW_IDENTITY_SEPARATION_AUTHORITY})`
-  };
-}
-function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
-  const f = objectRecord(fixture);
-  if (f === void 0) {
-    return {
-      kind: "red",
-      detail: "fixture is not an object"
-    };
-  }
-  const id = f.id;
-  if (typeof id !== "string") {
-    return {
-      kind: "red",
-      detail: "fixture missing top-level `id` string field"
-    };
-  }
-  const identityViolation = reviewIdentitySeparationViolation(id, f);
-  if (identityViolation !== void 0) {
-    return identityViolation;
-  }
-  if (table.exemptFlowIds.has(id)) {
-    return {
-      kind: "exempt",
-      detail: `${id}: exempt from kind-canonical enforcement (partial-stage path, recorded)`
-    };
-  }
-  const expected = table.canonicalSets[id];
-  if (expected === void 0) {
-    return {
-      kind: "pass_through",
-      detail: `${id}: no canonical-set entry (unknown or composed flow kind; pass-through \u2014 intrinsic identity policy enforced)`
-    };
-  }
-  const variants = [
-    { canonicals: expected.canonicals, omits: expected.omits, title: expected.title },
-    ...expected.variants ?? []
-  ];
-  const checkedVariants = variants.map((variant) => checkCanonicalStagePolicyVariant(id, f, variant, expected.optional_canonicals, expected.authority));
-  const acceptedVariant = checkedVariants.find((variant) => variant.ok);
-  if (acceptedVariant === void 0) {
-    return {
-      kind: "red",
-      detail: checkedVariants.map((variant) => variant.detail).join(" OR ")
-    };
-  }
-  return {
-    kind: "green",
-    detail: acceptedVariant.detail
-  };
-}
+import { existsSync as existsSync10 } from "node:fs";
+import { join as join5 } from "node:path";
 
 // node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -27353,34 +27142,192 @@ var CompiledFlowStrict = CompiledFlowBody.superRefine((wf, ctx) => {
 });
 var CompiledFlow = CompiledFlowStrict;
 
-// dist/policy/flow-kind-policy.js
-function humanizeZodIssueMessage(message) {
-  return message.replace(/, received undefined/g, " (missing)").replace(/\breceived undefined\b/g, "missing");
+// dist/flows/axis-selections.js
+function axisSelectionsForAxes(flowId, axes) {
+  const selections = [
+    {
+      name: "default",
+      depth: axes.default.depth,
+      description: `Default ${flowId} axis tuple.`
+    }
+  ];
+  for (const depth of axes.allowed_depths) {
+    if (depth === axes.default.depth)
+      continue;
+    selections.push({
+      name: depth,
+      depth,
+      description: `${depth} ${flowId} axis tuple.`
+    });
+  }
+  if (axes.supports_tournament) {
+    selections.push({
+      name: "tournament",
+      depth: "tournament",
+      description: `Tournament ${flowId} axis tuple.`
+    });
+  }
+  if (axes.supports_autonomous) {
+    selections.push({
+      name: "autonomous",
+      depth: "autonomous",
+      description: `Autonomous ${flowId} axis tuple.`
+    });
+  }
+  return selections;
 }
-function validateCompiledFlowKindPolicyWithTable(flow, table) {
-  const parsed = CompiledFlow.safeParse(flow);
-  if (!parsed.success) {
-    const issueSummary = parsed.error.issues.slice(0, 5).map((i) => `  ${i.path.join(".") || "<root>"}: ${humanizeZodIssueMessage(i.message)}`).join("\n");
-    const more = parsed.error.issues.length > 5 ? `
-  ... +${parsed.error.issues.length - 5} more` : "";
-    return {
-      ok: false,
-      reason: `CompiledFlow.safeParse failed:
-${issueSummary}${more}`
-    };
+
+// dist/schemas/routing-contract-schemas.js
+var TaskIntakeShape = external_exports.object({
+  // The user's goal, preserved through normalization (the block check
+  // requires the normalized task to preserve the goal).
+  normalized_goal: external_exports.string().min(1),
+  // The flow the operator explicitly asked for, when they named one.
+  requested_flow: external_exports.string().min(1).optional(),
+  // Immediate operator constraints carried into the flow (may be empty).
+  constraints: external_exports.array(external_exports.string().min(1))
+}).strict();
+var RouteDecisionShape = external_exports.object({
+  // The chosen flow id, or null when the router stopped instead of routing.
+  selected_flow: external_exports.string().min(1).nullable(),
+  // Why this flow was chosen (or why the router stopped).
+  selection_reason: external_exports.string().min(1),
+  // Why the router stayed conservative, when it fell back to a safer choice.
+  fallback_reason: external_exports.string().min(1).optional()
+}).strict();
+var FlowCatalogShape = external_exports.object({
+  flows: external_exports.array(external_exports.object({
+    id: external_exports.string().min(1),
+    title: external_exports.string().min(1),
+    purpose: external_exports.string().min(1)
+  }).strict()).min(1)
+}).strict();
+var BUILTIN_ROUTING_CONTRACT_SCHEMAS = Object.freeze({
+  "task.intake@v1": TaskIntakeShape,
+  "route.decision@v1": RouteDecisionShape,
+  "flow.catalog@v1": FlowCatalogShape
+});
+
+// dist/flows/catalog-derivations.js
+function collectBuilderRegistry(packages, slot2, pluck) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    for (const builder of pluck(pkg)) {
+      if (map2.has(builder.resultSchemaName)) {
+        throw new Error(`duplicate ${slot2} builder registered for schema '${builder.resultSchemaName}' (flow ${pkg.id})`);
+      }
+      map2.set(builder.resultSchemaName, builder);
+    }
   }
-  const policyResult = checkCompiledFlowKindCanonicalPolicyWithTable(parsed.data, table);
-  if (policyResult.kind === "red") {
-    return {
-      ok: false,
-      reason: `flow-kind canonical policy violation: ${policyResult.detail}`
-    };
-  }
-  return {
-    ok: true,
-    kind: policyResult.kind,
-    detail: policyResult.detail
+  return map2;
+}
+function buildComposeRegistry(packages) {
+  return collectBuilderRegistry(packages, "compose", (pkg) => pkg.writers.compose);
+}
+function buildCloseRegistry(packages) {
+  return collectBuilderRegistry(packages, "close", (pkg) => pkg.writers.close);
+}
+function buildVerificationRegistry(packages) {
+  return collectBuilderRegistry(packages, "verification", (pkg) => pkg.writers.verification);
+}
+function buildCheckpointRegistry(packages) {
+  return collectBuilderRegistry(packages, "checkpoint", (pkg) => pkg.writers.checkpoint);
+}
+function buildReportSchemaRegistry(packages, options) {
+  const out = { ...options.fixtures ?? {} };
+  const register = (schemaName, schema, flowId) => {
+    if (Object.hasOwn(out, schemaName)) {
+      throw new Error(`duplicate report schema '${schemaName}' registered (flow ${flowId})`);
+    }
+    out[schemaName] = schema;
   };
+  for (const pkg of packages) {
+    for (const report of pkg.relayReports) {
+      register(report.schemaName, report.schema, pkg.id);
+    }
+    if (options.channels === "relay+report") {
+      for (const report of pkg.reportSchemas ?? []) {
+        register(report.schemaName, report.schema, pkg.id);
+      }
+    }
+  }
+  return Object.freeze(out);
+}
+function buildSchemaHintMap(packages) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    for (const report of pkg.relayReports) {
+      if (report.relayHint === void 0)
+        continue;
+      if (map2.has(report.schemaName)) {
+        throw new Error(`duplicate shape hint registered for schema '${report.schemaName}' (flow ${pkg.id})`);
+      }
+      map2.set(report.schemaName, report.relayHint);
+    }
+  }
+  return map2;
+}
+function buildCrossReportValidatorRegistry(packages) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    for (const report of pkg.relayReports) {
+      if (report.crossReportValidate === void 0)
+        continue;
+      if (map2.has(report.schemaName)) {
+        throw new Error(`duplicate cross-report validator registered for schema '${report.schemaName}' (flow ${pkg.id})`);
+      }
+      map2.set(report.schemaName, report.crossReportValidate);
+    }
+  }
+  return map2;
+}
+function buildStructuralHintList(packages) {
+  const list = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const pkg of packages) {
+    if (pkg.structuralHints === void 0)
+      continue;
+    for (const hint of pkg.structuralHints) {
+      if (seen.has(hint.id)) {
+        throw new Error(`duplicate structural shape hint id '${hint.id}' (flow ${pkg.id})`);
+      }
+      seen.add(hint.id);
+      list.push(hint);
+    }
+  }
+  return list;
+}
+function buildRuntimeSurfaceRegistry(packages) {
+  const map2 = /* @__PURE__ */ new Map();
+  for (const pkg of packages) {
+    if (pkg.runtimeSurface === void 0)
+      continue;
+    if (map2.has(pkg.id)) {
+      throw new Error(`duplicate runtime surface registered for flow '${pkg.id}'`);
+    }
+    map2.set(pkg.id, pkg.runtimeSurface);
+  }
+  return map2;
+}
+function buildReportFileSurfaceRegistry(packages) {
+  const out = {};
+  for (const pkg of packages) {
+    for (const [schemaName, declaration] of Object.entries(pkg.reportFileSurfaces ?? {})) {
+      if (Object.hasOwn(out, schemaName)) {
+        throw new Error(`duplicate report file surface registered for schema '${schemaName}' (flow ${pkg.id})`);
+      }
+      out[schemaName] = declaration;
+    }
+  }
+  return Object.freeze(out);
+}
+function deriveFlowCatalog(sources) {
+  const flows = sources.filter((source) => source.visibility === "public").map((source) => ({
+    id: source.id,
+    title: source.schematic.title,
+    purpose: source.schematic.purpose
+  }));
+  return FlowCatalogShape.parse({ flows });
 }
 
 // dist/shared/html/index.js
@@ -29337,159 +29284,6 @@ function validateFlowSchematicCatalogCompatibility(schematic, catalog, options =
     }
   }
   return issues;
-}
-
-// dist/schemas/routing-contract-schemas.js
-var TaskIntakeShape = external_exports.object({
-  // The user's goal, preserved through normalization (the block check
-  // requires the normalized task to preserve the goal).
-  normalized_goal: external_exports.string().min(1),
-  // The flow the operator explicitly asked for, when they named one.
-  requested_flow: external_exports.string().min(1).optional(),
-  // Immediate operator constraints carried into the flow (may be empty).
-  constraints: external_exports.array(external_exports.string().min(1))
-}).strict();
-var RouteDecisionShape = external_exports.object({
-  // The chosen flow id, or null when the router stopped instead of routing.
-  selected_flow: external_exports.string().min(1).nullable(),
-  // Why this flow was chosen (or why the router stopped).
-  selection_reason: external_exports.string().min(1),
-  // Why the router stayed conservative, when it fell back to a safer choice.
-  fallback_reason: external_exports.string().min(1).optional()
-}).strict();
-var FlowCatalogShape = external_exports.object({
-  flows: external_exports.array(external_exports.object({
-    id: external_exports.string().min(1),
-    title: external_exports.string().min(1),
-    purpose: external_exports.string().min(1)
-  }).strict()).min(1)
-}).strict();
-var BUILTIN_ROUTING_CONTRACT_SCHEMAS = Object.freeze({
-  "task.intake@v1": TaskIntakeShape,
-  "route.decision@v1": RouteDecisionShape,
-  "flow.catalog@v1": FlowCatalogShape
-});
-
-// dist/flows/catalog-derivations.js
-function collectBuilderRegistry(packages, slot2, pluck) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const pkg of packages) {
-    for (const builder of pluck(pkg)) {
-      if (map2.has(builder.resultSchemaName)) {
-        throw new Error(`duplicate ${slot2} builder registered for schema '${builder.resultSchemaName}' (flow ${pkg.id})`);
-      }
-      map2.set(builder.resultSchemaName, builder);
-    }
-  }
-  return map2;
-}
-function buildComposeRegistry(packages) {
-  return collectBuilderRegistry(packages, "compose", (pkg) => pkg.writers.compose);
-}
-function buildCloseRegistry(packages) {
-  return collectBuilderRegistry(packages, "close", (pkg) => pkg.writers.close);
-}
-function buildVerificationRegistry(packages) {
-  return collectBuilderRegistry(packages, "verification", (pkg) => pkg.writers.verification);
-}
-function buildCheckpointRegistry(packages) {
-  return collectBuilderRegistry(packages, "checkpoint", (pkg) => pkg.writers.checkpoint);
-}
-function buildReportSchemaRegistry(packages, options) {
-  const out = { ...options.fixtures ?? {} };
-  const register = (schemaName, schema, flowId) => {
-    if (Object.hasOwn(out, schemaName)) {
-      throw new Error(`duplicate report schema '${schemaName}' registered (flow ${flowId})`);
-    }
-    out[schemaName] = schema;
-  };
-  for (const pkg of packages) {
-    for (const report of pkg.relayReports) {
-      register(report.schemaName, report.schema, pkg.id);
-    }
-    if (options.channels === "relay+report") {
-      for (const report of pkg.reportSchemas ?? []) {
-        register(report.schemaName, report.schema, pkg.id);
-      }
-    }
-  }
-  return Object.freeze(out);
-}
-function buildSchemaHintMap(packages) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const pkg of packages) {
-    for (const report of pkg.relayReports) {
-      if (report.relayHint === void 0)
-        continue;
-      if (map2.has(report.schemaName)) {
-        throw new Error(`duplicate shape hint registered for schema '${report.schemaName}' (flow ${pkg.id})`);
-      }
-      map2.set(report.schemaName, report.relayHint);
-    }
-  }
-  return map2;
-}
-function buildCrossReportValidatorRegistry(packages) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const pkg of packages) {
-    for (const report of pkg.relayReports) {
-      if (report.crossReportValidate === void 0)
-        continue;
-      if (map2.has(report.schemaName)) {
-        throw new Error(`duplicate cross-report validator registered for schema '${report.schemaName}' (flow ${pkg.id})`);
-      }
-      map2.set(report.schemaName, report.crossReportValidate);
-    }
-  }
-  return map2;
-}
-function buildStructuralHintList(packages) {
-  const list = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const pkg of packages) {
-    if (pkg.structuralHints === void 0)
-      continue;
-    for (const hint of pkg.structuralHints) {
-      if (seen.has(hint.id)) {
-        throw new Error(`duplicate structural shape hint id '${hint.id}' (flow ${pkg.id})`);
-      }
-      seen.add(hint.id);
-      list.push(hint);
-    }
-  }
-  return list;
-}
-function buildRuntimeSurfaceRegistry(packages) {
-  const map2 = /* @__PURE__ */ new Map();
-  for (const pkg of packages) {
-    if (pkg.runtimeSurface === void 0)
-      continue;
-    if (map2.has(pkg.id)) {
-      throw new Error(`duplicate runtime surface registered for flow '${pkg.id}'`);
-    }
-    map2.set(pkg.id, pkg.runtimeSurface);
-  }
-  return map2;
-}
-function buildReportFileSurfaceRegistry(packages) {
-  const out = {};
-  for (const pkg of packages) {
-    for (const [schemaName, declaration] of Object.entries(pkg.reportFileSurfaces ?? {})) {
-      if (Object.hasOwn(out, schemaName)) {
-        throw new Error(`duplicate report file surface registered for schema '${schemaName}' (flow ${pkg.id})`);
-      }
-      out[schemaName] = declaration;
-    }
-  }
-  return Object.freeze(out);
-}
-function deriveFlowCatalog(sources) {
-  const flows = sources.filter((source) => source.visibility === "public").map((source) => ({
-    id: source.id,
-    title: source.schematic.title,
-    purpose: source.schematic.purpose
-  }));
-  return FlowCatalogShape.parse({ flows });
 }
 
 // dist/flows/report-declarations.js
@@ -45110,67 +44904,6 @@ function findFlowRuntimeSurfaceById(flowId) {
   return RUNTIME_SURFACES.get(flowId);
 }
 
-// dist/flows/canonical-stage-policy.js
-var canonicalStagePolicyById = {};
-var canonicalStagePolicyExemptIds = /* @__PURE__ */ new Set();
-for (const definition of flowDefinitions) {
-  const policy2 = definition.canonicalStagePolicy;
-  if (policy2 === void 0)
-    continue;
-  if (policy2.kind === "exempt") {
-    canonicalStagePolicyExemptIds.add(definition.id);
-    continue;
-  }
-  const { kind: _kind, ...entry } = policy2;
-  canonicalStagePolicyById[definition.id] = entry;
-}
-var FLOW_CANONICAL_STAGE_POLICY_BY_ID = canonicalStagePolicyById;
-var FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS = canonicalStagePolicyExemptIds;
-var FLOW_KIND_CANONICAL_SETS = FLOW_CANONICAL_STAGE_POLICY_BY_ID;
-var EXEMPT_FLOW_IDS = FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS;
-var FLOW_KIND_POLICY_TABLE = {
-  canonicalSets: FLOW_KIND_CANONICAL_SETS,
-  exemptFlowIds: EXEMPT_FLOW_IDS
-};
-function validateCompiledFlowKindPolicy(flow) {
-  return validateCompiledFlowKindPolicyWithTable(flow, FLOW_KIND_POLICY_TABLE);
-}
-
-// dist/flows/axis-selections.js
-function axisSelectionsForAxes(flowId, axes) {
-  const selections = [
-    {
-      name: "default",
-      depth: axes.default.depth,
-      description: `Default ${flowId} axis tuple.`
-    }
-  ];
-  for (const depth of axes.allowed_depths) {
-    if (depth === axes.default.depth)
-      continue;
-    selections.push({
-      name: depth,
-      depth,
-      description: `${depth} ${flowId} axis tuple.`
-    });
-  }
-  if (axes.supports_tournament) {
-    selections.push({
-      name: "tournament",
-      depth: "tournament",
-      description: `Tournament ${flowId} axis tuple.`
-    });
-  }
-  if (axes.supports_autonomous) {
-    selections.push({
-      name: "autonomous",
-      depth: "autonomous",
-      description: `Autonomous ${flowId} axis tuple.`
-    });
-  }
-  return selections;
-}
-
 // dist/flows/registries/checkpoint-writers/registry.js
 var REGISTRY = buildCheckpointRegistry(flowPackages);
 function findCheckpointBriefBuilder(resultSchemaName) {
@@ -45181,6 +44914,19 @@ function findCheckpointBriefBuilder(resultSchemaName) {
 var REGISTRY2 = buildVerificationRegistry(flowPackages);
 function findVerificationWriter(resultSchemaName) {
   return REGISTRY2.get(resultSchemaName);
+}
+function resolveVerificationReadPaths(builder, flow, step) {
+  const paths = {};
+  for (const descriptor of builder.reads ?? []) {
+    if (!descriptor.required)
+      continue;
+    const path = reportPathForSchemaInRuntimeFlow(flow, descriptor.schema);
+    if (!step.reads.includes(path)) {
+      throw new Error(`${builder.resultSchemaName} requires step '${step.id}' to read ${path}`);
+    }
+    paths[descriptor.name] = path;
+  }
+  return paths;
 }
 
 // dist/policy/recovery-route-policy.js
@@ -46614,15 +46360,6 @@ function extractAssemblySignals(description, options = {}) {
   };
 }
 
-// dist/schemas/custom-flow-descriptor.js
-var CustomFlowPackageDescriptor = external_exports.object({
-  schema_version: external_exports.literal(1),
-  id: CompiledFlowId,
-  format: external_exports.literal("compiled-flow-package"),
-  compiled_flow: external_exports.literal("circuit.json"),
-  purpose: external_exports.string().min(1)
-}).strict();
-
 // dist/schemas/progress-event.js
 var MAX_STATUS_TEXT_CHARS = 180;
 var MAX_DISPLAY_TEXT_CHARS = 240;
@@ -46880,169 +46617,292 @@ function progressPresentation(input) {
   };
 }
 
-// dist/cli/runtime-routing-policy.js
-import { readFileSync as readFileSync25 } from "node:fs";
-import { basename, dirname, relative as relative8, resolve as resolve6 } from "node:path";
-var GENERATED_FLOW_MIRROR_ROOT_ENV = "CIRCUIT_GENERATED_FLOW_MIRROR_ROOT";
-var COMPOSE_WRITER_UNSUPPORTED_REASON = "programmatic composeWriter injections are not supported by the CLI runtime; use executor injection or generated reports";
-var RUNTIME_POLICY_REASONS = {
-  externalFixtureOrRoot: "explicit --fixture/--flow-root inputs must point at generated flows, trusted generated mirrors, or published custom flows",
-  composeWriter: COMPOSE_WRITER_UNSUPPORTED_REASON,
-  checkpointResume: "checkpoint resume follows the saved run folder engine marker"
-};
-var CUSTOM_FLOW_ROOT_RUNTIME_POLICY = "Custom roots created by `circuit create` publish a normal runnable flow command.";
-var CLI_RUNTIME_ROUTING_POLICY = "Runtime routing: supported flow modes use the runtime by default. Unsupported modes, untrusted fixtures, and programmatic composeWriter injection fail closed. Runtime diagnostics: CIRCUIT_SHOW_RUNTIME_DECISION=1 includes runtime_reason for the selector decision.";
-function pathIsInside(parent, child) {
-  const rel = relative8(parent, child);
-  return rel.length === 0 || !rel.startsWith("..") && !rel.startsWith("/");
-}
-function fixtureEligibleForRuntime(input) {
-  if (input.args.fixturePath === void 0 && input.args.flowRoot === void 0)
-    return true;
-  const fixturePath = resolve6(input.fixturePath);
-  if (pathIsInside(resolve6(input.generatedFlowsRoot ?? "generated/flows"), fixturePath)) {
-    return true;
-  }
-  if (input.args.flowRoot !== void 0 && publishedCustomFlowMatches(input.args.flowRoot, fixturePath)) {
-    return true;
-  }
-  const mirrorRoot = input.generatedFlowMirrorRoot ?? process.env[GENERATED_FLOW_MIRROR_ROOT_ENV];
-  if (mirrorRoot === void 0 || mirrorRoot.length === 0 || input.args.flowRoot === void 0) {
-    return false;
-  }
-  const trustedMirrorRoot = resolve6(mirrorRoot);
-  return resolve6(input.args.flowRoot) === trustedMirrorRoot && pathIsInside(trustedMirrorRoot, fixturePath);
-}
-function readCustomFlowEntries(flowRoot2) {
-  try {
-    const manifest = JSON.parse(readFileSync25(resolve6(dirname(resolve6(flowRoot2)), "manifest.json"), "utf8"));
-    if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest))
-      return [];
-    const customFlows = manifest.custom_flows;
-    if (!Array.isArray(customFlows))
-      return [];
-    return customFlows.filter((candidate) => candidate !== null && typeof candidate === "object" && !Array.isArray(candidate));
-  } catch {
-    return [];
-  }
-}
-function recordedFlowPaths(candidate) {
-  const paths = [];
-  const flowPath = candidate.flow_path;
-  if (typeof flowPath === "string")
-    paths.push(resolve6(flowPath));
-  const flowPaths = candidate.flow_paths;
-  if (Array.isArray(flowPaths)) {
-    for (const entry of flowPaths) {
-      if (typeof entry === "string")
-        paths.push(resolve6(entry));
-    }
-  }
-  return paths;
-}
-function publishedCustomFlowMatches(flowRoot2, fixturePath) {
-  return readCustomFlowEntries(flowRoot2).some((candidate) => recordedFlowPaths(candidate).includes(fixturePath));
-}
-function unrecordedPublishedSiblingReason(input) {
-  const flowRoot2 = input.args.flowRoot;
-  if (flowRoot2 === void 0)
-    return void 0;
-  const fixturePath = resolve6(input.fixturePath);
-  const fixtureDir = dirname(fixturePath);
-  for (const candidate of readCustomFlowEntries(flowRoot2)) {
-    const recorded = recordedFlowPaths(candidate);
-    if (recorded.length === 0)
-      continue;
-    if (dirname(recorded[0]) !== fixtureDir)
-      continue;
-    if (recorded.includes(fixturePath))
-      continue;
-    const id = typeof candidate.id === "string" ? candidate.id : basename(fixtureDir);
-    const mode = basename(fixturePath).replace(/\.json$/, "");
-    return `mode '${mode}' is not published for flow '${id}'. Only the published modes are available; re-publish the flow to enable other modes.`;
-  }
-  return void 0;
-}
-function applyFixturePolicy(decision2, input) {
-  if (decision2.kind !== "supported")
-    return decision2;
-  if (fixtureEligibleForRuntime(input))
-    return decision2;
-  return {
-    ...decision2,
-    kind: "unsupported",
-    reason: unrecordedPublishedSiblingReason(input) ?? RUNTIME_POLICY_REASONS.externalFixtureOrRoot
-  };
-}
-function applyComposeWriterPolicy(decision2, input) {
-  if (decision2.kind !== "supported" || !input.hasComposeWriter)
-    return decision2;
-  return {
-    ...decision2,
-    kind: "unsupported",
-    reason: RUNTIME_POLICY_REASONS.composeWriter
-  };
-}
-function showRuntimeDecision() {
-  return process.env.CIRCUIT_SHOW_RUNTIME_DECISION === "1";
-}
-function runtimeOutputFields(input) {
-  if (!input.include)
-    return {};
-  return {
-    runtime_reason: input.decision.reason
-  };
-}
-
-// dist/cli/utility-progress.js
+// dist/cli/custom-flow-package.js
+var import_yaml = __toESM(require_dist(), 1);
 import { randomUUID } from "node:crypto";
-function utilityProgress(input) {
-  if (!input.enabled)
-    return void 0;
-  const runId = randomUUID();
-  const flowId = input.flowId;
-  const stream = input.stream ?? process.stderr;
-  return {
-    runId,
-    flowId,
-    emit(event) {
-      const parsed = ProgressEvent.parse({
-        schema_version: 1,
-        run_id: runId,
-        flow_id: flowId,
-        ...event
-      });
-      stream.write(`${JSON.stringify(parsed)}
-`);
+import { existsSync as existsSync9, mkdirSync, readFileSync as readFileSync25, rmSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join as join4, resolve as resolve6 } from "node:path";
+
+// dist/policy/flow-kind-policy-core.js
+function objectRecord(value) {
+  return value !== null && typeof value === "object" ? value : void 0;
+}
+function stringStepIdsForCanonical(stages, canonical) {
+  const ids = [];
+  for (const stage of stages) {
+    const p = objectRecord(stage);
+    if (p === void 0 || p.canonical !== canonical || !Array.isArray(p.steps))
+      continue;
+    for (const id of p.steps) {
+      if (typeof id === "string")
+        ids.push(id);
     }
+  }
+  return ids;
+}
+function isReviewResultReportWriter(step) {
+  const s = objectRecord(step);
+  if (s === void 0 || s.kind !== "compose")
+    return false;
+  const writes = objectRecord(s.writes);
+  const report = objectRecord(writes?.report);
+  return report?.schema === "review.result@v1";
+}
+function isReviewerRelay(step) {
+  const s = objectRecord(step);
+  return s !== void 0 && s.kind === "relay" && s.role === "reviewer";
+}
+function declaredCanonicalsFor(fixture) {
+  const declared = /* @__PURE__ */ new Set();
+  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
+  for (const stage of stages) {
+    const stageRecord = objectRecord(stage);
+    if (typeof stageRecord?.canonical === "string") {
+      declared.add(stageRecord.canonical);
+    }
+  }
+  return declared;
+}
+function checkCanonicalStagePolicyVariant(id, fixture, variant, optionalCanonicals, authority) {
+  const declared = declaredCanonicalsFor(fixture);
+  const optional2 = new Set(optionalCanonicals);
+  const required2 = new Set(variant.canonicals.filter((c) => !optional2.has(c)));
+  const acceptedDeclared = /* @__PURE__ */ new Set([...required2, ...optional2]);
+  const missing = [...required2].filter((c) => !declared.has(c));
+  const extra = [...declared].filter((c) => !acceptedDeclared.has(c));
+  if (missing.length > 0 || extra.length > 0) {
+    const parts = [];
+    if (missing.length > 0)
+      parts.push(`missing canonical(s): ${missing.join(", ")}`);
+    if (extra.length > 0)
+      parts.push(`unexpected canonical(s): ${extra.join(", ")}`);
+    return {
+      ok: false,
+      detail: `${id}: canonical stage-set mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
+    };
+  }
+  const sp = objectRecord(fixture.stage_path_policy);
+  if (sp === void 0) {
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy missing or not an object`
+    };
+  }
+  const omits = Array.isArray(sp.omits) ? sp.omits.filter((s) => typeof s === "string") : [];
+  const optionalOmitted = [...optional2].filter((c) => !declared.has(c));
+  const expectedOmits = /* @__PURE__ */ new Set([...variant.omits, ...optionalOmitted]);
+  const expectedMode = expectedOmits.size === 0 ? "strict" : "partial";
+  if (sp.mode !== expectedMode) {
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy.mode must be '${expectedMode}' for kind-canonical enforcement; got '${String(sp.mode)}'`
+    };
+  }
+  const missingOmits = [...expectedOmits].filter((o) => !omits.includes(o));
+  const extraOmits = omits.filter((o) => !expectedOmits.has(o));
+  if (missingOmits.length > 0 || extraOmits.length > 0) {
+    const parts = [];
+    if (missingOmits.length > 0)
+      parts.push(`missing omit(s): ${missingOmits.join(", ")}`);
+    if (extraOmits.length > 0)
+      parts.push(`unexpected omit(s): ${extraOmits.join(", ")}`);
+    return {
+      ok: false,
+      detail: `${id}: stage_path_policy.omits mismatch \u2014 ${parts.join("; ")} (authority: ${authority})`
+    };
+  }
+  return {
+    ok: true,
+    detail: `${id}: canonical set {${variant.canonicals.join(", ")}} + omits {${variant.omits.join(", ")}} enforced (authority: ${authority})`
+  };
+}
+function checkReviewIdentitySeparationPolicy(fixture) {
+  const f = objectRecord(fixture);
+  if (f === void 0) {
+    return { ok: false, detail: "fixture is not an object" };
+  }
+  const stages = Array.isArray(f.stages) ? f.stages : [];
+  const steps = Array.isArray(f.steps) ? f.steps : [];
+  const analyzeStepIds = stringStepIdsForCanonical(stages, "analyze");
+  const closeStepIds = stringStepIdsForCanonical(stages, "close");
+  const stepsById = /* @__PURE__ */ new Map();
+  for (let index = 0; index < steps.length; index++) {
+    const step = objectRecord(steps[index]);
+    if (typeof step?.id === "string")
+      stepsById.set(step.id, { step, index });
+  }
+  const reviewerRelayIndices = analyzeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewerRelay(entry.step)).map((entry) => entry.index);
+  if (reviewerRelayIndices.length === 0) {
+    return {
+      ok: false,
+      detail: "analyze stage must contain a relay step with role=reviewer before the close report writer"
+    };
+  }
+  const closeWriterIndices = closeStepIds.map((id) => stepsById.get(id)).filter((entry) => entry !== void 0 && isReviewResultReportWriter(entry.step)).map((entry) => entry.index);
+  if (closeWriterIndices.length === 0) {
+    return {
+      ok: false,
+      detail: "close stage must contain a compose step that writes the primary review.result report"
+    };
+  }
+  const everyCloseWriterPreceded = closeWriterIndices.every((closeIndex) => reviewerRelayIndices.some((reviewerIndex) => reviewerIndex < closeIndex));
+  if (!everyCloseWriterPreceded) {
+    return {
+      ok: false,
+      detail: "each close-stage review.result report writer must be preceded in steps[] by an analyze-stage reviewer relay"
+    };
+  }
+  return {
+    ok: true,
+    detail: "close review.result report writer is preceded by an analyze-stage reviewer relay"
+  };
+}
+var REVIEW_IDENTITY_SEPARATION_AUTHORITY = "flow-kind review-identity-separation policy";
+function hasCloseStageReviewResultWriter(fixture) {
+  const stages = Array.isArray(fixture.stages) ? fixture.stages : [];
+  const steps = Array.isArray(fixture.steps) ? fixture.steps : [];
+  const closeStepIds = new Set(stringStepIdsForCanonical(stages, "close"));
+  for (const step of steps) {
+    const s = objectRecord(step);
+    if (s === void 0 || typeof s.id !== "string")
+      continue;
+    if (closeStepIds.has(s.id) && isReviewResultReportWriter(s))
+      return true;
+  }
+  return false;
+}
+function reviewIdentitySeparationViolation(id, fixture) {
+  if (!hasCloseStageReviewResultWriter(fixture))
+    return void 0;
+  const identity = checkReviewIdentitySeparationPolicy(fixture);
+  if (identity.ok)
+    return void 0;
+  return {
+    kind: "red",
+    detail: `${id}: ${identity.detail} (authority: ${REVIEW_IDENTITY_SEPARATION_AUTHORITY})`
+  };
+}
+function checkCompiledFlowKindCanonicalPolicyWithTable(fixture, table) {
+  const f = objectRecord(fixture);
+  if (f === void 0) {
+    return {
+      kind: "red",
+      detail: "fixture is not an object"
+    };
+  }
+  const id = f.id;
+  if (typeof id !== "string") {
+    return {
+      kind: "red",
+      detail: "fixture missing top-level `id` string field"
+    };
+  }
+  const identityViolation = reviewIdentitySeparationViolation(id, f);
+  if (identityViolation !== void 0) {
+    return identityViolation;
+  }
+  if (table.exemptFlowIds.has(id)) {
+    return {
+      kind: "exempt",
+      detail: `${id}: exempt from kind-canonical enforcement (partial-stage path, recorded)`
+    };
+  }
+  const expected = table.canonicalSets[id];
+  if (expected === void 0) {
+    return {
+      kind: "pass_through",
+      detail: `${id}: no canonical-set entry (unknown or composed flow kind; pass-through \u2014 intrinsic identity policy enforced)`
+    };
+  }
+  const variants = [
+    { canonicals: expected.canonicals, omits: expected.omits, title: expected.title },
+    ...expected.variants ?? []
+  ];
+  const checkedVariants = variants.map((variant) => checkCanonicalStagePolicyVariant(id, f, variant, expected.optional_canonicals, expected.authority));
+  const acceptedVariant = checkedVariants.find((variant) => variant.ok);
+  if (acceptedVariant === void 0) {
+    return {
+      kind: "red",
+      detail: checkedVariants.map((variant) => variant.detail).join(" OR ")
+    };
+  }
+  return {
+    kind: "green",
+    detail: acceptedVariant.detail
   };
 }
 
-// dist/cli/create.js
-var RESERVED_FLOW_IDS = /* @__PURE__ */ new Set([...catalogFlowIds, ...CLI_COMMAND_NAMES]);
-function parseArgs(argv) {
-  const program2 = new Command("circuit create").option("--name <slug>").option("--description <flow idea>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--decompose").option("--progress <format>");
-  parseCommanderOrThrow(program2, argv);
-  if (program2.args.length > 0)
-    throw new Error(`unexpected argument: ${program2.args[0]}`);
-  const opts = program2.opts();
-  if (opts.progress !== void 0 && opts.progress !== "jsonl") {
-    throw new Error("--progress only supports 'jsonl'");
+// dist/policy/flow-kind-policy.js
+function humanizeZodIssueMessage(message) {
+  return message.replace(/, received undefined/g, " (missing)").replace(/\breceived undefined\b/g, "missing");
+}
+function validateCompiledFlowKindPolicyWithTable(flow, table) {
+  const parsed = CompiledFlow.safeParse(flow);
+  if (!parsed.success) {
+    const issueSummary = parsed.error.issues.slice(0, 5).map((i) => `  ${i.path.join(".") || "<root>"}: ${humanizeZodIssueMessage(i.message)}`).join("\n");
+    const more = parsed.error.issues.length > 5 ? `
+  ... +${parsed.error.issues.length - 5} more` : "";
+    return {
+      ok: false,
+      reason: `CompiledFlow.safeParse failed:
+${issueSummary}${more}`
+    };
+  }
+  const policyResult = checkCompiledFlowKindCanonicalPolicyWithTable(parsed.data, table);
+  if (policyResult.kind === "red") {
+    return {
+      ok: false,
+      reason: `flow-kind canonical policy violation: ${policyResult.detail}`
+    };
   }
   return {
-    publish: opts.publish === true,
-    yes: opts.yes === true,
-    decompose: opts.decompose === true,
-    progress: opts.progress === "jsonl",
-    ...opts.name === void 0 ? {} : { name: opts.name },
-    ...opts.description === void 0 ? {} : { description: opts.description },
-    ...opts.home === void 0 ? {} : { home: opts.home },
-    ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt }
+    ok: true,
+    kind: policyResult.kind,
+    detail: policyResult.detail
   };
 }
+
+// dist/flows/canonical-stage-policy.js
+var canonicalStagePolicyById = {};
+var canonicalStagePolicyExemptIds = /* @__PURE__ */ new Set();
+for (const definition of flowDefinitions) {
+  const policy2 = definition.canonicalStagePolicy;
+  if (policy2 === void 0)
+    continue;
+  if (policy2.kind === "exempt") {
+    canonicalStagePolicyExemptIds.add(definition.id);
+    continue;
+  }
+  const { kind: _kind, ...entry } = policy2;
+  canonicalStagePolicyById[definition.id] = entry;
+}
+var FLOW_CANONICAL_STAGE_POLICY_BY_ID = canonicalStagePolicyById;
+var FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS = canonicalStagePolicyExemptIds;
+var FLOW_KIND_CANONICAL_SETS = FLOW_CANONICAL_STAGE_POLICY_BY_ID;
+var EXEMPT_FLOW_IDS = FLOW_CANONICAL_STAGE_POLICY_EXEMPT_IDS;
+var FLOW_KIND_POLICY_TABLE = {
+  canonicalSets: FLOW_KIND_CANONICAL_SETS,
+  exemptFlowIds: EXEMPT_FLOW_IDS
+};
+function validateCompiledFlowKindPolicy(flow) {
+  return validateCompiledFlowKindPolicyWithTable(flow, FLOW_KIND_POLICY_TABLE);
+}
+
+// dist/schemas/custom-flow-descriptor.js
+var CustomFlowPackageDescriptor = external_exports.object({
+  schema_version: external_exports.literal(1),
+  id: CompiledFlowId,
+  format: external_exports.literal("compiled-flow-package"),
+  compiled_flow: external_exports.literal("circuit.json"),
+  purpose: external_exports.string().min(1)
+}).strict();
+
+// dist/cli/custom-flow-package.js
+var RESERVED_FLOW_IDS = /* @__PURE__ */ new Set([...catalogFlowIds, ...CLI_COMMAND_NAMES]);
 function slugify2(value) {
   const slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/g, "");
-  return slug.length > 0 ? slug : `custom-${randomUUID2().slice(0, 8)}`;
+  return slug.length > 0 ? slug : `custom-${randomUUID().slice(0, 8)}`;
 }
 function assertValidSlug(slug) {
   if (!/^[a-z][a-z0-9-]*$/.test(slug)) {
@@ -47052,8 +46912,8 @@ function assertValidSlug(slug) {
     throw new Error(`custom flow name '${slug}' is reserved by Circuit`);
   }
 }
-function customHome(args) {
-  return resolve7(args.home ?? join4(homedir(), ".config", "circuit", "custom"));
+function customHome(home) {
+  return resolve6(home ?? join4(homedir(), ".config", "circuit", "custom"));
 }
 function draftRoot(home, slug) {
   return join4(home, "drafts", slug);
@@ -47076,14 +46936,14 @@ function reportsRoot(home) {
 function manifestPath(home) {
   return join4(home, "manifest.json");
 }
-function resultPath(home, slug) {
-  return join4(reportsRoot(home), `${slug}-create-result.json`);
+function resultPath(home, slug, action) {
+  return join4(reportsRoot(home), `${slug}-${action}-result.json`);
 }
 function summaryPath(home, slug) {
   return join4(reportsRoot(home), `${slug}-operator-summary.md`);
 }
 function writeText(path, text) {
-  mkdirSync(dirname2(path), { recursive: true });
+  mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, text.endsWith("\n") ? text : `${text}
 `);
 }
@@ -47104,21 +46964,6 @@ function mainFlowOf(files) {
   if (main2 === void 0)
     throw new Error("custom flow package has no circuit.json");
   return main2.flow;
-}
-function assembleCustomFlow(input) {
-  const signals = extractAssemblySignals(input.description, {
-    explicit_decompose: input.decompose
-  });
-  const resolution = resolveArchetype(input.slug, signals);
-  const compiled = compileSchematicToCompiledFlow(resolution.schematic);
-  const files = planCompiledFlowFiles(compiled).map((file2) => ({
-    filename: file2.filename,
-    flow: CompiledFlow.parse(file2.flow)
-  }));
-  for (const { filename, flow } of files) {
-    validateCustomFlow(input.slug, flow, `custom flow (${filename})`);
-  }
-  return { files, resolution };
 }
 function skillMarkdown(slug, description, home) {
   return [
@@ -47191,7 +47036,7 @@ function publishManifest(input) {
     custom_flows: []
   };
   if (existsSync9(manifestPath(input.home))) {
-    existing = JSON.parse(readFileSync26(manifestPath(input.home), "utf8"));
+    existing = JSON.parse(readFileSync25(manifestPath(input.home), "utf8"));
   }
   const withoutSlug = existing.custom_flows.filter((flow) => !(typeof flow === "object" && flow !== null && "id" in flow && flow.id === input.slug));
   writeJson(manifestPath(input.home), {
@@ -47225,7 +47070,7 @@ function writeValidationResult(input) {
   });
 }
 function readDraftMetadata(home, slug) {
-  const raw = JSON.parse(readFileSync26(join4(draftRoot(home, slug), "validation-result.json"), "utf8"));
+  const raw = JSON.parse(readFileSync25(join4(draftRoot(home, slug), "validation-result.json"), "utf8"));
   const filenames = Array.isArray(raw.flow_files) && raw.flow_files.every((f) => typeof f === "string") ? raw.flow_files : ["circuit.json"];
   return {
     filenames,
@@ -47237,6 +47082,7 @@ function readDraftMetadata(home, slug) {
   };
 }
 function writeDraft(input) {
+  const source = input.source ?? "template";
   const root = draftRoot(input.home, input.slug);
   rmSync(root, { recursive: true, force: true });
   mkdirSync(root, { recursive: true });
@@ -47252,7 +47098,7 @@ function writeDraft(input) {
     home: input.home,
     slug: input.slug,
     flow: mainFlowOf(input.files),
-    source: "template",
+    source,
     files: input.files,
     archetype: input.archetype
   });
@@ -47261,7 +47107,7 @@ function loadDraftFlow(home, slug) {
   const { filenames } = readDraftMetadata(home, slug);
   const files = filenames.map((filename) => {
     const path = join4(draftRoot(home, slug), filename);
-    const flow = CompiledFlow.parse(JSON.parse(readFileSync26(path, "utf8")));
+    const flow = CompiledFlow.parse(JSON.parse(readFileSync25(path, "utf8")));
     validateCustomFlow(slug, flow, `custom flow draft (${filename})`);
     return { filename, flow };
   });
@@ -47272,7 +47118,7 @@ function publishDraft(input) {
   if (!existsSync9(join4(draft, "SKILL.md"))) {
     throw new Error(`draft missing for ${input.slug}: ${draft}`);
   }
-  const descriptor = readFileSync26(join4(draft, "circuit.yaml"), "utf8");
+  const descriptor = readFileSync25(join4(draft, "circuit.yaml"), "utf8");
   validateCircuitYamlDescriptor(descriptor, join4(draft, "circuit.yaml"), input.slug);
   const { filenames } = readDraftMetadata(input.home, input.slug);
   const skillRoot = publishedRoot(input.home, input.slug);
@@ -47280,13 +47126,188 @@ function publishDraft(input) {
   rmSync(customFlowRoot, { recursive: true, force: true });
   mkdirSync(skillRoot, { recursive: true });
   mkdirSync(customFlowRoot, { recursive: true });
-  writeText(join4(skillRoot, "SKILL.md"), readFileSync26(join4(draft, "SKILL.md"), "utf8"));
+  writeText(join4(skillRoot, "SKILL.md"), readFileSync25(join4(draft, "SKILL.md"), "utf8"));
   writeText(join4(skillRoot, "circuit.yaml"), descriptor);
   for (const filename of filenames) {
-    writeText(join4(customFlowRoot, filename), readFileSync26(join4(draft, filename), "utf8"));
+    writeText(join4(customFlowRoot, filename), readFileSync25(join4(draft, filename), "utf8"));
   }
-  writeText(join4(commandRoot(input.home), `${input.slug}.md`), readFileSync26(join4(draft, "command.md"), "utf8"));
+  writeText(join4(commandRoot(input.home), `${input.slug}.md`), readFileSync25(join4(draft, "command.md"), "utf8"));
   publishManifest({ ...input, filenames });
+}
+
+// dist/cli/runtime-routing-policy.js
+import { readFileSync as readFileSync26 } from "node:fs";
+import { basename, dirname as dirname2, relative as relative8, resolve as resolve7 } from "node:path";
+var GENERATED_FLOW_MIRROR_ROOT_ENV = "CIRCUIT_GENERATED_FLOW_MIRROR_ROOT";
+var COMPOSE_WRITER_UNSUPPORTED_REASON = "programmatic composeWriter injections are not supported by the CLI runtime; use executor injection or generated reports";
+var RUNTIME_POLICY_REASONS = {
+  externalFixtureOrRoot: "explicit --fixture/--flow-root inputs must point at generated flows, trusted generated mirrors, or published custom flows",
+  composeWriter: COMPOSE_WRITER_UNSUPPORTED_REASON,
+  checkpointResume: "checkpoint resume follows the saved run folder engine marker"
+};
+var CUSTOM_FLOW_ROOT_RUNTIME_POLICY = "Custom roots created by `circuit create` publish a normal runnable flow command.";
+var CLI_RUNTIME_ROUTING_POLICY = "Runtime routing: supported flow modes use the runtime by default. Unsupported modes, untrusted fixtures, and programmatic composeWriter injection fail closed. Runtime diagnostics: CIRCUIT_SHOW_RUNTIME_DECISION=1 includes runtime_reason for the selector decision.";
+function pathIsInside(parent, child) {
+  const rel = relative8(parent, child);
+  return rel.length === 0 || !rel.startsWith("..") && !rel.startsWith("/");
+}
+function fixtureEligibleForRuntime(input) {
+  if (input.args.fixturePath === void 0 && input.args.flowRoot === void 0)
+    return true;
+  const fixturePath = resolve7(input.fixturePath);
+  if (pathIsInside(resolve7(input.generatedFlowsRoot ?? "generated/flows"), fixturePath)) {
+    return true;
+  }
+  if (input.args.flowRoot !== void 0 && publishedCustomFlowMatches(input.args.flowRoot, fixturePath)) {
+    return true;
+  }
+  const mirrorRoot = input.generatedFlowMirrorRoot ?? process.env[GENERATED_FLOW_MIRROR_ROOT_ENV];
+  if (mirrorRoot === void 0 || mirrorRoot.length === 0 || input.args.flowRoot === void 0) {
+    return false;
+  }
+  const trustedMirrorRoot = resolve7(mirrorRoot);
+  return resolve7(input.args.flowRoot) === trustedMirrorRoot && pathIsInside(trustedMirrorRoot, fixturePath);
+}
+function readCustomFlowEntries(flowRoot2) {
+  try {
+    const manifest = JSON.parse(readFileSync26(resolve7(dirname2(resolve7(flowRoot2)), "manifest.json"), "utf8"));
+    if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest))
+      return [];
+    const customFlows = manifest.custom_flows;
+    if (!Array.isArray(customFlows))
+      return [];
+    return customFlows.filter((candidate) => candidate !== null && typeof candidate === "object" && !Array.isArray(candidate));
+  } catch {
+    return [];
+  }
+}
+function recordedFlowPaths(candidate) {
+  const paths = [];
+  const flowPath = candidate.flow_path;
+  if (typeof flowPath === "string")
+    paths.push(resolve7(flowPath));
+  const flowPaths = candidate.flow_paths;
+  if (Array.isArray(flowPaths)) {
+    for (const entry of flowPaths) {
+      if (typeof entry === "string")
+        paths.push(resolve7(entry));
+    }
+  }
+  return paths;
+}
+function publishedCustomFlowMatches(flowRoot2, fixturePath) {
+  return readCustomFlowEntries(flowRoot2).some((candidate) => recordedFlowPaths(candidate).includes(fixturePath));
+}
+function unrecordedPublishedSiblingReason(input) {
+  const flowRoot2 = input.args.flowRoot;
+  if (flowRoot2 === void 0)
+    return void 0;
+  const fixturePath = resolve7(input.fixturePath);
+  const fixtureDir = dirname2(fixturePath);
+  for (const candidate of readCustomFlowEntries(flowRoot2)) {
+    const recorded = recordedFlowPaths(candidate);
+    if (recorded.length === 0)
+      continue;
+    if (dirname2(recorded[0]) !== fixtureDir)
+      continue;
+    if (recorded.includes(fixturePath))
+      continue;
+    const id = typeof candidate.id === "string" ? candidate.id : basename(fixtureDir);
+    const mode = basename(fixturePath).replace(/\.json$/, "");
+    return `mode '${mode}' is not published for flow '${id}'. Only the published modes are available; re-publish the flow to enable other modes.`;
+  }
+  return void 0;
+}
+function applyFixturePolicy(decision2, input) {
+  if (decision2.kind !== "supported")
+    return decision2;
+  if (fixtureEligibleForRuntime(input))
+    return decision2;
+  return {
+    ...decision2,
+    kind: "unsupported",
+    reason: unrecordedPublishedSiblingReason(input) ?? RUNTIME_POLICY_REASONS.externalFixtureOrRoot
+  };
+}
+function applyComposeWriterPolicy(decision2, input) {
+  if (decision2.kind !== "supported" || !input.hasComposeWriter)
+    return decision2;
+  return {
+    ...decision2,
+    kind: "unsupported",
+    reason: RUNTIME_POLICY_REASONS.composeWriter
+  };
+}
+function showRuntimeDecision() {
+  return process.env.CIRCUIT_SHOW_RUNTIME_DECISION === "1";
+}
+function runtimeOutputFields(input) {
+  if (!input.include)
+    return {};
+  return {
+    runtime_reason: input.decision.reason
+  };
+}
+
+// dist/cli/utility-progress.js
+import { randomUUID as randomUUID2 } from "node:crypto";
+function utilityProgress(input) {
+  if (!input.enabled)
+    return void 0;
+  const runId = randomUUID2();
+  const flowId = input.flowId;
+  const stream = input.stream ?? process.stderr;
+  return {
+    runId,
+    flowId,
+    emit(event) {
+      const parsed = ProgressEvent.parse({
+        schema_version: 1,
+        run_id: runId,
+        flow_id: flowId,
+        ...event
+      });
+      stream.write(`${JSON.stringify(parsed)}
+`);
+    }
+  };
+}
+
+// dist/cli/create.js
+function parseArgs(argv) {
+  const program2 = new Command("circuit create").option("--name <slug>").option("--description <flow idea>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--decompose").option("--progress <format>");
+  parseCommanderOrThrow(program2, argv);
+  if (program2.args.length > 0)
+    throw new Error(`unexpected argument: ${program2.args[0]}`);
+  const opts = program2.opts();
+  if (opts.progress !== void 0 && opts.progress !== "jsonl") {
+    throw new Error("--progress only supports 'jsonl'");
+  }
+  return {
+    publish: opts.publish === true,
+    yes: opts.yes === true,
+    decompose: opts.decompose === true,
+    progress: opts.progress === "jsonl",
+    ...opts.name === void 0 ? {} : { name: opts.name },
+    ...opts.description === void 0 ? {} : { description: opts.description },
+    ...opts.home === void 0 ? {} : { home: opts.home },
+    ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt }
+  };
+}
+function assembleCustomFlow(input) {
+  const signals = extractAssemblySignals(input.description, {
+    explicit_decompose: input.decompose
+  });
+  const resolution = resolveArchetype(input.slug, signals);
+  const compiled = compileSchematicToCompiledFlow(resolution.schematic);
+  const files = planCompiledFlowFiles(compiled).map((file2) => ({
+    filename: file2.filename,
+    flow: CompiledFlow.parse(file2.flow)
+  }));
+  for (const { filename, flow } of files) {
+    validateCustomFlow(input.slug, flow, `custom flow (${filename})`);
+  }
+  return { files, resolution };
 }
 function summaryMarkdown(input) {
   const invocation = customFlowInvocation(input.slug, input.home);
@@ -47356,12 +47377,12 @@ async function runCreateCommand(argv, options = {}) {
     }
     const slug = slugify2(args.name ?? args.description);
     assertValidSlug(slug);
-    const home = customHome(args);
-    if (args.publish && existsSync9(join4(flowRoot(home), slug, "circuit.json"))) {
+    const home = customHome(args.home);
+    if (args.publish && existsSync10(join5(flowRoot(home), slug, "circuit.json"))) {
       throw new Error(`custom flow already published: ${slug}`);
     }
     const createdAt = args.createdAt ?? now().toISOString();
-    const draftExists = existsSync9(join4(draftRoot(home, slug), "circuit.json"));
+    const draftExists = existsSync10(join5(draftRoot(home, slug), "circuit.json"));
     let files;
     let mainFlow;
     let archetype;
@@ -47408,16 +47429,16 @@ async function runCreateCommand(argv, options = {}) {
       status,
       slug,
       draft_path: draftRoot(home, slug),
-      validation_path: join4(draftRoot(home, slug), "validation-result.json"),
+      validation_path: join5(draftRoot(home, slug), "validation-result.json"),
       ...args.publish ? {
         published_path: publishedRoot(home, slug),
-        flow_path: join4(flowRoot(home), slug, "circuit.json"),
-        command_path: join4(commandRoot(home), `${slug}.md`),
+        flow_path: join5(flowRoot(home), slug, "circuit.json"),
+        command_path: join5(commandRoot(home), `${slug}.md`),
         manifest_path: manifestPath(home)
       } : {},
       operator_summary_markdown_path: summaryPath(home, slug)
     };
-    const outPath = resultPath(home, slug);
+    const outPath = resultPath(home, slug, "create");
     writeJson(outPath, result);
     const finalResult = { ...result, result_path: outPath };
     if (progress !== void 0) {
@@ -47448,13 +47469,1915 @@ async function runCreateCommand(argv, options = {}) {
   }
 }
 
+// dist/cli/generate.js
+import { existsSync as existsSync11 } from "node:fs";
+import { join as join6 } from "node:path";
+
+// dist/shared/json-extraction.js
+function extractJsonObject(text) {
+  let cursor = 0;
+  while (cursor < text.length) {
+    const start = text.indexOf("{", cursor);
+    if (start === -1)
+      break;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let end = -1;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (inString) {
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === '"')
+          inString = false;
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === "{")
+        depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          end = i + 1;
+          break;
+        }
+      }
+    }
+    if (end === -1)
+      break;
+    const candidate = text.slice(start, end);
+    try {
+      JSON.parse(candidate);
+      return candidate;
+    } catch {
+      cursor = start + 1;
+    }
+  }
+  return text;
+}
+
+// dist/connectors/subprocess.js
+import { spawn } from "node:child_process";
+import { performance } from "node:perf_hooks";
+var ConnectorSubprocessSpawnError = class extends Error {
+  phase;
+  constructor(phase, message) {
+    super(message);
+    this.phase = phase;
+    this.name = "ConnectorSubprocessSpawnError";
+  }
+};
+function isConnectorSubprocessSpawnError(error51) {
+  return error51 instanceof ConnectorSubprocessSpawnError || error51 instanceof Error && error51.name === "ConnectorSubprocessSpawnError";
+}
+function appendCapped(current, currentBytes, chunk, maxBytes) {
+  const chunkBytes = Buffer.byteLength(chunk, "utf8");
+  if (currentBytes + chunkBytes <= maxBytes) {
+    return { text: current + chunk, bytes: currentBytes + chunkBytes, capped: false };
+  }
+  const remaining = maxBytes - currentBytes;
+  if (remaining <= 0) {
+    return { text: current, bytes: currentBytes, capped: true };
+  }
+  return {
+    text: current + Buffer.from(chunk, "utf8").subarray(0, remaining).toString("utf8"),
+    bytes: maxBytes,
+    capped: true
+  };
+}
+function spawnErrorVerb(error51) {
+  return error51.phase === "spawn-failed" ? "spawn failed" : "spawn error";
+}
+function cappedSuffix(capped, stream) {
+  return capped ? ` [${stream} capped]` : "";
+}
+function parseNdjsonObjects(stdout, label) {
+  const lines = stdout.split("\n").filter((line) => line.length > 0);
+  const objects = [];
+  for (const [idx, line] of lines.entries()) {
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch (err) {
+      throw new Error(`${label} line ${idx + 1} is not valid JSON: ${err.message}; line[:200]=${line.slice(0, 200)}`);
+    }
+    if (typeof parsed !== "object" || parsed === null) {
+      throw new Error(`${label} line ${idx + 1} is not a JSON object`);
+    }
+    objects.push(parsed);
+  }
+  return objects;
+}
+async function runConnectorSubprocess(input) {
+  const start = performance.now();
+  return await new Promise((resolve30, reject) => {
+    let child;
+    try {
+      child = spawn(input.executable, [...input.args], {
+        stdio: ["ignore", "pipe", "pipe"],
+        env: input.env ?? process.env,
+        detached: true,
+        ...input.cwd === void 0 ? {} : { cwd: input.cwd }
+      });
+    } catch (error51) {
+      reject(new ConnectorSubprocessSpawnError("spawn-failed", error51 instanceof Error ? error51.message : String(error51)));
+      return;
+    }
+    let stdout = "";
+    let stdoutBytes = 0;
+    let stderr = "";
+    let stderrBytes = 0;
+    let stdoutCapped = false;
+    let stderrCapped = false;
+    let timedOut = false;
+    let killGroupSucceeded = false;
+    const killProcessGroup = (signal) => {
+      const pid = child.pid;
+      if (typeof pid !== "number")
+        return false;
+      try {
+        process.kill(-pid, signal);
+        return true;
+      } catch {
+        try {
+          child.kill(signal);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+    };
+    let killGraceTimer;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      killGroupSucceeded = killProcessGroup("SIGTERM");
+      killGraceTimer = setTimeout(() => {
+        killProcessGroup("SIGKILL");
+        killGraceTimer = void 0;
+      }, input.sigtermToSigkillGraceMs);
+    }, input.timeoutMs);
+    const clearAllTimers = () => {
+      clearTimeout(timer);
+      if (killGraceTimer !== void 0) {
+        clearTimeout(killGraceTimer);
+        killGraceTimer = void 0;
+      }
+    };
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => {
+      const next = appendCapped(stdout, stdoutBytes, chunk, input.stdoutMaxBytes);
+      stdout = next.text;
+      stdoutBytes = next.bytes;
+      stdoutCapped = stdoutCapped || next.capped;
+    });
+    child.stderr?.on("data", (chunk) => {
+      const next = appendCapped(stderr, stderrBytes, chunk, input.stderrMaxBytes);
+      stderr = next.text;
+      stderrBytes = next.bytes;
+      stderrCapped = stderrCapped || next.capped;
+    });
+    child.on("error", (error51) => {
+      clearAllTimers();
+      reject(new ConnectorSubprocessSpawnError("spawn-error", error51.message));
+    });
+    child.on("close", (code, signal) => {
+      clearAllTimers();
+      resolve30({
+        stdout,
+        stderr,
+        stdoutCapped,
+        stderrCapped,
+        timedOut,
+        killGroupSucceeded,
+        code,
+        signal,
+        durationMs: performance.now() - start
+      });
+    });
+  });
+}
+
+// dist/connectors/claude-code.js
+var CLAUDE_CODE_DISPATCH_FLAGS = [
+  "-p",
+  "--permission-mode",
+  "bypassPermissions",
+  "--strict-mcp-config",
+  "--disable-slash-commands",
+  "--setting-sources",
+  "",
+  "--settings",
+  "{}",
+  "--output-format",
+  "stream-json",
+  "--verbose",
+  "--no-session-persistence"
+];
+var CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS = ["StructuredOutput"];
+var CLAUDE_CODE_EXECUTABLE = "claude";
+var DEFAULT_TIMEOUT_MS = 6e5;
+var SIGTERM_TO_SIGKILL_GRACE_MS = 2e3;
+var STDOUT_MAX_BYTES = 16 * 1024 * 1024;
+var STDERR_MAX_BYTES = 1024 * 1024;
+function selectedAnthropicModel(selection) {
+  const model = selection?.model;
+  if (model === void 0)
+    return void 0;
+  if (model.provider !== "anthropic") {
+    throw new Error(`claude-code connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider 'anthropic'`);
+  }
+  return model.model;
+}
+function assertClaudeCodeEffort(effort) {
+  if (!CLAUDE_CODE_SUPPORTED_EFFORTS.includes(effort)) {
+    throw new Error(`claude-code connector cannot honor effort '${effort}'; supported efforts: ${CLAUDE_CODE_SUPPORTED_EFFORTS.join(", ")}`);
+  }
+}
+function buildClaudeCodeArgs(input) {
+  const args = [];
+  if (input.toolAllowList !== void 0 && input.toolAllowList.length > 0) {
+    args.push("--tools", input.toolAllowList.join(","));
+  }
+  args.push(...CLAUDE_CODE_DISPATCH_FLAGS);
+  const model = selectedAnthropicModel(input.resolvedSelection);
+  if (model !== void 0) {
+    args.push("--model", model);
+  }
+  const effort = input.resolvedSelection?.effort;
+  if (effort !== void 0) {
+    assertClaudeCodeEffort(effort);
+    args.push("--effort", effort);
+  }
+  if (claudeCodeEmitsStructuredOutputFlag(input)) {
+    args.push("--json-schema", JSON.stringify(input.responseSchema));
+  }
+  args.push(input.prompt);
+  return args;
+}
+function claudeCodeEmitsStructuredOutputFlag(input) {
+  return input.responseSchema !== void 0 && isClaudeCodeStructuredOutputCompatible(input.responseSchema);
+}
+function claudeCodeStdoutDiagnostic(stdout) {
+  try {
+    parseClaudeCodeStdout(stdout, "", 0);
+    return void 0;
+  } catch (error51) {
+    return error51 instanceof Error ? error51.message : String(error51);
+  }
+}
+function isClaudeCodeStructuredOutputCompatible(schema) {
+  return schema.type === "object";
+}
+async function relayClaudeCode(input) {
+  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const args = buildClaudeCodeArgs(input);
+  let result;
+  try {
+    result = await runConnectorSubprocess({
+      executable: CLAUDE_CODE_EXECUTABLE,
+      args,
+      timeoutMs: timeoutMs2,
+      stdoutMaxBytes: STDOUT_MAX_BYTES,
+      stderrMaxBytes: STDERR_MAX_BYTES,
+      sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
+      env: process.env
+    });
+  } catch (error51) {
+    if (isConnectorSubprocessSpawnError(error51)) {
+      throw new Error(`claude-code subprocess ${spawnErrorVerb(error51)}: ${error51.message}`);
+    }
+    throw error51;
+  }
+  if (result.timedOut) {
+    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
+    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
+    throw new Error(`claude-code subprocess timed out after ${timeoutMs2}ms; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
+  }
+  if (result.code !== 0) {
+    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
+    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
+    const stdoutDiagnostic = claudeCodeStdoutDiagnostic(result.stdout);
+    const diagnosticText = stdoutDiagnostic === void 0 ? "" : `; stdout_diagnostic=${stdoutDiagnostic}`;
+    throw new Error(`claude-code subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}${diagnosticText}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
+  }
+  if (result.stdoutCapped) {
+    throw new Error(`claude-code subprocess stdout exceeded ${STDOUT_MAX_BYTES} bytes; capability-boundary check cannot be evaluated on truncated stream`);
+  }
+  try {
+    return parseClaudeCodeStdout(
+      result.stdout,
+      input.prompt,
+      result.durationMs,
+      input.toolAllowList,
+      // Same predicate that decided whether buildClaudeCodeArgs emitted
+      // --json-schema, so the guard admits the CLI's return-channel tool exactly
+      // when we asked for structured output — the two can't diverge.
+      claudeCodeEmitsStructuredOutputFlag(input)
+    );
+  } catch (error51) {
+    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
+    throw new Error(`claude-code subprocess: ${error51.message}; stdout[:500]=${result.stdout.slice(0, 500)}; stderr[:200]=${result.stderr.slice(0, 200)}${stderrSuffix}`);
+  }
+}
+function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools, structuredOutputRequested = false) {
+  const trace_entries = parseNdjsonObjects(stdout, "stream-json");
+  if (trace_entries.length === 0) {
+    throw new Error("stream-json stdout is empty");
+  }
+  const initTraceEntry = trace_entries.find((e) => e.type === "system" && e.subtype === "init");
+  const resultTraceEntries = trace_entries.filter((e) => e.type === "result");
+  const resultTraceEntry = resultTraceEntries[resultTraceEntries.length - 1];
+  if (initTraceEntry === void 0) {
+    throw new Error("system/init trace_entry missing from subprocess stdout");
+  }
+  if (resultTraceEntry === void 0) {
+    throw new Error("result trace_entry missing from subprocess stdout");
+  }
+  if (resultTraceEntry.is_error === true) {
+    const message = typeof resultTraceEntry.result === "string" ? resultTraceEntry.result : "<no message>";
+    throw new Error(`subprocess reported is_error: ${message}`);
+  }
+  const mcpServers = initTraceEntry.mcp_servers;
+  const slashCommands = initTraceEntry.slash_commands;
+  if (!Array.isArray(mcpServers) || mcpServers.length !== 0) {
+    throw new Error(`init.mcp_servers must be []; got ${JSON.stringify(mcpServers)}. CLAUDE_CODE_DISPATCH_FLAGS includes --strict-mcp-config to keep this surface closed.`);
+  }
+  if (!Array.isArray(slashCommands) || slashCommands.length !== 0) {
+    throw new Error(`init.slash_commands must be []; got ${JSON.stringify(slashCommands)}. CLAUDE_CODE_DISPATCH_FLAGS includes --disable-slash-commands to keep this surface closed.`);
+  }
+  if (requestedTools !== void 0 && requestedTools.length > 0) {
+    const sessionTools = initTraceEntry.tools;
+    if (!Array.isArray(sessionTools)) {
+      throw new Error(`init.tools must be an array to verify the enforced equipment scope; got ${JSON.stringify(sessionTools)}`);
+    }
+    const allowed = new Set(requestedTools);
+    if (structuredOutputRequested) {
+      for (const tool of CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS)
+        allowed.add(tool);
+    }
+    const leaked = sessionTools.filter((tool) => typeof tool !== "string" || !allowed.has(tool));
+    if (leaked.length !== 0) {
+      const rendered = leaked.map((tool) => typeof tool === "string" ? tool : JSON.stringify(tool)).join(", ");
+      throw new Error(`enforced equipment scope violated: tools outside the allow-list are present in the session: ${rendered}. The relay passes --tools to restrict the surface to [${requestedTools.join(", ")}]; a tool beyond it means the restriction did not hold.`);
+    }
+  }
+  const receipt_id = initTraceEntry.session_id;
+  const cli_version = initTraceEntry.claude_code_version;
+  if (typeof receipt_id !== "string" || receipt_id.length === 0) {
+    throw new Error("init.session_id missing or empty");
+  }
+  if (typeof cli_version !== "string" || cli_version.length === 0) {
+    throw new Error("init.claude_code_version missing or empty");
+  }
+  const structuredOutput = resultTraceEntry.structured_output;
+  let result_body;
+  if (structuredOutput !== void 0 && structuredOutput !== null) {
+    if (typeof structuredOutput !== "object") {
+      throw new Error("result.structured_output present but not an object");
+    }
+    result_body = JSON.stringify(structuredOutput);
+  } else {
+    const result_body_raw = resultTraceEntry.result;
+    if (typeof result_body_raw !== "string") {
+      throw new Error("result.result missing or not a string");
+    }
+    result_body = extractJsonObject(result_body_raw);
+  }
+  const usage2 = extractRelayUsage(resultTraceEntry);
+  return {
+    request_payload: prompt,
+    receipt_id,
+    result_body,
+    duration_ms,
+    cli_version,
+    ...usage2 === void 0 ? {} : { usage: usage2 }
+  };
+}
+function extractRelayUsage(resultTraceEntry) {
+  const usage2 = resultTraceEntry.usage;
+  const modelUsage = resultTraceEntry.modelUsage;
+  const hasUsage = usage2 !== null && typeof usage2 === "object";
+  const hasModelUsage = modelUsage !== null && typeof modelUsage === "object";
+  if (!hasUsage && !hasModelUsage)
+    return void 0;
+  const u = hasUsage ? usage2 : {};
+  const cacheCreation = u.cache_creation ?? {};
+  const models = [];
+  if (hasModelUsage) {
+    for (const [model, raw] of Object.entries(modelUsage)) {
+      if (raw === null || typeof raw !== "object")
+        continue;
+      const m = raw;
+      const costUsd = finiteOrUndefined(m.costUSD);
+      models.push({
+        // The trace schema requires a non-empty model id, and a schema
+        // rejection at trace append would fail the relay. An empty
+        // modelUsage key becomes "unknown" so this stays observability.
+        model: model.length === 0 ? "unknown" : model,
+        input_tokens: finiteOrZero(m.inputTokens),
+        output_tokens: finiteOrZero(m.outputTokens),
+        cache_read_tokens: finiteOrZero(m.cacheReadInputTokens),
+        cache_creation_tokens: finiteOrZero(m.cacheCreationInputTokens),
+        ...costUsd === void 0 ? {} : { cost_usd_reported: costUsd }
+      });
+    }
+  }
+  const totalCostUsd = finiteOrUndefined(resultTraceEntry.total_cost_usd);
+  const totals = models.length > 0 ? {
+    input_tokens: sumBy(models, (m) => m.input_tokens),
+    output_tokens: sumBy(models, (m) => m.output_tokens),
+    cache_read_tokens: sumBy(models, (m) => m.cache_read_tokens),
+    cache_creation_tokens: sumBy(models, (m) => m.cache_creation_tokens)
+  } : {
+    input_tokens: finiteOrZero(u.input_tokens),
+    output_tokens: finiteOrZero(u.output_tokens),
+    cache_read_tokens: finiteOrZero(u.cache_read_input_tokens),
+    cache_creation_tokens: finiteOrZero(u.cache_creation_input_tokens)
+  };
+  return {
+    ...totals,
+    cache_creation_5m_tokens: finiteOrZero(cacheCreation.ephemeral_5m_input_tokens),
+    cache_creation_1h_tokens: finiteOrZero(cacheCreation.ephemeral_1h_input_tokens),
+    ...totalCostUsd === void 0 ? {} : { total_cost_usd_reported: totalCostUsd },
+    ...models.length === 0 ? {} : { models }
+  };
+}
+function finiteOrZero(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+function finiteOrUndefined(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : void 0;
+}
+function sumBy(items, pick2) {
+  return items.reduce((sum, item) => sum + pick2(item), 0);
+}
+
+// dist/flows/registries/close-writers/generic-close-builder.js
+var GENERIC_CLOSE_BUILDER = {
+  resultSchemaName: FLOW_RESULT_CONTRACT,
+  reads: [],
+  build(context) {
+    const evidenceLinks3 = [...context.closeStep.reads];
+    const linkCount = evidenceLinks3.length;
+    return {
+      schema_version: 1,
+      summary: linkCount === 0 ? `Composed flow '${context.flow.id}' closed with no upstream evidence.` : `Composed flow '${context.flow.id}' closed with ${linkCount} evidence link${linkCount === 1 ? "" : "s"}.`,
+      // INFORMATIONAL ONLY. The run's honest outcome is derived from the terminal
+      // ROUTE (@complete/@stop/@handoff), not from this body — a composed flow
+      // never sets engineFlags.bindsTerminalOutcomeToPrimaryResult, so run-close
+      // never reads this field to decide the run outcome. This builder only sits on
+      // the @complete close compose step, so 'complete' is faithful here. Do NOT
+      // make this the outcome bind source (set that flag on a composed flow)
+      // without re-deriving the value from real upstream state — hardcoded
+      // 'complete' would then mask a degraded run.
+      outcome: "complete",
+      evidence_links: evidenceLinks3
+    };
+  }
+};
+
+// dist/flows/registries/close-writers/registry.js
+var REGISTRY3 = new Map(buildCloseRegistry(flowPackages));
+if (REGISTRY3.has(GENERIC_CLOSE_BUILDER.resultSchemaName)) {
+  throw new Error(`generic close builder collides with a flow-registered close builder for schema '${GENERIC_CLOSE_BUILDER.resultSchemaName}'`);
+}
+REGISTRY3.set(GENERIC_CLOSE_BUILDER.resultSchemaName, GENERIC_CLOSE_BUILDER);
+function findCloseBuilder(resultSchemaName) {
+  return REGISTRY3.get(resultSchemaName);
+}
+function resolveCloseReadPaths(builder, flow, closeStep) {
+  const paths = {};
+  for (const descriptor of builder.reads) {
+    if (descriptor.required) {
+      const path = reportPathForSchemaInRuntimeFlow(flow, descriptor.schema);
+      if (!closeStep.reads.includes(path)) {
+        throw new Error(`${closeStep.writes.report.schema} requires close step '${closeStep.id}' to read ${path}`);
+      }
+      paths[descriptor.name] = path;
+    } else {
+      if (!flowHasReportSchemaInRuntimeFlow(flow, descriptor.schema)) {
+        paths[descriptor.name] = void 0;
+        continue;
+      }
+      const path = reportPathForSchemaInRuntimeFlow(flow, descriptor.schema);
+      paths[descriptor.name] = closeStep.reads.includes(path) ? path : void 0;
+    }
+  }
+  return paths;
+}
+
+// dist/flows/registries/compose-writers/registry.js
+var REGISTRY4 = buildComposeRegistry(flowPackages);
+function findComposeBuilder(resultSchemaName) {
+  return REGISTRY4.get(resultSchemaName);
+}
+function resolveComposeReadPaths(builder, flow, step) {
+  const paths = {};
+  if (builder.reads === void 0)
+    return paths;
+  for (const descriptor of builder.reads) {
+    if (!descriptor.required && !flowHasReportSchemaInRuntimeFlow(flow, descriptor.schema)) {
+      paths[descriptor.name] = void 0;
+      continue;
+    }
+    const path = reportPathForSchemaInRuntimeFlow(flow, descriptor.schema);
+    if (descriptor.required && !step.reads.includes(path)) {
+      throw new Error(`${step.writes.report.schema} requires step '${step.id}' to read ${path}`);
+    }
+    paths[descriptor.name] = step.reads.includes(path) ? path : void 0;
+  }
+  return paths;
+}
+
+// dist/flows/composition/actual-menu.js
+function asString(value) {
+  return value;
+}
+function familyOf(actual) {
+  const dot = actual.indexOf(".");
+  return dot === -1 ? actual : actual.slice(0, dot);
+}
+function primaryUseStepIds(definition) {
+  const items = definition.schematic.items;
+  let actIndex = -1;
+  items.forEach((item, index) => {
+    if (asString(item.block) === "act")
+      actIndex = index;
+  });
+  const primaryByBlock = /* @__PURE__ */ new Map();
+  items.forEach((item, index) => {
+    const block = asString(item.block);
+    const existing = primaryByBlock.get(block);
+    if (existing === void 0) {
+      primaryByBlock.set(block, asString(item.id));
+      return;
+    }
+    const existingIndex = items.findIndex((it) => asString(it.id) === existing);
+    const existingIsPostChange = actIndex !== -1 && existingIndex >= actIndex;
+    const thisIsPostChange = actIndex !== -1 && index >= actIndex;
+    if (!existingIsPostChange && thisIsPostChange) {
+      primaryByBlock.set(block, asString(item.id));
+    }
+  });
+  return new Set(primaryByBlock.values());
+}
+var BLOCK_OUTPUT_GENERIC = new Map(FLOW_BLOCK_DEFINITIONS.map((block) => [block.id, asString(block.output_contract)]));
+function deriveActualMenu(definitions) {
+  const entries = [];
+  for (const definition of definitions) {
+    const primaryStepIds = primaryUseStepIds(definition);
+    for (const item of definition.schematic.items) {
+      const actual = asString(item.output);
+      const generic = BLOCK_OUTPUT_GENERIC.get(asString(item.block)) ?? actual;
+      const execution = item.execution;
+      entries.push({
+        block: item.block,
+        executionKind: execution.kind,
+        ...execution.kind === "relay" ? { relayRole: execution.role } : {},
+        ...execution.kind === "sub-run" ? {
+          subRunFlowRef: asString(execution.flow_ref.flow_id),
+          subRunEntryMode: asString(execution.flow_ref.entry_mode)
+        } : {},
+        stage: item.stage,
+        actual,
+        generic,
+        family: familyOf(actual),
+        donorFlowId: definition.id,
+        donorStepId: asString(item.id),
+        ...item.check === void 0 ? {} : { check: item.check },
+        ...execution.kind === "checkpoint" && item.checkpoint_policy?.report_template !== void 0 ? { checkpointReportTemplate: item.checkpoint_policy.report_template } : {},
+        donorPrimaryForBlock: primaryStepIds.has(asString(item.id)),
+        bodyRegistered: resolveFieldSignature(actual) !== null,
+        hasVerificationWriter: findVerificationWriter(actual) !== void 0,
+        hasCloseWriter: findCloseBuilder(actual) !== void 0,
+        hasComposeWriter: findComposeBuilder(actual) !== void 0
+      });
+    }
+  }
+  return entries;
+}
+function entryIsRegisteredFor(entry, executionKind) {
+  if (!entry.bodyRegistered)
+    return false;
+  if (executionKind === "verification" && !entry.hasVerificationWriter)
+    return false;
+  return true;
+}
+
+// dist/flows/composition/evaluate.js
+function asString2(value) {
+  return value;
+}
+function outputIsReadableContract(writes) {
+  if (writes === void 0)
+    return false;
+  return writes.report_path !== void 0 || writes.result_path !== void 0;
+}
+function extractPrimaryResult(compiled) {
+  const flow = compiled.kind === "single" ? compiled.flow : [...compiled.flows.values()][0];
+  const primary = flow?.runtime_surface?.primary_result;
+  if (primary === void 0)
+    return void 0;
+  return { schema: asString2(primary.schema_name) };
+}
+function evaluateValidity(spec) {
+  let schematic;
+  try {
+    schematic = assembleFlowSchematic(spec);
+  } catch (error51) {
+    return {
+      valid: false,
+      catalogIssueCount: -1,
+      catalogIssues: [],
+      compiles: false,
+      boundPrimaryResult: false,
+      error: `assemble: ${errorMessage3(error51)}`
+    };
+  }
+  const catalogIssues = collectSchematicCatalogIssues(schematic).map((issue2) => issue2.message);
+  let primary;
+  let compiles = true;
+  let compileError;
+  try {
+    primary = extractPrimaryResult(compileSchematicToCompiledFlow(schematic));
+  } catch (error51) {
+    compiles = false;
+    compileError = `compile: ${errorMessage3(error51)}`;
+  }
+  const valid = compiles && catalogIssues.length === 0 && primary !== void 0;
+  return {
+    valid,
+    catalogIssueCount: catalogIssues.length,
+    catalogIssues,
+    compiles,
+    boundPrimaryResult: primary !== void 0,
+    ...primary === void 0 ? {} : { primaryResultSchema: primary.schema },
+    ...compileError === void 0 ? {} : { error: compileError },
+    schematic
+  };
+}
+function runtimeIndexShape(flow) {
+  return {
+    id: flow.id,
+    version: flow.version,
+    stages: [],
+    steps: flow.steps
+  };
+}
+function reportSchemaOf(step) {
+  const report = step.writes.report;
+  if (typeof report !== "object" || report === null)
+    return void 0;
+  return report;
+}
+function evaluateRunnability(spec) {
+  let schematic;
+  try {
+    schematic = assembleFlowSchematic(spec);
+  } catch (error51) {
+    return {
+      runnable: false,
+      aborts: [],
+      checkedSteps: 0,
+      error: `assemble: ${errorMessage3(error51)}`
+    };
+  }
+  let compiled;
+  try {
+    compiled = compileSchematicToCompiledFlow(schematic);
+  } catch (error51) {
+    return {
+      runnable: false,
+      aborts: [],
+      checkedSteps: 0,
+      error: `compile: ${errorMessage3(error51)}`
+    };
+  }
+  const flows = compiled.kind === "single" ? [compiled.flow] : [...compiled.flows.values()];
+  const aborts = [];
+  let checkedSteps = 0;
+  for (const compiledFlow of flows) {
+    const flow = runtimeIndexShape(compiledFlow);
+    for (const step of flow.steps) {
+      const report = reportSchemaOf(step);
+      if (report === void 0)
+        continue;
+      const composeBuilder = findComposeBuilder(report.schema);
+      const closeBuilder = findCloseBuilder(report.schema);
+      const verificationBuilder = findVerificationWriter(report.schema);
+      const verificationDeclaresReads = verificationBuilder !== void 0 && verificationBuilder.reads !== void 0;
+      if (composeBuilder === void 0 && closeBuilder === void 0 && !verificationDeclaresReads) {
+        continue;
+      }
+      checkedSteps += 1;
+      try {
+        if (composeBuilder !== void 0) {
+          resolveComposeReadPaths(composeBuilder, flow, step);
+        } else if (closeBuilder !== void 0) {
+          resolveCloseReadPaths(closeBuilder, flow, step);
+        } else if (verificationBuilder !== void 0) {
+          resolveVerificationReadPaths(verificationBuilder, flow, step);
+        }
+      } catch (error51) {
+        aborts.push({ stepId: step.id, schema: report.schema, reason: errorMessage3(error51) });
+      }
+    }
+  }
+  return { runnable: aborts.length === 0, aborts, checkedSteps };
+}
+function errorMessage3(error51) {
+  return error51 instanceof Error ? error51.message : String(error51);
+}
+
+// dist/flows/composition/composer.js
+function deriveAmbientGenerics(definitions) {
+  const ambient = /* @__PURE__ */ new Set();
+  for (const definition of definitions) {
+    for (const contract of definition.schematic.initial_contracts) {
+      ambient.add(asString3(contract));
+    }
+  }
+  return ambient;
+}
+var KEY_BY_CONTRACT = {
+  "task.intake@v1": "task",
+  "route.decision@v1": "route",
+  "context.request@v1": "request",
+  "context.packet@v1": "context",
+  "flow.brief@v1": "brief",
+  "plan.strategy@v1": "plan",
+  "diagnosis.result@v1": "diagnosis",
+  "change.evidence@v1": "change",
+  "verification.plan@v1": "proof",
+  "verification.result@v1": "verification",
+  "review.verdict@v1": "review",
+  "flow.question@v1": "question",
+  "flow.evidence@v1": "evidence",
+  "flow.state@v1": "state",
+  "decision.answer@v1": "decision",
+  "flow.result@v1": "result"
+};
+function asString3(value) {
+  return value;
+}
+function keyFor(contract) {
+  const known = KEY_BY_CONTRACT[contract];
+  if (known !== void 0)
+    return known;
+  const local = contract.split("@")[0]?.split(".").pop() ?? contract;
+  return local.replace(/[^a-z0-9_]/g, "_");
+}
+function titleCase(stage) {
+  return stage.charAt(0).toUpperCase() + stage.slice(1);
+}
+var BLOCK_BY_ID = new Map(FLOW_BLOCK_DEFINITIONS.map((block) => [block.id, block]));
+function rankFamilies(roles, menu, nonRawCells) {
+  const coverage = /* @__PURE__ */ new Map();
+  roles.forEach((role, index) => {
+    const block = BLOCK_BY_ID.get(role.block);
+    if (block === void 0)
+      return;
+    const outputGeneric = asString3(block.output_contract);
+    for (const entry of menu) {
+      if (!candidateMatchesRole(entry, role, outputGeneric, nonRawCells))
+        continue;
+      const set2 = coverage.get(entry.family) ?? /* @__PURE__ */ new Set();
+      set2.add(index);
+      coverage.set(entry.family, set2);
+    }
+  });
+  const ranked = /* @__PURE__ */ new Map();
+  for (const [family, indices] of coverage)
+    ranked.set(family, indices.size);
+  return ranked;
+}
+function cellKey(block, executionKind, generic) {
+  return `${block}|${executionKind}|${generic}`;
+}
+function computeNonRawCells(menu) {
+  const cells = /* @__PURE__ */ new Set();
+  for (const entry of menu) {
+    if (entry.actual !== entry.generic) {
+      cells.add(cellKey(entry.block, entry.executionKind, entry.generic));
+    }
+  }
+  return cells;
+}
+function candidateMatchesRole(entry, role, outputGeneric, nonRawCells) {
+  if (entry.block !== role.block)
+    return false;
+  if (entry.executionKind !== role.executionKind)
+    return false;
+  if (role.executionKind === "relay" && entry.relayRole !== role.relayRole)
+    return false;
+  if (entry.generic !== outputGeneric)
+    return false;
+  if (entry.actual === outputGeneric && nonRawCells.has(cellKey(role.block, role.executionKind, outputGeneric))) {
+    return false;
+  }
+  if (role.executionKind === "sub-run" && role.flowId !== void 0 && entry.subRunFlowRef !== role.flowId) {
+    return false;
+  }
+  if (!entryIsRegisteredFor(entry, role.executionKind))
+    return false;
+  if (role.terminal && !entry.hasCloseWriter)
+    return false;
+  return true;
+}
+function representativeActualForFamily(family, role, menu, nonRawCells) {
+  const block = BLOCK_BY_ID.get(role.block);
+  if (block === void 0)
+    return void 0;
+  const outputGeneric = asString3(block.output_contract);
+  return menu.filter((entry) => entry.family === family && candidateMatchesRole(entry, role, outputGeneric, nonRawCells)).sort((a, b) => {
+    if (a.donorPrimaryForBlock !== b.donorPrimaryForBlock) {
+      return a.donorPrimaryForBlock ? -1 : 1;
+    }
+    return a.actual < b.actual ? -1 : a.actual > b.actual ? 1 : 0;
+  })[0];
+}
+function computeFamilyCoherence(roles, menu, nonRawCells) {
+  const starvedByFamily = /* @__PURE__ */ new Map();
+  for (const family of new Set(menu.map((entry) => entry.family))) {
+    const bound = roles.map((role) => representativeActualForFamily(family, role, menu, nonRawCells));
+    let starved = 0;
+    bound.forEach((entry, index) => {
+      if (entry === void 0)
+        return;
+      const role = roles[index];
+      const isTerminalRole = role?.terminal === true || index === roles.length - 1;
+      if (isTerminalRole && role?.executionKind !== "fanout")
+        return;
+      const writer = findComposeBuilder(entry.actual) ?? findCloseBuilder(entry.actual) ?? findVerificationWriter(entry.actual);
+      for (const read of writer?.reads ?? []) {
+        if (!read.required)
+          continue;
+        const producedUpstream = bound.slice(0, index).some((up) => up !== void 0 && up.actual === read.schema);
+        if (!producedUpstream)
+          starved += 1;
+      }
+    });
+    starvedByFamily.set(family, starved);
+  }
+  return starvedByFamily;
+}
+function selectActual(role, outputGeneric, menu, familyRank, nonRawCells, familyCoherence) {
+  const candidates = menu.filter((entry) => candidateMatchesRole(entry, role, outputGeneric, nonRawCells)).sort((a, b) => {
+    const rankA = familyRank.get(a.family) ?? 0;
+    const rankB = familyRank.get(b.family) ?? 0;
+    if (rankA !== rankB)
+      return rankB - rankA;
+    if (familyCoherence !== void 0) {
+      const starvedA = familyCoherence.get(a.family) ?? Number.POSITIVE_INFINITY;
+      const starvedB = familyCoherence.get(b.family) ?? Number.POSITIVE_INFINITY;
+      if (starvedA !== starvedB)
+        return starvedA - starvedB;
+    }
+    if (a.donorPrimaryForBlock !== b.donorPrimaryForBlock) {
+      return a.donorPrimaryForBlock ? -1 : 1;
+    }
+    return a.actual < b.actual ? -1 : a.actual > b.actual ? 1 : 0;
+  });
+  return candidates[0];
+}
+function chooseInputSet(block, available, ambient) {
+  const sets = [
+    block.input_contracts.map(asString3),
+    ...(block.alternative_input_contracts ?? []).map((set2) => set2.map(asString3))
+  ];
+  const satisfiable = sets.map((set2, order) => ({ set: set2, order })).filter(({ set: set2 }) => set2.every((contract) => available.has(contract) || ambient.has(contract)));
+  if (satisfiable.length === 0)
+    return void 0;
+  const producedCount = (set2) => set2.filter((contract) => available.has(contract)).length;
+  satisfiable.sort((a, b) => {
+    const consumedDelta = producedCount(b.set) - producedCount(a.set);
+    if (consumedDelta !== 0)
+      return consumedDelta;
+    if (b.set.length !== a.set.length)
+      return b.set.length - a.set.length;
+    return a.order - b.order;
+  });
+  return satisfiable[0]?.set;
+}
+function stepWrites(flowId, stepId, executionKind, checkpointWritesReport) {
+  const reportPath = `reports/${flowId}/${stepId}.json`;
+  if (executionKind === "relay") {
+    return {
+      report_path: reportPath,
+      request_path: `reports/relay/${stepId}.request.json`,
+      receipt_path: `reports/relay/${stepId}.receipt.txt`,
+      result_path: `reports/relay/${stepId}.result.json`
+    };
+  }
+  if (executionKind === "checkpoint") {
+    return {
+      ...checkpointWritesReport ? { report_path: reportPath } : {},
+      checkpoint_request_path: `reports/checkpoints/${stepId}-request.json`,
+      checkpoint_response_path: `reports/checkpoints/${stepId}-response.json`
+    };
+  }
+  if (executionKind === "sub-run") {
+    return { result_path: `reports/${flowId}/${stepId}.result.json` };
+  }
+  if (executionKind === "fanout") {
+    return {
+      report_path: reportPath,
+      branches_dir_path: `reports/${stepId}-branches`
+    };
+  }
+  return { report_path: reportPath };
+}
+function buildExecution(role, pick2) {
+  switch (role.executionKind) {
+    case "relay":
+      return { kind: "relay", role: role.relayRole };
+    case "compose":
+      return { kind: "compose" };
+    case "verification":
+      return { kind: "verification" };
+    case "checkpoint":
+      return { kind: "checkpoint" };
+    case "sub-run":
+      return {
+        kind: "sub-run",
+        flow_ref: {
+          flow_id: pick2.subRunFlowRef ?? role.flowId,
+          entry_mode: pick2.subRunEntryMode ?? "default"
+        },
+        goal: role.goalText,
+        depth: role.subRunDepth ?? "medium"
+      };
+    case "fanout":
+      return { kind: "fanout" };
+    default:
+      throw new Error(`composer does not synthesize execution kind '${role.executionKind}'`);
+  }
+}
+function buildFanoutMetadata(role) {
+  const branches = (role.fanoutBranches ?? []).map((branch) => ({
+    branch_id: branch.branchId,
+    flow_ref: { flow_id: branch.flowId, entry_mode: "default" },
+    goal: branch.goalText,
+    depth: branch.depth ?? "medium"
+  }));
+  return {
+    branches: { kind: "static", branches },
+    concurrency: { kind: "bounded", max: 2 },
+    on_child_failure: "continue-others",
+    join: { policy: "aggregate-survivors" }
+  };
+}
+function blockHasSingleKind(block) {
+  return block.schematicPolicy.executionKinds.length === 1;
+}
+function composeFlow(roleSet, options) {
+  const menu = deriveActualMenu(options.definitions);
+  const ambient = deriveAmbientGenerics(options.definitions);
+  const nonRawCells = computeNonRawCells(menu);
+  const familyRank = rankFamilies(roleSet.roles, menu, nonRawCells);
+  const familyCoherence = options.enforceRunnability === true ? computeFamilyCoherence(roleSet.roles, menu, nonRawCells) : void 0;
+  const walls = [];
+  const aliasByGeneric = /* @__PURE__ */ new Map();
+  const producedGenerics = /* @__PURE__ */ new Set();
+  const usedAmbient = /* @__PURE__ */ new Set();
+  const items = [];
+  const selections = [];
+  const stepIds = assignStepIds(roleSet.roles);
+  roleSet.roles.forEach((role, index) => {
+    const block = BLOCK_BY_ID.get(role.block);
+    if (block === void 0) {
+      walls.push({ roleIndex: index, block: role.block, reason: "unknown block id" });
+      return;
+    }
+    const outputGeneric = asString3(block.output_contract);
+    if (role.executionKind === "sub-run" && (role.goalText === void 0 || role.goalText.trim().length === 0)) {
+      walls.push({
+        roleIndex: index,
+        block: role.block,
+        reason: `sub-run role for '${role.block}' requires goalText (the child run's objective)`
+      });
+      return;
+    }
+    if (role.executionKind === "fanout") {
+      const fanoutBranches = role.fanoutBranches ?? [];
+      if (fanoutBranches.length < 2) {
+        walls.push({
+          roleIndex: index,
+          block: role.block,
+          reason: `fanout role for '${role.block}' requires at least two branches (aggregate-survivors needs two survivors)`
+        });
+        return;
+      }
+      const branchMissingGoal = fanoutBranches.find((branch) => branch.goalText === void 0 || branch.goalText.trim().length === 0);
+      if (branchMissingGoal !== void 0) {
+        walls.push({
+          roleIndex: index,
+          block: role.block,
+          reason: `fanout branch '${branchMissingGoal.branchId}' requires goalText (the child run's objective)`
+        });
+        return;
+      }
+    }
+    const pick2 = selectActual(role, outputGeneric, menu, familyRank, nonRawCells, familyCoherence);
+    if (pick2 === void 0) {
+      walls.push({
+        roleIndex: index,
+        block: role.block,
+        reason: `no registered actual for ${role.block}/${role.executionKind} producing ${outputGeneric}${role.executionKind === "sub-run" && role.flowId !== void 0 ? ` running child flow '${role.flowId}'` : ""}${role.terminal ? " with a close writer" : ""}`
+      });
+      return;
+    }
+    const available = new Set(producedGenerics);
+    const inputSet = chooseInputSet(block, available, ambient);
+    if (inputSet === void 0) {
+      walls.push({
+        roleIndex: index,
+        block: role.block,
+        reason: `no input set satisfiable; needs one of ${describeInputSets(block)}, have produced [${[
+          ...producedGenerics
+        ].join(", ")}] + ambient`
+      });
+      return;
+    }
+    const input = {};
+    for (const contract of inputSet) {
+      const key = keyFor(contract);
+      if (producedGenerics.has(contract)) {
+        const actual = aliasByGeneric.get(contract);
+        input[key] = actual ?? contract;
+      } else {
+        usedAmbient.add(contract);
+        input[key] = contract;
+      }
+    }
+    const isTerminal = role.terminal === true || index === roleSet.roles.length - 1;
+    if (isTerminal) {
+      const consumed = /* @__PURE__ */ new Set();
+      for (const prior of items)
+        for (const value of Object.values(prior.input ?? {}))
+          consumed.add(value);
+      for (const value of Object.values(input))
+        consumed.add(value);
+      const genericOfActual = new Map(selections.map((sel) => [sel.actual, sel.generic]));
+      for (const prior of selections) {
+        if (!prior.producesReadableContract)
+          continue;
+        const orphan = prior.actual;
+        if (consumed.has(orphan))
+          continue;
+        const key = keyFor(genericOfActual.get(orphan) ?? orphan);
+        if (input[key] === void 0) {
+          input[key] = orphan;
+          consumed.add(orphan);
+        }
+      }
+    }
+    const stepId = stepIds[index];
+    const nextId = stepIds[index + 1];
+    const routes = role.terminal ? { complete: "@complete", stop: "@stop" } : nextId === void 0 ? { complete: "@complete", stop: "@stop" } : { continue: nextId, stop: "@stop" };
+    if (role.loopBackTo !== void 0) {
+      let targetIndex = -1;
+      for (let j = index - 1; j >= 0; j--) {
+        if (roleSet.roles[j]?.block === role.loopBackTo) {
+          targetIndex = j;
+          break;
+        }
+      }
+      if (targetIndex === -1) {
+        walls.push({
+          roleIndex: index,
+          block: role.block,
+          reason: `loopBackTo '${role.loopBackTo}' has no upstream step to loop back to`
+        });
+        return;
+      }
+      routes.retry = stepIds[targetIndex];
+    }
+    const checkpointWritesReport = role.executionKind === "checkpoint" && routes.continue !== void 0 && pick2.checkpointReportTemplate !== void 0;
+    const checkpointPolicy = role.executionKind === "checkpoint" && routes.continue !== void 0 ? {
+      prompt: `${block.title}: operator go/no-go before continuing.`,
+      choices: [{ id: "continue", label: "Continue" }],
+      safe_default_choice: "continue",
+      ...checkpointWritesReport ? { report_template: pick2.checkpointReportTemplate } : {}
+    } : void 0;
+    const check2 = role.executionKind === "checkpoint" ? { allow: ["continue"] } : pick2.check;
+    let boundOutput = role.executionKind === "fanout" ? FANOUT_AGGREGATE_CONTRACT : pick2.actual;
+    if (isTerminal && role.executionKind !== "fanout" && boundOutput !== outputGeneric) {
+      const familyClose = findCloseBuilder(boundOutput);
+      if (familyClose !== void 0) {
+        const closeReadSchemas = new Set(Object.values(input));
+        const missingRequiredRead = familyClose.reads.some((read) => read.required && !closeReadSchemas.has(read.schema));
+        if (missingRequiredRead)
+          boundOutput = FLOW_RESULT_CONTRACT;
+      }
+    }
+    if (role.executionKind === "verification") {
+      const verifier = findVerificationWriter(boundOutput);
+      if (verifier?.reads !== void 0) {
+        const genericOfActual = new Map(selections.map((sel) => [sel.actual, sel.generic]));
+        let walled = false;
+        for (const read of verifier.reads) {
+          if (!read.required)
+            continue;
+          const generic = genericOfActual.get(read.schema);
+          if (generic === void 0) {
+            walls.push({
+              roleIndex: index,
+              block: role.block,
+              reason: `${role.block} verification writer '${boundOutput}' requires reading '${read.schema}', produced by no upstream step`
+            });
+            walled = true;
+            break;
+          }
+          const key = keyFor(generic);
+          if (input[key] === void 0)
+            input[key] = read.schema;
+        }
+        if (walled)
+          return;
+      }
+    }
+    if (role.executionKind === "compose" && !isTerminal) {
+      const composeWriter = findComposeBuilder(boundOutput);
+      if (composeWriter?.reads !== void 0) {
+        const producedActuals = new Set(selections.map((sel) => sel.actual));
+        const alreadyRead = new Set(Object.values(input));
+        for (const read of composeWriter.reads) {
+          if (!read.required)
+            continue;
+          if (!producedActuals.has(read.schema))
+            continue;
+          if (alreadyRead.has(read.schema))
+            continue;
+          input[read.name] = read.schema;
+          alreadyRead.add(read.schema);
+        }
+      }
+    }
+    const writes = stepWrites(roleSet.id, stepId, role.executionKind, checkpointWritesReport);
+    const use = {
+      id: stepId,
+      title: `${titleCase(role.stage)} \u2014 ${block.title}`,
+      stage: role.stage,
+      block: role.block,
+      input,
+      // A raw-generic pick (actual === the block's default output) must OMIT
+      // output: restating the default is rejected by the expander. The step
+      // defaults to the same generic, so the binding is unchanged. A specialized
+      // actual (or the fanout aggregate override above) is kept as an override.
+      ...boundOutput === outputGeneric ? {} : { output: boundOutput },
+      protocol: `${roleSet.id}-${stepId}@v1`,
+      writes,
+      ...check2 === void 0 ? {} : { check: check2 },
+      ...checkpointPolicy === void 0 ? {} : { checkpointPolicy },
+      // Single-kind blocks must omit execution (restating the bare default is
+      // rejected); multi-kind blocks must declare it. Two execution kinds are
+      // exceptions even when they are a block's ONLY kind, because their
+      // descriptor carries a required field that is NOT the bare default, so the
+      // expander accepts it (it only rejects a single-key `{kind}`):
+      //   - sub-run carries flow_ref/goal/depth (goal-child-run);
+      //   - relay carries a required `role` (researcher | implementer | reviewer).
+      // A single-kind relay block (clarify, goal-gate-review) whose execution was
+      // omitted lost its role, and assemble then threw on the missing role enum.
+      // Multi-kind relay blocks (gather-context, diagnose, review) were already
+      // covered by the multi-kind branch below.
+      ...role.executionKind === "sub-run" || role.executionKind === "relay" || !blockHasSingleKind(block) ? { execution: buildExecution(role, pick2) } : {},
+      // A fanout step carries a sibling `fanout` descriptor (the bare `{kind:'fanout'}`
+      // execution above only marks the step; the branch set, concurrency, failure
+      // policy, and join live here). The fanout wall upstream guaranteed at least
+      // two goal-bearing branches, so the descriptor is well-formed.
+      ...role.executionKind === "fanout" ? { fanout: buildFanoutMetadata(role) } : {},
+      routes
+    };
+    items.push(use);
+    selections.push({
+      stepId,
+      block: role.block,
+      executionKind: role.executionKind,
+      actual: boundOutput,
+      generic: outputGeneric,
+      inputs: input,
+      producesReadableContract: outputIsReadableContract(writes)
+    });
+    aliasByGeneric.set(outputGeneric, boundOutput);
+    producedGenerics.add(outputGeneric);
+  });
+  if (walls.length > 0)
+    return { ok: false, walls };
+  const contractAliases = [...aliasByGeneric.entries()].filter(([generic, actual]) => generic !== actual).map(([generic, actual]) => ({ generic, actual })).sort((a, b) => a.generic < b.generic ? -1 : a.generic > b.generic ? 1 : 0);
+  const stageLabels = {};
+  for (const role of roleSet.roles) {
+    stageLabels[role.stage] = { id: `${role.stage}-stage`, title: titleCase(role.stage) };
+  }
+  const presentStages = new Set(roleSet.roles.map((role) => role.stage));
+  const omittedStages = CANONICAL_STAGES.filter((stage) => !presentStages.has(stage));
+  const stagePathRationale = omittedStages.length === 0 ? void 0 : `Composed topology '${roleSet.id}' intentionally omits the ${omittedStages.map((stage) => `'${stage}'`).join(", ")} stage(s): this task's shape does no work there. ${roleSet.purpose}`;
+  const spec = {
+    id: roleSet.id,
+    title: roleSet.title,
+    purpose: roleSet.purpose,
+    status: "active",
+    version: "0.1.0",
+    initial_contracts: [...usedAmbient].sort(),
+    contract_aliases: contractAliases,
+    axes: {
+      allowed_depths: ["medium"],
+      supports_tournament: false,
+      supports_autonomous: true,
+      default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
+    },
+    items,
+    stageLabels,
+    ...stagePathRationale === void 0 ? {} : { stagePathRationale }
+  };
+  if (options.enforceRunnability === true) {
+    const runnability = evaluateRunnability(spec);
+    if (!runnability.runnable) {
+      const blockByStepId = new Map(items.map((item) => [item.id, item.block]));
+      const fallbackBlock = items[0]?.block ?? roleSet.roles[0]?.block;
+      const runnabilityWalls = runnability.aborts.map((abort) => ({
+        roleIndex: -1,
+        block: blockByStepId.get(abort.stepId) ?? fallbackBlock,
+        reason: `step '${abort.stepId}' (${abort.schema}) is not runnable: ${abort.reason}`
+      }));
+      if (runnabilityWalls.length === 0) {
+        runnabilityWalls.push({
+          roleIndex: -1,
+          block: fallbackBlock,
+          reason: runnability.error ?? "composed flow is not runnable"
+        });
+      }
+      return { ok: false, walls: runnabilityWalls };
+    }
+  }
+  return { ok: true, spec, selections };
+}
+function describeInputSets(block) {
+  const sets = [
+    block.input_contracts.map(asString3),
+    ...(block.alternative_input_contracts ?? []).map((set2) => set2.map(asString3))
+  ];
+  return sets.map((set2) => `[${set2.join(", ")}]`).join(" OR ");
+}
+function assignStepIds(roles) {
+  const counts = /* @__PURE__ */ new Map();
+  const total = /* @__PURE__ */ new Map();
+  for (const role of roles)
+    total.set(role.block, (total.get(role.block) ?? 0) + 1);
+  return roles.map((role) => {
+    const seen = (counts.get(role.block) ?? 0) + 1;
+    counts.set(role.block, seen);
+    return (total.get(role.block) ?? 1) > 1 ? `${role.block}-${seen}` : role.block;
+  });
+}
+
+// dist/flows/composition/propose-prompts.js
+var PROPOSER_PROMPT = `# Flow proposer \u2014 turn a task into a flow shape
+
+You are designing a **developer workflow** for one specific task. A workflow is an
+ordered list of **steps**. Each step runs one **block** (a unit of work) in one
+**execution kind**. The engine runs your steps in order, threading each step's
+output to later steps, and closes with a result.
+
+Your job: read the TASK, then emit a JSON **role set** \u2014 the ordered list of steps
+that best fits this task. Pick the shape the task actually needs. Do not pad.
+
+## The block menu (this is the whole vocabulary \u2014 you may only use these)
+
+Each entry is \`block / executionKind\` and what it is for. Stages run in this order:
+**frame \u2192 analyze \u2192 plan \u2192 act \u2192 verify \u2192 review \u2192 close**. A step's \`stage\` must
+be one of these and steps must be in stage order (a stage may repeat or be skipped,
+but never go backwards).
+
+**frame (open the flow \u2014 pick exactly one opener):**
+- \`frame / compose\` \u2014 state the task and success criteria (the standard opener).
+- \`frame / checkpoint\` \u2014 same, but pause for an operator OK before proceeding (use when the work is expensive or risky to start).
+- \`review-intake / compose\` \u2014 opener for an **audit-only** task (no code change).
+- \`goal / compose\` \u2014 opener for a **supervisor** task that will delegate to a whole child flow.
+
+**analyze (understand before acting):**
+- \`gather-context / relay\` (relayRole: \`researcher\`) \u2014 a worker collects the relevant code/context.
+- \`diagnose / relay\` (relayRole: \`researcher\`) \u2014 a worker roots-causes the problem.
+- \`diagnose / compose\` \u2014 model-only analysis (use when no worker delegation is needed, e.g. a research/decision task).
+
+**plan (decide the approach \u2014 optional):**
+- \`plan / compose\` \u2014 write the approach/strategy before acting.
+
+**act (do the work \u2014 pick what fits):**
+- \`act / relay\` (relayRole: \`implementer\`) \u2014 a worker makes the change (the standard "do it" step).
+- \`act / fanout\` \u2014 run **2+ child flows in parallel** as competing candidates, then keep the survivors. Requires \`fanoutBranches: [{branchId, flowId, goalText}, ...]\` with \u22652 branches. Use for "compare N approaches / generate variants."
+- \`goal-child-run / sub-run\` \u2014 run **one entire child flow** as this step. Requires \`flowId\` (one of \`fix|build|review|explore|pursue\`) and \`goalText\`. Use when a sub-task is itself a whole flow (supervisor/delegation).
+
+**verify (prove it works):**
+- \`run-verification / verification\` \u2014 run the checks/tests. Add \`loopBackTo: "act"\` to **retry the change** when verification fails (a bounded recovery loop). Use the loop when failure is likely and worth re-attempting.
+
+**review (independent second look \u2014 optional):**
+- \`review / relay\` (relayRole: \`reviewer\`) \u2014 a different worker reviews the change before close.
+
+**close (terminate \u2014 pick exactly one, mark it \`terminal: true\`):**
+- \`close-with-evidence / compose\` \u2014 close with a result + evidence (the standard close for most flows).
+- \`goal-close / compose\` \u2014 close for a \`goal\`-opened supervisor flow.
+
+## The four shapes you can build
+
+1. **Linear** \u2014 frame \u2192 analyze \u2192 act \u2192 verify \u2192 close. The default. Most tasks are this.
+2. **Loop** \u2014 a linear flow whose verify step has \`loopBackTo: "act"\` so a failed verification retries the change. Use when verification is likely to fail and retrying helps.
+3. **Fanout** \u2014 an \`act / fanout\` step running 2+ competing child flows in parallel. Use for "compare/try N approaches."
+4. **Sub-run** \u2014 a \`goal-child-run / sub-run\` step running a whole child flow. Use when a sub-task is itself a full flow (delegation/supervision).
+
+## House patterns (lean toward these)
+
+- Default to the linear spine; only add steps the task needs. A 5\u20136 step linear flow is normal; a 2-step flow is almost always too thin.
+- frame/plan/close \u2192 \`compose\`; analyze/act \u2192 \`relay\` (researcher then implementer); verify \u2192 \`verification\`; review \u2192 \`relay\` reviewer.
+- Always end at a \`close\` step marked \`terminal: true\`.
+- Reach for loop / fanout / sub-run ONLY when the task shape calls for it. Picking the right shape matters more than using a fancy one.
+
+## Output format
+
+Emit ONLY this JSON (no prose, no markdown fence), filling in the roles:
+
+\`\`\`
+{
+  "id": "kebab-case-id",
+  "title": "Short title",
+  "purpose": "One sentence: what this flow does for the task.",
+  "roles": [
+    { "stage": "frame", "block": "frame", "executionKind": "compose" },
+    { "stage": "analyze", "block": "gather-context", "executionKind": "relay", "relayRole": "researcher" },
+    { "stage": "act", "block": "act", "executionKind": "relay", "relayRole": "implementer" },
+    { "stage": "verify", "block": "run-verification", "executionKind": "verification" },
+    { "stage": "close", "block": "close-with-evidence", "executionKind": "compose", "terminal": true }
+  ]
+}
+\`\`\`
+
+Per-role fields: \`stage\`, \`block\`, \`executionKind\` always; add \`relayRole\` for relay
+steps; \`loopBackTo\` to make a verify step retry; \`flowId\`+\`goalText\` for a sub-run;
+\`fanoutBranches\` for a fanout; \`terminal: true\` on the close step.
+
+## Common mistakes to avoid
+
+- Use ONLY the exact block ids and execution kinds from the menu above. The close
+  block is \`close-with-evidence\`, not \`close\`. \`run-verification\` runs as
+  \`verification\`, not \`relay\`. Every \`stage\` must be one of: frame, analyze, plan,
+  act, verify, review, close.
+
+Output ONLY the JSON object for the TASK below. No explanation.
+`;
+var REPAIR_GUIDANCE = `# Repairing a rejected flow
+
+A verifier checked the flow you proposed and REJECTED it. The cause is specific:
+it might be a step whose required input no earlier step produces, OR a step that
+uses a name outside the allowed vocabulary (a wrong stage, block id, or execution
+kind). Read the verifier's exact error, match it to a rule below, and change only
+what the error names. Revise your role set so it passes.
+
+You will be given: the original task, the flow you proposed, and the verifier's
+exact error(s). Read the error and apply the matching rule below.
+
+## Error \u2192 fix
+
+- **"expected exactly one report writer for schema 'X.brief@v1'" or "'X.intake@v1'", found 0**
+  A step you chose is tied to a specific family ("X") and needs that family's
+  opening report, which your flow does not produce. Usually the culprit is an
+  optional step. Fixes, in order of preference:
+  1. Remove the step that triggers it. \`plan\` and model-only \`diagnose / compose\`
+     analyze steps are OPTIONAL \u2014 drop them for a leaner flow.
+  2. If you truly need that step, open the flow with the matching opener.
+
+- **"no input set satisfiable ... needs one of [flow.brief@v1, diagnosis.result@v1] OR [flow.brief@v1, plan.strategy@v1]"** (on an \`act\` step)
+  Your \`act\` step has nothing to act on. Put a \`diagnose\` (relay, researcher)
+  step OR a \`plan\` (compose) step BEFORE the \`act\` step, so the implementer has a
+  diagnosis or a plan to work from.
+
+- **"no input set satisfiable ... needs one of [goal.contract@v1]"** (on a \`goal-child-run\` step)
+  A sub-run step requires the supervisor opener. Use \`goal / compose\` as your
+  \`frame\` step whenever you use one or more \`goal-child-run\` sub-run steps.
+
+- **"run-verification ... requires reading 'prototype.variant-aggregate@v1'"** (after a fanout)
+  After an \`act / fanout\` step, a separate \`run-verification\` step is tied to the
+  fanout's internals and will not bind. For a fanout flow, do NOT add a
+  \`run-verification\` step \u2014 go from the \`act / fanout\` step to a \`review\` step
+  (relay, reviewer) and then \`close\`. The fanout's branches verify themselves.
+
+- **"Invalid option: expected one of ..." (naming the stage names)**
+  A step's \`stage\` is not one of the seven allowed stages. Set every step's \`stage\`
+  to one of, and keep them in this order: frame, analyze, plan, act, verify,
+  review, close.
+
+- **"... unknown block id"**
+  A step's \`block\` is not in the menu. Use only these exact block ids: frame,
+  review-intake, goal, gather-context, diagnose, plan, act, run-verification,
+  review, close-with-evidence, goal-close, goal-child-run. Do not invent a block \u2014
+  the close block is \`close-with-evidence\`, not \`close\`.
+
+- **"no registered actual for <block>/<kind> ..."**
+  The block is real but paired with the wrong execution kind. The fixed kinds are:
+  frame \u2192 compose or checkpoint; plan \u2192 compose; gather-context, act, and review \u2192
+  relay; diagnose \u2192 relay or compose; run-verification \u2192 verification (NOT relay);
+  close-with-evidence and goal-close \u2192 compose; goal-child-run \u2192 sub-run; a parallel
+  act \u2192 fanout. Set this step's \`executionKind\` to the one its block supports.
+
+## General principles
+
+- A runnable flow keeps its steps in ONE coherent family wherever possible. The
+  cleanest runnable shapes are: frame \u2192 (gather-context) \u2192 diagnose \u2192 act \u2192
+  run-verification \u2192 close, optionally with \`loopBackTo: "act"\` on verify.
+- Leaner is safer. If a step is optional and triggers an error, remove it.
+- Always end at a \`close\` step marked \`terminal: true\`.
+
+Output ONLY the revised JSON role set (same format as before). No prose.
+`;
+
+// dist/flows/composition/propose.js
+var DEFAULT_MAX_REPAIR = 4;
+var DEFAULT_TIMEOUT_MS2 = 9e4;
+function runFloor(roleSet, definitions) {
+  let outcome;
+  try {
+    outcome = composeFlow(roleSet, { definitions });
+  } catch (err) {
+    return { runnable: false, stage: "compose", errors: [`compose threw: ${msg(err)}`] };
+  }
+  if (!outcome.ok) {
+    return {
+      runnable: false,
+      stage: "compose",
+      errors: outcome.walls.map((w) => `${w.block}: ${w.reason}`)
+    };
+  }
+  let validity;
+  try {
+    validity = evaluateValidity(outcome.spec);
+  } catch (err) {
+    return { runnable: false, stage: "validity", errors: [`validity threw: ${msg(err)}`] };
+  }
+  if (!validity.valid || !validity.compiles) {
+    const errors = validity.catalogIssues.length > 0 ? [...validity.catalogIssues] : [validity.error ?? "offline-invalid"];
+    return { runnable: false, stage: "validity", errors };
+  }
+  let runnability;
+  try {
+    runnability = evaluateRunnability(outcome.spec);
+  } catch (err) {
+    return { runnable: false, stage: "runnability", errors: [`runnability threw: ${msg(err)}`] };
+  }
+  if (!runnability.runnable) {
+    return {
+      runnable: false,
+      stage: "runnability",
+      errors: runnability.aborts.map((a) => `${a.stepId}(${a.schema}): ${a.reason}`)
+    };
+  }
+  if (runnability.checkedSteps <= 0) {
+    return {
+      runnable: false,
+      stage: "runnability",
+      errors: ["runnability check was vacuous (0 steps checked)"]
+    };
+  }
+  return { runnable: true, spec: outcome.spec };
+}
+function msg(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+function extractRoleSet(raw) {
+  let text = raw.trim();
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence?.[1] !== void 0)
+    text = fence[1].trim();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    return { ok: false, error: "no JSON object found in model output" };
+  }
+  const slice = text.slice(start, end + 1);
+  try {
+    const parsed = JSON.parse(slice);
+    if (!Array.isArray(parsed.roles)) {
+      return { ok: false, error: "parsed JSON has no `roles` array" };
+    }
+    return { ok: true, roleSet: parsed };
+  } catch (err) {
+    return { ok: false, error: `JSON.parse failed: ${msg(err)}` };
+  }
+}
+async function callModel(relay, prompt, resolvedSelection, timeoutMs2) {
+  const base = { prompt, toolAllowList: [], timeoutMs: timeoutMs2 };
+  const input = resolvedSelection === void 0 ? base : { ...base, resolvedSelection };
+  try {
+    const result = await relay.relay(input);
+    return { ok: true, body: result.result_body };
+  } catch (err) {
+    return { ok: false, error: `relay failed: ${msg(err)}` };
+  }
+}
+function proposePrompt(task) {
+  return `${PROPOSER_PROMPT}
+
+## TASK
+
+${task}
+`;
+}
+function repairPrompt(task, proposed, errors) {
+  const proposedJson = JSON.stringify(proposed, null, 2);
+  const errorList = errors.map((e) => `- ${e}`).join("\n");
+  return `${REPAIR_GUIDANCE}
+
+## ORIGINAL TASK
+
+${task}
+
+## THE FLOW YOU PROPOSED
+
+${proposedJson}
+
+## THE VERIFIER'S EXACT ERROR(S)
+
+${errorList}
+`;
+}
+async function proposeFlow(options) {
+  const { task, relay, resolvedSelection } = options;
+  const definitions = options.definitions ?? flowDefinitions;
+  const maxRepair = options.maxRepair ?? DEFAULT_MAX_REPAIR;
+  const timeoutMs2 = options.timeoutMs ?? DEFAULT_TIMEOUT_MS2;
+  const rounds = [];
+  const proposal = await callModel(relay, proposePrompt(task), resolvedSelection, timeoutMs2);
+  if (!proposal.ok) {
+    rounds.push({
+      round: 0,
+      errorsFedBack: [],
+      stage: "relay",
+      runnable: false,
+      note: proposal.error
+    });
+    return { ok: false, reason: "relay", errors: [proposal.error], rounds };
+  }
+  const parsed = extractRoleSet(proposal.body);
+  if (!parsed.ok) {
+    rounds.push({
+      round: 0,
+      errorsFedBack: [],
+      stage: "parse",
+      runnable: false,
+      note: parsed.error
+    });
+    return { ok: false, reason: "parse", errors: [parsed.error], rounds };
+  }
+  let current = parsed.roleSet;
+  const rawVerdict = runFloor(current, definitions);
+  rounds.push({
+    round: 0,
+    errorsFedBack: [],
+    stage: rawVerdict.runnable ? "runnable" : rawVerdict.stage,
+    runnable: rawVerdict.runnable
+  });
+  if (rawVerdict.runnable) {
+    return { ok: true, roleSet: current, spec: rawVerdict.spec, convergedRound: 0, rounds };
+  }
+  let lastErrors = rawVerdict.errors;
+  for (let round = 1; round <= maxRepair; round += 1) {
+    const repair = await callModel(relay, repairPrompt(task, current, lastErrors), resolvedSelection, timeoutMs2);
+    if (!repair.ok) {
+      rounds.push({
+        round,
+        errorsFedBack: lastErrors,
+        stage: "relay",
+        runnable: false,
+        note: repair.error
+      });
+      break;
+    }
+    const reparsed = extractRoleSet(repair.body);
+    if (!reparsed.ok) {
+      rounds.push({
+        round,
+        errorsFedBack: lastErrors,
+        stage: "parse",
+        runnable: false,
+        note: reparsed.error
+      });
+      lastErrors = [
+        `Your previous output did not parse: ${reparsed.error}. Emit ONLY the JSON role set.`
+      ];
+      continue;
+    }
+    current = reparsed.roleSet;
+    const verdict = runFloor(current, definitions);
+    rounds.push({
+      round,
+      errorsFedBack: lastErrors,
+      stage: verdict.runnable ? "runnable" : verdict.stage,
+      runnable: verdict.runnable
+    });
+    if (verdict.runnable) {
+      return { ok: true, roleSet: current, spec: verdict.spec, convergedRound: round, rounds };
+    }
+    lastErrors = verdict.errors;
+  }
+  return { ok: false, reason: "wall", roleSet: current, errors: lastErrors, rounds };
+}
+
+// dist/cli/generate.js
+var PROPOSER_SELECTION = {
+  model: { provider: "anthropic", model: "claude-haiku-4-5" },
+  effort: "low",
+  skills: [],
+  invocation_options: {}
+};
+var PROPOSER_MODEL_LABEL = "claude-haiku-4-5";
+var productionRelay = {
+  connectorName: "claude-code",
+  relay: (input) => relayClaudeCode(input)
+};
+function parseArgs2(argv) {
+  const program2 = new Command("circuit generate").option("--description <task>").option("--name <slug>").option("--home <path>").option("--created-at <iso>").option("--publish").option("--yes").option("--max-repair <n>").option("--timeout-ms <ms>").option("--progress <format>");
+  parseCommanderOrThrow(program2, argv);
+  if (program2.args.length > 0)
+    throw new Error(`unexpected argument: ${program2.args[0]}`);
+  const opts = program2.opts();
+  if (opts.progress !== void 0 && opts.progress !== "jsonl") {
+    throw new Error("--progress only supports 'jsonl'");
+  }
+  const maxRepair = opts.maxRepair === void 0 ? 4 : Number(opts.maxRepair);
+  if (!Number.isInteger(maxRepair) || maxRepair < 0) {
+    throw new Error("--max-repair must be a non-negative integer");
+  }
+  const timeoutMs2 = opts.timeoutMs === void 0 ? 9e4 : Number(opts.timeoutMs);
+  if (!Number.isInteger(timeoutMs2) || timeoutMs2 <= 0) {
+    throw new Error("--timeout-ms must be a positive integer");
+  }
+  return {
+    publish: opts.publish === true,
+    yes: opts.yes === true,
+    progress: opts.progress === "jsonl",
+    maxRepair,
+    timeoutMs: timeoutMs2,
+    ...opts.description === void 0 ? {} : { description: opts.description },
+    ...opts.name === void 0 ? {} : { name: opts.name },
+    ...opts.home === void 0 ? {} : { home: opts.home },
+    ...opts.createdAt === void 0 ? {} : { createdAt: opts.createdAt }
+  };
+}
+function shapeOf(roleSet) {
+  const roles = roleSet.roles ?? [];
+  if (roles.some((r) => r.executionKind === "fanout"))
+    return "fanout";
+  if (roles.some((r) => r.executionKind === "sub-run"))
+    return "sub-run";
+  if (roles.some((r) => r.loopBackTo !== void 0))
+    return "loop";
+  const hasAct = roles.some((r) => r.stage === "act");
+  if (roles.some((r) => r.block === "review-intake") && !hasAct)
+    return "review-only";
+  if (!hasAct)
+    return "no-act";
+  return "linear";
+}
+async function composeCustomFlow(input) {
+  const outcome = await proposeFlow({
+    task: input.description,
+    relay: input.relay,
+    resolvedSelection: PROPOSER_SELECTION,
+    maxRepair: input.maxRepair,
+    timeoutMs: input.timeoutMs
+  });
+  if (!outcome.ok) {
+    return {
+      ok: false,
+      reason: outcome.reason,
+      errors: outcome.errors,
+      repairRounds: Math.max(0, outcome.rounds.length - 1)
+    };
+  }
+  const slug = slugify2(input.name ?? outcome.roleSet.id);
+  assertValidSlug(slug);
+  const schematic = assembleFlowSchematic({ ...outcome.spec, id: slug });
+  const compiled = compileSchematicToCompiledFlow(schematic);
+  const files = planCompiledFlowFiles(compiled).map((file2) => ({
+    filename: file2.filename,
+    flow: CompiledFlow.parse(file2.flow)
+  }));
+  for (const { filename, flow } of files) {
+    validateCustomFlow(slug, flow, `composed flow (${filename})`);
+  }
+  const shape = shapeOf(outcome.roleSet);
+  return {
+    ok: true,
+    slug,
+    files,
+    archetype: { family: "composed", composition: `block-level (${shape})`, signals_used: [] },
+    shape,
+    convergedRound: outcome.convergedRound,
+    repairRounds: Math.max(0, outcome.rounds.length - 1)
+  };
+}
+function summaryMarkdown2(input) {
+  const invocation = customFlowInvocation(input.slug, input.home);
+  const convergence = input.convergedRound === 0 ? "The first proposal was runnable as composed." : `It converged after ${input.convergedRound} verifier-guided repair round(s).`;
+  return [
+    "# Circuit Generate",
+    "",
+    `Status: ${input.status}`,
+    `Custom flow: ${input.slug}`,
+    "",
+    "## Purpose",
+    input.description,
+    "",
+    "## Shape",
+    `This flow was composed block by block to fit the task (a ${input.shape} shape).`,
+    convergence,
+    `Proposer model: ${PROPOSER_MODEL_LABEL}.`,
+    "",
+    "## Validation",
+    "The composed flow passed the offline floor: it composes, is catalog-valid, and every writer's required upstream reads have a producer (runnable).",
+    "",
+    "## Runtime Policy",
+    CUSTOM_FLOW_ROOT_RUNTIME_POLICY,
+    "",
+    "## Usage",
+    `\`${invocation}\``,
+    "",
+    "## Next Action",
+    input.status === "published" ? "Run the usage command above, or reload the host command surface if your host caches slash commands." : "Review the draft, then rerun generate with `--publish --yes` when ready."
+  ].join("\n");
+}
+async function runGenerateCommand(argv, options = {}) {
+  let args;
+  try {
+    args = parseArgs2(argv);
+  } catch (err) {
+    process.stderr.write(`error: ${err.message}
+`);
+    return 2;
+  }
+  const now = options.now ?? (() => /* @__PURE__ */ new Date());
+  const progress = utilityProgress({ enabled: args.progress, flowId: "generate", now });
+  if (progress !== void 0) {
+    progress.emit({
+      type: "route.selected",
+      recorded_at: now().toISOString(),
+      label: "Selected Generate",
+      display: { text: "Circuit selected generate.", importance: "major", tone: "info" },
+      presentation: progressPresentation({
+        blockId: progress.runId,
+        statusText: "Chose generate."
+      }),
+      selected_flow: "generate",
+      routed_by: "explicit",
+      router_reason: "explicit generate utility command"
+    });
+  }
+  try {
+    if (args.description === void 0 || args.description.length === 0) {
+      throw new Error("--description is required");
+    }
+    if (args.publish && !args.yes) {
+      throw new Error("--publish requires --yes so publish confirmation is explicit");
+    }
+    const home = customHome(args.home);
+    const relay = options.relayer ?? productionRelay;
+    if (args.name !== void 0) {
+      const namedSlug = slugify2(args.name);
+      assertValidSlug(namedSlug);
+      if (args.publish && existsSync11(join6(flowRoot(home), namedSlug, "circuit.json"))) {
+        throw new Error(`custom flow already published: ${namedSlug}`);
+      }
+    }
+    const composed = await composeCustomFlow({
+      description: args.description,
+      name: args.name,
+      relay,
+      maxRepair: args.maxRepair,
+      timeoutMs: args.timeoutMs
+    });
+    if (!composed.ok) {
+      const failure = {
+        schema_version: 1,
+        action: "generate",
+        status: "failed",
+        reason: composed.reason,
+        proposer_model: PROPOSER_MODEL_LABEL,
+        repair_rounds: composed.repairRounds,
+        errors: composed.errors.slice(0, 5)
+      };
+      if (progress !== void 0) {
+        progress.emit({
+          type: "run.completed",
+          recorded_at: now().toISOString(),
+          label: "Generate failed",
+          display: {
+            text: `Circuit generate could not compose a runnable flow (${composed.reason}).`,
+            importance: "error",
+            tone: "error"
+          },
+          presentation: progressPresentation({
+            blockId: progress.runId,
+            statusText: `Generate failed (${composed.reason}).`
+          }),
+          outcome: "error"
+        });
+      }
+      process.stdout.write(`${JSON.stringify(failure, null, 2)}
+`);
+      return 1;
+    }
+    const slug = composed.slug;
+    if (args.publish && existsSync11(join6(flowRoot(home), slug, "circuit.json"))) {
+      throw new Error(`custom flow already published: ${slug}`);
+    }
+    const createdAt = args.createdAt ?? now().toISOString();
+    writeDraft({
+      home,
+      slug,
+      description: args.description,
+      files: composed.files,
+      archetype: composed.archetype,
+      source: "composed"
+    });
+    const status = args.publish ? "published" : "draft_created";
+    if (args.publish) {
+      publishDraft({ home, slug, description: args.description, createdAt });
+    }
+    const summary = summaryMarkdown2({
+      slug,
+      description: args.description,
+      status,
+      home,
+      shape: composed.shape,
+      convergedRound: composed.convergedRound
+    });
+    writeText(summaryPath(home, slug), summary);
+    const result = {
+      schema_version: 1,
+      action: "generate",
+      status,
+      slug,
+      shape: composed.shape,
+      proposer_model: PROPOSER_MODEL_LABEL,
+      converged_round: composed.convergedRound,
+      repair_rounds: composed.repairRounds,
+      draft_path: draftRoot(home, slug),
+      validation_path: join6(draftRoot(home, slug), "validation-result.json"),
+      ...args.publish ? {
+        published_path: publishedRoot(home, slug),
+        flow_path: join6(flowRoot(home), slug, "circuit.json"),
+        command_path: join6(commandRoot(home), `${slug}.md`),
+        manifest_path: manifestPath(home)
+      } : {},
+      operator_summary_markdown_path: summaryPath(home, slug)
+    };
+    const outPath = resultPath(home, slug, "generate");
+    writeJson(outPath, result);
+    const finalResult = { ...result, result_path: outPath };
+    if (progress !== void 0) {
+      progress.emit({
+        type: "run.completed",
+        recorded_at: now().toISOString(),
+        label: "Generate completed",
+        display: {
+          text: `Circuit generate ${status === "published" ? "published" : "drafted"} ${slug}.`,
+          importance: "major",
+          tone: "success"
+        },
+        presentation: progressPresentation({
+          blockId: progress.runId,
+          statusText: `Generate ${status === "published" ? "published" : "drafted"} ${slug}.`
+        }),
+        outcome: "complete",
+        result_path: outPath
+      });
+    }
+    process.stdout.write(`${JSON.stringify(finalResult, null, 2)}
+`);
+    return 0;
+  } catch (err) {
+    process.stderr.write(`error: ${err instanceof Error ? err.message : String(err)}
+`);
+    return 1;
+  }
+}
+
 // dist/cli/handoff.js
-import { existsSync as existsSync16, readFileSync as readFileSync34 } from "node:fs";
+import { existsSync as existsSync18, readFileSync as readFileSync34 } from "node:fs";
 import { resolve as resolve14 } from "node:path";
 
 // dist/app/continuity/brief.js
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { existsSync as existsSync14, readFileSync as readFileSync32 } from "node:fs";
+import { existsSync as existsSync16, readFileSync as readFileSync32 } from "node:fs";
 import { basename as basename3, resolve as resolve12 } from "node:path";
 
 // dist/schemas/snapshot.js
@@ -47610,8 +49533,8 @@ var ContinuityIndex = indexOwnPropertyGuard.pipe(ContinuityIndexBody);
 // dist/app/continuity/harvest.js
 import { execFileSync } from "node:child_process";
 import { createHash as createHash4 } from "node:crypto";
-import { closeSync as closeSync2, existsSync as existsSync13, openSync as openSync2, readFileSync as readFileSync31, readSync as readSync2, readdirSync, rmSync as rmSync3, statSync as statSync2 } from "node:fs";
-import { basename as basename2, join as join10, resolve as resolve11 } from "node:path";
+import { closeSync as closeSync2, existsSync as existsSync15, openSync as openSync2, readFileSync as readFileSync31, readSync as readSync2, readdirSync, rmSync as rmSync3, statSync as statSync2 } from "node:fs";
+import { basename as basename2, join as join12, resolve as resolve11 } from "node:path";
 
 // dist/shared/atomic-io.js
 import { randomUUID as randomUUID3 } from "node:crypto";
@@ -47636,12 +49559,12 @@ function writeJsonAtomic(path, value, options = {}) {
 
 // dist/app/continuity/records.js
 import { randomUUID as randomUUID4 } from "node:crypto";
-import { existsSync as existsSync12, mkdirSync as mkdirSync3, readFileSync as readFileSync30, writeFileSync as writeFileSync4 } from "node:fs";
-import { dirname as dirname4, join as join9, resolve as resolve10 } from "node:path";
+import { existsSync as existsSync14, mkdirSync as mkdirSync3, readFileSync as readFileSync30, writeFileSync as writeFileSync4 } from "node:fs";
+import { dirname as dirname4, join as join11, resolve as resolve10 } from "node:path";
 
 // dist/shared/manifest-snapshot.js
 import { readFileSync as readFileSync28, writeFileSync as writeFileSync3 } from "node:fs";
-import { join as join5 } from "node:path";
+import { join as join7 } from "node:path";
 
 // dist/schemas/manifest.js
 import { createHash as createHash3 } from "node:crypto";
@@ -47684,7 +49607,7 @@ function computeManifestHash(bytes) {
 
 // dist/shared/manifest-snapshot.js
 function manifestSnapshotPath(runFolder) {
-  return join5(runFolder, "manifest.snapshot.json");
+  return join7(runFolder, "manifest.snapshot.json");
 }
 function readManifestSnapshot(runFolder) {
   const text = readFileSync28(manifestSnapshotPath(runFolder), "utf8");
@@ -47700,8 +49623,8 @@ import { constants, accessSync, statSync } from "node:fs";
 import { resolve as resolve9 } from "node:path";
 
 // dist/app/run-status/projection-common.js
-import { existsSync as existsSync10 } from "node:fs";
-import { join as join7 } from "node:path";
+import { existsSync as existsSync12 } from "node:fs";
+import { join as join9 } from "node:path";
 
 // dist/schemas/run-status.js
 var RunStatusEngineState = external_exports.enum([
@@ -47825,14 +49748,14 @@ var EngineErrorV1 = external_exports.object({
 }).strict();
 
 // dist/shared/result-path.js
-import { join as join6 } from "node:path";
+import { join as join8 } from "node:path";
 var RUN_RESULT_RELATIVE_PATH = "reports/result.json";
 function runResultPath(runFolder) {
-  return join6(runFolder, RUN_RESULT_RELATIVE_PATH);
+  return join8(runFolder, RUN_RESULT_RELATIVE_PATH);
 }
 
 // dist/app/run-status/projection-common.js
-function errorMessage3(err) {
+function errorMessage4(err) {
   return err instanceof Error ? err.message : String(err);
 }
 function invalidProjection(input) {
@@ -47866,12 +49789,12 @@ function readSavedFlowForProjection(manifestBytesBase64, manifestFlowId) {
 }
 function optionalReportPaths(runFolder) {
   const result = runResultPath(runFolder);
-  const operatorSummary = join7(runFolder, "reports", "operator-summary.json");
-  const operatorSummaryMarkdown = join7(runFolder, "reports", "operator-summary.md");
+  const operatorSummary = join9(runFolder, "reports", "operator-summary.json");
+  const operatorSummaryMarkdown = join9(runFolder, "reports", "operator-summary.md");
   return {
-    ...existsSync10(result) ? { result_path: result } : {},
-    ...existsSync10(operatorSummary) ? { operator_summary_path: operatorSummary } : {},
-    ...existsSync10(operatorSummaryMarkdown) ? { operator_summary_markdown_path: operatorSummaryMarkdown } : {}
+    ...existsSync12(result) ? { result_path: result } : {},
+    ...existsSync12(operatorSummary) ? { operator_summary_path: operatorSummary } : {},
+    ...existsSync12(operatorSummaryMarkdown) ? { operator_summary_markdown_path: operatorSummaryMarkdown } : {}
   };
 }
 function stepMetadata(flow, stepId) {
@@ -47887,7 +49810,7 @@ function stepMetadata(flow, stepId) {
 
 // dist/app/run-status/runtime-run-folder.js
 import { readFileSync as readFileSync29 } from "node:fs";
-import { join as join8 } from "node:path";
+import { join as join10 } from "node:path";
 
 // dist/runtime/projections/tournament-checkpoint-context.js
 function isRecord3(value) {
@@ -48015,7 +49938,7 @@ function fanoutBranchKind(value) {
 }
 
 // dist/shared/run-file-paths.js
-import { existsSync as existsSync11, lstatSync as lstatSync4, realpathSync as realpathSync3 } from "node:fs";
+import { existsSync as existsSync13, lstatSync as lstatSync4, realpathSync as realpathSync3 } from "node:fs";
 import { isAbsolute as isAbsolute8, relative as relative9, resolve as resolve8, sep } from "node:path";
 function isInsideOrSame3(root, target) {
   const fromRoot = relative9(root, target);
@@ -48059,7 +49982,7 @@ function resolveRunFilePath(runDir, runRelativePath2) {
   if (validation.length > 0) {
     throw new Error(`run file path ${validation[0]}: ${runRelativePath2}`);
   }
-  if (existsSync11(root)) {
+  if (existsSync13(root)) {
     if (lstatSync4(root).isSymbolicLink()) {
       throw new Error(`run file path crosses symlink: ${runRelativePath2}`);
     }
@@ -48067,7 +49990,7 @@ function resolveRunFilePath(runDir, runRelativePath2) {
     let cursor = root;
     for (const segment of runRelativePath2.split("/")) {
       cursor = resolve8(cursor, segment);
-      if (!existsSync11(cursor))
+      if (!existsSync13(cursor))
         break;
       if (lstatSync4(cursor).isSymbolicLink()) {
         throw new Error(`run file path crosses symlink: ${runRelativePath2}`);
@@ -48085,7 +50008,7 @@ function isRecord4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readRawTraceEntries(runFolder) {
-  const tracePath = join8(runFolder, "trace.ndjson");
+  const tracePath = join10(runFolder, "trace.ndjson");
   const text = readFileSync29(tracePath, "utf8");
   const trimmed = text.trim();
   if (trimmed.length === 0)
@@ -48273,7 +50196,7 @@ function runtimeWaitingCheckpointProjection(input) {
       runFolder: input.runFolder,
       reason: "checkpoint_invalid",
       code: "checkpoint_request_unreadable",
-      message: `runtime checkpoint request is missing or unreadable (${errorMessage3(err)})`,
+      message: `runtime checkpoint request is missing or unreadable (${errorMessage4(err)})`,
       manifestIdentity: input.manifestIdentity
     });
   }
@@ -48297,7 +50220,7 @@ function runtimeWaitingCheckpointProjection(input) {
       runFolder: input.runFolder,
       reason: "checkpoint_invalid",
       code: "checkpoint_request_invalid_json",
-      message: `runtime checkpoint request is invalid (${errorMessage3(err)})`,
+      message: `runtime checkpoint request is invalid (${errorMessage4(err)})`,
       manifestIdentity: input.manifestIdentity
     });
   }
@@ -48328,7 +50251,7 @@ function runtimeWaitingCheckpointProjection(input) {
   const presentation = tournamentCheckpointPresentation({
     readJson: (path) => {
       try {
-        return JSON.parse(readFileSync29(join8(input.runFolder, path), "utf8"));
+        return JSON.parse(readFileSync29(join10(input.runFolder, path), "utf8"));
       } catch {
         return void 0;
       }
@@ -48431,7 +50354,7 @@ function projectRuntimeRunStatusFromRunFolder(runFolder, manifest) {
       runFolder,
       reason: "trace_invalid",
       code: "trace_last_event_invalid",
-      message: `runtime trace final event is invalid (${errorMessage3(err)})`,
+      message: `runtime trace final event is invalid (${errorMessage4(err)})`,
       manifestIdentity: {
         run_id: manifest.run_id,
         flow_id: manifest.flow_id
@@ -48520,7 +50443,7 @@ function assertReadableRunFolder(runFolder) {
     if (nodeCode === "ENOENT" || nodeCode === "ENOTDIR") {
       throw new RunStatusFolderError("folder_not_found", runFolder, `run folder does not exist: ${runFolder}`);
     }
-    throw new RunStatusFolderError("folder_unreadable", runFolder, `run folder is unreadable: ${runFolder} (${errorMessage3(err)})`);
+    throw new RunStatusFolderError("folder_unreadable", runFolder, `run folder is unreadable: ${runFolder} (${errorMessage4(err)})`);
   }
   if (!stat2.isDirectory()) {
     throw new RunStatusFolderError("folder_unreadable", runFolder, `run folder is not a directory: ${runFolder}`);
@@ -48528,7 +50451,7 @@ function assertReadableRunFolder(runFolder) {
   try {
     accessSync(runFolder, constants.R_OK | constants.X_OK);
   } catch (err) {
-    throw new RunStatusFolderError("folder_unreadable", runFolder, `run folder is unreadable: ${runFolder} (${errorMessage3(err)})`);
+    throw new RunStatusFolderError("folder_unreadable", runFolder, `run folder is unreadable: ${runFolder} (${errorMessage4(err)})`);
   }
 }
 function projectRunStatusFromRunFolder(runFolder) {
@@ -48542,7 +50465,7 @@ function projectRunStatusFromRunFolder(runFolder) {
       runFolder: resolvedRunFolder,
       reason: "manifest_invalid",
       code: "manifest_invalid",
-      message: `manifest snapshot is missing or invalid (${errorMessage3(err)})`
+      message: `manifest snapshot is missing or invalid (${errorMessage4(err)})`
     });
   }
   const runtimeProjection = projectRuntimeRunStatusFromRunFolder(resolvedRunFolder, manifest);
@@ -48573,25 +50496,25 @@ function continuityRoot(controlPlane) {
   return resolve10(controlPlane, "continuity");
 }
 function recordsRoot(controlPlane) {
-  return join9(continuityRoot(controlPlane), "records");
+  return join11(continuityRoot(controlPlane), "records");
 }
 function indexPath(controlPlane) {
-  return join9(continuityRoot(controlPlane), "index.json");
+  return join11(continuityRoot(controlPlane), "index.json");
 }
 function recordPath(controlPlane, recordId) {
-  return join9(recordsRoot(controlPlane), `${recordId}.json`);
+  return join11(recordsRoot(controlPlane), `${recordId}.json`);
 }
 function utilityReportsRoot(controlPlane) {
-  return join9(continuityRoot(controlPlane), "reports");
+  return join11(continuityRoot(controlPlane), "reports");
 }
 function handoffResultPath(controlPlane, action) {
-  return join9(utilityReportsRoot(controlPlane), `${action}-result.json`);
+  return join11(utilityReportsRoot(controlPlane), `${action}-result.json`);
 }
 function operatorSummaryPath(controlPlane) {
-  return join9(utilityReportsRoot(controlPlane), "operator-summary.md");
+  return join11(utilityReportsRoot(controlPlane), "operator-summary.md");
 }
 function activeRunPath(controlPlane) {
-  return join9(controlPlane, "active-run.md");
+  return join11(controlPlane, "active-run.md");
 }
 function writeJson2(path, value) {
   mkdirSync3(dirname4(path), { recursive: true });
@@ -48748,7 +50671,7 @@ function readJsonSafely(path) {
 }
 function readContinuityIndexOrNull(controlPlane) {
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync12(indexAbs))
+  if (!existsSync14(indexAbs))
     return null;
   const raw = readJsonSafely(indexAbs);
   if (!raw.ok)
@@ -48830,10 +50753,10 @@ function parseTranscriptContent(raw) {
 }
 var HEAD_FINGERPRINT_BYTES = 4096;
 function cursorsRoot(controlPlane) {
-  return join10(continuityRoot(controlPlane), "cursors");
+  return join12(continuityRoot(controlPlane), "cursors");
 }
 function cursorPath(controlPlane, recordId) {
-  return join10(cursorsRoot(controlPlane), `${recordId}.json`);
+  return join12(cursorsRoot(controlPlane), `${recordId}.json`);
 }
 function isSafeControlPlaneStem(value) {
   return /^[a-z0-9][a-z0-9._-]*$/.test(value) && !value.includes("..") && value.length <= 128;
@@ -48858,7 +50781,7 @@ function readByteRange(path, start, length) {
   }
 }
 function readHarvestCursor(path) {
-  if (!existsSync13(path))
+  if (!existsSync15(path))
     return void 0;
   const raw = readJsonSafely(path);
   if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
@@ -48884,13 +50807,13 @@ function readHarvestCursor(path) {
   };
 }
 function tombstonesRoot(controlPlane) {
-  return join10(continuityRoot(controlPlane), "tombstones");
+  return join12(continuityRoot(controlPlane), "tombstones");
 }
 function tombstonePath(controlPlane, recordId) {
-  return join10(tombstonesRoot(controlPlane), `${recordId}.json`);
+  return join12(tombstonesRoot(controlPlane), `${recordId}.json`);
 }
 function readTombstone(path) {
-  if (!existsSync13(path))
+  if (!existsSync15(path))
     return void 0;
   const raw = readJsonSafely(path);
   if (!raw.ok || typeof raw.value !== "object" || raw.value === null)
@@ -49031,7 +50954,7 @@ function listAmbientRecords(controlPlane) {
     if (!name.startsWith("ambient-") || !name.endsWith(".json"))
       continue;
     const recordId = name.slice(0, -".json".length);
-    const raw = readJsonSafely(join10(recordsRoot(controlPlane), name));
+    const raw = readJsonSafely(join12(recordsRoot(controlPlane), name));
     const createdAt = raw.ok && typeof raw.value === "object" && raw.value !== null && typeof raw.value.created_at === "string" ? raw.value.created_at : "";
     entries.push({ record_id: recordId, created_at: createdAt });
   }
@@ -49130,7 +51053,7 @@ function harvestAmbientContinuity(input) {
     reason,
     index_path: indexPath(controlPlane)
   });
-  if (!existsSync13(input.transcriptPath))
+  if (!existsSync15(input.transcriptPath))
     return skip("no_transcript");
   const recordId = input.recordId ?? deriveAmbientStem(input.sessionId, input.transcriptPath);
   const stemSafe = isSafeControlPlaneStem(recordId);
@@ -49479,7 +51402,7 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now, gitProbe)
   const projectRoot = resolveProjectRootArg(args);
   const indexAbs = indexPath(controlPlane);
   const recordAbs = recordPath(controlPlane, pointer.record_id);
-  if (!existsSync14(recordAbs)) {
+  if (!existsSync16(recordAbs)) {
     return invalidBrief(args, "record_missing", "Continuity index points at a missing record.", pointer.record_id);
   }
   let record2;
@@ -49519,7 +51442,7 @@ function resolvePointerBrief(args, controlPlane, pointer, source, now, gitProbe)
 var CONTINUING_SESSION_SOURCES = /* @__PURE__ */ new Set(["compact", "resume"]);
 function resolveAmbientBrief(args, controlPlane, pointer, now, gitProbe) {
   const ownStem = args.sessionId === void 0 ? void 0 : ambientStemForSessionId(args.sessionId);
-  if (ownStem !== void 0 && isSafeControlPlaneStem(ownStem) && existsSync14(recordPath(controlPlane, ownStem))) {
+  if (ownStem !== void 0 && isSafeControlPlaneStem(ownStem) && existsSync16(recordPath(controlPlane, ownStem))) {
     return resolvePointerBrief(args, controlPlane, { record_id: ownStem, continuity_kind: "ambient" }, "ambient_record", now, gitProbe);
   }
   if (args.sessionId !== void 0 && CONTINUING_SESSION_SOURCES.has(args.sessionSource ?? "")) {
@@ -49530,7 +51453,7 @@ function resolveAmbientBrief(args, controlPlane, pointer, now, gitProbe) {
 function handoffBrief(args, now = () => /* @__PURE__ */ new Date(), gitProbe = realBriefGitProbe) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync14(indexAbs))
+  if (!existsSync16(indexAbs))
     return emptyBrief(args, "no_index");
   let index;
   try {
@@ -49629,9 +51552,9 @@ function realBriefGitProbe(input) {
 }
 
 // dist/cli/handoff-codex-hooks.js
-import { copyFileSync, existsSync as existsSync15, mkdirSync as mkdirSync4, readFileSync as readFileSync33, writeFileSync as writeFileSync5 } from "node:fs";
+import { copyFileSync, existsSync as existsSync17, mkdirSync as mkdirSync4, readFileSync as readFileSync33, writeFileSync as writeFileSync5 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname5, join as join11, resolve as resolve13 } from "node:path";
+import { dirname as dirname5, join as join13, resolve as resolve13 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 var HANDOFF_HOOKS_API_VERSION = "handoff-hooks-v1";
 var HANDOFF_HOOKS_SCHEMA_VERSION = 1;
@@ -49666,7 +51589,7 @@ function resolveHooksFileArg(args) {
 }
 function resolveLauncherArg(args) {
   const launcher = resolve13(args.launcher ?? defaultLauncherPath());
-  if (!existsSync15(launcher)) {
+  if (!existsSync17(launcher)) {
     if (args.launcher === void 0 && (process.env.CIRCUIT_PLUGIN_ROOT ?? "").length === 0) {
       throw new Error(missingDefaultLauncherMessage(launcher));
     }
@@ -49692,7 +51615,7 @@ function defaultHooksConfig() {
   return { hooks: {} };
 }
 function readHooksConfig(path) {
-  if (!existsSync15(path))
+  if (!existsSync17(path))
     return defaultHooksConfig();
   const parsed = JSON.parse(readFileSync33(path, "utf8"));
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
@@ -49804,9 +51727,9 @@ function launcherPathFromCircuitHookCommand(command) {
 function writeHooksConfig(path, config2) {
   mkdirSync4(dirname5(path), { recursive: true });
   let backupPath;
-  if (existsSync15(path)) {
+  if (existsSync17(path)) {
     const candidate = `${path}.circuit-backup`;
-    if (!existsSync15(candidate)) {
+    if (!existsSync17(candidate)) {
       copyFileSync(path, candidate);
       backupPath = candidate;
     }
@@ -49857,7 +51780,7 @@ function installCodexHandoffHook(args) {
 function uninstallCodexHandoffHook(args) {
   parseCodexHooksHost(args);
   const hooksPath = resolveHooksFileArg(args);
-  if (!existsSync15(hooksPath)) {
+  if (!existsSync17(hooksPath)) {
     return {
       api_version: HANDOFF_HOOKS_API_VERSION,
       schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
@@ -49896,7 +51819,7 @@ function doctorCodexHandoffHook(args) {
   parseCodexHooksHost(args);
   const hooksPath = resolveHooksFileArg(args);
   const checks = [];
-  checks.push({ name: "hooks_file_exists", ok: existsSync15(hooksPath), detail: hooksPath });
+  checks.push({ name: "hooks_file_exists", ok: existsSync17(hooksPath), detail: hooksPath });
   let config2;
   try {
     config2 = readHooksConfig(hooksPath);
@@ -49927,7 +51850,7 @@ function doctorCodexHandoffHook(args) {
       });
       checks.push({
         name: "circuit_handoff_hook_launcher_exists",
-        ok: launchers.length > 0 && launchers.every((launcher) => existsSync15(launcher)),
+        ok: launchers.length > 0 && launchers.every((launcher) => existsSync17(launcher)),
         detail: launchers.length > 0 ? launchers.join(", ") : "launcher not found in hook command"
       });
     } catch (err) {
@@ -49951,7 +51874,7 @@ function doctorCodexHandoffHook(args) {
   const failed = checks.filter((item) => !item.ok && item.severity !== "warning");
   const installedCheck = checks.find((item) => item.name === "circuit_handoff_hook_installed");
   const structuralFailure = failed.some((item) => item.name === "hooks_file_parseable" || item.name === "session_start_array");
-  const status = !existsSync15(hooksPath) ? "missing" : structuralFailure ? "invalid" : installedCheck?.ok === false ? "missing" : failed.length === 0 ? "ok" : "invalid";
+  const status = !existsSync17(hooksPath) ? "missing" : structuralFailure ? "invalid" : installedCheck?.ok === false ? "missing" : failed.length === 0 ? "ok" : "invalid";
   return {
     api_version: HANDOFF_HOOKS_API_VERSION,
     schema_version: HANDOFF_HOOKS_SCHEMA_VERSION,
@@ -49974,10 +51897,10 @@ function runHandoffHooksCommand(args) {
 var CODEX_INSTALL_NUDGE_MARKER = ".codex-install-nudged";
 var CODEX_INSTALL_NUDGE_NOTICE = "Circuit restores this repo automatically on Claude, but on Codex it needs a one-time hook install before each new session can restore your continuity. Run: circuit handoff hooks install --host codex (this notice shows once per repo).";
 function codexInstallNudgeMarkerPath(controlPlane) {
-  return join11(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
+  return join13(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
 }
 function isCodexHandoffHookInstalled(hooksPath) {
-  if (!existsSync15(hooksPath))
+  if (!existsSync17(hooksPath))
     return false;
   let config2;
   try {
@@ -49997,7 +51920,7 @@ function codexInstallAssurance(input) {
   const hooksPath = input.hooksFile ?? defaultCodexHooksFile();
   if (isCodexHandoffHookInstalled(hooksPath))
     return { status: "ok", marker_path: markerPath };
-  if (existsSync15(markerPath))
+  if (existsSync17(markerPath))
     return { status: "already_nudged", marker_path: markerPath };
   const stampedAt = (input.now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
   try {
@@ -50013,7 +51936,7 @@ function codexInstallAssurance(input) {
 function addHandoffOptions(program2) {
   return program2.option("--host <host>").option("--goal <goal>").option("--next <next>").option("--state-markdown <md>").option("--debt-markdown <md>").option("--run-folder <path>").option("--control-plane <path>").option("--project-root <path>").option("--hooks-file <path>").option("--launcher <path>").option("--record-id <stem>").option("--created-at <iso>").option("--transcript-path <path>").option("--session-id <id>").option("--session-source <startup|resume|clear|compact>").option("--source <stop|session-end|pre-compact>").option("--clear-ambient").option("--progress <format>").option("--json");
 }
-function parseArgs2(argv) {
+function parseArgs3(argv) {
   let parsed;
   const program2 = addHandoffOptions(new Command("circuit handoff").exitOverride().configureOutput({ writeErr: () => {
   } }).enablePositionalOptions());
@@ -50246,7 +52169,7 @@ Saved continuity record could not be resumed: ${message}`);
 function resumeContinuity(args) {
   const controlPlane = resolveControlPlaneArg(args);
   const indexAbs = indexPath(controlPlane);
-  if (!existsSync16(indexAbs)) {
+  if (!existsSync18(indexAbs)) {
     const summaryPath3 = operatorSummaryPath(controlPlane);
     writeMarkdown(summaryPath3, "# Circuit Handoff\n\nNo saved continuity found.");
     const result2 = {
@@ -50284,7 +52207,7 @@ function resumeContinuity(args) {
     return { ...result2, result_path: resultPath3 };
   }
   const recordAbs = recordPath(controlPlane, index.pending_record.record_id);
-  if (!existsSync16(recordAbs)) {
+  if (!existsSync18(recordAbs)) {
     return invalidResumeResult(controlPlane, "record_missing", "Continuity index points at a missing record.", index.pending_record.record_id);
   }
   const recordRaw = readJsonSafely(recordAbs);
@@ -50424,7 +52347,7 @@ function runHandoffHarvest(args, now) {
 async function runHandoffCommand(argv, options = {}) {
   let args;
   try {
-    args = parseArgs2(argv);
+    args = parseArgs3(argv);
   } catch (err) {
     process.stderr.write(`error: ${err.message}
 `);
@@ -50528,12 +52451,12 @@ async function runHandoffCommand(argv, options = {}) {
 import { basename as basename6 } from "node:path";
 
 // dist/app/history/indexer.js
-import { existsSync as existsSync20, mkdirSync as mkdirSync5, readFileSync as readFileSync36, renameSync as renameSync2, writeFileSync as writeFileSync6 } from "node:fs";
-import { join as join13, resolve as resolve17 } from "node:path";
+import { existsSync as existsSync22, mkdirSync as mkdirSync5, readFileSync as readFileSync36, renameSync as renameSync2, writeFileSync as writeFileSync6 } from "node:fs";
+import { join as join15, resolve as resolve17 } from "node:path";
 
 // dist/history/run-corpus.js
-import { existsSync as existsSync17, readdirSync as readdirSync2, statSync as statSync3 } from "node:fs";
-import { basename as basename4, join as join12 } from "node:path";
+import { existsSync as existsSync19, readdirSync as readdirSync2, statSync as statSync3 } from "node:fs";
+import { basename as basename4, join as join14 } from "node:path";
 var HistoryCommandError = class extends Error {
   code;
   paths;
@@ -50544,10 +52467,10 @@ var HistoryCommandError = class extends Error {
   }
 };
 function isCandidateRunFolder(runFolder) {
-  return existsSync17(join12(runFolder, "manifest.snapshot.json")) || existsSync17(join12(runFolder, "trace.ndjson")) || existsSync17(join12(runFolder, "reports/result.json"));
+  return existsSync19(join14(runFolder, "manifest.snapshot.json")) || existsSync19(join14(runFolder, "trace.ndjson")) || existsSync19(join14(runFolder, "reports/result.json"));
 }
 function listCandidateRunFolders(runsBase) {
-  if (!existsSync17(runsBase)) {
+  if (!existsSync19(runsBase)) {
     throw new HistoryCommandError("runs_base_not_found", `runs base not found: ${runsBase}`, {
       runsBase
     });
@@ -50564,7 +52487,7 @@ function listCandidateRunFolders(runsBase) {
     });
   }
   try {
-    return readdirSync2(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join12(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename4(left).localeCompare(basename4(right)));
+    return readdirSync2(runsBase, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join14(runsBase, entry.name)).filter(isCandidateRunFolder).sort((left, right) => basename4(left).localeCompare(basename4(right)));
   } catch (error51) {
     throw new HistoryCommandError("runs_base_unreadable", `runs base unreadable: ${error51 instanceof Error ? error51.message : String(error51)}`, { runsBase });
   }
@@ -53084,7 +55007,7 @@ function mtimeMs(path) {
 }
 
 // dist/app/history/extract.js
-import { existsSync as existsSync19, lstatSync as lstatSync6, readFileSync as readFileSync35, readdirSync as readdirSync4, realpathSync as realpathSync5 } from "node:fs";
+import { existsSync as existsSync21, lstatSync as lstatSync6, readFileSync as readFileSync35, readdirSync as readdirSync4, realpathSync as realpathSync5 } from "node:fs";
 import { basename as basename5, isAbsolute as isAbsolute11, relative as relative12, resolve as resolve16 } from "node:path";
 
 // dist/shared/outcome.js
@@ -53110,7 +55033,7 @@ function isDegradedCompletionOutcome(outcome) {
 }
 
 // dist/app/history/run-source-files.js
-import { existsSync as existsSync18, lstatSync as lstatSync5, readdirSync as readdirSync3, realpathSync as realpathSync4 } from "node:fs";
+import { existsSync as existsSync20, lstatSync as lstatSync5, readdirSync as readdirSync3, realpathSync as realpathSync4 } from "node:fs";
 import { isAbsolute as isAbsolute10, relative as relative11, resolve as resolve15 } from "node:path";
 function collectRunSourceFiles(runFolder) {
   const runFolderAbs = resolve15(runFolder);
@@ -53119,7 +55042,7 @@ function collectRunSourceFiles(runFolder) {
     resolve15(runFolderAbs, "manifest.snapshot.json"),
     resolve15(runFolderAbs, "trace.ndjson")
   ]) {
-    if (existsSync18(candidate) && !isSymlink(candidate))
+    if (existsSync20(candidate) && !isSymlink(candidate))
       files.add(candidate);
   }
   const reportsRoot2 = resolve15(runFolderAbs, "reports");
@@ -53140,7 +55063,7 @@ function isInside3(root, target) {
   return fromRoot === "" || !fromRoot.startsWith("..") && !isAbsolute10(fromRoot);
 }
 function walkReportJsonFiles(reportsRoot2) {
-  if (!existsSync18(reportsRoot2))
+  if (!existsSync20(reportsRoot2))
     return [];
   const rootReal = realpathSync4.native(reportsRoot2);
   const out = [];
@@ -53233,7 +55156,7 @@ function isInside4(root, target) {
 }
 function listFiles(root, prefix = "") {
   const absRoot = resolve16(root);
-  if (!existsSync19(absRoot))
+  if (!existsSync21(absRoot))
     return [];
   const rootReal = realpathSync5.native(absRoot);
   const out = [];
@@ -53278,7 +55201,7 @@ function validStepId(value) {
 }
 function parseTrace(runFolder, runFolderName) {
   const tracePath = resolve16(runFolder, "trace.ndjson");
-  if (!existsSync19(tracePath)) {
+  if (!existsSync21(tracePath)) {
     return { entries: [], reportWrites: /* @__PURE__ */ new Map(), traceValidForDocs: false };
   }
   let entries = [];
@@ -53503,7 +55426,7 @@ function resolveRunIdentity(input) {
 function makeRunDocument(input) {
   const sourcePath = input.resultPath ?? "trace.ndjson";
   const sourceAbs = resolve16(input.runFolder, sourcePath);
-  if (!existsSync19(sourceAbs))
+  if (!existsSync21(sourceAbs))
     return void 0;
   const sourceSha = input.resultPath === void 0 ? input.traceSha : sha256File(sourceAbs);
   if (sourceSha === void 0)
@@ -53725,13 +55648,13 @@ function extractRunHistoryDocuments(runFolder) {
   const documents = [];
   const manifestPath2 = resolve16(runFolderAbs, "manifest.snapshot.json");
   const resultPath2 = resolve16(runFolderAbs, "reports/result.json");
-  const manifest = existsSync19(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
-  const result = existsSync19(resultPath2) ? readJsonRecord(resultPath2) : void 0;
+  const manifest = existsSync21(manifestPath2) ? readJsonRecord(manifestPath2) : void 0;
+  const result = existsSync21(resultPath2) ? readJsonRecord(resultPath2) : void 0;
   const trace = parseTrace(runFolderAbs, runFolderName);
   if (trace.warning !== void 0)
     warnings.push(trace.warning);
   const tracePath = resolve16(runFolderAbs, "trace.ndjson");
-  const traceExists = existsSync19(tracePath);
+  const traceExists = existsSync21(tracePath);
   const traceSha = traceExists ? sha256File(tracePath) : void 0;
   const traceMtime = traceExists ? mtimeMs(tracePath) : void 0;
   const identity = resolveRunIdentity({
@@ -53743,7 +55666,7 @@ function extractRunHistoryDocuments(runFolder) {
   const runDocument = makeRunDocument({
     runFolder: runFolderAbs,
     identity,
-    ...existsSync19(resultPath2) ? { resultPath: "reports/result.json" } : {},
+    ...existsSync21(resultPath2) ? { resultPath: "reports/result.json" } : {},
     result,
     traceEntries: trace.entries,
     traceSha,
@@ -53830,8 +55753,8 @@ function resolveHistoryPaths(options = {}) {
     repoRoot,
     runsBase,
     indexDir,
-    manifestPath: join13(indexDir, HISTORY_MANIFEST_FILE),
-    documentsPath: join13(indexDir, HISTORY_DOCUMENTS_FILE)
+    manifestPath: join15(indexDir, HISTORY_MANIFEST_FILE),
+    documentsPath: join15(indexDir, HISTORY_DOCUMENTS_FILE)
   };
 }
 function computeLatestSourceMtime(sourceFiles) {
@@ -53929,7 +55852,7 @@ function rebuildHistoryIndex(options = {}) {
   };
 }
 function readHistoryManifest(paths) {
-  if (!existsSync20(paths.manifestPath) || !existsSync20(paths.documentsPath)) {
+  if (!existsSync22(paths.manifestPath) || !existsSync22(paths.documentsPath)) {
     throw new HistoryCommandError("index_missing", `history index missing: ${paths.indexDir}`, {
       runsBase: paths.runsBase,
       indexDir: paths.indexDir
@@ -54031,11 +55954,11 @@ function historyStatus(options = {}) {
 }
 
 // dist/app/history/memory-effect-read.js
-import { existsSync as existsSync21, readFileSync as readFileSync37 } from "node:fs";
-import { join as join14 } from "node:path";
+import { existsSync as existsSync23, readFileSync as readFileSync37 } from "node:fs";
+import { join as join16 } from "node:path";
 function loadMemoryEffectReport(paths) {
-  const effectPath = join14(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
-  if (!existsSync21(effectPath)) {
+  const effectPath = join16(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
+  if (!existsSync23(effectPath)) {
     return {
       warnings: [
         {
@@ -54063,11 +55986,11 @@ function loadMemoryEffectReport(paths) {
 }
 
 // dist/app/history/memory-effect.js
-import { join as join16 } from "node:path";
+import { join as join18 } from "node:path";
 
 // dist/app/history/memory-merge.js
-import { existsSync as existsSync22, readFileSync as readFileSync38 } from "node:fs";
-import { join as join15 } from "node:path";
+import { existsSync as existsSync24, readFileSync as readFileSync38 } from "node:fs";
+import { join as join17 } from "node:path";
 
 // dist/app/history/memory-identity.js
 function contentIdentityOf(memory) {
@@ -54094,8 +56017,8 @@ function deriveAbortReason(envelope) {
   return attempt.blocked_reason ?? attempt.summary;
 }
 function readRecallInputs(runFolder, warnings) {
-  const recallPath = join15(runFolder, RECALL_REPORT_RELATIVE_PATH);
-  if (!existsSync22(recallPath)) {
+  const recallPath = join17(runFolder, RECALL_REPORT_RELATIVE_PATH);
+  if (!existsSync24(recallPath)) {
     warnings.push({
       code: "recall_report_missing",
       message: "memory was used but no recall report was found; content identity is unavailable",
@@ -54150,8 +56073,8 @@ function resolveInput(memoryInputId, recallInputs, runFolder, warnings) {
 }
 function extractRunMemoryLinkage(runFolder) {
   const warnings = [];
-  const envelopePath = join15(runFolder, RUN_ENVELOPE_RELATIVE_PATH);
-  if (!existsSync22(envelopePath)) {
+  const envelopePath = join17(runFolder, RUN_ENVELOPE_RELATIVE_PATH);
+  if (!existsSync24(envelopePath)) {
     warnings.push({
       code: "envelope_missing",
       message: "no run.envelope@v0 record (resume or non-source run); skipped from linkage",
@@ -54260,7 +56183,7 @@ function buildMemoryMergeReport(options = {}) {
   });
 }
 function writeMemoryMergeReport(report, paths) {
-  const outPath = join15(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
+  const outPath = join17(paths.indexDir, HISTORY_MEMORY_MERGE_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryMergeV1.parse(JSON.parse(raw))
   });
@@ -54457,7 +56380,7 @@ function buildMemoryEffectReport(options = {}) {
   });
 }
 function writeMemoryEffectReport(report, paths) {
-  const outPath = join16(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
+  const outPath = join18(paths.indexDir, HISTORY_MEMORY_EFFECT_FILE);
   writeJsonAtomic(outPath, report, {
     validate: (raw) => HistoryMemoryEffectV1.parse(JSON.parse(raw))
   });
@@ -54548,8 +56471,8 @@ function historyMemoryInputPreview(input) {
 }
 
 // dist/app/history/pull-log.js
-import { existsSync as existsSync23, readFileSync as readFileSync39 } from "node:fs";
-import { join as join17 } from "node:path";
+import { existsSync as existsSync25, readFileSync as readFileSync39 } from "node:fs";
+import { join as join19 } from "node:path";
 var HISTORY_PULL_LOG_RELATIVE_PATH = "reports/history/pull-log.json";
 function pullLogUnavailable(runFolder, error51) {
   return {
@@ -54560,8 +56483,8 @@ function pullLogUnavailable(runFolder, error51) {
   };
 }
 function readPullLog(runFolder) {
-  const path = join17(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
-  if (!existsSync23(path))
+  const path = join19(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  if (!existsSync25(path))
     return void 0;
   try {
     return HistoryPullLogV1.parse(JSON.parse(readFileSync39(path, "utf8")));
@@ -54570,11 +56493,11 @@ function readPullLog(runFolder) {
   }
 }
 function appendPullLogEntry(runFolder, input) {
-  const outPath = join17(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
+  const outPath = join19(runFolder, HISTORY_PULL_LOG_RELATIVE_PATH);
   const warnings = [];
   let existing;
   try {
-    if (existsSync23(outPath)) {
+    if (existsSync25(outPath)) {
       existing = HistoryPullLogV1.parse(JSON.parse(readFileSync39(outPath, "utf8")));
     }
   } catch (error51) {
@@ -54632,7 +56555,7 @@ function suppressMeasuredNegative(input) {
 }
 
 // dist/app/history/query.js
-import { existsSync as existsSync24, readFileSync as readFileSync40 } from "node:fs";
+import { existsSync as existsSync26, readFileSync as readFileSync40 } from "node:fs";
 var STOPWORDS = /* @__PURE__ */ new Set([
   "the",
   "and",
@@ -54817,7 +56740,7 @@ function sourceStaleness(doc, checkedAt) {
   }
   try {
     const sourcePath = resolveRunFilePath(doc.run_folder, doc.source_path);
-    if (!existsSync24(sourcePath)) {
+    if (!existsSync26(sourcePath)) {
       return {
         status: "stale",
         reason_codes: ["memory_stale"],
@@ -55241,7 +57164,7 @@ import { resolve as resolve19 } from "node:path";
 
 // dist/app/inbox/discover.js
 import { readdirSync as readdirSync5 } from "node:fs";
-import { join as join18, resolve as resolve18 } from "node:path";
+import { join as join20, resolve as resolve18 } from "node:path";
 function inboxResumeCommand(runFolder) {
   return `circuit resume --run-folder ${runFolder} --checkpoint-choice <choice>`;
 }
@@ -55265,7 +57188,7 @@ function listRunFolders(runsRoot2) {
   } catch {
     return [];
   }
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => join18(runsRoot2, entry.name)).sort();
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => join20(runsRoot2, entry.name)).sort();
 }
 function discoverDecisionInbox(input) {
   const runsRoot2 = resolve18(input.runsRoot);
@@ -55394,17 +57317,17 @@ function runInboxCommand(argv, options = {}) {
 
 // dist/cli/memory.js
 import { createHash as createHash5 } from "node:crypto";
-import { existsSync as existsSync27, readFileSync as readFileSync43 } from "node:fs";
-import { basename as basename7, join as join20 } from "node:path";
+import { existsSync as existsSync29, readFileSync as readFileSync43 } from "node:fs";
+import { basename as basename7, join as join22 } from "node:path";
 
 // dist/memory/project-identity.js
 var import_yaml2 = __toESM(require_dist(), 1);
 import { execFileSync as execFileSync3 } from "node:child_process";
-import { existsSync as existsSync26, readFileSync as readFileSync42 } from "node:fs";
+import { existsSync as existsSync28, readFileSync as readFileSync42 } from "node:fs";
 
 // dist/memory/project-store.js
-import { existsSync as existsSync25, readFileSync as readFileSync41 } from "node:fs";
-import { join as join19, resolve as resolve20 } from "node:path";
+import { existsSync as existsSync27, readFileSync as readFileSync41 } from "node:fs";
+import { join as join21, resolve as resolve20 } from "node:path";
 var PROJECT_FACTS_FILE = "project.v1.jsonl";
 var MEMORY_MANIFEST_FILE = "manifest.json";
 function resolveProjectStorePaths(options = {}) {
@@ -55413,13 +57336,13 @@ function resolveProjectStorePaths(options = {}) {
   return {
     repoRoot,
     memoryDir,
-    factsPath: join19(memoryDir, PROJECT_FACTS_FILE),
-    manifestPath: join19(memoryDir, MEMORY_MANIFEST_FILE)
+    factsPath: join21(memoryDir, PROJECT_FACTS_FILE),
+    manifestPath: join21(memoryDir, MEMORY_MANIFEST_FILE)
   };
 }
 function readProjectFacts(options = {}) {
   const paths = resolveProjectStorePaths(options);
-  if (!existsSync25(paths.factsPath)) {
+  if (!existsSync27(paths.factsPath)) {
     return { facts: [], warnings: [] };
   }
   let raw = "";
@@ -55524,7 +57447,7 @@ function normalizeGitRemoteUrl(url2) {
 }
 function readConfigProjectId(repoRoot) {
   const configPath = projectConfigPath(repoRoot);
-  if (!existsSync26(configPath))
+  if (!existsSync28(configPath))
     return void 0;
   let raw;
   try {
@@ -55669,8 +57592,8 @@ function resolveNoteSource(input) {
     { rel: "reports/result.json", kind: "report" }
   ];
   for (const candidate of candidates) {
-    const abs = join20(input.runFolder, candidate.rel);
-    if (!existsSync27(abs))
+    const abs = join22(input.runFolder, candidate.rel);
+    if (!existsSync29(abs))
       continue;
     const sha2564 = sha256Text(readFileSync43(abs, "utf8"));
     const ref = Ref.parse({
@@ -55681,8 +57604,8 @@ function resolveNoteSource(input) {
     });
     return { ref, sha256: sha2564 };
   }
-  const tracePath = join20(input.runFolder, "trace.ndjson");
-  if (existsSync27(tracePath)) {
+  const tracePath = join22(input.runFolder, "trace.ndjson");
+  if (existsSync29(tracePath)) {
     const runId = basename7(input.runFolder);
     const sha2564 = sha256Text(readFileSync43(tracePath, "utf8"));
     const trace = Ref.safeParse({
@@ -55852,15 +57775,15 @@ function latestRunFolder(runsBase) {
 }
 
 // dist/cli/reclaim.js
-import { join as join24, resolve as resolve21 } from "node:path";
+import { join as join26, resolve as resolve21 } from "node:path";
 
 // dist/runtime/fanout/worktree-reaper.js
 import { readdir } from "node:fs/promises";
-import { join as join23 } from "node:path";
+import { join as join25 } from "node:path";
 
 // dist/runtime/trace/trace-store.js
 import { appendFile, mkdir, readFile, truncate as truncate2 } from "node:fs/promises";
-import { join as join21 } from "node:path";
+import { join as join23 } from "node:path";
 var TraceStore = class {
   runDir;
   options;
@@ -55876,7 +57799,7 @@ var TraceStore = class {
   constructor(runDir, options = {}) {
     this.runDir = runDir;
     this.options = options;
-    this.tracePath = join21(runDir, "trace.ndjson");
+    this.tracePath = join23(runDir, "trace.ndjson");
   }
   async load() {
     await this.appendTail;
@@ -55983,15 +57906,15 @@ var TraceStore = class {
 
 // dist/runtime/fanout/run-owner-lock.js
 import { mkdirSync as mkdirSync6, readFileSync as readFileSync44, rmSync as rmSync4, writeFileSync as writeFileSync7 } from "node:fs";
-import { join as join22 } from "node:path";
+import { join as join24 } from "node:path";
 var OWNER_LOCK_FILENAME = ".owner.json";
 function ownerLockPath(worktreesRoot, runId) {
-  return join22(worktreesRoot, runId, OWNER_LOCK_FILENAME);
+  return join24(worktreesRoot, runId, OWNER_LOCK_FILENAME);
 }
 function writeOwnerLock(worktreesRoot, runId, startedAt) {
   const lock = { schema_version: 1, pid: process.pid, started_at: startedAt };
   try {
-    mkdirSync6(join22(worktreesRoot, runId), { recursive: true });
+    mkdirSync6(join24(worktreesRoot, runId), { recursive: true });
     writeFileSync7(ownerLockPath(worktreesRoot, runId), JSON.stringify(lock), "utf8");
   } catch {
   }
@@ -56066,11 +57989,11 @@ var listWorktreesFromDisk = async (worktreesRoot) => {
   const entries = [];
   const runDirs = await listSubdirectories(worktreesRoot);
   for (const runId of runDirs) {
-    const stepDirs = await listSubdirectories(join23(worktreesRoot, runId));
+    const stepDirs = await listSubdirectories(join25(worktreesRoot, runId));
     for (const stepId of stepDirs) {
-      const branchDirs = await listSubdirectories(join23(worktreesRoot, runId, stepId));
+      const branchDirs = await listSubdirectories(join25(worktreesRoot, runId, stepId));
       for (const branchId of branchDirs) {
-        entries.push({ path: join23(worktreesRoot, runId, stepId, branchId), runId });
+        entries.push({ path: join25(worktreesRoot, runId, stepId, branchId), runId });
       }
     }
   }
@@ -56090,7 +58013,7 @@ function makeTraceRunStatusResolver(runsRoot2) {
   return async (runId) => {
     let entries;
     try {
-      const trace = new TraceStore(join23(runsRoot2, runId));
+      const trace = new TraceStore(join25(runsRoot2, runId));
       entries = await trace.load();
     } catch {
       return "unknown";
@@ -56211,7 +58134,7 @@ async function runReclaimCommand(argv) {
     return 2;
   }
   const projectRoot = parsed.projectRoot;
-  const worktreesRoot = join24(controlPlaneRoot(projectRoot), "worktrees");
+  const worktreesRoot = join26(controlPlaneRoot(projectRoot), "worktrees");
   const summary = await reapWorktrees({
     worktreesRoot,
     resolveRunStatus: makeTraceRunStatusResolver(runsRoot(projectRoot))
@@ -56228,8 +58151,8 @@ async function runReclaimCommand(argv) {
 
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync37, mkdirSync as mkdirSync11, readFileSync as readFileSync57, writeFileSync as writeFileSync12 } from "node:fs";
-import { dirname as dirname13, join as join41, resolve as resolve27 } from "node:path";
+import { existsSync as existsSync39, mkdirSync as mkdirSync11, readFileSync as readFileSync57, writeFileSync as writeFileSync12 } from "node:fs";
+import { dirname as dirname13, join as join43, resolve as resolve27 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
 import { readFileSync as readFileSync49 } from "node:fs";
@@ -57783,9 +59706,9 @@ function expandTemplate(template, item) {
 
 // dist/shared/user-skill-registry.js
 var import_yaml3 = __toESM(require_dist(), 1);
-import { existsSync as existsSync28, readFileSync as readFileSync45, readdirSync as readdirSync6 } from "node:fs";
+import { existsSync as existsSync30, readFileSync as readFileSync45, readdirSync as readdirSync6 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { join as join25, resolve as resolve22 } from "node:path";
+import { join as join27, resolve as resolve22 } from "node:path";
 var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
 var UserSkillFrontmatter = UserSkillEntry.pick({
   name: true,
@@ -57793,7 +59716,7 @@ var UserSkillFrontmatter = UserSkillEntry.pick({
   trigger: true
 }).loose();
 function defaultUserSkillRoots(homeDir = homedir3()) {
-  return [join25(homeDir, ".agents", "skills"), join25(homeDir, ".claude", "skills")];
+  return [join27(homeDir, ".agents", "skills"), join27(homeDir, ".claude", "skills")];
 }
 function parseSkillMarkdown(text, skillPath) {
   if (!text.startsWith("---"))
@@ -57825,7 +59748,7 @@ function discoverCandidates(roots) {
   const candidates = /* @__PURE__ */ new Map();
   for (const root of roots) {
     const rootAbs = resolve22(root);
-    if (!existsSync28(rootAbs))
+    if (!existsSync30(rootAbs))
       continue;
     for (const entry of readdirSync6(rootAbs, { withFileTypes: true })) {
       if (!entry.isDirectory())
@@ -57836,8 +59759,8 @@ function discoverCandidates(roots) {
       const key = id.data;
       if (candidates.has(key))
         continue;
-      const skillPath = join25(rootAbs, entry.name, "SKILL.md");
-      if (!existsSync28(skillPath))
+      const skillPath = join27(rootAbs, entry.name, "SKILL.md");
+      if (!existsSync30(skillPath))
         continue;
       candidates.set(key, {
         id: id.data,
@@ -57891,7 +59814,7 @@ function createUserSkillRegistry(options = {}) {
         throw new Error([
           `Circuit could not find skill '${key}'.`,
           "Searched:",
-          ...searchedRoots.map((root) => `- ${join25(root, key, "SKILL.md")}`)
+          ...searchedRoots.map((root) => `- ${join27(root, key, "SKILL.md")}`)
         ].join("\n"));
       }
       return loadCached(key, candidate);
@@ -59068,83 +60991,6 @@ async function executeCheckpoint(step, context) {
   return unwrapStepExecutionResult(await executeCheckpointResult(step, context));
 }
 
-// dist/flows/registries/close-writers/generic-close-builder.js
-var GENERIC_CLOSE_BUILDER = {
-  resultSchemaName: FLOW_RESULT_CONTRACT,
-  reads: [],
-  build(context) {
-    const evidenceLinks3 = [...context.closeStep.reads];
-    const linkCount = evidenceLinks3.length;
-    return {
-      schema_version: 1,
-      summary: linkCount === 0 ? `Composed flow '${context.flow.id}' closed with no upstream evidence.` : `Composed flow '${context.flow.id}' closed with ${linkCount} evidence link${linkCount === 1 ? "" : "s"}.`,
-      // INFORMATIONAL ONLY. The run's honest outcome is derived from the terminal
-      // ROUTE (@complete/@stop/@handoff), not from this body — a composed flow
-      // never sets engineFlags.bindsTerminalOutcomeToPrimaryResult, so run-close
-      // never reads this field to decide the run outcome. This builder only sits on
-      // the @complete close compose step, so 'complete' is faithful here. Do NOT
-      // make this the outcome bind source (set that flag on a composed flow)
-      // without re-deriving the value from real upstream state — hardcoded
-      // 'complete' would then mask a degraded run.
-      outcome: "complete",
-      evidence_links: evidenceLinks3
-    };
-  }
-};
-
-// dist/flows/registries/close-writers/registry.js
-var REGISTRY3 = new Map(buildCloseRegistry(flowPackages));
-if (REGISTRY3.has(GENERIC_CLOSE_BUILDER.resultSchemaName)) {
-  throw new Error(`generic close builder collides with a flow-registered close builder for schema '${GENERIC_CLOSE_BUILDER.resultSchemaName}'`);
-}
-REGISTRY3.set(GENERIC_CLOSE_BUILDER.resultSchemaName, GENERIC_CLOSE_BUILDER);
-function findCloseBuilder(resultSchemaName) {
-  return REGISTRY3.get(resultSchemaName);
-}
-function resolveCloseReadPaths(builder, flow, closeStep) {
-  const paths = {};
-  for (const descriptor of builder.reads) {
-    if (descriptor.required) {
-      const path = reportPathForSchemaInRuntimeFlow(flow, descriptor.schema);
-      if (!closeStep.reads.includes(path)) {
-        throw new Error(`${closeStep.writes.report.schema} requires close step '${closeStep.id}' to read ${path}`);
-      }
-      paths[descriptor.name] = path;
-    } else {
-      if (!flowHasReportSchemaInRuntimeFlow(flow, descriptor.schema)) {
-        paths[descriptor.name] = void 0;
-        continue;
-      }
-      const path = reportPathForSchemaInRuntimeFlow(flow, descriptor.schema);
-      paths[descriptor.name] = closeStep.reads.includes(path) ? path : void 0;
-    }
-  }
-  return paths;
-}
-
-// dist/flows/registries/compose-writers/registry.js
-var REGISTRY4 = buildComposeRegistry(flowPackages);
-function findComposeBuilder(resultSchemaName) {
-  return REGISTRY4.get(resultSchemaName);
-}
-function resolveComposeReadPaths(builder, flow, step) {
-  const paths = {};
-  if (builder.reads === void 0)
-    return paths;
-  for (const descriptor of builder.reads) {
-    if (!descriptor.required && !flowHasReportSchemaInRuntimeFlow(flow, descriptor.schema)) {
-      paths[descriptor.name] = void 0;
-      continue;
-    }
-    const path = reportPathForSchemaInRuntimeFlow(flow, descriptor.schema);
-    if (descriptor.required && !step.reads.includes(path)) {
-      throw new Error(`${step.writes.report.schema} requires step '${step.id}' to read ${path}`);
-    }
-    paths[descriptor.name] = step.reads.includes(path) ? path : void 0;
-  }
-  return paths;
-}
-
 // dist/connectors/resolver.js
 function mergedRelayConfig(layers) {
   const merged = {
@@ -59661,7 +61507,7 @@ function isRubricJudgment(value) {
 
 // dist/runtime/fanout/branch-execution.js
 import { randomUUID as randomUUID6 } from "node:crypto";
-import { dirname as dirname7, join as join29 } from "node:path";
+import { dirname as dirname7, join as join31 } from "node:path";
 
 // dist/flows/registries/cross-report-validators.js
 var REGISTRY5 = buildCrossReportValidatorRegistry(flowPackages);
@@ -59694,10 +61540,10 @@ function parseReport(schemaName, resultBody) {
   try {
     parsed = JSON.parse(resultBody);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg2 = err instanceof Error ? err.message : String(err);
     return {
       kind: "fail",
-      reason: `report body did not parse as JSON against schema '${schemaName}' (${msg})`
+      reason: `report body did not parse as JSON against schema '${schemaName}' (${msg2})`
     };
   }
   const result = schema.safeParse(parsed);
@@ -59712,456 +61558,6 @@ function parseReport(schemaName, resultBody) {
     };
   }
   return { kind: "ok" };
-}
-
-// dist/shared/json-extraction.js
-function extractJsonObject(text) {
-  let cursor = 0;
-  while (cursor < text.length) {
-    const start = text.indexOf("{", cursor);
-    if (start === -1)
-      break;
-    let depth = 0;
-    let inString = false;
-    let escaped = false;
-    let end = -1;
-    for (let i = start; i < text.length; i++) {
-      const ch = text[i];
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (inString) {
-        if (ch === "\\") {
-          escaped = true;
-          continue;
-        }
-        if (ch === '"')
-          inString = false;
-        continue;
-      }
-      if (ch === '"') {
-        inString = true;
-        continue;
-      }
-      if (ch === "{")
-        depth++;
-      else if (ch === "}") {
-        depth--;
-        if (depth === 0) {
-          end = i + 1;
-          break;
-        }
-      }
-    }
-    if (end === -1)
-      break;
-    const candidate = text.slice(start, end);
-    try {
-      JSON.parse(candidate);
-      return candidate;
-    } catch {
-      cursor = start + 1;
-    }
-  }
-  return text;
-}
-
-// dist/connectors/subprocess.js
-import { spawn } from "node:child_process";
-import { performance } from "node:perf_hooks";
-var ConnectorSubprocessSpawnError = class extends Error {
-  phase;
-  constructor(phase, message) {
-    super(message);
-    this.phase = phase;
-    this.name = "ConnectorSubprocessSpawnError";
-  }
-};
-function isConnectorSubprocessSpawnError(error51) {
-  return error51 instanceof ConnectorSubprocessSpawnError || error51 instanceof Error && error51.name === "ConnectorSubprocessSpawnError";
-}
-function appendCapped(current, currentBytes, chunk, maxBytes) {
-  const chunkBytes = Buffer.byteLength(chunk, "utf8");
-  if (currentBytes + chunkBytes <= maxBytes) {
-    return { text: current + chunk, bytes: currentBytes + chunkBytes, capped: false };
-  }
-  const remaining = maxBytes - currentBytes;
-  if (remaining <= 0) {
-    return { text: current, bytes: currentBytes, capped: true };
-  }
-  return {
-    text: current + Buffer.from(chunk, "utf8").subarray(0, remaining).toString("utf8"),
-    bytes: maxBytes,
-    capped: true
-  };
-}
-function spawnErrorVerb(error51) {
-  return error51.phase === "spawn-failed" ? "spawn failed" : "spawn error";
-}
-function cappedSuffix(capped, stream) {
-  return capped ? ` [${stream} capped]` : "";
-}
-function parseNdjsonObjects(stdout, label) {
-  const lines = stdout.split("\n").filter((line) => line.length > 0);
-  const objects = [];
-  for (const [idx, line] of lines.entries()) {
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch (err) {
-      throw new Error(`${label} line ${idx + 1} is not valid JSON: ${err.message}; line[:200]=${line.slice(0, 200)}`);
-    }
-    if (typeof parsed !== "object" || parsed === null) {
-      throw new Error(`${label} line ${idx + 1} is not a JSON object`);
-    }
-    objects.push(parsed);
-  }
-  return objects;
-}
-async function runConnectorSubprocess(input) {
-  const start = performance.now();
-  return await new Promise((resolve30, reject) => {
-    let child;
-    try {
-      child = spawn(input.executable, [...input.args], {
-        stdio: ["ignore", "pipe", "pipe"],
-        env: input.env ?? process.env,
-        detached: true,
-        ...input.cwd === void 0 ? {} : { cwd: input.cwd }
-      });
-    } catch (error51) {
-      reject(new ConnectorSubprocessSpawnError("spawn-failed", error51 instanceof Error ? error51.message : String(error51)));
-      return;
-    }
-    let stdout = "";
-    let stdoutBytes = 0;
-    let stderr = "";
-    let stderrBytes = 0;
-    let stdoutCapped = false;
-    let stderrCapped = false;
-    let timedOut = false;
-    let killGroupSucceeded = false;
-    const killProcessGroup = (signal) => {
-      const pid = child.pid;
-      if (typeof pid !== "number")
-        return false;
-      try {
-        process.kill(-pid, signal);
-        return true;
-      } catch {
-        try {
-          child.kill(signal);
-          return true;
-        } catch {
-          return false;
-        }
-      }
-    };
-    let killGraceTimer;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killGroupSucceeded = killProcessGroup("SIGTERM");
-      killGraceTimer = setTimeout(() => {
-        killProcessGroup("SIGKILL");
-        killGraceTimer = void 0;
-      }, input.sigtermToSigkillGraceMs);
-    }, input.timeoutMs);
-    const clearAllTimers = () => {
-      clearTimeout(timer);
-      if (killGraceTimer !== void 0) {
-        clearTimeout(killGraceTimer);
-        killGraceTimer = void 0;
-      }
-    };
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => {
-      const next = appendCapped(stdout, stdoutBytes, chunk, input.stdoutMaxBytes);
-      stdout = next.text;
-      stdoutBytes = next.bytes;
-      stdoutCapped = stdoutCapped || next.capped;
-    });
-    child.stderr?.on("data", (chunk) => {
-      const next = appendCapped(stderr, stderrBytes, chunk, input.stderrMaxBytes);
-      stderr = next.text;
-      stderrBytes = next.bytes;
-      stderrCapped = stderrCapped || next.capped;
-    });
-    child.on("error", (error51) => {
-      clearAllTimers();
-      reject(new ConnectorSubprocessSpawnError("spawn-error", error51.message));
-    });
-    child.on("close", (code, signal) => {
-      clearAllTimers();
-      resolve30({
-        stdout,
-        stderr,
-        stdoutCapped,
-        stderrCapped,
-        timedOut,
-        killGroupSucceeded,
-        code,
-        signal,
-        durationMs: performance.now() - start
-      });
-    });
-  });
-}
-
-// dist/connectors/claude-code.js
-var CLAUDE_CODE_DISPATCH_FLAGS = [
-  "-p",
-  "--permission-mode",
-  "bypassPermissions",
-  "--strict-mcp-config",
-  "--disable-slash-commands",
-  "--setting-sources",
-  "",
-  "--settings",
-  "{}",
-  "--output-format",
-  "stream-json",
-  "--verbose",
-  "--no-session-persistence"
-];
-var CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS = ["StructuredOutput"];
-var CLAUDE_CODE_EXECUTABLE = "claude";
-var DEFAULT_TIMEOUT_MS = 6e5;
-var SIGTERM_TO_SIGKILL_GRACE_MS = 2e3;
-var STDOUT_MAX_BYTES = 16 * 1024 * 1024;
-var STDERR_MAX_BYTES = 1024 * 1024;
-function selectedAnthropicModel(selection) {
-  const model = selection?.model;
-  if (model === void 0)
-    return void 0;
-  if (model.provider !== "anthropic") {
-    throw new Error(`claude-code connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider 'anthropic'`);
-  }
-  return model.model;
-}
-function assertClaudeCodeEffort(effort) {
-  if (!CLAUDE_CODE_SUPPORTED_EFFORTS.includes(effort)) {
-    throw new Error(`claude-code connector cannot honor effort '${effort}'; supported efforts: ${CLAUDE_CODE_SUPPORTED_EFFORTS.join(", ")}`);
-  }
-}
-function buildClaudeCodeArgs(input) {
-  const args = [];
-  if (input.toolAllowList !== void 0 && input.toolAllowList.length > 0) {
-    args.push("--tools", input.toolAllowList.join(","));
-  }
-  args.push(...CLAUDE_CODE_DISPATCH_FLAGS);
-  const model = selectedAnthropicModel(input.resolvedSelection);
-  if (model !== void 0) {
-    args.push("--model", model);
-  }
-  const effort = input.resolvedSelection?.effort;
-  if (effort !== void 0) {
-    assertClaudeCodeEffort(effort);
-    args.push("--effort", effort);
-  }
-  if (claudeCodeEmitsStructuredOutputFlag(input)) {
-    args.push("--json-schema", JSON.stringify(input.responseSchema));
-  }
-  args.push(input.prompt);
-  return args;
-}
-function claudeCodeEmitsStructuredOutputFlag(input) {
-  return input.responseSchema !== void 0 && isClaudeCodeStructuredOutputCompatible(input.responseSchema);
-}
-function claudeCodeStdoutDiagnostic(stdout) {
-  try {
-    parseClaudeCodeStdout(stdout, "", 0);
-    return void 0;
-  } catch (error51) {
-    return error51 instanceof Error ? error51.message : String(error51);
-  }
-}
-function isClaudeCodeStructuredOutputCompatible(schema) {
-  return schema.type === "object";
-}
-async function relayClaudeCode(input) {
-  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const args = buildClaudeCodeArgs(input);
-  let result;
-  try {
-    result = await runConnectorSubprocess({
-      executable: CLAUDE_CODE_EXECUTABLE,
-      args,
-      timeoutMs: timeoutMs2,
-      stdoutMaxBytes: STDOUT_MAX_BYTES,
-      stderrMaxBytes: STDERR_MAX_BYTES,
-      sigtermToSigkillGraceMs: SIGTERM_TO_SIGKILL_GRACE_MS,
-      env: process.env
-    });
-  } catch (error51) {
-    if (isConnectorSubprocessSpawnError(error51)) {
-      throw new Error(`claude-code subprocess ${spawnErrorVerb(error51)}: ${error51.message}`);
-    }
-    throw error51;
-  }
-  if (result.timedOut) {
-    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
-    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    throw new Error(`claude-code subprocess timed out after ${timeoutMs2}ms; group-kill ${result.killGroupSucceeded ? "sent" : "failed"}; final signal=${result.signal ?? "none"}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
-  }
-  if (result.code !== 0) {
-    const stdoutSuffix = cappedSuffix(result.stdoutCapped, "stdout");
-    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    const stdoutDiagnostic = claudeCodeStdoutDiagnostic(result.stdout);
-    const diagnosticText = stdoutDiagnostic === void 0 ? "" : `; stdout_diagnostic=${stdoutDiagnostic}`;
-    throw new Error(`claude-code subprocess exited with code ${result.code}${result.signal ? ` (signal ${result.signal})` : ""}${diagnosticText}; stdout[:500]=${result.stdout.slice(0, 500)}${stdoutSuffix}; stderr[:500]=${result.stderr.slice(0, 500)}${stderrSuffix}`);
-  }
-  if (result.stdoutCapped) {
-    throw new Error(`claude-code subprocess stdout exceeded ${STDOUT_MAX_BYTES} bytes; capability-boundary check cannot be evaluated on truncated stream`);
-  }
-  try {
-    return parseClaudeCodeStdout(
-      result.stdout,
-      input.prompt,
-      result.durationMs,
-      input.toolAllowList,
-      // Same predicate that decided whether buildClaudeCodeArgs emitted
-      // --json-schema, so the guard admits the CLI's return-channel tool exactly
-      // when we asked for structured output — the two can't diverge.
-      claudeCodeEmitsStructuredOutputFlag(input)
-    );
-  } catch (error51) {
-    const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
-    throw new Error(`claude-code subprocess: ${error51.message}; stdout[:500]=${result.stdout.slice(0, 500)}; stderr[:200]=${result.stderr.slice(0, 200)}${stderrSuffix}`);
-  }
-}
-function parseClaudeCodeStdout(stdout, prompt, duration_ms, requestedTools, structuredOutputRequested = false) {
-  const trace_entries = parseNdjsonObjects(stdout, "stream-json");
-  if (trace_entries.length === 0) {
-    throw new Error("stream-json stdout is empty");
-  }
-  const initTraceEntry = trace_entries.find((e) => e.type === "system" && e.subtype === "init");
-  const resultTraceEntries = trace_entries.filter((e) => e.type === "result");
-  const resultTraceEntry = resultTraceEntries[resultTraceEntries.length - 1];
-  if (initTraceEntry === void 0) {
-    throw new Error("system/init trace_entry missing from subprocess stdout");
-  }
-  if (resultTraceEntry === void 0) {
-    throw new Error("result trace_entry missing from subprocess stdout");
-  }
-  if (resultTraceEntry.is_error === true) {
-    const message = typeof resultTraceEntry.result === "string" ? resultTraceEntry.result : "<no message>";
-    throw new Error(`subprocess reported is_error: ${message}`);
-  }
-  const mcpServers = initTraceEntry.mcp_servers;
-  const slashCommands = initTraceEntry.slash_commands;
-  if (!Array.isArray(mcpServers) || mcpServers.length !== 0) {
-    throw new Error(`init.mcp_servers must be []; got ${JSON.stringify(mcpServers)}. CLAUDE_CODE_DISPATCH_FLAGS includes --strict-mcp-config to keep this surface closed.`);
-  }
-  if (!Array.isArray(slashCommands) || slashCommands.length !== 0) {
-    throw new Error(`init.slash_commands must be []; got ${JSON.stringify(slashCommands)}. CLAUDE_CODE_DISPATCH_FLAGS includes --disable-slash-commands to keep this surface closed.`);
-  }
-  if (requestedTools !== void 0 && requestedTools.length > 0) {
-    const sessionTools = initTraceEntry.tools;
-    if (!Array.isArray(sessionTools)) {
-      throw new Error(`init.tools must be an array to verify the enforced equipment scope; got ${JSON.stringify(sessionTools)}`);
-    }
-    const allowed = new Set(requestedTools);
-    if (structuredOutputRequested) {
-      for (const tool of CLAUDE_CODE_STRUCTURED_OUTPUT_TOOLS)
-        allowed.add(tool);
-    }
-    const leaked = sessionTools.filter((tool) => typeof tool !== "string" || !allowed.has(tool));
-    if (leaked.length !== 0) {
-      const rendered = leaked.map((tool) => typeof tool === "string" ? tool : JSON.stringify(tool)).join(", ");
-      throw new Error(`enforced equipment scope violated: tools outside the allow-list are present in the session: ${rendered}. The relay passes --tools to restrict the surface to [${requestedTools.join(", ")}]; a tool beyond it means the restriction did not hold.`);
-    }
-  }
-  const receipt_id = initTraceEntry.session_id;
-  const cli_version = initTraceEntry.claude_code_version;
-  if (typeof receipt_id !== "string" || receipt_id.length === 0) {
-    throw new Error("init.session_id missing or empty");
-  }
-  if (typeof cli_version !== "string" || cli_version.length === 0) {
-    throw new Error("init.claude_code_version missing or empty");
-  }
-  const structuredOutput = resultTraceEntry.structured_output;
-  let result_body;
-  if (structuredOutput !== void 0 && structuredOutput !== null) {
-    if (typeof structuredOutput !== "object") {
-      throw new Error("result.structured_output present but not an object");
-    }
-    result_body = JSON.stringify(structuredOutput);
-  } else {
-    const result_body_raw = resultTraceEntry.result;
-    if (typeof result_body_raw !== "string") {
-      throw new Error("result.result missing or not a string");
-    }
-    result_body = extractJsonObject(result_body_raw);
-  }
-  const usage2 = extractRelayUsage(resultTraceEntry);
-  return {
-    request_payload: prompt,
-    receipt_id,
-    result_body,
-    duration_ms,
-    cli_version,
-    ...usage2 === void 0 ? {} : { usage: usage2 }
-  };
-}
-function extractRelayUsage(resultTraceEntry) {
-  const usage2 = resultTraceEntry.usage;
-  const modelUsage = resultTraceEntry.modelUsage;
-  const hasUsage = usage2 !== null && typeof usage2 === "object";
-  const hasModelUsage = modelUsage !== null && typeof modelUsage === "object";
-  if (!hasUsage && !hasModelUsage)
-    return void 0;
-  const u = hasUsage ? usage2 : {};
-  const cacheCreation = u.cache_creation ?? {};
-  const models = [];
-  if (hasModelUsage) {
-    for (const [model, raw] of Object.entries(modelUsage)) {
-      if (raw === null || typeof raw !== "object")
-        continue;
-      const m = raw;
-      const costUsd = finiteOrUndefined(m.costUSD);
-      models.push({
-        // The trace schema requires a non-empty model id, and a schema
-        // rejection at trace append would fail the relay. An empty
-        // modelUsage key becomes "unknown" so this stays observability.
-        model: model.length === 0 ? "unknown" : model,
-        input_tokens: finiteOrZero(m.inputTokens),
-        output_tokens: finiteOrZero(m.outputTokens),
-        cache_read_tokens: finiteOrZero(m.cacheReadInputTokens),
-        cache_creation_tokens: finiteOrZero(m.cacheCreationInputTokens),
-        ...costUsd === void 0 ? {} : { cost_usd_reported: costUsd }
-      });
-    }
-  }
-  const totalCostUsd = finiteOrUndefined(resultTraceEntry.total_cost_usd);
-  const totals = models.length > 0 ? {
-    input_tokens: sumBy(models, (m) => m.input_tokens),
-    output_tokens: sumBy(models, (m) => m.output_tokens),
-    cache_read_tokens: sumBy(models, (m) => m.cache_read_tokens),
-    cache_creation_tokens: sumBy(models, (m) => m.cache_creation_tokens)
-  } : {
-    input_tokens: finiteOrZero(u.input_tokens),
-    output_tokens: finiteOrZero(u.output_tokens),
-    cache_read_tokens: finiteOrZero(u.cache_read_input_tokens),
-    cache_creation_tokens: finiteOrZero(u.cache_creation_input_tokens)
-  };
-  return {
-    ...totals,
-    cache_creation_5m_tokens: finiteOrZero(cacheCreation.ephemeral_5m_input_tokens),
-    cache_creation_1h_tokens: finiteOrZero(cacheCreation.ephemeral_1h_input_tokens),
-    ...totalCostUsd === void 0 ? {} : { total_cost_usd_reported: totalCostUsd },
-    ...models.length === 0 ? {} : { models }
-  };
-}
-function finiteOrZero(value) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
-}
-function finiteOrUndefined(value) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : void 0;
-}
-function sumBy(items, pick2) {
-  return items.reduce((sum, item) => sum + pick2(item), 0);
 }
 
 // dist/connectors/codex.js
@@ -60202,7 +61598,7 @@ for (const forbidden of CODEX_FORBIDDEN_ARGV_TOKENS) {
     throw new Error(`CODEX_WRITE_FLAGS boundary invariant broken: must NOT include "${forbidden}" (forbidden-token set)`);
   }
 }
-var DEFAULT_TIMEOUT_MS2 = 6e5;
+var DEFAULT_TIMEOUT_MS3 = 6e5;
 var SIGTERM_TO_SIGKILL_GRACE_MS2 = 2e3;
 var STDOUT_MAX_BYTES2 = 16 * 1024 * 1024;
 var STDERR_MAX_BYTES2 = 1024 * 1024;
@@ -60396,7 +61792,7 @@ async function cleanupSchemaTempDir(dir) {
   }
 }
 async function relayCodex(input) {
-  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS2;
+  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS3;
   const cli_version = captureCodexVersion();
   let tempDir;
   let schemaPath;
@@ -60555,7 +61951,7 @@ var CURSOR_AGENT_DISPATCH_FLAGS = Object.freeze([
   "--trust",
   "--force"
 ]);
-var DEFAULT_TIMEOUT_MS3 = 6e5;
+var DEFAULT_TIMEOUT_MS4 = 6e5;
 var SIGTERM_TO_SIGKILL_GRACE_MS3 = 2e3;
 var STDOUT_MAX_BYTES3 = 16 * 1024 * 1024;
 var STDERR_MAX_BYTES3 = 1024 * 1024;
@@ -60612,7 +62008,7 @@ function buildCursorAgentArgs(input) {
   return args;
 }
 async function relayCursorAgent(input) {
-  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS3;
+  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS4;
   const cliVersion = captureCursorAgentVersion();
   const args = buildCursorAgentArgs(input);
   let result;
@@ -60662,8 +62058,8 @@ async function relayCursorAgent(input) {
 // dist/connectors/custom.js
 import { mkdtemp as mkdtemp2, readFile as readFile2, rm as rm2, stat, writeFile as writeFile2 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join26 } from "node:path";
-var DEFAULT_TIMEOUT_MS4 = 12e4;
+import { join as join28 } from "node:path";
+var DEFAULT_TIMEOUT_MS5 = 12e4;
 var SIGTERM_TO_SIGKILL_GRACE_MS4 = 2e3;
 var OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
 var STDOUT_MAX_BYTES4 = 16 * 1024 * 1024;
@@ -60704,12 +62100,12 @@ async function relayCustom(input) {
   if (executable === void 0) {
     throw new Error(`custom connector '${descriptor.name}' command is empty`);
   }
-  const tempDir = await mkdtemp2(join26(tmpdir2(), "circuit-custom-connector-"));
-  const promptFile = join26(tempDir, "prompt.txt");
-  const outputFile = join26(tempDir, "output.txt");
+  const tempDir = await mkdtemp2(join28(tmpdir2(), "circuit-custom-connector-"));
+  const promptFile = join28(tempDir, "prompt.txt");
+  const outputFile = join28(tempDir, "output.txt");
   await writeFile2(promptFile, input.prompt, "utf8");
   const args = [...baseArgs, promptFile, outputFile];
-  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS4;
+  const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS5;
   try {
     let result;
     try {
@@ -61387,7 +62783,7 @@ function planRelayGuidanceDecision(input) {
 }
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync29, readFileSync as readFileSync46 } from "node:fs";
+import { existsSync as existsSync31, readFileSync as readFileSync46 } from "node:fs";
 
 // dist/flows/registries/shape-hints/registry.js
 var SCHEMA_HINTS = buildSchemaHintMap(flowPackages);
@@ -61413,10 +62809,10 @@ function evaluateRelayCheck(step, resultBody) {
   try {
     parsed = JSON.parse(resultBody);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg2 = err instanceof Error ? err.message : String(err);
     return {
       kind: "fail",
-      reason: `relay step '${step.id}': connector result_body did not parse as JSON (${msg})`
+      reason: `relay step '${step.id}': connector result_body did not parse as JSON (${msg2})`
     };
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -61652,7 +63048,7 @@ function deliveredContextSection(slices) {
 function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy, powerDialAuto, branchGoal, deliveredContextSlices) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
-    if (!existsSync29(abs))
+    if (!existsSync31(abs))
       return `[reads unavailable: ${path}]`;
     return fencedBlock("read", ` path="${path}"`, readFileSync46(abs, "utf8"));
   }).join("\n\n");
@@ -62370,7 +63766,7 @@ async function executeProductionRelay(step, context) {
 
 // dist/runtime/executors/sub-run.js
 import { randomUUID as randomUUID5 } from "node:crypto";
-import { dirname as dirname6, join as join27 } from "node:path";
+import { dirname as dirname6, join as join29 } from "node:path";
 var RECURSION_DEPTH_CAP = 8;
 function checkPassVerdicts(step) {
   const pass = step.check.pass;
@@ -62475,7 +63871,7 @@ async function executeSubRunInternal(step, context) {
     return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': resolver returned flow id '${childFlow.id}' but flow_ref names '${step.flowRef}'`);
   }
   const childRunId = randomUUID5();
-  const childRunDir = join27(dirname6(context.runDir), childRunId);
+  const childRunDir = join29(dirname6(context.runDir), childRunId);
   await context.trace.append({
     run_id: context.runId,
     kind: "sub_run.started",
@@ -62602,8 +63998,8 @@ async function executeSubRun(step, context) {
 }
 
 // dist/runtime/run/reuse-children.js
-import { existsSync as existsSync30, readFileSync as readFileSync47 } from "node:fs";
-import { isAbsolute as isAbsolute12, join as join28 } from "node:path";
+import { existsSync as existsSync32, readFileSync as readFileSync47 } from "node:fs";
+import { isAbsolute as isAbsolute12, join as join30 } from "node:path";
 function isCompletedSubRunBranch(entry, stepId, branchId) {
   return entry.kind === "fanout.branch_completed" && entry.step_id === stepId && entry.branch_id === branchId && entry.branch_kind === "sub-run" && entry.child_outcome === "complete";
 }
@@ -62630,9 +64026,9 @@ async function lookupReusableSubRunBranch(input) {
   }
   if (worktreePath === void 0)
     return void 0;
-  if (!existsSync30(join28(worktreePath, ".git")))
+  if (!existsSync32(join30(worktreePath, ".git")))
     return void 0;
-  const resultAbs = isAbsolute12(completed.result_path) ? completed.result_path : join28(input.priorRunFolder, completed.result_path);
+  const resultAbs = isAbsolute12(completed.result_path) ? completed.result_path : join30(input.priorRunFolder, completed.result_path);
   let resultBody;
   try {
     resultBody = RunResult.parse(JSON.parse(readFileSync47(resultAbs, "utf8")));
@@ -63067,7 +64463,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
     if (childFlow.id !== branch.flowRef) {
       throw new Error(`resolver returned flow id '${childFlow.id}' but branch flow_ref names '${branch.flowRef}'`);
     }
-    const childRunDir = join29(dirname7(context.runDir), childRunId);
+    const childRunDir = join31(dirname7(context.runDir), childRunId);
     const child = await context.childRunner({
       flowBytes: resolved.flowBytes,
       runDir: childRunDir,
@@ -63878,10 +65274,10 @@ function resolveBindingLegibility(flow) {
 
 // dist/runtime/run/manifest-snapshot.js
 import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname8, join as join30 } from "node:path";
+import { dirname as dirname8, join as join32 } from "node:path";
 var MANIFEST_SNAPSHOT_RUN_FILE = "manifest.snapshot.json";
 function runtimeManifestSnapshotPath(runDir) {
-  return join30(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
+  return join32(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
 }
 async function writeRuntimeManifestSnapshot(input) {
   const bytes = Buffer.from(input.bytes);
@@ -64136,7 +65532,7 @@ import { readFileSync as readFileSync48 } from "node:fs";
 import { lstat, mkdir as mkdir3, readdir as readdir2 } from "node:fs/promises";
 
 // dist/runtime/projections/progress.js
-import { join as join31 } from "node:path";
+import { join as join33 } from "node:path";
 
 // dist/shared/write-capable-worker-disclosure.js
 var WRITE_CAPABLE_FLOW_IDS = /* @__PURE__ */ new Set(["build", "fix", "prototype", "pursue"]);
@@ -64216,7 +65612,7 @@ function reportTaskListProgress(input) {
   });
 }
 function readJsonReport2(files, runDir, reportPath) {
-  const text = files.readText(join31(runDir, reportPath));
+  const text = files.readText(join33(runDir, reportPath));
   if (text === void 0)
     throw new Error(`progress projection could not read ${reportPath}`);
   return JSON.parse(text);
@@ -64307,7 +65703,7 @@ function checkpointChoiceLabel(choice) {
   return choice.split(/[-_]/).filter((part) => part.length > 0).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
 function checkpointRequestPath(runDir, requestPath) {
-  return requestPath.startsWith("/") ? requestPath : join31(runDir, requestPath);
+  return requestPath.startsWith("/") ? requestPath : join33(runDir, requestPath);
 }
 function shouldWarnAboutWriteCapableWorker(flow) {
   return flowMayInvokeWriteCapableWorker(flow.id) || flow.steps.some((step) => step.kind === "relay" && step.role === "implementer");
@@ -64586,7 +65982,7 @@ function createProgressProjector(input) {
         const presentation = tournamentCheckpointPresentation({
           readJson: (path) => {
             try {
-              const text = projectionFiles.readText(join31(input.runDir, path));
+              const text = projectionFiles.readText(join33(input.runDir, path));
               return text === void 0 ? void 0 : JSON.parse(text);
             } catch {
               return void 0;
@@ -66599,8 +67995,8 @@ async function resumeCompiledFlow(options) {
 }
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync31, readFileSync as readFileSync50 } from "node:fs";
-import { join as join32, resolve as resolve23 } from "node:path";
+import { existsSync as existsSync33, readFileSync as readFileSync50 } from "node:fs";
+import { join as join34, resolve as resolve23 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -66609,8 +68005,8 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
   }
   try {
     const relPath = fact.source.ref.ref.split("#")[0] ?? fact.source.ref.ref;
-    const abs = join32(runsBase, runId, relPath);
-    if (!existsSync31(abs)) {
+    const abs = join34(runsBase, runId, relPath);
+    if (!existsSync33(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
     const currentHash = sha256OfString(readFileSync50(abs, "utf8"));
@@ -66848,17 +68244,17 @@ function prepareRunStartHistoryRecall(options) {
 }
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync33, mkdirSync as mkdirSync7, readFileSync as readFileSync52, rmSync as rmSync5, writeFileSync as writeFileSync8 } from "node:fs";
-import { dirname as dirname9, isAbsolute as isAbsolute13, join as join33, relative as relative13, resolve as resolve24 } from "node:path";
+import { existsSync as existsSync35, mkdirSync as mkdirSync7, readFileSync as readFileSync52, rmSync as rmSync5, writeFileSync as writeFileSync8 } from "node:fs";
+import { dirname as dirname9, isAbsolute as isAbsolute13, join as join35, relative as relative13, resolve as resolve24 } from "node:path";
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync32, readFileSync as readFileSync51 } from "node:fs";
+import { existsSync as existsSync34, readFileSync as readFileSync51 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
-  if (!existsSync32(path))
+  if (!existsSync34(path))
     return void 0;
   const parsed = JSON.parse(readFileSync51(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
@@ -67459,8 +68855,8 @@ function projectSummary(input) {
 
 // dist/app/operator-summary/writer.js
 function readPriorRoute(runFolder) {
-  const path = join33(runFolder, "reports", "operator-summary.json");
-  if (!existsSync33(path))
+  const path = join35(runFolder, "reports", "operator-summary.json");
+  if (!existsSync35(path))
     return {};
   try {
     const raw = JSON.parse(readFileSync52(path, "utf8"));
@@ -67480,13 +68876,13 @@ var HTML_REPORT_LABEL = "Operator summary (HTML)";
 var MAX_KEY_POINTS = 4;
 var MAX_CAVEATS = 3;
 function jsonPath(runFolder) {
-  return join33(runFolder, "reports", "operator-summary.json");
+  return join35(runFolder, "reports", "operator-summary.json");
 }
 function markdownPath(runFolder) {
-  return join33(runFolder, "reports", "operator-summary.md");
+  return join35(runFolder, "reports", "operator-summary.md");
 }
 function htmlPath(runFolder) {
-  return join33(runFolder, "reports", "operator-summary.html");
+  return join35(runFolder, "reports", "operator-summary.html");
 }
 function isInsideOrSame4(root, target) {
   const fromRoot = relative13(root, target);
@@ -67501,7 +68897,7 @@ function readCheckpointRequest(runFolder, checkpoint) {
   }
   if (!isInsideOrSame4(resolve24(runFolder), requestPath))
     return void 0;
-  if (!existsSync33(requestPath))
+  if (!existsSync35(requestPath))
     return void 0;
   try {
     const parsed = JSON.parse(readFileSync52(requestPath, "utf8"));
@@ -67880,8 +69276,8 @@ function evidenceLinks2(runFolder, report) {
   });
 }
 function readAutoResolutions(runFolder) {
-  const tracePath = join33(runFolder, "trace.ndjson");
-  if (!existsSync33(tracePath))
+  const tracePath = join35(runFolder, "trace.ndjson");
+  if (!existsSync35(tracePath))
     return [];
   const records = [];
   for (const line of readFileSync52(tracePath, "utf8").split(/\r?\n/)) {
@@ -67921,8 +69317,8 @@ function emptySpendTotals() {
 }
 var SPEND_ROLE_ORDER = ["researcher", "implementer", "reviewer"];
 function readRunReceipt(runFolder) {
-  const tracePath = join33(runFolder, "trace.ndjson");
-  if (!existsSync33(tracePath))
+  const tracePath = join35(runFolder, "trace.ndjson");
+  if (!existsSync35(tracePath))
     return void 0;
   let depth;
   let reducedBindings;
@@ -68155,8 +69551,8 @@ function skillHookSourceLabel(source) {
   }
 }
 function readSkillHookSummary(runFolder) {
-  const tracePath = join33(runFolder, "trace.ndjson");
-  if (!existsSync33(tracePath))
+  const tracePath = join35(runFolder, "trace.ndjson");
+  if (!existsSync35(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
@@ -68229,8 +69625,8 @@ function skillHookActivationLine(activation) {
   return `\`${activation.hook}\` ${parts.join("; ")} \u2014 ${provenance}`;
 }
 function readEquipmentReshapeSummary(runFolder) {
-  const tracePath = join33(runFolder, "trace.ndjson");
-  if (!existsSync33(tracePath))
+  const tracePath = join35(runFolder, "trace.ndjson");
+  if (!existsSync35(tracePath))
     return { reshapes: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const reshapes = [];
@@ -68454,14 +69850,14 @@ function writeOperatorSummary(input) {
     }
   }
   if (renderedHtml === void 0) {
-    if (existsSync33(candidateHtmlPath))
+    if (existsSync35(candidateHtmlPath))
       rmSync5(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
       writeFileSync8(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
-      if (existsSync33(candidateHtmlPath))
+      if (existsSync35(candidateHtmlPath))
         rmSync5(candidateHtmlPath, { force: true, recursive: true });
       htmlEmitWarning = {
         kind: "html_write_failed",
@@ -68565,8 +69961,8 @@ function writeOperatorSummary(input) {
 }
 
 // dist/app/process-evidence/projection.js
-import { existsSync as existsSync34, mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname10, join as join34 } from "node:path";
+import { existsSync as existsSync36, mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
+import { dirname as dirname10, join as join36 } from "node:path";
 function traceRef2(runId) {
   return {
     kind: "trace",
@@ -68623,15 +70019,15 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync34(join34(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync36(join36(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join34(input.runFolder, path),
+    path: join36(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
   const additionalRefs = (input.additionalEvidencePaths ?? []).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join34(input.runFolder, path),
+    path: join36(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
@@ -68687,7 +70083,7 @@ function projectCheckpointWaitingProcessEvidence(input) {
 }
 function writeProcessEvidenceProjection(input) {
   const projection = ProcessEvidenceProjection.parse(input.projection);
-  const outPath = join34(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
+  const outPath = join36(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
   mkdirSync8(dirname10(outPath), { recursive: true });
   writeFileSync9(outPath, `${JSON.stringify(projection, null, 2)}
 `);
@@ -68768,7 +70164,7 @@ function detectNoProgress(attempts) {
 
 // dist/app/run-envelope/source-record.js
 import { mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname11, join as join35 } from "node:path";
+import { dirname as dirname11, join as join37 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RUN_SURFACE_RELATIVE_PATH = "reports/run-surface.md";
 var RUN_DECISION_PACKET_RELATIVE_DIR = "reports/decision-packets";
@@ -68812,7 +70208,7 @@ function renderSurfaceMarkdown(input) {
     ...input.record.surface_output.artifact_links
   ];
   const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
-  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join35(input.runFolder, ref.ref))).join(" \xB7 ");
+  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join37(input.runFolder, ref.ref))).join(" \xB7 ");
   return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
 }
 function processAttemptOutcome(outcome) {
@@ -69322,17 +70718,17 @@ function writeRunEnvelopeRecord(input) {
     }),
     outcome
   });
-  const outPath = join35(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
+  const outPath = join37(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
   mkdirSync9(dirname11(outPath), { recursive: true });
   const decisionPacketPaths = decisionArtifacts.map((artifact) => {
-    const path = join35(input.runFolder, artifact.ref.ref);
+    const path = join37(input.runFolder, artifact.ref.ref);
     mkdirSync9(dirname11(path), { recursive: true });
     writeFileSync10(path, artifact.body);
     return path;
   });
   writeFileSync10(outPath, `${JSON.stringify(record2, null, 2)}
 `);
-  const surfacePath = join35(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
+  const surfacePath = join37(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
   writeFileSync10(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
   return {
     path: outPath,
@@ -69448,16 +70844,16 @@ async function runAutonomousContinuation(input) {
 
 // dist/shared/config-loader.js
 var import_yaml4 = __toESM(require_dist(), 1);
-import { existsSync as existsSync35, readFileSync as readFileSync53 } from "node:fs";
+import { existsSync as existsSync37, readFileSync as readFileSync53 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
-import { join as join36, resolve as resolve25 } from "node:path";
+import { join as join38, resolve as resolve25 } from "node:path";
 var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
 var PROJECT_CONFIG_RELATIVE_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS;
 function userGlobalConfigPath(homeDir = homedir4()) {
-  return join36(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
+  return join38(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
 }
 function projectConfigPath2(cwd = process.cwd()) {
-  return join36(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
+  return join38(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
 }
 function parseConfigYaml(text, sourcePath) {
   try {
@@ -69468,7 +70864,7 @@ function parseConfigYaml(text, sourcePath) {
 }
 function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
   const abs = resolve25(sourcePath);
-  if (!existsSync35(abs))
+  if (!existsSync37(abs))
     return void 0;
   const raw = parseConfigYaml(readFileSync53(abs, "utf8"), abs);
   if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
@@ -69528,7 +70924,7 @@ function discoverRuntimeConfigLayers(options = {}) {
 }
 
 // dist/cli/compiled-flow-loading.js
-import { existsSync as existsSync36, readFileSync as readFileSync54 } from "node:fs";
+import { existsSync as existsSync38, readFileSync as readFileSync54 } from "node:fs";
 import { resolve as resolve26 } from "node:path";
 function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   if (override !== void 0)
@@ -69536,7 +70932,7 @@ function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   const root = resolve26(flowRoot2 ?? "generated/flows");
   if (modeName !== void 0) {
     const perMode = resolve26(root, flowName, `${modeName}.json`);
-    if (existsSync36(perMode))
+    if (existsSync38(perMode))
       return perMode;
   }
   return resolve26(root, flowName, "circuit.json");
@@ -69561,7 +70957,7 @@ function axisSupportFromFlow(input) {
   return axisSupportFromAxes(input.flow.axes);
 }
 function loadCompiledFlow(compiledFlowPath) {
-  if (!existsSync36(compiledFlowPath)) {
+  if (!existsSync38(compiledFlowPath)) {
     throw new Error(`compiled flow not found: ${compiledFlowPath}`);
   }
   const bytes = readFileSync54(compiledFlowPath);
@@ -69584,11 +70980,11 @@ function defaultChildCompiledFlowResolver(flowRoot2) {
 
 // dist/cli/post-run-artifacts.js
 import { readFileSync as readFileSync55 } from "node:fs";
-import { join as join38 } from "node:path";
+import { join as join40 } from "node:path";
 
 // dist/app/run-envelope/shadow-record.js
 import { mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname12, join as join37 } from "node:path";
+import { dirname as dirname12, join as join39 } from "node:path";
 var RUN_ENVELOPE_SHADOW_RELATIVE_PATH = "reports/run-envelope-shadow.json";
 function reportRef2(input) {
   return {
@@ -69677,7 +71073,7 @@ function writeRunEnvelopeShadowRecord(input) {
     child_run: childRun,
     artifact_links: artifactLinks
   });
-  const outPath = join37(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
+  const outPath = join39(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
   mkdirSync10(dirname12(outPath), { recursive: true });
   writeFileSync11(outPath, `${JSON.stringify(record2, null, 2)}
 `);
@@ -69714,7 +71110,7 @@ function resolveFlowPrimaryOutcome(input) {
     return void 0;
   let primaryResult;
   try {
-    primaryResult = JSON.parse(readFileSync55(join38(input.runFolder, primaryResultPath), "utf8"));
+    primaryResult = JSON.parse(readFileSync55(join40(input.runFolder, primaryResultPath), "utf8"));
   } catch {
     return void 0;
   }
@@ -69759,7 +71155,7 @@ function emitPostRunArtifacts(input) {
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
 import { readFileSync as readFileSync56 } from "node:fs";
-import { join as join39 } from "node:path";
+import { join as join41 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
   const recoveryFlowCache = /* @__PURE__ */ new Map();
@@ -69788,7 +71184,7 @@ function createRecoveryAttemptRunner(deps) {
       tournament: false,
       autonomous: parentAxes.autonomous && support.supportsAutonomous
     });
-    const attemptFolder = join39(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
+    const attemptFolder = join41(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
     const recoveryResult = await runCompiledFlowWithWaiting({
       flowBytes: recoveryFlow.bytes,
       compiledFlowPath: recoveryFlow.path,
@@ -69893,13 +71289,13 @@ function runEnvelopeOutputFields(input) {
 }
 
 // dist/cli/run-stdout-envelope.js
-import { join as join40 } from "node:path";
+import { join as join42 } from "node:path";
 function historyRecallOutputFields(input) {
   return {
     history_recall: {
       status: input.report.status,
       memory_input_count: input.report.memory_input_count,
-      report_path: join40(input.runFolder, HISTORY_RECALL_REPORT_PATH),
+      report_path: join42(input.runFolder, HISTORY_RECALL_REPORT_PATH),
       rebuilt: input.report.rebuilt,
       ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
       warnings: input.report.warnings.map((warning) => ({
@@ -70351,7 +71747,7 @@ async function runExecutionCommand(args, options) {
   const entryModeSelection = resolveEntryModeSelection(args);
   const fixtureSelectionName = compiledFlowSelectionNameForAxes(args.axes);
   const fixturePath = resolveCompiledFlowPath(route.flowName, fixtureSelectionName, args.fixturePath, args.flowRoot);
-  if (!existsSync37(fixturePath)) {
+  if (!existsSync39(fixturePath)) {
     if (INTERNAL_FLOW_IDS.has(route.flowName)) {
       process.stderr.write(`error: ${route.flowName} is an internal flow and is not available through the host run surface.
 `);
@@ -70392,7 +71788,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = args.runFolder === void 0 ? join41(runsRoot(process.cwd()), runId) : resolve27(args.runFolder);
+  const runFolder = args.runFolder === void 0 ? join43(runsRoot(process.cwd()), runId) : resolve27(args.runFolder);
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...options.configHomeDir !== void 0 ? { homeDir: options.configHomeDir } : {},
     ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {},
@@ -70638,7 +72034,7 @@ async function runExecutionCommand(args, options) {
             policyLayers
           })
         });
-        const autonomousLoopPath = join41(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
+        const autonomousLoopPath = join43(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
         mkdirSync11(dirname13(autonomousLoopPath), { recursive: true });
         writeFileSync12(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
@@ -70677,7 +72073,7 @@ async function runExecutionCommand(args, options) {
       postRunArtifactWarnings,
       operatorSummary,
       runEnvelope,
-      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join41(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
+      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join43(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
     }), null, 2)}
 `);
     return 0;
@@ -70756,8 +72152,8 @@ async function runRunsCommand(argv) {
 }
 
 // dist/cli/uninstall.js
-import { existsSync as existsSync38, readFileSync as readFileSync58 } from "node:fs";
-import { join as join42, resolve as resolve28 } from "node:path";
+import { existsSync as existsSync40, readFileSync as readFileSync58 } from "node:fs";
+import { join as join44, resolve as resolve28 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -70814,7 +72210,7 @@ function stripCircuitBlock(content) {
     next += "\n";
   return { changed: next !== content, content: next, blocks, malformed: false, malformations };
 }
-function parseArgs3(argv, cwd) {
+function parseArgs4(argv, cwd) {
   const program2 = new Command("circuit uninstall").option("--dir <path>").option("--json");
   parseCommanderOrThrow(program2, argv);
   if (program2.args.length > 0)
@@ -70898,7 +72294,7 @@ function renderHuman(files, removal, malformedAny, strippedAny) {
 async function runUninstallCommand(argv, options = {}) {
   let args;
   try {
-    args = parseArgs3(argv, options.cwd ?? process.cwd());
+    args = parseArgs4(argv, options.cwd ?? process.cwd());
   } catch (err) {
     process.stderr.write(`error: ${err.message}
 `);
@@ -70908,8 +72304,8 @@ async function runUninstallCommand(argv, options = {}) {
   let malformedAny = false;
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
-    const path = join42(args.dir, file2);
-    if (!existsSync38(path)) {
+    const path = join44(args.dir, file2);
+    if (!existsSync40(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
     }
@@ -71071,7 +72467,7 @@ function parseTopLevelInvocation(argv) {
     addForwardingCommand(name);
   parseCommanderOrThrow(program2, argv);
   if (invocation === void 0) {
-    throw new Error("missing command: use run, resume, handoff, history, memory, create, uninstall, runs, reclaim, inbox, or version");
+    throw new Error("missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, inbox, or version");
   }
   return invocation;
 }
@@ -71104,6 +72500,12 @@ async function main(argv, options = {}) {
   if (invocation.command === "create") {
     return runCreateCommand(invocation.argv, {
       ...options.now === void 0 ? {} : { now: options.now }
+    });
+  }
+  if (invocation.command === "generate") {
+    return runGenerateCommand(invocation.argv, {
+      ...options.now === void 0 ? {} : { now: options.now },
+      ...options.relayer === void 0 ? {} : { relayer: options.relayer }
     });
   }
   if (invocation.command === "uninstall") {

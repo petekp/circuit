@@ -265,7 +265,7 @@
     }
   ],
   "commands": {
-    "source": ["create", "handoff", "run", "uninstall"],
+    "source": ["create", "generate", "handoff", "run", "uninstall"],
     "claude_plugin": ["handoff", "pursue", "run"],
     "codex_plugin": ["handoff", "pursue", "run"],
     "claude_plugin_skills": [
