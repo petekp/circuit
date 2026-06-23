@@ -48247,6 +48247,28 @@ var KEY_BY_CONTRACT = {
   "decision.answer@v1": "decision",
   "flow.result@v1": "result"
 };
+var CHANGED_FILES_CONTRACTS = /* @__PURE__ */ new Set([
+  "fix.change@v1",
+  "build.implementation@v1"
+]);
+var CHANGED_FILES_ACCEPTANCE_CRITERIA = {
+  checks: [
+    {
+      kind: "report_field",
+      id: "changed-files-present",
+      path: ["changed_files"],
+      predicate: "present"
+    },
+    {
+      kind: "report_field",
+      id: "changed-files-on-disk",
+      path: ["changed_files"],
+      predicate: "changed_on_disk"
+    },
+    { kind: "report_field", id: "evidence-non-empty", path: ["evidence"], predicate: "non_empty" }
+  ],
+  on_failure: { mode: "retry-with-feedback" }
+};
 function asString3(value) {
   return value;
 }
@@ -48677,6 +48699,14 @@ function composeFlow(roleSet, options) {
       // policy, and join live here). The fanout wall upstream guaranteed at least
       // two goal-bearing branches, so the descriptor is well-formed.
       ...role.executionKind === "fanout" ? { fanout: buildFanoutMetadata(role) } : {},
+      // Changed-files honesty gate. Attach the same acceptance criterion the
+      // built-in fix/build act steps carry, but ONLY to an implementer `act` relay
+      // whose bound output asks the worker to self-report changed files. Gating on
+      // implementer + a changed-files-bearing contract keeps the gate off researcher
+      // relays (which report findings, not edits) and off any step the criterion
+      // would vacuously or wrongly fire on. The runtime relay executor fires it for
+      // any relay step carrying the field, so emitting it here is the whole bridge.
+      ...role.executionKind === "relay" && role.relayRole === "implementer" && CHANGED_FILES_CONTRACTS.has(boundOutput) ? { acceptanceCriteria: CHANGED_FILES_ACCEPTANCE_CRITERIA } : {},
       routes
     };
     items.push(use);
