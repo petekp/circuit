@@ -4,7 +4,14 @@ import { VerificationCommand } from './verification.js';
 export const AcceptanceCriterionId = z.string().min(1);
 export type AcceptanceCriterionId = z.infer<typeof AcceptanceCriterionId>;
 
-export const AcceptanceCriteriaReportFieldPredicate = z.enum(['present', 'non_empty']);
+export const AcceptanceCriteriaReportFieldPredicate = z.enum([
+  'present',
+  'non_empty',
+  // Cross-checks a worker's self-reported path list against the real working
+  // tree: every claimed path must actually differ on disk. Catches an
+  // overclaiming worker that lists a file it never touched.
+  'changed_on_disk',
+]);
 export type AcceptanceCriteriaReportFieldPredicate = z.infer<
   typeof AcceptanceCriteriaReportFieldPredicate
 >;

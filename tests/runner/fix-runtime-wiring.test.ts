@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
+import { initGitProjectRoot, reflectClaimedChangedFiles } from '../helpers/working-tree.js';
 
 import {
   FixBaselineSnapshot,
@@ -232,7 +233,11 @@ function frameOverrideExecutors(): Pick<ExecutorRegistry, 'compose' | 'verificat
   };
 }
 
-function relayer(): RelayFn {
+// The stub relayer reflects its self-reported `changed_files` onto disk in the
+// isolated project root, exactly as a real worker would. The fix-act step now
+// gates on those paths actually differing in the working tree, so a faithful
+// stub must make its claim true.
+function relayer(projectRoot: string): RelayFn {
   return {
     connectorName: 'claude-code',
     relay: async (input): Promise<RelayResult> => {
@@ -263,6 +268,7 @@ function relayer(): RelayFn {
               changed_files: ['src/test.ts'],
               evidence: ['Stubbed change evidence'],
             });
+      if (isAct) reflectClaimedChangedFiles(projectRoot, body);
       return {
         request_payload: input.prompt,
         receipt_id: isContext
@@ -278,26 +284,31 @@ function relayer(): RelayFn {
   };
 }
 
-function relayerWithUnavailableReview(): RelayFn {
+function relayerWithUnavailableReview(projectRoot: string): RelayFn {
   return {
     connectorName: 'claude-code',
     relay: async (input): Promise<RelayResult> => {
       if (input.prompt.includes('Step: fix-review')) {
         throw new Error('reviewer connector unavailable');
       }
-      return relayer().relay(input);
+      return relayer(projectRoot).relay(input);
     },
   };
 }
 
 let runFolderBase: string;
+// Isolated git working tree the stubbed fix-act writes into, so the
+// changed_on_disk acceptance gate sees a real diff for the declared file.
+let projectRoot: string;
 
 beforeEach(() => {
   runFolderBase = mkdtempSync(join(tmpdir(), 'circuit-fix-runtime-'));
+  projectRoot = initGitProjectRoot(mkdtempSync(join(tmpdir(), 'circuit-fix-proj-')));
 });
 
 afterEach(() => {
   rmSync(runFolderBase, { recursive: true, force: true });
+  rmSync(projectRoot, { recursive: true, force: true });
 });
 
 describe('Lite Fix runtime wiring', () => {
@@ -312,9 +323,9 @@ describe('Lite Fix runtime wiring', () => {
       goal: 'fix off-by-one in pagination',
       depth: 'low',
       now: deterministicNow(Date.UTC(2026, 3, 26, 10, 0, 0)),
-      relayer: relayer(),
+      relayer: relayer(projectRoot),
       executors: frameOverrideExecutors(),
-      projectRoot: resolve('.'),
+      projectRoot,
     });
 
     if (outcome.outcome !== 'complete') {
@@ -364,9 +375,9 @@ describe('Standard Fix review-unavailable wiring', () => {
       goal: 'fix off-by-one in pagination',
       depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 3, 26, 11, 0, 0)),
-      relayer: relayerWithUnavailableReview(),
+      relayer: relayerWithUnavailableReview(projectRoot),
       executors: frameOverrideExecutors(),
-      projectRoot: resolve('.'),
+      projectRoot,
     });
 
     if (outcome.outcome !== 'complete') {

@@ -10,7 +10,9 @@
 //   01 — undeclared extras: agent touches files outside fix.change@v1's
 //        changed_files. Caught by fix.change-set@v1 (undeclared_extras).
 //   02 — missing declared: agent declares files that were never modified.
-//        Caught by fix.change-set@v1 (missing_declared).
+//        Now caught one step earlier by the fix-act changed_on_disk gate (the
+//        declared-but-untouched path shows no working-tree change), before the
+//        fix.change-set@v1 missing_declared check it shares the job with.
 //   03 — deferred regression: brief defers the regression test. Caught by
 //        fix.regression-proof@v1 (status='deferred' → close demotes to
 //        'partial' regardless of change-set).
@@ -18,8 +20,10 @@
 //        the fix, but it actually passes. Caught by fix.regression-proof@v1
 //        (status='not-proved' → verification routing aborts the run).
 //   05 — mid-run commit: agent commits during fix-act, leaving working tree
-//        clean post-fix but HEAD diverged. Caught by fix.change-set@v1
-//        (HEAD divergence flag).
+//        clean post-fix but HEAD diverged. Now caught one step earlier by the
+//        fix-act changed_on_disk gate (the declared file shows no working-tree
+//        change once committed), before the fix.change-set@v1 HEAD-divergence
+//        flag it shares the job with.
 //   06 — regression still failing: brief declares a real failing regression
 //        command and a no-op verification command. The fix doesn't actually
 //        fix the regression — verification candidates pass but the
@@ -31,6 +35,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { deterministicNow } from '../helpers/runtime-fixtures.js';
+import { initGitProjectRoot, reflectChangedFiles } from '../helpers/working-tree.js';
 
 import {
   FixBaselineSnapshot,
@@ -127,7 +132,13 @@ function frameOverrideExecutors(scenario: ScenarioConfig): Pick<ExecutorRegistry
   };
 }
 
-function relayer(scenario: ScenarioConfig): RelayFn {
+// The stub act reflects the scenario's TRULY-observed files onto the isolated
+// project root — what the worker actually left on disk, which may differ from
+// what it declared. The fix-act changed_on_disk gate then sees the same diff a
+// real worker would produce: a faithful change passes, while a declared-but-
+// untouched path (missing-declared, mid-run-commit) trips the gate at act,
+// before the downstream change-set check it shares the job with.
+function relayer(scenario: ScenarioConfig, projectRoot: string): RelayFn {
   return {
     connectorName: 'claude-code',
     relay: async (input): Promise<RelayResult> => {
@@ -135,6 +146,7 @@ function relayer(scenario: ScenarioConfig): RelayFn {
       const isDiagnose = input.prompt.includes('Step: fix-diagnose');
       const isAct = input.prompt.includes('Step: fix-act');
       expect(isContext || isDiagnose || isAct).toBe(true);
+      if (isAct) reflectChangedFiles(projectRoot, scenario.observedFiles);
       const body = isContext
         ? JSON.stringify({
             verdict: 'accept',
@@ -269,13 +281,18 @@ function fixVerificationOverride(scenario: ScenarioConfig): ExecutorRegistry['ve
 }
 
 let runFolderBase: string;
+// Isolated git working tree the stubbed fix-act writes into, so the
+// changed_on_disk acceptance gate sees a real diff for the observed files.
+let projectRoot: string;
 
 beforeEach(() => {
   runFolderBase = mkdtempSync(join(tmpdir(), 'circuit-false-done-'));
+  projectRoot = initGitProjectRoot(mkdtempSync(join(tmpdir(), 'circuit-false-done-proj-')));
 });
 
 afterEach(() => {
   rmSync(runFolderBase, { recursive: true, force: true });
+  rmSync(projectRoot, { recursive: true, force: true });
 });
 
 interface ExpectedOutcome {
@@ -422,12 +439,12 @@ describe('False-Done Fix bar', () => {
         goal: scenario.goal,
         depth: 'low',
         now: deterministicNow(Date.UTC(2026, 4, 10, 12, 0, 0)),
-        relayer: relayer(scenario),
+        relayer: relayer(scenario, projectRoot),
         executors: {
           ...frameOverrideExecutors(scenario),
           verification: fixVerificationOverride(scenario),
         },
-        projectRoot: resolve('.'),
+        projectRoot,
       });
 
       if (expected.closeMode === 'partial') {
