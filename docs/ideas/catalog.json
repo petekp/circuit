@@ -677,6 +677,26 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/recall-vs-circuit-continuity.md",
+      "title": "recall (local memory plugin) vs Circuit continuity",
+      "status": "current-comparison",
+      "category": "strategy-and-comparisons",
+      "tags": ["comparison", "continuity", "memory", "redaction", "summarization"],
+      "current_reading": "Evaluation of the raiyanyahya/recall Claude Code plugin against Circuit continuity. Convergent zero-token deterministic architecture; two adoptable gaps where recall is ahead of Circuit's own stated intent: write-time redaction and a local extractive-summary fallback for the no-compaction (and Codex) case.",
+      "related": ["docs/ideas/self-auditing-memory.md", "docs/ideas/continuity-staleness-check.md"],
+      "last_checked": "2026-06-21"
+    },
+    {
+      "path": "docs/ideas/supermemory-harness-memory-vs-circuit.md",
+      "title": "supermemory (memory on the harness level) vs Circuit",
+      "status": "current-comparison",
+      "category": "strategy-and-comparisons",
+      "tags": ["comparison", "memory", "continuity", "profile", "decay", "fact-graph"],
+      "current_reading": "Evaluation of Dhravya Shah's 'memory on the harness level' essay (the supermemory design philosophy) against Circuit's memory surface. Eight of ten ideas are already-done, refuted by Circuit's own evidence, or mis-fitted to a coding harness; the essay reasons inside the belief-based paradigm Circuit's self-auditing memory is built to escape. One genuine open action: an opt-in, informed, model-driven write-back at run close, taken only as a measured experiment.",
+      "related": ["docs/ideas/self-auditing-memory.md", "docs/ideas/recall-vs-circuit-continuity.md", "docs/ideas/effective-memory-program.md"],
+      "last_checked": "2026-06-22"
+    },
+    {
       "path": "docs/ideas/run-inspection-implementation.md",
       "title": "Run Inspection: Implementation Exploration",
       "status": "current-proposal",
