@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Circuit — capability visualization (high-level demo)</title>
+<style>
+  :root{
+    --paper:#f4f3ef; --panel:#fafafa; --border:#d6d3cb; --hair:#e4e1d9;
+    --ink:#1a1d21; --muted:#74726b; --faint:#a9a69d;
+    --accent:#2f6fed;                /* the one "happening now" colour */
+    --k-compose:#5b6b8c; --k-relay:#c77d2e; --k-verify:#157f5b; --k-host:#7a5af0;
+    --t-schema:#64748b; --t-command:#0d9488; --t-review:#c77d2e;
+    --mono:"SF Mono",ui-monospace,"Roboto Mono",Menlo,Consolas,monospace;
+    --sans:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--paper);color:var(--ink);font-family:var(--sans)}
+  #wrap{max-width:1180px;margin:0 auto;padding:26px 22px 30px}
+  h1{font:500 11px/1 var(--mono);letter-spacing:.22em;color:var(--muted);text-transform:uppercase;margin:0 0 16px}
+
+  /* command bar — the prompt */
+  #cmd{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:10px;
+       padding:12px 56px 12px 16px;min-height:48px;box-shadow:0 1px 0 #ffffff80 inset}
+  #cmd.read{border-color:#cfd6e6}
+  #cmd .glyph{position:absolute;left:16px;top:13px;color:var(--faint);font:600 13px var(--mono);display:none}
+  #prompt{font:500 13.5px/1.55 var(--mono);color:var(--ink);white-space:pre-wrap;min-height:21px}
+  #prompt .caret{display:inline-block;width:7px;margin-left:1px;border-bottom:2px solid var(--accent);
+       animation:blink 1s step-end infinite}
+  @keyframes blink{50%{opacity:0}}
+  #prompt .hl{background:#dfe8fd;border-radius:3px;padding:0 2px;box-decoration-break:clone}
+  #runbtn{position:absolute;right:10px;top:50%;transform:translateY(-50%);
+       background:#eef1f6;border:1px solid var(--border);border-radius:7px;color:#9aa0ab;
+       font:600 10px/1 var(--mono);letter-spacing:.1em;padding:7px 10px;transition:.2s}
+  #cmd.read #runbtn{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  /* signals */
+  #signals{display:flex;gap:10px;margin:10px 0 0;min-height:46px;align-items:flex-start}
+  .chip{opacity:0;transform:translateY(-4px);transition:.4s;background:var(--panel);
+        border:1px solid var(--border);border-radius:8px;padding:7px 11px;max-width:300px}
+  .chip.in{opacity:1;transform:none}
+  .chip.on{border-color:var(--accent);box-shadow:0 0 0 2px #2f6fed22}
+  .chip .lab{font:600 11px var(--sans);color:var(--ink);letter-spacing:.01em}
+  .chip .src{display:block;margin-top:3px;font:500 10px/1.3 var(--mono);color:var(--muted)}
+  .chip .src .hl{background:#dfe8fd;border-radius:2px;padding:0 2px}
+
+  /* stage */
+  #stage{position:relative;margin-top:14px}
+  svg{width:100%;height:auto;display:block;overflow:visible}
+
+  /* shelf */
+  .shelf-cap{font:600 9px var(--mono);letter-spacing:.16em;fill:var(--faint)}
+  .tile{opacity:.0;transition:opacity .5s}
+  .tile.in{opacity:1}
+  .tile rect{fill:#f0efea;stroke:var(--hair);stroke-width:1}
+  .tile text{font:500 8px var(--mono);fill:#9a978e}
+  .tile .kd{stroke:none}
+  .tile.lit rect{fill:#eaf0fe;stroke:var(--accent)}
+  .tile.skip rect{stroke-dasharray:2 2}
+  .tile.skip text{fill:#bdbab1;text-decoration:line-through}
+  .tile .cnt{fill:var(--accent);font:700 8px var(--mono);opacity:0}
+  .tile .cnt.show{opacity:1}
+  .shelf.gone{opacity:0;transition:opacity .6s}
+
+  /* edges */
+  .edge{fill:none;stroke:var(--border);stroke-width:1.6;marker-end:url(#aGray);
+        stroke-dasharray:var(--len);stroke-dashoffset:var(--len)}
+  .edge.drawn{transition:stroke-dashoffset .5s ease;stroke-dashoffset:0}
+  .edge.lit{stroke:var(--accent);marker-end:url(#aBlue)}
+  .edge.visited{stroke:#c7cdd8}
+  .pull{fill:none;stroke:var(--accent);stroke-width:1.3;stroke-dasharray:3 3;
+        marker-end:url(#aBlue);opacity:0;transition:opacity .35s}
+  .pull.show{opacity:.9}
+
+  /* lane nodes */
+  .node{opacity:0;transition:opacity .4s}
+  .node.in{opacity:1}
+  .node.in .box{animation:stamp .4s ease}
+  @keyframes stamp{from{transform:scale(.9)}to{transform:scale(1)}}
+  .node .box{fill:var(--panel);stroke:var(--border);stroke-width:1.4;transition:stroke .4s,fill .4s}
+  .node.run .box{stroke:var(--accent);stroke-width:2}
+  .node.done .box{stroke:#c0d2f6;fill:#f7f9fe}
+  .node .role{font:600 12.5px var(--sans);fill:var(--ink)}
+  .node .bid{font:500 9px var(--mono);fill:var(--muted)}
+  .node .kdot{stroke:none}
+  .tag{rx:3}
+  .tag-bg{fill:#f0efea;stroke:var(--hair);stroke-width:1}
+  .tag-tx{font:600 8px var(--mono)}
+  .tag.t-schema .tag-tx{fill:var(--t-schema)} .tag.t-command .tag-tx{fill:var(--t-command)}
+  .tag.t-review .tag-tx{fill:var(--t-review)}
+  .tag.solid .tag-bg{fill:#e7f6ef;stroke:#9fd9bf}
+  .skills{opacity:0;transition:opacity .3s} .skills.show{opacity:1}
+  .skills text{font:600 8px var(--mono);fill:var(--k-relay)}
+
+  /* bootstrap plaque */
+  #plaque{opacity:0;transition:opacity .45s}
+  #plaque.in{opacity:1}
+  #plaque rect{fill:#fbfaf7;stroke:var(--border);stroke-width:1.2}
+  #plaque .ttl{font:700 9px var(--mono);letter-spacing:.08em;fill:var(--muted)}
+  #plaque .row{font:500 10px var(--mono);fill:var(--ink)}
+  #plaque .val{fill:var(--accent)}
+  #plaque .lock{font-size:11px}
+
+  /* gate + trace */
+  #gate{opacity:0;transition:opacity .35s}#gate.in{opacity:1}
+  #gate .dia{fill:#fff;stroke:var(--accent);stroke-width:1.6}
+  #gate.pass .dia{fill:#e7f6ef;stroke:var(--k-verify)}
+  #gate .mk{font:700 12px var(--sans);fill:var(--k-verify);opacity:0}
+  #gate.pass .mk{opacity:1}
+  #gate .note{font:500 9px var(--mono);fill:var(--muted)}
+  .ttick{opacity:0}.ttick.in{opacity:1;transition:opacity .25s}
+  .ttick circle{fill:#fff;stroke:#c7cdd8;stroke-width:1.2}
+  .ttick.sealed circle{fill:var(--k-verify);stroke:var(--k-verify)}
+  .ttick text{font:600 8px var(--mono);fill:var(--muted)}
+  #sealcap{font:600 9px var(--mono);letter-spacing:.12em;fill:var(--k-verify);opacity:0;transition:opacity .4s}
+  #sealcap.in{opacity:1}
+
+  .tok{opacity:0}.tok.show{opacity:1}
+
+  /* caption + legend + replay */
+  #cap{margin-top:6px;text-align:center;font-size:14.5px;color:var(--ink);min-height:21px;
+       opacity:0;transition:opacity .4s}
+  #foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:10px;gap:16px}
+  #legend{display:flex;flex-wrap:wrap;gap:4px 16px;font:500 10px var(--sans);color:var(--muted);max-width:880px}
+  #legend .it{display:inline-flex;align-items:center;gap:5px}
+  #legend .sw{width:9px;height:9px;border-radius:50%;display:inline-block}
+  #legend .note{flex-basis:100%;color:var(--faint);font-size:9.5px;letter-spacing:.02em}
+  #replay{background:none;border:1px solid var(--border);border-radius:7px;color:var(--muted);
+          font:500 10.5px/1 var(--mono);letter-spacing:.08em;padding:7px 12px;cursor:pointer;white-space:nowrap}
+  #replay:hover{color:var(--ink);border-color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>circuit · how a prompt becomes a flow</h1>
+
+  <div id="cmd">
+    <span class="glyph">›</span>
+    <div id="prompt"></div>
+    <span id="runbtn">run</span>
+  </div>
+  <div id="signals"></div>
+
+  <div id="stage">
+    <svg id="scene" viewBox="0 0 1520 372" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <marker id="aGray" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0 1 L9 5 L0 9" fill="none" stroke="#c0c4cc" stroke-width="1.4"/>
+        </marker>
+        <marker id="aBlue" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0 1 L9 5 L0 9" fill="none" stroke="#2f6fed" stroke-width="1.4"/>
+        </marker>
+      </defs>
+    </svg>
+    <div id="cap">&nbsp;</div>
+    <div id="foot">
+      <div id="legend">
+        <span class="it"><span class="sw" style="background:#5b6b8c"></span>compose</span>
+        <span class="it"><span class="sw" style="background:#c77d2e"></span>relay (worker)</span>
+        <span class="it"><span class="sw" style="background:#157f5b"></span>verification</span>
+        <span class="it"><span class="sw" style="background:#7a5af0"></span>checkpoint</span>
+        <span class="it">▸ box = block · arrow = route · tag = what the step checks</span>
+        <span class="note">a check asserts validity (the report is well-formed, the proof ran), never that the work is good</span>
+      </div>
+      <button id="replay">replay</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const NS="http://www.w3.org/2000/svg";
+const $=(s,el=document)=>el.querySelector(s);
+const mk=(t,a={})=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const scene=$("#scene");
+
+const KCOL={compose:"#5b6b8c",relay:"#c77d2e",verify:"#157f5b",host:"#7a5af0"};
+
+/* ---------- the prompt ---------- */
+const PROMPT=`Our checkout endpoint throws "Cannot read properties of undefined (reading 'total')" whenever a cart has zero line items. Reproduce it with the existing test suite, find the root cause, and fix it so empty carts return a zero total instead of crashing. Run the tests to prove it.`;
+const HILITES=["Reproduce it with the existing test suite","fix it","Run the tests to prove it"];
+
+const SIGNALS=[
+  {id:"change", lab:"change_kind = fix", src:"fix it"},
+  {id:"first",  lab:"prove-first = reproduce before editing", src:"Reproduce it with the existing test suite"},
+  {id:"proof",  lab:"proof = the tests must pass", src:"Run the tests to prove it"},
+];
+
+/* ---------- the finite vocabulary (real catalog, 29 blocks) ---------- */
+const SHELF=[
+  ["intake","compose"],["route","compose"],["frame","compose"],["clarify","relay"],
+  ["human-decision","host"],["gather-context","relay"],["diagnose","relay"],["plan","relay"],
+  ["act","relay"],["run-verification","verify"],["review","relay"],["goal","compose"],
+  ["goal-child-run","compose"],["goal-attempt","compose"],["goal-evaluate","compose"],
+  ["goal-recover","compose"],["goal-checkpoint","host"],["goal-gate-review","relay"],
+  ["goal-close","compose"],["pursue","compose"],["coordinate-pursuits","compose"],
+  ["queue","compose"],["batch","relay"],["risk-rollback-check","compose"],
+  ["close-with-evidence","compose"],["handoff","compose"],["review-intake","compose"],
+  ["prototype-variant-evidence","compose"],["prototype-checkpoint","host"],
+];
+
+/* ---------- the generated flow (11 steps) ---------- */
+const LANE=[
+  {role:"Frame",     block:"frame",              kind:"compose",check:"schema"},
+  {role:"Baseline",  block:"run-verification",   kind:"verify", check:"command"},
+  {role:"Snapshot",  block:"run-verification",   kind:"verify", check:"command"},
+  {role:"Gather",    block:"gather-context",     kind:"relay",  check:"schema"},
+  {role:"Diagnose",  block:"diagnose",           kind:"relay",  check:"schema"},
+  {role:"Act",       block:"act",                kind:"relay",  check:"schema"},
+  {role:"Verify",    block:"run-verification",   kind:"verify", check:"command"},
+  {role:"Change set",block:"run-verification",   kind:"verify", check:"command"},
+  {role:"Re-run",    block:"run-verification",   kind:"verify", check:"command"},
+  {role:"Review",    block:"review",             kind:"relay",  check:"review"},
+  {role:"Close",     block:"close-with-evidence",kind:"compose",check:"schema"},
+];
+
+/* ---------- build the SVG scene ---------- */
+const gShelf=mk("g",{class:"shelf"}), gEdge=mk("g"), gNode=mk("g"), gFx=mk("g"), gTok=mk("g");
+scene.append(gEdge,gShelf,gNode,gFx,gTok);
+
+// shelf: two centred rows of small tiles
+gShelf.append(Object.assign(mk("text",{x:14,y:14,class:"shelf-cap"}),{textContent:"BLOCK VOCABULARY · 29 REGISTERED"}));
+const TW=92, TH=20, TG=8, R1=15;
+const tileByBlock={};
+SHELF.forEach(([name,kind],i)=>{
+  const row=i<R1?0:1, col=i<R1?i:i-R1, n=row?SHELF.length-R1:R1;
+  const rowW=n*TW+(n-1)*TG, sx=(1520-rowW)/2, x=sx+col*(TW+TG), y=26+row*(TH+8);
+  const g=mk("g",{class:"tile"+(name==="plan"?" skip":"")});
+  g.append(mk("rect",{x,y,width:TW,height:TH,rx:5}));
+  g.append(mk("circle",{class:"kd",cx:x+9,cy:y+TH/2,r:3,fill:KCOL[kind]}));
+  g.append(Object.assign(mk("text",{x:x+17,y:y+TH/2+3}),{textContent:name}));
+  g.append(Object.assign(mk("text",{class:"cnt",x:x+TW-4,y:y+TH/2+3,"text-anchor":"end"}),{textContent:""}));
+  gShelf.append(g);
+  if(!tileByBlock[name]) tileByBlock[name]={el:g,cnt:g.querySelector(".cnt")};
+});
+
+// lane geometry
+const LX0=24, BW=124, BH=56, GAP=12, CY=170;
+const bx=i=>LX0+i*(BW+GAP);
+const cx=i=>bx(i)+BW/2;
+
+// edges (drawn between consecutive boxes)
+const edges=[];
+for(let i=1;i<LANE.length;i++){
+  const x1=bx(i-1)+BW, x2=bx(i);
+  const p=mk("path",{class:"edge",d:`M ${x1} ${CY} L ${x2} ${CY}`});
+  const len=Math.abs(x2-x1); p.style.setProperty("--len",len);
+  gEdge.append(p); edges[i]=p;
+}
+
+// backward pull arc: act (5) bottom -> gather-context (3) bottom
+const pull=mk("path",{class:"pull",
+  d:`M ${cx(5)} ${CY+BH/2} C ${cx(5)} ${CY+96}, ${cx(3)} ${CY+96}, ${cx(3)} ${CY+BH/2}`});
+gEdge.append(pull);
+
+// lane nodes
+const nodes=[];
+LANE.forEach((n,i)=>{
+  const x=bx(i), g=mk("g",{class:"node"}); g.style.transformOrigin=`${cx(i)}px ${CY}px`;
+  g.append(mk("rect",{class:"box",x,y:CY-BH/2,width:BW,height:BH,rx:9}));
+  g.append(mk("circle",{class:"kdot",cx:x+13,cy:CY-BH/2+13,r:3.5,fill:KCOL[n.kind]}));
+  g.append(Object.assign(mk("text",{class:"role",x:cx(i),y:CY-3,"text-anchor":"middle"}),{textContent:n.role}));
+  g.append(Object.assign(mk("text",{class:"bid",x:cx(i),y:CY+12,"text-anchor":"middle"}),{textContent:n.block}));
+  // check tag clipped to lower edge
+  const tg=mk("g",{class:"tag t-"+n.check});
+  const tw=n.check.length*5.4+12;
+  tg.append(mk("rect",{class:"tag-bg",x:cx(i)-tw/2,y:CY+BH/2-7,width:tw,height:14,rx:3}));
+  tg.append(Object.assign(mk("text",{class:"tag-tx",x:cx(i),y:CY+BH/2+3,"text-anchor":"middle"}),{textContent:n.check}));
+  g.append(tg);
+  // skills pill (worker push), hidden
+  if(n.kind==="relay"){
+    const sk=mk("g",{class:"skills"});
+    sk.append(Object.assign(mk("text",{x:cx(i),y:CY-BH/2-6,"text-anchor":"middle"}),{textContent:"+ skills"}));
+    g.append(sk); n.skillsEl=sk;
+  }
+  gNode.append(g); nodes[i]={el:g,tag:tg};
+});
+
+// bootstrap plaque (hidden)
+const plaque=mk("g",{id:"plaque"});
+(()=>{
+  const px=24,py=CY-BH/2-104,pw=330,ph=86;
+  plaque.append(mk("rect",{x:px,y:py,width:pw,height:ph,rx:8}));
+  plaque.append(Object.assign(mk("text",{class:"ttl",x:px+12,y:py+18}),{textContent:"RUN.BOOTSTRAPPED  🔒"}));
+  const rows=[["flow_id","fix"],["depth","medium"],["change_kind","ratchet-advance"],["manifest_hash","9f3c…a1"]];
+  rows.forEach((r,i)=>{
+    const ty=py+36+i*15, t=mk("text",{class:"row",x:px+12,y:ty});
+    t.append(Object.assign(mk("tspan",{}),{textContent:r[0]+" = "}));
+    t.append(Object.assign(mk("tspan",{class:"val"}),{textContent:r[1]}));
+    plaque.append(t);
+  });
+  plaque.querySelector(".ttl");
+})();
+gFx.append(plaque);
+
+// gate at re-run (8), hidden
+const gate=mk("g",{id:"gate"});
+(()=>{
+  const gx=cx(8), gy=CY-BH/2-30, s=14;
+  gate.append(mk("path",{class:"dia",d:`M ${gx} ${gy-s} L ${gx+s} ${gy} L ${gx} ${gy+s} L ${gx-s} ${gy} Z`}));
+  gate.append(Object.assign(mk("text",{class:"mk",x:gx,y:gy+4,"text-anchor":"middle"}),{textContent:"✓"}));
+  gate.append(Object.assign(mk("text",{class:"note",x:gx,y:gy-s-6,"text-anchor":"middle"}),{textContent:"was failing → now passing"}));
+})();
+gFx.append(gate);
+
+// trace strip (hidden) — append-only order
+const traceTicks=[];
+const seal=mk("g");
+LANE.forEach((n,i)=>{
+  const g=mk("g",{class:"ttick"});
+  g.append(mk("circle",{cx:cx(i),cy:CY+BH/2+34,r:7}));
+  g.append(Object.assign(mk("text",{x:cx(i),y:CY+BH/2+37,"text-anchor":"middle"}),{textContent:String(i+1)}));
+  seal.append(g); traceTicks[i]=g;
+});
+seal.append(Object.assign(mk("text",{id:"sealcap",x:cx(0),y:CY+BH/2+58}),{textContent:"REPLAYABLE TRACE · APPEND-ONLY"}));
+gFx.append(seal);
+const sealcap=$("#sealcap");
+
+/* ---------- DOM refs + helpers ---------- */
+const promptEl=$("#prompt"), cmd=$("#cmd"), signalsEl=$("#signals"), cap=$("#cap");
+const chips={};
+function caption(t){cap.style.opacity=0;return sleep(reduce?0:200).then(()=>{cap.textContent=t;cap.style.opacity=1;});}
+const sigEl={};
+function buildSignals(){
+  SIGNALS.forEach(s=>{
+    const d=document.createElement("div"); d.className="chip";
+    d.innerHTML=`<span class="lab">${s.lab}</span><span class="src">“<span class="hl">${s.src}</span>”</span>`;
+    signalsEl.append(d); sigEl[s.id]=d;
+  });
+}
+function sigOn(id){Object.values(sigEl).forEach(e=>e.classList.remove("on")); if(id)sigEl[id]?.classList.add("on");}
+
+function typePrompt(){
+  return new Promise(res=>{
+    if(reduce){promptEl.textContent=PROMPT;res();return;}
+    let i=0;
+    promptEl.innerHTML='<span class="caret"></span>';
+    const caret=promptEl.querySelector(".caret");
+    (function step(){
+      i+=2;
+      promptEl.textContent=PROMPT.slice(0,i);
+      promptEl.append(caret);
+      if(i<PROMPT.length) setTimeout(step,16); else { caret.remove(); res(); }
+    })();
+  });
+}
+function hilitePrompt(){
+  let html=PROMPT;
+  HILITES.forEach(h=>{ html=html.replace(h,`<span class="hl">${h}</span>`); });
+  promptEl.innerHTML=html;
+}
+
+let vcount=0;
+function lightTile(block){
+  const t=tileByBlock[block]; if(!t)return;
+  t.el.classList.add("lit");
+  if(block==="run-verification"){ vcount++; t.cnt.textContent="×"+vcount; t.cnt.classList.add("show"); }
+}
+async function place(i){
+  lightTile(LANE[i].block);
+  if(i>0){ edges[i].classList.add("drawn"); }
+  nodes[i].el.classList.add("in");
+  await sleep(reduce?0:90);
+}
+
+function travel(pathEl,dur,tok,reverse){
+  return new Promise(res=>{
+    tok.classList.add("show");
+    if(reduce){const pt=pathEl.getPointAtLength(reverse?0:pathEl.getTotalLength());tok.setAttribute("cx",pt.x);tok.setAttribute("cy",pt.y);res();return;}
+    const len=pathEl.getTotalLength(), t0=performance.now();
+    (function f(now){
+      const k=Math.min(1,(now-t0)/dur), pt=pathEl.getPointAtLength(len*(reverse?1-k:k));
+      tok.setAttribute("cx",pt.x); tok.setAttribute("cy",pt.y);
+      k<1?requestAnimationFrame(f):res();
+    })(performance.now());
+  });
+}
+function newTok(r){const c=mk("circle",{class:"tok",r:r||5,fill:"#2f6fed"});gTok.append(c);return c;}
+
+/* ---------- the story ---------- */
+let runId=0;
+function reset(){
+  promptEl.innerHTML=""; cmd.classList.remove("read"); cap.style.opacity=0; cap.textContent=" ";
+  signalsEl.innerHTML=""; buildSignals();
+  gShelf.classList.remove("gone");
+  document.querySelectorAll(".tile").forEach(t=>{t.classList.remove("in","lit");});
+  Object.values(tileByBlock).forEach(t=>{t.cnt.classList.remove("show");t.cnt.textContent="";});
+  $(".tile.skip")?.classList.add("skip");
+  vcount=0;
+  nodes.forEach(n=>{n.el.classList.remove("in","run","done");});
+  LANE.forEach(n=>n.skillsEl&&n.skillsEl.classList.remove("show"));
+  document.querySelectorAll(".tag").forEach(t=>t.classList.remove("solid"));
+  edges.forEach(e=>e&&e.classList.remove("drawn","lit","visited"));
+  pull.classList.remove("show");
+  plaque.classList.remove("in"); gate.classList.remove("in","pass");
+  traceTicks.forEach(t=>t.classList.remove("in","sealed")); sealcap.classList.remove("in");
+  gTok.innerHTML="";
+}
+
+async function run(id){
+  const ok=()=>id===runId;
+
+  /* 1 — the prompt is typed in */
+  await caption("This is the whole input: one plain-language request, typed so you can read every word.");
+  await typePrompt(); if(!ok())return;
+  await sleep(700); if(!ok())return;
+
+  /* 2 — enter; the prompt is read and pins */
+  await caption("Circuit reads the request once. The prompt stays pinned as the source for everything that follows.");
+  cmd.classList.add("read"); hilitePrompt();
+  await sleep(1100); if(!ok())return;
+
+  /* 3 — prompt becomes signals */
+  await caption("It pulls a few plain signals out of the request. Each one keeps the exact words it came from.");
+  for(const s of SIGNALS){ sigEl[s.id].classList.add("in"); await sleep(reduce?0:380); if(!ok())return; }
+  await sleep(900); if(!ok())return;
+
+  /* 4 — the vocabulary wakes */
+  await caption("This is the whole vocabulary: 29 registered blocks. The flow can only be built from these — and Fix will not use them all.");
+  const tiles=[...document.querySelectorAll(".tile")];
+  for(const t of tiles){ t.classList.add("in"); await sleep(reduce?0:26); }
+  await sleep(700); if(!ok())return;
+
+  /* 5 — frame */
+  sigOn("change");
+  await caption("The first block is lifted straight from the words: frame the work and the proof before touching any code.");
+  await place(0); await sleep(900); if(!ok())return;
+
+  /* 6 — prove it breaks first */
+  sigOn("first");
+  await caption("Because the prompt says reproduce it first, the failing test runs before any edit — to prove the bug is real.");
+  await place(1); await sleep(850); if(!ok())return;
+
+  /* 7 — snapshot, then gather */
+  sigOn("proof");
+  await caption("Record the starting state, then a worker gathers the checkout code so the fix is not made blind.");
+  await place(2); await sleep(360); sigOn("change"); await place(3); await sleep(800); if(!ok())return;
+
+  /* 8 — diagnose, plan folded in */
+  await caption("A worker names the root cause. Notice 'plan' is never taken from the shelf — in a Fix flow, planning folds into diagnosis.");
+  tileByBlock["plan"].el.classList.add("lit"); await sleep(reduce?0:160);
+  tileByBlock["plan"].el.classList.remove("lit");
+  await place(4); await sleep(850); if(!ok())return;
+
+  /* 9 — act */
+  await caption("One block, and only one, is allowed to actually change the code.");
+  await place(5); await sleep(800); if(!ok())return;
+
+  /* 10 — prove it again (cluster) */
+  sigOn("proof");
+  await caption("The same verification block is reused five times in all: re-run the tests, check the diff, prove the once-failing case now passes.");
+  await place(6); await sleep(reduce?0:260); await place(7); await sleep(reduce?0:260); await place(8);
+  await sleep(900); if(!ok())return;
+
+  /* 11 — review + close */
+  sigOn("change");
+  await caption("A reviewer checks the work, then the run closes with evidence. The whole flow was built from this one prompt.");
+  await place(9); await sleep(reduce?0:300); await place(10);
+  sigOn(null);
+  await sleep(800); if(!ok())return;
+  gShelf.classList.add("gone");
+  await sleep(700); if(!ok())return;
+
+  /* 12 — freeze identity */
+  await caption("At the first trace entry the run freezes what runs: the flow, the depth, the safety class, and the exact compiled graph.");
+  plaque.classList.add("in");
+  await sleep(1700); if(!ok())return;
+
+  /* 13 — the run flows through (push downstream + one thin pull) */
+  await caption("Now it runs. Work and context push downstream; one named slice is pulled back up when a later step needs it.");
+  const tok=newTok(5.5);
+  nodes[0].el.classList.add("run");
+  for(let i=1;i<=10;i++){
+    await travel(edges[i],reduce?0:300,tok);
+    edges[i].classList.add("visited"); edges[i].classList.remove("lit");
+    nodes[i-1].el.classList.remove("run"); nodes[i-1].el.classList.add("done");
+    nodes[i].el.classList.add("run");
+    if(LANE[i].skillsEl){ LANE[i].skillsEl.classList.add("show"); }
+    // light the edge being entered
+    if(i<10) edges[i+1]&&edges[i+1].classList.add("lit");
+    if(i===5){ // pull back from act to gather-context
+      pull.classList.add("show"); const slice=newTok(4);
+      await travel(pull,reduce?0:560,slice,true); slice.remove();
+      await sleep(reduce?0:120); pull.classList.remove("show");
+    }
+    if(!ok()){tok.remove();return;}
+  }
+  tok.remove();
+
+  /* 14 — gate on a real result */
+  await caption("The gate checks a real captured result: the test that failed now passes. Green means valid, not that the code is perfect.");
+  gate.classList.add("in"); await sleep(800); if(!ok())return;
+  gate.classList.add("pass"); nodes[8].tag.classList.add("solid");
+  nodes[10].el.classList.remove("run"); nodes[10].el.classList.add("done");
+  await sleep(1100); if(!ok())return;
+
+  /* 15 — seal into a trace */
+  await caption("The finished run seals into a replayable record: every step, every check, in the order it happened — traceable to the prompt.");
+  for(let i=0;i<traceTicks.length;i++){ traceTicks[i].classList.add("in"); await sleep(reduce?0:70); }
+  await sleep(300);
+  for(let i=0;i<traceTicks.length;i++){ traceTicks[i].classList.add("sealed"); await sleep(reduce?0:60); }
+  sealcap.classList.add("in");
+}
+
+async function loop(){
+  const id=++runId;
+  while(id===runId){
+    reset(); await run(id);
+    if(id!==runId)break;
+    await sleep(4200);
+  }
+}
+$("#replay").addEventListener("click",loop);
+loop();
+</script>
+</body>
+</html>

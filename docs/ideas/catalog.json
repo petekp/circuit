@@ -697,6 +697,26 @@
       "last_checked": "2026-06-22"
     },
     {
+      "path": "docs/ideas/capability-visualization-design.md",
+      "title": "Circuit capability visualization: metaphor-free beats and choreography",
+      "status": "current-idea",
+      "category": "strategy-and-comparisons",
+      "tags": ["visualization", "communication", "north-star", "metaphor-free", "design-sketch"],
+      "current_reading": "Format-agnostic design sketch for a single coherent visualization that communicates Circuit's fundamental mechanisms with no metaphor (every primitive is the real entity drawn directly). Assumes the north star is fully realized (genuine dynamic generation plus variants shown as real), so it is deliberately ahead of main. Spine: one persistent flow authored, repaired, then run; a reserved visual register (color=run-state withheld until execution, open-port=the one fault state, edge-width=volume, desaturation=immutable); 15 beats across five acts covering invoke/freeze, vocabulary, typed routes, generation, shape+fan-out decision, starvation repair-or-wall, cold-skeleton/warm-labor, thick downstream push, thin upstream pull, fan-out/join, variants (cost-real/efficacy-flat), validity-not-efficacy, append-only trace reveal, structural evidence, seal+bit-identical replay. Communication artifact, not a feature proposal; for shipped behavior see north-star-status.md.",
+      "related": ["docs/ideas/north-star-status.md", "docs/ideas/non-linear-composition-frontier.md", "docs/ideas/bespoke-flow-generation-design.md"],
+      "last_checked": "2026-06-21"
+    },
+    {
+      "path": "docs/ideas/ponytrail-vs-circuit.md",
+      "title": "ponytrail (0xroylee) vs Circuit",
+      "status": "current-comparison",
+      "category": "strategy-and-comparisons",
+      "tags": ["comparison", "gating", "requirement-court", "revert", "snapshot", "supply-chain", "multi-host", "composition"],
+      "current_reading": "Analysis of github.com/0xroylee/ponytrail (a snapshot/revert skill plus an under-documented requirement-first court runtime) against Circuit. Of 21 verified 'could learn' claims, 16 held and 5 were refuted because Circuit already has the capability. Ponytrail does not contest Circuit's composition/generation/equipment lead and its headline requirement court is a stub that certifies nothing. Genuinely additive: a dependency-recency quarantine gate, a real revert source plus the inert safe_apply executor, and net-new governance primitives (configurable hard human lock, refute-threshold fanout join, scope-drift veto).",
+      "related": ["docs/ideas/adversarial-verification-gates.md", "docs/ideas/bespoke-flow-generation-design.md", "docs/ideas/intent-capture-and-enforcement.md", "docs/ideas/fallible-executor-audit.md"],
+      "last_checked": "2026-06-22"
+    },
+    {
       "path": "docs/ideas/run-inspection-implementation.md",
       "title": "Run Inspection: Implementation Exploration",
       "status": "current-proposal",
