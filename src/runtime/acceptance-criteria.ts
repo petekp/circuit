@@ -4,6 +4,7 @@ import type {
   AcceptanceCriterion,
 } from '../schemas/acceptance-criteria.js';
 import { type ProofPlanCommandObservation, runProofPlanCommand } from '../shared/proof-plan.js';
+import { captureWorkingTreeChangedPaths } from '../shared/working-tree-changes.js';
 
 export interface AcceptanceCriterionTrace {
   readonly criterion_id: string;
@@ -73,6 +74,73 @@ function isNonEmpty(value: unknown): boolean {
   if (Array.isArray(value)) return value.length > 0;
   if (value !== null && typeof value === 'object') return Object.keys(value).length > 0;
   return value !== undefined && value !== null;
+}
+
+/**
+ * Extract the path list a worker claimed at a report field. A lone string is
+ * treated as a single claim; an array keeps only its string entries. Anything
+ * else yields no claims — asserting presence is the job of the sibling
+ * 'present'/'non_empty' checks, not this one.
+ */
+function claimedPaths(value: unknown): string[] {
+  const raw = typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
+  const out: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'string') continue;
+    // Worker self-reports may carry OS separators or a leading ./; git status
+    // emits repo-relative forward-slash paths, so align to that shape.
+    let path = entry.trim().replace(/\\/g, '/');
+    while (path.startsWith('./')) path = path.slice(2);
+    if (path.length > 0) out.push(path);
+  }
+  return out;
+}
+
+type ReportFieldVerdict = { readonly ok: true } | { readonly ok: false; readonly reason: string };
+
+/**
+ * The `changed_on_disk` predicate: every path the worker claimed must actually
+ * differ in the working tree. Sound in the OVERCLAIM direction — a claimed path
+ * that shows no change while the tree IS observable is a provable lie.
+ *
+ * The predicate asserts a property of an OBSERVABLE working tree, so it fires
+ * only when it can actually look. When it cannot — no project root, or git
+ * cannot read the tree (e.g. not a repository) — the claim is vacuously
+ * consistent and the check passes. This is safe: a worker cannot induce
+ * git-unavailability to hide an overclaim (it is environmental, and real runs
+ * always operate on a git repo), and the rest of the touched-files machinery is
+ * already inert off-git. Failing here would also produce nonsense retry
+ * feedback ("retry because git would not run"), which the worker cannot act on.
+ * Extra real changes the worker did NOT claim never fail the gate.
+ */
+function evaluateChangedOnDisk(args: {
+  readonly criterionId: string;
+  readonly label: string;
+  readonly value: unknown;
+  readonly projectRoot: string | undefined;
+  readonly capture: (projectRoot: string) => ReadonlySet<string>;
+}): ReportFieldVerdict {
+  const claimed = claimedPaths(args.value);
+  if (claimed.length === 0) return { ok: true };
+
+  // No working tree to observe → inapplicable, not a failure.
+  if (args.projectRoot === undefined) return { ok: true };
+
+  let dirty: ReadonlySet<string>;
+  try {
+    dirty = args.capture(args.projectRoot);
+  } catch {
+    // Tree not observable (git error / not a repo) → inapplicable, not a failure.
+    return { ok: true };
+  }
+
+  const overclaimed = claimed.filter((path) => !dirty.has(path));
+  if (overclaimed.length === 0) return { ok: true };
+  const noun = overclaimed.length === 1 ? 'a path with' : 'paths with';
+  return {
+    ok: false,
+    reason: `acceptance criterion '${args.criterionId}' failed: report field '${args.label}' lists ${noun} no change in the working tree: ${overclaimed.join(', ')}`,
+  };
 }
 
 function parseReportBody(
@@ -151,6 +219,9 @@ export function evaluateAcceptanceCriteria(input: {
   readonly resultBody: string;
   readonly parsedBody?: unknown;
   readonly projectRoot?: string;
+  // Working-tree capture used by the `changed_on_disk` predicate. Defaults to a
+  // real `git status` at projectRoot; injectable so unit tests stay hermetic.
+  readonly captureChangedPaths?: (projectRoot: string) => ReadonlySet<string>;
 }): AcceptanceCriteriaEvaluationResult {
   const checks: AcceptanceCriterionTrace[] = [];
   let parsedBody = input.parsedBody;
@@ -178,6 +249,38 @@ export function evaluateAcceptanceCriteria(input: {
       }
 
       const value = valueAtPath(parsedBody, criterion.path);
+
+      if (criterion.predicate === 'changed_on_disk') {
+        const verdict = evaluateChangedOnDisk({
+          criterionId: criterion.id,
+          label: pathLabel(criterion.path),
+          value,
+          projectRoot: input.projectRoot,
+          capture: input.captureChangedPaths ?? captureWorkingTreeChangedPaths,
+        });
+        if (verdict.ok) {
+          checks.push({
+            criterion_id: criterion.id,
+            criterion_kind: criterion.kind,
+            outcome: 'pass',
+          });
+          continue;
+        }
+        const failed = {
+          criterion_id: criterion.id,
+          criterion_kind: criterion.kind,
+          outcome: 'fail' as const,
+          reason: verdict.reason,
+        };
+        checks.push(failed);
+        return failureResult({
+          stepId: input.stepId,
+          criteria: input.criteria,
+          checks,
+          failed,
+        });
+      }
+
       const ok = criterion.predicate === 'present' ? value !== undefined : isNonEmpty(value);
       if (ok) {
         checks.push({

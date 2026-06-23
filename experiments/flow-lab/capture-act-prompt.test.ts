@@ -28,6 +28,7 @@ import type { ClaudeCodeRelayInput } from '../../src/connectors/claude-code.js';
 import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
+import { reflectChangedFiles } from '../../tests/helpers/working-tree.js';
 
 const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
 const CAPTURE_DIR = resolve('experiments/flow-lab/.capture');
@@ -178,6 +179,11 @@ describe('capture the real engine-built act-step prompt (rich wide->narrow)', ()
     'dumps starved + enriched act prompts for the real-worker probe',
     async () => {
       const runFolder = join(runFolderBase, 'capture');
+      // The stubbed act declares RICH_SOURCE_FILES; reflect them onto the tree
+      // so the build-act changed_on_disk gate sees the same diff a real worker
+      // would leave for the 12 migrated call sites.
+      const projectRoot = gitProjectRoot();
+      reflectChangedFiles(projectRoot, RICH_SOURCE_FILES);
       const result = await runCompiledFlow({
         runDir: runFolder,
         flowBytes: fixtureBytes(),
@@ -186,7 +192,7 @@ describe('capture the real engine-built act-step prompt (rich wide->narrow)', ()
         depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 5, 17, 9, 0, 0)),
         relayer: capturingRelayer(),
-        projectRoot: gitProjectRoot(),
+        projectRoot,
         selectionConfigLayers: [],
         enableContextDelivery: true,
       });

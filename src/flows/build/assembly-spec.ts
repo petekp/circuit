@@ -125,6 +125,12 @@ export const buildBlockItems: readonly BlockStepUse[] = [
         },
         {
           kind: 'report_field',
+          id: 'changed-files-on-disk',
+          path: ['changed_files'],
+          predicate: 'changed_on_disk',
+        },
+        {
+          kind: 'report_field',
           id: 'evidence-non-empty',
           path: ['evidence'],
           predicate: 'non_empty',

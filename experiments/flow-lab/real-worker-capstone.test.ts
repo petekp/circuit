@@ -26,6 +26,7 @@ import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
+import { reflectChangedFiles } from '../../tests/helpers/working-tree.js';
 
 const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
 const TIMEOUT_MS = 20_000;
@@ -163,6 +164,11 @@ describe('Real-worker capstone: a real model decision resolves end-to-end throug
     'accepts the real worker context_request, resolves the named slice, delivers it, and re-runs to a clean close',
     async () => {
       const runFolder = join(runFolderBase, 'capstone');
+      // The enriched re-run (real Probe B2) declares all 12 RICH_SOURCE_FILES;
+      // reflect them onto the tree so the build-act changed_on_disk gate sees
+      // the same diff the real worker left after migrating the call sites.
+      const projectRoot = gitProjectRoot();
+      reflectChangedFiles(projectRoot, RICH_SOURCE_FILES);
       const result = await runCompiledFlow({
         runDir: runFolder,
         flowBytes: readFileSync(FIXTURE_PATH),
@@ -171,7 +177,7 @@ describe('Real-worker capstone: a real model decision resolves end-to-end throug
         depth: 'medium',
         now: deterministicNow(Date.UTC(2026, 5, 17, 10, 0, 0)),
         relayer: replayRealWorkerRelayer(),
-        projectRoot: gitProjectRoot(),
+        projectRoot,
         selectionConfigLayers: [],
         enableContextDelivery: true,
       });

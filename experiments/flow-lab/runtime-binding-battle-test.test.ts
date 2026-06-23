@@ -33,6 +33,7 @@ import { runCompiledFlow } from '../../src/runtime/run/compiled-flow-runner.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
 import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
+import { reflectChangedFiles } from '../../tests/helpers/working-tree.js';
 
 const FIXTURE_PATH = resolve('generated/flows/build/circuit.json');
 const TIMEOUT_MS = 20_000;
@@ -61,7 +62,11 @@ function fixtureBytes(): Buffer {
 // vacuously. The point is that the full Build pipeline runs end to end, gate and
 // all, around the act-step pull — not a gate-disabled shortcut.
 let projectRootCounter = 0;
-function gitProjectRoot(): string {
+// `dirtyFiles` are the paths the stubbed implementer declares in `changed_files`.
+// They are reflected onto the working tree AFTER the baseline commit so the
+// fix-act/build-act changed_on_disk gate sees the same real diff a worker would
+// leave: a modeled change actually exists on disk, not just in the report.
+function gitProjectRoot(dirtyFiles: readonly string[] = []): string {
   projectRootCounter += 1;
   const projectRoot = join(runFolderBase, `project-${projectRootCounter}`);
   mkdirSync(join(projectRoot, 'src'), { recursive: true });
@@ -82,6 +87,7 @@ function gitProjectRoot(): string {
   git('config', 'user.name', 'battle-test');
   git('add', '-A');
   git('commit', '-q', '-m', 'baseline');
+  reflectChangedFiles(projectRoot, dirtyFiles);
   return projectRoot;
 }
 
@@ -367,7 +373,7 @@ describe('Runtime-binding battle-test (live Build flow, real wrap-index task)', 
           starvedBody: STARVED_BODY,
           enrichedBody: ENRICHED_BODY,
         }),
-        projectRoot: gitProjectRoot(),
+        projectRoot: gitProjectRoot(['src/wrap.mjs']),
         selectionConfigLayers: [],
         enableContextDelivery: true,
       });
@@ -484,7 +490,7 @@ describe('Runtime-binding battle-test (live Build flow, real wrap-index task)', 
           starvedBody: RICH_STARVED_BODY,
           enrichedBody: RICH_ENRICHED_BODY,
         }),
-        projectRoot: gitProjectRoot(),
+        projectRoot: gitProjectRoot(RICH_SOURCE_FILES),
         selectionConfigLayers: [],
         enableContextDelivery: true,
       });
@@ -553,7 +559,7 @@ describe('Runtime-binding battle-test (live Build flow, real wrap-index task)', 
           starvedBody: STARVED_BODY,
           enrichedBody: ENRICHED_BODY,
         }),
-        projectRoot: gitProjectRoot(),
+        projectRoot: gitProjectRoot(['src/wrap.mjs']),
         selectionConfigLayers: [],
         enableContextDelivery: true,
       });
@@ -587,7 +593,7 @@ describe('Runtime-binding battle-test (live Build flow, real wrap-index task)', 
           starvedBody: STARVED_BODY,
           enrichedBody: ENRICHED_BODY,
         }),
-        projectRoot: gitProjectRoot(),
+        projectRoot: gitProjectRoot(['src/wrap.mjs']),
         selectionConfigLayers: [],
         enableContextDelivery: true,
       });
@@ -659,7 +665,7 @@ describe('Runtime-binding battle-test (live Build flow, real wrap-index task)', 
           starvedBody: STARVED_UNPULLABLE_BODY,
           enrichedBody: ENRICHED_BODY,
         }),
-        projectRoot: gitProjectRoot(),
+        projectRoot: gitProjectRoot(['src/wrap.mjs']),
         selectionConfigLayers: [],
         enableContextDelivery: true,
       });
