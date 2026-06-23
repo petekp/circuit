@@ -26492,8 +26492,8 @@ var StepBase = external_exports.object({
   skill_slots: SkillSlotArray.optional(),
   // The tools sub-axis of equipment scope, compiled from the schematic step.
   // Optional and omitted at the default (full, trusted) so flows that declare
-  // nothing keep byte-stable compiled output. The compiler enforces that an
-  // enforced scope only lands on the implementer relay variant.
+  // nothing keep byte-stable compiled output. The schematic gate restricts an
+  // enforced scope to relay steps (any role); the compiler copies it verbatim.
   equipment_scope: EquipmentScope.optional(),
   route_from_report: RouteFromReport.optional(),
   budgets: external_exports.object({
@@ -28555,8 +28555,8 @@ var SchematicStep = external_exports.object({
   skill_slots: SkillSlotArray.default([]),
   // The tools sub-axis of equipment scope (the skills sub-axis rides
   // `skill_slots` above). Optional so flows that declare nothing stay
-  // byte-stable; an enforced scope is constrained to the write tier by the
-  // cross-field guard in superRefine below.
+  // byte-stable; an enforced scope is constrained to relay steps (any role)
+  // by the cross-field guard in superRefine below.
   equipment_scope: EquipmentScope.optional(),
   routes: external_exports.record(external_exports.string(), StepRouteTarget).refine((routes) => {
     return Object.keys(routes).length > 0;
@@ -28618,12 +28618,12 @@ var SchematicStep = external_exports.object({
     }
   }
   if (item.equipment_scope?.enforcement === "enforced") {
-    const isImplementerRelay = item.execution.kind === "relay" && item.execution.role === "implementer";
-    if (!isImplementerRelay) {
+    const isRelay = item.execution.kind === "relay";
+    if (!isRelay) {
       ctx.addIssue({
         code: "custom",
         path: ["equipment_scope", "enforcement"],
-        message: 'enforced equipment scope is only valid on an implementer relay step (the write tier); use enforcement "trusted" elsewhere'
+        message: 'enforced equipment scope is only valid on a relay step (a tool-scoped worker); use enforcement "trusted" on orchestrator steps'
       });
     }
   }

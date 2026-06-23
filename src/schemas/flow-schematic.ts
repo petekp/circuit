@@ -200,8 +200,8 @@ export const SchematicStep = z
     skill_slots: SkillSlotArray.default([]),
     // The tools sub-axis of equipment scope (the skills sub-axis rides
     // `skill_slots` above). Optional so flows that declare nothing stay
-    // byte-stable; an enforced scope is constrained to the write tier by the
-    // cross-field guard in superRefine below.
+    // byte-stable; an enforced scope is constrained to relay steps (any role)
+    // by the cross-field guard in superRefine below.
     equipment_scope: EquipmentScope.optional(),
     routes: z.record(z.string(), StepRouteTarget).refine((routes) => {
       return Object.keys(routes).length > 0;
@@ -264,20 +264,23 @@ export const SchematicStep = z
         });
       }
     }
-    // Enforcement is a write-tier property. A tool restriction can only be a
-    // real boundary on the worker that changes files: the implementer relay.
-    // Declaring it elsewhere is an authoring slip (a researcher or reviewer has
-    // no write tier to bound), so reject it at parse time rather than silently
-    // downgrading. Trusted scopes stay role-agnostic — guidance is harmless.
+    // Enforcement is only a real boundary on a step that runs a tool-scoped
+    // worker subprocess: any relay step. Every relay role (researcher,
+    // implementer, reviewer) dispatches through the same connector path, so an
+    // enforced allow-list is a genuine restriction on each — most valuable as a
+    // read-only floor on the non-writing roles that should only look or judge.
+    // Orchestrator steps (compose, verification, checkpoint, sub-run, fanout)
+    // run no such worker, so an enforced scope there has nothing to bound;
+    // reject it at parse time rather than silently downgrading. Trusted scopes
+    // stay role-agnostic — guidance is harmless anywhere.
     if (item.equipment_scope?.enforcement === 'enforced') {
-      const isImplementerRelay =
-        item.execution.kind === 'relay' && item.execution.role === 'implementer';
-      if (!isImplementerRelay) {
+      const isRelay = item.execution.kind === 'relay';
+      if (!isRelay) {
         ctx.addIssue({
           code: 'custom',
           path: ['equipment_scope', 'enforcement'],
           message:
-            'enforced equipment scope is only valid on an implementer relay step (the write tier); use enforcement "trusted" elsewhere',
+            'enforced equipment scope is only valid on a relay step (a tool-scoped worker); use enforcement "trusted" on orchestrator steps',
         });
       }
     }

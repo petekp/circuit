@@ -50,8 +50,8 @@ const StepBase = z.object({
   skill_slots: SkillSlotArray.optional(),
   // The tools sub-axis of equipment scope, compiled from the schematic step.
   // Optional and omitted at the default (full, trusted) so flows that declare
-  // nothing keep byte-stable compiled output. The compiler enforces that an
-  // enforced scope only lands on the implementer relay variant.
+  // nothing keep byte-stable compiled output. The schematic gate restricts an
+  // enforced scope to relay steps (any role); the compiler copies it verbatim.
   equipment_scope: EquipmentScope.optional(),
   route_from_report: RouteFromReport.optional(),
   budgets: z
