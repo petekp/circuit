@@ -48123,6 +48123,11 @@ function profileToScope(id) {
   const { scope } = EQUIPMENT_PROFILES[id];
   return scope.tools === "full" ? { tools: "full", enforcement: scope.enforcement } : { tools: { allow: [...scope.tools.allow] }, enforcement: scope.enforcement };
 }
+function toEnforcedScope(scope) {
+  if (scope.tools === "full")
+    return { tools: "full", enforcement: scope.enforcement };
+  return { tools: { allow: [...scope.tools.allow] }, enforcement: "enforced" };
+}
 
 // dist/flows/composition/evaluate.js
 function asString2(value) {
@@ -48539,7 +48544,9 @@ function composeFlow(roleSet, options) {
       });
       return;
     }
-    const equipmentScope = role.equipment === void 0 || role.equipment === "full" ? void 0 : profileToScope(role.equipment);
+    const baseScope = role.equipment === void 0 || role.equipment === "full" ? void 0 : profileToScope(role.equipment);
+    const isImplementerRelay = role.executionKind === "relay" && role.relayRole === "implementer";
+    const equipmentScope = options.enforceImplementerTools === true && isImplementerRelay && baseScope !== void 0 ? toEnforcedScope(baseScope) : baseScope;
     const outputGeneric = asString3(block.output_contract);
     if (role.executionKind === "sub-run" && (role.goalText === void 0 || role.goalText.trim().length === 0)) {
       walls.push({
@@ -63772,7 +63779,11 @@ async function executeProductionRelayAttempt(input) {
       ...relayTimeoutMs === void 0 ? {} : { timeoutMs: relayTimeoutMs },
       ...context.projectRoot === void 0 ? {} : { cwd: context.projectRoot },
       resolvedSelection,
-      ...responseSchema === void 0 ? {} : { responseSchema }
+      ...responseSchema === void 0 ? {} : { responseSchema },
+      // Forward the enforced tool allow-list exactly as the direct path
+      // does (above): the injected-relayer path is what the eval harness
+      // and in-process tests run, so enforcement must reach it too.
+      ...equipmentDecision.toolAllowList === void 0 ? {} : { toolAllowList: equipmentDecision.toolAllowList }
     });
   } catch (error51) {
     const reason = (input.formatConnectorFailureReason ?? ((stepId, caught) => `relay step '${stepId}': connector invocation failed (${caught.message})`))(step.id, error51);

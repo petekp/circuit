@@ -22,9 +22,12 @@ import { DEFAULT_EQUIPMENT_SCOPE, type EquipmentScope } from '../../schemas/equi
  * is allowed to choose from.
  *
  * Every profile is `trusted` (offered as guidance, not hard-enforced at the
- * write tier). Trusted scopes are legal on any step, so the composer never has
- * to reason about the implementer-only enforcement constraint when assigning
- * them. Hard `--tools` enforcement on the implementer step is a later axis.
+ * write tier). Trusted scopes are legal on any step, so the proposer never has
+ * to reason about the implementer-only enforcement constraint when picking one.
+ * The composer can OPT IN to hard `--tools` enforcement on the implementer step
+ * (see `toEnforcedScope` and the composer's `enforceImplementerTools` lever):
+ * that upgrade is applied only to the write-tier step, so the parse gate that
+ * restricts `enforced` to implementer relays is never tripped.
  */
 
 // The read-scope tools every profile shares: a worker can always look around.
@@ -76,6 +79,17 @@ export function profileToScope(id: EquipmentProfileId): EquipmentScope {
   return scope.tools === 'full'
     ? { tools: 'full', enforcement: scope.enforcement }
     : { tools: { allow: [...scope.tools.allow] }, enforcement: scope.enforcement };
+}
+
+// The enforced variant of a tightening profile scope: the same allow-list, but
+// hard-enforced at the write tier (the connector restricts `--tools`) instead of
+// offered as guidance. Only an allow-list can be enforced — enforcing 'full' is a
+// contradiction the EquipmentScope schema rejects — so a 'full' scope is returned
+// unchanged (the caller is responsible for only enforcing a tightening profile).
+// Returns a fresh scope object so a frozen-source profile is never aliased.
+export function toEnforcedScope(scope: EquipmentScope): EquipmentScope {
+  if (scope.tools === 'full') return { tools: 'full', enforcement: scope.enforcement };
+  return { tools: { allow: [...scope.tools.allow] }, enforcement: 'enforced' };
 }
 
 // One source of truth for the prompt: render the closed menu as a bullet list

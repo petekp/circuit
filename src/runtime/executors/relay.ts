@@ -637,6 +637,12 @@ export async function executeProductionRelayAttempt(input: {
             ...(context.projectRoot === undefined ? {} : { cwd: context.projectRoot }),
             resolvedSelection,
             ...(responseSchema === undefined ? {} : { responseSchema }),
+            // Forward the enforced tool allow-list exactly as the direct path
+            // does (above): the injected-relayer path is what the eval harness
+            // and in-process tests run, so enforcement must reach it too.
+            ...(equipmentDecision.toolAllowList === undefined
+              ? {}
+              : { toolAllowList: equipmentDecision.toolAllowList }),
           });
   } catch (error) {
     const reason = (

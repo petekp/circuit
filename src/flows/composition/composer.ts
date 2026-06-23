@@ -45,6 +45,7 @@ import {
   type EquipmentProfileId,
   isEquipmentProfileId,
   profileToScope,
+  toEnforcedScope,
 } from './equipment-profiles.js';
 import { evaluateRunnability, outputIsReadableContract } from './evaluate.js';
 
@@ -604,6 +605,16 @@ export interface ComposeFlowOptions {
   // why a separate evaluateRunnability check exists for callers that judge after
   // the fact. On, the composer never hands back an un-runnable composition.
   readonly enforceRunnability?: boolean;
+  // Opt-in (default off): hard-enforce the implementer step's tool scope at the
+  // write tier. When the implementer relay step carries a tightening profile
+  // (read-only | editor | tester), emit it as enforcement:'enforced' so the
+  // connector restricts the worker's `--tools` (the lever PR #89 shipped) rather
+  // than offering the scope as guidance. Enforcement is a write-tier boundary the
+  // parse gate allows only on an implementer relay, so ONLY that step is
+  // upgraded; every other step stays trusted and a flow that does not opt in is
+  // byte-identical. A no-op when the implementer step has no tightening profile
+  // (enforcing 'full' is a contradiction the schema rejects).
+  readonly enforceImplementerTools?: boolean;
 }
 
 export function composeFlow(
@@ -656,10 +667,20 @@ export function composeFlow(
     // nothing keeps the schematic — not just the compiled step — byte-identical
     // to a flow that never declared equipment. Only a tightening profile
     // (read-only | editor | tester) attaches a scope.
-    const equipmentScope =
+    const baseScope =
       role.equipment === undefined || role.equipment === 'full'
         ? undefined
         : profileToScope(role.equipment);
+    // Opt-in hard enforcement (default off). Enforcement is a write-tier
+    // boundary, so the schematic parse gate accepts enforcement:'enforced' ONLY
+    // on an implementer relay step; we upgrade only that step, and only when it
+    // already carries a tightening allow-list. Every other step keeps its trusted
+    // scope, so the gate never trips and the un-opted path stays byte-identical.
+    const isImplementerRelay = role.executionKind === 'relay' && role.relayRole === 'implementer';
+    const equipmentScope =
+      options.enforceImplementerTools === true && isImplementerRelay && baseScope !== undefined
+        ? toEnforcedScope(baseScope)
+        : baseScope;
     const outputGeneric = asString(block.output_contract);
     // A sub-run leaf runs a whole child flow; a child with no objective is
     // meaningless, so a sub-run role without goalText walls honestly rather than
