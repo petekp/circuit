@@ -163,6 +163,40 @@ const KEY_BY_CONTRACT: Readonly<Record<string, string>> = {
   'flow.result@v1': 'result',
 };
 
+// The changed-files honesty gate. The built-in fix/build flows hand-author this
+// criterion onto their implementer `act` step so an overclaiming worker — one that
+// lists a file in `changed_files` that it never actually touched — is caught and
+// retried with feedback. A genuinely composed flow had no such hand-wiring, so its
+// act step ran unguarded. These constants let the composer attach the SAME gate,
+// closing the reach gap so the honesty guarantee covers generated flows too.
+//
+// The gate is only meaningful when the act binds a contract that asks the worker to
+// self-report changed files. Both fix.change@v1 and build.implementation@v1 declare
+// `changed_files` and `evidence`, so the full three-check criterion applies to each.
+const CHANGED_FILES_CONTRACTS: ReadonlySet<string> = new Set([
+  'fix.change@v1',
+  'build.implementation@v1',
+]);
+
+const CHANGED_FILES_ACCEPTANCE_CRITERIA: NonNullable<BlockStepUse['acceptanceCriteria']> = {
+  checks: [
+    {
+      kind: 'report_field',
+      id: 'changed-files-present',
+      path: ['changed_files'],
+      predicate: 'present',
+    },
+    {
+      kind: 'report_field',
+      id: 'changed-files-on-disk',
+      path: ['changed_files'],
+      predicate: 'changed_on_disk',
+    },
+    { kind: 'report_field', id: 'evidence-non-empty', path: ['evidence'], predicate: 'non_empty' },
+  ],
+  on_failure: { mode: 'retry-with-feedback' },
+};
+
 function asString(value: unknown): string {
   return value as unknown as string;
 }
@@ -945,6 +979,18 @@ export function composeFlow(
       // policy, and join live here). The fanout wall upstream guaranteed at least
       // two goal-bearing branches, so the descriptor is well-formed.
       ...(role.executionKind === 'fanout' ? { fanout: buildFanoutMetadata(role) } : {}),
+      // Changed-files honesty gate. Attach the same acceptance criterion the
+      // built-in fix/build act steps carry, but ONLY to an implementer `act` relay
+      // whose bound output asks the worker to self-report changed files. Gating on
+      // implementer + a changed-files-bearing contract keeps the gate off researcher
+      // relays (which report findings, not edits) and off any step the criterion
+      // would vacuously or wrongly fire on. The runtime relay executor fires it for
+      // any relay step carrying the field, so emitting it here is the whole bridge.
+      ...(role.executionKind === 'relay' &&
+      role.relayRole === 'implementer' &&
+      CHANGED_FILES_CONTRACTS.has(boundOutput)
+        ? { acceptanceCriteria: CHANGED_FILES_ACCEPTANCE_CRITERIA }
+        : {}),
       routes,
     };
     items.push(use);
