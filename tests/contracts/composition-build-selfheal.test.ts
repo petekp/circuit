@@ -74,6 +74,22 @@ describe('composition build-brief self-heal — restore the blessed-brief checkp
     expect(String(plan?.output)).toBe('build.plan@v1');
   });
 
+  it('PIN: the self-heal matches the REAL reason evaluateRunnability emits for the build-brief wall', () => {
+    // The self-heal finds its trigger by SUBSTRING-matching the abort reason. Pin the
+    // exact producer string here so a reword of the runtime emit — which would
+    // silently stop the heal from ever firing — fails loudly at this contract instead
+    // of degrading the generate path back to a 1-in-3 wall in the field.
+    const outcome = composeFlow(RESEARCH_THEN_BUILD, { definitions: flowDefinitions });
+    if (!outcome.ok) throw new Error('default compose unexpectedly walled');
+    const runnability = evaluateRunnability(outcome.spec);
+    expect(runnability.runnable).toBe(false);
+    expect(
+      runnability.aborts.some((a) =>
+        a.reason.includes("expected exactly one report writer for schema 'build.brief@v1'"),
+      ),
+    ).toBe(true);
+  });
+
   it('OPT-IN: without enforceRunnability the arc is unchanged — compose frame, still not runnable', () => {
     const outcome = composeFlow(RESEARCH_THEN_BUILD, { definitions: flowDefinitions });
     if (!outcome.ok) throw new Error('default compose unexpectedly walled');

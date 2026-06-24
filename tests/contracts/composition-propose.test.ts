@@ -17,6 +17,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   type CompositionRoleSet,
+  GOAL_THEN_FIX,
   PROPOSER_PROMPT,
   REPAIR_GUIDANCE,
   RESEARCH_THEN_BUILD,
@@ -287,6 +288,29 @@ describe('proposeFlow — propose + verifier-driven repair', () => {
     const frame = schematic.items.find((item) => String(item.id) === 'frame');
     expect(frame?.execution.kind).toBe('checkpoint');
     expect(String(frame?.output)).toBe('build.brief@v1');
+  });
+
+  it('FALL-THROUGH: a runnability wall the heal does NOT match keeps its original runnability error', async () => {
+    // GOAL_THEN_FIX grades runnable:false at the RUNNABILITY stage, but its abort is
+    // goal.clarified-task@v1 — NOT the build.brief@v1 case the self-heal repairs. The
+    // heal retry therefore cannot fix it, and runFloor must fall through to the
+    // ORIGINAL runnability verdict. This is the load-bearing guarantee: the
+    // verifier-driven repair loop has to see the real step-anchored wall to feed
+    // back, not the flag's compose-wall relabel. (Three identical emits exhaust the
+    // 2-round repair budget so we inspect the terminal wall.)
+    const { relay } = scriptedRelay([GOAL_THEN_FIX, GOAL_THEN_FIX, GOAL_THEN_FIX]);
+
+    const outcome = await proposeFlow({ task: TASK, relay, maxRepair: 2 });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toBe('wall');
+    // The crux: the floor preserved the RUNNABILITY stage rather than relabeling it
+    // as a compose wall (which a blanket enforceRunnability flip would have produced).
+    expect(outcome.rounds[0]?.stage).toBe('runnability');
+    // And the fed-back error is the original step-anchored runnability abort, so the
+    // model is told exactly what is unproducible.
+    expect(outcome.errors.some((e) => e.includes('goal.clarified-task@v1'))).toBe(true);
   });
 
   it('INERT + FIDELITY: the inlined prompts are byte-identical to the validated .md artifacts', () => {
