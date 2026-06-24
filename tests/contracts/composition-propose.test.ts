@@ -19,6 +19,9 @@ import {
   type CompositionRoleSet,
   PROPOSER_PROMPT,
   REPAIR_GUIDANCE,
+  RESEARCH_THEN_BUILD,
+  evaluateRunnability,
+  evaluateValidity,
   proposeFlow,
 } from '../../src/flows/composition/index.js';
 import type { RelayResult } from '../../src/shared/connector-relay.js';
@@ -253,6 +256,37 @@ describe('proposeFlow — propose + verifier-driven repair', () => {
     expect(outcome.reason).toBe('wall');
     expect(outcome.rounds).toHaveLength(5);
     expect(calls).toHaveLength(5);
+  });
+
+  it('FLOOR-HEAL: a build arc opening with a compose frame heals at round 0 (the 1-in-3 generate wall)', async () => {
+    // RESEARCH_THEN_BUILD binds a build `plan` (build.plan@v1 reads the
+    // checkpoint-only build.brief@v1) but opens with a PLAIN COMPOSE frame, so
+    // build.brief@v1 has no producer. That is the ~1-in-3 generate wall: the
+    // proposer sometimes omits the blessed-brief checkpoint opener. The floor now
+    // heals it offline — it retries the composition with the checkpoint opener and
+    // accepts the runnable result — so the proposal CONVERGES AT ROUND 0 with no
+    // repair round. The model is never asked to fix what the floor can repair.
+    const { relay, calls } = scriptedRelay([RESEARCH_THEN_BUILD]);
+
+    const outcome = await proposeFlow({ task: TASK, relay, maxRepair: 2 });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.convergedRound).toBe(0);
+    expect(outcome.roleSet.id).toBe('research-then-build');
+    expect(outcome.rounds).toHaveLength(1);
+    expect(outcome.rounds[0]).toMatchObject({ round: 0, stage: 'runnable', runnable: true });
+    // Exactly ONE model call: the heal is offline, so no repair round is spent.
+    expect(calls).toHaveLength(1);
+    // The floor returns a genuinely runnable spec, and it is runnable BECAUSE the
+    // compose frame was promoted to the blessed-brief checkpoint — not because the
+    // raw shape was somehow accepted. Assert both so the test discriminates.
+    expect(evaluateRunnability(outcome.spec).runnable).toBe(true);
+    const schematic = evaluateValidity(outcome.spec).schematic;
+    if (schematic === undefined) throw new Error('healed spec has no schematic');
+    const frame = schematic.items.find((item) => String(item.id) === 'frame');
+    expect(frame?.execution.kind).toBe('checkpoint');
+    expect(String(frame?.output)).toBe('build.brief@v1');
   });
 
   it('INERT + FIDELITY: the inlined prompts are byte-identical to the validated .md artifacts', () => {

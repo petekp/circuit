@@ -48753,6 +48753,15 @@ function composeFlow(roleSet, options) {
   if (options.enforceRunnability === true) {
     const runnability = evaluateRunnability(spec);
     if (!runnability.runnable) {
+      const buildBriefAbort = runnability.aborts.find((abort) => abort.reason.includes("expected exactly one report writer for schema 'build.brief@v1'"));
+      const frameRole = roleSet.roles.find((role) => role.block === "frame" && role.executionKind === "compose");
+      if (buildBriefAbort !== void 0 && frameRole !== void 0) {
+        const promotedRoles = roleSet.roles.map((role) => role === frameRole ? { ...role, executionKind: "checkpoint" } : role);
+        const promotedOutcome = composeFlow({ ...roleSet, roles: promotedRoles }, options);
+        if (promotedOutcome.ok) {
+          return promotedOutcome;
+        }
+      }
       const blockByStepId = new Map(items.map((item) => [item.id, item.block]));
       const fallbackBlock = items[0]?.block ?? roleSet.roles[0]?.block;
       const runnabilityWalls = runnability.aborts.map((abort) => ({
@@ -48952,23 +48961,10 @@ Output ONLY the revised JSON role set (same format as before). No prose.
 // dist/flows/composition/propose.js
 var DEFAULT_MAX_REPAIR = 4;
 var DEFAULT_TIMEOUT_MS2 = 9e4;
-function runFloor(roleSet, definitions) {
-  let outcome;
-  try {
-    outcome = composeFlow(roleSet, { definitions });
-  } catch (err) {
-    return { runnable: false, stage: "compose", errors: [`compose threw: ${msg(err)}`] };
-  }
-  if (!outcome.ok) {
-    return {
-      runnable: false,
-      stage: "compose",
-      errors: outcome.walls.map((w) => `${w.block}: ${w.reason}`)
-    };
-  }
+function gradeSpec(spec) {
   let validity;
   try {
-    validity = evaluateValidity(outcome.spec);
+    validity = evaluateValidity(spec);
   } catch (err) {
     return { runnable: false, stage: "validity", errors: [`validity threw: ${msg(err)}`] };
   }
@@ -48978,7 +48974,7 @@ function runFloor(roleSet, definitions) {
   }
   let runnability;
   try {
-    runnability = evaluateRunnability(outcome.spec);
+    runnability = evaluateRunnability(spec);
   } catch (err) {
     return { runnable: false, stage: "runnability", errors: [`runnability threw: ${msg(err)}`] };
   }
@@ -48996,7 +48992,39 @@ function runFloor(roleSet, definitions) {
       errors: ["runnability check was vacuous (0 steps checked)"]
     };
   }
-  return { runnable: true, spec: outcome.spec };
+  return { runnable: true, spec };
+}
+function runFloor(roleSet, definitions) {
+  let outcome;
+  try {
+    outcome = composeFlow(roleSet, { definitions });
+  } catch (err) {
+    return { runnable: false, stage: "compose", errors: [`compose threw: ${msg(err)}`] };
+  }
+  if (!outcome.ok) {
+    return {
+      runnable: false,
+      stage: "compose",
+      errors: outcome.walls.map((w) => `${w.block}: ${w.reason}`)
+    };
+  }
+  const graded = gradeSpec(outcome.spec);
+  if (graded.runnable)
+    return graded;
+  if (graded.stage === "runnability") {
+    let healed;
+    try {
+      healed = composeFlow(roleSet, { definitions, enforceRunnability: true });
+    } catch {
+      healed = void 0;
+    }
+    if (healed?.ok) {
+      const healedGrade = gradeSpec(healed.spec);
+      if (healedGrade.runnable)
+        return healedGrade;
+    }
+  }
+  return graded;
 }
 function msg(err) {
   return err instanceof Error ? err.message : String(err);

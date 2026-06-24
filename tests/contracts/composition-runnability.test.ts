@@ -95,21 +95,23 @@ describe('composition runnability — the offline producibility wall', () => {
     expect(runnability.checkedSteps).toBeGreaterThanOrEqual(2);
   });
 
-  it('the opt-in composer wall rejects an un-runnable composition', () => {
-    // Default (flag off): byte-identical historical behavior — composes ok.
+  it('the opt-in composer self-heals an un-runnable composition by promoting frame to checkpoint', () => {
+    // Default (flag off): byte-identical historical behavior — composes ok, but not runnable.
     const lenient = composeFlow(RESEARCH_THEN_BUILD, { definitions: flowDefinitions });
-    expect(lenient.ok).toBe(true);
+    if (!lenient.ok) throw new Error('lenient compose failed');
+    expect(evaluateRunnability(lenient.spec).runnable).toBe(false);
 
-    // enforceRunnability: the composer walls the same spec, naming the step.
+    // enforceRunnability: the composer promotes the compose frame to checkpoint,
+    // making the flow runnable (the build.brief@v1 self-heal).
     const strict = composeFlow(RESEARCH_THEN_BUILD, {
       definitions: flowDefinitions,
       enforceRunnability: true,
     });
-    if (strict.ok) throw new Error('expected a runnability wall, got an ok composition');
-    expect(strict.walls.length).toBeGreaterThanOrEqual(1);
-    const wallText = strict.walls.map((wall) => `${wall.block}: ${wall.reason}`).join(' | ');
-    expect(wallText).toContain('plan');
-    expect(wallText).toContain('build.brief@v1');
+    if (!strict.ok)
+      throw new Error(
+        `expected a self-healed composition, got walls: ${strict.walls.map((w) => w.reason).join(' | ')}`,
+      );
+    expect(evaluateRunnability(strict.spec).runnable).toBe(true);
   });
 
   it('FIDELITY: the offline verdict matches the REAL runtime read-path resolvers', () => {
