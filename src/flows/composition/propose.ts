@@ -115,26 +115,15 @@ type FloorVerdict =
       readonly errors: readonly string[];
     };
 
-function runFloor(
-  roleSet: CompositionRoleSet,
-  definitions: readonly FlowDefinition[],
-): FloorVerdict {
-  let outcome: ReturnType<typeof composeFlow>;
-  try {
-    outcome = composeFlow(roleSet, { definitions });
-  } catch (err) {
-    return { runnable: false, stage: 'compose', errors: [`compose threw: ${msg(err)}`] };
-  }
-  if (!outcome.ok) {
-    return {
-      runnable: false,
-      stage: 'compose',
-      errors: outcome.walls.map((w) => `${w.block}: ${w.reason}`),
-    };
-  }
+// Grade an ALREADY-COMPOSED spec through the floor's validity + runnability +
+// vacuity gates. Each gate is wrapped because a malformed spec can make evaluate*
+// THROW rather than return a verdict; a throw is just another fail-closed verdict
+// with a message we can feed back. Extracted so the primary composition and the
+// heal-retry composition are held to the identical bar.
+function gradeSpec(spec: FlowSchematicAssemblySpec): FloorVerdict {
   let validity: ReturnType<typeof evaluateValidity>;
   try {
-    validity = evaluateValidity(outcome.spec);
+    validity = evaluateValidity(spec);
   } catch (err) {
     return { runnable: false, stage: 'validity', errors: [`validity threw: ${msg(err)}`] };
   }
@@ -147,7 +136,7 @@ function runFloor(
   }
   let runnability: ReturnType<typeof evaluateRunnability>;
   try {
-    runnability = evaluateRunnability(outcome.spec);
+    runnability = evaluateRunnability(spec);
   } catch (err) {
     return { runnable: false, stage: 'runnability', errors: [`runnability threw: ${msg(err)}`] };
   }
@@ -169,7 +158,53 @@ function runFloor(
       errors: ['runnability check was vacuous (0 steps checked)'],
     };
   }
-  return { runnable: true, spec: outcome.spec };
+  return { runnable: true, spec };
+}
+
+function runFloor(
+  roleSet: CompositionRoleSet,
+  definitions: readonly FlowDefinition[],
+): FloorVerdict {
+  let outcome: ReturnType<typeof composeFlow>;
+  try {
+    outcome = composeFlow(roleSet, { definitions });
+  } catch (err) {
+    return { runnable: false, stage: 'compose', errors: [`compose threw: ${msg(err)}`] };
+  }
+  if (!outcome.ok) {
+    return {
+      runnable: false,
+      stage: 'compose',
+      errors: outcome.walls.map((w) => `${w.block}: ${w.reason}`),
+    };
+  }
+  const graded = gradeSpec(outcome.spec);
+  if (graded.runnable) return graded;
+
+  // Self-heal the producibility wall, but only on the SLOW PATH. A composed build
+  // arc that opens with a plain compose frame leaves build.brief@v1 (a
+  // checkpoint-only contract its `plan` reads) unproduced, so it grades
+  // runnable:false — the proposer hits this about one time in three by omitting the
+  // blessed-brief checkpoint opener. The opt-in enforceRunnability composition knows
+  // how to promote that frame to the checkpoint; retry under it and adopt the result
+  // ONLY if it grades runnable. A working proposal already returned above, so the
+  // flag never touches it — its compiled bytes stay identical — and the flag's
+  // family-coherence look-ahead is pure upside on an already-failing proposal. A
+  // genuinely un-healable proposal falls through to its ORIGINAL verdict and error
+  // labels, so the verifier-driven repair loop still sees the real wall to feed back.
+  if (graded.stage === 'runnability') {
+    let healed: ReturnType<typeof composeFlow> | undefined;
+    try {
+      healed = composeFlow(roleSet, { definitions, enforceRunnability: true });
+    } catch {
+      healed = undefined;
+    }
+    if (healed?.ok) {
+      const healedGrade = gradeSpec(healed.spec);
+      if (healedGrade.runnable) return healedGrade;
+    }
+  }
+  return graded;
 }
 
 function msg(err: unknown): string {

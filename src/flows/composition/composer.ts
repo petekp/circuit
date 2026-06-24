@@ -1065,6 +1065,29 @@ export function composeFlow(
   if (options.enforceRunnability === true) {
     const runnability = evaluateRunnability(spec);
     if (!runnability.runnable) {
+      // Self-heal: if the abort is about build.brief@v1 missing and there's a
+      // compose frame that could be promoted to checkpoint, try that before
+      // walling. This closes a producibility gap: a composed build arc that opens
+      // with a compose frame needs the checkpoint-blessed brief to be runnable.
+      const buildBriefAbort = runnability.aborts.find((abort) =>
+        abort.reason.includes("expected exactly one report writer for schema 'build.brief@v1'"),
+      );
+      const frameRole = roleSet.roles.find(
+        (role) => role.block === 'frame' && role.executionKind === 'compose',
+      );
+      if (buildBriefAbort !== undefined && frameRole !== undefined) {
+        // Promote the frame to checkpoint and re-compose. The checkpoint frame
+        // produces build.brief@v1, which downstream build readers need.
+        const promotedRoles = roleSet.roles.map((role) =>
+          role === frameRole ? { ...role, executionKind: 'checkpoint' as const } : role,
+        );
+        const promotedOutcome = composeFlow({ ...roleSet, roles: promotedRoles }, options);
+        if (promotedOutcome.ok) {
+          return promotedOutcome;
+        }
+        // If the promoted arc still fails, fall through to wall the original abort.
+      }
+
       // A wall names a block, not a free step id; map the aborting step back to
       // its block so the wall stays typed and legible. The step id rides in the
       // reason so the operator sees exactly where the run would have stopped.
