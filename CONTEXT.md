@@ -2,6 +2,8 @@
 
 Circuit is the product context for making delegation to coding agents more trustworthy, repeatable, and useful. Its central product insight is that skilled humans use tried-and-true processes because judgment works better with structure; Circuit explores what that same kind of process unlocks for coding agents. Circuit is a better working environment for capable agents, not a correction mechanism for bad agents.
 
+This file is the posture and philosophy. For the short list of claims that are mechanically true today, each naming where it is real in the code, and the boundary of what we do not yet claim, see [docs/positioning.md](docs/positioning.md). That page is the anchor for anything we put on the landing page, in docs, or in a pitch.
+
 ## Language
 
 **Circuit**:
