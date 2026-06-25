@@ -42,6 +42,7 @@
     { "glob": "CONTEXT.md", "class": "living" },
     { "glob": "UBIQUITOUS_LANGUAGE.md", "class": "living" },
     { "glob": "docs/README.md", "class": "living" },
+    { "glob": "docs/positioning.md", "class": "living" },
     { "glob": "docs/repository-map.md", "class": "living" },
     { "glob": "docs/operator-guide.md", "class": "living" },
     { "glob": "docs/first-run.md", "class": "living" },
