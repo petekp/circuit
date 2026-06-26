@@ -26,6 +26,13 @@ export default defineConfig({
       // above, these are not vitest suites — exclude them so a live comparison
       // never leaves the test suite broken.
       'experiments/e1/.runs/**',
+      // Any eval/experiment run that copies a task into a nested `repo/` dir
+      // brings that task's own `.mjs`/`.test.*` files along. The harness uses a
+      // `repo/` segment universally, so exclude every nested repo copy under any
+      // eval set or experiment — this is the general guard the per-set patterns
+      // above missed (an unguarded experiment tree once reded the whole verify).
+      'evals/*/**/repo/**',
+      'experiments/*/**/repo/**',
     ],
     coverage: {
       provider: 'v8',
