@@ -72672,7 +72672,7 @@ function usage() {
 }
 function readSourceVersion() {
   if (true)
-    return "0.1.0-alpha.7";
+    return "0.1.0-alpha.8";
   const candidates = [
     resolve29(dirname15(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
     resolve29(process.cwd(), "plugins/version.json")
