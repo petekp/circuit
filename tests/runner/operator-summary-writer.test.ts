@@ -1082,6 +1082,34 @@ describe('operator summary writer', () => {
     ).toBe(true);
   });
 
+  it('surfaces a deferred regression so a partial Fix cannot read as relevance-proven', () => {
+    // On the common default Fix path the regression rerun defaults to
+    // 'deferred': no command proved the change is actually relevant to the bug.
+    // buildFixDetails rendered only verification and review, so a cosmetic
+    // in-scope edit could pass and the operator surface showed zero signal the
+    // relevance backstop never ran. The deferred regression must be legible.
+    writeReport('reports/fix-result.json', {
+      summary: "Fix 'restore the failing login test': added the fallback guard.",
+      outcome: 'partial',
+      verification_status: 'passed',
+      regression_rerun_status: 'deferred',
+      review_status: 'accept',
+      evidence_links: [],
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('fix'),
+      route: { selectedFlow: 'fix' },
+    });
+
+    const slots = written.summary.brief_slots;
+    if (slots === undefined) throw new Error('expected brief_slots');
+    expect(
+      slots.key_points.some((point) => /Regression:/i.test(point) && /unverified/i.test(point)),
+    ).toBe(true);
+  });
+
   it('falls back to the run-level outcome when the flow-result file is missing instead of silently rendering complete', () => {
     // No reports/build-result.json on disk — simulates the legacy @stop
     // path where close-step never ran. Without the runOutcome fallback,

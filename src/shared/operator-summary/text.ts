@@ -56,6 +56,19 @@ export function friendlyVerificationStatus(status: string): string {
   return status;
 }
 
+// Fix's regression rerun proves the change is relevant to the bug: the bug's
+// command failed before the fix and passes after. On the default path (no
+// regression command in the goal) it defaults to 'deferred', so 'passed'
+// verification alone does not mean the change did the thing. These phrases say
+// so plainly.
+export function friendlyRegressionStatus(status: string): string {
+  if (status === 'cleared') return 'reproduced before the fix and cleared after';
+  if (status === 'deferred')
+    return 'not proven by a command, so the relevance of the change to the bug is unverified';
+  if (status === 'still-failing') return 'the regression command still fails after the fix';
+  return status;
+}
+
 // Fix's domain outcome taxonomy ('fixed', 'partial', 'not-reproduced', ...)
 // collides with the run-level vocabulary on words like 'partial' that read as
 // "incomplete" to a casual operator. The phrases below describe the *change*

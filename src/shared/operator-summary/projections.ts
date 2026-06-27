@@ -18,6 +18,7 @@ import type { SummaryProjection, SummaryProjector } from './projector.js';
 import {
   capitalized,
   friendlyFixOutcome,
+  friendlyRegressionStatus,
   friendlyResultSummary,
   friendlyReviewStatus,
   friendlyVerificationStatus,
@@ -172,6 +173,14 @@ function buildFixDetails(flowReport: JsonObject | undefined): string[] {
     stringField(flowReport, 'review_verdict') ?? stringField(flowReport, 'review_status');
   if (verification !== undefined) {
     details.push(`Verification: ${friendlyVerificationStatus(verification)}.`);
+  }
+  // Surface the regression rerun whenever it did not clear. On the default path
+  // it defaults to 'deferred', so a 'passed' verification with a silent
+  // regression status reads as relevance-proven when it is not. 'cleared' is
+  // the only outcome that earns silence.
+  const regression = stringField(flowReport, 'regression_rerun_status');
+  if (regression !== undefined && regression !== 'cleared') {
+    details.push(`Regression: ${friendlyRegressionStatus(regression)}.`);
   }
   if (review !== undefined) {
     // A skip carries a required reason. Surface it so a degraded skip (e.g. the
