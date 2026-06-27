@@ -11,6 +11,10 @@ import { NO_VERDICT_SENTINEL } from '../../src/runtime/run/relay-support.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
 import { CompiledFlowId } from '../../src/schemas/ids.js';
 import {
+  PolicyEnvelopeV2,
+  type PolicyLayer as PolicyLayerValue,
+} from '../../src/schemas/policy-envelope.js';
+import {
   ProofAssessment as ProofAssessmentSchema,
   type ProofAssessment as ProofAssessmentValue,
 } from '../../src/schemas/proof-assessment.js';
@@ -475,6 +479,7 @@ async function runRuntimeProofRelayCase(input: {
   readonly flowBytes?: Buffer;
   readonly connectorName?: string;
   readonly relayer?: RelayFn;
+  readonly policyLayers?: readonly PolicyLayerValue[];
   readonly projectRootForRunDir?: (runDir: string) => Promise<string>;
   readonly inspectRunDir?: (runDir: string) => Promise<unknown>;
 }) {
@@ -490,6 +495,7 @@ async function runRuntimeProofRelayCase(input: {
       goal: 'prove runtime relay check admission',
       now: () => new Date('2026-05-06T00:00:00.000Z'),
       relayer: input.relayer ?? relayerWith(input.resultBody, input.connectorName),
+      ...(input.policyLayers === undefined ? {} : { policyLayers: input.policyLayers }),
       ...(projectRoot === undefined ? {} : { projectRoot }),
     });
     const trace = await new TraceStore(runDir).load();
@@ -1864,6 +1870,64 @@ describe('runtime control-loop parity twins', () => {
         step_id: 'relay-step',
         attempt: 3,
         reason: expect.stringContaining('max_attempts=2'),
+      }),
+    );
+  });
+
+  it('caps relay retries at the composed PolicyEnvelope max_attempts_per_step', async () => {
+    // Regression: the per-repo policy budget (limits.max_attempts_per_step) is
+    // composed and min-folded but the graph-runner retry loop only read the
+    // step's own budgets.max_attempts, so the policy ceiling was silently
+    // ignored. The step authors max_attempts=2; a project policy layer caps it
+    // to 1, so the run must abort after a single attempt, not two.
+    const report = { path: 'reports/relay-canonical.json', schema: 'runtime-proof-canonical@v1' };
+    const prompts: string[] = [];
+    const relayer: RelayFn = makeStubRelayer((input) => {
+      prompts.push(input.prompt);
+      return '{"verdict":"ok","evidence":[]}';
+    });
+    const policyLayers: readonly PolicyLayerValue[] = [
+      {
+        source: 'project',
+        envelope: PolicyEnvelopeV2.parse({
+          schema_version: 2,
+          policy: { rules: {}, limits: { max_attempts_per_step: 1 } },
+        }),
+      },
+    ];
+
+    const { result, trace } = await runRuntimeProofRelayCase({
+      flowBytes: relayFlowBytes({
+        routes: { pass: '@complete', retry: 'relay-step' },
+        budgets: { max_attempts: 2 },
+        report,
+        acceptanceCriteria: {
+          checks: [
+            {
+              kind: 'report_field',
+              id: 'evidence-non-empty',
+              path: ['evidence'],
+              predicate: 'non_empty',
+            },
+          ],
+          on_failure: { mode: 'retry-with-feedback' },
+        },
+      }),
+      resultBody: '{"verdict":"unused"}',
+      runId: 'ffffffff-9999-4fff-8fff-ffffffff9999',
+      relayer,
+      policyLayers,
+    });
+
+    expect(result.outcome).toBe('aborted');
+    expect(result.reason).toContain("route 'retry' for step 'relay-step' exhausted max_attempts=1");
+    expect(prompts).toHaveLength(1);
+    expect(trace).toContainEqual(
+      expect.objectContaining({
+        kind: 'step.aborted',
+        step_id: 'relay-step',
+        attempt: 2,
+        reason: expect.stringContaining('max_attempts=1'),
       }),
     );
   });
