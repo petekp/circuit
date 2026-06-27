@@ -103,6 +103,10 @@ function rowCommand(row: MatrixRow, args: MatrixArgs, rowOutDir: string): string
     '--out-dir',
     rowOutDir,
     '--skip-build',
+    // Pin the Circuit arm's model so an objective-rate difference cannot be
+    // confounded by a mid-run model escalation. Without this the matrix pins
+    // nothing and the two arms can silently run different stacks.
+    '--pin-model',
   ];
 }
 
