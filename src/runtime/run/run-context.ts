@@ -13,6 +13,7 @@ import type { TraceStore } from '../trace/trace-store.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
 import type { DeliveredContextSlice } from './context-delivery.js';
 import type { ExternalFileReader } from './external-files.js';
+import type { HonestyLedger } from './honesty-ledger.js';
 
 export interface RunContext
   extends Omit<RuntimeExecutionCapabilities, 'executors' | 'progressSurface'> {
@@ -109,4 +110,12 @@ export interface RunContext
     readonly attempt: number;
     readonly selection: string;
   };
+  // The until-loop honesty ledger: open overclaim/exhaustion latches the body
+  // loop accrued this run. Seeded by the graph-runner only when an until flag
+  // with a stop-judge is active; absent on every other run. A mutable object on
+  // the otherwise-readonly context (same pattern as skillHookInjections), so the
+  // tail seam, the evidence floor, and the close path all read one shared ledger.
+  // The close path's finalize chokepoint reads its open latches to keep a run
+  // from closing complete while an overclaim is still unresolved.
+  readonly honestyLedger?: HonestyLedger;
 }

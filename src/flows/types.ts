@@ -101,6 +101,113 @@ export interface SliceLoopEngineFlag {
   readonly activateWhenDepthAtLeast: 'high';
 }
 
+// Describes a "repeat the body until a condition holds" loop: a while loop for
+// flows, the third control shape after run-once (default) and the counted
+// for-each of `iteratesSliceLoop`. The engine, when this is set, re-enters the
+// [headStep..tailStep] body once per iteration until the iteration count
+// reaches `maxIterations`. Like the slice loop it is keyed on step roles, not a
+// flow name: any flow can opt in. See docs/ideas/until-loop.md.
+//
+// Slice 1 (this shape) is count-driven only: it loops a fixed `maxIterations`
+// times with no stop-judge and no honesty ledger. The stop-judge that ends the
+// loop early on a disposed goal-met claim, the carried-notes append, the
+// cumulative budget caps, and the no-progress ceiling arrive in later slices,
+// each adding the field the engine then branches on.
+export interface UntilLoopEngineFlag {
+  // The step the loop re-enters at the start of each iteration.
+  readonly headStep: string;
+  // The step whose forward route closes an iteration. On its forward route, if
+  // the iteration count has not yet reached maxIterations, the engine selects
+  // `reenterRoute` instead of letting the forward route through.
+  readonly tailStep: string;
+  // Every step in the loop body, head and tail included, in no required order.
+  // This is the generalization the slice loop lacks: the slice loop's head and
+  // tail are adjacent, so it only ever scopes those two. An until-loop body can
+  // hold intermediate steps, and EVERY one must be iteration-scoped or the
+  // first intermediate step aborts as an illegal re-entry on the second pass.
+  readonly bodySteps: readonly string[];
+  // The declared route on tailStep that targets headStep, selected by the
+  // engine to re-enter the loop. Must be a normal, non-recovery route.
+  readonly reenterRoute: string;
+  // Hard cap on the number of iterations the loop will run.
+  readonly maxIterations: number;
+  // Slice 2 (the stop-judge): when set, the loop no longer advances on a fixed
+  // count. Each iteration the tail step (a reviewer relay) PROPOSES whether the
+  // goal is met by writing a boolean into its report; the engine reads ONLY that
+  // boolean (never the goal text) and DISPOSES it against an independent evidence
+  // floor. A met-claim the evidence does not confirm is a blocked false-done: the
+  // engine re-enters the head for another pass instead of stopping. Absent =
+  // slice-1 count-driven advance (the loop runs the full maxIterations).
+  readonly stopJudge?: {
+    // The run-file report the tail writes its judgment to, and the dotted path to
+    // the goal-met boolean within it. Mirrors slicesFrom: {report, itemsPath}.
+    readonly report: string;
+    readonly goalMetPath: string;
+    // Slice 4 (carried notes): the dotted path to a short, free-text lesson the
+    // judge writes alongside its goal-met boolean. The engine reads it as opaque
+    // data (never as instructions), appends it to the carried-notes file, and the
+    // next iteration's head re-reads that file. This is what turns a loop that
+    // repeats into one that learns. Absent = no lesson is carried.
+    readonly lessonPath?: string;
+    // Slice 6 (no-progress steering): the dotted path to a progress marker the
+    // judge writes each iteration (any JSON scalar: a remaining-failure count, a
+    // phase label). The engine treats it as OPAQUE and only compares it for
+    // equality across iterations; it never interprets the value. When the marker
+    // is unchanged for an iteration the loop made no measurable progress. Absent =
+    // no-progress detection is off (the iteration cap is the only bound).
+    readonly progressPath?: string;
+  };
+  // The declared route on tailStep the engine selects when the loop exhausts its
+  // bounds without a confirmed goal (the iteration cap is reached). REQUIRED when
+  // stopJudge is set, and it must target a non-@complete terminal: an exhausted
+  // judge-gated loop must exit somewhere other than the clean-stop forward route,
+  // so exhaustion can never read as success. Unused in the slice-1 count form.
+  readonly needsAttentionRoute?: string;
+  // Slice 4 (carried notes): the run-file the engine maintains across iterations,
+  // appending one note (lesson plus any steer) per pass. The loop's head step
+  // declares this path in its reads so the prompt composer re-inlines the
+  // accumulated notes on the next iteration, framed as data. `maxEntries` caps how
+  // many of the most recent notes are kept (default 20). Absent = no notes carried.
+  // REQUIRES stopJudge (notes are appended only on the judge seam); the validator
+  // rejects this without one rather than silently dropping it.
+  readonly carriedNotes?: {
+    readonly report: string;
+    readonly maxEntries?: number;
+  };
+  // Slice 5 (cumulative budget cap, fail-closed): hard ceilings on the total spend
+  // across all iterations, summed from the per-relay usage already on the trace. At
+  // or above the cap the loop exits to needsAttentionRoute rather than spending
+  // more, so an unconfirmed goal can never burn past the budget. FAIL CLOSED: if a
+  // cap is set and any loop relay reported no usage, the engine cannot prove it is
+  // under budget and treats the loop as over budget. A soft warning at 80% of the
+  // cap attaches a closure-priority steer to the carried note. Set neither = no cap.
+  // REQUIRES stopJudge (the cap is evaluated only on the judge seam); a count-driven
+  // loop cannot honor it, so the validator rejects a cap declared without one.
+  readonly cumulativeUsdCap?: number;
+  readonly cumulativeTokenCap?: number;
+  // Slice 6 (no-progress ceiling): the number of consecutive no-progress
+  // iterations (the judge's progressPath marker unchanged) the loop tolerates
+  // before exiting to needsAttentionRoute, even with iterations left. The first
+  // stall attaches a "try a materially different approach" steer to the carried
+  // note. Requires stopJudge.progressPath. Absent = only the iteration cap bounds
+  // the loop.
+  readonly noProgressCeiling?: number;
+  // Slice 7 (per-iteration commit containment, opt-in, default off). When set
+  // AND the host injects a commit-containment runner, each completed iteration
+  // is committed to a throwaway branch named `${branchPrefix}-${runId}` so an
+  // autonomous loop never mutates the operator's branch in place; the operator
+  // owns the merge. Absent OR no runner injected => the engine makes zero git
+  // calls and the loop mutates the working tree as before (byte-identical).
+  // This is the highest-blast-radius switch in the feature, so it ships last
+  // and stays off unless a flow and a host both opt in.
+  readonly iterationCommitContainment?: {
+    readonly branchPrefix: string;
+  };
+  // The loop only activates when the run's depth is at least this label.
+  // Lower depths run a single pass, unchanged.
+  readonly activateWhenDepthAtLeast: 'autonomous';
+}
+
 // Engine-visible flags a flow can opt into. Kept narrow on purpose:
 // only flags that the engine currently branches on belong here. New
 // flags should describe a behavior, not a flow name.
@@ -118,6 +225,11 @@ export interface CompiledFlowEngineFlags {
   // When set, the engine iterates a per-slice implement+verify loop over
   // the slices a prior step produced. Absent = single pass.
   readonly iteratesSliceLoop?: SliceLoopEngineFlag;
+  // When set, the engine re-enters the body once per iteration until the
+  // iteration count reaches maxIterations (a while loop for flows). Mutually
+  // exclusive with iteratesSliceLoop: both drive one re-entry counter, so a
+  // flow opts into at most one loop shape. Absent = single pass.
+  readonly iteratesUntilCondition?: UntilLoopEngineFlag;
 }
 
 // A config prerequisite the CLI validates up-front, before any worker runs, so

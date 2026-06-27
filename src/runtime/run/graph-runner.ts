@@ -6,7 +6,8 @@
 // only interprets the executable graph and appends durable trace entries.
 
 import { randomUUID } from 'node:crypto';
-import type { SliceLoopEngineFlag } from '../../flows/types.js';
+import { join } from 'node:path';
+import type { SliceLoopEngineFlag, UntilLoopEngineFlag } from '../../flows/types.js';
 import { composePolicyHardConstraints } from '../../policy/policy-envelope.js';
 import type { Axes } from '../../schemas/axes.js';
 import type { ChangeKindDeclaration, StandardChangeKind } from '../../schemas/change-kind.js';
@@ -35,6 +36,8 @@ import { buildRuntimePackageIndex } from '../manifest/runtime-package-index.js';
 import { assertExecutableFlow } from '../manifest/validate-executable-flow.js';
 import { resolveBindingLegibility } from './binding-legibility.js';
 import type { RuntimeExecutionCapabilities } from './capabilities.js';
+import { appendCarriedNote } from './carried-notes.js';
+import type { CommitContainmentRunner } from './commit-containment.js';
 import {
   type ContextDeliveryGuard,
   type DeliveredContextSlice,
@@ -45,6 +48,7 @@ import { type ContextPuller, type ContextRequest, extractContextRequest } from '
 import { resolveEngineFlags } from './engine-flags.js';
 import { type EquipmentReshaper, extractEquipmentDiscovery } from './equipment-reshape.js';
 import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guidance.js';
+import { HonestyLedger } from './honesty-ledger.js';
 import { writeRuntimeManifestSnapshot } from './manifest-snapshot.js';
 import { recoveryBindingVerdict, recoveryCauseAllowed } from './recovery-binding-verdict.js';
 import { RecoveryCorridor } from './recovery-corridor.js';
@@ -53,6 +57,7 @@ import {
   type GraphClosedOutcome,
   type GraphRunResult,
   closeRun,
+  completeCloseProofGap,
   outcomeForTerminal,
 } from './run-close.js';
 import type { RunContext } from './run-context.js';
@@ -70,6 +75,8 @@ import {
   reportSelectedCheckpointBoundaryEvidence,
   seedSkillHookInjectionsFromTrace,
 } from './trace-evidence.js';
+import { evaluateUntilBudget } from './until-budget.js';
+import { UntilCorridor } from './until-corridor.js';
 
 export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   readonly runDir: string;
@@ -124,6 +131,20 @@ export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   readonly recursionDepth?: number;
   readonly recursionAncestors?: ReadonlySet<string>;
   readonly maxSteps?: number;
+  // The until-loop stop-judge's evidence floor: returns true when the engine's
+  // own evidence backs a goal-met claim. The dispose seam reads it ONLY when the
+  // judge proposes done, to decide whether to honor a clean stop or block a
+  // false-done. Absent => the default proof-gap floor (no open close-proof gap).
+  // The seam injection keeps the loop policy offline-provable and is where the
+  // honesty ledger's latch state composes in (slice 3).
+  readonly untilEvidenceFloor?: (context: RunContext) => boolean;
+  // The until-loop per-iteration commit-containment runner (slice 7, opt-in).
+  // Present only when the host wires it in for a flow that declares
+  // iterationCommitContainment. When BOTH are present, each completed iteration
+  // is committed to a throwaway branch (the host constructs the runner over an
+  // explicit project root, so the engine never reaches for ambient cwd). Absent
+  // => the engine makes zero git calls and the loop runs uncontained as before.
+  readonly commitContainmentRunner?: CommitContainmentRunner;
   readonly resumeCheckpoint?: {
     readonly stepId: string;
     readonly attempt: number;
@@ -294,6 +315,163 @@ function assertNoCheckpointInSliceLoop(flow: ExecutableFlow, flag: SliceLoopEngi
   }
 }
 
+// Reject a malformed until-loop flag up front, before any step runs, so the
+// operator sees a clear flag-config error rather than a misleading mid-loop
+// abort. Two failure modes the engine cannot otherwise diagnose: a body step
+// missing from bodySteps is not iteration-scoped, so it aborts as an illegal
+// re-entry ("route cycle detected") on the second pass; and an undeclared
+// reenterRoute surfaces as "selected undeclared route" only after a full body
+// pass has already consumed worker budget. shouldReenter/advance key off
+// headStep/tailStep directly while count-scoping keys off bodySteps membership,
+// so this also asserts the two cannot disagree.
+function assertUntilFlagCoherent(
+  flow: ExecutableFlow,
+  steps: ReadonlyMap<string, ExecutableFlow['steps'][number]>,
+  flag: UntilLoopEngineFlag,
+): void {
+  const { headStep, tailStep, bodySteps, reenterRoute, maxIterations } = flag;
+  if (!Number.isInteger(maxIterations) || maxIterations < 1) {
+    throw new Error(
+      `until loop on flow '${flow.id}' has maxIterations ${maxIterations}; it must be a positive integer`,
+    );
+  }
+  const body = new Set(bodySteps);
+  if (!body.has(headStep)) {
+    throw new Error(
+      `until loop on flow '${flow.id}' omits headStep '${headStep}' from bodySteps; the full [head..tail] span must be listed or the head aborts mid-loop as an illegal re-entry`,
+    );
+  }
+  if (!body.has(tailStep)) {
+    throw new Error(
+      `until loop on flow '${flow.id}' omits tailStep '${tailStep}' from bodySteps; the full [head..tail] span must be listed or the tail aborts mid-loop as an illegal re-entry`,
+    );
+  }
+  for (const id of bodySteps) {
+    if (!steps.has(id)) {
+      throw new Error(
+        `until loop on flow '${flow.id}' lists bodyStep '${id}', which is not a declared step in the flow`,
+      );
+    }
+  }
+  const reenter = steps.get(tailStep)?.routes[reenterRoute];
+  if (reenter === undefined) {
+    throw new Error(
+      `until loop on flow '${flow.id}' names reenterRoute '${reenterRoute}', but tail step '${tailStep}' declares no such route`,
+    );
+  }
+  if (reenter.kind !== 'step' || reenter.stepId !== headStep) {
+    throw new Error(
+      `until loop on flow '${flow.id}' reenterRoute '${reenterRoute}' must target headStep '${headStep}' as a step route`,
+    );
+  }
+  // Slice 2: a stop-judge loop disposes the tail's goal-met proposal, so it must
+  // declare a separate exit for an exhausted run. Without it, the cap would have
+  // nowhere honest to route and the loop could only exit through the clean-stop
+  // forward route, which is the exact exhaustion-reads-as-success the loop
+  // forbids. Require the route, that the tail declares it, and that it does not
+  // resolve to @complete.
+  if (flag.stopJudge !== undefined) {
+    const { needsAttentionRoute } = flag;
+    if (needsAttentionRoute === undefined) {
+      throw new Error(
+        `until loop on flow '${flow.id}' sets a stopJudge but no needsAttentionRoute; a judge-gated loop must declare where an exhausted run exits so the iteration cap cannot reach @complete`,
+      );
+    }
+    const attention = steps.get(tailStep)?.routes[needsAttentionRoute];
+    if (attention === undefined) {
+      throw new Error(
+        `until loop on flow '${flow.id}' names needsAttentionRoute '${needsAttentionRoute}', but tail step '${tailStep}' declares no such route`,
+      );
+    }
+    if (attention.kind === 'terminal' && attention.target === '@complete') {
+      throw new Error(
+        `until loop on flow '${flow.id}' needsAttentionRoute '${needsAttentionRoute}' targets @complete; an exhausted judge-gated loop must exit to a non-complete terminal so exhaustion can never read as success`,
+      );
+    }
+  }
+
+  // Slices 4-6 (carried notes, the budget cap, the no-progress ceiling) are
+  // evaluated only on the stop-judge tail seam; a count-driven loop never reads
+  // them. Accepting one without a stopJudge would silently ignore a declared
+  // spend cap (a fail-open of a safety bound), so reject the combination up front
+  // the same way the needs-attention precondition above is gated.
+  if (flag.stopJudge === undefined) {
+    const orphaned =
+      flag.carriedNotes !== undefined
+        ? 'carriedNotes'
+        : flag.cumulativeUsdCap !== undefined
+          ? 'cumulativeUsdCap'
+          : flag.cumulativeTokenCap !== undefined
+            ? 'cumulativeTokenCap'
+            : flag.noProgressCeiling !== undefined
+              ? 'noProgressCeiling'
+              : undefined;
+    if (orphaned !== undefined) {
+      throw new Error(
+        `until loop on flow '${flow.id}' sets ${orphaned} but no stopJudge; these bounds are read only on a judge-gated loop, so a count-driven loop would silently ignore them`,
+      );
+    }
+  }
+  // The no-progress ceiling counts unchanged progress markers, which only exist
+  // when the judge writes one. Without stopJudge.progressPath the marker is never
+  // recorded and the ceiling can never trip, so it would be silently unenforced.
+  if (flag.noProgressCeiling !== undefined && flag.stopJudge?.progressPath === undefined) {
+    throw new Error(
+      `until loop on flow '${flow.id}' sets noProgressCeiling but no stopJudge.progressPath; without a progress marker to compare, the ceiling can never trip`,
+    );
+  }
+}
+
+// What the engine reads from the tail's judgment report each iteration. The
+// goal-met boolean (slice 2) is disposed against the evidence floor; the lesson
+// (slice 4) is carried verbatim into the next pass; the progress marker (slice
+// 6) is compared for equality only. The engine never reads the goal text and
+// never interprets the lesson or marker.
+interface UntilJudgeReading {
+  readonly goalProposed: boolean;
+  readonly lesson: string | undefined;
+  readonly progressMarker: unknown;
+}
+
+// Slice 2/4/6 stop-judge: read the tail relay's report once and pull the
+// goal-met boolean, the carried lesson, and the opaque progress marker from it.
+// A missing or unreadable judgment reads as "not done" with no lesson and no
+// marker, so the loop re-enters or exhausts rather than stopping on an absent
+// proposal. Reading once keeps the three reads on a single consistent snapshot.
+async function readUntilJudgeReport(
+  context: RunContext,
+  stopJudge: NonNullable<UntilLoopEngineFlag['stopJudge']>,
+): Promise<UntilJudgeReading> {
+  try {
+    const raw = await context.files.readJson(stopJudge.report);
+    const goalProposed = resolveDottedPath(raw, stopJudge.goalMetPath) === true;
+    const lessonValue =
+      stopJudge.lessonPath === undefined ? undefined : resolveDottedPath(raw, stopJudge.lessonPath);
+    const lesson = typeof lessonValue === 'string' ? lessonValue : undefined;
+    const progressMarker =
+      stopJudge.progressPath === undefined
+        ? undefined
+        : resolveDottedPath(raw, stopJudge.progressPath);
+    return { goalProposed, lesson, progressMarker };
+  } catch {
+    return { goalProposed: false, lesson: undefined, progressMarker: undefined };
+  }
+}
+
+// The default evidence floor the stop-judge disposes a goal-met claim against:
+// the engine honors the claim only when closing complete right now would have no
+// proof gap AND the honesty ledger holds no open overclaim latch. A flow that
+// declares no close-proof requirement has no proof gap, so a met-claim stands on
+// the judge alone there; the teeth come from flows that declare proof and from
+// an open latch. While a body step's overclaim is unresolved the judge cannot
+// clean-stop the loop, so it re-enters to clear the latch (or exhausts to
+// needs-attention). The close path's finalize chokepoint is the matching
+// backstop should a clean stop ever be reached with a latch still open.
+function defaultUntilEvidenceFloor(context: RunContext): boolean {
+  if (context.honestyLedger?.hasOpenLatches() === true) return false;
+  return completeCloseProofGap(context) === undefined;
+}
+
 function resolveManifestHash(flow: ExecutableFlow, options: GraphRunnerOptions): string {
   if (options.manifestBytes === undefined) {
     return options.manifestHash ?? defaultManifestHash(flow);
@@ -311,6 +489,18 @@ async function executeExecutableFlowOutcomeUnsafe(
 ): Promise<GraphExecutionOutcome> {
   assertExecutableFlow(flow);
   const isResume = options.resumeCheckpoint !== undefined;
+  // Slice 1 does not support resuming an until-loop run. completedStepCountsFromTrace
+  // rebuilds counts from the slice corridor only, and until-body steps persist no
+  // per-iteration index in the trace, so a resumed until run would silently restart
+  // from iteration 0 and re-spend a full iteration budget. Fence it loudly here,
+  // before the run boundary opens; crash-durable until-loop resume lands with the
+  // honesty-ledger slice. resolveEngineFlags(flow) returns flow.engineFlags, so
+  // reading the flag directly here is equivalent to the later engineFlags binding.
+  if (isResume && flow.engineFlags?.iteratesUntilCondition !== undefined) {
+    throw new Error(
+      `flow '${flow.id}' cannot resume an until-loop run: per-iteration counts are not yet persisted, so the loop would restart from iteration 0. Until-loop resume is deferred to the honesty-ledger slice.`,
+    );
+  }
   const runId = options.runId ?? randomUUID();
   const boundary = await openRunBoundary({
     runDir: options.runDir,
@@ -334,6 +524,18 @@ async function executeExecutableFlowOutcomeUnsafe(
   // same way a built-in does, with no by-id package in the path.
   const engineFlags = resolveEngineFlags(flow);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(flow.reportFileSurfaces ?? {});
+  // The honesty ledger backs the judge-gated until loop only. A stop-judge loop
+  // can recover from a body-step overclaim by latching it and re-entering rather
+  // than aborting; the ledger holds those open latches for the evidence floor
+  // and the close-path finalize chokepoint. Created (and given a durable
+  // run-folder mirror) only when an until flag with a stopJudge is present; the
+  // slice-1 count-driven loop and every non-until run carry no ledger and are
+  // unaffected. It stays empty until a body step actually overclaims, so a run
+  // that never overclaims writes no ledger file.
+  const honestyLedger =
+    engineFlags?.iteratesUntilCondition?.stopJudge !== undefined
+      ? new HonestyLedger({ path: join(runDir, 'honesty-ledger.json') })
+      : undefined;
   const context: RunContext = {
     flow,
     packageIndex,
@@ -414,6 +616,7 @@ async function executeExecutableFlowOutcomeUnsafe(
     ...(options.resumeCheckpoint === undefined
       ? {}
       : { resumeCheckpoint: options.resumeCheckpoint }),
+    ...(honestyLedger === undefined ? {} : { honestyLedger }),
   };
   // The composed per-repo policy caps how many attempts any one step may take
   // (max_attempts_per_step is a hard upper bound). Compose it once per run and
@@ -450,6 +653,19 @@ async function executeExecutableFlowOutcomeUnsafe(
       }
     },
   });
+  const untilFlag = engineFlags?.iteratesUntilCondition;
+  if (untilFlag !== undefined && sliceFlag !== undefined) {
+    // Both drive a single re-entry counter; a flow opts into at most one loop
+    // shape. A nested slice+until loop would need two independent iteration
+    // indices, which the completedStepCounts key model does not support.
+    throw new Error(
+      `flow '${flow.id}' sets both iteratesSliceLoop and iteratesUntilCondition; a flow may use at most one loop shape`,
+    );
+  }
+  if (untilFlag !== undefined) {
+    assertUntilFlagCoherent(flow, steps, untilFlag);
+  }
+  const untilCorridor = new UntilCorridor({ flag: untilFlag, depth: context.depth });
   // On-demand context-pull delivery is "active" for this run's relays when
   // delivery is opted in AND this run is not a delivery-blind slice corridor.
   // Inside a corridor (deep depth) the delivery seam skips the head step
@@ -459,6 +675,11 @@ async function executeExecutableFlowOutcomeUnsafe(
   // compose writer keys its envelope thickness on. False on every run with
   // delivery off (the default), keeping those runs byte-identical.
   const contextDeliveryActive = options.contextDelivery !== undefined && !sliceCorridor.isActive();
+  // completedStepCountsFromTrace rebuilds counts for the slice corridor only.
+  // Until-body steps persist no per-iteration index in the trace, so their
+  // counts cannot be rebuilt here; that is why an until-loop resume is fenced
+  // off up front (see the isResume guard near the top of this function) and
+  // lands properly with the honesty-ledger slice.
   const completedStepCounts = isResume
     ? completedStepCountsFromTrace(existingTrace, sliceCorridor)
     : new Map<string, number>();
@@ -483,13 +704,19 @@ async function executeExecutableFlowOutcomeUnsafe(
     // splice; that remains Step 3, out of scope.)
   }
   const defaultMaxSteps = Math.max(flow.steps.length * 4, 8);
-  // A slice loop runs the body once per slice, each with its own retry budget,
-  // so the flat step counter needs headroom the single-pass default lacks.
+  // A slice or until loop runs the body once per iteration, each step with its
+  // own retry budget, so the flat step counter needs headroom the single-pass
+  // default lacks. The two loop shapes are mutually exclusive, so at most one
+  // term is non-zero; a default run adds nothing and keeps defaultMaxSteps.
+  // maxSteps is only the runaway backstop here — the until loop's real bound is
+  // maxIterations (enforced by the corridor), so generous headroom is harmless.
   const maxSteps =
     options.maxSteps ??
-    (sliceFlag !== undefined && sliceCorridor.isActive()
-      ? defaultMaxSteps + sliceFlag.maxSlices * 6
-      : defaultMaxSteps);
+    defaultMaxSteps +
+      (sliceFlag !== undefined && sliceCorridor.isActive() ? sliceFlag.maxSlices * 6 : 0) +
+      (untilFlag !== undefined && untilCorridor.isActive()
+        ? untilFlag.maxIterations * untilFlag.bodySteps.length * 4
+        : 0);
 
   const bootstrapRecordedAt = context.now().toISOString();
   if (!isResume && options.manifestBytes !== undefined) {
@@ -539,6 +766,33 @@ async function executeExecutableFlowOutcomeUnsafe(
 
   let currentStepId = options.resumeCheckpoint?.stepId ?? flow.entry;
   let incomingRouteTaken: string | undefined;
+  // Slice 7: tracks whether the throwaway containment branch has been created
+  // yet. Lazily begun on the first iteration commit so the branch roots at the
+  // pre-loop HEAD. Inert unless the flag and an injected runner are both present.
+  let commitContainmentBegun = false;
+  // Slice 7 helper: contain one completed iteration as a single commit on the
+  // throwaway branch. Begun lazily on the first call so the branch roots at the
+  // pre-loop HEAD. Inert (zero git calls) unless the flag AND an injected runner
+  // are both present, so the default path stays byte-identical. Called from the
+  // tail seam for iterations that converge or re-enter cleanly, AND from the
+  // abort-intercept exits so an iteration that ends by retry-exhaustion is
+  // contained too — the branch history stays one-to-one with iterations and a
+  // stopped run still contains its final pass.
+  const containIteration = async (iterationIndex: number, message: string): Promise<void> => {
+    if (
+      untilFlag?.iterationCommitContainment === undefined ||
+      options.commitContainmentRunner === undefined
+    ) {
+      return;
+    }
+    if (!commitContainmentBegun) {
+      await options.commitContainmentRunner.begin({
+        branchName: `${untilFlag.iterationCommitContainment.branchPrefix}-${runId}`,
+      });
+      commitContainmentBegun = true;
+    }
+    await options.commitContainmentRunner.commitIteration({ iterationIndex, message });
+  };
   const recoveryRouteBindings =
     options.recoveryRouteBindings ?? (options.workContractRef === undefined ? undefined : []);
   const corridor = new RecoveryCorridor({
@@ -641,7 +895,27 @@ async function executeExecutableFlowOutcomeUnsafe(
     }
     const isLoopBodyStep = sliceCorridor.isLoopBodyStep(step.id);
     const stepSliceIndex = sliceCorridor.currentSliceIndex();
-    const stepCountKey = sliceCorridor.countKey(step.id, stepSliceIndex);
+    // The until loop scopes its own body steps by iteration index, parallel to
+    // the slice loop's slice-index scoping. The two are mutually exclusive, so
+    // at most one corridor claims this step; whichever does owns its count key.
+    const isUntilBodyStep = untilCorridor.isLoopBodyStep(step.id);
+    const stepIterationIndex = untilCorridor.currentIterationIndex();
+    const stepCountKey = isUntilBodyStep
+      ? untilCorridor.countKey(step.id, stepIterationIndex)
+      : sliceCorridor.countKey(step.id, stepSliceIndex);
+    // The loop-body iteration scope shared by trace stamping (slice_index) and
+    // recovery-evidence filtering (sliceIndex): the slice index under a slice
+    // loop, the iteration index under an until loop. Both reset a step's attempt
+    // counter per iteration, so (step_id, attempt) collides across iterations and
+    // the recovery resolver would otherwise attribute an earlier iteration's
+    // failed check to a later iteration's clean attempt. activeSlice METADATA
+    // stays slice-only below (until loops have no precomputed slice objects), so
+    // an until body step carries the index without a slice section in its prompt.
+    const loopBodyIndex = isLoopBodyStep
+      ? stepSliceIndex
+      : isUntilBodyStep
+        ? stepIterationIndex
+        : undefined;
 
     const isResumedCheckpoint = options.resumeCheckpoint?.stepId === currentStepId;
     const completedCount = completedStepCounts.get(stepCountKey) ?? 0;
@@ -676,6 +950,62 @@ async function executeExecutableFlowOutcomeUnsafe(
         incomingRouteTaken === undefined
           ? `route cycle detected at step '${step.id}'; aborting before re-entering an already completed step`
           : `route '${incomingRouteTaken}' for step '${step.id}' exhausted max_attempts=${maxAttempts}${recoverySuffix}`;
+
+      // Until loop, in-step retry exhaustion (slice 3). A judge-gated body step
+      // that used up its in-step retries does NOT abort the whole run. Instead
+      // the engine latches the unresolved overclaim and either re-enters a fresh
+      // iteration (the loop's own retry budget is maxIterations, not the step's
+      // max_attempts) or, at the iteration cap, exits needs-attention. The open
+      // latch keeps the run from ever closing complete while the overclaim is
+      // unresolved (the evidence floor blocks a clean stop; the close-path
+      // finalize chokepoint is the backstop). Only the max_attempts form is
+      // intercepted: an unsanctioned cycle (incomingRouteTaken === undefined)
+      // still aborts via the unchanged cycle guard. A slice-1 count loop has no
+      // stopJudge and no ledger, so it is unaffected.
+      if (
+        untilCorridor.isActive() &&
+        untilFlag?.stopJudge !== undefined &&
+        isUntilBodyStep &&
+        incomingRouteTaken !== undefined
+      ) {
+        context.honestyLedger?.latchOverclaim({
+          stepId: step.id,
+          iterationIndex: stepIterationIndex,
+          reason,
+        });
+        // Slice 7: this iteration ended here (it exhausted its in-step retries and
+        // never reaches the tail), so contain its partial work as a commit now,
+        // before re-entering or stopping. Without this the next iteration's
+        // `git add -A` would fold these edits into the wrong commit, and an
+        // all-exhausting loop would never begin the branch at all. Inert unless
+        // commit containment is configured.
+        await containIteration(stepIterationIndex, 'exhausted in-step retries');
+        if (untilCorridor.canReenter()) {
+          // Clear the recovery corridor for this exhausted origin so the fresh
+          // iteration starts clean rather than mid-recovery. The fresh
+          // iteration's body steps carry count-0 iteration-scoped keys, so the
+          // re-entry is not a cycle. The durable latch lives in the ledger file;
+          // the carried-log correction note is slice 4 (carried notes).
+          corridor.clearIfExitingOrigin({ stepId: step.id, routeHasRecoveryMechanics: false });
+          untilCorridor.advance();
+          currentStepId = untilFlag.headStep;
+          incomingRouteTaken = untilFlag.reenterRoute;
+          continue;
+        }
+        // Iteration cap reached with the overclaim still open: an honest
+        // non-completion. Exit `stopped` (operator-visible "needs attention"),
+        // never complete — exhaustion can never read as success.
+        const exhaustedReason = `until loop exhausted with an unresolved overclaim on '${step.id}': ${reason}`;
+        await trace.append({
+          run_id: runId,
+          kind: 'step.aborted',
+          step_id: step.id,
+          attempt,
+          reason: exhaustedReason,
+        });
+        return await closeRun(context, 'stopped', undefined, exhaustedReason);
+      }
+
       await trace.append({
         run_id: runId,
         kind: 'step.aborted',
@@ -692,7 +1022,7 @@ async function executeExecutableFlowOutcomeUnsafe(
         kind: 'step.entered',
         step_id: step.id,
         attempt,
-        ...(isLoopBodyStep ? { slice_index: stepSliceIndex } : {}),
+        ...(loopBodyIndex === undefined ? {} : { slice_index: loopBodyIndex }),
       });
     }
 
@@ -724,7 +1054,11 @@ async function executeExecutableFlowOutcomeUnsafe(
         // document literally true end to end, not present-but-false.
         ...(contextDeliveryActive ? { contextDeliveryActive } : {}),
         ...(acceptanceRetryFeedback === undefined ? {} : { acceptanceRetryFeedback }),
-        ...(isLoopBodyStep ? { activeSliceIndex: stepSliceIndex } : {}),
+        // The iteration scope feeds executors that stamp slice_index on their
+        // check.evaluated entries (relay, verification), so an until body step's
+        // failure evidence is filed under its iteration and the recovery resolver
+        // can tell iteration N's failed check from iteration N+1's clean attempt.
+        ...(loopBodyIndex === undefined ? {} : { activeSliceIndex: loopBodyIndex }),
         ...(activeSlice === undefined ? {} : { activeSlice }),
         ...(isResumedCheckpoint && options.resumeCheckpoint !== undefined
           ? { resumeCheckpoint: options.resumeCheckpoint }
@@ -904,6 +1238,123 @@ async function executeExecutableFlowOutcomeUnsafe(
       }
     }
 
+    // Until loop: when the tail step takes its forward (non-re-enter) route and
+    // the iteration cap has not been reached, redirect to the loop head via the
+    // declared re-enter route instead of letting the forward route exit the
+    // loop. advance() bumps the live iteration index so the re-entered head step
+    // is keyed to (and budgeted for) the next iteration, while this completing
+    // step keeps its captured stepIterationIndex. Unlike the slice loop the
+    // forward route may be terminal (the body's natural end is to exit), so this
+    // does not inspect the target — any non-re-enter route is a forward exit.
+    if (untilCorridor.isActive() && untilFlag !== undefined && step.id === untilFlag.tailStep) {
+      if (untilFlag.stopJudge !== undefined) {
+        // Slice 2: the tail is a stop-judge. Read its goal-met boolean (plus the
+        // slice-4 lesson and slice-6 progress marker, in one snapshot) and dispose
+        // the boolean against the evidence floor; never read the goal text here.
+        // The floor is consulted only on a met-claim (the sole case it can change
+        // the outcome), so a not-done iteration costs no floor read.
+        const judgment = await readUntilJudgeReport(context, untilFlag.stopJudge);
+        const evidenceConfirms =
+          judgment.goalProposed &&
+          (options.untilEvidenceFloor ?? defaultUntilEvidenceFloor)(context);
+        let disposition = untilCorridor.disposeIteration({
+          goalProposed: judgment.goalProposed,
+          evidenceConfirms,
+        });
+
+        // Slices 4-6 compose only on a loop that is continuing or exhausting, not
+        // on a confirmed clean stop: a goal the evidence backs completes honestly
+        // regardless of budget or progress. A near-budget warning and a first
+        // no-progress nudge are steers for the NEXT pass, so they attach only when
+        // the loop actually re-enters.
+        if (disposition !== 'stop-clean') {
+          // Slice 5: cumulative budget, fail-closed. Evaluated over the whole run
+          // trace (the loop dominates spend). Inert when no cap is set.
+          const budget = evaluateUntilBudget(context.trace.getAll(), {
+            ...(untilFlag.cumulativeUsdCap === undefined
+              ? {}
+              : { usdCap: untilFlag.cumulativeUsdCap }),
+            ...(untilFlag.cumulativeTokenCap === undefined
+              ? {}
+              : { tokenCap: untilFlag.cumulativeTokenCap }),
+          });
+          // Slice 6: record the opaque progress marker and read the consecutive
+          // no-progress count. Inert (count 0) when the flow declares no marker.
+          const noProgressCount =
+            untilFlag.stopJudge.progressPath === undefined
+              ? 0
+              : untilCorridor.recordProgressMarker(judgment.progressMarker);
+          const ceilingHit =
+            untilFlag.noProgressCeiling !== undefined &&
+            noProgressCount >= untilFlag.noProgressCeiling;
+
+          // A re-entering pass that is over budget or stalled out is forced to
+          // exhaust instead: stop spending / stop spinning. This routes to the
+          // same non-@complete needs-attention exit, so exhaustion stays honest.
+          if (disposition === 'reenter' && (budget.overCap || ceilingHit)) {
+            disposition = 'needs-attention';
+          }
+
+          // Slice 4: append this iteration's carried note for the next pass. Only
+          // when still re-entering (an exhausting pass has no next reader). Carries
+          // the judge's lesson plus any soft budget warning or first-stall nudge.
+          if (disposition === 'reenter' && untilFlag.carriedNotes !== undefined) {
+            const steers: string[] = [];
+            if (budget.nearCap && budget.reason !== undefined) steers.push(budget.reason);
+            if (noProgressCount === 1) {
+              steers.push(
+                'No measurable progress since the last pass. Try a materially different approach.',
+              );
+            }
+            if (judgment.lesson !== undefined || steers.length > 0) {
+              await appendCarriedNote({
+                files: context.files,
+                report: untilFlag.carriedNotes.report,
+                note: {
+                  iteration: stepIterationIndex,
+                  lesson: judgment.lesson ?? '',
+                  ...(steers.length === 0 ? {} : { steer: steers.join(' ') }),
+                },
+                ...(untilFlag.carriedNotes.maxEntries === undefined
+                  ? {}
+                  : { maxEntries: untilFlag.carriedNotes.maxEntries }),
+              });
+            }
+          }
+        }
+
+        if (disposition === 'reenter') {
+          route = untilFlag.reenterRoute;
+          untilCorridor.advance();
+        } else if (disposition === 'needs-attention') {
+          // assertUntilFlagCoherent guarantees a tail-declared needsAttentionRoute
+          // whenever stopJudge is set, so this is defined. Fail loud rather than
+          // silently fall through to the clean-stop forward route (a false-done).
+          const attentionRoute = untilFlag.needsAttentionRoute;
+          if (attentionRoute === undefined) {
+            throw new Error(
+              `until loop on flow '${flow.id}' reached needs-attention with no needsAttentionRoute`,
+            );
+          }
+          route = attentionRoute;
+        }
+        // 'stop-clean' leaves the tail's forward route intact (the clean exit).
+      } else if (untilCorridor.shouldReenter({ stepId: step.id, route })) {
+        // Slice 1: count-driven advance, no stop-judge.
+        route = untilFlag.reenterRoute;
+        untilCorridor.advance();
+      }
+
+      // Slice 7 (opt-in, default off): contain this iteration's work as one
+      // commit on the throwaway branch. Runs for every iteration that reaches the
+      // tail after its route is settled, so the branch history maps one-to-one to
+      // iterations and the operator's branch never moves. Inert unless the flow
+      // declares the flag AND the host injected a runner. Iterations that exhaust
+      // via the abort-intercept never reach here; they are contained at the
+      // intercept instead (see the slice-3 block above).
+      await containIteration(stepIterationIndex, `route ${route}`);
+    }
+
     const routeDeclaration = classifyRouteDeclarationTransition({
       stepId: step.id,
       route,
@@ -938,7 +1389,7 @@ async function executeExecutableFlowOutcomeUnsafe(
         stepId: step.id,
         attempt,
         details,
-        ...(isLoopBodyStep ? { sliceIndex: stepSliceIndex } : {}),
+        ...(loopBodyIndex === undefined ? {} : { sliceIndex: loopBodyIndex }),
       }) ??
       reportSelectedCheckpointBoundaryEvidence({
         context,
@@ -956,6 +1407,22 @@ async function executeExecutableFlowOutcomeUnsafe(
             binding: recoveryBinding,
           })
         : undefined);
+
+    // Until loop, latch-clear (slice 3): a body step that re-runs and completes
+    // its check clean (no recovery failure, no recovery route) clears any
+    // overclaim latch it held from an earlier iteration. The ledger tracks the
+    // step's LATEST state, so a clean pass resolves the latch; only then can the
+    // close-path finalize chokepoint let the run reach complete. Inert on every
+    // run with no judge-gated until ledger.
+    if (
+      untilCorridor.isActive() &&
+      untilFlag?.stopJudge !== undefined &&
+      isUntilBodyStep &&
+      recoveryFailure === undefined &&
+      !routeHasRecoveryMechanics
+    ) {
+      context.honestyLedger?.clearLatch(step.id);
+    }
 
     const bindingVerdict = recoveryBindingVerdict({
       workContractRef: context.workContractRef,
@@ -977,15 +1444,18 @@ async function executeExecutableFlowOutcomeUnsafe(
       return await closeRun(context, 'aborted', undefined, bindingVerdict.reason);
     }
 
-    // The live slice index here is post-advance, so a slice-advance redirect
-    // to the loop head reads the next slice's (empty) count rather than the
-    // just-completed slice's, and is not flagged as a cycle.
-    const targetCompletedCount =
+    // The live loop index here is post-advance, so a re-enter/advance redirect
+    // to the loop head reads the next iteration's (empty) count rather than the
+    // just-completed one's, and is not flagged as a cycle. Whichever corridor
+    // owns the target step supplies its key; the two are mutually exclusive.
+    const targetCountKey =
       target.kind === 'step'
-        ? (completedStepCounts.get(
-            sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex()),
-          ) ?? 0)
-        : 0;
+        ? untilCorridor.isLoopBodyStep(target.stepId)
+          ? untilCorridor.countKey(target.stepId, untilCorridor.currentIterationIndex())
+          : sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex())
+        : undefined;
+    const targetCompletedCount =
+      targetCountKey !== undefined ? (completedStepCounts.get(targetCountKey) ?? 0) : 0;
     const targetStep = target.kind === 'step' ? steps.get(target.stepId) : undefined;
     const isRecoveryReturnToOrigin =
       target.kind === 'step'
@@ -1056,7 +1526,7 @@ async function executeExecutableFlowOutcomeUnsafe(
       step_id: step.id,
       attempt,
       route_taken: route,
-      ...(isLoopBodyStep ? { slice_index: stepSliceIndex } : {}),
+      ...(loopBodyIndex === undefined ? {} : { slice_index: loopBodyIndex }),
     });
     // Keyed to this step's captured slice index (pre-advance), so a tail step
     // that just advanced still records its own slice's completion, not the

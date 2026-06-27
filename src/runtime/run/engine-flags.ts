@@ -14,7 +14,11 @@
 //     Absent = the flow declares none.
 //
 // See docs/architecture/first-class-composition-optimal-path.md (M4).
-import type { CompiledFlowEngineFlags, SliceLoopEngineFlag } from '../../flows/types.js';
+import type {
+  CompiledFlowEngineFlags,
+  SliceLoopEngineFlag,
+  UntilLoopEngineFlag,
+} from '../../flows/types.js';
 import type { CompiledFlowManifestEngineFlags } from '../../schemas/compiled-flow.js';
 
 function translateSliceLoop(
@@ -30,11 +34,68 @@ function translateSliceLoop(
   };
 }
 
+function translateUntilLoop(
+  until: NonNullable<CompiledFlowManifestEngineFlags['iterates_until_condition']>,
+): UntilLoopEngineFlag {
+  return {
+    headStep: until.head_step,
+    tailStep: until.tail_step,
+    bodySteps: until.body_steps,
+    reenterRoute: until.reenter_route,
+    maxIterations: until.max_iterations,
+    ...(until.stop_judge === undefined
+      ? {}
+      : {
+          stopJudge: {
+            report: until.stop_judge.report,
+            goalMetPath: until.stop_judge.goal_met_path,
+            ...(until.stop_judge.lesson_path === undefined
+              ? {}
+              : { lessonPath: until.stop_judge.lesson_path }),
+            ...(until.stop_judge.progress_path === undefined
+              ? {}
+              : { progressPath: until.stop_judge.progress_path }),
+          },
+        }),
+    ...(until.needs_attention_route === undefined
+      ? {}
+      : { needsAttentionRoute: until.needs_attention_route }),
+    ...(until.carried_notes === undefined
+      ? {}
+      : {
+          carriedNotes: {
+            report: until.carried_notes.report,
+            ...(until.carried_notes.max_entries === undefined
+              ? {}
+              : { maxEntries: until.carried_notes.max_entries }),
+          },
+        }),
+    ...(until.cumulative_usd_cap === undefined
+      ? {}
+      : { cumulativeUsdCap: until.cumulative_usd_cap }),
+    ...(until.cumulative_token_cap === undefined
+      ? {}
+      : { cumulativeTokenCap: until.cumulative_token_cap }),
+    ...(until.no_progress_ceiling === undefined
+      ? {}
+      : { noProgressCeiling: until.no_progress_ceiling }),
+    ...(until.iteration_commit_containment === undefined
+      ? {}
+      : {
+          iterationCommitContainment: {
+            branchPrefix: until.iteration_commit_containment.branch_prefix,
+          },
+        }),
+    activateWhenDepthAtLeast: until.activate_when_depth_at_least,
+  };
+}
+
 export function manifestEngineFlagsToInCode(
   manifest: CompiledFlowManifestEngineFlags | undefined,
 ): CompiledFlowEngineFlags | undefined {
   if (manifest === undefined) return undefined;
   const slice = manifest.iterates_slice_loop;
+  const until = manifest.iterates_until_condition;
   const result: CompiledFlowEngineFlags = {
     ...(manifest.binds_execution_depth_to_relay_selection === undefined
       ? {}
@@ -47,6 +108,7 @@ export function manifestEngineFlagsToInCode(
           bindsTerminalOutcomeToPrimaryResult: manifest.binds_terminal_outcome_to_primary_result,
         }),
     ...(slice === undefined ? {} : { iteratesSliceLoop: translateSliceLoop(slice) }),
+    ...(until === undefined ? {} : { iteratesUntilCondition: translateUntilLoop(until) }),
   };
   return Object.keys(result).length === 0 ? undefined : result;
 }

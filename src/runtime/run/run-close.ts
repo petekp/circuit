@@ -10,6 +10,7 @@ import type { TerminalTarget } from '../domain/route.js';
 import type { RunClosedOutcome } from '../domain/run.js';
 import type { TraceEntry } from '../domain/trace.js';
 import { resolveEngineFlags } from './engine-flags.js';
+import { honestyLatchGap } from './honesty-ledger.js';
 import { type RuntimeRunResult, writeRuntimeRunResult } from './result-writer.js';
 import type { RunContext } from './run-context.js';
 import { proofPolicyRequirementKey, recordValue, traceScope } from './trace-evidence.js';
@@ -110,7 +111,11 @@ export function latestAdmittedVerdict(entries: readonly TraceEntry[]): string | 
   return undefined;
 }
 
-function completeCloseProofGap(context: RunContext): string | undefined {
+// Exported so the until-loop stop-judge can reuse this exact proof floor as the
+// default evidenceConfirms signal: the engine honors a goal-met claim only when
+// closing complete right now would have no proof gap (undefined return). Slice 3
+// composes the honesty ledger's open latches over this same floor.
+export function completeCloseProofGap(context: RunContext): string | undefined {
   const entries = context.trace.getAll();
   const latestRequiredProofByRequirement = new Map<
     string,
@@ -150,15 +155,26 @@ export async function closeRun(
   reason?: string,
 ): Promise<GraphClosedOutcome> {
   const proofGap = outcome === 'complete' ? completeCloseProofGap(context) : undefined;
-  const proofOutcome: RunClosedOutcome = proofGap === undefined ? outcome : 'aborted';
-  const primaryResultOutcome =
-    proofGap === undefined
-      ? await terminalOutcomeBoundToPrimaryResult(context, proofOutcome)
+  // The finalize chokepoint: even with the proof gate clear, a `complete` close
+  // is blocked while the until-loop honesty ledger holds an open overclaim
+  // latch. Unlike a proof gap (a contract violation -> 'aborted'), an open latch
+  // is an honest non-completion: the loop tried, did not fully resolve, and
+  // downgrades to 'stopped' (operator-visible "needs attention"). Inert on every
+  // run without a ledger, so the default close path is unchanged.
+  const latchGap =
+    outcome === 'complete' && proofGap === undefined
+      ? honestyLatchGap(context.honestyLedger)
       : undefined;
+  const proofOutcome: RunClosedOutcome =
+    proofGap !== undefined ? 'aborted' : latchGap !== undefined ? 'stopped' : outcome;
+  const honestyGapClear = proofGap === undefined && latchGap === undefined;
+  const primaryResultOutcome = honestyGapClear
+    ? await terminalOutcomeBoundToPrimaryResult(context, proofOutcome)
+    : undefined;
   const finalOutcome: RunClosedOutcome = primaryResultOutcome?.outcome ?? proofOutcome;
-  const finalReason = proofGap ?? primaryResultOutcome?.reason ?? reason;
+  const finalReason = proofGap ?? latchGap ?? primaryResultOutcome?.reason ?? reason;
   const finalTerminalTarget =
-    proofGap === undefined && primaryResultOutcome === undefined ? terminalTarget : undefined;
+    honestyGapClear && primaryResultOutcome === undefined ? terminalTarget : undefined;
   await context.trace.append({
     run_id: context.runId,
     kind: 'run.closed',

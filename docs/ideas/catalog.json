@@ -31,6 +31,19 @@
   ],
   "entries": [
     {
+      "path": "docs/ideas/until-loop.md",
+      "title": "The until-loop: condition-gated iteration for flows",
+      "status": "current-proposal",
+      "category": "flows-and-blocks",
+      "tags": ["runtime-loop", "engine-flag", "while-loop", "convergence", "honesty-ledger"],
+      "current_reading": "Canonical proposal for the third flow control shape, a while loop: re-enter a declared [head..tail] body until a goal condition is judged met and the engine independently confirms it, within hard bounds. Adds one CompiledFlowEngineFlags sibling, iteratesUntilCondition, modeled on iteratesSliceLoop. Make-or-break is the propose-then-dispose stop judge (a reviewer relay proposes goal_met; the engine honors it only when its own evidence floor agrees) plus an append-only honesty ledger and finalize() that make 'the loop succeeded' structurally unreachable through any exhaustion path or open latch, with three independent ceilings (iterations, budget, no-progress). ALL SEVEN SLICES ARE BUILT on feat/until-loop, proven by offline runtime tests with a byte-identical default when the flag is absent: the count-driven multi-step body loop (slice 1, an iteration-scoped count key covering every body step, not just the adjacent head/tail the slice loop scopes), the propose-then-dispose stop judge (slice 2), the append-only honesty ledger plus finalize() and an abort-intercept that make a succeeded verdict structurally unreachable through any exhaustion path or open latch (slice 3), carried notes that turn a repeating loop into a learning one (slice 4), a fail-closed cumulative budget cap (slice 5), no-progress steering with a stall ceiling (slice 6), and opt-in default-off per-iteration commit containment to a throwaway branch (slice 7). Hardened with the full manifest path, up-front coherence validation that rejects a budget/ceiling/notes bound declared without a stop judge, mutual-exclusion against the slice loop, an explicit resume fence, and an adversarial review whose two HIGH findings (a silently-unenforced cap on the count form, and an uncontained iteration on the abort-intercept exit) are both fixed. The git-backed live wiring for commit containment is deferred until a Converge catalog flow opts in; no flow opts in yet.",
+      "related": [
+        "docs/ideas/bespoke-flow-generation-design.md",
+        "docs/ideas/long-horizon-supervision.md"
+      ],
+      "last_checked": "2026-06-27"
+    },
+    {
       "path": "docs/ideas/adversarial-verification-gates.md",
       "title": "Adversarial verification gates and verify-then-escalate",
       "status": "current-idea",

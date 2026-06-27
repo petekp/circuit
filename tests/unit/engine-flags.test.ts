@@ -5,7 +5,11 @@
 // the path (M4 deleted it). See
 // docs/architecture/first-class-composition-optimal-path.md.
 import { describe, expect, it } from 'vitest';
-import type { CompiledFlowEngineFlags, SliceLoopEngineFlag } from '../../src/flows/types.js';
+import type {
+  CompiledFlowEngineFlags,
+  SliceLoopEngineFlag,
+  UntilLoopEngineFlag,
+} from '../../src/flows/types.js';
 import {
   manifestEngineFlagsToInCode,
   resolveEngineFlags,
@@ -18,6 +22,15 @@ const SLICE: SliceLoopEngineFlag = {
   slicesFrom: { report: 'reports/build/plan.json', itemsPath: 'slices' },
   maxSlices: 12,
   activateWhenDepthAtLeast: 'high',
+};
+
+const UNTIL: UntilLoopEngineFlag = {
+  headStep: 'loop-head',
+  tailStep: 'loop-tail',
+  bodySteps: ['loop-head', 'loop-body', 'loop-tail'],
+  reenterRoute: 'reenter',
+  maxIterations: 3,
+  activateWhenDepthAtLeast: 'autonomous',
 };
 
 describe('manifestEngineFlagsToInCode (manifest→runtime boundary)', () => {
@@ -51,6 +64,52 @@ describe('manifestEngineFlagsToInCode (manifest→runtime boundary)', () => {
         },
       }),
     ).toEqual({ iteratesSliceLoop: SLICE });
+  });
+
+  it('translates the until-loop struct field by field', () => {
+    // Without this, a real flow that authors an until loop onto its manifest
+    // loses the flag at the manifest->runtime boundary and runs as a single
+    // pass with no error. The in-memory ExecutableFlow.engineFlags path the
+    // runtime tests use bypasses this translation; real flows do not.
+    expect(
+      manifestEngineFlagsToInCode({
+        iterates_until_condition: {
+          head_step: 'loop-head',
+          tail_step: 'loop-tail',
+          body_steps: ['loop-head', 'loop-body', 'loop-tail'],
+          reenter_route: 'reenter',
+          max_iterations: 3,
+          activate_when_depth_at_least: 'autonomous',
+        },
+      }),
+    ).toEqual({ iteratesUntilCondition: UNTIL });
+  });
+
+  it('translates the slice-2 stop-judge fields when present', () => {
+    // The stop-judge form ships report+goal_met_path and a needs_attention_route
+    // on the manifest. A real Converge flow authors these, so the translation
+    // must carry them onto the in-code shape (snake_case to camelCase) or the
+    // judge-gated loop silently degrades to the count-driven form.
+    expect(
+      manifestEngineFlagsToInCode({
+        iterates_until_condition: {
+          head_step: 'loop-head',
+          tail_step: 'loop-tail',
+          body_steps: ['loop-head', 'loop-body', 'loop-tail'],
+          reenter_route: 'reenter',
+          max_iterations: 3,
+          stop_judge: { report: 'reports/judge.json', goal_met_path: 'goal_met' },
+          needs_attention_route: 'attention',
+          activate_when_depth_at_least: 'autonomous',
+        },
+      }),
+    ).toEqual({
+      iteratesUntilCondition: {
+        ...UNTIL,
+        stopJudge: { report: 'reports/judge.json', goalMetPath: 'goal_met' },
+        needsAttentionRoute: 'attention',
+      },
+    });
   });
 });
 

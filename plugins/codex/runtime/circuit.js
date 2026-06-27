@@ -25448,6 +25448,57 @@ var EngineFlagsManifest = external_exports.object({
     }).strict(),
     max_slices: external_exports.number().int().positive(),
     activate_when_depth_at_least: external_exports.literal("high")
+  }).strict().optional(),
+  // The until loop (a while loop for flows): re-enter [head..tail] once per
+  // iteration until max_iterations. Mutually exclusive with iterates_slice_loop
+  // (both drive one re-entry counter); the graph runner rejects a flow that
+  // sets both. body_steps is the full span head and tail included, because
+  // every body step must be iteration-scoped, not just the adjacent head/tail
+  // the slice loop scopes. See docs/ideas/until-loop.md.
+  iterates_until_condition: external_exports.object({
+    head_step: external_exports.string().min(1),
+    tail_step: external_exports.string().min(1),
+    body_steps: external_exports.array(external_exports.string().min(1)).min(1),
+    reenter_route: external_exports.string().min(1),
+    max_iterations: external_exports.number().int().positive(),
+    // Slice 2 (the stop-judge): the tail proposes a goal-met boolean the
+    // engine disposes against an evidence floor. report + goal_met_path say
+    // where to read the proposal; needs_attention_route is where an exhausted
+    // judge-gated loop exits (a non-@complete terminal). Both absent = the
+    // slice-1 count-driven form. lesson_path (slice 4) and progress_path
+    // (slice 6) are optional dotted paths to a carried lesson and an opaque
+    // progress marker the engine disposes; absent = those features off.
+    stop_judge: external_exports.object({
+      report: external_exports.string().min(1),
+      goal_met_path: external_exports.string().min(1),
+      lesson_path: external_exports.string().min(1).optional(),
+      progress_path: external_exports.string().min(1).optional()
+    }).strict().optional(),
+    needs_attention_route: external_exports.string().min(1).optional(),
+    // Slice 4 (carried notes): the run-file the engine appends one note to per
+    // iteration; the head re-reads it next pass. max_entries caps retained
+    // notes (default 20). Absent = no notes carried.
+    carried_notes: external_exports.object({
+      report: external_exports.string().min(1),
+      max_entries: external_exports.number().int().positive().optional()
+    }).strict().optional(),
+    // Slice 5 (cumulative budget cap, fail-closed): hard spend ceilings summed
+    // across iterations from per-relay usage. At or above the cap the loop exits
+    // to needs_attention rather than spending more. Absent = no cap.
+    cumulative_usd_cap: external_exports.number().positive().optional(),
+    cumulative_token_cap: external_exports.number().int().positive().optional(),
+    // Slice 6 (no-progress ceiling): consecutive no-progress iterations
+    // tolerated before exiting to needs_attention. Requires
+    // stop_judge.progress_path. Absent = only the iteration cap bounds the loop.
+    no_progress_ceiling: external_exports.number().int().positive().optional(),
+    // Slice 7 (per-iteration commit containment, opt-in, default off). When
+    // set AND the host injects a commit-containment runner, each iteration
+    // is committed to a throwaway branch named `${branch_prefix}-${run_id}`;
+    // the operator owns the merge. Absent => the engine makes zero git calls.
+    iteration_commit_containment: external_exports.object({
+      branch_prefix: external_exports.string().min(1)
+    }).strict().optional(),
+    activate_when_depth_at_least: external_exports.literal("autonomous")
   }).strict().optional()
 }).strict();
 
@@ -58341,7 +58392,7 @@ async function runReclaimCommand(argv) {
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
 import { existsSync as existsSync40, mkdirSync as mkdirSync11, readFileSync as readFileSync57, writeFileSync as writeFileSync12 } from "node:fs";
-import { dirname as dirname14, join as join44, resolve as resolve27 } from "node:path";
+import { dirname as dirname14, join as join45, resolve as resolve27 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
 import { readFileSync as readFileSync49 } from "node:fs";
@@ -59225,10 +59276,44 @@ function translateSliceLoop(slice) {
     activateWhenDepthAtLeast: slice.activate_when_depth_at_least
   };
 }
+function translateUntilLoop(until) {
+  return {
+    headStep: until.head_step,
+    tailStep: until.tail_step,
+    bodySteps: until.body_steps,
+    reenterRoute: until.reenter_route,
+    maxIterations: until.max_iterations,
+    ...until.stop_judge === void 0 ? {} : {
+      stopJudge: {
+        report: until.stop_judge.report,
+        goalMetPath: until.stop_judge.goal_met_path,
+        ...until.stop_judge.lesson_path === void 0 ? {} : { lessonPath: until.stop_judge.lesson_path },
+        ...until.stop_judge.progress_path === void 0 ? {} : { progressPath: until.stop_judge.progress_path }
+      }
+    },
+    ...until.needs_attention_route === void 0 ? {} : { needsAttentionRoute: until.needs_attention_route },
+    ...until.carried_notes === void 0 ? {} : {
+      carriedNotes: {
+        report: until.carried_notes.report,
+        ...until.carried_notes.max_entries === void 0 ? {} : { maxEntries: until.carried_notes.max_entries }
+      }
+    },
+    ...until.cumulative_usd_cap === void 0 ? {} : { cumulativeUsdCap: until.cumulative_usd_cap },
+    ...until.cumulative_token_cap === void 0 ? {} : { cumulativeTokenCap: until.cumulative_token_cap },
+    ...until.no_progress_ceiling === void 0 ? {} : { noProgressCeiling: until.no_progress_ceiling },
+    ...until.iteration_commit_containment === void 0 ? {} : {
+      iterationCommitContainment: {
+        branchPrefix: until.iteration_commit_containment.branch_prefix
+      }
+    },
+    activateWhenDepthAtLeast: until.activate_when_depth_at_least
+  };
+}
 function manifestEngineFlagsToInCode(manifest) {
   if (manifest === void 0)
     return void 0;
   const slice = manifest.iterates_slice_loop;
+  const until = manifest.iterates_until_condition;
   const result = {
     ...manifest.binds_execution_depth_to_relay_selection === void 0 ? {} : {
       bindsExecutionDepthToRelaySelection: manifest.binds_execution_depth_to_relay_selection
@@ -59236,7 +59321,8 @@ function manifestEngineFlagsToInCode(manifest) {
     ...manifest.binds_terminal_outcome_to_primary_result === void 0 ? {} : {
       bindsTerminalOutcomeToPrimaryResult: manifest.binds_terminal_outcome_to_primary_result
     },
-    ...slice === void 0 ? {} : { iteratesSliceLoop: translateSliceLoop(slice) }
+    ...slice === void 0 ? {} : { iteratesSliceLoop: translateSliceLoop(slice) },
+    ...until === void 0 ? {} : { iteratesUntilCondition: translateUntilLoop(until) }
   };
   return Object.keys(result).length === 0 ? void 0 : result;
 }
@@ -59714,6 +59800,7 @@ function seedEquipmentReshapeFromTrace(entries, initialFlow) {
 
 // dist/runtime/run/graph-runner.js
 import { randomUUID as randomUUID7 } from "node:crypto";
+import { join as join35 } from "node:path";
 
 // dist/selection/power-inference.js
 function createPowerInferenceChannel() {
@@ -65584,6 +65671,84 @@ function resolveBindingLegibility(flow) {
   return { reducedBindings, manifestBackedBindings };
 }
 
+// dist/runtime/run/carried-notes.js
+var DEFAULT_MAX_ENTRIES = 20;
+var MAX_NOTE_CHARS = 600;
+function capText(text, max) {
+  const trimmed = text.trim();
+  if (trimmed.length <= max)
+    return trimmed;
+  return `${trimmed.slice(0, max - 1)}\u2026`;
+}
+async function appendCarriedNote(input) {
+  const max = input.maxEntries ?? DEFAULT_MAX_ENTRIES;
+  let existing = [];
+  try {
+    const raw = await input.files.readJson(input.report);
+    if (Array.isArray(raw))
+      existing = raw;
+  } catch {
+    existing = [];
+  }
+  const capped = {
+    iteration: input.note.iteration,
+    lesson: capText(input.note.lesson, MAX_NOTE_CHARS),
+    ...input.note.steer === void 0 ? {} : { steer: capText(input.note.steer, MAX_NOTE_CHARS) }
+  };
+  const next = [...existing, capped].slice(-max);
+  await input.files.writeJson(input.report, next);
+  return next;
+}
+
+// dist/runtime/run/honesty-ledger.js
+var HonestyLedger = class {
+  latches = /* @__PURE__ */ new Map();
+  path;
+  constructor(deps = {}) {
+    this.path = deps.path;
+  }
+  // Open or refresh a step's latch. A step that overclaims on iteration 0 and
+  // again on iteration 2 holds a single latch recording iteration 2 — the loop
+  // tracks "this step is still unresolved", not a history of every failure.
+  latchOverclaim(input) {
+    this.latches.set(input.stepId, { ...input });
+    this.persist();
+  }
+  // Clear a step's latch — called when a later iteration re-runs that step and
+  // its honesty check passes clean. Clearing a step that holds no latch is a
+  // no-op (it never overclaimed, or was already cleared), so callers can clear
+  // unconditionally after a clean body step.
+  clearLatch(stepId) {
+    if (this.latches.delete(stepId))
+      this.persist();
+  }
+  hasOpenLatches() {
+    return this.latches.size > 0;
+  }
+  openLatches() {
+    return [...this.latches.values()];
+  }
+  // A one-line reason for the close path naming which steps are still open, or
+  // undefined when none are. The finalize chokepoint uses this both to decide
+  // (defined => block complete) and to explain the downgrade in the run result.
+  openLatchSummary() {
+    if (this.latches.size === 0)
+      return void 0;
+    const steps = [...this.latches.keys()].join(", ");
+    const noun = this.latches.size === 1 ? "overclaim latch" : "overclaim latches";
+    return `${this.latches.size} ${noun} still open: ${steps}`;
+  }
+  persist() {
+    if (this.path === void 0)
+      return;
+    const state = { open_overclaims: this.openLatches() };
+    writeJsonAtomic(this.path, state, { validate: (raw) => JSON.parse(raw) });
+  }
+};
+function honestyLatchGap(ledger) {
+  return ledger?.openLatchSummary();
+}
+
 // dist/runtime/run/manifest-snapshot.js
 import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile3 } from "node:fs/promises";
 import { dirname as dirname9, join as join33 } from "node:path";
@@ -66849,11 +67014,13 @@ function completeCloseProofGap(context) {
 }
 async function closeRun(context, outcome, terminalTarget, reason) {
   const proofGap = outcome === "complete" ? completeCloseProofGap(context) : void 0;
-  const proofOutcome = proofGap === void 0 ? outcome : "aborted";
-  const primaryResultOutcome = proofGap === void 0 ? await terminalOutcomeBoundToPrimaryResult(context, proofOutcome) : void 0;
+  const latchGap = outcome === "complete" && proofGap === void 0 ? honestyLatchGap(context.honestyLedger) : void 0;
+  const proofOutcome = proofGap !== void 0 ? "aborted" : latchGap !== void 0 ? "stopped" : outcome;
+  const honestyGapClear = proofGap === void 0 && latchGap === void 0;
+  const primaryResultOutcome = honestyGapClear ? await terminalOutcomeBoundToPrimaryResult(context, proofOutcome) : void 0;
   const finalOutcome = primaryResultOutcome?.outcome ?? proofOutcome;
-  const finalReason = proofGap ?? primaryResultOutcome?.reason ?? reason;
-  const finalTerminalTarget = proofGap === void 0 && primaryResultOutcome === void 0 ? terminalTarget : void 0;
+  const finalReason = proofGap ?? latchGap ?? primaryResultOutcome?.reason ?? reason;
+  const finalTerminalTarget = honestyGapClear && primaryResultOutcome === void 0 ? terminalTarget : void 0;
   await context.trace.append({
     run_id: context.runId,
     kind: "run.closed",
@@ -67006,6 +67173,204 @@ var SliceCorridor = class {
   }
 };
 
+// dist/runtime/run/until-budget.js
+var SOFT_THRESHOLD = 0.8;
+function summarizeSpend(entries) {
+  let costUsd;
+  let tokens = 0;
+  let relaysMissingUsage = 0;
+  for (const entry of entries) {
+    if (entry.kind !== "relay.completed")
+      continue;
+    const usage2 = RelayUsageEvidence.safeParse(entry.usage);
+    if (!usage2.success) {
+      relaysMissingUsage += 1;
+      continue;
+    }
+    tokens += usage2.data.input_tokens + usage2.data.output_tokens;
+    if (usage2.data.total_cost_usd_reported !== void 0) {
+      costUsd = (costUsd ?? 0) + usage2.data.total_cost_usd_reported;
+    }
+  }
+  return { costUsd, inputPlusOutputTokens: tokens, relaysMissingUsage };
+}
+function evaluateUntilBudget(entries, caps) {
+  if (caps.usdCap === void 0 && caps.tokenCap === void 0) {
+    return { overCap: false, nearCap: false };
+  }
+  const spend = summarizeSpend(entries);
+  if (spend.relaysMissingUsage > 0) {
+    return {
+      overCap: true,
+      nearCap: false,
+      reason: `cumulative budget cannot be enforced: ${spend.relaysMissingUsage} relay(s) reported no usage, so spend is unmeasurable (failing closed)`
+    };
+  }
+  if (caps.usdCap !== void 0) {
+    if (spend.costUsd === void 0) {
+      return {
+        overCap: true,
+        nearCap: false,
+        reason: `cumulative USD cap $${caps.usdCap} cannot be enforced: no relay reported a cost (failing closed)`
+      };
+    }
+    if (spend.costUsd >= caps.usdCap) {
+      return {
+        overCap: true,
+        nearCap: false,
+        reason: `cumulative spend $${spend.costUsd.toFixed(4)} reached the USD cap $${caps.usdCap}`
+      };
+    }
+  }
+  if (caps.tokenCap !== void 0 && spend.inputPlusOutputTokens >= caps.tokenCap) {
+    return {
+      overCap: true,
+      nearCap: false,
+      reason: `cumulative ${spend.inputPlusOutputTokens} tokens reached the token cap ${caps.tokenCap}`
+    };
+  }
+  const usdNear = caps.usdCap !== void 0 && spend.costUsd !== void 0 && spend.costUsd >= caps.usdCap * SOFT_THRESHOLD;
+  const tokenNear = caps.tokenCap !== void 0 && spend.inputPlusOutputTokens >= caps.tokenCap * SOFT_THRESHOLD;
+  if (usdNear || tokenNear) {
+    return {
+      overCap: false,
+      nearCap: true,
+      reason: "nearing the cumulative budget cap; prioritize closing out the goal this pass"
+    };
+  }
+  return { overCap: false, nearCap: false };
+}
+
+// dist/runtime/run/until-corridor.js
+var DEPTH_ORDER2 = ["low", "medium", "high", "tournament", "autonomous"];
+function depthAtLeast2(depth, floor) {
+  const current = DEPTH_ORDER2.indexOf(depth ?? "medium");
+  const minimum = DEPTH_ORDER2.indexOf(floor);
+  if (current < 0 || minimum < 0)
+    return false;
+  return current >= minimum;
+}
+var UntilCorridor = class {
+  flag;
+  activeForDepth;
+  bodySteps;
+  index = 0;
+  // Slice 6 (no-progress steering). The engine treats the judge's progress
+  // marker as OPAQUE: it serializes it and compares only for equality across
+  // iterations, never interpreting the value. `lastMarker` holds the prior
+  // iteration's serialized marker, `observed` distinguishes "no prior marker
+  // yet" from "prior marker was absent", and `consecutiveNoProgress` counts how
+  // many iterations in a row left the marker unchanged.
+  lastMarker;
+  observedMarker = false;
+  consecutiveNoProgress = 0;
+  constructor(deps) {
+    this.flag = deps.flag;
+    this.activeForDepth = deps.flag !== void 0 && depthAtLeast2(deps.depth, deps.flag.activateWhenDepthAtLeast);
+    this.bodySteps = new Set(deps.flag?.bodySteps ?? []);
+  }
+  // True when this flow has an until loop AND the run's depth activates it.
+  // Every method below is inert (single-pass behavior) when this is false.
+  isActive() {
+    return this.activeForDepth;
+  }
+  // True when stepId is any step in the loop body span (head, tail, or an
+  // intermediate). This is the generalization the slice loop lacks.
+  isLoopBodyStep(stepId) {
+    if (!this.activeForDepth)
+      return false;
+    return this.bodySteps.has(stepId);
+  }
+  currentIterationIndex() {
+    return this.index;
+  }
+  // The completedStepCounts key for a body step at a given iteration index:
+  // iteration-scoped for loop-body steps when active, else the bare stepId. The
+  // caller passes the index that applies to the entry being keyed (the live
+  // index for the incoming guard / target guard; a captured snapshot for the
+  // step's own trace + completion count, taken before any re-enter advance).
+  countKey(stepId, iterationIndex) {
+    if (!this.activeForDepth || !this.isLoopBodyStep(stepId))
+      return stepId;
+    return `${stepId}#i${iterationIndex}`;
+  }
+  // True when the just-completed tail step took a forward (non-re-enter) route
+  // and the iteration count has not yet reached maxIterations. The caller has
+  // already resolved the route the tail selected; a route that is itself the
+  // re-enter route is an in-iteration loop-back, not a fresh forward exit.
+  shouldReenter(input) {
+    if (!this.activeForDepth || this.flag === void 0)
+      return false;
+    if (input.stepId !== this.flag.tailStep)
+      return false;
+    if (input.route === this.flag.reenterRoute)
+      return false;
+    return this.index + 1 < this.flag.maxIterations;
+  }
+  // True when at least one more iteration is allowed within the cap. The
+  // abort-intercept consults this to decide whether an exhausted body step
+  // re-enters a fresh iteration or, at the cap, exits to needs-attention. Same
+  // cap arithmetic as disposeIteration so the two never disagree about when the
+  // loop is out of iterations.
+  canReenter() {
+    if (!this.activeForDepth || this.flag === void 0)
+      return false;
+    return this.index + 1 < this.flag.maxIterations;
+  }
+  // Advance to the next iteration; returns the head step id to re-enter.
+  advance() {
+    if (this.flag === void 0) {
+      throw new Error("UntilCorridor.advance called without an until-loop flag");
+    }
+    this.index += 1;
+    return this.flag.headStep;
+  }
+  // Slice 2: dispose the tail's goal-met proposal against an independent evidence
+  // signal, within the iteration cap. Pure — the caller reads the judge boolean
+  // (goalProposed) and computes evidenceConfirms, then acts on the disposition.
+  //
+  // The honest core is two rules, in order:
+  //   1. A clean stop happens ONLY on a goal the evidence confirms. The judge's
+  //      claim alone is never enough; a met-claim the evidence rejects is a
+  //      blocked false-done that falls through to rule 2.
+  //   2. Anything not a confirmed stop wants another pass, but the iteration cap
+  //      bounds it. At the cap the loop exits to needs-attention, never to a
+  //      clean stop: the loop never reports done by running out of iterations.
+  // This keeps "the loop succeeded" unreachable through exhaustion, and a
+  // hallucinating judge cannot end the loop on a claim the engine cannot back.
+  disposeIteration(input) {
+    if (input.goalProposed && input.evidenceConfirms)
+      return "stop-clean";
+    const maxIterations = this.flag?.maxIterations ?? 0;
+    if (this.index + 1 >= maxIterations)
+      return "needs-attention";
+    return "reenter";
+  }
+  // Slice 6: record this iteration's opaque progress marker and report how many
+  // iterations IN A ROW have left it unchanged. The engine never interprets the
+  // marker; it serializes it and compares for equality only. The first observed
+  // marker can never be a stall (there is nothing to compare it to), so it
+  // returns 0. A changed marker resets the run to 0; an unchanged marker
+  // increments it. The caller uses the count to attach a first-stall steer (== 1)
+  // and to exit at the no-progress ceiling.
+  recordProgressMarker(marker) {
+    const serialized = JSON.stringify(marker);
+    if (!this.observedMarker) {
+      this.observedMarker = true;
+      this.lastMarker = serialized;
+      this.consecutiveNoProgress = 0;
+      return 0;
+    }
+    if (serialized === this.lastMarker) {
+      this.consecutiveNoProgress += 1;
+    } else {
+      this.consecutiveNoProgress = 0;
+      this.lastMarker = serialized;
+    }
+    return this.consecutiveNoProgress;
+  }
+};
+
 // dist/runtime/run/graph-runner.js
 function isGraphCheckpointWaitingResult(result) {
   return "kind" in result && result.kind === "checkpoint_waiting";
@@ -67088,6 +67453,70 @@ function assertNoCheckpointInSliceLoop(flow, flag) {
     cursor = forward?.kind === "step" ? forward.stepId : void 0;
   }
 }
+function assertUntilFlagCoherent(flow, steps, flag) {
+  const { headStep, tailStep, bodySteps, reenterRoute, maxIterations } = flag;
+  if (!Number.isInteger(maxIterations) || maxIterations < 1) {
+    throw new Error(`until loop on flow '${flow.id}' has maxIterations ${maxIterations}; it must be a positive integer`);
+  }
+  const body = new Set(bodySteps);
+  if (!body.has(headStep)) {
+    throw new Error(`until loop on flow '${flow.id}' omits headStep '${headStep}' from bodySteps; the full [head..tail] span must be listed or the head aborts mid-loop as an illegal re-entry`);
+  }
+  if (!body.has(tailStep)) {
+    throw new Error(`until loop on flow '${flow.id}' omits tailStep '${tailStep}' from bodySteps; the full [head..tail] span must be listed or the tail aborts mid-loop as an illegal re-entry`);
+  }
+  for (const id of bodySteps) {
+    if (!steps.has(id)) {
+      throw new Error(`until loop on flow '${flow.id}' lists bodyStep '${id}', which is not a declared step in the flow`);
+    }
+  }
+  const reenter = steps.get(tailStep)?.routes[reenterRoute];
+  if (reenter === void 0) {
+    throw new Error(`until loop on flow '${flow.id}' names reenterRoute '${reenterRoute}', but tail step '${tailStep}' declares no such route`);
+  }
+  if (reenter.kind !== "step" || reenter.stepId !== headStep) {
+    throw new Error(`until loop on flow '${flow.id}' reenterRoute '${reenterRoute}' must target headStep '${headStep}' as a step route`);
+  }
+  if (flag.stopJudge !== void 0) {
+    const { needsAttentionRoute } = flag;
+    if (needsAttentionRoute === void 0) {
+      throw new Error(`until loop on flow '${flow.id}' sets a stopJudge but no needsAttentionRoute; a judge-gated loop must declare where an exhausted run exits so the iteration cap cannot reach @complete`);
+    }
+    const attention = steps.get(tailStep)?.routes[needsAttentionRoute];
+    if (attention === void 0) {
+      throw new Error(`until loop on flow '${flow.id}' names needsAttentionRoute '${needsAttentionRoute}', but tail step '${tailStep}' declares no such route`);
+    }
+    if (attention.kind === "terminal" && attention.target === "@complete") {
+      throw new Error(`until loop on flow '${flow.id}' needsAttentionRoute '${needsAttentionRoute}' targets @complete; an exhausted judge-gated loop must exit to a non-complete terminal so exhaustion can never read as success`);
+    }
+  }
+  if (flag.stopJudge === void 0) {
+    const orphaned = flag.carriedNotes !== void 0 ? "carriedNotes" : flag.cumulativeUsdCap !== void 0 ? "cumulativeUsdCap" : flag.cumulativeTokenCap !== void 0 ? "cumulativeTokenCap" : flag.noProgressCeiling !== void 0 ? "noProgressCeiling" : void 0;
+    if (orphaned !== void 0) {
+      throw new Error(`until loop on flow '${flow.id}' sets ${orphaned} but no stopJudge; these bounds are read only on a judge-gated loop, so a count-driven loop would silently ignore them`);
+    }
+  }
+  if (flag.noProgressCeiling !== void 0 && flag.stopJudge?.progressPath === void 0) {
+    throw new Error(`until loop on flow '${flow.id}' sets noProgressCeiling but no stopJudge.progressPath; without a progress marker to compare, the ceiling can never trip`);
+  }
+}
+async function readUntilJudgeReport(context, stopJudge) {
+  try {
+    const raw = await context.files.readJson(stopJudge.report);
+    const goalProposed = resolveDottedPath(raw, stopJudge.goalMetPath) === true;
+    const lessonValue = stopJudge.lessonPath === void 0 ? void 0 : resolveDottedPath(raw, stopJudge.lessonPath);
+    const lesson = typeof lessonValue === "string" ? lessonValue : void 0;
+    const progressMarker = stopJudge.progressPath === void 0 ? void 0 : resolveDottedPath(raw, stopJudge.progressPath);
+    return { goalProposed, lesson, progressMarker };
+  } catch {
+    return { goalProposed: false, lesson: void 0, progressMarker: void 0 };
+  }
+}
+function defaultUntilEvidenceFloor(context) {
+  if (context.honestyLedger?.hasOpenLatches() === true)
+    return false;
+  return completeCloseProofGap(context) === void 0;
+}
 function resolveManifestHash(flow, options) {
   if (options.manifestBytes === void 0) {
     return options.manifestHash ?? defaultManifestHash(flow);
@@ -67101,6 +67530,9 @@ function resolveManifestHash(flow, options) {
 async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   assertExecutableFlow(flow);
   const isResume = options.resumeCheckpoint !== void 0;
+  if (isResume && flow.engineFlags?.iteratesUntilCondition !== void 0) {
+    throw new Error(`flow '${flow.id}' cannot resume an until-loop run: per-iteration counts are not yet persisted, so the loop would restart from iteration 0. Until-loop resume is deferred to the honesty-ledger slice.`);
+  }
   const runId = options.runId ?? randomUUID7();
   const boundary = await openRunBoundary({
     runDir: options.runDir,
@@ -67117,6 +67549,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const bindingLegibility = resolveBindingLegibility(flow);
   const engineFlags = resolveEngineFlags(flow);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(flow.reportFileSurfaces ?? {});
+  const honestyLedger = engineFlags?.iteratesUntilCondition?.stopJudge !== void 0 ? new HonestyLedger({ path: join35(runDir, "honesty-ledger.json") }) : void 0;
   const context = {
     flow,
     packageIndex,
@@ -67181,7 +67614,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.memoryInputs === void 0 ? {} : { memoryInputs: options.memoryInputs },
     ...options.historyRecallReport === void 0 ? {} : { historyRecallReport: options.historyRecallReport },
     ...options.historyRecallPrecision === void 0 ? {} : { historyRecallPrecision: options.historyRecallPrecision },
-    ...options.resumeCheckpoint === void 0 ? {} : { resumeCheckpoint: options.resumeCheckpoint }
+    ...options.resumeCheckpoint === void 0 ? {} : { resumeCheckpoint: options.resumeCheckpoint },
+    ...honestyLedger === void 0 ? {} : { honestyLedger }
   };
   const policyLayersForAttemptCap = context.policyLayers ?? [];
   const policyMaxAttemptsCap = policyLayersForAttemptCap.length === 0 ? void 0 : composePolicyHardConstraints(policyLayersForAttemptCap.map((layer) => layer.envelope)).limits.max_attempts_per_step;
@@ -67211,6 +67645,14 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       }
     }
   });
+  const untilFlag = engineFlags?.iteratesUntilCondition;
+  if (untilFlag !== void 0 && sliceFlag !== void 0) {
+    throw new Error(`flow '${flow.id}' sets both iteratesSliceLoop and iteratesUntilCondition; a flow may use at most one loop shape`);
+  }
+  if (untilFlag !== void 0) {
+    assertUntilFlagCoherent(flow, steps, untilFlag);
+  }
+  const untilCorridor = new UntilCorridor({ flag: untilFlag, depth: context.depth });
   const contextDeliveryActive = options.contextDelivery !== void 0 && !sliceCorridor.isActive();
   const completedStepCounts = isResume ? completedStepCountsFromTrace(existingTrace, sliceCorridor) : /* @__PURE__ */ new Map();
   if (isResume) {
@@ -67218,7 +67660,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     seedPowerInferenceFromTrace(existingTrace, context.powerInference);
   }
   const defaultMaxSteps = Math.max(flow.steps.length * 4, 8);
-  const maxSteps = options.maxSteps ?? (sliceFlag !== void 0 && sliceCorridor.isActive() ? defaultMaxSteps + sliceFlag.maxSlices * 6 : defaultMaxSteps);
+  const maxSteps = options.maxSteps ?? defaultMaxSteps + (sliceFlag !== void 0 && sliceCorridor.isActive() ? sliceFlag.maxSlices * 6 : 0) + (untilFlag !== void 0 && untilCorridor.isActive() ? untilFlag.maxIterations * untilFlag.bodySteps.length * 4 : 0);
   const bootstrapRecordedAt = context.now().toISOString();
   if (!isResume && options.manifestBytes !== void 0) {
     await writeRuntimeManifestSnapshot({
@@ -67257,6 +67699,19 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   }
   let currentStepId = options.resumeCheckpoint?.stepId ?? flow.entry;
   let incomingRouteTaken;
+  let commitContainmentBegun = false;
+  const containIteration = async (iterationIndex, message) => {
+    if (untilFlag?.iterationCommitContainment === void 0 || options.commitContainmentRunner === void 0) {
+      return;
+    }
+    if (!commitContainmentBegun) {
+      await options.commitContainmentRunner.begin({
+        branchName: `${untilFlag.iterationCommitContainment.branchPrefix}-${runId}`
+      });
+      commitContainmentBegun = true;
+    }
+    await options.commitContainmentRunner.commitIteration({ iterationIndex, message });
+  };
   const recoveryRouteBindings = options.recoveryRouteBindings ?? (options.workContractRef === void 0 ? void 0 : []);
   const corridor = new RecoveryCorridor({
     steps,
@@ -67315,7 +67770,10 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     }
     const isLoopBodyStep = sliceCorridor.isLoopBodyStep(step.id);
     const stepSliceIndex = sliceCorridor.currentSliceIndex();
-    const stepCountKey = sliceCorridor.countKey(step.id, stepSliceIndex);
+    const isUntilBodyStep = untilCorridor.isLoopBodyStep(step.id);
+    const stepIterationIndex = untilCorridor.currentIterationIndex();
+    const stepCountKey = isUntilBodyStep ? untilCorridor.countKey(step.id, stepIterationIndex) : sliceCorridor.countKey(step.id, stepSliceIndex);
+    const loopBodyIndex = isLoopBodyStep ? stepSliceIndex : isUntilBodyStep ? stepIterationIndex : void 0;
     const isResumedCheckpoint = options.resumeCheckpoint?.stepId === currentStepId;
     const completedCount = completedStepCounts.get(stepCountKey) ?? 0;
     const incomingIsActiveRecovery = corridor.isActiveRoute(incomingRouteTaken);
@@ -67334,6 +67792,30 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     })) {
       const recoverySuffix = corridor.lastReasonSuffix();
       const reason = incomingRouteTaken === void 0 ? `route cycle detected at step '${step.id}'; aborting before re-entering an already completed step` : `route '${incomingRouteTaken}' for step '${step.id}' exhausted max_attempts=${maxAttempts}${recoverySuffix}`;
+      if (untilCorridor.isActive() && untilFlag?.stopJudge !== void 0 && isUntilBodyStep && incomingRouteTaken !== void 0) {
+        context.honestyLedger?.latchOverclaim({
+          stepId: step.id,
+          iterationIndex: stepIterationIndex,
+          reason
+        });
+        await containIteration(stepIterationIndex, "exhausted in-step retries");
+        if (untilCorridor.canReenter()) {
+          corridor.clearIfExitingOrigin({ stepId: step.id, routeHasRecoveryMechanics: false });
+          untilCorridor.advance();
+          currentStepId = untilFlag.headStep;
+          incomingRouteTaken = untilFlag.reenterRoute;
+          continue;
+        }
+        const exhaustedReason = `until loop exhausted with an unresolved overclaim on '${step.id}': ${reason}`;
+        await trace.append({
+          run_id: runId,
+          kind: "step.aborted",
+          step_id: step.id,
+          attempt,
+          reason: exhaustedReason
+        });
+        return await closeRun(context, "stopped", void 0, exhaustedReason);
+      }
       await trace.append({
         run_id: runId,
         kind: "step.aborted",
@@ -67349,7 +67831,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         kind: "step.entered",
         step_id: step.id,
         attempt,
-        ...isLoopBodyStep ? { slice_index: stepSliceIndex } : {}
+        ...loopBodyIndex === void 0 ? {} : { slice_index: loopBodyIndex }
       });
     }
     let traceLengthBeforeStep = trace.getAll().length;
@@ -67375,7 +67857,11 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         // document literally true end to end, not present-but-false.
         ...contextDeliveryActive ? { contextDeliveryActive } : {},
         ...acceptanceRetryFeedback === void 0 ? {} : { acceptanceRetryFeedback },
-        ...isLoopBodyStep ? { activeSliceIndex: stepSliceIndex } : {},
+        // The iteration scope feeds executors that stamp slice_index on their
+        // check.evaluated entries (relay, verification), so an until body step's
+        // failure evidence is filed under its iteration and the recovery resolver
+        // can tell iteration N's failed check from iteration N+1's clean attempt.
+        ...loopBodyIndex === void 0 ? {} : { activeSliceIndex: loopBodyIndex },
         ...activeSlice === void 0 ? {} : { activeSlice },
         ...isResumedCheckpoint && options.resumeCheckpoint !== void 0 ? { resumeCheckpoint: options.resumeCheckpoint } : {}
       };
@@ -67478,6 +67964,61 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         sliceCorridor.advance();
       }
     }
+    if (untilCorridor.isActive() && untilFlag !== void 0 && step.id === untilFlag.tailStep) {
+      if (untilFlag.stopJudge !== void 0) {
+        const judgment = await readUntilJudgeReport(context, untilFlag.stopJudge);
+        const evidenceConfirms = judgment.goalProposed && (options.untilEvidenceFloor ?? defaultUntilEvidenceFloor)(context);
+        let disposition = untilCorridor.disposeIteration({
+          goalProposed: judgment.goalProposed,
+          evidenceConfirms
+        });
+        if (disposition !== "stop-clean") {
+          const budget = evaluateUntilBudget(context.trace.getAll(), {
+            ...untilFlag.cumulativeUsdCap === void 0 ? {} : { usdCap: untilFlag.cumulativeUsdCap },
+            ...untilFlag.cumulativeTokenCap === void 0 ? {} : { tokenCap: untilFlag.cumulativeTokenCap }
+          });
+          const noProgressCount = untilFlag.stopJudge.progressPath === void 0 ? 0 : untilCorridor.recordProgressMarker(judgment.progressMarker);
+          const ceilingHit = untilFlag.noProgressCeiling !== void 0 && noProgressCount >= untilFlag.noProgressCeiling;
+          if (disposition === "reenter" && (budget.overCap || ceilingHit)) {
+            disposition = "needs-attention";
+          }
+          if (disposition === "reenter" && untilFlag.carriedNotes !== void 0) {
+            const steers = [];
+            if (budget.nearCap && budget.reason !== void 0)
+              steers.push(budget.reason);
+            if (noProgressCount === 1) {
+              steers.push("No measurable progress since the last pass. Try a materially different approach.");
+            }
+            if (judgment.lesson !== void 0 || steers.length > 0) {
+              await appendCarriedNote({
+                files: context.files,
+                report: untilFlag.carriedNotes.report,
+                note: {
+                  iteration: stepIterationIndex,
+                  lesson: judgment.lesson ?? "",
+                  ...steers.length === 0 ? {} : { steer: steers.join(" ") }
+                },
+                ...untilFlag.carriedNotes.maxEntries === void 0 ? {} : { maxEntries: untilFlag.carriedNotes.maxEntries }
+              });
+            }
+          }
+        }
+        if (disposition === "reenter") {
+          route = untilFlag.reenterRoute;
+          untilCorridor.advance();
+        } else if (disposition === "needs-attention") {
+          const attentionRoute = untilFlag.needsAttentionRoute;
+          if (attentionRoute === void 0) {
+            throw new Error(`until loop on flow '${flow.id}' reached needs-attention with no needsAttentionRoute`);
+          }
+          route = attentionRoute;
+        }
+      } else if (untilCorridor.shouldReenter({ stepId: step.id, route })) {
+        route = untilFlag.reenterRoute;
+        untilCorridor.advance();
+      }
+      await containIteration(stepIterationIndex, `route ${route}`);
+    }
     const routeDeclaration = classifyRouteDeclarationTransition({
       stepId: step.id,
       route,
@@ -67510,7 +68051,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       stepId: step.id,
       attempt,
       details,
-      ...isLoopBodyStep ? { sliceIndex: stepSliceIndex } : {}
+      ...loopBodyIndex === void 0 ? {} : { sliceIndex: loopBodyIndex }
     }) ?? reportSelectedCheckpointBoundaryEvidence({
       context,
       stepId: step.id,
@@ -67523,6 +68064,9 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       attempt,
       binding: recoveryBinding
     }) : void 0);
+    if (untilCorridor.isActive() && untilFlag?.stopJudge !== void 0 && isUntilBodyStep && recoveryFailure === void 0 && !routeHasRecoveryMechanics) {
+      context.honestyLedger?.clearLatch(step.id);
+    }
     const bindingVerdict = recoveryBindingVerdict({
       workContractRef: context.workContractRef,
       stepId: step.id,
@@ -67542,7 +68086,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       });
       return await closeRun(context, "aborted", void 0, bindingVerdict.reason);
     }
-    const targetCompletedCount = target.kind === "step" ? completedStepCounts.get(sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex())) ?? 0 : 0;
+    const targetCountKey = target.kind === "step" ? untilCorridor.isLoopBodyStep(target.stepId) ? untilCorridor.countKey(target.stepId, untilCorridor.currentIterationIndex()) : sliceCorridor.countKey(target.stepId, sliceCorridor.currentSliceIndex()) : void 0;
+    const targetCompletedCount = targetCountKey !== void 0 ? completedStepCounts.get(targetCountKey) ?? 0 : 0;
     const targetStep = target.kind === "step" ? steps.get(target.stepId) : void 0;
     const isRecoveryReturnToOrigin = target.kind === "step" ? corridor.isReturnToOrigin({
       stepId: target.stepId,
@@ -67598,7 +68143,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       step_id: step.id,
       attempt,
       route_taken: route,
-      ...isLoopBodyStep ? { slice_index: stepSliceIndex } : {}
+      ...loopBodyIndex === void 0 ? {} : { slice_index: loopBodyIndex }
     });
     completedStepCounts.set(stepCountKey, completedCount + 1 + deliveryConsumedAttempts);
     try {
@@ -68311,7 +68856,7 @@ async function resumeCompiledFlow(options) {
 
 // dist/memory/project-injection.js
 import { existsSync as existsSync34, readFileSync as readFileSync50 } from "node:fs";
-import { join as join35, resolve as resolve23 } from "node:path";
+import { join as join36, resolve as resolve23 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -68320,7 +68865,7 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
   }
   try {
     const relPath = fact.source.ref.ref.split("#")[0] ?? fact.source.ref.ref;
-    const abs = join35(runsBase, runId, relPath);
+    const abs = join36(runsBase, runId, relPath);
     if (!existsSync34(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
@@ -68560,7 +69105,7 @@ function prepareRunStartHistoryRecall(options) {
 
 // dist/app/operator-summary/writer.js
 import { existsSync as existsSync36, mkdirSync as mkdirSync7, readFileSync as readFileSync52, rmSync as rmSync5, writeFileSync as writeFileSync8 } from "node:fs";
-import { dirname as dirname10, isAbsolute as isAbsolute13, join as join36, relative as relative13, resolve as resolve24 } from "node:path";
+import { dirname as dirname10, isAbsolute as isAbsolute13, join as join37, relative as relative13, resolve as resolve24 } from "node:path";
 
 // dist/shared/operator-summary/json.js
 import { existsSync as existsSync35, readFileSync as readFileSync51 } from "node:fs";
@@ -69183,7 +69728,7 @@ function projectSummary(input) {
 
 // dist/app/operator-summary/writer.js
 function readPriorRoute(runFolder) {
-  const path = join36(runFolder, "reports", "operator-summary.json");
+  const path = join37(runFolder, "reports", "operator-summary.json");
   if (!existsSync36(path))
     return {};
   try {
@@ -69204,13 +69749,13 @@ var HTML_REPORT_LABEL = "Operator summary (HTML)";
 var MAX_KEY_POINTS = 4;
 var MAX_CAVEATS = 3;
 function jsonPath(runFolder) {
-  return join36(runFolder, "reports", "operator-summary.json");
+  return join37(runFolder, "reports", "operator-summary.json");
 }
 function markdownPath(runFolder) {
-  return join36(runFolder, "reports", "operator-summary.md");
+  return join37(runFolder, "reports", "operator-summary.md");
 }
 function htmlPath(runFolder) {
-  return join36(runFolder, "reports", "operator-summary.html");
+  return join37(runFolder, "reports", "operator-summary.html");
 }
 function isInsideOrSame4(root, target) {
   const fromRoot = relative13(root, target);
@@ -69604,7 +70149,7 @@ function evidenceLinks2(runFolder, report) {
   });
 }
 function readAutoResolutions(runFolder) {
-  const tracePath = join36(runFolder, "trace.ndjson");
+  const tracePath = join37(runFolder, "trace.ndjson");
   if (!existsSync36(tracePath))
     return [];
   const records = [];
@@ -69645,7 +70190,7 @@ function emptySpendTotals() {
 }
 var SPEND_ROLE_ORDER = ["researcher", "implementer", "reviewer"];
 function readRunReceipt(runFolder) {
-  const tracePath = join36(runFolder, "trace.ndjson");
+  const tracePath = join37(runFolder, "trace.ndjson");
   if (!existsSync36(tracePath))
     return void 0;
   let depth;
@@ -69879,7 +70424,7 @@ function skillHookSourceLabel(source) {
   }
 }
 function readSkillHookSummary(runFolder) {
-  const tracePath = join36(runFolder, "trace.ndjson");
+  const tracePath = join37(runFolder, "trace.ndjson");
   if (!existsSync36(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
@@ -69953,7 +70498,7 @@ function skillHookActivationLine(activation) {
   return `\`${activation.hook}\` ${parts.join("; ")} \u2014 ${provenance}`;
 }
 function readEquipmentReshapeSummary(runFolder) {
-  const tracePath = join36(runFolder, "trace.ndjson");
+  const tracePath = join37(runFolder, "trace.ndjson");
   if (!existsSync36(tracePath))
     return { reshapes: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
@@ -70290,7 +70835,7 @@ function writeOperatorSummary(input) {
 
 // dist/app/process-evidence/projection.js
 import { existsSync as existsSync37, mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname11, join as join37 } from "node:path";
+import { dirname as dirname11, join as join38 } from "node:path";
 function traceRef2(runId) {
   return {
     kind: "trace",
@@ -70347,15 +70892,15 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync37(join37(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync37(join38(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join37(input.runFolder, path),
+    path: join38(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
   const additionalRefs = (input.additionalEvidencePaths ?? []).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join37(input.runFolder, path),
+    path: join38(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
@@ -70411,7 +70956,7 @@ function projectCheckpointWaitingProcessEvidence(input) {
 }
 function writeProcessEvidenceProjection(input) {
   const projection = ProcessEvidenceProjection.parse(input.projection);
-  const outPath = join37(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
+  const outPath = join38(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
   mkdirSync8(dirname11(outPath), { recursive: true });
   writeFileSync9(outPath, `${JSON.stringify(projection, null, 2)}
 `);
@@ -70492,7 +71037,7 @@ function detectNoProgress(attempts) {
 
 // dist/app/run-envelope/source-record.js
 import { mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname12, join as join38 } from "node:path";
+import { dirname as dirname12, join as join39 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RUN_SURFACE_RELATIVE_PATH = "reports/run-surface.md";
 var RUN_DECISION_PACKET_RELATIVE_DIR = "reports/decision-packets";
@@ -70536,7 +71081,7 @@ function renderSurfaceMarkdown(input) {
     ...input.record.surface_output.artifact_links
   ];
   const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
-  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join38(input.runFolder, ref.ref))).join(" \xB7 ");
+  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join39(input.runFolder, ref.ref))).join(" \xB7 ");
   return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
 }
 function processAttemptOutcome(outcome) {
@@ -71046,17 +71591,17 @@ function writeRunEnvelopeRecord(input) {
     }),
     outcome
   });
-  const outPath = join38(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
+  const outPath = join39(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
   mkdirSync9(dirname12(outPath), { recursive: true });
   const decisionPacketPaths = decisionArtifacts.map((artifact) => {
-    const path = join38(input.runFolder, artifact.ref.ref);
+    const path = join39(input.runFolder, artifact.ref.ref);
     mkdirSync9(dirname12(path), { recursive: true });
     writeFileSync10(path, artifact.body);
     return path;
   });
   writeFileSync10(outPath, `${JSON.stringify(record2, null, 2)}
 `);
-  const surfacePath = join38(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
+  const surfacePath = join39(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
   writeFileSync10(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
   return {
     path: outPath,
@@ -71174,14 +71719,14 @@ async function runAutonomousContinuation(input) {
 var import_yaml4 = __toESM(require_dist(), 1);
 import { existsSync as existsSync38, readFileSync as readFileSync53 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
-import { join as join39, resolve as resolve25 } from "node:path";
+import { join as join40, resolve as resolve25 } from "node:path";
 var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
 var PROJECT_CONFIG_RELATIVE_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS;
 function userGlobalConfigPath(homeDir = homedir4()) {
-  return join39(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
+  return join40(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
 }
 function projectConfigPath2(cwd = process.cwd()) {
-  return join39(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
+  return join40(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
 }
 function parseConfigYaml(text, sourcePath) {
   try {
@@ -71308,11 +71853,11 @@ function defaultChildCompiledFlowResolver(flowRoot2) {
 
 // dist/cli/post-run-artifacts.js
 import { readFileSync as readFileSync55 } from "node:fs";
-import { join as join41 } from "node:path";
+import { join as join42 } from "node:path";
 
 // dist/app/run-envelope/shadow-record.js
 import { mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname13, join as join40 } from "node:path";
+import { dirname as dirname13, join as join41 } from "node:path";
 var RUN_ENVELOPE_SHADOW_RELATIVE_PATH = "reports/run-envelope-shadow.json";
 function reportRef2(input) {
   return {
@@ -71401,7 +71946,7 @@ function writeRunEnvelopeShadowRecord(input) {
     child_run: childRun,
     artifact_links: artifactLinks
   });
-  const outPath = join40(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
+  const outPath = join41(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
   mkdirSync10(dirname13(outPath), { recursive: true });
   writeFileSync11(outPath, `${JSON.stringify(record2, null, 2)}
 `);
@@ -71438,7 +71983,7 @@ function resolveFlowPrimaryOutcome(input) {
     return void 0;
   let primaryResult;
   try {
-    primaryResult = JSON.parse(readFileSync55(join41(input.runFolder, primaryResultPath), "utf8"));
+    primaryResult = JSON.parse(readFileSync55(join42(input.runFolder, primaryResultPath), "utf8"));
   } catch {
     return void 0;
   }
@@ -71483,7 +72028,7 @@ function emitPostRunArtifacts(input) {
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
 import { readFileSync as readFileSync56 } from "node:fs";
-import { join as join42 } from "node:path";
+import { join as join43 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
   const recoveryFlowCache = /* @__PURE__ */ new Map();
@@ -71512,7 +72057,7 @@ function createRecoveryAttemptRunner(deps) {
       tournament: false,
       autonomous: parentAxes.autonomous && support.supportsAutonomous
     });
-    const attemptFolder = join42(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
+    const attemptFolder = join43(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
     const recoveryResult = await runCompiledFlowWithWaiting({
       flowBytes: recoveryFlow.bytes,
       compiledFlowPath: recoveryFlow.path,
@@ -71617,13 +72162,13 @@ function runEnvelopeOutputFields(input) {
 }
 
 // dist/cli/run-stdout-envelope.js
-import { join as join43 } from "node:path";
+import { join as join44 } from "node:path";
 function historyRecallOutputFields(input) {
   return {
     history_recall: {
       status: input.report.status,
       memory_input_count: input.report.memory_input_count,
-      report_path: join43(input.runFolder, HISTORY_RECALL_REPORT_PATH),
+      report_path: join44(input.runFolder, HISTORY_RECALL_REPORT_PATH),
       rebuilt: input.report.rebuilt,
       ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
       warnings: input.report.warnings.map((warning) => ({
@@ -72116,7 +72661,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = args.runFolder === void 0 ? join44(runsRoot(process.cwd()), runId) : resolve27(args.runFolder);
+  const runFolder = args.runFolder === void 0 ? join45(runsRoot(process.cwd()), runId) : resolve27(args.runFolder);
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...options.configHomeDir !== void 0 ? { homeDir: options.configHomeDir } : {},
     ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {},
@@ -72362,7 +72907,7 @@ async function runExecutionCommand(args, options) {
             policyLayers
           })
         });
-        const autonomousLoopPath = join44(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
+        const autonomousLoopPath = join45(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
         mkdirSync11(dirname14(autonomousLoopPath), { recursive: true });
         writeFileSync12(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
@@ -72401,7 +72946,7 @@ async function runExecutionCommand(args, options) {
       postRunArtifactWarnings,
       operatorSummary,
       runEnvelope,
-      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join44(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
+      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join45(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
     }), null, 2)}
 `);
     return 0;
@@ -72481,7 +73026,7 @@ async function runRunsCommand(argv) {
 
 // dist/cli/uninstall.js
 import { existsSync as existsSync41, readFileSync as readFileSync58 } from "node:fs";
-import { join as join45, resolve as resolve28 } from "node:path";
+import { join as join46, resolve as resolve28 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -72632,7 +73177,7 @@ async function runUninstallCommand(argv, options = {}) {
   let malformedAny = false;
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
-    const path = join45(args.dir, file2);
+    const path = join46(args.dir, file2);
     if (!existsSync41(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
