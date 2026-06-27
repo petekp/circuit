@@ -33889,13 +33889,32 @@ var RelayStartedTraceEntry = TraceEntryBase.extend({
   resolved_from: RelayResolutionSource,
   equipment: EquipmentEnforcementEvidence.optional()
 }).strict();
+var LoadedSkillCause = external_exports.enum(["selection", "binding", "skill-hook"]);
 var LoadedSkillEvidence = external_exports.object({
   id: SkillId,
+  cause: LoadedSkillCause,
   slot: SkillSlotId.optional(),
   path: external_exports.string().min(1),
   sha256: ContentHash,
   bytes: external_exports.number().int().nonnegative()
-}).strict();
+}).strict().superRefine((skill, ctx) => {
+  const hasSlot = skill.slot !== void 0;
+  const isBinding = skill.cause === "binding";
+  if (hasSlot && !isBinding) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["slot"],
+      message: `a loaded skill carries a slot only when its cause is 'binding' (cause was '${skill.cause}')`
+    });
+  }
+  if (isBinding && !hasSlot) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["slot"],
+      message: "a loaded skill with cause 'binding' must name the slot it was bound to"
+    });
+  }
+});
 var SkillsLoadedTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("skills.loaded"),
   step_id: StepId,
@@ -53904,6 +53923,26 @@ var RunTrace = ownPropertyGuardedArray.pipe(RunTraceBody.superRefine((trace_entr
   if (closedAt >= 0 && closedAt !== trace_entries.length - 1) {
     issueAt4(ctx, [closedAt + 1, "kind"], `trace_entries after 'run.closed' at index ${closedAt}; nothing may be appended after closure`);
   }
+  const hookTriggeredIds = /* @__PURE__ */ new Set();
+  for (const e of trace_entries) {
+    if (e?.kind !== "run.skill-hook")
+      continue;
+    for (const triggered of e.event.triggered_skills) {
+      hookTriggeredIds.add(triggered.id);
+    }
+  }
+  for (let i = 0; i < trace_entries.length; i++) {
+    const e = trace_entries[i];
+    if (e?.kind !== "skills.loaded")
+      continue;
+    e.skills.forEach((skill, skillIndex) => {
+      if (skill.cause !== "skill-hook")
+        return;
+      if (!hookTriggeredIds.has(skill.id)) {
+        issueAt4(ctx, [i, "skills", skillIndex, "cause"], `loaded skill '${skill.id}' has cause 'skill-hook' but no matching run.skill-hook event triggered it`);
+      }
+    });
+  }
   validateGuidanceTraceSequence(trace_entries, ctx);
 }));
 var SNAPSHOT_STATUS_FOR_OUTCOME = {
@@ -62770,7 +62809,7 @@ function resolveLoadedRelaySkills(input) {
   const bindings = resolveSkillBindingsForFlow(input.flowId, input.configLayers);
   const loaded = [];
   const seen = /* @__PURE__ */ new Set();
-  const addSkill = (id, slot2) => {
+  const addSkill = (id, cause, slot2) => {
     const key = id;
     if (seen.has(key))
       return;
@@ -62785,6 +62824,7 @@ ${err.message}`);
     seen.add(key);
     loaded.push({
       id: resolved.entry.id,
+      cause,
       ...slot2 === void 0 ? {} : { slot: slot2 },
       path: resolved.entry.path,
       sha256: resolved.entry.sha256,
@@ -62793,16 +62833,16 @@ ${err.message}`);
     });
   };
   for (const id of input.resolvedSelection.skills) {
-    addSkill(id);
+    addSkill(id, "selection");
   }
   for (const slot2 of input.skillSlots) {
     const skill = bindings.get(slot2.id);
     if (skill === void 0)
       continue;
-    addSkill(skill, slot2.id);
+    addSkill(skill, "binding", slot2.id);
   }
   for (const id of input.injectedSkillIds ?? []) {
-    addSkill(id);
+    addSkill(id, "skill-hook");
   }
   return loaded;
 }
@@ -68616,6 +68656,15 @@ function friendlyVerificationStatus(status) {
     return "failed";
   return status;
 }
+function friendlyRegressionStatus(status) {
+  if (status === "cleared")
+    return "reproduced before the fix and cleared after";
+  if (status === "deferred")
+    return "not proven by a command, so the relevance of the change to the bug is unverified";
+  if (status === "still-failing")
+    return "the regression command still fails after the fix";
+  return status;
+}
 function friendlyFixOutcome(outcome) {
   if (outcome === "fixed")
     return "fix complete";
@@ -68882,6 +68931,10 @@ function buildFixDetails(flowReport) {
   const review = stringField2(flowReport, "review_verdict") ?? stringField2(flowReport, "review_status");
   if (verification !== void 0) {
     details.push(`Verification: ${friendlyVerificationStatus(verification)}.`);
+  }
+  const regression = stringField2(flowReport, "regression_rerun_status");
+  if (regression !== void 0 && regression !== "cleared") {
+    details.push(`Regression: ${friendlyRegressionStatus(regression)}.`);
   }
   if (review !== void 0) {
     const skipReason = review === "skipped" ? stringField2(flowReport, "review_skip_reason") : void 0;
