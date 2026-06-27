@@ -7,6 +7,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { SliceLoopEngineFlag } from '../../flows/types.js';
+import { composePolicyHardConstraints } from '../../policy/policy-envelope.js';
 import type { Axes } from '../../schemas/axes.js';
 import type { ChangeKindDeclaration, StandardChangeKind } from '../../schemas/change-kind.js';
 import { computeManifestHash } from '../../schemas/manifest.js';
@@ -229,8 +230,15 @@ function configuredMaxAttempts(step: ExecutableStep): number | undefined {
   return maxAttempts;
 }
 
-function maxAttemptsForRoute(step: ExecutableStep, recoveryRoute: boolean): number {
-  return configuredMaxAttempts(step) ?? (recoveryRoute ? 2 : 1);
+function maxAttemptsForRoute(
+  step: ExecutableStep,
+  recoveryRoute: boolean,
+  policyCap?: number,
+): number {
+  const routeMax = configuredMaxAttempts(step) ?? (recoveryRoute ? 2 : 1);
+  // The per-repo policy max_attempts_per_step is an upper bound (a hard
+  // constraint). Clamp the route's own ceiling down to it when present.
+  return policyCap === undefined ? routeMax : Math.min(routeMax, policyCap);
 }
 
 function standardChangeKindDeclaration(
@@ -407,6 +415,16 @@ async function executeExecutableFlowOutcomeUnsafe(
       ? {}
       : { resumeCheckpoint: options.resumeCheckpoint }),
   };
+  // The composed per-repo policy caps how many attempts any one step may take
+  // (max_attempts_per_step is a hard upper bound). Compose it once per run and
+  // clamp every step's route ceiling to it below. No policy layers means no cap
+  // and no behavior change.
+  const policyLayersForAttemptCap = context.policyLayers ?? [];
+  const policyMaxAttemptsCap =
+    policyLayersForAttemptCap.length === 0
+      ? undefined
+      : composePolicyHardConstraints(policyLayersForAttemptCap.map((layer) => layer.envelope))
+          .limits.max_attempts_per_step;
   const executors: ExecutorRegistry = {
     ...createDefaultExecutors({
       ...(options.relayConnector === undefined ? {} : { relayConnector: options.relayConnector }),
@@ -628,7 +646,7 @@ async function executeExecutableFlowOutcomeUnsafe(
     const isResumedCheckpoint = options.resumeCheckpoint?.stepId === currentStepId;
     const completedCount = completedStepCounts.get(stepCountKey) ?? 0;
     const incomingIsActiveRecovery = corridor.isActiveRoute(incomingRouteTaken);
-    const maxAttempts = maxAttemptsForRoute(step, incomingIsActiveRecovery);
+    const maxAttempts = maxAttemptsForRoute(step, incomingIsActiveRecovery, policyMaxAttemptsCap);
     const isRecoveryOriginReentry = corridor.isReturnToOrigin({
       stepId: step.id,
       route: incomingRouteTaken,
@@ -978,8 +996,8 @@ async function executeExecutableFlowOutcomeUnsafe(
         : false;
     const targetMaxAttempts =
       target.kind === 'step' && targetStep !== undefined
-        ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics)
-        : maxAttemptsForRoute(step, routeHasRecoveryMechanics);
+        ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics, policyMaxAttemptsCap)
+        : maxAttemptsForRoute(step, routeHasRecoveryMechanics, policyMaxAttemptsCap);
     const targetTransition = classifyRouteTargetTransition({
       stepId: step.id,
       route,

@@ -67011,8 +67011,9 @@ function configuredMaxAttempts(step) {
     return void 0;
   return maxAttempts;
 }
-function maxAttemptsForRoute(step, recoveryRoute) {
-  return configuredMaxAttempts(step) ?? (recoveryRoute ? 2 : 1);
+function maxAttemptsForRoute(step, recoveryRoute, policyCap) {
+  const routeMax = configuredMaxAttempts(step) ?? (recoveryRoute ? 2 : 1);
+  return policyCap === void 0 ? routeMax : Math.min(routeMax, policyCap);
 }
 function standardChangeKindDeclaration(changeKind) {
   return {
@@ -67142,6 +67143,8 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     ...options.historyRecallPrecision === void 0 ? {} : { historyRecallPrecision: options.historyRecallPrecision },
     ...options.resumeCheckpoint === void 0 ? {} : { resumeCheckpoint: options.resumeCheckpoint }
   };
+  const policyLayersForAttemptCap = context.policyLayers ?? [];
+  const policyMaxAttemptsCap = policyLayersForAttemptCap.length === 0 ? void 0 : composePolicyHardConstraints(policyLayersForAttemptCap.map((layer) => layer.envelope)).limits.max_attempts_per_step;
   const executors = {
     ...createDefaultExecutors({
       ...options.relayConnector === void 0 ? {} : { relayConnector: options.relayConnector }
@@ -67276,7 +67279,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     const isResumedCheckpoint = options.resumeCheckpoint?.stepId === currentStepId;
     const completedCount = completedStepCounts.get(stepCountKey) ?? 0;
     const incomingIsActiveRecovery = corridor.isActiveRoute(incomingRouteTaken);
-    const maxAttempts = maxAttemptsForRoute(step, incomingIsActiveRecovery);
+    const maxAttempts = maxAttemptsForRoute(step, incomingIsActiveRecovery, policyMaxAttemptsCap);
     const isRecoveryOriginReentry = corridor.isReturnToOrigin({
       stepId: step.id,
       route: incomingRouteTaken
@@ -67505,7 +67508,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
       stepId: target.stepId,
       route
     }) : false;
-    const targetMaxAttempts = target.kind === "step" && targetStep !== void 0 ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics) : maxAttemptsForRoute(step, routeHasRecoveryMechanics);
+    const targetMaxAttempts = target.kind === "step" && targetStep !== void 0 ? maxAttemptsForRoute(targetStep, routeHasRecoveryMechanics, policyMaxAttemptsCap) : maxAttemptsForRoute(step, routeHasRecoveryMechanics, policyMaxAttemptsCap);
     const targetTransition = classifyRouteTargetTransition({
       stepId: step.id,
       route,
