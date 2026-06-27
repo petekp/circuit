@@ -1319,6 +1319,7 @@ describe('TraceEntry + Snapshot strict mode (RUN-I8)', () => {
       skills: [
         {
           id: 'react-change-review',
+          cause: 'binding',
           slot: 'review-assistant',
           path: '/Users/example/.agents/skills/react-change-review/SKILL.md',
           sha256: 'a'.repeat(64),
@@ -1341,6 +1342,7 @@ describe('TraceEntry + Snapshot strict mode (RUN-I8)', () => {
       skills: [
         {
           id: 'react-change-review',
+          cause: 'selection',
           path: '/Users/example/.agents/skills/react-change-review/SKILL.md',
           sha256: 'a'.repeat(64),
           bytes: 4218,
@@ -1733,6 +1735,7 @@ describe('TraceEntry variants reject top-level surplus keys (RUN-I8 coverage exp
         skills: [
           {
             id: 'react-change-review',
+            cause: 'selection',
             path: '/Users/example/.agents/skills/react-change-review/SKILL.md',
             sha256: 'a'.repeat(64),
             bytes: 4218,

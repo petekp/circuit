@@ -2,7 +2,7 @@ import type { LayeredConfig } from '../schemas/config.js';
 import type { CompiledFlowId, SkillId, SkillSlotId } from '../schemas/ids.js';
 import type { ResolvedSelection } from '../schemas/selection-policy.js';
 import type { SkillSlot } from '../schemas/skill.js';
-import type { LoadedSkillEvidence } from '../schemas/trace-entry.js';
+import type { LoadedSkillCause, LoadedSkillEvidence } from '../schemas/trace-entry.js';
 import { type UserSkillRegistry, createUserSkillRegistry } from './user-skill-registry.js';
 
 export interface LoadedRelaySkill extends LoadedSkillEvidence {
@@ -56,7 +56,13 @@ export function resolveLoadedRelaySkills(
   const loaded: LoadedRelaySkill[] = [];
   const seen = new Set<string>();
 
-  const addSkill = (id: SkillId, slot?: SkillSlotId) => {
+  // `cause` is stamped here, at load time, where the source is known for
+  // certain: the selection loop knows it loaded a declared default, the slot
+  // loop knows it bound a slot, the injection loop knows it actuated a hook. A
+  // later reader cannot recover that distinction from id and path alone, so we
+  // record it now and let the trace schema verify it (slot <=> binding) and the
+  // run schema cross-check skill-hook causes against real hook events.
+  const addSkill = (id: SkillId, cause: LoadedSkillCause, slot?: SkillSlotId) => {
     const key = id as unknown as string;
     if (seen.has(key)) return;
     let resolved: ReturnType<UserSkillRegistry['resolve']>;
@@ -72,6 +78,7 @@ export function resolveLoadedRelaySkills(
     seen.add(key);
     loaded.push({
       id: resolved.entry.id,
+      cause,
       ...(slot === undefined ? {} : { slot }),
       path: resolved.entry.path,
       sha256: resolved.entry.sha256,
@@ -81,13 +88,13 @@ export function resolveLoadedRelaySkills(
   };
 
   for (const id of input.resolvedSelection.skills) {
-    addSkill(id);
+    addSkill(id, 'selection');
   }
 
   for (const slot of input.skillSlots) {
     const skill = bindings.get(slot.id as unknown as string);
     if (skill === undefined) continue;
-    addSkill(skill, slot.id);
+    addSkill(skill, 'binding', slot.id);
   }
 
   // Skill-hook injected skills come last and carry no slot: they are run-time
@@ -95,7 +102,7 @@ export function resolveLoadedRelaySkills(
   // injected skill that the step already loads (via selection or a binding) is
   // not added again.
   for (const id of input.injectedSkillIds ?? []) {
-    addSkill(id);
+    addSkill(id, 'skill-hook');
   }
 
   return loaded;

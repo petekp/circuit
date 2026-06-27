@@ -841,6 +841,34 @@ export const RunTrace = ownPropertyGuardedArray.pipe(
       );
     }
 
+    // Skill-hook provenance. A loaded skill stamped cause 'skill-hook' claims
+    // a run-time auto-injection actually happened. That claim is sound only if
+    // a real run.skill-hook event in this same trace triggered that skill id.
+    // This closes the laundering path where a hook-injected skill is read back
+    // as author-declared, and its inverse: a 'skill-hook' stamp with no event
+    // behind it.
+    const hookTriggeredIds = new Set<string>();
+    for (const e of trace_entries) {
+      if (e?.kind !== 'run.skill-hook') continue;
+      for (const triggered of e.event.triggered_skills) {
+        hookTriggeredIds.add(triggered.id as unknown as string);
+      }
+    }
+    for (let i = 0; i < trace_entries.length; i++) {
+      const e = trace_entries[i];
+      if (e?.kind !== 'skills.loaded') continue;
+      e.skills.forEach((skill, skillIndex) => {
+        if (skill.cause !== 'skill-hook') return;
+        if (!hookTriggeredIds.has(skill.id as unknown as string)) {
+          issueAt(
+            ctx,
+            [i, 'skills', skillIndex, 'cause'],
+            `loaded skill '${skill.id as unknown as string}' has cause 'skill-hook' but no matching run.skill-hook event triggered it`,
+          );
+        }
+      });
+    }
+
     validateGuidanceTraceSequence(trace_entries, ctx);
   }),
 );

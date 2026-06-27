@@ -315,15 +315,42 @@ export const RelayStartedTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type RelayStartedTraceEntry = z.infer<typeof RelayStartedTraceEntry>;
 
+// Why this skill ended up loaded into a relay: an author-declared default
+// selection, a config-bound slot, or a skill-hook auto-injection. The cause is
+// stamped at load time so a hook-injected skill can never be read back as
+// author-declared. `slot` is present exactly when `cause` is `binding` — a slot
+// is the binding's identity, and selection/skill-hook loads have no slot.
+export const LoadedSkillCause = z.enum(['selection', 'binding', 'skill-hook']);
+export type LoadedSkillCause = z.infer<typeof LoadedSkillCause>;
+
 export const LoadedSkillEvidence = z
   .object({
     id: SkillId,
+    cause: LoadedSkillCause,
     slot: SkillSlotId.optional(),
     path: z.string().min(1),
     sha256: ContentHash,
     bytes: z.number().int().nonnegative(),
   })
-  .strict();
+  .strict()
+  .superRefine((skill, ctx) => {
+    const hasSlot = skill.slot !== undefined;
+    const isBinding = skill.cause === 'binding';
+    if (hasSlot && !isBinding) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['slot'],
+        message: `a loaded skill carries a slot only when its cause is 'binding' (cause was '${skill.cause}')`,
+      });
+    }
+    if (isBinding && !hasSlot) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['slot'],
+        message: "a loaded skill with cause 'binding' must name the slot it was bound to",
+      });
+    }
+  });
 export type LoadedSkillEvidence = z.infer<typeof LoadedSkillEvidence>;
 
 export const SkillsLoadedTraceEntry = TraceEntryBase.extend({
