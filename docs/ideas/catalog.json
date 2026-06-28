@@ -50,10 +50,7 @@
       "category": "strategy-and-comparisons",
       "tags": ["autoresearch", "convergence", "honesty-ledger", "frozen-eval", "experiment-ledger"],
       "current_reading": "Idea-by-idea mapping of karpathy/autoresearch (an overnight keep-best LLM-training harness) against Circuit's current code. Three ideas recommended and being built on feat/autoresearch-borrow: frozen-eval (HIGH leverage, a detective latch on the until-loop evidence floor so a Converge body cannot edit its own verify command or test files and false-green), experiment-ledger (a pure read-time iterationLedgerFromTrace projection, NOT a fourth state store, so the operator sees what every pass tried including discards), and program-as-skill (let circuit generate emit the Converge shape via a convergeUntil composition role gated on a run-verification body step). Two ideas declined: the optimize-loop keep-best metric ratchet (needs an ungameable read-only oracle Circuit lacks, and its exhaust-and-keep-best terminus is exactly the success-through-exhaustion the until-loop forbids; documented in until-loop.md) and a bounded-vs-unbounded positioning contrast (Circuit's bounds are already stronger; skip). Confirms two existing bets: skills-to-circuits and bounded-over-unbounded autonomy.",
-      "related": [
-        "docs/ideas/until-loop.md",
-        "docs/ideas/bespoke-flow-generation-design.md"
-      ],
+      "related": ["docs/ideas/until-loop.md", "docs/ideas/bespoke-flow-generation-design.md"],
       "last_checked": "2026-06-28"
     },
     {
