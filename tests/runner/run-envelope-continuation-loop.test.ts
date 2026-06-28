@@ -103,4 +103,66 @@ describe('Run bounded in-process continuation loop (S7)', () => {
     expect(result.stopReason).toMatch(/no-progress/i);
     expect(result.attempts.length).toBeLessThan(5);
   });
+
+  it('surfaces handoff when the attempt outcome is handoff', async () => {
+    const runAttempt = scriptedRunner([
+      { process_id: 'build', outcome: 'handoff', unmetEvidence: [] },
+    ]);
+    const result = await runContinuationLoop({
+      contract: contract(),
+      primaryProcessId: 'build',
+      runAttempt,
+    });
+    expect(result.outcome).toBe('handoff');
+    expect(result.attempts).toHaveLength(1);
+  });
+
+  it('surfaces failed when the attempt outcome is failed', async () => {
+    const runAttempt = scriptedRunner([
+      { process_id: 'build', outcome: 'failed', unmetEvidence: [] },
+    ]);
+    const result = await runContinuationLoop({
+      contract: contract(),
+      primaryProcessId: 'build',
+      runAttempt,
+    });
+    expect(result.outcome).toBe('failed');
+    expect(result.attempts).toHaveLength(1);
+  });
+
+  it('surfaces blocked when the attempt outcome is blocked', async () => {
+    const runAttempt = scriptedRunner([
+      { process_id: 'build', outcome: 'blocked', unmetEvidence: [] },
+    ]);
+    const result = await runContinuationLoop({
+      contract: contract(),
+      primaryProcessId: 'build',
+      runAttempt,
+    });
+    expect(result.outcome).toBe('blocked');
+    expect(result.attempts).toHaveLength(1);
+  });
+
+  it('routes to needs_attention checkpoint when recovery requires an operator checkpoint', async () => {
+    const runAttempt = scriptedRunner([
+      {
+        process_id: 'build',
+        outcome: 'needs_followup',
+        unmetEvidence: ['a'],
+        unmetKinds: ['checkpoint'],
+      },
+    ]);
+    const result = await runContinuationLoop({
+      contract: contract({
+        recovery_policy: {
+          max_process_attempts: 5,
+          allowed_routes: ['retry-process', 'run-review', 'checkpoint', 'handoff', 'blocked'],
+        },
+      }),
+      primaryProcessId: 'build',
+      runAttempt,
+    });
+    expect(result.outcome).toBe('needs_attention');
+    expect(result.stopReason).toMatch(/checkpoint/i);
+  });
 });
