@@ -49087,7 +49087,7 @@ function composeFlow(roleSet, options) {
     }
     const stepId = stepIds[index];
     const nextId = stepIds[index + 1];
-    const routes = role.terminal ? { complete: "@complete", stop: "@stop" } : nextId === void 0 ? { complete: "@complete", stop: "@stop" } : { continue: nextId, stop: "@stop" };
+    let routes = role.terminal ? { complete: "@complete", stop: "@stop" } : nextId === void 0 ? { complete: "@complete", stop: "@stop" } : { continue: nextId, stop: "@stop" };
     if (role.loopBackTo !== void 0) {
       let targetIndex = -1;
       for (let j = index - 1; j >= 0; j--) {
@@ -49109,6 +49109,17 @@ function composeFlow(roleSet, options) {
     if (convergePlan !== void 0 && index === convergePlan.tailIndex) {
       routes.advance = convergePlan.headStepId;
       routes.close = "@stop";
+    }
+    if (convergePlan !== void 0 && index === convergePlan.verifyIndex) {
+      const reordered = {};
+      for (const [routeId, target] of Object.entries(routes)) {
+        if (routeId === "stop")
+          reordered.revise = convergePlan.tailStepId;
+        reordered[routeId] = target;
+      }
+      if (reordered.revise === void 0)
+        reordered.revise = convergePlan.tailStepId;
+      routes = reordered;
     }
     const checkpointWritesReport = role.executionKind === "checkpoint" && routes.continue !== void 0 && pick2.checkpointReportTemplate !== void 0;
     const checkpointPolicy = role.executionKind === "checkpoint" && routes.continue !== void 0 ? {
@@ -49367,7 +49378,7 @@ function resolveConvergePlan(roleSet, stepIds, walls) {
   const tailStepId = stepIds[tailIndex];
   const bodyStepIds = stepIds.slice(headIndex, tailIndex + 1);
   const maxIterations = roleSet.convergeUntil?.maxIterations ?? DEFAULT_CONVERGE_MAX_ITERATIONS;
-  return { headIndex, headStepId, tailIndex, tailStepId, bodyStepIds, maxIterations };
+  return { headIndex, headStepId, verifyIndex, tailIndex, tailStepId, bodyStepIds, maxIterations };
 }
 
 // dist/flows/composition/propose-prompts.js

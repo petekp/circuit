@@ -104,11 +104,22 @@ export interface FanoutBranchRole {
 // The Converge directive: a WHOLE-LOOP property (not per-role) that asks the
 // composer to fold the role set's act/verify/review body into an until-loop — the
 // generated analog of the hand-authored fix-until-green flow. Setting it makes the
-// composer emit engine_flags.iterates_until_condition; the loop re-enters the body
-// until a stop-judge proposes the goal is met AND an evidence floor confirms it
-// against the run-verification step. The gate refuses to emit the loop unless the
-// role set actually contains that verification step, so a generated Converge can
-// never become an unbounded loop with nothing to check the judge against.
+// composer emit engine_flags.iterates_until_condition and wire the body for the
+// loop's two control seams:
+//   - the reviewer TAIL gets `advance` (re-enter the head) and `close` (the
+//     exhausted needs-attention exit), alongside its forward clean-stop route; and
+//   - the run-verification step gets a `revise` route to the tail judge, ordered
+//     before `stop`. A red verification command does not take its forward route: the
+//     executor routes it to a recovery route bound for cause failed_check. With
+//     `revise` first, the narrow_scope binding (which accepts failed_check) wins over
+//     stop_unsafe, so a red verify routes FORWARD to the judge WITH failure evidence
+//     present rather than stopping at the verify step. The judge reflects, the
+//     evidence floor blocks its goal_met claim on the open proof gap, and the loop
+//     re-enters; a green verify clears the floor and the judge's clean stop carries
+//     through to @complete.
+// The gate refuses to emit the loop unless the role set actually contains the
+// run-verification step, so a generated Converge can never become an unbounded loop
+// with nothing to check the judge against.
 // Omitting convergeUntil is byte-stable: the composer emits no engine flags.
 export interface ConvergeUntilSpec {
   // The iteration cap (default 3), matching fix-until-green's max_iterations.
@@ -840,7 +851,7 @@ export function composeFlow(
 
     const stepId = stepIds[index] as string;
     const nextId = stepIds[index + 1];
-    const routes: Record<string, string> = role.terminal
+    let routes: Record<string, string> = role.terminal
       ? { complete: '@complete', stop: '@stop' }
       : nextId === undefined
         ? { complete: '@complete', stop: '@stop' }
@@ -884,10 +895,47 @@ export function composeFlow(
     //   - close: the exhausted exit to the non-complete @stop terminal — a NORMAL
     //     route (not a recovery route), so an exhausted clean pass does not trip the
     //     no-failure-evidence guard. This is the until flag's needs_attention_route.
-    // This mirrors fix-until-green's hand-authored judge-step routes exactly.
+    // This mirrors fix-until-green's hand-authored judge-step routes exactly. The
+    // verify step gets its own loop edge (the red-verify `revise` route) in the block
+    // right below — without it the tail judge is never reached on a red verify, so
+    // these tail edges would never fire.
     if (convergePlan !== undefined && index === convergePlan.tailIndex) {
       routes.advance = convergePlan.headStepId;
       routes.close = '@stop';
+    }
+
+    // Converge verify-step red-verify route. A run-verification step on a FAILED
+    // command does NOT take its forward `continue` route: the executor calls
+    // recoveryRouteForFailure(cause: failed_check) and routes to a bound RECOVERY
+    // route. The linear pass gave this step only { continue, stop }, so the one
+    // recovery-eligible route a red verify could take was `stop` -> @stop — the run
+    // STOPPED at the verify step on the first red command and never reached the tail
+    // judge, so the until corridor (which re-enters only at the tail seam) never
+    // re-entered. Add `revise` -> the tail judge: `revise` binds as narrow_scope
+    // recovery (allowed for cause failed_check), so a red verify routes FORWARD to
+    // the judge WITH failure evidence present. The judge reflects, the evidence floor
+    // blocks its goal_met claim on the open proof gap, and the loop re-enters with
+    // the lesson carried. A green verify still takes the forward `continue` route.
+    //
+    // Order matters. BOTH `revise` (narrow_scope) and `stop` (stop_unsafe) accept
+    // cause failed_check, so the work-contract projection derives a recovery binding
+    // for each. recoveryBindingForFailure returns the FIRST matching binding in
+    // route-iteration order, so `revise` must precede `stop` for a red verify to take
+    // it — otherwise `stop` wins and the loop never re-enters. The linear pass left
+    // `stop` last in the routes object; rebuild the step's routes with `revise`
+    // inserted before `stop`, mirroring fix-until-green's hand-authored verify-step
+    // route order (continue, revise, stop — see fix-until-green/assembly-spec.ts).
+    if (convergePlan !== undefined && index === convergePlan.verifyIndex) {
+      const reordered: Record<string, string> = {};
+      for (const [routeId, target] of Object.entries(routes)) {
+        // Insert `revise` immediately before `stop` so its narrow_scope binding is
+        // the first failed_check match the work-contract projection derives.
+        if (routeId === 'stop') reordered.revise = convergePlan.tailStepId;
+        reordered[routeId] = target;
+      }
+      // No `stop` route to anchor against (defensive): append `revise` at the end.
+      if (reordered.revise === undefined) reordered.revise = convergePlan.tailStepId;
+      routes = reordered;
     }
 
     // A CONTENT checkpoint writes a typed report (the build frame produces
@@ -1290,6 +1338,10 @@ const DEFAULT_CONVERGE_MAX_ITERATIONS = 3;
 interface ConvergePlan {
   readonly headIndex: number;
   readonly headStepId: string;
+  // The run-verification body step's index. The role loop reads it to wire the
+  // verify step's red-verify recovery route (`revise` -> the tail judge), the
+  // same way it reads `tailIndex` to wire the loop's tail routes.
+  readonly verifyIndex: number;
   readonly tailIndex: number;
   readonly tailStepId: string;
   // The contiguous stepId span [head..tail] inclusive — the full set of steps the
@@ -1369,7 +1421,7 @@ function resolveConvergePlan(
   const bodyStepIds = stepIds.slice(headIndex, tailIndex + 1);
   const maxIterations = roleSet.convergeUntil?.maxIterations ?? DEFAULT_CONVERGE_MAX_ITERATIONS;
 
-  return { headIndex, headStepId, tailIndex, tailStepId, bodyStepIds, maxIterations };
+  return { headIndex, headStepId, verifyIndex, tailIndex, tailStepId, bodyStepIds, maxIterations };
 }
 
 // ----------------------------------------------------------------------------

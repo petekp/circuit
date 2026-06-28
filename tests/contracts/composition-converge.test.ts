@@ -19,16 +19,27 @@
 // Proof boundary (read before extending). These tests prove the EMISSION: the
 // gate fails closed, the flag maps onto the right step ids and routes, the
 // emitted flag is structurally coherent by the runtime's own validator
-// (assertUntilFlagCoherent), and a mutation turns that validator red. What they
-// do NOT drive is a composed flow running all the way to a clean stop — that
-// needs stub executors for every body step plus a green proof the evidence floor
-// reads. The convergence BEHAVIOR is already locked by the fix-until-green e2e
-// on a flag of the same shape, and the emitted stop_judge.report path matches
-// the relay result path by the single `reports/relay/<step>.result.json`
-// convention the composer uses for every relay (composer.ts) and the engine
-// reads (readUntilJudgeReport, graph-runner.ts). A full composed-flow-to-
-// convergence run is the natural next slice; it would re-prove that shared shape
-// rather than cover new emission surface.
+// (assertUntilFlagCoherent), and a mutation turns that validator red. They do NOT
+// drive the composed flow through the runtime, and emission shape alone is not the
+// same as routing behavior: the composed Converge once emitted a verify step with
+// only { continue, stop }, which passed every check here yet routed a RED verify to
+// @stop, stopping the run at the verify step before the tail judge — a one-shot. A
+// composed flow can therefore be structurally coherent and still mis-route. The
+// red-verify routing is now driven LIVE in composition-converge-live.test.ts: a
+// real composed Converge run against a red `npm run verify` takes the verify step's
+// `revise` route to the reviewer tail. The emitted stop_judge.report path matches
+// the relay result path by the single `reports/relay/<step>.result.json` convention
+// the composer uses for every relay (composer.ts) and the engine reads
+// (readUntilJudgeReport, graph-runner.ts).
+//
+// One thing remains unproven here and in the live test: a composed Converge running
+// all the way to a clean green @complete. The composer binds the review block to the
+// family's typed `build.review@v1` schema, which is `.strict()` and rejects the
+// extra goal_met/lesson keys the stop-judge reads — so a typed composed reviewer
+// downgrades to a failed_check before the loop can read its judgment. Both
+// hand-authored Converge flows make their judge a BARE relay to avoid exactly this.
+// That reviewer-shape gap is separate from the routing fix and is left for a
+// follow-up slice.
 
 import { describe, expect, it } from 'vitest';
 import { flowDefinitions } from '../../src/flows/catalog.js';
