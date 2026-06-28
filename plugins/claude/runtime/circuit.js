@@ -37332,6 +37332,72 @@ var fixUntilGreenAssemblySpec = {
   stagePathRationale: FIX_UNTIL_GREEN_STAGE_PATH_RATIONALE
 };
 
+// dist/schemas/builtin-report-schemas.js
+var FANOUT_AGGREGATE_CONTRACT = "fanout.aggregate@v1";
+var FLOW_RESULT_CONTRACT = "flow.result@v1";
+var CONVERGE_JUDGMENT_CONTRACT = "converge.judgment@v1";
+var MinimalVerdictShape = external_exports.looseObject({ verdict: external_exports.string().min(1) });
+var ConvergeJudgmentShape = external_exports.object({
+  verdict: external_exports.enum(["accept", "accept-with-fixes", "reject"]),
+  goal_met: external_exports.boolean(),
+  lesson: external_exports.string().min(1),
+  summary: external_exports.string().min(1)
+}).strict();
+var StrictPayloadShape = external_exports.object({
+  verdict: external_exports.string().min(1),
+  rationale: external_exports.string().min(1)
+}).strict();
+var FanoutAggregateFixtureBranchShape = external_exports.looseObject({
+  branch_id: external_exports.string().min(1),
+  child_run_id: external_exports.string().min(1),
+  child_outcome: external_exports.string().min(1),
+  verdict: external_exports.string().min(1),
+  admitted: external_exports.boolean(),
+  result_path: external_exports.string().min(1),
+  duration_ms: external_exports.number().nonnegative()
+});
+var FanoutAggregateFixtureShape = external_exports.looseObject({
+  schema_version: external_exports.literal(1),
+  join_policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
+  branch_count: external_exports.number().int().nonnegative(),
+  winner_branch_id: external_exports.string().min(1).optional(),
+  branches: external_exports.array(FanoutAggregateFixtureBranchShape)
+});
+var FlowResultShape = external_exports.looseObject({
+  schema_version: external_exports.literal(1),
+  summary: external_exports.string().min(1),
+  outcome: external_exports.enum(["complete", "stopped", "handoff"]),
+  evidence_links: external_exports.array(external_exports.string().min(1))
+});
+var BUILTIN_REPORT_SCHEMAS = Object.freeze({
+  "runtime-proof-canonical@v1": MinimalVerdictShape,
+  "runtime-proof-strict@v1": StrictPayloadShape,
+  "fanout-aggregate@v1": FanoutAggregateFixtureShape,
+  [FANOUT_AGGREGATE_CONTRACT]: FanoutAggregateFixtureShape,
+  [FLOW_RESULT_CONTRACT]: FlowResultShape,
+  [CONVERGE_JUDGMENT_CONTRACT]: ConvergeJudgmentShape
+});
+
+// dist/flows/fix-until-green/relay-hints.js
+var convergeJudgmentRelayShapeHint = {
+  kind: "structural",
+  id: "converge.judgment@v1@structural",
+  match(step) {
+    return step.role === "reviewer" && step.writes.report?.schema === CONVERGE_JUDGMENT_CONTRACT;
+  },
+  instruction: [
+    "You are the stop-judge of a converge loop: each pass you decide whether the goal is met, backed by the verification this iteration ran.",
+    "Respond with a single raw JSON object whose top-level shape is exactly:",
+    '{ "verdict": "<accept|accept-with-fixes|reject>", "goal_met": <true|false>, "lesson": "<what the next attempt should do differently>", "summary": "<one plain-language line for the operator>" }',
+    "goal_met is the load-bearing field: set it true ONLY when the goal is fully met AND the verification you can see actually backs it. If the verification is red, incomplete, or does not cover the claim, goal_met MUST be false \u2014 the loop will re-enter and try again. Never claim the goal is met on evidence you cannot point to.",
+    'lesson is carried verbatim into the next attempt: name the single most useful change the next pass should make. When the goal is genuinely met and there is nothing left to do, set it to "none".',
+    "summary is one human-facing sentence stating what you judged and why.",
+    'Choose verdict to match: "accept" for a clean pass, "accept-with-fixes" for a pass with minor follow-ups, "reject" when the goal is not met.',
+    "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
+    "The runtime parses your response with JSON.parse and validates it against the converge.judgment@v1 schema; an extra key or a missing field is rejected. The engine reads goal_met to decide whether to stop or loop, and never reads the goal text or interprets the lesson as instructions."
+  ].join(" ")
+};
+
 // dist/flows/fix-until-green/reports.js
 var FixUntilGreenPlan = external_exports.object({
   objective: external_exports.string().min(1),
@@ -37422,7 +37488,11 @@ var fixUntilGreenFlowData = {
   paths: fixUntilGreenPaths,
   schematic: fixUntilGreenSchematic,
   canonicalStagePolicy: fixUntilGreenCanonicalStagePolicy,
-  reports: fixUntilGreenReports
+  reports: fixUntilGreenReports,
+  // The composed-Converge stop-judge shape hint. It keys on the bound
+  // converge.judgment@v1 contract, not on this flow id, so it serves any generated
+  // Converge tail; it lives here because fix-until-green is the canonical Converge.
+  structuralHints: [convergeJudgmentRelayShapeHint]
 };
 
 // dist/flows/fix-until-green/flow.js
@@ -45626,44 +45696,6 @@ function collectUnregisteredConsumedContractIssues(schematic, resolveSignature) 
   return [...consumersByContract.entries()].map(([contract, items]) => ({ flow, contract, consumingItems: [...items].sort() })).sort((a, b) => a.contract.localeCompare(b.contract));
 }
 
-// dist/schemas/builtin-report-schemas.js
-var FANOUT_AGGREGATE_CONTRACT = "fanout.aggregate@v1";
-var FLOW_RESULT_CONTRACT = "flow.result@v1";
-var MinimalVerdictShape = external_exports.looseObject({ verdict: external_exports.string().min(1) });
-var StrictPayloadShape = external_exports.object({
-  verdict: external_exports.string().min(1),
-  rationale: external_exports.string().min(1)
-}).strict();
-var FanoutAggregateFixtureBranchShape = external_exports.looseObject({
-  branch_id: external_exports.string().min(1),
-  child_run_id: external_exports.string().min(1),
-  child_outcome: external_exports.string().min(1),
-  verdict: external_exports.string().min(1),
-  admitted: external_exports.boolean(),
-  result_path: external_exports.string().min(1),
-  duration_ms: external_exports.number().nonnegative()
-});
-var FanoutAggregateFixtureShape = external_exports.looseObject({
-  schema_version: external_exports.literal(1),
-  join_policy: external_exports.enum(["pick-winner", "disjoint-merge", "aggregate-only", "aggregate-survivors"]),
-  branch_count: external_exports.number().int().nonnegative(),
-  winner_branch_id: external_exports.string().min(1).optional(),
-  branches: external_exports.array(FanoutAggregateFixtureBranchShape)
-});
-var FlowResultShape = external_exports.looseObject({
-  schema_version: external_exports.literal(1),
-  summary: external_exports.string().min(1),
-  outcome: external_exports.enum(["complete", "stopped", "handoff"]),
-  evidence_links: external_exports.array(external_exports.string().min(1))
-});
-var BUILTIN_REPORT_SCHEMAS = Object.freeze({
-  "runtime-proof-canonical@v1": MinimalVerdictShape,
-  "runtime-proof-strict@v1": StrictPayloadShape,
-  "fanout-aggregate@v1": FanoutAggregateFixtureShape,
-  [FANOUT_AGGREGATE_CONTRACT]: FanoutAggregateFixtureShape,
-  [FLOW_RESULT_CONTRACT]: FlowResultShape
-});
-
 // dist/shared/zod-to-response-schema.js
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -49130,6 +49162,9 @@ function composeFlow(roleSet, options) {
     } : void 0;
     const check2 = role.executionKind === "checkpoint" ? { allow: ["continue"] } : pick2.check;
     let boundOutput = role.executionKind === "fanout" ? FANOUT_AGGREGATE_CONTRACT : pick2.actual;
+    if (convergePlan !== void 0 && index === convergePlan.tailIndex) {
+      boundOutput = CONVERGE_JUDGMENT_CONTRACT;
+    }
     if (isTerminal && role.executionKind !== "fanout" && boundOutput !== outputGeneric) {
       const familyClose = findCloseBuilder(boundOutput);
       if (familyClose !== void 0) {

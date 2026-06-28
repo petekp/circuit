@@ -18,6 +18,7 @@
 // flows across a task set is what the eval measures.
 
 import {
+  CONVERGE_JUDGMENT_CONTRACT,
   FANOUT_AGGREGATE_CONTRACT,
   FLOW_RESULT_CONTRACT,
 } from '../../schemas/builtin-report-schemas.js';
@@ -984,6 +985,22 @@ export function composeFlow(
     // generic carries a registered body, so the anti-widening gate still passes.
     // Non-fanout roles bind the selected actual unchanged.
     let boundOutput = role.executionKind === 'fanout' ? FANOUT_AGGREGATE_CONTRACT : pick.actual;
+
+    // Converge stop-judge rebind. The Converge tail is a reviewer relay; selectActual
+    // binds it to the family's typed `build.review@v1`, which is `.strict()` and
+    // REJECTS the goal_met/lesson fields the until-loop's stop-judge writes — so the
+    // tail downgrades to failed_check the instant it carries the judgment and the loop
+    // can never read goal_met (the run aborts on the unbound advance recovery route).
+    // Rebind ONLY the tail step to the dedicated `converge.judgment@v1` contract: a
+    // strict schema that INCLUDES verdict/goal_met/lesson/summary, so the body
+    // validates, the step passes its own check (the verdict enum reuses the family's
+    // accepted verdicts), and the loop reads the judgment from the validated body. A
+    // registered shape-hint for the same contract also tells a real worker exactly what
+    // to emit. Tail-only and Converge-only: a non-Converge path never sets convergePlan,
+    // so boundOutput is untouched and the spec stays byte-identical.
+    if (convergePlan !== undefined && index === convergePlan.tailIndex) {
+      boundOutput = CONVERGE_JUDGMENT_CONTRACT;
+    }
 
     // Terminal close rebind (genuine-linear-LIVE). selectActual binds the close
     // to a FAMILY result (e.g. fix.result@v1) — the close block's generic

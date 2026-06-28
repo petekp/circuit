@@ -23,6 +23,9 @@
 // - `runtime-proof-strict@v1` is used by
 //   tests/runner/materializer-schema-parse.test.ts to exercise the
 //   check-pass + schema-fail mode.
+// - `converge.judgment@v1` is the COMPOSER-bound stop-judge contract for a
+//   generated Converge: the tail reviewer's typed output, carrying the
+//   goal_met/lesson the until-loop reads. See CONVERGE_JUDGMENT_CONTRACT below.
 
 import { z } from 'zod';
 
@@ -44,7 +47,46 @@ export const FANOUT_AGGREGATE_CONTRACT = 'fanout.aggregate@v1';
 // never emit this body.
 export const FLOW_RESULT_CONTRACT = 'flow.result@v1';
 
+// The dedicated judgment contract a composed Converge binds to its stop-judge (the
+// reviewer tail). Like FANOUT_AGGREGATE_CONTRACT and FLOW_RESULT_CONTRACT it is a
+// COMPOSER-bound contract, owned by no flow — the composer overrides the tail's
+// output to this name when (and only when) the role set asked for a Converge. It
+// exists because the until-loop reads two free fields from the tail's result —
+// `goal_met` (the boolean the evidence floor disposes) and `lesson` (carried to the
+// next attempt) — that the family reviewer schema (build.review@v1) does NOT carry
+// and, being `.strict()`, REJECTS. A composed reviewer bound to build.review@v1 thus
+// downgrades to failed_check the moment it carries the judgment, so the loop can
+// never read it and the run never closes clean. This contract carries exactly the
+// fields the judge produces, so the tail validates and the loop reads goal_met.
+//
+// Exported so the composer and the registry share one string and cannot drift apart.
+export const CONVERGE_JUDGMENT_CONTRACT = 'converge.judgment@v1';
+
 const MinimalVerdictShape = z.looseObject({ verdict: z.string().min(1) });
+
+// The Converge stop-judge body. Strict on exactly these four fields so the shape-hint
+// can instruct the worker to produce precisely them and "annotations cannot lie": a
+// judge that emits extra keys is rejected, not silently widened.
+//   - verdict: the reviewer verdict the composed tail's check.pass admits. The
+//     composer binds the same review block whose check derives from the build
+//     family's reviewer enum (check.pass = ['accept', 'accept-with-fixes']), so the
+//     verdict enum MUST include those to let a clean judgment pass the step check;
+//     'reject' is the third family verdict (a non-passing judgment). Reusing the
+//     family's verdict vocabulary keeps the composed reviewer's verdict semantics
+//     identical to the typed reviewer it replaces — only the carried judgment fields
+//     are added.
+//   - goal_met: the load-bearing boolean the until-loop's evidence floor disposes.
+//   - lesson: the short, free-text note carried verbatim into the next iteration's act
+//     (the engine reads it as opaque data, never as instructions). "none" when done.
+//   - summary: the human-facing line the close step soaks into its evidence report.
+const ConvergeJudgmentShape = z
+  .object({
+    verdict: z.enum(['accept', 'accept-with-fixes', 'reject']),
+    goal_met: z.boolean(),
+    lesson: z.string().min(1),
+    summary: z.string().min(1),
+  })
+  .strict();
 
 const StrictPayloadShape = z
   .object({
@@ -90,4 +132,5 @@ export const BUILTIN_REPORT_SCHEMAS: Readonly<Record<string, z.ZodType<unknown>>
   'fanout-aggregate@v1': FanoutAggregateFixtureShape,
   [FANOUT_AGGREGATE_CONTRACT]: FanoutAggregateFixtureShape,
   [FLOW_RESULT_CONTRACT]: FlowResultShape,
+  [CONVERGE_JUDGMENT_CONTRACT]: ConvergeJudgmentShape,
 });

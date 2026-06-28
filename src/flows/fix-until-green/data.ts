@@ -1,6 +1,7 @@
 import { assembleFlowSchematic } from '../assemble-flow-schematic.js';
 import type { FlowData } from '../flow-definition.js';
 import { fixUntilGreenAssemblySpec } from './assembly-spec.js';
+import { convergeJudgmentRelayShapeHint } from './relay-hints.js';
 import { FixUntilGreenPlan, FixUntilGreenVerification } from './reports.js';
 import { fixUntilGreenPlanComposeBuilder } from './writers/plan.js';
 import { fixUntilGreenVerificationWriter } from './writers/verification.js';
@@ -48,4 +49,8 @@ export const fixUntilGreenFlowData = {
   schematic: fixUntilGreenSchematic,
   canonicalStagePolicy: fixUntilGreenCanonicalStagePolicy,
   reports: fixUntilGreenReports,
+  // The composed-Converge stop-judge shape hint. It keys on the bound
+  // converge.judgment@v1 contract, not on this flow id, so it serves any generated
+  // Converge tail; it lives here because fix-until-green is the canonical Converge.
+  structuralHints: [convergeJudgmentRelayShapeHint],
 } satisfies FlowData;

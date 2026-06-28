@@ -25,21 +25,21 @@
 // only { continue, stop }, which passed every check here yet routed a RED verify to
 // @stop, stopping the run at the verify step before the tail judge — a one-shot. A
 // composed flow can therefore be structurally coherent and still mis-route. The
-// red-verify routing is now driven LIVE in composition-converge-live.test.ts: a
-// real composed Converge run against a red `npm run verify` takes the verify step's
+// red-verify routing is driven LIVE in composition-converge-live.test.ts: a real
+// composed Converge run against a red `npm run verify` takes the verify step's
 // `revise` route to the reviewer tail. The emitted stop_judge.report path matches
 // the relay result path by the single `reports/relay/<step>.result.json` convention
 // the composer uses for every relay (composer.ts) and the engine reads
 // (readUntilJudgeReport, graph-runner.ts).
 //
-// One thing remains unproven here and in the live test: a composed Converge running
-// all the way to a clean green @complete. The composer binds the review block to the
-// family's typed `build.review@v1` schema, which is `.strict()` and rejects the
-// extra goal_met/lesson keys the stop-judge reads — so a typed composed reviewer
-// downgrades to a failed_check before the loop can read its judgment. Both
-// hand-authored Converge flows make their judge a BARE relay to avoid exactly this.
-// That reviewer-shape gap is separate from the routing fix and is left for a
-// follow-up slice.
+// The full green path — a composed Converge running all the way to a clean green
+// @complete — is now PROVEN, not deferred. The composer rebinds the reviewer tail to
+// the dedicated `converge.judgment@v1` contract (verdict/goal_met/lesson/summary)
+// instead of the family's strict `build.review@v1`, so the tail carries the
+// stop-judge's goal_met/lesson WITHOUT downgrading to failed_check. The green live
+// test in composition-converge-live.test.ts drives a real composed Converge through a
+// red->green verification to outcome === 'complete', with the loop re-entering once
+// on the red iteration. The tail-contract assertion below locks that rebind.
 
 import { describe, expect, it } from 'vitest';
 import { flowDefinitions } from '../../src/flows/catalog.js';
@@ -150,6 +150,15 @@ describe('flow-shape composition — Converge (until-loop emission)', () => {
     const verify = converge.spec.items.find((it) => String(it.block) === 'run-verification');
     const review = converge.spec.items.find((it) => String(it.block) === 'review');
     if (!act || !verify || !review) throw new Error('missing body step');
+
+    // The reviewer tail is rebound to the dedicated stop-judge contract, NOT the
+    // family's strict build.review@v1. This is what lets the tail carry the
+    // goal_met/lesson the until-loop reads without downgrading to failed_check; the
+    // green live test drives that all the way to @complete. The head/verify/close
+    // steps are untouched.
+    expect(String(review.output)).toBe('converge.judgment@v1');
+    const act2 = converge.spec.items.find((it) => String(it.block) === 'act');
+    expect(String(act2?.output)).not.toBe('converge.judgment@v1');
 
     expect(flag.head_step).toBe(String(act.id));
     expect(flag.tail_step).toBe(String(review.id));

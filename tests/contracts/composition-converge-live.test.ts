@@ -23,17 +23,16 @@
 // completes via `revise`, and the `review` tail step is entered). Pre-fix the run
 // stopped at the verify step and `review` was never entered.
 //
-// It does NOT drive the composed flow all the way to a green @complete. That is
-// blocked by a SEPARATE, orthogonal gap, documented in
-// composition-converge.test.ts's proof-boundary note: the composer binds the review
-// block to the family's typed `build.review@v1` schema, which is `.strict()` and
-// rejects the extra `goal_met`/`lesson` fields the stop-judge reads from the relay
-// result. Both hand-authored Converge flows (converge-proof, fix-until-green) make
-// their stop-judge a BARE relay precisely so those free fields ride along
-// unvalidated; a composed Converge with a typed strict reviewer cannot, so its
-// reviewer downgrades to a failed_check before the loop can read goal_met. That is a
-// reviewer-shape gap in the generated-Converge path, not a routing gap, and is out
-// of scope for this routing fix.
+// The SECOND describe block drives the composed flow ALL the way to a green
+// @complete — the proof that the strict-reviewer gap is closed. The composer now
+// rebinds the reviewer tail to the dedicated `converge.judgment@v1` contract
+// (verdict/goal_met/lesson/summary) instead of the family's strict
+// `build.review@v1`, so the tail carries the stop-judge's goal_met/lesson without
+// downgrading to failed_check. The green test drives a red->green verification: the
+// red iteration re-enters (the floor blocks goal_met on the open proof gap), and the
+// green iteration stops clean and closes @complete. Pre-fix the typed strict reviewer
+// downgraded to failed_check the instant it carried the judgment, so the loop could
+// never read goal_met and the run aborted on the unbound advance recovery route.
 //
 // The role set adds a `frame` checkpoint ahead of the generic `plan`. The build plan
 // compose writer (which the composer binds for the generic plan block) has a
@@ -42,7 +41,7 @@
 // limit orthogonal to the routing bug, and the frame is the minimal honest way past
 // it so the verify step is actually reached.
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -107,13 +106,84 @@ function makeRedProject(base: string): string {
   return projectRoot;
 }
 
+// A project root whose `verify` script exits 0 iff a marker file exists, mirroring
+// fix-until-green's red->green fixture. The composed run-verification step runs
+// `npm run verify` each iteration, so iteration 0 (no marker) verifies RED and the
+// fixing iteration (marker written by the act) verifies GREEN. This drives the loop
+// through one genuine red re-enter, then a clean stop — the same shape a real
+// converge loop has.
+function makeMarkerProject(base: string): { projectRoot: string; markerPath: string } {
+  const projectRoot = join(base, 'project');
+  mkdirSync(projectRoot, { recursive: true });
+  const markerPath = join(projectRoot, 'GREEN_MARKER');
+  const escaped = markerPath.replace(/\\/g, '\\\\');
+  writeFileSync(
+    join(projectRoot, 'package.json'),
+    `${JSON.stringify({
+      private: true,
+      name: 'converge-live-green-fixture',
+      scripts: { verify: `node -e "process.exit(require('fs').existsSync('${escaped}')?0:1)"` },
+    })}\n`,
+  );
+  return { projectRoot, markerPath };
+}
+
+// The fake connector for the GREEN scenario. The act (implementer) writes the marker
+// on its FIXING call (`writeMarkerOnActCall`, 2 = iteration 1), so iteration 0
+// verifies red and iteration 1 verifies green. The reviewer (stop-judge) emits a
+// `converge.judgment@v1` body — exactly { verdict, goal_met, lesson, summary } — the
+// shape the dedicated judge contract validates. It proposes goal_met=true every pass;
+// the evidence floor disposes the claim against the real verification, so iteration
+// 0's claim is blocked (verify red) and iteration 1's is honored (verify green).
+function greenConvergeRelayer(input: { readonly markerPath: string }): RelayFn {
+  let actCalls = 0;
+  return {
+    connectorName: 'claude-code',
+    relay: async (relayInput: ClaudeCodeRelayInput): Promise<RelayResult> => {
+      const prompt = relayInput.prompt;
+      const isAct = /Step:\s*act\b/.test(prompt);
+      const isReview = /Step:\s*review\b/.test(prompt);
+      let body: unknown;
+      if (isReview) {
+        body = {
+          verdict: 'accept',
+          goal_met: true,
+          lesson: `attempt ${actCalls}: marker present=${existsSync(input.markerPath)}`,
+          summary: 'judged the change against the verification',
+        };
+      } else if (isAct) {
+        actCalls += 1;
+        // The act writes the marker on its second call, so iteration 1 verifies green.
+        if (actCalls >= 2) writeFileSync(input.markerPath, 'fixed');
+        body = {
+          verdict: 'accept',
+          summary: 'attempted the change',
+          changed_files: [],
+          evidence: ['ran the relay; wrote the marker on the fixing pass'],
+        };
+      } else {
+        const verdict = prompt.match(/Accepted verdicts:\s*([^\n,]+)/i)?.[1]?.trim() ?? 'accept';
+        body = { verdict, ok: true };
+      }
+      return {
+        request_payload: prompt,
+        receipt_id: 'stub',
+        result_body: JSON.stringify(body),
+        duration_ms: 1,
+        cli_version: '0.0.0-stub',
+      };
+    },
+  };
+}
+
 // The fake connector for the composed act (implementer) and review (reviewer)
 // relays. The verify step is the REAL run-verification executor. The act body is
-// forged to validate against build.implementation@v1. The reviewer body is forged
-// to validate against build.review@v1 AND carry the stop-judge's goal_met/lesson;
-// the strict review schema rejects those extra keys (the documented separate gap),
-// but the reviewer is reached only AFTER the red verify routes to it — which is
-// exactly the routing this test proves.
+// forged to validate against build.implementation@v1. The reviewer body is the
+// `converge.judgment@v1` shape — { verdict, goal_met, lesson, summary } — the
+// composed tail now validates against. The verify here is ALWAYS red, so the floor
+// blocks the goal_met claim every pass and the loop re-enters until it exhausts the
+// cap. This test proves the red verify ROUTES to the reviewer (the revise fix); the
+// green @complete path is proven by the second describe block below.
 function framedConvergeRelayer(): RelayFn {
   return {
     connectorName: 'claude-code',
@@ -125,11 +195,9 @@ function framedConvergeRelayer(): RelayFn {
       if (isReview) {
         body = {
           verdict: 'accept',
-          summary: 'reviewed the change',
-          findings: [],
-          alignment: { scope_adherence: 'within_scope', non_goals: [], invariants: [] },
           goal_met: true,
           lesson: 'verify is still red; keep going',
+          summary: 'judged the change; verification has not passed yet',
         };
       } else if (isAct) {
         body = {
@@ -178,6 +246,12 @@ function routeTaken(trace: readonly TraceRow[], stepId: string): string | undefi
   return trace.find((e) => e.kind === 'step.completed' && e.step_id === stepId)?.route_taken;
 }
 
+function routesTaken(trace: readonly TraceRow[], stepId: string): (string | undefined)[] {
+  return trace
+    .filter((e) => e.kind === 'step.completed' && e.step_id === stepId)
+    .map((e) => e.route_taken);
+}
+
 let base: string;
 beforeEach(() => {
   base = mkdtempSync(join(tmpdir(), 'circuit-converge-live-'));
@@ -211,15 +285,76 @@ describe('flow-shape composition — composed Converge red-verify routes to the 
       | undefined;
     expect(verifyCommand?.status).toBe('failed');
 
-    // The fix: the red verify completes via the `revise` recovery route (narrow_scope,
+    // The fix: each red verify completes via the `revise` recovery route (narrow_scope,
     // which accepts failed_check), NOT `stop`. Pre-fix the only failed_check-eligible
-    // route was `stop`, so the verify step routed to @stop and the run ended here.
+    // route was `stop`, so the verify step routed to @stop and the run ended at the
+    // FIRST red command, before the reviewer was ever reached.
     expect(routeTaken(trace, 'run-verification')).toBe('revise');
+    expect(routesTaken(trace, 'run-verification').every((r) => r === 'revise')).toBe(true);
 
-    // And control reaches the reviewer tail (the stop-judge). Pre-fix `review` was
-    // never entered, because the run stopped at the verify step.
-    expect(enteredCount(trace, 'act')).toBe(1);
-    expect(enteredCount(trace, 'run-verification')).toBe(1);
-    expect(enteredCount(trace, 'review')).toBe(1);
+    // And control reaches the reviewer tail (the stop-judge). With a valid judgment
+    // body the loop genuinely re-enters: the verify is always red, so the floor blocks
+    // the goal_met claim every pass and the body runs to the iteration cap (3) before
+    // exhausting to needs-attention. Pre-fix `review` was never entered at all.
+    expect(enteredCount(trace, 'act')).toBe(3);
+    expect(enteredCount(trace, 'run-verification')).toBe(3);
+    expect(enteredCount(trace, 'review')).toBe(3);
+
+    // The first two reviewer passes re-enter via `advance`; the exhausted third exits
+    // via the needs-attention route (`close` -> @stop). The run never reads as success.
+    expect(routesTaken(trace, 'review')).toEqual(['advance', 'advance', 'close']);
+    expect(trace.find((e) => e.kind === 'step.aborted')).toBeUndefined();
+  }, 30_000);
+});
+
+describe('flow-shape composition — composed Converge runs to a green @complete', () => {
+  it('re-enters on a red verify, stops clean once green, and closes @complete (the strict-reviewer gap is closed)', async () => {
+    const { projectRoot, markerPath } = makeMarkerProject(base);
+    const runFolder = join(base, 'green-complete');
+
+    // Iteration 0 verifies RED (no marker): the judge proposes goal_met=true but the
+    // evidence floor blocks it on the contradicted proof, so the loop re-enters. The
+    // act's second call writes the marker, so iteration 1 verifies GREEN and the floor
+    // honors the claim — the tail clean-stops and the close binds the primary result.
+    const result = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: convergeBytes(),
+      projectRoot,
+      runId: '70000000-0000-0000-0000-00000000c002',
+      goal: 'converge: drive the composed body until the real verification passes',
+      depth: 'autonomous',
+      unattended: true,
+      now: deterministicNow(Date.UTC(2026, 5, 28, 11, 0, 0)),
+      relayer: greenConvergeRelayer({ markerPath }),
+      worktreeRunner: stubWorktreeRunner(),
+    });
+    const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
+
+    // The whole point: the composed Converge reaches a clean green @complete. Pre-fix
+    // the typed strict `build.review@v1` reviewer downgraded to failed_check the moment
+    // it carried goal_met/lesson, so the loop could never read its judgment and the run
+    // never closed clean. The dedicated `converge.judgment@v1` contract carries those
+    // fields, so the tail passes and the loop reads goal_met.
+    expect(result.outcome).toBe('complete');
+
+    // The loop RE-ENTERED: the body ran exactly twice (a red iteration, then a green
+    // one). No step aborted — a red verify carried to the judge via revise, the floor
+    // blocked the claim, and the loop advanced rather than stopping or laundering.
+    expect(enteredCount(trace, 'act')).toBe(2);
+    expect(enteredCount(trace, 'run-verification')).toBe(2);
+    expect(enteredCount(trace, 'review')).toBe(2);
+    expect(trace.find((e) => e.kind === 'step.aborted')).toBeUndefined();
+
+    // Iteration 0's judge re-entered the head via `advance`; iteration 1's judge took
+    // the clean-stop forward route (the runtime success edge, `pass`), not advance/close.
+    const reviewRoutes = routesTaken(trace, 'review');
+    expect(reviewRoutes).toHaveLength(2);
+    expect(reviewRoutes[0]).toBe('advance');
+    expect(reviewRoutes[1]).not.toBe('advance');
+    expect(reviewRoutes[1]).not.toBe('close');
+
+    // The run reached the close step (the terminal that binds the primary result and
+    // routes to @complete on the clean stop).
+    expect(enteredCount(trace, 'close-with-evidence')).toBe(1);
   }, 30_000);
 });
