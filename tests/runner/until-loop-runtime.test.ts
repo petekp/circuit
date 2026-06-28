@@ -12,6 +12,7 @@ import {
   executeExecutableFlow,
   executeExecutableFlowOutcome,
 } from '../../src/runtime/run/graph-runner.js';
+import { iterationLedgerFromTrace } from '../../src/runtime/run/iteration-ledger.js';
 import type { RunContext } from '../../src/runtime/run/run-context.js';
 import { UntilCorridor } from '../../src/runtime/run/until-corridor.js';
 import { TraceStore } from '../../src/runtime/trace/trace-store.js';
@@ -1463,5 +1464,70 @@ describe('until-loop runtime: slice-7 commit containment', () => {
     expect(outcome.outcome).toBe('complete');
     expect(recorder.begins).toHaveLength(1);
     expect(recorder.commits.map((c) => c.iterationIndex)).toEqual([0, 1]);
+  });
+});
+
+// The experiment ledger. Every judge-gated pass stamps a run.until-judgment
+// entry at the tail seam after its disposition is final; iterationLedgerFromTrace
+// projects those entries into one row per iteration. These tests drive the same
+// judge harness above, then read the stamped entries back off the durable trace
+// to prove the per-pass record lands honestly — both on a converging run and on
+// a tampered run that must never read back as a clean stop.
+describe('until-loop runtime: the experiment ledger records every judged pass', () => {
+  it('records one row per iteration with the settled disposition and confirmed clean stop', async () => {
+    const runFolder = join(runFolderBase, 'ledger-converges');
+    // Not done on iterations 0 and 1, done on iteration 2.
+    const outcome = await executeExecutableFlow(judgeLoopFlow(), {
+      runDir: runFolder,
+      runId: '70000000-0000-0000-0000-000000000060',
+      goal: 'the ledger records each pass and the converging stop',
+      depth: 'autonomous',
+      now: deterministicNow(Date.UTC(2026, 5, 28, 10, 0, 0)),
+      executors: judgeStub((tailCall) => tailCall >= 2),
+    });
+    const trace = await new TraceStore(runFolder).load();
+    expect(outcome.outcome).toBe('complete');
+
+    const rows = iterationLedgerFromTrace(trace);
+    expect(rows.map((r) => r.iteration)).toEqual([0, 1, 2]);
+    expect(rows.map((r) => r.disposition)).toEqual(['reenter', 'reenter', 'stop-clean']);
+    expect(rows[2]?.goalProposed).toBe(true);
+    expect(rows[2]?.evidenceConfirmed).toBe(true);
+    expect(rows.every((r) => r.openLatchCount === 0)).toBe(true);
+  });
+
+  it('records a tampered pass faithfully: goal proposed, evidence rejected, a latch open, never stop-clean', async () => {
+    const runFolder = join(runFolderBase, 'ledger-tamper');
+    // A fresh project root with the frozen eval surface the tampering act edits.
+    const tamperRoot = mkdtempSync(join(tmpdir(), 'circuit-ledger-frozen-'));
+    writeFileSync(join(tamperRoot, 'eval.txt'), 'check x === 1');
+    try {
+      const outcome = await executeExecutableFlow(
+        { ...judgeLoopFlow(), engineFlags: { iteratesUntilCondition: FROZEN_FLAG } },
+        {
+          runDir: runFolder,
+          runId: '70000000-0000-0000-0000-000000000061',
+          goal: 'a gamed eval surface must read back as proposed-but-unconfirmed, never clean',
+          depth: 'autonomous',
+          now: deterministicNow(Date.UTC(2026, 5, 28, 10, 30, 0)),
+          projectRoot: tamperRoot,
+          executors: frozenEvalStub({ projectRoot: tamperRoot, tamper: true }),
+        },
+      );
+      const trace = await new TraceStore(runFolder).load();
+      // The run never closes complete on the gamed pass.
+      expect(outcome.outcome).toBe('stopped');
+
+      const rows = iterationLedgerFromTrace(trace);
+      expect(rows.length).toBeGreaterThan(0);
+      // The judge proposed done every pass, but the frozen-eval latch keeps the
+      // evidence from confirming — so no row is ever a clean stop.
+      expect(rows.every((r) => r.disposition !== 'stop-clean')).toBe(true);
+      const tamperRow = rows.find((r) => r.goalProposed && !r.evidenceConfirmed);
+      expect(tamperRow).toBeDefined();
+      expect(tamperRow?.openLatchCount).toBeGreaterThanOrEqual(1);
+    } finally {
+      rmSync(tamperRoot, { recursive: true, force: true });
+    }
   });
 });

@@ -89,33 +89,49 @@ has no equivalent operator-facing per-pass record. `carried-notes.ts` is capped,
 free-text, and framed as instructions for the next pass; the honesty ledger is
 delete-on-resolve, not a history.
 
-The honest fix is a trace projection, not a fourth persisted store. The trace is
-already the durable append-only history, and `until-budget.ts` sets the
-precedent: it sums usage by replaying `context.trace.getAll()` rather than keeping
-a running counter. A new append call at the tail seam would be a second writer
-that can drift from the trace (the classic dual-write bug). A projection cannot
-drift.
+The honest fix is still a projection, not a fourth persisted store. But a probe of
+the tail seam (AGENTS.md rule 7) corrected the original plan. The plan assumed the
+trace already carried every per-pass fact and only a projection was missing. It
+does not. At `graph-runner.ts` the judge's `goalProposed`, the computed
+`evidenceConfirmed`, and the resulting `disposition` are read, used to pick the
+route, and then thrown away. None of them lands on the trace. The single most
+valuable row, "the judge proposed done but the floor refused because a latch was
+open," is exactly the one the trace cannot currently reconstruct.
+
+So the missing fact is bigger than one index field: it is the judgment itself. The
+fix records it as one new trace entry, `run.until-judgment`, written once at the
+tail per iteration. This is not the dual-write the plan feared. A dual-write is a
+second persisted store kept in sync by hand; this is one more event kind in the
+trace, which is the single source of truth, with the projection strictly
+downstream of it. The trace stays the only store, and it gains an audit record it
+should always have had. The per-iteration judgment entries also serve as the
+iteration delimiters, so the separate `until_iteration_index` field the original
+plan called for is unnecessary.
 
 Files and slices:
 
-- Add an optional `until_iteration_index` to `StepEnteredTraceEntry`
-  (`src/schemas/trace-entry.ts`), mirroring the existing `slice_index`, and stamp
-  it in the graph-runner step preamble where the iteration index is already in
-  scope. This is the one missing fact the trace does not yet carry.
+- Add `RunUntilJudgmentTraceEntry` (kind `run.until-judgment`) to
+  `src/schemas/trace-entry.ts`: `{step_id, iteration, goal_proposed,
+  evidence_confirmed, disposition (stop-clean|reenter|needs-attention),
+  no_progress_count, open_latch_count, lesson?}`, with a refine that a stop-clean
+  disposition requires both booleans true (mirroring `disposeIteration`). Add it to
+  the `TraceEntry` union. Stamp it at the tail seam after the disposition is final,
+  only on a judge-gated loop. Byte-stable on every non-until run (no entry emitted).
 - Write a pure read-time projection `iterationLedgerFromTrace(trace)` that folds
-  trace events into typed per-pass rows: `{iteration, disposition (keep/discard/
-  exhaust), goalProposed, evidenceConfirmed, openLatches, usage, noProgressCount,
-  lesson}`. Every value is already in the trace or a pure function of it.
-- Gate an opt-in Markdown render of the projection into the final digest behind
-  an engine flag, so the operator sees what every pass tried.
+  the judgment entries into typed per-pass rows and brackets each iteration's relay
+  usage by the entries that precede its judgment. A projection cannot drift.
+- Render an opt-in Markdown table into the operator summary, gated simply on the
+  projection being non-empty (the presence of judgment entries is the gate, so no
+  separate engine flag is needed and non-until summaries stay byte-identical).
 - Defer feeding the structured ledger back into the head prompt. That is a
   prompt-shape change with its own blast radius and belongs in a later A/B, not
-  this slice.
+  this slice. An iteration that exhausts its in-step retries before reaching the
+  tail emits no judgment entry; surfacing that rarer shape is the next slice.
 
-Required e2e: an offline 3-iteration `fix-until-green` run yields a 3-row
-projection with the correct keep/discard/exhaust sequence and populated usage and
-latch columns, covering the stop-clean and needs-attention passes that
-`carried-notes` never records.
+Required e2e: an offline multi-iteration judge-loop run yields one row per pass
+with the correct stop-clean / reenter sequence and populated usage and latch
+columns, plus a tamper pass whose row shows `goal_proposed` true but
+`evidence_confirmed` false with an open latch, the record `carried-notes` never keeps.
 
 ### 3. program-as-skill: let `circuit generate` emit the Converge shape
 

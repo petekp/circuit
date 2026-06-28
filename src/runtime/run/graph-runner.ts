@@ -1323,6 +1323,11 @@ async function executeExecutableFlowOutcomeUnsafe(
           goalProposed: judgment.goalProposed,
           evidenceConfirms,
         });
+        // Hoisted out of the re-enter/exhaust block so the experiment-ledger
+        // entry below can read the consecutive no-progress count for EVERY
+        // disposition — it defaults to 0 on a stop-clean pass, which never
+        // touches the slices-4-6 block where the count is computed.
+        let recordedNoProgress = 0;
 
         // Slices 4-6 compose only on a loop that is continuing or exhausting, not
         // on a confirmed clean stop: a goal the evidence backs completes honestly
@@ -1346,6 +1351,7 @@ async function executeExecutableFlowOutcomeUnsafe(
             untilFlag.stopJudge.progressPath === undefined
               ? 0
               : untilCorridor.recordProgressMarker(judgment.progressMarker);
+          recordedNoProgress = noProgressCount;
           const ceilingHit =
             untilFlag.noProgressCeiling !== undefined &&
             noProgressCount >= untilFlag.noProgressCeiling;
@@ -1384,6 +1390,26 @@ async function executeExecutableFlowOutcomeUnsafe(
             }
           }
         }
+
+        // The experiment-ledger entry: the durable per-iteration record of this
+        // pass's judgment, stamped AFTER the disposition is final (the slices-4-6
+        // block above may flip reenter -> needs-attention) and BEFORE the route
+        // is reassigned below. Stamped only on a judge-gated loop — a count-driven
+        // loop has no judgment and emits nothing, so today's count-loop traces
+        // stay byte-identical. iterationLedgerFromTrace projects these back into
+        // the operator's per-pass ledger. See src/runtime/run/iteration-ledger.ts.
+        await trace.append({
+          run_id: runId,
+          kind: 'run.until-judgment',
+          step_id: step.id,
+          iteration: stepIterationIndex,
+          goal_proposed: judgment.goalProposed,
+          evidence_confirmed: evidenceConfirms,
+          disposition,
+          no_progress_count: recordedNoProgress,
+          open_latch_count: context.honestyLedger?.openLatches().length ?? 0,
+          ...(judgment.lesson === undefined ? {} : { lesson: judgment.lesson }),
+        });
 
         if (disposition === 'reenter') {
           route = untilFlag.reenterRoute;

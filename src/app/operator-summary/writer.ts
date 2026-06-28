@@ -5,6 +5,11 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { findFlowRuntimeSurfaceById } from '../../flows/catalog.js';
+import {
+  type IterationLedgerRow,
+  iterationLedgerFromTrace,
+  renderIterationLedgerMarkdown,
+} from '../../runtime/run/iteration-ledger.js';
 import { CompiledDepth } from '../../schemas/depth.js';
 import {
   OperatorAutoResolution,
@@ -30,6 +35,7 @@ import {
   CatalogSourcedBinding,
   RelayUsageEvidence,
   RunEquipmentReshapeTraceEntry,
+  TraceEntry,
 } from '../../schemas/trace-entry.js';
 import { type HtmlProjectorContext, getHtmlProjector } from '../../shared/html/index.js';
 import {
@@ -1092,6 +1098,31 @@ function equipmentReshapeLine(reshape: OperatorEquipmentReshapeValue): string {
   return `\`${reshape.step_id}\` confirmed ${domains}; equipped ${equipped}`;
 }
 
+// Read the run's per-iteration experiment ledger out of the trace. The engine
+// only stamps `run.until-judgment` entries on a judge-gated until loop, so any
+// non-until run (and any count-driven loop) yields no entries and an empty
+// ledger — the summary then stays byte-identical to before this section
+// existed. Field-tolerant like the other trace readers: each line is parsed
+// through the strict union and a torn or forward-version line is dropped, never
+// fatal. The projection joins each judgment to the relay usage of its iteration.
+function readIterationLedger(runFolder: string): IterationLedgerRow[] {
+  const tracePath = join(runFolder, 'trace.ndjson');
+  if (!existsSync(tracePath)) return [];
+  const entries: TraceEntry[] = [];
+  for (const line of readFileSync(tracePath, 'utf8').split(/\r?\n/)) {
+    if (line.trim().length === 0) continue;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const parsed = TraceEntry.safeParse(raw);
+    if (parsed.success) entries.push(parsed.data);
+  }
+  return iterationLedgerFromTrace(entries);
+}
+
 function formatScore(value: number | null | undefined): string {
   if (value === null || value === undefined) return 'n/a';
   return value.toFixed(3).replace(/\.?0+$/, '');
@@ -1126,7 +1157,18 @@ function checkpointOptionDetails(runFolder: string, allowedChoices: readonly str
   });
 }
 
-function renderMarkdown(summary: OperatorSummary): string {
+// The experiment-ledger section, rendered under the digest only when the run
+// is a judge-gated until loop that recorded at least one judged pass. Empty
+// rows render nothing, so a non-until run keeps its summary byte-identical.
+function ledgerSection(rows: readonly IterationLedgerRow[]): string[] {
+  if (rows.length === 0) return [];
+  return ['', 'Experiment ledger (one row per pass):', '', renderIterationLedgerMarkdown(rows)];
+}
+
+function renderMarkdown(
+  summary: OperatorSummary,
+  ledgerRows: readonly IterationLedgerRow[],
+): string {
   if (summary.brief_slots !== undefined) {
     const lines = [summary.brief_slots.headline, '', summary.brief_slots.assessment, ''];
     for (const point of summary.brief_slots.key_points) lines.push(`- ${point}`);
@@ -1157,6 +1199,7 @@ function renderMarkdown(summary: OperatorSummary): string {
       const reduced = reducedBindingsLine(summary.receipt);
       if (reduced !== undefined) lines.push(reduced);
     }
+    lines.push(...ledgerSection(ledgerRows));
     if (summary.html_path !== undefined) {
       lines.push('', `Rich summary: ${summary.html_path}`);
     }
@@ -1215,6 +1258,8 @@ function renderMarkdown(summary: OperatorSummary): string {
     if (reduced !== undefined) lines.push(reduced);
   }
 
+  lines.push(...ledgerSection(ledgerRows));
+
   if (summary.html_path !== undefined) {
     lines.push('', `Rich summary: ${summary.html_path}`);
   }
@@ -1242,6 +1287,7 @@ export function writeOperatorSummary(input: {
   const skillHookSummary = readSkillHookSummary(input.runFolder);
   const equipmentReshapeSummary = readEquipmentReshapeSummary(input.runFolder);
   const receipt = readRunReceipt(input.runFolder);
+  const ledgerRows = readIterationLedger(input.runFolder);
 
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
@@ -1423,7 +1469,7 @@ export function writeOperatorSummary(input: {
   });
 
   writeFileSync(outJsonPath, `${JSON.stringify(candidate, null, 2)}\n`);
-  writeFileSync(outMarkdownPath, renderMarkdown(candidate));
+  writeFileSync(outMarkdownPath, renderMarkdown(candidate, ledgerRows));
 
   return outHtmlPath === undefined
     ? { summary: candidate, jsonPath: outJsonPath, markdownPath: outMarkdownPath }

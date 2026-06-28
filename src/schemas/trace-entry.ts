@@ -745,6 +745,32 @@ export const RunContextDeliveryTraceEntry = TraceEntryBase.extend({
 }).strict();
 export type RunContextDeliveryTraceEntry = z.infer<typeof RunContextDeliveryTraceEntry>;
 
+// The durable per-iteration record of an until-loop's stop-judge disposition —
+// the Circuit analog of autoresearch's results.tsv. Written at the tail seam
+// once per pass on a judge-gated until loop AFTER the disposition is final, so
+// the operator can read what each pass proposed, whether the evidence floor
+// confirmed it, and why a pass was discarded. `goal_proposed` is the judge's
+// raw claim; `evidence_confirmed` is the floor's verdict; `disposition` is the
+// engine's settled action. `no_progress_count` is the consecutive-stall count
+// (0 on a stop-clean pass and whenever the flow declares no progress marker);
+// `open_latch_count` is how many honesty-ledger latches were still open when the
+// pass closed. `lesson` echoes the judge's carried lesson when present. Absent
+// entirely on any non-until run and on count-driven until loops (no judgment to
+// record), keeping today's traces byte-stable. The stop-clean ⟺ both-true
+// invariant from disposeIteration is enforced at the union level below.
+export const RunUntilJudgmentTraceEntry = TraceEntryBase.extend({
+  kind: z.literal('run.until-judgment'),
+  step_id: StepId,
+  iteration: z.number().int().nonnegative(),
+  goal_proposed: z.boolean(),
+  evidence_confirmed: z.boolean(),
+  disposition: z.enum(['stop-clean', 'reenter', 'needs-attention']),
+  no_progress_count: z.number().int().nonnegative(),
+  open_latch_count: z.number().int().nonnegative(),
+  lesson: z.string().min(1).optional(),
+}).strict();
+export type RunUntilJudgmentTraceEntry = z.infer<typeof RunUntilJudgmentTraceEntry>;
+
 // Cross-variant superRefine enforces the
 // `RelayStartedTraceEntry.role === resolved_from.role` binding when
 // `resolved_from.source === 'role'`. Mirrors the Step pattern: keep each
@@ -783,11 +809,35 @@ export const TraceEntry = z
     RunEquipmentReshapeTraceEntry,
     RunContextPullTraceEntry,
     RunContextDeliveryTraceEntry,
+    RunUntilJudgmentTraceEntry,
     GuidanceDecisionTraceEntryBody,
   ])
   .superRefine((ev, ctx) => {
     if (ev.kind === 'guidance.decision') {
       refineGuidanceDecisionTraceEntry(ev, ctx);
+      return;
+    }
+    if (ev.kind === 'run.until-judgment') {
+      // disposeIteration reaches 'stop-clean' only when BOTH the goal was
+      // proposed AND the evidence confirmed it (until-corridor.ts). A recorded
+      // clean stop missing either is a laundered false-done — reject it on the
+      // offending field so the trace can never claim a stop the engine could not.
+      if (ev.disposition === 'stop-clean') {
+        if (!ev.goal_proposed) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['goal_proposed'],
+            message: "a 'stop-clean' until judgment requires goal_proposed true",
+          });
+        }
+        if (!ev.evidence_confirmed) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['evidence_confirmed'],
+            message: "a 'stop-clean' until judgment requires evidence_confirmed true",
+          });
+        }
+      }
       return;
     }
     if (ev.kind === 'verification.command_evaluated') {

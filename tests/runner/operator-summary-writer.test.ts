@@ -3755,3 +3755,81 @@ describe('operator summary writer — run receipt', () => {
     );
   });
 });
+
+describe('operator summary writer: experiment ledger', () => {
+  function untilJudgment(
+    sequence: number,
+    fields: {
+      iteration: number;
+      disposition: 'stop-clean' | 'reenter' | 'needs-attention';
+      goal_proposed: boolean;
+      evidence_confirmed: boolean;
+      no_progress_count?: number;
+      open_latch_count?: number;
+      lesson?: string;
+    },
+  ): Record<string, unknown> {
+    return {
+      schema_version: 1,
+      sequence,
+      recorded_at: '2026-06-28T05:00:00.000Z',
+      run_id: '87000000-0000-0000-0000-000000000001',
+      kind: 'run.until-judgment',
+      step_id: 'loop-tail',
+      iteration: fields.iteration,
+      goal_proposed: fields.goal_proposed,
+      evidence_confirmed: fields.evidence_confirmed,
+      disposition: fields.disposition,
+      no_progress_count: fields.no_progress_count ?? 0,
+      open_latch_count: fields.open_latch_count ?? 0,
+      ...(fields.lesson === undefined ? {} : { lesson: fields.lesson }),
+    };
+  }
+
+  it('appends a per-iteration ledger table when the trace carries judgment entries', () => {
+    writeTrace([
+      untilJudgment(1, {
+        iteration: 0,
+        disposition: 'reenter',
+        goal_proposed: false,
+        evidence_confirmed: false,
+        lesson: 'narrow the change',
+      }),
+      untilJudgment(2, {
+        iteration: 1,
+        disposition: 'stop-clean',
+        goal_proposed: true,
+        evidence_confirmed: true,
+      }),
+    ]);
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('build'),
+      route: { selectedFlow: 'build' },
+    });
+
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    // The section renders with plain-English headers and one row per iteration.
+    expect(markdown).toContain('| Iteration |');
+    expect(markdown).toContain('Goal proposed');
+    expect(markdown).toContain('| 0 | reenter |');
+    expect(markdown).toContain('| 1 | stop-clean |');
+    expect(markdown).toContain('narrow the change');
+    // No engine field names leak into operator prose.
+    expect(markdown).not.toContain('run.until-judgment');
+    expect(markdown).not.toContain('goal_proposed');
+  });
+
+  it('appends nothing for a non-until run, keeping the summary byte-identical', () => {
+    // No trace at all (the common non-until case).
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: baseResult('build'),
+      route: { selectedFlow: 'build' },
+    });
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).not.toContain('| Iteration |');
+    expect(markdown).not.toContain('Goal proposed');
+  });
+});
