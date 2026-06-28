@@ -89,6 +89,13 @@ export const EngineFlagsManifest = z
           })
           .strict()
           .optional(),
+        // The loop's read-only eval surface (the test files, the verify command's
+        // own definition, a spec or expected file). The engine fingerprints these
+        // at loop entry and, at each tail seam, opens an honesty-ledger latch if a
+        // body iteration changed one — so the floor cannot honor that iteration's
+        // goal-met claim. Generic engine mechanism only; no shipped flow sets it
+        // (freezing real repo paths is a deliberate NEXT slice). Absent = off.
+        frozen_paths: z.array(z.string().min(1)).min(1).optional(),
         activate_when_depth_at_least: z.literal('autonomous'),
       })
       .strict()

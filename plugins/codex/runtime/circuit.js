@@ -10766,8 +10766,8 @@ var require_dist = __commonJS({
 });
 
 // dist/cli/circuit.js
-import { readFileSync as readFileSync60 } from "node:fs";
-import { dirname as dirname15, resolve as resolve29 } from "node:path";
+import { readFileSync as readFileSync61 } from "node:fs";
+import { dirname as dirname15, resolve as resolve30 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -25498,6 +25498,13 @@ var EngineFlagsManifest = external_exports.object({
     iteration_commit_containment: external_exports.object({
       branch_prefix: external_exports.string().min(1)
     }).strict().optional(),
+    // The loop's read-only eval surface (the test files, the verify command's
+    // own definition, a spec or expected file). The engine fingerprints these
+    // at loop entry and, at each tail seam, opens an honesty-ledger latch if a
+    // body iteration changed one — so the floor cannot honor that iteration's
+    // goal-met claim. Generic engine mechanism only; no shipped flow sets it
+    // (freezing real repo paths is a deliberate NEXT slice). Absent = off.
+    frozen_paths: external_exports.array(external_exports.string().min(1)).min(1).optional(),
     activate_when_depth_at_least: external_exports.literal("autonomous")
   }).strict().optional()
 }).strict();
@@ -48012,7 +48019,7 @@ function parseNdjsonObjects(stdout, label) {
 }
 async function runConnectorSubprocess(input) {
   const start = performance.now();
-  return await new Promise((resolve30, reject) => {
+  return await new Promise((resolve31, reject) => {
     let child;
     try {
       child = spawn(input.executable, [...input.args], {
@@ -48085,7 +48092,7 @@ async function runConnectorSubprocess(input) {
     });
     child.on("close", (code, signal) => {
       clearAllTimers();
-      resolve30({
+      resolve31({
         stdout,
         stderr,
         stdoutCapped,
@@ -58734,11 +58741,11 @@ async function runReclaimCommand(argv) {
 
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync40, mkdirSync as mkdirSync11, readFileSync as readFileSync58, writeFileSync as writeFileSync12 } from "node:fs";
-import { dirname as dirname14, join as join45, resolve as resolve27 } from "node:path";
+import { existsSync as existsSync40, mkdirSync as mkdirSync11, readFileSync as readFileSync59, writeFileSync as writeFileSync12 } from "node:fs";
+import { dirname as dirname14, join as join45, resolve as resolve28 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
-import { readFileSync as readFileSync50 } from "node:fs";
+import { readFileSync as readFileSync51 } from "node:fs";
 
 // dist/policy/policy-envelope.js
 var PolicyEnvelopeCompositionError = class extends Error {
@@ -59649,6 +59656,7 @@ function translateUntilLoop(until) {
         branchPrefix: until.iteration_commit_containment.branch_prefix
       }
     },
+    ...until.frozen_paths === void 0 ? {} : { frozenPaths: until.frozen_paths },
     activateWhenDepthAtLeast: until.activate_when_depth_at_least
   };
 }
@@ -66043,6 +66051,44 @@ async function appendCarriedNote(input) {
   return next;
 }
 
+// dist/runtime/run/frozen-eval.js
+import { createHash as createHash6 } from "node:crypto";
+import { readFileSync as readFileSync49 } from "node:fs";
+import { resolve as resolve23 } from "node:path";
+var ABSENT = "<absent>";
+var FrozenEvalGuard = class {
+  projectRoot;
+  // Keyed by the ORIGINAL declared path string (not the resolved absolute path)
+  // so latch reasons name the surface in the operator's own terms.
+  baseline;
+  constructor(projectRoot, frozenPaths) {
+    this.projectRoot = projectRoot;
+    this.baseline = new Map(frozenPaths.map((p) => [p, this.fingerprint(p)]));
+  }
+  // Sha256 hex of the file's bytes, or the ABSENT sentinel if the file is missing
+  // or unreadable. Resolved against the injected project root; never cwd.
+  fingerprint(declaredPath) {
+    try {
+      const bytes = readFileSync49(resolve23(this.projectRoot, declaredPath));
+      return createHash6("sha256").update(bytes).digest("hex");
+    } catch {
+      return ABSENT;
+    }
+  }
+  // Re-fingerprint each declared path and return the sorted declared paths whose
+  // current fingerprint differs from the loop-entry baseline. Covers all three
+  // tamper shapes — modified, created-after-baseline, deleted-after-baseline —
+  // because each flips the path's fingerprint relative to its baseline.
+  changedFrozenPaths() {
+    const changed = [];
+    for (const [declaredPath, baseline] of this.baseline) {
+      if (this.fingerprint(declaredPath) !== baseline)
+        changed.push(declaredPath);
+    }
+    return changed.sort();
+  }
+};
+
 // dist/runtime/run/honesty-ledger.js
 var HonestyLedger = class {
   latches = /* @__PURE__ */ new Map();
@@ -66348,7 +66394,7 @@ function corridorCause(active, binding) {
 }
 
 // dist/runtime/run/run-boundary.js
-import { readFileSync as readFileSync49 } from "node:fs";
+import { readFileSync as readFileSync50 } from "node:fs";
 import { lstat, mkdir as mkdir3, readdir as readdir2 } from "node:fs/promises";
 
 // dist/runtime/projections/progress.js
@@ -67100,7 +67146,7 @@ async function openRunBoundary(options) {
     files: {
       readText(path) {
         try {
-          return readFileSync49(path, "utf8");
+          return readFileSync50(path, "utf8");
         } catch {
           return void 0;
         }
@@ -68008,6 +68054,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     assertUntilFlagCoherent(flow, steps, untilFlag);
   }
   const untilCorridor = new UntilCorridor({ flag: untilFlag, depth: context.depth });
+  const frozenEvalGuard = untilFlag?.frozenPaths !== void 0 && untilFlag.frozenPaths.length > 0 && options.projectRoot !== void 0 ? new FrozenEvalGuard(options.projectRoot, untilFlag.frozenPaths) : void 0;
   const contextDeliveryActive = options.contextDelivery !== void 0 && !sliceCorridor.isActive();
   const completedStepCounts = isResume ? completedStepCountsFromTrace(existingTrace, sliceCorridor) : /* @__PURE__ */ new Map();
   if (isResume) {
@@ -68321,6 +68368,16 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     }
     if (untilCorridor.isActive() && untilFlag !== void 0 && step.id === untilFlag.tailStep) {
       if (untilFlag.stopJudge !== void 0) {
+        if (frozenEvalGuard !== void 0) {
+          const changed = frozenEvalGuard.changedFrozenPaths();
+          if (changed.length > 0) {
+            context.honestyLedger?.latchOverclaim({
+              stepId: "frozen-eval-guard",
+              iterationIndex: stepIterationIndex,
+              reason: `eval surface modified during iteration ${stepIterationIndex}: ${changed.join(", ")}`
+            });
+          }
+        }
         const judgment = await readUntilJudgeReport(context, untilFlag.stopJudge);
         const evidenceConfirms = judgment.goalProposed && (options.untilEvidenceFloor ?? defaultUntilEvidenceFloor)(context);
         let disposition = untilCorridor.disposeIteration({
@@ -68852,7 +68909,7 @@ function readCheckpointRequestContextResult(input) {
   const requestAbs = resolveRunFilePath(input.runDir, input.requestPath);
   let requestText;
   try {
-    requestText = readFileSync50(requestAbs, "utf8");
+    requestText = readFileSync51(requestAbs, "utf8");
   } catch (error51) {
     return checkpointResumeRejectedFrom(error51);
   }
@@ -69210,8 +69267,8 @@ async function resumeCompiledFlow(options) {
 }
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync34, readFileSync as readFileSync51 } from "node:fs";
-import { join as join36, resolve as resolve23 } from "node:path";
+import { existsSync as existsSync34, readFileSync as readFileSync52 } from "node:fs";
+import { join as join36, resolve as resolve24 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -69224,7 +69281,7 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
     if (!existsSync34(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
-    const currentHash = sha256OfString(readFileSync51(abs, "utf8"));
+    const currentHash = sha256OfString(readFileSync52(abs, "utf8"));
     return currentHash === sourceSha ? { status: "fresh", checked_at: checkedAt, reason_codes: ["source_hash_verified"] } : { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
   } catch {
     return { status: "unknown", checked_at: checkedAt, reason_codes: ["memory_unverified"] };
@@ -69234,7 +69291,7 @@ function loadProjectFactCandidates(options) {
   if (options.flowId === void 0) {
     return { candidates: [] };
   }
-  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve23(options.runsBase);
+  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve24(options.runsBase);
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const checkedAt = now().toISOString();
   const { facts } = readProjectFacts({
@@ -69459,11 +69516,11 @@ function prepareRunStartHistoryRecall(options) {
 }
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync36, mkdirSync as mkdirSync7, readFileSync as readFileSync53, rmSync as rmSync5, writeFileSync as writeFileSync8 } from "node:fs";
-import { dirname as dirname10, isAbsolute as isAbsolute13, join as join37, relative as relative13, resolve as resolve24 } from "node:path";
+import { existsSync as existsSync36, mkdirSync as mkdirSync7, readFileSync as readFileSync54, rmSync as rmSync5, writeFileSync as writeFileSync8 } from "node:fs";
+import { dirname as dirname10, isAbsolute as isAbsolute13, join as join37, relative as relative13, resolve as resolve25 } from "node:path";
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync35, readFileSync as readFileSync52 } from "node:fs";
+import { existsSync as existsSync35, readFileSync as readFileSync53 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -69471,7 +69528,7 @@ function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
   if (!existsSync35(path))
     return void 0;
-  const parsed = JSON.parse(readFileSync52(path, "utf8"));
+  const parsed = JSON.parse(readFileSync53(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
 }
 function stringField2(report, key) {
@@ -70087,7 +70144,7 @@ function readPriorRoute(runFolder) {
   if (!existsSync36(path))
     return {};
   try {
-    const raw = JSON.parse(readFileSync53(path, "utf8"));
+    const raw = JSON.parse(readFileSync54(path, "utf8"));
     if (!isObject4(raw))
       return {};
     const routedBy = raw.routed_by;
@@ -70119,16 +70176,16 @@ function isInsideOrSame4(root, target) {
 function readCheckpointRequest(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute13(checkpoint.request_path) ? resolve24(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute13(checkpoint.request_path) ? resolve25(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     return void 0;
   }
-  if (!isInsideOrSame4(resolve24(runFolder), requestPath))
+  if (!isInsideOrSame4(resolve25(runFolder), requestPath))
     return void 0;
   if (!existsSync36(requestPath))
     return void 0;
   try {
-    const parsed = JSON.parse(readFileSync53(requestPath, "utf8"));
+    const parsed = JSON.parse(readFileSync54(requestPath, "utf8"));
     return isObject4(parsed) ? parsed : void 0;
   } catch {
     return void 0;
@@ -70508,7 +70565,7 @@ function readAutoResolutions(runFolder) {
   if (!existsSync36(tracePath))
     return [];
   const records = [];
-  for (const line of readFileSync53(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync54(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -70564,7 +70621,7 @@ function readRunReceipt(runFolder) {
   let spendRelaysMissingUsage = 0;
   let anyUsage = false;
   let anyCostMissing = false;
-  for (const line of readFileSync53(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync54(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -70785,7 +70842,7 @@ function readSkillHookSummary(runFolder) {
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
   const warnings = [];
-  for (const line of readFileSync53(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync54(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -70859,7 +70916,7 @@ function readEquipmentReshapeSummary(runFolder) {
   const seen = /* @__PURE__ */ new Set();
   const reshapes = [];
   const warnings = [];
-  for (const line of readFileSync53(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync54(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -72072,9 +72129,9 @@ async function runAutonomousContinuation(input) {
 
 // dist/shared/config-loader.js
 var import_yaml4 = __toESM(require_dist(), 1);
-import { existsSync as existsSync38, readFileSync as readFileSync54 } from "node:fs";
+import { existsSync as existsSync38, readFileSync as readFileSync55 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
-import { join as join40, resolve as resolve25 } from "node:path";
+import { join as join40, resolve as resolve26 } from "node:path";
 var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
 var PROJECT_CONFIG_RELATIVE_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS;
 function userGlobalConfigPath(homeDir = homedir4()) {
@@ -72091,10 +72148,10 @@ function parseConfigYaml(text, sourcePath) {
   }
 }
 function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
-  const abs = resolve25(sourcePath);
+  const abs = resolve26(sourcePath);
   if (!existsSync38(abs))
     return void 0;
-  const raw = parseConfigYaml(readFileSync54(abs, "utf8"), abs);
+  const raw = parseConfigYaml(readFileSync55(abs, "utf8"), abs);
   if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
     const schemaVersion = raw.schema_version;
     if (schemaVersion === 2) {
@@ -72152,18 +72209,18 @@ function discoverRuntimeConfigLayers(options = {}) {
 }
 
 // dist/cli/compiled-flow-loading.js
-import { existsSync as existsSync39, readFileSync as readFileSync55 } from "node:fs";
-import { resolve as resolve26 } from "node:path";
+import { existsSync as existsSync39, readFileSync as readFileSync56 } from "node:fs";
+import { resolve as resolve27 } from "node:path";
 function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   if (override !== void 0)
-    return resolve26(override);
-  const root = resolve26(flowRoot2 ?? "generated/flows");
+    return resolve27(override);
+  const root = resolve27(flowRoot2 ?? "generated/flows");
   if (modeName !== void 0) {
-    const perMode = resolve26(root, flowName, `${modeName}.json`);
+    const perMode = resolve27(root, flowName, `${modeName}.json`);
     if (existsSync39(perMode))
       return perMode;
   }
-  return resolve26(root, flowName, "circuit.json");
+  return resolve27(root, flowName, "circuit.json");
 }
 function compiledFlowSelectionNameForAxes(axes) {
   if (axes.tournament)
@@ -72188,7 +72245,7 @@ function loadCompiledFlow(compiledFlowPath) {
   if (!existsSync39(compiledFlowPath)) {
     throw new Error(`compiled flow not found: ${compiledFlowPath}`);
   }
-  const bytes = readFileSync55(compiledFlowPath);
+  const bytes = readFileSync56(compiledFlowPath);
   const raw = JSON.parse(bytes.toString("utf8"));
   const flow = CompiledFlow.parse(raw);
   const policy2 = validateCompiledFlowKindPolicy(flow);
@@ -72207,7 +72264,7 @@ function defaultChildCompiledFlowResolver(flowRoot2) {
 }
 
 // dist/cli/post-run-artifacts.js
-import { readFileSync as readFileSync56 } from "node:fs";
+import { readFileSync as readFileSync57 } from "node:fs";
 import { join as join42 } from "node:path";
 
 // dist/app/run-envelope/shadow-record.js
@@ -72338,7 +72395,7 @@ function resolveFlowPrimaryOutcome(input) {
     return void 0;
   let primaryResult;
   try {
-    primaryResult = JSON.parse(readFileSync56(join42(input.runFolder, primaryResultPath), "utf8"));
+    primaryResult = JSON.parse(readFileSync57(join42(input.runFolder, primaryResultPath), "utf8"));
   } catch {
     return void 0;
   }
@@ -72382,7 +72439,7 @@ function emitPostRunArtifacts(input) {
 
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { readFileSync as readFileSync57 } from "node:fs";
+import { readFileSync as readFileSync58 } from "node:fs";
 import { join as join43 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
@@ -72445,7 +72502,7 @@ function createRecoveryAttemptRunner(deps) {
         })
       };
     }
-    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync57(recoveryResult.resultPath, "utf8")));
+    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync58(recoveryResult.resultPath, "utf8")));
     return {
       projection: projectClosedProcessEvidence({
         runFolder: attemptFolder,
@@ -72873,7 +72930,7 @@ function shouldPrepareHistoryRecall(options) {
 }
 async function runResumeCommand(args, options) {
   if (args.command === "resume" && args.runFolder !== void 0 && args.checkpointChoice !== void 0) {
-    const runFolder = resolve27(args.runFolder);
+    const runFolder = resolve28(args.runFolder);
     const progress = progressReporter(args.progress === "jsonl");
     const hostKind = runtimeHostKind(options);
     if (await isRuntimeRunFolder(runFolder)) {
@@ -72888,7 +72945,7 @@ async function runResumeCommand(args, options) {
         ...progress === void 0 ? {} : { progress },
         progressSurfaceForFlowId
       });
-      const runResult = RunResult.parse(JSON.parse(readFileSync58(runtimeResult.resultPath, "utf8")));
+      const runResult = RunResult.parse(JSON.parse(readFileSync59(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
       const postRunArtifactContext = {
@@ -73016,7 +73073,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = args.runFolder === void 0 ? join45(runsRoot(process.cwd()), runId) : resolve27(args.runFolder);
+  const runFolder = args.runFolder === void 0 ? join45(runsRoot(process.cwd()), runId) : resolve28(args.runFolder);
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...options.configHomeDir !== void 0 ? { homeDir: options.configHomeDir } : {},
     ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {},
@@ -73039,7 +73096,7 @@ async function runExecutionCommand(args, options) {
     return 2;
   }
   const hostKind = runtimeHostKind(options);
-  const projectRoot = resolve27(options.configCwd ?? process.cwd());
+  const projectRoot = resolve28(options.configCwd ?? process.cwd());
   if (hostKind === "codex") {
     try {
       const assurance = codexInstallAssurance({ projectRoot, now });
@@ -73097,7 +73154,7 @@ async function runExecutionCommand(args, options) {
       ...historyRecall === void 0 ? {} : { historyRecallReport: historyRecall.report },
       ...historyRecall === void 0 ? {} : { historyRecallPrecision: historyRecall.precision },
       ...args.includeUntrackedContent ? { evidencePolicy: { includeUntrackedFileContent: true } } : {},
-      ...args.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: resolve27(args.reuseChildrenFrom) }
+      ...args.reuseChildrenFrom === void 0 ? {} : { reuseChildrenFrom: resolve28(args.reuseChildrenFrom) }
     });
     if (isGraphCheckpointWaitingResult(runtimeResult)) {
       const waitingResult = {
@@ -73196,7 +73253,7 @@ async function runExecutionCommand(args, options) {
 `);
       return 0;
     }
-    const runResult = RunResult.parse(JSON.parse(readFileSync58(runtimeResult.resultPath, "utf8")));
+    const runResult = RunResult.parse(JSON.parse(readFileSync59(runtimeResult.resultPath, "utf8")));
     const selectedProcess = selectedProcessFields({
       processId: flow.id,
       routedBy: route.source,
@@ -73380,8 +73437,8 @@ async function runRunsCommand(argv) {
 }
 
 // dist/cli/uninstall.js
-import { existsSync as existsSync41, readFileSync as readFileSync59 } from "node:fs";
-import { join as join46, resolve as resolve28 } from "node:path";
+import { existsSync as existsSync41, readFileSync as readFileSync60 } from "node:fs";
+import { join as join46, resolve as resolve29 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -73445,7 +73502,7 @@ function parseArgs4(argv, cwd) {
     throw new Error(`unexpected argument: ${program2.args[0]}`);
   const opts = program2.opts();
   return {
-    dir: resolve28(opts.dir ?? cwd),
+    dir: resolve29(opts.dir ?? cwd),
     json: opts.json === true
   };
 }
@@ -73539,7 +73596,7 @@ async function runUninstallCommand(argv, options = {}) {
     }
     let content;
     try {
-      content = readFileSync59(path, "utf8");
+      content = readFileSync60(path, "utf8");
     } catch (err) {
       process.stderr.write(`error: could not read ${path}: ${err.message}
 `);
@@ -73630,12 +73687,12 @@ function readSourceVersion() {
   if (true)
     return "0.1.0-alpha.8";
   const candidates = [
-    resolve29(dirname15(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
-    resolve29(process.cwd(), "plugins/version.json")
+    resolve30(dirname15(fileURLToPath3(import.meta.url)), "../../plugins/version.json"),
+    resolve30(process.cwd(), "plugins/version.json")
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync60(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync61(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {

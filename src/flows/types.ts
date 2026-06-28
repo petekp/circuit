@@ -203,6 +203,17 @@ export interface UntilLoopEngineFlag {
   readonly iterationCommitContainment?: {
     readonly branchPrefix: string;
   };
+  // The loop's read-only eval surface — the test files, the verify command's own
+  // definition, a spec or expected-output file the evidence floor trusts. The
+  // engine fingerprints each path at loop entry and, at each iteration's tail
+  // seam, re-fingerprints; if any body iteration changed one of these paths it
+  // opens an honesty-ledger latch so the floor cannot honor that iteration's
+  // goal-met claim (the run then re-enters or exhausts to needs-attention). This
+  // is the generic engine mechanism only: wiring an operator-supplied frozen set
+  // onto a real flow is a deliberate NEXT slice — freezing real repo paths risks
+  // false positives on legitimate edits (e.g. a dependency bump), so no shipped
+  // flow sets this yet. Absent = off, byte-identical (no guard, no fs reads).
+  readonly frozenPaths?: readonly string[];
   // The loop only activates when the run's depth is at least this label.
   // Lower depths run a single pass, unchanged.
   readonly activateWhenDepthAtLeast: 'autonomous';

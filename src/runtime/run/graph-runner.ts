@@ -47,6 +47,7 @@ import {
 import { type ContextPuller, type ContextRequest, extractContextRequest } from './context-pull.js';
 import { resolveEngineFlags } from './engine-flags.js';
 import { type EquipmentReshaper, extractEquipmentDiscovery } from './equipment-reshape.js';
+import { FrozenEvalGuard } from './frozen-eval.js';
 import { appendFlowSelectionGuidance, appendRecoveryRouteGuidance } from './guidance.js';
 import { HonestyLedger } from './honesty-ledger.js';
 import { writeRuntimeManifestSnapshot } from './manifest-snapshot.js';
@@ -395,6 +396,10 @@ function assertUntilFlagCoherent(
   // them. Accepting one without a stopJudge would silently ignore a declared
   // spend cap (a fail-open of a safety bound), so reject the combination up front
   // the same way the needs-attention precondition above is gated.
+  // frozenPaths joins this ladder: the guard is consulted only on the stop-judge
+  // tail seam, and its latch lands in the honesty ledger, which exists only on a
+  // judge-gated loop. A count-driven loop declaring frozenPaths would silently
+  // ignore the freeze — a fail-open of a soundness bound — so reject it up front.
   if (flag.stopJudge === undefined) {
     const orphaned =
       flag.carriedNotes !== undefined
@@ -405,7 +410,9 @@ function assertUntilFlagCoherent(
             ? 'cumulativeTokenCap'
             : flag.noProgressCeiling !== undefined
               ? 'noProgressCeiling'
-              : undefined;
+              : flag.frozenPaths !== undefined
+                ? 'frozenPaths'
+                : undefined;
     if (orphaned !== undefined) {
       throw new Error(
         `until loop on flow '${flow.id}' sets ${orphaned} but no stopJudge; these bounds are read only on a judge-gated loop, so a count-driven loop would silently ignore them`,
@@ -690,6 +697,18 @@ async function executeExecutableFlowOutcomeUnsafe(
     assertUntilFlagCoherent(flow, steps, untilFlag);
   }
   const untilCorridor = new UntilCorridor({ flag: untilFlag, depth: context.depth });
+  // The frozen-eval guard (opt-in, default off). Constructed ONCE here — before
+  // the body loop runs its first step — so the baseline fingerprints predate any
+  // act edit. Built only when the flow declares a non-empty frozenPaths AND a
+  // project root is threaded; absent either, the guard is undefined and the tail
+  // seam makes zero fs reads (byte-identical default path). The guard is pure of
+  // engine types and resolves every path against this explicit root, never cwd.
+  const frozenEvalGuard =
+    untilFlag?.frozenPaths !== undefined &&
+    untilFlag.frozenPaths.length > 0 &&
+    options.projectRoot !== undefined
+      ? new FrozenEvalGuard(options.projectRoot, untilFlag.frozenPaths)
+      : undefined;
   // On-demand context-pull delivery is "active" for this run's relays when
   // delivery is opted in AND this run is not a delivery-blind slice corridor.
   // Inside a corridor (deep depth) the delivery seam skips the head step
@@ -1277,6 +1296,25 @@ async function executeExecutableFlowOutcomeUnsafe(
         // the boolean against the evidence floor; never read the goal text here.
         // The floor is consulted only on a met-claim (the sole case it can change
         // the outcome), so a not-done iteration costs no floor read.
+        //
+        // The frozen-eval guard runs first, BEFORE the floor disposes the claim.
+        // If a body iteration changed one of the loop's declared read-only eval
+        // paths, the act gamed the very surface the floor trusts — so we open the
+        // dedicated `frozen-eval-guard` latch. defaultUntilEvidenceFloor returns
+        // false while any latch is open, and nothing ever clears THIS key (the
+        // body's latch-clear seam only clears real step ids), so a tampered run
+        // can re-enter or exhaust but never close complete. Inert (no fs reads)
+        // unless the flow declared frozenPaths and a project root was threaded.
+        if (frozenEvalGuard !== undefined) {
+          const changed = frozenEvalGuard.changedFrozenPaths();
+          if (changed.length > 0) {
+            context.honestyLedger?.latchOverclaim({
+              stepId: 'frozen-eval-guard',
+              iterationIndex: stepIterationIndex,
+              reason: `eval surface modified during iteration ${stepIterationIndex}: ${changed.join(', ')}`,
+            });
+          }
+        }
         const judgment = await readUntilJudgeReport(context, untilFlag.stopJudge);
         const evidenceConfirms =
           judgment.goalProposed &&

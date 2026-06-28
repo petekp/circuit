@@ -86,6 +86,7 @@ function translateUntilLoop(
             branchPrefix: until.iteration_commit_containment.branch_prefix,
           },
         }),
+    ...(until.frozen_paths === undefined ? {} : { frozenPaths: until.frozen_paths }),
     activateWhenDepthAtLeast: until.activate_when_depth_at_least,
   };
 }

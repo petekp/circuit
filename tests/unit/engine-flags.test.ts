@@ -111,6 +111,43 @@ describe('manifestEngineFlagsToInCode (manifest→runtime boundary)', () => {
       },
     });
   });
+
+  it('translates frozen_paths (the read-only eval surface) to frozenPaths', () => {
+    // The frozen-eval guard reads its declared paths off the in-code flag, so the
+    // manifest's snake_case array must arrive as camelCase frozenPaths or the
+    // guard is never constructed and a tampered eval surface goes uncaught.
+    expect(
+      manifestEngineFlagsToInCode({
+        iterates_until_condition: {
+          head_step: 'loop-head',
+          tail_step: 'loop-tail',
+          body_steps: ['loop-head', 'loop-body', 'loop-tail'],
+          reenter_route: 'reenter',
+          max_iterations: 3,
+          frozen_paths: ['eval.txt', 'tests/expected.json'],
+          activate_when_depth_at_least: 'autonomous',
+        },
+      }),
+    ).toEqual({
+      iteratesUntilCondition: { ...UNTIL, frozenPaths: ['eval.txt', 'tests/expected.json'] },
+    });
+  });
+
+  it('leaves frozenPaths absent when the manifest declares no frozen_paths', () => {
+    // Absent must stay absent (off, byte-identical): no shipped flow sets this
+    // field, so the default translation must not invent it.
+    const translated = manifestEngineFlagsToInCode({
+      iterates_until_condition: {
+        head_step: 'loop-head',
+        tail_step: 'loop-tail',
+        body_steps: ['loop-head', 'loop-body', 'loop-tail'],
+        reenter_route: 'reenter',
+        max_iterations: 3,
+        activate_when_depth_at_least: 'autonomous',
+      },
+    });
+    expect(translated?.iteratesUntilCondition).not.toHaveProperty('frozenPaths');
+  });
 });
 
 describe('resolveEngineFlags', () => {

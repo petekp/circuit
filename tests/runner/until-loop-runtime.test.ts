@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -624,6 +624,112 @@ describe('until-loop runtime: stop-judge drives the loop end-to-end', () => {
   });
 });
 
+// The frozen-eval guard. An autonomous Converge loop runs an act step with full
+// default tools, so nothing structurally stops that act from editing the very
+// eval surface the evidence floor reads — the test file or the verify command's
+// definition — so the next pass "passes" on a weakened check. `frozenPaths`
+// declares that read-only surface; the engine fingerprints it at loop entry and,
+// at each tail seam, re-fingerprints before the floor disposes the judge's
+// goal-met claim. A drift opens the dedicated `frozen-eval-guard` honesty latch,
+// which nothing ever clears, so a tampered run can only ever end stopped
+// (needs-attention), never complete. The flag carries the projectRoot-relative
+// frozen paths; the guard is constructed only when projectRoot is also present.
+const FROZEN_FLAG: UntilLoopEngineFlag = {
+  ...SLICE2_FLAG,
+  frozenPaths: ['eval.txt'],
+};
+
+// A judge stub that, on the act body step, optionally tampers a frozen file under
+// the project root (writing DIFFERENT bytes than the baseline), and on the tail
+// writes the goal-met proposal. `tamper` lets a case turn the eval-surface edit on
+// (the attack) or off (the clean control) while everything else stays identical.
+function frozenEvalStub(input: { projectRoot: string; tamper: boolean }) {
+  return {
+    compose: async (step: ExecutableStep, context: RunContext) => {
+      if (step.id === 'loop-body' && input.tamper) {
+        // The act step weakens the eval surface so the verify the judge trusts
+        // would pass on a gamed check. This is the move the guard must catch.
+        writeFileSync(join(input.projectRoot, 'eval.txt'), 'check x === 0');
+      }
+      if (step.id === 'loop-tail') {
+        await context.files.writeJson('reports/judge.json', { goal_met: true });
+      }
+      return { route: 'pass' as const };
+    },
+  };
+}
+
+describe('until-loop runtime: the frozen-eval guard latches a tampered eval surface', () => {
+  let projectRoot: string;
+
+  beforeEach(() => {
+    projectRoot = mkdtempSync(join(tmpdir(), 'circuit-frozen-project-'));
+    // The read-only eval surface the loop must not touch. Baseline bytes the
+    // guard fingerprints at loop entry.
+    writeFileSync(join(projectRoot, 'eval.txt'), 'check x === 1');
+  });
+
+  afterEach(() => {
+    rmSync(projectRoot, { recursive: true, force: true });
+  });
+
+  it('TAMPER: an act step that edits a frozen path cannot close complete on a goal-met claim', async () => {
+    const runFolder = join(runFolderBase, 'frozen-tamper');
+    const outcome = await executeExecutableFlow(
+      { ...judgeLoopFlow(), engineFlags: { iteratesUntilCondition: FROZEN_FLAG } },
+      {
+        runDir: runFolder,
+        runId: '70000000-0000-0000-0000-000000000030',
+        goal: 'an act that games the eval surface must not be honored as done',
+        depth: 'autonomous',
+        now: deterministicNow(Date.UTC(2026, 5, 28, 9, 0, 0)),
+        projectRoot,
+        // The judge proposes done and the default evidence floor would otherwise
+        // confirm — so the ONLY thing that can block a complete here is the
+        // frozen-eval latch the tampering opens.
+        executors: frozenEvalStub({ projectRoot, tamper: true }),
+      },
+    );
+    const trace = await new TraceStore(runFolder).load();
+
+    // The run never closes complete on the gamed pass: it exhausts to the
+    // needs-attention exit instead.
+    expect(outcome.outcome).not.toBe('complete');
+    expect(outcome.outcome).toBe('stopped');
+    expect(trace.find((e) => e.kind === 'step.aborted')).toBeUndefined();
+
+    // The honesty ledger names the frozen path that drifted.
+    const ledger = JSON.parse(readFileSync(join(runFolder, 'honesty-ledger.json'), 'utf8')) as {
+      open_overclaims: { stepId: string; reason: string }[];
+    };
+    expect(ledger.open_overclaims.map((l) => l.stepId)).toContain('frozen-eval-guard');
+    expect(ledger.open_overclaims.find((l) => l.stepId === 'frozen-eval-guard')?.reason).toContain(
+      'eval.txt',
+    );
+  });
+
+  it('CONTROL: with the eval surface untouched, the same goal-met claim closes complete', async () => {
+    const runFolder = join(runFolderBase, 'frozen-control');
+    const outcome = await executeExecutableFlow(
+      { ...judgeLoopFlow(), engineFlags: { iteratesUntilCondition: FROZEN_FLAG } },
+      {
+        runDir: runFolder,
+        runId: '70000000-0000-0000-0000-000000000031',
+        goal: 'a clean act that leaves the eval surface alone completes honestly',
+        depth: 'autonomous',
+        now: deterministicNow(Date.UTC(2026, 5, 28, 9, 30, 0)),
+        projectRoot,
+        executors: frozenEvalStub({ projectRoot, tamper: false }),
+      },
+    );
+
+    // Same flow, same goal-met claim, same evidence floor — only the tampering
+    // differs, so a complete close here proves the latch is the sole cause of the
+    // tamper run's stop.
+    expect(outcome.outcome).toBe('complete');
+  });
+});
+
 // Slices 4-6 (carried notes, the budget cap, the no-progress ceiling) are read
 // only on the stop-judge tail seam. A count-driven loop that declares one of them
 // would silently ignore it — a fail-open of a declared spend cap. The validator
@@ -675,6 +781,26 @@ describe('until-loop runtime: slice 4-6 fields require a stop-judge', () => {
     );
     expect(outcome.kind).toBe('rejected');
     expect(outcome.kind === 'rejected' ? outcome.reason : '').toMatch(/progressPath/);
+  });
+
+  it('rejects frozenPaths declared without a stop-judge (the freeze would be a fail-open)', async () => {
+    // The frozen-eval guard latches into the honesty ledger, which exists only on
+    // a judge-gated loop. A count-driven loop declaring frozenPaths would never
+    // consult the guard, so the eval surface would be silently unfrozen — the
+    // validator must reject it up front like the other judge-only bounds.
+    const outcome = await executeExecutableFlowOutcome(
+      steerLoopFlow({ ...COUNT_BASE, frozenPaths: ['eval.txt'] }),
+      {
+        runDir: join(runFolderBase, 'frozen-without-judge'),
+        runId: '70000000-0000-0000-0000-000000000049',
+        goal: 'a count loop that declares a frozen eval surface it cannot enforce must be rejected',
+        depth: 'autonomous',
+        now: deterministicNow(Date.UTC(2026, 5, 27, 23, 30, 0)),
+        executors: steerStub({ goalMet: () => false }),
+      },
+    );
+    expect(outcome.kind).toBe('rejected');
+    expect(outcome.kind === 'rejected' ? outcome.reason : '').toMatch(/frozenPaths.*stopJudge/);
   });
 });
 
