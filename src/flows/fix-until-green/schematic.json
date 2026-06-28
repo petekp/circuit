@@ -1,0 +1,200 @@
+{
+  "schema_version": "2",
+  "id": "fix-until-green",
+  "title": "Fix Until Green Schematic",
+  "purpose": "Fix Until Green flow: loop a fix-attempt body (act, verify, judge) until a real verification command passes or the iteration cap is hit, so the until-loop primitive runs with a true evidence floor and a judge that leaves a lesson for the next pass.",
+  "status": "active",
+  "starts_at": "plan-step",
+  "initial_contracts": ["flow.brief@v1", "verification.plan@v1"],
+  "contract_aliases": [
+    {
+      "generic": "plan.strategy@v1",
+      "actual": "fix-until-green.plan@v1"
+    },
+    {
+      "generic": "verification.result@v1",
+      "actual": "fix-until-green.verification@v1"
+    }
+  ],
+  "items": [
+    {
+      "id": "plan-step",
+      "block": "plan",
+      "title": "Plan the verification",
+      "stage": "plan",
+      "input": {
+        "brief": "flow.brief@v1"
+      },
+      "optional_inputs": [],
+      "output": "fix-until-green.plan@v1",
+      "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
+      "execution": {
+        "kind": "compose"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "act-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "fix-until-green-plan@v1",
+      "writes": {
+        "report_path": "reports/fix-until-green/plan.json"
+      },
+      "check": {
+        "required": ["objective", "verification"]
+      }
+    },
+    {
+      "id": "act-step",
+      "block": "act",
+      "title": "Attempt the fix",
+      "stage": "act",
+      "input": {
+        "brief": "flow.brief@v1",
+        "plan": "fix-until-green.plan@v1"
+      },
+      "optional_inputs": [],
+      "output": "change.evidence@v1",
+      "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
+      "execution": {
+        "kind": "relay",
+        "role": "implementer"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "verify-step"
+      },
+      "route_overrides": {},
+      "protocol": "fix-until-green-act@v1",
+      "writes": {
+        "request_path": "reports/fix-until-green/act.request.json",
+        "receipt_path": "reports/fix-until-green/act.receipt.txt",
+        "result_path": "reports/fix-until-green/act.result.json"
+      },
+      "check": {
+        "pass": ["ok"]
+      }
+    },
+    {
+      "id": "verify-step",
+      "block": "run-verification",
+      "title": "Run the verification",
+      "stage": "verify",
+      "input": {
+        "proof": "verification.plan@v1",
+        "plan": "fix-until-green.plan@v1"
+      },
+      "optional_inputs": [],
+      "output": "fix-until-green.verification@v1",
+      "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
+      "execution": {
+        "kind": "verification"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "judge-step",
+        "revise": "judge-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "fix-until-green-verify@v1",
+      "writes": {
+        "report_path": "reports/fix-until-green/verification.json"
+      },
+      "check": {
+        "required": ["overall_status", "commands"]
+      }
+    },
+    {
+      "id": "judge-step",
+      "block": "review",
+      "title": "Judge whether the goal is met",
+      "stage": "review",
+      "input": {
+        "brief": "flow.brief@v1"
+      },
+      "optional_inputs": [],
+      "output": "review.verdict@v1",
+      "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
+      "execution": {
+        "kind": "relay",
+        "role": "reviewer"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "@complete",
+        "advance": "act-step",
+        "close": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "fix-until-green-review@v1",
+      "writes": {
+        "request_path": "reports/fix-until-green/judgment.request.json",
+        "receipt_path": "reports/fix-until-green/judgment.receipt.txt",
+        "result_path": "reports/fix-until-green/judgment.result.json"
+      },
+      "check": {
+        "pass": ["ok"]
+      }
+    }
+  ],
+  "version": "0.1.0",
+  "axes": {
+    "allowed_depths": ["medium"],
+    "supports_tournament": false,
+    "supports_autonomous": true,
+    "default": {
+      "depth": "medium",
+      "tournament": false,
+      "tournament_n": 3,
+      "autonomous": false
+    }
+  },
+  "stage_path_policy": {
+    "mode": "partial",
+    "omits": ["frame", "analyze", "close"],
+    "rationale": "Fix Until Green is a narrow Converge flow; plan, act, verify, and review are the canonical stages needed to loop a fix-attempt body until verification passes."
+  },
+  "stages": [
+    {
+      "canonical": "plan",
+      "id": "plan-stage",
+      "title": "Plan"
+    },
+    {
+      "canonical": "act",
+      "id": "act-stage",
+      "title": "Act"
+    },
+    {
+      "canonical": "verify",
+      "id": "verify-stage",
+      "title": "Verify"
+    },
+    {
+      "canonical": "review",
+      "id": "review-stage",
+      "title": "Review"
+    }
+  ],
+  "engine_flags": {
+    "iterates_until_condition": {
+      "head_step": "act-step",
+      "tail_step": "judge-step",
+      "body_steps": ["act-step", "verify-step", "judge-step"],
+      "reenter_route": "advance",
+      "max_iterations": 3,
+      "stop_judge": {
+        "report": "reports/fix-until-green/judgment.result.json",
+        "goal_met_path": "goal_met",
+        "lesson_path": "lesson"
+      },
+      "needs_attention_route": "close",
+      "carried_notes": {
+        "report": "reports/fix-until-green/carried-notes.json"
+      },
+      "activate_when_depth_at_least": "autonomous"
+    }
+  }
+}

@@ -157,10 +157,14 @@ describe('composed build arc — genuine, runnable, novel', () => {
 
     const novelty = evaluateNovelty(validity.schematic, flowDefinitions);
     expect(novelty.novel).toBe(true);
-    // Closest built-in is the build flow, a low-overlap neighbor (the built-in
-    // adds a baseline + touch-area verifications the composed linear arc omits).
-    // Pinning the neighbor identity (not the exact jaccard) keeps this stable.
-    expect(novelty.closest?.flowId).toBe('build');
+    // Closest neighbor is fix-until-green, a partial-overlap neighbor: it is the
+    // internal Converge flow whose loop body is a plan -> act -> verify -> review
+    // arc, structurally nearer to this composed linear build than the built-in
+    // build (which adds a baseline + touch-area verifications the linear arc omits).
+    // The jaccard stays well below the duplicate threshold, so the arc is still
+    // NOVEL and the comparison still discriminates. Pinning the neighbor identity
+    // (not the exact jaccard) keeps this stable.
+    expect(novelty.closest?.flowId).toBe('fix-until-green');
     expect(novelty.matches).toBeUndefined();
   });
 });

@@ -9,6 +9,17 @@ import { describe, expect, it } from 'vitest';
 import { compileSchematicToCompiledFlow } from '../../src/flows/compile-schematic-to-flow.js';
 import { schematicForFlow } from '../helpers/in-memory-schematics.js';
 
+// The carried-notes file the until flag maintains across iterations is engine-
+// written: it has no schematic producer, so the contract-driven reads derivation
+// never adds it. But the until loop's compounding mechanism depends on the head
+// step re-reading the accumulated lessons each pass (the prompt composer inlines
+// every reads-declared file). So the compiler injects the until flag's
+// carried_notes.report path into the head step's reads. fix-until-green is the
+// first flow to declare carried_notes, so it is the fixture for this behavior.
+function loadFixUntilGreenSchematic() {
+  return schematicForFlow('fix-until-green');
+}
+
 // M6: build schematic from the in-memory catalog definition, not disk.
 function loadBuildSchematic() {
   return schematicForFlow('build');
@@ -116,5 +127,30 @@ describe('compileSchematicToCompiledFlow — per-mode emission', () => {
       handoff: '@handoff',
       escalate: '@escalate',
     });
+  });
+
+  it('injects the until flag carried_notes path into the head step reads', () => {
+    const schematic = loadFixUntilGreenSchematic();
+    const result = compileSchematicToCompiledFlow(schematic);
+    expect(result.kind).toBe('single');
+    if (result.kind !== 'single') return;
+
+    const flag = result.flow.engine_flags?.iterates_until_condition;
+    expect(flag).toBeDefined();
+    if (flag === undefined) return;
+    const notesPath = flag.carried_notes?.report;
+    expect(notesPath).toBe('reports/fix-until-green/carried-notes.json');
+    if (notesPath === undefined) return;
+
+    const head = result.flow.steps.find((s) => (s.id as unknown as string) === flag.head_step);
+    expect(head).toBeDefined();
+    // The head re-reads the accumulated lessons each pass, so the prompt composer
+    // inlines them. The path has no schematic producer, so the contract-driven
+    // reads derivation never adds it — the compiler injects it from the flag.
+    expect(head?.reads).toContain(notesPath);
+
+    // The injection is head-only: a non-head body step must not gain the path.
+    const tail = result.flow.steps.find((s) => (s.id as unknown as string) === flag.tail_step);
+    expect(tail?.reads ?? []).not.toContain(notesPath);
   });
 });

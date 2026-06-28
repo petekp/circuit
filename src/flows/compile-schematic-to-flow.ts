@@ -209,6 +209,19 @@ function computeReads(
   return reads;
 }
 
+// When the schematic declares the until-loop flag with carried notes, return the
+// head step id and the notes path so the compiler can inject that path into the
+// head step's reads. Returns undefined when no until flag or no carried notes are
+// declared, so non-until flows are untouched.
+function untilHeadCarriedNotesRead(
+  engineFlags: FlowSchematic['engine_flags'],
+): { headStep: string; report: string } | undefined {
+  const until = engineFlags?.iterates_until_condition;
+  if (until === undefined) return undefined;
+  if (until.carried_notes === undefined) return undefined;
+  return { headStep: until.head_step, report: until.carried_notes.report };
+}
+
 // Map schematic routes to CompiledFlow routes for a given mode. Schematic
 // success aliases populate the runtime success edge because handlers advance
 // on `pass`. The original schematic labels are preserved too, so checkpoint
@@ -624,8 +637,22 @@ function compileForMode(
     fail(`schematic '${frame.schematicId}' compiled to zero stages for mode '${mode.name}'`);
   }
 
+  const headCarriedNotesPath = untilHeadCarriedNotesRead(frame.engineFlags);
   const steps: Step[] = reachableItems.map((item) => {
     const reads = computeReads(item, frame.initialContracts, producerByContract);
+    // Until-loop compounding: the carried-notes file is engine-written and has no
+    // schematic producer, so the contract-driven reads above never include it.
+    // Inject it onto the loop's head step so the prompt composer re-inlines the
+    // accumulated lessons each pass (see src/runtime/run/carried-notes.ts). The
+    // path is appended (deduped) and only on the head, so every other step is
+    // byte-identical to a flow with no carried notes.
+    if (
+      headCarriedNotesPath !== undefined &&
+      (item.id as unknown as string) === headCarriedNotesPath.headStep &&
+      !reads.includes(headCarriedNotesPath.report)
+    ) {
+      reads.push(headCarriedNotesPath.report);
+    }
     const routes = compileRoutesForMode(item, mode);
     return compileItem(item, reads, routes);
   });

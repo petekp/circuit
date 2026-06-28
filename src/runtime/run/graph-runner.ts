@@ -458,17 +458,41 @@ async function readUntilJudgeReport(
   }
 }
 
+// True when the most recent proof assessment on the run cannot back a clean
+// close — its overall_status is not `proven` or it does not allow close. This is
+// the until loop's "is the latest evidence red?" signal. The stop-judge consults
+// it at the tail seam right after the iteration's verify step ran, so the latest
+// proof.assessed is exactly this iteration's evidence. It catches the body-verify
+// case that completeCloseProofGap misses: a run-verification body step routes to
+// the judge (not @complete), so its proof_policy carries close_requires_proven:
+// false and never opens a close gap — yet a red verify in the current iteration
+// must still block the judge's goal-met claim. Absent any proof.assessed (a flow
+// with no verification body, e.g. converge-proof) it returns false and the floor
+// is unchanged.
+function latestProofContradictsClose(context: RunContext): boolean {
+  const entries = context.trace.getAll();
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry === undefined || entry.kind !== 'proof.assessed') continue;
+    return entry.overall_status !== 'proven' || entry.close_allowed !== true;
+  }
+  return false;
+}
+
 // The default evidence floor the stop-judge disposes a goal-met claim against:
 // the engine honors the claim only when closing complete right now would have no
-// proof gap AND the honesty ledger holds no open overclaim latch. A flow that
-// declares no close-proof requirement has no proof gap, so a met-claim stands on
-// the judge alone there; the teeth come from flows that declare proof and from
-// an open latch. While a body step's overclaim is unresolved the judge cannot
-// clean-stop the loop, so it re-enters to clear the latch (or exhausts to
-// needs-attention). The close path's finalize chokepoint is the matching
-// backstop should a clean stop ever be reached with a latch still open.
+// proof gap, the latest proof assessment is not red, AND the honesty ledger holds
+// no open overclaim latch. A flow that declares no close-proof requirement and
+// runs no verification body has no proof gap and no proof assessment, so a
+// met-claim stands on the judge alone there (converge-proof); the teeth come from
+// flows that declare proof, run a real verification body, or leave an open latch.
+// While a body step's overclaim is unresolved — or the current iteration's verify
+// is red — the judge cannot clean-stop the loop, so it re-enters (or exhausts to
+// needs-attention). The close path's finalize chokepoint is the matching backstop
+// should a clean stop ever be reached with a latch still open.
 function defaultUntilEvidenceFloor(context: RunContext): boolean {
   if (context.honestyLedger?.hasOpenLatches() === true) return false;
+  if (latestProofContradictsClose(context)) return false;
   return completeCloseProofGap(context) === undefined;
 }
 

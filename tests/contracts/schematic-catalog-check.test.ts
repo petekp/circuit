@@ -109,6 +109,11 @@ describe('shipped schematics vs the block catalog (per-flow zero ratchet)', () =
     // never compiled, so this is runtime byte-identical. explore is pinned at 0.
     explore: 0,
     fix: 0,
+    // fix-until-green is catalog-clean from authoring: a plan compose plus a
+    // three-step until-loop body (act implementer relay / run-verification /
+    // review reviewer relay) whose items each name a generic block they are
+    // structurally compatible with. It is the first real Converge flow (internal).
+    'fix-until-green': 0,
     // goal: 113 -> 11 (goal-block split) -> 9 (gate-recognition reconciliation)
     // -> 5 (goal-gate-review allowed_routes corrected) -> 0 (M1 route-conditional
     // availability + dead `ask` edge removed). The split replaced the one shared

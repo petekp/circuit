@@ -13,6 +13,7 @@ import { convergeProofFlowDefinition } from './converge-proof/flow.js';
 import { explainerFlowDefinition } from './explainer/flow.js';
 import { exploreFlowDefinition } from './explore/flow.js';
 import { exploreTournamentProjector } from './explore/writers/tournament-html.js';
+import { fixUntilGreenFlowDefinition } from './fix-until-green/flow.js';
 import { fixFlowDefinition } from './fix/flow.js';
 import { compileFlowDefinitions } from './flow-definition.js';
 import type { FlowDefinition } from './flow-definition.js';
@@ -31,6 +32,7 @@ export const flowDefinitions: readonly FlowDefinition[] = [
   pursueFlowDefinition,
   runtimeProofFlowDefinition,
   convergeProofFlowDefinition,
+  fixUntilGreenFlowDefinition,
   prototypeFlowDefinition,
   buildFlowDefinition,
   exploreFlowDefinition,

@@ -26,20 +26,24 @@ import { shippedFlowSchematics } from '../helpers/in-memory-schematics.js';
 // The skill-slot ceiling dropped 15 -> 1 when the shipped product flows (build,
 // explore, goal, prototype, pursue, review) had house-style skill slots declared
 // on every work relay (analyze/act/synthesize/clarify/batch/audit and their
-// review steps). The remaining gaps are the two internal proof harnesses, whose
+// review steps). The remaining gaps are the internal proof harnesses, whose
 // relays do no real work and get no house-style seat:
 //   - runtime-proof's `relay-step` (1): drives one compose + one relay end-to-end.
 //   - converge-proof's three relay steps (3): the until-loop e2e harness body
 //     (plan / act / review); the relayer is faked, so a real seat would be inert.
-// Both are intentional harness gaps, not product-flow regressions (the per-flow
-// assertion below pins every product flow to 0). If a harness gap is ever filled,
+//   - fix-until-green's two relay steps (2): the first real Converge flow's act
+//     (implementer) and judge (reviewer) relays. It is an internal flow whose
+//     relayer is faked in the e2e, so a house-style seat would be inert here too.
+// All are intentional harness/internal gaps, not product-flow regressions (the
+// per-flow assertion below pins every product flow to 0). If one is ever filled,
 // lower this ceiling to match.
-const SKILL_SLOT_GAP_BASELINE = 4;
+const SKILL_SLOT_GAP_BASELINE = 6;
 // Implementer relays still missing an equipment_scope. The product-flow gaps are
 // the partial equipment-axis rollout (fix's implementer is the proven, scoped
-// slice); converge-proof's `work-step` adds the one harness implementer relay,
-// left unscoped for the same reason its seats are empty.
-const TOOL_SCOPE_GAP_BASELINE = 6;
+// slice); converge-proof's `work-step` and fix-until-green's `act-step` add the
+// two internal implementer relays, left unscoped for the same reason their seats
+// are empty.
+const TOOL_SCOPE_GAP_BASELINE = 7;
 
 function isRelay(item: FlowSchematic['items'][number]): boolean {
   return item.execution.kind === 'relay';

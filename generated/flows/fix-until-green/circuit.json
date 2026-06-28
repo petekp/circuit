@@ -1,0 +1,179 @@
+{
+  "schema_version": "3",
+  "id": "fix-until-green",
+  "version": "0.1.0",
+  "purpose": "Fix Until Green flow: loop a fix-attempt body (act, verify, judge) until a real verification command passes or the iteration cap is hit, so the until-loop primitive runs with a true evidence floor and a judge that leaves a lesson for the next pass.",
+  "axes": {
+    "allowed_depths": ["medium"],
+    "supports_tournament": false,
+    "supports_autonomous": true,
+    "default": {
+      "depth": "medium",
+      "tournament": false,
+      "tournament_n": 3,
+      "autonomous": false
+    }
+  },
+  "starts_at": "plan-step",
+  "stages": [
+    {
+      "id": "plan-stage",
+      "title": "Plan",
+      "canonical": "plan",
+      "steps": ["plan-step"]
+    },
+    {
+      "id": "act-stage",
+      "title": "Act",
+      "canonical": "act",
+      "steps": ["act-step"]
+    },
+    {
+      "id": "verify-stage",
+      "title": "Verify",
+      "canonical": "verify",
+      "steps": ["verify-step"]
+    },
+    {
+      "id": "review-stage",
+      "title": "Review",
+      "canonical": "review",
+      "steps": ["judge-step"]
+    }
+  ],
+  "stage_path_policy": {
+    "mode": "partial",
+    "omits": ["frame", "analyze", "close"],
+    "rationale": "Fix Until Green is a narrow Converge flow; plan, act, verify, and review are the canonical stages needed to loop a fix-attempt body until verification passes."
+  },
+  "steps": [
+    {
+      "id": "plan-step",
+      "title": "Plan the verification",
+      "protocol": "fix-until-green-plan@v1",
+      "reads": [],
+      "routes": {
+        "continue": "act-step",
+        "pass": "act-step",
+        "stop": "@stop"
+      },
+      "executor": "orchestrator",
+      "kind": "compose",
+      "writes": {
+        "report": {
+          "path": "reports/fix-until-green/plan.json",
+          "schema": "fix-until-green.plan@v1"
+        }
+      },
+      "check": {
+        "kind": "schema_sections",
+        "source": {
+          "kind": "report",
+          "ref": "report"
+        },
+        "required": ["objective", "verification"]
+      }
+    },
+    {
+      "id": "act-step",
+      "title": "Attempt the fix",
+      "protocol": "fix-until-green-act@v1",
+      "reads": ["reports/fix-until-green/plan.json", "reports/fix-until-green/carried-notes.json"],
+      "routes": {
+        "continue": "verify-step",
+        "pass": "verify-step"
+      },
+      "executor": "worker",
+      "kind": "relay",
+      "role": "implementer",
+      "writes": {
+        "request": "reports/fix-until-green/act.request.json",
+        "receipt": "reports/fix-until-green/act.receipt.txt",
+        "result": "reports/fix-until-green/act.result.json"
+      },
+      "check": {
+        "kind": "result_verdict",
+        "source": {
+          "kind": "relay_result",
+          "ref": "result"
+        },
+        "pass": ["ok"]
+      }
+    },
+    {
+      "id": "verify-step",
+      "title": "Run the verification",
+      "protocol": "fix-until-green-verify@v1",
+      "reads": ["reports/fix-until-green/plan.json"],
+      "routes": {
+        "continue": "judge-step",
+        "pass": "judge-step",
+        "revise": "judge-step",
+        "stop": "@stop"
+      },
+      "executor": "orchestrator",
+      "kind": "verification",
+      "writes": {
+        "report": {
+          "path": "reports/fix-until-green/verification.json",
+          "schema": "fix-until-green.verification@v1"
+        }
+      },
+      "check": {
+        "kind": "schema_sections",
+        "source": {
+          "kind": "report",
+          "ref": "report"
+        },
+        "required": ["overall_status", "commands"]
+      }
+    },
+    {
+      "id": "judge-step",
+      "title": "Judge whether the goal is met",
+      "protocol": "fix-until-green-review@v1",
+      "reads": [],
+      "routes": {
+        "continue": "@complete",
+        "pass": "@complete",
+        "advance": "act-step",
+        "close": "@stop"
+      },
+      "executor": "worker",
+      "kind": "relay",
+      "role": "reviewer",
+      "writes": {
+        "request": "reports/fix-until-green/judgment.request.json",
+        "receipt": "reports/fix-until-green/judgment.receipt.txt",
+        "result": "reports/fix-until-green/judgment.result.json"
+      },
+      "check": {
+        "kind": "result_verdict",
+        "source": {
+          "kind": "relay_result",
+          "ref": "result"
+        },
+        "pass": ["ok"]
+      }
+    }
+  ],
+  "engine_flags": {
+    "iterates_until_condition": {
+      "head_step": "act-step",
+      "tail_step": "judge-step",
+      "body_steps": ["act-step", "verify-step", "judge-step"],
+      "reenter_route": "advance",
+      "max_iterations": 3,
+      "stop_judge": {
+        "report": "reports/fix-until-green/judgment.result.json",
+        "goal_met_path": "goal_met",
+        "lesson_path": "lesson"
+      },
+      "needs_attention_route": "close",
+      "carried_notes": {
+        "report": "reports/fix-until-green/carried-notes.json"
+      },
+      "activate_when_depth_at_least": "autonomous"
+    }
+  }
+}

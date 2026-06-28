@@ -1,0 +1,418 @@
+{
+  "schema_version": 0,
+  "contract_ref": {
+    "kind": "work_contract",
+    "ref": "generated/flows/fix-until-green/circuit.work-contract.v0.json",
+    "sha256": "81d09dcb27f1dd8877490e939fc40101bf11035ff57b01963f733e6783e17c8c",
+    "flow_id": "fix-until-green"
+  },
+  "work_contract": {
+    "flow": {
+      "id": "fix-until-green",
+      "version": "0.1.0",
+      "purpose": "Fix Until Green flow: loop a fix-attempt body (act, verify, judge) until a real verification command passes or the iteration cap is hit, so the until-loop primitive runs with a true evidence floor and a judge that leaves a lesson for the next pass.",
+      "axes": {
+        "allowed_depths": ["medium"],
+        "supports_tournament": false,
+        "supports_autonomous": true,
+        "default": {
+          "depth": "medium",
+          "tournament": false,
+          "tournament_n": 3,
+          "autonomous": false
+        }
+      },
+      "starts_at": "plan-step"
+    },
+    "topology": {
+      "stages": [
+        {
+          "id": "plan-stage",
+          "title": "Plan",
+          "canonical": "plan",
+          "steps": ["plan-step"]
+        },
+        {
+          "id": "act-stage",
+          "title": "Act",
+          "canonical": "act",
+          "steps": ["act-step"]
+        },
+        {
+          "id": "verify-stage",
+          "title": "Verify",
+          "canonical": "verify",
+          "steps": ["verify-step"]
+        },
+        {
+          "id": "review-stage",
+          "title": "Review",
+          "canonical": "review",
+          "steps": ["judge-step"]
+        }
+      ],
+      "stage_path_policy": {
+        "mode": "partial",
+        "omits": ["frame", "analyze", "close"],
+        "rationale": "Fix Until Green is a narrow Converge flow; plan, act, verify, and review are the canonical stages needed to loop a fix-attempt body until verification passes."
+      },
+      "routes": [
+        {
+          "step_id": "plan-step",
+          "route_id": "continue",
+          "target": "act-step"
+        },
+        {
+          "step_id": "plan-step",
+          "route_id": "pass",
+          "target": "act-step"
+        },
+        {
+          "step_id": "plan-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "act-step",
+          "route_id": "continue",
+          "target": "verify-step"
+        },
+        {
+          "step_id": "act-step",
+          "route_id": "pass",
+          "target": "verify-step"
+        },
+        {
+          "step_id": "verify-step",
+          "route_id": "continue",
+          "target": "judge-step"
+        },
+        {
+          "step_id": "verify-step",
+          "route_id": "pass",
+          "target": "judge-step"
+        },
+        {
+          "step_id": "verify-step",
+          "route_id": "revise",
+          "target": "judge-step"
+        },
+        {
+          "step_id": "verify-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "judge-step",
+          "route_id": "continue",
+          "target": "@complete"
+        },
+        {
+          "step_id": "judge-step",
+          "route_id": "pass",
+          "target": "@complete"
+        },
+        {
+          "step_id": "judge-step",
+          "route_id": "advance",
+          "target": "act-step"
+        },
+        {
+          "step_id": "judge-step",
+          "route_id": "close",
+          "target": "@stop"
+        }
+      ]
+    },
+    "blocks": [
+      {
+        "step_id": "plan-step",
+        "title": "Plan the verification",
+        "kind": "compose",
+        "executor": "orchestrator",
+        "protocol": "fix-until-green-plan@v1",
+        "reads": [],
+        "writes": {
+          "report": {
+            "path": "reports/fix-until-green/plan.json",
+            "schema": "fix-until-green.plan@v1"
+          }
+        },
+        "check": {
+          "kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          },
+          "required": ["objective", "verification"]
+        },
+        "routes": {
+          "continue": "act-step",
+          "pass": "act-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "act-step",
+        "title": "Attempt the fix",
+        "kind": "relay",
+        "executor": "worker",
+        "protocol": "fix-until-green-act@v1",
+        "reads": [
+          "reports/fix-until-green/plan.json",
+          "reports/fix-until-green/carried-notes.json"
+        ],
+        "writes": {
+          "request": "reports/fix-until-green/act.request.json",
+          "receipt": "reports/fix-until-green/act.receipt.txt",
+          "result": "reports/fix-until-green/act.result.json"
+        },
+        "check": {
+          "kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          },
+          "pass": ["ok"]
+        },
+        "routes": {
+          "continue": "verify-step",
+          "pass": "verify-step"
+        }
+      },
+      {
+        "step_id": "verify-step",
+        "title": "Run the verification",
+        "kind": "verification",
+        "executor": "orchestrator",
+        "protocol": "fix-until-green-verify@v1",
+        "reads": ["reports/fix-until-green/plan.json"],
+        "writes": {
+          "report": {
+            "path": "reports/fix-until-green/verification.json",
+            "schema": "fix-until-green.verification@v1"
+          }
+        },
+        "check": {
+          "kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          },
+          "required": ["overall_status", "commands"]
+        },
+        "routes": {
+          "continue": "judge-step",
+          "pass": "judge-step",
+          "revise": "judge-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "judge-step",
+        "title": "Judge whether the goal is met",
+        "kind": "relay",
+        "executor": "worker",
+        "protocol": "fix-until-green-review@v1",
+        "reads": [],
+        "writes": {
+          "request": "reports/fix-until-green/judgment.request.json",
+          "receipt": "reports/fix-until-green/judgment.receipt.txt",
+          "result": "reports/fix-until-green/judgment.result.json"
+        },
+        "check": {
+          "kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          },
+          "pass": ["ok"]
+        },
+        "routes": {
+          "continue": "@complete",
+          "pass": "@complete",
+          "advance": "act-step",
+          "close": "@stop"
+        }
+      }
+    ],
+    "authority": {
+      "relays": [
+        {
+          "step_id": "act-step",
+          "role": "implementer",
+          "writes": {
+            "request": "reports/fix-until-green/act.request.json",
+            "receipt": "reports/fix-until-green/act.receipt.txt",
+            "result": "reports/fix-until-green/act.result.json"
+          }
+        },
+        {
+          "step_id": "judge-step",
+          "role": "reviewer",
+          "writes": {
+            "request": "reports/fix-until-green/judgment.request.json",
+            "receipt": "reports/fix-until-green/judgment.receipt.txt",
+            "result": "reports/fix-until-green/judgment.result.json"
+          }
+        }
+      ],
+      "checkpoints": [],
+      "sub_runs": [],
+      "fanouts": [],
+      "skill_slots": [],
+      "equipment_scopes": []
+    },
+    "proof": {
+      "reports": [
+        {
+          "step_id": "plan-step",
+          "slot": "report",
+          "path": "reports/fix-until-green/plan.json",
+          "schema": "fix-until-green.plan@v1"
+        },
+        {
+          "step_id": "verify-step",
+          "slot": "report",
+          "path": "reports/fix-until-green/verification.json",
+          "schema": "fix-until-green.verification@v1"
+        }
+      ],
+      "checks": [
+        {
+          "step_id": "plan-step",
+          "check_kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          }
+        },
+        {
+          "step_id": "act-step",
+          "check_kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          }
+        },
+        {
+          "step_id": "verify-step",
+          "check_kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          }
+        },
+        {
+          "step_id": "judge-step",
+          "check_kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          }
+        }
+      ],
+      "acceptance_criteria": []
+    },
+    "recovery": [
+      {
+        "schema_version": 0,
+        "step_id": "plan-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/plan-step/routes/stop",
+          "sha256": "becf14db8a88cc02d7aa51738c896ba375b326d98f6f59d5b580560503d2b85e",
+          "flow_id": "fix-until-green"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "verify-step",
+        "route_id": "revise",
+        "route_target": "judge-step",
+        "kind": "narrow_scope",
+        "allowed_failure_causes": ["failed_check", "scope_drift", "weak_proof", "unproved_claim"],
+        "required_refs": ["proof_assessment", "runtime_diff"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/verify-step/routes/revise",
+          "sha256": "becf14db8a88cc02d7aa51738c896ba375b326d98f6f59d5b580560503d2b85e",
+          "flow_id": "fix-until-green"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "verify-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/verify-step/routes/stop",
+          "sha256": "becf14db8a88cc02d7aa51738c896ba375b326d98f6f59d5b580560503d2b85e",
+          "flow_id": "fix-until-green"
+        }
+      }
+    ],
+    "limits": {
+      "budgets": []
+    }
+  },
+  "guidance_seed": {
+    "selection_hints": [],
+    "connector_hints": [],
+    "skill_hints": [],
+    "checkpoint_default_hints": [],
+    "host_recommendations": []
+  },
+  "rejected_authority": []
+}
