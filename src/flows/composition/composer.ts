@@ -125,6 +125,14 @@ export interface FanoutBranchRole {
 export interface ConvergeUntilSpec {
   // The iteration cap (default 3), matching fix-until-green's max_iterations.
   readonly maxIterations?: number;
+  // The frozen eval surface: repo-relative paths the loop body must not mutate —
+  // the source under measurement and the gate that scores it. Threaded into the
+  // until flag's frozen_paths, where the runtime's FrozenEvalGuard fingerprints them
+  // at loop entry and opens a latch nothing clears if a body iteration edits one
+  // (so the run can only stop, never complete). Omitted leaves the flag byte-identical
+  // — no frozen_paths key, no guard. A generated Converge declares this to protect its
+  // own benchmark, the generate-path analog of fix-until-green's frozen eval surface.
+  readonly frozenPaths?: readonly string[];
 }
 
 export interface CompositionRoleSet {
@@ -1242,6 +1250,14 @@ export function composeFlow(
             },
             needs_attention_route: 'close',
             activate_when_depth_at_least: 'autonomous' as const,
+            // The frozen eval surface, when the directive declared one. Emitted only
+            // for a non-empty list so a Converge that froze nothing stays byte-identical
+            // (no frozen_paths key, no guard). The runtime maps frozen_paths -> the
+            // FrozenEvalGuard's baseline (engine-flags.ts, graph-runner.ts).
+            ...(roleSet.convergeUntil?.frozenPaths !== undefined &&
+            roleSet.convergeUntil.frozenPaths.length > 0
+              ? { frozen_paths: [...roleSet.convergeUntil.frozenPaths] }
+              : {}),
           },
         };
 

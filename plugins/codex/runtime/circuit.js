@@ -49300,7 +49300,12 @@ function composeFlow(roleSet, options) {
         lesson_path: "lesson"
       },
       needs_attention_route: "close",
-      activate_when_depth_at_least: "autonomous"
+      activate_when_depth_at_least: "autonomous",
+      // The frozen eval surface, when the directive declared one. Emitted only
+      // for a non-empty list so a Converge that froze nothing stays byte-identical
+      // (no frozen_paths key, no guard). The runtime maps frozen_paths -> the
+      // FrozenEvalGuard's baseline (engine-flags.ts, graph-runner.ts).
+      ...roleSet.convergeUntil?.frozenPaths !== void 0 && roleSet.convergeUntil.frozenPaths.length > 0 ? { frozen_paths: [...roleSet.convergeUntil.frozenPaths] } : {}
     }
   };
   const spec = {

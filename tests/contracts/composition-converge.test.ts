@@ -266,3 +266,37 @@ describe('flow-shape composition — Converge byte-stability', () => {
     expect(review?.routes.close).toBeUndefined();
   });
 });
+
+describe('flow-shape composition — Converge frozen eval surface', () => {
+  // A generated Converge can declare a frozen eval surface: paths the loop body must
+  // not mutate (the source under measurement and the gate that scores it). The
+  // composer threads `convergeUntil.frozenPaths` into the until flag's `frozen_paths`,
+  // where the runtime's FrozenEvalGuard reads it (engine-flags.ts maps frozen_paths ->
+  // frozenPaths; graph-runner builds the guard from it). Without this a generated
+  // Converge could only declare a metric, never protect it — a loop free to edit its
+  // own benchmark. This is the generate-path analog of fix-until-green's frozen eval.
+  it('emits frozen_paths in the until flag when the directive declares them', () => {
+    const frozen = ['src/runtime/run/until-budget.ts', 'scripts/converge-gate.mjs'];
+    const withFrozen: CompositionRoleSet = {
+      ...CONVERGE_FULL,
+      id: 'converge-frozen',
+      convergeUntil: { maxIterations: 3, frozenPaths: frozen },
+    };
+    const outcome = composeFlow(withFrozen, { definitions: flowDefinitions });
+    if (!outcome.ok) {
+      throw new Error(`composer walled: ${outcome.walls.map((w) => w.reason).join(' | ')}`);
+    }
+    const flag = outcome.spec.engine_flags?.iterates_until_condition;
+    expect(flag?.frozen_paths).toEqual(frozen);
+  });
+
+  it('omits frozen_paths when the directive declares none (byte-stable)', () => {
+    // CONVERGE_FULL sets convergeUntil without frozenPaths; the flag must not carry an
+    // empty or undefined frozen_paths key — exactly as before this field existed.
+    const plain = composeFlow(CONVERGE_FULL, { definitions: flowDefinitions });
+    if (!plain.ok) throw new Error('compose failed');
+    const flag = plain.spec.engine_flags?.iterates_until_condition;
+    expect(flag).toBeDefined();
+    expect(flag && 'frozen_paths' in flag).toBe(false);
+  });
+});
