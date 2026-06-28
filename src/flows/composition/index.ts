@@ -20,6 +20,7 @@ export {
   type CompositionWall,
   type ComposeOutcome,
   type ComposedSelection,
+  type ConvergeUntilSpec,
   type FanoutBranchRole,
   type RelayRole,
 } from './composer.js';

@@ -101,6 +101,20 @@ export interface FanoutBranchRole {
   readonly depth?: CompiledDepth;
 }
 
+// The Converge directive: a WHOLE-LOOP property (not per-role) that asks the
+// composer to fold the role set's act/verify/review body into an until-loop — the
+// generated analog of the hand-authored fix-until-green flow. Setting it makes the
+// composer emit engine_flags.iterates_until_condition; the loop re-enters the body
+// until a stop-judge proposes the goal is met AND an evidence floor confirms it
+// against the run-verification step. The gate refuses to emit the loop unless the
+// role set actually contains that verification step, so a generated Converge can
+// never become an unbounded loop with nothing to check the judge against.
+// Omitting convergeUntil is byte-stable: the composer emits no engine flags.
+export interface ConvergeUntilSpec {
+  // The iteration cap (default 3), matching fix-until-green's max_iterations.
+  readonly maxIterations?: number;
+}
+
 export interface CompositionRoleSet {
   readonly id: string;
   readonly title: string;
@@ -109,6 +123,10 @@ export interface CompositionRoleSet {
   // not re-sort); a role set whose order violates canonical stages fails the
   // real stage-path gate, which is the honest signal.
   readonly roles: readonly CompositionRole[];
+  // Opt-in Converge: when set, the composer folds the act/verify/review body into
+  // an until-loop (see ConvergeUntilSpec). Omitted leaves every existing
+  // composition byte-identical — no engine flags emitted.
+  readonly convergeUntil?: ConvergeUntilSpec;
 }
 
 export interface CompositionWall {
@@ -643,6 +661,23 @@ export function composeFlow(
   // Pre-assign step ids so a step can route to its successor by id.
   const stepIds = assignStepIds(roleSet.roles);
 
+  // Converge gate (the fail-closed, thesis-bearing check). When the role set asks
+  // for a Converge, it must contain three roles in canonical order: an act-stage
+  // implementer relay (the loop head), a run-verification step (the evidence floor
+  // — the thing that makes the generated loop inherit a real check instead of
+  // spinning forever on a claim the judge cannot verify), and a review-stage
+  // reviewer relay (the loop tail / stop-judge). Resolve them up front; if any is
+  // missing, wall with a plain-English reason and emit no loop, because a Converge
+  // with no floor is exactly the unbounded loop the whole shape exists to prevent.
+  const convergePlan =
+    roleSet.convergeUntil === undefined ? undefined : resolveConvergePlan(roleSet, stepIds, walls);
+  // A walled Converge resolution short-circuits the whole compose: emitting a
+  // partial flow with no loop would silently demote the operator's Converge
+  // request to a plain line. Return the wall now.
+  if (roleSet.convergeUntil !== undefined && convergePlan === undefined) {
+    return { ok: false, walls };
+  }
+
   roleSet.roles.forEach((role, index) => {
     const block = BLOCK_BY_ID.get(role.block);
     if (block === undefined) {
@@ -834,6 +869,25 @@ export function composeFlow(
         return;
       }
       routes.retry = stepIds[targetIndex] as string;
+    }
+
+    // Converge tail wiring. When this step is the resolved loop tail (the reviewer
+    // / stop-judge), add the two loop edges the until-loop needs alongside the
+    // forward route the linear pass already wired:
+    //   - continue: the clean-stop forward route, kept as-is (it carries on to the
+    //     close step, which soaks the evidence and binds the primary result). This
+    //     is the ONE route that maps to the runtime success edge.
+    //   - advance: the re-enter edge back to the loop head. The engine swaps the
+    //     forward route for this one each iteration until the judge clean-stops or
+    //     the cap is hit. It is NOT a success route, so it does not collide with
+    //     continue.
+    //   - close: the exhausted exit to the non-complete @stop terminal — a NORMAL
+    //     route (not a recovery route), so an exhausted clean pass does not trip the
+    //     no-failure-evidence guard. This is the until flag's needs_attention_route.
+    // This mirrors fix-until-green's hand-authored judge-step routes exactly.
+    if (convergePlan !== undefined && index === convergePlan.tailIndex) {
+      routes.advance = convergePlan.headStepId;
+      routes.close = '@stop';
     }
 
     // A CONTENT checkpoint writes a typed report (the build frame produces
@@ -1099,6 +1153,33 @@ export function composeFlow(
           .map((stage) => `'${stage}'`)
           .join(', ')} stage(s): this task's shape does no work there. ${roleSet.purpose}`;
 
+  // Converge flag emission. When the role set asked for a Converge and the gate
+  // passed, map the resolved plan onto the fix-until-green engine-flag shape. The
+  // tail (reviewer) relay's result report is where the engine reads the stop-judge's
+  // goal_met proposal and the lesson it carries forward; that path is the relay
+  // result path stepWrites assigns (reports/relay/<tail>.result.json). Default off:
+  // an un-opted role set leaves engineFlags undefined, so engine_flags is omitted
+  // and the spec is byte-identical to today.
+  const engineFlags =
+    convergePlan === undefined
+      ? undefined
+      : {
+          iterates_until_condition: {
+            head_step: convergePlan.headStepId,
+            tail_step: convergePlan.tailStepId,
+            body_steps: [...convergePlan.bodyStepIds],
+            reenter_route: 'advance',
+            max_iterations: convergePlan.maxIterations,
+            stop_judge: {
+              report: `reports/relay/${convergePlan.tailStepId}.result.json`,
+              goal_met_path: 'goal_met',
+              lesson_path: 'lesson',
+            },
+            needs_attention_route: 'close',
+            activate_when_depth_at_least: 'autonomous' as const,
+          },
+        };
+
   const spec: FlowSchematicAssemblySpec = {
     id: roleSet.id,
     title: roleSet.title,
@@ -1116,6 +1197,7 @@ export function composeFlow(
     items,
     stageLabels,
     ...(stagePathRationale === undefined ? {} : { stagePathRationale }),
+    ...(engineFlags === undefined ? {} : { engine_flags: engineFlags }),
   };
 
   // Producibility wall (opt-in). The spec is structurally sound, but a compose or
@@ -1196,6 +1278,98 @@ function assignStepIds(roles: readonly CompositionRole[]): readonly string[] {
     counts.set(role.block, seen);
     return (total.get(role.block) ?? 1) > 1 ? `${role.block}-${seen}` : role.block;
   });
+}
+
+// The default Converge iteration cap, matching fix-until-green's max_iterations.
+const DEFAULT_CONVERGE_MAX_ITERATIONS = 3;
+
+// The resolved Converge wiring: the loop head (the act implementer relay), the
+// loop tail (the review reviewer relay), and the body span between them. The
+// composer's role loop reads `tailIndex` to know which step gets the loop's tail
+// routes; the spec assembly reads everything to emit the engine flag.
+interface ConvergePlan {
+  readonly headIndex: number;
+  readonly headStepId: string;
+  readonly tailIndex: number;
+  readonly tailStepId: string;
+  // The contiguous stepId span [head..tail] inclusive — the full set of steps the
+  // until loop re-enters per iteration. The runtime requires head and tail to be
+  // listed, and every intermediate step must be iteration-scoped too.
+  readonly bodyStepIds: readonly string[];
+  readonly maxIterations: number;
+}
+
+// Resolve (and gate) a Converge request. Returns the wiring plan when the role set
+// has the three roles a Converge needs, in canonical order: an act-stage
+// implementer relay (head), a run-verification step (the evidence floor), and a
+// review-stage reviewer relay (tail), with the floor sitting between head and
+// tail. A missing role pushes a plain-English wall and returns undefined, so the
+// composer fails closed rather than emitting a loop with no floor to check the
+// judge against. The wall reason names what to add, so a repair pass can act.
+function resolveConvergePlan(
+  roleSet: CompositionRoleSet,
+  stepIds: readonly string[],
+  walls: CompositionWall[],
+): ConvergePlan | undefined {
+  const roles = roleSet.roles;
+  const headIndex = roles.findIndex(
+    (role) =>
+      role.stage === 'act' && role.executionKind === 'relay' && role.relayRole === 'implementer',
+  );
+  const verifyIndex = roles.findIndex((role) => role.block === 'run-verification');
+  const tailIndex = roles.findIndex(
+    (role) =>
+      role.stage === 'review' && role.executionKind === 'relay' && role.relayRole === 'reviewer',
+  );
+
+  // The load-bearing wall: no run-verification step means the judge's goal-met
+  // claim is checked against nothing. Refuse to build a loop with no evidence floor.
+  if (verifyIndex === -1) {
+    walls.push({
+      roleIndex: -1,
+      block: 'run-verification',
+      reason:
+        'a Converge loop needs a run-verification step in its body so the stop-judge’s goal-met claim is checked against a real evidence floor; this role set has none. Add a run-verification step between the act and review steps.',
+    });
+    return undefined;
+  }
+  if (headIndex === -1) {
+    walls.push({
+      roleIndex: -1,
+      block: 'act',
+      reason:
+        'a Converge loop needs an act-stage implementer step as its loop head (the work the loop re-attempts each pass); this role set has none. Add an act step with an implementer relay.',
+    });
+    return undefined;
+  }
+  if (tailIndex === -1) {
+    walls.push({
+      roleIndex: -1,
+      block: 'review',
+      reason:
+        'a Converge loop needs a review-stage reviewer step as its loop tail (the stop-judge that proposes whether the goal is met); this role set has none. Add a review step with a reviewer relay.',
+    });
+    return undefined;
+  }
+  // Canonical order: head, then the floor, then the tail. A floor outside the
+  // [head..tail] span would not run inside the loop, so its verdict could never
+  // gate the judge — wall rather than emit a loop whose floor sits outside it.
+  if (!(headIndex < verifyIndex && verifyIndex < tailIndex)) {
+    walls.push({
+      roleIndex: -1,
+      block: 'run-verification',
+      reason:
+        'a Converge loop must run its act, run-verification, and review steps in that order so each pass re-attempts, re-checks, then re-judges; this role set orders them differently. Put the run-verification step between the act and review steps.',
+    });
+    return undefined;
+  }
+
+  const headStepId = stepIds[headIndex] as string;
+  const tailStepId = stepIds[tailIndex] as string;
+  const bodyStepIds = stepIds.slice(headIndex, tailIndex + 1);
+  const maxIterations = roleSet.convergeUntil?.maxIterations ?? DEFAULT_CONVERGE_MAX_ITERATIONS;
+
+  return { headIndex, headStepId, tailIndex, tailStepId, bodyStepIds, maxIterations };
 }
 
 // ----------------------------------------------------------------------------

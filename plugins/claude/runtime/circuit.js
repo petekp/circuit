@@ -34312,6 +34312,17 @@ var RunContextDeliveryTraceEntry = TraceEntryBase.extend({
   kept: external_exports.enum(["retry", "original"]),
   reason: external_exports.string().min(1)
 }).strict();
+var RunUntilJudgmentTraceEntry = TraceEntryBase.extend({
+  kind: external_exports.literal("run.until-judgment"),
+  step_id: StepId,
+  iteration: external_exports.number().int().nonnegative(),
+  goal_proposed: external_exports.boolean(),
+  evidence_confirmed: external_exports.boolean(),
+  disposition: external_exports.enum(["stop-clean", "reenter", "needs-attention"]),
+  no_progress_count: external_exports.number().int().nonnegative(),
+  open_latch_count: external_exports.number().int().nonnegative(),
+  lesson: external_exports.string().min(1).optional()
+}).strict();
 var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunBootstrappedTraceEntry,
   StepEnteredTraceEntry,
@@ -34344,10 +34355,30 @@ var TraceEntry = external_exports.discriminatedUnion("kind", [
   RunEquipmentReshapeTraceEntry,
   RunContextPullTraceEntry,
   RunContextDeliveryTraceEntry,
+  RunUntilJudgmentTraceEntry,
   GuidanceDecisionTraceEntryBody
 ]).superRefine((ev, ctx) => {
   if (ev.kind === "guidance.decision") {
     refineGuidanceDecisionTraceEntry(ev, ctx);
+    return;
+  }
+  if (ev.kind === "run.until-judgment") {
+    if (ev.disposition === "stop-clean") {
+      if (!ev.goal_proposed) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["goal_proposed"],
+          message: "a 'stop-clean' until judgment requires goal_proposed true"
+        });
+      }
+      if (!ev.evidence_confirmed) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["evidence_confirmed"],
+          message: "a 'stop-clean' until judgment requires evidence_confirmed true"
+        });
+      }
+    }
     return;
   }
   if (ev.kind === "verification.command_evaluated") {
@@ -48950,6 +48981,10 @@ function composeFlow(roleSet, options) {
   const items = [];
   const selections = [];
   const stepIds = assignStepIds(roleSet.roles);
+  const convergePlan = roleSet.convergeUntil === void 0 ? void 0 : resolveConvergePlan(roleSet, stepIds, walls);
+  if (roleSet.convergeUntil !== void 0 && convergePlan === void 0) {
+    return { ok: false, walls };
+  }
   roleSet.roles.forEach((role, index) => {
     const block = BLOCK_BY_ID.get(role.block);
     if (block === void 0) {
@@ -49070,6 +49105,10 @@ function composeFlow(roleSet, options) {
         return;
       }
       routes.retry = stepIds[targetIndex];
+    }
+    if (convergePlan !== void 0 && index === convergePlan.tailIndex) {
+      routes.advance = convergePlan.headStepId;
+      routes.close = "@stop";
     }
     const checkpointWritesReport = role.executionKind === "checkpoint" && routes.continue !== void 0 && pick2.checkpointReportTemplate !== void 0;
     const checkpointPolicy = role.executionKind === "checkpoint" && routes.continue !== void 0 ? {
@@ -49202,6 +49241,22 @@ function composeFlow(roleSet, options) {
   const presentStages = new Set(roleSet.roles.map((role) => role.stage));
   const omittedStages = CANONICAL_STAGES.filter((stage) => !presentStages.has(stage));
   const stagePathRationale = omittedStages.length === 0 ? void 0 : `Composed topology '${roleSet.id}' intentionally omits the ${omittedStages.map((stage) => `'${stage}'`).join(", ")} stage(s): this task's shape does no work there. ${roleSet.purpose}`;
+  const engineFlags = convergePlan === void 0 ? void 0 : {
+    iterates_until_condition: {
+      head_step: convergePlan.headStepId,
+      tail_step: convergePlan.tailStepId,
+      body_steps: [...convergePlan.bodyStepIds],
+      reenter_route: "advance",
+      max_iterations: convergePlan.maxIterations,
+      stop_judge: {
+        report: `reports/relay/${convergePlan.tailStepId}.result.json`,
+        goal_met_path: "goal_met",
+        lesson_path: "lesson"
+      },
+      needs_attention_route: "close",
+      activate_when_depth_at_least: "autonomous"
+    }
+  };
   const spec = {
     id: roleSet.id,
     title: roleSet.title,
@@ -49218,7 +49273,8 @@ function composeFlow(roleSet, options) {
     },
     items,
     stageLabels,
-    ...stagePathRationale === void 0 ? {} : { stagePathRationale }
+    ...stagePathRationale === void 0 ? {} : { stagePathRationale },
+    ...engineFlags === void 0 ? {} : { engine_flags: engineFlags }
   };
   if (options.enforceRunnability === true) {
     const runnability = evaluateRunnability(spec);
@@ -49268,6 +49324,50 @@ function assignStepIds(roles) {
     counts.set(role.block, seen);
     return (total.get(role.block) ?? 1) > 1 ? `${role.block}-${seen}` : role.block;
   });
+}
+var DEFAULT_CONVERGE_MAX_ITERATIONS = 3;
+function resolveConvergePlan(roleSet, stepIds, walls) {
+  const roles = roleSet.roles;
+  const headIndex = roles.findIndex((role) => role.stage === "act" && role.executionKind === "relay" && role.relayRole === "implementer");
+  const verifyIndex = roles.findIndex((role) => role.block === "run-verification");
+  const tailIndex = roles.findIndex((role) => role.stage === "review" && role.executionKind === "relay" && role.relayRole === "reviewer");
+  if (verifyIndex === -1) {
+    walls.push({
+      roleIndex: -1,
+      block: "run-verification",
+      reason: "a Converge loop needs a run-verification step in its body so the stop-judge\u2019s goal-met claim is checked against a real evidence floor; this role set has none. Add a run-verification step between the act and review steps."
+    });
+    return void 0;
+  }
+  if (headIndex === -1) {
+    walls.push({
+      roleIndex: -1,
+      block: "act",
+      reason: "a Converge loop needs an act-stage implementer step as its loop head (the work the loop re-attempts each pass); this role set has none. Add an act step with an implementer relay."
+    });
+    return void 0;
+  }
+  if (tailIndex === -1) {
+    walls.push({
+      roleIndex: -1,
+      block: "review",
+      reason: "a Converge loop needs a review-stage reviewer step as its loop tail (the stop-judge that proposes whether the goal is met); this role set has none. Add a review step with a reviewer relay."
+    });
+    return void 0;
+  }
+  if (!(headIndex < verifyIndex && verifyIndex < tailIndex)) {
+    walls.push({
+      roleIndex: -1,
+      block: "run-verification",
+      reason: "a Converge loop must run its act, run-verification, and review steps in that order so each pass re-attempts, re-checks, then re-judges; this role set orders them differently. Put the run-verification step between the act and review steps."
+    });
+    return void 0;
+  }
+  const headStepId = stepIds[headIndex];
+  const tailStepId = stepIds[tailIndex];
+  const bodyStepIds = stepIds.slice(headIndex, tailIndex + 1);
+  const maxIterations = roleSet.convergeUntil?.maxIterations ?? DEFAULT_CONVERGE_MAX_ITERATIONS;
+  return { headIndex, headStepId, tailIndex, tailStepId, bodyStepIds, maxIterations };
 }
 
 // dist/flows/composition/propose-prompts.js
@@ -67880,7 +67980,7 @@ function assertUntilFlagCoherent(flow, steps, flag) {
     }
   }
   if (flag.stopJudge === void 0) {
-    const orphaned = flag.carriedNotes !== void 0 ? "carriedNotes" : flag.cumulativeUsdCap !== void 0 ? "cumulativeUsdCap" : flag.cumulativeTokenCap !== void 0 ? "cumulativeTokenCap" : flag.noProgressCeiling !== void 0 ? "noProgressCeiling" : void 0;
+    const orphaned = flag.carriedNotes !== void 0 ? "carriedNotes" : flag.cumulativeUsdCap !== void 0 ? "cumulativeUsdCap" : flag.cumulativeTokenCap !== void 0 ? "cumulativeTokenCap" : flag.noProgressCeiling !== void 0 ? "noProgressCeiling" : flag.frozenPaths !== void 0 ? "frozenPaths" : void 0;
     if (orphaned !== void 0) {
       throw new Error(`until loop on flow '${flow.id}' sets ${orphaned} but no stopJudge; these bounds are read only on a judge-gated loop, so a count-driven loop would silently ignore them`);
     }
@@ -68384,12 +68484,14 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
           goalProposed: judgment.goalProposed,
           evidenceConfirms
         });
+        let recordedNoProgress = 0;
         if (disposition !== "stop-clean") {
           const budget = evaluateUntilBudget(context.trace.getAll(), {
             ...untilFlag.cumulativeUsdCap === void 0 ? {} : { usdCap: untilFlag.cumulativeUsdCap },
             ...untilFlag.cumulativeTokenCap === void 0 ? {} : { tokenCap: untilFlag.cumulativeTokenCap }
           });
           const noProgressCount = untilFlag.stopJudge.progressPath === void 0 ? 0 : untilCorridor.recordProgressMarker(judgment.progressMarker);
+          recordedNoProgress = noProgressCount;
           const ceilingHit = untilFlag.noProgressCeiling !== void 0 && noProgressCount >= untilFlag.noProgressCeiling;
           if (disposition === "reenter" && (budget.overCap || ceilingHit)) {
             disposition = "needs-attention";
@@ -68415,6 +68517,18 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
             }
           }
         }
+        await trace.append({
+          run_id: runId,
+          kind: "run.until-judgment",
+          step_id: step.id,
+          iteration: stepIterationIndex,
+          goal_proposed: judgment.goalProposed,
+          evidence_confirmed: evidenceConfirms,
+          disposition,
+          no_progress_count: recordedNoProgress,
+          open_latch_count: context.honestyLedger?.openLatches().length ?? 0,
+          ...judgment.lesson === void 0 ? {} : { lesson: judgment.lesson }
+        });
         if (disposition === "reenter") {
           route = untilFlag.reenterRoute;
           untilCorridor.advance();
@@ -69518,6 +69632,67 @@ function prepareRunStartHistoryRecall(options) {
 // dist/app/operator-summary/writer.js
 import { existsSync as existsSync36, mkdirSync as mkdirSync7, readFileSync as readFileSync54, rmSync as rmSync5, writeFileSync as writeFileSync8 } from "node:fs";
 import { dirname as dirname10, isAbsolute as isAbsolute13, join as join37, relative as relative13, resolve as resolve25 } from "node:path";
+
+// dist/runtime/run/iteration-ledger.js
+function emptyUsage() {
+  return { tokens: 0, costUsd: void 0 };
+}
+function iterationLedgerFromTrace(entries) {
+  const ordered = [...entries].sort((a, b) => a.sequence - b.sequence);
+  const rows = [];
+  let usage2 = emptyUsage();
+  for (const entry of ordered) {
+    if (entry.kind === "relay.completed") {
+      const parsed = RelayUsageEvidence.safeParse(entry.usage);
+      if (!parsed.success)
+        continue;
+      usage2.tokens += parsed.data.input_tokens + parsed.data.output_tokens;
+      if (parsed.data.total_cost_usd_reported !== void 0) {
+        usage2.costUsd = (usage2.costUsd ?? 0) + parsed.data.total_cost_usd_reported;
+      }
+      continue;
+    }
+    if (entry.kind !== "run.until-judgment")
+      continue;
+    rows.push({
+      iteration: entry.iteration,
+      disposition: entry.disposition,
+      goalProposed: entry.goal_proposed,
+      evidenceConfirmed: entry.evidence_confirmed,
+      openLatchCount: entry.open_latch_count,
+      noProgressCount: entry.no_progress_count,
+      ...entry.lesson === void 0 ? {} : { lesson: entry.lesson },
+      inputPlusOutputTokens: usage2.tokens,
+      ...usage2.costUsd === void 0 ? {} : { costUsd: usage2.costUsd }
+    });
+    usage2 = emptyUsage();
+  }
+  return rows;
+}
+var LESSON_MAX = 80;
+function truncateLesson(lesson) {
+  const oneLine = lesson.replace(/\s+/g, " ").trim();
+  if (oneLine.length <= LESSON_MAX)
+    return oneLine;
+  return `${oneLine.slice(0, LESSON_MAX - 1)}\u2026`;
+}
+function cell(value) {
+  return value.replace(/\|/g, "\\|");
+}
+function yesNo(value) {
+  return value ? "yes" : "no";
+}
+function renderIterationLedgerMarkdown(rows) {
+  if (rows.length === 0)
+    return "";
+  const header = "| Iteration | Disposition | Goal proposed | Evidence confirmed | Open latches | No-progress | Tokens | Lesson |";
+  const separator = "| --- | --- | --- | --- | --- | --- | --- | --- |";
+  const lines = rows.map((row) => {
+    const lesson = row.lesson === void 0 ? "" : cell(truncateLesson(row.lesson));
+    return `| ${row.iteration} | ${row.disposition} | ${yesNo(row.goalProposed)} | ${yesNo(row.evidenceConfirmed)} | ${row.openLatchCount} | ${row.noProgressCount} | ${row.inputPlusOutputTokens} | ${lesson} |`;
+  });
+  return [header, separator, ...lines].join("\n");
+}
 
 // dist/shared/operator-summary/json.js
 import { existsSync as existsSync35, readFileSync as readFileSync53 } from "node:fs";
@@ -70965,6 +71140,26 @@ function equipmentReshapeLine(reshape) {
   const equipped = reshape.equipped_steps.length > 0 ? reshape.equipped_steps.join(", ") : "no remaining step";
   return `\`${reshape.step_id}\` confirmed ${domains}; equipped ${equipped}`;
 }
+function readIterationLedger(runFolder) {
+  const tracePath = join37(runFolder, "trace.ndjson");
+  if (!existsSync36(tracePath))
+    return [];
+  const entries = [];
+  for (const line of readFileSync54(tracePath, "utf8").split(/\r?\n/)) {
+    if (line.trim().length === 0)
+      continue;
+    let raw;
+    try {
+      raw = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const parsed = TraceEntry.safeParse(raw);
+    if (parsed.success)
+      entries.push(parsed.data);
+  }
+  return iterationLedgerFromTrace(entries);
+}
 function formatScore2(value) {
   if (value === null || value === void 0)
     return "n/a";
@@ -70998,7 +71193,12 @@ function checkpointOptionDetails(runFolder, allowedChoices) {
     return label === void 0 ? [] : [`${label} (${choice})`];
   });
 }
-function renderMarkdown(summary) {
+function ledgerSection(rows) {
+  if (rows.length === 0)
+    return [];
+  return ["", "Experiment ledger (one row per pass):", "", renderIterationLedgerMarkdown(rows)];
+}
+function renderMarkdown(summary, ledgerRows) {
   if (summary.brief_slots !== void 0) {
     const lines2 = [summary.brief_slots.headline, "", summary.brief_slots.assessment, ""];
     for (const point of summary.brief_slots.key_points)
@@ -71033,6 +71233,7 @@ function renderMarkdown(summary) {
       if (reduced !== void 0)
         lines2.push(reduced);
     }
+    lines2.push(...ledgerSection(ledgerRows));
     if (summary.html_path !== void 0) {
       lines2.push("", `Rich summary: ${summary.html_path}`);
     }
@@ -71086,6 +71287,7 @@ function renderMarkdown(summary) {
     if (reduced !== void 0)
       lines.push(reduced);
   }
+  lines.push(...ledgerSection(ledgerRows));
   if (summary.html_path !== void 0) {
     lines.push("", `Rich summary: ${summary.html_path}`);
   }
@@ -71102,6 +71304,7 @@ function writeOperatorSummary(input) {
   const skillHookSummary = readSkillHookSummary(input.runFolder);
   const equipmentReshapeSummary = readEquipmentReshapeSummary(input.runFolder);
   const receipt = readRunReceipt(input.runFolder);
+  const ledgerRows = readIterationLedger(input.runFolder);
   const outJsonPath = jsonPath(input.runFolder);
   const outMarkdownPath = markdownPath(input.runFolder);
   mkdirSync7(dirname10(outJsonPath), { recursive: true });
@@ -71236,7 +71439,7 @@ function writeOperatorSummary(input) {
   });
   writeFileSync8(outJsonPath, `${JSON.stringify(candidate, null, 2)}
 `);
-  writeFileSync8(outMarkdownPath, renderMarkdown(candidate));
+  writeFileSync8(outMarkdownPath, renderMarkdown(candidate, ledgerRows));
   return outHtmlPath === void 0 ? { summary: candidate, jsonPath: outJsonPath, markdownPath: outMarkdownPath } : {
     summary: candidate,
     jsonPath: outJsonPath,
