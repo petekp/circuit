@@ -80,6 +80,10 @@ describe('shipped schematics vs the block catalog (per-flow zero ratchet)', () =
     // build.verification@v1. contract_aliases are authoring/validation-only and
     // never compiled, so this is runtime byte-identical. build is pinned at 0.
     build: 0,
+    // converge-proof is catalog-clean from authoring: a three-relay loop body
+    // (plan / act / review) whose items each name a generic block they are
+    // structurally compatible with. It is the internal until-loop e2e harness.
+    'converge-proof': 0,
     // explainer is catalog-clean from authoring: every item names a generic block
     // it is structurally compatible with (frame / diagnose / plan / fanout /
     // human-decision / goal-child-run / run-verification / close-with-evidence),

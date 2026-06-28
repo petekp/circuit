@@ -130,6 +130,7 @@ describe('Claude Code host plugin package', () => {
       expect(claude, file).toEqual(canonical);
     }
     expect(existsSync(resolve(PLUGIN_ROOT, 'skills/runtime-proof'))).toBe(false);
+    expect(existsSync(resolve(PLUGIN_ROOT, 'skills/converge-proof'))).toBe(false);
   });
 
   it('syncs and checks the local Claude plugin cache package', () => {

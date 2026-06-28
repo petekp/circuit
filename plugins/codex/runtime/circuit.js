@@ -32600,6 +32600,116 @@ ${choiceCards}
   });
 };
 
+// dist/flows/converge-proof/assembly-spec.js
+var CONVERGE_PROOF_STAGE_PATH_RATIONALE = "Converge Proof is a narrow until-loop proof flow; only plan, act, and review are needed to exercise a multi-step body that re-enters until the judge confirms the goal.";
+var convergeProofBlockItems = [
+  {
+    id: "head-step",
+    title: "Plan the next iteration",
+    stage: "plan",
+    block: "plan",
+    input: { brief: "flow.brief@v1" },
+    execution: { kind: "relay", role: "researcher" },
+    protocol: "converge-proof-plan@v1",
+    requestPath: "reports/converge/plan.request.json",
+    receiptPath: "reports/converge/plan.receipt.txt",
+    resultPath: "reports/converge/plan.result.json",
+    pass: ["ok"],
+    routes: { continue: "work-step" }
+  },
+  {
+    id: "work-step",
+    title: "Act on the plan",
+    stage: "act",
+    block: "act",
+    input: { brief: "flow.brief@v1", plan: "plan.strategy@v1" },
+    execution: { kind: "relay", role: "implementer" },
+    protocol: "converge-proof-act@v1",
+    requestPath: "reports/converge/act.request.json",
+    receiptPath: "reports/converge/act.receipt.txt",
+    resultPath: "reports/converge/act.result.json",
+    pass: ["ok"],
+    routes: { continue: "judge-step" }
+  },
+  {
+    id: "judge-step",
+    title: "Judge whether the goal is met",
+    stage: "review",
+    block: "review",
+    // Reads brief only (a registered initial contract). The review block admits
+    // a brief-only input; reading work-step's change.evidence@v1 would force the
+    // generic contract to carry a registered Zod body it does not have, and the
+    // loop's behavior never depends on the judge reading the act result anyway.
+    input: { brief: "flow.brief@v1" },
+    execution: { kind: "relay", role: "reviewer" },
+    protocol: "converge-proof-review@v1",
+    requestPath: "reports/converge/judgment.request.json",
+    receiptPath: "reports/converge/judgment.receipt.txt",
+    resultPath: "reports/converge/judgment.result.json",
+    pass: ["ok"],
+    routes: { continue: "@complete", advance: "head-step", close: "@stop" }
+  }
+];
+var convergeProofStageLabels = {
+  plan: { id: "plan-stage", title: "Plan" },
+  act: { id: "act-stage", title: "Act" },
+  review: { id: "review-stage", title: "Review" }
+};
+var convergeProofAssemblySpec = {
+  id: "converge-proof",
+  title: "Converge Proof Schematic",
+  purpose: "Converge Proof flow: re-enter a three-relay body (plan, act, review) until the review judge confirms the goal is met, so the until-loop primitive can be observed end-to-end through the runtime boundary.",
+  status: "active",
+  version: "0.1.0",
+  initial_contracts: ["flow.brief@v1"],
+  contract_aliases: [],
+  axes: {
+    allowed_depths: ["medium"],
+    supports_tournament: false,
+    supports_autonomous: true,
+    default: { depth: "medium", tournament: false, tournament_n: 3, autonomous: false }
+  },
+  engine_flags: {
+    iterates_until_condition: {
+      head_step: "head-step",
+      tail_step: "judge-step",
+      body_steps: ["head-step", "work-step", "judge-step"],
+      reenter_route: "advance",
+      max_iterations: 3,
+      stop_judge: {
+        report: "reports/converge/judgment.result.json",
+        goal_met_path: "goal_met",
+        lesson_path: "lesson"
+      },
+      needs_attention_route: "close",
+      activate_when_depth_at_least: "autonomous"
+    }
+  },
+  items: convergeProofBlockItems,
+  stageLabels: convergeProofStageLabels,
+  stagePathRationale: CONVERGE_PROOF_STAGE_PATH_RATIONALE
+};
+
+// dist/flows/converge-proof/data.js
+var convergeProofPaths = {
+  schematic: "src/flows/converge-proof/schematic.json"
+};
+var convergeProofSchematic = assembleFlowSchematic(convergeProofAssemblySpec);
+var convergeProofCanonicalStagePolicy = {
+  kind: "exempt",
+  reason: "partial-stage path, recorded"
+};
+var convergeProofFlowData = {
+  id: "converge-proof",
+  visibility: "internal",
+  paths: convergeProofPaths,
+  schematic: convergeProofSchematic,
+  canonicalStagePolicy: convergeProofCanonicalStagePolicy
+};
+
+// dist/flows/converge-proof/flow.js
+var convergeProofFlowDefinition = defineFlowData(convergeProofFlowData);
+
 // dist/schemas/change-packet.js
 var WorkRootKind = external_exports.enum([
   "isolated_worktree",
@@ -44963,6 +45073,7 @@ var flowDefinitions = [
   fixFlowDefinition,
   pursueFlowDefinition,
   runtimeProofFlowDefinition,
+  convergeProofFlowDefinition,
   prototypeFlowDefinition,
   buildFlowDefinition,
   exploreFlowDefinition,

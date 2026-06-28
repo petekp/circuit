@@ -761,6 +761,8 @@ describe('Codex host plugin package', () => {
     }
     expect(existsSync(resolve(PLUGIN_ROOT, 'flows/runtime-proof'))).toBe(false);
     expect(existsSync(resolve(REPO_ROOT, 'plugins/claude/skills/runtime-proof'))).toBe(false);
+    expect(existsSync(resolve(PLUGIN_ROOT, 'flows/converge-proof'))).toBe(false);
+    expect(existsSync(resolve(REPO_ROOT, 'plugins/claude/skills/converge-proof'))).toBe(false);
   });
 
   it('generates Codex host command files that invoke the installed plugin wrapper', () => {

@@ -13,6 +13,7 @@ export const RETAINED_FLOW_IDS = [
   'fix',
   'pursue',
   'runtime-proof',
+  'converge-proof',
   'prototype',
   'build',
   'explore',

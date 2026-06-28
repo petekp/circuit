@@ -1,0 +1,141 @@
+{
+  "schema_version": "3",
+  "id": "converge-proof",
+  "version": "0.1.0",
+  "purpose": "Converge Proof flow: re-enter a three-relay body (plan, act, review) until the review judge confirms the goal is met, so the until-loop primitive can be observed end-to-end through the runtime boundary.",
+  "axes": {
+    "allowed_depths": ["medium"],
+    "supports_tournament": false,
+    "supports_autonomous": true,
+    "default": {
+      "depth": "medium",
+      "tournament": false,
+      "tournament_n": 3,
+      "autonomous": false
+    }
+  },
+  "starts_at": "head-step",
+  "stages": [
+    {
+      "id": "plan-stage",
+      "title": "Plan",
+      "canonical": "plan",
+      "steps": ["head-step"]
+    },
+    {
+      "id": "act-stage",
+      "title": "Act",
+      "canonical": "act",
+      "steps": ["work-step"]
+    },
+    {
+      "id": "review-stage",
+      "title": "Review",
+      "canonical": "review",
+      "steps": ["judge-step"]
+    }
+  ],
+  "stage_path_policy": {
+    "mode": "partial",
+    "omits": ["frame", "analyze", "verify", "close"],
+    "rationale": "Converge Proof is a narrow until-loop proof flow; only plan, act, and review are needed to exercise a multi-step body that re-enters until the judge confirms the goal."
+  },
+  "steps": [
+    {
+      "id": "head-step",
+      "title": "Plan the next iteration",
+      "protocol": "converge-proof-plan@v1",
+      "reads": [],
+      "routes": {
+        "continue": "work-step",
+        "pass": "work-step"
+      },
+      "executor": "worker",
+      "kind": "relay",
+      "role": "researcher",
+      "writes": {
+        "request": "reports/converge/plan.request.json",
+        "receipt": "reports/converge/plan.receipt.txt",
+        "result": "reports/converge/plan.result.json"
+      },
+      "check": {
+        "kind": "result_verdict",
+        "source": {
+          "kind": "relay_result",
+          "ref": "result"
+        },
+        "pass": ["ok"]
+      }
+    },
+    {
+      "id": "work-step",
+      "title": "Act on the plan",
+      "protocol": "converge-proof-act@v1",
+      "reads": ["reports/converge/plan.result.json"],
+      "routes": {
+        "continue": "judge-step",
+        "pass": "judge-step"
+      },
+      "executor": "worker",
+      "kind": "relay",
+      "role": "implementer",
+      "writes": {
+        "request": "reports/converge/act.request.json",
+        "receipt": "reports/converge/act.receipt.txt",
+        "result": "reports/converge/act.result.json"
+      },
+      "check": {
+        "kind": "result_verdict",
+        "source": {
+          "kind": "relay_result",
+          "ref": "result"
+        },
+        "pass": ["ok"]
+      }
+    },
+    {
+      "id": "judge-step",
+      "title": "Judge whether the goal is met",
+      "protocol": "converge-proof-review@v1",
+      "reads": [],
+      "routes": {
+        "continue": "@complete",
+        "pass": "@complete",
+        "advance": "head-step",
+        "close": "@stop"
+      },
+      "executor": "worker",
+      "kind": "relay",
+      "role": "reviewer",
+      "writes": {
+        "request": "reports/converge/judgment.request.json",
+        "receipt": "reports/converge/judgment.receipt.txt",
+        "result": "reports/converge/judgment.result.json"
+      },
+      "check": {
+        "kind": "result_verdict",
+        "source": {
+          "kind": "relay_result",
+          "ref": "result"
+        },
+        "pass": ["ok"]
+      }
+    }
+  ],
+  "engine_flags": {
+    "iterates_until_condition": {
+      "head_step": "head-step",
+      "tail_step": "judge-step",
+      "body_steps": ["head-step", "work-step", "judge-step"],
+      "reenter_route": "advance",
+      "max_iterations": 3,
+      "stop_judge": {
+        "report": "reports/converge/judgment.result.json",
+        "goal_met_path": "goal_met",
+        "lesson_path": "lesson"
+      },
+      "needs_attention_route": "close",
+      "activate_when_depth_at_least": "autonomous"
+    }
+  }
+}

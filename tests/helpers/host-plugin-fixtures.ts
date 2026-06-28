@@ -47,6 +47,7 @@ export function publicHostFlowFiles(files: string[]): string[] {
   return files.filter(
     (file) =>
       !file.startsWith('runtime-proof/') &&
+      !file.startsWith('converge-proof/') &&
       !file.startsWith('goal/') &&
       !file.endsWith('.work-contract.v0.json') &&
       !file.includes('never-a-mode') &&

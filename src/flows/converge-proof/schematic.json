@@ -1,0 +1,155 @@
+{
+  "schema_version": "2",
+  "id": "converge-proof",
+  "title": "Converge Proof Schematic",
+  "purpose": "Converge Proof flow: re-enter a three-relay body (plan, act, review) until the review judge confirms the goal is met, so the until-loop primitive can be observed end-to-end through the runtime boundary.",
+  "status": "active",
+  "starts_at": "head-step",
+  "initial_contracts": ["flow.brief@v1"],
+  "contract_aliases": [],
+  "items": [
+    {
+      "id": "head-step",
+      "block": "plan",
+      "title": "Plan the next iteration",
+      "stage": "plan",
+      "input": {
+        "brief": "flow.brief@v1"
+      },
+      "optional_inputs": [],
+      "output": "plan.strategy@v1",
+      "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
+      "execution": {
+        "kind": "relay",
+        "role": "researcher"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "work-step"
+      },
+      "route_overrides": {},
+      "protocol": "converge-proof-plan@v1",
+      "writes": {
+        "request_path": "reports/converge/plan.request.json",
+        "receipt_path": "reports/converge/plan.receipt.txt",
+        "result_path": "reports/converge/plan.result.json"
+      },
+      "check": {
+        "pass": ["ok"]
+      }
+    },
+    {
+      "id": "work-step",
+      "block": "act",
+      "title": "Act on the plan",
+      "stage": "act",
+      "input": {
+        "brief": "flow.brief@v1",
+        "plan": "plan.strategy@v1"
+      },
+      "optional_inputs": [],
+      "output": "change.evidence@v1",
+      "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
+      "execution": {
+        "kind": "relay",
+        "role": "implementer"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "judge-step"
+      },
+      "route_overrides": {},
+      "protocol": "converge-proof-act@v1",
+      "writes": {
+        "request_path": "reports/converge/act.request.json",
+        "receipt_path": "reports/converge/act.receipt.txt",
+        "result_path": "reports/converge/act.result.json"
+      },
+      "check": {
+        "pass": ["ok"]
+      }
+    },
+    {
+      "id": "judge-step",
+      "block": "review",
+      "title": "Judge whether the goal is met",
+      "stage": "review",
+      "input": {
+        "brief": "flow.brief@v1"
+      },
+      "optional_inputs": [],
+      "output": "review.verdict@v1",
+      "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
+      "execution": {
+        "kind": "relay",
+        "role": "reviewer"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "@complete",
+        "advance": "head-step",
+        "close": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "converge-proof-review@v1",
+      "writes": {
+        "request_path": "reports/converge/judgment.request.json",
+        "receipt_path": "reports/converge/judgment.receipt.txt",
+        "result_path": "reports/converge/judgment.result.json"
+      },
+      "check": {
+        "pass": ["ok"]
+      }
+    }
+  ],
+  "version": "0.1.0",
+  "axes": {
+    "allowed_depths": ["medium"],
+    "supports_tournament": false,
+    "supports_autonomous": true,
+    "default": {
+      "depth": "medium",
+      "tournament": false,
+      "tournament_n": 3,
+      "autonomous": false
+    }
+  },
+  "stage_path_policy": {
+    "mode": "partial",
+    "omits": ["frame", "analyze", "verify", "close"],
+    "rationale": "Converge Proof is a narrow until-loop proof flow; only plan, act, and review are needed to exercise a multi-step body that re-enters until the judge confirms the goal."
+  },
+  "stages": [
+    {
+      "canonical": "plan",
+      "id": "plan-stage",
+      "title": "Plan"
+    },
+    {
+      "canonical": "act",
+      "id": "act-stage",
+      "title": "Act"
+    },
+    {
+      "canonical": "review",
+      "id": "review-stage",
+      "title": "Review"
+    }
+  ],
+  "engine_flags": {
+    "iterates_until_condition": {
+      "head_step": "head-step",
+      "tail_step": "judge-step",
+      "body_steps": ["head-step", "work-step", "judge-step"],
+      "reenter_route": "advance",
+      "max_iterations": 3,
+      "stop_judge": {
+        "report": "reports/converge/judgment.result.json",
+        "goal_met_path": "goal_met",
+        "lesson_path": "lesson"
+      },
+      "needs_attention_route": "close",
+      "activate_when_depth_at_least": "autonomous"
+    }
+  }
+}
