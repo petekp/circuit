@@ -394,6 +394,39 @@ the engine learns the goal text; it only disposes a boolean against evidence.
    throwaway worktree branch; operator owns the merge. Highest blast radius;
    ships last and off by default.
 
+## Why Converge gates on a boolean, not a metric
+
+`karpathy/autoresearch` runs the same loop shape in the optimize flavor: hill-climb
+a scalar metric (`val_bpb`), keep the change if the number improved, `git reset` if
+not, and repeat forever. It is tempting to add a metric-gated Converge variant that
+keeps the best-scoring iteration. That variant is deliberately declined, for two
+reasons that are load-bearing for this whole design.
+
+1. **The ratchet needs an ungameable oracle Circuit does not have.** autoresearch
+   stays honest only because `prepare.py` (the eval) is read-only and the agent
+   physically cannot touch it. Circuit's analog is a worker-adjacent verification
+   command, which the body can edit. The moment the body can influence the number,
+   a keep-best ratchet launders Goodhart gaming as monotone progress. (The
+   frozen-eval detective latch, see `learning-from-autoresearch.md`, imports the
+   read-only-surface *shape* without the metric ratchet, precisely because the
+   shape is the safe half.)
+
+2. **An optimizer's natural terminus is the one this loop forbids.** An
+   optimize-a-number run ends by exhausting its budget and keeping the best so far.
+   That is a clean, expected non-failure for an optimizer. But it is exactly the
+   success-through-exhaustion path the honesty ledger and `finalize()` are built to
+   make unreachable for a Converge run. A boolean goal is what lets "ran out of
+   iterations" mean `needs_attention`, never `complete`.
+
+Two nuggets are worth keeping without the loop: carried notes could optionally
+carry a verification command's numeric result as read-only context for the worker
+to reason over (a `results.tsv`-style memory), and `commit-containment.ts` could
+gain a revert-to-champion op, but only if a trustworthy metric oracle ever lands. A
+scalar metric-convergence variant (a `metricPath` plus keep-best hill-climb) is
+deferred until a concrete continuous-metric flow exists that needs it; it serves an
+optimize-a-number thesis, not the proven-done honesty thesis this loop was built
+for.
+
 ## Open questions
 
 - **Depth label.** The slice loop maxes at `high`; this proposes activating at a
