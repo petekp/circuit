@@ -398,6 +398,11 @@ function compileItem(
         executor: 'worker',
         kind: 'relay',
         role,
+        // Optional per-step worker pin authored on execution.connector. Lifted
+        // onto the compiled relay step so the runtime relay path can read it as
+        // the top-priority connector choice. Omitted when unset, so flows that
+        // pin nothing stay byte-identical.
+        ...(item.execution.connector === undefined ? {} : { connector: item.execution.connector }),
         ...(item.acceptance_criteria === undefined
           ? {}
           : { acceptance_criteria: item.acceptance_criteria }),

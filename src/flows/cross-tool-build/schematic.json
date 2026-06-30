@@ -1,0 +1,356 @@
+{
+  "schema_version": "2",
+  "id": "cross-tool-build",
+  "title": "Cross-Tool Build Schematic",
+  "purpose": "Cross-Tool Build flow: one connector proposes a feature implementation, a second adversarially reviews it, the first revises it into a spec, the second reviews the spec, and the first implements it end-to-end and verifies. The per-step worker pin routes the doer steps and the review steps to different connectors, so the two-tool split is a property of the flow.",
+  "status": "active",
+  "starts_at": "plan-step",
+  "initial_contracts": ["flow.brief@v1", "verification.plan@v1"],
+  "contract_aliases": [
+    {
+      "generic": "plan.strategy@v1",
+      "actual": "cross-tool-build.plan@v1"
+    },
+    {
+      "generic": "plan.strategy@v1",
+      "actual": "cross-tool-build.proposal@v1"
+    },
+    {
+      "generic": "plan.strategy@v1",
+      "actual": "cross-tool-build.spec@v1"
+    },
+    {
+      "generic": "review.verdict@v1",
+      "actual": "cross-tool-build.proposal-review@v1"
+    },
+    {
+      "generic": "review.verdict@v1",
+      "actual": "cross-tool-build.spec-review@v1"
+    },
+    {
+      "generic": "change.evidence@v1",
+      "actual": "cross-tool-build.implementation@v1"
+    },
+    {
+      "generic": "verification.result@v1",
+      "actual": "cross-tool-build.verification@v1"
+    },
+    {
+      "generic": "flow.result@v1",
+      "actual": "cross-tool-build.result@v1"
+    }
+  ],
+  "items": [
+    {
+      "id": "plan-step",
+      "block": "plan",
+      "title": "Plan the verification",
+      "stage": "plan",
+      "input": {
+        "brief": "flow.brief@v1"
+      },
+      "optional_inputs": [],
+      "output": "cross-tool-build.plan@v1",
+      "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
+      "execution": {
+        "kind": "compose"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "propose-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "cross-tool-build-plan@v1",
+      "writes": {
+        "report_path": "reports/cross-tool-build/plan.json"
+      },
+      "check": {
+        "required": ["objective", "verification"]
+      }
+    },
+    {
+      "id": "propose-step",
+      "block": "plan",
+      "title": "Propose how to implement the feature",
+      "stage": "plan",
+      "input": {
+        "brief": "flow.brief@v1"
+      },
+      "optional_inputs": [],
+      "output": "cross-tool-build.proposal@v1",
+      "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
+      "execution": {
+        "kind": "relay",
+        "role": "researcher",
+        "connector": "codex"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "review-proposal-step",
+        "retry": "propose-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "cross-tool-build-propose@v1",
+      "writes": {
+        "report_path": "reports/cross-tool-build/proposal.json",
+        "request_path": "reports/relay/cross-tool-build-propose.request.json",
+        "receipt_path": "reports/relay/cross-tool-build-propose.receipt.txt",
+        "result_path": "reports/relay/cross-tool-build-propose.result.json"
+      },
+      "check": {
+        "pass": ["accept"]
+      }
+    },
+    {
+      "id": "review-proposal-step",
+      "block": "review",
+      "title": "Adversarially review the proposal",
+      "stage": "review",
+      "input": {
+        "brief": "flow.brief@v1",
+        "proposal": "cross-tool-build.proposal@v1"
+      },
+      "optional_inputs": [],
+      "output": "cross-tool-build.proposal-review@v1",
+      "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
+      "execution": {
+        "kind": "relay",
+        "role": "reviewer",
+        "connector": "claude-code"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "spec-step",
+        "retry": "review-proposal-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "cross-tool-build-review-proposal@v1",
+      "writes": {
+        "report_path": "reports/cross-tool-build/proposal-review.json",
+        "request_path": "reports/relay/cross-tool-build-review-proposal.request.json",
+        "receipt_path": "reports/relay/cross-tool-build-review-proposal.receipt.txt",
+        "result_path": "reports/relay/cross-tool-build-review-proposal.result.json"
+      },
+      "check": {
+        "pass": ["accept", "revise"]
+      }
+    },
+    {
+      "id": "spec-step",
+      "block": "plan",
+      "title": "Revise the proposal and write the implementation spec",
+      "stage": "plan",
+      "input": {
+        "brief": "flow.brief@v1",
+        "proposal": "cross-tool-build.proposal@v1",
+        "proposal_review": "cross-tool-build.proposal-review@v1"
+      },
+      "optional_inputs": [],
+      "output": "cross-tool-build.spec@v1",
+      "evidence_requirements": ["ordered steps", "risk notes", "proof strategy"],
+      "execution": {
+        "kind": "relay",
+        "role": "researcher",
+        "connector": "codex"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "review-spec-step",
+        "retry": "spec-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "cross-tool-build-spec@v1",
+      "writes": {
+        "report_path": "reports/cross-tool-build/spec.json",
+        "request_path": "reports/relay/cross-tool-build-spec.request.json",
+        "receipt_path": "reports/relay/cross-tool-build-spec.receipt.txt",
+        "result_path": "reports/relay/cross-tool-build-spec.result.json"
+      },
+      "check": {
+        "pass": ["accept"]
+      }
+    },
+    {
+      "id": "review-spec-step",
+      "block": "review",
+      "title": "Adversarially review the spec",
+      "stage": "review",
+      "input": {
+        "brief": "flow.brief@v1",
+        "spec": "cross-tool-build.spec@v1"
+      },
+      "optional_inputs": [],
+      "output": "cross-tool-build.spec-review@v1",
+      "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
+      "execution": {
+        "kind": "relay",
+        "role": "reviewer",
+        "connector": "claude-code"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "implement-step",
+        "retry": "review-spec-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "cross-tool-build-review-spec@v1",
+      "writes": {
+        "report_path": "reports/cross-tool-build/spec-review.json",
+        "request_path": "reports/relay/cross-tool-build-review-spec.request.json",
+        "receipt_path": "reports/relay/cross-tool-build-review-spec.receipt.txt",
+        "result_path": "reports/relay/cross-tool-build-review-spec.result.json"
+      },
+      "check": {
+        "pass": ["accept", "revise"]
+      }
+    },
+    {
+      "id": "implement-step",
+      "block": "act",
+      "title": "Implement the spec end-to-end and manually test",
+      "stage": "act",
+      "input": {
+        "brief": "flow.brief@v1",
+        "spec": "cross-tool-build.spec@v1",
+        "spec_review": "cross-tool-build.spec-review@v1"
+      },
+      "optional_inputs": [],
+      "output": "cross-tool-build.implementation@v1",
+      "evidence_requirements": ["changed files", "change rationale", "declared follow-up proof"],
+      "execution": {
+        "kind": "relay",
+        "role": "implementer",
+        "connector": "codex"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "verify-step",
+        "retry": "implement-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "cross-tool-build-implement@v1",
+      "writes": {
+        "report_path": "reports/cross-tool-build/implementation.json",
+        "request_path": "reports/relay/cross-tool-build-implement.request.json",
+        "receipt_path": "reports/relay/cross-tool-build-implement.receipt.txt",
+        "result_path": "reports/relay/cross-tool-build-implement.result.json"
+      },
+      "check": {
+        "pass": ["accept"]
+      }
+    },
+    {
+      "id": "verify-step",
+      "block": "run-verification",
+      "title": "Run the verification",
+      "stage": "verify",
+      "input": {
+        "proof": "verification.plan@v1",
+        "plan": "cross-tool-build.plan@v1",
+        "change": "cross-tool-build.implementation@v1"
+      },
+      "optional_inputs": [],
+      "output": "cross-tool-build.verification@v1",
+      "evidence_requirements": ["command list", "exit status", "bounded output", "pass or fail"],
+      "execution": {
+        "kind": "verification"
+      },
+      "skill_slots": [],
+      "routes": {
+        "continue": "close-step",
+        "retry": "implement-step",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "cross-tool-build-verify@v1",
+      "writes": {
+        "report_path": "reports/cross-tool-build/verification.json"
+      },
+      "check": {
+        "required": ["overall_status", "commands"]
+      }
+    },
+    {
+      "id": "close-step",
+      "block": "close-with-evidence",
+      "title": "Emit the result",
+      "stage": "close",
+      "input": {
+        "brief": "flow.brief@v1",
+        "implementation": "cross-tool-build.implementation@v1",
+        "verification": "cross-tool-build.verification@v1",
+        "proposal_review": "cross-tool-build.proposal-review@v1",
+        "spec_review": "cross-tool-build.spec-review@v1"
+      },
+      "optional_inputs": [],
+      "output": "cross-tool-build.result@v1",
+      "evidence_requirements": ["outcome", "evidence pointers", "residual risks", "follow-ups"],
+      "execution": {
+        "kind": "compose"
+      },
+      "skill_slots": [],
+      "routes": {
+        "complete": "@complete",
+        "stop": "@stop"
+      },
+      "route_overrides": {},
+      "protocol": "cross-tool-build-close@v1",
+      "writes": {
+        "report_path": "reports/cross-tool-build-result.json"
+      },
+      "check": {
+        "required": ["summary", "outcome", "verification_status", "evidence_links"]
+      }
+    }
+  ],
+  "version": "0.1.0",
+  "axes": {
+    "allowed_depths": ["low", "medium", "high"],
+    "supports_tournament": false,
+    "supports_autonomous": true,
+    "default": {
+      "depth": "medium",
+      "tournament": false,
+      "tournament_n": 3,
+      "autonomous": false
+    }
+  },
+  "stage_path_policy": {
+    "mode": "partial",
+    "omits": ["frame", "analyze"],
+    "rationale": "Cross-Tool Build is a linear propose/review/spec/review/implement/verify pipeline; plan, review, act, verify, and close are the canonical stages it uses. Frame and analyze are omitted: the goal is the brief, and the doer reads the codebase as part of proposing."
+  },
+  "stages": [
+    {
+      "canonical": "plan",
+      "id": "plan-stage",
+      "title": "Plan"
+    },
+    {
+      "canonical": "act",
+      "id": "act-stage",
+      "title": "Act"
+    },
+    {
+      "canonical": "verify",
+      "id": "verify-stage",
+      "title": "Verify"
+    },
+    {
+      "canonical": "review",
+      "id": "review-stage",
+      "title": "Review"
+    },
+    {
+      "canonical": "close",
+      "id": "close-stage",
+      "title": "Close"
+    }
+  ]
+}

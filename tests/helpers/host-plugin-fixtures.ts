@@ -49,6 +49,7 @@ export function publicHostFlowFiles(files: string[]): string[] {
       !file.startsWith('runtime-proof/') &&
       !file.startsWith('converge-proof/') &&
       !file.startsWith('fix-until-green/') &&
+      !file.startsWith('cross-tool-build/') &&
       !file.startsWith('goal/') &&
       !file.endsWith('.work-contract.v0.json') &&
       !file.includes('never-a-mode') &&

@@ -10,6 +10,7 @@ import { buildFlowDefinition } from './build/flow.js';
 import { buildCheckpointProjector } from './build/writers/checkpoint-html.js';
 import { buildRuntimeSurfaceRegistry, deriveFlowCatalog } from './catalog-derivations.js';
 import { convergeProofFlowDefinition } from './converge-proof/flow.js';
+import { crossToolBuildFlowDefinition } from './cross-tool-build/flow.js';
 import { explainerFlowDefinition } from './explainer/flow.js';
 import { exploreFlowDefinition } from './explore/flow.js';
 import { exploreTournamentProjector } from './explore/writers/tournament-html.js';
@@ -33,6 +34,7 @@ export const flowDefinitions: readonly FlowDefinition[] = [
   runtimeProofFlowDefinition,
   convergeProofFlowDefinition,
   fixUntilGreenFlowDefinition,
+  crossToolBuildFlowDefinition,
   prototypeFlowDefinition,
   buildFlowDefinition,
   exploreFlowDefinition,

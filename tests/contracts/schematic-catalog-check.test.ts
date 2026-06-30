@@ -114,6 +114,14 @@ describe('shipped schematics vs the block catalog (per-flow zero ratchet)', () =
     // review reviewer relay) whose items each name a generic block they are
     // structurally compatible with. It is the first real Converge flow (internal).
     'fix-until-green': 0,
+    // cross-tool-build is catalog-clean from authoring: a plan compose, five
+    // doer/reviewer relays (propose / review-proposal / spec / review-spec /
+    // implement) that each name a generic block they are structurally compatible
+    // with (plan / review / plan / review / act), a run-verification, and a
+    // close-with-evidence. Its flow-scoped outputs bind through contract_aliases,
+    // never by editing a block, so it lands at the zero ceiling. It is the
+    // internal two-tool (doer/reviewer) pipeline.
+    'cross-tool-build': 0,
     // goal: 113 -> 11 (goal-block split) -> 9 (gate-recognition reconciliation)
     // -> 5 (goal-gate-review allowed_routes corrected) -> 0 (M1 route-conditional
     // availability + dead `ask` edge removed). The split replaced the one shared
