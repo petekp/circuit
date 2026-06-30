@@ -1,0 +1,1157 @@
+{
+  "schema_version": 0,
+  "contract_ref": {
+    "kind": "work_contract",
+    "ref": "generated/flows/cross-tool-build/circuit.work-contract.v0.json",
+    "sha256": "e58e033b9ffdeeb68286b92c24a58ea05cabd42fde57977e15cef69b70bc98ac",
+    "flow_id": "cross-tool-build"
+  },
+  "work_contract": {
+    "flow": {
+      "id": "cross-tool-build",
+      "version": "0.1.0",
+      "purpose": "Cross-Tool Build flow: one connector proposes a feature implementation, a second adversarially reviews it, the first revises it into a spec, the second reviews the spec, and the first implements it end-to-end and verifies. The per-step worker pin routes the doer steps and the review steps to different connectors, so the two-tool split is a property of the flow.",
+      "axes": {
+        "allowed_depths": ["low", "medium", "high"],
+        "supports_tournament": false,
+        "supports_autonomous": true,
+        "default": {
+          "depth": "medium",
+          "tournament": false,
+          "tournament_n": 3,
+          "autonomous": false
+        }
+      },
+      "starts_at": "plan-step"
+    },
+    "topology": {
+      "stages": [
+        {
+          "id": "plan-stage",
+          "title": "Plan",
+          "canonical": "plan",
+          "steps": ["plan-step", "propose-step", "spec-step"]
+        },
+        {
+          "id": "act-stage",
+          "title": "Act",
+          "canonical": "act",
+          "steps": ["implement-step"]
+        },
+        {
+          "id": "verify-stage",
+          "title": "Verify",
+          "canonical": "verify",
+          "steps": ["verify-step"]
+        },
+        {
+          "id": "review-stage",
+          "title": "Review",
+          "canonical": "review",
+          "steps": ["review-proposal-step", "review-spec-step"]
+        },
+        {
+          "id": "close-stage",
+          "title": "Close",
+          "canonical": "close",
+          "steps": ["close-step"]
+        }
+      ],
+      "stage_path_policy": {
+        "mode": "partial",
+        "omits": ["frame", "analyze"],
+        "rationale": "Cross-Tool Build is a linear propose/review/spec/review/implement/verify pipeline; plan, review, act, verify, and close are the canonical stages it uses. Frame and analyze are omitted: the goal is the brief, and the doer reads the codebase as part of proposing."
+      },
+      "routes": [
+        {
+          "step_id": "plan-step",
+          "route_id": "continue",
+          "target": "propose-step"
+        },
+        {
+          "step_id": "plan-step",
+          "route_id": "pass",
+          "target": "propose-step"
+        },
+        {
+          "step_id": "plan-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "propose-step",
+          "route_id": "continue",
+          "target": "review-proposal-step"
+        },
+        {
+          "step_id": "propose-step",
+          "route_id": "pass",
+          "target": "review-proposal-step"
+        },
+        {
+          "step_id": "propose-step",
+          "route_id": "retry",
+          "target": "propose-step"
+        },
+        {
+          "step_id": "propose-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "review-proposal-step",
+          "route_id": "continue",
+          "target": "spec-step"
+        },
+        {
+          "step_id": "review-proposal-step",
+          "route_id": "pass",
+          "target": "spec-step"
+        },
+        {
+          "step_id": "review-proposal-step",
+          "route_id": "retry",
+          "target": "review-proposal-step"
+        },
+        {
+          "step_id": "review-proposal-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "spec-step",
+          "route_id": "continue",
+          "target": "review-spec-step"
+        },
+        {
+          "step_id": "spec-step",
+          "route_id": "pass",
+          "target": "review-spec-step"
+        },
+        {
+          "step_id": "spec-step",
+          "route_id": "retry",
+          "target": "spec-step"
+        },
+        {
+          "step_id": "spec-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "review-spec-step",
+          "route_id": "continue",
+          "target": "implement-step"
+        },
+        {
+          "step_id": "review-spec-step",
+          "route_id": "pass",
+          "target": "implement-step"
+        },
+        {
+          "step_id": "review-spec-step",
+          "route_id": "retry",
+          "target": "review-spec-step"
+        },
+        {
+          "step_id": "review-spec-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "implement-step",
+          "route_id": "continue",
+          "target": "verify-step"
+        },
+        {
+          "step_id": "implement-step",
+          "route_id": "pass",
+          "target": "verify-step"
+        },
+        {
+          "step_id": "implement-step",
+          "route_id": "retry",
+          "target": "implement-step"
+        },
+        {
+          "step_id": "implement-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "verify-step",
+          "route_id": "continue",
+          "target": "close-step"
+        },
+        {
+          "step_id": "verify-step",
+          "route_id": "pass",
+          "target": "close-step"
+        },
+        {
+          "step_id": "verify-step",
+          "route_id": "retry",
+          "target": "implement-step"
+        },
+        {
+          "step_id": "verify-step",
+          "route_id": "stop",
+          "target": "@stop"
+        },
+        {
+          "step_id": "close-step",
+          "route_id": "complete",
+          "target": "@complete"
+        },
+        {
+          "step_id": "close-step",
+          "route_id": "pass",
+          "target": "@complete"
+        },
+        {
+          "step_id": "close-step",
+          "route_id": "stop",
+          "target": "@stop"
+        }
+      ]
+    },
+    "blocks": [
+      {
+        "step_id": "plan-step",
+        "title": "Plan the verification",
+        "kind": "compose",
+        "executor": "orchestrator",
+        "protocol": "cross-tool-build-plan@v1",
+        "reads": [],
+        "writes": {
+          "report": {
+            "path": "reports/cross-tool-build/plan.json",
+            "schema": "cross-tool-build.plan@v1"
+          }
+        },
+        "check": {
+          "kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          },
+          "required": ["objective", "verification"]
+        },
+        "routes": {
+          "continue": "propose-step",
+          "pass": "propose-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "propose-step",
+        "title": "Propose how to implement the feature",
+        "kind": "relay",
+        "executor": "worker",
+        "protocol": "cross-tool-build-propose@v1",
+        "reads": [],
+        "writes": {
+          "report": {
+            "path": "reports/cross-tool-build/proposal.json",
+            "schema": "cross-tool-build.proposal@v1"
+          },
+          "request": "reports/relay/cross-tool-build-propose.request.json",
+          "receipt": "reports/relay/cross-tool-build-propose.receipt.txt",
+          "result": "reports/relay/cross-tool-build-propose.result.json"
+        },
+        "check": {
+          "kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          },
+          "pass": ["accept"]
+        },
+        "routes": {
+          "continue": "review-proposal-step",
+          "pass": "review-proposal-step",
+          "retry": "propose-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "review-proposal-step",
+        "title": "Adversarially review the proposal",
+        "kind": "relay",
+        "executor": "worker",
+        "protocol": "cross-tool-build-review-proposal@v1",
+        "reads": ["reports/cross-tool-build/proposal.json"],
+        "writes": {
+          "report": {
+            "path": "reports/cross-tool-build/proposal-review.json",
+            "schema": "cross-tool-build.proposal-review@v1"
+          },
+          "request": "reports/relay/cross-tool-build-review-proposal.request.json",
+          "receipt": "reports/relay/cross-tool-build-review-proposal.receipt.txt",
+          "result": "reports/relay/cross-tool-build-review-proposal.result.json"
+        },
+        "check": {
+          "kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          },
+          "pass": ["accept", "revise"]
+        },
+        "routes": {
+          "continue": "spec-step",
+          "pass": "spec-step",
+          "retry": "review-proposal-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "spec-step",
+        "title": "Revise the proposal and write the implementation spec",
+        "kind": "relay",
+        "executor": "worker",
+        "protocol": "cross-tool-build-spec@v1",
+        "reads": [
+          "reports/cross-tool-build/proposal.json",
+          "reports/cross-tool-build/proposal-review.json"
+        ],
+        "writes": {
+          "report": {
+            "path": "reports/cross-tool-build/spec.json",
+            "schema": "cross-tool-build.spec@v1"
+          },
+          "request": "reports/relay/cross-tool-build-spec.request.json",
+          "receipt": "reports/relay/cross-tool-build-spec.receipt.txt",
+          "result": "reports/relay/cross-tool-build-spec.result.json"
+        },
+        "check": {
+          "kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          },
+          "pass": ["accept"]
+        },
+        "routes": {
+          "continue": "review-spec-step",
+          "pass": "review-spec-step",
+          "retry": "spec-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "review-spec-step",
+        "title": "Adversarially review the spec",
+        "kind": "relay",
+        "executor": "worker",
+        "protocol": "cross-tool-build-review-spec@v1",
+        "reads": ["reports/cross-tool-build/spec.json"],
+        "writes": {
+          "report": {
+            "path": "reports/cross-tool-build/spec-review.json",
+            "schema": "cross-tool-build.spec-review@v1"
+          },
+          "request": "reports/relay/cross-tool-build-review-spec.request.json",
+          "receipt": "reports/relay/cross-tool-build-review-spec.receipt.txt",
+          "result": "reports/relay/cross-tool-build-review-spec.result.json"
+        },
+        "check": {
+          "kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          },
+          "pass": ["accept", "revise"]
+        },
+        "routes": {
+          "continue": "implement-step",
+          "pass": "implement-step",
+          "retry": "review-spec-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "implement-step",
+        "title": "Implement the spec end-to-end and manually test",
+        "kind": "relay",
+        "executor": "worker",
+        "protocol": "cross-tool-build-implement@v1",
+        "reads": [
+          "reports/cross-tool-build/spec.json",
+          "reports/cross-tool-build/spec-review.json"
+        ],
+        "writes": {
+          "report": {
+            "path": "reports/cross-tool-build/implementation.json",
+            "schema": "cross-tool-build.implementation@v1"
+          },
+          "request": "reports/relay/cross-tool-build-implement.request.json",
+          "receipt": "reports/relay/cross-tool-build-implement.receipt.txt",
+          "result": "reports/relay/cross-tool-build-implement.result.json"
+        },
+        "check": {
+          "kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          },
+          "pass": ["accept"]
+        },
+        "routes": {
+          "continue": "verify-step",
+          "pass": "verify-step",
+          "retry": "implement-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "verify-step",
+        "title": "Run the verification",
+        "kind": "verification",
+        "executor": "orchestrator",
+        "protocol": "cross-tool-build-verify@v1",
+        "reads": [
+          "reports/cross-tool-build/plan.json",
+          "reports/cross-tool-build/implementation.json"
+        ],
+        "writes": {
+          "report": {
+            "path": "reports/cross-tool-build/verification.json",
+            "schema": "cross-tool-build.verification@v1"
+          }
+        },
+        "check": {
+          "kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          },
+          "required": ["overall_status", "commands"]
+        },
+        "routes": {
+          "continue": "close-step",
+          "pass": "close-step",
+          "retry": "implement-step",
+          "stop": "@stop"
+        }
+      },
+      {
+        "step_id": "close-step",
+        "title": "Emit the result",
+        "kind": "compose",
+        "executor": "orchestrator",
+        "protocol": "cross-tool-build-close@v1",
+        "reads": [
+          "reports/cross-tool-build/implementation.json",
+          "reports/cross-tool-build/verification.json",
+          "reports/cross-tool-build/proposal-review.json",
+          "reports/cross-tool-build/spec-review.json"
+        ],
+        "writes": {
+          "report": {
+            "path": "reports/cross-tool-build-result.json",
+            "schema": "cross-tool-build.result@v1"
+          }
+        },
+        "check": {
+          "kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          },
+          "required": ["summary", "outcome", "verification_status", "evidence_links"]
+        },
+        "routes": {
+          "complete": "@complete",
+          "pass": "@complete",
+          "stop": "@stop"
+        }
+      }
+    ],
+    "authority": {
+      "relays": [
+        {
+          "step_id": "propose-step",
+          "role": "researcher",
+          "writes": {
+            "report": {
+              "path": "reports/cross-tool-build/proposal.json",
+              "schema": "cross-tool-build.proposal@v1"
+            },
+            "request": "reports/relay/cross-tool-build-propose.request.json",
+            "receipt": "reports/relay/cross-tool-build-propose.receipt.txt",
+            "result": "reports/relay/cross-tool-build-propose.result.json"
+          },
+          "report": {
+            "step_id": "propose-step",
+            "slot": "report",
+            "path": "reports/cross-tool-build/proposal.json",
+            "schema": "cross-tool-build.proposal@v1"
+          }
+        },
+        {
+          "step_id": "review-proposal-step",
+          "role": "reviewer",
+          "writes": {
+            "report": {
+              "path": "reports/cross-tool-build/proposal-review.json",
+              "schema": "cross-tool-build.proposal-review@v1"
+            },
+            "request": "reports/relay/cross-tool-build-review-proposal.request.json",
+            "receipt": "reports/relay/cross-tool-build-review-proposal.receipt.txt",
+            "result": "reports/relay/cross-tool-build-review-proposal.result.json"
+          },
+          "report": {
+            "step_id": "review-proposal-step",
+            "slot": "report",
+            "path": "reports/cross-tool-build/proposal-review.json",
+            "schema": "cross-tool-build.proposal-review@v1"
+          }
+        },
+        {
+          "step_id": "spec-step",
+          "role": "researcher",
+          "writes": {
+            "report": {
+              "path": "reports/cross-tool-build/spec.json",
+              "schema": "cross-tool-build.spec@v1"
+            },
+            "request": "reports/relay/cross-tool-build-spec.request.json",
+            "receipt": "reports/relay/cross-tool-build-spec.receipt.txt",
+            "result": "reports/relay/cross-tool-build-spec.result.json"
+          },
+          "report": {
+            "step_id": "spec-step",
+            "slot": "report",
+            "path": "reports/cross-tool-build/spec.json",
+            "schema": "cross-tool-build.spec@v1"
+          }
+        },
+        {
+          "step_id": "review-spec-step",
+          "role": "reviewer",
+          "writes": {
+            "report": {
+              "path": "reports/cross-tool-build/spec-review.json",
+              "schema": "cross-tool-build.spec-review@v1"
+            },
+            "request": "reports/relay/cross-tool-build-review-spec.request.json",
+            "receipt": "reports/relay/cross-tool-build-review-spec.receipt.txt",
+            "result": "reports/relay/cross-tool-build-review-spec.result.json"
+          },
+          "report": {
+            "step_id": "review-spec-step",
+            "slot": "report",
+            "path": "reports/cross-tool-build/spec-review.json",
+            "schema": "cross-tool-build.spec-review@v1"
+          }
+        },
+        {
+          "step_id": "implement-step",
+          "role": "implementer",
+          "writes": {
+            "report": {
+              "path": "reports/cross-tool-build/implementation.json",
+              "schema": "cross-tool-build.implementation@v1"
+            },
+            "request": "reports/relay/cross-tool-build-implement.request.json",
+            "receipt": "reports/relay/cross-tool-build-implement.receipt.txt",
+            "result": "reports/relay/cross-tool-build-implement.result.json"
+          },
+          "report": {
+            "step_id": "implement-step",
+            "slot": "report",
+            "path": "reports/cross-tool-build/implementation.json",
+            "schema": "cross-tool-build.implementation@v1"
+          }
+        }
+      ],
+      "checkpoints": [],
+      "sub_runs": [],
+      "fanouts": [],
+      "skill_slots": [],
+      "equipment_scopes": []
+    },
+    "proof": {
+      "reports": [
+        {
+          "step_id": "plan-step",
+          "slot": "report",
+          "path": "reports/cross-tool-build/plan.json",
+          "schema": "cross-tool-build.plan@v1"
+        },
+        {
+          "step_id": "propose-step",
+          "slot": "report",
+          "path": "reports/cross-tool-build/proposal.json",
+          "schema": "cross-tool-build.proposal@v1"
+        },
+        {
+          "step_id": "review-proposal-step",
+          "slot": "report",
+          "path": "reports/cross-tool-build/proposal-review.json",
+          "schema": "cross-tool-build.proposal-review@v1"
+        },
+        {
+          "step_id": "spec-step",
+          "slot": "report",
+          "path": "reports/cross-tool-build/spec.json",
+          "schema": "cross-tool-build.spec@v1"
+        },
+        {
+          "step_id": "review-spec-step",
+          "slot": "report",
+          "path": "reports/cross-tool-build/spec-review.json",
+          "schema": "cross-tool-build.spec-review@v1"
+        },
+        {
+          "step_id": "implement-step",
+          "slot": "report",
+          "path": "reports/cross-tool-build/implementation.json",
+          "schema": "cross-tool-build.implementation@v1"
+        },
+        {
+          "step_id": "verify-step",
+          "slot": "report",
+          "path": "reports/cross-tool-build/verification.json",
+          "schema": "cross-tool-build.verification@v1"
+        },
+        {
+          "step_id": "close-step",
+          "slot": "report",
+          "path": "reports/cross-tool-build-result.json",
+          "schema": "cross-tool-build.result@v1"
+        }
+      ],
+      "checks": [
+        {
+          "step_id": "plan-step",
+          "check_kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          }
+        },
+        {
+          "step_id": "propose-step",
+          "check_kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          }
+        },
+        {
+          "step_id": "review-proposal-step",
+          "check_kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          }
+        },
+        {
+          "step_id": "spec-step",
+          "check_kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          }
+        },
+        {
+          "step_id": "review-spec-step",
+          "check_kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          }
+        },
+        {
+          "step_id": "implement-step",
+          "check_kind": "result_verdict",
+          "source": {
+            "kind": "relay_result",
+            "ref": "result"
+          }
+        },
+        {
+          "step_id": "verify-step",
+          "check_kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          }
+        },
+        {
+          "step_id": "close-step",
+          "check_kind": "schema_sections",
+          "source": {
+            "kind": "report",
+            "ref": "report"
+          }
+        }
+      ],
+      "acceptance_criteria": []
+    },
+    "recovery": [
+      {
+        "schema_version": 0,
+        "step_id": "plan-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/plan-step/routes/stop",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "propose-step",
+        "route_id": "retry",
+        "route_target": "propose-step",
+        "kind": "retry_same_step_with_feedback",
+        "allowed_failure_causes": [
+          "failed_check",
+          "failed_acceptance_criteria",
+          "relay_result_invalid"
+        ],
+        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": true,
+          "must_respect_max_attempts": true,
+          "retry_target": "same_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/propose-step/routes/retry",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "propose-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/propose-step/routes/stop",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "review-proposal-step",
+        "route_id": "retry",
+        "route_target": "review-proposal-step",
+        "kind": "retry_same_step_with_feedback",
+        "allowed_failure_causes": [
+          "failed_check",
+          "failed_acceptance_criteria",
+          "relay_result_invalid"
+        ],
+        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": true,
+          "must_respect_max_attempts": true,
+          "retry_target": "same_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/review-proposal-step/routes/retry",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "review-proposal-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/review-proposal-step/routes/stop",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "spec-step",
+        "route_id": "retry",
+        "route_target": "spec-step",
+        "kind": "retry_same_step_with_feedback",
+        "allowed_failure_causes": [
+          "failed_check",
+          "failed_acceptance_criteria",
+          "relay_result_invalid"
+        ],
+        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": true,
+          "must_respect_max_attempts": true,
+          "retry_target": "same_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/spec-step/routes/retry",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "spec-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/spec-step/routes/stop",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "review-spec-step",
+        "route_id": "retry",
+        "route_target": "review-spec-step",
+        "kind": "retry_same_step_with_feedback",
+        "allowed_failure_causes": [
+          "failed_check",
+          "failed_acceptance_criteria",
+          "relay_result_invalid"
+        ],
+        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": true,
+          "must_respect_max_attempts": true,
+          "retry_target": "same_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/review-spec-step/routes/retry",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "review-spec-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/review-spec-step/routes/stop",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "implement-step",
+        "route_id": "retry",
+        "route_target": "implement-step",
+        "kind": "retry_same_step_with_feedback",
+        "allowed_failure_causes": [
+          "failed_check",
+          "failed_acceptance_criteria",
+          "relay_result_invalid"
+        ],
+        "required_refs": ["failed_check", "acceptance_feedback", "budget_state"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": true,
+          "must_respect_max_attempts": true,
+          "retry_target": "same_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/implement-step/routes/retry",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "implement-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/implement-step/routes/stop",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "verify-step",
+        "route_id": "retry",
+        "route_target": "implement-step",
+        "kind": "narrow_scope",
+        "allowed_failure_causes": ["failed_check", "scope_drift", "weak_proof", "unproved_claim"],
+        "required_refs": ["proof_assessment", "runtime_diff"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/verify-step/routes/retry",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "verify-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/verify-step/routes/stop",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      },
+      {
+        "schema_version": 0,
+        "step_id": "close-step",
+        "route_id": "stop",
+        "route_target": "@stop",
+        "kind": "stop_unsafe",
+        "allowed_failure_causes": [
+          "failed_check",
+          "contradicted_evidence",
+          "scope_drift",
+          "budget_exceeded",
+          "unknown_failure"
+        ],
+        "required_refs": ["failed_check", "trace"],
+        "operator_authority": "not_required",
+        "attempt_budget": {
+          "consumes_step_attempt": false,
+          "must_respect_max_attempts": true,
+          "retry_target": "declared_step"
+        },
+        "guidance": {
+          "subject": "recovery_route",
+          "must_match_step_completed": true
+        },
+        "source_ref": {
+          "kind": "work_contract",
+          "ref": "compiled-flow/steps/close-step/routes/stop",
+          "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+          "flow_id": "cross-tool-build"
+        }
+      }
+    ],
+    "limits": {
+      "budgets": []
+    }
+  },
+  "guidance_seed": {
+    "selection_hints": [],
+    "connector_hints": [
+      {
+        "kind": "work_contract",
+        "ref": "compiled-flow/steps/propose-step/connector",
+        "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+        "flow_id": "cross-tool-build"
+      },
+      {
+        "kind": "work_contract",
+        "ref": "compiled-flow/steps/review-proposal-step/connector",
+        "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+        "flow_id": "cross-tool-build"
+      },
+      {
+        "kind": "work_contract",
+        "ref": "compiled-flow/steps/spec-step/connector",
+        "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+        "flow_id": "cross-tool-build"
+      },
+      {
+        "kind": "work_contract",
+        "ref": "compiled-flow/steps/review-spec-step/connector",
+        "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+        "flow_id": "cross-tool-build"
+      },
+      {
+        "kind": "work_contract",
+        "ref": "compiled-flow/steps/implement-step/connector",
+        "sha256": "de5ab10a0f92774bb0af1aaf275d1441b4715d916e6c88d62c9fc8357dfeef32",
+        "flow_id": "cross-tool-build"
+      }
+    ],
+    "skill_hints": [],
+    "checkpoint_default_hints": [],
+    "host_recommendations": []
+  },
+  "rejected_authority": []
+}

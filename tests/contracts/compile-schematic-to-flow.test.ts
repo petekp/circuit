@@ -259,6 +259,39 @@ describe('compileSchematicToCompiledFlow — failure modes', () => {
     ]);
   });
 
+  it('passes an optional per-step relay connector pin through to the compiled flow', () => {
+    // A flow author can pin which worker a relay step runs on (e.g. a Codex
+    // step in an otherwise Claude flow). The schematic carries it inside
+    // execution next to role; the compiler lifts it onto the compiled relay
+    // step, where the runtime relay path already reads step.connector as the
+    // top-priority connector choice.
+    const schematic = loadBuildSchematic();
+    const mutated = {
+      ...schematic,
+      items: schematic.items.map((item) =>
+        item.id === ('act-step' as unknown as typeof item.id)
+          ? { ...item, execution: { ...item.execution, connector: 'codex' } }
+          : item,
+      ),
+    };
+    const compiled = compileSchematicToCompiledFlow(FlowSchematic.parse(mutated));
+    expect(compiled.kind).toBe('single');
+    if (compiled.kind !== 'single') return;
+    const actStep = compiled.flow.steps.find((step) => step.id === 'act-step');
+    expect(actStep?.kind).toBe('relay');
+    expect(actStep && actStep.kind === 'relay' ? actStep.connector : undefined).toBe('codex');
+  });
+
+  it('leaves the compiled relay connector undefined when no pin is authored (byte-stable default)', () => {
+    const schematic = loadBuildSchematic();
+    const compiled = compileSchematicToCompiledFlow(schematic);
+    expect(compiled.kind).toBe('single');
+    if (compiled.kind !== 'single') return;
+    const actStep = compiled.flow.steps.find((step) => step.id === 'act-step');
+    expect(actStep?.kind).toBe('relay');
+    expect(actStep && actStep.kind === 'relay' ? actStep.connector : undefined).toBeUndefined();
+  });
+
   it('throws if a step has no continue/complete route mapping to pass', () => {
     // Target close-step (a leaf): removing its success route leaves the rest of
     // the graph reachable, so the M5 catalog gate stays clean and the route-mapping

@@ -39,6 +39,7 @@ import {
   FanoutConcurrency,
   FanoutFailurePolicy,
   FanoutRubric,
+  RelayConnectorName,
   RelayRole,
   RouteFromReport,
 } from './step.js';
@@ -106,6 +107,14 @@ const RelayStepExecution = z
   .object({
     kind: z.literal('relay'),
     role: RelayRole,
+    // Optional per-step worker pin. When set, this relay step always runs on
+    // the named connector (e.g. 'codex' or 'claude-code'), making the worker
+    // choice a property of the flow rather than of operator config. The
+    // compiler lifts this onto the compiled relay step's `connector`, which the
+    // runtime relay path already reads as the top-priority connector choice
+    // (relay-guidance: stepConnector). Omitted → connector resolves the usual
+    // way (policy/config role preference, then host auto-detect).
+    connector: RelayConnectorName.optional(),
   })
   .strict();
 const SubRunStepExecution = z

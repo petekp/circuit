@@ -20,7 +20,7 @@ import { SkillSlotArray } from './skill.js';
 export const RelayRole = z.enum(['researcher', 'implementer', 'reviewer']);
 export type RelayRole = z.infer<typeof RelayRole>;
 
-const RelayConnectorName = z.string().regex(/^[a-z][a-z0-9-]*$/, {
+export const RelayConnectorName = z.string().regex(/^[a-z][a-z0-9-]*$/, {
   message: 'connector must be a kebab-case connector name',
 });
 

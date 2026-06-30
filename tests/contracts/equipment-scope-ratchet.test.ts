@@ -34,16 +34,19 @@ import { shippedFlowSchematics } from '../helpers/in-memory-schematics.js';
 //   - fix-until-green's two relay steps (2): the first real Converge flow's act
 //     (implementer) and judge (reviewer) relays. It is an internal flow whose
 //     relayer is faked in the e2e, so a house-style seat would be inert here too.
+//   - cross-tool-build's five relay steps (5): the doer/reviewer relays (propose,
+//     review-proposal, spec, review-spec, implement). It is an internal flow whose
+//     relayers are faked in the e2e, so a house-style seat would be inert here too.
 // All are intentional harness/internal gaps, not product-flow regressions (the
 // per-flow assertion below pins every product flow to 0). If one is ever filled,
 // lower this ceiling to match.
-const SKILL_SLOT_GAP_BASELINE = 6;
+const SKILL_SLOT_GAP_BASELINE = 11;
 // Implementer relays still missing an equipment_scope. The product-flow gaps are
 // the partial equipment-axis rollout (fix's implementer is the proven, scoped
-// slice); converge-proof's `work-step` and fix-until-green's `act-step` add the
-// two internal implementer relays, left unscoped for the same reason their seats
-// are empty.
-const TOOL_SCOPE_GAP_BASELINE = 7;
+// slice); converge-proof's `work-step`, fix-until-green's `act-step`, and
+// cross-tool-build's `implement-step` add the three internal implementer relays,
+// left unscoped for the same reason their seats are empty.
+const TOOL_SCOPE_GAP_BASELINE = 8;
 
 function isRelay(item: FlowSchematic['items'][number]): boolean {
   return item.execution.kind === 'relay';
