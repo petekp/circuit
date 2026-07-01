@@ -337,7 +337,7 @@ Flags:
 
 - `--power <auto|low|medium|high>` previews one dial position. Omit it to preview
   the effective dial your config already sets.
-- `--matrix` previews `low`, `medium`, and `high` side by side.
+- `--matrix` previews `high`, `medium`, and `low` side by side.
 - `--json` prints the structured record instead of the table. The readout shows
   the bare model name; the record keeps the provider in its own `provider` field.
 
@@ -362,21 +362,21 @@ not route it. What you turn is the dial:
 
 ```text
 $ circuit preview cross-tool-build --matrix
-flow: cross-tool-build (internal)   dial matrix: low / medium / high
+flow: cross-tool-build (internal)   dial matrix: high / medium / low
 
-STEP                  ROLE         CONNECTOR    LOW             MEDIUM            HIGH
+STEP                  ROLE         CONNECTOR    HIGH            MEDIUM            LOW
 propose-step          researcher   codex        gpt-5.5 / high  gpt-5.5 / high    gpt-5.5 / high
-review-proposal-step  reviewer     claude-code  sonnet / -      sonnet / -        opus / -
+review-proposal-step  reviewer     claude-code  opus / -        sonnet / -        sonnet / -
 spec-step             researcher   codex        gpt-5.5 / high  gpt-5.5 / high    gpt-5.5 / high
-review-spec-step      reviewer     claude-code  sonnet / -      sonnet / -        opus / -
-implement-step        implementer  codex        gpt-5.5 / low   gpt-5.5 / medium  gpt-5.5 / high
+review-spec-step      reviewer     claude-code  opus / -        sonnet / -        sonnet / -
+implement-step        implementer  codex        gpt-5.5 / high  gpt-5.5 / medium  gpt-5.5 / low
 ```
 
 Reading it: the researcher steps (propose, spec) stay on Codex at high effort at
 every dial position, because judgment compounds. The implementer's effort tracks
-the dial (low, medium, high). The reviewers move from Sonnet to Opus only at
-high. The Codex model is your Codex default at every position; the dial moves
-Codex effort, not its model.
+the dial (high, medium, low). The reviewers sit on Opus at high and drop to
+Sonnet below it. The Codex model is your Codex default at every position; the
+dial moves Codex effort, not its model.
 
 To tune this flow past the dial, remap a tier for one connector with
 `power_tiers.<connector>`. Because tier tables are keyed by connector, this

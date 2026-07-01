@@ -60183,7 +60183,7 @@ function resolveFlowSelectionPreview(input) {
 
 // dist/cli/preview.js
 var DIAL_CHOICES = ["auto", "low", "medium", "high"];
-var MATRIX_DIALS = ["low", "medium", "high"];
+var MATRIX_DIALS = ["high", "medium", "low"];
 function writeJson5(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}
 `);
