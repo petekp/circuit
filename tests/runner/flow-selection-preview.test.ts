@@ -58,13 +58,16 @@ describe('resolveFlowSelectionPreview: cross-tool-build dial matrix', () => {
     expect(impl.role).toBe('implementer');
     expect(impl.connector).toBe('codex');
     expect(impl.effort).toBe('low');
-    expect(impl.model).toBe('openai/gpt-5.5');
+    expect(impl.model).toBe('gpt-5.5');
     expect(impl.modelSource).toBe('codex-default');
 
     const review = relayStep(p, 'review-proposal-step');
     expect(review.role).toBe('reviewer');
     expect(review.connector).toBe('claude-code');
-    expect(review.model).toBe('anthropic/sonnet');
+    // `model` is the bare slug; the provider rides a separate field so the
+    // readout stays clean while the structured record keeps it.
+    expect(review.model).toBe('sonnet');
+    expect(review.provider).toBe('anthropic');
 
     // Researcher stays on the top tier at every dial by design ("judgment
     // compounds"), so codex runs it at effort high even at --power low.
@@ -72,21 +75,22 @@ describe('resolveFlowSelectionPreview: cross-tool-build dial matrix', () => {
     expect(propose.role).toBe('researcher');
     expect(propose.connector).toBe('codex');
     expect(propose.effort).toBe('high');
-    expect(propose.model).toBe('openai/gpt-5.5');
+    expect(propose.model).toBe('gpt-5.5');
+    expect(propose.provider).toBe('openai');
   });
 
   it('at --power medium: implementer effort medium, reviewers on sonnet', () => {
     const p = preview('medium');
     expect(relayStep(p, 'implement-step').effort).toBe('medium');
-    expect(relayStep(p, 'review-proposal-step').model).toBe('anthropic/sonnet');
-    expect(relayStep(p, 'review-spec-step').model).toBe('anthropic/sonnet');
+    expect(relayStep(p, 'review-proposal-step').model).toBe('sonnet');
+    expect(relayStep(p, 'review-spec-step').model).toBe('sonnet');
   });
 
   it('at --power high: implementer effort high, reviewers on opus', () => {
     const p = preview('high');
     expect(relayStep(p, 'implement-step').effort).toBe('high');
-    expect(relayStep(p, 'review-proposal-step').model).toBe('anthropic/opus');
-    expect(relayStep(p, 'review-spec-step').model).toBe('anthropic/opus');
+    expect(relayStep(p, 'review-proposal-step').model).toBe('opus');
+    expect(relayStep(p, 'review-spec-step').model).toBe('opus');
   });
 
   it('the dial moves the implementer effort low -> medium -> high', () => {
@@ -96,9 +100,9 @@ describe('resolveFlowSelectionPreview: cross-tool-build dial matrix', () => {
   });
 
   it('the dial moves the reviewer model sonnet -> opus at high', () => {
-    expect(relayStep(preview('low'), 'review-proposal-step').model).toBe('anthropic/sonnet');
-    expect(relayStep(preview('medium'), 'review-proposal-step').model).toBe('anthropic/sonnet');
-    expect(relayStep(preview('high'), 'review-proposal-step').model).toBe('anthropic/opus');
+    expect(relayStep(preview('low'), 'review-proposal-step').model).toBe('sonnet');
+    expect(relayStep(preview('medium'), 'review-proposal-step').model).toBe('sonnet');
+    expect(relayStep(preview('high'), 'review-proposal-step').model).toBe('opus');
   });
 });
 
@@ -122,7 +126,7 @@ describe('resolveFlowSelectionPreview: auto dial and graceful codex-unresolved',
     expect(impl.modelSource).toBe('codex-default-unresolved');
     // The claude-code reviewer still resolves fine; one unresolved connector
     // must not sink the whole preview.
-    expect(relayStep(p, 'review-proposal-step').model).toBe('anthropic/sonnet');
+    expect(relayStep(p, 'review-proposal-step').model).toBe('sonnet');
   });
 });
 

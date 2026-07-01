@@ -67,8 +67,10 @@ describe('circuit preview: front door', () => {
     expect(byId['implement-step']?.connector).toBe('codex');
     expect(byId['review-proposal-step']?.connector).toBe('claude-code');
     // The claude-code reviewer's model comes from the shipped tier table, so it
-    // is machine-independent even though the codex model is not.
-    expect(byId['review-proposal-step']?.model).toBe('anthropic/opus');
+    // is machine-independent even though the codex model is not. `model` is the
+    // bare slug; the provider rides its own field.
+    expect(byId['review-proposal-step']?.model).toBe('opus');
+    expect(byId['review-proposal-step']?.provider).toBe('anthropic');
     expect(preview.nonRelaySteps.map((s) => s.stepId).sort()).toEqual([
       'close-step',
       'plan-step',
@@ -88,7 +90,7 @@ describe('circuit preview: front door', () => {
 
     const reviewerModel = (p: FlowSelectionPreview) =>
       p.relaySteps.find((s) => s.stepId === 'review-proposal-step')?.model;
-    expect(reviewerModel(previews[0] as FlowSelectionPreview)).toBe('anthropic/sonnet');
-    expect(reviewerModel(previews[2] as FlowSelectionPreview)).toBe('anthropic/opus');
+    expect(reviewerModel(previews[0] as FlowSelectionPreview)).toBe('sonnet');
+    expect(reviewerModel(previews[2] as FlowSelectionPreview)).toBe('opus');
   });
 });
