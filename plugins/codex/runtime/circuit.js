@@ -60082,9 +60082,6 @@ function withPowerLayer(layers, power) {
   });
   return [...layers, layer];
 }
-function renderModel(model) {
-  return model === void 0 ? void 0 : `${model.provider}/${model.model}`;
-}
 function previewRelayStep(input) {
   const { step, flow, layers } = input;
   const role = RelayRole.parse(step.role);
@@ -60126,13 +60123,15 @@ function previewRelayStep(input) {
   } catch (error51) {
     problem = error51 instanceof Error ? error51.message : String(error51);
   }
-  const model = renderModel(resolved.model);
+  const modelSlug = resolved.model?.model;
+  const provider = resolved.model?.provider;
   return {
     stepId: step.id,
     kind: "relay",
     role,
     connector: connectorName,
-    ...model === void 0 ? {} : { model },
+    ...modelSlug === void 0 ? {} : { model: modelSlug },
+    ...provider === void 0 ? {} : { provider },
     modelSource,
     ...resolved.effort === void 0 ? {} : { effort: resolved.effort },
     ...resolved.power === void 0 ? {} : { power: resolved.power },

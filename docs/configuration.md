@@ -323,12 +323,12 @@ again costs nothing, so you can settle the config before you pay for a run.
 $ circuit preview cross-tool-build --power high
 flow: cross-tool-build (internal)   dial: high
 
-STEP                  ROLE         CONNECTOR    MODEL           EFFORT  SOURCE
-propose-step          researcher   codex        openai/gpt-5.5  high    codex-default
-review-proposal-step  reviewer     claude-code  anthropic/opus  -       power-tier
-spec-step             researcher   codex        openai/gpt-5.5  high    codex-default
-review-spec-step      reviewer     claude-code  anthropic/opus  -       power-tier
-implement-step        implementer  codex        openai/gpt-5.5  high    codex-default
+STEP                  ROLE         CONNECTOR    MODEL    EFFORT  SOURCE
+propose-step          researcher   codex        gpt-5.5  high    codex-default
+review-proposal-step  reviewer     claude-code  opus     -       power-tier
+spec-step             researcher   codex        gpt-5.5  high    codex-default
+review-spec-step      reviewer     claude-code  opus     -       power-tier
+implement-step        implementer  codex        gpt-5.5  high    codex-default
 
 non-relay steps: plan-step (compose), verify-step (verification), close-step (compose)
 ```
@@ -338,7 +338,8 @@ Flags:
 - `--power <auto|low|medium|high>` previews one dial position. Omit it to preview
   the effective dial your config already sets.
 - `--matrix` previews `low`, `medium`, and `high` side by side.
-- `--json` prints the structured record instead of the table.
+- `--json` prints the structured record instead of the table. The readout shows
+  the bare model name; the record keeps the provider in its own `provider` field.
 
 The `SOURCE` column says where each model came from:
 
@@ -363,12 +364,12 @@ not route it. What you turn is the dial:
 $ circuit preview cross-tool-build --matrix
 flow: cross-tool-build (internal)   dial matrix: low / medium / high
 
-STEP                  ROLE         CONNECTOR    LOW                    MEDIUM                   HIGH
-propose-step          researcher   codex        openai/gpt-5.5 / high  openai/gpt-5.5 / high    openai/gpt-5.5 / high
-review-proposal-step  reviewer     claude-code  anthropic/sonnet / -   anthropic/sonnet / -     anthropic/opus / -
-spec-step             researcher   codex        openai/gpt-5.5 / high  openai/gpt-5.5 / high    openai/gpt-5.5 / high
-review-spec-step      reviewer     claude-code  anthropic/sonnet / -   anthropic/sonnet / -     anthropic/opus / -
-implement-step        implementer  codex        openai/gpt-5.5 / low   openai/gpt-5.5 / medium  openai/gpt-5.5 / high
+STEP                  ROLE         CONNECTOR    LOW             MEDIUM            HIGH
+propose-step          researcher   codex        gpt-5.5 / high  gpt-5.5 / high    gpt-5.5 / high
+review-proposal-step  reviewer     claude-code  sonnet / -      sonnet / -        opus / -
+spec-step             researcher   codex        gpt-5.5 / high  gpt-5.5 / high    gpt-5.5 / high
+review-spec-step      reviewer     claude-code  sonnet / -      sonnet / -        opus / -
+implement-step        implementer  codex        gpt-5.5 / low   gpt-5.5 / medium  gpt-5.5 / high
 ```
 
 Reading it: the researcher steps (propose, spec) stay on Codex at high effort at

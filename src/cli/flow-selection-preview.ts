@@ -64,7 +64,11 @@ export interface RelayStepSelectionPreview {
   readonly kind: 'relay';
   readonly role: RelayRole;
   readonly connector: string;
+  // The model's bare slug (e.g. `opus`, `gpt-5.5`) — what the readout shows.
   readonly model?: string;
+  // The model's provider (e.g. `anthropic`, `openai`), kept as its own field so
+  // the structured record stays complete while the readout omits it.
+  readonly provider?: string;
   readonly modelSource: PreviewModelSource;
   readonly effort?: string;
   readonly power?: Power;
@@ -155,10 +159,6 @@ function withPowerLayer(
   return [...layers, layer];
 }
 
-function renderModel(model: { provider: string; model: string } | undefined): string | undefined {
-  return model === undefined ? undefined : `${model.provider}/${model.model}`;
-}
-
 function previewRelayStep(input: {
   readonly step: RuntimeIndexedRelayStep;
   readonly flow: RuntimeIndexedFlow;
@@ -223,13 +223,15 @@ function previewRelayStep(input: {
     problem = error instanceof Error ? error.message : String(error);
   }
 
-  const model = renderModel(resolved.model);
+  const modelSlug = resolved.model?.model;
+  const provider = resolved.model?.provider;
   return {
     stepId: step.id,
     kind: 'relay',
     role,
     connector: connectorName,
-    ...(model === undefined ? {} : { model }),
+    ...(modelSlug === undefined ? {} : { model: modelSlug }),
+    ...(provider === undefined ? {} : { provider }),
     modelSource,
     ...(resolved.effort === undefined ? {} : { effort: resolved.effort }),
     ...(resolved.power === undefined ? {} : { power: resolved.power }),
