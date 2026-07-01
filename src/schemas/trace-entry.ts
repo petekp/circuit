@@ -471,6 +471,13 @@ export const RelayReceiptTraceEntry = TraceEntryBase.extend({
     .refine((s) => s.trim().length > 0, {
       message: 'receipt_id must contain at least one non-whitespace character',
     }),
+  // The model the connector actually spawned with, when it resolves one at
+  // dispatch (codex records its cache-resolved default here). Optional and a
+  // connector-dispatch fact, parallel to `cli_version`: a connector whose model
+  // is already fixed by `resolved_selection` leaves it absent. Recording it
+  // makes the receipt authoritative about the model even when the selection
+  // layer pinned none.
+  model: z.string().min(1).optional(),
 }).strict();
 export type RelayReceiptTraceEntry = z.infer<typeof RelayReceiptTraceEntry>;
 

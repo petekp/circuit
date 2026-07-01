@@ -226,6 +226,40 @@ describe('Codex connector — src/connectors/codex.ts module shape', () => {
     }
   });
 
+  it('buildCodexArgs falls back to the connector default model when the selection pins none', () => {
+    // relayCodex resolves this default from the codex models cache and passes
+    // it in, so a doer step that pins no model still spawns with an explicit
+    // -m rather than inheriting codex's (possibly unentitled) CLI default.
+    const args = buildCodexArgs({ prompt: 'hello' }, undefined, 'gpt-5.5');
+    const mIndex = args.indexOf('-m');
+    expect(mIndex).toBeGreaterThanOrEqual(0);
+    expect(args[mIndex + 1]).toBe('gpt-5.5');
+  });
+
+  it('buildCodexArgs prefers the selection-pinned model over the connector default', () => {
+    const args = buildCodexArgs(
+      {
+        prompt: 'hello',
+        resolvedSelection: {
+          model: { provider: 'openai', model: 'gpt-5.4' },
+          skills: [],
+          invocation_options: {},
+        },
+      },
+      undefined,
+      'gpt-5.5',
+    );
+    const mIndex = args.indexOf('-m');
+    expect(args[mIndex + 1]).toBe('gpt-5.4');
+    // The default must not also be appended — exactly one -m pair.
+    expect(args.filter((a) => a === '-m')).toHaveLength(1);
+  });
+
+  it('buildCodexArgs emits no -m when neither a selection model nor a default is provided', () => {
+    const args = buildCodexArgs({ prompt: 'hello' });
+    expect(args).not.toContain('-m');
+  });
+
   it('assertCodexSpawnArgvBoundary allows only one model_reasoning_effort -c override', () => {
     const safeArgs = [
       ...CODEX_WRITE_FLAGS,

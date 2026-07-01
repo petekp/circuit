@@ -7,6 +7,7 @@ import type { Effort } from '../schemas/selection-policy.js';
 import type { ResolvedSelection } from '../schemas/selection-policy.js';
 import type { ConnectorRelayInput, RelayResult } from '../shared/connector-relay.js';
 import { extractJsonObject } from '../shared/json-extraction.js';
+import { resolveCodexDefaultModel } from './codex-default-model.js';
 import {
   type ConnectorSubprocessResult,
   cappedSuffix,
@@ -271,12 +272,24 @@ export function assertCodexSpawnArgvBoundary(args: readonly string[]): void {
   }
 }
 
-export function buildCodexArgs(input: CodexRelayInput, schemaPath?: string): string[] {
+// `defaultModel` is the connector-resolved fallback used ONLY when the
+// selection stack pinned no openai model. relayCodex resolves it from the codex
+// models cache and passes it here, so a doer step that pins no model still
+// spawns with an explicit `-m` instead of inheriting codex's CLI-baked default
+// (which a given account may not be entitled to). A selection-pinned model
+// always wins over the fallback. Left undefined by direct callers and unit
+// tests, so those paths keep their prior "no -m unless the selection has one"
+// behavior with no filesystem read.
+export function buildCodexArgs(
+  input: CodexRelayInput,
+  schemaPath?: string,
+  defaultModel?: string,
+): string[] {
   const args: string[] = [...CODEX_WRITE_FLAGS];
   if (input.cwd !== undefined) {
     args.push('--cd', input.cwd);
   }
-  const model = selectedOpenAIModel(input.resolvedSelection);
+  const model = selectedOpenAIModel(input.resolvedSelection) ?? defaultModel;
   if (model !== undefined) {
     args.push('-m', model);
   }
@@ -425,6 +438,15 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
   let tempDir: string | undefined;
   let schemaPath: string | undefined;
   try {
+    // Resolve the effective openai model BEFORE spawning. A selection-pinned
+    // model wins; otherwise fall back to the connector default resolved from the
+    // codex models cache. resolveCodexDefaultModel throws a loud, actionable
+    // error HERE — before any subprocess, i.e. before spend — when no model can
+    // be resolved, rather than letting codex inherit its (possibly unentitled)
+    // CLI default and 400 mid-turn. The throw propagates out of relayCodex; the
+    // `finally` below still runs (tempDir is undefined at this point, a no-op).
+    const effectiveModel =
+      selectedOpenAIModel(input.resolvedSelection) ?? resolveCodexDefaultModel();
     // Degrade gracefully for schemas outside Codex's structured-output subset:
     // skip the flag and fall back to the prose shape hint already embedded in
     // the prompt. The downstream runtime Zod check still validates worker
@@ -434,7 +456,7 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
       tempDir = allocated.dir;
       schemaPath = allocated.path;
     }
-    const args = buildCodexArgs(input, schemaPath);
+    const args = buildCodexArgs(input, schemaPath, effectiveModel);
     let result: ConnectorSubprocessResult;
     try {
       // The shared subprocess helper owns stdin-ignore, detached process
@@ -477,7 +499,14 @@ export async function relayCodex(input: CodexRelayInput): Promise<RelayResult> {
       );
     }
     try {
-      return parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version);
+      const parsed = parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version);
+      // Record which model the doer actually ran with. When the selection
+      // pinned none, effectiveModel is the cache-resolved default — recording it
+      // keeps the run receipt authoritative about the model even though the
+      // selection layer (resolved_selection) pinned nothing. Parallels the
+      // cli_version already carried on RelayResult: both are connector-dispatch
+      // facts observed at spawn, not selection-provenance claims.
+      return { ...parsed, model: effectiveModel };
     } catch (error) {
       const stderrSuffix = cappedSuffix(result.stderrCapped, 'stderr');
       throw new Error(

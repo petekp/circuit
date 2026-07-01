@@ -10766,7 +10766,7 @@ var require_dist = __commonJS({
 });
 
 // dist/cli/circuit.js
-import { readFileSync as readFileSync62 } from "node:fs";
+import { readFileSync as readFileSync63 } from "node:fs";
 import { dirname as dirname15, resolve as resolve30 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
@@ -34638,7 +34638,14 @@ var RelayReceiptTraceEntry = TraceEntryBase.extend({
   cli_version: external_exports.string().min(1),
   receipt_id: external_exports.string().min(1).refine((s) => s.trim().length > 0, {
     message: "receipt_id must contain at least one non-whitespace character"
-  })
+  }),
+  // The model the connector actually spawned with, when it resolves one at
+  // dispatch (codex records its cache-resolved default here). Optional and a
+  // connector-dispatch fact, parallel to `cli_version`: a connector whose model
+  // is already fixed by `resolved_selection` leaves it absent. Recording it
+  // makes the receipt authoritative about the model even when the selection
+  // layer pinned none.
+  model: external_exports.string().min(1).optional()
 }).strict();
 var RelayResultTraceEntry = TraceEntryBase.extend({
   kind: external_exports.literal("relay.result"),
@@ -59396,11 +59403,11 @@ async function runReclaimCommand(argv) {
 
 // dist/cli/run.js
 import { randomUUID as randomUUID9 } from "node:crypto";
-import { existsSync as existsSync40, mkdirSync as mkdirSync11, readFileSync as readFileSync60, writeFileSync as writeFileSync12 } from "node:fs";
-import { dirname as dirname14, join as join45, resolve as resolve28 } from "node:path";
+import { existsSync as existsSync40, mkdirSync as mkdirSync11, readFileSync as readFileSync61, writeFileSync as writeFileSync12 } from "node:fs";
+import { dirname as dirname14, join as join46, resolve as resolve28 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
-import { readFileSync as readFileSync52 } from "node:fs";
+import { readFileSync as readFileSync53 } from "node:fs";
 
 // dist/policy/policy-envelope.js
 var PolicyEnvelopeCompositionError = class extends Error {
@@ -60806,7 +60813,7 @@ function seedEquipmentReshapeFromTrace(entries, initialFlow) {
 
 // dist/runtime/run/graph-runner.js
 import { randomUUID as randomUUID7 } from "node:crypto";
-import { join as join35 } from "node:path";
+import { join as join36 } from "node:path";
 
 // dist/selection/power-inference.js
 function createPowerInferenceChannel() {
@@ -62907,7 +62914,7 @@ function isRubricJudgment(value) {
 
 // dist/runtime/fanout/branch-execution.js
 import { randomUUID as randomUUID6 } from "node:crypto";
-import { dirname as dirname8, join as join32 } from "node:path";
+import { dirname as dirname8, join as join33 } from "node:path";
 
 // dist/flows/registries/cross-report-validators.js
 var REGISTRY5 = buildCrossReportValidatorRegistry(flowPackages);
@@ -62965,6 +62972,97 @@ import { execFileSync as execFileSync4 } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join as joinPath } from "node:path";
+
+// dist/connectors/codex-default-model.js
+import { readFileSync as readFileSync48 } from "node:fs";
+import { homedir as homedir4 } from "node:os";
+import { join as join29 } from "node:path";
+var CODEX_MODELS_CACHE_FILENAME = "models_cache.json";
+function codexHomeDir() {
+  const fromEnv = process.env.CODEX_HOME;
+  if (fromEnv !== void 0 && fromEnv.trim().length > 0)
+    return fromEnv;
+  return join29(homedir4(), ".codex");
+}
+function codexModelsCachePath() {
+  return join29(codexHomeDir(), CODEX_MODELS_CACHE_FILENAME);
+}
+function candidateFrom(value) {
+  if (typeof value !== "object" || value === null)
+    return void 0;
+  const record2 = value;
+  if (record2.visibility !== "list")
+    return void 0;
+  if (record2.supported_in_api !== true)
+    return void 0;
+  const priority = record2.priority;
+  if (typeof priority !== "number" || !Number.isFinite(priority))
+    return void 0;
+  const slug = typeof record2.slug === "string" ? record2.slug.trim() : void 0;
+  if (slug === void 0 || slug.length === 0)
+    return void 0;
+  return { slug, priority };
+}
+function pickCodexFlagshipModel(cache) {
+  if (typeof cache !== "object" || cache === null)
+    return void 0;
+  const models = cache.models;
+  if (!Array.isArray(models))
+    return void 0;
+  const candidates = models.map(candidateFrom).filter((entry) => entry !== void 0);
+  if (candidates.length === 0)
+    return void 0;
+  candidates.sort((a, b) => a.priority - b.priority);
+  return candidates[0]?.slug;
+}
+var CodexDefaultModelUnavailableError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "CodexDefaultModelUnavailableError";
+  }
+};
+function unavailableMessage(cachePath, reason) {
+  return [
+    "codex connector: no model is pinned for this codex step and no default could",
+    `be resolved from the Codex models cache (${cachePath}).`,
+    "Circuit runs codex with --ignore-user-config, so ~/.codex/config.toml is",
+    "intentionally not consulted for the model. Fix by either (a) pinning an",
+    "openai model for codex in your Circuit config \u2014 set defaults.selection.model",
+    '(or circuits.<flow>.selection.model) to { provider: "openai", model:',
+    '"<model>" }, or set power_tiers.codex.<tier>.model \u2014 or (b) running `codex`',
+    `once so ${cachePath} is populated.`,
+    `(reason: ${reason})`
+  ].join(" ");
+}
+function resolveCodexDefaultModelUncached() {
+  const cachePath = codexModelsCachePath();
+  let raw;
+  try {
+    raw = readFileSync48(cachePath, "utf8");
+  } catch (err) {
+    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache not readable: ${err.message}`));
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache is not valid JSON: ${err.message}`));
+  }
+  const model = pickCodexFlagshipModel(parsed);
+  if (model === void 0) {
+    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, "no API-listed model found in the cache"));
+  }
+  return model;
+}
+var cachedDefaultModel;
+function resolveCodexDefaultModel() {
+  if (cachedDefaultModel !== void 0)
+    return cachedDefaultModel;
+  cachedDefaultModel = resolveCodexDefaultModelUncached();
+  return cachedDefaultModel;
+}
+
+// dist/connectors/codex.js
 var CODEX_WRITE_FLAGS = Object.freeze([
   "exec",
   "--json",
@@ -63081,12 +63179,12 @@ function assertCodexSpawnArgvBoundary(args) {
     }
   }
 }
-function buildCodexArgs(input, schemaPath) {
+function buildCodexArgs(input, schemaPath, defaultModel) {
   const args = [...CODEX_WRITE_FLAGS];
   if (input.cwd !== void 0) {
     args.push("--cd", input.cwd);
   }
-  const model = selectedOpenAIModel(input.resolvedSelection);
+  const model = selectedOpenAIModel(input.resolvedSelection) ?? defaultModel;
   if (model !== void 0) {
     args.push("-m", model);
   }
@@ -63197,12 +63295,13 @@ async function relayCodex(input) {
   let tempDir;
   let schemaPath;
   try {
+    const effectiveModel = selectedOpenAIModel(input.resolvedSelection) ?? resolveCodexDefaultModel();
     if (input.responseSchema !== void 0 && isCodexOutputSchemaCompatible(input.responseSchema)) {
       const allocated = await writeSchemaTempFile(input.responseSchema);
       tempDir = allocated.dir;
       schemaPath = allocated.path;
     }
-    const args = buildCodexArgs(input, schemaPath);
+    const args = buildCodexArgs(input, schemaPath, effectiveModel);
     let result;
     try {
       result = await runConnectorSubprocess({
@@ -63235,7 +63334,8 @@ async function relayCodex(input) {
       throw new Error(`codex subprocess stdout exceeded ${STDOUT_MAX_BYTES2} bytes; capability-boundary check cannot be evaluated on truncated stream`);
     }
     try {
-      return parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version);
+      const parsed = parseCodexStdout(result.stdout, input.prompt, result.durationMs, cli_version);
+      return { ...parsed, model: effectiveModel };
     } catch (error51) {
       const stderrSuffix = cappedSuffix(result.stderrCapped, "stderr");
       throw new Error(`codex subprocess: ${error51.message}; stdout[:500]=${result.stdout.slice(0, 500)}; stderr[:200]=${result.stderr.slice(0, 200)}${stderrSuffix}`);
@@ -63458,7 +63558,7 @@ async function relayCursorAgent(input) {
 // dist/connectors/custom.js
 import { mkdtemp as mkdtemp2, readFile as readFile2, rm as rm2, stat, writeFile as writeFile2 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join29 } from "node:path";
+import { join as join30 } from "node:path";
 var DEFAULT_TIMEOUT_MS5 = 12e4;
 var SIGTERM_TO_SIGKILL_GRACE_MS4 = 2e3;
 var OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
@@ -63500,9 +63600,9 @@ async function relayCustom(input) {
   if (executable === void 0) {
     throw new Error(`custom connector '${descriptor.name}' command is empty`);
   }
-  const tempDir = await mkdtemp2(join29(tmpdir2(), "circuit-custom-connector-"));
-  const promptFile = join29(tempDir, "prompt.txt");
-  const outputFile = join29(tempDir, "output.txt");
+  const tempDir = await mkdtemp2(join30(tmpdir2(), "circuit-custom-connector-"));
+  const promptFile = join30(tempDir, "prompt.txt");
+  const outputFile = join30(tempDir, "output.txt");
   await writeFile2(promptFile, input.prompt, "utf8");
   const args = [...baseArgs, promptFile, outputFile];
   const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS5;
@@ -64184,7 +64284,7 @@ function planRelayGuidanceDecision(input) {
 }
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync32, readFileSync as readFileSync48 } from "node:fs";
+import { existsSync as existsSync32, readFileSync as readFileSync49 } from "node:fs";
 
 // dist/flows/registries/shape-hints/registry.js
 var SCHEMA_HINTS = buildSchemaHintMap(flowPackages);
@@ -64451,7 +64551,7 @@ function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryF
     const abs = resolveRunRelative(runFolder, path);
     if (!existsSync32(abs))
       return `[reads unavailable: ${path}]`;
-    return fencedBlock("read", ` path="${path}"`, readFileSync48(abs, "utf8"));
+    return fencedBlock("read", ` path="${path}"`, readFileSync49(abs, "utf8"));
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
   const houseStyle = houseStyleSection(step, loadedSkills);
@@ -64942,7 +65042,11 @@ async function executeProductionRelayAttempt(input) {
     step_id: step.id,
     attempt,
     cli_version: relayResult.cli_version,
-    receipt_id: relayResult.receipt_id
+    receipt_id: relayResult.receipt_id,
+    // Present only when the connector resolved a model at dispatch (codex's
+    // cache-resolved default). Keeps the receipt authoritative about the model
+    // even when resolved_selection pinned none.
+    ...relayResult.model === void 0 ? {} : { model: relayResult.model }
   });
   await context.trace.append({
     run_id: context.runId,
@@ -65171,7 +65275,7 @@ async function executeProductionRelay(step, context) {
 
 // dist/runtime/executors/sub-run.js
 import { randomUUID as randomUUID5 } from "node:crypto";
-import { dirname as dirname7, join as join30 } from "node:path";
+import { dirname as dirname7, join as join31 } from "node:path";
 var RECURSION_DEPTH_CAP = 8;
 function checkPassVerdicts(step) {
   const pass = step.check.pass;
@@ -65276,7 +65380,7 @@ async function executeSubRunInternal(step, context) {
     return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': resolver returned flow id '${childFlow.id}' but flow_ref names '${step.flowRef}'`);
   }
   const childRunId = randomUUID5();
-  const childRunDir = join30(dirname7(context.runDir), childRunId);
+  const childRunDir = join31(dirname7(context.runDir), childRunId);
   await context.trace.append({
     run_id: context.runId,
     kind: "sub_run.started",
@@ -65403,8 +65507,8 @@ async function executeSubRun(step, context) {
 }
 
 // dist/runtime/run/reuse-children.js
-import { existsSync as existsSync33, readFileSync as readFileSync49 } from "node:fs";
-import { isAbsolute as isAbsolute12, join as join31 } from "node:path";
+import { existsSync as existsSync33, readFileSync as readFileSync50 } from "node:fs";
+import { isAbsolute as isAbsolute12, join as join32 } from "node:path";
 function isCompletedSubRunBranch(entry, stepId, branchId) {
   return entry.kind === "fanout.branch_completed" && entry.step_id === stepId && entry.branch_id === branchId && entry.branch_kind === "sub-run" && entry.child_outcome === "complete";
 }
@@ -65431,12 +65535,12 @@ async function lookupReusableSubRunBranch(input) {
   }
   if (worktreePath === void 0)
     return void 0;
-  if (!existsSync33(join31(worktreePath, ".git")))
+  if (!existsSync33(join32(worktreePath, ".git")))
     return void 0;
-  const resultAbs = isAbsolute12(completed.result_path) ? completed.result_path : join31(input.priorRunFolder, completed.result_path);
+  const resultAbs = isAbsolute12(completed.result_path) ? completed.result_path : join32(input.priorRunFolder, completed.result_path);
   let resultBody;
   try {
-    resultBody = RunResult.parse(JSON.parse(readFileSync49(resultAbs, "utf8")));
+    resultBody = RunResult.parse(JSON.parse(readFileSync50(resultAbs, "utf8")));
   } catch {
     return void 0;
   }
@@ -65868,7 +65972,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
     if (childFlow.id !== branch.flowRef) {
       throw new Error(`resolver returned flow id '${childFlow.id}' but branch flow_ref names '${branch.flowRef}'`);
     }
-    const childRunDir = join32(dirname8(context.runDir), childRunId);
+    const childRunDir = join33(dirname8(context.runDir), childRunId);
     const child = await context.childRunner({
       flowBytes: resolved.flowBytes,
       runDir: childRunDir,
@@ -66708,7 +66812,7 @@ async function appendCarriedNote(input) {
 
 // dist/runtime/run/frozen-eval.js
 import { createHash as createHash6 } from "node:crypto";
-import { readFileSync as readFileSync50 } from "node:fs";
+import { readFileSync as readFileSync51 } from "node:fs";
 import { resolve as resolve23 } from "node:path";
 var ABSENT = "<absent>";
 var FrozenEvalGuard = class {
@@ -66724,7 +66828,7 @@ var FrozenEvalGuard = class {
   // or unreadable. Resolved against the injected project root; never cwd.
   fingerprint(declaredPath) {
     try {
-      const bytes = readFileSync50(resolve23(this.projectRoot, declaredPath));
+      const bytes = readFileSync51(resolve23(this.projectRoot, declaredPath));
       return createHash6("sha256").update(bytes).digest("hex");
     } catch {
       return ABSENT;
@@ -66795,10 +66899,10 @@ function honestyLatchGap(ledger) {
 
 // dist/runtime/run/manifest-snapshot.js
 import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname9, join as join33 } from "node:path";
+import { dirname as dirname9, join as join34 } from "node:path";
 var MANIFEST_SNAPSHOT_RUN_FILE = "manifest.snapshot.json";
 function runtimeManifestSnapshotPath(runDir) {
-  return join33(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
+  return join34(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
 }
 async function writeRuntimeManifestSnapshot(input) {
   const bytes = Buffer.from(input.bytes);
@@ -67049,11 +67153,11 @@ function corridorCause(active, binding) {
 }
 
 // dist/runtime/run/run-boundary.js
-import { readFileSync as readFileSync51 } from "node:fs";
+import { readFileSync as readFileSync52 } from "node:fs";
 import { lstat, mkdir as mkdir3, readdir as readdir2 } from "node:fs/promises";
 
 // dist/runtime/projections/progress.js
-import { join as join34 } from "node:path";
+import { join as join35 } from "node:path";
 
 // dist/shared/write-capable-worker-disclosure.js
 var WRITE_CAPABLE_FLOW_IDS = /* @__PURE__ */ new Set(["build", "fix", "prototype", "pursue"]);
@@ -67133,7 +67237,7 @@ function reportTaskListProgress(input) {
   });
 }
 function readJsonReport2(files, runDir, reportPath) {
-  const text = files.readText(join34(runDir, reportPath));
+  const text = files.readText(join35(runDir, reportPath));
   if (text === void 0)
     throw new Error(`progress projection could not read ${reportPath}`);
   return JSON.parse(text);
@@ -67224,7 +67328,7 @@ function checkpointChoiceLabel(choice) {
   return choice.split(/[-_]/).filter((part) => part.length > 0).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
 function checkpointRequestPath(runDir, requestPath) {
-  return requestPath.startsWith("/") ? requestPath : join34(runDir, requestPath);
+  return requestPath.startsWith("/") ? requestPath : join35(runDir, requestPath);
 }
 function shouldWarnAboutWriteCapableWorker(flow) {
   return flowMayInvokeWriteCapableWorker(flow.id) || flow.steps.some((step) => step.kind === "relay" && step.role === "implementer");
@@ -67503,7 +67607,7 @@ function createProgressProjector(input) {
         const presentation = tournamentCheckpointPresentation({
           readJson: (path) => {
             try {
-              const text = projectionFiles.readText(join34(input.runDir, path));
+              const text = projectionFiles.readText(join35(input.runDir, path));
               return text === void 0 ? void 0 : JSON.parse(text);
             } catch {
               return void 0;
@@ -67801,7 +67905,7 @@ async function openRunBoundary(options) {
     files: {
       readText(path) {
         try {
-          return readFileSync51(path, "utf8");
+          return readFileSync52(path, "utf8");
         } catch {
           return void 0;
         }
@@ -68605,7 +68709,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const bindingLegibility = resolveBindingLegibility(flow);
   const engineFlags = resolveEngineFlags(flow);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(flow.reportFileSurfaces ?? {});
-  const honestyLedger = engineFlags?.iteratesUntilCondition?.stopJudge !== void 0 ? new HonestyLedger({ path: join35(runDir, "honesty-ledger.json") }) : void 0;
+  const honestyLedger = engineFlags?.iteratesUntilCondition?.stopJudge !== void 0 ? new HonestyLedger({ path: join36(runDir, "honesty-ledger.json") }) : void 0;
   const context = {
     flow,
     packageIndex,
@@ -69578,7 +69682,7 @@ function readCheckpointRequestContextResult(input) {
   const requestAbs = resolveRunFilePath(input.runDir, input.requestPath);
   let requestText;
   try {
-    requestText = readFileSync52(requestAbs, "utf8");
+    requestText = readFileSync53(requestAbs, "utf8");
   } catch (error51) {
     return checkpointResumeRejectedFrom(error51);
   }
@@ -69936,8 +70040,8 @@ async function resumeCompiledFlow(options) {
 }
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync34, readFileSync as readFileSync53 } from "node:fs";
-import { join as join36, resolve as resolve24 } from "node:path";
+import { existsSync as existsSync34, readFileSync as readFileSync54 } from "node:fs";
+import { join as join37, resolve as resolve24 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -69946,11 +70050,11 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
   }
   try {
     const relPath = fact.source.ref.ref.split("#")[0] ?? fact.source.ref.ref;
-    const abs = join36(runsBase, runId, relPath);
+    const abs = join37(runsBase, runId, relPath);
     if (!existsSync34(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
-    const currentHash = sha256OfString(readFileSync53(abs, "utf8"));
+    const currentHash = sha256OfString(readFileSync54(abs, "utf8"));
     return currentHash === sourceSha ? { status: "fresh", checked_at: checkedAt, reason_codes: ["source_hash_verified"] } : { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
   } catch {
     return { status: "unknown", checked_at: checkedAt, reason_codes: ["memory_unverified"] };
@@ -70185,8 +70289,8 @@ function prepareRunStartHistoryRecall(options) {
 }
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync36, mkdirSync as mkdirSync7, readFileSync as readFileSync55, rmSync as rmSync5, writeFileSync as writeFileSync8 } from "node:fs";
-import { dirname as dirname10, isAbsolute as isAbsolute13, join as join37, relative as relative13, resolve as resolve25 } from "node:path";
+import { existsSync as existsSync36, mkdirSync as mkdirSync7, readFileSync as readFileSync56, rmSync as rmSync5, writeFileSync as writeFileSync8 } from "node:fs";
+import { dirname as dirname10, isAbsolute as isAbsolute13, join as join38, relative as relative13, resolve as resolve25 } from "node:path";
 
 // dist/runtime/run/iteration-ledger.js
 function emptyUsage() {
@@ -70250,7 +70354,7 @@ function renderIterationLedgerMarkdown(rows) {
 }
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync35, readFileSync as readFileSync54 } from "node:fs";
+import { existsSync as existsSync35, readFileSync as readFileSync55 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -70258,7 +70362,7 @@ function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
   if (!existsSync35(path))
     return void 0;
-  const parsed = JSON.parse(readFileSync54(path, "utf8"));
+  const parsed = JSON.parse(readFileSync55(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
 }
 function stringField2(report, key) {
@@ -70870,11 +70974,11 @@ function projectSummary(input) {
 
 // dist/app/operator-summary/writer.js
 function readPriorRoute(runFolder) {
-  const path = join37(runFolder, "reports", "operator-summary.json");
+  const path = join38(runFolder, "reports", "operator-summary.json");
   if (!existsSync36(path))
     return {};
   try {
-    const raw = JSON.parse(readFileSync55(path, "utf8"));
+    const raw = JSON.parse(readFileSync56(path, "utf8"));
     if (!isObject4(raw))
       return {};
     const routedBy = raw.routed_by;
@@ -70891,13 +70995,13 @@ var HTML_REPORT_LABEL = "Operator summary (HTML)";
 var MAX_KEY_POINTS = 4;
 var MAX_CAVEATS = 3;
 function jsonPath(runFolder) {
-  return join37(runFolder, "reports", "operator-summary.json");
+  return join38(runFolder, "reports", "operator-summary.json");
 }
 function markdownPath(runFolder) {
-  return join37(runFolder, "reports", "operator-summary.md");
+  return join38(runFolder, "reports", "operator-summary.md");
 }
 function htmlPath(runFolder) {
-  return join37(runFolder, "reports", "operator-summary.html");
+  return join38(runFolder, "reports", "operator-summary.html");
 }
 function isInsideOrSame4(root, target) {
   const fromRoot = relative13(root, target);
@@ -70915,7 +71019,7 @@ function readCheckpointRequest(runFolder, checkpoint) {
   if (!existsSync36(requestPath))
     return void 0;
   try {
-    const parsed = JSON.parse(readFileSync55(requestPath, "utf8"));
+    const parsed = JSON.parse(readFileSync56(requestPath, "utf8"));
     return isObject4(parsed) ? parsed : void 0;
   } catch {
     return void 0;
@@ -71291,11 +71395,11 @@ function evidenceLinks2(runFolder, report) {
   });
 }
 function readAutoResolutions(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join38(runFolder, "trace.ndjson");
   if (!existsSync36(tracePath))
     return [];
   const records = [];
-  for (const line of readFileSync55(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -71332,7 +71436,7 @@ function emptySpendTotals() {
 }
 var SPEND_ROLE_ORDER = ["researcher", "implementer", "reviewer"];
 function readRunReceipt(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join38(runFolder, "trace.ndjson");
   if (!existsSync36(tracePath))
     return void 0;
   let depth;
@@ -71351,7 +71455,7 @@ function readRunReceipt(runFolder) {
   let spendRelaysMissingUsage = 0;
   let anyUsage = false;
   let anyCostMissing = false;
-  for (const line of readFileSync55(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -71566,13 +71670,13 @@ function skillHookSourceLabel(source) {
   }
 }
 function readSkillHookSummary(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join38(runFolder, "trace.ndjson");
   if (!existsSync36(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
   const warnings = [];
-  for (const line of readFileSync55(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -71640,13 +71744,13 @@ function skillHookActivationLine(activation) {
   return `\`${activation.hook}\` ${parts.join("; ")} \u2014 ${provenance}`;
 }
 function readEquipmentReshapeSummary(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join38(runFolder, "trace.ndjson");
   if (!existsSync36(tracePath))
     return { reshapes: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const reshapes = [];
   const warnings = [];
-  for (const line of readFileSync55(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -71696,11 +71800,11 @@ function equipmentReshapeLine(reshape) {
   return `\`${reshape.step_id}\` confirmed ${domains}; equipped ${equipped}`;
 }
 function readIterationLedger(runFolder) {
-  const tracePath = join37(runFolder, "trace.ndjson");
+  const tracePath = join38(runFolder, "trace.ndjson");
   if (!existsSync36(tracePath))
     return [];
   const entries = [];
-  for (const line of readFileSync55(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let raw;
@@ -72005,7 +72109,7 @@ function writeOperatorSummary(input) {
 
 // dist/app/process-evidence/projection.js
 import { existsSync as existsSync37, mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname11, join as join38 } from "node:path";
+import { dirname as dirname11, join as join39 } from "node:path";
 function traceRef2(runId) {
   return {
     kind: "trace",
@@ -72062,15 +72166,15 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync37(join38(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync37(join39(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join38(input.runFolder, path),
+    path: join39(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
   const additionalRefs = (input.additionalEvidencePaths ?? []).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join38(input.runFolder, path),
+    path: join39(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
@@ -72126,7 +72230,7 @@ function projectCheckpointWaitingProcessEvidence(input) {
 }
 function writeProcessEvidenceProjection(input) {
   const projection = ProcessEvidenceProjection.parse(input.projection);
-  const outPath = join38(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
+  const outPath = join39(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
   mkdirSync8(dirname11(outPath), { recursive: true });
   writeFileSync9(outPath, `${JSON.stringify(projection, null, 2)}
 `);
@@ -72207,7 +72311,7 @@ function detectNoProgress(attempts) {
 
 // dist/app/run-envelope/source-record.js
 import { mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname12, join as join39 } from "node:path";
+import { dirname as dirname12, join as join40 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RUN_SURFACE_RELATIVE_PATH = "reports/run-surface.md";
 var RUN_DECISION_PACKET_RELATIVE_DIR = "reports/decision-packets";
@@ -72251,7 +72355,7 @@ function renderSurfaceMarkdown(input) {
     ...input.record.surface_output.artifact_links
   ];
   const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
-  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join39(input.runFolder, ref.ref))).join(" \xB7 ");
+  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join40(input.runFolder, ref.ref))).join(" \xB7 ");
   return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
 }
 function processAttemptOutcome(outcome) {
@@ -72761,17 +72865,17 @@ function writeRunEnvelopeRecord(input) {
     }),
     outcome
   });
-  const outPath = join39(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
+  const outPath = join40(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
   mkdirSync9(dirname12(outPath), { recursive: true });
   const decisionPacketPaths = decisionArtifacts.map((artifact) => {
-    const path = join39(input.runFolder, artifact.ref.ref);
+    const path = join40(input.runFolder, artifact.ref.ref);
     mkdirSync9(dirname12(path), { recursive: true });
     writeFileSync10(path, artifact.body);
     return path;
   });
   writeFileSync10(outPath, `${JSON.stringify(record2, null, 2)}
 `);
-  const surfacePath = join39(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
+  const surfacePath = join40(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
   writeFileSync10(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
   return {
     path: outPath,
@@ -72887,16 +72991,16 @@ async function runAutonomousContinuation(input) {
 
 // dist/shared/config-loader.js
 var import_yaml4 = __toESM(require_dist(), 1);
-import { existsSync as existsSync38, readFileSync as readFileSync56 } from "node:fs";
-import { homedir as homedir4 } from "node:os";
-import { join as join40, resolve as resolve26 } from "node:path";
+import { existsSync as existsSync38, readFileSync as readFileSync57 } from "node:fs";
+import { homedir as homedir5 } from "node:os";
+import { join as join41, resolve as resolve26 } from "node:path";
 var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
 var PROJECT_CONFIG_RELATIVE_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS;
-function userGlobalConfigPath(homeDir = homedir4()) {
-  return join40(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
+function userGlobalConfigPath(homeDir = homedir5()) {
+  return join41(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
 }
 function projectConfigPath2(cwd = process.cwd()) {
-  return join40(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
+  return join41(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
 }
 function parseConfigYaml(text, sourcePath) {
   try {
@@ -72909,7 +73013,7 @@ function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
   const abs = resolve26(sourcePath);
   if (!existsSync38(abs))
     return void 0;
-  const raw = parseConfigYaml(readFileSync56(abs, "utf8"), abs);
+  const raw = parseConfigYaml(readFileSync57(abs, "utf8"), abs);
   if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
     const schemaVersion = raw.schema_version;
     if (schemaVersion === 2) {
@@ -72967,7 +73071,7 @@ function discoverRuntimeConfigLayers(options = {}) {
 }
 
 // dist/cli/compiled-flow-loading.js
-import { existsSync as existsSync39, readFileSync as readFileSync57 } from "node:fs";
+import { existsSync as existsSync39, readFileSync as readFileSync58 } from "node:fs";
 import { resolve as resolve27 } from "node:path";
 function resolveCompiledFlowPath(flowName, modeName, override, flowRoot2) {
   if (override !== void 0)
@@ -73003,7 +73107,7 @@ function loadCompiledFlow(compiledFlowPath) {
   if (!existsSync39(compiledFlowPath)) {
     throw new Error(`compiled flow not found: ${compiledFlowPath}`);
   }
-  const bytes = readFileSync57(compiledFlowPath);
+  const bytes = readFileSync58(compiledFlowPath);
   const raw = JSON.parse(bytes.toString("utf8"));
   const flow = CompiledFlow.parse(raw);
   const policy2 = validateCompiledFlowKindPolicy(flow);
@@ -73022,12 +73126,12 @@ function defaultChildCompiledFlowResolver(flowRoot2) {
 }
 
 // dist/cli/post-run-artifacts.js
-import { readFileSync as readFileSync58 } from "node:fs";
-import { join as join42 } from "node:path";
+import { readFileSync as readFileSync59 } from "node:fs";
+import { join as join43 } from "node:path";
 
 // dist/app/run-envelope/shadow-record.js
 import { mkdirSync as mkdirSync10, writeFileSync as writeFileSync11 } from "node:fs";
-import { dirname as dirname13, join as join41 } from "node:path";
+import { dirname as dirname13, join as join42 } from "node:path";
 var RUN_ENVELOPE_SHADOW_RELATIVE_PATH = "reports/run-envelope-shadow.json";
 function reportRef2(input) {
   return {
@@ -73116,7 +73220,7 @@ function writeRunEnvelopeShadowRecord(input) {
     child_run: childRun,
     artifact_links: artifactLinks
   });
-  const outPath = join41(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
+  const outPath = join42(input.runFolder, RUN_ENVELOPE_SHADOW_RELATIVE_PATH);
   mkdirSync10(dirname13(outPath), { recursive: true });
   writeFileSync11(outPath, `${JSON.stringify(record2, null, 2)}
 `);
@@ -73153,7 +73257,7 @@ function resolveFlowPrimaryOutcome(input) {
     return void 0;
   let primaryResult;
   try {
-    primaryResult = JSON.parse(readFileSync58(join42(input.runFolder, primaryResultPath), "utf8"));
+    primaryResult = JSON.parse(readFileSync59(join43(input.runFolder, primaryResultPath), "utf8"));
   } catch {
     return void 0;
   }
@@ -73197,8 +73301,8 @@ function emitPostRunArtifacts(input) {
 
 // dist/cli/recovery-attempt-runner.js
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { readFileSync as readFileSync59 } from "node:fs";
-import { join as join43 } from "node:path";
+import { readFileSync as readFileSync60 } from "node:fs";
+import { join as join44 } from "node:path";
 function createRecoveryAttemptRunner(deps) {
   const { primaryProjection, fixtureSelectionName, flowRoot: flowRoot2, parentAxes, runFolder, operatorGoal, now, projectRoot, relayer, runtimeExecutors, hostKind, selectionConfigLayers, policyLayers } = deps;
   const recoveryFlowCache = /* @__PURE__ */ new Map();
@@ -73227,7 +73331,7 @@ function createRecoveryAttemptRunner(deps) {
       tournament: false,
       autonomous: parentAxes.autonomous && support.supportsAutonomous
     });
-    const attemptFolder = join43(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
+    const attemptFolder = join44(runFolder, "attempts", `attempt-${attemptNumber}-${processId}`);
     const recoveryResult = await runCompiledFlowWithWaiting({
       flowBytes: recoveryFlow.bytes,
       compiledFlowPath: recoveryFlow.path,
@@ -73260,7 +73364,7 @@ function createRecoveryAttemptRunner(deps) {
         })
       };
     }
-    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync59(recoveryResult.resultPath, "utf8")));
+    const recoveryRunResult = RunResult.parse(JSON.parse(readFileSync60(recoveryResult.resultPath, "utf8")));
     return {
       projection: projectClosedProcessEvidence({
         runFolder: attemptFolder,
@@ -73332,13 +73436,13 @@ function runEnvelopeOutputFields(input) {
 }
 
 // dist/cli/run-stdout-envelope.js
-import { join as join44 } from "node:path";
+import { join as join45 } from "node:path";
 function historyRecallOutputFields(input) {
   return {
     history_recall: {
       status: input.report.status,
       memory_input_count: input.report.memory_input_count,
-      report_path: join44(input.runFolder, HISTORY_RECALL_REPORT_PATH),
+      report_path: join45(input.runFolder, HISTORY_RECALL_REPORT_PATH),
       rebuilt: input.report.rebuilt,
       ...input.report.index_state === void 0 ? {} : { index_state: input.report.index_state },
       warnings: input.report.warnings.map((warning) => ({
@@ -73703,7 +73807,7 @@ async function runResumeCommand(args, options) {
         ...progress === void 0 ? {} : { progress },
         progressSurfaceForFlowId
       });
-      const runResult = RunResult.parse(JSON.parse(readFileSync60(runtimeResult.resultPath, "utf8")));
+      const runResult = RunResult.parse(JSON.parse(readFileSync61(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
       const postRunArtifactContext = {
@@ -73831,7 +73935,7 @@ async function runExecutionCommand(args, options) {
     ...entryModeSelection.entryModeName === void 0 ? {} : { entry_mode: entryModeSelection.entryModeName },
     ...entryModeSelection.source === void 0 ? {} : { entry_mode_source: entryModeSelection.source }
   });
-  const runFolder = args.runFolder === void 0 ? join45(runsRoot(process.cwd()), runId) : resolve28(args.runFolder);
+  const runFolder = args.runFolder === void 0 ? join46(runsRoot(process.cwd()), runId) : resolve28(args.runFolder);
   const runtimeConfigLayers = discoverRuntimeConfigLayers({
     ...options.configHomeDir !== void 0 ? { homeDir: options.configHomeDir } : {},
     ...options.configCwd !== void 0 ? { cwd: options.configCwd } : {},
@@ -74011,7 +74115,7 @@ async function runExecutionCommand(args, options) {
 `);
       return 0;
     }
-    const runResult = RunResult.parse(JSON.parse(readFileSync60(runtimeResult.resultPath, "utf8")));
+    const runResult = RunResult.parse(JSON.parse(readFileSync61(runtimeResult.resultPath, "utf8")));
     const selectedProcess = selectedProcessFields({
       processId: flow.id,
       routedBy: route.source,
@@ -74077,7 +74181,7 @@ async function runExecutionCommand(args, options) {
             policyLayers
           })
         });
-        const autonomousLoopPath = join45(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
+        const autonomousLoopPath = join46(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH);
         mkdirSync11(dirname14(autonomousLoopPath), { recursive: true });
         writeFileSync12(autonomousLoopPath, `${JSON.stringify(autonomousLoop, null, 2)}
 `);
@@ -74116,7 +74220,7 @@ async function runExecutionCommand(args, options) {
       postRunArtifactWarnings,
       operatorSummary,
       runEnvelope,
-      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join45(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
+      autonomousLoop: autonomousLoop === void 0 ? void 0 : { ...autonomousLoop, path: join46(runFolder, AUTONOMOUS_LOOP_RELATIVE_PATH) }
     }), null, 2)}
 `);
     return 0;
@@ -74195,8 +74299,8 @@ async function runRunsCommand(argv) {
 }
 
 // dist/cli/uninstall.js
-import { existsSync as existsSync41, readFileSync as readFileSync61 } from "node:fs";
-import { join as join46, resolve as resolve29 } from "node:path";
+import { existsSync as existsSync41, readFileSync as readFileSync62 } from "node:fs";
+import { join as join47, resolve as resolve29 } from "node:path";
 var START_LINE = /^\s*<!--\s*circuit:start\s*-->\s*$/;
 var END_LINE = /^\s*<!--\s*circuit:end\s*-->\s*$/;
 var UNINSTALL_TARGET_FILES = ["AGENTS.md", "CLAUDE.md"];
@@ -74347,14 +74451,14 @@ async function runUninstallCommand(argv, options = {}) {
   let malformedAny = false;
   let strippedAny = false;
   for (const file2 of UNINSTALL_TARGET_FILES) {
-    const path = join46(args.dir, file2);
+    const path = join47(args.dir, file2);
     if (!existsSync41(path)) {
       files.push({ file: file2, path, status: "absent" });
       continue;
     }
     let content;
     try {
-      content = readFileSync61(path, "utf8");
+      content = readFileSync62(path, "utf8");
     } catch (err) {
       process.stderr.write(`error: could not read ${path}: ${err.message}
 `);
@@ -74450,7 +74554,7 @@ function readSourceVersion() {
   ];
   for (const candidate of candidates) {
     try {
-      const raw = JSON.parse(readFileSync62(candidate, "utf8"));
+      const raw = JSON.parse(readFileSync63(candidate, "utf8"));
       if (typeof raw.version === "string" && raw.version.length > 0)
         return raw.version;
     } catch {
