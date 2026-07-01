@@ -165,6 +165,14 @@ function relayStartedData(trace: Awaited<ReturnType<typeof readTrace>>): Record<
   return relayStarted as unknown as Record<string, unknown>;
 }
 
+function relayReceiptData(trace: Awaited<ReturnType<typeof readTrace>>): Record<string, unknown> {
+  const receipt = trace.find((e) => e.kind === 'relay.receipt');
+  if (!receipt || receipt.kind !== 'relay.receipt') {
+    throw new Error('expected relay.receipt trace_entry');
+  }
+  return receipt as unknown as Record<string, unknown>;
+}
+
 let runFolderBase: string;
 let homeDir: string;
 let originalHome: string | undefined;
@@ -212,6 +220,50 @@ describe("relay.started carries honest 'resolved_from' from the runner's decisio
     expect(relayStartedData(await readTrace(runFolder)).resolved_from).toEqual({
       source: 'explicit',
     });
+  });
+});
+
+// The executor half of the RelayResult.model round-trip: when a connector
+// surfaces a dispatch-resolved model (codex's cache-resolved default), the
+// runner must copy it onto the relay.receipt trace so the receipt is
+// authoritative about the model even when resolved_selection pinned none. A
+// connector that surfaces no model leaves the field absent (byte-stable).
+describe('relay.receipt carries the connector-resolved model when present', () => {
+  it('records model on the receipt when the RelayResult surfaces one', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(runFolderBase, 'receipt-model-present');
+    await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '48b48b48-b48b-48b4-8b48-b48b48b48b48',
+      goal: 'receipt model present',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 3, 22, 15, 0, 0)),
+      executors: composeExecutor(),
+      relayer: makeStubRelayer('{"verdict":"ok"}', {
+        receipt_id: 'stub-receipt',
+        model: 'gpt-5.5',
+      }),
+    });
+
+    expect(relayReceiptData(await readTrace(runFolder)).model).toBe('gpt-5.5');
+  });
+
+  it('omits model on the receipt when the RelayResult surfaces none', async () => {
+    const { bytes } = loadFixture();
+    const runFolder = join(runFolderBase, 'receipt-model-absent');
+    await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '49c49c49-c49c-49c4-9c49-c49c49c49c49',
+      goal: 'receipt model absent',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 3, 22, 15, 30, 0)),
+      executors: composeExecutor(),
+      relayer: stubRelayer(),
+    });
+
+    expect(relayReceiptData(await readTrace(runFolder)).model).toBeUndefined();
   });
 });
 

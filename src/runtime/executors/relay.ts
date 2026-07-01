@@ -674,6 +674,10 @@ export async function executeProductionRelayAttempt(input: {
     attempt,
     cli_version: relayResult.cli_version,
     receipt_id: relayResult.receipt_id,
+    // Present only when the connector resolved a model at dispatch (codex's
+    // cache-resolved default). Keeps the receipt authoritative about the model
+    // even when resolved_selection pinned none.
+    ...(relayResult.model === undefined ? {} : { model: relayResult.model }),
   });
   await context.trace.append({
     run_id: context.runId,

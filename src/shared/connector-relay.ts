@@ -39,6 +39,13 @@ export interface RelayResult {
   readonly duration_ms: number;
   readonly cli_version: string;
   readonly usage?: RelayUsage;
+  // The model the connector actually spawned with, when the connector resolves
+  // it at dispatch. Set by codex when it falls back to (or confirms) a model
+  // that the selection layer did not pin, so the run receipt is authoritative
+  // about the model even though `resolved_selection.model` is absent. Optional:
+  // a connector whose model is already fixed by `resolved_selection` (or that
+  // does not surface one) leaves it unset.
+  readonly model?: string;
 }
 
 export interface ConnectorRelayInput {

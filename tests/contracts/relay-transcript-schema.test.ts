@@ -306,6 +306,33 @@ describe('RelayReceiptTraceEntry', () => {
     });
     expect(bad.success).toBe(false);
   });
+
+  // `model` is the optional connector-dispatch fact codex records when it
+  // resolves a default at spawn (parallel to cli_version). These three cases
+  // lock the round-trip: present-and-nonempty parses, empty rejected, absent
+  // parses unchanged (byte-stable for connectors that never surface a model).
+  it('accepts a relay.receipt carrying a resolved model', () => {
+    const ok = RelayReceiptTraceEntry.safeParse({
+      ...relayReceiptTraceEntry,
+      model: 'gpt-5.5',
+    });
+    expect(ok.success).toBe(true);
+    if (ok.success) expect(ok.data.model).toBe('gpt-5.5');
+  });
+
+  it('rejects a relay.receipt with an empty model string', () => {
+    const bad = RelayReceiptTraceEntry.safeParse({
+      ...relayReceiptTraceEntry,
+      model: '',
+    });
+    expect(bad.success).toBe(false);
+  });
+
+  it('accepts a relay.receipt with no model field (connector pinned its own)', () => {
+    const ok = RelayReceiptTraceEntry.safeParse(relayReceiptTraceEntry);
+    expect(ok.success).toBe(true);
+    if (ok.success) expect(ok.data.model).toBeUndefined();
+  });
 });
 
 describe('RelayResultTraceEntry', () => {
