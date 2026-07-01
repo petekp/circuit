@@ -16,7 +16,8 @@ import {
 
 const DIAL_CHOICES = ['auto', 'low', 'medium', 'high'] as const;
 type DialChoice = (typeof DIAL_CHOICES)[number];
-const MATRIX_DIALS: readonly DialChoice[] = ['low', 'medium', 'high'];
+// Highest tier first, so the strongest configuration reads left-to-right.
+const MATRIX_DIALS: readonly DialChoice[] = ['high', 'medium', 'low'];
 
 interface PreviewInvocation {
   readonly flowId: string;

@@ -78,19 +78,19 @@ describe('circuit preview: front door', () => {
     ]);
   });
 
-  it('--matrix returns one preview per fixed tier and the dial moves the implementer effort', () => {
+  it('--matrix returns one preview per fixed tier, high first, and the dial moves the implementer effort', () => {
     const code = runPreviewCommand(['cross-tool-build', '--matrix', '--json']);
     expect(code).toBe(0);
     const previews = json<FlowSelectionPreview[]>();
-    expect(previews.map((p) => p.dial)).toEqual(['low', 'medium', 'high']);
+    expect(previews.map((p) => p.dial)).toEqual(['high', 'medium', 'low']);
 
     const implEffort = (p: FlowSelectionPreview) =>
       p.relaySteps.find((s) => s.stepId === 'implement-step')?.effort;
-    expect(previews.map(implEffort)).toEqual(['low', 'medium', 'high']);
+    expect(previews.map(implEffort)).toEqual(['high', 'medium', 'low']);
 
     const reviewerModel = (p: FlowSelectionPreview) =>
       p.relaySteps.find((s) => s.stepId === 'review-proposal-step')?.model;
-    expect(reviewerModel(previews[0] as FlowSelectionPreview)).toBe('sonnet');
-    expect(reviewerModel(previews[2] as FlowSelectionPreview)).toBe('opus');
+    expect(reviewerModel(previews[0] as FlowSelectionPreview)).toBe('opus');
+    expect(reviewerModel(previews[2] as FlowSelectionPreview)).toBe('sonnet');
   });
 });
