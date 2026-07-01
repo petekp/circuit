@@ -311,6 +311,93 @@ Depth has no auto position. Depth decides which steps the run is built from
 before any model runs, so there is nothing in the run yet that could judge
 it. Pick depth yourself; let power pick itself.
 
+## Preview A Flow's Selection
+
+`circuit preview <flow>` shows what every relay step in a flow would resolve to
+(connector, model, effort, and where each value came from) without running
+anything. It reads the same config files and the same selection code a real run
+uses, then stops before the first subprocess. Turning the dial and previewing
+again costs nothing, so you can settle the config before you pay for a run.
+
+```text
+$ circuit preview cross-tool-build --power high
+flow: cross-tool-build (internal)   dial: high
+
+STEP                  ROLE         CONNECTOR    MODEL           EFFORT  SOURCE
+propose-step          researcher   codex        openai/gpt-5.5  high    codex-default
+review-proposal-step  reviewer     claude-code  anthropic/opus  -       power-tier
+spec-step             researcher   codex        openai/gpt-5.5  high    codex-default
+review-spec-step      reviewer     claude-code  anthropic/opus  -       power-tier
+implement-step        implementer  codex        openai/gpt-5.5  high    codex-default
+
+non-relay steps: plan-step (compose), verify-step (verification), close-step (compose)
+```
+
+Flags:
+
+- `--power <auto|low|medium|high>` previews one dial position. Omit it to preview
+  the effective dial your config already sets.
+- `--matrix` previews `low`, `medium`, and `high` side by side.
+- `--json` prints the structured record instead of the table.
+
+The `SOURCE` column says where each model came from:
+
+- `power-tier`: the dial's tier table chose it. Turn the dial and it changes.
+- `codex-default`: a Codex step, so the model is your Codex default, read from
+  `~/.codex/models_cache.json`. Codex tiers move effort, not the model.
+- `config`: an explicit `model:` in your config won. The dial does not touch it.
+- `codex-default-unresolved`: the Codex cache was unreadable, so the model is
+  left blank instead of guessed. The rest of the preview still resolves.
+
+Preview never spawns a connector. The only file it reads beyond your config is
+the Codex default-model cache, and it reads it, never writes it.
+
+### Worked Example: cross-tool-build
+
+`cross-tool-build` pins its connectors in the flow itself: the doer steps
+(propose, spec, implement) run on `codex`, and the two review steps run on
+`claude-code`. That split is a property of the flow, not your config, so you do
+not route it. What you turn is the dial:
+
+```text
+$ circuit preview cross-tool-build --matrix
+flow: cross-tool-build (internal)   dial matrix: low / medium / high
+
+STEP                  ROLE         CONNECTOR    LOW                    MEDIUM                   HIGH
+propose-step          researcher   codex        openai/gpt-5.5 / high  openai/gpt-5.5 / high    openai/gpt-5.5 / high
+review-proposal-step  reviewer     claude-code  anthropic/sonnet / -   anthropic/sonnet / -     anthropic/opus / -
+spec-step             researcher   codex        openai/gpt-5.5 / high  openai/gpt-5.5 / high    openai/gpt-5.5 / high
+review-spec-step      reviewer     claude-code  anthropic/sonnet / -   anthropic/sonnet / -     anthropic/opus / -
+implement-step        implementer  codex        openai/gpt-5.5 / low   openai/gpt-5.5 / medium  openai/gpt-5.5 / high
+```
+
+Reading it: the researcher steps (propose, spec) stay on Codex at high effort at
+every dial position, because judgment compounds. The implementer's effort tracks
+the dial (low, medium, high). The reviewers move from Sonnet to Opus only at
+high. The Codex model is your Codex default at every position; the dial moves
+Codex effort, not its model.
+
+To tune this flow past the dial, remap a tier for one connector with
+`power_tiers.<connector>`. Because tier tables are keyed by connector, this
+respects the doer/reviewer split. For example, give the reviewers a pinned
+Anthropic model at high, or lift Codex's low tier to medium effort:
+
+```yaml
+schema_version: 1
+
+power_tiers:
+  claude-code:
+    high: { model: { provider: anthropic, model: claude-opus-4-8 } }
+  codex:
+    low: { effort: medium }
+```
+
+Avoid a flow-wide `circuits.cross-tool-build.selection.model` here. A flow-level
+model applies to every relay, so one model would land on both the Codex doer
+steps and the Claude Code review steps, and the connector/provider check rejects
+the mismatch. `circuit preview` shows that as a `problem` on the offending steps
+before you ever run. Keep per-connector control in `power_tiers` instead.
+
 ## Local Workers (OpenCode + Ollama)
 
 The power dial can drive local models with no engine changes: a custom
@@ -455,4 +542,5 @@ Before writing config:
 5. Use `claude-code` only for trusted same-workspace writes.
 6. Use `cursor-agent` only when you want Cursor CLI to run Gemini implementer
    branches.
-7. Run the focused command that proves the path you changed.
+7. Preview the effect with `circuit preview <flow> --matrix` before you run.
+8. Run the focused command that proves the path you changed.
