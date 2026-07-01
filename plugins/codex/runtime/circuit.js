@@ -10800,6 +10800,7 @@ var CLI_COMMAND_NAMES = [
   "runs",
   "reclaim",
   "inbox",
+  "preview",
   "version"
 ];
 
@@ -59026,16 +59027,1318 @@ function latestRunFolder(runsBase) {
   }
 }
 
+// dist/shared/config-loader.js
+var import_yaml3 = __toESM(require_dist(), 1);
+import { existsSync as existsSync30, readFileSync as readFileSync46 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
+import { join as join23, resolve as resolve21 } from "node:path";
+var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
+var PROJECT_CONFIG_RELATIVE_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS;
+function userGlobalConfigPath(homeDir = homedir3()) {
+  return join23(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
+}
+function projectConfigPath2(cwd = process.cwd()) {
+  return join23(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
+}
+function parseConfigYaml(text, sourcePath) {
+  try {
+    return (0, import_yaml3.parse)(text);
+  } catch (err) {
+    throw new Error(`config YAML parse failed at ${sourcePath}: ${err.message}`);
+  }
+}
+function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
+  const abs = resolve21(sourcePath);
+  if (!existsSync30(abs))
+    return void 0;
+  const raw = parseConfigYaml(readFileSync46(abs, "utf8"), abs);
+  if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
+    const schemaVersion = raw.schema_version;
+    if (schemaVersion === 2) {
+      try {
+        return {
+          policy: PolicyLayer.parse({
+            source: layer,
+            source_path: abs,
+            envelope: PolicyEnvelopeV2.parse(raw)
+          })
+        };
+      } catch (err) {
+        throw new Error(`policy validation failed for ${layer} at ${abs}: ${err.message}`);
+      }
+    }
+  }
+  try {
+    return {
+      selection: LayeredConfig.parse({
+        layer,
+        source_path: abs,
+        config: Config.parse(raw)
+      })
+    };
+  } catch (err) {
+    throw new Error(`config validation failed for ${layer} at ${abs}: ${err.message}`);
+  }
+}
+function discoverRuntimeConfigLayers(options = {}) {
+  const selectionConfigLayers = [];
+  const policyLayers = [];
+  for (const [layer, path] of [
+    ["user-global", userGlobalConfigPath(options.homeDir)],
+    ["project", projectConfigPath2(options.cwd)]
+  ]) {
+    const loaded = loadRuntimeConfigLayerFromPath(layer, path);
+    if (loaded?.selection !== void 0)
+      selectionConfigLayers.push(loaded.selection);
+    if (loaded?.policy !== void 0)
+      policyLayers.push(loaded.policy);
+  }
+  if (options.invocationConfig !== void 0) {
+    selectionConfigLayers.push(LayeredConfig.parse({
+      layer: "invocation",
+      config: options.invocationConfig
+    }));
+  }
+  if (options.invocationPolicy !== void 0) {
+    policyLayers.push(PolicyLayer.parse({
+      source: "invocation",
+      envelope: options.invocationPolicy
+    }));
+  }
+  return { selectionConfigLayers, policyLayers };
+}
+
+// dist/connectors/codex-default-model.js
+import { readFileSync as readFileSync47 } from "node:fs";
+import { homedir as homedir4 } from "node:os";
+import { join as join24 } from "node:path";
+var CODEX_MODELS_CACHE_FILENAME = "models_cache.json";
+function codexHomeDir() {
+  const fromEnv = process.env.CODEX_HOME;
+  if (fromEnv !== void 0 && fromEnv.trim().length > 0)
+    return fromEnv;
+  return join24(homedir4(), ".codex");
+}
+function codexModelsCachePath() {
+  return join24(codexHomeDir(), CODEX_MODELS_CACHE_FILENAME);
+}
+function candidateFrom(value) {
+  if (typeof value !== "object" || value === null)
+    return void 0;
+  const record2 = value;
+  if (record2.visibility !== "list")
+    return void 0;
+  if (record2.supported_in_api !== true)
+    return void 0;
+  const priority = record2.priority;
+  if (typeof priority !== "number" || !Number.isFinite(priority))
+    return void 0;
+  const slug = typeof record2.slug === "string" ? record2.slug.trim() : void 0;
+  if (slug === void 0 || slug.length === 0)
+    return void 0;
+  return { slug, priority };
+}
+function pickCodexFlagshipModel(cache) {
+  if (typeof cache !== "object" || cache === null)
+    return void 0;
+  const models = cache.models;
+  if (!Array.isArray(models))
+    return void 0;
+  const candidates = models.map(candidateFrom).filter((entry) => entry !== void 0);
+  if (candidates.length === 0)
+    return void 0;
+  candidates.sort((a, b) => a.priority - b.priority);
+  return candidates[0]?.slug;
+}
+var CodexDefaultModelUnavailableError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "CodexDefaultModelUnavailableError";
+  }
+};
+function unavailableMessage(cachePath, reason) {
+  return [
+    "codex connector: no model is pinned for this codex step and no default could",
+    `be resolved from the Codex models cache (${cachePath}).`,
+    "Circuit runs codex with --ignore-user-config, so ~/.codex/config.toml is",
+    "intentionally not consulted for the model. Fix by either (a) pinning an",
+    "openai model for codex in your Circuit config \u2014 set defaults.selection.model",
+    '(or circuits.<flow>.selection.model) to { provider: "openai", model:',
+    '"<model>" }, or set power_tiers.codex.<tier>.model \u2014 or (b) running `codex`',
+    `once so ${cachePath} is populated.`,
+    `(reason: ${reason})`
+  ].join(" ");
+}
+function resolveCodexDefaultModelUncached() {
+  const cachePath = codexModelsCachePath();
+  let raw;
+  try {
+    raw = readFileSync47(cachePath, "utf8");
+  } catch (err) {
+    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache not readable: ${err.message}`));
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache is not valid JSON: ${err.message}`));
+  }
+  const model = pickCodexFlagshipModel(parsed);
+  if (model === void 0) {
+    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, "no API-listed model found in the cache"));
+  }
+  return model;
+}
+var cachedDefaultModel;
+function resolveCodexDefaultModel() {
+  if (cachedDefaultModel !== void 0)
+    return cachedDefaultModel;
+  cachedDefaultModel = resolveCodexDefaultModelUncached();
+  return cachedDefaultModel;
+}
+
+// dist/connectors/resolver.js
+function mergedRelayConfig(layers) {
+  const merged = {
+    default: "auto",
+    roles: {},
+    circuits: {},
+    connectors: {}
+  };
+  for (const layer of layers ?? []) {
+    if (layer.config.relay.default !== "auto" || merged.default === "auto") {
+      merged.default = layer.config.relay.default;
+    }
+    merged.roles = { ...merged.roles, ...layer.config.relay.roles };
+    merged.circuits = { ...merged.circuits, ...layer.config.relay.circuits };
+    merged.connectors = { ...merged.connectors, ...layer.config.relay.connectors };
+  }
+  return merged;
+}
+function mergedHostKind(layers) {
+  let hostKind;
+  for (const layer of layers ?? []) {
+    const configuredHostKind = layer.config.host?.kind;
+    if (configuredHostKind !== void 0) {
+      hostKind = configuredHostKind;
+    }
+  }
+  return hostKind ?? "generic-shell";
+}
+function connectorCapabilities(connector) {
+  if (connector.kind === "builtin")
+    return BUILTIN_CONNECTOR_CAPABILITIES[connector.name];
+  return connector.capabilities;
+}
+function assertConnectorCanRunRole(connector, role) {
+  const capabilities = connectorCapabilities(connector);
+  if (role === "implementer" && capabilities.filesystem === "read-only") {
+    throw new Error(`relay connector '${connector.name}' is read-only and cannot run implementer step role '${role}'`);
+  }
+}
+function resolvedConnectorFromReference(ref, relay) {
+  if (ref.kind === "builtin")
+    return ref;
+  const descriptor = relay.connectors[ref.name];
+  if (descriptor === void 0) {
+    throw new Error(`relay connector '${ref.name}' is referenced but not declared`);
+  }
+  return descriptor;
+}
+function resolveConnectorReference(input) {
+  return resolvedConnectorFromReference(input.ref, mergedRelayConfig(input.configLayers));
+}
+function isEnabledConnector(value) {
+  return EnabledConnector.options.includes(value);
+}
+function resolvedConnectorFromDefault(defaultRef, relay) {
+  if (isEnabledConnector(defaultRef)) {
+    return { kind: "builtin", name: defaultRef };
+  }
+  const descriptor = relay.connectors[defaultRef];
+  if (descriptor === void 0) {
+    throw new Error(`relay default connector '${defaultRef}' is referenced but not declared`);
+  }
+  return descriptor;
+}
+function decision(connector, resolvedFrom, role) {
+  assertConnectorCanRunRole(connector, role);
+  return {
+    connectorName: connector.name,
+    connector,
+    resolvedFrom
+  };
+}
+function autoConnectorForHost(hostKind) {
+  if (hostKind === "codex")
+    return { kind: "builtin", name: "codex" };
+  return { kind: "builtin", name: "claude-code" };
+}
+function resolveConnectorForGuidanceInput(input) {
+  if (input.explicitConnector !== void 0) {
+    return decision(input.explicitConnector, { source: "explicit" }, input.role);
+  }
+  const relay = mergedRelayConfig(input.configLayers);
+  const roleRef = relay.roles[input.role];
+  if (roleRef !== void 0) {
+    return decision(resolvedConnectorFromReference(roleRef, relay), {
+      source: "role",
+      role: input.role
+    }, input.role);
+  }
+  const flowId = input.flowId;
+  const flowRef = relay.circuits[flowId];
+  if (flowRef !== void 0) {
+    return decision(resolvedConnectorFromReference(flowRef, relay), {
+      source: "circuit",
+      flow_id: flowId
+    }, input.role);
+  }
+  if (relay.default !== "auto") {
+    return decision(resolvedConnectorFromDefault(relay.default, relay), { source: "default" }, input.role);
+  }
+  return decision(autoConnectorForHost(input.hostKind ?? mergedHostKind(input.configLayers)), { source: "auto" }, input.role);
+}
+function expectedProvider(connectorName) {
+  if (!isEnabledConnector(connectorName))
+    return void 0;
+  return BUILTIN_CONNECTOR_SPECS[connectorName].provider;
+}
+function supportedEfforts(connectorName) {
+  if (!isEnabledConnector(connectorName))
+    return void 0;
+  return BUILTIN_CONNECTOR_SPECS[connectorName].supportedEfforts;
+}
+function assertConnectorSelectionCompatible(connectorName, selection) {
+  const expected = expectedProvider(connectorName);
+  const model = selection?.model;
+  if (expected !== void 0 && model !== void 0 && model.provider !== expected) {
+    throw new Error(`${connectorName} connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider '${expected}'`);
+  }
+  const effort = selection?.effort;
+  if (effort === void 0)
+    return;
+  const supported = supportedEfforts(connectorName);
+  if (supported !== void 0 && !supported.includes(effort)) {
+    throw new Error(`${connectorName} connector cannot honor effort '${effort}'; supported efforts: ${supported.join(", ")}`);
+  }
+}
+
+// dist/runtime/domain/route.js
+var TERMINAL_TARGETS = [
+  "@complete",
+  "@stop",
+  "@handoff",
+  "@escalate"
+];
+
+// dist/runtime/run/engine-flags.js
+function translateSliceLoop(slice) {
+  return {
+    headStep: slice.head_step,
+    tailStep: slice.tail_step,
+    advanceRoute: slice.advance_route,
+    slicesFrom: { report: slice.slices_from.report, itemsPath: slice.slices_from.items_path },
+    maxSlices: slice.max_slices,
+    activateWhenDepthAtLeast: slice.activate_when_depth_at_least
+  };
+}
+function translateUntilLoop(until) {
+  return {
+    headStep: until.head_step,
+    tailStep: until.tail_step,
+    bodySteps: until.body_steps,
+    reenterRoute: until.reenter_route,
+    maxIterations: until.max_iterations,
+    ...until.stop_judge === void 0 ? {} : {
+      stopJudge: {
+        report: until.stop_judge.report,
+        goalMetPath: until.stop_judge.goal_met_path,
+        ...until.stop_judge.lesson_path === void 0 ? {} : { lessonPath: until.stop_judge.lesson_path },
+        ...until.stop_judge.progress_path === void 0 ? {} : { progressPath: until.stop_judge.progress_path }
+      }
+    },
+    ...until.needs_attention_route === void 0 ? {} : { needsAttentionRoute: until.needs_attention_route },
+    ...until.carried_notes === void 0 ? {} : {
+      carriedNotes: {
+        report: until.carried_notes.report,
+        ...until.carried_notes.max_entries === void 0 ? {} : { maxEntries: until.carried_notes.max_entries }
+      }
+    },
+    ...until.cumulative_usd_cap === void 0 ? {} : { cumulativeUsdCap: until.cumulative_usd_cap },
+    ...until.cumulative_token_cap === void 0 ? {} : { cumulativeTokenCap: until.cumulative_token_cap },
+    ...until.no_progress_ceiling === void 0 ? {} : { noProgressCeiling: until.no_progress_ceiling },
+    ...until.iteration_commit_containment === void 0 ? {} : {
+      iterationCommitContainment: {
+        branchPrefix: until.iteration_commit_containment.branch_prefix
+      }
+    },
+    ...until.frozen_paths === void 0 ? {} : { frozenPaths: until.frozen_paths },
+    activateWhenDepthAtLeast: until.activate_when_depth_at_least
+  };
+}
+function manifestEngineFlagsToInCode(manifest) {
+  if (manifest === void 0)
+    return void 0;
+  const slice = manifest.iterates_slice_loop;
+  const until = manifest.iterates_until_condition;
+  const result = {
+    ...manifest.binds_execution_depth_to_relay_selection === void 0 ? {} : {
+      bindsExecutionDepthToRelaySelection: manifest.binds_execution_depth_to_relay_selection
+    },
+    ...manifest.binds_terminal_outcome_to_primary_result === void 0 ? {} : {
+      bindsTerminalOutcomeToPrimaryResult: manifest.binds_terminal_outcome_to_primary_result
+    },
+    ...slice === void 0 ? {} : { iteratesSliceLoop: translateSliceLoop(slice) },
+    ...until === void 0 ? {} : { iteratesUntilCondition: translateUntilLoop(until) }
+  };
+  return Object.keys(result).length === 0 ? void 0 : result;
+}
+function resolveEngineFlags(flow) {
+  return flow.engineFlags;
+}
+
+// dist/runtime/manifest/validate-executable-flow.js
+function requiredRoutesForStep() {
+  return ["pass"];
+}
+function isRouteTarget(value) {
+  if (typeof value !== "object" || value === null)
+    return false;
+  const target = value;
+  if (target.kind === "step")
+    return typeof target.stepId === "string" && target.stepId.length > 0;
+  if (target.kind === "terminal") {
+    return typeof target.target === "string" && TERMINAL_TARGETS.includes(target.target);
+  }
+  return false;
+}
+function addRunFilePathIssues(issues, owner, ref) {
+  for (const issue2 of validateRunFilePath(ref.path)) {
+    issues.push(`${owner} path ${issue2}: ${ref.path}`);
+  }
+}
+function validateExecutableFlow(flow) {
+  const issues = [];
+  const stepIds = /* @__PURE__ */ new Set();
+  const duplicateStepIds = /* @__PURE__ */ new Set();
+  const stageIds = /* @__PURE__ */ new Set();
+  const duplicateStageIds = /* @__PURE__ */ new Set();
+  const stageStepCounts = /* @__PURE__ */ new Map();
+  const entryModeNames = /* @__PURE__ */ new Set();
+  const duplicateEntryModeNames = /* @__PURE__ */ new Set();
+  if (flow.steps.length === 0)
+    issues.push("flow must declare at least one step");
+  if (flow.stages.length === 0)
+    issues.push("flow must declare at least one stage");
+  for (const step of flow.steps) {
+    if (stepIds.has(step.id))
+      duplicateStepIds.add(step.id);
+    stepIds.add(step.id);
+  }
+  for (const stage of flow.stages) {
+    if (stageIds.has(stage.id))
+      duplicateStageIds.add(stage.id);
+    stageIds.add(stage.id);
+    if (stage.stepIds.length === 0)
+      issues.push(`stage '${stage.id}' must declare at least one step`);
+    const seenInStage = /* @__PURE__ */ new Set();
+    for (const stepId of stage.stepIds) {
+      if (seenInStage.has(stepId)) {
+        issues.push(`stage '${stage.id}' lists step '${stepId}' more than once`);
+      }
+      seenInStage.add(stepId);
+      stageStepCounts.set(stepId, (stageStepCounts.get(stepId) ?? 0) + 1);
+    }
+  }
+  for (const stepId of duplicateStepIds)
+    issues.push(`duplicate step id: ${stepId}`);
+  for (const stageId of duplicateStageIds)
+    issues.push(`duplicate stage id: ${stageId}`);
+  if (!stepIds.has(flow.entry))
+    issues.push(`entry step does not exist: ${flow.entry}`);
+  if (flow.entryModes !== void 0) {
+    if (flow.entryModes.length === 0) {
+      issues.push("entryModes must not be empty when provided");
+    }
+    for (const mode of flow.entryModes) {
+      if (entryModeNames.has(mode.name))
+        duplicateEntryModeNames.add(mode.name);
+      entryModeNames.add(mode.name);
+      if (!stepIds.has(mode.startAt)) {
+        issues.push(`entry mode '${mode.name}' startAt references unknown step '${mode.startAt}'`);
+      }
+    }
+  }
+  for (const modeName of duplicateEntryModeNames) {
+    issues.push(`duplicate entry mode name: ${modeName}`);
+  }
+  for (const stage of flow.stages) {
+    for (const stepId of stage.stepIds) {
+      if (!stepIds.has(stepId))
+        issues.push(`stage '${stage.id}' references unknown step '${stepId}'`);
+    }
+  }
+  for (const step of flow.steps) {
+    const stageListingCount = stageStepCounts.get(step.id) ?? 0;
+    if (stageListingCount === 0) {
+      issues.push(`step '${step.id}' is not listed in any stage`);
+    }
+    for (const [index, ref] of (step.reads ?? []).entries()) {
+      addRunFilePathIssues(issues, `step '${step.id}' read[${index}]`, ref);
+    }
+    for (const [slot2, ref] of Object.entries(step.writes ?? {})) {
+      addRunFilePathIssues(issues, `step '${step.id}' write '${slot2}'`, ref);
+    }
+    if (step.kind === "relay" && step.report !== void 0) {
+      addRunFilePathIssues(issues, `relay step '${step.id}' report`, step.report);
+    }
+    if (step.kind === "fanout") {
+      const aggregate2 = step.writes?.aggregate;
+      if (typeof aggregate2 === "object" && aggregate2 !== null && typeof aggregate2.path === "string") {
+        addRunFilePathIssues(issues, `fanout step '${step.id}' aggregate`, aggregate2);
+      }
+    }
+    if (step.kind === "checkpoint") {
+      const hasDynamicChoices = typeof step.policy === "object" && step.policy !== null && step.policy.choices_from !== void 0;
+      if (step.choices.length === 0 && !hasDynamicChoices) {
+        issues.push(`checkpoint step '${step.id}' must declare at least one choice`);
+      }
+      const seenChoices = /* @__PURE__ */ new Set();
+      for (const choice of step.choices) {
+        if (seenChoices.has(choice)) {
+          issues.push(`checkpoint step '${step.id}' has duplicate choice '${choice}'`);
+        }
+        seenChoices.add(choice);
+      }
+    }
+    for (const requiredRoute of requiredRoutesForStep()) {
+      if (step.routes[requiredRoute] === void 0) {
+        issues.push(`step '${step.id}' is missing required route '${requiredRoute}'`);
+      }
+    }
+    for (const [routeName, target] of Object.entries(step.routes)) {
+      if (!isRouteTarget(target)) {
+        issues.push(`step '${step.id}' route '${routeName}' has invalid target`);
+        continue;
+      }
+      if (target.kind === "step" && !stepIds.has(target.stepId)) {
+        issues.push(`step '${step.id}' route '${routeName}' targets unknown step '${target.stepId}'`);
+      }
+    }
+  }
+  return { ok: issues.length === 0, issues };
+}
+function assertExecutableFlow(flow) {
+  const validation = validateExecutableFlow(flow);
+  if (!validation.ok) {
+    throw new Error(`invalid executable flow: ${validation.issues.join("; ")}`);
+  }
+}
+
+// dist/runtime/manifest/from-compiled-flow.js
+function isReportRef(value) {
+  return typeof value === "object" && value !== null && typeof value.path === "string" && typeof value.schema === "string";
+}
+function toRunFileRef(value) {
+  if (isReportRef(value))
+    return { path: value.path, schema: value.schema };
+  return { path: value };
+}
+function toWrites(writes) {
+  const mapped = {};
+  for (const [slot2, value] of Object.entries(writes)) {
+    if (value === void 0)
+      continue;
+    mapped[slot2] = toRunFileRef(value);
+  }
+  return mapped;
+}
+function toRoutes(routes) {
+  const terminalTargets = new Set(TERMINAL_TARGETS);
+  const mapped = {};
+  for (const [routeName, target] of Object.entries(routes)) {
+    mapped[routeName] = terminalTargets.has(target) ? { kind: "terminal", target } : { kind: "step", stepId: target };
+  }
+  return mapped;
+}
+function toSelection(selection) {
+  if (selection === void 0)
+    return void 0;
+  return {
+    ...selection.model === void 0 ? {} : { model: selection.model },
+    ...selection.effort === void 0 ? {} : { effort: selection.effort },
+    ...selection.skills === void 0 ? {} : { skills: selection.skills },
+    ...selection.depth === void 0 ? {} : { depth: selection.depth },
+    ...selection.invocation_options === void 0 ? {} : { invocation_options: selection.invocation_options }
+  };
+}
+function baseStep(step) {
+  const selection = toSelection(step.selection);
+  return {
+    id: step.id,
+    title: step.title,
+    protocol: step.protocol,
+    routes: toRoutes(step.routes),
+    reads: step.reads.map((path) => ({ path })),
+    writes: toWrites(step.writes),
+    ...selection === void 0 ? {} : { selection },
+    ...step.skill_slots === void 0 ? {} : { skillSlots: step.skill_slots },
+    ...step.equipment_scope === void 0 ? {} : { equipmentScope: step.equipment_scope },
+    ...step.route_from_report === void 0 ? {} : { routeFromReport: step.route_from_report },
+    check: step.check,
+    ...step.budgets === void 0 ? {} : { budgets: step.budgets }
+  };
+}
+function convertStep(step) {
+  const base = baseStep(step);
+  if (step.kind === "compose") {
+    return { ...base, kind: "compose", writer: step.protocol };
+  }
+  if (step.kind === "verification") {
+    return { ...base, kind: "verification", check: step.check };
+  }
+  if (step.kind === "checkpoint") {
+    return {
+      ...base,
+      kind: "checkpoint",
+      choices: step.policy.choices?.map((choice) => choice.id) ?? [],
+      policy: step.policy
+    };
+  }
+  if (step.kind === "relay") {
+    return {
+      ...base,
+      kind: "relay",
+      role: step.role,
+      ...step.connector === void 0 ? {} : { connector: step.connector },
+      ...step.acceptance_criteria === void 0 ? {} : { acceptanceCriteria: step.acceptance_criteria },
+      ...step.writes.report === void 0 ? {} : { report: toRunFileRef(step.writes.report) }
+    };
+  }
+  if (step.kind === "sub-run") {
+    return {
+      ...base,
+      kind: "sub-run",
+      flowRef: step.flow_ref.flow_id,
+      entryMode: step.flow_ref.entry_mode,
+      ...step.flow_ref.version === void 0 ? {} : { version: step.flow_ref.version },
+      goal: step.goal,
+      depth: step.depth
+    };
+  }
+  return {
+    ...base,
+    kind: "fanout",
+    branches: step.branches,
+    concurrency: step.concurrency,
+    onChildFailure: step.on_child_failure,
+    ...step.rubric === void 0 ? {} : { rubric: step.rubric }
+  };
+}
+function fromCompiledFlow(flow) {
+  const defaultSelection = toSelection(flow.default_selection);
+  const engineFlags = manifestEngineFlagsToInCode(flow.engine_flags);
+  const runtimeSurface = flow.runtime_surface?.primary_result === void 0 ? void 0 : {
+    primaryResult: {
+      schemaName: flow.runtime_surface.primary_result.schema_name,
+      path: flow.runtime_surface.primary_result.path
+    }
+  };
+  const executable = {
+    id: flow.id,
+    version: flow.version,
+    purpose: flow.purpose,
+    entry: flow.starts_at,
+    stages: flow.stages.map((stage) => {
+      const selection = toSelection(stage.selection);
+      return {
+        id: stage.id,
+        title: stage.title,
+        ...stage.canonical === void 0 ? {} : { canonical: stage.canonical },
+        stepIds: stage.steps,
+        ...selection === void 0 ? {} : { selection }
+      };
+    }),
+    steps: flow.steps.map((step) => convertStep(step)),
+    ...defaultSelection === void 0 ? {} : { defaultSelection },
+    stagePathPolicy: flow.stage_path_policy,
+    metadata: {
+      source: "compiled-flow-v1",
+      schema_version: flow.schema_version
+    },
+    ...engineFlags === void 0 ? {} : { engineFlags },
+    ...flow.report_file_surfaces === void 0 ? {} : { reportFileSurfaces: flow.report_file_surfaces },
+    ...runtimeSurface === void 0 ? {} : { runtimeSurface },
+    ...flow.required_config === void 0 ? {} : { requiredConfig: flow.required_config }
+  };
+  assertExecutableFlow(executable);
+  return executable;
+}
+
+// dist/runtime/manifest/runtime-package-index.js
+function writeRef(ref) {
+  if (ref === void 0)
+    return void 0;
+  if (ref.schema !== void 0)
+    return { path: ref.path, schema: ref.schema };
+  return ref.path;
+}
+function indexedSelection(selection) {
+  if (selection === void 0)
+    return void 0;
+  return SelectionOverride.parse({
+    ...selection.model === void 0 ? {} : { model: selection.model },
+    ...selection.effort === void 0 ? {} : { effort: selection.effort },
+    skills: selection.skills ?? { mode: "inherit" },
+    ...selection.depth === void 0 ? {} : { depth: selection.depth },
+    invocation_options: selection.invocation_options ?? {}
+  });
+}
+function baseStep2(step) {
+  const selection = indexedSelection(step.selection);
+  return {
+    id: step.id,
+    title: step.title ?? step.id,
+    protocol: step.protocol ?? step.id,
+    reads: step.reads?.map((ref) => ref.path) ?? [],
+    routes: Object.fromEntries(Object.entries(step.routes).map(([route, target]) => [
+      route,
+      target.kind === "terminal" ? target.target : target.stepId
+    ])),
+    writes: Object.fromEntries(Object.entries(step.writes ?? {}).map(([slot2, ref]) => [slot2, writeRef(ref)])),
+    check: step.check,
+    ...selection === void 0 ? {} : { selection },
+    ...step.skillSlots === void 0 ? {} : { skill_slots: step.skillSlots },
+    ...step.equipmentScope === void 0 ? {} : { equipment_scope: step.equipmentScope },
+    ...step.budgets === void 0 ? {} : { budgets: step.budgets }
+  };
+}
+function indexedStep(step) {
+  const base = baseStep2(step);
+  if (step.kind === "checkpoint") {
+    return {
+      ...base,
+      kind: step.kind,
+      policy: step.policy
+    };
+  }
+  if (step.kind === "relay") {
+    return {
+      ...base,
+      kind: step.kind,
+      role: step.role,
+      ...step.connector === void 0 ? {} : { connector: step.connector },
+      ...step.acceptanceCriteria === void 0 ? {} : { acceptance_criteria: step.acceptanceCriteria }
+    };
+  }
+  return { ...base, kind: step.kind };
+}
+function buildRuntimePackageIndex(flow) {
+  const steps = flow.steps.map((step) => indexedStep(step));
+  const defaultSelection = indexedSelection(flow.defaultSelection);
+  const stepsById = /* @__PURE__ */ new Map();
+  const reportPathBySchema = /* @__PURE__ */ new Map();
+  for (const step of steps) {
+    if (stepsById.has(step.id)) {
+      throw new Error(`runtime package index duplicate step '${step.id}'`);
+    }
+    stepsById.set(step.id, step);
+    const report = step.writes.report;
+    if (typeof report !== "object" || report === null)
+      continue;
+    if (!reportPathBySchema.has(report.schema)) {
+      reportPathBySchema.set(report.schema, report.path);
+    }
+  }
+  return {
+    flow: {
+      id: flow.id,
+      version: flow.version,
+      ...flow.purpose === void 0 ? {} : { purpose: flow.purpose },
+      ...defaultSelection === void 0 ? {} : { default_selection: defaultSelection },
+      stages: flow.stages.map((stage) => {
+        const selection = indexedSelection(stage.selection);
+        return {
+          id: stage.id,
+          steps: stage.stepIds,
+          ...selection === void 0 ? {} : { selection }
+        };
+      }),
+      steps
+    },
+    stepsById,
+    reportPathBySchema
+  };
+}
+
+// dist/selection/power-tiers.js
+var DEFAULT_POWER_TIERS = {
+  "claude-code": {
+    low: { model: { provider: "anthropic", model: "haiku" } },
+    medium: { model: { provider: "anthropic", model: "sonnet" } },
+    high: { model: { provider: "anthropic", model: "opus" } }
+  },
+  codex: {
+    low: { effort: "low" },
+    medium: { effort: "medium" },
+    high: { effort: "high" }
+  }
+};
+var ROLE_POWER_ALLOCATION = {
+  high: { researcher: "high", implementer: "high", reviewer: "high" },
+  medium: { researcher: "high", implementer: "medium", reviewer: "medium" },
+  low: { researcher: "high", implementer: "low", reviewer: "medium" }
+};
+function bumpOneTier(tier) {
+  return POWER_ORDER[Math.min(powerIndex(tier) + 1, POWER_ORDER.length - 1)];
+}
+var LAYER_PRECEDENCE = ["default", "user-global", "project", "invocation"];
+function layersInPrecedenceOrder(layers) {
+  return LAYER_PRECEDENCE.flatMap((name) => layers.filter((layer) => layer.layer === name));
+}
+function resolvePowerDialSetting(layers) {
+  let dial = "medium";
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const power = layer.config.defaults?.power;
+    if (power !== void 0)
+      dial = power;
+  }
+  if (dial !== "auto")
+    return { kind: "fixed", value: dial };
+  let floor = "low";
+  let ceiling = "high";
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const bounds = layer.config.power_auto;
+    if (bounds?.floor !== void 0)
+      floor = bounds.floor;
+    if (bounds?.ceiling !== void 0)
+      ceiling = bounds.ceiling;
+  }
+  if (powerIndex(floor) > powerIndex(ceiling))
+    floor = ceiling;
+  return { kind: "auto", floor, ceiling };
+}
+function resolvePowerDial(layers) {
+  const setting = resolvePowerDialSetting(layers);
+  return setting.kind === "fixed" ? setting.value : "medium";
+}
+function tierSpec(layers, connectorName, tier) {
+  let spec = DEFAULT_POWER_TIERS[connectorName]?.[tier];
+  for (const layer of layersInPrecedenceOrder(layers)) {
+    const candidate = layer.config.power_tiers?.[connectorName]?.[tier];
+    if (candidate !== void 0)
+      spec = candidate;
+  }
+  return spec;
+}
+function materializePowerSelection(input) {
+  if (input.resolved.model !== void 0)
+    return input.resolved;
+  const layers = input.configLayers ?? [];
+  const setting = resolvePowerDialSetting(layers);
+  const dial = setting.kind === "fixed" ? setting.value : input.inferredPower ?? "medium";
+  const allocated = ROLE_POWER_ALLOCATION[dial][input.role];
+  const tier = input.attempt > 1 ? bumpOneTier(allocated) : allocated;
+  const spec = tierSpec(layers, input.connectorName, tier);
+  if (spec === void 0)
+    return input.resolved;
+  return {
+    ...input.resolved,
+    ...spec.model === void 0 ? {} : { model: spec.model },
+    ...input.resolved.effort === void 0 && spec.effort !== void 0 ? { effort: spec.effort } : {},
+    power: dial,
+    ...tier === allocated ? {} : { power_escalated: true },
+    ...setting.kind === "auto" ? { power_source: "auto" } : {}
+  };
+}
+
+// dist/selection/selection-resolver.js
+var PRE_FLOW_CONFIG_SOURCES = ["default", "user-global", "project"];
+function overrideContributes2(o) {
+  if (o.model !== void 0)
+    return true;
+  if (o.effort !== void 0)
+    return true;
+  if (o.depth !== void 0)
+    return true;
+  if (o.skills.mode !== "inherit")
+    return true;
+  if (Object.keys(o.invocation_options).length > 0)
+    return true;
+  return false;
+}
+function composeConfigLayerSelection(base, circuit, current) {
+  if (base === void 0 && circuit === void 0)
+    return void 0;
+  const baseSkillOp = base?.skills.mode === "inherit" ? void 0 : base?.skills;
+  const circuitSkillOp = circuit?.skills.mode === "inherit" ? void 0 : circuit?.skills;
+  let skills;
+  if (baseSkillOp !== void 0 || circuitSkillOp !== void 0) {
+    const baseSkills = baseSkillOp !== void 0 ? applySkillOp(current.skills, baseSkillOp) : current.skills;
+    const composedSkills = circuitSkillOp !== void 0 ? applySkillOp(baseSkills, circuitSkillOp) : baseSkills;
+    skills = { mode: "replace", skills: [...composedSkills] };
+  }
+  const raw = {
+    ...base?.model !== void 0 || circuit?.model !== void 0 ? { model: circuit?.model ?? base?.model } : {},
+    ...base?.effort !== void 0 || circuit?.effort !== void 0 ? { effort: circuit?.effort ?? base?.effort } : {},
+    ...skills !== void 0 ? { skills } : {},
+    ...base?.depth !== void 0 || circuit?.depth !== void 0 ? { depth: circuit?.depth ?? base?.depth } : {},
+    invocation_options: {
+      ...base?.invocation_options ?? {},
+      ...circuit?.invocation_options ?? {}
+    }
+  };
+  const parsed = SelectionOverride.parse(raw);
+  return overrideContributes2(parsed) ? parsed : void 0;
+}
+function configLayerSelection(flowId, layer, current) {
+  const circuits = layer.config.circuits;
+  const circuit = Object.hasOwn(circuits, flowId) ? circuits[flowId] : void 0;
+  return composeConfigLayerSelection(layer.config.defaults.selection, circuit?.selection, current);
+}
+function applySkillOp(base, op) {
+  if (op.mode === "inherit")
+    return base;
+  if (op.mode === "replace")
+    return op.skills;
+  if (op.mode === "append") {
+    const seen = new Set(base);
+    const out = [...base];
+    for (const s of op.skills) {
+      const key = s;
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(s);
+      }
+    }
+    return out;
+  }
+  const removeSet = new Set(op.skills);
+  return base.filter((s) => !removeSet.has(s));
+}
+function applyOverride(current, override) {
+  const model = override.model ?? current.model;
+  const effort = override.effort ?? current.effort;
+  const depth = override.depth ?? current.depth;
+  const skills = applySkillOp(current.skills, override.skills);
+  const invocation_options = {
+    ...current.invocation_options,
+    ...override.invocation_options
+  };
+  return {
+    ...model !== void 0 ? { model } : {},
+    ...effort !== void 0 ? { effort } : {},
+    skills,
+    ...depth !== void 0 ? { depth } : {},
+    invocation_options
+  };
+}
+function pushIfContributing(applied, entry, resolved) {
+  if (!overrideContributes2(entry.override))
+    return resolved;
+  applied.push(entry);
+  return applyOverride(resolved, entry.override);
+}
+function configLayersBySource(layers) {
+  const out = {};
+  const seen = /* @__PURE__ */ new Set();
+  for (const layer of layers) {
+    if (seen.has(layer.layer)) {
+      throw new Error(`duplicate selection config layer '${layer.layer}'`);
+    }
+    seen.add(layer.layer);
+    out[layer.layer] = layer;
+  }
+  return out;
+}
+function resolveSelectionForGuidanceInput(input) {
+  const flowId = input.flow.id;
+  const stepId = input.step.id;
+  const applied = [];
+  let resolved = { skills: [], invocation_options: {} };
+  const configLayers = configLayersBySource(input.configLayers ?? []);
+  for (const source of PRE_FLOW_CONFIG_SOURCES) {
+    const layer = configLayers[source];
+    if (layer === void 0)
+      continue;
+    const override = configLayerSelection(flowId, layer, resolved);
+    if (override === void 0)
+      continue;
+    resolved = pushIfContributing(applied, {
+      source,
+      override
+    }, resolved);
+  }
+  if (input.flow.default_selection !== void 0) {
+    resolved = pushIfContributing(applied, { source: "flow", override: input.flow.default_selection }, resolved);
+  }
+  for (const stage of input.flow.stages) {
+    const stageSteps = stage.steps;
+    if (!stageSteps.includes(stepId))
+      continue;
+    if (stage.selection === void 0)
+      continue;
+    resolved = pushIfContributing(applied, { source: "stage", stage_id: stage.id, override: stage.selection }, resolved);
+  }
+  if (input.step.selection !== void 0) {
+    resolved = pushIfContributing(applied, {
+      source: "step",
+      step_id: input.step.id,
+      override: input.step.selection
+    }, resolved);
+  }
+  const invocationLayer = configLayers.invocation;
+  const invocationOverride = invocationLayer === void 0 ? void 0 : configLayerSelection(flowId, invocationLayer, resolved);
+  if (invocationOverride !== void 0) {
+    resolved = pushIfContributing(applied, { source: "invocation", override: invocationOverride }, resolved);
+  }
+  return SelectionResolution.parse({ resolved, applied });
+}
+
+// dist/selection/relay-selection.js
+function bindsExecutionDepthToGuidanceSelection(inv) {
+  return inv.bindsExecutionDepthToGuidanceSelection === true;
+}
+function guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth) {
+  const layers = [...inv.selectionConfigLayers ?? []];
+  const flowId = flow.id;
+  const existingIndex = layers.findIndex((layer) => layer.layer === "invocation");
+  const existing = existingIndex === -1 ? void 0 : layers[existingIndex];
+  const baseConfig = existing?.config ?? Config.parse({ schema_version: 1 });
+  const existingCircuit = baseConfig.circuits[flowId];
+  const selection = {
+    ...existingCircuit?.selection ?? {},
+    depth
+  };
+  const invocationLayer = LayeredConfig.parse({
+    layer: "invocation",
+    ...existing?.source_path === void 0 ? {} : { source_path: existing.source_path },
+    config: {
+      ...baseConfig,
+      circuits: {
+        ...baseConfig.circuits,
+        [flowId]: {
+          ...existingCircuit ?? {},
+          selection
+        }
+      }
+    }
+  });
+  if (existingIndex === -1) {
+    layers.push(invocationLayer);
+  } else {
+    layers[existingIndex] = invocationLayer;
+  }
+  return layers;
+}
+function selectionConfigLayersForGuidanceInput(inv, flow, depth) {
+  if (!bindsExecutionDepthToGuidanceSelection(inv)) {
+    return inv.selectionConfigLayers ?? [];
+  }
+  return guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth);
+}
+function deriveResolvedSelection(inv, flow, step, depth) {
+  return resolveSelectionForGuidanceInput({
+    flow,
+    step,
+    configLayers: selectionConfigLayersForGuidanceInput(inv, flow, depth)
+  }).resolved;
+}
+
+// dist/cli/flow-selection-preview.js
+function firstCompiledFlow(result) {
+  if (result.kind === "single")
+    return result.flow;
+  const first = [...result.flows.values()][0];
+  if (first === void 0)
+    throw new Error("per-mode compile produced no flows");
+  return first;
+}
+function builtinConnector(name) {
+  if (name === "claude-code" || name === "codex" || name === "cursor-agent") {
+    return { kind: "builtin", name };
+  }
+  return void 0;
+}
+function explicitConnectorForStep(step, layers) {
+  if (step.connector === void 0)
+    return void 0;
+  const builtin = builtinConnector(step.connector);
+  if (builtin !== void 0)
+    return builtin;
+  let descriptor;
+  for (const layer of layers) {
+    descriptor = layer.config.relay.connectors[step.connector] ?? descriptor;
+  }
+  return descriptor;
+}
+function withPowerLayer(layers, power) {
+  if (power === void 0)
+    return layers;
+  const layer = LayeredConfig.parse({
+    layer: "invocation",
+    config: { schema_version: 1, defaults: { power } }
+  });
+  return [...layers, layer];
+}
+function renderModel(model) {
+  return model === void 0 ? void 0 : `${model.provider}/${model.model}`;
+}
+function previewRelayStep(input) {
+  const { step, flow, layers } = input;
+  const role = RelayRole.parse(step.role);
+  const explicitConnector = explicitConnectorForStep(step, layers);
+  const connector = resolveConnectorForGuidanceInput({
+    flowId: input.flowId,
+    role,
+    configLayers: layers,
+    ...explicitConnector === void 0 ? {} : { explicitConnector },
+    ...input.hostKind === void 0 ? {} : { hostKind: input.hostKind }
+  });
+  const connectorName = connector.connectorName;
+  const stackSelection = deriveResolvedSelection({ selectionConfigLayers: layers }, flow, step, input.depth);
+  const modelFromStack = stackSelection.model !== void 0;
+  let resolved = materializePowerSelection({
+    resolved: stackSelection,
+    role,
+    connectorName,
+    attempt: 1,
+    configLayers: layers
+  });
+  let modelSource;
+  if (resolved.model !== void 0) {
+    modelSource = modelFromStack ? "config" : "power-tier";
+  } else if (connectorName === "codex") {
+    try {
+      const slug = input.codexDefaultModel();
+      resolved = { ...resolved, model: { provider: "openai", model: slug } };
+      modelSource = "codex-default";
+    } catch {
+      modelSource = "codex-default-unresolved";
+    }
+  } else {
+    modelSource = "unset";
+  }
+  let problem;
+  try {
+    assertConnectorSelectionCompatible(connectorName, resolved);
+  } catch (error51) {
+    problem = error51 instanceof Error ? error51.message : String(error51);
+  }
+  const model = renderModel(resolved.model);
+  return {
+    stepId: step.id,
+    kind: "relay",
+    role,
+    connector: connectorName,
+    ...model === void 0 ? {} : { model },
+    modelSource,
+    ...resolved.effort === void 0 ? {} : { effort: resolved.effort },
+    ...resolved.power === void 0 ? {} : { power: resolved.power },
+    powerSource: resolved.power_source ?? "fixed",
+    escalated: resolved.power_escalated === true,
+    ...problem === void 0 ? {} : { problem }
+  };
+}
+function resolveFlowSelectionPreview(input) {
+  const definition = flowDefinitions.find((candidate) => candidate.id === input.flowId);
+  if (definition === void 0) {
+    throw new Error(`unknown flow '${input.flowId}'`);
+  }
+  const compiled = firstCompiledFlow(compileSchematicToCompiledFlow(definition.schematic));
+  const index = buildRuntimePackageIndex(fromCompiledFlow(compiled));
+  const flow = index.flow;
+  const layers = withPowerLayer(input.configLayers ?? [], input.power);
+  const setting = resolvePowerDialSetting(layers);
+  const dial = setting.kind === "fixed" ? setting.value : "auto";
+  const dialResolvesTo = resolvePowerDial(layers);
+  const codexDefaultModel = input.codexDefaultModel ?? resolveCodexDefaultModelUncached;
+  const depth = "medium";
+  const relaySteps = [];
+  const nonRelaySteps = [];
+  for (const step of flow.steps) {
+    if (step.kind === "relay") {
+      relaySteps.push(previewRelayStep({
+        step,
+        flow,
+        flowId: input.flowId,
+        layers,
+        depth,
+        hostKind: input.hostKind,
+        codexDefaultModel
+      }));
+    } else {
+      nonRelaySteps.push({ stepId: step.id, kind: step.kind });
+    }
+  }
+  return {
+    flowId: input.flowId,
+    visibility: definition.visibility,
+    dial,
+    dialResolvesTo,
+    relaySteps,
+    nonRelaySteps
+  };
+}
+
+// dist/cli/preview.js
+var DIAL_CHOICES = ["auto", "low", "medium", "high"];
+var MATRIX_DIALS = ["low", "medium", "high"];
+function writeJson5(value) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}
+`);
+}
+function invalid(message) {
+  process.stderr.write(`error: ${message}
+`);
+  return 2;
+}
+function parsePreviewArgs(argv) {
+  let opts;
+  let positional = [];
+  const program2 = configureCommanderProgram(new Command("circuit preview"));
+  program2.argument("[flow]").option("--power <auto|low|medium|high>").option("--matrix").option("--json").action((_flow, options, command) => {
+    opts = options;
+    positional = command.args;
+  });
+  try {
+    program2.parse(argv, { from: "user" });
+  } catch (err) {
+    return commanderErrorMessage(err);
+  }
+  const flowId = positional[0];
+  if (flowId === void 0)
+    return "preview requires a flow name: circuit preview <flow> [--power <tier>]";
+  if (positional.length > 1)
+    return `unexpected extra arguments: ${positional.slice(1).join(" ")}`;
+  const power = opts?.power;
+  if (power !== void 0 && !DIAL_CHOICES.includes(power)) {
+    return `--power must be one of ${DIAL_CHOICES.join(", ")}`;
+  }
+  return {
+    flowId,
+    ...power === void 0 ? {} : { power },
+    matrix: opts?.matrix === true,
+    json: opts?.json === true
+  };
+}
+function hostKindFromEnv() {
+  const raw = process.env.CIRCUIT_HOST_KIND;
+  if (raw === void 0)
+    return void 0;
+  const parsed = HostKind.safeParse(raw);
+  return parsed.success ? parsed.data : void 0;
+}
+function selectionLayers() {
+  return discoverRuntimeConfigLayers({}).selectionConfigLayers;
+}
+function modelCell(step) {
+  if (step.model !== void 0)
+    return step.model;
+  if (step.modelSource === "codex-default-unresolved")
+    return "(codex default: unavailable)";
+  return "(none)";
+}
+function pad(value, width) {
+  return value.length >= width ? value : value + " ".repeat(width - value.length);
+}
+function renderTable(rows) {
+  const widths = [];
+  for (const row of rows) {
+    row.forEach((cell2, i) => {
+      widths[i] = Math.max(widths[i] ?? 0, cell2.length);
+    });
+  }
+  return rows.map((row) => row.map((cell2, i) => pad(cell2, widths[i] ?? 0)).join("  ").trimEnd()).join("\n");
+}
+function renderSinglePreview(preview) {
+  const dialLine = preview.dial === preview.dialResolvesTo ? `dial: ${preview.dial}` : `dial: ${preview.dial} (resolves to ${preview.dialResolvesTo})`;
+  const header = `flow: ${preview.flowId} (${preview.visibility})   ${dialLine}`;
+  const rows = [["STEP", "ROLE", "CONNECTOR", "MODEL", "EFFORT", "SOURCE"]];
+  for (const step of preview.relaySteps) {
+    rows.push([
+      step.stepId,
+      step.role,
+      step.connector,
+      modelCell(step),
+      step.effort ?? "-",
+      step.modelSource
+    ]);
+  }
+  const table = renderTable(rows);
+  const problems = preview.relaySteps.filter((step) => step.problem !== void 0);
+  const problemLines = problems.map((step) => `  ! ${step.stepId}: ${step.problem}`);
+  const nonRelay = preview.nonRelaySteps.length === 0 ? [] : [
+    "",
+    `non-relay steps: ${preview.nonRelaySteps.map((step) => `${step.stepId} (${step.kind})`).join(", ")}`
+  ];
+  return [
+    header,
+    "",
+    table,
+    ...problemLines.length === 0 ? [] : ["", "problems:", ...problemLines],
+    ...nonRelay
+  ].join("\n");
+}
+function renderMatrix(previews) {
+  const first = previews[0];
+  if (first === void 0)
+    return "";
+  const header = `flow: ${first.flowId} (${first.visibility})   dial matrix: ${previews.map((p) => p.dial).join(" / ")}`;
+  const columnLabels = previews.map((p) => p.dial.toUpperCase());
+  const rows = [["STEP", "ROLE", "CONNECTOR", ...columnLabels]];
+  for (const step of first.relaySteps) {
+    const cells = previews.map((p) => {
+      const match = p.relaySteps.find((candidate) => candidate.stepId === step.stepId);
+      if (match === void 0)
+        return "-";
+      const model = modelCell(match);
+      const effort = match.effort ?? "-";
+      return `${model} / ${effort}`;
+    });
+    rows.push([step.stepId, step.role, step.connector, ...cells]);
+  }
+  return [header, "", renderTable(rows)].join("\n");
+}
+function runPreviewCommand(argv) {
+  const parsed = parsePreviewArgs(argv);
+  if (typeof parsed === "string")
+    return invalid(parsed);
+  const layers = selectionLayers();
+  const hostKind = hostKindFromEnv();
+  const dials = parsed.matrix ? MATRIX_DIALS : [parsed.power];
+  let previews;
+  try {
+    previews = dials.map((power) => resolveFlowSelectionPreview({
+      flowId: parsed.flowId,
+      ...power === void 0 ? {} : { power },
+      configLayers: layers,
+      ...hostKind === void 0 ? {} : { hostKind }
+    }));
+  } catch (err) {
+    return invalid(err instanceof Error ? err.message : String(err));
+  }
+  if (parsed.json) {
+    writeJson5(parsed.matrix ? previews : previews[0]);
+    return 0;
+  }
+  const body = parsed.matrix ? renderMatrix(previews) : renderSinglePreview(previews[0]);
+  process.stdout.write(`${body}
+`);
+  return 0;
+}
+
 // dist/cli/reclaim.js
-import { join as join26, resolve as resolve21 } from "node:path";
+import { join as join28, resolve as resolve22 } from "node:path";
 
 // dist/runtime/fanout/worktree-reaper.js
 import { readdir } from "node:fs/promises";
-import { join as join25 } from "node:path";
+import { join as join27 } from "node:path";
 
 // dist/runtime/trace/trace-store.js
 import { appendFile, mkdir, readFile, truncate as truncate2 } from "node:fs/promises";
-import { join as join23 } from "node:path";
+import { join as join25 } from "node:path";
 var TraceStore = class {
   runDir;
   options;
@@ -59051,7 +60354,7 @@ var TraceStore = class {
   constructor(runDir, options = {}) {
     this.runDir = runDir;
     this.options = options;
-    this.tracePath = join23(runDir, "trace.ndjson");
+    this.tracePath = join25(runDir, "trace.ndjson");
   }
   async load() {
     await this.appendTail;
@@ -59157,16 +60460,16 @@ var TraceStore = class {
 };
 
 // dist/runtime/fanout/run-owner-lock.js
-import { mkdirSync as mkdirSync6, readFileSync as readFileSync46, rmSync as rmSync4, writeFileSync as writeFileSync7 } from "node:fs";
-import { join as join24 } from "node:path";
+import { mkdirSync as mkdirSync6, readFileSync as readFileSync48, rmSync as rmSync4, writeFileSync as writeFileSync7 } from "node:fs";
+import { join as join26 } from "node:path";
 var OWNER_LOCK_FILENAME = ".owner.json";
 function ownerLockPath(worktreesRoot, runId) {
-  return join24(worktreesRoot, runId, OWNER_LOCK_FILENAME);
+  return join26(worktreesRoot, runId, OWNER_LOCK_FILENAME);
 }
 function writeOwnerLock(worktreesRoot, runId, startedAt) {
   const lock = { schema_version: 1, pid: process.pid, started_at: startedAt };
   try {
-    mkdirSync6(join24(worktreesRoot, runId), { recursive: true });
+    mkdirSync6(join26(worktreesRoot, runId), { recursive: true });
     writeFileSync7(ownerLockPath(worktreesRoot, runId), JSON.stringify(lock), "utf8");
   } catch {
   }
@@ -59190,7 +60493,7 @@ var defaultProcessAlive = (pid) => {
 function isRunLiveByOwnerLock(worktreesRoot, runId, processAlive = defaultProcessAlive) {
   let raw;
   try {
-    raw = readFileSync46(ownerLockPath(worktreesRoot, runId), "utf8");
+    raw = readFileSync48(ownerLockPath(worktreesRoot, runId), "utf8");
   } catch {
     return false;
   }
@@ -59241,11 +60544,11 @@ var listWorktreesFromDisk = async (worktreesRoot) => {
   const entries = [];
   const runDirs = await listSubdirectories(worktreesRoot);
   for (const runId of runDirs) {
-    const stepDirs = await listSubdirectories(join25(worktreesRoot, runId));
+    const stepDirs = await listSubdirectories(join27(worktreesRoot, runId));
     for (const stepId of stepDirs) {
-      const branchDirs = await listSubdirectories(join25(worktreesRoot, runId, stepId));
+      const branchDirs = await listSubdirectories(join27(worktreesRoot, runId, stepId));
       for (const branchId of branchDirs) {
-        entries.push({ path: join25(worktreesRoot, runId, stepId, branchId), runId });
+        entries.push({ path: join27(worktreesRoot, runId, stepId, branchId), runId });
       }
     }
   }
@@ -59265,7 +60568,7 @@ function makeTraceRunStatusResolver(runsRoot2) {
   return async (runId) => {
     let entries;
     try {
-      const trace = new TraceStore(join25(runsRoot2, runId));
+      const trace = new TraceStore(join27(runsRoot2, runId));
       entries = await trace.load();
     } catch {
       return "unknown";
@@ -59359,7 +60662,7 @@ async function reapWorktrees(options) {
 }
 
 // dist/cli/reclaim.js
-function writeJson5(value) {
+function writeJson6(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}
 `);
 }
@@ -59375,7 +60678,7 @@ function parseReclaimArgs(argv) {
   }
   return {
     json: options?.json === true,
-    projectRoot: resolve21(options?.projectRoot ?? process.cwd())
+    projectRoot: resolve22(options?.projectRoot ?? process.cwd())
   };
 }
 async function runReclaimCommand(argv) {
@@ -59386,12 +60689,12 @@ async function runReclaimCommand(argv) {
     return 2;
   }
   const projectRoot = parsed.projectRoot;
-  const worktreesRoot = join26(controlPlaneRoot(projectRoot), "worktrees");
+  const worktreesRoot = join28(controlPlaneRoot(projectRoot), "worktrees");
   const summary = await reapWorktrees({
     worktreesRoot,
     resolveRunStatus: makeTraceRunStatusResolver(runsRoot(projectRoot))
   });
-  writeJson5({
+  writeJson6({
     schema_version: 1,
     worktrees_root: worktreesRoot,
     removed: summary.removed,
@@ -59407,7 +60710,7 @@ import { existsSync as existsSync40, mkdirSync as mkdirSync11, readFileSync as r
 import { dirname as dirname14, join as join46, resolve as resolve28 } from "node:path";
 
 // dist/runtime/run/checkpoint-resume.js
-import { readFileSync as readFileSync53 } from "node:fs";
+import { readFileSync as readFileSync54 } from "node:fs";
 
 // dist/policy/policy-envelope.js
 var PolicyEnvelopeCompositionError = class extends Error {
@@ -60269,358 +61572,6 @@ function projectWorkContractProjectionV0(input) {
   return WorkContractProjectionV0.parse(projection);
 }
 
-// dist/runtime/domain/route.js
-var TERMINAL_TARGETS = [
-  "@complete",
-  "@stop",
-  "@handoff",
-  "@escalate"
-];
-
-// dist/runtime/run/engine-flags.js
-function translateSliceLoop(slice) {
-  return {
-    headStep: slice.head_step,
-    tailStep: slice.tail_step,
-    advanceRoute: slice.advance_route,
-    slicesFrom: { report: slice.slices_from.report, itemsPath: slice.slices_from.items_path },
-    maxSlices: slice.max_slices,
-    activateWhenDepthAtLeast: slice.activate_when_depth_at_least
-  };
-}
-function translateUntilLoop(until) {
-  return {
-    headStep: until.head_step,
-    tailStep: until.tail_step,
-    bodySteps: until.body_steps,
-    reenterRoute: until.reenter_route,
-    maxIterations: until.max_iterations,
-    ...until.stop_judge === void 0 ? {} : {
-      stopJudge: {
-        report: until.stop_judge.report,
-        goalMetPath: until.stop_judge.goal_met_path,
-        ...until.stop_judge.lesson_path === void 0 ? {} : { lessonPath: until.stop_judge.lesson_path },
-        ...until.stop_judge.progress_path === void 0 ? {} : { progressPath: until.stop_judge.progress_path }
-      }
-    },
-    ...until.needs_attention_route === void 0 ? {} : { needsAttentionRoute: until.needs_attention_route },
-    ...until.carried_notes === void 0 ? {} : {
-      carriedNotes: {
-        report: until.carried_notes.report,
-        ...until.carried_notes.max_entries === void 0 ? {} : { maxEntries: until.carried_notes.max_entries }
-      }
-    },
-    ...until.cumulative_usd_cap === void 0 ? {} : { cumulativeUsdCap: until.cumulative_usd_cap },
-    ...until.cumulative_token_cap === void 0 ? {} : { cumulativeTokenCap: until.cumulative_token_cap },
-    ...until.no_progress_ceiling === void 0 ? {} : { noProgressCeiling: until.no_progress_ceiling },
-    ...until.iteration_commit_containment === void 0 ? {} : {
-      iterationCommitContainment: {
-        branchPrefix: until.iteration_commit_containment.branch_prefix
-      }
-    },
-    ...until.frozen_paths === void 0 ? {} : { frozenPaths: until.frozen_paths },
-    activateWhenDepthAtLeast: until.activate_when_depth_at_least
-  };
-}
-function manifestEngineFlagsToInCode(manifest) {
-  if (manifest === void 0)
-    return void 0;
-  const slice = manifest.iterates_slice_loop;
-  const until = manifest.iterates_until_condition;
-  const result = {
-    ...manifest.binds_execution_depth_to_relay_selection === void 0 ? {} : {
-      bindsExecutionDepthToRelaySelection: manifest.binds_execution_depth_to_relay_selection
-    },
-    ...manifest.binds_terminal_outcome_to_primary_result === void 0 ? {} : {
-      bindsTerminalOutcomeToPrimaryResult: manifest.binds_terminal_outcome_to_primary_result
-    },
-    ...slice === void 0 ? {} : { iteratesSliceLoop: translateSliceLoop(slice) },
-    ...until === void 0 ? {} : { iteratesUntilCondition: translateUntilLoop(until) }
-  };
-  return Object.keys(result).length === 0 ? void 0 : result;
-}
-function resolveEngineFlags(flow) {
-  return flow.engineFlags;
-}
-
-// dist/runtime/manifest/validate-executable-flow.js
-function requiredRoutesForStep() {
-  return ["pass"];
-}
-function isRouteTarget(value) {
-  if (typeof value !== "object" || value === null)
-    return false;
-  const target = value;
-  if (target.kind === "step")
-    return typeof target.stepId === "string" && target.stepId.length > 0;
-  if (target.kind === "terminal") {
-    return typeof target.target === "string" && TERMINAL_TARGETS.includes(target.target);
-  }
-  return false;
-}
-function addRunFilePathIssues(issues, owner, ref) {
-  for (const issue2 of validateRunFilePath(ref.path)) {
-    issues.push(`${owner} path ${issue2}: ${ref.path}`);
-  }
-}
-function validateExecutableFlow(flow) {
-  const issues = [];
-  const stepIds = /* @__PURE__ */ new Set();
-  const duplicateStepIds = /* @__PURE__ */ new Set();
-  const stageIds = /* @__PURE__ */ new Set();
-  const duplicateStageIds = /* @__PURE__ */ new Set();
-  const stageStepCounts = /* @__PURE__ */ new Map();
-  const entryModeNames = /* @__PURE__ */ new Set();
-  const duplicateEntryModeNames = /* @__PURE__ */ new Set();
-  if (flow.steps.length === 0)
-    issues.push("flow must declare at least one step");
-  if (flow.stages.length === 0)
-    issues.push("flow must declare at least one stage");
-  for (const step of flow.steps) {
-    if (stepIds.has(step.id))
-      duplicateStepIds.add(step.id);
-    stepIds.add(step.id);
-  }
-  for (const stage of flow.stages) {
-    if (stageIds.has(stage.id))
-      duplicateStageIds.add(stage.id);
-    stageIds.add(stage.id);
-    if (stage.stepIds.length === 0)
-      issues.push(`stage '${stage.id}' must declare at least one step`);
-    const seenInStage = /* @__PURE__ */ new Set();
-    for (const stepId of stage.stepIds) {
-      if (seenInStage.has(stepId)) {
-        issues.push(`stage '${stage.id}' lists step '${stepId}' more than once`);
-      }
-      seenInStage.add(stepId);
-      stageStepCounts.set(stepId, (stageStepCounts.get(stepId) ?? 0) + 1);
-    }
-  }
-  for (const stepId of duplicateStepIds)
-    issues.push(`duplicate step id: ${stepId}`);
-  for (const stageId of duplicateStageIds)
-    issues.push(`duplicate stage id: ${stageId}`);
-  if (!stepIds.has(flow.entry))
-    issues.push(`entry step does not exist: ${flow.entry}`);
-  if (flow.entryModes !== void 0) {
-    if (flow.entryModes.length === 0) {
-      issues.push("entryModes must not be empty when provided");
-    }
-    for (const mode of flow.entryModes) {
-      if (entryModeNames.has(mode.name))
-        duplicateEntryModeNames.add(mode.name);
-      entryModeNames.add(mode.name);
-      if (!stepIds.has(mode.startAt)) {
-        issues.push(`entry mode '${mode.name}' startAt references unknown step '${mode.startAt}'`);
-      }
-    }
-  }
-  for (const modeName of duplicateEntryModeNames) {
-    issues.push(`duplicate entry mode name: ${modeName}`);
-  }
-  for (const stage of flow.stages) {
-    for (const stepId of stage.stepIds) {
-      if (!stepIds.has(stepId))
-        issues.push(`stage '${stage.id}' references unknown step '${stepId}'`);
-    }
-  }
-  for (const step of flow.steps) {
-    const stageListingCount = stageStepCounts.get(step.id) ?? 0;
-    if (stageListingCount === 0) {
-      issues.push(`step '${step.id}' is not listed in any stage`);
-    }
-    for (const [index, ref] of (step.reads ?? []).entries()) {
-      addRunFilePathIssues(issues, `step '${step.id}' read[${index}]`, ref);
-    }
-    for (const [slot2, ref] of Object.entries(step.writes ?? {})) {
-      addRunFilePathIssues(issues, `step '${step.id}' write '${slot2}'`, ref);
-    }
-    if (step.kind === "relay" && step.report !== void 0) {
-      addRunFilePathIssues(issues, `relay step '${step.id}' report`, step.report);
-    }
-    if (step.kind === "fanout") {
-      const aggregate2 = step.writes?.aggregate;
-      if (typeof aggregate2 === "object" && aggregate2 !== null && typeof aggregate2.path === "string") {
-        addRunFilePathIssues(issues, `fanout step '${step.id}' aggregate`, aggregate2);
-      }
-    }
-    if (step.kind === "checkpoint") {
-      const hasDynamicChoices = typeof step.policy === "object" && step.policy !== null && step.policy.choices_from !== void 0;
-      if (step.choices.length === 0 && !hasDynamicChoices) {
-        issues.push(`checkpoint step '${step.id}' must declare at least one choice`);
-      }
-      const seenChoices = /* @__PURE__ */ new Set();
-      for (const choice of step.choices) {
-        if (seenChoices.has(choice)) {
-          issues.push(`checkpoint step '${step.id}' has duplicate choice '${choice}'`);
-        }
-        seenChoices.add(choice);
-      }
-    }
-    for (const requiredRoute of requiredRoutesForStep()) {
-      if (step.routes[requiredRoute] === void 0) {
-        issues.push(`step '${step.id}' is missing required route '${requiredRoute}'`);
-      }
-    }
-    for (const [routeName, target] of Object.entries(step.routes)) {
-      if (!isRouteTarget(target)) {
-        issues.push(`step '${step.id}' route '${routeName}' has invalid target`);
-        continue;
-      }
-      if (target.kind === "step" && !stepIds.has(target.stepId)) {
-        issues.push(`step '${step.id}' route '${routeName}' targets unknown step '${target.stepId}'`);
-      }
-    }
-  }
-  return { ok: issues.length === 0, issues };
-}
-function assertExecutableFlow(flow) {
-  const validation = validateExecutableFlow(flow);
-  if (!validation.ok) {
-    throw new Error(`invalid executable flow: ${validation.issues.join("; ")}`);
-  }
-}
-
-// dist/runtime/manifest/from-compiled-flow.js
-function isReportRef(value) {
-  return typeof value === "object" && value !== null && typeof value.path === "string" && typeof value.schema === "string";
-}
-function toRunFileRef(value) {
-  if (isReportRef(value))
-    return { path: value.path, schema: value.schema };
-  return { path: value };
-}
-function toWrites(writes) {
-  const mapped = {};
-  for (const [slot2, value] of Object.entries(writes)) {
-    if (value === void 0)
-      continue;
-    mapped[slot2] = toRunFileRef(value);
-  }
-  return mapped;
-}
-function toRoutes(routes) {
-  const terminalTargets = new Set(TERMINAL_TARGETS);
-  const mapped = {};
-  for (const [routeName, target] of Object.entries(routes)) {
-    mapped[routeName] = terminalTargets.has(target) ? { kind: "terminal", target } : { kind: "step", stepId: target };
-  }
-  return mapped;
-}
-function toSelection(selection) {
-  if (selection === void 0)
-    return void 0;
-  return {
-    ...selection.model === void 0 ? {} : { model: selection.model },
-    ...selection.effort === void 0 ? {} : { effort: selection.effort },
-    ...selection.skills === void 0 ? {} : { skills: selection.skills },
-    ...selection.depth === void 0 ? {} : { depth: selection.depth },
-    ...selection.invocation_options === void 0 ? {} : { invocation_options: selection.invocation_options }
-  };
-}
-function baseStep(step) {
-  const selection = toSelection(step.selection);
-  return {
-    id: step.id,
-    title: step.title,
-    protocol: step.protocol,
-    routes: toRoutes(step.routes),
-    reads: step.reads.map((path) => ({ path })),
-    writes: toWrites(step.writes),
-    ...selection === void 0 ? {} : { selection },
-    ...step.skill_slots === void 0 ? {} : { skillSlots: step.skill_slots },
-    ...step.equipment_scope === void 0 ? {} : { equipmentScope: step.equipment_scope },
-    ...step.route_from_report === void 0 ? {} : { routeFromReport: step.route_from_report },
-    check: step.check,
-    ...step.budgets === void 0 ? {} : { budgets: step.budgets }
-  };
-}
-function convertStep(step) {
-  const base = baseStep(step);
-  if (step.kind === "compose") {
-    return { ...base, kind: "compose", writer: step.protocol };
-  }
-  if (step.kind === "verification") {
-    return { ...base, kind: "verification", check: step.check };
-  }
-  if (step.kind === "checkpoint") {
-    return {
-      ...base,
-      kind: "checkpoint",
-      choices: step.policy.choices?.map((choice) => choice.id) ?? [],
-      policy: step.policy
-    };
-  }
-  if (step.kind === "relay") {
-    return {
-      ...base,
-      kind: "relay",
-      role: step.role,
-      ...step.connector === void 0 ? {} : { connector: step.connector },
-      ...step.acceptance_criteria === void 0 ? {} : { acceptanceCriteria: step.acceptance_criteria },
-      ...step.writes.report === void 0 ? {} : { report: toRunFileRef(step.writes.report) }
-    };
-  }
-  if (step.kind === "sub-run") {
-    return {
-      ...base,
-      kind: "sub-run",
-      flowRef: step.flow_ref.flow_id,
-      entryMode: step.flow_ref.entry_mode,
-      ...step.flow_ref.version === void 0 ? {} : { version: step.flow_ref.version },
-      goal: step.goal,
-      depth: step.depth
-    };
-  }
-  return {
-    ...base,
-    kind: "fanout",
-    branches: step.branches,
-    concurrency: step.concurrency,
-    onChildFailure: step.on_child_failure,
-    ...step.rubric === void 0 ? {} : { rubric: step.rubric }
-  };
-}
-function fromCompiledFlow(flow) {
-  const defaultSelection = toSelection(flow.default_selection);
-  const engineFlags = manifestEngineFlagsToInCode(flow.engine_flags);
-  const runtimeSurface = flow.runtime_surface?.primary_result === void 0 ? void 0 : {
-    primaryResult: {
-      schemaName: flow.runtime_surface.primary_result.schema_name,
-      path: flow.runtime_surface.primary_result.path
-    }
-  };
-  const executable = {
-    id: flow.id,
-    version: flow.version,
-    purpose: flow.purpose,
-    entry: flow.starts_at,
-    stages: flow.stages.map((stage) => {
-      const selection = toSelection(stage.selection);
-      return {
-        id: stage.id,
-        title: stage.title,
-        ...stage.canonical === void 0 ? {} : { canonical: stage.canonical },
-        stepIds: stage.steps,
-        ...selection === void 0 ? {} : { selection }
-      };
-    }),
-    steps: flow.steps.map((step) => convertStep(step)),
-    ...defaultSelection === void 0 ? {} : { defaultSelection },
-    stagePathPolicy: flow.stage_path_policy,
-    metadata: {
-      source: "compiled-flow-v1",
-      schema_version: flow.schema_version
-    },
-    ...engineFlags === void 0 ? {} : { engineFlags },
-    ...flow.report_file_surfaces === void 0 ? {} : { reportFileSurfaces: flow.report_file_surfaces },
-    ...runtimeSurface === void 0 ? {} : { runtimeSurface },
-    ...flow.required_config === void 0 ? {} : { requiredConfig: flow.required_config }
-  };
-  assertExecutableFlow(executable);
-  return executable;
-}
-
 // dist/runtime/run/context-delivery.js
 var CONTEXT_DELIVERY_BUDGET = 3;
 function createContextDelivery() {
@@ -60813,7 +61764,7 @@ function seedEquipmentReshapeFromTrace(entries, initialFlow) {
 
 // dist/runtime/run/graph-runner.js
 import { randomUUID as randomUUID7 } from "node:crypto";
-import { join as join36 } from "node:path";
+import { join as join37 } from "node:path";
 
 // dist/selection/power-inference.js
 function createPowerInferenceChannel() {
@@ -60858,83 +61809,6 @@ function seedPowerInferenceFromTrace(entries, channel) {
     });
     return;
   }
-}
-
-// dist/selection/power-tiers.js
-var DEFAULT_POWER_TIERS = {
-  "claude-code": {
-    low: { model: { provider: "anthropic", model: "haiku" } },
-    medium: { model: { provider: "anthropic", model: "sonnet" } },
-    high: { model: { provider: "anthropic", model: "opus" } }
-  },
-  codex: {
-    low: { effort: "low" },
-    medium: { effort: "medium" },
-    high: { effort: "high" }
-  }
-};
-var ROLE_POWER_ALLOCATION = {
-  high: { researcher: "high", implementer: "high", reviewer: "high" },
-  medium: { researcher: "high", implementer: "medium", reviewer: "medium" },
-  low: { researcher: "high", implementer: "low", reviewer: "medium" }
-};
-function bumpOneTier(tier) {
-  return POWER_ORDER[Math.min(powerIndex(tier) + 1, POWER_ORDER.length - 1)];
-}
-var LAYER_PRECEDENCE = ["default", "user-global", "project", "invocation"];
-function layersInPrecedenceOrder(layers) {
-  return LAYER_PRECEDENCE.flatMap((name) => layers.filter((layer) => layer.layer === name));
-}
-function resolvePowerDialSetting(layers) {
-  let dial = "medium";
-  for (const layer of layersInPrecedenceOrder(layers)) {
-    const power = layer.config.defaults?.power;
-    if (power !== void 0)
-      dial = power;
-  }
-  if (dial !== "auto")
-    return { kind: "fixed", value: dial };
-  let floor = "low";
-  let ceiling = "high";
-  for (const layer of layersInPrecedenceOrder(layers)) {
-    const bounds = layer.config.power_auto;
-    if (bounds?.floor !== void 0)
-      floor = bounds.floor;
-    if (bounds?.ceiling !== void 0)
-      ceiling = bounds.ceiling;
-  }
-  if (powerIndex(floor) > powerIndex(ceiling))
-    floor = ceiling;
-  return { kind: "auto", floor, ceiling };
-}
-function tierSpec(layers, connectorName, tier) {
-  let spec = DEFAULT_POWER_TIERS[connectorName]?.[tier];
-  for (const layer of layersInPrecedenceOrder(layers)) {
-    const candidate = layer.config.power_tiers?.[connectorName]?.[tier];
-    if (candidate !== void 0)
-      spec = candidate;
-  }
-  return spec;
-}
-function materializePowerSelection(input) {
-  if (input.resolved.model !== void 0)
-    return input.resolved;
-  const layers = input.configLayers ?? [];
-  const setting = resolvePowerDialSetting(layers);
-  const dial = setting.kind === "fixed" ? setting.value : input.inferredPower ?? "medium";
-  const allocated = ROLE_POWER_ALLOCATION[dial][input.role];
-  const tier = input.attempt > 1 ? bumpOneTier(allocated) : allocated;
-  const spec = tierSpec(layers, input.connectorName, tier);
-  if (spec === void 0)
-    return input.resolved;
-  return {
-    ...input.resolved,
-    ...spec.model === void 0 ? {} : { model: spec.model },
-    ...input.resolved.effort === void 0 && spec.effort !== void 0 ? { effort: spec.effort } : {},
-    power: dial,
-    ...tier === allocated ? {} : { power_escalated: true },
-    ...setting.kind === "auto" ? { power_source: "auto" } : {}
-  };
 }
 
 // dist/shared/fanout-branch-template.js
@@ -60994,18 +61868,18 @@ function expandTemplate(template, item) {
 }
 
 // dist/shared/user-skill-registry.js
-var import_yaml3 = __toESM(require_dist(), 1);
-import { existsSync as existsSync30, readFileSync as readFileSync47, readdirSync as readdirSync6 } from "node:fs";
-import { homedir as homedir3 } from "node:os";
-import { join as join27, resolve as resolve22 } from "node:path";
+var import_yaml4 = __toESM(require_dist(), 1);
+import { existsSync as existsSync31, readFileSync as readFileSync49, readdirSync as readdirSync6 } from "node:fs";
+import { homedir as homedir5 } from "node:os";
+import { join as join29, resolve as resolve23 } from "node:path";
 var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)([\s\S]*)$/;
 var UserSkillFrontmatter = UserSkillEntry.pick({
   name: true,
   description: true,
   trigger: true
 }).loose();
-function defaultUserSkillRoots(homeDir = homedir3()) {
-  return [join27(homeDir, ".agents", "skills"), join27(homeDir, ".claude", "skills")];
+function defaultUserSkillRoots(homeDir = homedir5()) {
+  return [join29(homeDir, ".agents", "skills"), join29(homeDir, ".claude", "skills")];
 }
 function parseSkillMarkdown(text, skillPath) {
   if (!text.startsWith("---"))
@@ -61016,7 +61890,7 @@ function parseSkillMarkdown(text, skillPath) {
   }
   let rawFrontmatter;
   try {
-    rawFrontmatter = (0, import_yaml3.parse)(match[1] ?? "");
+    rawFrontmatter = (0, import_yaml4.parse)(match[1] ?? "");
   } catch (err) {
     throw new Error(`skill frontmatter parse failed at ${skillPath}: ${err.message}`);
   }
@@ -61036,8 +61910,8 @@ function parseSkillMarkdown(text, skillPath) {
 function discoverCandidates(roots) {
   const candidates = /* @__PURE__ */ new Map();
   for (const root of roots) {
-    const rootAbs = resolve22(root);
-    if (!existsSync30(rootAbs))
+    const rootAbs = resolve23(root);
+    if (!existsSync31(rootAbs))
       continue;
     for (const entry of readdirSync6(rootAbs, { withFileTypes: true })) {
       if (!entry.isDirectory())
@@ -61048,8 +61922,8 @@ function discoverCandidates(roots) {
       const key = id.data;
       if (candidates.has(key))
         continue;
-      const skillPath = join27(rootAbs, entry.name, "SKILL.md");
-      if (!existsSync30(skillPath))
+      const skillPath = join29(rootAbs, entry.name, "SKILL.md");
+      if (!existsSync31(skillPath))
         continue;
       candidates.set(key, {
         id: id.data,
@@ -61063,7 +61937,7 @@ function discoverCandidates(roots) {
 function loadCandidate(candidate) {
   let text;
   try {
-    text = readFileSync47(candidate.path, "utf8");
+    text = readFileSync49(candidate.path, "utf8");
   } catch (err) {
     throw new Error(`selected skill '${candidate.id}' could not be read at ${candidate.path}: ${err.message}`);
   }
@@ -61081,7 +61955,7 @@ function loadCandidate(candidate) {
 function createUserSkillRegistry(options = {}) {
   const roots = options.roots ?? defaultUserSkillRoots(options.homeDir);
   const candidates = discoverCandidates(roots);
-  const searchedRoots = roots.map((root) => resolve22(root));
+  const searchedRoots = roots.map((root) => resolve23(root));
   const cache = /* @__PURE__ */ new Map();
   const loadCached = (key, candidate) => {
     const cached2 = cache.get(key);
@@ -61103,7 +61977,7 @@ function createUserSkillRegistry(options = {}) {
         throw new Error([
           `Circuit could not find skill '${key}'.`,
           "Searched:",
-          ...searchedRoots.map((root) => `- ${join27(root, key, "SKILL.md")}`)
+          ...searchedRoots.map((root) => `- ${join29(root, key, "SKILL.md")}`)
         ].join("\n"));
       }
       return loadCached(key, candidate);
@@ -61362,12 +62236,12 @@ function surfaceSourcesFromDeclarations(declarations) {
 
 // dist/shared/working-tree-changes.js
 import { spawnSync as spawnSync4 } from "node:child_process";
-import { existsSync as existsSync31 } from "node:fs";
-import { dirname as dirname6, join as join28 } from "node:path";
+import { existsSync as existsSync32 } from "node:fs";
+import { dirname as dirname6, join as join30 } from "node:path";
 function isInsideGitRepo(start) {
   let dir = start;
   for (; ; ) {
-    if (existsSync31(join28(dir, ".git")))
+    if (existsSync32(join30(dir, ".git")))
       return true;
     const parent = dirname6(dir);
     if (parent === dir)
@@ -62398,133 +63272,6 @@ async function executeCheckpoint(step, context) {
   return unwrapStepExecutionResult(await executeCheckpointResult(step, context));
 }
 
-// dist/connectors/resolver.js
-function mergedRelayConfig(layers) {
-  const merged = {
-    default: "auto",
-    roles: {},
-    circuits: {},
-    connectors: {}
-  };
-  for (const layer of layers ?? []) {
-    if (layer.config.relay.default !== "auto" || merged.default === "auto") {
-      merged.default = layer.config.relay.default;
-    }
-    merged.roles = { ...merged.roles, ...layer.config.relay.roles };
-    merged.circuits = { ...merged.circuits, ...layer.config.relay.circuits };
-    merged.connectors = { ...merged.connectors, ...layer.config.relay.connectors };
-  }
-  return merged;
-}
-function mergedHostKind(layers) {
-  let hostKind;
-  for (const layer of layers ?? []) {
-    const configuredHostKind = layer.config.host?.kind;
-    if (configuredHostKind !== void 0) {
-      hostKind = configuredHostKind;
-    }
-  }
-  return hostKind ?? "generic-shell";
-}
-function connectorCapabilities(connector) {
-  if (connector.kind === "builtin")
-    return BUILTIN_CONNECTOR_CAPABILITIES[connector.name];
-  return connector.capabilities;
-}
-function assertConnectorCanRunRole(connector, role) {
-  const capabilities = connectorCapabilities(connector);
-  if (role === "implementer" && capabilities.filesystem === "read-only") {
-    throw new Error(`relay connector '${connector.name}' is read-only and cannot run implementer step role '${role}'`);
-  }
-}
-function resolvedConnectorFromReference(ref, relay) {
-  if (ref.kind === "builtin")
-    return ref;
-  const descriptor = relay.connectors[ref.name];
-  if (descriptor === void 0) {
-    throw new Error(`relay connector '${ref.name}' is referenced but not declared`);
-  }
-  return descriptor;
-}
-function resolveConnectorReference(input) {
-  return resolvedConnectorFromReference(input.ref, mergedRelayConfig(input.configLayers));
-}
-function isEnabledConnector(value) {
-  return EnabledConnector.options.includes(value);
-}
-function resolvedConnectorFromDefault(defaultRef, relay) {
-  if (isEnabledConnector(defaultRef)) {
-    return { kind: "builtin", name: defaultRef };
-  }
-  const descriptor = relay.connectors[defaultRef];
-  if (descriptor === void 0) {
-    throw new Error(`relay default connector '${defaultRef}' is referenced but not declared`);
-  }
-  return descriptor;
-}
-function decision(connector, resolvedFrom, role) {
-  assertConnectorCanRunRole(connector, role);
-  return {
-    connectorName: connector.name,
-    connector,
-    resolvedFrom
-  };
-}
-function autoConnectorForHost(hostKind) {
-  if (hostKind === "codex")
-    return { kind: "builtin", name: "codex" };
-  return { kind: "builtin", name: "claude-code" };
-}
-function resolveConnectorForGuidanceInput(input) {
-  if (input.explicitConnector !== void 0) {
-    return decision(input.explicitConnector, { source: "explicit" }, input.role);
-  }
-  const relay = mergedRelayConfig(input.configLayers);
-  const roleRef = relay.roles[input.role];
-  if (roleRef !== void 0) {
-    return decision(resolvedConnectorFromReference(roleRef, relay), {
-      source: "role",
-      role: input.role
-    }, input.role);
-  }
-  const flowId = input.flowId;
-  const flowRef = relay.circuits[flowId];
-  if (flowRef !== void 0) {
-    return decision(resolvedConnectorFromReference(flowRef, relay), {
-      source: "circuit",
-      flow_id: flowId
-    }, input.role);
-  }
-  if (relay.default !== "auto") {
-    return decision(resolvedConnectorFromDefault(relay.default, relay), { source: "default" }, input.role);
-  }
-  return decision(autoConnectorForHost(input.hostKind ?? mergedHostKind(input.configLayers)), { source: "auto" }, input.role);
-}
-function expectedProvider(connectorName) {
-  if (!isEnabledConnector(connectorName))
-    return void 0;
-  return BUILTIN_CONNECTOR_SPECS[connectorName].provider;
-}
-function supportedEfforts(connectorName) {
-  if (!isEnabledConnector(connectorName))
-    return void 0;
-  return BUILTIN_CONNECTOR_SPECS[connectorName].supportedEfforts;
-}
-function assertConnectorSelectionCompatible(connectorName, selection) {
-  const expected = expectedProvider(connectorName);
-  const model = selection?.model;
-  if (expected !== void 0 && model !== void 0 && model.provider !== expected) {
-    throw new Error(`${connectorName} connector cannot honor model provider '${model.provider}' for model '${model.model}'; expected provider '${expected}'`);
-  }
-  const effort = selection?.effort;
-  if (effort === void 0)
-    return;
-  const supported = supportedEfforts(connectorName);
-  if (supported !== void 0 && !supported.includes(effort)) {
-    throw new Error(`${connectorName} connector cannot honor effort '${effort}'; supported efforts: ${supported.join(", ")}`);
-  }
-}
-
 // dist/runtime/run/connector-planning.js
 var runtimeConnectorPlanner = {
   planPrototypeVariantConnector(input) {
@@ -62914,7 +63661,7 @@ function isRubricJudgment(value) {
 
 // dist/runtime/fanout/branch-execution.js
 import { randomUUID as randomUUID6 } from "node:crypto";
-import { dirname as dirname8, join as join33 } from "node:path";
+import { dirname as dirname8, join as join34 } from "node:path";
 
 // dist/flows/registries/cross-report-validators.js
 var REGISTRY5 = buildCrossReportValidatorRegistry(flowPackages);
@@ -62972,97 +63719,6 @@ import { execFileSync as execFileSync4 } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join as joinPath } from "node:path";
-
-// dist/connectors/codex-default-model.js
-import { readFileSync as readFileSync48 } from "node:fs";
-import { homedir as homedir4 } from "node:os";
-import { join as join29 } from "node:path";
-var CODEX_MODELS_CACHE_FILENAME = "models_cache.json";
-function codexHomeDir() {
-  const fromEnv = process.env.CODEX_HOME;
-  if (fromEnv !== void 0 && fromEnv.trim().length > 0)
-    return fromEnv;
-  return join29(homedir4(), ".codex");
-}
-function codexModelsCachePath() {
-  return join29(codexHomeDir(), CODEX_MODELS_CACHE_FILENAME);
-}
-function candidateFrom(value) {
-  if (typeof value !== "object" || value === null)
-    return void 0;
-  const record2 = value;
-  if (record2.visibility !== "list")
-    return void 0;
-  if (record2.supported_in_api !== true)
-    return void 0;
-  const priority = record2.priority;
-  if (typeof priority !== "number" || !Number.isFinite(priority))
-    return void 0;
-  const slug = typeof record2.slug === "string" ? record2.slug.trim() : void 0;
-  if (slug === void 0 || slug.length === 0)
-    return void 0;
-  return { slug, priority };
-}
-function pickCodexFlagshipModel(cache) {
-  if (typeof cache !== "object" || cache === null)
-    return void 0;
-  const models = cache.models;
-  if (!Array.isArray(models))
-    return void 0;
-  const candidates = models.map(candidateFrom).filter((entry) => entry !== void 0);
-  if (candidates.length === 0)
-    return void 0;
-  candidates.sort((a, b) => a.priority - b.priority);
-  return candidates[0]?.slug;
-}
-var CodexDefaultModelUnavailableError = class extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "CodexDefaultModelUnavailableError";
-  }
-};
-function unavailableMessage(cachePath, reason) {
-  return [
-    "codex connector: no model is pinned for this codex step and no default could",
-    `be resolved from the Codex models cache (${cachePath}).`,
-    "Circuit runs codex with --ignore-user-config, so ~/.codex/config.toml is",
-    "intentionally not consulted for the model. Fix by either (a) pinning an",
-    "openai model for codex in your Circuit config \u2014 set defaults.selection.model",
-    '(or circuits.<flow>.selection.model) to { provider: "openai", model:',
-    '"<model>" }, or set power_tiers.codex.<tier>.model \u2014 or (b) running `codex`',
-    `once so ${cachePath} is populated.`,
-    `(reason: ${reason})`
-  ].join(" ");
-}
-function resolveCodexDefaultModelUncached() {
-  const cachePath = codexModelsCachePath();
-  let raw;
-  try {
-    raw = readFileSync48(cachePath, "utf8");
-  } catch (err) {
-    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache not readable: ${err.message}`));
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, `cache is not valid JSON: ${err.message}`));
-  }
-  const model = pickCodexFlagshipModel(parsed);
-  if (model === void 0) {
-    throw new CodexDefaultModelUnavailableError(unavailableMessage(cachePath, "no API-listed model found in the cache"));
-  }
-  return model;
-}
-var cachedDefaultModel;
-function resolveCodexDefaultModel() {
-  if (cachedDefaultModel !== void 0)
-    return cachedDefaultModel;
-  cachedDefaultModel = resolveCodexDefaultModelUncached();
-  return cachedDefaultModel;
-}
-
-// dist/connectors/codex.js
 var CODEX_WRITE_FLAGS = Object.freeze([
   "exec",
   "--json",
@@ -63558,7 +64214,7 @@ async function relayCursorAgent(input) {
 // dist/connectors/custom.js
 import { mkdtemp as mkdtemp2, readFile as readFile2, rm as rm2, stat, writeFile as writeFile2 } from "node:fs/promises";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join30 } from "node:path";
+import { join as join31 } from "node:path";
 var DEFAULT_TIMEOUT_MS5 = 12e4;
 var SIGTERM_TO_SIGKILL_GRACE_MS4 = 2e3;
 var OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
@@ -63600,9 +64256,9 @@ async function relayCustom(input) {
   if (executable === void 0) {
     throw new Error(`custom connector '${descriptor.name}' command is empty`);
   }
-  const tempDir = await mkdtemp2(join30(tmpdir2(), "circuit-custom-connector-"));
-  const promptFile = join30(tempDir, "prompt.txt");
-  const outputFile = join30(tempDir, "output.txt");
+  const tempDir = await mkdtemp2(join31(tmpdir2(), "circuit-custom-connector-"));
+  const promptFile = join31(tempDir, "prompt.txt");
+  const outputFile = join31(tempDir, "output.txt");
   await writeFile2(promptFile, input.prompt, "utf8");
   const args = [...baseArgs, promptFile, outputFile];
   const timeoutMs2 = input.timeoutMs ?? DEFAULT_TIMEOUT_MS5;
@@ -63782,199 +64438,6 @@ function recoveryRouteForFailure(input) {
   return recoveryBindingForFailure(input)?.route_id;
 }
 
-// dist/selection/selection-resolver.js
-var PRE_FLOW_CONFIG_SOURCES = ["default", "user-global", "project"];
-function overrideContributes2(o) {
-  if (o.model !== void 0)
-    return true;
-  if (o.effort !== void 0)
-    return true;
-  if (o.depth !== void 0)
-    return true;
-  if (o.skills.mode !== "inherit")
-    return true;
-  if (Object.keys(o.invocation_options).length > 0)
-    return true;
-  return false;
-}
-function composeConfigLayerSelection(base, circuit, current) {
-  if (base === void 0 && circuit === void 0)
-    return void 0;
-  const baseSkillOp = base?.skills.mode === "inherit" ? void 0 : base?.skills;
-  const circuitSkillOp = circuit?.skills.mode === "inherit" ? void 0 : circuit?.skills;
-  let skills;
-  if (baseSkillOp !== void 0 || circuitSkillOp !== void 0) {
-    const baseSkills = baseSkillOp !== void 0 ? applySkillOp(current.skills, baseSkillOp) : current.skills;
-    const composedSkills = circuitSkillOp !== void 0 ? applySkillOp(baseSkills, circuitSkillOp) : baseSkills;
-    skills = { mode: "replace", skills: [...composedSkills] };
-  }
-  const raw = {
-    ...base?.model !== void 0 || circuit?.model !== void 0 ? { model: circuit?.model ?? base?.model } : {},
-    ...base?.effort !== void 0 || circuit?.effort !== void 0 ? { effort: circuit?.effort ?? base?.effort } : {},
-    ...skills !== void 0 ? { skills } : {},
-    ...base?.depth !== void 0 || circuit?.depth !== void 0 ? { depth: circuit?.depth ?? base?.depth } : {},
-    invocation_options: {
-      ...base?.invocation_options ?? {},
-      ...circuit?.invocation_options ?? {}
-    }
-  };
-  const parsed = SelectionOverride.parse(raw);
-  return overrideContributes2(parsed) ? parsed : void 0;
-}
-function configLayerSelection(flowId, layer, current) {
-  const circuits = layer.config.circuits;
-  const circuit = Object.hasOwn(circuits, flowId) ? circuits[flowId] : void 0;
-  return composeConfigLayerSelection(layer.config.defaults.selection, circuit?.selection, current);
-}
-function applySkillOp(base, op) {
-  if (op.mode === "inherit")
-    return base;
-  if (op.mode === "replace")
-    return op.skills;
-  if (op.mode === "append") {
-    const seen = new Set(base);
-    const out = [...base];
-    for (const s of op.skills) {
-      const key = s;
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(s);
-      }
-    }
-    return out;
-  }
-  const removeSet = new Set(op.skills);
-  return base.filter((s) => !removeSet.has(s));
-}
-function applyOverride(current, override) {
-  const model = override.model ?? current.model;
-  const effort = override.effort ?? current.effort;
-  const depth = override.depth ?? current.depth;
-  const skills = applySkillOp(current.skills, override.skills);
-  const invocation_options = {
-    ...current.invocation_options,
-    ...override.invocation_options
-  };
-  return {
-    ...model !== void 0 ? { model } : {},
-    ...effort !== void 0 ? { effort } : {},
-    skills,
-    ...depth !== void 0 ? { depth } : {},
-    invocation_options
-  };
-}
-function pushIfContributing(applied, entry, resolved) {
-  if (!overrideContributes2(entry.override))
-    return resolved;
-  applied.push(entry);
-  return applyOverride(resolved, entry.override);
-}
-function configLayersBySource(layers) {
-  const out = {};
-  const seen = /* @__PURE__ */ new Set();
-  for (const layer of layers) {
-    if (seen.has(layer.layer)) {
-      throw new Error(`duplicate selection config layer '${layer.layer}'`);
-    }
-    seen.add(layer.layer);
-    out[layer.layer] = layer;
-  }
-  return out;
-}
-function resolveSelectionForGuidanceInput(input) {
-  const flowId = input.flow.id;
-  const stepId = input.step.id;
-  const applied = [];
-  let resolved = { skills: [], invocation_options: {} };
-  const configLayers = configLayersBySource(input.configLayers ?? []);
-  for (const source of PRE_FLOW_CONFIG_SOURCES) {
-    const layer = configLayers[source];
-    if (layer === void 0)
-      continue;
-    const override = configLayerSelection(flowId, layer, resolved);
-    if (override === void 0)
-      continue;
-    resolved = pushIfContributing(applied, {
-      source,
-      override
-    }, resolved);
-  }
-  if (input.flow.default_selection !== void 0) {
-    resolved = pushIfContributing(applied, { source: "flow", override: input.flow.default_selection }, resolved);
-  }
-  for (const stage of input.flow.stages) {
-    const stageSteps = stage.steps;
-    if (!stageSteps.includes(stepId))
-      continue;
-    if (stage.selection === void 0)
-      continue;
-    resolved = pushIfContributing(applied, { source: "stage", stage_id: stage.id, override: stage.selection }, resolved);
-  }
-  if (input.step.selection !== void 0) {
-    resolved = pushIfContributing(applied, {
-      source: "step",
-      step_id: input.step.id,
-      override: input.step.selection
-    }, resolved);
-  }
-  const invocationLayer = configLayers.invocation;
-  const invocationOverride = invocationLayer === void 0 ? void 0 : configLayerSelection(flowId, invocationLayer, resolved);
-  if (invocationOverride !== void 0) {
-    resolved = pushIfContributing(applied, { source: "invocation", override: invocationOverride }, resolved);
-  }
-  return SelectionResolution.parse({ resolved, applied });
-}
-
-// dist/selection/relay-selection.js
-function bindsExecutionDepthToGuidanceSelection(inv) {
-  return inv.bindsExecutionDepthToGuidanceSelection === true;
-}
-function guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth) {
-  const layers = [...inv.selectionConfigLayers ?? []];
-  const flowId = flow.id;
-  const existingIndex = layers.findIndex((layer) => layer.layer === "invocation");
-  const existing = existingIndex === -1 ? void 0 : layers[existingIndex];
-  const baseConfig = existing?.config ?? Config.parse({ schema_version: 1 });
-  const existingCircuit = baseConfig.circuits[flowId];
-  const selection = {
-    ...existingCircuit?.selection ?? {},
-    depth
-  };
-  const invocationLayer = LayeredConfig.parse({
-    layer: "invocation",
-    ...existing?.source_path === void 0 ? {} : { source_path: existing.source_path },
-    config: {
-      ...baseConfig,
-      circuits: {
-        ...baseConfig.circuits,
-        [flowId]: {
-          ...existingCircuit ?? {},
-          selection
-        }
-      }
-    }
-  });
-  if (existingIndex === -1) {
-    layers.push(invocationLayer);
-  } else {
-    layers[existingIndex] = invocationLayer;
-  }
-  return layers;
-}
-function selectionConfigLayersForGuidanceInput(inv, flow, depth) {
-  if (!bindsExecutionDepthToGuidanceSelection(inv)) {
-    return inv.selectionConfigLayers ?? [];
-  }
-  return guidanceSelectionConfigLayersWithExecutionDepth(inv, flow, depth);
-}
-function deriveResolvedSelection(inv, flow, step, depth) {
-  return resolveSelectionForGuidanceInput({
-    flow,
-    step,
-    configLayers: selectionConfigLayersForGuidanceInput(inv, flow, depth)
-  }).resolved;
-}
-
 // dist/shared/skill-loading.js
 function resolveSkillBindingsForFlow(flowId, configLayers = []) {
   const globalBindings = /* @__PURE__ */ new Map();
@@ -64041,7 +64504,7 @@ ${err.message}`);
 }
 
 // dist/runtime/run/relay-guidance.js
-function builtinConnector(name) {
+function builtinConnector2(name) {
   if (name === "claude-code" || name === "codex" || name === "cursor-agent") {
     return { kind: "builtin", name };
   }
@@ -64085,7 +64548,7 @@ function requestedConnectorForGuidanceInput(input) {
   const requested = input.stepConnector ?? suppliedName;
   if (requested === void 0)
     return void 0;
-  const builtin = builtinConnector(requested);
+  const builtin = builtinConnector2(requested);
   if (builtin !== void 0)
     return builtin;
   if (suppliedResolved !== void 0 && suppliedResolved.name === requested) {
@@ -64284,7 +64747,7 @@ function planRelayGuidanceDecision(input) {
 }
 
 // dist/runtime/run/relay-support.js
-import { existsSync as existsSync32, readFileSync as readFileSync49 } from "node:fs";
+import { existsSync as existsSync33, readFileSync as readFileSync50 } from "node:fs";
 
 // dist/flows/registries/shape-hints/registry.js
 var SCHEMA_HINTS = buildSchemaHintMap(flowPackages);
@@ -64549,9 +65012,9 @@ function deliveredContextSection(slices) {
 function composeRelayPrompt(step, runFolder, loadedSkills = [], acceptanceRetryFeedback, operatorGoal, memoryInputs = [], flowId, depth, activeSlice, operatorWhy, powerDialAuto, branchGoal, deliveredContextSlices) {
   const readsBody = step.reads.length === 0 ? "(no reads)" : step.reads.map((path) => {
     const abs = resolveRunRelative(runFolder, path);
-    if (!existsSync32(abs))
+    if (!existsSync33(abs))
       return `[reads unavailable: ${path}]`;
-    return fencedBlock("read", ` path="${path}"`, readFileSync49(abs, "utf8"));
+    return fencedBlock("read", ` path="${path}"`, readFileSync50(abs, "utf8"));
   }).join("\n\n");
   const skillsSection = selectedSkillsSection(loadedSkills);
   const houseStyle = houseStyleSection(step, loadedSkills);
@@ -65275,7 +65738,7 @@ async function executeProductionRelay(step, context) {
 
 // dist/runtime/executors/sub-run.js
 import { randomUUID as randomUUID5 } from "node:crypto";
-import { dirname as dirname7, join as join31 } from "node:path";
+import { dirname as dirname7, join as join32 } from "node:path";
 var RECURSION_DEPTH_CAP = 8;
 function checkPassVerdicts(step) {
   const pass = step.check.pass;
@@ -65380,7 +65843,7 @@ async function executeSubRunInternal(step, context) {
     return await recordSubRunCheckFailure(step, context, `sub-run step '${step.id}': resolver returned flow id '${childFlow.id}' but flow_ref names '${step.flowRef}'`);
   }
   const childRunId = randomUUID5();
-  const childRunDir = join31(dirname7(context.runDir), childRunId);
+  const childRunDir = join32(dirname7(context.runDir), childRunId);
   await context.trace.append({
     run_id: context.runId,
     kind: "sub_run.started",
@@ -65507,8 +65970,8 @@ async function executeSubRun(step, context) {
 }
 
 // dist/runtime/run/reuse-children.js
-import { existsSync as existsSync33, readFileSync as readFileSync50 } from "node:fs";
-import { isAbsolute as isAbsolute12, join as join32 } from "node:path";
+import { existsSync as existsSync34, readFileSync as readFileSync51 } from "node:fs";
+import { isAbsolute as isAbsolute12, join as join33 } from "node:path";
 function isCompletedSubRunBranch(entry, stepId, branchId) {
   return entry.kind === "fanout.branch_completed" && entry.step_id === stepId && entry.branch_id === branchId && entry.branch_kind === "sub-run" && entry.child_outcome === "complete";
 }
@@ -65535,12 +65998,12 @@ async function lookupReusableSubRunBranch(input) {
   }
   if (worktreePath === void 0)
     return void 0;
-  if (!existsSync33(join32(worktreePath, ".git")))
+  if (!existsSync34(join33(worktreePath, ".git")))
     return void 0;
-  const resultAbs = isAbsolute12(completed.result_path) ? completed.result_path : join32(input.priorRunFolder, completed.result_path);
+  const resultAbs = isAbsolute12(completed.result_path) ? completed.result_path : join33(input.priorRunFolder, completed.result_path);
   let resultBody;
   try {
-    resultBody = RunResult.parse(JSON.parse(readFileSync50(resultAbs, "utf8")));
+    resultBody = RunResult.parse(JSON.parse(readFileSync51(resultAbs, "utf8")));
   } catch {
     return void 0;
   }
@@ -65972,7 +66435,7 @@ async function executeSubRunFanoutBranch(step, context, branch, worktreeRunner, 
     if (childFlow.id !== branch.flowRef) {
       throw new Error(`resolver returned flow id '${childFlow.id}' but branch flow_ref names '${branch.flowRef}'`);
     }
-    const childRunDir = join33(dirname8(context.runDir), childRunId);
+    const childRunDir = join34(dirname8(context.runDir), childRunId);
     const child = await context.childRunner({
       flowBytes: resolved.flowBytes,
       runDir: childRunDir,
@@ -66665,102 +67128,6 @@ function createDefaultExecutors(options = {}) {
   };
 }
 
-// dist/runtime/manifest/runtime-package-index.js
-function writeRef(ref) {
-  if (ref === void 0)
-    return void 0;
-  if (ref.schema !== void 0)
-    return { path: ref.path, schema: ref.schema };
-  return ref.path;
-}
-function indexedSelection(selection) {
-  if (selection === void 0)
-    return void 0;
-  return SelectionOverride.parse({
-    ...selection.model === void 0 ? {} : { model: selection.model },
-    ...selection.effort === void 0 ? {} : { effort: selection.effort },
-    skills: selection.skills ?? { mode: "inherit" },
-    ...selection.depth === void 0 ? {} : { depth: selection.depth },
-    invocation_options: selection.invocation_options ?? {}
-  });
-}
-function baseStep2(step) {
-  const selection = indexedSelection(step.selection);
-  return {
-    id: step.id,
-    title: step.title ?? step.id,
-    protocol: step.protocol ?? step.id,
-    reads: step.reads?.map((ref) => ref.path) ?? [],
-    routes: Object.fromEntries(Object.entries(step.routes).map(([route, target]) => [
-      route,
-      target.kind === "terminal" ? target.target : target.stepId
-    ])),
-    writes: Object.fromEntries(Object.entries(step.writes ?? {}).map(([slot2, ref]) => [slot2, writeRef(ref)])),
-    check: step.check,
-    ...selection === void 0 ? {} : { selection },
-    ...step.skillSlots === void 0 ? {} : { skill_slots: step.skillSlots },
-    ...step.equipmentScope === void 0 ? {} : { equipment_scope: step.equipmentScope },
-    ...step.budgets === void 0 ? {} : { budgets: step.budgets }
-  };
-}
-function indexedStep(step) {
-  const base = baseStep2(step);
-  if (step.kind === "checkpoint") {
-    return {
-      ...base,
-      kind: step.kind,
-      policy: step.policy
-    };
-  }
-  if (step.kind === "relay") {
-    return {
-      ...base,
-      kind: step.kind,
-      role: step.role,
-      ...step.connector === void 0 ? {} : { connector: step.connector },
-      ...step.acceptanceCriteria === void 0 ? {} : { acceptance_criteria: step.acceptanceCriteria }
-    };
-  }
-  return { ...base, kind: step.kind };
-}
-function buildRuntimePackageIndex(flow) {
-  const steps = flow.steps.map((step) => indexedStep(step));
-  const defaultSelection = indexedSelection(flow.defaultSelection);
-  const stepsById = /* @__PURE__ */ new Map();
-  const reportPathBySchema = /* @__PURE__ */ new Map();
-  for (const step of steps) {
-    if (stepsById.has(step.id)) {
-      throw new Error(`runtime package index duplicate step '${step.id}'`);
-    }
-    stepsById.set(step.id, step);
-    const report = step.writes.report;
-    if (typeof report !== "object" || report === null)
-      continue;
-    if (!reportPathBySchema.has(report.schema)) {
-      reportPathBySchema.set(report.schema, report.path);
-    }
-  }
-  return {
-    flow: {
-      id: flow.id,
-      version: flow.version,
-      ...flow.purpose === void 0 ? {} : { purpose: flow.purpose },
-      ...defaultSelection === void 0 ? {} : { default_selection: defaultSelection },
-      stages: flow.stages.map((stage) => {
-        const selection = indexedSelection(stage.selection);
-        return {
-          id: stage.id,
-          steps: stage.stepIds,
-          ...selection === void 0 ? {} : { selection }
-        };
-      }),
-      steps
-    },
-    stepsById,
-    reportPathBySchema
-  };
-}
-
 // dist/runtime/run/binding-legibility.js
 var CATALOG_SOURCED_BINDINGS = CatalogSourcedBinding.options;
 function manifestBacksBinding(flow, binding) {
@@ -66812,8 +67179,8 @@ async function appendCarriedNote(input) {
 
 // dist/runtime/run/frozen-eval.js
 import { createHash as createHash6 } from "node:crypto";
-import { readFileSync as readFileSync51 } from "node:fs";
-import { resolve as resolve23 } from "node:path";
+import { readFileSync as readFileSync52 } from "node:fs";
+import { resolve as resolve24 } from "node:path";
 var ABSENT = "<absent>";
 var FrozenEvalGuard = class {
   projectRoot;
@@ -66828,7 +67195,7 @@ var FrozenEvalGuard = class {
   // or unreadable. Resolved against the injected project root; never cwd.
   fingerprint(declaredPath) {
     try {
-      const bytes = readFileSync51(resolve23(this.projectRoot, declaredPath));
+      const bytes = readFileSync52(resolve24(this.projectRoot, declaredPath));
       return createHash6("sha256").update(bytes).digest("hex");
     } catch {
       return ABSENT;
@@ -66899,10 +67266,10 @@ function honestyLatchGap(ledger) {
 
 // dist/runtime/run/manifest-snapshot.js
 import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname9, join as join34 } from "node:path";
+import { dirname as dirname9, join as join35 } from "node:path";
 var MANIFEST_SNAPSHOT_RUN_FILE = "manifest.snapshot.json";
 function runtimeManifestSnapshotPath(runDir) {
-  return join34(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
+  return join35(runDir, MANIFEST_SNAPSHOT_RUN_FILE);
 }
 async function writeRuntimeManifestSnapshot(input) {
   const bytes = Buffer.from(input.bytes);
@@ -67153,11 +67520,11 @@ function corridorCause(active, binding) {
 }
 
 // dist/runtime/run/run-boundary.js
-import { readFileSync as readFileSync52 } from "node:fs";
+import { readFileSync as readFileSync53 } from "node:fs";
 import { lstat, mkdir as mkdir3, readdir as readdir2 } from "node:fs/promises";
 
 // dist/runtime/projections/progress.js
-import { join as join35 } from "node:path";
+import { join as join36 } from "node:path";
 
 // dist/shared/write-capable-worker-disclosure.js
 var WRITE_CAPABLE_FLOW_IDS = /* @__PURE__ */ new Set(["build", "fix", "prototype", "pursue"]);
@@ -67237,7 +67604,7 @@ function reportTaskListProgress(input) {
   });
 }
 function readJsonReport2(files, runDir, reportPath) {
-  const text = files.readText(join35(runDir, reportPath));
+  const text = files.readText(join36(runDir, reportPath));
   if (text === void 0)
     throw new Error(`progress projection could not read ${reportPath}`);
   return JSON.parse(text);
@@ -67328,7 +67695,7 @@ function checkpointChoiceLabel(choice) {
   return choice.split(/[-_]/).filter((part) => part.length > 0).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
 function checkpointRequestPath(runDir, requestPath) {
-  return requestPath.startsWith("/") ? requestPath : join35(runDir, requestPath);
+  return requestPath.startsWith("/") ? requestPath : join36(runDir, requestPath);
 }
 function shouldWarnAboutWriteCapableWorker(flow) {
   return flowMayInvokeWriteCapableWorker(flow.id) || flow.steps.some((step) => step.kind === "relay" && step.role === "implementer");
@@ -67607,7 +67974,7 @@ function createProgressProjector(input) {
         const presentation = tournamentCheckpointPresentation({
           readJson: (path) => {
             try {
-              const text = projectionFiles.readText(join35(input.runDir, path));
+              const text = projectionFiles.readText(join36(input.runDir, path));
               return text === void 0 ? void 0 : JSON.parse(text);
             } catch {
               return void 0;
@@ -67905,7 +68272,7 @@ async function openRunBoundary(options) {
     files: {
       readText(path) {
         try {
-          return readFileSync52(path, "utf8");
+          return readFileSync53(path, "utf8");
         } catch {
           return void 0;
         }
@@ -68709,7 +69076,7 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
   const bindingLegibility = resolveBindingLegibility(flow);
   const engineFlags = resolveEngineFlags(flow);
   const editFileSurfaceSources = surfaceSourcesFromDeclarations(flow.reportFileSurfaces ?? {});
-  const honestyLedger = engineFlags?.iteratesUntilCondition?.stopJudge !== void 0 ? new HonestyLedger({ path: join36(runDir, "honesty-ledger.json") }) : void 0;
+  const honestyLedger = engineFlags?.iteratesUntilCondition?.stopJudge !== void 0 ? new HonestyLedger({ path: join37(runDir, "honesty-ledger.json") }) : void 0;
   const context = {
     flow,
     packageIndex,
@@ -69682,7 +70049,7 @@ function readCheckpointRequestContextResult(input) {
   const requestAbs = resolveRunFilePath(input.runDir, input.requestPath);
   let requestText;
   try {
-    requestText = readFileSync53(requestAbs, "utf8");
+    requestText = readFileSync54(requestAbs, "utf8");
   } catch (error51) {
     return checkpointResumeRejectedFrom(error51);
   }
@@ -70040,8 +70407,8 @@ async function resumeCompiledFlow(options) {
 }
 
 // dist/memory/project-injection.js
-import { existsSync as existsSync34, readFileSync as readFileSync54 } from "node:fs";
-import { join as join37, resolve as resolve24 } from "node:path";
+import { existsSync as existsSync35, readFileSync as readFileSync55 } from "node:fs";
+import { join as join38, resolve as resolve25 } from "node:path";
 function reverifyStaleness(fact, runsBase, checkedAt) {
   const sourceSha = fact.source.sha256 ?? fact.source.ref.sha256;
   const runId = fact.source.ref.run_id;
@@ -70050,11 +70417,11 @@ function reverifyStaleness(fact, runsBase, checkedAt) {
   }
   try {
     const relPath = fact.source.ref.ref.split("#")[0] ?? fact.source.ref.ref;
-    const abs = join37(runsBase, runId, relPath);
-    if (!existsSync34(abs)) {
+    const abs = join38(runsBase, runId, relPath);
+    if (!existsSync35(abs)) {
       return { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
     }
-    const currentHash = sha256OfString(readFileSync54(abs, "utf8"));
+    const currentHash = sha256OfString(readFileSync55(abs, "utf8"));
     return currentHash === sourceSha ? { status: "fresh", checked_at: checkedAt, reason_codes: ["source_hash_verified"] } : { status: "stale", checked_at: checkedAt, reason_codes: ["memory_stale"] };
   } catch {
     return { status: "unknown", checked_at: checkedAt, reason_codes: ["memory_unverified"] };
@@ -70064,7 +70431,7 @@ function loadProjectFactCandidates(options) {
   if (options.flowId === void 0) {
     return { candidates: [] };
   }
-  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve24(options.runsBase);
+  const runsBase = options.runsBase === void 0 ? runsRoot(options.repoRoot) : resolve25(options.runsBase);
   const now = options.now ?? (() => /* @__PURE__ */ new Date());
   const checkedAt = now().toISOString();
   const { facts } = readProjectFacts({
@@ -70289,8 +70656,8 @@ function prepareRunStartHistoryRecall(options) {
 }
 
 // dist/app/operator-summary/writer.js
-import { existsSync as existsSync36, mkdirSync as mkdirSync7, readFileSync as readFileSync56, rmSync as rmSync5, writeFileSync as writeFileSync8 } from "node:fs";
-import { dirname as dirname10, isAbsolute as isAbsolute13, join as join38, relative as relative13, resolve as resolve25 } from "node:path";
+import { existsSync as existsSync37, mkdirSync as mkdirSync7, readFileSync as readFileSync57, rmSync as rmSync5, writeFileSync as writeFileSync8 } from "node:fs";
+import { dirname as dirname10, isAbsolute as isAbsolute13, join as join39, relative as relative13, resolve as resolve26 } from "node:path";
 
 // dist/runtime/run/iteration-ledger.js
 function emptyUsage() {
@@ -70354,15 +70721,15 @@ function renderIterationLedgerMarkdown(rows) {
 }
 
 // dist/shared/operator-summary/json.js
-import { existsSync as existsSync35, readFileSync as readFileSync55 } from "node:fs";
+import { existsSync as existsSync36, readFileSync as readFileSync56 } from "node:fs";
 function isObject4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function readJsonIfPresent(runFolder, relPath) {
   const path = resolveRunRelative(runFolder, relPath);
-  if (!existsSync35(path))
+  if (!existsSync36(path))
     return void 0;
-  const parsed = JSON.parse(readFileSync55(path, "utf8"));
+  const parsed = JSON.parse(readFileSync56(path, "utf8"));
   return isObject4(parsed) ? parsed : void 0;
 }
 function stringField2(report, key) {
@@ -70974,11 +71341,11 @@ function projectSummary(input) {
 
 // dist/app/operator-summary/writer.js
 function readPriorRoute(runFolder) {
-  const path = join38(runFolder, "reports", "operator-summary.json");
-  if (!existsSync36(path))
+  const path = join39(runFolder, "reports", "operator-summary.json");
+  if (!existsSync37(path))
     return {};
   try {
-    const raw = JSON.parse(readFileSync56(path, "utf8"));
+    const raw = JSON.parse(readFileSync57(path, "utf8"));
     if (!isObject4(raw))
       return {};
     const routedBy = raw.routed_by;
@@ -70995,13 +71362,13 @@ var HTML_REPORT_LABEL = "Operator summary (HTML)";
 var MAX_KEY_POINTS = 4;
 var MAX_CAVEATS = 3;
 function jsonPath(runFolder) {
-  return join38(runFolder, "reports", "operator-summary.json");
+  return join39(runFolder, "reports", "operator-summary.json");
 }
 function markdownPath(runFolder) {
-  return join38(runFolder, "reports", "operator-summary.md");
+  return join39(runFolder, "reports", "operator-summary.md");
 }
 function htmlPath(runFolder) {
-  return join38(runFolder, "reports", "operator-summary.html");
+  return join39(runFolder, "reports", "operator-summary.html");
 }
 function isInsideOrSame4(root, target) {
   const fromRoot = relative13(root, target);
@@ -71010,16 +71377,16 @@ function isInsideOrSame4(root, target) {
 function readCheckpointRequest(runFolder, checkpoint) {
   let requestPath;
   try {
-    requestPath = isAbsolute13(checkpoint.request_path) ? resolve25(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
+    requestPath = isAbsolute13(checkpoint.request_path) ? resolve26(checkpoint.request_path) : resolveRunRelative(runFolder, checkpoint.request_path);
   } catch {
     return void 0;
   }
-  if (!isInsideOrSame4(resolve25(runFolder), requestPath))
+  if (!isInsideOrSame4(resolve26(runFolder), requestPath))
     return void 0;
-  if (!existsSync36(requestPath))
+  if (!existsSync37(requestPath))
     return void 0;
   try {
-    const parsed = JSON.parse(readFileSync56(requestPath, "utf8"));
+    const parsed = JSON.parse(readFileSync57(requestPath, "utf8"));
     return isObject4(parsed) ? parsed : void 0;
   } catch {
     return void 0;
@@ -71395,11 +71762,11 @@ function evidenceLinks2(runFolder, report) {
   });
 }
 function readAutoResolutions(runFolder) {
-  const tracePath = join38(runFolder, "trace.ndjson");
-  if (!existsSync36(tracePath))
+  const tracePath = join39(runFolder, "trace.ndjson");
+  if (!existsSync37(tracePath))
     return [];
   const records = [];
-  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -71436,8 +71803,8 @@ function emptySpendTotals() {
 }
 var SPEND_ROLE_ORDER = ["researcher", "implementer", "reviewer"];
 function readRunReceipt(runFolder) {
-  const tracePath = join38(runFolder, "trace.ndjson");
-  if (!existsSync36(tracePath))
+  const tracePath = join39(runFolder, "trace.ndjson");
+  if (!existsSync37(tracePath))
     return void 0;
   let depth;
   let reducedBindings;
@@ -71455,7 +71822,7 @@ function readRunReceipt(runFolder) {
   let spendRelaysMissingUsage = 0;
   let anyUsage = false;
   let anyCostMissing = false;
-  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -71670,13 +72037,13 @@ function skillHookSourceLabel(source) {
   }
 }
 function readSkillHookSummary(runFolder) {
-  const tracePath = join38(runFolder, "trace.ndjson");
-  if (!existsSync36(tracePath))
+  const tracePath = join39(runFolder, "trace.ndjson");
+  if (!existsSync37(tracePath))
     return { activations: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const activations = [];
   const warnings = [];
-  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -71744,13 +72111,13 @@ function skillHookActivationLine(activation) {
   return `\`${activation.hook}\` ${parts.join("; ")} \u2014 ${provenance}`;
 }
 function readEquipmentReshapeSummary(runFolder) {
-  const tracePath = join38(runFolder, "trace.ndjson");
-  if (!existsSync36(tracePath))
+  const tracePath = join39(runFolder, "trace.ndjson");
+  if (!existsSync37(tracePath))
     return { reshapes: [], warnings: [] };
   const seen = /* @__PURE__ */ new Set();
   const reshapes = [];
   const warnings = [];
-  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let entry;
@@ -71800,11 +72167,11 @@ function equipmentReshapeLine(reshape) {
   return `\`${reshape.step_id}\` confirmed ${domains}; equipped ${equipped}`;
 }
 function readIterationLedger(runFolder) {
-  const tracePath = join38(runFolder, "trace.ndjson");
-  if (!existsSync36(tracePath))
+  const tracePath = join39(runFolder, "trace.ndjson");
+  if (!existsSync37(tracePath))
     return [];
   const entries = [];
-  for (const line of readFileSync56(tracePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync57(tracePath, "utf8").split(/\r?\n/)) {
     if (line.trim().length === 0)
       continue;
     let raw;
@@ -71997,14 +72364,14 @@ function writeOperatorSummary(input) {
     }
   }
   if (renderedHtml === void 0) {
-    if (existsSync36(candidateHtmlPath))
+    if (existsSync37(candidateHtmlPath))
       rmSync5(candidateHtmlPath, { force: true, recursive: true });
   } else {
     try {
       writeFileSync8(candidateHtmlPath, renderedHtml);
       outHtmlPath = candidateHtmlPath;
     } catch (err) {
-      if (existsSync36(candidateHtmlPath))
+      if (existsSync37(candidateHtmlPath))
         rmSync5(candidateHtmlPath, { force: true, recursive: true });
       htmlEmitWarning = {
         kind: "html_write_failed",
@@ -72108,8 +72475,8 @@ function writeOperatorSummary(input) {
 }
 
 // dist/app/process-evidence/projection.js
-import { existsSync as existsSync37, mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
-import { dirname as dirname11, join as join39 } from "node:path";
+import { existsSync as existsSync38, mkdirSync as mkdirSync8, writeFileSync as writeFileSync9 } from "node:fs";
+import { dirname as dirname11, join as join40 } from "node:path";
 function traceRef2(runId) {
   return {
     kind: "trace",
@@ -72166,15 +72533,15 @@ function projectClosedProcessEvidence(input) {
     runId: input.runResult.run_id,
     flowId
   });
-  const declaredReportRefs = declaredPaths.filter((path) => existsSync37(join39(input.runFolder, path))).map((path) => reportRef({
+  const declaredReportRefs = declaredPaths.filter((path) => existsSync38(join40(input.runFolder, path))).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join39(input.runFolder, path),
+    path: join40(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
   const additionalRefs = (input.additionalEvidencePaths ?? []).map((path) => reportRef({
     runFolder: input.runFolder,
-    path: join39(input.runFolder, path),
+    path: join40(input.runFolder, path),
     runId: input.runResult.run_id,
     flowId
   }));
@@ -72230,7 +72597,7 @@ function projectCheckpointWaitingProcessEvidence(input) {
 }
 function writeProcessEvidenceProjection(input) {
   const projection = ProcessEvidenceProjection.parse(input.projection);
-  const outPath = join39(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
+  const outPath = join40(input.runFolder, PROCESS_EVIDENCE_RELATIVE_PATH);
   mkdirSync8(dirname11(outPath), { recursive: true });
   writeFileSync9(outPath, `${JSON.stringify(projection, null, 2)}
 `);
@@ -72311,7 +72678,7 @@ function detectNoProgress(attempts) {
 
 // dist/app/run-envelope/source-record.js
 import { mkdirSync as mkdirSync9, writeFileSync as writeFileSync10 } from "node:fs";
-import { dirname as dirname12, join as join40 } from "node:path";
+import { dirname as dirname12, join as join41 } from "node:path";
 var RUN_ENVELOPE_RELATIVE_PATH2 = "reports/run-envelope.json";
 var RUN_SURFACE_RELATIVE_PATH = "reports/run-surface.md";
 var RUN_DECISION_PACKET_RELATIVE_DIR = "reports/decision-packets";
@@ -72355,7 +72722,7 @@ function renderSurfaceMarkdown(input) {
     ...input.record.surface_output.artifact_links
   ];
   const uniqueArtifactRefs = artifactRefs.filter((ref, index, refs) => refs.findIndex((candidate) => candidate.ref === ref.ref) === index);
-  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join40(input.runFolder, ref.ref))).join(" \xB7 ");
+  const artifactLine = uniqueArtifactRefs.map((ref) => markdownLink(artifactLabel(ref), join41(input.runFolder, ref.ref))).join(" \xB7 ");
   return ["CIRCUIT", `\u23BF ${input.record.surface_output.status_text}`, "", artifactLine, ""].join("\n");
 }
 function processAttemptOutcome(outcome) {
@@ -72865,17 +73232,17 @@ function writeRunEnvelopeRecord(input) {
     }),
     outcome
   });
-  const outPath = join40(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
+  const outPath = join41(input.runFolder, RUN_ENVELOPE_RELATIVE_PATH2);
   mkdirSync9(dirname12(outPath), { recursive: true });
   const decisionPacketPaths = decisionArtifacts.map((artifact) => {
-    const path = join40(input.runFolder, artifact.ref.ref);
+    const path = join41(input.runFolder, artifact.ref.ref);
     mkdirSync9(dirname12(path), { recursive: true });
     writeFileSync10(path, artifact.body);
     return path;
   });
   writeFileSync10(outPath, `${JSON.stringify(record2, null, 2)}
 `);
-  const surfacePath = join40(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
+  const surfacePath = join41(input.runFolder, RUN_SURFACE_RELATIVE_PATH);
   writeFileSync10(surfacePath, renderSurfaceMarkdown({ runFolder: input.runFolder, record: record2 }));
   return {
     path: outPath,
@@ -72987,87 +73354,6 @@ async function runAutonomousContinuation(input) {
       return attemptResultFromProjection(run.projection);
     }
   });
-}
-
-// dist/shared/config-loader.js
-var import_yaml4 = __toESM(require_dist(), 1);
-import { existsSync as existsSync38, readFileSync as readFileSync57 } from "node:fs";
-import { homedir as homedir5 } from "node:os";
-import { join as join41, resolve as resolve26 } from "node:path";
-var USER_GLOBAL_CONFIG_RELATIVE_PATH = [".config", "circuit", "config.yaml"];
-var PROJECT_CONFIG_RELATIVE_PATH = PROJECT_CONFIG_RELATIVE_SEGMENTS;
-function userGlobalConfigPath(homeDir = homedir5()) {
-  return join41(homeDir, ...USER_GLOBAL_CONFIG_RELATIVE_PATH);
-}
-function projectConfigPath2(cwd = process.cwd()) {
-  return join41(cwd, ...PROJECT_CONFIG_RELATIVE_PATH);
-}
-function parseConfigYaml(text, sourcePath) {
-  try {
-    return (0, import_yaml4.parse)(text);
-  } catch (err) {
-    throw new Error(`config YAML parse failed at ${sourcePath}: ${err.message}`);
-  }
-}
-function loadRuntimeConfigLayerFromPath(layer, sourcePath) {
-  const abs = resolve26(sourcePath);
-  if (!existsSync38(abs))
-    return void 0;
-  const raw = parseConfigYaml(readFileSync57(abs, "utf8"), abs);
-  if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
-    const schemaVersion = raw.schema_version;
-    if (schemaVersion === 2) {
-      try {
-        return {
-          policy: PolicyLayer.parse({
-            source: layer,
-            source_path: abs,
-            envelope: PolicyEnvelopeV2.parse(raw)
-          })
-        };
-      } catch (err) {
-        throw new Error(`policy validation failed for ${layer} at ${abs}: ${err.message}`);
-      }
-    }
-  }
-  try {
-    return {
-      selection: LayeredConfig.parse({
-        layer,
-        source_path: abs,
-        config: Config.parse(raw)
-      })
-    };
-  } catch (err) {
-    throw new Error(`config validation failed for ${layer} at ${abs}: ${err.message}`);
-  }
-}
-function discoverRuntimeConfigLayers(options = {}) {
-  const selectionConfigLayers = [];
-  const policyLayers = [];
-  for (const [layer, path] of [
-    ["user-global", userGlobalConfigPath(options.homeDir)],
-    ["project", projectConfigPath2(options.cwd)]
-  ]) {
-    const loaded = loadRuntimeConfigLayerFromPath(layer, path);
-    if (loaded?.selection !== void 0)
-      selectionConfigLayers.push(loaded.selection);
-    if (loaded?.policy !== void 0)
-      policyLayers.push(loaded.policy);
-  }
-  if (options.invocationConfig !== void 0) {
-    selectionConfigLayers.push(LayeredConfig.parse({
-      layer: "invocation",
-      config: options.invocationConfig
-    }));
-  }
-  if (options.invocationPolicy !== void 0) {
-    policyLayers.push(PolicyLayer.parse({
-      source: "invocation",
-      envelope: options.invocationPolicy
-    }));
-  }
-  return { selectionConfigLayers, policyLayers };
 }
 
 // dist/cli/compiled-flow-loading.js
@@ -74242,12 +74528,12 @@ function engineError(input) {
     ...input.runFolder === void 0 ? {} : { run_folder: input.runFolder }
   });
 }
-function writeJson6(value) {
+function writeJson7(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}
 `);
 }
 function invalidInvocation2(message, runFolder) {
-  writeJson6(engineError({
+  writeJson7(engineError({
     code: "invalid_invocation",
     message,
     ...runFolder === void 0 ? {} : { runFolder }
@@ -74278,18 +74564,18 @@ async function runRunsCommand(argv) {
   if (typeof parsed === "string")
     return invalidInvocation2(parsed);
   try {
-    writeJson6(projectRunStatusFromRunFolder(parsed.runFolder));
+    writeJson7(projectRunStatusFromRunFolder(parsed.runFolder));
     return 0;
   } catch (err) {
     if (err instanceof RunStatusFolderError) {
-      writeJson6(engineError({
+      writeJson7(engineError({
         code: err.code,
         message: err.message,
         runFolder: err.runFolder
       }));
       return 1;
     }
-    writeJson6(engineError({
+    writeJson7(engineError({
       code: "internal_error",
       message: err instanceof Error ? err.message : String(err),
       runFolder: parsed.runFolder
@@ -74530,6 +74816,7 @@ function usage() {
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
     "       circuit uninstall [--dir <path>] [--json]",
     "       circuit reclaim [--json]",
+    "       circuit preview <flow-name> [--power <auto|low|medium|high>] [--matrix] [--json]",
     "       circuit version [--json]",
     "",
     "Axes: `--depth` controls care level (`low`, `medium`, `high`); `--power` sets the model tier (`auto`, `low`, `medium`, `high`; default `medium`; `auto` lets the run's research read pick within configured bounds); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
@@ -74614,7 +74901,7 @@ function parseTopLevelInvocation(argv) {
     addForwardingCommand(name);
   parseCommanderOrThrow(program2, argv);
   if (invocation === void 0) {
-    throw new Error("missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, inbox, or version");
+    throw new Error("missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, inbox, preview, or version");
   }
   return invocation;
 }
@@ -74668,6 +74955,9 @@ async function main(argv, options = {}) {
     return runInboxCommand(invocation.argv, {
       ...options.briefGitProbe === void 0 ? {} : { briefGitProbe: options.briefGitProbe }
     });
+  }
+  if (invocation.command === "preview") {
+    return runPreviewCommand(invocation.argv);
   }
   let args;
   try {
