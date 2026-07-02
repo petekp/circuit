@@ -56,6 +56,12 @@ export {
   type ProposeStage,
 } from './propose.js';
 export { PROPOSER_PROMPT, REPAIR_GUIDANCE } from './propose-prompts.js';
+// NOTE: flow-file.ts (the experimental portable flow-file loader) is deliberately
+// NOT re-exported here. The generate CLI pulls this barrel into the host runtime
+// bundle, and the flow-file prototype is not wired into any CLI command yet, so
+// surfacing it here would ship unused code in every host install. Its test and
+// demo import it directly from ./flow-file.js; the engine-flow-boundary test
+// allowlists that deep import (same treatment as other not-yet-wired infra).
 export {
   EQUIPMENT_PROFILES,
   EQUIPMENT_PROFILE_IDS,

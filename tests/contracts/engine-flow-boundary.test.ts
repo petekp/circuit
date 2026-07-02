@@ -91,6 +91,14 @@ const ALLOWED_TEST_WORKFLOW_TARGETS = [
   // a flow package), peer to compile-schematic-to-flow.ts; create.ts consumes it
   // and tests/unit/compiled-flow-file-plan.test.ts exercises it directly.
   'src/flows/compiled-flow-file-plan.ts',
+  // Portable flow-file format (experimental, default-OFF): the loader that turns a
+  // hand-authored .flow.md into a CompositionRoleSet and runs it through the same
+  // floor `circuit generate` uses. Composition infrastructure exercised today only
+  // by tests/contracts/composition-flow-file.test.ts and the offline demo. It is
+  // deliberately kept OUT of the composition/index.ts barrel (and thus out of the
+  // host runtime bundle) until a CLI command consumes it, so the test imports it
+  // directly — same treatment as the other not-yet-wired infra above.
+  'src/flows/composition/flow-file.ts',
 ];
 
 const ALLOWED_TEST_INTERNAL_FLOW_IMPORTS = new Set([
