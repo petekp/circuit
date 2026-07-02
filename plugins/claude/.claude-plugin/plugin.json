@@ -1,6 +1,6 @@
 {
   "name": "circuit",
-  "version": "0.1.0-alpha.8",
+  "version": "0.1.0-alpha.9",
   "description": "Structured, resumable developer flows for Claude Code. /circuit:run is the default Circuit command for natural-language coding tasks and routes to the right flow with recorded evidence. /circuit:pursue coordinates several related goals as one tracked run. Continuity is captured automatically across sessions; /circuit:handoff saves, resumes, or clears a deliberate handoff.",
   "author": {
     "name": "Pete Petrash"
