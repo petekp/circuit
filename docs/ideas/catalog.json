@@ -50,6 +50,20 @@
       "last_checked": "2026-06-04"
     },
     {
+      "path": "docs/ideas/alternative-to-chat.md",
+      "title": "Circuit: the alternative to chat",
+      "status": "current-strategy-context",
+      "category": "strategy-and-comparisons",
+      "tags": ["strategy", "positioning", "messaging", "on-loop", "run-legibility", "honesty-gate"],
+      "current_reading": "Strategy deliverable (2026-06-29 multi-agent exploration plus an editorial and honesty pass against docs/positioning.md). Thesis: Circuit moves the human from inside the loop (orchestrator, memory, router, verifier) to on the loop (author the process once, review the evidence); the defensible claim is where chat-work graduates when it must be repeated, scheduled, chained, or trusted by someone who was not watching, and the one genuinely new thing is an evidence-provenance gate the worker cannot talk past. Three keystone bets (readable run, honest stop, promote-a-run) plus open forks. Honest limits are load-bearing: do not say 'alternative to chat' unqualified, do not say 'it can't fake done', do not promise 'turn your past chats into flows'. Messaging and product context, not shipped behavior; no copy ships without operator sign-off.",
+      "related": [
+        "docs/ideas/output-model.md",
+        "docs/ideas/portable-run-captures.md",
+        "docs/ideas/until-loop.md"
+      ],
+      "last_checked": "2026-06-29"
+    },
+    {
       "path": "docs/ideas/ambitious-applications.md",
       "title": "Ambitious Applications Of Circuit",
       "status": "current-strategy-context",
@@ -529,6 +543,16 @@
       "last_checked": "2026-06-16"
     },
     {
+      "path": "docs/ideas/model-roster-and-intensity.md",
+      "title": "Model roster and intensity: two operator knobs over a promoted roster",
+      "status": "current-proposal",
+      "category": "hosts-connectors-and-hitl",
+      "tags": ["model-selection", "power-dial", "connectors", "roster", "archetypes", "ergonomics"],
+      "current_reading": "Concept-first design note (2026-06-30 design pass) on collapsing model, effort, and connector selection into two operator knobs: a global roster (archetype to connector plus a baseline rung, with per-flow and per-step overrides) and one intensity dial that offsets every archetype along per-connector (model, effort) ladders. Core reframe: Circuit already has a hard-coded, dial-shaped roster (ROLE_POWER_ALLOCATION plus the shipped default tiers) to promote into editable config, so the current values become the smart default. Grounds what exists (roles, relay.roles connector-per-role, power_tiers, config layering, real parallel fan-out with per-branch selection) against what is new (role-to-model binding, dial-as-scalar over ladders, connector detection plus first-run setup, a resolve-without-spawn plan-preview and verify since --dry-run is rejected). Decisions: global roster with overrides, open archetype set, intensity downshifts the model. Recommended first slice: the plan-preview and verify command. Nothing built; verify citations before use.",
+      "related": ["docs/ideas/depth-and-power.md", "docs/ideas/proactive-power-floors.md"],
+      "last_checked": "2026-06-30"
+    },
+    {
       "path": "docs/ideas/modern-engineering-practices-proposals.md",
       "title": "Modern Engineering Practices: Circuit Proposals",
       "status": "current-proposal",
@@ -625,6 +649,20 @@
         "docs/ideas/e1-implementation-brief.md"
       ],
       "last_checked": "2026-06-14"
+    },
+    {
+      "path": "docs/ideas/proactive-power-floors.md",
+      "title": "Proactive per-role power floors",
+      "status": "current-proposal",
+      "category": "hosts-connectors-and-hitl",
+      "tags": ["power-dial", "model-selection", "auto-power", "per-role", "escalation", "spec"],
+      "current_reading": "Design spec (2026-06-29, not built) for letting the researcher promote a specific downstream role's power tier before the wasted first attempt, instead of only reactive escalation on retry. Borrows the sense-and-route-proactively principle from Devin Fusion in Circuit's bounded form: a per-role floor is up-only (raises, never lowers), clamped to the operator's power_auto ceiling, consulted only under --power auto, first-write-wins from the one researcher report, and carries tiers not model ids (the per-connector tier table still translates). Full file-by-file engine plan plus tests; build + fix flows, implementer + reviewer floors for v1. Nothing built; verify citations before use.",
+      "related": [
+        "docs/ideas/depth-and-power.md",
+        "docs/ideas/model-roster-and-intensity.md",
+        "docs/ideas/dynamic-workflows-vs-circuit.md"
+      ],
+      "last_checked": "2026-06-29"
     },
     {
       "path": "docs/ideas/project-execution-memory.md",
@@ -1587,6 +1625,84 @@
         "docs/ideas/flow-composition-run-report.md"
       ],
       "last_checked": "2026-06-21"
+    },
+    {
+      "path": "docs/ideas/portable-flow-file-format.md",
+      "title": "Portable flow-file format",
+      "status": "partially-implemented",
+      "category": "flows-and-blocks",
+      "tags": ["composition", "generation", "authoring", "portability", "skills"],
+      "current_reading": "A third on-ramp alongside `circuit create` and `circuit generate`: a portable, skill-file-shaped `.flow.md` (YAML frontmatter + a Markdown body) that IS a hand-authored CompositionRoleSet. It replaces only the model-proposal step of the generate path and reuses every downstream gate. PROTOTYPE BUILT (branch feat/portable-flow-format, not yet merged): src/flows/composition/flow-file.ts is inert exactly like propose.ts — parseFlowFile(text) maps the document to a role set with inference defaults (default kind/role per block, auto-terminal close, sub-run/fanout block inference), and loadFlowFile(text) runs the IDENTICAL floor (composeFlow -> evaluateValidity -> evaluateRunnability) then assembles + compiles to a CompiledFlow, failing closed with the floor's real errors. A skill-`requires` resolver checks ids against injectable roots. Three canonical samples under docs/ideas/flow-file-samples/ (flake-hunter linear fix, tighten-loop verify-loop, ship-with-build sub-run delegation) all compile end to end, locked by tests/contracts/composition-flow-file.test.ts; experiments/flow-file/demo.ts exercises the whole seam offline. Reconciliations made during the build: a `kind: sub-run` step expands to the goal-child-run leaf, a sub-run to a child needs an upstream goal contract (so ship-with-build frames with clarify+goal), and `act` needs an upstream plan/diagnose — all named in the doc and the samples. Honest limit: validity, not efficacy; only the validated composable block set; equipment is trusted guidance by default; not a session importer. Natural next step is a `circuit create --from-file <path>` flag onto the same draft/publish tail.",
+      "related": [
+        "docs/ideas/bespoke-flow-generation-design.md",
+        "docs/ideas/non-linear-composition-frontier.md"
+      ],
+      "last_checked": "2026-06-26"
+    },
+    {
+      "path": "docs/ideas/gnhf-style-bounded-loop.md",
+      "title": "gnhf-style bounded autonomous loop in Circuit",
+      "status": "current-proposal",
+      "category": "flows-and-blocks",
+      "tags": ["loop", "autonomous", "overnight", "engine-flag", "honesty-gate", "composition"],
+      "current_reading": "Feasibility map + code-verified implementation sketch for a gnhf-style overnight autonomous loop (github.com/kunchenguid/gnhf: 'repeatedly call an agent until a natural-language stop condition is met'). Finding: most substrate already ships (subprocess driver, --autonomous headless, fanout worktrees FULL; continuation-loop.ts is already a bounded autonomous loop; graph-runner is a route-driven step machine with real backward edges, NOT a one-shot DAG). The loop is NOT authorable as flow topology (cycle guard at graph-runner.ts:647-668 aborts on re-entry of a completed step), so it lands as a new CompiledFlowEngineFlags entry `iteratesBodyLoop`, a sibling to `iteratesSliceLoop` that re-enters a declared [head..tail] body until a worker stop-judge says stop AND the engine confirms the evidence floor, gated by an append-only honesty ledger + a single finalize() chokepoint that makes 'complete' provably equivalent to 'every honesty latch cleared by real on-disk work, nothing exhausted'. The make-or-break (flagged by adversarial seam-verification) is the honesty carry: 'carry an unresolved changed_on_disk overclaim forward and block stop-complete' is NET-NEW state threading at the run-loop failure seam (closeRun 'aborted' today), not a reuse. The design is the structural INVERSE of gnhf (bounded, judge-gated, fail-closed on human gates, honest abort over false-done, carried notes as the compounding lever) rather than a clone. MVP = 3 slices (count loop + stop-judge + ledger/finalize), then notes/budget/no-progress/commit. Nothing built; verify every cited line before use.",
+      "related": [
+        "docs/ideas/bespoke-flow-generation-design.md",
+        "docs/ideas/portable-flow-file-format.md",
+        "docs/ideas/long-horizon-supervision.md"
+      ],
+      "last_checked": "2026-06-26"
+    },
+    {
+      "path": "docs/ideas/intra-run-decision-carry-forward.md",
+      "title": "Intra-run decision carry-forward",
+      "status": "current-proposal",
+      "category": "memory-and-ratchet",
+      "tags": [
+        "feed-forward",
+        "checkpoints",
+        "relay-prompt",
+        "compounding-loop",
+        "honesty",
+        "operator-authority"
+      ],
+      "current_reading": "Design note (return-to-later) for the lead nugget from the no-mistakes study: carry the operator's settled checkpoint decision forward into the next relay's prompt so a downstream agent does not re-litigate, re-derive, or silently reverse a call the human already made inside the same run. Grounded in real seams as of 2026-06-26: the producer already records the decision (checkpoint-resume.ts re-enters graph-runner with resumeCheckpoint {stepId, attempt, selection}; checkpoint.ts reads it for routing only; the decision is already in the trace via the human-decision block), and the consumer already has a structured additive relay-prompt guidance system (relay-support.ts: operator skills, house-style slots, tool scope, delivered-context, memory-pull). The gap is the wire between them: no relay section renders the settled decision. Proposed mechanism: a trace-derived in-memory decision ledger rendered as one new opt-in additive 'settled-by-operator' section, wired exactly like context delivery (enableContextDelivery / contextDeliveryActive: a run-wide signal threaded graph-runner -> RunContext -> RunValue -> relay prompt, default off, default byte-identical, added explicitly to the RunValue projection so it is not silently dropped). NOT pull-suppression.ts (that is the measured-harm memory channel; this is a parallel operator-decision channel and must not share its code). Scope: intra-run only (smallest safe first rung of the unbuilt cross-run compounding loop), no findings-checklist UI, validity-first with a separate later live efficacy arm. Nothing built; verify every cited symbol before use.",
+      "related": [
+        "docs/ideas/self-auditing-memory.md",
+        "docs/ideas/effective-memory-program.md",
+        "docs/ideas/thin-envelope-unlock-report.md",
+        "docs/ideas/context-pull-last-mile-report.md"
+      ],
+      "last_checked": "2026-06-26"
+    },
+    {
+      "path": "docs/ideas/until-loop.md",
+      "title": "The until-loop: condition-gated iteration for flows",
+      "status": "current-proposal",
+      "category": "flows-and-blocks",
+      "tags": ["loop", "engine-flag", "control-flow", "honesty-gate", "composition", "convergence"],
+      "current_reading": "Canonical implementation proposal for ONE new engine capability: give flows a `while` loop. Today flows have two control shapes only (run-once; and `iteratesSliceLoop`, a counted for-each over precomputed slices). Missing is the third: repeat-until-a-condition-holds, where the iteration count is not knowable in advance because it depends on results produced inside the loop. Cannot be faked with a backward route (the cycle guard's isCompletedStepReentryAbort at run-transition.ts:55 aborts re-entry of a completed step; the slice loop is exempt only via SliceCorridor.countKey iteration-scoping at slice-corridor.ts:86), so it lands as a new CompiledFlowEngineFlags entry `iteratesUntilCondition`, sibling to `iteratesSliceLoop` (types.ts:79/120). Design: re-enter a declared [head..tail] body until a reviewer-relay stop-judge proposes goal_met AND the engine independently confirms the evidence floor (propose-vs-dispose; NL never enters the engine). Make-or-break = an append-only honesty ledger + single finalize() chokepoint making 'complete' provably equivalent to 'goal met, evidence confirmed, and every honesty/exhaustion latch clear'; extends continuation-loop.ts:8 'never close complete by exhaustion'. Three bounds (maxIterations, cumulative USD/token cap fail-closed, no-progress K-ceiling) all reach only needs_attention. Carried notes (reuse continuity harvest/inject) = the compounding lever. Overnight/gnhf is ONE use case (see gnhf-style-bounded-loop.md), not the feature; others: fix-until-green, tighten-until-satisfied, work-list-until-empty, converge-a-design. Suggested product name for a flow built on it = Converge (converges on PROVEN done). Build plan: slice 1 (count-driven multi-step body loop, de-risks the multi-step span count-key generalization the slice loop never exercised) FIRST; slices 1-3 (+stop-judge, +ledger/finalize) = MVP; then notes/budget/no-progress/commit. 9 engine changes mapped to real seams. Nothing built; verify every cited line before use.",
+      "related": [
+        "docs/ideas/gnhf-style-bounded-loop.md",
+        "docs/ideas/bespoke-flow-generation-design.md",
+        "docs/ideas/portable-flow-file-format.md"
+      ],
+      "last_checked": "2026-06-26"
+    },
+    {
+      "path": "docs/ideas/improve-flow.md",
+      "title": "Improve flow: Circuit's outer loop",
+      "status": "current-proposal",
+      "category": "flows-and-blocks",
+      "tags": ["improve", "outer-loop", "run-history", "ratchet", "flow", "evidence"],
+      "current_reading": "Product and flow proposal for an `Improve` flow: a controlled outer loop that studies prior Circuit runs, ranks repeated or high-value signals, and proposes exactly one bounded change to a flow, check, Skill Hook, Power policy, eval, or doc. V1 is proposal-only: frame one target flow/window/proposal kind, read run folders/traces/reports/operator summaries/history index/Git/test output/optional CI metadata, emit `improve.signals@v1` plus `improve.proposal@v1`, then stop at a Checkpoint before any write. It is not an autonomous daemon, not memory authority, not the until-loop, and not a generic make-Circuit-better prompt. Constraints: history remains hint-only; traces/reports/files/commits/checks/operator-declared decisions are authoritative; runtime stays flow-neutral; writes are explicit; cost is bounded. First useful slice needs no new engine primitive. Later slices can add branch mode, flow/check edits, Skill Hook suggestions, Power bounds, batch ranking, and scheduled notification. Includes a starter `/goal` for implementing the proposal-only flow. Nothing built.",
+      "related": [
+        "docs/ideas/self-improving-circuit.md",
+        "docs/ideas/until-loop.md",
+        "docs/ideas/local-sqlite-read-model.md",
+        "docs/ideas/skill-hooks-uncovered-cases.md"
+      ],
+      "last_checked": "2026-07-02"
     }
   ]
 }
