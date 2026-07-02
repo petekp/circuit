@@ -1,14 +1,15 @@
 # Proactive per-role power floors
 
 Status: design spec (not built). Author: session 2026-06-29.
-Origin: the one genuinely borrowable idea from Cognition's Devin Fusion
-(see `reference_devin_fusion_assessment` in memory). Fusion's operating
-principle is "sense the task, route the model accordingly, proactively."
-Circuit senses (the researcher already reads goal + code) but routes the
-downstream model **reactively**: a hard task runs the cheap implementer,
-fails the check, and only then escalates. This spec lets the researcher
-promote a specific downstream role **before** the wasted attempt, in
-Circuit's bounded form.
+Origin: the one genuinely borrowable idea from Cognition's
+[Devin Fusion](https://cognition.com/blog/devin-fusion): keep strong
+judgment in the loop, sense the task from live context, and route model power
+proactively instead of waiting for failure. Circuit should borrow only that
+bounded principle, not Fusion's sidekick-agent architecture. Circuit senses
+(the researcher already reads goal + code) but routes the downstream model
+**reactively**: a hard task runs the cheap implementer, fails the check, and
+only then escalates. This spec lets the researcher promote a specific
+downstream role **before** the wasted attempt, in Circuit's bounded form.
 
 ## The gap, precisely
 
@@ -35,7 +36,7 @@ that promotes **everything** (researcher + implementer + reviewer all to
 high) and spends accordingly. It cannot express the actual sensed
 condition: "run cheap globally, but *this one role* needs the strong
 model." That precision (buy intelligence exactly where it binds) is the
-Fusion insight, and it is what the static table plus a single dial scalar
+borrowed insight, and it is what the static table plus a single dial scalar
 cannot represent.
 
 ## The design
@@ -44,6 +45,9 @@ Let the researcher attach optional **per-role power floors** to its
 existing recommendation. A floor only ever **raises** a role's tier above
 what the dial allocation gives it (up-only), is **clamped to the
 operator's ceiling** (spend cap binds), and is recorded for the receipt.
+Under `--power auto`, the final materialized tier is clamped after both the
+proactive floor and any retry bump, so a retry can still escalate within the
+operator's bounds but cannot jump past the configured ceiling.
 
 Worked example. Operator runs `--power auto` with bounds `floor=low,
 ceiling=high`. The researcher reads a change that spans 14 files with weak
@@ -75,8 +79,10 @@ weaker recovery tier than the proactively-chosen high.
   honesty lives; the floor cannot do that.
 - **Ceiling binds.** Each floor is clamped through `clampPowerToBounds`
   (`power-inference.ts:54`) just like `value` is, so the operator's
-  `power_auto.ceiling` is still the hard spend cap. The run cannot route
-  itself hotter than the operator allowed.
+  `power_auto.ceiling` is still the hard spend cap. `materializePowerSelection`
+  also re-applies the ceiling after the retry bump, because otherwise
+  `attempt > 1` could quietly outrun the cap. The run cannot route itself
+  hotter than the operator allowed.
 - **One authored producer, first-write-wins.** The floors come from the
   same single researcher report that already resolves the dial; the channel
   freezes on first write (`power-inference.ts:45-47`). This is **not** a
@@ -114,16 +120,20 @@ build.context / fix.diagnosis report
   base = ROLE_POWER_ALLOCATION[dial][role]
   if auto && floor && floor > base: base = floor      ← proactive promotion
   tier = attempt > 1 ? bumpOneTier(base) : base       ← reactive escalation composes on top
+  if auto && tier > ceiling: tier = ceiling           ← final operator spend cap
   → model/effort from the connector tier table
-  → power_promoted: true  when base != dial allocation (distinct from power_escalated)
+  → power_promoted: true  when floor raised the dial allocation
+  → power_escalated: true when retry actually raised the final tier
 ```
 
 ## File-by-file changes
 
-All of this is **engine** work on a **generic** mechanism (per-role power
-floors), exactly like `recommended_power` itself — no flow-specific
+The runtime behavior is **engine** work on a **generic** mechanism (per-role
+power floors), exactly like `recommended_power` itself — no flow-specific
 branching enters the engine, so the catalog boundary (AGENTS.md) holds.
-Flows opt in only by emitting `by_role` in a report they already own.
+Flows opt in only by emitting `by_role` in a report they already own. The
+source edits also need the matching contracts, prompt surfaces, and generated
+host runtime bundles so the shipped plugin packages do not drift.
 
 1. **`src/schemas/power.ts`** — extend `PowerRecommendation` with an
    optional, strict `by_role`:
@@ -145,18 +155,25 @@ Flows opt in only by emitting `by_role` in a report they already own.
 
 3. **`src/selection/power-tiers.ts`** — `materializePowerSelection` takes a
    new optional `inferredRoleFloor?: Power` and applies it up-only inside
-   the `auto` branch only:
+   the `auto` branch only. Under auto, cap the final tier after retry
+   escalation so the operator ceiling stays true:
    ```ts
-   let base = ROLE_POWER_ALLOCATION[dial][input.role];
+   const allocated = ROLE_POWER_ALLOCATION[dial][input.role];
+   let base = allocated;
    const promoted =
      setting.kind === 'auto' &&
      input.inferredRoleFloor !== undefined &&
      powerIndex(input.inferredRoleFloor) > powerIndex(base);
    if (promoted) base = input.inferredRoleFloor;
-   const tier = input.attempt > 1 ? bumpOneTier(base) : base;
+   let tier = input.attempt > 1 ? bumpOneTier(base) : base;
+   if (setting.kind === 'auto' && powerIndex(tier) > powerIndex(setting.ceiling)) {
+     tier = setting.ceiling;
+   }
+   const escalated = input.attempt > 1 && powerIndex(tier) > powerIndex(base);
    ```
    Emit `power_promoted: true` when `promoted`, sibling to the existing
-   `power_escalated`.
+   `power_escalated`. Emit `power_escalated: true` only when the retry bump
+   actually raised the final tier after ceiling clamp.
 
 4. **`src/schemas/selection-policy.ts`** (~83-91) — add
    `power_promoted: z.boolean().optional()` next to `power_escalated`.
@@ -188,18 +205,52 @@ Flows opt in only by emitting `by_role` in a report they already own.
    where the edit itself needs the top model), set `by_role` for that role.
    Keep it targeted and rare; omit it when the overall tier already fits."
 
-10. **`src/app/operator-summary/writer.ts`** — surface promotions in the
+10. **`src/runtime/run/relay-support.ts`** — update the shared auto-power
+    notice rendered into researcher prompts. It currently asks only for one
+    downstream tier; it must also explain the rare targeted `by_role` case,
+    otherwise the schema accepts floors the worker was not clearly asked to
+    produce.
+
+11. **`src/flows/build/contract.md`, `src/flows/fix/contract.md`, and
+    `docs/contracts/selection.md`** — update the canonical contract prose for
+    the new `recommended_power { value, rationale, by_role? }` shape, the
+    auto-only rule, the ceiling-after-retry rule, and the new provenance
+    fields. The idea doc is not the behavior contract.
+
+12. **`src/schemas/operator-summary.ts`** — add an optional receipt field for
+    actual promotions, present only when non-empty:
+    ```ts
+    power_promotions: z.array(z.object({
+      role: z.enum(['implementer', 'reviewer']),
+      power: Power,
+    }).strict()).optional()
+    ```
+    Use post-clamp powers. Do not include no-op floors.
+
+13. **`src/app/operator-summary/writer.ts`** — surface promotions in the
     receipt alongside the existing power(auto) provenance and escalation
-    count: "implementer promoted to high before first attempt (auto): <rationale>".
+    count. Derive actual promotions from `relay.started.resolved_selection`
+    entries where `power_promoted === true`; dedupe by `(role, power)` so
+    slice loops, fanout, or retries do not inflate the receipt. Render one
+    detail line using the shared `power_rationale`, for example:
+    "Power promotion: auto raised implementer to high. Reason: <rationale>."
     This is the legibility payoff — proactive promotion is visible and
     distinct from reactive escalation.
+
+14. **Generated host runtime bundles** — run `npm run emit-flows` after source
+    edits so `plugins/claude/runtime/circuit.js` and
+    `plugins/codex/runtime/circuit.js` pick up the schema, prompt, and runtime
+    changes. Do not hand-edit generated plugin output. Use
+    `npm run check-flow-drift` to catch stale bundles.
 
 ## Tests (write first)
 
 - **`power-tiers` unit:** a floor above the dial allocation raises the role;
   a floor at/below is a no-op; floor ignored under a fixed dial; floor +
-  `attempt > 1` composes (bump above the floor, capped at top);
-  `power_promoted` set iff the floor actually raised the tier.
+  `attempt > 1` composes; under auto, the final tier never exceeds
+  `power_auto.ceiling`; `power_promoted` is set iff the floor actually raised
+  the role above its dial allocation; `power_escalated` is set iff retry
+  actually raised the final tier after the ceiling clamp.
 - **`power-inference` unit:** `extractPowerRecommendation` parses `by_role`;
   first-write-wins freezes `byRole` (a second researcher pass cannot move
   it); `seedPowerInferenceFromTrace` reseeds `byRole`.
@@ -207,11 +258,24 @@ Flows opt in only by emitting `by_role` in a report they already own.
   `by_role: { implementer: high }` under `--power auto` with `ceiling=medium`
   clamps the floor to medium, records it in `run.power-inference`, and the
   next implementer relay materializes at medium on **attempt 1**.
+- **operator-summary unit:** a promoted relay renders a promotion detail and
+  `power_promotions` receipt entry; repeated promoted relays for the same
+  role+tier dedupe; no-op floors do not render as promotions; promotions do
+  not increment `escalations`.
 - **e2e (required, per project rule):** a real Build (or Fix) run under
   `--power auto` where the researcher promotes the implementer and the
   implementer relay genuinely selects the stronger model on its first
   attempt. Reuse the existing eval/test-flow harness; assert against the
   trace, not a stub.
+
+## Verification
+
+- `npm run test -- tests/unit/power-tiers.test.ts tests/unit/power-inference.test.ts`
+- `npm run test -- tests/runner/auto-power-inference.test.ts tests/runner/operator-summary-writer.test.ts`
+- `npm run emit-flows`
+- `npm run check-flow-drift`
+- `npm run check-ideas`
+- `npm run verify` before claiming the implementation is done
 
 ## Scope for v1 (cut lines)
 
