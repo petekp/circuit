@@ -1,6 +1,9 @@
 # Circuit Architecture Improvement Roadmap
 
-Status: source-backed roadmap, current as of 2026-06-05.
+Status: executed and closed (2026-07-02). All ten rectifications landed via
+[architecture-revamp-staged-plan.md](architecture-revamp-staged-plan.md),
+which records per-stage completion. Kept as the analysis record behind that
+plan; the problem lists below describe the pre-revamp code, not open work.
 
 This document turns the recent system analysis into an improvement roadmap. It is not a rewrite plan. It is a sequence of small changes that make the current design easier to understand, easier to extend, and harder to accidentally complect.
 

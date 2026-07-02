@@ -1,6 +1,8 @@
 # Recovery And Restore Roadmap Addendum
 
-Status: source-backed addendum, current as of 2026-06-05.
+Status: executed and closed (2026-07-02). Its cluster folded into
+[architecture-revamp-staged-plan.md](architecture-revamp-staged-plan.md) and
+landed there. Historical record, not open work.
 
 Purpose: capture recovery, restore, baseline, StepKind, and Fix test-fixture architecture opportunities before folding them into the canonical architecture improvement roadmap. This document does not implement the changes. It records what the current code says, where the seams are awkward, and how to improve them while preserving the stable Skill Hooks runtime seam.
 

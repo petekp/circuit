@@ -63,7 +63,7 @@ run `npm install`, install a `circuit` binary, or create a symlink.
 Install the published plugin from the marketplace:
 
 ```bash
-codex plugin marketplace add petekp/circuit --ref circuit--v0.1.0-alpha.7
+codex plugin marketplace add petekp/circuit --ref circuit--v0.1.0-alpha.8
 ```
 
 Working from this checkout instead? Refresh the local plugin package and
@@ -106,9 +106,12 @@ For the repo map, use [`docs/repository-map.md`](docs/repository-map.md).
 table, the CLI flow-name rule, and the host-alias status.
 
 Handoff stays available as a visible continuity utility for saving, resuming,
-clearing, briefing, or installing continuity support. The CLI also has an
-experimental `./bin/circuit create` utility for drafting reusable custom flows
-after explicit confirmation, but Create is not published as a host command. See
+clearing, briefing, or installing continuity support. The CLI also has
+experimental utilities that are not published as host commands:
+`./bin/circuit create` drafts a reusable custom flow after explicit
+confirmation, `./bin/circuit generate` composes and runs a bespoke flow from a
+plain task description, and `./bin/circuit preview` shows which connector,
+model, and effort each step of a flow would get, without spawning anything. See
 [`docs/operator-guide.md`](docs/operator-guide.md) for direct commands, flags,
 checkpoints, verification, and troubleshooting.
 

@@ -51,6 +51,8 @@ starting release, messaging, docs, or first-run work.
   changing.
 - [docs/contracts/](contracts/) - contract details when code, tests, or
   generated surfaces depend on an invariant.
+- [docs/yaml-validation.md](yaml-validation.md) - where YAML is allowed to
+  live and how each surface is validated; the table is test-pinned.
 - [docs/reference/script-inventory.md](reference/script-inventory.md) - current
   script ownership and historical migration map.
 
