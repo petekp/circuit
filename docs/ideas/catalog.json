@@ -1698,6 +1698,15 @@
         "docs/ideas/dynamic-workflows-vs-circuit.md"
       ],
       "last_checked": "2026-06-29"
+    },
+    {
+      "path": "docs/ideas/capacitor-ux-review.md",
+      "title": "Review: Capacitor UX proposals (second opinion)",
+      "status": "independent-review",
+      "category": "hosts-connectors-and-hitl",
+      "tags": ["capacitor", "companion-app", "review", "evidence-layer", "boundary"],
+      "current_reading": "Skeptical 2026-06-12 review of two Capacitor UX proposals (Circuit as the evidence/projection layer, Capacitor as the native control surface). Verdict: endorse with changes. The two headline corrections: Capacitor did not actually consume Circuit run folders (the duplicate-state risk was the present state, not a future one), and the proposed build order shipped attention projection before the evidence it needs. The reviewed proposal docs were never committed; this review is the surviving record of the analysis.",
+      "last_checked": "2026-07-01"
     }
   ]
 }

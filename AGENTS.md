@@ -10,6 +10,14 @@ and the flow design notes under `docs/flows/`.
 
 Only this guide defines agent rules. Anything else is context.
 
+## Current focus
+
+Circuit is shipping and announcing v1. Read
+[`docs/release/v1-launch-plan.md`](docs/release/v1-launch-plan.md) before
+starting new work. It carries the launch blockers, the settled messaging
+decisions, and the standing rule that new features wait until after the
+announcement.
+
 See [`UBIQUITOUS_LANGUAGE.md`](UBIQUITOUS_LANGUAGE.md) for the canonical product
 vocabulary (flow, schematic, block, route, relay, check, trace, report,
 evidence). Use that vocabulary in product-facing prose.

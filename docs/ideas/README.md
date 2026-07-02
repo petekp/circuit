@@ -7,7 +7,12 @@ Use them for context and option generation. Do not treat them as current
 behavior, active roadmap, or implementation instructions without checking
 canonical docs, code, tests, and generated surfaces.
 
-## Start Here: The Recursion / Recompile Frontier
+## Start Here
+
+Circuit's current focus is shipping and announcing v1. The active plan, the
+launch blockers, and the feature freeze live in
+[`docs/release/v1-launch-plan.md`](../release/v1-launch-plan.md). While that
+push is on, the notes here are parked context, not an invitation to build.
 
 For the recursive and adaptive-workflow line of work (the four micro-harness
 scopes, the resolvers, the recursion bound, the recompile foundation, and the
@@ -183,6 +188,7 @@ every later extension in the note shipped.
 | [`intra-run-decision-carry-forward.md`](intra-run-decision-carry-forward.md) | `current-proposal` | Return-to-later design note for the lead nugget from the no-mistakes study: carry the operator's settled checkpoint decision forward into the next relay's prompt so a downstream agent does not re-litigate or silently reverse a call the human already made in the same run. Grounded: the producer records the decision (`checkpoint-resume.ts` -> `graph-runner` -> `checkpoint.ts` reads `resumeCheckpoint.selection` for routing only; the decision is already in the trace), the consumer has an additive relay-prompt guidance system (`relay-support.ts`), and nothing wires the two. Proposes one opt-in `settled-by-operator` section wired like context delivery (default off, default byte-identical), explicitly NOT `pull-suppression.ts` (the parallel memory channel). Intra-run only: the smallest safe first rung of the unbuilt cross-run compounding loop. Nothing built. |
 | [`model-roster-and-intensity.md`](model-roster-and-intensity.md) | `current-proposal` | Concept-first design note on collapsing model, effort, and connector selection into two operator knobs: a global roster (archetype to connector plus a baseline rung, with per-flow and per-step overrides) and one intensity dial that offsets every archetype along per-connector (model, effort) ladders. Reframes the shipped power dial as a hard-coded roster to promote into editable config. Grounds what exists (roles, `relay.roles` connector-per-role, `power_tiers`, real parallel fan-out with per-branch selection) against what is new (role-to-model binding, dial-as-scalar, connector detection plus setup, a resolve-without-spawn plan-preview and verify). Nothing built. |
 | [`proactive-power-floors.md`](proactive-power-floors.md) | `current-proposal` | Design spec (not built) for letting the researcher promote one downstream role's power tier before the wasted first attempt, rather than only escalating reactively on retry. Floors are up-only, clamped to the operator's `power_auto` ceiling, consulted only under `--power auto`, first-write-wins from the single researcher report, and carry tiers not model ids. Full file-by-file engine plan plus tests for the build and fix flows. Verify citations before building. |
+| [`capacitor-ux-review.md`](capacitor-ux-review.md) | `independent-review` | Skeptical 2026-06-12 review of two Capacitor UX proposals (Circuit as the evidence/projection layer, Capacitor as the native control surface). Verdict: endorse with changes; the duplicate-state risk was the present state, and the build order shipped attention projection before its evidence. The reviewed proposal docs were never committed; this review is the surviving record. |
 
 ### Skill Hooks And Expertise
 
