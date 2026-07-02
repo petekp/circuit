@@ -12,6 +12,11 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       '.claude/**',
+      // Local git worktrees (gitignored). Each contains a full repo copy with
+      // its own tests/ tree; without this exclude, vitest in the main checkout
+      // would run every worktree's suite on top of its own. The `**/` prefix
+      // matches the `**/node_modules/**` default style.
+      '**/.worktrees/**',
       // Benchmark fixtures are tiny standalone repos with intentionally failing
       // Node tests, plus hidden objective-check tests under objective/ that only
       // resolve once the runner overlays them onto a repo copy. None of the task

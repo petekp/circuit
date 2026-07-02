@@ -34,6 +34,9 @@ evidence). Use that vocabulary in product-facing prose.
    batch, state the partition criterion and run the grep or script that proves
    it. If the plan depends on a runtime contract, run a small probe before
    locking the plan.
+8. **Worktrees live in `.worktrees/`.** Create git worktrees under
+   `.worktrees/` at the repo root (gitignored), never as sibling
+   directories of the checkout.
 
 ## Verification
 

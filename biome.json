@@ -11,6 +11,7 @@
       "plugins/codex/runtime",
       ".circuit",
       ".claude",
+      ".worktrees",
       "docs/release/proofs/runs",
       "experiments/e1/fixtures",
       "experiments/e1/.runs",

@@ -23,6 +23,11 @@ coverage/
 # per-machine state; nothing here is a deliverable.
 .circuit/
 
+# Local git worktrees for parallel work. Create worktrees here
+# (`git worktree add .worktrees/<name> ...`), never as sibling
+# directories of the checkout.
+/.worktrees/
+
 # CodeGraph local index (SQLite knowledge graph + cache). Per-machine and
 # rebuildable from source; nothing here is a deliverable.
 /.codegraph/
