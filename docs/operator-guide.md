@@ -39,10 +39,10 @@ can also pass these controls when the selected flow supports them:
 
 | Control | CLI flag | Supported by |
 | --- | --- | --- |
-| Low, medium, or high depth | `--depth <low|medium|high>` | Build, Explore, Explainer, and Fix. Prototype supports medium or high. Review and Pursue only support medium depth. |
+| Low, medium, or high depth | `--depth <low|medium|high>` | Build, Explore, and Fix. Prototype supports medium or high. Review and Pursue only support medium depth. |
 | Power, fixed or self-chosen | `--power <auto|low|medium|high>` | Every flow. `auto` lets the run pick its own tier from what the research step reads. |
-| Tournament | `--tournament --tournament-n <2|3|4>` | Explore, Prototype, and Explainer. |
-| Autonomous continuation | `--autonomous` | Build, Explore, Fix, Prototype, Pursue, and Explainer. |
+| Tournament | `--tournament --tournament-n <2|3|4>` | Explore and Prototype. |
+| Autonomous continuation | `--autonomous` | Build, Explore, Fix, Prototype, and Pursue. |
 
 Unsupported combinations fail before the run starts.
 

@@ -92,15 +92,6 @@ const EXPECTED_AXES_BY_FLOW: ReadonlyMap<
     },
   ],
   [
-    'explainer',
-    {
-      allowed_depths: ['low', 'medium', 'high'],
-      supports_tournament: true,
-      supports_autonomous: true,
-      tournament_fan_out_stage: 'plan-stage',
-    },
-  ],
-  [
     'prototype',
     {
       allowed_depths: ['medium', 'high'],
@@ -234,6 +225,8 @@ describe('flow catalog completeness', () => {
     // S8: goal is frozen to internal (Run owns the goal loop); it keeps its
     // manifest but no longer publishes a public host surface.
     expect(visibilityById.get('goal')).toBe('internal');
+    // Explainer is held internal until its craft gaps close (2026-07-02).
+    expect(visibilityById.get('explainer')).toBe('internal');
     for (const flow of ['build', 'explore', 'fix', 'prototype', 'pursue', 'review']) {
       expect(visibilityById.get(flow), `${flow} should be host-visible`).toBe('public');
     }

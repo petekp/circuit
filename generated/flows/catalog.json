@@ -29,11 +29,6 @@
       "id": "explore",
       "title": "Explore Schematic",
       "purpose": "Explore flow: frame the investigation, analyze the subject, either synthesize and critique findings or run a decision tournament, then close with findings plus evidence. All modes use Frame, Analyze, Plan or Decision, and Close; critique is embedded inside the Plan/Decision stage rather than exposed as a separate canonical Review stage."
-    },
-    {
-      "id": "explainer",
-      "title": "Explainer Schematic",
-      "purpose": "Explainer flow: turn a research paper into an interactive web explainer. Frame the subject, build a lossless digest, ideate persona-lensed concepts, run a six-criteria tournament, harden the survivors against teaching the wrong driver, take an operator pick, write a house-style spec, run a child build, verify the site, take an operator fidelity sign-off, and close honestly."
     }
   ]
 }

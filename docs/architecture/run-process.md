@@ -112,13 +112,14 @@ When the positional flow is present, the route is:
 When the positional flow is absent, the CLI rejects the run with a clear error
 (`a flow name is required: pass one of build|fix|review|explore|prototype|pursue`).
 
-Public flows are Build, Explainer, Explore, Fix, Prototype, Pursue, and
-Review. Goal, runtime-proof, converge-proof, fix-until-green, and
-cross-tool-build are internal and are not offered as selectable flows. Three
-of the internal flows exist to prove engine machinery end to end:
-fix-until-green and converge-proof exercise the condition-gated loop a flow
-opts into with the `iteratesUntilCondition` engine flag, and cross-tool-build
-proves per-step connector pinning.
+Public flows are Build, Explore, Fix, Prototype, Pursue, and Review. Goal,
+runtime-proof, converge-proof, fix-until-green, cross-tool-build, and
+explainer are internal and are not offered as selectable flows. Three of the
+internal flows exist to prove engine machinery end to end: fix-until-green
+and converge-proof exercise the condition-gated loop a flow opts into with
+the `iteratesUntilCondition` engine flag, and cross-tool-build proves
+per-step connector pinning. Explainer is held internal until its craft gaps
+close.
 
 Evidence:
 

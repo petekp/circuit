@@ -51,6 +51,7 @@ export function publicHostFlowFiles(files: string[]): string[] {
       !file.startsWith('fix-until-green/') &&
       !file.startsWith('cross-tool-build/') &&
       !file.startsWith('goal/') &&
+      !file.startsWith('explainer/') &&
       !file.endsWith('.work-contract.v0.json') &&
       !file.includes('never-a-mode') &&
       // The static flow.catalog@v1 registry (generated/flows/catalog.json) is a

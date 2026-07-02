@@ -53,7 +53,6 @@ describe('ProcessEvidenceProjection', () => {
 
     expect(publicRuntimeFlows.map((pkg) => pkg.id).sort()).toEqual([
       'build',
-      'explainer',
       'explore',
       'fix',
       'prototype',
