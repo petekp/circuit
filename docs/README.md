@@ -3,6 +3,11 @@
 Start here when you need repo truth without reading every historical note. Read
 only the layer you need, then go deeper when the change touches that layer.
 
+**Current focus:** Circuit is shipping and announcing v1. The launch plan,
+blockers, and settled messaging decisions live in
+[docs/release/v1-launch-plan.md](release/v1-launch-plan.md). Read it before
+starting release, messaging, docs, or first-run work.
+
 ## Read First
 
 1. [README.md](../README.md) - product shape, install paths, host roles, and
@@ -46,6 +51,8 @@ only the layer you need, then go deeper when the change touches that layer.
   changing.
 - [docs/contracts/](contracts/) - contract details when code, tests, or
   generated surfaces depend on an invariant.
+- [docs/yaml-validation.md](yaml-validation.md) - where YAML is allowed to
+  live and how each surface is validated; the table is test-pinned.
 - [docs/reference/script-inventory.md](reference/script-inventory.md) - current
   script ownership and historical migration map.
 
@@ -102,6 +109,7 @@ not active instructions unless one of the sources above links to a live section.
 | Vocabulary | [UBIQUITOUS_LANGUAGE.md](../UBIQUITOUS_LANGUAGE.md) | Current product terms for product prose, docs, contracts, and flow authoring notes. |
 | Product posture | [CONTEXT.md](../CONTEXT.md) | Product philosophy and posture context. [UBIQUITOUS_LANGUAGE.md](../UBIQUITOUS_LANGUAGE.md) wins on vocabulary. |
 | Load-bearing claims | [docs/positioning.md](positioning.md) | The code-true claims that anchor all messaging; every claim names where it is real in the source. Canonical for what Circuit may claim. |
+| Launch focus | [docs/release/v1-launch-plan.md](release/v1-launch-plan.md) | The active v1 launch plan: blockers, framing decisions, settled questions, and the feature freeze. Moves to historical after the announcement. |
 | Contributor reference | [docs/repository-map.md](repository-map.md), [docs/architecture/](architecture/), [docs/contracts/](contracts/), [docs/flows/](flows/), [docs/reference/script-inventory.md](reference/script-inventory.md), [src/README.md](../src/README.md), [plugins/README.md](../plugins/README.md) | Current codebase, flow, block, contract, source tree, host package, and script ownership reference. |
 | Generated/evidence | [docs/generated-surfaces.md](generated-surfaces.md), [docs/flows/block-catalog.json](flows/block-catalog.json), [generated/](../generated/), [docs/release/](release/), [plugins/](../plugins/) generated mirrors | Generated truth, release truth, or proof evidence. Generated mirrors are regenerated from source. |
 | Release QA | [docs/host-trial-checklist.md](host-trial-checklist.md) | Checklist for validating host readiness before broader use. |

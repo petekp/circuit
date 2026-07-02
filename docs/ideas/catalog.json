@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "last_swept": "2026-06-21",
+  "last_swept": "2026-07-02",
   "note": "Idea docs are context, not canonical behavior. Check current code, contracts, tests, generated surfaces, and canonical docs before treating any entry as implementation truth.",
   "status_values": [
     "archived",
@@ -33,15 +33,15 @@
     {
       "path": "docs/ideas/until-loop.md",
       "title": "The until-loop: condition-gated iteration for flows",
-      "status": "current-proposal",
+      "status": "implemented",
       "category": "flows-and-blocks",
       "tags": ["runtime-loop", "engine-flag", "while-loop", "convergence", "honesty-ledger"],
-      "current_reading": "Canonical proposal for the third flow control shape, a while loop: re-enter a declared [head..tail] body until a goal condition is judged met and the engine independently confirms it, within hard bounds. Adds one CompiledFlowEngineFlags sibling, iteratesUntilCondition, modeled on iteratesSliceLoop. Make-or-break is the propose-then-dispose stop judge (a reviewer relay proposes goal_met; the engine honors it only when its own evidence floor agrees) plus an append-only honesty ledger and finalize() that make 'the loop succeeded' structurally unreachable through any exhaustion path or open latch, with three independent ceilings (iterations, budget, no-progress). ALL SEVEN SLICES ARE BUILT on feat/until-loop, proven by offline runtime tests with a byte-identical default when the flag is absent: the count-driven multi-step body loop (slice 1, an iteration-scoped count key covering every body step, not just the adjacent head/tail the slice loop scopes), the propose-then-dispose stop judge (slice 2), the append-only honesty ledger plus finalize() and an abort-intercept that make a succeeded verdict structurally unreachable through any exhaustion path or open latch (slice 3), carried notes that turn a repeating loop into a learning one (slice 4), a fail-closed cumulative budget cap (slice 5), no-progress steering with a stall ceiling (slice 6), and opt-in default-off per-iteration commit containment to a throwaway branch (slice 7). Hardened with the full manifest path, up-front coherence validation that rejects a budget/ceiling/notes bound declared without a stop judge, mutual-exclusion against the slice loop, an explicit resume fence, and an adversarial review whose two HIGH findings (a silently-unenforced cap on the count form, and an uncontained iteration on the abort-intercept exit) are both fixed. The git-backed live wiring for commit containment is deferred until a Converge catalog flow opts in; no flow opts in yet.",
+      "current_reading": "The canonical design for the third flow control shape, a while loop. SHIPPED TO MAIN: the iteratesUntilCondition engine flag (src/flows/types.ts), the propose-then-dispose stop judge, the append-only honesty ledger plus finalize() that make a succeeded verdict structurally unreachable through any exhaustion path or open latch, carried notes, the fail-closed budget cap, and no-progress steering all run on main (src/runtime/run/until-corridor.ts, honesty-ledger.ts, until-budget.ts, iteration-ledger.ts), hardened by the frozen-eval guard (src/runtime/run/frozen-eval.ts) so a body cannot edit its own verification command and false-green. Two internal catalog flows opt in and prove it (fix-until-green, converge-proof), the composer emits a gated Converge shape, and a composed Converge has run to green at complete. Read as the design record; the operator-facing Converge surface is launch work tracked in docs/release/v1-launch-plan.md.",
       "related": [
         "docs/ideas/bespoke-flow-generation-design.md",
         "docs/ideas/long-horizon-supervision.md"
       ],
-      "last_checked": "2026-06-27"
+      "last_checked": "2026-07-02"
     },
     {
       "path": "docs/ideas/learning-from-autoresearch.md",
@@ -49,9 +49,9 @@
       "status": "current-comparison",
       "category": "strategy-and-comparisons",
       "tags": ["autoresearch", "convergence", "honesty-ledger", "frozen-eval", "experiment-ledger"],
-      "current_reading": "Idea-by-idea mapping of karpathy/autoresearch (an overnight keep-best LLM-training harness) against Circuit's current code. Three ideas recommended and being built on feat/autoresearch-borrow: frozen-eval (HIGH leverage, a detective latch on the until-loop evidence floor so a Converge body cannot edit its own verify command or test files and false-green), experiment-ledger (a pure read-time iterationLedgerFromTrace projection, NOT a fourth state store, so the operator sees what every pass tried including discards), and program-as-skill (let circuit generate emit the Converge shape via a convergeUntil composition role gated on a run-verification body step). Two ideas declined: the optimize-loop keep-best metric ratchet (needs an ungameable read-only oracle Circuit lacks, and its exhaust-and-keep-best terminus is exactly the success-through-exhaustion the until-loop forbids; documented in until-loop.md) and a bounded-vs-unbounded positioning contrast (Circuit's bounds are already stronger; skip). Confirms two existing bets: skills-to-circuits and bounded-over-unbounded autonomy.",
+      "current_reading": "Idea-by-idea mapping of karpathy/autoresearch (an overnight keep-best LLM-training harness) against Circuit's current code. The three borrowed ideas all SHIPPED TO MAIN: frozen-eval (src/runtime/run/frozen-eval.ts, a detective latch so a Converge body cannot edit its own verification command and false-green), experiment-ledger (the pure iterationLedgerFromTrace projection in src/runtime/run/iteration-ledger.ts, rendered in the operator summary), and program-as-skill (the composer emits the Converge shape via a convergeUntil role gated on a run-verification body step). The two declined ideas stand: the optimize-loop keep-best metric ratchet (needs an ungameable read-only oracle Circuit lacks, and its exhaust-and-keep-best terminus is exactly the success-through-exhaustion the until-loop forbids; documented in until-loop.md) and a bounded-vs-unbounded positioning contrast (Circuit's bounds are already stronger; skip). Confirms two existing bets: skills-to-circuits and bounded-over-unbounded autonomy.",
       "related": ["docs/ideas/until-loop.md", "docs/ideas/bespoke-flow-generation-design.md"],
-      "last_checked": "2026-06-28"
+      "last_checked": "2026-07-02"
     },
     {
       "path": "docs/ideas/adversarial-verification-gates.md",
@@ -207,8 +207,8 @@
       "status": "current-idea",
       "category": "flows-and-blocks",
       "tags": ["dynamic-flows", "ratchet", "flow-composition"],
-      "current_reading": "Future-facing idea for runtime-generated flows and eventual crystallization into reusable structures. Dynamic composition is not shipped.",
-      "last_checked": "2026-06-04"
+      "current_reading": "Future-facing idea for runtime-generated flows and eventual crystallization into reusable structures. Since written, the generation half shipped: circuit generate (src/cli/generate.ts) composes and runs a bespoke flow per task, proposeFlow is a callable, and a second family composes and runs live. The measured nuance stands: what ships is instantiation of registered families plus gated Converge shapes, not free-form block composition. The crystallization half (runs hardening into reusable flows) remains unbuilt.",
+      "last_checked": "2026-07-02"
     },
     {
       "path": "docs/ideas/dynamic-workflows-vs-circuit.md",
@@ -357,13 +357,13 @@
       "status": "partially-implemented",
       "category": "run-inspection-and-output",
       "tags": ["durability", "resumability", "crash-recovery", "recovery-corridor", "spec"],
-      "current_reading": "Decision-ready spec for Tier-2 forward recovery, companion to the fallible-executor audit. DECIDED: Option C (restart-cheapness, not a resumable cursor). Both load-bearing probes ran (2026-06-16): relay is the lone linear step kind that is not cheaply idempotent, and the staleness boundary resolved as a cheap runtime-owned port. The foundation slice shipped (RecoveryCorridor.seedFromTrace, structural-only, behind resume; PR #93) and the worktree reaper landed (PR #99); the forward-recovery cursor itself is the path NOT taken. The re-entry mechanism for skip-finished children moved to durability-tier3-restart-linkage-spec.md (circuit run --reuse-children-from, not built).",
+      "current_reading": "Decision-ready spec for Tier-2 forward recovery, companion to the fallible-executor audit. DECIDED: Option C (restart-cheapness, not a resumable cursor). Both load-bearing probes ran (2026-06-16): relay is the lone linear step kind that is not cheaply idempotent, and the staleness boundary resolved as a cheap runtime-owned port. The foundation slice shipped (RecoveryCorridor.seedFromTrace, structural-only, behind resume; PR #93) and the worktree reaper landed (PR #99); the forward-recovery cursor itself is the path NOT taken. The re-entry mechanism for skip-finished children moved to durability-tier3-restart-linkage-spec.md and has since shipped as circuit run --reuse-children-from (PR #106, src/runtime/run/reuse-children.ts).",
       "related": [
         "docs/ideas/fallible-executor-audit.md",
         "docs/ideas/durability-tier3-restart-linkage-spec.md",
         "docs/ideas/north-star-status.md"
       ],
-      "last_checked": "2026-06-16"
+      "last_checked": "2026-07-02"
     },
     {
       "path": "docs/ideas/fallible-executor-audit.md",
@@ -998,13 +998,13 @@
       "status": "current-proposal",
       "category": "memory-and-ratchet",
       "tags": ["memory", "pooling", "swarm", "cite-and-verify", "crdt", "project-facts"],
-      "current_reading": "Design-only proposal (not built) for pooling Circuit's per-worktree project memory across a same-machine swarm first, then a cross-machine team. Densest kernel is a re-anchored, cite-and-verify-backed pooled read projection that converts the cross-worktree write race into a grow-only set (G-Set union merge) and replicates cited-artifact bytes so foreign facts still re-verify. Stage 0 (query-rankable, corroboration-aware recall) is the read-only slice that ships value first; the query-ranking half is being built behind a recall-side flag. External arXiv citations are post-cutoff and unverified; link-check before trusting numbers.",
+      "current_reading": "Design-only proposal for pooling per-worktree project memory across a same-machine swarm first, then a cross-machine team. Densest kernel is a re-anchored, cite-and-verify-backed pooled read projection that turns the cross-worktree write race into a grow-only set. Stage 0 (query-rankable, corroboration-aware recall) shipped its first half: query-ranking landed behind a recall-side flag (PR #50). The pooled projection and cross-machine stages remain design-only.",
       "related": [
         "docs/ideas/self-auditing-memory.md",
         "docs/ideas/effective-memory-program.md",
         "docs/ideas/project-execution-memory.md"
       ],
-      "last_checked": "2026-06-09"
+      "last_checked": "2026-07-02"
     },
     {
       "path": "docs/ideas/tracker-connector.md",
@@ -1529,42 +1529,42 @@
     {
       "path": "docs/ideas/thin-build-envelope-brief.md",
       "title": "Brief: thin the Build envelope to cash in context-pull",
-      "status": "implementation-spec",
+      "status": "implemented",
       "category": "flows-and-blocks",
       "tags": ["context-pull", "build-flow", "runtime", "envelope", "corridor-skip"],
-      "current_reading": "Decision-ready brief to convert context-pull from a low-yield fail-safe into its designed ~10x saving: stop inlining the researcher's observations synthesis into the Build plan's approach (expose it as the pullable analyze-step.observations slice), and lift the deep-depth corridor skip so head-step pulls are resolved-and-recorded inside an active slice loop. Does NOT flip enableContextDelivery default-ON. Not yet built; a feat/thin-envelope-unlock branch may exist.",
+      "current_reading": "Brief that converted context-pull from a low-yield fail-safe into a load-bearing channel: stop inlining the researcher's observations into the Build plan (expose them as the pullable analyze-step.observations slice) and lift the deep-depth corridor skip so head-step pulls resolve inside an active slice loop. SHIPPED TO MAIN as PR #116 behind the existing opt-in; enableContextDelivery stays default OFF, so production runs are byte-identical. Kept as the decision record; measured outcome in thin-envelope-unlock-report.md.",
       "related": [
         "docs/ideas/context-pull-last-mile-report.md",
         "docs/ideas/on-demand-context-pull.md",
         "docs/ideas/runtime-binding-battle-test-report.md"
       ],
-      "last_checked": "2026-06-18"
+      "last_checked": "2026-07-02"
     },
     {
       "path": "docs/ideas/per-mode-runtime-trust-brief.md",
       "title": "Brief: close the per-mode runtime-trust gap",
-      "status": "implementation-spec",
+      "status": "implemented",
       "category": "flows-and-blocks",
       "tags": ["assembler", "custom-flows", "trust-gate", "per-mode", "publish"],
-      "current_reading": "Decision-ready brief for the task-aware assembler follow-up: a published custom fix/research/prototype flow run in a non-default mode resolves to an unblessed <mode>.json sibling and rejects with a confusing 'untrusted fixture' error. Frames Option A (bless siblings in the manifest, keep a clean fail-closed message for unrecorded siblings) vs Option B (clean mode-unsupported message, default-only trust); recommends A. Trust-surface decision — STOP-AND-REPORT for operator choice. Not yet built.",
+      "current_reading": "Brief for the per-mode trust gap: a published custom fix/research/prototype flow run in a non-default mode resolved to an unblessed <mode>.json sibling and rejected with a confusing untrusted-fixture error. Its recommended Option A SHIPPED TO MAIN: circuit create blesses per-mode published flows in the trust gate (src/cli/create.ts, src/cli/runtime-routing-policy.ts, tests/runner/per-mode-runtime-trust.test.ts). Kept as the decision record.",
       "related": [
         "docs/ideas/assembler-rebuild-run-report.md",
         "docs/ideas/dynamic-vs-reference-experiment-brief.md"
       ],
-      "last_checked": "2026-06-18"
+      "last_checked": "2026-07-02"
     },
     {
       "path": "docs/ideas/explainer-post-editorial-checkpoint-brief.md",
       "title": "Brief: explainer post-editorial checkpoint (remaining P0)",
-      "status": "implementation-spec",
+      "status": "implemented",
       "category": "flows-and-blocks",
       "tags": ["explainer", "checkpoint", "resume", "durability", "paper-to-site"],
-      "current_reading": "Decision-ready brief closing the explainer flow's remaining P0: insert a resumable post-editorial checkpoint between spec-step and build-step so a build failure does not throw away (and re-spend ~$6 of) editorial output. Reuses the existing checkpoint + resume machinery; the open decision (checkpoint-only vs + a recovery binding on build-step's stop route) is probe-first, STOP-AND-REPORT. Not yet built.",
+      "current_reading": "Brief that closed the explainer flow's remaining P0: a resumable post-editorial checkpoint between spec-step and build-step so a build failure does not throw away the editorial output it follows. SHIPPED TO MAIN as PR #120, pairing the checkpoint with a fresh retry gate that preserves the editorial fan-out across a child-build failure. Kept as the decision record.",
       "related": [
         "docs/ideas/paper-to-site-2nd-run-findings.md",
         "docs/ideas/paper-to-site-flow-brief.md"
       ],
-      "last_checked": "2026-06-18"
+      "last_checked": "2026-07-02"
     },
     {
       "path": "docs/ideas/thin-envelope-unlock-report.md",
@@ -1628,15 +1628,15 @@
     {
       "path": "docs/ideas/gnhf-style-bounded-loop.md",
       "title": "gnhf-style bounded autonomous loop in Circuit",
-      "status": "current-proposal",
+      "status": "superseded",
       "category": "flows-and-blocks",
       "tags": ["loop", "autonomous", "overnight", "engine-flag", "honesty-gate", "composition"],
-      "current_reading": "Feasibility map + code-verified implementation sketch for a gnhf-style overnight autonomous loop (github.com/kunchenguid/gnhf: 'repeatedly call an agent until a natural-language stop condition is met'). Finding: most substrate already ships (subprocess driver, --autonomous headless, fanout worktrees FULL; continuation-loop.ts is already a bounded autonomous loop; graph-runner is a route-driven step machine with real backward edges, NOT a one-shot DAG). The loop is NOT authorable as flow topology (cycle guard at graph-runner.ts:647-668 aborts on re-entry of a completed step), so it lands as a new CompiledFlowEngineFlags entry `iteratesBodyLoop`, a sibling to `iteratesSliceLoop` that re-enters a declared [head..tail] body until a worker stop-judge says stop AND the engine confirms the evidence floor, gated by an append-only honesty ledger + a single finalize() chokepoint that makes 'complete' provably equivalent to 'every honesty latch cleared by real on-disk work, nothing exhausted'. The make-or-break (flagged by adversarial seam-verification) is the honesty carry: 'carry an unresolved changed_on_disk overclaim forward and block stop-complete' is NET-NEW state threading at the run-loop failure seam (closeRun 'aborted' today), not a reuse. The design is the structural INVERSE of gnhf (bounded, judge-gated, fail-closed on human gates, honest abort over false-done, carried notes as the compounding lever) rather than a clone. MVP = 3 slices (count loop + stop-judge + ledger/finalize), then notes/budget/no-progress/commit. Nothing built; verify every cited line before use.",
+      "current_reading": "Feasibility map plus implementation sketch for a gnhf-style bounded autonomous loop. Superseded: the direction shipped to main through the canonical until-loop design instead, as the iteratesUntilCondition engine flag (not this sketch's proposed iteratesBodyLoop name), with the honesty ledger, finalize() chokepoint, and stop-judge gating live in the runtime and proven by fix-until-green and converge-proof. Kept as the record of the gnhf comparison: bounded, judge-gated, fail-closed as the structural inverse of gnhf. See until-loop.md.",
       "related": [
         "docs/ideas/bespoke-flow-generation-design.md",
         "docs/ideas/long-horizon-supervision.md"
       ],
-      "last_checked": "2026-06-26"
+      "last_checked": "2026-07-02"
     },
     {
       "path": "docs/ideas/improve-flow.md",
@@ -1681,9 +1681,9 @@
       "status": "current-proposal",
       "category": "hosts-connectors-and-hitl",
       "tags": ["model-selection", "power-dial", "connectors", "roster", "archetypes", "ergonomics"],
-      "current_reading": "Concept-first design note (2026-06-30 design pass) on collapsing model, effort, and connector selection into two operator knobs: a global roster (archetype to connector plus a baseline rung, with per-flow and per-step overrides) and one intensity dial that offsets every archetype along per-connector (model, effort) ladders. Core reframe: Circuit already has a hard-coded, dial-shaped roster (ROLE_POWER_ALLOCATION plus the shipped default tiers) to promote into editable config, so the current values become the smart default. Grounds what exists (roles, relay.roles connector-per-role, power_tiers, config layering, real parallel fan-out with per-branch selection) against what is new (role-to-model binding, dial-as-scalar over ladders, connector detection plus first-run setup, a resolve-without-spawn plan-preview and verify since --dry-run is rejected). Decisions: global roster with overrides, open archetype set, intensity downshifts the model. Recommended first slice: the plan-preview and verify command. Nothing built; verify citations before use.",
+      "current_reading": "Concept-first design note on collapsing model, effort, and connector selection into two operator knobs: a global roster (archetype to connector plus a baseline rung, with per-flow and per-step overrides) and one intensity dial that offsets every archetype along per-connector (model, effort) ladders. Reframes the shipped power dial as a hard-coded roster to promote into editable config. Its recommended first slice has since SHIPPED TO MAIN: the resolve-without-spawn readout landed as circuit preview (src/cli/preview.ts, src/cli/flow-selection-preview.ts), the codex default model now resolves from the live models cache (src/connectors/codex-default-model.ts), and per-step connector pinning ships as a working flow (src/flows/cross-tool-build/). The roster-as-editable-config and dial-as-scalar remain unbuilt.",
       "related": ["docs/ideas/depth-and-power.md", "docs/ideas/proactive-power-floors.md"],
-      "last_checked": "2026-06-30"
+      "last_checked": "2026-07-02"
     },
     {
       "path": "docs/ideas/proactive-power-floors.md",
@@ -1698,6 +1698,15 @@
         "docs/ideas/dynamic-workflows-vs-circuit.md"
       ],
       "last_checked": "2026-06-29"
+    },
+    {
+      "path": "docs/ideas/capacitor-ux-review.md",
+      "title": "Review: Capacitor UX proposals (second opinion)",
+      "status": "independent-review",
+      "category": "hosts-connectors-and-hitl",
+      "tags": ["capacitor", "companion-app", "review", "evidence-layer", "boundary"],
+      "current_reading": "Skeptical 2026-06-12 review of two Capacitor UX proposals (Circuit as the evidence/projection layer, Capacitor as the native control surface). Verdict: endorse with changes. The two headline corrections: Capacitor did not actually consume Circuit run folders (the duplicate-state risk was the present state, not a future one), and the proposed build order shipped attention projection before the evidence it needs. The reviewed proposal docs were never committed; this review is the surviving record of the analysis.",
+      "last_checked": "2026-07-01"
     }
   ]
 }

@@ -188,6 +188,8 @@ a shared set of blocks.
 Do not treat feature parity as the only goal.
 
 The better opportunity is to make Circuit a flow assembly system: a small
-catalog of trustworthy blocks that can be composed into built-in flows and,
-eventually, user-authored flows. Old Circuit's flow list is a source of
-examples, not a ceiling.
+catalog of trustworthy blocks that can be composed into built-in flows and
+user-authored flows. The CLI half of that is real today: `circuit create` and
+`circuit generate` compose from this same block catalog. Publishing
+user-authored flows as host commands is still ahead. Old Circuit's flow list
+is a source of examples, not a ceiling.

@@ -1,6 +1,9 @@
 # Roadmap Prefactoring Plan
 
-Status: source-backed plan, current as of 2026-06-05.
+Status: executed and closed (2026-07-02). The prep slices landed and the
+roadmap they prepared completed via
+[architecture-revamp-staged-plan.md](architecture-revamp-staged-plan.md).
+Historical record, not open work.
 
 Purpose: make the architecture roadmap easier before executing it. The point is not to do the roadmap twice. The point is to add the tests, seams, and small neutral modules that let later boundary moves land as boring, behavior-preserving changes.
 

@@ -106,7 +106,14 @@ validating, and publishing reusable custom flows after explicit confirmation:
 ./bin/circuit create --name '<slug>' --description '<flow idea>'
 ```
 
-It is not published as a Claude or Codex host command.
+Generate is its experimental sibling: it composes a bespoke flow from a plain
+task description and runs it in one command:
+
+```bash
+./bin/circuit generate --description '<your task>'
+```
+
+Neither is published as a Claude or Codex host command.
 
 ## Utility Commands
 
@@ -114,6 +121,7 @@ The CLI also ships small inspection utilities:
 
 | Command | What it does |
 | --- | --- |
+| `./bin/circuit preview <flow> [--power <tier>] [--matrix]` | Show which connector, model, and effort each step would get, without spawning anything. `--matrix` prints every power setting at once. |
 | `./bin/circuit runs show --run-folder <path> --json` | Print the recorded result for one run folder. |
 | `./bin/circuit history rebuild\|query\|status --json` | Rebuild, query, or check the local run history index. For `history pull`, see [`docs/reference/history-pull.md`](reference/history-pull.md). |
 | `./bin/circuit memory note --flow <id> "<text>"` | Add a flow memory note. `memory list` and `memory forget <id>` list and remove notes. |

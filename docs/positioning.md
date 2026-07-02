@@ -35,11 +35,13 @@ agent, and neither is solved by a rules file or a skill.
    makes this worse, because every instruction competes for the same
    crowded context.
 
-## The two things Circuit does that CLAUDE.md and a pile of skills cannot
+## What Circuit does that CLAUDE.md and a pile of skills cannot
 
-These are the only two structural advantages. Everything else Circuit shows
-you (named stages, the trace, the run folder) is scaffolding around them. Lead
-with these.
+These are the structural advantages. Everything else Circuit shows you (named
+stages, the trace, the run folder) is scaffolding around them. Claims 1 and 2
+are the original pair; claims 3 and 4 were added for the v1 launch. How they
+are ordered in messaging is decided in
+[docs/release/v1-launch-plan.md](release/v1-launch-plan.md).
 
 ### 1. The check is mechanical, not textual
 
@@ -120,6 +122,82 @@ to guidance and the trace records that honestly, rather than pretending the
 tools were locked. The researcher and reviewer are kept off the keyboard by
 role and by getting only typed reports, not by a hard tool wall.
 
+### 3. One dial allocates models by role, per step
+
+In ad-hoc chat, one model at one setting does everything: the planning, the
+edits, the review. Circuit decides model, effort, and connector per step, at
+relay time, from three declared inputs: the step's role, the operator's power
+dial, and any connector pin the flow declares. The operator turns one dial;
+the engine does the allocation. Judgment-heavy steps keep the expensive
+model while execution steps run on cheaper ones, and the same flow can route
+one step to a different tool entirely.
+
+Concretely: at `--power low`, the researcher step still runs on the high
+tier, the implementer drops to the low tier, and the reviewer is held one
+notch above execution. The cross-tool-build flow pins its doer steps to
+Codex and its reviewer steps to Claude in the flow definition itself, so the
+adversarial split is a property of the flow, not of operator config. After a
+run, the summary shows a per-role spend receipt, and `circuit preview` shows
+the full allocation for any flow across dial positions without spawning
+anything.
+
+Where this is real in the code:
+
+- Dial x role allocation, per-connector tier tables, and capped monotonic
+  escalation on retry: `src/selection/power-tiers.ts`
+  (`ROLE_POWER_ALLOCATION`, `DEFAULT_POWER_TIERS`, `bumpOneTier`).
+- Per-step connector pins declared by a flow:
+  `src/flows/cross-tool-build/assembly-spec.ts` (`execution.connector`).
+- The spawn-free selection readout: `src/cli/preview.ts` and
+  `src/cli/flow-selection-preview.ts`.
+- The per-role spend rollup in the operator summary:
+  `src/app/operator-summary/writer.ts` (`spendLine`).
+
+Honest nuance. The dial picks tiers, not magic: a tier maps to a concrete
+model and effort per connector through a table the operator can override
+(`power_tiers` in config). Cost figures depend on the connector's own
+pricing, and a relay that reports no usage shows as partial in the receipt
+rather than being estimated. The allocation is authored policy, not a
+runtime judgment of task difficulty; `--power auto` chooses within
+operator-set bounds, it does not classify your task.
+
+### 4. A flow can loop until the goal is proven met
+
+A chat loop stops when the model says it is done. A Circuit until-loop stops
+when the evidence says it is done. A flow can declare a body of steps that
+re-enters until a goal condition holds: a reviewer step proposes that the
+goal is met, and the engine honors the proposal only when its own evidence
+floor agrees. An append-only honesty ledger and a single finalize step make
+"succeeded" structurally unreachable through any exhaustion path or open
+latch, so running out of iterations, budget, or progress reports honestly as
+not done instead of laundering into done. A frozen-eval guard latches if the
+body edits its own verification command, so the loop cannot green its own
+test.
+
+Concretely, in the fix-until-green proof flow: the fix body re-runs until
+the declared verify command actually passes, within three independent
+ceilings (iterations, budget, no-progress), and the run cannot close as
+succeeded unless the pass evidence exists and every ledger latch is clear.
+
+Where this is real in the code:
+
+- The loop corridor deciding stop, re-enter, or needs-attention:
+  `src/runtime/run/until-corridor.ts`.
+- The append-only ledger and latches: `src/runtime/run/honesty-ledger.ts`.
+- The budget ceiling: `src/runtime/run/until-budget.ts`.
+- The frozen-eval guard: `src/runtime/run/frozen-eval.ts`.
+- The per-iteration record the operator sees:
+  `src/runtime/run/iteration-ledger.ts`.
+- The opt-in flag a flow declares: `iteratesUntilCondition` in
+  `src/flows/types.ts`.
+
+Honest nuance. The evidence floor confirms that declared proof commands ran
+and passed and that required evidence exists; it does not judge whether the
+goal was the right goal. The loop shape ships in the engine and is proven by
+internal flows and generated Converge flows; no public catalog flow opts in
+yet. Making this operator-facing is a named launch work item, not a shipped
+surface, so do not present a public "converge" command as existing today.
+
 ## The honest boundary: where Circuit is not worth it
 
 Saying this plainly is what keeps the claims credible and helps the right
@@ -163,9 +241,12 @@ effectiveness ratchet out of the core promise on purpose.
 
 ## How to use this page
 
-The landing page and all messaging lead with the two struggles and the two
-structural advantages, framed as the honest contrast with a CLAUDE.md plus a
-pile of skill files. Show the mechanical check actually firing rather than
+The landing page and all messaging draw only on the claims on this page,
+ordered by the framing ladder in
+[docs/release/v1-launch-plan.md](release/v1-launch-plan.md): encoded process
+leads, multi-model economics is the co-pillar, and the evidence gate is the
+floor. Frame everything as the honest contrast with a CLAUDE.md plus a pile
+of skill files. Show the mechanical check actually firing rather than
 describing it. Keep the boundary visible. When you are tempted to claim more,
 check this page first; if the claim is not here, either it is not true yet or
 it needs to be added here with its mechanism before it can be said anywhere
