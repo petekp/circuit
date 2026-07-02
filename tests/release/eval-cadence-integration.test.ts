@@ -12,10 +12,16 @@ import {
 
 // These exercise the real readers against the committed repo (registry,
 // seeded ledger, plugin.json) so the wiring in check-release-ready.ts is
-// covered, not just the pure gate. The seed ledger entries ran 2026-06-11.
+// covered, not just the pure gate. The probe dates derive from the committed
+// ledger so appending a fresh entry (which every release requires) cannot
+// break them.
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
 const BEFORE_SEEDS = '2026-06-10T00:00:00.000Z';
-const AFTER_SEEDS = '2026-07-01T00:00:00.000Z';
+
+function afterEveryLedgerEntry(): string {
+  const newest = Math.max(...readLedgerEntries(REPO_ROOT).map((entry) => Date.parse(entry.ran_at)));
+  return new Date(newest + 1).toISOString();
+}
 
 describe('eval cadence readers', () => {
   it('reads both release-or-milestone evals from the registry', () => {
@@ -62,7 +68,7 @@ describe('eval cadence gate against the committed repo', () => {
     const blockers = evalCadenceBlockers({
       evals: readRegistryEvals(REPO_ROOT),
       ledgerEntries: readLedgerEntries(REPO_ROOT),
-      lastReleaseDate: AFTER_SEEDS,
+      lastReleaseDate: afterEveryLedgerEntry(),
       currentVersion: currentPluginVersion(REPO_ROOT),
       waivers: new Set(),
     });
@@ -76,7 +82,7 @@ describe('eval cadence gate against the committed repo', () => {
     const blockers = evalCadenceBlockers({
       evals: readRegistryEvals(REPO_ROOT),
       ledgerEntries: readLedgerEntries(REPO_ROOT),
-      lastReleaseDate: AFTER_SEEDS,
+      lastReleaseDate: afterEveryLedgerEntry(),
       currentVersion: version,
       waivers: new Set([`fix-vs-vanilla-${version}`, `verdict-correctness-${version}`]),
     });
