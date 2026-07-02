@@ -117,7 +117,7 @@ describe('host experience docs', () => {
     expect(doc).toContain(
       '/circuit:run the checkout total is wrong when discounts and tax both apply',
     );
-    expect(doc).toContain('Powerful, repeatable work patterns for coding agents');
+    expect(doc).toContain('The process your coding agent follows');
     expect(doc).toMatch(/better working\s+environment/);
     expect(doc).toContain('Go from this:');
     expect(doc).toContain('To this:');

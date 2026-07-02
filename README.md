@@ -1,12 +1,14 @@
 <div align="center">
   <img src="assets/circuit.png" alt="Circuit" width="100%" />
 </div>
-<h3 align="center"><strong>Powerful, repeatable work patterns for coding agents</strong></h3>
+<h3 align="center"><strong>The process your coding agent follows</strong></h3>
 <br />
 Circuit helps coding agents work like experienced practitioners: following a
 clear process, applying the right skills at the right time, and checking their
-work against evidence. It gives agents and operators a better working
-environment than ad-hoc chat.
+work against evidence. One power dial sets the spend: Circuit picks the model,
+effort, and tools for each step from the step's role, so the reading that
+steers the run stays on the strong tier while routine steps run cheap. It
+gives agents and operators a better working environment than ad-hoc chat.
 
 Go from this:
 
@@ -22,7 +24,7 @@ To this:
 
 Circuit puts the process into a repeatable flow:
 
-- Records the chosen built-in, custom, or dynamically determined flow
+- Records the chosen flow, built-in or custom
 - Moves through each step in sequence and/or parallelizes non-dependent steps
 - Applies your preferred skills at the appropriate steps
 - Uses your preferred model(s) and thinking power for particular steps
@@ -55,6 +57,11 @@ Then ask Circuit to handle a task:
 /circuit:run the checkout total is wrong when discounts and tax both apply
 ```
 
+A real run spawns worker agents that spend model time: a small task typically
+takes several minutes end to end and costs a few dollars at the default dials.
+Review is read-only and the safest first run. The power dial spends less:
+`--power low` on a CLI run, or `defaults.power` in config.
+
 The installed plugin is self-contained. You do not need to clone this repo,
 run `npm install`, install a `circuit` binary, or create a symlink.
 
@@ -63,7 +70,7 @@ run `npm install`, install a `circuit` binary, or create a symlink.
 Install the published plugin from the marketplace:
 
 ```bash
-codex plugin marketplace add petekp/circuit --ref circuit--v0.1.0-alpha.8
+codex plugin marketplace add petekp/circuit --ref circuit--v0.1.0-alpha.9
 ```
 
 Working from this checkout instead? Refresh the local plugin package and
