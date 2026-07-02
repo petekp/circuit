@@ -27,9 +27,10 @@ mechanical check that real evidence exists before the run can advance.
 
 The launch surface, all on `main` today:
 
-- Seven public flows: review, fix, build, explore, prototype, pursue,
-  explainer. Five internal flows exercise the engine (goal, runtime-proof,
-  converge-proof, fix-until-green, cross-tool-build).
+- Six public flows: review, fix, build, explore, prototype, pursue. Six
+  internal flows exercise the engine or wait on craft gaps (goal,
+  runtime-proof, converge-proof, fix-until-green, cross-tool-build,
+  explainer).
 - The engine core is release-proven: typed contracts, durable run records
   under `.circuit/runs/`, resume and crash tolerance, checkpoints and the
   inbox, fan-out, sub-runs, and ambient continuity on Claude Code.
@@ -55,15 +56,15 @@ Work items between here and the announcement. Each is checkable.
    `circuit preview`, and cross-tool-build. Announcing those capabilities
    requires a release that contains them.
 2. **Add the two missing claim entries to
-   [docs/positioning.md](../positioning.md).** The registry has no entry for
-   condition-gated iteration (the Converge shape and its evidence floor) and
-   no entry for multi-model economics (power dial, role allocation, connector
-   pinning, preview). The hard rule on that page means neither can appear in
-   the announcement until the entry exists with code citations.
-3. **Settle explainer visibility.** The catalog ships explainer as public,
-   which contradicts the standing decision that it stays internal until its
-   craft gaps close. Demote it (queued as a spun-off task) or reverse the
-   decision explicitly.
+   [docs/positioning.md](../positioning.md).** Done (2026-07-02): the
+   registry now carries claim 3 (one dial allocates models by role, per
+   step) and claim 4 (a flow can loop until the goal is proven met), each
+   with code citations and an honest-nuance block. Messaging may now draw
+   on both.
+3. **Settle explainer visibility.** Done (2026-07-02): Pete confirmed
+   explainer stays internal for now, and the catalog was flipped to match.
+   It keeps running from a source checkout; it ships no host command until
+   its craft gaps close.
 4. **Close the pursue gap.** Pursue is public but has no engine contract doc
    and no release proof run. Either bring it to the same bar as the other
    public flows or demote it for v1.

@@ -58,7 +58,7 @@ const BUILD_PASS_VERDICTS = [
 
 export const explainerFlowData = {
   id: 'explainer',
-  visibility: 'public',
+  visibility: 'internal',
   paths: {
     schematic: 'src/flows/explainer/schematic.json',
     contract: 'src/flows/explainer/contract.md',
