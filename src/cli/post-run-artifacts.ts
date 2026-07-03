@@ -71,30 +71,36 @@ type WrittenProcessEvidence = {
   readonly projection: ProcessEvidenceProjectionValue;
 };
 
-// Resolve the flow's own primary-result outcome word (e.g. a Fix `partial`) so
-// the source run-envelope can name a degraded-but-complete run without itself
-// importing the flow catalog (that would break the projection-only boundary the
-// envelope is held to). The flow's runtime surface names where its primary
-// result lives; we read that outcome here, in the CLI layer that is allowed to
-// know it.
+// Resolve the flow's own primary-result outcome word (e.g. a Fix `partial`) and
+// its stated summary so the source run-envelope can name a degraded-but-complete
+// run — and say why — without itself importing the flow catalog (that would
+// break the projection-only boundary the envelope is held to). The flow's
+// runtime surface names where its primary result lives; we read that outcome and
+// summary here, in the CLI layer that is allowed to know it. Reading both from
+// the one artifact keeps the caveat word and its reason from ever disagreeing.
 //
 // Fail open: a flow without a primary result, or a missing or malformed result
-// file, returns undefined and leaves the surface exactly as before.
-export function resolveFlowPrimaryOutcome(input: {
+// file, returns an empty object and leaves the surface exactly as before. The
+// two fields are read independently, so a result with an outcome but no summary
+// (or the reverse) still yields whichever field is present.
+export function resolveFlowPrimaryResult(input: {
   readonly runFolder: string;
   readonly flowId: string;
-}): string | undefined {
+}): { readonly outcome?: string; readonly summary?: string } {
   const primaryResultPath = findFlowRuntimeSurfaceById(input.flowId)?.primaryResult?.path;
-  if (primaryResultPath === undefined) return undefined;
+  if (primaryResultPath === undefined) return {};
   let primaryResult: unknown;
   try {
     primaryResult = JSON.parse(readFileSync(join(input.runFolder, primaryResultPath), 'utf8'));
   } catch {
-    return undefined;
+    return {};
   }
-  if (typeof primaryResult !== 'object' || primaryResult === null) return undefined;
-  const outcome = (primaryResult as { readonly outcome?: unknown }).outcome;
-  return typeof outcome === 'string' ? outcome : undefined;
+  if (typeof primaryResult !== 'object' || primaryResult === null) return {};
+  const record = primaryResult as { readonly outcome?: unknown; readonly summary?: unknown };
+  return {
+    ...(typeof record.outcome === 'string' ? { outcome: record.outcome } : {}),
+    ...(typeof record.summary === 'string' ? { summary: record.summary } : {}),
+  };
 }
 
 export interface EmitPostRunArtifactsInput {
@@ -152,7 +158,7 @@ export function emitPostRunArtifacts(input: EmitPostRunArtifactsInput): EmitPost
     processEvidence === undefined
       ? undefined
       : tryPostRunArtifact('run-envelope', context, () => {
-          const flowOutcome = resolveFlowPrimaryOutcome({
+          const flowPrimary = resolveFlowPrimaryResult({
             runFolder,
             flowId: processEvidence.projection.flow_id,
           });
@@ -162,7 +168,10 @@ export function emitPostRunArtifacts(input: EmitPostRunArtifactsInput): EmitPost
             selectedProcess,
             processEvidence,
             recordedAt,
-            ...(flowOutcome === undefined ? {} : { flowOutcome }),
+            ...(flowPrimary.outcome === undefined ? {} : { flowOutcome: flowPrimary.outcome }),
+            ...(flowPrimary.summary === undefined
+              ? {}
+              : { flowOutcomeReason: flowPrimary.summary }),
             ...(input.memoryContext === undefined ? {} : { memoryContext: input.memoryContext }),
             ...(input.recallMemoryIndicator === undefined
               ? {}

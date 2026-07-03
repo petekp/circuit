@@ -187,7 +187,7 @@
   "memory_update_events": [],
   "surface_output": {
     "schema": "run.surface-output@v0",
-    "status_text": "Completed with caveats: fix produced its required process evidence but reported a partial outcome.",
+    "status_text": "Completed with caveats: fix produced its required process evidence but reported a partial outcome. Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.",
     "outcome": "complete",
     "flow_outcome": "partial",
     "next_action": "close",

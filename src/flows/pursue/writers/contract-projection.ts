@@ -23,12 +23,46 @@ function stripListMarker(line: string): string {
   return line.replace(/^\s*(?:[-*]|\d+[.)])\s+/, '').trim();
 }
 
+// Recognize an operator's inline enumeration — "(1) do X (2) do Y", "1) X 2) Y",
+// or "1. X 2. Y" — as a deliberate list of distinct ideas. The markers must be
+// whitespace-bounded (so file names like "file1.ts" and versions like "1.0" do
+// not match) and form a sequential run 1, 2, 3, … starting at 1 (so an
+// incidental single "2)" does not trigger a split). Without this, a single-line
+// enumerated goal collapsed into one pursuit — the F12 fan-out finding.
+function splitInlineEnumeration(goal: string): string[] {
+  const markerRe = /(?:^|\s)\(?(\d+)[.)](?=\s|$)/g;
+  const markers: { readonly start: number; readonly end: number; readonly num: number }[] = [];
+  let match: RegExpExecArray | null = markerRe.exec(goal);
+  while (match !== null) {
+    markers.push({ start: match.index, end: markerRe.lastIndex, num: Number(match[1]) });
+    match = markerRe.exec(goal);
+  }
+  if (markers.length < 2) return [];
+  if (markers.some((marker, index) => marker.num !== index + 1)) return [];
+
+  const segments: string[] = [];
+  for (const [index, marker] of markers.entries()) {
+    const nextMarker = markers[index + 1];
+    const textEnd = nextMarker === undefined ? goal.length : nextMarker.start;
+    const segment = goal
+      .slice(marker.end, textEnd)
+      .trim()
+      .replace(/[,;.]+$/, '')
+      .trim();
+    if (segment.length > 0) segments.push(segment);
+  }
+  return segments.length > 1 ? segments : [];
+}
+
 function splitPursuits(goal: string): string[] {
   const lines = goal
     .split(/\r?\n/)
     .map((line) => stripListMarker(line))
     .filter((line) => line.length > 0);
   if (lines.length > 1) return lines;
+
+  const inline = splitInlineEnumeration(goal);
+  if (inline.length > 1) return inline;
 
   const semicolonParts = goal
     .split(';')

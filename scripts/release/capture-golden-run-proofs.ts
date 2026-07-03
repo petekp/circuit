@@ -553,6 +553,18 @@ function pursueRelayer(fixtureRoot: string): Relayer {
           result_body: JSON.stringify({
             verdict: 'clean',
             summary: 'Both pursuits landed without cross-pursuit interference.',
+            reviewed_pursuits: [
+              {
+                pursuit_id: 'pursuit-1',
+                assessment:
+                  'src/example.ts carries the fallback answer guard the pursuit contracted, and the batch evidence matches the fixture working tree.',
+              },
+              {
+                pursuit_id: 'pursuit-2',
+                assessment:
+                  'notes.md documents the guard as contracted; no cross-pursuit interference with pursuit-1.',
+              },
+            ],
             findings: [],
           }),
           duration_ms: 11,

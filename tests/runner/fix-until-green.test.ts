@@ -99,12 +99,16 @@ function fixUntilGreenRelayer(input: {
         });
       }
       if (relayInput.prompt.includes('Step: judge-step')) {
+        // The judge is bound to the strict converge.judgment@v1 schema, so it
+        // answers the full judgment shape. It proposes goal_met=true every pass;
+        // whether that claim stands is the evidence floor's call, not the judge's.
         return stubRelayResult({
           request_payload: relayInput.prompt,
           result_body: JSON.stringify({
-            verdict: 'ok',
+            verdict: 'accept',
             goal_met: true,
             lesson: `attempt ${actCalls}: marker present=${existsSync(input.markerPath)}`,
+            summary: `judged attempt ${actCalls}`,
           }),
         });
       }
@@ -227,20 +231,22 @@ describe('fix-until-green: the until loop drives a real verification body end-to
     // Three real verify subprocesses (the cap is 3); generous timeout for load.
   }, 30_000);
 
-  it('is a single pass below the autonomous floor: the loop is inert at medium depth', async () => {
+  it('below the autonomous floor the body runs once and the tail still disposes honestly: a red verify blocks the goal_met claim and exits needs-attention', async () => {
     const { projectRoot, markerPath } = makeProjectWithMarker(base);
     const runFolder = join(base, 'below-floor');
 
-    // Below autonomous depth the until corridor never engages, so the body runs once
-    // and the tail's forward route is honored directly — even though the verify is
-    // red and the judge proposes goal_met. This is the byte-identical default: the
-    // engine flag changes nothing until autonomous depth.
+    // Below autonomous depth the corridor never RE-ENTERS (single pass), but the
+    // tail is still a stop-judge: its goal_met=true proposal is disposed against
+    // the evidence floor once. The verify is RED (contradicted proof), so the
+    // floor blocks the claim and the run exits via the needs-attention route
+    // (`close` -> @stop, outcome stopped). One-pass mode can never launder an
+    // unproven met-claim into @complete — the honest one-pass floor.
     const result = await runCompiledFlow({
       runDir: runFolder,
       flowBytes: fixUntilGreenBytes(),
       projectRoot,
       runId: '70000000-0000-0000-0000-0000000000f3',
-      goal: 'below autonomous depth the until flag is inert and the flow runs once',
+      goal: 'below autonomous depth a red verify must exit needs-attention, not complete',
       depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 5, 27, 10, 0, 0)),
       relayer: fixUntilGreenRelayer({ markerPath, writeMarkerOnActCall: undefined }),
@@ -248,11 +254,52 @@ describe('fix-until-green: the until loop drives a real verification body end-to
     const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
 
     expect(result.flow_id).toBe('fix-until-green');
+    expect(result.outcome).toBe('stopped');
+    // Still a single pass: no loop edge below the floor.
     expect(enteredCount(trace, 'act-step')).toBe(1);
     expect(enteredCount(trace, 'verify-step')).toBe(1);
     expect(enteredCount(trace, 'judge-step')).toBe(1);
-    // No loop edge was taken: the single judge completion went to its forward route.
+    expect(judgeRoutesTaken(trace)).toEqual(['close']);
+    // The one-pass disposition is stamped: the goal was proposed, the evidence
+    // did not confirm it.
+    const judgment = trace.find((e) => e.kind === 'run.until-judgment') as
+      | { disposition?: string; goal_proposed?: boolean; evidence_confirmed?: boolean }
+      | undefined;
+    expect(judgment?.disposition).toBe('needs-attention');
+    expect(judgment?.goal_proposed).toBe(true);
+    expect(judgment?.evidence_confirmed).toBe(false);
+    // One real verify subprocess; generous timeout to stay green under load.
+  }, 30_000);
+
+  it('below the autonomous floor a green verify and a confirmed goal_met claim complete in a single pass', async () => {
+    const { projectRoot, markerPath } = makeProjectWithMarker(base);
+    const runFolder = join(base, 'below-floor-green');
+
+    // The honest one-pass floor must not break the one-pass happy path: the act's
+    // FIRST call writes the marker, so the single verify is green, the floor
+    // confirms the judge's goal_met claim, and the forward route stands.
+    const result = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: fixUntilGreenBytes(),
+      projectRoot,
+      runId: '70000000-0000-0000-0000-0000000000f4',
+      goal: 'below autonomous depth a green verify completes in one pass',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 5, 27, 10, 30, 0)),
+      relayer: fixUntilGreenRelayer({ markerPath, writeMarkerOnActCall: 1 }),
+    });
+    const trace = (await new TraceStore(runFolder).load()) as readonly TraceRow[];
+
+    expect(result.outcome).toBe('complete');
+    expect(enteredCount(trace, 'act-step')).toBe(1);
+    expect(enteredCount(trace, 'verify-step')).toBe(1);
+    expect(enteredCount(trace, 'judge-step')).toBe(1);
     expect(judgeRoutesTaken(trace)).toEqual(['pass']);
+    const judgment = trace.find((e) => e.kind === 'run.until-judgment') as
+      | { disposition?: string; goal_proposed?: boolean; evidence_confirmed?: boolean }
+      | undefined;
+    expect(judgment?.disposition).toBe('stop-clean');
+    expect(judgment?.evidence_confirmed).toBe(true);
     // One real verify subprocess; generous timeout to stay green under load.
   }, 30_000);
 });

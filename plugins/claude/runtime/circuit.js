@@ -32659,10 +32659,20 @@ var convergeProofBlockItems = [
     input: { brief: "flow.brief@v1" },
     execution: { kind: "relay", role: "reviewer" },
     protocol: "converge-proof-review@v1",
+    // The stop-judge is bound to the strict judgment contract: the typed report
+    // is what the until corridor reads (stop_judge.report below), and the bound
+    // schema is what the shape-hint registry keys on, so the judge's prompt
+    // teaches exactly the shape the validator enforces. A bare acknowledgment
+    // body fails schema validation and can never close the loop.
+    output: "converge.judgment@v1",
     requestPath: "reports/converge/judgment.request.json",
     receiptPath: "reports/converge/judgment.receipt.txt",
     resultPath: "reports/converge/judgment.result.json",
-    pass: ["ok"],
+    reportPath: "reports/converge/judgment.report.json",
+    // All three schema verdicts are admissible: the verdict reports that the
+    // judge did its job; goal_met carries the judgment. An honest "reject" must
+    // route through the loop's disposition, not fail the relay check.
+    pass: ["accept", "accept-with-fixes", "reject"],
     routes: { continue: "@complete", advance: "head-step", close: "@stop" }
   }
 ];
@@ -32678,7 +32688,10 @@ var convergeProofAssemblySpec = {
   status: "active",
   version: "0.1.0",
   initial_contracts: ["flow.brief@v1"],
-  contract_aliases: [],
+  // The judge-step overrides the review block's generic output with the strict
+  // judgment contract; the alias is what makes that override block-compatible
+  // (contractIsCompatible admits generic -> declared actual).
+  contract_aliases: [{ generic: "review.verdict@v1", actual: "converge.judgment@v1" }],
   axes: {
     allowed_depths: ["medium"],
     supports_tournament: false,
@@ -32693,7 +32706,10 @@ var convergeProofAssemblySpec = {
       reenter_route: "advance",
       max_iterations: 3,
       stop_judge: {
-        report: "reports/converge/judgment.result.json",
+        // Read the TYPED report, not the raw result: the report file exists only
+        // when the body passed converge.judgment@v1 validation, so the corridor
+        // always disposes a schema-checked goal_met.
+        report: "reports/converge/judgment.report.json",
         goal_met_path: "goal_met",
         lesson_path: "lesson"
       },
@@ -37719,6 +37735,7 @@ ${autoResolutions}
 var FIX_UNTIL_GREEN_STAGE_PATH_RATIONALE = "Fix Until Green is a narrow Converge flow; plan, act, verify, and review are the canonical stages needed to loop a fix-attempt body until verification passes.";
 var CARRIED_NOTES_PATH = "reports/fix-until-green/carried-notes.json";
 var JUDGE_RESULT_PATH = "reports/fix-until-green/judgment.result.json";
+var JUDGE_REPORT_PATH = "reports/fix-until-green/judgment.report.json";
 var fixUntilGreenBlockItems = [
   {
     id: "plan-step",
@@ -37777,15 +37794,25 @@ var fixUntilGreenBlockItems = [
     stage: "review",
     block: "review",
     // Brief-only input (a registered initial contract). The judge's decision rides
-    // on its unvalidated relay result (goal_met + lesson), which the engine reads
-    // from the result path; it does not need a typed read of the verification.
+    // on its typed judgment report (goal_met + lesson), which the stop_judge reads;
+    // it does not need a typed read of the verification.
     input: { brief: "flow.brief@v1" },
     execution: { kind: "relay", role: "reviewer" },
     protocol: "fix-until-green-review@v1",
+    // Bound to the strict judgment contract: the typed report is what the until
+    // corridor reads (stop_judge.report below), and the bound schema is what the
+    // shape-hint registry keys on, so the judge's prompt teaches exactly the
+    // shape the validator enforces. A bare acknowledgment body fails schema
+    // validation and can never close the loop.
+    output: "converge.judgment@v1",
     requestPath: "reports/fix-until-green/judgment.request.json",
     receiptPath: "reports/fix-until-green/judgment.receipt.txt",
     resultPath: JUDGE_RESULT_PATH,
-    pass: ["ok"],
+    reportPath: JUDGE_REPORT_PATH,
+    // All three schema verdicts are admissible: the verdict reports that the
+    // judge did its job; goal_met carries the judgment. An honest "reject" must
+    // route through the loop's disposition, not fail the relay check.
+    pass: ["accept", "accept-with-fixes", "reject"],
     // continue: clean stop to @complete. advance: the loop re-entry edge back to
     // the head. close: the exhausted exit to the non-complete @stop terminal — a
     // NORMAL route (not a recovery route) so an exhausted clean pass does not trip
@@ -37808,7 +37835,10 @@ var fixUntilGreenAssemblySpec = {
   initial_contracts: ["flow.brief@v1", "verification.plan@v1"],
   contract_aliases: [
     { generic: "plan.strategy@v1", actual: "fix-until-green.plan@v1" },
-    { generic: "verification.result@v1", actual: "fix-until-green.verification@v1" }
+    { generic: "verification.result@v1", actual: "fix-until-green.verification@v1" },
+    // The judge-step overrides the review block's generic output with the strict
+    // judgment contract; the alias makes that override block-compatible.
+    { generic: "review.verdict@v1", actual: "converge.judgment@v1" }
   ],
   axes: {
     allowed_depths: ["medium"],
@@ -37824,7 +37854,7 @@ var fixUntilGreenAssemblySpec = {
       reenter_route: "advance",
       max_iterations: 3,
       stop_judge: {
-        report: JUDGE_RESULT_PATH,
+        report: JUDGE_REPORT_PATH,
         goal_met_path: "goal_met",
         lesson_path: "lesson"
       },
@@ -43231,8 +43261,8 @@ var ARTIFACT_INTEGRITY_SCRIPT = [
   "else if (fs.lstatSync(rootAbs).isSymbolicLink()) errors.push(`prototype_root is a symlink: ${root}`)",
   "const rootReal = fs.existsSync(rootAbs) ? fs.realpathSync.native(rootAbs) : rootAbs",
   "const createdSet = new Set(created)",
-  "for (const rel of planned) { if (!createdSet.has(rel)) errors.push(`planned file missing from created_files: ${rel}`); }",
-  "for (const rel of Array.from(new Set([...planned, ...created, ...entry]))) {",
+  "const unrealizedPlan = planned.filter((rel) => !createdSet.has(rel))",
+  "for (const rel of Array.from(new Set([...created, ...entry]))) {",
   '  if (typeof rel !== "string" || rel.length === 0) { errors.push("reported path must be a non-empty string"); continue; }',
   "  if (!rel.startsWith(`${root}/`)) errors.push(`prototype path is outside prototype_root: ${rel}`)",
   "  const abs = path.resolve(projectRoot, rel)",
@@ -43243,6 +43273,7 @@ var ARTIFACT_INTEGRITY_SCRIPT = [
   "  if (!inside(rootReal, real)) errors.push(`prototype path escapes real prototype_root: ${rel}`)",
   "}",
   'if (errors.length > 0) { console.error(errors.join("\\n")); process.exit(1); }',
+  'if (unrealizedPlan.length > 0) console.log(`note (advisory): the plan anticipated files the artifact did not declare: ${unrealizedPlan.join(", ")}`)',
   "console.log(`Prototype artifact integrity passed for ${root}`)"
 ].join("; ");
 function readReport2(context, schemaName, parse3) {
@@ -44272,7 +44303,8 @@ var pursuitReviewShapeHint = {
   schema: "pursuit.review@v1",
   instruction: [
     "Respond with a single raw JSON object for pursuit.review@v1.",
-    'Shape: { "verdict": "<clean|needs-followup|blocked>", "summary": "<review summary>", "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line>"] }] }.',
+    'Shape: { "verdict": "<clean|needs-followup|blocked>", "summary": "<review summary>", "reviewed_pursuits": [{ "pursuit_id": "<id>", "assessment": "<what you checked for this pursuit and why it is sound>" }], "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line>"] }] }.',
+    "reviewed_pursuits must carry one entry for every pursuit id in the contract and batch. Each assessment states what you actually verified for that pursuit (the change, the evidence, any cross-goal risk); a blanket or one-word note is not acceptable and the run will not close if a pursuit is left unattested.",
     "Review whether the batch followed the pursuit contract, serialized code-changing work, preserved the difference between estimated and actual touch sets, and surfaced skipped or blocked pursuits honestly.",
     'Use verdict "clean" only when there are no findings. Use "needs-followup" only for low-severity findings. Use "blocked" when any finding is medium, high, or critical so the flow closes honestly as blocked instead of reporting completion.',
     "Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.",
@@ -44524,9 +44556,15 @@ var PursuitReviewFinding = external_exports.object({
   file_refs: external_exports.array(external_exports.string().min(1))
 }).strict();
 var PursuitReviewVerdict = external_exports.enum(["clean", "needs-followup", "blocked"]);
+var MIN_ATTESTATION_LENGTH = 12;
+var PursuitReviewAttestation = external_exports.object({
+  pursuit_id: PursuitId,
+  assessment: external_exports.string().min(MIN_ATTESTATION_LENGTH)
+}).strict();
 var PursuitReview = external_exports.object({
   verdict: PursuitReviewVerdict,
   summary: external_exports.string().min(1),
+  reviewed_pursuits: external_exports.array(PursuitReviewAttestation).min(1),
   findings: external_exports.array(PursuitReviewFinding)
 }).strict().superRefine((review, ctx) => {
   const mediumOrHigher = review.findings.filter((finding3) => ["critical", "high", "medium"].includes(finding3.severity));
@@ -44550,6 +44588,17 @@ var PursuitReview = external_exports.object({
       path: ["verdict"],
       message: "verdict must be 'blocked' when review findings include medium, high, or critical severity"
     });
+  }
+  const seen = /* @__PURE__ */ new Set();
+  for (const [index, attestation] of review.reviewed_pursuits.entries()) {
+    if (seen.has(attestation.pursuit_id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reviewed_pursuits", index, "pursuit_id"],
+        message: `duplicate reviewed pursuit id: ${attestation.pursuit_id}`
+      });
+    }
+    seen.add(attestation.pursuit_id);
   }
 });
 var PursuitResultReportId = external_exports.enum([
@@ -44638,8 +44687,32 @@ function assertBatchCoversContract(contract, batch) {
     throw new Error(`pursuit.batch@v1 does not cover pursuit.contract@v1: ${issues.join("; ")}`);
   }
 }
+function assertReviewCoversContract(contract, review) {
+  const expected = new Set(contract.pursuits.map((pursuit) => pursuit.id));
+  const seen = /* @__PURE__ */ new Set();
+  const issues = [];
+  for (const attestation of review.reviewed_pursuits) {
+    if (!expected.has(attestation.pursuit_id)) {
+      issues.push(`unknown pursuit id '${attestation.pursuit_id}'`);
+      continue;
+    }
+    if (seen.has(attestation.pursuit_id)) {
+      issues.push(`duplicate pursuit id '${attestation.pursuit_id}'`);
+      continue;
+    }
+    seen.add(attestation.pursuit_id);
+  }
+  for (const id of expected) {
+    if (!seen.has(id))
+      issues.push(`missing pursuit id '${id}'`);
+  }
+  if (issues.length > 0) {
+    throw new Error(`pursuit.review@v1 does not attest pursuit.contract@v1: ${issues.join("; ")}`);
+  }
+}
 function projectPursuitResult(inputs) {
   assertBatchCoversContract(inputs.contract, inputs.batch);
+  assertReviewCoversContract(inputs.contract, inputs.review);
   const completedCount = inputs.batch.completed.length;
   const skippedCount = inputs.batch.skipped.length;
   const blockedCount = inputs.batch.blocked.length;
@@ -44713,10 +44786,35 @@ function slugFor(index) {
 function stripListMarker(line) {
   return line.replace(/^\s*(?:[-*]|\d+[.)])\s+/, "").trim();
 }
+function splitInlineEnumeration(goal) {
+  const markerRe = /(?:^|\s)\(?(\d+)[.)](?=\s|$)/g;
+  const markers = [];
+  let match = markerRe.exec(goal);
+  while (match !== null) {
+    markers.push({ start: match.index, end: markerRe.lastIndex, num: Number(match[1]) });
+    match = markerRe.exec(goal);
+  }
+  if (markers.length < 2)
+    return [];
+  if (markers.some((marker, index) => marker.num !== index + 1))
+    return [];
+  const segments = [];
+  for (const [index, marker] of markers.entries()) {
+    const nextMarker = markers[index + 1];
+    const textEnd = nextMarker === void 0 ? goal.length : nextMarker.start;
+    const segment = goal.slice(marker.end, textEnd).trim().replace(/[,;.]+$/, "").trim();
+    if (segment.length > 0)
+      segments.push(segment);
+  }
+  return segments.length > 1 ? segments : [];
+}
 function splitPursuits(goal) {
   const lines = goal.split(/\r?\n/).map((line) => stripListMarker(line)).filter((line) => line.length > 0);
   if (lines.length > 1)
     return lines;
+  const inline = splitInlineEnumeration(goal);
+  if (inline.length > 1)
+    return inline;
   const semicolonParts = goal.split(";").map((part) => part.trim()).filter((part) => part.length > 0);
   return semicolonParts.length > 1 ? semicolonParts : [goal.trim()];
 }
@@ -49673,10 +49771,11 @@ function composeFlow(roleSet, options) {
       safe_default_choice: "continue",
       ...checkpointWritesReport ? { report_template: pick2.checkpointReportTemplate } : {}
     } : void 0;
-    const check2 = role.executionKind === "checkpoint" ? { allow: ["continue"] } : pick2.check;
+    let check2 = role.executionKind === "checkpoint" ? { allow: ["continue"] } : pick2.check;
     let boundOutput = role.executionKind === "fanout" ? FANOUT_AGGREGATE_CONTRACT : pick2.actual;
     if (convergePlan !== void 0 && index === convergePlan.tailIndex) {
       boundOutput = CONVERGE_JUDGMENT_CONTRACT;
+      check2 = { pass: ["accept", "accept-with-fixes", "reject"] };
     }
     if (isTerminal && role.executionKind !== "fanout" && boundOutput !== outputGeneric) {
       const familyClose = findCloseBuilder(boundOutput);
@@ -51079,6 +51178,33 @@ function optionPresentationById(readJson5) {
   }
   return new Map(entries);
 }
+function tournamentAggregatePresentationById(readJson5) {
+  const raw = readJson5("reports/tournament-aggregate.json");
+  if (!isRecord3(raw) || !Array.isArray(raw.branches))
+    return /* @__PURE__ */ new Map();
+  const entries = [];
+  for (const branch of raw.branches) {
+    if (!isRecord3(branch))
+      continue;
+    const id = branch.branch_id;
+    const body = branch.result_body;
+    if (typeof id !== "string" || !isRecord3(body))
+      continue;
+    const label = body.option_label;
+    if (typeof label !== "string")
+      continue;
+    const description = typeof body.case_summary === "string" && body.case_summary.trim().length > 0 ? body.case_summary : `Resume with '${id}'.`;
+    entries.push([
+      id,
+      {
+        id,
+        label: boundedText(label, 80),
+        description: boundedText(description, 160)
+      }
+    ]);
+  }
+  return new Map(entries);
+}
 function tournamentQuestion(readJson5) {
   const raw = readJson5("reports/tournament-review.json");
   if (!isRecord3(raw))
@@ -51087,13 +51213,17 @@ function tournamentQuestion(readJson5) {
   return typeof question === "string" && question.trim().length > 0 ? boundedText(question.trim(), 240) : void 0;
 }
 function tournamentCheckpointPresentation(input) {
-  const byId = optionPresentationById(input.readJson);
+  const aggregateById = tournamentAggregatePresentationById(input.readJson);
+  const optionById = optionPresentationById(input.readJson);
   return {
     prompt: tournamentQuestion(input.readJson) ?? boundedText(input.fallbackPrompt, 240),
     choices: input.allowedChoices.map((choice) => {
-      const dynamic = byId.get(choice);
-      if (dynamic !== void 0)
-        return dynamic;
+      const fromAggregate = aggregateById.get(choice);
+      if (fromAggregate !== void 0)
+        return fromAggregate;
+      const fromOptions = optionById.get(choice);
+      if (fromOptions !== void 0)
+        return fromOptions;
       return {
         id: choice,
         label: boundedText(input.fallbackLabel(choice), 80),
@@ -69475,6 +69605,30 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
     } catch (error51) {
       const message = error51.message;
       const reason = isProofPlanBlockedError(error51) ? message : `step '${step.id}' handler threw: ${message}`;
+      if (untilCorridor.isActive() && untilFlag?.stopJudge !== void 0 && untilCorridor.isLoopBodyStep(step.id)) {
+        context.honestyLedger?.latchOverclaim({
+          stepId: step.id,
+          iterationIndex: stepIterationIndex,
+          reason
+        });
+        await containIteration(stepIterationIndex, "body step failed");
+        if (untilCorridor.canReenter()) {
+          corridor.clearIfExitingOrigin({ stepId: step.id, routeHasRecoveryMechanics: false });
+          untilCorridor.advance();
+          currentStepId = untilFlag.headStep;
+          incomingRouteTaken = untilFlag.reenterRoute;
+          continue;
+        }
+        const exhaustedReason = `until loop exhausted with an unresolved overclaim on '${step.id}': ${reason}`;
+        await trace.append({
+          run_id: runId,
+          kind: "step.aborted",
+          step_id: step.id,
+          attempt,
+          reason: exhaustedReason
+        });
+        return await closeRun(context, "stopped", void 0, exhaustedReason);
+      }
       await trace.append({
         run_id: runId,
         kind: "step.aborted",
@@ -69570,6 +69724,40 @@ async function executeExecutableFlowOutcomeUnsafe(flow, options) {
         untilCorridor.advance();
       }
       await containIteration(stepIterationIndex, `route ${route}`);
+    }
+    if (!untilCorridor.isActive() && untilFlag?.stopJudge !== void 0 && step.id === untilFlag.tailStep) {
+      if (frozenEvalGuard !== void 0) {
+        const changed = frozenEvalGuard.changedFrozenPaths();
+        if (changed.length > 0) {
+          context.honestyLedger?.latchOverclaim({
+            stepId: "frozen-eval-guard",
+            iterationIndex: stepIterationIndex,
+            reason: `eval surface modified during iteration ${stepIterationIndex}: ${changed.join(", ")}`
+          });
+        }
+      }
+      const judgment = await readUntilJudgeReport(context, untilFlag.stopJudge);
+      const evidenceConfirms = judgment.goalProposed && (options.untilEvidenceFloor ?? defaultUntilEvidenceFloor)(context);
+      const disposition = evidenceConfirms ? "stop-clean" : "needs-attention";
+      await trace.append({
+        run_id: runId,
+        kind: "run.until-judgment",
+        step_id: step.id,
+        iteration: stepIterationIndex,
+        goal_proposed: judgment.goalProposed,
+        evidence_confirmed: evidenceConfirms,
+        disposition,
+        no_progress_count: 0,
+        open_latch_count: context.honestyLedger?.openLatches().length ?? 0,
+        ...judgment.lesson === void 0 ? {} : { lesson: judgment.lesson }
+      });
+      if (disposition === "needs-attention") {
+        const attentionRoute = untilFlag.needsAttentionRoute;
+        if (attentionRoute === void 0) {
+          throw new Error(`until loop on flow '${flow.id}' reached needs-attention with no needsAttentionRoute`);
+        }
+        route = attentionRoute;
+      }
     }
     const routeDeclaration = classifyRouteDeclarationTransition({
       stepId: step.id,
@@ -73038,9 +73226,11 @@ function surfaceFor(input) {
   };
   if (input.outcome === "complete") {
     if (degradedFlowOutcome !== void 0) {
+      const reason = input.flowOutcomeReason?.trim();
+      const reasonSuffix = reason ? ` ${reason}` : "";
       return {
         ...base,
-        status_text: `Completed with caveats: ${input.processId} produced its required process evidence but reported a ${degradedFlowOutcome} outcome.`,
+        status_text: `Completed with caveats: ${input.processId} produced its required process evidence but reported a ${degradedFlowOutcome} outcome.${reasonSuffix}`,
         next_action: "close"
       };
     }
@@ -73113,6 +73303,7 @@ function writeRunEnvelopeRecord(input) {
   const outcome = runOutcome2({ projection, ...missingEvidence && { missingEvidence } });
   const processId = projection.flow_id;
   const flowOutcome = input.flowOutcome;
+  const flowOutcomeReason = input.flowOutcomeReason;
   const followupAttempt = followupPlannedAttempt({
     operatorIntent: input.operatorIntent,
     primaryProcessId: processId,
@@ -73224,6 +73415,7 @@ function writeRunEnvelopeRecord(input) {
       processId,
       processEvidence,
       ...flowOutcome === void 0 ? {} : { flowOutcome },
+      ...flowOutcomeReason === void 0 ? {} : { flowOutcomeReason },
       ...missingEvidence && { missingEvidence },
       decisionPacketRefs: decisionArtifacts.map((artifact) => artifact.ref),
       ...memoryIndicator === void 0 ? {} : { memoryIndicator },
@@ -73537,20 +73729,23 @@ function postRunArtifactWarningOutputFields(warnings) {
     }))
   };
 }
-function resolveFlowPrimaryOutcome(input) {
+function resolveFlowPrimaryResult(input) {
   const primaryResultPath = findFlowRuntimeSurfaceById(input.flowId)?.primaryResult?.path;
   if (primaryResultPath === void 0)
-    return void 0;
+    return {};
   let primaryResult;
   try {
     primaryResult = JSON.parse(readFileSync59(join43(input.runFolder, primaryResultPath), "utf8"));
   } catch {
-    return void 0;
+    return {};
   }
   if (typeof primaryResult !== "object" || primaryResult === null)
-    return void 0;
-  const outcome = primaryResult.outcome;
-  return typeof outcome === "string" ? outcome : void 0;
+    return {};
+  const record2 = primaryResult;
+  return {
+    ...typeof record2.outcome === "string" ? { outcome: record2.outcome } : {},
+    ...typeof record2.summary === "string" ? { summary: record2.summary } : {}
+  };
 }
 function emitPostRunArtifacts(input) {
   const { context, runFolder, operatorIntent, recordedAt, selectedProcess, child } = input;
@@ -73567,7 +73762,7 @@ function emitPostRunArtifacts(input) {
     projection: input.buildProcessEvidenceProjection()
   }));
   const runEnvelope = processEvidence === void 0 ? void 0 : tryPostRunArtifact("run-envelope", context, () => {
-    const flowOutcome = resolveFlowPrimaryOutcome({
+    const flowPrimary = resolveFlowPrimaryResult({
       runFolder,
       flowId: processEvidence.projection.flow_id
     });
@@ -73577,7 +73772,8 @@ function emitPostRunArtifacts(input) {
       selectedProcess,
       processEvidence,
       recordedAt,
-      ...flowOutcome === void 0 ? {} : { flowOutcome },
+      ...flowPrimary.outcome === void 0 ? {} : { flowOutcome: flowPrimary.outcome },
+      ...flowPrimary.summary === void 0 ? {} : { flowOutcomeReason: flowPrimary.summary },
       ...input.memoryContext === void 0 ? {} : { memoryContext: input.memoryContext },
       ...input.recallMemoryIndicator === void 0 ? {} : { recallMemoryIndicator: input.recallMemoryIndicator }
     });
@@ -73855,10 +74051,14 @@ function parseExecutionArgs(command, argv) {
     if (command !== "resume") {
       throw new Error("checkpoint resume must use the `resume` subcommand");
     }
+    const missingResumeFlags = [];
     if (runFolder === void 0)
-      throw new Error("--run-folder is required for checkpoint resume");
+      missingResumeFlags.push("--run-folder");
     if (checkpointChoice === void 0 || checkpointChoice.length === 0) {
-      throw new Error("--checkpoint-choice is required for checkpoint resume");
+      missingResumeFlags.push("--checkpoint-choice");
+    }
+    if (missingResumeFlags.length > 0) {
+      throw new Error(`checkpoint resume requires ${missingResumeFlags.join(" and ")}. Run \`circuit inbox\` to see the run folder and its checkpoint choices.`);
     }
     if (flowName !== void 0) {
       throw new Error("checkpoint resume loads the saved flow manifest; omit flow-name");

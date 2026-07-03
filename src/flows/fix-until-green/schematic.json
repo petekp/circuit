@@ -14,6 +14,10 @@
     {
       "generic": "verification.result@v1",
       "actual": "fix-until-green.verification@v1"
+    },
+    {
+      "generic": "review.verdict@v1",
+      "actual": "converge.judgment@v1"
     }
   ],
   "items": [
@@ -115,7 +119,7 @@
         "brief": "flow.brief@v1"
       },
       "optional_inputs": [],
-      "output": "review.verdict@v1",
+      "output": "converge.judgment@v1",
       "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
       "execution": {
         "kind": "relay",
@@ -130,12 +134,13 @@
       "route_overrides": {},
       "protocol": "fix-until-green-review@v1",
       "writes": {
+        "report_path": "reports/fix-until-green/judgment.report.json",
         "request_path": "reports/fix-until-green/judgment.request.json",
         "receipt_path": "reports/fix-until-green/judgment.receipt.txt",
         "result_path": "reports/fix-until-green/judgment.result.json"
       },
       "check": {
-        "pass": ["ok"]
+        "pass": ["accept", "accept-with-fixes", "reject"]
       }
     }
   ],
@@ -186,7 +191,7 @@
       "reenter_route": "advance",
       "max_iterations": 3,
       "stop_judge": {
-        "report": "reports/fix-until-green/judgment.result.json",
+        "report": "reports/fix-until-green/judgment.report.json",
         "goal_met_path": "goal_met",
         "lesson_path": "lesson"
       },

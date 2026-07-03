@@ -6,7 +6,12 @@
   "status": "active",
   "starts_at": "head-step",
   "initial_contracts": ["flow.brief@v1"],
-  "contract_aliases": [],
+  "contract_aliases": [
+    {
+      "generic": "review.verdict@v1",
+      "actual": "converge.judgment@v1"
+    }
+  ],
   "items": [
     {
       "id": "head-step",
@@ -78,7 +83,7 @@
         "brief": "flow.brief@v1"
       },
       "optional_inputs": [],
-      "output": "review.verdict@v1",
+      "output": "converge.judgment@v1",
       "evidence_requirements": ["verdict", "findings", "confidence", "required fixes"],
       "execution": {
         "kind": "relay",
@@ -93,12 +98,13 @@
       "route_overrides": {},
       "protocol": "converge-proof-review@v1",
       "writes": {
+        "report_path": "reports/converge/judgment.report.json",
         "request_path": "reports/converge/judgment.request.json",
         "receipt_path": "reports/converge/judgment.receipt.txt",
         "result_path": "reports/converge/judgment.result.json"
       },
       "check": {
-        "pass": ["ok"]
+        "pass": ["accept", "accept-with-fixes", "reject"]
       }
     }
   ],
@@ -144,7 +150,7 @@
       "reenter_route": "advance",
       "max_iterations": 3,
       "stop_judge": {
-        "report": "reports/converge/judgment.result.json",
+        "report": "reports/converge/judgment.report.json",
         "goal_met_path": "goal_met",
         "lesson_path": "lesson"
       },

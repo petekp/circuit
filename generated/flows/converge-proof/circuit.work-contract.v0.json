@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/converge-proof/circuit.work-contract.v0.json",
-    "sha256": "07c2f7792018595400f5c24053f06c8ed318ffdaa876738c29bb31d5e3cf4497",
+    "sha256": "2a5ca70d022d992a106e261c62a9fe9e9976dc7713ce4e1fb62f7905a0c28ba0",
     "flow_id": "converge-proof"
   },
   "work_contract": {
@@ -152,6 +152,10 @@
         "protocol": "converge-proof-review@v1",
         "reads": [],
         "writes": {
+          "report": {
+            "path": "reports/converge/judgment.report.json",
+            "schema": "converge.judgment@v1"
+          },
           "request": "reports/converge/judgment.request.json",
           "receipt": "reports/converge/judgment.receipt.txt",
           "result": "reports/converge/judgment.result.json"
@@ -162,7 +166,7 @@
             "kind": "relay_result",
             "ref": "result"
           },
-          "pass": ["ok"]
+          "pass": ["accept", "accept-with-fixes", "reject"]
         },
         "routes": {
           "continue": "@complete",
@@ -196,9 +200,19 @@
           "step_id": "judge-step",
           "role": "reviewer",
           "writes": {
+            "report": {
+              "path": "reports/converge/judgment.report.json",
+              "schema": "converge.judgment@v1"
+            },
             "request": "reports/converge/judgment.request.json",
             "receipt": "reports/converge/judgment.receipt.txt",
             "result": "reports/converge/judgment.result.json"
+          },
+          "report": {
+            "step_id": "judge-step",
+            "slot": "report",
+            "path": "reports/converge/judgment.report.json",
+            "schema": "converge.judgment@v1"
           }
         }
       ],
@@ -209,7 +223,14 @@
       "equipment_scopes": []
     },
     "proof": {
-      "reports": [],
+      "reports": [
+        {
+          "step_id": "judge-step",
+          "slot": "report",
+          "path": "reports/converge/judgment.report.json",
+          "schema": "converge.judgment@v1"
+        }
+      ],
       "checks": [
         {
           "step_id": "head-step",

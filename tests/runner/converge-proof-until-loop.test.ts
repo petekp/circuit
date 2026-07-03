@@ -26,8 +26,9 @@ import type { RelayFn } from '../../src/shared/relay-runtime-types.js';
 // `goal_met`, which the engine reads to dispose the iteration. The loop converges
 // when the judge proposes done AND the real default evidence floor confirms it,
 // re-enters when it does not, and exits to needs-attention (never @complete) on
-// cap exhaustion. Below the autonomous depth the loop is inert and the flow is a
-// single pass.
+// cap exhaustion. Below the autonomous depth the loop never re-enters (a single
+// pass), but the tail still disposes its goal_met proposal honestly: an unmet
+// goal exits needs-attention rather than riding the forward route to @complete.
 //
 // Coverage boundary (deliberate). This e2e drives the real default evidence floor
 // (defaultUntilEvidenceFloor) and proves two of its three propose-vs-dispose
@@ -62,16 +63,25 @@ function convergeProofBytes(): Buffer {
 // A deterministic fake connector for the three converge-proof relays. Head and
 // act always pass with the bare `{verdict:"ok"}` the result_verdict check admits
 // (no changed_files claim, so the implementer relay latches no overclaim). The
-// review tail additionally proposes `goal_met`, chosen per judge invocation, plus
-// a carried `lesson`. The prompt the real relay executor composes always leads
-// with `Step: <id>` (composeRelayPrompt), so the stub routes on that.
+// review tail is bound to the strict converge.judgment@v1 report schema, so it
+// answers with the full judgment shape: a verdict from the schema's enum
+// (accept/accept-with-fixes/reject — all admitted by the judge's check.pass, so
+// an honest "reject, not done" is a valid relay response, never a crash), the
+// load-bearing `goal_met`, a carried `lesson`, and an operator `summary`. The
+// prompt the real relay executor composes always leads with `Step: <id>`
+// (composeRelayPrompt), so the stub routes on that.
 function convergeRelayer(goalMetByJudgeCall: (judgeCall: number) => boolean): RelayFn {
   let judgeCalls = 0;
   return makeStubRelayer((input) => {
     if (input.prompt.includes('Step: judge-step')) {
       const met = goalMetByJudgeCall(judgeCalls);
       judgeCalls += 1;
-      return JSON.stringify({ verdict: 'ok', goal_met: met, lesson: `pass ${judgeCalls}` });
+      return JSON.stringify({
+        verdict: met ? 'accept' : 'reject',
+        goal_met: met,
+        lesson: `pass ${judgeCalls}`,
+        summary: met ? 'goal met and verified' : 'goal not met yet',
+      });
     }
     return '{"verdict":"ok"}';
   });
@@ -169,30 +179,99 @@ describe('converge-proof: the until loop drives a real emitted flow end-to-end',
     expect(judgeRoutesTaken(trace)).toEqual(['advance', 'advance', 'close']);
   });
 
-  it('is a single pass below the autonomous floor: the loop is inert at medium depth', async () => {
+  it('below the autonomous floor the body runs once and the tail still disposes honestly: an unmet goal exits needs-attention, never @complete', async () => {
     const runFolder = join(runFolderBase, 'below-floor');
-    // The judge proposes goal_met=false every time, yet the flow still completes in
-    // one pass: below the autonomous depth the until corridor never engages, so the
-    // tail's forward route (`pass` -> @complete) is honored directly. This is the
-    // byte-identical default — the engine flag changes nothing until autonomous.
+    // Below the autonomous depth the corridor never RE-ENTERS (single pass, no
+    // loop), but the tail is still a stop-judge: its goal_met proposal is disposed
+    // against the evidence floor exactly once. A judge that says "not met" must
+    // exit via the needs-attention route (`close` -> @stop, outcome stopped) — the
+    // one-pass mode can never launder an unmet goal into @complete. This is the
+    // honest one-pass floor the live surface test (t48b) showed was missing.
     const result = await runCompiledFlow({
       runDir: runFolder,
       flowBytes: convergeProofBytes(),
       runId: '70000000-0000-0000-0000-0000000000c3',
-      goal: 'below autonomous depth the until flag is inert and the flow runs once',
+      goal: 'below autonomous depth the flow runs once and an unmet goal exits needs-attention',
       depth: 'medium',
       now: deterministicNow(Date.UTC(2026, 5, 27, 10, 0, 0)),
       relayer: convergeRelayer(() => false),
     });
     const trace = await new TraceStore(runFolder).load();
 
-    expect(result.outcome).toBe('complete');
+    expect(result.outcome).toBe('stopped');
     expect(result.flow_id).toBe('converge-proof');
+    // Still a single pass: no loop edge below the floor.
     expect(enteredCount(trace, 'head-step')).toBe(1);
     expect(enteredCount(trace, 'work-step')).toBe(1);
     expect(enteredCount(trace, 'judge-step')).toBe(1);
-    // No loop edge was taken: the single judge completion went straight to the
-    // clean-stop forward route.
+    expect(judgeRoutesTaken(trace)).toEqual(['close']);
+    // The one-pass disposition is stamped on the trace like any judged iteration.
+    const judgment = trace.find((e) => e.kind === 'run.until-judgment') as
+      | { disposition?: string; goal_proposed?: boolean }
+      | undefined;
+    expect(judgment?.disposition).toBe('needs-attention');
+    expect(judgment?.goal_proposed).toBe(false);
+  });
+
+  it('below the autonomous floor an honestly met goal still completes in a single pass', async () => {
+    const runFolder = join(runFolderBase, 'below-floor-met');
+    // The honest one-pass floor must not break the one-pass happy path: a judge
+    // that proposes goal_met=true, with the evidence floor clear, keeps the tail's
+    // forward route (`pass` -> @complete) exactly as before.
+    const result = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: convergeProofBytes(),
+      runId: '70000000-0000-0000-0000-0000000000c4',
+      goal: 'below autonomous depth a met goal completes in one pass',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 5, 27, 10, 30, 0)),
+      relayer: convergeRelayer(() => true),
+    });
+    const trace = await new TraceStore(runFolder).load();
+
+    expect(result.outcome).toBe('complete');
+    expect(enteredCount(trace, 'head-step')).toBe(1);
+    expect(enteredCount(trace, 'work-step')).toBe(1);
+    expect(enteredCount(trace, 'judge-step')).toBe(1);
     expect(judgeRoutesTaken(trace)).toEqual(['pass']);
+    const judgment = trace.find((e) => e.kind === 'run.until-judgment') as
+      | { disposition?: string; goal_proposed?: boolean }
+      | undefined;
+    expect(judgment?.disposition).toBe('stop-clean');
+    expect(judgment?.goal_proposed).toBe(true);
+  });
+
+  it('a judge that answers with a bare verdict cannot close the loop: the run exhausts stopped, never complete', async () => {
+    const runFolder = join(runFolderBase, 'bare-verdict');
+    // The rubber-stamp seam from the live surface test (t48b): a judge answering
+    // the bare `{"verdict":"ok"}` acknowledgment. With the judgment schema bound
+    // and the check.pass vocabulary aligned to it, 'ok' is not an admissible judge
+    // verdict, so the attempt fails its check. Under an active corridor the
+    // abort-intercept latches the overclaim and re-enters fresh iterations up to
+    // the cap, then exits stopped — the bare verdict can never reach @complete.
+    const bareOkRelayer = makeStubRelayer(() => '{"verdict":"ok"}');
+    const result = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: convergeProofBytes(),
+      runId: '70000000-0000-0000-0000-0000000000c5',
+      goal: 'a bare-verdict judge must never close the loop complete',
+      depth: 'autonomous',
+      now: deterministicNow(Date.UTC(2026, 5, 27, 11, 0, 0)),
+      relayer: bareOkRelayer,
+    });
+    const trace = await new TraceStore(runFolder).load();
+
+    expect(result.outcome).not.toBe('complete');
+    expect(result.outcome).toBe('stopped');
+    // The exhausted exit names the judge and the unresolved overclaim, so the
+    // stop is legible: the operator sees WHICH step failed its contract.
+    const abortReasons = trace
+      .filter((e) => e.kind === 'step.aborted')
+      .map((e) => (e as { reason?: string }).reason ?? '');
+    expect(
+      abortReasons.some((reason) =>
+        reason.includes("until loop exhausted with an unresolved overclaim on 'judge-step'"),
+      ),
+    ).toBe(true);
   });
 });

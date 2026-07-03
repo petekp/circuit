@@ -8,19 +8,29 @@
 // boundary; this flow exists to close that gap.
 //
 // Shape: a three-relay body (plan -> act -> review) wired as a loop. The review
-// (tail) step is the stop-judge: its result carries `goal_met`, which the engine
-// reads to decide whether to re-enter the loop (goal not met, under the cap) or
-// stop clean (goal met + evidence floor clear). On cap exhaustion the loop exits
-// to needs-attention, never to @complete. The loop activates only at the
-// `autonomous` depth; at every other depth the flow runs once, top to bottom,
-// byte-identical to a non-loop flow.
+// (tail) step is the stop-judge: it is bound to the strict converge.judgment@v1
+// report schema, so its result must carry a verdict from the schema's enum
+// (accept / accept-with-fixes / reject), the load-bearing `goal_met` boolean, a
+// carried `lesson`, and an operator `summary`. The judge's check.pass admits ALL
+// THREE schema verdicts — the verdict says "the judge did its job", while
+// `goal_met` (disposed against the evidence floor) decides whether the loop
+// stops clean, re-enters, or exhausts to needs-attention. An honest "reject, not
+// done" is a valid relay response, never a failed check. The live surface test
+// proved both halves of the old shape wrong: an unvalidated judge was PROMPTED
+// into the bare `{"verdict":"ok"}` rubber stamp, and an honest off-vocabulary
+// verdict crashed the run instead of looping (see
+// docs/release/proofs/live-runs/LEDGER.md, F13).
 //
-// Each relay omits `output` so the block default fills it back, and declares no
-// report_path: a relay producer's downstream read-path falls back to its
-// result_path (compile-schematic-to-flow.ts), so the plan -> act -> review
-// contract chain resolves with no typed report. With no report_path the result
-// body is unvalidated, so the judge's free `goal_met` field rides along on the
-// review result the stop-judge reads.
+// The loop RE-ENTERS only at the `autonomous` depth. Below it the flow runs the
+// body once — but the tail still disposes its goal_met proposal against the
+// evidence floor: a met claim the floor confirms completes, anything else exits
+// via the needs-attention route. One-pass mode never launders an unmet goal
+// into @complete.
+//
+// The head and act relays omit `output` so the block default fills it back, and
+// declare no report_path: a relay producer's downstream read-path falls back to
+// its result_path (compile-schematic-to-flow.ts), so the plan -> act contract
+// chain resolves with no typed report.
 import type { FlowSchematicAssemblySpec, StageLabelMap } from '../assemble-flow-schematic.js';
 import type { BlockStepUse } from '../block-step-expansion.js';
 
@@ -78,10 +88,20 @@ export const convergeProofBlockItems: readonly BlockStepUse[] = [
     input: { brief: 'flow.brief@v1' },
     execution: { kind: 'relay', role: 'reviewer' },
     protocol: 'converge-proof-review@v1',
+    // The stop-judge is bound to the strict judgment contract: the typed report
+    // is what the until corridor reads (stop_judge.report below), and the bound
+    // schema is what the shape-hint registry keys on, so the judge's prompt
+    // teaches exactly the shape the validator enforces. A bare acknowledgment
+    // body fails schema validation and can never close the loop.
+    output: 'converge.judgment@v1',
     requestPath: 'reports/converge/judgment.request.json',
     receiptPath: 'reports/converge/judgment.receipt.txt',
     resultPath: 'reports/converge/judgment.result.json',
-    pass: ['ok'],
+    reportPath: 'reports/converge/judgment.report.json',
+    // All three schema verdicts are admissible: the verdict reports that the
+    // judge did its job; goal_met carries the judgment. An honest "reject" must
+    // route through the loop's disposition, not fail the relay check.
+    pass: ['accept', 'accept-with-fixes', 'reject'],
     routes: { continue: '@complete', advance: 'head-step', close: '@stop' },
   },
 ];
@@ -100,7 +120,10 @@ export const convergeProofAssemblySpec: FlowSchematicAssemblySpec = {
   status: 'active',
   version: '0.1.0',
   initial_contracts: ['flow.brief@v1'],
-  contract_aliases: [],
+  // The judge-step overrides the review block's generic output with the strict
+  // judgment contract; the alias is what makes that override block-compatible
+  // (contractIsCompatible admits generic -> declared actual).
+  contract_aliases: [{ generic: 'review.verdict@v1', actual: 'converge.judgment@v1' }],
   axes: {
     allowed_depths: ['medium'],
     supports_tournament: false,
@@ -115,7 +138,10 @@ export const convergeProofAssemblySpec: FlowSchematicAssemblySpec = {
       reenter_route: 'advance',
       max_iterations: 3,
       stop_judge: {
-        report: 'reports/converge/judgment.result.json',
+        // Read the TYPED report, not the raw result: the report file exists only
+        // when the body passed converge.judgment@v1 validation, so the corridor
+        // always disposes a schema-checked goal_met.
+        report: 'reports/converge/judgment.report.json',
         goal_met_path: 'goal_met',
         lesson_path: 'lesson',
       },

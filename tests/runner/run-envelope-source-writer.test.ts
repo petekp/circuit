@@ -204,6 +204,51 @@ describe('Run envelope source writer', () => {
     expect(surfaceMarkdown).toContain('partial');
   });
 
+  it('names the stated reason on the caveat line when a degraded run supplies one', () => {
+    // The degraded outcome word alone ("partial") tells the operator the run is
+    // caveated but not why. When the flow's primary result carries its own stated
+    // reason, the caller threads it in so the caveat line explains the caveat
+    // instead of leaving the operator to open the child report to find out.
+    const runFolder = join(tempDir, 'fix-run-reason');
+    const resultPath = join(runFolder, 'reports/result.json');
+    const childResult = runResult('fix');
+    writeJson(resultPath, childResult);
+    const reason = "Fix 'login test': applied a null guard; independent review was skipped.";
+    writeJson(join(runFolder, 'reports/fix-result.json'), {
+      schema: 'fix.result@v1',
+      outcome: 'partial',
+      summary: reason,
+      verification_status: 'passed',
+      review_status: 'skipped',
+    });
+    const processEvidence = writtenClosedProcessEvidence({
+      runFolder,
+      runResult: childResult,
+      resultPath,
+    });
+
+    const written = writeRunEnvelopeRecord({
+      runFolder,
+      operatorIntent: 'Fix the failing login test.',
+      selectedProcess: {
+        process_id: 'fix',
+        routed_by: 'explicit',
+        router_reason: 'explicit flow positional argument',
+      },
+      processEvidence,
+      recordedAt: '2026-05-28T05:01:00.000Z',
+      flowOutcome: 'partial',
+      flowOutcomeReason: reason,
+    });
+
+    // The caveat line still names the degraded quality word...
+    expect(written.record.surface_output.status_text).toMatch(/partial/);
+    // ...and now carries the child's own stated reason so the operator learns why.
+    expect(written.record.surface_output.status_text).toContain(reason);
+    const surfaceMarkdown = readFileSync(written.surfacePath, 'utf8');
+    expect(surfaceMarkdown).toContain(reason);
+  });
+
   it('writes a checkpoint-waiting Run envelope without a child result ref', () => {
     const runFolder = join(tempDir, 'build-run');
     const requestPath = join(runFolder, 'reports/checkpoints/frame-step-request.json');

@@ -67,14 +67,15 @@ const MinimalVerdictShape = z.looseObject({ verdict: z.string().min(1) });
 // The Converge stop-judge body. Strict on exactly these four fields so the shape-hint
 // can instruct the worker to produce precisely them and "annotations cannot lie": a
 // judge that emits extra keys is rejected, not silently widened.
-//   - verdict: the reviewer verdict the composed tail's check.pass admits. The
-//     composer binds the same review block whose check derives from the build
-//     family's reviewer enum (check.pass = ['accept', 'accept-with-fixes']), so the
-//     verdict enum MUST include those to let a clean judgment pass the step check;
-//     'reject' is the third family verdict (a non-passing judgment). Reusing the
-//     family's verdict vocabulary keeps the composed reviewer's verdict semantics
-//     identical to the typed reviewer it replaces — only the carried judgment fields
-//     are added.
+//   - verdict: the reviewer verdict. A stop-judge's check.pass admits ALL THREE
+//     enum values (the composer rebinds the composed tail's check to this full
+//     vocabulary; the authored converge-proof / fix-until-green judges declare the
+//     same): the verdict reports that the judge did its job, while goal_met —
+//     disposed against the evidence floor — decides whether the loop stops clean,
+//     re-enters, or exhausts. An honest "reject, not done" is a valid judgment the
+//     loop disposes, never a failed check; under the family reviewer vocabulary
+//     (['accept', 'accept-with-fixes']) it crashed the run at the relay seam
+//     instead of looping (the F13 finding from the live surface test).
 //   - goal_met: the load-bearing boolean the until-loop's evidence floor disposes.
 //   - lesson: the short, free-text note carried verbatim into the next iteration's act
 //     (the engine reads it as opaque data, never as instructions). "none" when done.

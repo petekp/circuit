@@ -13,6 +13,7 @@ import {
   PursuitVerification,
   PursuitWavePlan,
 } from '../../src/flows/pursue/reports.js';
+import { projectPursuitContract } from '../../src/flows/pursue/writers/contract-projection.js';
 import { findCloseBuilder } from '../../src/flows/registries/close-writers/registry.js';
 import { CompiledFlow } from '../../src/schemas/compiled-flow.js';
 
@@ -63,6 +64,13 @@ function batchItem(status: 'completed' | 'skipped' | 'blocked' | 'failed') {
     summary: `${status} pursuit`,
     evidence: ['reports/pursuit/batch.json'],
   };
+}
+
+function reviewAttestation(
+  pursuit_id: string,
+  assessment = 'Verified the pursuit landed with no cross-goal regression.',
+) {
+  return { pursuit_id, assessment };
 }
 
 function resultPointers() {
@@ -241,6 +249,7 @@ describe('Pursue report schemas', () => {
       PursuitReview.parse({
         verdict: 'clean',
         summary: 'No coordination issues found',
+        reviewed_pursuits: [reviewAttestation('pursuit-1')],
         findings: [],
       }),
     ).toBeDefined();
@@ -430,6 +439,7 @@ describe('Pursue report schemas', () => {
       PursuitReview.safeParse({
         verdict: 'needs-followup',
         summary: 'A follow-up is required',
+        reviewed_pursuits: [reviewAttestation('pursuit-1')],
         findings: [],
       }).success,
     ).toBe(false);
@@ -437,6 +447,7 @@ describe('Pursue report schemas', () => {
       PursuitReview.safeParse({
         verdict: 'clean',
         summary: 'Findings cannot be hidden behind clean',
+        reviewed_pursuits: [reviewAttestation('pursuit-1')],
         findings: [{ severity: 'low', text: 'Low finding', file_refs: ['src/example.ts:1'] }],
       }).success,
     ).toBe(false);
@@ -444,6 +455,7 @@ describe('Pursue report schemas', () => {
       PursuitReview.safeParse({
         verdict: 'needs-followup',
         summary: 'Medium findings must retry before close',
+        reviewed_pursuits: [reviewAttestation('pursuit-1')],
         findings: [{ severity: 'medium', text: 'Medium finding', file_refs: ['src/example.ts:1'] }],
       }).success,
     ).toBe(false);
@@ -451,6 +463,7 @@ describe('Pursue report schemas', () => {
       PursuitReview.safeParse({
         verdict: 'needs-followup',
         summary: 'Low findings can close as follow-up work',
+        reviewed_pursuits: [reviewAttestation('pursuit-1')],
         findings: [{ severity: 'low', text: 'Low finding', file_refs: ['src/example.ts:1'] }],
       }).success,
     ).toBe(true);
@@ -637,11 +650,194 @@ describe('Pursue report schemas', () => {
           review: PursuitReview.parse({
             verdict: 'clean',
             summary: 'No coordination issues found',
+            reviewed_pursuits: [reviewAttestation('pursuit-1'), reviewAttestation('pursuit-2')],
             findings: [],
           }),
         },
       }),
     ).toThrow(/missing pursuit id 'pursuit-2'/);
+  });
+
+  it('requires a substantive per-pursuit attestation on every review', () => {
+    // The F12 finding from the live surface test: pursue's review returned
+    // summary "placeholder" with empty findings and nothing tying the verdict
+    // to the actual pursuits. A blanket review with no reviewed_pursuits can no
+    // longer pass.
+    expect(
+      PursuitReview.safeParse({
+        verdict: 'clean',
+        summary: 'placeholder',
+        findings: [],
+      }).success,
+    ).toBe(false);
+    // One- or two-word filler assessments do not count as substance.
+    expect(
+      PursuitReview.safeParse({
+        verdict: 'clean',
+        summary: 'No coordination issues found',
+        reviewed_pursuits: [{ pursuit_id: 'pursuit-1', assessment: 'ok' }],
+        findings: [],
+      }).success,
+    ).toBe(false);
+    // The same pursuit cannot be attested twice.
+    expect(
+      PursuitReview.safeParse({
+        verdict: 'clean',
+        summary: 'No coordination issues found',
+        reviewed_pursuits: [reviewAttestation('pursuit-1'), reviewAttestation('pursuit-1')],
+        findings: [],
+      }).success,
+    ).toBe(false);
+    // Naming each pursuit and stating what was checked passes.
+    expect(
+      PursuitReview.safeParse({
+        verdict: 'clean',
+        summary: 'No coordination issues found',
+        reviewed_pursuits: [reviewAttestation('pursuit-1')],
+        findings: [],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects close reports when the review does not attest every contracted pursuit', () => {
+    const flow = loadFlow(PURSUE_FLOW_PATH);
+    const closeStep = flow.steps.find((step) => step.id === 'close-step');
+    if (closeStep?.kind !== 'compose' || closeStep.writes?.report === undefined) {
+      throw new Error('Pursue close step must be a compose step with a report write');
+    }
+    const closeBuilder = findCloseBuilder('pursuit.result@v1');
+    if (closeBuilder === undefined) throw new Error('Pursue close builder must be registered');
+
+    const pursuit = (id: string, path: string) => ({
+      id,
+      title: `Update ${path}`,
+      goal: `Update ${path}`,
+      scope: 'Only the named file',
+      assumptions: ['No external service changes are required'],
+      estimated_touch_set: touchSet({ paths: [path] }),
+      proof_plan: ['Run npm run verify'],
+      check_in_triggers: ['A shared file needs a conflicting edit'],
+      rollback_notes: ['Revert the local file edit'],
+      risk: 'low' as const,
+    });
+    const contract = PursuitContract.parse({
+      objective: 'Ship two coordinated changes without collisions',
+      pursuits: [pursuit('pursuit-1', 'src/example.ts'), pursuit('pursuit-2', 'docs/example.md')],
+      execution_policy: {
+        code_writes: 'serial-only',
+        read_only_parallelism: 'allowed',
+        parallel_write_status: 'blocked-until-safe-apply',
+      },
+      verification_command_candidates: [verificationCommand()],
+    });
+    const graph = PursuitGraph.parse({
+      verdict: 'accept',
+      nodes: contract.pursuits.map((p) => ({
+        id: p.id,
+        goal: p.goal,
+        estimated_touch_set: p.estimated_touch_set,
+        risk: p.risk,
+        status: 'ready',
+        reason: 'Ready after framing',
+      })),
+      edges: [],
+      serial_groups: [
+        { id: 'serial', pursuit_ids: ['pursuit-1', 'pursuit-2'], reason: 'Serial writes' },
+      ],
+      parallel_read_only_groups: [
+        { id: 'discovery', pursuit_ids: ['pursuit-1', 'pursuit-2'], reason: 'Read-only discovery' },
+      ],
+      blocked: [],
+    });
+    const wavePlan = PursuitWavePlan.parse({
+      verdict: 'accept',
+      waves: [
+        {
+          id: 'serial-code-writes',
+          kind: 'code-change',
+          pursuit_ids: ['pursuit-1', 'pursuit-2'],
+          execution: 'serial',
+          reason: 'Avoid write collisions',
+          re_ground_after: true,
+        },
+      ],
+      no_parallel_writes_reason: 'V1 does not apply parallel worktree edits.',
+    });
+    // The batch covers BOTH pursuits, so the batch-coverage assert passes and
+    // the review-coverage assert is what fires.
+    const batch = PursuitBatch.parse({
+      verdict: 'accept',
+      summary: 'Completed both pursuits',
+      serialized_execution: true,
+      completed: [
+        batchItem('completed'),
+        { pursuit_id: 'pursuit-2', status: 'completed', summary: 'done', evidence: ['ok'] },
+      ],
+      skipped: [],
+      blocked: [],
+      failed: [],
+      actual_touch_set: touchSet(),
+      proof_evidence: ['npm run verify passed'],
+    });
+    const verification = PursuitVerification.parse({
+      overall_status: 'passed',
+      commands: [
+        {
+          command_id: 'pursuit-proof',
+          argv: ['npm', 'run', 'verify'],
+          cwd: '.',
+          exit_code: 0,
+          status: 'passed',
+          duration_ms: 25,
+          stdout_summary: 'All checks passed',
+          stderr_summary: '',
+        },
+      ],
+    });
+    const thinReview = PursuitReview.parse({
+      verdict: 'clean',
+      summary: 'No coordination issues found',
+      reviewed_pursuits: [reviewAttestation('pursuit-1')],
+      findings: [],
+    });
+
+    expect(() =>
+      closeBuilder.build({
+        runFolder: '.',
+        flow,
+        closeStep,
+        goal: 'two pursuits',
+        inputs: { contract, graph, wavePlan, batch, verification, review: thinReview },
+      }),
+    ).toThrow(/review.*pursuit-2/);
+  });
+});
+
+describe('Pursue contract projection', () => {
+  it('splits an inline enumerated goal into one pursuit per idea', () => {
+    const contract = projectPursuitContract({
+      goal: '(1) add input validation to greet and bye, (2) add a farewell-style option',
+      verificationCommands: [verificationCommand()],
+    });
+    expect(contract.pursuits.map((pursuit) => pursuit.id)).toEqual(['pursuit-1', 'pursuit-2']);
+    expect(contract.pursuits[0]?.goal).toContain('input validation');
+    expect(contract.pursuits[1]?.goal).toContain('farewell-style option');
+  });
+
+  it('keeps a single-idea goal as one pursuit', () => {
+    const contract = projectPursuitContract({
+      goal: 'add input validation to the greet function',
+      verificationCommands: [verificationCommand()],
+    });
+    expect(contract.pursuits).toHaveLength(1);
+  });
+
+  it('does not split on incidental numbers such as file names or versions', () => {
+    const contract = projectPursuitContract({
+      goal: 'update file1.ts and file2.ts to use the new API',
+      verificationCommands: [verificationCommand()],
+    });
+    expect(contract.pursuits).toHaveLength(1);
   });
 });
 

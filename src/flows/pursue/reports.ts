@@ -315,10 +315,29 @@ export type PursuitReviewFinding = z.infer<typeof PursuitReviewFinding>;
 export const PursuitReviewVerdict = z.enum(['clean', 'needs-followup', 'blocked']);
 export type PursuitReviewVerdict = z.infer<typeof PursuitReviewVerdict>;
 
+// The shortest genuine attestation ("skipped as planned" is 18) still clears
+// this floor, while one- or two-word filler ("ok", "fine", "placeholder" at 11)
+// does not. The structural coverage check in result-projection.ts does the heavy
+// lifting; this floor stops a per-pursuit entry from being a single empty word.
+const MIN_ATTESTATION_LENGTH = 12;
+
+// One entry per contracted pursuit: the reviewer must name the pursuit and state
+// what it actually checked, so a blanket "clean / placeholder" review can no
+// longer stand in for reviewing the work (the F12 finding from the live surface
+// test). Coverage against the contract is enforced at close.
+export const PursuitReviewAttestation = z
+  .object({
+    pursuit_id: PursuitId,
+    assessment: z.string().min(MIN_ATTESTATION_LENGTH),
+  })
+  .strict();
+export type PursuitReviewAttestation = z.infer<typeof PursuitReviewAttestation>;
+
 export const PursuitReview = z
   .object({
     verdict: PursuitReviewVerdict,
     summary: z.string().min(1),
+    reviewed_pursuits: z.array(PursuitReviewAttestation).min(1),
     findings: z.array(PursuitReviewFinding),
   })
   .strict()
@@ -347,6 +366,17 @@ export const PursuitReview = z
         message:
           "verdict must be 'blocked' when review findings include medium, high, or critical severity",
       });
+    }
+    const seen = new Set<string>();
+    for (const [index, attestation] of review.reviewed_pursuits.entries()) {
+      if (seen.has(attestation.pursuit_id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['reviewed_pursuits', index, 'pursuit_id'],
+          message: `duplicate reviewed pursuit id: ${attestation.pursuit_id}`,
+        });
+      }
+      seen.add(attestation.pursuit_id);
     }
   });
 export type PursuitReview = z.infer<typeof PursuitReview>;

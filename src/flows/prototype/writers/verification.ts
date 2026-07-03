@@ -9,6 +9,14 @@ import type {
 } from '../../registries/verification-writers/types.js';
 import { PrototypeArtifact, PrototypePlan, PrototypeVerification } from '../reports.js';
 
+// Integrity judges the implementer's FINAL DECLARED work: every created file and
+// entry point must be a real, non-symlink path inside prototype_root. The plan's
+// anticipated file list is ADVISORY ONLY — the plan writer guesses a deliverable
+// shape before the implementer runs, and a goal whose right artifact is a
+// different shape (a CLI script instead of an HTML sketch, the F11 finding from
+// the live surface test) must not fail integrity on that guess. An unrealized
+// planned file is surfaced on stdout so the mismatch stays legible in the
+// verification report without failing the run.
 const ARTIFACT_INTEGRITY_SCRIPT = [
   "const fs = require('node:fs')",
   "const path = require('node:path')",
@@ -27,8 +35,8 @@ const ARTIFACT_INTEGRITY_SCRIPT = [
   'else if (fs.lstatSync(rootAbs).isSymbolicLink()) errors.push(`prototype_root is a symlink: ${root}`)',
   'const rootReal = fs.existsSync(rootAbs) ? fs.realpathSync.native(rootAbs) : rootAbs',
   'const createdSet = new Set(created)',
-  'for (const rel of planned) { if (!createdSet.has(rel)) errors.push(`planned file missing from created_files: ${rel}`); }',
-  'for (const rel of Array.from(new Set([...planned, ...created, ...entry]))) {',
+  'const unrealizedPlan = planned.filter((rel) => !createdSet.has(rel))',
+  'for (const rel of Array.from(new Set([...created, ...entry]))) {',
   '  if (typeof rel !== "string" || rel.length === 0) { errors.push("reported path must be a non-empty string"); continue; }',
   '  if (!rel.startsWith(`${root}/`)) errors.push(`prototype path is outside prototype_root: ${rel}`)',
   '  const abs = path.resolve(projectRoot, rel)',
@@ -39,6 +47,7 @@ const ARTIFACT_INTEGRITY_SCRIPT = [
   '  if (!inside(rootReal, real)) errors.push(`prototype path escapes real prototype_root: ${rel}`)',
   '}',
   'if (errors.length > 0) { console.error(errors.join("\\n")); process.exit(1); }',
+  'if (unrealizedPlan.length > 0) console.log(`note (advisory): the plan anticipated files the artifact did not declare: ${unrealizedPlan.join(", ")}`)',
   'console.log(`Prototype artifact integrity passed for ${root}`)',
 ].join('; ');
 

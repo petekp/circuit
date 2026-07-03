@@ -71,21 +71,14 @@ describe('WorkContractProjectionV0', () => {
       expect(projection.work_contract.flow.id).toBe(flow.id);
       expect(projection.work_contract.topology.stages).toHaveLength(flow.stages.length);
       expect(projection.work_contract.blocks).toHaveLength(flow.steps.length);
-      if (flow.id === 'converge-proof') {
-        // converge-proof is the internal until-loop e2e harness: an all-relay loop
-        // body (plan -> act -> review) where every step proves via a result_verdict
-        // check and the review tail is the stop-judge. The stop-judge reads an
-        // intentionally UNVALIDATED result for `goal_met` (the propose-vs-dispose
-        // honesty design: the judge's claim is untrusted and checked against an
-        // independent evidence floor), so the judge carries no typed report; the
-        // body steps' contracts likewise carry none. Its evidence surface is the
-        // execution trace, asserted directly in
-        // tests/runner/converge-proof-until-loop.test.ts. Every other shipped flow
-        // produces at least one typed report.
-        expect(projection.work_contract.proof.reports.length).toBe(0);
-      } else {
-        expect(projection.work_contract.proof.reports.length).toBeGreaterThan(0);
-      }
+      // Every shipped flow produces at least one typed report. converge-proof —
+      // once the all-bare exception — now types exactly one: its stop-judge is
+      // bound to the strict converge.judgment@v1 report, so the goal_met the
+      // evidence floor disposes is schema-checked, never free-riding on an
+      // unvalidated result (the F13 finding from the live surface test). The
+      // plan/act body relays stay bare; the loop behavior itself is asserted in
+      // tests/runner/converge-proof-until-loop.test.ts.
+      expect(projection.work_contract.proof.reports.length).toBeGreaterThan(0);
       expect(projection.guidance_seed.selection_hints).toBeDefined();
       expect(projection.rejected_authority).toBeDefined();
     }

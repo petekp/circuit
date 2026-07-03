@@ -563,10 +563,84 @@ describe('Prototype runtime wiring', () => {
     expect(verification.commands[0]?.stderr_summary).toContain('prototype path does not exist');
   });
 
-  it('fails verification when a planned file is omitted from the artifact report', async () => {
+  it("judges the implementer's delivered files, not the plan's guess: a CLI-shaped artifact passes integrity with the plan mismatch surfaced as advisory", async () => {
+    // The F11 finding from the live surface test: the plan writer always guesses
+    // an index.html/README.md shape, so a goal whose right deliverable is
+    // something else (here a CLI script) failed artifact integrity on
+    // "planned file missing from created_files" even though every DELIVERED file
+    // was real, declared, and inside prototype_root. Integrity judges the final
+    // declared work; the plan's anticipated file list is advisory, surfaced in
+    // the command's stdout so the mismatch stays legible without failing the run.
+    const { bytes } = loadFixture();
+    const runFolder = join(projectRoot, '.circuit/runs/cli-shaped');
+
+    const relayer: RelayFn = {
+      connectorName: 'claude-code',
+      relay: async (relayInput: RelayInput): Promise<RelayResult> => {
+        const plan = PrototypePlan.parse(readJson(runFolder, 'reports/prototype/plan.json'));
+        const cliFile = `${plan.prototype_root}/cli.mjs`;
+        const usageFile = `${plan.prototype_root}/USAGE.md`;
+        writeProjectFile(projectRoot, cliFile, 'console.log("circuit prototype cli");\n');
+        writeProjectFile(projectRoot, usageFile, '# Usage\n\nnode cli.mjs\n');
+        return {
+          request_payload: relayInput.prompt,
+          receipt_id: 'prototype-cli-stub',
+          result_body: JSON.stringify(
+            PrototypeArtifact.parse({
+              verdict: 'accept',
+              summary: 'Created a CLI prototype instead of an HTML sketch.',
+              prototype_root: plan.prototype_root,
+              created_files: [cliFile, usageFile],
+              entry_points: [cliFile],
+              preview_instructions: `Run node ${cliFile} locally.`,
+              known_limitations: ['CLI prototype is not wired to production behavior.'],
+              evidence: ['cli.mjs and USAGE.md were created under prototype_root.'],
+              claim_limits: ['not production', 'not deployed'],
+            }),
+          ),
+          duration_ms: 1,
+          cli_version: '0.0.0-stub',
+        };
+      },
+    };
+
+    const outcome = await runCompiledFlow({
+      runDir: runFolder,
+      flowBytes: bytes,
+      runId: '94000000-0000-0000-0000-000000000007',
+      goal: 'prototype: sketch a CLI that lists custom flows',
+      depth: 'medium',
+      now: deterministicNow(Date.UTC(2026, 4, 20, 9, 15, 0)),
+      projectRoot,
+      relayer,
+    });
+
+    expect(outcome.outcome).toBe('complete');
+    const result = PrototypeResult.parse(readJson(runFolder, 'reports/prototype-result.json'));
+    expect(result).toMatchObject({
+      outcome: 'kept',
+      artifact_status: 'accepted',
+      verification_status: 'passed',
+      checkpoint_status: 'auto_resolved',
+      checkpoint_selection: 'keep-prototype',
+    });
+    const verification = PrototypeVerification.parse(
+      readJson(runFolder, 'reports/prototype/verification.json'),
+    );
+    expect(verification.overall_status).toBe('passed');
+    // The plan/delivery mismatch is surfaced, not enforced.
+    expect(verification.commands[0]?.stdout_summary).toContain('advisory');
+    expect(verification.commands[0]?.stdout_summary).toContain('index.html');
+  });
+
+  it("treats the plan's file list as advisory: an artifact that declares fewer files than planned still passes integrity", async () => {
     const { bytes } = loadFixture();
     const runFolder = join(projectRoot, '.circuit/runs/under-reported-artifact');
 
+    // Both planned files exist on disk, but the artifact declares only the
+    // first. The declared set is the integrity contract (every declared file
+    // must be real and inside prototype_root); the plan's guess is not — the
+    // unrealized planned file rides along as an advisory note.
     const outcome = await runCompiledFlow({
       runDir: runFolder,
       flowBytes: bytes,
@@ -581,19 +655,18 @@ describe('Prototype runtime wiring', () => {
     expect(outcome.outcome).toBe('complete');
     const result = PrototypeResult.parse(readJson(runFolder, 'reports/prototype-result.json'));
     expect(result).toMatchObject({
-      outcome: 'needs_attention',
+      outcome: 'kept',
       artifact_status: 'accepted',
-      verification_status: 'failed',
-      checkpoint_status: 'not_reached',
-      checkpoint_selection: 'not_reached',
+      verification_status: 'passed',
+      checkpoint_status: 'auto_resolved',
+      checkpoint_selection: 'keep-prototype',
     });
     const verification = PrototypeVerification.parse(
       readJson(runFolder, 'reports/prototype/verification.json'),
     );
-    expect(verification.overall_status).toBe('failed');
-    expect(verification.commands[0]?.stderr_summary).toContain(
-      'planned file missing from created_files',
-    );
+    expect(verification.overall_status).toBe('passed');
+    expect(verification.commands[0]?.stdout_summary).toContain('advisory');
+    expect(verification.commands[0]?.stdout_summary).toContain('README.md');
   });
 
   it('writes a blocked artifact report and closes without inventing verification', async () => {

@@ -108,6 +108,10 @@
       "kind": "relay",
       "role": "reviewer",
       "writes": {
+        "report": {
+          "path": "reports/converge/judgment.report.json",
+          "schema": "converge.judgment@v1"
+        },
         "request": "reports/converge/judgment.request.json",
         "receipt": "reports/converge/judgment.receipt.txt",
         "result": "reports/converge/judgment.result.json"
@@ -118,7 +122,7 @@
           "kind": "relay_result",
           "ref": "result"
         },
-        "pass": ["ok"]
+        "pass": ["accept", "accept-with-fixes", "reject"]
       }
     }
   ],
@@ -130,7 +134,7 @@
       "reenter_route": "advance",
       "max_iterations": 3,
       "stop_judge": {
-        "report": "reports/converge/judgment.result.json",
+        "report": "reports/converge/judgment.report.json",
         "goal_met_path": "goal_met",
         "lesson_path": "lesson"
       },

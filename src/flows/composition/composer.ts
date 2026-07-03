@@ -979,7 +979,7 @@ export function composeFlow(
             ...(checkpointWritesReport ? { report_template: pick.checkpointReportTemplate } : {}),
           }
         : undefined;
-    const check = role.executionKind === 'checkpoint' ? { allow: ['continue'] } : pick.check;
+    let check = role.executionKind === 'checkpoint' ? { allow: ['continue'] } : pick.check;
 
     // A composed fanout always launches a STATIC sub-run set joined as
     // aggregate-survivors. selectActual hands back a flow-specific STRICT aggregate
@@ -1001,13 +1001,21 @@ export function composeFlow(
     // can never read goal_met (the run aborts on the unbound advance recovery route).
     // Rebind ONLY the tail step to the dedicated `converge.judgment@v1` contract: a
     // strict schema that INCLUDES verdict/goal_met/lesson/summary, so the body
-    // validates, the step passes its own check (the verdict enum reuses the family's
-    // accepted verdicts), and the loop reads the judgment from the validated body. A
-    // registered shape-hint for the same contract also tells a real worker exactly what
-    // to emit. Tail-only and Converge-only: a non-Converge path never sets convergePlan,
-    // so boundOutput is untouched and the spec stays byte-identical.
+    // validates and the loop reads the judgment from the validated body. A registered
+    // shape-hint for the same contract also tells a real worker exactly what to emit.
+    // The tail's check.pass is rebound with it, to the contract's FULL verdict enum:
+    // the family reviewer's ['accept', 'accept-with-fixes'] treats 'reject' as a
+    // failed check, but on a stop-judge an honest "reject, not done" is a VALID
+    // judgment the loop must dispose (re-enter and carry the lesson) — under the
+    // family vocabulary it threw at the relay seam and crashed the run instead of
+    // looping (the F13 finding from the live surface test). The verdict says "the
+    // judge did its job"; goal_met, disposed against the evidence floor, decides
+    // stop-clean / reenter / needs-attention. Tail-only and Converge-only: a
+    // non-Converge path never sets convergePlan, so boundOutput and check are
+    // untouched and the spec stays byte-identical.
     if (convergePlan !== undefined && index === convergePlan.tailIndex) {
       boundOutput = CONVERGE_JUDGMENT_CONTRACT;
+      check = { pass: ['accept', 'accept-with-fixes', 'reject'] };
     }
 
     // Terminal close rebind (genuine-linear-LIVE). selectActual binds the close

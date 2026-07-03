@@ -54,12 +54,24 @@ const DEFAULT_BATCH_BODY = JSON.stringify({
 const DEFAULT_REVIEW_BODY = JSON.stringify({
   verdict: 'clean',
   summary: 'No coordination issues found',
+  reviewed_pursuits: [
+    {
+      pursuit_id: 'pursuit-1',
+      assessment: 'Verified the single pursuit landed with no cross-goal regression.',
+    },
+  ],
   findings: [],
 });
 
 const BLOCKED_REVIEW_BODY = JSON.stringify({
   verdict: 'blocked',
   summary: 'The batch has untrusted touch-set evidence',
+  reviewed_pursuits: [
+    {
+      pursuit_id: 'pursuit-1',
+      assessment: 'Checked the touch-set evidence for the pursuit and found it unreliable.',
+    },
+  ],
   findings: [
     {
       severity: 'medium',

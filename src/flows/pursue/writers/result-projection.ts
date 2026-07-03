@@ -37,8 +37,36 @@ function assertBatchCoversContract(contract: PursuitContract, batch: PursuitBatc
   }
 }
 
+// The review must attest every contracted pursuit exactly once. This is the
+// cross-report half of the F12 fix: the schema forces a non-empty, per-pursuit
+// attestation list, and this check ties those attestations to the real pursuit
+// set so a review cannot close by naming a subset (or none) of the work.
+function assertReviewCoversContract(contract: PursuitContract, review: PursuitReview): void {
+  const expected = new Set(contract.pursuits.map((pursuit) => pursuit.id));
+  const seen = new Set<string>();
+  const issues: string[] = [];
+  for (const attestation of review.reviewed_pursuits) {
+    if (!expected.has(attestation.pursuit_id)) {
+      issues.push(`unknown pursuit id '${attestation.pursuit_id}'`);
+      continue;
+    }
+    if (seen.has(attestation.pursuit_id)) {
+      issues.push(`duplicate pursuit id '${attestation.pursuit_id}'`);
+      continue;
+    }
+    seen.add(attestation.pursuit_id);
+  }
+  for (const id of expected) {
+    if (!seen.has(id)) issues.push(`missing pursuit id '${id}'`);
+  }
+  if (issues.length > 0) {
+    throw new Error(`pursuit.review@v1 does not attest pursuit.contract@v1: ${issues.join('; ')}`);
+  }
+}
+
 export function projectPursuitResult(inputs: PursuitResultProjectorInputs): PursuitResult {
   assertBatchCoversContract(inputs.contract, inputs.batch);
+  assertReviewCoversContract(inputs.contract, inputs.review);
 
   const completedCount = inputs.batch.completed.length;
   const skippedCount = inputs.batch.skipped.length;

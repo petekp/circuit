@@ -20,5 +20,5 @@
   "run_envelope_path": "<repo>/docs/release/proofs/runs/fix/run/reports/run-envelope.json",
   "run_process_evidence_path": "<repo>/docs/release/proofs/runs/fix/run/reports/process-evidence.json",
   "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/fix/run/reports/run-surface.md",
-  "run_surface_status_text": "Completed with caveats: fix produced its required process evidence but reported a partial outcome."
+  "run_surface_status_text": "Completed with caveats: fix produced its required process evidence but reported a partial outcome. Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path."
 }

@@ -3,7 +3,7 @@
   "contract_ref": {
     "kind": "work_contract",
     "ref": "generated/flows/fix-until-green/circuit.work-contract.v0.json",
-    "sha256": "81d09dcb27f1dd8877490e939fc40101bf11035ff57b01963f733e6783e17c8c",
+    "sha256": "ac7cf545e6ff2459f69ea38d76182f89d8d1dbad100cf335822d2ddcf1f393b4",
     "flow_id": "fix-until-green"
   },
   "work_contract": {
@@ -216,6 +216,10 @@
         "protocol": "fix-until-green-review@v1",
         "reads": [],
         "writes": {
+          "report": {
+            "path": "reports/fix-until-green/judgment.report.json",
+            "schema": "converge.judgment@v1"
+          },
           "request": "reports/fix-until-green/judgment.request.json",
           "receipt": "reports/fix-until-green/judgment.receipt.txt",
           "result": "reports/fix-until-green/judgment.result.json"
@@ -226,7 +230,7 @@
             "kind": "relay_result",
             "ref": "result"
           },
-          "pass": ["ok"]
+          "pass": ["accept", "accept-with-fixes", "reject"]
         },
         "routes": {
           "continue": "@complete",
@@ -251,9 +255,19 @@
           "step_id": "judge-step",
           "role": "reviewer",
           "writes": {
+            "report": {
+              "path": "reports/fix-until-green/judgment.report.json",
+              "schema": "converge.judgment@v1"
+            },
             "request": "reports/fix-until-green/judgment.request.json",
             "receipt": "reports/fix-until-green/judgment.receipt.txt",
             "result": "reports/fix-until-green/judgment.result.json"
+          },
+          "report": {
+            "step_id": "judge-step",
+            "slot": "report",
+            "path": "reports/fix-until-green/judgment.report.json",
+            "schema": "converge.judgment@v1"
           }
         }
       ],
@@ -276,6 +290,12 @@
           "slot": "report",
           "path": "reports/fix-until-green/verification.json",
           "schema": "fix-until-green.verification@v1"
+        },
+        {
+          "step_id": "judge-step",
+          "slot": "report",
+          "path": "reports/fix-until-green/judgment.report.json",
+          "schema": "converge.judgment@v1"
         }
       ],
       "checks": [
@@ -342,7 +362,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/plan-step/routes/stop",
-          "sha256": "becf14db8a88cc02d7aa51738c896ba375b326d98f6f59d5b580560503d2b85e",
+          "sha256": "d56c0e9a3ee5d1f3f5563bccd3587108bfb56b6b7096a3d99eb8001b366194b2",
           "flow_id": "fix-until-green"
         }
       },
@@ -367,7 +387,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/revise",
-          "sha256": "becf14db8a88cc02d7aa51738c896ba375b326d98f6f59d5b580560503d2b85e",
+          "sha256": "d56c0e9a3ee5d1f3f5563bccd3587108bfb56b6b7096a3d99eb8001b366194b2",
           "flow_id": "fix-until-green"
         }
       },
@@ -398,7 +418,7 @@
         "source_ref": {
           "kind": "work_contract",
           "ref": "compiled-flow/steps/verify-step/routes/stop",
-          "sha256": "becf14db8a88cc02d7aa51738c896ba375b326d98f6f59d5b580560503d2b85e",
+          "sha256": "d56c0e9a3ee5d1f3f5563bccd3587108bfb56b6b7096a3d99eb8001b366194b2",
           "flow_id": "fix-until-green"
         }
       }

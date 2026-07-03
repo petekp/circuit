@@ -27,7 +27,8 @@ export const pursuitReviewShapeHint: SchemaShapeHint = {
   schema: 'pursuit.review@v1',
   instruction: [
     'Respond with a single raw JSON object for pursuit.review@v1.',
-    'Shape: { "verdict": "<clean|needs-followup|blocked>", "summary": "<review summary>", "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line>"] }] }.',
+    'Shape: { "verdict": "<clean|needs-followup|blocked>", "summary": "<review summary>", "reviewed_pursuits": [{ "pursuit_id": "<id>", "assessment": "<what you checked for this pursuit and why it is sound>" }], "findings": [{ "severity": "<critical|high|medium|low>", "text": "<finding text>", "file_refs": ["<file:line>"] }] }.',
+    'reviewed_pursuits must carry one entry for every pursuit id in the contract and batch. Each assessment states what you actually verified for that pursuit (the change, the evidence, any cross-goal risk); a blanket or one-word note is not acceptable and the run will not close if a pursuit is left unattested.',
     'Review whether the batch followed the pursuit contract, serialized code-changing work, preserved the difference between estimated and actual touch sets, and surfaced skipped or blocked pursuits honestly.',
     'Use verdict "clean" only when there are no findings. Use "needs-followup" only for low-severity findings. Use "blocked" when any finding is medium, high, or critical so the flow closes honestly as blocked instead of reporting completion.',
     'Do not include extra top-level keys. Do not wrap the JSON in Markdown code fences. Do not include any prose before or after the JSON object.',

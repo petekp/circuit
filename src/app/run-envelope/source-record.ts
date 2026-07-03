@@ -68,6 +68,11 @@ export type WriteRunEnvelopeRecordInput = {
   // Used to qualify an otherwise-clean run surface when the flow result was
   // degraded; omitted on clean runs.
   readonly flowOutcome?: string;
+  // The flow's own primary-result summary, resolved by the caller from the same
+  // artifact as flowOutcome. Names WHY a degraded-but-complete run is caveated so
+  // the surface line carries the child's stated reason, not just the outcome
+  // word. Omitted when the flow reports no summary or the run is not degraded.
+  readonly flowOutcomeReason?: string;
 };
 
 export type WriteRunEnvelopeRecordResult = {
@@ -520,6 +525,7 @@ function surfaceFor(input: {
   readonly processId: string;
   readonly processEvidence: RunEvidenceRef;
   readonly flowOutcome?: string;
+  readonly flowOutcomeReason?: string;
   readonly missingEvidence?: MissingRunEvidence;
   readonly decisionPacketRefs?: readonly Ref[];
   readonly memoryIndicator?: string;
@@ -551,10 +557,14 @@ function surfaceFor(input: {
   if (input.outcome === 'complete') {
     if (degradedFlowOutcome !== undefined) {
       // The run finished its process, but its own result is not a clean pass.
-      // Name the degradation rather than reading as an unqualified "Done".
+      // Name the degradation rather than reading as an unqualified "Done", and
+      // carry the flow's own stated reason when it gave one so the caveat line
+      // says why, not just that it is caveated.
+      const reason = input.flowOutcomeReason?.trim();
+      const reasonSuffix = reason ? ` ${reason}` : '';
       return {
         ...base,
-        status_text: `Completed with caveats: ${input.processId} produced its required process evidence but reported a ${degradedFlowOutcome} outcome.`,
+        status_text: `Completed with caveats: ${input.processId} produced its required process evidence but reported a ${degradedFlowOutcome} outcome.${reasonSuffix}`,
         next_action: 'close',
       };
     }
@@ -642,6 +652,7 @@ export function writeRunEnvelopeRecord(
   const outcome = runOutcome({ projection, ...(missingEvidence && { missingEvidence }) });
   const processId = projection.flow_id as unknown as string;
   const flowOutcome = input.flowOutcome;
+  const flowOutcomeReason = input.flowOutcomeReason;
   const followupAttempt = followupPlannedAttempt({
     operatorIntent: input.operatorIntent,
     primaryProcessId: processId,
@@ -772,6 +783,7 @@ export function writeRunEnvelopeRecord(
       processId,
       processEvidence,
       ...(flowOutcome === undefined ? {} : { flowOutcome }),
+      ...(flowOutcomeReason === undefined ? {} : { flowOutcomeReason }),
       ...(missingEvidence && { missingEvidence }),
       decisionPacketRefs: decisionArtifacts.map((artifact) => artifact.ref),
       ...(memoryIndicator === undefined ? {} : { memoryIndicator }),

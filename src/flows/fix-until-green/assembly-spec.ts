@@ -39,10 +39,25 @@
 // "selected recovery route without failure evidence" guard and abort. `close` is
 // in NORMAL_ROUTE_IDS, so the run exits `stopped` via @stop as intended.
 //
-// Each loop-body relay is BARE: no typed report on the relay (protocol inline,
-// generic shape, no report-schema validation), exactly like converge-proof's
-// relays. The judge's free goal_met / lesson fields ride along on its unvalidated
-// result. The verify step is the only typed report in the body.
+// The act relay is BARE: no typed report (protocol inline, generic shape, no
+// report-schema validation). The judge is NOT bare: it is bound to the strict
+// converge.judgment@v1 report schema, so its result must carry a verdict from
+// the schema's enum (accept / accept-with-fixes / reject), the load-bearing
+// `goal_met` boolean, a carried `lesson`, and an operator `summary`. Its
+// check.pass admits ALL THREE schema verdicts — the verdict says "the judge did
+// its job", while goal_met (disposed against the evidence floor) decides
+// whether the loop stops clean, re-enters, or exhausts to needs-attention. An
+// honest "reject, not done" is a valid relay response, never a failed check.
+// The live surface test proved both halves of the old bare-judge shape wrong:
+// an unvalidated judge was PROMPTED into the bare `{"verdict":"ok"}` rubber
+// stamp, and an honest off-vocabulary verdict crashed the run instead of
+// looping (see docs/release/proofs/live-runs/LEDGER.md, F13).
+//
+// The loop RE-ENTERS only at the `autonomous` depth. Below it the body runs
+// once — but the tail still disposes its goal_met proposal against the evidence
+// floor: a met claim a green verify confirms completes, anything else exits via
+// the needs-attention route. One-pass mode never launders a red verify into
+// @complete.
 import type { FlowSchematicAssemblySpec, StageLabelMap } from '../assemble-flow-schematic.js';
 import type { BlockStepUse } from '../block-step-expansion.js';
 
@@ -53,6 +68,10 @@ const FIX_UNTIL_GREEN_STAGE_PATH_RATIONALE =
 // (head) step lists it in `reads` so each pass re-inlines the accumulated lessons.
 const CARRIED_NOTES_PATH = 'reports/fix-until-green/carried-notes.json';
 const JUDGE_RESULT_PATH = 'reports/fix-until-green/judgment.result.json';
+// The TYPED judgment report. This file exists only when the judge's result
+// passed converge.judgment@v1 validation, so the until corridor's stop_judge
+// always disposes a schema-checked goal_met.
+const JUDGE_REPORT_PATH = 'reports/fix-until-green/judgment.report.json';
 
 export const fixUntilGreenBlockItems: readonly BlockStepUse[] = [
   {
@@ -112,15 +131,25 @@ export const fixUntilGreenBlockItems: readonly BlockStepUse[] = [
     stage: 'review',
     block: 'review',
     // Brief-only input (a registered initial contract). The judge's decision rides
-    // on its unvalidated relay result (goal_met + lesson), which the engine reads
-    // from the result path; it does not need a typed read of the verification.
+    // on its typed judgment report (goal_met + lesson), which the stop_judge reads;
+    // it does not need a typed read of the verification.
     input: { brief: 'flow.brief@v1' },
     execution: { kind: 'relay', role: 'reviewer' },
     protocol: 'fix-until-green-review@v1',
+    // Bound to the strict judgment contract: the typed report is what the until
+    // corridor reads (stop_judge.report below), and the bound schema is what the
+    // shape-hint registry keys on, so the judge's prompt teaches exactly the
+    // shape the validator enforces. A bare acknowledgment body fails schema
+    // validation and can never close the loop.
+    output: 'converge.judgment@v1',
     requestPath: 'reports/fix-until-green/judgment.request.json',
     receiptPath: 'reports/fix-until-green/judgment.receipt.txt',
     resultPath: JUDGE_RESULT_PATH,
-    pass: ['ok'],
+    reportPath: JUDGE_REPORT_PATH,
+    // All three schema verdicts are admissible: the verdict reports that the
+    // judge did its job; goal_met carries the judgment. An honest "reject" must
+    // route through the loop's disposition, not fail the relay check.
+    pass: ['accept', 'accept-with-fixes', 'reject'],
     // continue: clean stop to @complete. advance: the loop re-entry edge back to
     // the head. close: the exhausted exit to the non-complete @stop terminal — a
     // NORMAL route (not a recovery route) so an exhausted clean pass does not trip
@@ -147,6 +176,9 @@ export const fixUntilGreenAssemblySpec: FlowSchematicAssemblySpec = {
   contract_aliases: [
     { generic: 'plan.strategy@v1', actual: 'fix-until-green.plan@v1' },
     { generic: 'verification.result@v1', actual: 'fix-until-green.verification@v1' },
+    // The judge-step overrides the review block's generic output with the strict
+    // judgment contract; the alias makes that override block-compatible.
+    { generic: 'review.verdict@v1', actual: 'converge.judgment@v1' },
   ],
   axes: {
     allowed_depths: ['medium'],
@@ -162,7 +194,7 @@ export const fixUntilGreenAssemblySpec: FlowSchematicAssemblySpec = {
       reenter_route: 'advance',
       max_iterations: 3,
       stop_judge: {
-        report: JUDGE_RESULT_PATH,
+        report: JUDGE_REPORT_PATH,
         goal_met_path: 'goal_met',
         lesson_path: 'lesson',
       },

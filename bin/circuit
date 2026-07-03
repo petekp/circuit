@@ -3,6 +3,11 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { assertNodeVersion } from './node-version-guard.js';
+
+// Fail with a legible message before loading any modern code when the running
+// Node is below the supported floor (package.json engines). No-op otherwise.
+assertNodeVersion();
 
 const binDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(binDir, '..');

@@ -77,7 +77,7 @@ import {
   seedSkillHookInjectionsFromTrace,
 } from './trace-evidence.js';
 import { evaluateUntilBudget } from './until-budget.js';
-import { UntilCorridor } from './until-corridor.js';
+import { UntilCorridor, type UntilDisposition } from './until-corridor.js';
 
 export interface GraphRunnerOptions extends RuntimeExecutionCapabilities {
   readonly runDir: string;
@@ -1257,6 +1257,48 @@ async function executeExecutableFlowOutcomeUnsafe(
       const reason = isProofPlanBlockedError(error)
         ? message
         : `step '${step.id}' handler threw: ${message}`;
+
+      // Until loop, thrown body-step failure. The slice-3 abort-intercept above
+      // only catches RE-ENTRY exhaustion (max_attempts on an already completed
+      // step); a body step whose handler THROWS — the judge's own verdict check
+      // failing is the live case (relay.ts throws when no recovery route is
+      // bound for a failed_check) — lands here instead, and without this seam
+      // the whole run aborts on iteration 1 of N. Same honest policy as the
+      // slice-3 intercept: latch the unresolved overclaim (the floor blocks a
+      // clean stop while it is open), contain the iteration's partial work, and
+      // either re-enter a fresh iteration (the loop's retry budget is
+      // maxIterations) or, at the cap, exit `stopped` — never complete, and
+      // never an opaque mid-loop abort. The executor already traced the failed
+      // check before throwing, so the failure stays legible per-iteration.
+      if (
+        untilCorridor.isActive() &&
+        untilFlag?.stopJudge !== undefined &&
+        untilCorridor.isLoopBodyStep(step.id)
+      ) {
+        context.honestyLedger?.latchOverclaim({
+          stepId: step.id,
+          iterationIndex: stepIterationIndex,
+          reason,
+        });
+        await containIteration(stepIterationIndex, 'body step failed');
+        if (untilCorridor.canReenter()) {
+          corridor.clearIfExitingOrigin({ stepId: step.id, routeHasRecoveryMechanics: false });
+          untilCorridor.advance();
+          currentStepId = untilFlag.headStep;
+          incomingRouteTaken = untilFlag.reenterRoute;
+          continue;
+        }
+        const exhaustedReason = `until loop exhausted with an unresolved overclaim on '${step.id}': ${reason}`;
+        await trace.append({
+          run_id: runId,
+          kind: 'step.aborted',
+          step_id: step.id,
+          attempt,
+          reason: exhaustedReason,
+        });
+        return await closeRun(context, 'stopped', undefined, exhaustedReason);
+      }
+
       await trace.append({
         run_id: runId,
         kind: 'step.aborted',
@@ -1441,6 +1483,70 @@ async function executeExecutableFlowOutcomeUnsafe(
       // via the abort-intercept never reach here; they are contained at the
       // intercept instead (see the slice-3 block above).
       await containIteration(stepIterationIndex, `route ${route}`);
+    }
+
+    // The honest one-pass floor. Below the loop's activation depth the corridor
+    // is inert (the body runs once, never re-enters) — but a stop-judge tail
+    // still proposed a goal_met, and letting that proposal ride the forward
+    // route to @complete undisposed is exactly the laundering the corridor
+    // exists to prevent (the live surface test caught a bare rubber-stamp
+    // closing @complete at medium depth this way; see
+    // docs/release/proofs/live-runs/LEDGER.md, F13). So the disposition still
+    // runs, once, with the loop's own moves removed: a met claim the evidence
+    // floor confirms keeps the tail's forward route (the clean one-pass exit);
+    // anything else — goal not proposed, or proposed but unconfirmed — exits via
+    // the declared needs-attention route. There is no 'reenter' below the
+    // floor: one pass is the whole budget. The same run.until-judgment entry is
+    // stamped (iteration 0), so a one-pass judgment is as legible in the trace
+    // as a looped one. Byte-identical for every flow without a stop-judge.
+    if (
+      !untilCorridor.isActive() &&
+      untilFlag?.stopJudge !== undefined &&
+      step.id === untilFlag.tailStep
+    ) {
+      // Same frozen-eval guard as the active seam: a one-pass body that edited a
+      // declared read-only eval path must not complete on evidence it tampered
+      // with. Inert (no fs reads) unless the flow declared frozenPaths and a
+      // project root was threaded.
+      if (frozenEvalGuard !== undefined) {
+        const changed = frozenEvalGuard.changedFrozenPaths();
+        if (changed.length > 0) {
+          context.honestyLedger?.latchOverclaim({
+            stepId: 'frozen-eval-guard',
+            iterationIndex: stepIterationIndex,
+            reason: `eval surface modified during iteration ${stepIterationIndex}: ${changed.join(', ')}`,
+          });
+        }
+      }
+      const judgment = await readUntilJudgeReport(context, untilFlag.stopJudge);
+      const evidenceConfirms =
+        judgment.goalProposed && (options.untilEvidenceFloor ?? defaultUntilEvidenceFloor)(context);
+      const disposition: UntilDisposition = evidenceConfirms ? 'stop-clean' : 'needs-attention';
+      await trace.append({
+        run_id: runId,
+        kind: 'run.until-judgment',
+        step_id: step.id,
+        iteration: stepIterationIndex,
+        goal_proposed: judgment.goalProposed,
+        evidence_confirmed: evidenceConfirms,
+        disposition,
+        no_progress_count: 0,
+        open_latch_count: context.honestyLedger?.openLatches().length ?? 0,
+        ...(judgment.lesson === undefined ? {} : { lesson: judgment.lesson }),
+      });
+      if (disposition === 'needs-attention') {
+        // assertUntilFlagCoherent guarantees a tail-declared needsAttentionRoute
+        // whenever stopJudge is set, so this is defined. Fail loud rather than
+        // silently fall through to the clean-stop forward route (a false-done).
+        const attentionRoute = untilFlag.needsAttentionRoute;
+        if (attentionRoute === undefined) {
+          throw new Error(
+            `until loop on flow '${flow.id}' reached needs-attention with no needsAttentionRoute`,
+          );
+        }
+        route = attentionRoute;
+      }
+      // 'stop-clean' leaves the tail's forward route intact (the clean exit).
     }
 
     const routeDeclaration = classifyRouteDeclarationTransition({

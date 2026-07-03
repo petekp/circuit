@@ -227,9 +227,19 @@ export function parseExecutionArgs(command: 'run' | 'resume', argv: readonly str
     if (command !== 'resume') {
       throw new Error('checkpoint resume must use the `resume` subcommand');
     }
-    if (runFolder === undefined) throw new Error('--run-folder is required for checkpoint resume');
+    // Collect every missing required flag so the operator can supply them all at
+    // once. Throwing on the first missing flag forced a supply-one, rerun,
+    // supply-the-next loop; both flags are listed together on the run's inbox
+    // entry, so name both together here too.
+    const missingResumeFlags: string[] = [];
+    if (runFolder === undefined) missingResumeFlags.push('--run-folder');
     if (checkpointChoice === undefined || checkpointChoice.length === 0) {
-      throw new Error('--checkpoint-choice is required for checkpoint resume');
+      missingResumeFlags.push('--checkpoint-choice');
+    }
+    if (missingResumeFlags.length > 0) {
+      throw new Error(
+        `checkpoint resume requires ${missingResumeFlags.join(' and ')}. Run \`circuit inbox\` to see the run folder and its checkpoint choices.`,
+      );
     }
     if (flowName !== undefined) {
       throw new Error('checkpoint resume loads the saved flow manifest; omit flow-name');
