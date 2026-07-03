@@ -47,13 +47,24 @@ fails on:
 - a scenario referenced by a public claim or readiness ID whose status is
   not `verified_current`
 - a relay stub whose body no longer satisfies its flow's current report
-  schema (the stub-freshness guard). When a flow tightens a report schema,
-  its capture stub can silently drift and the next full capture aborts
-  mid-run. The guard runs every scenario through the real runtime without
-  writing proofs and fails loudly, naming the stale stub and schema, so the
-  drift surfaces at check time. Run it directly with
-  `npm run check-proof-stubs:nobuild` (after a build); fix by updating the
-  relay stub body, then recapture.
+  schema, **or** a committed proof that has drifted from current behavior
+  (the stub-freshness and recency guard). It runs every scenario through the
+  real runtime without writing proofs, and fails loudly on either class:
+  - **stale stub** — the run aborts on a report-schema mismatch. When a flow
+    tightens a report schema, its capture stub can silently drift and the next
+    full capture aborts mid-run. The guard names the stale stub and schema.
+  - **stale proof** — a clean run's terminal outcome or top-level report-file
+    set no longer matches the committed proof. Behavior moved but the golden
+    run was never refreshed. The guard names the scenario, the drifted field,
+    and both values.
+
+  It compares semantic fields only — the outcome and the set of report file
+  names, never bytes or timestamps — so the known noise classes below do not
+  make it flaky. Run it directly with `npm run check-proof-stubs:nobuild`
+  (after a build); fix a stale stub by updating the relay stub body, fix a
+  stale proof by recapturing
+  (`npm run capture-proofs:golden-runs -- --scenario <slug>`), then review the
+  diff.
 
 There is no automated gate on stray files inside `runs/`; capture should
 write only declared paths, and leftovers are caught by reviewing

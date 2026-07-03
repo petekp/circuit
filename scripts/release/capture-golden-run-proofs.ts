@@ -3,6 +3,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -19,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import type * as CliCircuitModule from '../../src/cli/circuit.js';
 import type * as CheckpointExecutorModule from '../../src/runtime/executors/checkpoint.js';
 import type * as ComposeModule from '../../src/runtime/executors/compose.js';
+import { compareProofRecency } from './proof-recency.ts';
 
 type CliMain = (typeof CliCircuitModule)['main'];
 type CliMainOptions = Parameters<CliMain>[1];
@@ -1200,13 +1202,40 @@ function reasonIsSchemaFailure(reason: unknown): reason is string {
   );
 }
 
-// Run a scenario through the real runtime WITHOUT persisting any golden proof,
-// purely to assert its relay stubs still satisfy the current report schemas.
-// Uses the same fixture path the scenario's relayer was bound to (so the
-// changed-files-on-disk acceptance criterion sees the stub's writes) but a
-// throwaway run folder, and never touches the committed proof tree. Returns a
-// failure message when the run aborts on a report-schema parse error, else null.
-async function validateScenarioStubFreshness(scenario: Scenario): Promise<string | null> {
+// Read the committed proof's semantic recency signals for a scenario: the
+// top-level result.json outcome and the set of top-level report file names the
+// committed run wrote. The top-level result.json envelope carries a wider
+// outcome vocabulary than the RunResult enum (it includes checkpoint_waiting and
+// ok), so this reads `.outcome` as a plain string rather than parsing it against
+// the narrower schema. Missing pieces come back as undefined / empty so the
+// comparison can name them instead of throwing.
+function readCommittedProofRecency(slug: string): {
+  outcome: string | undefined;
+  reportNames: string[];
+} {
+  const proofDir = resolve(projectRoot, `${proofRunsRootRel}/${slug}`);
+  const resultPath = join(proofDir, 'result.json');
+  let outcome: string | undefined;
+  if (existsSync(resultPath)) {
+    const parsed = JSON.parse(readFileSync(resultPath, 'utf8')) as { outcome?: unknown };
+    outcome = typeof parsed.outcome === 'string' ? parsed.outcome : undefined;
+  }
+  const reportsDir = join(proofDir, 'run', 'reports');
+  const reportNames = existsSync(reportsDir) ? readdirSync(reportsDir) : [];
+  return { outcome, reportNames };
+}
+
+// Run a scenario through the real runtime WITHOUT persisting any golden proof.
+// Two checks, one pass: (1) the run must not abort on a report-schema mismatch
+// (the stub-freshness class — a relay stub that no longer satisfies its flow's
+// current report schema); (2) a clean run must still match the committed proof's
+// terminal outcome and top-level report-name set (the recency/drift class —
+// behavior moved but the committed proof was never refreshed). Uses the same
+// fixture path the scenario's relayer was bound to (so the changed-files-on-disk
+// acceptance criterion sees the stub's writes) but a throwaway run folder, and
+// never touches the committed proof tree. Returns one message per problem found
+// (an empty array means the scenario is fresh and in sync).
+async function validateScenarioStubFreshness(scenario: Scenario): Promise<string[]> {
   const scenarioProjectRoot =
     scenario.prepareProject === undefined ? projectRoot : scenarioProjectPath(scenario.slug);
   const tmpRunRoot = mkdtempSync(join(tmpdir(), `circuit-stub-${scenario.slug}-`));
@@ -1246,14 +1275,31 @@ async function validateScenarioStubFreshness(scenario: Scenario): Promise<string
     try {
       result = JSON.parse(finalStdout) as { outcome?: unknown; reason?: unknown };
     } catch (err) {
-      return `scenario '${scenario.slug}' produced unparseable CLI output: ${
-        err instanceof Error ? err.message : String(err)
-      }`;
+      return [
+        `scenario '${scenario.slug}' produced unparseable CLI output: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      ];
     }
     if (reasonIsSchemaFailure(result.reason)) {
-      return `scenario '${scenario.slug}' aborted on a report-schema failure — a relay stub no longer satisfies its flow's current report schema:\n    ${result.reason}`;
+      return [
+        `scenario '${scenario.slug}' aborted on a report-schema failure — a relay stub no longer satisfies its flow's current report schema:\n    ${result.reason}`,
+      ];
     }
-    return null;
+    // The run is clean. Compare its semantic recency signals against the
+    // committed proof so a silently drifted outcome or report set fails here
+    // rather than surviving until the next recapture. Read the fresh report set
+    // from the throwaway run folder before `finally` deletes it.
+    const freshReportsDir = join(runFolder, 'reports');
+    const freshReportNames = existsSync(freshReportsDir) ? readdirSync(freshReportsDir) : [];
+    const committed = readCommittedProofRecency(scenario.slug);
+    return compareProofRecency({
+      slug: scenario.slug,
+      freshOutcome: typeof result.outcome === 'string' ? result.outcome : undefined,
+      committedOutcome: committed.outcome,
+      freshReportNames,
+      committedReportNames: committed.reportNames,
+    });
   } finally {
     rmSync(tmpRunRoot, { recursive: true, force: true });
     if (scenario.prepareProject !== undefined) {
@@ -1265,21 +1311,25 @@ async function validateScenarioStubFreshness(scenario: Scenario): Promise<string
 async function validateStubFreshness(): Promise<void> {
   const failures: string[] = [];
   for (const scenario of scenarios) {
-    const failure = await validateScenarioStubFreshness(scenario);
-    if (failure === null) {
+    const scenarioFailures = await validateScenarioStubFreshness(scenario);
+    if (scenarioFailures.length === 0) {
       console.log(`stub-fresh ${scenario.slug}`);
     } else {
-      console.error(`error: ${failure}`);
-      failures.push(failure);
+      for (const failure of scenarioFailures) {
+        console.error(`error: ${failure}`);
+      }
+      failures.push(...scenarioFailures);
     }
   }
   if (failures.length > 0) {
     console.error(
-      `\n${failures.length} proof stub(s) are stale against their flow's report schema. Update the relay stub body in scripts/release/capture-golden-run-proofs.ts, then re-run \`npm run capture-proofs:golden-runs\` to refresh the golden proofs.`,
+      `\n${failures.length} proof scenario check(s) failed: a relay stub no longer satisfies its flow's report schema, or a committed proof drifted from current behavior (terminal outcome or report set). Fix the relay stub body in scripts/release/capture-golden-run-proofs.ts and/or re-run \`npm run capture-proofs:golden-runs\` to refresh the golden proofs, then review the diff per docs/release/proofs/README.md.`,
     );
     process.exit(1);
   }
-  console.log(`✓ all ${scenarios.length} proof-scenario relay stubs satisfy their report schemas`);
+  console.log(
+    `✓ all ${scenarios.length} proof scenarios are stub-fresh and match their committed proofs`,
+  );
 }
 
 function captureDoctor(): void {
