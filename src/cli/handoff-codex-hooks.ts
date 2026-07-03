@@ -3,6 +3,7 @@
 // src/cli/ because defaultLauncherPath resolves the source-tree fallback
 // launcher relative to its own module location (import.meta.url).
 
+import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -446,23 +447,73 @@ export function runHandoffHooksCommand(args: CodexHooksArgs): unknown {
 const CODEX_INSTALL_NUDGE_MARKER = '.codex-install-nudged';
 const CODEX_INSTALL_NUDGE_NOTICE =
   'Circuit restores this repo automatically on Claude, but on Codex it needs a one-time hook install before each new session can restore your continuity. Run: circuit handoff hooks install --host codex (this notice shows once per repo).';
+const CODEX_REINSTALL_NUDGE_MARKER = '.codex-reinstall-nudged';
+const CODEX_REINSTALL_NUDGE_NOTICE =
+  'The Codex continuity hook points at a launcher from an earlier Circuit version that no longer exists (this happens after an upgrade). Continuity restore is off until you re-run: circuit handoff hooks install --host codex (this notice shows once until fixed).';
 
 function codexInstallNudgeMarkerPath(controlPlane: string): string {
   return join(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
 }
 
-function isCodexHandoffHookInstalled(hooksPath: string): boolean {
-  if (!existsSync(hooksPath)) return false;
+// Key the reinstall marker to the stale launcher path so the signal fires once
+// per broken state and re-fires if a future upgrade dangles a different
+// launcher, rather than being suppressed forever after the first sighting.
+function codexReinstallNudgeMarkerPath(controlPlane: string, staleLauncher: string): string {
+  const digest = createHash('sha256').update(staleLauncher).digest('hex').slice(0, 12);
+  return join(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
+}
+
+type CodexHookInstallState =
+  | { readonly kind: 'absent' }
+  | { readonly kind: 'valid' }
+  | { readonly kind: 'stale'; readonly launcher: string };
+
+// Classify the Codex SessionStart hook for the front-door assurance:
+// - absent: no Circuit hook entry (never installed) -> prompt install.
+// - valid:  a Circuit hook entry whose launcher path resolves on disk.
+// - stale:  a Circuit hook entry whose launcher path does not resolve. This is
+//   the post-upgrade failure mode — the version-pinned launcher baked into
+//   ~/.codex/hooks.json points into a cache dir the upgrade deleted. The entry
+//   still matches, so a presence-only check reads it as installed; only
+//   resolving the launcher on disk catches it.
+function codexHookInstallState(hooksPath: string): CodexHookInstallState {
+  if (!existsSync(hooksPath)) return { kind: 'absent' };
   let config: Record<string, unknown>;
   try {
     config = readHooksConfig(hooksPath);
   } catch {
-    return false;
+    return { kind: 'absent' };
   }
+  let entries: unknown[];
   try {
-    return circuitHookEntryCount(sessionStartEntries(config)) > 0;
+    entries = sessionStartEntries(config);
   } catch {
-    return false;
+    return { kind: 'absent' };
+  }
+  const commands = circuitHookCommands(entries);
+  if (commands.length === 0) return { kind: 'absent' };
+  const launchers = commands
+    .map(launcherPathFromCircuitHookCommand)
+    .filter((launcher): launcher is string => launcher !== undefined);
+  if (launchers.length > 0 && launchers.every((launcher) => existsSync(launcher))) {
+    return { kind: 'valid' };
+  }
+  // A Circuit entry is present but its launcher does not resolve (a dangling
+  // path, or a command we could not parse a launcher from). Either way the hook
+  // cannot run and the fix is the same re-install.
+  const staleLauncher =
+    launchers.find((launcher) => !existsSync(launcher)) ?? '(unresolved launcher)';
+  return { kind: 'stale', launcher: staleLauncher };
+}
+
+function writeNudgeMarker(markerPath: string, now?: () => Date): void {
+  const stampedAt = (now ?? (() => new Date()))().toISOString();
+  try {
+    mkdirSync(dirname(markerPath), { recursive: true });
+    writeFileSync(markerPath, `nudged at ${stampedAt}\n`);
+  } catch {
+    // Best-effort: if we cannot persist the marker we still nudge once now,
+    // rather than suppressing the only signal a Codex user would ever get.
   }
 }
 
@@ -474,7 +525,12 @@ export interface CodexInstallAssuranceInput {
 }
 
 export interface CodexInstallAssuranceResult {
-  readonly status: 'ok' | 'nudge' | 'already_nudged';
+  readonly status:
+    | 'ok'
+    | 'nudge'
+    | 'already_nudged'
+    | 'reinstall_nudge'
+    | 'already_reinstall_nudged';
   readonly notice?: string;
   readonly marker_path: string;
 }
@@ -483,19 +539,32 @@ export function codexInstallAssurance(
   input: CodexInstallAssuranceInput,
 ): CodexInstallAssuranceResult {
   const controlPlane = input.controlPlane ?? controlPlaneRoot(input.projectRoot);
-  const markerPath = codexInstallNudgeMarkerPath(controlPlane);
   const hooksPath = input.hooksFile ?? defaultCodexHooksFile();
+  const state = codexHookInstallState(hooksPath);
 
-  if (isCodexHandoffHookInstalled(hooksPath)) return { status: 'ok', marker_path: markerPath };
-  if (existsSync(markerPath)) return { status: 'already_nudged', marker_path: markerPath };
-
-  const stampedAt = (input.now ?? (() => new Date()))().toISOString();
-  try {
-    mkdirSync(dirname(markerPath), { recursive: true });
-    writeFileSync(markerPath, `nudged at ${stampedAt}\n`);
-  } catch {
-    // Best-effort: if we cannot persist the marker we still nudge once now,
-    // rather than suppressing the only signal a Codex user would ever get.
+  if (state.kind === 'valid') {
+    return { status: 'ok', marker_path: codexInstallNudgeMarkerPath(controlPlane) };
   }
+
+  // A stale launcher is a distinct failure from never-installed: the user acted,
+  // an upgrade broke it, and doctor already flags it — but the front-door needs
+  // its own signal, on its own marker, so the one-time install nudge cannot
+  // swallow it.
+  if (state.kind === 'stale') {
+    const markerPath = codexReinstallNudgeMarkerPath(controlPlane, state.launcher);
+    if (existsSync(markerPath)) {
+      return { status: 'already_reinstall_nudged', marker_path: markerPath };
+    }
+    writeNudgeMarker(markerPath, input.now);
+    return {
+      status: 'reinstall_nudge',
+      notice: CODEX_REINSTALL_NUDGE_NOTICE,
+      marker_path: markerPath,
+    };
+  }
+
+  const markerPath = codexInstallNudgeMarkerPath(controlPlane);
+  if (existsSync(markerPath)) return { status: 'already_nudged', marker_path: markerPath };
+  writeNudgeMarker(markerPath, input.now);
   return { status: 'nudge', notice: CODEX_INSTALL_NUDGE_NOTICE, marker_path: markerPath };
 }

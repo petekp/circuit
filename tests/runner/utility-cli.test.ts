@@ -1430,9 +1430,14 @@ describe('utility CLI commands', () => {
     expect(second.notice).toBeUndefined();
   });
 
-  it('codexInstallAssurance stays silent when the Codex hook is already installed (A3)', () => {
+  it('codexInstallAssurance stays silent when the Codex hook is installed and its launcher resolves (A3)', () => {
     const projectRoot = tempRoot('circuit-codex-assure-ok-');
     const hooksFile = join(projectRoot, 'codex-hooks.json');
+    // "Installed" now means the hook entry exists AND its launcher resolves on
+    // disk, so the fixture writes a real launcher rather than a bare word.
+    const launcher = join(projectRoot, 'bin/circuit');
+    mkdirSync(join(projectRoot, 'bin'), { recursive: true });
+    writeFileSync(launcher, '#!/usr/bin/env node\n');
     writeFileSync(
       hooksFile,
       JSON.stringify({
@@ -1443,7 +1448,7 @@ describe('utility CLI commands', () => {
               hooks: [
                 {
                   type: 'command',
-                  command: 'CIRCUIT_HANDOFF_HOOK=1 node launcher handoff hook --host codex',
+                  command: `CIRCUIT_HANDOFF_HOOK=1 ${process.execPath} ${launcher} handoff hook --host codex`,
                   timeout: 3,
                 },
               ],
@@ -1458,6 +1463,101 @@ describe('utility CLI commands', () => {
     expect(result.notice).toBeUndefined();
     // Nothing needed nudging, so no marker is written.
     expect(existsSync(result.marker_path)).toBe(false);
+  });
+
+  // Regression for the T3.4 gap: after a Circuit upgrade the version-pinned
+  // launcher path baked into ~/.codex/hooks.json dangles — the old version
+  // cache dir is deleted, so the absolute launcher path no longer resolves. The
+  // hook ENTRY still matches, so the old presence-only front-door check read it
+  // as installed and stayed silent, and a Codex user silently lost continuity
+  // restore with no signal. A stale launcher must now surface a reinstall
+  // notice, once per broken state.
+  it('codexInstallAssurance flags a stale launcher for reinstall, once per broken state (T3.4)', () => {
+    const projectRoot = tempRoot('circuit-codex-assure-stale-');
+    const hooksFile = join(projectRoot, 'codex-hooks.json');
+    // A version-pinned launcher path that does NOT exist on disk — the
+    // post-upgrade dangling path. We deliberately never create this file.
+    const staleLauncher = join(projectRoot, 'cache/circuit/0.1.0-old/scripts/circuit.js');
+    writeFileSync(
+      hooksFile,
+      JSON.stringify({
+        hooks: {
+          SessionStart: [
+            {
+              matcher: 'startup|resume|clear',
+              hooks: [
+                {
+                  type: 'command',
+                  command: `CIRCUIT_HANDOFF_HOOK=1 ${process.execPath} ${staleLauncher} handoff hook --host codex`,
+                  timeout: 3,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    const first = codexInstallAssurance({
+      projectRoot,
+      hooksFile,
+      now: () => new Date('2026-07-03T12:00:00.000Z'),
+    });
+    expect(first.status).toBe('reinstall_nudge');
+    expect(first.notice).toContain('install --host codex');
+    // The reinstall notice explains the cause so the user knows why it broke.
+    expect(first.notice).toContain('upgrade');
+    expect(existsSync(first.marker_path)).toBe(true);
+
+    // Once per broken state: a second check in the same broken state is silent.
+    const second = codexInstallAssurance({ projectRoot, hooksFile });
+    expect(second.status).toBe('already_reinstall_nudged');
+    expect(second.notice).toBeUndefined();
+  });
+
+  // The reinstall signal must not be swallowed by the one-time install nudge: a
+  // repo can be nudged to install, the user installs, then a later upgrade
+  // dangles the launcher. "Stale" is a distinct state from "never installed"
+  // and earns its own signal even after the install nudge already fired.
+  it('codexInstallAssurance still nudges on a stale launcher after the install nudge already fired (T3.4)', () => {
+    const projectRoot = tempRoot('circuit-codex-assure-stale-after-install-');
+    const hooksFile = join(projectRoot, 'codex-hooks.json');
+
+    // 1) No hook yet → the one-time install nudge fires and writes its marker.
+    const installNudge = codexInstallAssurance({
+      projectRoot,
+      hooksFile,
+      now: () => new Date('2026-07-03T12:00:00.000Z'),
+    });
+    expect(installNudge.status).toBe('nudge');
+
+    // 2) The user installs, then upgrades: the hook entry exists but its
+    //    launcher path dangles.
+    const staleLauncher = join(projectRoot, 'cache/circuit/0.1.0-old/scripts/circuit.js');
+    writeFileSync(
+      hooksFile,
+      JSON.stringify({
+        hooks: {
+          SessionStart: [
+            {
+              matcher: 'startup|resume|clear',
+              hooks: [
+                {
+                  type: 'command',
+                  command: `CIRCUIT_HANDOFF_HOOK=1 ${process.execPath} ${staleLauncher} handoff hook --host codex`,
+                  timeout: 3,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    // 3) The stale state gets its own signal despite the earlier install nudge.
+    const staleNudge = codexInstallAssurance({ projectRoot, hooksFile });
+    expect(staleNudge.status).toBe('reinstall_nudge');
+    expect(staleNudge.notice).toContain('install --host codex');
   });
 
   it('can bind handoff continuity to a runtime waiting run and write active-run output', async () => {

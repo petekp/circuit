@@ -52916,6 +52916,7 @@ function realBriefGitProbe(input) {
 }
 
 // dist/cli/handoff-codex-hooks.js
+import { createHash as createHash5 } from "node:crypto";
 import { copyFileSync, existsSync as existsSync17, mkdirSync as mkdirSync4, readFileSync as readFileSync35, writeFileSync as writeFileSync5 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { dirname as dirname5, join as join13, resolve as resolve13 } from "node:path";
@@ -53260,39 +53261,72 @@ function runHandoffHooksCommand(args) {
 }
 var CODEX_INSTALL_NUDGE_MARKER = ".codex-install-nudged";
 var CODEX_INSTALL_NUDGE_NOTICE = "Circuit restores this repo automatically on Claude, but on Codex it needs a one-time hook install before each new session can restore your continuity. Run: circuit handoff hooks install --host codex (this notice shows once per repo).";
+var CODEX_REINSTALL_NUDGE_MARKER = ".codex-reinstall-nudged";
+var CODEX_REINSTALL_NUDGE_NOTICE = "The Codex continuity hook points at a launcher from an earlier Circuit version that no longer exists (this happens after an upgrade). Continuity restore is off until you re-run: circuit handoff hooks install --host codex (this notice shows once until fixed).";
 function codexInstallNudgeMarkerPath(controlPlane) {
   return join13(continuityRoot(controlPlane), CODEX_INSTALL_NUDGE_MARKER);
 }
-function isCodexHandoffHookInstalled(hooksPath) {
+function codexReinstallNudgeMarkerPath(controlPlane, staleLauncher) {
+  const digest = createHash5("sha256").update(staleLauncher).digest("hex").slice(0, 12);
+  return join13(continuityRoot(controlPlane), `${CODEX_REINSTALL_NUDGE_MARKER}-${digest}`);
+}
+function codexHookInstallState(hooksPath) {
   if (!existsSync17(hooksPath))
-    return false;
+    return { kind: "absent" };
   let config2;
   try {
     config2 = readHooksConfig(hooksPath);
   } catch {
-    return false;
+    return { kind: "absent" };
   }
+  let entries;
   try {
-    return circuitHookEntryCount(sessionStartEntries(config2)) > 0;
+    entries = sessionStartEntries(config2);
   } catch {
-    return false;
+    return { kind: "absent" };
   }
+  const commands = circuitHookCommands(entries);
+  if (commands.length === 0)
+    return { kind: "absent" };
+  const launchers = commands.map(launcherPathFromCircuitHookCommand).filter((launcher) => launcher !== void 0);
+  if (launchers.length > 0 && launchers.every((launcher) => existsSync17(launcher))) {
+    return { kind: "valid" };
+  }
+  const staleLauncher = launchers.find((launcher) => !existsSync17(launcher)) ?? "(unresolved launcher)";
+  return { kind: "stale", launcher: staleLauncher };
 }
-function codexInstallAssurance(input) {
-  const controlPlane = input.controlPlane ?? controlPlaneRoot(input.projectRoot);
-  const markerPath = codexInstallNudgeMarkerPath(controlPlane);
-  const hooksPath = input.hooksFile ?? defaultCodexHooksFile();
-  if (isCodexHandoffHookInstalled(hooksPath))
-    return { status: "ok", marker_path: markerPath };
-  if (existsSync17(markerPath))
-    return { status: "already_nudged", marker_path: markerPath };
-  const stampedAt = (input.now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
+function writeNudgeMarker(markerPath, now) {
+  const stampedAt = (now ?? (() => /* @__PURE__ */ new Date()))().toISOString();
   try {
     mkdirSync4(dirname5(markerPath), { recursive: true });
     writeFileSync5(markerPath, `nudged at ${stampedAt}
 `);
   } catch {
   }
+}
+function codexInstallAssurance(input) {
+  const controlPlane = input.controlPlane ?? controlPlaneRoot(input.projectRoot);
+  const hooksPath = input.hooksFile ?? defaultCodexHooksFile();
+  const state = codexHookInstallState(hooksPath);
+  if (state.kind === "valid") {
+    return { status: "ok", marker_path: codexInstallNudgeMarkerPath(controlPlane) };
+  }
+  if (state.kind === "stale") {
+    const markerPath2 = codexReinstallNudgeMarkerPath(controlPlane, state.launcher);
+    if (existsSync17(markerPath2)) {
+      return { status: "already_reinstall_nudged", marker_path: markerPath2 };
+    }
+    writeNudgeMarker(markerPath2, input.now);
+    return {
+      status: "reinstall_nudge",
+      notice: CODEX_REINSTALL_NUDGE_NOTICE,
+      marker_path: markerPath2
+    };
+  }
+  const markerPath = codexInstallNudgeMarkerPath(controlPlane);
+  if (existsSync17(markerPath))
+    return { status: "already_nudged", marker_path: markerPath };
+  writeNudgeMarker(markerPath, input.now);
   return { status: "nudge", notice: CODEX_INSTALL_NUDGE_NOTICE, marker_path: markerPath };
 }
 
@@ -58700,7 +58734,7 @@ function runInboxCommand(argv, options = {}) {
 }
 
 // dist/cli/memory.js
-import { createHash as createHash5 } from "node:crypto";
+import { createHash as createHash6 } from "node:crypto";
 import { existsSync as existsSync29, readFileSync as readFileSync45 } from "node:fs";
 import { basename as basename7, join as join22 } from "node:path";
 
@@ -58905,7 +58939,7 @@ function commanderErrorMessage2(err) {
   return err instanceof Error ? err.message : String(err);
 }
 function sha256Text(text) {
-  return createHash5("sha256").update(text, "utf8").digest("hex");
+  return createHash6("sha256").update(text, "utf8").digest("hex");
 }
 function parseMemoryArgs(argv) {
   let parsed;
@@ -67308,7 +67342,7 @@ async function appendCarriedNote(input) {
 }
 
 // dist/runtime/run/frozen-eval.js
-import { createHash as createHash6 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 import { readFileSync as readFileSync52 } from "node:fs";
 import { resolve as resolve24 } from "node:path";
 var ABSENT = "<absent>";
@@ -67326,7 +67360,7 @@ var FrozenEvalGuard = class {
   fingerprint(declaredPath) {
     try {
       const bytes = readFileSync52(resolve24(this.projectRoot, declaredPath));
-      return createHash6("sha256").update(bytes).digest("hex");
+      return createHash7("sha256").update(bytes).digest("hex");
     } catch {
       return ABSENT;
     }
