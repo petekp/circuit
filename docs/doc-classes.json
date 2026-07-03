@@ -7,6 +7,7 @@
     { "glob": "docs/plans/**", "class": "historical" },
     { "glob": "docs/pivot/**", "class": "historical" },
     { "glob": "docs/release/proofs/runs/**", "class": "evidence" },
+    { "glob": "docs/release/proofs/live-runs/**", "class": "evidence" },
     { "glob": "docs/release/proofs/README.md", "class": "living" },
     {
       "glob": "docs/generated-surfaces.md",

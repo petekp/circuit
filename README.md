@@ -103,6 +103,12 @@ The flow name is required: one of `build`, `fix`, `review`, `explore`,
 covers running from another directory with `--flow-root`.
 
 Circuit requires Node.js `22.18.0` or newer.
+
+One scope note: flows that change code (`build`, `fix`, `pursue`) verify
+their work through your project's `package.json` scripts (`verify`, `test`,
+or `check`), so today they need an npm-family project. `review`, `explore`,
+and `prototype` work in any repo.
+
 For a more careful manual check, use [`docs/first-run.md`](docs/first-run.md).
 For the repo map, use [`docs/repository-map.md`](docs/repository-map.md).
 

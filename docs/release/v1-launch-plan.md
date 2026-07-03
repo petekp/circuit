@@ -39,8 +39,8 @@ The launch surface, all on `main` today:
   pinning proven by the cross-tool-build flow (`src/flows/cross-tool-build/`),
   and a spawn-free readout of every selection decision via `circuit preview`
   (`src/cli/preview.ts`).
-- Condition-gated iteration: a flow can re-run a body until a goal condition
-  is proven met, with an honesty ledger that makes "succeeded" unreachable
+- Condition-gated iteration: a flow can re-run a body until its goal check
+  passes, with an honesty ledger that makes "succeeded" unreachable
   when evidence is missing (`iteratesUntilCondition` in `src/flows/types.ts`,
   proven by `src/flows/converge-proof/` and `src/flows/fix-until-green/`).
 - Flow generation as a local CLI: `circuit generate` produces a runnable flow
@@ -58,9 +58,9 @@ Work items between here and the announcement. Each is checkable.
 2. **Add the two missing claim entries to
    [docs/positioning.md](../positioning.md).** Done (2026-07-02): the
    registry now carries claim 3 (one dial allocates models by role, per
-   step) and claim 4 (a flow can loop until the goal is proven met), each
-   with code citations and an honest-nuance block. Messaging may now draw
-   on both.
+   step) and claim 4 (a flow can loop until its checks prove the work
+   done), each with code citations and an honest-nuance block. Messaging
+   may now draw on both.
 3. **Settle explainer visibility.** Done (2026-07-02): Pete confirmed
    explainer stays internal for now, and the catalog was flipped to match.
    It keeps running from a source checkout; it ships no host command until
