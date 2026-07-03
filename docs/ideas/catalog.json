@@ -1707,6 +1707,32 @@
       "tags": ["capacitor", "companion-app", "review", "evidence-layer", "boundary"],
       "current_reading": "Skeptical 2026-06-12 review of two Capacitor UX proposals (Circuit as the evidence/projection layer, Capacitor as the native control surface). Verdict: endorse with changes. The two headline corrections: Capacitor did not actually consume Circuit run folders (the duplicate-state risk was the present state, not a future one), and the proposed build order shipped attention projection before the evidence it needs. The reviewed proposal docs were never committed; this review is the surviving record of the analysis.",
       "last_checked": "2026-07-01"
+    },
+    {
+      "path": "docs/ideas/flow-ideas.md",
+      "title": "Flow ideas: stack-ranked backlog",
+      "status": "current-strategy-context",
+      "category": "flows-and-blocks",
+      "tags": [
+        "backlog",
+        "prioritization",
+        "post-v1",
+        "decompose",
+        "merge-gate",
+        "promote",
+        "dispatch"
+      ],
+      "current_reading": "The one ranked list of candidate post-v1 flows, scored on impact and virality. Seeded 2026-07-02 from the software-factory pattern analysis (Decompose, Merge Gate, Dispatch are net-new candidates) plus the flow ideas already parked in this directory (Promote, Steer, Improve, Spec, Align). Also records which parts of the factory pattern are already shipped Circuit behavior or deliberately rejected, and the settled 2026-07-02 stance that outward comms (Slack, tracker writes) are boundary deliveries from typed artifacts in the host session, never step equipment inside a relay. Prioritization context only; the v1 launch freeze applies and nothing in it is being built.",
+      "related": [
+        "docs/ideas/align-flow.md",
+        "docs/ideas/improve-flow.md",
+        "docs/ideas/spec-driven-flow-opportunities.md",
+        "docs/ideas/adversarial-verification-gates.md",
+        "docs/ideas/sandboxed-parallel-pursuits.md",
+        "docs/ideas/portable-run-captures.md",
+        "docs/ideas/tracker-connector.md"
+      ],
+      "last_checked": "2026-07-02"
     }
   ]
 }
