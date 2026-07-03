@@ -44950,7 +44950,8 @@ var pursueFlowData = {
   visibility: "public",
   paths: {
     schematic: "src/flows/pursue/schematic.json",
-    command: "src/flows/pursue/command.md"
+    command: "src/flows/pursue/command.md",
+    contract: "src/flows/pursue/contract.md"
   },
   // First-class composition (M9): pursue is the assembler's second production
   // customer (after build) and the first with a PARTIAL stage path — it omits
@@ -74813,6 +74814,7 @@ function usage() {
     '       circuit memory note --flow <id> [--applies-to <kind>] "<text>" | memory list | memory forget <id>',
     "       circuit handoff [save|resume|done|brief|hook|hooks|harvest] [options]",
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
+    '       circuit generate --description "<task to encode>" [--name <slug>] [--publish --yes]',
     "       circuit uninstall [--dir <path>] [--json]",
     "       circuit reclaim [--json]",
     "       circuit preview <flow-name> [--power <auto|low|medium|high>] [--matrix] [--json]",

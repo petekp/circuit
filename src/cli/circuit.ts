@@ -57,6 +57,7 @@ export function usage(): string {
     '       circuit memory note --flow <id> [--applies-to <kind>] "<text>" | memory list | memory forget <id>',
     '       circuit handoff [save|resume|done|brief|hook|hooks|harvest] [options]',
     '       circuit create --description "<flow idea>" [--name <slug>] [--publish --yes]',
+    '       circuit generate --description "<task to encode>" [--name <slug>] [--publish --yes]',
     '       circuit uninstall [--dir <path>] [--json]',
     '       circuit reclaim [--json]',
     '       circuit preview <flow-name> [--power <auto|low|medium|high>] [--matrix] [--json]',
