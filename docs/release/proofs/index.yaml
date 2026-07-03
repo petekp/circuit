@@ -155,6 +155,29 @@ scenarios:
       - docs/release/proofs/runs/pursue/run/reports/relay/pursuit-review.receipt.txt
     exception_ids: []
     readiness_refs: [REL-011]
+  - id: proof:explore-standard
+    title: Explore Standard Recommendation
+    category: deciding
+    command: './bin/circuit run explore --goal "recommend a frontend framework for the new analytics dashboard" --run-folder docs/release/proofs/runs/explore-standard/run --progress jsonl'
+    expected_flow: explore
+    expected_outcome: complete
+    summary_contract: Summary states the subject, recommendation, success-condition alignment, supporting evidence, and the review verdict.
+    redaction_policy: Uses non-sensitive architecture fixture text.
+    required_files:
+      - docs/release/proofs/runs/explore-standard/progress.jsonl
+      - docs/release/proofs/runs/explore-standard/operator-summary.md
+      - docs/release/proofs/runs/explore-standard/result.json
+    status: verified_current
+    backing_paths:
+      - docs/release/proofs/runs/explore-standard/run/reports/brief.json
+      - docs/release/proofs/runs/explore-standard/run/reports/analysis.json
+      - docs/release/proofs/runs/explore-standard/run/reports/compose.json
+      - docs/release/proofs/runs/explore-standard/run/reports/review-verdict.json
+      - docs/release/proofs/runs/explore-standard/run/reports/explore-result.json
+      - docs/release/proofs/runs/explore-standard/run/reports/relay/synthesize.receipt.txt
+      - docs/release/proofs/runs/explore-standard/run/reports/relay/review.receipt.txt
+    exception_ids: []
+    readiness_refs: [REL-004, REL-011, REL-023]
   - id: proof:explore-decision
     title: Explore Decision Or Tournament
     category: deciding

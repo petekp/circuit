@@ -664,6 +664,10 @@ describe('release truth infrastructure', () => {
         ],
       ],
       [
+        'proof:explore-standard',
+        ['run explore', '"recommend a frontend framework for the new analytics dashboard"'],
+      ],
+      [
         'proof:explore-decision',
         [
           'run explore',
@@ -717,6 +721,10 @@ describe('release truth infrastructure', () => {
       ['proof:abort-failure', { slug: 'abort', flow: 'build', outcome: 'aborted' }],
       ['proof:fix', { slug: 'fix', flow: 'fix', outcome: 'complete' }],
       ['proof:pursue', { slug: 'pursue', flow: 'pursue', outcome: 'complete' }],
+      [
+        'proof:explore-standard',
+        { slug: 'explore-standard', flow: 'explore', outcome: 'complete' },
+      ],
       [
         'proof:explore-decision',
         { slug: 'explore-decision', flow: 'explore', outcome: 'complete' },

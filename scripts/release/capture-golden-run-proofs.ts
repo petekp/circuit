@@ -836,6 +836,68 @@ function exploreAutonomousDecisionRelayer(): Relayer {
   };
 }
 
+// Standard (non-tournament) Explore path: analyze routes to synthesize (not the
+// decision tournament), synthesize's compose is reviewed once, and an accepting
+// review routes straight to close. Two relay steps: synthesize (implementer,
+// explore.compose@v1) and review (reviewer, explore.review-verdict@v1). An
+// 'accept' review with no objections or missed angles means the default result
+// needs no fold-ins.
+function exploreStandardRelayer(): Relayer {
+  return {
+    connectorName: 'claude-code',
+    relay: async (input: RelayInput): Promise<RelayOutcome> => {
+      if (input.prompt.includes('Step: synthesize-step')) {
+        return {
+          request_payload: input.prompt,
+          receipt_id: 'proof-explore-synthesize',
+          result_body: JSON.stringify({
+            verdict: 'accept',
+            subject: 'Frontend framework for the new analytics dashboard',
+            recommendation:
+              'Adopt React for the analytics dashboard; its ecosystem depth and the team’s existing familiarity outweigh Vue’s smaller surface for this work.',
+            success_condition_alignment:
+              'A framework the team can staff and extend maps directly to the brief’s success condition of shipping and maintaining the dashboard.',
+            supporting_aspects: [
+              {
+                aspect: 'Ecosystem and hiring',
+                contribution:
+                  'React has the deeper component ecosystem and the larger hiring pool, which lowers staffing and integration risk.',
+                evidence_refs: ['reports/analysis.json'],
+              },
+              {
+                aspect: 'Team familiarity',
+                contribution:
+                  'The team already ships React elsewhere, so onboarding cost for this dashboard is close to zero.',
+                evidence_refs: ['reports/analysis.json'],
+              },
+            ],
+          }),
+          duration_ms: 10,
+          cli_version: 'proof-stub',
+        };
+      }
+      if (input.prompt.includes('Step: review-step')) {
+        return {
+          request_payload: input.prompt,
+          receipt_id: 'proof-explore-review',
+          result_body: JSON.stringify({
+            verdict: 'accept',
+            overall_assessment:
+              'The recommendation follows from the analysis and states its tradeoffs honestly; no blocking objections.',
+            objections: [],
+            missed_angles: [],
+          }),
+          duration_ms: 11,
+          cli_version: 'proof-stub',
+        };
+      }
+      throw new Error(
+        `unexpected standard Explore proof relay prompt:\n${input.prompt.slice(0, 500)}`,
+      );
+    },
+  };
+}
+
 function readPromptJson(prompt: string, relPath: string): Record<string, unknown> {
   const marker = `<read path="${relPath}">`;
   const start = prompt.indexOf(marker);
@@ -1454,6 +1516,18 @@ const scenarios: Scenario[] = [
     prepareProject: preparePursueProofProject,
     runId: '44444444-4444-4444-4444-444444444412',
     startMs: Date.UTC(2026, 3, 29, 21, 0, 0),
+  },
+  {
+    slug: 'explore-standard',
+    argv: [
+      'run',
+      'explore',
+      '--goal',
+      'recommend a frontend framework for the new analytics dashboard',
+    ],
+    relayer: exploreStandardRelayer(),
+    runId: '44444444-4444-4444-4444-444444444440',
+    startMs: Date.UTC(2026, 3, 29, 16, 30, 0),
   },
   {
     slug: 'explore-decision',

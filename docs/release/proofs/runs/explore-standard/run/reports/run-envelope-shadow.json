@@ -1,0 +1,40 @@
+{
+  "schema": "run.envelope-shadow@v0",
+  "mode": "shadow",
+  "shadow_reason": "source-owned-run-not-active",
+  "run_id": "44444444-4444-4444-4444-444444444440",
+  "operator_intent": "recommend a frontend framework for the new analytics dashboard",
+  "recorded_at": "2026-04-29T16:30:32.000Z",
+  "selected_process": {
+    "process_id": "explore",
+    "routed_by": "explicit",
+    "router_reason": "explicit flow positional argument"
+  },
+  "child_run": {
+    "run_id": "44444444-4444-4444-4444-444444444440",
+    "run_folder": "<repo>/docs/release/proofs/runs/explore-standard/run",
+    "flow_id": "explore",
+    "outcome": "complete",
+    "trace_entries_observed": 30,
+    "manifest_hash": "b78863d58ed84a5640bd6e68450d6d0cde80c55c9350a87fd6a1d0399cf8fe98",
+    "result_ref": {
+      "source": "child_result",
+      "ref": {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "e0f113df591180c03a1c094865ee24e33bd36cd4dbd34858c7e89aa5be0ef75f",
+        "run_id": "44444444-4444-4444-4444-444444444440",
+        "flow_id": "explore"
+      }
+    }
+  },
+  "artifact_links": [
+    {
+      "kind": "report",
+      "ref": "reports/result.json",
+      "sha256": "e0f113df591180c03a1c094865ee24e33bd36cd4dbd34858c7e89aa5be0ef75f",
+      "run_id": "44444444-4444-4444-4444-444444444440",
+      "flow_id": "explore"
+    }
+  ]
+}

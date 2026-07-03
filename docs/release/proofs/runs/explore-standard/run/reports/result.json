@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "run_id": "44444444-4444-4444-4444-444444444440",
+  "flow_id": "explore",
+  "goal": "recommend a frontend framework for the new analytics dashboard",
+  "outcome": "complete",
+  "summary": "Run closed with outcome complete via @complete.",
+  "closed_at": "2026-04-29T16:30:31.000Z",
+  "trace_entries_observed": 30,
+  "manifest_hash": "b78863d58ed84a5640bd6e68450d6d0cde80c55c9350a87fd6a1d0399cf8fe98",
+  "verdict": "accept"
+}

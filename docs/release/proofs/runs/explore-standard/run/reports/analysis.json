@@ -1,0 +1,35 @@
+{
+  "subject": "recommend a frontend framework for the new analytics dashboard",
+  "aspects": [
+    {
+      "name": "task-framing",
+      "summary": "Frame the concrete question, decision shape, and useful answer boundary for: recommend a frontend framework for the new analytics dashboard",
+      "evidence": [
+        {
+          "source": "reports/brief.json",
+          "summary": "Answer the Explore goal with evidence-backed findings: recommend a frontend framework for the new analytics dashboard Name the evidence inspected or still needed, separate confirmed facts from assumptions, and identify the proof that would make the recommendation trustworthy."
+        }
+      ]
+    },
+    {
+      "name": "evidence-targets",
+      "summary": "Identify the repo files, reports, commands, or run evidence that would prove the answer, and call out any evidence still missing.",
+      "evidence": [
+        {
+          "source": "reports/brief.json",
+          "summary": "Evidence target: cite inspected files, reports, commands, or run evidence before treating claims as confirmed."
+        }
+      ]
+    },
+    {
+      "name": "risk-and-constraints",
+      "summary": "Separate confirmed facts from assumptions, then name likely risk areas, constraints, and follow-up proof needed before execution.",
+      "evidence": [
+        {
+          "source": "reports/brief.json",
+          "summary": "Constraint target: preserve uncertainty when direct proof is unavailable, stale, or outside the current run evidence."
+        }
+      ]
+    }
+  ]
+}

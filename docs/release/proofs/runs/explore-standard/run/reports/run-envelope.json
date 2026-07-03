@@ -1,0 +1,211 @@
+{
+  "schema": "run.envelope@v0",
+  "run_id": "44444444-4444-4444-4444-444444444440",
+  "operator_intent": "recommend a frontend framework for the new analytics dashboard",
+  "explicit_constraints": [],
+  "explicit_process_request": "explore",
+  "memory_context": {
+    "used": false,
+    "memory_input_ids": [],
+    "authority": "hint_only"
+  },
+  "goal_contract": {
+    "schema": "run.goal-contract@v0",
+    "objective": "recommend a frontend framework for the new analytics dashboard",
+    "scope": {
+      "in": [
+        "recommend a frontend framework for the new analytics dashboard"
+      ],
+      "out": [],
+      "assumptions": []
+    },
+    "constraints": [],
+    "done_when": [
+      {
+        "id": "process-evidence",
+        "claim": "The explore work is complete with the required proof for: recommend a frontend framework for the new analytics dashboard",
+        "required_evidence": [
+          {
+            "kind": "review",
+            "description": "A review confirming no blocking findings for: recommend a frontend framework for the new analytics dashboard",
+            "required": true
+          }
+        ]
+      }
+    ],
+    "recovery_policy": {
+      "max_process_attempts": 2,
+      "allowed_routes": [
+        "retry-process",
+        "run-review",
+        "checkpoint",
+        "handoff",
+        "blocked"
+      ]
+    },
+    "stop_conditions": [
+      "Stop instead of closing complete when required evidence is missing."
+    ],
+    "completion_gate": {
+      "required_passes": 2,
+      "blocking_severities": [
+        "critical",
+        "high",
+        "medium"
+      ],
+      "reset_on_blocking_finding": true
+    }
+  },
+  "process_plan": {
+    "schema": "run.process-plan@v0",
+    "selection_source": "explicit_operator_request",
+    "rationale": "explicit flow positional argument",
+    "planned_attempts": [
+      {
+        "attempt_id": "attempt-primary",
+        "process_id": "explore",
+        "goal": "recommend a frontend framework for the new analytics dashboard",
+        "expected_evidence": [
+          "reports/process-evidence.json"
+        ],
+        "depends_on_attempt_ids": []
+      }
+    ]
+  },
+  "process_attempts": [
+    {
+      "schema": "run.process-attempt@v0",
+      "attempt_id": "attempt-primary",
+      "process_id": "explore",
+      "goal": "recommend a frontend framework for the new analytics dashboard",
+      "started_at": "2026-04-29T16:30:32.000Z",
+      "completed_at": "2026-04-29T16:30:32.000Z",
+      "outcome": "complete",
+      "child_run": {
+        "run_id": "44444444-4444-4444-4444-444444444440",
+        "run_folder": "<repo>/docs/release/proofs/runs/explore-standard/run",
+        "result_ref": {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "e0f113df591180c03a1c094865ee24e33bd36cd4dbd34858c7e89aa5be0ef75f",
+            "run_id": "44444444-4444-4444-4444-444444444440",
+            "flow_id": "explore"
+          }
+        },
+        "trace_entries_observed": 30,
+        "manifest_hash": "b78863d58ed84a5640bd6e68450d6d0cde80c55c9350a87fd6a1d0399cf8fe98"
+      },
+      "evidence_refs": [
+        {
+          "source": "process_evidence",
+          "ref": {
+            "kind": "evidence",
+            "ref": "reports/process-evidence.json",
+            "sha256": "189d05e34e6954eed8cbfc26308871e9d1ffb517d17231e62f33411c689436e2",
+            "run_id": "44444444-4444-4444-4444-444444444440",
+            "flow_id": "explore"
+          }
+        },
+        {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "e0f113df591180c03a1c094865ee24e33bd36cd4dbd34858c7e89aa5be0ef75f",
+            "run_id": "44444444-4444-4444-4444-444444444440",
+            "flow_id": "explore"
+          }
+        }
+      ],
+      "summary": "Run closed with outcome complete via @complete."
+    }
+  ],
+  "completion_gate": {
+    "schema": "run.completion-gate@v0",
+    "verdict": "complete",
+    "claim_results": [
+      {
+        "claim_id": "process-evidence",
+        "status": "proved",
+        "evidence": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "189d05e34e6954eed8cbfc26308871e9d1ffb517d17231e62f33411c689436e2",
+              "run_id": "44444444-4444-4444-4444-444444444440",
+              "flow_id": "explore"
+            }
+          }
+        ]
+      }
+    ],
+    "gate_passes": [
+      {
+        "pass_id": "gate-process-evidence",
+        "attack_lens": "required-evidence-present",
+        "evidence_checked": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "189d05e34e6954eed8cbfc26308871e9d1ffb517d17231e62f33411c689436e2",
+              "run_id": "44444444-4444-4444-4444-444444444440",
+              "flow_id": "explore"
+            }
+          }
+        ],
+        "verdict": "gate-pass"
+      },
+      {
+        "pass_id": "gate-child-outcome",
+        "attack_lens": "child-outcome-consistent",
+        "evidence_checked": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "189d05e34e6954eed8cbfc26308871e9d1ffb517d17231e62f33411c689436e2",
+              "run_id": "44444444-4444-4444-4444-444444444440",
+              "flow_id": "explore"
+            }
+          }
+        ],
+        "verdict": "gate-pass"
+      }
+    ],
+    "clean_streak": 2,
+    "required_passes": 2,
+    "next_action": "close"
+  },
+  "decision_packets": [],
+  "memory_update_events": [],
+  "surface_output": {
+    "schema": "run.surface-output@v0",
+    "status_text": "Done: explore completed with required process evidence.",
+    "outcome": "complete",
+    "next_action": "close",
+    "artifact_links": [
+      {
+        "kind": "evidence",
+        "ref": "reports/process-evidence.json",
+        "sha256": "189d05e34e6954eed8cbfc26308871e9d1ffb517d17231e62f33411c689436e2",
+        "run_id": "44444444-4444-4444-4444-444444444440",
+        "flow_id": "explore"
+      },
+      {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "e0f113df591180c03a1c094865ee24e33bd36cd4dbd34858c7e89aa5be0ef75f",
+        "run_id": "44444444-4444-4444-4444-444444444440",
+        "flow_id": "explore"
+      }
+    ]
+  },
+  "outcome": "complete"
+}

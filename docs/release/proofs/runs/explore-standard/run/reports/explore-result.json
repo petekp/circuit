@@ -1,0 +1,31 @@
+{
+  "summary": "Explore 'recommend a frontend framework for the new analytics dashboard': Adopt React for the analytics dashboard; its ecosystem depth and the team’s existing familiarity outweigh Vue’s smaller surface for this work.",
+  "verdict_snapshot": {
+    "compose_verdict": "accept",
+    "review_verdict": "accept",
+    "objection_count": 0,
+    "missed_angle_count": 0
+  },
+  "evidence_links": [
+    {
+      "report_id": "explore.brief",
+      "path": "reports/brief.json",
+      "schema": "explore.brief@v1"
+    },
+    {
+      "report_id": "explore.analysis",
+      "path": "reports/analysis.json",
+      "schema": "explore.analysis@v1"
+    },
+    {
+      "report_id": "explore.compose",
+      "path": "reports/compose.json",
+      "schema": "explore.compose@v1"
+    },
+    {
+      "report_id": "explore.review-verdict",
+      "path": "reports/review-verdict.json",
+      "schema": "explore.review-verdict@v1"
+    }
+  ]
+}
