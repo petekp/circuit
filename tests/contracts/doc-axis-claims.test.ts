@@ -35,7 +35,7 @@ for (const flow of flowDefinitions) {
 }
 
 // Flows whose contract carries an "## Axis Support" section worth pinning.
-const CONTRACT_FLOWS = ['fix', 'build', 'explore', 'review'] as const;
+const CONTRACT_FLOWS = ['fix', 'build', 'explore', 'review', 'pursue'] as const;
 
 function axisSection(flowId: string): string {
   const text = readFileSync(resolve(root, 'src/flows', flowId, 'contract.md'), 'utf8');

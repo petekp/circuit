@@ -23,6 +23,7 @@ export const pursueFlowData = {
   paths: {
     schematic: 'src/flows/pursue/schematic.json',
     command: 'src/flows/pursue/command.md',
+    contract: 'src/flows/pursue/contract.md',
   },
   // First-class composition (M9): pursue is the assembler's second production
   // customer (after build) and the first with a PARTIAL stage path — it omits
