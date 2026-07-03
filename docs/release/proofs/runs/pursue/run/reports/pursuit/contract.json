@@ -1,0 +1,88 @@
+{
+  "objective": "add the fallback answer guard in src/example.ts; document the guard in notes.md",
+  "pursuits": [
+    {
+      "id": "pursuit-1",
+      "title": "add the fallback answer guard in src/example.ts",
+      "goal": "add the fallback answer guard in src/example.ts",
+      "scope": "add the fallback answer guard in src/example.ts",
+      "assumptions": [
+        "Circuit may gather context and execute engineering work inside the declared scope.",
+        "Code-changing work is serialized in Pursuits V1 even when discovery can run in parallel."
+      ],
+      "estimated_touch_set": {
+        "paths": [
+          "src/example.ts"
+        ],
+        "symbols": [],
+        "commands": [],
+        "generated_outputs": []
+      },
+      "proof_plan": [
+        "Use project-discovered verification commands rather than assuming a fixed script exists.",
+        "Record actual files and evidence after the implementation batch runs."
+      ],
+      "check_in_triggers": [
+        "The work requires a product or design decision that is not implied by the goal.",
+        "The likely change crosses a high-risk boundary or irreversible operation.",
+        "The requested proof cannot be discovered from the project.",
+        "The implementation would require parallel code writes, which Pursuits V1 blocks."
+      ],
+      "rollback_notes": [
+        "Stop and report rather than apply parallel writes.",
+        "Use the final actual touch set and git diff to recover any partial change."
+      ],
+      "risk": "low"
+    },
+    {
+      "id": "pursuit-2",
+      "title": "document the guard in notes.md",
+      "goal": "document the guard in notes.md",
+      "scope": "document the guard in notes.md",
+      "assumptions": [
+        "Circuit may gather context and execute engineering work inside the declared scope.",
+        "Code-changing work is serialized in Pursuits V1 even when discovery can run in parallel."
+      ],
+      "estimated_touch_set": {
+        "paths": [],
+        "symbols": [],
+        "commands": [],
+        "generated_outputs": []
+      },
+      "proof_plan": [
+        "Use project-discovered verification commands rather than assuming a fixed script exists.",
+        "Record actual files and evidence after the implementation batch runs."
+      ],
+      "check_in_triggers": [
+        "The work requires a product or design decision that is not implied by the goal.",
+        "The likely change crosses a high-risk boundary or irreversible operation.",
+        "The requested proof cannot be discovered from the project.",
+        "The implementation would require parallel code writes, which Pursuits V1 blocks."
+      ],
+      "rollback_notes": [
+        "Stop and report rather than apply parallel writes.",
+        "Use the final actual touch set and git diff to recover any partial change."
+      ],
+      "risk": "low"
+    }
+  ],
+  "execution_policy": {
+    "code_writes": "serial-only",
+    "read_only_parallelism": "allowed",
+    "parallel_write_status": "blocked-until-safe-apply"
+  },
+  "verification_command_candidates": [
+    {
+      "id": "pursuit-check",
+      "cwd": ".",
+      "argv": [
+        "npm",
+        "run",
+        "check"
+      ],
+      "timeout_ms": 120000,
+      "max_output_bytes": 200000,
+      "env": {}
+    }
+  ]
+}

@@ -89,13 +89,13 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "ea4ab12171af339518d9df42446abd49758840a9d776b702e747a352926cb91a",
+            "sha256": "4eb428dd77e6bdef7141341e537c1edca3a014ef7466198ca716dee747935d9d",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
         },
         "trace_entries_observed": 31,
-        "manifest_hash": "d595eb6a60ca2fa2a3ac04df8047915bd311914f05cc6bc1a86a504f47339241"
+        "manifest_hash": "8673f54f81935103ab7309e3563de39e1db51f51796b2c99c454c1d7c5df5085"
       },
       "evidence_refs": [
         {
@@ -103,7 +103,7 @@
           "ref": {
             "kind": "evidence",
             "ref": "reports/process-evidence.json",
-            "sha256": "a39b49d1c254f25b7cecf029e02f59d72fca9ddc4628e0d677fd21b36ae26455",
+            "sha256": "d865f7d4fc8825514cde7570a1fd513da1c3c416330747e13f62ab0e40e17028",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
@@ -113,7 +113,7 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "ea4ab12171af339518d9df42446abd49758840a9d776b702e747a352926cb91a",
+            "sha256": "4eb428dd77e6bdef7141341e537c1edca3a014ef7466198ca716dee747935d9d",
             "run_id": "44444444-4444-4444-4444-444444444406",
             "flow_id": "build"
           }
@@ -135,7 +135,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "a39b49d1c254f25b7cecf029e02f59d72fca9ddc4628e0d677fd21b36ae26455",
+              "sha256": "d865f7d4fc8825514cde7570a1fd513da1c3c416330747e13f62ab0e40e17028",
               "run_id": "44444444-4444-4444-4444-444444444406",
               "flow_id": "build"
             }
@@ -160,14 +160,14 @@
       {
         "kind": "evidence",
         "ref": "reports/process-evidence.json",
-        "sha256": "a39b49d1c254f25b7cecf029e02f59d72fca9ddc4628e0d677fd21b36ae26455",
+        "sha256": "d865f7d4fc8825514cde7570a1fd513da1c3c416330747e13f62ab0e40e17028",
         "run_id": "44444444-4444-4444-4444-444444444406",
         "flow_id": "build"
       },
       {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "ea4ab12171af339518d9df42446abd49758840a9d776b702e747a352926cb91a",
+        "sha256": "4eb428dd77e6bdef7141341e537c1edca3a014ef7466198ca716dee747935d9d",
         "run_id": "44444444-4444-4444-4444-444444444406",
         "flow_id": "build"
       }

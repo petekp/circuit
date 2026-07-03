@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "run_id": "44444444-4444-4444-4444-444444444412",
+  "flow_id": "pursue",
+  "selected_flow": "pursue",
+  "routed_by": "explicit",
+  "router_reason": "explicit flow positional argument",
+  "outcome": "complete",
+  "headline": "Circuit · Pursue",
+  "status_text": "Pursue",
+  "brief_slots": {
+    "headline": "Circuit · Pursue",
+    "assessment": "Executed both pursuits serially and wrote both claimed changes.",
+    "key_points": [
+      "Worker access: A worker can edit this checkout.",
+      "Code-changing work was serialized. Skipped: 0. Blocked: 0. Failed: 0.",
+      "Verification: passed. Review: clean."
+    ],
+    "caveats": [],
+    "next_action": "nothing required."
+  },
+  "details": [
+    "Worker access: A worker can edit this checkout.",
+    "Run note: Run closed with outcome complete via @complete.",
+    "Result: Executed both pursuits serially and wrote both claimed changes.",
+    "Code-changing work was serialized. Skipped: 0. Blocked: 0. Failed: 0.",
+    "Verification: passed. Review: clean."
+  ],
+  "evidence_warnings": [],
+  "run_folder": "<repo>/docs/release/proofs/runs/pursue/run",
+  "result_path": "<repo>/docs/release/proofs/runs/pursue/run/reports/result.json",
+  "report_paths": [
+    {
+      "label": "Run result",
+      "path": "<repo>/docs/release/proofs/runs/pursue/run/reports/result.json"
+    },
+    {
+      "label": "pursue result",
+      "path": "<repo>/docs/release/proofs/runs/pursue/run/reports/pursuit-result.json"
+    },
+    {
+      "label": "pursuit.contract",
+      "path": "<repo>/docs/release/proofs/runs/pursue/run/reports/pursuit/contract.json",
+      "schema": "pursuit.contract@v1"
+    },
+    {
+      "label": "pursuit.graph",
+      "path": "<repo>/docs/release/proofs/runs/pursue/run/reports/pursuit/graph.json",
+      "schema": "pursuit.graph@v1"
+    },
+    {
+      "label": "pursuit.wave-plan",
+      "path": "<repo>/docs/release/proofs/runs/pursue/run/reports/pursuit/wave-plan.json",
+      "schema": "pursuit.wave-plan@v1"
+    },
+    {
+      "label": "pursuit.batch",
+      "path": "<repo>/docs/release/proofs/runs/pursue/run/reports/pursuit/batch.json",
+      "schema": "pursuit.batch@v1"
+    },
+    {
+      "label": "pursuit.verification",
+      "path": "<repo>/docs/release/proofs/runs/pursue/run/reports/pursuit/verification.json",
+      "schema": "pursuit.verification@v1"
+    },
+    {
+      "label": "pursuit.review",
+      "path": "<repo>/docs/release/proofs/runs/pursue/run/reports/pursuit/review.json",
+      "schema": "pursuit.review@v1"
+    }
+  ],
+  "receipt": {
+    "depth": "medium",
+    "power": "medium",
+    "worker_runs": 2,
+    "escalations": 0,
+    "models": [
+      {
+        "provider": "anthropic",
+        "model": "sonnet"
+      }
+    ],
+    "checks_evaluated": 3,
+    "checks_failed": 0
+  }
+}

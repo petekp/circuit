@@ -81,6 +81,7 @@
       "id": "pursue",
       "source": "src/flows/pursue/schematic.json",
       "command_path": "src/flows/pursue/command.md",
+      "contract_path": "src/flows/pursue/contract.md",
       "axis_support": {
         "allowed_depths": ["medium"],
         "supports_tournament": false,

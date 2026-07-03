@@ -13,7 +13,7 @@
   "result_ref": {
     "kind": "report",
     "ref": "reports/result.json",
-    "sha256": "e6861802e1a6abce96ae444697fe5b182d6257917b243859aed0f499e83e99fd",
+    "sha256": "94194b736e3eebf58e822486dfd959822bee65db4d87a59871b93cbc848fc8aa",
     "run_id": "44444444-4444-4444-4444-444444444410",
     "flow_id": "build"
   },
@@ -21,7 +21,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "e6861802e1a6abce96ae444697fe5b182d6257917b243859aed0f499e83e99fd",
+      "sha256": "94194b736e3eebf58e822486dfd959822bee65db4d87a59871b93cbc848fc8aa",
       "run_id": "44444444-4444-4444-4444-444444444410",
       "flow_id": "build"
     },
@@ -37,6 +37,6 @@
     "reports/build-result.json"
   ],
   "missing_evidence": [],
-  "trace_entries_observed": 61,
-  "manifest_hash": "d595eb6a60ca2fa2a3ac04df8047915bd311914f05cc6bc1a86a504f47339241"
+  "trace_entries_observed": 62,
+  "manifest_hash": "8673f54f81935103ab7309e3563de39e1db51f51796b2c99c454c1d7c5df5085"
 }

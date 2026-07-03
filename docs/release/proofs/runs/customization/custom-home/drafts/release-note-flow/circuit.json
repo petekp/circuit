@@ -1,24 +1,8 @@
 {
-  "schema_version": "2",
+  "schema_version": "3",
   "id": "release-note-flow",
   "version": "0.1.0",
   "purpose": "Draft release notes from a change summary.",
-  "entry": {
-    "signals": {
-      "include": [
-        "release-note-flow",
-        "draft",
-        "release",
-        "notes",
-        "from",
-        "change"
-      ],
-      "exclude": []
-    },
-    "intent_prefixes": [
-      "release-note-flow"
-    ]
-  },
   "axes": {
     "allowed_depths": [
       "low",
@@ -45,14 +29,6 @@
       ]
     },
     {
-      "id": "analyze-stage",
-      "title": "Analyze",
-      "canonical": "analyze",
-      "steps": [
-        "analyze-step"
-      ]
-    },
-    {
       "id": "plan-stage",
       "title": "Plan",
       "canonical": "plan",
@@ -73,17 +49,7 @@
       "title": "Verify",
       "canonical": "verify",
       "steps": [
-        "build-baseline",
-        "verify-step",
-        "build-touch-area"
-      ]
-    },
-    {
-      "id": "review-stage",
-      "title": "Review",
-      "canonical": "review",
-      "steps": [
-        "review-step"
+        "verify-step"
       ]
     },
     {
@@ -96,7 +62,12 @@
     }
   ],
   "stage_path_policy": {
-    "mode": "strict"
+    "mode": "partial",
+    "omits": [
+      "analyze",
+      "review"
+    ],
+    "rationale": "Whole grain: analyze folds into act and review folds into close; one folded work spine."
   },
   "steps": [
     {
@@ -105,8 +76,8 @@
       "protocol": "build-frame@v1",
       "reads": [],
       "routes": {
-        "continue": "analyze-step",
-        "pass": "analyze-step",
+        "continue": "plan-step",
+        "pass": "plan-step",
         "stop": "@stop"
       },
       "executor": "orchestrator",
@@ -149,53 +120,15 @@
       }
     },
     {
-      "id": "analyze-step",
-      "title": "Analyze — read the code before planning",
-      "protocol": "build-analyze@v1",
-      "reads": [
-        "reports/build/brief.json"
-      ],
-      "routes": {
-        "continue": "plan-step",
-        "pass": "plan-step",
-        "retry": "analyze-step",
-        "ask": "@stop",
-        "stop": "@stop"
-      },
-      "executor": "worker",
-      "kind": "relay",
-      "role": "researcher",
-      "writes": {
-        "report": {
-          "path": "reports/build/context.json",
-          "schema": "build.context@v1"
-        },
-        "request": "reports/relay/build-analyze.request.json",
-        "receipt": "reports/relay/build-analyze.receipt.txt",
-        "result": "reports/relay/build-analyze.result.json"
-      },
-      "check": {
-        "kind": "result_verdict",
-        "source": {
-          "kind": "relay_result",
-          "ref": "result"
-        },
-        "pass": [
-          "accept"
-        ]
-      }
-    },
-    {
       "id": "plan-step",
       "title": "Plan - produce Build plan",
       "protocol": "build-plan@v1",
       "reads": [
-        "reports/build/brief.json",
-        "reports/build/context.json"
+        "reports/build/brief.json"
       ],
       "routes": {
-        "continue": "build-baseline",
-        "pass": "build-baseline",
+        "continue": "act-step",
+        "pass": "act-step",
         "revise": "plan-step",
         "stop": "@stop"
       },
@@ -220,37 +153,6 @@
       }
     },
     {
-      "id": "build-baseline",
-      "title": "Verify - snapshot pre-change git state",
-      "protocol": "build-baseline-snapshot@v1",
-      "reads": [
-        "reports/build/plan.json"
-      ],
-      "routes": {
-        "continue": "act-step",
-        "pass": "act-step",
-        "stop": "@stop"
-      },
-      "executor": "orchestrator",
-      "kind": "verification",
-      "writes": {
-        "report": {
-          "path": "reports/build/baseline-snapshot.json",
-          "schema": "build.baseline-snapshot@v1"
-        }
-      },
-      "check": {
-        "kind": "schema_sections",
-        "source": {
-          "kind": "report",
-          "ref": "report"
-        },
-        "required": [
-          "overall_status"
-        ]
-      }
-    },
-    {
       "id": "act-step",
       "title": "Act - implementation relay",
       "protocol": "build-act@v1",
@@ -264,6 +166,12 @@
         "retry": "act-step",
         "stop": "@stop"
       },
+      "skill_slots": [
+        {
+          "id": "build-implementation",
+          "description": "A skill for implementing the planned change in the existing code style, keeping edits scoped to the plan."
+        }
+      ],
       "executor": "worker",
       "kind": "relay",
       "role": "implementer",
@@ -276,6 +184,14 @@
               "changed_files"
             ],
             "predicate": "present"
+          },
+          {
+            "kind": "report_field",
+            "id": "changed-files-on-disk",
+            "path": [
+              "changed_files"
+            ],
+            "predicate": "changed_on_disk"
           },
           {
             "kind": "report_field",
@@ -319,8 +235,8 @@
         "reports/build/implementation.json"
       ],
       "routes": {
-        "continue": "build-touch-area",
-        "pass": "build-touch-area",
+        "continue": "close-step",
+        "pass": "close-step",
         "advance": "act-step",
         "retry": "act-step",
         "stop": "@stop"
@@ -346,83 +262,6 @@
       }
     },
     {
-      "id": "build-touch-area",
-      "title": "Verify - check git-proven touch area",
-      "protocol": "build-touch-area@v1",
-      "reads": [
-        "reports/build/plan.json",
-        "reports/build/baseline-snapshot.json",
-        "reports/build/implementation.json"
-      ],
-      "routes": {
-        "continue": "review-step",
-        "pass": "review-step",
-        "stop": "@stop"
-      },
-      "executor": "orchestrator",
-      "kind": "verification",
-      "writes": {
-        "report": {
-          "path": "reports/build/touch-area.json",
-          "schema": "build.touch-area@v1"
-        }
-      },
-      "check": {
-        "kind": "schema_sections",
-        "source": {
-          "kind": "report",
-          "ref": "report"
-        },
-        "required": [
-          "overall_status",
-          "enforcement",
-          "containment"
-        ]
-      }
-    },
-    {
-      "id": "review-step",
-      "title": "Review - implementation review relay",
-      "protocol": "build-review@v1",
-      "reads": [
-        "reports/build/brief.json",
-        "reports/build/plan.json",
-        "reports/build/implementation.json",
-        "reports/build/verification.json",
-        "reports/build/touch-area.json"
-      ],
-      "routes": {
-        "continue": "close-step",
-        "pass": "close-step",
-        "retry": "act-step",
-        "revise": "act-step",
-        "stop": "@stop"
-      },
-      "executor": "worker",
-      "kind": "relay",
-      "role": "reviewer",
-      "writes": {
-        "report": {
-          "path": "reports/build/review.json",
-          "schema": "build.review@v1"
-        },
-        "request": "reports/relay/build-review.request.json",
-        "receipt": "reports/relay/build-review.receipt.txt",
-        "result": "reports/relay/build-review.result.json"
-      },
-      "check": {
-        "kind": "result_verdict",
-        "source": {
-          "kind": "relay_result",
-          "ref": "result"
-        },
-        "pass": [
-          "accept",
-          "accept-with-fixes"
-        ]
-      }
-    },
-    {
       "id": "close-step",
       "title": "Close - emit Build result",
       "protocol": "build-close@v1",
@@ -430,9 +269,7 @@
         "reports/build/brief.json",
         "reports/build/plan.json",
         "reports/build/implementation.json",
-        "reports/build/verification.json",
-        "reports/build/review.json",
-        "reports/build/touch-area.json"
+        "reports/build/verification.json"
       ],
       "routes": {
         "complete": "@complete",
@@ -460,5 +297,33 @@
         ]
       }
     }
-  ]
+  ],
+  "engine_flags": {
+    "binds_execution_depth_to_relay_selection": true,
+    "iterates_slice_loop": {
+      "head_step": "act-step",
+      "tail_step": "verify-step",
+      "advance_route": "advance",
+      "slices_from": {
+        "report": "reports/build/plan.json",
+        "items_path": "slices"
+      },
+      "max_slices": 8,
+      "activate_when_depth_at_least": "high"
+    }
+  },
+  "report_file_surfaces": {
+    "build.plan@v1": {
+      "timing": "before",
+      "extractor": {
+        "kind": "build-plan-and-slices-anticipated-file-extensions"
+      }
+    }
+  },
+  "runtime_surface": {
+    "primary_result": {
+      "schema_name": "build.result@v1",
+      "path": "reports/build-result.json"
+    }
+  }
 }

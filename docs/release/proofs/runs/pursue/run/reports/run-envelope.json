@@ -1,0 +1,211 @@
+{
+  "schema": "run.envelope@v0",
+  "run_id": "44444444-4444-4444-4444-444444444412",
+  "operator_intent": "add the fallback answer guard in src/example.ts; document the guard in notes.md",
+  "explicit_constraints": [],
+  "explicit_process_request": "pursue",
+  "memory_context": {
+    "used": false,
+    "memory_input_ids": [],
+    "authority": "hint_only"
+  },
+  "goal_contract": {
+    "schema": "run.goal-contract@v0",
+    "objective": "add the fallback answer guard in src/example.ts; document the guard in notes.md",
+    "scope": {
+      "in": [
+        "add the fallback answer guard in src/example.ts; document the guard in notes.md"
+      ],
+      "out": [],
+      "assumptions": []
+    },
+    "constraints": [],
+    "done_when": [
+      {
+        "id": "process-evidence",
+        "claim": "The pursue work is complete with the required proof for: add the fallback answer guard in src/example.ts; document the guard in notes.md",
+        "required_evidence": [
+          {
+            "kind": "report",
+            "description": "A report-backed result proving: add the fallback answer guard in src/example.ts; document the guard in notes.md",
+            "required": true
+          }
+        ]
+      }
+    ],
+    "recovery_policy": {
+      "max_process_attempts": 2,
+      "allowed_routes": [
+        "retry-process",
+        "run-review",
+        "checkpoint",
+        "handoff",
+        "blocked"
+      ]
+    },
+    "stop_conditions": [
+      "Stop instead of closing complete when required evidence is missing."
+    ],
+    "completion_gate": {
+      "required_passes": 2,
+      "blocking_severities": [
+        "critical",
+        "high",
+        "medium"
+      ],
+      "reset_on_blocking_finding": true
+    }
+  },
+  "process_plan": {
+    "schema": "run.process-plan@v0",
+    "selection_source": "explicit_operator_request",
+    "rationale": "explicit flow positional argument",
+    "planned_attempts": [
+      {
+        "attempt_id": "attempt-primary",
+        "process_id": "pursue",
+        "goal": "add the fallback answer guard in src/example.ts; document the guard in notes.md",
+        "expected_evidence": [
+          "reports/process-evidence.json"
+        ],
+        "depends_on_attempt_ids": []
+      }
+    ]
+  },
+  "process_attempts": [
+    {
+      "schema": "run.process-attempt@v0",
+      "attempt_id": "attempt-primary",
+      "process_id": "pursue",
+      "goal": "add the fallback answer guard in src/example.ts; document the guard in notes.md",
+      "started_at": "2026-04-29T21:00:42.000Z",
+      "completed_at": "2026-04-29T21:00:42.000Z",
+      "outcome": "complete",
+      "child_run": {
+        "run_id": "44444444-4444-4444-4444-444444444412",
+        "run_folder": "<repo>/docs/release/proofs/runs/pursue/run",
+        "result_ref": {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "cdd9ce65afaee3175eee2e55a9e5d3db30dfe6045ab64a6e06ad5991afbcca81",
+            "run_id": "44444444-4444-4444-4444-444444444412",
+            "flow_id": "pursue"
+          }
+        },
+        "trace_entries_observed": 40,
+        "manifest_hash": "e528963964aa18e862f875e7f945f4ec13c9ff8806ddb7143ba7f733dc60507a"
+      },
+      "evidence_refs": [
+        {
+          "source": "process_evidence",
+          "ref": {
+            "kind": "evidence",
+            "ref": "reports/process-evidence.json",
+            "sha256": "b8307311198eb3e00284ad8f8089f0c8b2fa014388173534fc296ec034f43e52",
+            "run_id": "44444444-4444-4444-4444-444444444412",
+            "flow_id": "pursue"
+          }
+        },
+        {
+          "source": "child_result",
+          "ref": {
+            "kind": "report",
+            "ref": "reports/result.json",
+            "sha256": "cdd9ce65afaee3175eee2e55a9e5d3db30dfe6045ab64a6e06ad5991afbcca81",
+            "run_id": "44444444-4444-4444-4444-444444444412",
+            "flow_id": "pursue"
+          }
+        }
+      ],
+      "summary": "Run closed with outcome complete via @complete."
+    }
+  ],
+  "completion_gate": {
+    "schema": "run.completion-gate@v0",
+    "verdict": "complete",
+    "claim_results": [
+      {
+        "claim_id": "process-evidence",
+        "status": "proved",
+        "evidence": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "b8307311198eb3e00284ad8f8089f0c8b2fa014388173534fc296ec034f43e52",
+              "run_id": "44444444-4444-4444-4444-444444444412",
+              "flow_id": "pursue"
+            }
+          }
+        ]
+      }
+    ],
+    "gate_passes": [
+      {
+        "pass_id": "gate-process-evidence",
+        "attack_lens": "required-evidence-present",
+        "evidence_checked": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "b8307311198eb3e00284ad8f8089f0c8b2fa014388173534fc296ec034f43e52",
+              "run_id": "44444444-4444-4444-4444-444444444412",
+              "flow_id": "pursue"
+            }
+          }
+        ],
+        "verdict": "gate-pass"
+      },
+      {
+        "pass_id": "gate-child-outcome",
+        "attack_lens": "child-outcome-consistent",
+        "evidence_checked": [
+          {
+            "source": "process_evidence",
+            "ref": {
+              "kind": "evidence",
+              "ref": "reports/process-evidence.json",
+              "sha256": "b8307311198eb3e00284ad8f8089f0c8b2fa014388173534fc296ec034f43e52",
+              "run_id": "44444444-4444-4444-4444-444444444412",
+              "flow_id": "pursue"
+            }
+          }
+        ],
+        "verdict": "gate-pass"
+      }
+    ],
+    "clean_streak": 2,
+    "required_passes": 2,
+    "next_action": "close"
+  },
+  "decision_packets": [],
+  "memory_update_events": [],
+  "surface_output": {
+    "schema": "run.surface-output@v0",
+    "status_text": "Done: pursue completed with required process evidence.",
+    "outcome": "complete",
+    "next_action": "close",
+    "artifact_links": [
+      {
+        "kind": "evidence",
+        "ref": "reports/process-evidence.json",
+        "sha256": "b8307311198eb3e00284ad8f8089f0c8b2fa014388173534fc296ec034f43e52",
+        "run_id": "44444444-4444-4444-4444-444444444412",
+        "flow_id": "pursue"
+      },
+      {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "cdd9ce65afaee3175eee2e55a9e5d3db30dfe6045ab64a6e06ad5991afbcca81",
+        "run_id": "44444444-4444-4444-4444-444444444412",
+        "flow_id": "pursue"
+      }
+    ]
+  },
+  "outcome": "complete"
+}

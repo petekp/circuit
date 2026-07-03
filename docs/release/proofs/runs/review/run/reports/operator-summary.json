@@ -52,5 +52,19 @@
       "label": "Operator summary (HTML)",
       "path": "<repo>/docs/release/proofs/runs/review/run/reports/operator-summary.html"
     }
-  ]
+  ],
+  "receipt": {
+    "depth": "medium",
+    "power": "medium",
+    "worker_runs": 1,
+    "escalations": 0,
+    "models": [
+      {
+        "provider": "anthropic",
+        "model": "sonnet"
+      }
+    ],
+    "checks_evaluated": 1,
+    "checks_failed": 0
+  }
 }

@@ -6,3 +6,5 @@ The run aborted before this flow could finish.
 - Worker access: A worker can edit this checkout.
 
 Next: fix the abort cause, then rerun the flow.
+
+⎿ depth medium · power medium · 2 worker runs · all checks passed

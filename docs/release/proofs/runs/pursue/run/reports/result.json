@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "run_id": "44444444-4444-4444-4444-444444444412",
+  "flow_id": "pursue",
+  "goal": "add the fallback answer guard in src/example.ts; document the guard in notes.md",
+  "outcome": "complete",
+  "summary": "Run closed with outcome complete via @complete.",
+  "closed_at": "2026-04-29T21:00:41.000Z",
+  "trace_entries_observed": 40,
+  "manifest_hash": "e528963964aa18e862f875e7f945f4ec13c9ff8806ddb7143ba7f733dc60507a",
+  "verdict": "clean"
+}

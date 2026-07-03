@@ -4,8 +4,10 @@
     {
       "id": "release-note-flow",
       "description": "Draft release notes from a change summary.",
-      "archetype": "build",
       "flow_path": "<repo>/docs/release/proofs/runs/customization/custom-home/flows/release-note-flow/circuit.json",
+      "flow_paths": [
+        "<repo>/docs/release/proofs/runs/customization/custom-home/flows/release-note-flow/circuit.json"
+      ],
       "skill_path": "<repo>/docs/release/proofs/runs/customization/custom-home/skills/release-note-flow/SKILL.md",
       "command_path": "<repo>/docs/release/proofs/runs/customization/custom-home/commands/release-note-flow.md",
       "published_at": "2026-04-29T23:00:00.000Z"

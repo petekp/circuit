@@ -45,5 +45,10 @@ coverage/
 # capture harness dumps for the real-worker probes. Regenerable, never a deliverable.
 /experiments/flow-lab/.capture/
 
+# Golden-proof capture staging: capture writes each scenario into a
+# .capture-<slug> sibling and renames it into place on success. A failed
+# capture can leave the staging dir behind; it is scratch, never a deliverable.
+/docs/release/proofs/runs/.capture-*/
+
 # thin-envelope quality-probe scratch (throwaway, never committed)
 .probe-scratch/

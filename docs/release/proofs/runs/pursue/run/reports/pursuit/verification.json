@@ -1,0 +1,19 @@
+{
+  "overall_status": "passed",
+  "commands": [
+    {
+      "command_id": "pursuit-check",
+      "argv": [
+        "npm",
+        "run",
+        "check"
+      ],
+      "cwd": ".",
+      "exit_code": 0,
+      "status": "passed",
+      "duration_ms": 194,
+      "stdout_summary": "\n> pursue-proof-fixture@0.0.0 check\n> node -e \"process.exit(0)\"\n\n",
+      "stderr_summary": ""
+    }
+  ]
+}

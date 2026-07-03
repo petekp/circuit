@@ -4,7 +4,7 @@
   "shadow_reason": "source-owned-run-not-active",
   "run_id": "44444444-4444-4444-4444-444444444402",
   "operator_intent": "develop: add a small safe change",
-  "recorded_at": "2026-04-29T18:01:03.000Z",
+  "recorded_at": "2026-04-29T18:01:04.000Z",
   "selected_process": {
     "process_id": "build",
     "routed_by": "explicit",
@@ -15,14 +15,14 @@
     "run_folder": "<repo>/docs/release/proofs/runs/routed-build/run",
     "flow_id": "build",
     "outcome": "complete",
-    "trace_entries_observed": 61,
-    "manifest_hash": "d595eb6a60ca2fa2a3ac04df8047915bd311914f05cc6bc1a86a504f47339241",
+    "trace_entries_observed": 62,
+    "manifest_hash": "8673f54f81935103ab7309e3563de39e1db51f51796b2c99c454c1d7c5df5085",
     "result_ref": {
       "source": "child_result",
       "ref": {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "84ead7af9700ef3d1909ae9349379d93d8d8021ce616bd7db71c320ed47982fb",
+        "sha256": "ba2ebe9b5123da12e47d018d6ba4e27dd33a829ab61d6e2c2c07af52d621bdbd",
         "run_id": "44444444-4444-4444-4444-444444444402",
         "flow_id": "build"
       }
@@ -32,7 +32,7 @@
     {
       "kind": "report",
       "ref": "reports/result.json",
-      "sha256": "84ead7af9700ef3d1909ae9349379d93d8d8021ce616bd7db71c320ed47982fb",
+      "sha256": "ba2ebe9b5123da12e47d018d6ba4e27dd33a829ab61d6e2c2c07af52d621bdbd",
       "run_id": "44444444-4444-4444-4444-444444444402",
       "flow_id": "build"
     }

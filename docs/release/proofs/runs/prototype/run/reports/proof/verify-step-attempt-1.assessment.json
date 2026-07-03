@@ -18,7 +18,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/prototype/circuit.work-contract.v0.json",
-          "sha256": "f7bfc3b7e5c50b3cc07fcf929dede2754a47531482b81355ccdb05b2d1a41d47",
+          "sha256": "ce523d3066b2f3190275bfb4381f1d5e9a2755681078593f8e208fe7e6d5f4df",
           "flow_id": "prototype"
         }
       ],
@@ -37,7 +37,7 @@
       "ref": {
         "kind": "command",
         "ref": "verification/verify-step/1/prototype-artifact-integrity",
-        "sha256": "68db7919b34153246b0fee2e333f8b439d1cfcc761b269ee0310fb9204c13031",
+        "sha256": "7f7a601b3fddea008843d6e5c6a88d00d7a36d47483019a7c56f05b2bebc76b1",
         "run_id": "44444444-4444-4444-4444-444444444443",
         "flow_id": "prototype",
         "step_id": "verify-step",
@@ -47,7 +47,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/prototype/circuit.work-contract.v0.json",
-          "sha256": "f7bfc3b7e5c50b3cc07fcf929dede2754a47531482b81355ccdb05b2d1a41d47",
+          "sha256": "ce523d3066b2f3190275bfb4381f1d5e9a2755681078593f8e208fe7e6d5f4df",
           "flow_id": "prototype"
         }
       ],

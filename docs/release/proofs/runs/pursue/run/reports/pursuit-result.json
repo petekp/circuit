@@ -1,0 +1,44 @@
+{
+  "summary": "Pursuits result for add the fallback answer guard in src/example.ts; document the guard in notes.md: Executed both pursuits serially and wrote both claimed changes.",
+  "outcome": "complete",
+  "verification_status": "passed",
+  "review_verdict": "clean",
+  "total_pursuits": 2,
+  "completed_count": 2,
+  "skipped_count": 0,
+  "blocked_count": 0,
+  "failed_count": 0,
+  "serial_code_writes": true,
+  "evidence_links": [
+    {
+      "report_id": "pursuit.contract",
+      "path": "reports/pursuit/contract.json",
+      "schema": "pursuit.contract@v1"
+    },
+    {
+      "report_id": "pursuit.graph",
+      "path": "reports/pursuit/graph.json",
+      "schema": "pursuit.graph@v1"
+    },
+    {
+      "report_id": "pursuit.wave-plan",
+      "path": "reports/pursuit/wave-plan.json",
+      "schema": "pursuit.wave-plan@v1"
+    },
+    {
+      "report_id": "pursuit.batch",
+      "path": "reports/pursuit/batch.json",
+      "schema": "pursuit.batch@v1"
+    },
+    {
+      "report_id": "pursuit.verification",
+      "path": "reports/pursuit/verification.json",
+      "schema": "pursuit.verification@v1"
+    },
+    {
+      "report_id": "pursuit.review",
+      "path": "reports/pursuit/review.json",
+      "schema": "pursuit.review@v1"
+    }
+  ]
+}

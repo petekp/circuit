@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "run_id": "44444444-4444-4444-4444-444444444412",
+  "flow_id": "pursue",
+  "resolved_axes": {
+    "depth": "medium",
+    "tournament": false,
+    "autonomous": false
+  },
+  "selected_flow": "pursue",
+  "routed_by": "explicit",
+  "router_reason": "explicit flow positional argument",
+  "run_folder": "<repo>/docs/release/proofs/runs/pursue/run",
+  "outcome": "complete",
+  "trace_entries_observed": 40,
+  "result_path": "<repo>/docs/release/proofs/runs/pursue/run/reports/result.json",
+  "operator_summary_path": "<repo>/docs/release/proofs/runs/pursue/run/reports/operator-summary.json",
+  "operator_summary_markdown_path": "<repo>/docs/release/proofs/runs/pursue/run/reports/operator-summary.md",
+  "operator_summary_status_text": "Pursue",
+  "run_envelope_path": "<repo>/docs/release/proofs/runs/pursue/run/reports/run-envelope.json",
+  "run_process_evidence_path": "<repo>/docs/release/proofs/runs/pursue/run/reports/process-evidence.json",
+  "run_surface_markdown_path": "<repo>/docs/release/proofs/runs/pursue/run/reports/run-surface.md",
+  "run_surface_status_text": "Done: pursue completed with required process evidence."
+}

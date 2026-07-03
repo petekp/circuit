@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "assessment_id": "proof.verification:verify-step:1",
+  "scope": {
+    "run_id": "44444444-4444-4444-4444-444444444412",
+    "flow_id": "pursue",
+    "step_id": "verify-step",
+    "attempt": 1
+  },
+  "proof_policy_decision_id": "gd-proof-verify-step-1",
+  "claims": [
+    {
+      "schema_version": 1,
+      "id": "claim.verification:verify-step:1",
+      "kind": "verification_passed",
+      "statement": "Verification step 'verify-step' passed required runtime commands.",
+      "scope_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/pursue/circuit.work-contract.v0.json",
+          "sha256": "00f95d05aef361095bc99a8ad487ba196f4c4c2a9aadfba90bfd8d09bcdb01fa",
+          "flow_id": "pursue"
+        }
+      ],
+      "risk": "medium",
+      "required": true,
+      "source": "work_contract"
+    }
+  ],
+  "evidence": [
+    {
+      "schema_version": 1,
+      "id": "evidence.verification:verify-step:1:1:pursuit-check",
+      "kind": "command",
+      "producer": "runtime",
+      "independence": "runtime",
+      "ref": {
+        "kind": "command",
+        "ref": "verification/verify-step/1/pursuit-check",
+        "sha256": "4b0f78d27f074a886d2e1684aaf194cb3ec098326a7e6da1b110a34401703467",
+        "run_id": "44444444-4444-4444-4444-444444444412",
+        "flow_id": "pursue",
+        "step_id": "verify-step",
+        "attempt": 1
+      },
+      "input_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/pursue/circuit.work-contract.v0.json",
+          "sha256": "00f95d05aef361095bc99a8ad487ba196f4c4c2a9aadfba90bfd8d09bcdb01fa",
+          "flow_id": "pursue"
+        }
+      ],
+      "covers_claims": [
+        "claim.verification:verify-step:1"
+      ],
+      "result": "pass",
+      "summary": "verification command 'pursuit-check' passed"
+    }
+  ],
+  "results": [
+    {
+      "claim_id": "claim.verification:verify-step:1",
+      "status": "proven",
+      "evidence_refs": [
+        "evidence.verification:verify-step:1:1:pursuit-check"
+      ],
+      "missing": [],
+      "contradictions": []
+    }
+  ],
+  "overall_status": "proven",
+  "close_allowed": true
+}

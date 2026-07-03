@@ -7,6 +7,6 @@
   "summary": "Run closed with outcome aborted.",
   "closed_at": "2026-04-29T20:00:32.000Z",
   "trace_entries_observed": 31,
-  "manifest_hash": "d595eb6a60ca2fa2a3ac04df8047915bd311914f05cc6bc1a86a504f47339241",
+  "manifest_hash": "8673f54f81935103ab7309e3563de39e1db51f51796b2c99c454c1d7c5df5085",
   "reason": "step 'act-step' handler threw: relay step 'act-step': connector invocation failed (proof connector failure while implementing the synthetic Build change)"
 }

@@ -78,8 +78,8 @@
       "attempt_id": "attempt-primary",
       "process_id": "fix",
       "goal": "quick fix: restore the failing login test",
-      "started_at": "2026-04-29T20:31:10.000Z",
-      "completed_at": "2026-04-29T20:31:10.000Z",
+      "started_at": "2026-04-29T20:31:11.000Z",
+      "completed_at": "2026-04-29T20:31:11.000Z",
       "outcome": "complete",
       "child_run": {
         "run_id": "44444444-4444-4444-4444-444444444407",
@@ -89,13 +89,13 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "a2430631bbf85bf6a0a90685000111276e90a66f59174ddbaf146964696f297f",
+            "sha256": "8134a448409e5ff9c2081abc3cce029b1559b9697f665d62b148a2067139b3b6",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
         },
-        "trace_entries_observed": 68,
-        "manifest_hash": "f4e8514d4fd965dda324b8d80b9bafbe85375c8c5e30c2c65099d8da526ab19d"
+        "trace_entries_observed": 69,
+        "manifest_hash": "ce252d2d728b5f0d1174e0f9a46483de197fd1e05256cf60e4a1cfad16c618b5"
       },
       "evidence_refs": [
         {
@@ -103,7 +103,7 @@
           "ref": {
             "kind": "evidence",
             "ref": "reports/process-evidence.json",
-            "sha256": "379deab2090363f3915e94f3edfcc37a9b8c1241aad75dabc3829320776ddcb3",
+            "sha256": "0efa002a65a7eb9639bc87676204614b18999652c3e472b4471a93489a1bbb86",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
@@ -113,7 +113,7 @@
           "ref": {
             "kind": "report",
             "ref": "reports/result.json",
-            "sha256": "a2430631bbf85bf6a0a90685000111276e90a66f59174ddbaf146964696f297f",
+            "sha256": "8134a448409e5ff9c2081abc3cce029b1559b9697f665d62b148a2067139b3b6",
             "run_id": "44444444-4444-4444-4444-444444444407",
             "flow_id": "fix"
           }
@@ -135,7 +135,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "379deab2090363f3915e94f3edfcc37a9b8c1241aad75dabc3829320776ddcb3",
+              "sha256": "0efa002a65a7eb9639bc87676204614b18999652c3e472b4471a93489a1bbb86",
               "run_id": "44444444-4444-4444-4444-444444444407",
               "flow_id": "fix"
             }
@@ -153,7 +153,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "379deab2090363f3915e94f3edfcc37a9b8c1241aad75dabc3829320776ddcb3",
+              "sha256": "0efa002a65a7eb9639bc87676204614b18999652c3e472b4471a93489a1bbb86",
               "run_id": "44444444-4444-4444-4444-444444444407",
               "flow_id": "fix"
             }
@@ -170,7 +170,7 @@
             "ref": {
               "kind": "evidence",
               "ref": "reports/process-evidence.json",
-              "sha256": "379deab2090363f3915e94f3edfcc37a9b8c1241aad75dabc3829320776ddcb3",
+              "sha256": "0efa002a65a7eb9639bc87676204614b18999652c3e472b4471a93489a1bbb86",
               "run_id": "44444444-4444-4444-4444-444444444407",
               "flow_id": "fix"
             }
@@ -187,21 +187,22 @@
   "memory_update_events": [],
   "surface_output": {
     "schema": "run.surface-output@v0",
-    "status_text": "Done: fix completed with required process evidence.",
+    "status_text": "Completed with caveats: fix produced its required process evidence but reported a partial outcome.",
     "outcome": "complete",
+    "flow_outcome": "partial",
     "next_action": "close",
     "artifact_links": [
       {
         "kind": "evidence",
         "ref": "reports/process-evidence.json",
-        "sha256": "379deab2090363f3915e94f3edfcc37a9b8c1241aad75dabc3829320776ddcb3",
+        "sha256": "0efa002a65a7eb9639bc87676204614b18999652c3e472b4471a93489a1bbb86",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "flow_id": "fix"
       },
       {
         "kind": "report",
         "ref": "reports/result.json",
-        "sha256": "a2430631bbf85bf6a0a90685000111276e90a66f59174ddbaf146964696f297f",
+        "sha256": "8134a448409e5ff9c2081abc3cce029b1559b9697f665d62b148a2067139b3b6",
         "run_id": "44444444-4444-4444-4444-444444444407",
         "flow_id": "fix"
       }

@@ -71,5 +71,19 @@
       "path": "<repo>/docs/release/proofs/runs/prototype/run/reports/checkpoints/prototype-review-response.json",
       "schema": "checkpoint.response@v1"
     }
-  ]
+  ],
+  "receipt": {
+    "depth": "high",
+    "power": "medium",
+    "worker_runs": 1,
+    "escalations": 0,
+    "models": [
+      {
+        "provider": "anthropic",
+        "model": "sonnet"
+      }
+    ],
+    "checks_evaluated": 3,
+    "checks_failed": 0
+  }
 }

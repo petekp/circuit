@@ -12,6 +12,7 @@ import {
   ExploreTournamentReview,
 } from '../../src/flows/explore/reports.js';
 import { FixResult } from '../../src/flows/fix/reports.js';
+import { PursuitResult } from '../../src/flows/pursue/reports.js';
 import { ReviewResult } from '../../src/flows/review/reports.js';
 import {
   FLOW_CATALOG_CLAIM_ID,
@@ -628,6 +629,81 @@ describe('release truth infrastructure', () => {
     expect(script).not.toContain('composeWriter:');
   });
 
+  it('keeps index.yaml command strings consistent with the capture scenarios', () => {
+    const proofs = ProofScenarioIndex.parse(yamlFile('docs/release/proofs/index.yaml'));
+    const script = readFileSync(
+      resolve(root, 'scripts/release/capture-golden-run-proofs.ts'),
+      'utf8',
+    );
+    const command = (id: string): string =>
+      proofs.scenarios.find((item) => item.id === id)?.command ?? '';
+
+    // Each fragment mirrors argv the capture script actually runs. Without
+    // this pin a command string can drop a flag or rename a goal and the
+    // published reproduction instructions rot silently.
+    const expectedFragments = new Map([
+      ['proof:routed-build', ['run build', '"develop: add a small safe change"']],
+      ['proof:explicit-build', ['run build', '"add a focused change"', '--depth high']],
+      ['proof:review', ['run review', '"review this change"']],
+      [
+        'proof:checkpoint-resume',
+        [
+          'run build',
+          '"deep change that asks for scope"',
+          '--depth high',
+          '--checkpoint-choice continue',
+        ],
+      ],
+      ['proof:abort-failure', ['run build', '"simulate connector failure"']],
+      ['proof:fix', ['run fix', '"quick fix: restore the failing login test"']],
+      [
+        'proof:pursue',
+        [
+          'run pursue',
+          '"add the fallback answer guard in src/example.ts; document the guard in notes.md"',
+        ],
+      ],
+      [
+        'proof:explore-decision',
+        [
+          'run explore',
+          '"decide: React vs Vue"',
+          '--tournament --tournament-n 3',
+          '--checkpoint-choice option-2',
+        ],
+      ],
+      [
+        'proof:explore-autonomous-decision',
+        ['run explore', '"decide: React vs Vue"', '--tournament --tournament-n 2', '--autonomous'],
+      ],
+      [
+        'proof:prototype',
+        [
+          'run prototype',
+          '"prototype: sketch a custom Circuit flow builder UI"',
+          '--depth high',
+          '--checkpoint-choice save-build-input',
+        ],
+      ],
+      [
+        'proof:plan-execution',
+        ['run build', '"Execute this plan: ./docs/specs/headless-engine-host-api-v1.md"'],
+      ],
+    ]);
+    for (const [id, fragments] of expectedFragments) {
+      for (const fragment of fragments) {
+        expect(command(id), id).toContain(fragment);
+        // Goal text must also appear in the capture script (argv strings are
+        // single-quoted there), so the index, the script, and this pin agree
+        // three ways. Flags are argv-array elements in the script, so only
+        // quoted goal fragments carry over.
+        if (fragment.startsWith('"')) {
+          expect(script, id).toContain(fragment.replaceAll('"', "'"));
+        }
+      }
+    }
+  });
+
   it('captures current golden run proofs with scrubbed, schema-valid files', () => {
     const proofs = ProofScenarioIndex.parse(yamlFile('docs/release/proofs/index.yaml'));
     const expected = new Map([
@@ -640,6 +716,16 @@ describe('release truth infrastructure', () => {
       ['proof:checkpoint-resume', { slug: 'checkpoint', flow: 'build', outcome: 'complete' }],
       ['proof:abort-failure', { slug: 'abort', flow: 'build', outcome: 'aborted' }],
       ['proof:fix', { slug: 'fix', flow: 'fix', outcome: 'complete' }],
+      ['proof:pursue', { slug: 'pursue', flow: 'pursue', outcome: 'complete' }],
+      [
+        'proof:explore-decision',
+        { slug: 'explore-decision', flow: 'explore', outcome: 'complete' },
+      ],
+      [
+        'proof:explore-autonomous-decision',
+        { slug: 'explore-autonomous-decision', flow: 'explore', outcome: 'complete' },
+      ],
+      ['proof:prototype', { slug: 'prototype', flow: 'prototype', outcome: 'complete' }],
       ['proof:plan-execution', { slug: 'plan-execution', flow: 'build', outcome: 'complete' }],
       ['proof:doctor-first-run', { slug: 'doctor', flow: 'doctor', outcome: 'ok' }],
     ]);
@@ -711,6 +797,18 @@ describe('release truth infrastructure', () => {
     expect(
       FixResult.parse(jsonFile('docs/release/proofs/runs/fix/run/reports/fix-result.json')).outcome,
     ).toBe('partial');
+    expect(
+      PursuitResult.parse(
+        jsonFile('docs/release/proofs/runs/pursue/run/reports/pursuit-result.json'),
+      ),
+    ).toMatchObject({
+      outcome: 'complete',
+      verification_status: 'passed',
+      review_verdict: 'clean',
+      total_pursuits: 2,
+      completed_count: 2,
+      serial_code_writes: true,
+    });
 
     const handoffScenario = proofs.scenarios.find((item) => item.id === 'proof:handoff');
     expect(handoffScenario?.status).toBe('verified_current');

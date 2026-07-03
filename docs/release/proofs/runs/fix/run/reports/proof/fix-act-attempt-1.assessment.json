@@ -18,7 +18,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/fix/circuit.work-contract.v0.json",
-          "sha256": "5bebf9c92b2cebd1c3a9351f8aed2c71c1c14c4c546f5cbae8628e178cf749f1",
+          "sha256": "7fc66b47ecdf16437a1639522d6f01b5cad110880251c04df6d85ca47bce94de",
           "flow_id": "fix"
         }
       ],
@@ -46,7 +46,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/fix/circuit.work-contract.v0.json",
-          "sha256": "5bebf9c92b2cebd1c3a9351f8aed2c71c1c14c4c546f5cbae8628e178cf749f1",
+          "sha256": "7fc66b47ecdf16437a1639522d6f01b5cad110880251c04df6d85ca47bce94de",
           "flow_id": "fix"
         },
         {
@@ -65,7 +65,7 @@
     },
     {
       "schema_version": 1,
-      "id": "evidence.acceptance:fix-act:1:evidence-non-empty",
+      "id": "evidence.acceptance:fix-act:1:changed-files-on-disk",
       "kind": "report_field",
       "producer": "runtime",
       "independence": "runtime",
@@ -81,7 +81,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/fix/circuit.work-contract.v0.json",
-          "sha256": "5bebf9c92b2cebd1c3a9351f8aed2c71c1c14c4c546f5cbae8628e178cf749f1",
+          "sha256": "7fc66b47ecdf16437a1639522d6f01b5cad110880251c04df6d85ca47bce94de",
           "flow_id": "fix"
         },
         {
@@ -97,6 +97,41 @@
         "claim.acceptance:fix-act:1"
       ],
       "result": "pass"
+    },
+    {
+      "schema_version": 1,
+      "id": "evidence.acceptance:fix-act:1:evidence-non-empty",
+      "kind": "report_field",
+      "producer": "runtime",
+      "independence": "runtime",
+      "ref": {
+        "kind": "trace",
+        "ref": "trace.ndjson#sequence=40",
+        "run_id": "44444444-4444-4444-4444-444444444407",
+        "step_id": "fix-act",
+        "attempt": 1,
+        "sequence": 40
+      },
+      "input_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/fix/circuit.work-contract.v0.json",
+          "sha256": "7fc66b47ecdf16437a1639522d6f01b5cad110880251c04df6d85ca47bce94de",
+          "flow_id": "fix"
+        },
+        {
+          "kind": "trace",
+          "ref": "trace.ndjson#sequence=40",
+          "run_id": "44444444-4444-4444-4444-444444444407",
+          "step_id": "fix-act",
+          "attempt": 1,
+          "sequence": 40
+        }
+      ],
+      "covers_claims": [
+        "claim.acceptance:fix-act:1"
+      ],
+      "result": "pass"
     }
   ],
   "results": [
@@ -105,6 +140,7 @@
       "status": "weak",
       "evidence_refs": [
         "evidence.acceptance:fix-act:1:changed-files-present",
+        "evidence.acceptance:fix-act:1:changed-files-on-disk",
         "evidence.acceptance:fix-act:1:evidence-non-empty"
       ],
       "missing": [

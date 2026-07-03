@@ -19,7 +19,7 @@
     "work_contract_ref": {
       "kind": "work_contract",
       "ref": "<repo>/generated/flows/prototype/circuit.work-contract.v0.json",
-      "sha256": "f7bfc3b7e5c50b3cc07fcf929dede2754a47531482b81355ccdb05b2d1a41d47",
+      "sha256": "ce523d3066b2f3190275bfb4381f1d5e9a2755681078593f8e208fe7e6d5f4df",
       "flow_id": "prototype"
     },
     "checkpoint_boundary_ref": {
@@ -36,6 +36,7 @@
         "source_path": "<repo>/.circuit/config.yaml",
         "config": {
           "schema_version": 1,
+          "project_id": "circuit",
           "relay": {
             "default": "auto",
             "roles": {},
@@ -115,6 +116,7 @@
               ]
             }
           },
+          "power_tiers": {},
           "defaults": {}
         }
       }

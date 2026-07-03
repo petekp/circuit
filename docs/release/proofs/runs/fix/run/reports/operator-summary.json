@@ -13,7 +13,9 @@
     "assessment": "Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.",
     "key_points": [
       "Worker access: A worker can edit this checkout.",
-      "Verification: passed."
+      "Verification: passed.",
+      "Regression: not proven by a command, so the relevance of the change to the bug is unverified.",
+      "Review: skipped. Reason: Reviewer connector failed after proof passed; Fix closed with regression, verification, and change-set evidence."
     ],
     "caveats": [],
     "next_action": "address the follow-up, then rerun the relevant check."
@@ -22,7 +24,9 @@
     "Worker access: A worker can edit this checkout.",
     "Run note: Run closed with outcome complete via @complete.",
     "Result: Fix 'quick fix: restore the failing login test': Added the fallback guard for the synthetic missing token path.",
-    "Verification: passed."
+    "Verification: passed.",
+    "Regression: not proven by a command, so the relevance of the change to the bug is unverified.",
+    "Review: skipped. Reason: Reviewer connector failed after proof passed; Fix closed with regression, verification, and change-set evidence."
   ],
   "evidence_warnings": [],
   "run_folder": "<repo>/docs/release/proofs/runs/fix/run",
@@ -81,5 +85,23 @@
       "path": "<repo>/docs/release/proofs/runs/fix/run/reports/fix/change-set.json",
       "schema": "fix.change-set@v1"
     }
-  ]
+  ],
+  "receipt": {
+    "depth": "medium",
+    "power": "medium",
+    "worker_runs": 4,
+    "escalations": 0,
+    "models": [
+      {
+        "provider": "anthropic",
+        "model": "opus"
+      },
+      {
+        "provider": "anthropic",
+        "model": "sonnet"
+      }
+    ],
+    "checks_evaluated": 9,
+    "checks_failed": 0
+  }
 }

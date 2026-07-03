@@ -2,5 +2,13 @@
   "schema_version": 1,
   "status": "valid",
   "validated_flow_id": "release-note-flow",
-  "source": "template"
+  "source": "template",
+  "flow_files": [
+    "circuit.json"
+  ],
+  "archetype": "build",
+  "composition": "grain:whole",
+  "signals_used": [
+    "domain:docs"
+  ]
 }

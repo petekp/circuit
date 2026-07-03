@@ -1,0 +1,28 @@
+{
+  "verdict": "accept",
+  "waves": [
+    {
+      "id": "read-only-discovery",
+      "kind": "read-only",
+      "pursuit_ids": [
+        "pursuit-1",
+        "pursuit-2"
+      ],
+      "execution": "parallel",
+      "reason": "Gather context for each pursuit before code-changing work begins.",
+      "re_ground_after": false
+    },
+    {
+      "id": "serial-code-writes",
+      "kind": "code-change",
+      "pursuit_ids": [
+        "pursuit-1",
+        "pursuit-2"
+      ],
+      "execution": "serial",
+      "reason": "Pursuits V1 serializes all code-changing work until safe worktree apply exists.",
+      "re_ground_after": true
+    }
+  ],
+  "no_parallel_writes_reason": "Pursuits V1 does not apply parallel worktree edits. Code-changing work runs serially until safe apply and shared post-apply verification exist."
+}

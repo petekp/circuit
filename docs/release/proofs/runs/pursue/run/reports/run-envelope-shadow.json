@@ -1,0 +1,40 @@
+{
+  "schema": "run.envelope-shadow@v0",
+  "mode": "shadow",
+  "shadow_reason": "source-owned-run-not-active",
+  "run_id": "44444444-4444-4444-4444-444444444412",
+  "operator_intent": "add the fallback answer guard in src/example.ts; document the guard in notes.md",
+  "recorded_at": "2026-04-29T21:00:42.000Z",
+  "selected_process": {
+    "process_id": "pursue",
+    "routed_by": "explicit",
+    "router_reason": "explicit flow positional argument"
+  },
+  "child_run": {
+    "run_id": "44444444-4444-4444-4444-444444444412",
+    "run_folder": "<repo>/docs/release/proofs/runs/pursue/run",
+    "flow_id": "pursue",
+    "outcome": "complete",
+    "trace_entries_observed": 40,
+    "manifest_hash": "e528963964aa18e862f875e7f945f4ec13c9ff8806ddb7143ba7f733dc60507a",
+    "result_ref": {
+      "source": "child_result",
+      "ref": {
+        "kind": "report",
+        "ref": "reports/result.json",
+        "sha256": "cdd9ce65afaee3175eee2e55a9e5d3db30dfe6045ab64a6e06ad5991afbcca81",
+        "run_id": "44444444-4444-4444-4444-444444444412",
+        "flow_id": "pursue"
+      }
+    }
+  },
+  "artifact_links": [
+    {
+      "kind": "report",
+      "ref": "reports/result.json",
+      "sha256": "cdd9ce65afaee3175eee2e55a9e5d3db30dfe6045ab64a6e06ad5991afbcca81",
+      "run_id": "44444444-4444-4444-4444-444444444412",
+      "flow_id": "pursue"
+    }
+  ]
+}

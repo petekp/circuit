@@ -18,7 +18,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
-          "sha256": "5abded7add73d5c3cf0a4ad85b1223c0dbea6db276c68caf3c46a671479ee4b8",
+          "sha256": "a2df5f845bab01bd801907849701225cba4f7caf6e3505a784a71302fa82499b",
           "flow_id": "build"
         }
       ],
@@ -37,7 +37,7 @@
       "ref": {
         "kind": "command",
         "ref": "verification/verify-step/1/npm-check",
-        "sha256": "d25352b76fe228d164c361b4b70fff320b81dad5cc65aa781e2c5a78774453e4",
+        "sha256": "1e145ed866f1c68d7236fb43f21fa909b4ffab13f3b22baf25c94720bd5ecdae",
         "run_id": "44444444-4444-4444-4444-444444444410",
         "flow_id": "build",
         "step_id": "verify-step",
@@ -47,7 +47,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
-          "sha256": "5abded7add73d5c3cf0a4ad85b1223c0dbea6db276c68caf3c46a671479ee4b8",
+          "sha256": "a2df5f845bab01bd801907849701225cba4f7caf6e3505a784a71302fa82499b",
           "flow_id": "build"
         }
       ],

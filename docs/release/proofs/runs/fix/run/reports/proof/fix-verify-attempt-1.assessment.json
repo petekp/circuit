@@ -18,7 +18,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/fix/circuit.work-contract.v0.json",
-          "sha256": "5bebf9c92b2cebd1c3a9351f8aed2c71c1c14c4c546f5cbae8628e178cf749f1",
+          "sha256": "7fc66b47ecdf16437a1639522d6f01b5cad110880251c04df6d85ca47bce94de",
           "flow_id": "fix"
         }
       ],
@@ -47,7 +47,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/fix/circuit.work-contract.v0.json",
-          "sha256": "5bebf9c92b2cebd1c3a9351f8aed2c71c1c14c4c546f5cbae8628e178cf749f1",
+          "sha256": "7fc66b47ecdf16437a1639522d6f01b5cad110880251c04df6d85ca47bce94de",
           "flow_id": "fix"
         }
       ],

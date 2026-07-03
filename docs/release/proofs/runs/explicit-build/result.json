@@ -5,7 +5,7 @@
   "selected_flow": "build",
   "routed_by": "explicit",
   "router_reason": "explicit flow positional argument",
-  "entry_mode": "deep",
+  "entry_mode": "high",
   "entry_mode_source": "explicit",
   "run_folder": "<repo>/docs/release/proofs/runs/explicit-build/run",
   "outcome": "checkpoint_waiting",

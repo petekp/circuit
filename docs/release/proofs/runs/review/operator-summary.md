@@ -11,4 +11,6 @@ Reviewer inspected the relayed staged-diff and untracked-file evidence and found
 
 Next: nothing required.
 
+⎿ depth medium · power medium · 1 worker run · all checks passed
+
 Rich summary: <repo>/docs/release/proofs/runs/review/run/reports/operator-summary.html

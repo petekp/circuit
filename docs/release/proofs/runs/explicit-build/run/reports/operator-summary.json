@@ -31,6 +31,14 @@
       "path": "<repo>/docs/release/proofs/runs/explicit-build/run/reports/checkpoints/frame-step-request.json"
     }
   ],
+  "receipt": {
+    "depth": "high",
+    "worker_runs": 0,
+    "escalations": 0,
+    "models": [],
+    "checks_evaluated": 0,
+    "checks_failed": 0
+  },
   "checkpoint": {
     "step_id": "frame-step",
     "request_path": "<repo>/docs/release/proofs/runs/explicit-build/run/reports/checkpoints/frame-step-request.json",

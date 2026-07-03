@@ -76,5 +76,23 @@
       "path": "<repo>/docs/release/proofs/runs/explore-decision/run/reports/decision.json",
       "schema": "explore.decision@v1"
     }
-  ]
+  ],
+  "receipt": {
+    "depth": "tournament",
+    "power": "medium",
+    "worker_runs": 4,
+    "escalations": 0,
+    "models": [
+      {
+        "provider": "anthropic",
+        "model": "opus"
+      },
+      {
+        "provider": "anthropic",
+        "model": "sonnet"
+      }
+    ],
+    "checks_evaluated": 6,
+    "checks_failed": 0
+  }
 }

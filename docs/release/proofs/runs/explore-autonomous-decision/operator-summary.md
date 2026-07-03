@@ -13,4 +13,6 @@ Next: Run a Build plan for a Vue prototype.
 Auto-resolutions:
 - Decision — tradeoff checkpoint: option-2 selected by policy `highest-score` (aggregate score 1; margin +0.125 over runner-up; option-1 evidence_rigor runtime_signal=missing forced final_score=fail and dim_score=0).
 
+⎿ depth autonomous · power medium · 3 worker runs · all checks passed
+
 Rich summary: <repo>/docs/release/proofs/runs/explore-autonomous-decision/run/reports/operator-summary.html

@@ -1,0 +1,42 @@
+{
+  "schema": "process.evidence@v0",
+  "flow_id": "pursue",
+  "attempt_id": "primary",
+  "outcome": "complete",
+  "summary": "Run closed with outcome complete via @complete.",
+  "child_run_ref": {
+    "kind": "trace",
+    "ref": "trace.ndjson#sequence=0",
+    "run_id": "44444444-4444-4444-4444-444444444412",
+    "sequence": 0
+  },
+  "result_ref": {
+    "kind": "report",
+    "ref": "reports/result.json",
+    "sha256": "cdd9ce65afaee3175eee2e55a9e5d3db30dfe6045ab64a6e06ad5991afbcca81",
+    "run_id": "44444444-4444-4444-4444-444444444412",
+    "flow_id": "pursue"
+  },
+  "evidence_refs": [
+    {
+      "kind": "report",
+      "ref": "reports/result.json",
+      "sha256": "cdd9ce65afaee3175eee2e55a9e5d3db30dfe6045ab64a6e06ad5991afbcca81",
+      "run_id": "44444444-4444-4444-4444-444444444412",
+      "flow_id": "pursue"
+    },
+    {
+      "kind": "report",
+      "ref": "reports/pursuit-result.json",
+      "sha256": "29d7cb6d8e30fe2861c210cd56f5f17e0fb0478f88de9f15e602c6a60ad44020",
+      "run_id": "44444444-4444-4444-4444-444444444412",
+      "flow_id": "pursue"
+    }
+  ],
+  "declared_report_paths": [
+    "reports/pursuit-result.json"
+  ],
+  "missing_evidence": [],
+  "trace_entries_observed": 40,
+  "manifest_hash": "e528963964aa18e862f875e7f945f4ec13c9ff8806ddb7143ba7f733dc60507a"
+}

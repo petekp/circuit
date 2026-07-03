@@ -5,12 +5,12 @@
   "branches": [
     {
       "branch_id": "option-1",
-      "child_run_id": "83098698-2c68-4518-a34c-aef3ad7226b5",
+      "child_run_id": "c2c4127a-e357-43bb-aa0f-1d7aba6db09b",
       "child_outcome": "complete",
       "verdict": "accept",
       "admitted": true,
       "result_path": "reports/tournament-branches/option-1/report.json",
-      "duration_ms": 4,
+      "duration_ms": 3,
       "result_body": {
         "verdict": "accept",
         "option_id": "option-1",
@@ -115,12 +115,12 @@
     },
     {
       "branch_id": "option-2",
-      "child_run_id": "92aa201d-e0bc-40ce-badd-9ceb06c291d5",
+      "child_run_id": "0f9709f2-26b5-415b-b432-ac0c9cb6bb10",
       "child_outcome": "complete",
       "verdict": "accept",
       "admitted": true,
       "result_path": "reports/tournament-branches/option-2/report.json",
-      "duration_ms": 4,
+      "duration_ms": 2,
       "result_body": {
         "verdict": "accept",
         "option_id": "option-2",
@@ -225,12 +225,12 @@
     },
     {
       "branch_id": "option-3",
-      "child_run_id": "de661867-717d-4b83-870d-6a13cbf771d0",
+      "child_run_id": "33436acf-25cd-45f5-a2a9-a46d14204669",
       "child_outcome": "complete",
       "verdict": "accept",
       "admitted": true,
       "result_path": "reports/tournament-branches/option-3/report.json",
-      "duration_ms": 3,
+      "duration_ms": 2,
       "result_body": {
         "verdict": "accept",
         "option_id": "option-3",

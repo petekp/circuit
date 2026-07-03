@@ -6,6 +6,13 @@ Custom flow: release-note-flow
 ## Purpose
 Draft release notes from a change summary.
 
+## Shape
+This flow was generated with the **build** shape (grain:whole).
+Build shape: a general change with no fix/review/research/prototype/explain signal, so the flow uses the standard frame-plan-act-verify spine.
+
+Signals read from the task:
+- domain:docs
+
 ## Validation
 The generated compiled flow parsed successfully and passed flow-kind policy validation.
 

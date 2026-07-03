@@ -9,7 +9,7 @@
     "process_id": "build",
     "routed_by": "explicit",
     "router_reason": "explicit flow positional argument",
-    "entry_mode": "deep"
+    "entry_mode": "high"
   },
   "child_run": {
     "run_id": "44444444-4444-4444-4444-444444444411",
@@ -17,13 +17,13 @@
     "flow_id": "build",
     "outcome": "checkpoint_waiting",
     "trace_entries_observed": 5,
-    "manifest_hash": "d595eb6a60ca2fa2a3ac04df8047915bd311914f05cc6bc1a86a504f47339241",
+    "manifest_hash": "8673f54f81935103ab7309e3563de39e1db51f51796b2c99c454c1d7c5df5085",
     "checkpoint": {
       "step_id": "frame-step",
       "request_ref": {
         "kind": "request",
         "ref": "reports/checkpoints/frame-step-request.json",
-        "sha256": "e7b70080233b9462b20a453fc4d69b7c9bdcf9137b61f21ecd558f088e9d1dea",
+        "sha256": "70c3df739e4c4361bacc0de2aa81e482661af7006beda4a5c4caf5d9f0319694",
         "run_id": "44444444-4444-4444-4444-444444444411",
         "flow_id": "build",
         "step_id": "frame-step"
@@ -37,7 +37,7 @@
     {
       "kind": "request",
       "ref": "reports/checkpoints/frame-step-request.json",
-      "sha256": "e7b70080233b9462b20a453fc4d69b7c9bdcf9137b61f21ecd558f088e9d1dea",
+      "sha256": "70c3df739e4c4361bacc0de2aa81e482661af7006beda4a5c4caf5d9f0319694",
       "run_id": "44444444-4444-4444-4444-444444444411",
       "flow_id": "build",
       "step_id": "frame-step"

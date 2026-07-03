@@ -67,7 +67,7 @@ scenarios:
   - id: proof:checkpoint-resume
     title: Checkpoint And Resume
     category: continuity
-    command: ./bin/circuit run build --goal "deep change that asks for scope" --depth high --progress jsonl
+    command: './bin/circuit run build --goal "deep change that asks for scope" --depth high --run-folder docs/release/proofs/runs/checkpoint/run --progress jsonl; ./bin/circuit resume --run-folder docs/release/proofs/runs/checkpoint/run --checkpoint-choice continue --progress jsonl'
     expected_flow: build
     expected_outcome: checkpoint_waiting then complete after resume
     summary_contract: Summary gives the checkpoint question, allowed choices, resume command, and final outcome.
@@ -130,10 +130,35 @@ scenarios:
       - docs/release/proofs/runs/fix/run/reports/relay/fix-act.receipt.txt
     exception_ids: []
     readiness_refs: [REL-011]
+  - id: proof:pursue
+    title: Pursue
+    category: doing-work
+    command: './bin/circuit run pursue --goal "add the fallback answer guard in src/example.ts; document the guard in notes.md" --progress jsonl'
+    expected_flow: pursue
+    expected_outcome: complete or needs_attention
+    summary_contract: Summary states the pursuit contract, serialized batch execution, verification, coordination review verdict, and next action.
+    redaction_policy: Uses a synthetic two-pursuit fixture project with no private data.
+    required_files:
+      - docs/release/proofs/runs/pursue/progress.jsonl
+      - docs/release/proofs/runs/pursue/operator-summary.md
+      - docs/release/proofs/runs/pursue/result.json
+    status: verified_current
+    backing_paths:
+      - docs/release/proofs/runs/pursue/run/reports/pursuit/contract.json
+      - docs/release/proofs/runs/pursue/run/reports/pursuit/graph.json
+      - docs/release/proofs/runs/pursue/run/reports/pursuit/wave-plan.json
+      - docs/release/proofs/runs/pursue/run/reports/pursuit/batch.json
+      - docs/release/proofs/runs/pursue/run/reports/pursuit/verification.json
+      - docs/release/proofs/runs/pursue/run/reports/pursuit/review.json
+      - docs/release/proofs/runs/pursue/run/reports/pursuit-result.json
+      - docs/release/proofs/runs/pursue/run/reports/relay/pursuit-batch.receipt.txt
+      - docs/release/proofs/runs/pursue/run/reports/relay/pursuit-review.receipt.txt
+    exception_ids: []
+    readiness_refs: [REL-011]
   - id: proof:explore-decision
     title: Explore Decision Or Tournament
     category: deciding
-    command: './bin/circuit run --goal "decide: React vs Vue" --run-folder docs/release/proofs/runs/explore-decision/run --progress jsonl; ./bin/circuit resume --run-folder docs/release/proofs/runs/explore-decision/run --checkpoint-choice option-2 --progress jsonl'
+    command: './bin/circuit run explore --goal "decide: React vs Vue" --tournament --tournament-n 3 --run-folder docs/release/proofs/runs/explore-decision/run --progress jsonl; ./bin/circuit resume --run-folder docs/release/proofs/runs/explore-decision/run --checkpoint-choice option-2 --progress jsonl'
     expected_flow: explore
     expected_outcome: checkpoint_waiting, then complete after resume
     summary_contract: Summary states options, decision, evidence, tradeoff, risk, and next action.
@@ -276,11 +301,11 @@ scenarios:
   - id: proof:plan-execution
     title: Plan Execution With A Named Flow
     category: plan-execution
-    command: './bin/circuit run build --goal "implement the plan in ./docs/specs/headless-engine-host-api-v1.md" --progress jsonl'
+    command: './bin/circuit run build --goal "Execute this plan: ./docs/specs/headless-engine-host-api-v1.md" --progress jsonl'
     expected_flow: build
     expected_outcome: complete or needs_attention
     summary_contract: Summary identifies the named Build flow, the implemented work, verification, review, risk, and next action.
-    redaction_policy: Uses a scrubbed plan fixture if the live spec contains local details.
+    redaction_policy: Uses a synthetic plan fixture in a scenario-local project with no private data.
     required_files:
       - docs/release/proofs/runs/plan-execution/progress.jsonl
       - docs/release/proofs/runs/plan-execution/operator-summary.md

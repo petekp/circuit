@@ -33,6 +33,13 @@ const proofRunsRootRel = 'docs/release/proofs/runs';
 const scrubbedProjectRoot = '<repo>';
 const homeDir = process.env.HOME;
 
+// Scenario fixture projects live at a deterministic path derived from the
+// slug, so relayer stubs constructed at module load can write real file
+// changes into the fixture the run is verified against.
+function scenarioProjectPath(slug: string): string {
+  return resolve(projectRoot, `${proofRunsRootRel}/.capture-${slug}/project`);
+}
+
 const composeRuntime = (await import(
   resolve(projectRoot, 'dist/runtime/executors/compose.js')
 )) as typeof ComposeModule;
@@ -132,7 +139,7 @@ function scrubProofTree(proofDir: string, pathAliases: PathAlias[] = []): void {
   }
 }
 
-function buildRelayer(): Relayer {
+function buildRelayer(fixtureRoot: string): Relayer {
   return {
     connectorName: 'claude-code',
     relay: async (input: RelayInput): Promise<RelayOutcome> => {
@@ -158,6 +165,10 @@ function buildRelayer(): Relayer {
         };
       }
       if (input.prompt.includes('Step: act-step')) {
+        // The changed-files-on-disk acceptance criterion verifies this claim
+        // against the fixture's git working tree, so the stub must make the
+        // claim true before reporting it.
+        writeFileSync(join(fixtureRoot, 'src', 'example.ts'), 'export const answer = 43;\n');
         return {
           request_payload: input.prompt,
           receipt_id: 'proof-build-act',
@@ -194,14 +205,14 @@ function buildRelayer(): Relayer {
   };
 }
 
-function buildAbortRelayer(): Relayer {
+function buildAbortRelayer(fixtureRoot: string): Relayer {
   return {
     connectorName: 'claude-code',
     relay: async (input: RelayInput): Promise<RelayOutcome> => {
       if (input.prompt.includes('Step: act-step')) {
         throw new Error('proof connector failure while implementing the synthetic Build change');
       }
-      return buildRelayer().relay(input);
+      return buildRelayer(fixtureRoot).relay(input);
     },
   };
 }
@@ -413,7 +424,7 @@ function reviewRelayer(): Relayer {
   };
 }
 
-function fixRelayer(): Relayer {
+function fixRelayer(fixtureRoot: string): Relayer {
   return {
     connectorName: 'claude-code',
     relay: async (input: RelayInput): Promise<RelayOutcome> => {
@@ -450,6 +461,19 @@ function fixRelayer(): Relayer {
         };
       }
       if (input.prompt.includes('Step: fix-act')) {
+        // Same contract as the Build act stub: the changed-files-on-disk
+        // acceptance criterion checks the fixture's working tree, so write
+        // the claimed guard before claiming it.
+        writeFileSync(
+          join(fixtureRoot, 'src', 'login.ts'),
+          [
+            'export function login(token?: string): string {',
+            "  if (token === undefined) return 'guest';",
+            '  return token;',
+            '}',
+            '',
+          ].join('\n'),
+        );
         return {
           request_payload: input.prompt,
           receipt_id: 'proof-fix-act',
@@ -465,6 +489,77 @@ function fixRelayer(): Relayer {
         };
       }
       throw new Error(`unexpected Fix proof relay prompt:\n${input.prompt.slice(0, 500)}`);
+    },
+  };
+}
+
+function pursueRelayer(fixtureRoot: string): Relayer {
+  return {
+    connectorName: 'claude-code',
+    relay: async (input: RelayInput): Promise<RelayOutcome> => {
+      if (input.prompt.includes('Step: batch-step')) {
+        // Pursue's batch step carries no changed-files acceptance criterion
+        // today, but the stub still writes the claimed changes into the
+        // fixture so every claim in the batch report is true and the live
+        // verify step runs against a genuinely mutated tree. The pursuit ids
+        // must match the contract writer's projection of the two-part goal
+        // (semicolon split -> pursuit-1, pursuit-2). Keep the batch report
+        // limited to what the batch itself did: the fixture check runs once,
+        // later, at the live verify step.
+        writeFileSync(join(fixtureRoot, 'src', 'example.ts'), 'export const answer = 43;\n');
+        writeFileSync(join(fixtureRoot, 'notes.md'), 'The fallback answer guard returns 43.\n');
+        return {
+          request_payload: input.prompt,
+          receipt_id: 'proof-pursue-batch',
+          result_body: JSON.stringify({
+            verdict: 'accept',
+            summary: 'Executed both pursuits serially and wrote both claimed changes.',
+            serialized_execution: true,
+            completed: [
+              {
+                pursuit_id: 'pursuit-1',
+                status: 'completed',
+                summary: 'Added the fallback answer guard in src/example.ts.',
+                evidence: ['src/example.ts changed in the fixture working tree.'],
+              },
+              {
+                pursuit_id: 'pursuit-2',
+                status: 'completed',
+                summary: 'Documented the guard in notes.md.',
+                evidence: ['notes.md added in the fixture working tree.'],
+              },
+            ],
+            skipped: [],
+            blocked: [],
+            failed: [],
+            actual_touch_set: {
+              paths: ['src/example.ts', 'notes.md'],
+              symbols: ['answer'],
+              commands: ['npm run check'],
+              generated_outputs: [],
+            },
+            proof_evidence: [
+              'src/example.ts and notes.md carry the claimed changes in the fixture working tree.',
+            ],
+          }),
+          duration_ms: 12,
+          cli_version: 'proof-stub',
+        };
+      }
+      if (input.prompt.includes('Step: review-step')) {
+        return {
+          request_payload: input.prompt,
+          receipt_id: 'proof-pursue-review',
+          result_body: JSON.stringify({
+            verdict: 'clean',
+            summary: 'Both pursuits landed without cross-pursuit interference.',
+            findings: [],
+          }),
+          duration_ms: 11,
+          cli_version: 'proof-stub',
+        };
+      }
+      throw new Error(`unexpected Pursue proof relay prompt:\n${input.prompt.slice(0, 500)}`);
     },
   };
 }
@@ -728,14 +823,12 @@ function exploreAutonomousDecisionRelayer(): Relayer {
 }
 
 function readPromptJson(prompt: string, relPath: string): Record<string, unknown> {
-  const marker = `--- ${relPath} ---\n`;
+  const marker = `<read path="${relPath}">`;
   const start = prompt.indexOf(marker);
   if (start < 0) throw new Error(`prompt did not include ${relPath}`);
   const jsonStart = start + marker.length;
-  const nextReport = prompt.indexOf('\n\n--- ', jsonStart);
-  const instructionStart = prompt.indexOf('\n\nRespond with', jsonStart);
-  const endCandidates = [nextReport, instructionStart].filter((index) => index >= 0);
-  const jsonEnd = endCandidates.length === 0 ? prompt.length : Math.min(...endCandidates);
+  const jsonEnd = prompt.indexOf('</read>', jsonStart);
+  if (jsonEnd < 0) throw new Error(`prompt read fence for ${relPath} is unterminated`);
   return JSON.parse(prompt.slice(jsonStart, jsonEnd).trim()) as Record<string, unknown>;
 }
 
@@ -814,10 +907,11 @@ type Scenario = {
   runtimeExecutors?: RuntimeExecutorsOption;
 };
 
-function runProofGit(cwd: string, args: readonly string[]): void {
+function runProofGit(cwd: string, args: readonly string[], env?: Record<string, string>): void {
   const result = spawnSync('git', [...args], {
     cwd,
     encoding: 'utf8',
+    ...(env === undefined ? {} : { env: { ...process.env, ...env } }),
   });
   if (result.status !== 0) {
     throw new Error(
@@ -826,26 +920,113 @@ function runProofGit(cwd: string, args: readonly string[]): void {
   }
 }
 
+// Commit with pinned identity and dates so fixture commit SHAs are
+// deterministic across captures.
+function commitProofFixture(root: string, message: string): void {
+  runProofGit(root, ['add', '.']);
+  runProofGit(
+    root,
+    [
+      '-c',
+      'user.name=Circuit Proof',
+      '-c',
+      'user.email=circuit-proof@example.test',
+      '-c',
+      'commit.gpgsign=false',
+      'commit',
+      '-m',
+      message,
+    ],
+    {
+      GIT_AUTHOR_DATE: '2026-04-29T00:00:00Z',
+      GIT_COMMITTER_DATE: '2026-04-29T00:00:00Z',
+    },
+  );
+}
+
 function prepareReviewProofProject(root: string): void {
   mkdirSync(join(root, 'src'), { recursive: true });
   writeFileSync(join(root, 'package.json'), '{"name":"review-proof-fixture","private":true}\n');
   writeFileSync(join(root, 'src', 'example.ts'), 'export const answer = 42;\n');
   runProofGit(root, ['init']);
-  runProofGit(root, ['add', '.']);
-  runProofGit(root, [
-    '-c',
-    'user.name=Circuit Proof',
-    '-c',
-    'user.email=circuit-proof@example.test',
-    '-c',
-    'commit.gpgsign=false',
-    'commit',
-    '-m',
-    'initial review proof fixture',
-  ]);
+  commitProofFixture(root, 'initial review proof fixture');
   writeFileSync(join(root, 'src', 'example.ts'), 'export const answer = 43;\n');
   writeFileSync(join(root, 'notes.md'), 'Untracked review note.\n');
   runProofGit(root, ['add', 'src/example.ts']);
+}
+
+// Build proofs run against a real git fixture so the engine's
+// changed-files-on-disk acceptance criterion (and the touch-area writer)
+// observe a genuine working-tree change instead of an unverifiable claim.
+// The npm check script keeps the brief's npm-check verification candidate
+// runnable and deterministic inside the fixture.
+function prepareBuildProofProject(root: string, options?: { includePlanSpec?: boolean }): void {
+  mkdirSync(join(root, 'src'), { recursive: true });
+  writeFileSync(
+    join(root, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'build-proof-fixture',
+        version: '0.0.0',
+        private: true,
+        scripts: { check: 'node -e "process.exit(0)"' },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  writeFileSync(join(root, 'src', 'example.ts'), 'export const answer = 42;\n');
+  if (options?.includePlanSpec === true) {
+    mkdirSync(join(root, 'docs', 'specs'), { recursive: true });
+    writeFileSync(
+      join(root, 'docs', 'specs', 'headless-engine-host-api-v1.md'),
+      [
+        '# Headless engine host API v1',
+        '',
+        'Synthetic plan fixture for the plan-execution proof.',
+        'Make the smallest safe change to src/example.ts.',
+        '',
+      ].join('\n'),
+    );
+  }
+  runProofGit(root, ['init']);
+  commitProofFixture(root, 'initial build proof fixture');
+}
+
+// Pursue proofs use the same shape as the build fixture: a git repo whose
+// only general verification script is `check`, so the pursuit contract
+// writer resolves a deterministic `npm run check` candidate in-fixture.
+function preparePursueProofProject(root: string): void {
+  mkdirSync(join(root, 'src'), { recursive: true });
+  writeFileSync(
+    join(root, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'pursue-proof-fixture',
+        version: '0.0.0',
+        private: true,
+        scripts: { check: 'node -e "process.exit(0)"' },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  writeFileSync(join(root, 'src', 'example.ts'), 'export const answer = 42;\n');
+  runProofGit(root, ['init']);
+  commitProofFixture(root, 'initial pursue proof fixture');
+}
+
+function prepareFixProofProject(root: string): void {
+  mkdirSync(join(root, 'src'), { recursive: true });
+  writeFileSync(join(root, 'package.json'), '{"name":"fix-proof-fixture","private":true}\n');
+  writeFileSync(
+    join(root, 'src', 'login.ts'),
+    ['export function login(token?: string): string {', '  return token as string;', '}', ''].join(
+      '\n',
+    ),
+  );
+  runProofGit(root, ['init']);
+  commitProofFixture(root, 'initial fix proof fixture');
 }
 
 async function captureCliScenario(scenario: Scenario): Promise<void> {
@@ -855,9 +1036,8 @@ async function captureCliScenario(scenario: Scenario): Promise<void> {
   const stagingProofDir = resolve(projectRoot, stagingProofDirRel);
   const runFolderRel = `${stagingProofDirRel}/run`;
   const runFolder = resolve(projectRoot, runFolderRel);
-  const scenarioProjectRel = `${stagingProofDirRel}/project`;
   const scenarioProjectRoot =
-    scenario.prepareProject === undefined ? projectRoot : resolve(projectRoot, scenarioProjectRel);
+    scenario.prepareProject === undefined ? projectRoot : scenarioProjectPath(scenario.slug);
   const pathAliases = [{ fromRel: stagingProofDirRel, toRel: proofDirRel }];
   rmSync(stagingProofDir, { recursive: true, force: true });
   mkdirSync(stagingProofDir, { recursive: true });
@@ -917,7 +1097,11 @@ async function captureCliScenario(scenario: Scenario): Promise<void> {
     renameSync(stagingProofDir, proofDir);
     console.log(`captured ${proofDirRel}`);
   } catch (err) {
-    rmSync(stagingProofDir, { recursive: true, force: true });
+    if (process.argv.includes('--keep-staging')) {
+      console.error(`scenario ${scenario.slug} failed; staging kept at ${stagingProofDirRel}`);
+    } else {
+      rmSync(stagingProofDir, { recursive: true, force: true });
+    }
     throw err;
   }
 }
@@ -1093,16 +1277,18 @@ const scenarios: Scenario[] = [
   {
     slug: 'routed-build',
     argv: ['run', 'build', '--goal', 'develop: add a small safe change'],
-    relayer: buildRelayer(),
+    relayer: buildRelayer(scenarioProjectPath('routed-build')),
     runtimeExecutors: buildProofExecutors(),
+    prepareProject: prepareBuildProofProject,
     runId: '44444444-4444-4444-4444-444444444402',
     startMs: Date.UTC(2026, 3, 29, 18, 0, 0),
   },
   {
     slug: 'explicit-build',
     argv: ['run', 'build', '--goal', 'add a focused change', '--depth', 'high'],
-    relayer: buildRelayer(),
+    relayer: buildRelayer(scenarioProjectPath('explicit-build')),
     runtimeExecutors: buildProofExecutors(),
+    prepareProject: prepareBuildProofProject,
     runId: '44444444-4444-4444-4444-444444444403',
     startMs: Date.UTC(2026, 3, 29, 18, 30, 0),
   },
@@ -1117,8 +1303,9 @@ const scenarios: Scenario[] = [
   {
     slug: 'checkpoint',
     argv: ['run', 'build', '--goal', 'deep change that asks for scope', '--depth', 'high'],
-    relayer: buildRelayer(),
+    relayer: buildRelayer(scenarioProjectPath('checkpoint')),
     runtimeExecutors: buildProofExecutors(),
+    prepareProject: prepareBuildProofProject,
     resumeChoice: 'continue',
     runId: '44444444-4444-4444-4444-444444444405',
     startMs: Date.UTC(2026, 3, 29, 19, 30, 0),
@@ -1126,18 +1313,33 @@ const scenarios: Scenario[] = [
   {
     slug: 'abort',
     argv: ['run', 'build', '--goal', 'simulate connector failure'],
-    relayer: buildAbortRelayer(),
+    relayer: buildAbortRelayer(scenarioProjectPath('abort')),
     runtimeExecutors: buildProofExecutors(),
+    prepareProject: prepareBuildProofProject,
     runId: '44444444-4444-4444-4444-444444444406',
     startMs: Date.UTC(2026, 3, 29, 20, 0, 0),
   },
   {
     slug: 'fix',
     argv: ['run', 'fix', '--goal', 'quick fix: restore the failing login test'],
-    relayer: fixRelayer(),
+    relayer: fixRelayer(scenarioProjectPath('fix')),
     runtimeExecutors: fixProofExecutors(),
+    prepareProject: prepareFixProofProject,
     runId: '44444444-4444-4444-4444-444444444407',
     startMs: Date.UTC(2026, 3, 29, 20, 30, 0),
+  },
+  {
+    slug: 'pursue',
+    argv: [
+      'run',
+      'pursue',
+      '--goal',
+      'add the fallback answer guard in src/example.ts; document the guard in notes.md',
+    ],
+    relayer: pursueRelayer(scenarioProjectPath('pursue')),
+    prepareProject: preparePursueProofProject,
+    runId: '44444444-4444-4444-4444-444444444412',
+    startMs: Date.UTC(2026, 3, 29, 21, 0, 0),
   },
   {
     slug: 'explore-decision',
@@ -1194,16 +1396,40 @@ const scenarios: Scenario[] = [
       '--goal',
       'Execute this plan: ./docs/specs/headless-engine-host-api-v1.md',
     ],
-    relayer: buildRelayer(),
+    relayer: buildRelayer(scenarioProjectPath('plan-execution')),
     runtimeExecutors: buildProofExecutors(),
+    prepareProject: (root) => prepareBuildProofProject(root, { includePlanSpec: true }),
     runId: '44444444-4444-4444-4444-444444444410',
     startMs: Date.UTC(2026, 3, 29, 22, 0, 0),
   },
 ];
 
-for (const scenario of scenarios) {
-  await captureCliScenario(scenario);
+const cliArgs = process.argv.slice(2);
+const scenarioFilter: string[] = [];
+for (let i = 0; i < cliArgs.length; i++) {
+  if (cliArgs[i] === '--scenario') {
+    const value = cliArgs[i + 1];
+    if (value === undefined || value.startsWith('--')) {
+      throw new Error('--scenario requires a slug');
+    }
+    scenarioFilter.push(value);
+    i++;
+  } else if (cliArgs[i] !== '--keep-staging') {
+    throw new Error(`unknown argument: ${cliArgs[i]}`);
+  }
 }
-await captureHandoff();
-await captureCustomization();
-captureDoctor();
+const knownSlugs = [...scenarios.map((s) => s.slug), 'handoff', 'customization', 'doctor'];
+for (const slug of scenarioFilter) {
+  if (!knownSlugs.includes(slug)) {
+    throw new Error(`unknown scenario: ${slug} (known: ${knownSlugs.join(', ')})`);
+  }
+}
+const wants = (slug: string): boolean =>
+  scenarioFilter.length === 0 || scenarioFilter.includes(slug);
+
+for (const scenario of scenarios) {
+  if (wants(scenario.slug)) await captureCliScenario(scenario);
+}
+if (wants('handoff')) await captureHandoff();
+if (wants('customization')) await captureCustomization();
+if (wants('doctor')) captureDoctor();

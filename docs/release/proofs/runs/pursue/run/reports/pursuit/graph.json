@@ -1,0 +1,62 @@
+{
+  "verdict": "accept",
+  "nodes": [
+    {
+      "id": "pursuit-1",
+      "goal": "add the fallback answer guard in src/example.ts",
+      "estimated_touch_set": {
+        "paths": [
+          "src/example.ts"
+        ],
+        "symbols": [],
+        "commands": [],
+        "generated_outputs": []
+      },
+      "risk": "low",
+      "status": "ready",
+      "reason": "Ready for coordinated execution."
+    },
+    {
+      "id": "pursuit-2",
+      "goal": "document the guard in notes.md",
+      "estimated_touch_set": {
+        "paths": [],
+        "symbols": [],
+        "commands": [],
+        "generated_outputs": []
+      },
+      "risk": "low",
+      "status": "ready",
+      "reason": "Ready for coordinated execution."
+    }
+  ],
+  "edges": [
+    {
+      "from": "pursuit-1",
+      "to": "pursuit-2",
+      "kind": "composes-with",
+      "reason": "No estimated touch-set overlap was found; discovery may run in parallel, but code writes still serialize in V1."
+    }
+  ],
+  "serial_groups": [
+    {
+      "id": "serial-code-writes",
+      "pursuit_ids": [
+        "pursuit-1",
+        "pursuit-2"
+      ],
+      "reason": "Pursuits V1 serializes all code-changing work until safe worktree apply exists."
+    }
+  ],
+  "parallel_read_only_groups": [
+    {
+      "id": "parallel-discovery",
+      "pursuit_ids": [
+        "pursuit-1",
+        "pursuit-2"
+      ],
+      "reason": "Read-only discovery can happen in parallel because it does not mutate the worktree."
+    }
+  ],
+  "blocked": []
+}

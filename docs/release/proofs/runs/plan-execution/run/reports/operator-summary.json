@@ -63,5 +63,23 @@
       "path": "<repo>/docs/release/proofs/runs/plan-execution/run/reports/build/review.json",
       "schema": "build.review@v1"
     }
-  ]
+  ],
+  "receipt": {
+    "depth": "medium",
+    "power": "medium",
+    "worker_runs": 3,
+    "escalations": 0,
+    "models": [
+      {
+        "provider": "anthropic",
+        "model": "opus"
+      },
+      {
+        "provider": "anthropic",
+        "model": "sonnet"
+      }
+    ],
+    "checks_evaluated": 10,
+    "checks_failed": 0
+  }
 }

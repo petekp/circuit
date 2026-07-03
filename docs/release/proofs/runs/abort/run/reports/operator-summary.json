@@ -31,5 +31,23 @@
       "label": "Run result",
       "path": "<repo>/docs/release/proofs/runs/abort/run/reports/result.json"
     }
-  ]
+  ],
+  "receipt": {
+    "depth": "medium",
+    "power": "medium",
+    "worker_runs": 2,
+    "escalations": 0,
+    "models": [
+      {
+        "provider": "anthropic",
+        "model": "opus"
+      },
+      {
+        "provider": "anthropic",
+        "model": "sonnet"
+      }
+    ],
+    "checks_evaluated": 3,
+    "checks_failed": 0
+  }
 }

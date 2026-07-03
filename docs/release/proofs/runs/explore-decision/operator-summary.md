@@ -10,4 +10,6 @@ Choose Vue for a smaller surface and faster product iteration.
 
 Next: Run a Build plan for a Vue prototype.
 
+⎿ depth tournament · power medium · 4 worker runs · all checks passed
+
 Rich summary: <repo>/docs/release/proofs/runs/explore-decision/run/reports/operator-summary.html

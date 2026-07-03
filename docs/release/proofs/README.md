@@ -46,6 +46,55 @@ fails on:
 - declared `required_files` missing on disk
 - a scenario referenced by a public claim or readiness ID whose status is
   not `verified_current`
-- untracked files inside `runs/` (capture should write only declared paths)
+
+There is no automated gate on stray files inside `runs/`; capture should
+write only declared paths, and leftovers are caught by reviewing
+`git status` after a recapture.
 
 Fix by regenerating, not by downgrading the scenario's status.
+
+## Known noise classes
+
+Captures are deterministic in every semantic field: outcomes, report
+shapes, claims, and timestamps (the capture script injects a fixed
+clock). A back-to-back recapture still produces small diffs in:
+
+- runtime-measured relay and verification `duration_ms` values (a few
+  milliseconds of wobble)
+- tournament child run ids (child runs mint random UUIDs, not values
+  derived from the parent run id)
+- the doctor transcript (it spawns a real run)
+
+Diffs in those fields are expected. A diff in any other field means the
+product changed; review it as a behavior change, not noise.
+
+## Adding a scenario
+
+A proof scenario has four coupled pieces. Add all of them in one change:
+
+1. **Capture entry** in `scripts/release/capture-golden-run-proofs.ts`:
+   add a `Scenario` to the `scenarios` list with a unique slug, a unique
+   `runId`, and a unique `startMs`. If the flow writes code or runs
+   verification, give it a `prepareProject` fixture (a scenario-local git
+   repo; see `preparePursueProofProject`) and make every relayer stub
+   write its claimed file changes into the fixture before claiming them.
+   For flows whose act step carries the changed-files-on-disk acceptance
+   criterion (build, fix), that is what lets the honesty gate evaluate
+   genuinely instead of being stubbed around; for flows without it, the
+   writes keep the stub's claims true and give the live verify step a
+   genuinely mutated tree. Stub relay bodies must satisfy the flow's
+   report schemas in `src/flows/<id>/reports.ts`.
+2. **Index entry** in `index.yaml`: id `proof:<name>`, the exact
+   reproduction command (it must mirror the capture argv; a test pins
+   this), `required_files`, `backing_paths` for the reports the flow
+   writes, and `status: verified_current`.
+3. **Test pins** in `tests/release/release-infrastructure.test.ts`: add
+   the scenario to the expected-outcome map and to the command-string
+   consistency map; pin the flow-level result report if the flow has one.
+4. **Regenerated release surfaces**: `npm run capture-proofs:golden-runs`
+   (use `--scenario <slug>` to capture just the new one), then
+   `npm run emit-release` so the capability and readiness surfaces pick
+   up the new scenario counts.
+
+Then run `npm run check-release-infra` and the release tests before
+committing the new `runs/<slug>/` tree.

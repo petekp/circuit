@@ -18,7 +18,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
-          "sha256": "5abded7add73d5c3cf0a4ad85b1223c0dbea6db276c68caf3c46a671479ee4b8",
+          "sha256": "a2df5f845bab01bd801907849701225cba4f7caf6e3505a784a71302fa82499b",
           "flow_id": "build"
         }
       ],
@@ -46,7 +46,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
-          "sha256": "5abded7add73d5c3cf0a4ad85b1223c0dbea6db276c68caf3c46a671479ee4b8",
+          "sha256": "a2df5f845bab01bd801907849701225cba4f7caf6e3505a784a71302fa82499b",
           "flow_id": "build"
         },
         {
@@ -65,7 +65,7 @@
     },
     {
       "schema_version": 1,
-      "id": "evidence.acceptance:act-step:1:evidence-non-empty",
+      "id": "evidence.acceptance:act-step:1:changed-files-on-disk",
       "kind": "report_field",
       "producer": "runtime",
       "independence": "runtime",
@@ -81,7 +81,7 @@
         {
           "kind": "work_contract",
           "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
-          "sha256": "5abded7add73d5c3cf0a4ad85b1223c0dbea6db276c68caf3c46a671479ee4b8",
+          "sha256": "a2df5f845bab01bd801907849701225cba4f7caf6e3505a784a71302fa82499b",
           "flow_id": "build"
         },
         {
@@ -97,6 +97,41 @@
         "claim.acceptance:act-step:1"
       ],
       "result": "pass"
+    },
+    {
+      "schema_version": 1,
+      "id": "evidence.acceptance:act-step:1:evidence-non-empty",
+      "kind": "report_field",
+      "producer": "runtime",
+      "independence": "runtime",
+      "ref": {
+        "kind": "trace",
+        "ref": "trace.ndjson#sequence=34",
+        "run_id": "44444444-4444-4444-4444-444444444410",
+        "step_id": "act-step",
+        "attempt": 1,
+        "sequence": 34
+      },
+      "input_refs": [
+        {
+          "kind": "work_contract",
+          "ref": "<repo>/generated/flows/build/circuit.work-contract.v0.json",
+          "sha256": "a2df5f845bab01bd801907849701225cba4f7caf6e3505a784a71302fa82499b",
+          "flow_id": "build"
+        },
+        {
+          "kind": "trace",
+          "ref": "trace.ndjson#sequence=34",
+          "run_id": "44444444-4444-4444-4444-444444444410",
+          "step_id": "act-step",
+          "attempt": 1,
+          "sequence": 34
+        }
+      ],
+      "covers_claims": [
+        "claim.acceptance:act-step:1"
+      ],
+      "result": "pass"
     }
   ],
   "results": [
@@ -105,6 +140,7 @@
       "status": "weak",
       "evidence_refs": [
         "evidence.acceptance:act-step:1:changed-files-present",
+        "evidence.acceptance:act-step:1:changed-files-on-disk",
         "evidence.acceptance:act-step:1:evidence-non-empty"
       ],
       "missing": [

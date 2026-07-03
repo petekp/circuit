@@ -11,8 +11,8 @@
       "cwd": ".",
       "exit_code": 0,
       "status": "passed",
-      "duration_ms": 3356,
-      "stdout_summary": "\n> circuit@0.0.1 check\n> tsc --noEmit\n\n",
+      "duration_ms": 303,
+      "stdout_summary": "\n> build-proof-fixture@0.0.0 check\n> node -e \"process.exit(0)\"\n\n",
       "stderr_summary": ""
     }
   ]

@@ -18,7 +18,7 @@
     "work_contract_ref": {
       "kind": "work_contract",
       "ref": "<repo>/generated/flows/explore/tournament.work-contract.v0.json",
-      "sha256": "a4d09d427691ea056b078c07d51719ac5448837b3634cae2ca5e24b0995c1d07",
+      "sha256": "62a593f90957e49b6ed0449a08e21115bf7f767fd73fa661db4c7402928021db",
       "flow_id": "explore"
     },
     "checkpoint_boundary_ref": {
@@ -35,6 +35,7 @@
         "source_path": "<repo>/.circuit/config.yaml",
         "config": {
           "schema_version": 1,
+          "project_id": "circuit",
           "relay": {
             "default": "auto",
             "roles": {},
@@ -114,6 +115,7 @@
               ]
             }
           },
+          "power_tiers": {},
           "defaults": {}
         }
       }
