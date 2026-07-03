@@ -28,6 +28,44 @@ F1 through F5 are fixed on main after this record was written:
 
 The findings below are kept as the point-in-time record of the sweep.
 
+## Update 2026-07-02: Layer 4 live flow ledger executed
+
+Pete approved the `~$15-40` spend gate and said "just report, fix nothing
+yet." All Layer 4 legs ran live: the seven flow runs, the tournament
+park/resume loop, two adversarial until-loop legs, and the Ctrl-C interrupt
+probe. First live-model evidence for the flows. Full ledger with per-run
+receipts: [`proofs/live-runs/LEDGER.md`](proofs/live-runs/LEDGER.md). Total
+spend about $6.60.
+
+Verified live: per-role spend receipts (machine-readable in
+`operator-summary.json`), "a few dollars" (observed $0.17-$0.92, 35-105s),
+Review's read-only byte-identity, the false-done floor under a real model
+(Fix and Prototype each surfaced an honest caveat instead of laundering),
+tournament checkpoint park/choose/resume, and the until-loop's green path.
+
+New findings (reported, not fixed): **F13 (high, unified judge-seam
+finding)** — in the until-loop's judge seam "done" is the schema's path of
+least resistance: a contentless `{"verdict":"ok"}` closed a run where the
+model hardcoded a call-order answer key to satisfy contradictory tests
+(F13a), while an honest `rework` verdict on an unsatisfiable goal crashed
+the run ("not in check.pass [ok]") instead of routing to the existing
+`advance` loop-back edge (F13b). The honest-exhaustion sentence in
+positioning claim 4 is therefore still unverified live. **F11** prototype
+artifact-integrity judges the planner's `index.html` guess rather than the
+delivered CLI goal (spurious `needs_attention`). **F12** pursue's
+interference review returned a model-written `placeholder` summary and two
+ideas collapsed to one pursuit. **F14** interrupted runs have no
+operator-visible recovery route (inbox is checkpoint-only, reclaim is
+worktree-only, resume is checkpoint-mode-only). **F15** checkpoint
+decision-packet labels are opaque (`option-1`/`option-2`). Plus a
+**pre-announce copy item**: verification discovery is npm-family only
+(`verification-resolver.ts`), so write flows block honestly in non-Node
+repos; the docs should say so. The converge-command copy risk was checked
+and is already handled in the draft.
+
+Also done during this pass: the stale Codex hook launcher (T3.4) was healed
+via `handoff hooks install --host codex`; doctor now exits 0.
+
 ## Verdict so far
 
 The **released artifact is coherent**: CI green on both OSes at the tag,
