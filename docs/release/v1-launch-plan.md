@@ -175,7 +175,9 @@ Real directions, deliberately parked. Pointers only.
   but behavior is not quality; a judge is the lever. Ships before any
   feed-forward loop does.
 - **Release flow and flow-postmortem flow:** Circuit developing Circuit, the
-  compounding loop. After v1.
+  compounding loop. After v1. See
+  [docs/ideas/run-close-learning-capture.md](../ideas/run-close-learning-capture.md)
+  for the narrow run-close learning capture form.
 - **Breadth-first flow generation and live efficacy:** gated on operator
   spend. See [docs/ideas/bespoke-flow-generation-design.md](../ideas/bespoke-flow-generation-design.md).
 - **The recursion and recompile frontier:** mapped in

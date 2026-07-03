@@ -710,6 +710,22 @@
       "last_checked": "2026-06-21"
     },
     {
+      "path": "docs/ideas/run-close-learning-capture.md",
+      "title": "Run-Close Learning Capture",
+      "status": "current-proposal",
+      "category": "memory-and-ratchet",
+      "tags": ["memory", "lessons", "run-close", "project-facts", "compounding-loop"],
+      "current_reading": "Post-v1 proposal for closing the loop from run evidence to one cited, stale-checked, hint-only project fact that future same-flow runs read automatically. Builds on the existing memory substrate and keeps the lesson non-authoritative; not current behavior.",
+      "related": [
+        "docs/ideas/self-auditing-memory.md",
+        "docs/ideas/self-auditing-memory-slice-5-spec.md",
+        "docs/ideas/recall-to-lesson-gap.md",
+        "docs/ideas/project-execution-memory.md",
+        "docs/ideas/circuit-vs-compound-engineering.md"
+      ],
+      "last_checked": "2026-07-03"
+    },
+    {
       "path": "docs/ideas/supermemory-harness-memory-vs-circuit.md",
       "title": "supermemory (memory on the harness level) vs Circuit",
       "status": "current-comparison",
