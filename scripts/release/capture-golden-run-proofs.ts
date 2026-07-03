@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   renameSync,
@@ -11,6 +12,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -1118,6 +1120,106 @@ async function captureCliScenario(scenario: Scenario): Promise<void> {
   }
 }
 
+// A stale relay stub is the F12 regression class: the pursue review stub's
+// body drifted from the flow's tightened `pursuit.review@v1` schema, so
+// parseReport (src/flows/registries/report-schemas.ts) fail-closed and the
+// runtime aborted the captured run. The abort reason is byte-identical to the
+// parse error, so a scenario whose reason carries one of these signatures has
+// a stub that no longer satisfies its flow's current report schema.
+const SCHEMA_FAILURE_SIGNATURES = [
+  'did not validate against schema',
+  'did not parse as JSON against schema',
+  'is not registered in the report-schema registry',
+] as const;
+
+function reasonIsSchemaFailure(reason: unknown): reason is string {
+  return (
+    typeof reason === 'string' && SCHEMA_FAILURE_SIGNATURES.some((sig) => reason.includes(sig))
+  );
+}
+
+// Run a scenario through the real runtime WITHOUT persisting any golden proof,
+// purely to assert its relay stubs still satisfy the current report schemas.
+// Uses the same fixture path the scenario's relayer was bound to (so the
+// changed-files-on-disk acceptance criterion sees the stub's writes) but a
+// throwaway run folder, and never touches the committed proof tree. Returns a
+// failure message when the run aborts on a report-schema parse error, else null.
+async function validateScenarioStubFreshness(scenario: Scenario): Promise<string | null> {
+  const scenarioProjectRoot =
+    scenario.prepareProject === undefined ? projectRoot : scenarioProjectPath(scenario.slug);
+  const tmpRunRoot = mkdtempSync(join(tmpdir(), `circuit-stub-${scenario.slug}-`));
+  const runFolder = join(tmpRunRoot, 'run');
+  try {
+    if (scenario.prepareProject !== undefined) {
+      mkdirSync(scenarioProjectRoot, { recursive: true });
+      scenario.prepareProject(scenarioProjectRoot);
+    }
+    const now = deterministicNow(scenario.startMs);
+    const run = await runCli([...scenario.argv, '--run-folder', runFolder, '--progress', 'jsonl'], {
+      relayer: scenario.relayer,
+      ...(scenario.runtimeExecutors === undefined
+        ? {}
+        : { runtimeExecutors: scenario.runtimeExecutors }),
+      runId: scenario.runId,
+      now,
+      configCwd: scenarioProjectRoot,
+    });
+    let finalStdout = run.stdout;
+    if (scenario.resumeChoice !== undefined) {
+      const resume = await runCli(
+        [
+          'resume',
+          '--run-folder',
+          runFolder,
+          '--checkpoint-choice',
+          scenario.resumeChoice,
+          '--progress',
+          'jsonl',
+        ],
+        { relayer: scenario.relayer, now, configCwd: scenarioProjectRoot },
+      );
+      finalStdout = resume.stdout;
+    }
+    let result: { outcome?: unknown; reason?: unknown };
+    try {
+      result = JSON.parse(finalStdout) as { outcome?: unknown; reason?: unknown };
+    } catch (err) {
+      return `scenario '${scenario.slug}' produced unparseable CLI output: ${
+        err instanceof Error ? err.message : String(err)
+      }`;
+    }
+    if (reasonIsSchemaFailure(result.reason)) {
+      return `scenario '${scenario.slug}' aborted on a report-schema failure — a relay stub no longer satisfies its flow's current report schema:\n    ${result.reason}`;
+    }
+    return null;
+  } finally {
+    rmSync(tmpRunRoot, { recursive: true, force: true });
+    if (scenario.prepareProject !== undefined) {
+      rmSync(scenarioProjectRoot, { recursive: true, force: true });
+    }
+  }
+}
+
+async function validateStubFreshness(): Promise<void> {
+  const failures: string[] = [];
+  for (const scenario of scenarios) {
+    const failure = await validateScenarioStubFreshness(scenario);
+    if (failure === null) {
+      console.log(`stub-fresh ${scenario.slug}`);
+    } else {
+      console.error(`error: ${failure}`);
+      failures.push(failure);
+    }
+  }
+  if (failures.length > 0) {
+    console.error(
+      `\n${failures.length} proof stub(s) are stale against their flow's report schema. Update the relay stub body in scripts/release/capture-golden-run-proofs.ts, then re-run \`npm run capture-proofs:golden-runs\` to refresh the golden proofs.`,
+    );
+    process.exit(1);
+  }
+  console.log(`✓ all ${scenarios.length} proof-scenario relay stubs satisfy their report schemas`);
+}
+
 function captureDoctor(): void {
   const proofDirRel = `${proofRunsRootRel}/doctor`;
   const proofDir = resolve(projectRoot, proofDirRel);
@@ -1417,6 +1519,7 @@ const scenarios: Scenario[] = [
 ];
 
 const cliArgs = process.argv.slice(2);
+const validateStubsOnly = cliArgs.includes('--validate-stubs');
 const scenarioFilter: string[] = [];
 for (let i = 0; i < cliArgs.length; i++) {
   if (cliArgs[i] === '--scenario') {
@@ -1426,22 +1529,32 @@ for (let i = 0; i < cliArgs.length; i++) {
     }
     scenarioFilter.push(value);
     i++;
-  } else if (cliArgs[i] !== '--keep-staging') {
+  } else if (cliArgs[i] !== '--keep-staging' && cliArgs[i] !== '--validate-stubs') {
     throw new Error(`unknown argument: ${cliArgs[i]}`);
   }
 }
-const knownSlugs = [...scenarios.map((s) => s.slug), 'handoff', 'customization', 'doctor'];
-for (const slug of scenarioFilter) {
-  if (!knownSlugs.includes(slug)) {
-    throw new Error(`unknown scenario: ${slug} (known: ${knownSlugs.join(', ')})`);
-  }
-}
-const wants = (slug: string): boolean =>
-  scenarioFilter.length === 0 || scenarioFilter.includes(slug);
 
-for (const scenario of scenarios) {
-  if (wants(scenario.slug)) await captureCliScenario(scenario);
+// --validate-stubs is the fast freshness guard: run every scenario through the
+// real runtime and fail loudly if any relay stub no longer satisfies its flow's
+// current report schema, WITHOUT writing or mutating the committed golden
+// proofs. This is what catches the F12 regression class at check time instead
+// of surfacing later as an aborted golden run.
+if (validateStubsOnly) {
+  await validateStubFreshness();
+} else {
+  const knownSlugs = [...scenarios.map((s) => s.slug), 'handoff', 'customization', 'doctor'];
+  for (const slug of scenarioFilter) {
+    if (!knownSlugs.includes(slug)) {
+      throw new Error(`unknown scenario: ${slug} (known: ${knownSlugs.join(', ')})`);
+    }
+  }
+  const wants = (slug: string): boolean =>
+    scenarioFilter.length === 0 || scenarioFilter.includes(slug);
+
+  for (const scenario of scenarios) {
+    if (wants(scenario.slug)) await captureCliScenario(scenario);
+  }
+  if (wants('handoff')) await captureHandoff();
+  if (wants('customization')) await captureCustomization();
+  if (wants('doctor')) captureDoctor();
 }
-if (wants('handoff')) await captureHandoff();
-if (wants('customization')) await captureCustomization();
-if (wants('doctor')) captureDoctor();
