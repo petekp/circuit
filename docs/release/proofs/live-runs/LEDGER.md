@@ -77,9 +77,21 @@ inside the gate.
   flow.
 - "Until the goal is proven met" holds mechanically (checks gate closure)
   but not semantically (see F13). The green path is proven; the honest
-  exhaustion path is not.
+  exhaustion path is not — **fixed post-record; now test-proven offline. See
+  the 2026-07-03 update below.**
 
 ## New findings (reported, not fixed, per Pete's instruction)
+
+> **Update 2026-07-03 (post-fix).** F13a and F13b below were fixed after this
+> record, in commit `c7830edf`. The honest-exhaustion path is now proven offline
+> and gated by tests: a never-converging loop exits to needs-attention and never
+> `@complete` (`tests/runner/converge-proof-until-loop.test.ts:154`), as does an
+> unmet goal below the autonomous floor (`:182`). `goal_met: false` now drives
+> the `advance` loop-back route instead of the old `rework` crash. So positioning
+> claim 4's "reports not done on exhaustion" is mechanically sound and
+> test-backed. The one caveat: that proof is offline; a live re-run against the
+> post-fix engine has not been done (spend-gated). The live observations below
+> stand as the point-in-time record of what the pre-fix engine did.
 
 - **F13 (high, the unified judge-seam finding).** In the until-loop's judge
   seam, "done" is the schema's path of least resistance and "not done" is
@@ -95,7 +107,9 @@ inside the gate.
   requires `goal_met` plus a substantive rationale; `goal_met: false` maps
   mechanically to the `advance` route; verdict stays reserved for
   report-validity; bare verdicts rejected. Until then, positioning claim 4's
-  exhaustion sentence is unproven live.
+  exhaustion sentence is unproven live. **(Done post-record in `c7830edf` along
+  the lines above; now test-proven offline. A live re-run is still owed. See the
+  2026-07-03 update at the top of this section.)**
 - **F11 (medium).** Prototype artifact-integrity judges the planner's guess,
   not the goal. For a CLI goal the planner declared `index.html` in
   `planned_files`; the implementer correctly built a CLI; the integrity
