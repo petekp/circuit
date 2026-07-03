@@ -28,6 +28,10 @@ import {
   projectClosedProcessEvidence,
 } from '../app/process-evidence/projection.js';
 import { runAutonomousContinuation } from '../app/run-envelope/autonomous-run.js';
+import {
+  RunStatusFolderError,
+  projectRunStatusFromRunFolder,
+} from '../app/run-status/run-folder-projector.js';
 import { INTERNAL_FLOW_IDS, findFlowRuntimeSurfaceById } from '../flows/catalog.js';
 import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { runsRoot } from '../shared/control-plane-paths.js';
@@ -509,6 +513,45 @@ function shouldPrepareHistoryRecall(options: RunCommandOptions): boolean {
   );
 }
 
+// When resume is pointed at a runtime run folder that cannot be resumed, the
+// internal rejection is project-internal jargon ("runtime checkpoint resume
+// rejected: run has no unresolved checkpoint request"). Answer the operator in
+// plain language keyed on the public run-status projection, and always point at
+// the inspection front door so they have a next step.
+function nonResumableRunMessage(runFolder: string): string {
+  const inspect = `Inspect it with: circuit runs show --run-folder ${runFolder} --json`;
+  let lead: string;
+  try {
+    const status = projectRunStatusFromRunFolder(runFolder);
+    switch (status.engine_state) {
+      case 'open':
+        // Bootstrapped and stepping, but never reached a checkpoint. From a run
+        // folder alone we cannot tell "still running elsewhere" from "crashed
+        // mid-run", so name both honestly rather than guess.
+        lead = `The run at ${runFolder} has no checkpoint to resume: it was interrupted before it reached one, or it is still running elsewhere.`;
+        break;
+      case 'waiting_checkpoint':
+        // Defensive: a genuine checkpoint-waiting folder should have resumed, so
+        // reaching here means resume rejected it for another reason. Stay honest.
+        lead = `The run at ${runFolder} could not be resumed even though it is waiting at a checkpoint. Something about the saved checkpoint prevented it.`;
+        break;
+      case 'completed':
+      case 'aborted':
+        lead = `The run at ${runFolder} already finished (${status.terminal_outcome}), so there is no checkpoint to resume.`;
+        break;
+      default:
+        lead = `The run folder at ${runFolder} is damaged (${status.reason}), so it cannot be resumed.`;
+        break;
+    }
+  } catch (err) {
+    // Projection itself can throw on a missing or unreadable folder. Keep the
+    // operator message honest and still actionable.
+    const detail = err instanceof RunStatusFolderError ? `: ${err.message}` : '';
+    lead = `The run at ${runFolder} cannot be resumed and its status could not be read${detail}.`;
+  }
+  return `error: ${lead}\n${inspect}`;
+}
+
 export async function runResumeCommand(
   args: ParsedArgs,
   options: RunCommandOptions,
@@ -522,17 +565,30 @@ export async function runResumeCommand(
     const progress = progressReporter(args.progress === 'jsonl');
     const hostKind = runtimeHostKind(options);
     if (await isRuntimeRunFolder(runFolder)) {
-      const runtimeResult = await resumeCompiledFlow({
-        runDir: runFolder,
-        selection: args.checkpointChoice,
-        now: options.now ?? (() => new Date()),
-        childCompiledFlowResolver: defaultChildCompiledFlowResolver(undefined),
-        ...(hostKind === undefined ? {} : { hostKind }),
-        ...(options.runtimeExecutors === undefined ? {} : { executors: options.runtimeExecutors }),
-        ...(options.relayer === undefined ? {} : { relayer: options.relayer }),
-        ...(progress === undefined ? {} : { progress }),
-        progressSurfaceForFlowId,
-      });
+      let runtimeResult: Awaited<ReturnType<typeof resumeCompiledFlow>>;
+      try {
+        runtimeResult = await resumeCompiledFlow({
+          runDir: runFolder,
+          selection: args.checkpointChoice,
+          now: options.now ?? (() => new Date()),
+          childCompiledFlowResolver: defaultChildCompiledFlowResolver(undefined),
+          ...(hostKind === undefined ? {} : { hostKind }),
+          ...(options.runtimeExecutors === undefined
+            ? {}
+            : { executors: options.runtimeExecutors }),
+          ...(options.relayer === undefined ? {} : { relayer: options.relayer }),
+          ...(progress === undefined ? {} : { progress }),
+          progressSurfaceForFlowId,
+        });
+      } catch {
+        // The folder is a runtime run folder but resume could not proceed: it
+        // was interrupted before reaching a checkpoint, already finished, or the
+        // saved checkpoint is damaged. The internal rejection is project-internal
+        // jargon; answer the operator honestly from the public run-status
+        // projection and point at the inspection front door instead.
+        process.stderr.write(`${nonResumableRunMessage(runFolder)}\n`);
+        return 2;
+      }
       const runResult = RunResult.parse(JSON.parse(readFileSync(runtimeResult.resultPath, 'utf8')));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings: PostRunArtifactWarning[] = [];

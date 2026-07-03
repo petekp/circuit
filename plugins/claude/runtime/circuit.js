@@ -74276,23 +74276,57 @@ function shouldPrepareHistoryRecall(options) {
     return false;
   return options.relayer === void 0 && options.runtimeExecutors === void 0 && options.composeWriter === void 0;
 }
+function nonResumableRunMessage(runFolder) {
+  const inspect = `Inspect it with: circuit runs show --run-folder ${runFolder} --json`;
+  let lead;
+  try {
+    const status = projectRunStatusFromRunFolder(runFolder);
+    switch (status.engine_state) {
+      case "open":
+        lead = `The run at ${runFolder} has no checkpoint to resume: it was interrupted before it reached one, or it is still running elsewhere.`;
+        break;
+      case "waiting_checkpoint":
+        lead = `The run at ${runFolder} could not be resumed even though it is waiting at a checkpoint. Something about the saved checkpoint prevented it.`;
+        break;
+      case "completed":
+      case "aborted":
+        lead = `The run at ${runFolder} already finished (${status.terminal_outcome}), so there is no checkpoint to resume.`;
+        break;
+      default:
+        lead = `The run folder at ${runFolder} is damaged (${status.reason}), so it cannot be resumed.`;
+        break;
+    }
+  } catch (err) {
+    const detail = err instanceof RunStatusFolderError ? `: ${err.message}` : "";
+    lead = `The run at ${runFolder} cannot be resumed and its status could not be read${detail}.`;
+  }
+  return `error: ${lead}
+${inspect}`;
+}
 async function runResumeCommand(args, options) {
   if (args.command === "resume" && args.runFolder !== void 0 && args.checkpointChoice !== void 0) {
     const runFolder = resolve28(args.runFolder);
     const progress = progressReporter(args.progress === "jsonl");
     const hostKind = runtimeHostKind(options);
     if (await isRuntimeRunFolder(runFolder)) {
-      const runtimeResult = await resumeCompiledFlow({
-        runDir: runFolder,
-        selection: args.checkpointChoice,
-        now: options.now ?? (() => /* @__PURE__ */ new Date()),
-        childCompiledFlowResolver: defaultChildCompiledFlowResolver(void 0),
-        ...hostKind === void 0 ? {} : { hostKind },
-        ...options.runtimeExecutors === void 0 ? {} : { executors: options.runtimeExecutors },
-        ...options.relayer === void 0 ? {} : { relayer: options.relayer },
-        ...progress === void 0 ? {} : { progress },
-        progressSurfaceForFlowId
-      });
+      let runtimeResult;
+      try {
+        runtimeResult = await resumeCompiledFlow({
+          runDir: runFolder,
+          selection: args.checkpointChoice,
+          now: options.now ?? (() => /* @__PURE__ */ new Date()),
+          childCompiledFlowResolver: defaultChildCompiledFlowResolver(void 0),
+          ...hostKind === void 0 ? {} : { hostKind },
+          ...options.runtimeExecutors === void 0 ? {} : { executors: options.runtimeExecutors },
+          ...options.relayer === void 0 ? {} : { relayer: options.relayer },
+          ...progress === void 0 ? {} : { progress },
+          progressSurfaceForFlowId
+        });
+      } catch {
+        process.stderr.write(`${nonResumableRunMessage(runFolder)}
+`);
+        return 2;
+      }
       const runResult = RunResult.parse(JSON.parse(readFileSync61(runtimeResult.resultPath, "utf8")));
       const priorRoute = readPriorRoute(runFolder);
       const postRunArtifactWarnings = [];
