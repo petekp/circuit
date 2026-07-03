@@ -174,7 +174,7 @@ circuit as the source of truth.**
    or `preview` in the landing source; memory says it was vendored from
    `preview --matrix --json` when the dial section shipped in circuit-land
    #17/#18).
-2. Add a script to circuit-land (e.g. `scripts/check-dial-matrix.mjs`) that:
+2. Add a script to circuit-land (e.g. `scripts/check-dial-matrix.mjs`) that: <!-- path-ok -->
    - regenerates the matrix from the pinned circuit version. Prefer
      installing circuit at the tag circuit-land currently advertises
      (`npx github:petekp/circuit#circuit--v0.1.0-alpha.9 preview --matrix
