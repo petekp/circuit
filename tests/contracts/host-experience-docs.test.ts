@@ -89,7 +89,7 @@ describe('host experience docs', () => {
     expect(doc).toContain('/circuit:run — default Circuit command');
     expect(doc).toContain('Recommend the flow before invoking the CLI');
     expect(doc).toContain('Circuit records the selected flow');
-    expect(doc).toContain('node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present run fix --goal');
+    expect(doc).toContain('node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present run fix --goal');
     expect(doc).not.toContain('Do not classify the task yourself');
     expect(doc).toContain('Let the presentation wrapper render output');
     // The decider owns the why: when the host picks the flow it states its
@@ -127,7 +127,7 @@ describe('host experience docs', () => {
     expect(doc).toContain('worker connector behavior');
     expect(doc).toContain('docs/first-run.md');
     expect(doc).not.toContain('runtime_source');
-    expect(doc).not.toContain('scripts/circuit.ts');
+    expect(doc).not.toContain('scripts/circuit.js');
     expect(doc).not.toContain('check:codex-plugin-cache');
     expect(doc).not.toContain('doctor');
     expect(doc).not.toMatch(/\b[Ww]orkflow(s)?\b/);

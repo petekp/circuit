@@ -43,7 +43,7 @@ The user's request is passed as the command input.
 ./bin/circuit run --goal 'sample' --progress jsonl
 \`\`\`
 
-Use the Bash tool to execute the constructed command. \`node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts"\`
+Use the Bash tool to execute the constructed command. \`node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js"\`
    is the installed wrapper for \`dist/cli/circuit.js\`.
 
 3. **Render progress** from stderr and parse final JSON from stdout.
@@ -77,7 +77,7 @@ describe('emit-flows host renderers (real command sources)', () => {
     const rendered = renderCodexHostCommand(runSource);
 
     expect(rendered).not.toContain('./bin/circuit');
-    expect(rendered).toContain("node '<plugin root>/scripts/circuit.ts'");
+    expect(rendered).toContain("node '<plugin root>/scripts/circuit.js'");
     // Codex keeps raw JSONL progress (no presentation wrapper).
     expect(rendered).toContain('--progress jsonl');
     expect(rendered).not.toContain('<!--');
@@ -117,7 +117,7 @@ describe('emit-flows host renderers (synthetic source branches)', () => {
     expect(rendered).not.toContain('generated-only note');
     expect(rendered).toContain('Resolve plugin root');
     expect(rendered).toContain(
-      'node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present run --goal',
+      'node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present run --goal',
     );
     expect(rendered).not.toContain('--progress jsonl');
     expect(rendered).toContain('Let the presentation wrapper render output');
@@ -130,7 +130,7 @@ describe('emit-flows host renderers (synthetic source branches)', () => {
 
     expect(rendered).not.toContain('generated-only note');
     expect(rendered).toContain('Resolve plugin root');
-    expect(rendered).toContain("node '<plugin root>/scripts/circuit.ts' run --goal");
+    expect(rendered).toContain("node '<plugin root>/scripts/circuit.js' run --goal");
     expect(rendered).toContain('--progress jsonl');
     expect(rendered).not.toContain('## Authority');
     expect(rendered).not.toContain('`src/cli/circuit.ts`');

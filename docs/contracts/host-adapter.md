@@ -66,7 +66,7 @@ root when invoking `run`.
 For the Codex plugin, the wrapper command is:
 
 ```bash
-node '<plugin root>/scripts/circuit.ts' run <flow> --goal '<task>'
+node '<plugin root>/scripts/circuit.js' run <flow> --goal '<task>'
 ```
 
 The wrapper injects:
@@ -202,7 +202,7 @@ dogfooding may use `sync:claude-plugin-cache` /
 The Codex plugin wrapper MUST support:
 
 ```bash
-node '<plugin root>/scripts/circuit.ts' doctor
+node '<plugin root>/scripts/circuit.js' doctor
 ```
 
 The doctor returns JSON on stdout and checks:

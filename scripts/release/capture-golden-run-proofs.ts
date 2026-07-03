@@ -1123,7 +1123,7 @@ function captureDoctor(): void {
   const proofDir = resolve(projectRoot, proofDirRel);
   rmSync(proofDir, { recursive: true, force: true });
   mkdirSync(proofDir, { recursive: true });
-  const result = spawnSync(process.execPath, ['plugins/codex/scripts/circuit.ts', 'doctor'], {
+  const result = spawnSync(process.execPath, ['plugins/codex/scripts/circuit.js', 'doctor'], {
     cwd: projectRoot,
     encoding: 'utf8',
     timeout: 180_000,
@@ -1131,7 +1131,7 @@ function captureDoctor(): void {
   writeScrubbed(
     `${proofDirRel}/output.txt`,
     [
-      '$ node plugins/codex/scripts/circuit.ts doctor',
+      '$ node plugins/codex/scripts/circuit.js doctor',
       `exit: ${result.status ?? 1}`,
       '',
       'stdout:',

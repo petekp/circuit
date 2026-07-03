@@ -790,7 +790,11 @@ export function runPublish(
     const codexSourceRoot = resolve(repoRoot, 'plugins/codex');
     const claudeSourceRoot = resolve(repoRoot, 'plugins/claude');
     const codexTarget = defaultCodexCacheTarget();
-    const codexLauncher = resolve(codexTarget, 'scripts/circuit.ts');
+    // The launcher path is written verbatim into the Codex user hooks.json and
+    // is spawned directly by the Codex host on SessionStart. It must be the
+    // .js shim so an old-Node host gets a legible version error instead of a
+    // parse-time crash on the .ts wrapper.
+    const codexLauncher = resolve(codexTarget, 'scripts/circuit.js');
     const claudeEnv = claudeUserEnv();
     const codexEnv = codexUserEnv();
 
@@ -925,7 +929,9 @@ export function runPublish(
     assertBundledDoctor('codex_installed_doctor', codexInstalledDoctor);
 
     if (args.installCodexHook) {
-      const launcher = resolve(checkedTarget, 'scripts/circuit.ts');
+      // Host-spawned launcher written into the Codex user hooks.json: use the
+      // .js shim so an old-Node host degrades to a legible error.
+      const launcher = resolve(checkedTarget, 'scripts/circuit.js');
       runCommand(
         'codex_handoff_hook_install',
         [

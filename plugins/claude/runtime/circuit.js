@@ -52929,14 +52929,14 @@ function defaultCodexHooksFile() {
 }
 function resolveDefaultLauncher(pluginRoot, moduleDir) {
   if (pluginRoot !== void 0 && pluginRoot.length > 0) {
-    return resolve13(pluginRoot, "scripts/circuit.ts");
+    return resolve13(pluginRoot, "scripts/circuit.js");
   }
   return resolve13(moduleDir, "../..", "bin/circuit");
 }
 function missingDefaultLauncherMessage(launcher) {
   return [
     "CIRCUIT_PLUGIN_ROOT is unset and no wrapper was detected.",
-    "Either set CIRCUIT_PLUGIN_ROOT or invoke through plugins/<host>/scripts/circuit.ts.",
+    "Either set CIRCUIT_PLUGIN_ROOT or invoke through plugins/<host>/scripts/circuit.js.",
     `Tried source-tree fallback launcher: ${launcher}`
   ].join(" ");
 }

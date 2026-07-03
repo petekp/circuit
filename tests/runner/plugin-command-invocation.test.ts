@@ -21,7 +21,7 @@ const ROUTED_ONLY_COMMAND_PATHS = ['build', 'explore', 'fix', 'goal', 'prototype
   (flow) => resolve(CLAUDE_COMMAND_ROOT, `${flow}.md`),
 );
 const MANIFEST_PATH = resolve(REPO_ROOT, 'plugins/claude/.claude-plugin/plugin.json');
-const CLAUDE_WRAPPER_PATTERN = String.raw`node "\$\{CLAUDE_PLUGIN_ROOT\}/scripts/circuit\.ts"`;
+const CLAUDE_WRAPPER_PATTERN = String.raw`node "\$\{CLAUDE_PLUGIN_ROOT\}/scripts/circuit\.js"`;
 
 function extractBashBlocks(body: string): string[] {
   const regex = /```bash\n([\s\S]*?)```/g;
@@ -104,7 +104,7 @@ describe('plugin command invocation binding', () => {
     });
 
     it('run command uses the installed Claude plugin wrapper, not the repo-local launcher', () => {
-      expect(runBody).toContain('node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts"');
+      expect(runBody).toContain('node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js"');
       expect(runBody).not.toMatch(/\.\/bin\/circuit/);
       expect(runBody).not.toMatch(/npm run circuit:run/);
       expect(runBody).not.toMatch(/dist\/cli\/runtime-proof\.js/);
@@ -127,7 +127,7 @@ describe('plugin command invocation binding', () => {
     it('all fenced bash invocation blocks in plugins/claude/commands/run.md use single-quoted --goal values', () => {
       const blocks = extractBashBlocks(runBody).filter(
         (b) =>
-          /(?:\.\/bin\/circuit|node dist\/cli\/circuit\.js|node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/circuit\.ts")/.test(
+          /(?:\.\/bin\/circuit|node dist\/cli\/circuit\.js|node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/circuit\.js")/.test(
             b,
           ) && /--goal/.test(b),
       );

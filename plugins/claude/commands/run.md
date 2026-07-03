@@ -74,31 +74,31 @@ metacharacters:
    Example for a Fix task with a stated reason:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present run fix --goal 'the checkout total is wrong when discounts and tax both apply' --why 'totals are blocking the release cut'
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present run fix --goal 'the checkout total is wrong when discounts and tax both apply' --why 'totals are blocking the release cut'
    ```
 
    Example for a Review task:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present run review --goal 'review the current diff for safety problems'
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present run review --goal 'review the current diff for safety problems'
    ```
 
    Example for a Build task:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present run build --goal 'add a focused feature'
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present run build --goal 'add a focused feature'
    ```
 
    Example for an Explore task:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present run explore --goal 'compare auth provider options'
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present run explore --goal 'compare auth provider options'
    ```
 
    Example for a task `can't ship` (contains one apostrophe):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present run build --goal 'can'\''t ship'
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present run build --goal 'can'\''t ship'
    ```
 
    The other flows and modes follow the same shape: substitute the flow name

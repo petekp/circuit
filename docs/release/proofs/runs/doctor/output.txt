@@ -1,4 +1,4 @@
-$ node plugins/codex/scripts/circuit.ts doctor
+$ node plugins/codex/scripts/circuit.js doctor
 exit: 0
 
 stdout:
@@ -83,7 +83,7 @@ stdout:
     {
       "name": "wrapper_exists",
       "ok": true,
-      "detail": "<repo>/plugins/codex/scripts/circuit.ts"
+      "detail": "<repo>/plugins/codex/scripts/circuit.js"
     },
     {
       "name": "packaged_flow_root_exists",
@@ -153,7 +153,7 @@ stdout:
     {
       "name": "temp_repo_review_smoke",
       "ok": true,
-      "detail": "status=0 error=none stderr={\"schema_version\":1,\"type\":\"route.selected\",\"run_id\":\"2286e2d8-55cc-44be-990a-2845101dd1d5\",\"flow_id\":\"review\",\"recorded_at\":\"2026-07-02T23:45:47.475Z\",\"label\":\"Selected review\",\"display\":{\"text\":\"Circuit: Chose review.\",\"importance\":\"major\",\"tone\":\"info\"},\"presentation\":{\"block_id\":\"2286e2d8-55cc-44be-990a-2845101dd1d5\",\"line_mode\":\"append\",\"status_text\":\"Chose review.\"},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\"}\n{\"schema_version\":1,\"typ"
+      "detail": "status=0 error=none stderr={\"schema_version\":1,\"type\":\"route.selected\",\"run_id\":\"f9cd10a9-4fc3-4a67-97cf-d8bd11a5218e\",\"flow_id\":\"review\",\"recorded_at\":\"2026-07-03T16:04:48.765Z\",\"label\":\"Selected review\",\"display\":{\"text\":\"Circuit: Chose review.\",\"importance\":\"major\",\"tone\":\"info\"},\"presentation\":{\"block_id\":\"f9cd10a9-4fc3-4a67-97cf-d8bd11a5218e\",\"line_mode\":\"append\",\"status_text\":\"Chose review.\"},\"selected_flow\":\"review\",\"routed_by\":\"explicit\",\"router_reason\":\"explicit flow positional argument\"}\n{\"schema_version\":1,\"typ"
     },
     {
       "name": "temp_repo_review_progress",

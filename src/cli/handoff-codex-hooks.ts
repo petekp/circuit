@@ -41,7 +41,7 @@ function defaultCodexHooksFile(): string {
 // checkout without the wrapper in the chain.
 export function resolveDefaultLauncher(pluginRoot: string | undefined, moduleDir: string): string {
   if (pluginRoot !== undefined && pluginRoot.length > 0) {
-    return resolve(pluginRoot, 'scripts/circuit.ts');
+    return resolve(pluginRoot, 'scripts/circuit.js');
   }
   return resolve(moduleDir, '../..', 'bin/circuit');
 }
@@ -49,7 +49,7 @@ export function resolveDefaultLauncher(pluginRoot: string | undefined, moduleDir
 export function missingDefaultLauncherMessage(launcher: string): string {
   return [
     'CIRCUIT_PLUGIN_ROOT is unset and no wrapper was detected.',
-    'Either set CIRCUIT_PLUGIN_ROOT or invoke through plugins/<host>/scripts/circuit.ts.',
+    'Either set CIRCUIT_PLUGIN_ROOT or invoke through plugins/<host>/scripts/circuit.js.',
     `Tried source-tree fallback launcher: ${launcher}`,
   ].join(' ');
 }

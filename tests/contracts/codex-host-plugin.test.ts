@@ -217,7 +217,7 @@ describe('Codex host plugin package', () => {
     expect(contract).toContain('contract: host-adapter');
     expect(contract).toContain('Explicit runs');
     expect(contract).toContain('--progress jsonl');
-    expect(contract).toContain("node '<plugin root>/scripts/circuit.ts' doctor");
+    expect(contract).toContain("node '<plugin root>/scripts/circuit.js' doctor");
     expect(contract).toContain('final user-facing answer');
     expect(contract).toContain('run_surface_markdown_path');
     expect(rendering).toContain('contract: host-rendering');
@@ -244,7 +244,7 @@ describe('Codex host plugin package', () => {
     expect(skill).toContain(
       'Runs Circuit on any coding task by default — the intent front door with recorded flow selection, trace, reports, and evidence.',
     );
-    expect(skill).toContain("node '<plugin root>/scripts/circuit.ts' run fix --goal");
+    expect(skill).toContain("node '<plugin root>/scripts/circuit.js' run fix --goal");
     expect(skill).toContain('--progress jsonl');
     expect(skill).toContain('new visible progress as the status block itself');
     expect(skill).toContain('not as separate prose updates');
@@ -260,9 +260,9 @@ describe('Codex host plugin package', () => {
     expect(skill).not.toContain('/circuit:');
     expect(skill).not.toMatch(/\bslash command\b/i);
     expect(skill).not.toContain('slash-command');
-    expect(skill).not.toContain('node plugins/codex/scripts/circuit.ts');
+    expect(skill).not.toContain('node plugins/codex/scripts/circuit.js');
     expect(skill).toContain(
-      "node '<plugin root>/scripts/circuit.ts' resume --run-folder '<run_folder>' --checkpoint-choice '<choice>'",
+      "node '<plugin root>/scripts/circuit.js' resume --run-folder '<run_folder>' --checkpoint-choice '<choice>'",
     );
   });
 
@@ -780,8 +780,8 @@ describe('Codex host plugin package', () => {
       expect(source).toContain('task_list.updated');
       expect(source).toContain('user_input.requested');
       expect(source).toContain('operator_summary_markdown_path');
-      expect(source).not.toContain("node '<plugin root>/scripts/circuit.ts'");
-      expect(codex).toContain("node '<plugin root>/scripts/circuit.ts'");
+      expect(source).not.toContain("node '<plugin root>/scripts/circuit.js'");
+      expect(codex).toContain("node '<plugin root>/scripts/circuit.js'");
       expect(codex).toContain('--progress jsonl');
       expect(codex).toContain('presentation');
       expect(codex).toContain('display.text');
@@ -803,7 +803,7 @@ describe('Codex host plugin package', () => {
       expect(skill).toContain(`# ${EXPECTED_CODEX_SKILL_TITLES[command]}`);
       expect(skill).toContain('## Use Case');
       expect(skill).toMatch(/description: "(Runs Circuit|Chooses and runs)/);
-      expect(skill).toContain("node '<plugin root>/scripts/circuit.ts'");
+      expect(skill).toContain("node '<plugin root>/scripts/circuit.js'");
       expect(skill).toContain('--progress jsonl');
       expect(skill).toContain('presentation');
       expect(skill).toContain('display.text');
@@ -820,7 +820,7 @@ describe('Codex host plugin package', () => {
       expect(skill).not.toMatch(/\bslash command\b/i);
       expect(skill).not.toContain('slash-command');
       expect(skill).toContain("Use the user's current request as the command input.");
-      expect(commandMarkdown).toContain("node '<plugin root>/scripts/circuit.ts'");
+      expect(commandMarkdown).toContain("node '<plugin root>/scripts/circuit.js'");
     }
   });
 

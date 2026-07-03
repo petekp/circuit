@@ -54,13 +54,13 @@ metacharacters:
    Example for a multi-goal pursuit:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present run pursue --goal 'rework the config loader, then remove the legacy YAML path, then update the docs'
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present run pursue --goal 'rework the config loader, then remove the legacy YAML path, then update the docs'
    ```
 
    Example for goals containing an apostrophe:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present run pursue --goal 'coordinate the can'\''t-ship cleanup goals'
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present run pursue --goal 'coordinate the can'\''t-ship cleanup goals'
    ```
 
    Use the Bash tool to execute the constructed command. The wrapper

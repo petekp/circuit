@@ -859,7 +859,7 @@ describe('plugin publish automation', () => {
         callIds.indexOf('codex_cache_check'),
       );
       const hook = explicit.calls.find((call) => call.id === 'codex_handoff_hook_install');
-      expect(hook?.argv).toContain(join(installed.codex, 'scripts/circuit.ts'));
+      expect(hook?.argv).toContain(join(installed.codex, 'scripts/circuit.js'));
     } finally {
       rmSync(root, { recursive: true, force: true });
       rmSync(installed.homeDir, { recursive: true, force: true });

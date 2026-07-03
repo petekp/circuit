@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.ts\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\""
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/harvest.ts\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/harvest.js\""
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/harvest.ts\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/harvest.js\""
           }
         ]
       }
@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/harvest.ts\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/harvest.js\""
           }
         ]
       }

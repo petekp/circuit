@@ -212,7 +212,7 @@ function renderCheckpointFromResult(result: JsonRecord): void {
     renderLine('');
     renderLine('Resume with:');
     renderLine(
-      `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present resume --run-folder ${shellSingleQuote(
+      `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present resume --run-folder ${shellSingleQuote(
         runFolder,
       )} --checkpoint-choice '<choice>'`,
     );
@@ -339,7 +339,7 @@ function renderFinalResult(
       renderLine('');
       renderLine('Resume with:');
       renderLine(
-        `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present resume --run-folder ${shellSingleQuote(
+        `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present resume --run-folder ${shellSingleQuote(
           runFolder,
         )} --checkpoint-choice '<choice>'`,
       );
@@ -416,7 +416,7 @@ function runDoctor(): number {
   );
 
   const hooksConfigPath = resolve(pluginRoot, 'hooks/hooks.json');
-  const sessionStartPath = resolve(pluginRoot, 'hooks/session-start.ts');
+  const sessionStartPath = resolve(pluginRoot, 'hooks/session-start.js');
   checks.push(check('hooks_config_exists', existsSync(hooksConfigPath), hooksConfigPath));
   checks.push(check('session_start_hook_exists', existsSync(sessionStartPath), sessionStartPath));
 
@@ -425,7 +425,7 @@ function runDoctor(): number {
     checks.push(
       check(
         'session_start_hook_uses_plugin_root',
-        hooks.includes('${CLAUDE_PLUGIN_ROOT}/hooks/session-start.ts'),
+        hooks.includes('${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js'),
         hooksConfigPath,
       ),
     );
@@ -439,7 +439,7 @@ function runDoctor(): number {
     checks.push(
       check(
         `command_${name}_uses_wrapper`,
-        text.includes('node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts"') &&
+        text.includes('node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js"') &&
           !text.includes('./bin/circuit') &&
           text.includes(' present '),
         commandPath,

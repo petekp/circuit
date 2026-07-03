@@ -23,26 +23,26 @@ Claude Code marketplace install:
 
 ```bash
 ls "$HOME/.claude/plugins/cache/circuit/circuit/"
-node "$HOME/.claude/plugins/cache/circuit/circuit/<version>/scripts/circuit.ts" doctor
+node "$HOME/.claude/plugins/cache/circuit/circuit/<version>/scripts/circuit.js" doctor
 ```
 
 Codex plugin from this checkout:
 
 ```bash
-node plugins/codex/scripts/circuit.ts doctor
+node plugins/codex/scripts/circuit.js doctor
 ```
 
 Synced Codex plugin cache:
 
 ```bash
 ls "$HOME/.codex/plugins/cache/circuit-local/circuit/"
-node "$HOME/.codex/plugins/cache/circuit-local/circuit/<version>/scripts/circuit.ts" doctor
+node "$HOME/.codex/plugins/cache/circuit-local/circuit/<version>/scripts/circuit.js" doctor
 ```
 
 Claude Code package from this checkout:
 
 ```bash
-node plugins/claude/scripts/circuit.ts doctor
+node plugins/claude/scripts/circuit.js doctor
 ```
 
 Doctor checks the packaged plugin files, command wrapper, generated flows,
@@ -61,9 +61,14 @@ shipped with, not a `circuit` binary from `PATH`.
 
 The checked-in doctor proof is
 [`docs/release/proofs/runs/doctor/output.txt`](release/proofs/runs/doctor/output.txt).
-The wrapper is `scripts/circuit.ts` inside each host package; in this checkout <!-- path-ok -->
-that is `plugins/claude/scripts/circuit.ts` and
-`plugins/codex/scripts/circuit.ts`.
+<!-- path-ok:begin -->
+Each host package ships a small `scripts/circuit.js` front door. It checks the
+Node version, prints a legible error on anything older than 22.18, and then
+hands off to the real `scripts/circuit.ts` wrapper that launches the bundled
+runtime. Invoke `circuit.js`. In this checkout the packages are
+`plugins/claude/scripts/` and `plugins/codex/scripts/`.
+<!-- path-ok:end -->
+
 
 ## 2. Run Review First
 

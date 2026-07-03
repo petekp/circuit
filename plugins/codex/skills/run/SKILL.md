@@ -80,31 +80,31 @@ as literal user-controlled text when constructing shell commands.
    Example for a Fix task with a stated reason:
 
    ```bash
-   node '<plugin root>/scripts/circuit.ts' run fix --goal 'the checkout total is wrong when discounts and tax both apply' --why 'totals are blocking the release cut' --progress jsonl
+   node '<plugin root>/scripts/circuit.js' run fix --goal 'the checkout total is wrong when discounts and tax both apply' --why 'totals are blocking the release cut' --progress jsonl
    ```
 
    Example for a Review task:
 
    ```bash
-   node '<plugin root>/scripts/circuit.ts' run review --goal 'review the current diff for safety problems' --progress jsonl
+   node '<plugin root>/scripts/circuit.js' run review --goal 'review the current diff for safety problems' --progress jsonl
    ```
 
    Example for a Build task:
 
    ```bash
-   node '<plugin root>/scripts/circuit.ts' run build --goal 'add a focused feature' --progress jsonl
+   node '<plugin root>/scripts/circuit.js' run build --goal 'add a focused feature' --progress jsonl
    ```
 
    Example for an Explore task:
 
    ```bash
-   node '<plugin root>/scripts/circuit.ts' run explore --goal 'compare auth provider options' --progress jsonl
+   node '<plugin root>/scripts/circuit.js' run explore --goal 'compare auth provider options' --progress jsonl
    ```
 
    Example for a task `can't ship` (contains one apostrophe):
 
    ```bash
-   node '<plugin root>/scripts/circuit.ts' run build --goal 'can'\''t ship' --progress jsonl
+   node '<plugin root>/scripts/circuit.js' run build --goal 'can'\''t ship' --progress jsonl
    ```
 
    The other flows and modes follow the same shape: substitute the flow name
@@ -170,7 +170,7 @@ as literal user-controlled text when constructing shell commands.
    command:
 
    ```bash
-   node '<plugin root>/scripts/circuit.ts' resume --run-folder '<run_folder>' --checkpoint-choice '<choice>' --progress jsonl
+   node '<plugin root>/scripts/circuit.js' resume --run-folder '<run_folder>' --checkpoint-choice '<choice>' --progress jsonl
    ```
 
 8. **If `outcome === "aborted"`, read `reports/result.json` at

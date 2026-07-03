@@ -54,13 +54,13 @@ metacharacters:
    Example for a multi-goal pursuit:
 
    ```bash
-   node '<plugin root>/scripts/circuit.ts' run pursue --goal 'rework the config loader, then remove the legacy YAML path, then update the docs' --progress jsonl
+   node '<plugin root>/scripts/circuit.js' run pursue --goal 'rework the config loader, then remove the legacy YAML path, then update the docs' --progress jsonl
    ```
 
    Example for goals containing an apostrophe:
 
    ```bash
-   node '<plugin root>/scripts/circuit.ts' run pursue --goal 'coordinate the can'\''t-ship cleanup goals' --progress jsonl
+   node '<plugin root>/scripts/circuit.js' run pursue --goal 'coordinate the can'\''t-ship cleanup goals' --progress jsonl
    ```
 
    Use the Bash tool to execute the constructed command. The wrapper
@@ -101,7 +101,7 @@ metacharacters:
    question/options, and the exact resume command:
 
    ```bash
-   node '<plugin root>/scripts/circuit.ts' resume --run-folder '<run_folder>' --checkpoint-choice '<choice>' --progress jsonl
+   node '<plugin root>/scripts/circuit.js' resume --run-folder '<run_folder>' --checkpoint-choice '<choice>' --progress jsonl
    ```
 
 7. **If `outcome === "aborted"`, read `reports/result.json` at

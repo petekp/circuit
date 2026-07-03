@@ -34,7 +34,7 @@ text:
    conversation. Then run:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present handoff save --goal '<goal>' --next '<next action>'
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present handoff save --goal '<goal>' --next '<next action>'
    ```
 
    Add `--state-markdown '<state bullets>'` or `--debt-markdown '<debt bullets>'`
@@ -44,13 +44,13 @@ text:
 4. **Resume mode.** Run:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present handoff resume
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present handoff resume
    ```
 
 5. **Done mode.** Run:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present handoff done
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present handoff done
    ```
 
    `done` clears the saved plan but keeps the automatic snapshot, so a finished
@@ -62,7 +62,7 @@ text:
    `hooks uninstall --host codex`, or `hooks doctor --host codex`, run:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" handoff <exact hooks request>
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" handoff <exact hooks request>
    ```
 
    Render the JSON result. Hook setup is host configuration, not a resume

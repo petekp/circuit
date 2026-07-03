@@ -91,7 +91,7 @@ describe('Claude Code host plugin package', () => {
       expect(existsSync(commandPath)).toBe(true);
       const commandMarkdown = readFileSync(commandPath, 'utf8');
 
-      expect(commandMarkdown).toContain('node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts"');
+      expect(commandMarkdown).toContain('node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js"');
       expect(commandMarkdown).toContain(' present ');
       expect(commandMarkdown).not.toMatch(RAW_PROGRESS_INVOCATION);
       expect(commandMarkdown).not.toContain('Parse the final JSON');
@@ -928,7 +928,7 @@ describe('Claude Code host plugin package', () => {
       expect(result.stdout).toContain('Option 1');
       expect(result.stdout).toContain('Option 2');
       expect(result.stdout).toContain(
-        `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present resume --run-folder '${runFolder}' --checkpoint-choice '<choice>'`,
+        `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present resume --run-folder '${runFolder}' --checkpoint-choice '<choice>'`,
       );
       expect(result.stdout).not.toContain('checkpoint_waiting');
       expect(result.stdout).not.toContain('{"');
@@ -992,7 +992,7 @@ describe('Claude Code host plugin package', () => {
       expect(result.stdout).toContain('Confirm the Build brief.');
       expect(result.stdout).toContain(`Rich summary: ${htmlPath}`);
       expect(result.stdout).toContain(
-        `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts" present resume --run-folder '${runFolder}' --checkpoint-choice '<choice>'`,
+        `node "\${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js" present resume --run-folder '${runFolder}' --checkpoint-choice '<choice>'`,
       );
       expect(result.stdout).not.toContain('checkpoint_waiting');
       expect(result.stdout).not.toContain('{"');

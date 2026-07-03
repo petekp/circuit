@@ -1,5 +1,5 @@
-const CLAUDE_PLUGIN_WRAPPER_COMMAND = 'node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.ts"';
-const CODEX_PLUGIN_WRAPPER_COMMAND = "node '<plugin root>/scripts/circuit.ts'";
+const CLAUDE_PLUGIN_WRAPPER_COMMAND = 'node "${CLAUDE_PLUGIN_ROOT}/scripts/circuit.js"';
+const CODEX_PLUGIN_WRAPPER_COMMAND = "node '<plugin root>/scripts/circuit.js'";
 
 const CODEX_SKILL_METADATA: Record<string, { title: string; description: string }> = {
   handoff: {
@@ -87,7 +87,7 @@ export function renderClaudeHostCommand(sourceContent: string): string {
             ].join('\n'),
           )
           .replace(
-            /Use the Bash tool to execute the constructed command\. `node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/circuit\.ts"`\n\s+is the .*?`dist\/cli\/circuit\.js`\./gs,
+            /Use the Bash tool to execute the constructed command\. `node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/circuit\.js"`\n\s+is the .*?`dist\/cli\/circuit\.js`\./gs,
             [
               'Use the Bash tool to execute the constructed command. The wrapper',
               '   lives in the installed Claude Code plugin directory, injects the',
@@ -114,7 +114,7 @@ export function renderCodexHostCommand(sourceContent: string): string {
         ].join('\n'),
       )
       .replace(
-        /Use the Bash tool to execute the constructed command\. `node '<plugin root>\/scripts\/circuit\.ts'`\n\s+is the .*?`dist\/cli\/circuit\.js`\./gs,
+        /Use the Bash tool to execute the constructed command\. `node '<plugin root>\/scripts\/circuit\.js'`\n\s+is the .*?`dist\/cli\/circuit\.js`\./gs,
         [
           'Use the Bash tool to execute the constructed command. The wrapper',
           "   lives in the installed Circuit plugin directory and injects the plugin's",

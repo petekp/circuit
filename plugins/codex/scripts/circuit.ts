@@ -196,7 +196,7 @@ function runDoctor(): number {
     );
   }
 
-  const wrapperPath = resolve(scriptDir, 'circuit.ts');
+  const wrapperPath = resolve(scriptDir, 'circuit.js');
   checks.push(check('wrapper_exists', existsSync(wrapperPath), wrapperPath));
   checks.push(check('packaged_flow_root_exists', existsSync(packagedFlowRoot), packagedFlowRoot));
   for (const flow of ['build', 'explore', 'fix', 'review']) {
@@ -212,7 +212,7 @@ function runDoctor(): number {
     checks.push(
       check(
         `command_${name}_uses_wrapper`,
-        text.includes("node '<plugin root>/scripts/circuit.ts'") &&
+        text.includes("node '<plugin root>/scripts/circuit.js'") &&
           !text.includes('./bin/circuit') &&
           text.includes('--progress jsonl') &&
           text.includes('task_list.updated') &&
