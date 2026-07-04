@@ -138,7 +138,7 @@ function filesUnder(absDir: string): string[] {
 function scrubProofTree(proofDir: string, pathAliases: PathAlias[] = []): void {
   for (const abs of filesUnder(proofDir)) {
     const rel = relative(projectRoot, abs);
-    if (!/\.(json|jsonl|md|ndjson|txt|yaml|yml)$/.test(rel)) continue;
+    if (!/\.(html|json|jsonl|md|ndjson|txt|yaml|yml)$/.test(rel)) continue;
     writeFileSync(abs, scrubText(readFileSync(abs, 'utf8'), pathAliases));
   }
 }

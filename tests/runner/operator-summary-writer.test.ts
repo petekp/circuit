@@ -1527,6 +1527,9 @@ describe('operator summary writer', () => {
       step_id: 'frame-step',
       prompt: 'Confirm the Build brief before implementation starts.',
       allowed_choices: ['continue'],
+      safe_default_choice: 'continue',
+      choices: [{ id: 'continue', label: 'Confirm and start Build' }],
+      execution_context: { axes: { depth: 'high', power: 'balanced' } },
     });
 
     const written = writeOperatorSummary({
@@ -1567,13 +1570,15 @@ describe('operator summary writer', () => {
     expect(html).toContain('The scope is bounded and the proof plan is explicit.');
     expect(html).toContain('Touch Build checkpoint presentation only');
     expect(html).toContain('Copy resume command');
+    // The do-nothing outcome is stated on every waiting checkpoint page.
+    expect(html).toMatch(/If you do nothing/);
 
     const markdown = readFileSync(written.markdownPath, 'utf8');
     expect(markdown).toContain(`Rich summary: ${written.htmlPath as string}`);
     expect(markdown).toContain('Choices: continue');
   });
 
-  it('removes stale Build checkpoint HTML when the waiting packet is malformed', () => {
+  it('replaces stale Build checkpoint HTML with the generic page when the waiting packet is malformed', () => {
     const stalePath = join(runFolder, 'reports', 'operator-summary.html');
     writeFileSync(stalePath, '<!doctype html><body>stale build checkpoint</body>');
     const malformed = { ...buildBrief(), checkpoint_packet: undefined };
@@ -1600,11 +1605,155 @@ describe('operator summary writer', () => {
       route: { selectedFlow: 'build' },
     });
 
-    expect(written.htmlPath).toBeUndefined();
-    expect(existsSync(stalePath)).toBe(false);
-    expect(written.summary.report_paths.map((report) => report.label)).not.toContain(
+    // A waiting checkpoint never renders nothing: when the bespoke packet is
+    // malformed (and even when the request file is missing) the generic
+    // checkpoint page takes over, replacing the stale content.
+    expect(written.htmlPath).toBe(stalePath);
+    const html = readFileSync(stalePath, 'utf8');
+    expect(html).not.toContain('stale build checkpoint');
+    expect(html).toContain('continue');
+    expect(html).toContain('--checkpoint-choice');
+    expect(written.summary.report_paths.map((report) => report.label)).toContain(
       'Operator summary (HTML)',
     );
+  });
+
+  it('emits generic checkpoint HTML for Fix waiting checkpoints (no bespoke projector)', () => {
+    const requestPath = join(runFolder, 'reports/checkpoints/fix-no-repro-decision-request.json');
+    writeReport('reports/checkpoints/fix-no-repro-decision-request.json', {
+      schema_version: 1,
+      step_id: 'fix-no-repro-decision',
+      prompt: 'Diagnosis did not cleanly reproduce the bug. Choose how to proceed.',
+      allowed_choices: ['continue'],
+      safe_default_choice: 'continue',
+      choices: [{ id: 'continue', label: 'Continue with a focused fix anyway' }],
+      execution_context: { axes: { depth: 'high', power: 'balanced' } },
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: {
+        schema_version: 1,
+        run_id: RunId.parse('87000000-0000-0000-0000-000000000030'),
+        flow_id: CompiledFlowId.parse('fix'),
+        goal: 'fix: crash on resume',
+        outcome: 'checkpoint_waiting',
+        summary: "checkpoint 'fix-no-repro-decision' is waiting for an operator choice.",
+        trace_entries_observed: 4,
+        manifest_hash: 'abc123',
+        checkpoint: {
+          step_id: 'fix-no-repro-decision',
+          request_path: requestPath,
+          allowed_choices: ['continue'],
+        },
+      },
+      route: { selectedFlow: 'fix' },
+    });
+
+    expect(written.htmlPath).toBe(join(runFolder, 'reports', 'operator-summary.html'));
+    expect(existsSync(written.htmlPath as string)).toBe(true);
+
+    const html = readFileSync(written.htmlPath as string, 'utf8');
+    // The question leads, with the real labeled choice.
+    expect(html).toContain('Diagnosis did not cleanly reproduce the bug.');
+    expect(html).toContain('Continue with a focused fix anyway');
+    // The do-nothing outcome and the honest resume path are on the page.
+    expect(html).toMatch(/If you do nothing/);
+    expect(html).toContain('--checkpoint-choice &#39;continue&#39;');
+    expect(html).toContain('Depth high');
+
+    const markdown = readFileSync(written.markdownPath, 'utf8');
+    expect(markdown).toContain(`Rich summary: ${written.htmlPath as string}`);
+    expect(markdown).toContain('Default if unanswered: continue');
+  });
+
+  it('emits generic checkpoint HTML for Explainer waiting checkpoints', () => {
+    const requestPath = join(runFolder, 'reports/checkpoints/publish-gate-request.json');
+    writeReport('reports/checkpoints/publish-gate-request.json', {
+      schema_version: 1,
+      step_id: 'explainer-publish-gate',
+      prompt: 'Final fidelity gate. Authorize publishing only if the explainer is faithful.',
+      allowed_choices: ['publish', 'stop'],
+      choices: [
+        { id: 'publish', label: 'Publish the explainer' },
+        { id: 'stop', label: 'Hold and stop' },
+      ],
+      execution_context: { axes: { depth: 'high', power: 'balanced' } },
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: {
+        schema_version: 1,
+        run_id: RunId.parse('87000000-0000-0000-0000-000000000031'),
+        flow_id: CompiledFlowId.parse('explainer'),
+        goal: 'explain: attention paper',
+        outcome: 'checkpoint_waiting',
+        summary: "checkpoint 'explainer-publish-gate' is waiting for an operator choice.",
+        trace_entries_observed: 9,
+        manifest_hash: 'abc123',
+        checkpoint: {
+          step_id: 'explainer-publish-gate',
+          request_path: requestPath,
+          allowed_choices: ['publish', 'stop'],
+        },
+      },
+      route: { selectedFlow: 'explainer' },
+    });
+
+    expect(written.htmlPath).toBeDefined();
+    const html = readFileSync(written.htmlPath as string, 'utf8');
+    expect(html).toContain('Final fidelity gate.');
+    expect(html).toContain('Publish the explainer');
+    expect(html).toContain('Hold and stop');
+    // No declared default: the page says the run stays parked.
+    expect(html).toContain('stays parked');
+    expect(html).toContain('--checkpoint-choice &#39;publish&#39;');
+  });
+
+  it('emits generic checkpoint HTML for Explore waiting checkpoints before a decision exists', () => {
+    const requestPath = join(runFolder, 'reports/checkpoints/tradeoff-request.json');
+    writeReport('reports/checkpoints/tradeoff-request.json', {
+      schema_version: 1,
+      step_id: 'tradeoff-checkpoint-step',
+      prompt: 'Choose the option Circuit should close with.',
+      allowed_choices: ['option-1', 'option-2'],
+      choices: [
+        { id: 'option-1', label: 'Store notes as JSON files on disk' },
+        { id: 'option-2', label: 'Store notes in SQLite' },
+      ],
+      execution_context: { axes: { depth: 'tournament', power: 'balanced' } },
+    });
+
+    const written = writeOperatorSummary({
+      runFolder,
+      runResult: {
+        schema_version: 1,
+        run_id: RunId.parse('87000000-0000-0000-0000-000000000032'),
+        flow_id: CompiledFlowId.parse('explore'),
+        goal: 'decide: notes storage',
+        outcome: 'checkpoint_waiting',
+        summary: "checkpoint 'tradeoff-checkpoint-step' is waiting for an operator choice.",
+        trace_entries_observed: 6,
+        manifest_hash: 'abc123',
+        checkpoint: {
+          step_id: 'tradeoff-checkpoint-step',
+          request_path: requestPath,
+          allowed_choices: ['option-1', 'option-2'],
+        },
+      },
+      route: { selectedFlow: 'explore' },
+    });
+
+    // The bespoke Explore projector only renders a finalized decision; while
+    // the run is actually waiting, the generic page must take over instead of
+    // rendering nothing.
+    expect(written.htmlPath).toBeDefined();
+    const html = readFileSync(written.htmlPath as string, 'utf8');
+    expect(html).toContain('Choose the option Circuit should close with.');
+    expect(html).toContain('Store notes as JSON files on disk');
+    expect(html).toContain('Store notes in SQLite');
+    expect(html).toContain('--checkpoint-choice &#39;option-2&#39;');
   });
 
   it('emits operator-summary.html for Prototype waiting checkpoints and links it from JSON and Markdown', () => {
@@ -1763,7 +1912,7 @@ describe('operator summary writer', () => {
     expect(html).toContain(`src="${expectedHref}"`);
   });
 
-  it('removes stale Prototype checkpoint HTML when typed reports are malformed', () => {
+  it('replaces stale Prototype checkpoint HTML with the generic page when typed reports are malformed', () => {
     const stalePath = join(runFolder, 'reports', 'operator-summary.html');
     writeFileSync(stalePath, '<!doctype html><body>stale prototype checkpoint</body>');
     writeReport('reports/prototype/brief.json', prototypeBrief());
@@ -1795,9 +1944,15 @@ describe('operator summary writer', () => {
       route: { selectedFlow: 'prototype' },
     });
 
-    expect(written.htmlPath).toBeUndefined();
-    expect(existsSync(stalePath)).toBe(false);
-    expect(written.summary.report_paths.map((report) => report.label)).not.toContain(
+    // A waiting checkpoint never loses its page: the flow projector could
+    // not render from the malformed typed reports, so the generic page
+    // replaces the stale HTML instead of leaving nothing behind.
+    expect(written.htmlPath).toBe(stalePath);
+    const html = readFileSync(stalePath, 'utf8');
+    expect(html).not.toContain('stale prototype checkpoint');
+    expect(html).toContain('keep-prototype');
+    expect(html).toContain('--checkpoint-choice');
+    expect(written.summary.report_paths.map((report) => report.label)).toContain(
       'Operator summary (HTML)',
     );
   });

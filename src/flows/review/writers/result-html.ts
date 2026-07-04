@@ -90,8 +90,11 @@ export const reviewResultProjector: HtmlProjector = (ctx) => {
       title: 'Reviewer findings',
       bodyHtml: findingList(report.findings),
     }),
+    // Method notes stay neutral: amber is reserved for findings that need
+    // caution. Scope caveats keep a quiet badge so honesty about what was
+    // not checked survives without painting a clean result as alarming.
     card({
-      intent: report.confidence_limitations.length > 0 ? 'attention' : 'info',
+      intent: 'neutral',
       eyebrow: 'Evidence',
       title: 'What was checked',
       bodyHtml: [
@@ -103,9 +106,12 @@ export const reviewResultProjector: HtmlProjector = (ctx) => {
       ].join('\n'),
     }),
     card({
-      intent: report.evidence_warnings.length > 0 ? 'attention' : 'info',
+      intent: 'neutral',
       eyebrow: 'Caveats',
       title: 'Evidence caveats',
+      ...(report.evidence_warnings.length > 0
+        ? { badge: { text: 'Scope limited', intent: 'attention' as const } }
+        : {}),
       bodyHtml: [warningList(report.evidence_warnings), evidenceSummary(report)].join('\n'),
     }),
   ].join('\n');

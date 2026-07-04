@@ -8,7 +8,14 @@
 
 import type { HtmlProjector } from './projector.js';
 
-export type { HtmlProjector, HtmlProjectorContext, JsonObject } from './projector.js';
+export { genericCheckpointHtml } from './checkpoint-page.js';
+export type {
+  HtmlCheckpointChoice,
+  HtmlProjector,
+  HtmlProjectorCheckpoint,
+  HtmlProjectorContext,
+  JsonObject,
+} from './projector.js';
 
 const HTML_PROJECTORS = new Map<string, HtmlProjector>();
 

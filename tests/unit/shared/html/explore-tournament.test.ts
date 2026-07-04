@@ -206,3 +206,46 @@ describe('exploreTournamentProjector — rendering', () => {
     expect(html).toContain('Run a Build plan.');
   });
 });
+
+// The banner must have a single source of truth. The observed incoherence:
+// the tournament recommended one option, the decision selected another, and
+// the banner bolded the recommended label next to the selected option's
+// decision text — the headline named the wrong option.
+describe('exploreTournamentProjector — banner coherence', () => {
+  function extractBanner(html: string): string {
+    const start = html.indexOf('class="verdict');
+    expect(start).toBeGreaterThan(-1);
+    return html.slice(start, html.indexOf('</div>', start));
+  }
+
+  it('names the selected option in the banner when selection and recommendation disagree', () => {
+    const decisionDifferentSelection = {
+      ...validDecision,
+      selected_option_id: 'option-1',
+      selected_option_label: 'React',
+      decision: 'Choose React for ecosystem depth.',
+    };
+    const html = exploreTournamentProjector(
+      buildContext({
+        flowReport: decidedFlowReport,
+        evidence: { ...allEvidence, 'explore.decision': decisionDifferentSelection },
+      }),
+    ) as string;
+
+    const banner = extractBanner(html);
+    // The decision leads: the banner bolds React and reads Selected. The
+    // losing recommendation must not be the headline.
+    expect(banner).toContain('<strong>React</strong>');
+    expect(banner).toContain('Selected');
+    expect(banner).not.toContain('<strong>Vue</strong>');
+  });
+
+  it('still names the decided option when selection matches the recommendation', () => {
+    const html = exploreTournamentProjector(
+      buildContext({ flowReport: decidedFlowReport, evidence: allEvidence }),
+    ) as string;
+    const banner = extractBanner(html);
+    expect(banner).toContain('<strong>Vue</strong>');
+    expect(banner).not.toContain('<strong>React</strong>');
+  });
+});

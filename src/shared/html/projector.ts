@@ -16,19 +16,33 @@ export type HtmlAutoResolution = {
   readonly runtime_veto_effect: string;
 };
 
+export type HtmlCheckpointChoice = {
+  readonly id: string;
+  readonly label?: string | undefined;
+  readonly description?: string | undefined;
+};
+
+export type HtmlProjectorCheckpoint = {
+  readonly step_id: string;
+  readonly request_path: string;
+  readonly allowed_choices: readonly string[];
+  // Widened context parsed from the checkpoint request file by the writer.
+  // The page can only adapt to what it can see. These are best-effort:
+  // absent when the request file is missing or malformed, so projectors
+  // must degrade to allowed_choices ids.
+  readonly prompt?: string | undefined;
+  readonly safe_default_choice?: string | undefined;
+  readonly choices?: readonly HtmlCheckpointChoice[] | undefined;
+  readonly depth?: string | undefined;
+};
+
 export type HtmlProjectorContext = {
   readonly runFolder: string;
   readonly projectRoot?: string | undefined;
   readonly runId: string;
   readonly flowId: string;
   readonly runOutcome: string;
-  readonly checkpoint?:
-    | {
-        readonly step_id: string;
-        readonly request_path: string;
-        readonly allowed_choices: readonly string[];
-      }
-    | undefined;
+  readonly checkpoint?: HtmlProjectorCheckpoint | undefined;
   readonly flowReport: JsonObject | undefined;
   readonly readJsonRunRelative: (relPath: string) => JsonObject | undefined;
   readonly readEvidenceReportById: (reportId: string) => JsonObject | undefined;

@@ -1,16 +1,18 @@
 // Build checkpoint HTML projector.
 //
 // Renders only while Build is waiting at its checkpoint. The packet data stays
-// in build.brief@v1; this projector owns only the visual arrangement.
+// in build.brief@v1; this projector owns only the visual arrangement. The page
+// shape (ribbon, recommendation, options, do-nothing strip, resume commands)
+// comes from the shared checkpoint renderer; Build contributes its context
+// cards (artifact, salience, risk, proof) and the raw-evidence appendix.
 
-import { type Intent, card, chip, verdictBanner } from '../../../shared/html/components.js';
 import {
-  MAX_BULLET_LEN,
-  MAX_PROMPT_LEN,
-  escapeHtml,
-  renderPage,
-  truncate,
-} from '../../../shared/html/page.js';
+  type CheckpointPageOption,
+  renderCheckpointPage,
+  shellSingleQuote,
+} from '../../../shared/html/checkpoint-page.js';
+import { card, chip } from '../../../shared/html/components.js';
+import { MAX_BULLET_LEN, escapeHtml, truncate } from '../../../shared/html/page.js';
 import type { HtmlProjector, JsonObject } from '../../../shared/html/projector.js';
 import {
   BuildBrief,
@@ -36,47 +38,6 @@ function renderCommandChips(
   return `<div class="evidence">
           ${commands.map((command) => chip(commandText(command))).join('\n          ')}
         </div>`;
-}
-
-function choiceIntent(choiceId: string, recommendedId: string): Intent {
-  return choiceId === recommendedId ? 'positive' : 'neutral';
-}
-
-function shellSingleQuote(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-
-function resumeCommandForChoice(runFolder: string, choiceId: string): string {
-  return `circuit resume --run-folder ${shellSingleQuote(
-    runFolder,
-  )} --checkpoint-choice ${shellSingleQuote(choiceId)}`;
-}
-
-function renderChoiceCard(
-  choice: BuildCheckpointPacketChoice,
-  recommendedChoiceId: string,
-  runFolder: string,
-): string {
-  const isRecommended = choice.id === recommendedChoiceId;
-  const bodyHtml = `      <p class="summary">${escapeHtml(choice.description)}</p>
-      <div>
-        <p class="section-label">Executable route</p>
-        <div class="evidence">
-          ${chip(`${choice.route.key} -> ${choice.route.target}`)}
-        </div>
-      </div>
-      <div class="actions">
-        <button class="copy primary" data-prompt="${escapeHtml(
-          truncate(resumeCommandForChoice(runFolder, choice.id), MAX_PROMPT_LEN),
-        )}">Copy resume command</button>
-      </div>`;
-  return card({
-    intent: choiceIntent(choice.id, recommendedChoiceId),
-    eyebrow: choice.id,
-    title: choice.label,
-    ...(isRecommended ? { badge: { text: 'Recommended', intent: 'positive' as const } } : {}),
-    bodyHtml,
-  });
 }
 
 function renderArtifactCard(brief: BuildBrief, packet: BuildCheckpointPacket): string {
@@ -177,31 +138,23 @@ export const buildCheckpointProjector: HtmlProjector = (ctx) => {
     choices.find((choice) => choice.id === packet.recommendation.choice_id) ?? choices[0];
   if (recommendedChoice === undefined) return undefined;
 
-  const resumeCommand = `circuit resume --run-folder ${shellSingleQuote(
-    ctx.runFolder,
-  )} --checkpoint-choice '<choice>'`;
-  const subtitle = `${packet.decision.operator_judgment} Recommended: ${packet.recommendation.label}.`;
-  const banner = verdictBanner({
-    intent: 'positive',
-    badgeText: 'Recommended',
-    mainHtml: `<strong>${escapeHtml(packet.recommendation.label)}</strong> &mdash; ${escapeHtml(
-      packet.recommendation.rationale,
-    )}`,
-    aside: 'waiting for choice',
-  });
-  const choiceCards = choices
-    .map((choice) => renderChoiceCard(choice, recommendedChoice.id, ctx.runFolder))
-    .join('\n\n');
-  const rawEvidence = [
-    BUILD_BRIEF_PATH,
-    packet.internal.request_path,
-    packet.internal.response_path,
-    ...packet.internal.raw_evidence,
-    ctx.checkpoint.request_path,
-  ];
-  const bodyHtml = `${banner}
+  const safeDefaultId = ctx.checkpoint.safe_default_choice;
+  const options: CheckpointPageOption[] = choices.map((choice) => ({
+    id: choice.id,
+    label: choice.label,
+    description: choice.description,
+    ...(choice.id === recommendedChoice.id ? { isRecommended: true } : {}),
+    ...(choice.id === safeDefaultId ? { isDefault: true } : {}),
+    extraHtml: `      <div>
+        <p class="section-label">Executable route</p>
+        <div class="evidence">
+          ${chip(`${choice.route.key} -> ${choice.route.target}`)}
+        </div>
+      </div>`,
+  }));
+  const defaultChoice = options.find((option) => option.id === safeDefaultId);
 
-  <div class="grid">
+  const contextHtml = `  <div class="grid">
 ${renderArtifactCard(brief, packet)}
 
 ${renderSalienceCard(packet)}
@@ -209,31 +162,50 @@ ${renderSalienceCard(packet)}
 ${renderRiskCard(packet)}
 
 ${renderProofCard(packet)}
-  </div>
+  </div>`;
 
-  <div class="grid" style="margin-top:16px">
-${choiceCards}
-  </div>
-
-  <details>
+  const resumeCommandTemplate = `circuit resume --run-folder ${shellSingleQuote(
+    ctx.runFolder,
+  )} --checkpoint-choice '<choice>'`;
+  const rawEvidence = [
+    BUILD_BRIEF_PATH,
+    packet.internal.request_path,
+    packet.internal.response_path,
+    ...packet.internal.raw_evidence,
+    ctx.checkpoint.request_path,
+  ];
+  const appendixHtml = `  <details>
     <summary>Raw evidence and resume command</summary>
     <div class="body">
       <p><strong>Decision.</strong> ${escapeHtml(packet.decision.question)}</p>
-      <p><strong>Resume command.</strong> <code>${escapeHtml(resumeCommand)}</code></p>
+      <p><strong>Resume command.</strong> <code>${escapeHtml(resumeCommandTemplate)}</code></p>
       <p><strong>Reports.</strong></p>
       <div class="evidence">
         ${rawEvidence.map((item) => chip(item)).join('\n        ')}
       </div>
     </div>
-  </details>
-`;
+  </details>`;
 
-  return renderPage({
-    title: `${brief.objective} · Circuit Build checkpoint`,
-    metaLine: `Build checkpoint · ${ctx.runId}`,
-    headline: brief.objective,
-    subtitle,
-    bodyHtml,
+  return renderCheckpointPage({
+    meta: { flowLabel: 'Build', runId: ctx.runId, stepId: ctx.checkpoint.step_id },
+    question: brief.objective,
+    subtitle: `${packet.decision.question} ${packet.decision.operator_judgment}`,
+    ribbon: [
+      'Waiting for you',
+      ...(ctx.checkpoint.depth === undefined ? [] : [`Depth ${ctx.checkpoint.depth}`]),
+      `Proof ${packet.proof.status}`,
+    ],
+    recommendation: {
+      label: packet.recommendation.label,
+      rationale: packet.recommendation.rationale,
+    },
+    options,
+    ...(defaultChoice === undefined
+      ? {}
+      : { defaultChoice: { id: defaultChoice.id, label: defaultChoice.label } }),
+    contextHtml,
+    appendixHtml,
+    resume: { runFolder: ctx.runFolder },
     footerLeft: `circuit · build · ${ctx.runId}`,
     footerRight: BUILD_BRIEF_PATH,
   });

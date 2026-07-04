@@ -35,12 +35,6 @@ function isObject(value: unknown): value is JsonObject {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function verdictBadgeText(verdict: ExploreTournamentReviewType['verdict']): string {
-  if (verdict === 'recommend') return 'Recommended';
-  if (verdict === 'no-clear-winner') return 'No clear winner';
-  return 'Operator decision';
-}
-
 function verdictIntent(verdict: ExploreTournamentReviewType['verdict']): Intent {
   if (verdict === 'recommend') return 'info';
   if (verdict === 'no-clear-winner') return 'attention';
@@ -101,15 +95,21 @@ function renderTournamentVerdictBanner(
   decisionOptions: ExploreDecisionOptions,
   decision: ExploreDecision,
 ): string {
-  const recommendedOption = decisionOptions.options.find(
-    (option) => option.id === review.recommended_option_id,
+  // The banner narrates the decision, so the bolded name is the selected
+  // option. Bolding the reviewer's recommendation next to a decision
+  // sentence that names a different option would read as the page
+  // disagreeing with itself; the recommendation keeps its own lane on the
+  // option cards and in the review details. The intent still reflects the
+  // review verdict, so a selection made against an ambivalent review stays
+  // visually cautious.
+  const selectedOption = decisionOptions.options.find(
+    (option) => option.id === decision.selected_option_id,
   );
-  const recommendedLabel = recommendedOption?.label ?? review.recommended_option_id;
-  const decisionText = decision.decision;
+  const selectedLabel = selectedOption?.label ?? decision.selected_option_label;
   return verdictBanner({
     intent: verdictIntent(review.verdict),
-    badgeText: verdictBadgeText(review.verdict),
-    mainHtml: `<strong>${escapeHtml(recommendedLabel)}</strong> &mdash; ${escapeHtml(decisionText)}`,
+    badgeText: 'Selected',
+    mainHtml: `<strong>${escapeHtml(selectedLabel)}</strong> · ${escapeHtml(decision.decision)}`,
     aside: confidenceText(review.confidence),
   });
 }

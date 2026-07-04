@@ -209,7 +209,10 @@ function checkpointCompiledFlow(options: {
         kind: 'checkpoint',
         policy: {
           prompt: 'Frame the Build work',
-          choices: [{ id: 'continue' }, { id: 'revise' }],
+          choices: [
+            { id: 'continue', label: 'Continue with the framed work' },
+            { id: 'revise', label: 'Revise the frame' },
+          ],
           ...(options.safeDefault === undefined
             ? {}
             : { safe_default_choice: options.safeDefault }),
@@ -613,12 +616,27 @@ describe('Build checkpoint execution substrate', () => {
     if (packet === undefined) throw new Error('expected checkpoint packet');
     expect(packet.recommendation).toMatchObject({
       choice_id: 'continue',
-      label: 'Continue',
+      label: 'Continue with the framed work',
     });
     expect(packet.choices[0]).toMatchObject({
       id: 'continue',
       route: { key: 'continue', target: '@complete' },
     });
+    // The parked request file carries the labeled choices so downstream
+    // surfaces (the operator summary page) can name options without
+    // re-deriving labels from flow-specific reports.
+    const waitingRequestBody = readJson(
+      runFolder,
+      'reports/checkpoints/frame-step-request.json',
+    ) as {
+      allowed_choices?: readonly string[];
+      choices?: readonly { id: string; label?: string }[];
+    };
+    expect(waitingRequestBody.allowed_choices).toEqual(['continue', 'revise']);
+    expect(waitingRequestBody.choices).toEqual([
+      { id: 'continue', label: 'Continue with the framed work' },
+      { id: 'revise', label: 'Revise the frame' },
+    ]);
     expect(packet.proof.status).toBe('planned');
     expect(packet.salience.hidden_routine_work.join('\n')).toContain('test execution');
     expect(packet.risk.summary).toContain('scope mismatch');

@@ -37,7 +37,12 @@ import {
   RunEquipmentReshapeTraceEntry,
   TraceEntry,
 } from '../../schemas/trace-entry.js';
-import { type HtmlProjectorContext, getHtmlProjector } from '../../shared/html/index.js';
+import {
+  type HtmlProjectorCheckpoint,
+  type HtmlProjectorContext,
+  genericCheckpointHtml,
+  getHtmlProjector,
+} from '../../shared/html/index.js';
 import {
   type JsonObject,
   arrayField,
@@ -164,15 +169,57 @@ function readCheckpointRequest(
   }
 }
 
-function checkpointProjectRoot(
-  runFolder: string,
-  checkpoint: CheckpointWaitingOperatorSummaryResult['checkpoint'],
-): string | undefined {
-  const request = readCheckpointRequest(runFolder, checkpoint);
+function checkpointProjectRoot(request: JsonObject | undefined): string | undefined {
   const executionContext = request?.execution_context;
   if (!isObject(executionContext)) return undefined;
   const projectRoot = stringField(executionContext, 'project_root');
   return projectRoot !== undefined && isAbsolute(projectRoot) ? projectRoot : undefined;
+}
+
+function checkpointDepth(request: JsonObject | undefined): string | undefined {
+  const executionContext = request?.execution_context;
+  if (!isObject(executionContext)) return undefined;
+  const axes = executionContext.axes;
+  if (!isObject(axes)) return undefined;
+  return stringField(axes, 'depth');
+}
+
+// Widens the envelope checkpoint (step id, request path, allowed ids) with
+// the decision context the request file carries: the question, labeled
+// choices, the declared default, and the depth dial. Best-effort by design —
+// a missing or malformed request file leaves the widened fields undefined
+// and the page falls back to choice ids.
+function widenedProjectorCheckpoint(
+  checkpoint: CheckpointWaitingOperatorSummaryResult['checkpoint'],
+  request: JsonObject | undefined,
+): HtmlProjectorCheckpoint {
+  const prompt = request === undefined ? undefined : stringField(request, 'prompt');
+  const safeDefault =
+    request === undefined ? undefined : stringField(request, 'safe_default_choice');
+  const depth = checkpointDepth(request);
+  const choices = arrayField(request, 'choices').flatMap((item) => {
+    if (!isObject(item)) return [];
+    const id = stringField(item, 'id');
+    if (id === undefined) return [];
+    const label = stringField(item, 'label');
+    const description = stringField(item, 'description');
+    return [
+      {
+        id,
+        ...(label === undefined ? {} : { label }),
+        ...(description === undefined ? {} : { description }),
+      },
+    ];
+  });
+  return {
+    step_id: checkpoint.step_id,
+    request_path: checkpoint.request_path,
+    allowed_choices: checkpoint.allowed_choices,
+    ...(prompt === undefined ? {} : { prompt }),
+    ...(safeDefault === undefined ? {} : { safe_default_choice: safeDefault }),
+    ...(choices.length === 0 ? {} : { choices }),
+    ...(depth === undefined ? {} : { depth }),
+  };
 }
 
 function reportLink(
@@ -463,6 +510,7 @@ function runOutcomeOverrideBrief(input: {
   readonly flowName: string;
   readonly runResult: OperatorSummaryRunResult;
   readonly details: readonly string[];
+  readonly checkpointDefaultChoice?: string | undefined;
 }): OperatorBriefSlots | undefined {
   const keyPoints = keyPointsFromDetails(input.details);
   if (input.runResult.outcome === 'checkpoint_waiting') {
@@ -472,6 +520,9 @@ function runOutcomeOverrideBrief(input: {
       key_points: [
         `Checkpoint step: ${input.runResult.checkpoint.step_id}`,
         `Choices: ${input.runResult.checkpoint.allowed_choices.join(', ')}`,
+        ...(input.checkpointDefaultChoice === undefined
+          ? []
+          : [`Default if unanswered: ${input.checkpointDefaultChoice}`]),
         ...keyPoints,
       ].slice(0, MAX_KEY_POINTS),
       caveats: [],
@@ -543,12 +594,16 @@ function buildBriefSlots(input: {
   readonly projectionHeadline: string;
   readonly details: readonly string[];
   readonly warnings: readonly OperatorSummaryWarning[];
+  readonly checkpointDefaultChoice?: string | undefined;
 }): OperatorBriefSlots {
   const flowName = flowDisplayName(input.flowId);
   const override = runOutcomeOverrideBrief({
     flowName,
     runResult: input.runResult,
     details: input.details,
+    ...(input.checkpointDefaultChoice === undefined
+      ? {}
+      : { checkpointDefaultChoice: input.checkpointDefaultChoice }),
   });
   if (override !== undefined) return override;
   const outcomeLabel = outcomeLabelFor({
@@ -1301,30 +1356,51 @@ export function writeOperatorSummary(input: {
   let outHtmlPath: string | undefined;
   let htmlEmitWarning: OperatorSummaryWarning | undefined;
   let renderedHtml: string | undefined;
+
+  // Parse the checkpoint request once; the projector context, the generic
+  // checkpoint page, and the markdown brief all adapt to what it carries.
+  const checkpointRequest =
+    input.runResult.outcome === 'checkpoint_waiting'
+      ? readCheckpointRequest(input.runFolder, input.runResult.checkpoint)
+      : undefined;
+  const projectorCheckpoint =
+    input.runResult.outcome === 'checkpoint_waiting'
+      ? widenedProjectorCheckpoint(input.runResult.checkpoint, checkpointRequest)
+      : undefined;
+  const projectRoot = checkpointProjectRoot(checkpointRequest);
+  const ctx: HtmlProjectorContext = {
+    runFolder: input.runFolder,
+    ...(projectRoot === undefined ? {} : { projectRoot }),
+    runId: input.runResult.run_id as unknown as string,
+    flowId,
+    runOutcome: input.runResult.outcome,
+    ...(projectorCheckpoint === undefined ? {} : { checkpoint: projectorCheckpoint }),
+    flowReport,
+    readJsonRunRelative: (relPath) => readJsonIfPresent(input.runFolder, relPath),
+    readEvidenceReportById: (reportId) => evidenceReportById(input.runFolder, flowReport, reportId),
+    autoResolutions,
+  };
   if (projector !== undefined) {
     try {
-      const projectRoot =
-        input.runResult.outcome === 'checkpoint_waiting'
-          ? checkpointProjectRoot(input.runFolder, input.runResult.checkpoint)
-          : undefined;
-      const ctx: HtmlProjectorContext = {
-        runFolder: input.runFolder,
-        ...(projectRoot === undefined ? {} : { projectRoot }),
-        runId: input.runResult.run_id as unknown as string,
-        flowId,
-        runOutcome: input.runResult.outcome,
-        ...(input.runResult.outcome === 'checkpoint_waiting'
-          ? { checkpoint: input.runResult.checkpoint }
-          : {}),
-        flowReport,
-        readJsonRunRelative: (relPath) => readJsonIfPresent(input.runFolder, relPath),
-        readEvidenceReportById: (reportId) =>
-          evidenceReportById(input.runFolder, flowReport, reportId),
-        autoResolutions,
-      };
       renderedHtml = projector(ctx);
     } catch (err) {
       htmlEmitWarning = {
+        kind: 'html_render_failed',
+        message: err instanceof Error ? err.message : String(err),
+        path: candidateHtmlPath,
+      };
+    }
+  }
+  // Structural floor: a waiting checkpoint always gets a page. Flows with
+  // no projector (or whose projector produced nothing, or threw) fall back
+  // to the generic checkpoint page rendered from the widened context alone,
+  // so the operator always sees the question, the options, and an honest
+  // resume path. Non-checkpoint outcomes keep skipping HTML cleanly.
+  if (input.runResult.outcome === 'checkpoint_waiting' && renderedHtml === undefined) {
+    try {
+      renderedHtml = genericCheckpointHtml(ctx);
+    } catch (err) {
+      htmlEmitWarning ??= {
         kind: 'html_render_failed',
         message: err instanceof Error ? err.message : String(err),
         path: candidateHtmlPath,
@@ -1436,6 +1512,9 @@ export function writeOperatorSummary(input: {
     projectionHeadline: projection.headline,
     details,
     warnings,
+    ...(projectorCheckpoint?.safe_default_choice === undefined
+      ? {}
+      : { checkpointDefaultChoice: projectorCheckpoint.safe_default_choice }),
   });
 
   const candidate = OperatorSummary.parse({

@@ -29180,6 +29180,272 @@ var init_catalog_derivations = __esm({
   }
 });
 
+// dist/shared/html/page.js
+function buildSanitizePattern() {
+  const ranges = [
+    [0, 8],
+    [11, 12],
+    [14, 31],
+    [8234, 8238],
+    [8294, 8297]
+  ];
+  const klass = ranges.map(([lo, hi]) => {
+    const loEsc = `\\u${lo.toString(16).padStart(4, "0")}`;
+    const hiEsc = `\\u${hi.toString(16).padStart(4, "0")}`;
+    return `${loEsc}-${hiEsc}`;
+  }).join("");
+  return new RegExp(`[${klass}]`, "g");
+}
+function sanitizeForRender(value) {
+  return value.replace(SANITIZE_PATTERN, "");
+}
+function escapeHtmlChars(value) {
+  return value.replace(/[&<>"']/g, (char) => ESCAPE_MAP[char] ?? char);
+}
+function escapeHtml(value) {
+  return escapeHtmlChars(sanitizeForRender(value));
+}
+function truncate(value, max) {
+  return value.length > max ? `${value.slice(0, max - 1)}\u2026` : value;
+}
+function styles() {
+  return `:root{--bg:#fafaf9;--surface:#fff;--surface-2:#f5f5f4;--border:#e7e5e4;--border-strong:#d6d3d1;--text:#1c1917;--text-2:#57534e;--text-3:#a8a29e;--accent:#0f172a;--intent-positive:#166534;--intent-positive-soft:#f0fdf4;--intent-info:#1e40af;--intent-info-soft:#eff6ff;--intent-attention:#9a3412;--intent-attention-soft:#fff7ed;--intent-negative:#991b1b;--intent-negative-soft:#fef2f2}@media (prefers-color-scheme:dark){:root{--bg:#0c0a09;--surface:#1c1917;--surface-2:#292524;--border:#292524;--border-strong:#44403c;--text:#fafaf9;--text-2:#a8a29e;--text-3:#78716c;--accent:#fafaf9;--intent-positive:#4ade80;--intent-positive-soft:#052e16;--intent-info:#93c5fd;--intent-info-soft:#172554;--intent-attention:#fb923c;--intent-attention-soft:#431407;--intent-negative:#f87171;--intent-negative-soft:#450a0a}}*{box-sizing:border-box}html,body{margin:0;padding:0}body{font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}.wrap{max-width:1200px;margin:0 auto;padding:48px 32px 96px}header.top{margin-bottom:24px}.meta{font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}h1{font:600 28px/1.25 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;margin:0 0 8px;letter-spacing:-.01em}.subtitle{color:var(--text-2);font-size:16px;margin:0}.verdict{margin:24px 0 32px;padding:16px 20px;background:var(--intent-info-soft);border:1px solid var(--intent-info);border-radius:8px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.verdict.intent-positive{background:var(--intent-positive-soft);border-color:var(--intent-positive)}.verdict.intent-attention{background:var(--intent-attention-soft);border-color:var(--intent-attention)}.verdict.intent-negative{background:var(--intent-negative-soft);border-color:var(--intent-negative)}.verdict .badge{font:600 11px/1 -apple-system,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--intent-info);padding:4px 8px;border:1px solid var(--intent-info);border-radius:4px}.verdict.intent-positive .badge{color:var(--intent-positive);border-color:var(--intent-positive)}.verdict.intent-attention .badge{color:var(--intent-attention);border-color:var(--intent-attention)}.verdict.intent-negative .badge{color:var(--intent-negative);border-color:var(--intent-negative)}.verdict .text{color:var(--text);font-size:14px;flex:1;min-width:200px}.verdict .text strong{font-weight:600}.verdict .confidence{font-size:12px;color:var(--text-2);text-transform:lowercase}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:16px;position:relative}.card.intent-info{border-color:var(--intent-info);box-shadow:0 0 0 3px var(--intent-info-soft)}.card.intent-positive{border-color:var(--intent-positive);box-shadow:0 0 0 3px var(--intent-positive-soft)}.card.intent-attention{border-color:var(--intent-attention);box-shadow:0 0 0 3px var(--intent-attention-soft)}.card.intent-negative{border-color:var(--intent-negative);box-shadow:0 0 0 3px var(--intent-negative-soft)}.card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.card-id{font:500 11px/1 ui-monospace,"SF Mono",Menlo,monospace;color:var(--text-3);letter-spacing:.05em}.card h2{font:600 17px/1.3 -apple-system,system-ui,sans-serif;margin:4px 0 0;letter-spacing:-.005em}.intent-badge{font:600 10px/1 -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;padding:4px 8px;border-radius:4px;white-space:nowrap;color:var(--intent-info);background:var(--intent-info-soft)}.intent-badge.intent-positive{color:var(--intent-positive);background:var(--intent-positive-soft)}.intent-badge.intent-attention{color:var(--intent-attention);background:var(--intent-attention-soft)}.intent-badge.intent-negative{color:var(--intent-negative);background:var(--intent-negative-soft)}.summary{color:var(--text-2);font-size:14px;margin:0}.section-label{font:600 10px/1 -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin:0 0 8px}ul.tradeoffs{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}ul.tradeoffs li{font-size:13px;color:var(--text);padding-left:18px;position:relative;line-height:1.5}ul.tradeoffs li::before{content:"\\2022";position:absolute;left:6px;color:var(--text-3);font-weight:700}.evidence{display:flex;flex-wrap:wrap;gap:6px}.chip{font:500 11px/1 ui-monospace,"SF Mono",Menlo,monospace;padding:4px 8px;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;color:var(--text-2)}.actions{display:flex;gap:8px;margin-top:auto;padding-top:8px}button.copy{font:500 13px/1 -apple-system,system-ui,sans-serif;padding:8px 12px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer}button.copy:hover{background:var(--surface-2)}button.copy.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}button.copy.primary:hover{opacity:.9}details{margin-top:32px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px}details summary{cursor:pointer;font:500 13px/1.4 -apple-system,system-ui,sans-serif;color:var(--text-2);user-select:none}details[open] summary{margin-bottom:12px}details .body{font-size:13px;color:var(--text-2)}details ul{margin:6px 0;padding-left:20px}details li{margin-bottom:4px}footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);color:var(--text-3);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}footer code{font:500 11px/1 ui-monospace,"SF Mono",Menlo,monospace}`;
+}
+function clipboardScript() {
+  return `document.querySelectorAll('button.copy').forEach(btn=>{btn.addEventListener('click',async()=>{const p=btn.dataset.prompt;if(!p)return;try{await navigator.clipboard.writeText(p);const o=btn.textContent;btn.textContent='Copied';setTimeout(()=>{btn.textContent=o;},1200);}catch(e){btn.textContent='Copy failed';}});});`;
+}
+function renderPage(input) {
+  const footerLeft = input.footerLeft === void 0 ? "" : `<span>${escapeHtml(input.footerLeft)}</span>`;
+  const footerRight = input.footerRight === void 0 ? "" : `<span><code>${escapeHtml(input.footerRight)}</code></span>`;
+  const wrapClassName = input.wrapClassName ?? "wrap";
+  const extraStyles = input.extraStyles === void 0 ? "" : input.extraStyles;
+  const extraScript = input.extraScript === void 0 ? "" : input.extraScript;
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(input.title)}</title>
+<style>${styles()}${extraStyles}</style>
+</head>
+<body>
+<div class="${escapeHtml(wrapClassName)}">
+  <header class="top">
+    <div class="meta">${escapeHtml(input.metaLine)}</div>
+    <h1>${escapeHtml(input.headline)}</h1>
+    <p class="subtitle">${escapeHtml(input.subtitle)}</p>
+  </header>
+${input.bodyHtml}
+  <footer>
+    ${footerLeft}
+    ${footerRight}
+  </footer>
+</div>
+<script>${clipboardScript()}${extraScript}</script>
+</body>
+</html>
+`;
+}
+var ESCAPE_MAP, SANITIZE_PATTERN, MAX_BULLET_LEN, MAX_PROMPT_LEN;
+var init_page = __esm({
+  "dist/shared/html/page.js"() {
+    "use strict";
+    ESCAPE_MAP = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    };
+    SANITIZE_PATTERN = buildSanitizePattern();
+    MAX_BULLET_LEN = 4096;
+    MAX_PROMPT_LEN = 32768;
+  }
+});
+
+// dist/shared/html/components.js
+function intentClass(intent) {
+  return intent === "neutral" || intent === "info" ? "" : `intent-${intent}`;
+}
+function intentBadge(input) {
+  const classes = ["intent-badge"];
+  const className = intentClass(input.intent);
+  if (className.length > 0)
+    classes.push(className);
+  return `<span class="${classes.join(" ")}">${escapeHtml(input.text)}</span>`;
+}
+function chip(text) {
+  return `<span class="chip">${escapeHtml(truncate(text, MAX_BULLET_LEN))}</span>`;
+}
+function card(input) {
+  const intent = input.intent ?? "neutral";
+  const classes = ["card"];
+  const intentClassName = intentClass(intent);
+  if (intentClassName.length > 0)
+    classes.push(intentClassName);
+  const eyebrowMarkup = input.eyebrow === void 0 ? "" : `<div class="card-id">${escapeHtml(input.eyebrow)}</div>`;
+  const badgeMarkup = input.badge === void 0 ? "" : intentBadge(input.badge);
+  return `    <article class="${classes.join(" ")}">
+      <div class="card-head">
+        <div>
+          ${eyebrowMarkup}
+          <h2>${escapeHtml(input.title)}</h2>
+        </div>
+        ${badgeMarkup}
+      </div>
+${input.bodyHtml}
+    </article>`;
+}
+function verdictBanner(input) {
+  const classes = ["verdict"];
+  const intentClassName = intentClass(input.intent);
+  if (intentClassName.length > 0)
+    classes.push(intentClassName);
+  const aside = input.aside === void 0 ? "" : `<span class="confidence">${escapeHtml(input.aside)}</span>`;
+  return `  <div class="${classes.join(" ")}">
+    <span class="badge">${escapeHtml(input.badgeText)}</span>
+    <span class="text">${input.mainHtml}</span>
+    ${aside}
+  </div>`;
+}
+var init_components = __esm({
+  "dist/shared/html/components.js"() {
+    "use strict";
+    init_page();
+  }
+});
+
+// dist/shared/html/checkpoint-page.js
+function shellSingleQuote(value) {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+function resumeCommandForChoice(runFolder, choiceId) {
+  return `circuit resume --run-folder ${shellSingleQuote(runFolder)} --checkpoint-choice ${shellSingleQuote(choiceId)}`;
+}
+function ribbonHtml(ribbon) {
+  if (ribbon.length === 0)
+    return "";
+  const tags = ribbon.map((tag) => `<span class="tag">${escapeHtml(truncate(tag, 120))}</span>`).join("");
+  return `  <div class="ribbon">${tags}</div>
+`;
+}
+function recommendationHtml(rec) {
+  if (rec === void 0)
+    return "";
+  const why = rec.rationale === void 0 ? "" : ` <span class="rec-why">${escapeHtml(truncate(rec.rationale, MAX_PROMPT_LEN))}</span>`;
+  return `  <div class="verdict intent-positive">
+    <span class="badge">Recommended</span>
+    <span class="text"><strong>${escapeHtml(rec.label)}</strong>${why}</span>
+  </div>
+`;
+}
+function optionHtml(option, runFolder) {
+  const badges = [
+    ...option.isRecommended === true ? [intentBadge({ text: "Recommended", intent: "positive" })] : [],
+    ...option.isDefault === true ? [intentBadge({ text: "Default", intent: "neutral" })] : []
+  ].join("");
+  const description = option.description === void 0 ? "" : `      <p class="opt-desc">${escapeHtml(truncate(option.description, MAX_PROMPT_LEN))}</p>
+`;
+  const extra = option.extraHtml === void 0 ? "" : `${option.extraHtml}
+`;
+  const command = truncate(resumeCommandForChoice(runFolder, option.id), MAX_PROMPT_LEN);
+  const classes = option.isRecommended === true ? "opt is-recommended" : "opt";
+  return `    <article class="${classes}">
+      <div class="opt-head">
+        <h2>${escapeHtml(truncate(option.label, MAX_PROMPT_LEN))}</h2>
+        ${badges}
+      </div>
+${description}${extra}      <div class="opt-actions">
+        <button class="copy" data-prompt="${escapeHtml(command)}">Copy resume command</button>
+        <code>${escapeHtml(command)}</code>
+      </div>
+    </article>`;
+}
+function defaultStripHtml(defaultChoice) {
+  const consequence = defaultChoice === void 0 ? "The run stays parked at this checkpoint until you choose." : `The run stays parked at this checkpoint. The declared default is <strong>${escapeHtml(defaultChoice.label)}</strong>.`;
+  return `  <div class="default-strip">
+    <span class="k">If you do nothing</span>
+    <span>${consequence}</span>
+  </div>
+`;
+}
+function renderCheckpointPage(input) {
+  const options = input.options.map((option) => optionHtml(option, input.resume.runFolder)).join("\n");
+  const bodyHtml = ribbonHtml(input.ribbon) + recommendationHtml(input.recommendation) + (input.contextHtml === void 0 ? "" : `${input.contextHtml}
+`) + `  <div class="opt-list">
+${options}
+  </div>
+` + defaultStripHtml(input.defaultChoice) + (input.appendixHtml === void 0 ? "" : `${input.appendixHtml}
+`);
+  return renderPage({
+    title: `${truncate(input.question, 80)} \xB7 Circuit ${input.meta.flowLabel} checkpoint`,
+    metaLine: `Circuit \xB7 ${input.meta.flowLabel} \xB7 checkpoint waiting`,
+    headline: truncate(input.question, MAX_PROMPT_LEN),
+    subtitle: input.subtitle ?? "This run is paused. Pick an option, then resume from the terminal.",
+    bodyHtml,
+    footerLeft: input.footerLeft ?? `circuit \xB7 ${input.meta.stepId} \xB7 ${input.meta.runId}`,
+    ...input.footerRight === void 0 ? {} : { footerRight: input.footerRight },
+    extraStyles: CHECKPOINT_STYLES
+  });
+}
+function flowLabelFromId(flowId) {
+  return flowId.split("-").map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
+}
+function genericCheckpointHtml(ctx) {
+  if (ctx.runOutcome !== "checkpoint_waiting")
+    return void 0;
+  const checkpoint = ctx.checkpoint;
+  if (checkpoint === void 0)
+    return void 0;
+  const allowed = new Set(checkpoint.allowed_choices);
+  const labeled = (checkpoint.choices ?? []).filter((choice) => allowed.has(choice.id));
+  const covered = new Set(labeled.map((choice) => choice.id));
+  const options = [
+    ...labeled.map((choice) => ({
+      id: choice.id,
+      label: choice.label ?? choice.id,
+      ...choice.description === void 0 ? {} : { description: choice.description },
+      ...checkpoint.safe_default_choice === choice.id ? { isDefault: true } : {}
+    })),
+    ...checkpoint.allowed_choices.filter((id) => !covered.has(id)).map((id) => ({
+      id,
+      label: id,
+      ...checkpoint.safe_default_choice === id ? { isDefault: true } : {}
+    }))
+  ];
+  if (options.length === 0)
+    return void 0;
+  const defaultOption = checkpoint.safe_default_choice === void 0 ? void 0 : options.find((option) => option.id === checkpoint.safe_default_choice);
+  const flowLabel2 = flowLabelFromId(ctx.flowId);
+  const question = checkpoint.prompt ?? `The ${flowLabel2} flow is waiting for your choice at ${checkpoint.step_id}.`;
+  const ribbon = [
+    "Waiting for you",
+    ...checkpoint.depth === void 0 ? [] : [`Depth ${checkpoint.depth}`],
+    `${options.length} ${options.length === 1 ? "choice" : "choices"}`
+  ];
+  const requestPath = checkpoint.request_path.startsWith(`${ctx.runFolder}/`) ? checkpoint.request_path.slice(ctx.runFolder.length + 1) : checkpoint.request_path;
+  return renderCheckpointPage({
+    meta: { flowLabel: flowLabel2, runId: ctx.runId, stepId: checkpoint.step_id },
+    question,
+    ribbon,
+    options,
+    ...defaultOption === void 0 ? {} : { defaultChoice: { id: defaultOption.id, label: defaultOption.label } },
+    resume: { runFolder: ctx.runFolder },
+    footerLeft: `circuit \xB7 ${checkpoint.step_id} \xB7 ${ctx.runId}`,
+    footerRight: requestPath
+  });
+}
+var CHECKPOINT_STYLES;
+var init_checkpoint_page = __esm({
+  "dist/shared/html/checkpoint-page.js"() {
+    "use strict";
+    init_components();
+    init_page();
+    init_page();
+    CHECKPOINT_STYLES = '.ribbon{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 28px}.ribbon .tag{font:600 11px/1 -apple-system,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:6px 12px;white-space:nowrap}.rec-why{color:var(--text-2)}.opt-list{display:flex;flex-direction:column;gap:12px;margin:8px 0 0}.opt{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;display:flex;flex-direction:column;gap:10px}.opt.is-recommended{border-color:var(--intent-positive);box-shadow:0 0 0 3px var(--intent-positive-soft)}.opt-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.opt-head h2{font:600 16px/1.3 -apple-system,system-ui,sans-serif;margin:0;letter-spacing:-.005em}.opt-desc{color:var(--text-2);font-size:14px;margin:0}.opt-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:2px}.opt-actions code{font:500 12px/1.5 ui-monospace,"SF Mono",Menlo,monospace;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;overflow-x:auto;white-space:pre;max-width:100%}.default-strip{display:flex;gap:12px;align-items:baseline;background:var(--surface-2);border:1px dashed var(--border-strong);border-radius:8px;padding:14px 16px;margin:20px 0 0;font-size:13.5px;color:var(--text-2)}.default-strip .k{font:600 10px/1.4 -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);white-space:nowrap}.default-strip strong{color:var(--text)}';
+  }
+});
+
 // dist/shared/html/index.js
 function registerHtmlProjector(flowId, projector) {
   HTML_PROJECTORS.set(flowId, projector);
@@ -29191,6 +29457,7 @@ var HTML_PROJECTORS;
 var init_html = __esm({
   "dist/shared/html/index.js"() {
     "use strict";
+    init_checkpoint_page();
     HTML_PROJECTORS = /* @__PURE__ */ new Map();
   }
 });
@@ -34399,141 +34666,6 @@ var init_flow = __esm({
   }
 });
 
-// dist/shared/html/page.js
-function buildSanitizePattern() {
-  const ranges = [
-    [0, 8],
-    [11, 12],
-    [14, 31],
-    [8234, 8238],
-    [8294, 8297]
-  ];
-  const klass = ranges.map(([lo, hi]) => {
-    const loEsc = `\\u${lo.toString(16).padStart(4, "0")}`;
-    const hiEsc = `\\u${hi.toString(16).padStart(4, "0")}`;
-    return `${loEsc}-${hiEsc}`;
-  }).join("");
-  return new RegExp(`[${klass}]`, "g");
-}
-function sanitizeForRender(value) {
-  return value.replace(SANITIZE_PATTERN, "");
-}
-function escapeHtmlChars(value) {
-  return value.replace(/[&<>"']/g, (char) => ESCAPE_MAP[char] ?? char);
-}
-function escapeHtml(value) {
-  return escapeHtmlChars(sanitizeForRender(value));
-}
-function truncate(value, max) {
-  return value.length > max ? `${value.slice(0, max - 1)}\u2026` : value;
-}
-function styles() {
-  return `:root{--bg:#fafaf9;--surface:#fff;--surface-2:#f5f5f4;--border:#e7e5e4;--border-strong:#d6d3d1;--text:#1c1917;--text-2:#57534e;--text-3:#a8a29e;--accent:#0f172a;--intent-positive:#166534;--intent-positive-soft:#f0fdf4;--intent-info:#1e40af;--intent-info-soft:#eff6ff;--intent-attention:#9a3412;--intent-attention-soft:#fff7ed;--intent-negative:#991b1b;--intent-negative-soft:#fef2f2}@media (prefers-color-scheme:dark){:root{--bg:#0c0a09;--surface:#1c1917;--surface-2:#292524;--border:#292524;--border-strong:#44403c;--text:#fafaf9;--text-2:#a8a29e;--text-3:#78716c;--accent:#fafaf9;--intent-positive:#4ade80;--intent-positive-soft:#052e16;--intent-info:#93c5fd;--intent-info-soft:#172554;--intent-attention:#fb923c;--intent-attention-soft:#431407;--intent-negative:#f87171;--intent-negative-soft:#450a0a}}*{box-sizing:border-box}html,body{margin:0;padding:0}body{font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}.wrap{max-width:1200px;margin:0 auto;padding:48px 32px 96px}header.top{margin-bottom:24px}.meta{font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}h1{font:600 28px/1.25 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;margin:0 0 8px;letter-spacing:-.01em}.subtitle{color:var(--text-2);font-size:16px;margin:0}.verdict{margin:24px 0 32px;padding:16px 20px;background:var(--intent-info-soft);border:1px solid var(--intent-info);border-radius:8px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.verdict.intent-positive{background:var(--intent-positive-soft);border-color:var(--intent-positive)}.verdict.intent-attention{background:var(--intent-attention-soft);border-color:var(--intent-attention)}.verdict.intent-negative{background:var(--intent-negative-soft);border-color:var(--intent-negative)}.verdict .badge{font:600 11px/1 -apple-system,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--intent-info);padding:4px 8px;border:1px solid var(--intent-info);border-radius:4px}.verdict.intent-positive .badge{color:var(--intent-positive);border-color:var(--intent-positive)}.verdict.intent-attention .badge{color:var(--intent-attention);border-color:var(--intent-attention)}.verdict.intent-negative .badge{color:var(--intent-negative);border-color:var(--intent-negative)}.verdict .text{color:var(--text);font-size:14px;flex:1;min-width:200px}.verdict .text strong{font-weight:600}.verdict .confidence{font-size:12px;color:var(--text-2);text-transform:lowercase}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:16px;position:relative}.card.intent-info{border-color:var(--intent-info);box-shadow:0 0 0 3px var(--intent-info-soft)}.card.intent-positive{border-color:var(--intent-positive);box-shadow:0 0 0 3px var(--intent-positive-soft)}.card.intent-attention{border-color:var(--intent-attention);box-shadow:0 0 0 3px var(--intent-attention-soft)}.card.intent-negative{border-color:var(--intent-negative);box-shadow:0 0 0 3px var(--intent-negative-soft)}.card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.card-id{font:500 11px/1 ui-monospace,"SF Mono",Menlo,monospace;color:var(--text-3);letter-spacing:.05em}.card h2{font:600 17px/1.3 -apple-system,system-ui,sans-serif;margin:4px 0 0;letter-spacing:-.005em}.intent-badge{font:600 10px/1 -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;padding:4px 8px;border-radius:4px;white-space:nowrap;color:var(--intent-info);background:var(--intent-info-soft)}.intent-badge.intent-positive{color:var(--intent-positive);background:var(--intent-positive-soft)}.intent-badge.intent-attention{color:var(--intent-attention);background:var(--intent-attention-soft)}.intent-badge.intent-negative{color:var(--intent-negative);background:var(--intent-negative-soft)}.summary{color:var(--text-2);font-size:14px;margin:0}.section-label{font:600 10px/1 -apple-system,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin:0 0 8px}ul.tradeoffs{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}ul.tradeoffs li{font-size:13px;color:var(--text);padding-left:18px;position:relative;line-height:1.5}ul.tradeoffs li::before{content:"\\2022";position:absolute;left:6px;color:var(--text-3);font-weight:700}.evidence{display:flex;flex-wrap:wrap;gap:6px}.chip{font:500 11px/1 ui-monospace,"SF Mono",Menlo,monospace;padding:4px 8px;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;color:var(--text-2)}.actions{display:flex;gap:8px;margin-top:auto;padding-top:8px}button.copy{font:500 13px/1 -apple-system,system-ui,sans-serif;padding:8px 12px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer}button.copy:hover{background:var(--surface-2)}button.copy.primary{background:var(--accent);color:var(--bg);border-color:var(--accent)}button.copy.primary:hover{opacity:.9}details{margin-top:32px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px}details summary{cursor:pointer;font:500 13px/1.4 -apple-system,system-ui,sans-serif;color:var(--text-2);user-select:none}details[open] summary{margin-bottom:12px}details .body{font-size:13px;color:var(--text-2)}details ul{margin:6px 0;padding-left:20px}details li{margin-bottom:4px}footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);color:var(--text-3);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}footer code{font:500 11px/1 ui-monospace,"SF Mono",Menlo,monospace}`;
-}
-function clipboardScript() {
-  return `document.querySelectorAll('button.copy').forEach(btn=>{btn.addEventListener('click',async()=>{const p=btn.dataset.prompt;if(!p)return;try{await navigator.clipboard.writeText(p);const o=btn.textContent;btn.textContent='Copied';setTimeout(()=>{btn.textContent=o;},1200);}catch(e){btn.textContent='Copy failed';}});});`;
-}
-function renderPage(input) {
-  const footerLeft = input.footerLeft === void 0 ? "" : `<span>${escapeHtml(input.footerLeft)}</span>`;
-  const footerRight = input.footerRight === void 0 ? "" : `<span><code>${escapeHtml(input.footerRight)}</code></span>`;
-  const wrapClassName = input.wrapClassName ?? "wrap";
-  const extraStyles = input.extraStyles === void 0 ? "" : input.extraStyles;
-  const extraScript = input.extraScript === void 0 ? "" : input.extraScript;
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(input.title)}</title>
-<style>${styles()}${extraStyles}</style>
-</head>
-<body>
-<div class="${escapeHtml(wrapClassName)}">
-  <header class="top">
-    <div class="meta">${escapeHtml(input.metaLine)}</div>
-    <h1>${escapeHtml(input.headline)}</h1>
-    <p class="subtitle">${escapeHtml(input.subtitle)}</p>
-  </header>
-${input.bodyHtml}
-  <footer>
-    ${footerLeft}
-    ${footerRight}
-  </footer>
-</div>
-<script>${clipboardScript()}${extraScript}</script>
-</body>
-</html>
-`;
-}
-var ESCAPE_MAP, SANITIZE_PATTERN, MAX_BULLET_LEN, MAX_PROMPT_LEN;
-var init_page = __esm({
-  "dist/shared/html/page.js"() {
-    "use strict";
-    ESCAPE_MAP = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    };
-    SANITIZE_PATTERN = buildSanitizePattern();
-    MAX_BULLET_LEN = 4096;
-    MAX_PROMPT_LEN = 32768;
-  }
-});
-
-// dist/shared/html/components.js
-function intentClass(intent) {
-  return intent === "neutral" || intent === "info" ? "" : `intent-${intent}`;
-}
-function intentBadge(input) {
-  const classes = ["intent-badge"];
-  const className = intentClass(input.intent);
-  if (className.length > 0)
-    classes.push(className);
-  return `<span class="${classes.join(" ")}">${escapeHtml(input.text)}</span>`;
-}
-function chip(text) {
-  return `<span class="chip">${escapeHtml(truncate(text, MAX_BULLET_LEN))}</span>`;
-}
-function card(input) {
-  const intent = input.intent ?? "neutral";
-  const classes = ["card"];
-  const intentClassName = intentClass(intent);
-  if (intentClassName.length > 0)
-    classes.push(intentClassName);
-  const eyebrowMarkup = input.eyebrow === void 0 ? "" : `<div class="card-id">${escapeHtml(input.eyebrow)}</div>`;
-  const badgeMarkup = input.badge === void 0 ? "" : intentBadge(input.badge);
-  return `    <article class="${classes.join(" ")}">
-      <div class="card-head">
-        <div>
-          ${eyebrowMarkup}
-          <h2>${escapeHtml(input.title)}</h2>
-        </div>
-        ${badgeMarkup}
-      </div>
-${input.bodyHtml}
-    </article>`;
-}
-function verdictBanner(input) {
-  const classes = ["verdict"];
-  const intentClassName = intentClass(input.intent);
-  if (intentClassName.length > 0)
-    classes.push(intentClassName);
-  const aside = input.aside === void 0 ? "" : `<span class="confidence">${escapeHtml(input.aside)}</span>`;
-  return `  <div class="${classes.join(" ")}">
-    <span class="badge">${escapeHtml(input.badgeText)}</span>
-    <span class="text">${input.mainHtml}</span>
-    ${aside}
-  </div>`;
-}
-var init_components = __esm({
-  "dist/shared/html/components.js"() {
-    "use strict";
-    init_page();
-  }
-});
-
 // dist/flows/build/writers/checkpoint-html.js
 function bulletList(items) {
   return `<ul class="tradeoffs">
@@ -34547,35 +34679,6 @@ function renderCommandChips(commands) {
   return `<div class="evidence">
           ${commands.map((command) => chip(commandText(command))).join("\n          ")}
         </div>`;
-}
-function choiceIntent(choiceId, recommendedId) {
-  return choiceId === recommendedId ? "positive" : "neutral";
-}
-function shellSingleQuote(value) {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-function resumeCommandForChoice(runFolder, choiceId) {
-  return `circuit resume --run-folder ${shellSingleQuote(runFolder)} --checkpoint-choice ${shellSingleQuote(choiceId)}`;
-}
-function renderChoiceCard(choice, recommendedChoiceId2, runFolder) {
-  const isRecommended = choice.id === recommendedChoiceId2;
-  const bodyHtml = `      <p class="summary">${escapeHtml(choice.description)}</p>
-      <div>
-        <p class="section-label">Executable route</p>
-        <div class="evidence">
-          ${chip(`${choice.route.key} -> ${choice.route.target}`)}
-        </div>
-      </div>
-      <div class="actions">
-        <button class="copy primary" data-prompt="${escapeHtml(truncate(resumeCommandForChoice(runFolder, choice.id), MAX_PROMPT_LEN))}">Copy resume command</button>
-      </div>`;
-  return card({
-    intent: choiceIntent(choice.id, recommendedChoiceId2),
-    eyebrow: choice.id,
-    title: choice.label,
-    ...isRecommended ? { badge: { text: "Recommended", intent: "positive" } } : {},
-    bodyHtml
-  });
 }
 function renderArtifactCard(brief, packet) {
   const bodyHtml = `      <p class="summary">${escapeHtml(packet.artifact.preview)}</p>
@@ -34654,6 +34757,7 @@ var BUILD_BRIEF_PATH, buildCheckpointProjector;
 var init_checkpoint_html = __esm({
   "dist/flows/build/writers/checkpoint-html.js"() {
     "use strict";
+    init_checkpoint_page();
     init_components();
     init_page();
     init_reports();
@@ -34675,25 +34779,22 @@ var init_checkpoint_html = __esm({
       const recommendedChoice = choices.find((choice) => choice.id === packet.recommendation.choice_id) ?? choices[0];
       if (recommendedChoice === void 0)
         return void 0;
-      const resumeCommand = `circuit resume --run-folder ${shellSingleQuote(ctx.runFolder)} --checkpoint-choice '<choice>'`;
-      const subtitle = `${packet.decision.operator_judgment} Recommended: ${packet.recommendation.label}.`;
-      const banner = verdictBanner({
-        intent: "positive",
-        badgeText: "Recommended",
-        mainHtml: `<strong>${escapeHtml(packet.recommendation.label)}</strong> &mdash; ${escapeHtml(packet.recommendation.rationale)}`,
-        aside: "waiting for choice"
-      });
-      const choiceCards = choices.map((choice) => renderChoiceCard(choice, recommendedChoice.id, ctx.runFolder)).join("\n\n");
-      const rawEvidence = [
-        BUILD_BRIEF_PATH,
-        packet.internal.request_path,
-        packet.internal.response_path,
-        ...packet.internal.raw_evidence,
-        ctx.checkpoint.request_path
-      ];
-      const bodyHtml = `${banner}
-
-  <div class="grid">
+      const safeDefaultId = ctx.checkpoint.safe_default_choice;
+      const options = choices.map((choice) => ({
+        id: choice.id,
+        label: choice.label,
+        description: choice.description,
+        ...choice.id === recommendedChoice.id ? { isRecommended: true } : {},
+        ...choice.id === safeDefaultId ? { isDefault: true } : {},
+        extraHtml: `      <div>
+        <p class="section-label">Executable route</p>
+        <div class="evidence">
+          ${chip(`${choice.route.key} -> ${choice.route.target}`)}
+        </div>
+      </div>`
+      }));
+      const defaultChoice = options.find((option) => option.id === safeDefaultId);
+      const contextHtml = `  <div class="grid">
 ${renderArtifactCard(brief, packet)}
 
 ${renderSalienceCard(packet)}
@@ -34701,30 +34802,44 @@ ${renderSalienceCard(packet)}
 ${renderRiskCard(packet)}
 
 ${renderProofCard(packet)}
-  </div>
-
-  <div class="grid" style="margin-top:16px">
-${choiceCards}
-  </div>
-
-  <details>
+  </div>`;
+      const resumeCommandTemplate = `circuit resume --run-folder ${shellSingleQuote(ctx.runFolder)} --checkpoint-choice '<choice>'`;
+      const rawEvidence = [
+        BUILD_BRIEF_PATH,
+        packet.internal.request_path,
+        packet.internal.response_path,
+        ...packet.internal.raw_evidence,
+        ctx.checkpoint.request_path
+      ];
+      const appendixHtml = `  <details>
     <summary>Raw evidence and resume command</summary>
     <div class="body">
       <p><strong>Decision.</strong> ${escapeHtml(packet.decision.question)}</p>
-      <p><strong>Resume command.</strong> <code>${escapeHtml(resumeCommand)}</code></p>
+      <p><strong>Resume command.</strong> <code>${escapeHtml(resumeCommandTemplate)}</code></p>
       <p><strong>Reports.</strong></p>
       <div class="evidence">
         ${rawEvidence.map((item) => chip(item)).join("\n        ")}
       </div>
     </div>
-  </details>
-`;
-      return renderPage({
-        title: `${brief.objective} \xB7 Circuit Build checkpoint`,
-        metaLine: `Build checkpoint \xB7 ${ctx.runId}`,
-        headline: brief.objective,
-        subtitle,
-        bodyHtml,
+  </details>`;
+      return renderCheckpointPage({
+        meta: { flowLabel: "Build", runId: ctx.runId, stepId: ctx.checkpoint.step_id },
+        question: brief.objective,
+        subtitle: `${packet.decision.question} ${packet.decision.operator_judgment}`,
+        ribbon: [
+          "Waiting for you",
+          ...ctx.checkpoint.depth === void 0 ? [] : [`Depth ${ctx.checkpoint.depth}`],
+          `Proof ${packet.proof.status}`
+        ],
+        recommendation: {
+          label: packet.recommendation.label,
+          rationale: packet.recommendation.rationale
+        },
+        options,
+        ...defaultChoice === void 0 ? {} : { defaultChoice: { id: defaultChoice.id, label: defaultChoice.label } },
+        contextHtml,
+        appendixHtml,
+        resume: { runFolder: ctx.runFolder },
         footerLeft: `circuit \xB7 build \xB7 ${ctx.runId}`,
         footerRight: BUILD_BRIEF_PATH
       });
@@ -39928,13 +40043,6 @@ function stringField(report, key) {
 function isObject2(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
-function verdictBadgeText(verdict) {
-  if (verdict === "recommend")
-    return "Recommended";
-  if (verdict === "no-clear-winner")
-    return "No clear winner";
-  return "Operator decision";
-}
 function verdictIntent(verdict) {
   if (verdict === "recommend")
     return "info";
@@ -39975,13 +40083,12 @@ function renderOptionCard(option, isRecommended, isSelected) {
   });
 }
 function renderTournamentVerdictBanner(review, decisionOptions, decision2) {
-  const recommendedOption = decisionOptions.options.find((option) => option.id === review.recommended_option_id);
-  const recommendedLabel = recommendedOption?.label ?? review.recommended_option_id;
-  const decisionText = decision2.decision;
+  const selectedOption = decisionOptions.options.find((option) => option.id === decision2.selected_option_id);
+  const selectedLabel = selectedOption?.label ?? decision2.selected_option_label;
   return verdictBanner({
     intent: verdictIntent(review.verdict),
-    badgeText: verdictBadgeText(review.verdict),
-    mainHtml: `<strong>${escapeHtml(recommendedLabel)}</strong> &mdash; ${escapeHtml(decisionText)}`,
+    badgeText: "Selected",
+    mainHtml: `<strong>${escapeHtml(selectedLabel)}</strong> \xB7 ${escapeHtml(decision2.decision)}`,
     aside: confidenceText(review.confidence)
   });
 }
@@ -48692,8 +48799,11 @@ var init_result_html = __esm({
           title: "Reviewer findings",
           bodyHtml: findingList(report.findings)
         }),
+        // Method notes stay neutral: amber is reserved for findings that need
+        // caution. Scope caveats keep a quiet badge so honesty about what was
+        // not checked survives without painting a clean result as alarming.
         card({
-          intent: report.confidence_limitations.length > 0 ? "attention" : "info",
+          intent: "neutral",
           eyebrow: "Evidence",
           title: "What was checked",
           bodyHtml: [
@@ -48705,9 +48815,10 @@ var init_result_html = __esm({
           ].join("\n")
         }),
         card({
-          intent: report.evidence_warnings.length > 0 ? "attention" : "info",
+          intent: "neutral",
           eyebrow: "Caveats",
           title: "Evidence caveats",
+          ...report.evidence_warnings.length > 0 ? { badge: { text: "Scope limited", intent: "attention" } } : {},
           bodyHtml: [warningList(report.evidence_warnings), evidenceSummary2(report)].join("\n")
         })
       ].join("\n");
@@ -106189,6 +106300,16 @@ function checkpointRequestBody(input) {
     step_id: input.step.id,
     prompt: stepPolicy.prompt,
     allowed_choices: stepPolicy.choices.map((choice) => choice.id),
+    // Labeled choices ride alongside allowed_choices so operator surfaces
+    // (the summary page) can name options without re-deriving labels from
+    // flow-specific reports. Dynamic choices_from labels come through the
+    // materialized policy. Resume validation reads allowed_choices only, so
+    // this stays additive.
+    choices: stepPolicy.choices.map((choice) => ({
+      id: choice.id,
+      ...choice.label === void 0 ? {} : { label: choice.label },
+      ...choice.description === void 0 ? {} : { description: choice.description }
+    })),
     ...stepPolicy.safe_default_choice === void 0 ? {} : { safe_default_choice: stepPolicy.safe_default_choice },
     execution_context: {
       ...input.context.axes === void 0 ? {} : { axes: input.context.axes },
@@ -114673,13 +114794,51 @@ function readCheckpointRequest(runFolder, checkpoint) {
     return void 0;
   }
 }
-function checkpointProjectRoot(runFolder, checkpoint) {
-  const request = readCheckpointRequest(runFolder, checkpoint);
+function checkpointProjectRoot(request) {
   const executionContext = request?.execution_context;
   if (!isObject4(executionContext))
     return void 0;
   const projectRoot = stringField2(executionContext, "project_root");
   return projectRoot !== void 0 && isAbsolute13(projectRoot) ? projectRoot : void 0;
+}
+function checkpointDepth(request) {
+  const executionContext = request?.execution_context;
+  if (!isObject4(executionContext))
+    return void 0;
+  const axes = executionContext.axes;
+  if (!isObject4(axes))
+    return void 0;
+  return stringField2(axes, "depth");
+}
+function widenedProjectorCheckpoint(checkpoint, request) {
+  const prompt = request === void 0 ? void 0 : stringField2(request, "prompt");
+  const safeDefault = request === void 0 ? void 0 : stringField2(request, "safe_default_choice");
+  const depth = checkpointDepth(request);
+  const choices = arrayField(request, "choices").flatMap((item) => {
+    if (!isObject4(item))
+      return [];
+    const id = stringField2(item, "id");
+    if (id === void 0)
+      return [];
+    const label = stringField2(item, "label");
+    const description = stringField2(item, "description");
+    return [
+      {
+        id,
+        ...label === void 0 ? {} : { label },
+        ...description === void 0 ? {} : { description }
+      }
+    ];
+  });
+  return {
+    step_id: checkpoint.step_id,
+    request_path: checkpoint.request_path,
+    allowed_choices: checkpoint.allowed_choices,
+    ...prompt === void 0 ? {} : { prompt },
+    ...safeDefault === void 0 ? {} : { safe_default_choice: safeDefault },
+    ...choices.length === 0 ? {} : { choices },
+    ...depth === void 0 ? {} : { depth }
+  };
 }
 function reportLink(runFolder, label, relPath, schema) {
   return {
@@ -114947,6 +115106,7 @@ function runOutcomeOverrideBrief(input) {
       key_points: [
         `Checkpoint step: ${input.runResult.checkpoint.step_id}`,
         `Choices: ${input.runResult.checkpoint.allowed_choices.join(", ")}`,
+        ...input.checkpointDefaultChoice === void 0 ? [] : [`Default if unanswered: ${input.checkpointDefaultChoice}`],
         ...keyPoints
       ].slice(0, MAX_KEY_POINTS),
       caveats: [],
@@ -115008,7 +115168,8 @@ function buildBriefSlots(input) {
   const override = runOutcomeOverrideBrief({
     flowName,
     runResult: input.runResult,
-    details: input.details
+    details: input.details,
+    ...input.checkpointDefaultChoice === void 0 ? {} : { checkpointDefaultChoice: input.checkpointDefaultChoice }
   });
   if (override !== void 0)
     return override;
@@ -115620,24 +115781,37 @@ function writeOperatorSummary(input) {
   let outHtmlPath;
   let htmlEmitWarning;
   let renderedHtml;
+  const checkpointRequest = input.runResult.outcome === "checkpoint_waiting" ? readCheckpointRequest(input.runFolder, input.runResult.checkpoint) : void 0;
+  const projectorCheckpoint = input.runResult.outcome === "checkpoint_waiting" ? widenedProjectorCheckpoint(input.runResult.checkpoint, checkpointRequest) : void 0;
+  const projectRoot = checkpointProjectRoot(checkpointRequest);
+  const ctx = {
+    runFolder: input.runFolder,
+    ...projectRoot === void 0 ? {} : { projectRoot },
+    runId: input.runResult.run_id,
+    flowId,
+    runOutcome: input.runResult.outcome,
+    ...projectorCheckpoint === void 0 ? {} : { checkpoint: projectorCheckpoint },
+    flowReport,
+    readJsonRunRelative: (relPath) => readJsonIfPresent(input.runFolder, relPath),
+    readEvidenceReportById: (reportId) => evidenceReportById(input.runFolder, flowReport, reportId),
+    autoResolutions
+  };
   if (projector !== void 0) {
     try {
-      const projectRoot = input.runResult.outcome === "checkpoint_waiting" ? checkpointProjectRoot(input.runFolder, input.runResult.checkpoint) : void 0;
-      const ctx = {
-        runFolder: input.runFolder,
-        ...projectRoot === void 0 ? {} : { projectRoot },
-        runId: input.runResult.run_id,
-        flowId,
-        runOutcome: input.runResult.outcome,
-        ...input.runResult.outcome === "checkpoint_waiting" ? { checkpoint: input.runResult.checkpoint } : {},
-        flowReport,
-        readJsonRunRelative: (relPath) => readJsonIfPresent(input.runFolder, relPath),
-        readEvidenceReportById: (reportId) => evidenceReportById(input.runFolder, flowReport, reportId),
-        autoResolutions
-      };
       renderedHtml = projector(ctx);
     } catch (err) {
       htmlEmitWarning = {
+        kind: "html_render_failed",
+        message: err instanceof Error ? err.message : String(err),
+        path: candidateHtmlPath
+      };
+    }
+  }
+  if (input.runResult.outcome === "checkpoint_waiting" && renderedHtml === void 0) {
+    try {
+      renderedHtml = genericCheckpointHtml(ctx);
+    } catch (err) {
+      htmlEmitWarning ??= {
         kind: "html_render_failed",
         message: err instanceof Error ? err.message : String(err),
         path: candidateHtmlPath
@@ -115719,7 +115893,8 @@ function writeOperatorSummary(input) {
     runResult: input.runResult,
     projectionHeadline: projection.headline,
     details,
-    warnings
+    warnings,
+    ...projectorCheckpoint?.safe_default_choice === void 0 ? {} : { checkpointDefaultChoice: projectorCheckpoint.safe_default_choice }
   });
   const candidate = OperatorSummary.parse({
     schema_version: 1,

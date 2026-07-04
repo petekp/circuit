@@ -14,6 +14,7 @@
     "key_points": [
       "Checkpoint step: frame-step",
       "Choices: continue",
+      "Default if unanswered: continue",
       "Worker access: A worker can edit this checkout."
     ],
     "caveats": [],
@@ -25,7 +26,12 @@
   ],
   "evidence_warnings": [],
   "run_folder": "<repo>/docs/release/proofs/runs/explicit-build/run",
+  "html_path": "<repo>/docs/release/proofs/runs/explicit-build/run/reports/operator-summary.html",
   "report_paths": [
+    {
+      "label": "Operator summary (HTML)",
+      "path": "<repo>/docs/release/proofs/runs/explicit-build/run/reports/operator-summary.html"
+    },
     {
       "label": "Checkpoint request",
       "path": "<repo>/docs/release/proofs/runs/explicit-build/run/reports/checkpoints/frame-step-request.json"

@@ -367,6 +367,16 @@ function checkpointRequestBody(input: {
     step_id: input.step.id,
     prompt: stepPolicy.prompt,
     allowed_choices: stepPolicy.choices.map((choice) => choice.id),
+    // Labeled choices ride alongside allowed_choices so operator surfaces
+    // (the summary page) can name options without re-deriving labels from
+    // flow-specific reports. Dynamic choices_from labels come through the
+    // materialized policy. Resume validation reads allowed_choices only, so
+    // this stays additive.
+    choices: stepPolicy.choices.map((choice) => ({
+      id: choice.id,
+      ...(choice.label === undefined ? {} : { label: choice.label }),
+      ...(choice.description === undefined ? {} : { description: choice.description }),
+    })),
     ...(stepPolicy.safe_default_choice === undefined
       ? {}
       : { safe_default_choice: stepPolicy.safe_default_choice }),
