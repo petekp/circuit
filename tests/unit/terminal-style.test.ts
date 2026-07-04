@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { colorEnabled, terminalPalette } from '../../src/cli/terminal-style.js';
+import { colorEnabled, composePaints, terminalPalette } from '../../src/cli/terminal-style.js';
 
 // Styling is presentation only: with color disabled every paint function must
 // return its input byte-for-byte, so pipes, tests, and NO_COLOR users see the
@@ -38,7 +38,16 @@ describe('colorEnabled', () => {
 describe('terminalPalette', () => {
   it('disabled palette is the identity on every paint function', () => {
     const p = terminalPalette(false, {});
-    for (const paint of [p.bold, p.dim, p.warn, p.accent, p.role('reviewer'), p.effort('high')]) {
+    const paints = [
+      p.bold,
+      p.dim,
+      p.warn,
+      p.accent,
+      p.role('reviewer'),
+      p.effort('high'),
+      p.provider('anthropic'),
+    ];
+    for (const paint of paints) {
       expect(paint('sonnet')).toBe('sonnet');
     }
   });
@@ -69,5 +78,34 @@ describe('terminalPalette', () => {
     expect(p.effort('high')('high')).toContain(`${ESC}[1m`);
     expect(p.effort('low')('low')).toContain(`${ESC}[2m`);
     expect(p.effort('medium')('medium')).toBe('medium');
+  });
+
+  it('providers get brand hues on truecolor terminals', () => {
+    const p = terminalPalette(true, { COLORTERM: 'truecolor' });
+    expect(p.provider('anthropic')('opus')).toContain('38;2;217;119;87');
+    expect(p.provider('openai')('gpt-5.5')).toContain('38;2;88;166;255');
+  });
+
+  it('provider hue degrades to plain without truecolor, and unknown providers pass through', () => {
+    const basic = terminalPalette(true, {});
+    expect(basic.provider('anthropic')('opus')).toBe('opus');
+    const truecolor = terminalPalette(true, { COLORTERM: 'truecolor' });
+    expect(truecolor.provider('mystery')('m1')).toBe('m1');
+    expect(truecolor.provider(undefined)('(none)')).toBe('(none)');
+  });
+});
+
+describe('composePaints', () => {
+  it('layers paints so the text carries every style', () => {
+    const p = terminalPalette(true, { COLORTERM: 'truecolor' });
+    const boldClay = composePaints(p.bold, p.provider('anthropic'))('opus');
+    expect(boldClay).toContain(`${ESC}[1m`);
+    expect(boldClay).toContain('38;2;217;119;87');
+    expect(boldClay.endsWith(`${ESC}[0m`)).toBe(true);
+  });
+
+  it('composing identities stays the identity', () => {
+    const p = terminalPalette(false, {});
+    expect(composePaints(p.bold, p.provider('anthropic'))('opus')).toBe('opus');
   });
 });

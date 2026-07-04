@@ -21,6 +21,18 @@ export interface TerminalPalette {
   role(role: string): Paint;
   /** Effort as typographic weight: high bold, low dim, medium plain. */
   effort(effort: string | undefined): Paint;
+  /**
+   * Model text is hued by the provider that serves it. Truecolor only: the
+   * hues are picked against the rest of the table (OpenAI's brand teal would
+   * collide with the accent and the implementer green, so OpenAI is blue),
+   * and there is no safe distinct pair left in the basic 8-color set.
+   */
+  provider(provider: string | undefined): Paint;
+}
+
+/** Layer paints (e.g. bold + provider hue); composing identities stays identity. */
+export function composePaints(outer: Paint, inner: Paint): Paint {
+  return (text) => outer(inner(text));
 }
 
 type EnvSlice = Readonly<
@@ -55,6 +67,15 @@ const ROLE_CODES: Readonly<Record<string, string>> = {
   reviewer: '35',
 };
 
+// Anthropic gets its brand clay. OpenAI is deliberately NOT its brand teal:
+// that teal sits on top of both the Circuit emerald accent and the
+// implementer green, so OpenAI takes blue — the one cool hue this table
+// leaves unused.
+const PROVIDER_CODES: Readonly<Record<string, string>> = {
+  anthropic: '38;2;217;119;87',
+  openai: '38;2;88;166;255',
+};
+
 export function terminalPalette(enabled: boolean, env: EnvSlice = process.env): TerminalPalette {
   if (!enabled) {
     return {
@@ -64,13 +85,12 @@ export function terminalPalette(enabled: boolean, env: EnvSlice = process.env): 
       accent: identity,
       role: () => identity,
       effort: () => identity,
+      provider: () => identity,
     };
   }
   const colorterm = env.COLORTERM ?? '';
-  const accentCode =
-    colorterm.includes('truecolor') || colorterm.includes('24bit')
-      ? ACCENT_TRUECOLOR
-      : ACCENT_FALLBACK;
+  const truecolor = colorterm.includes('truecolor') || colorterm.includes('24bit');
+  const accentCode = truecolor ? ACCENT_TRUECOLOR : ACCENT_FALLBACK;
   return {
     bold: painter('1'),
     dim: painter('2'),
@@ -84,6 +104,11 @@ export function terminalPalette(enabled: boolean, env: EnvSlice = process.env): 
       if (effort === 'high') return painter('1');
       if (effort === 'low') return painter('2');
       return identity;
+    },
+    provider: (provider) => {
+      if (!truecolor || provider === undefined) return identity;
+      const code = PROVIDER_CODES[provider];
+      return code === undefined ? identity : painter(code);
     },
   };
 }

@@ -60349,6 +60349,9 @@ function resolveFlowSelectionPreview(input) {
 // dist/cli/terminal-style.js
 var ESC = "\x1B[";
 var RESET = `${ESC}0m`;
+function composePaints(outer, inner) {
+  return (text) => outer(inner(text));
+}
 function colorEnabled(env = process.env, stream = process.stdout) {
   if (env.NO_COLOR !== void 0 && env.NO_COLOR !== "")
     return false;
@@ -60370,6 +60373,10 @@ var ROLE_CODES = {
   implementer: "32",
   reviewer: "35"
 };
+var PROVIDER_CODES = {
+  anthropic: "38;2;217;119;87",
+  openai: "38;2;88;166;255"
+};
 function terminalPalette(enabled, env = process.env) {
   if (!enabled) {
     return {
@@ -60378,11 +60385,13 @@ function terminalPalette(enabled, env = process.env) {
       warn: identity,
       accent: identity,
       role: () => identity,
-      effort: () => identity
+      effort: () => identity,
+      provider: () => identity
     };
   }
   const colorterm = env.COLORTERM ?? "";
-  const accentCode = colorterm.includes("truecolor") || colorterm.includes("24bit") ? ACCENT_TRUECOLOR : ACCENT_FALLBACK;
+  const truecolor = colorterm.includes("truecolor") || colorterm.includes("24bit");
+  const accentCode = truecolor ? ACCENT_TRUECOLOR : ACCENT_FALLBACK;
   return {
     bold: painter("1"),
     dim: painter("2"),
@@ -60398,6 +60407,12 @@ function terminalPalette(enabled, env = process.env) {
       if (effort === "low")
         return painter("2");
       return identity;
+    },
+    provider: (provider) => {
+      if (!truecolor || provider === void 0)
+        return identity;
+      const code = PROVIDER_CODES[provider];
+      return code === void 0 ? identity : painter(code);
     }
   };
 }
@@ -60496,7 +60511,8 @@ function stepCells(palette, step) {
     cell(step.stepId),
     cell(step.role, palette.role(step.role)),
     cell(step.connector),
-    cell(modelCell(step), palette.bold),
+    // Model stays bold (it is the payload); the hue says whose model it is.
+    cell(modelCell(step), composePaints(palette.bold, palette.provider(step.provider))),
     cell(step.effort ?? "-", palette.effort(step.effort)),
     cell(step.modelSource, palette.dim)
   ];
@@ -60587,7 +60603,7 @@ function renderMatrix(palette, previews) {
         return cell("-", palette.dim);
       const model = modelCell(match);
       const effort = match.effort ?? "-";
-      return cell(`${model} / ${effort}`, palette.effort(match.effort));
+      return cell(`${model} / ${effort}`, composePaints(palette.effort(match.effort), palette.provider(match.provider)));
     });
     rows.push([
       cell(step.stepId),

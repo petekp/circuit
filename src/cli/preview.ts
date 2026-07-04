@@ -13,6 +13,7 @@ import {
   type Paint,
   type TerminalPalette,
   colorEnabled,
+  composePaints,
   terminalPalette,
 } from './terminal-style.js';
 
@@ -151,7 +152,8 @@ function stepCells(palette: TerminalPalette, step: RelayStepSelectionPreview): r
     cell(step.stepId),
     cell(step.role, palette.role(step.role)),
     cell(step.connector),
-    cell(modelCell(step), palette.bold),
+    // Model stays bold (it is the payload); the hue says whose model it is.
+    cell(modelCell(step), composePaints(palette.bold, palette.provider(step.provider))),
     cell(step.effort ?? '-', palette.effort(step.effort)),
     cell(step.modelSource, palette.dim),
   ];
@@ -270,7 +272,11 @@ function renderMatrix(palette: TerminalPalette, previews: readonly FlowSelection
       if (match === undefined) return cell('-', palette.dim);
       const model = modelCell(match);
       const effort = match.effort ?? '-';
-      return cell(`${model} / ${effort}`, palette.effort(match.effort));
+      // Same encoding as the step tables: weight is effort, hue is provider.
+      return cell(
+        `${model} / ${effort}`,
+        composePaints(palette.effort(match.effort), palette.provider(match.provider)),
+      );
     });
     rows.push([
       cell(step.stepId),
