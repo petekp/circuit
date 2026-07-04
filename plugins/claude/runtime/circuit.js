@@ -60372,8 +60372,8 @@ function parsePreviewArgs(argv) {
     return commanderErrorMessage(err);
   }
   const flowId = positional[0];
-  if (flowId === void 0)
-    return "preview requires a flow name: circuit preview <flow> [--power <tier>]";
+  if (flowId === void 0 && opts?.matrix === true)
+    return "the dial matrix needs a flow name: circuit preview <flow> --matrix";
   if (positional.length > 1)
     return `unexpected extra arguments: ${positional.slice(1).join(" ")}`;
   const power = opts?.power;
@@ -60381,7 +60381,7 @@ function parsePreviewArgs(argv) {
     return `--power must be one of ${DIAL_CHOICES.join(", ")}`;
   }
   return {
-    flowId,
+    ...flowId === void 0 ? {} : { flowId },
     ...power === void 0 ? {} : { power },
     matrix: opts?.matrix === true,
     json: opts?.json === true
@@ -60445,6 +60445,47 @@ function renderSinglePreview(preview) {
     ...nonRelay
   ].join("\n");
 }
+function overviewDialLine(previews) {
+  const first = previews[0];
+  if (first === void 0)
+    return "";
+  const resolved = new Set(previews.map((p) => p.dialResolvesTo));
+  if (resolved.size === 1 && first.dial !== first.dialResolvesTo) {
+    return `dial: ${first.dial} (resolves to ${first.dialResolvesTo})`;
+  }
+  if (resolved.size > 1)
+    return `dial: ${first.dial} (resolves per flow)`;
+  return `dial: ${first.dial}`;
+}
+function renderOverview(previews) {
+  const header = `public flows   ${overviewDialLine(previews)}`;
+  const rows = [["FLOW", "STEP", "ROLE", "CONNECTOR", "MODEL", "EFFORT", "SOURCE"]];
+  const problemLines = [];
+  for (const preview of previews) {
+    preview.relaySteps.forEach((step, index) => {
+      rows.push([
+        index === 0 ? preview.flowId : "",
+        step.stepId,
+        step.role,
+        step.connector,
+        modelCell(step),
+        step.effort ?? "-",
+        step.modelSource
+      ]);
+      if (step.problem !== void 0) {
+        problemLines.push(`  ! ${preview.flowId} ${step.stepId}: ${step.problem}`);
+      }
+    });
+  }
+  return [
+    header,
+    "",
+    renderTable(rows),
+    ...problemLines.length === 0 ? [] : ["", "problems:", ...problemLines],
+    "",
+    "one flow in depth: circuit preview <flow> [--matrix]"
+  ].join("\n");
+}
 function renderMatrix(previews) {
   const first = previews[0];
   if (first === void 0)
@@ -60471,23 +60512,24 @@ function runPreviewCommand(argv) {
     return invalid(parsed);
   const layers = selectionLayers();
   const hostKind = hostKindFromEnv();
+  const flowIds = parsed.flowId === void 0 ? flowDefinitions.filter((d) => d.visibility === "public").map((d) => d.id) : [parsed.flowId];
   const dials = parsed.matrix ? MATRIX_DIALS : [parsed.power];
   let previews;
   try {
-    previews = dials.map((power) => resolveFlowSelectionPreview({
-      flowId: parsed.flowId,
+    previews = flowIds.flatMap((flowId) => dials.map((power) => resolveFlowSelectionPreview({
+      flowId,
       ...power === void 0 ? {} : { power },
       configLayers: layers,
       ...hostKind === void 0 ? {} : { hostKind }
-    }));
+    })));
   } catch (err) {
     return invalid(err instanceof Error ? err.message : String(err));
   }
   if (parsed.json) {
-    writeJson5(parsed.matrix ? previews : previews[0]);
+    writeJson5(parsed.matrix || parsed.flowId === void 0 ? previews : previews[0]);
     return 0;
   }
-  const body = parsed.matrix ? renderMatrix(previews) : renderSinglePreview(previews[0]);
+  const body = parsed.matrix ? renderMatrix(previews) : parsed.flowId === void 0 ? renderOverview(previews) : renderSinglePreview(previews[0]);
   process.stdout.write(`${body}
 `);
   return 0;
@@ -75085,7 +75127,7 @@ function usage() {
     '       circuit generate --description "<task to encode>" [--name <slug>] [--publish --yes]',
     "       circuit uninstall [--dir <path>] [--json]",
     "       circuit reclaim [--json]",
-    "       circuit preview <flow-name> [--power <auto|low|medium|high>] [--matrix] [--json]",
+    "       circuit preview [flow-name] [--power <auto|low|medium|high>] [--matrix] [--json]",
     "       circuit version [--json]",
     "",
     "Axes: `--depth` controls care level (`low`, `medium`, `high`); `--power` sets the model tier (`auto`, `low`, `medium`, `high`; default `medium`; `auto` lets the run's research read pick within configured bounds); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",

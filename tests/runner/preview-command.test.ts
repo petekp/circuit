@@ -33,11 +33,45 @@ function json<T>(): T {
   return JSON.parse(joined) as T;
 }
 
+const PUBLIC_FLOW_IDS = ['review', 'fix', 'pursue', 'prototype', 'build', 'explore'];
+
 describe('circuit preview: front door', () => {
-  it('rejects a missing flow name with exit 2', () => {
+  it('bare preview renders an overview of every public flow at the default dial', () => {
     const code = runPreviewCommand([]);
+    expect(code).toBe(0);
+    const out = stdout.join('');
+    for (const flowId of PUBLIC_FLOW_IDS) {
+      expect(out).toContain(flowId);
+    }
+    expect(out).toContain('dial: medium');
+    // Internal flows stay off the overview.
+    expect(out).not.toContain('cross-tool-build');
+    expect(out).not.toContain('converge-proof');
+    // The overview points at the per-flow deep dive.
+    expect(out).toContain('circuit preview <flow>');
+  });
+
+  it('bare preview with --json returns one preview per public flow', () => {
+    const code = runPreviewCommand(['--json']);
+    expect(code).toBe(0);
+    const previews = json<FlowSelectionPreview[]>();
+    expect(previews.map((p) => p.flowId).sort()).toEqual([...PUBLIC_FLOW_IDS].sort());
+    for (const preview of previews) {
+      expect(preview.visibility).toBe('public');
+      expect(preview.relaySteps.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('bare preview honors --power', () => {
+    const code = runPreviewCommand(['--power', 'high']);
+    expect(code).toBe(0);
+    expect(stdout.join('')).toContain('dial: high');
+  });
+
+  it('rejects --matrix without a flow name with exit 2', () => {
+    const code = runPreviewCommand(['--matrix']);
     expect(code).toBe(2);
-    expect(stderr.join('')).toContain('requires a flow name');
+    expect(stderr.join('')).toContain('needs a flow name');
   });
 
   it('rejects an unknown flow with exit 2', () => {
