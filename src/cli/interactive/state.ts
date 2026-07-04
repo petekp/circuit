@@ -12,8 +12,11 @@ import { Effort } from '../../schemas/selection-policy.js';
 // Navigation is a drill-down stack: Enter descends, Esc ascends, and the
 // stack itself is the breadcrumb. The parity rule lives here too — every
 // action that changes something outside the shell carries the equivalent
-// `circuit …` command, committed to scrollback as a receipt so the TUI
-// teaches the flag surface as it is used.
+// `circuit …` command. That command shows twice: once in an ephemeral
+// `status` line that the next action replaces (so config edits never march
+// the TUI down the scrollback), and once more in the on-exit summary the
+// shell prints after unmount, which is the durable record of the session's
+// writes.
 
 export type Scope = 'project' | 'global';
 export type DialChoice = 'auto' | 'low' | 'medium' | 'high';
@@ -45,12 +48,21 @@ export interface KeyEvent {
   readonly delete?: boolean;
 }
 
-export interface Receipt {
-  readonly id: number;
+// The ephemeral one-line result of the most recent action. It lives in the
+// live region and is replaced (or cleared on navigation) rather than
+// appended, so nothing it renders is ever committed to scrollback.
+export interface StatusLine {
   readonly ok: boolean;
   readonly text: string;
   // The flag-command equivalent of what just happened (`↳ circuit …`).
   readonly command?: string;
+}
+
+// One config write, kept for the on-exit summary. `command` is the exact
+// `circuit config …` that reproduces the write elsewhere.
+export interface ConfigChange {
+  readonly key: string;
+  readonly command: string;
 }
 
 export type Screen =
@@ -86,6 +98,13 @@ export type ShellOutcome =
   | { readonly kind: 'generate'; readonly argv: readonly string[] }
   | { readonly kind: 'run-template'; readonly command: string };
 
+// What the shell hands back on exit: why it closed, plus every config write
+// made during the session so the caller can print one durable summary.
+export interface SessionResult {
+  readonly outcome: ShellOutcome;
+  readonly configChanges: readonly ConfigChange[];
+}
+
 export type Effect =
   | {
       readonly kind: 'config-set';
@@ -98,8 +117,11 @@ export type Effect =
 export interface ShellState {
   readonly flows: readonly FlowSummary[];
   readonly stack: readonly Screen[];
-  readonly receipts: readonly Receipt[];
-  readonly nextReceiptId: number;
+  // Ephemeral: the last action's result, or null. Cleared on navigation.
+  readonly status: StatusLine | null;
+  // Durable within the session: every config write, in order, surfaced once
+  // in the on-exit summary.
+  readonly configChanges: readonly ConfigChange[];
   // Bumped after every config write so the component recomputes anything
   // derived from the config layers (previews, effective values).
   readonly configVersion: number;
@@ -114,6 +136,10 @@ export type ShellEvent =
       readonly ok: boolean;
       readonly text: string;
       readonly command?: string;
+      // Present only when a write actually landed on disk (absent for a
+      // failure or a no-op like unsetting an already-absent key). Its
+      // presence is what appends to configChanges and bumps configVersion.
+      readonly change?: ConfigChange;
     };
 
 export interface ReduceResult {
@@ -162,8 +188,8 @@ export function initialState(flows: readonly FlowSummary[]): ShellState {
   return {
     flows,
     stack: [{ kind: 'home', cursor: 0 }],
-    receipts: [],
-    nextReceiptId: 1,
+    status: null,
+    configChanges: [],
     configVersion: 0,
     help: false,
   };
@@ -217,31 +243,33 @@ export function generateCommand(description: string, publish: boolean): string {
   return `circuit generate --description ${JSON.stringify(description)}${publish ? ' --publish --yes' : ''}`;
 }
 
+// The on-exit summary of the session's config writes. Deduped by key keeping
+// the last write (so flipping a value back and forth prints once, as the
+// value you actually left it at), in first-touched order. Returns null when
+// nothing was written, so the caller prints nothing.
+export function formatConfigChangeSummary(changes: readonly ConfigChange[]): string | null {
+  if (changes.length === 0) return null;
+  const byKey = new Map<string, string>();
+  for (const change of changes) byKey.set(change.key, change.command);
+  const header = `config ${byKey.size === 1 ? 'change' : 'changes'} saved this session:`;
+  const lines = [...byKey.values()].map((command) => `  ${command}`);
+  return [header, ...lines].join('\n');
+}
+
+// replaceTop stays within a screen (cursor moves, toggles), so it keeps the
+// status line. push and pop cross a screen boundary and clear it, so a
+// config result never lingers into an unrelated screen.
 function replaceTop(state: ShellState, screen: Screen): ShellState {
   return { ...state, stack: [...state.stack.slice(0, -1), screen] };
 }
 
 function push(state: ShellState, screen: Screen): ShellState {
-  return { ...state, stack: [...state.stack, screen] };
+  return { ...state, stack: [...state.stack, screen], status: null };
 }
 
 function pop(state: ShellState): ShellState {
   if (state.stack.length <= 1) return state;
-  return { ...state, stack: state.stack.slice(0, -1) };
-}
-
-function withReceipt(state: ShellState, ok: boolean, text: string, command?: string): ShellState {
-  const receipt: Receipt = {
-    id: state.nextReceiptId,
-    ok,
-    text,
-    ...(command === undefined ? {} : { command }),
-  };
-  return {
-    ...state,
-    receipts: [...state.receipts, receipt],
-    nextReceiptId: state.nextReceiptId + 1,
-  };
+  return { ...state, stack: state.stack.slice(0, -1), status: null };
 }
 
 function quit(state: ShellState): ShellState {
@@ -373,9 +401,10 @@ function reduceBrowse(
   if (key.return === true) {
     const flow = flows[screen.cursor];
     if (flow === undefined) return { state };
-    const next = push(state, { kind: 'flow', flowId: flow.id, dial: undefined, matrix: false });
+    // No status line here: the flow screen's footer already shows the
+    // equivalent `circuit preview <id>`, and browsing is not a mutation.
     return {
-      state: withReceipt(next, true, `previewing ${flow.id}`, `circuit preview ${flow.id}`),
+      state: push(state, { kind: 'flow', flowId: flow.id, dial: undefined, matrix: false }),
     };
   }
   return { state };
@@ -517,8 +546,23 @@ export function reduce(state: ShellState, event: ShellEvent): ReduceResult {
   if (state.outcome !== undefined) return { state };
 
   if (event.type === 'config-result') {
-    const next = withReceipt(state, event.ok, event.text, event.command);
-    return { state: event.ok ? { ...next, configVersion: next.configVersion + 1 } : next };
+    const status: StatusLine = {
+      ok: event.ok,
+      text: event.text,
+      ...(event.command === undefined ? {} : { command: event.command }),
+    };
+    // A write that landed on disk is the only thing that appends to the
+    // session log and invalidates the derived config reads. A failure or a
+    // no-op sets the status line but leaves both untouched.
+    if (event.change === undefined) return { state: { ...state, status } };
+    return {
+      state: {
+        ...state,
+        status,
+        configChanges: [...state.configChanges, event.change],
+        configVersion: state.configVersion + 1,
+      },
+    };
   }
 
   const key = event.key;

@@ -4,12 +4,12 @@ import { join } from 'node:path';
 import { render } from 'ink-testing-library';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../src/cli/interactive/app.js';
-import type { ShellOutcome } from '../../src/cli/interactive/state.js';
+import type { SessionResult } from '../../src/cli/interactive/state.js';
 
 // Frame tests for the Ink shell: real keystrokes through a fake stdin, real
 // frames out. Config writes are pointed at temp dirs so a test run never
 // touches the machine's config, and the configure flow is asserted all the
-// way down to the YAML file the receipt claims to have written.
+// way down to the YAML file the ephemeral status line claims to have written.
 
 const ANSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
 const DOWN = '[B';
@@ -35,8 +35,8 @@ afterEach(() => {
   rmSync(cwd, { recursive: true, force: true });
 });
 
-function mount(onOutcome: (outcome: ShellOutcome) => void = () => {}) {
-  return render(<App flows={[...FLOWS]} onOutcome={onOutcome} configOptions={{ homeDir, cwd }} />);
+function mount(onExit: (result: SessionResult) => void = () => {}) {
+  return render(<App flows={[...FLOWS]} onExit={onExit} configOptions={{ homeDir, cwd }} />);
 }
 
 async function press(stdin: { write: (data: string) => void }, ...keys: readonly string[]) {
@@ -92,7 +92,7 @@ describe('interactive shell frames', () => {
     unmount();
   });
 
-  it('configure edits write the project YAML and commit a teaching receipt', async () => {
+  it('configure edits write the project YAML and show an ephemeral status line', async () => {
     const { lastFrame, stdin, unmount } = mount();
     await press(stdin, DOWN, ENTER); // home -> Configure
     let frame = plain(lastFrame());
@@ -103,7 +103,7 @@ describe('interactive shell frames', () => {
     frame = plain(lastFrame());
     expect(frame).toContain('✓ defaults.power = low');
     expect(frame).toContain('↳ circuit config set defaults.power low');
-    // The receipt is honest: the file exists and carries the value.
+    // The status line is honest: the file exists and carries the value.
     const configPath = join(cwd, '.circuit', 'config.yaml');
     expect(existsSync(configPath)).toBe(true);
     expect(readFileSync(configPath, 'utf8')).toContain('power: low');
@@ -112,17 +112,34 @@ describe('interactive shell frames', () => {
     unmount();
   });
 
-  it('q reports a quit outcome', async () => {
-    const onOutcome = vi.fn();
-    const { stdin, unmount } = mount(onOutcome);
+  it('a second edit replaces the status line instead of stacking a new one', async () => {
+    const { lastFrame, stdin, unmount } = mount();
+    await press(stdin, DOWN, ENTER); // home -> Configure
+    await press(stdin, ENTER, '[C', ENTER); // set defaults.power (auto -> low)
+    await press(stdin, DOWN); // move to the default-connector field
+    await press(stdin, ENTER, '[C', ENTER); // set relay.default (auto -> claude-code)
+    const frame = plain(lastFrame());
+    // This is the regression guard for the push-down bug: two writes must
+    // leave exactly one status glyph on screen, not one per change.
+    expect(frame.match(/✓/g) ?? []).toHaveLength(1);
+    // The one status line is about the latest key; the earlier one's status
+    // was replaced, not stacked above it.
+    expect(frame).toContain('✓ relay.default');
+    expect(frame).not.toContain('✓ defaults.power');
+    unmount();
+  });
+
+  it('q reports a quit outcome with an empty change log', async () => {
+    const onExit = vi.fn();
+    const { stdin, unmount } = mount(onExit);
     await press(stdin, 'q');
-    expect(onOutcome).toHaveBeenCalledWith({ kind: 'quit' });
+    expect(onExit).toHaveBeenCalledWith({ outcome: { kind: 'quit' }, configChanges: [] });
     unmount();
   });
 
   it('create composes the generate command and exits with its argv', async () => {
-    const onOutcome = vi.fn();
-    const { lastFrame, stdin, unmount } = mount(onOutcome);
+    const onExit = vi.fn();
+    const { lastFrame, stdin, unmount } = mount(onExit);
     await press(stdin, DOWN, DOWN, ENTER); // home -> Create a flow
     await press(stdin, 'd', 'o', ' ', 'x', ENTER);
     let frame = plain(lastFrame());
@@ -131,9 +148,9 @@ describe('interactive shell frames', () => {
     frame = plain(lastFrame());
     expect(frame).toContain('--publish --yes');
     await press(stdin, ENTER);
-    expect(onOutcome).toHaveBeenCalledWith({
-      kind: 'generate',
-      argv: ['--description', 'do x', '--publish', '--yes'],
+    expect(onExit).toHaveBeenCalledWith({
+      outcome: { kind: 'generate', argv: ['--description', 'do x', '--publish', '--yes'] },
+      configChanges: [],
     });
     unmount();
   });

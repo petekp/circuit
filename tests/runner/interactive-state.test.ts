@@ -5,6 +5,7 @@ import {
   type ShellState,
   configFields,
   currentScreen,
+  formatConfigChangeSummary,
   generateArgv,
   initialState,
   reduce,
@@ -81,11 +82,13 @@ describe('browse screen', () => {
     expect(visibleFlows(cleared, currentScreen(cleared))).toHaveLength(3);
   });
 
-  it('enter drills into the flow and commits the preview command as a receipt', () => {
+  it('enter drills into the flow without leaving a status line behind', () => {
     const state = press(browse, DOWN, ENTER);
     expect(currentScreen(state)).toMatchObject({ kind: 'flow', flowId: 'fix' });
-    const receipt = state.receipts.at(-1);
-    expect(receipt?.command).toBe('circuit preview fix');
+    // Browsing is navigation, not a mutation: no ephemeral status, and the
+    // flow footer teaches `circuit preview fix` on its own.
+    expect(state.status).toBeNull();
+    expect(state.configChanges).toHaveLength(0);
   });
 
   it('g and G jump to the ends, esc ascends to home', () => {
@@ -142,7 +145,7 @@ describe('configure screen', () => {
       value: 'low',
       scope: 'project',
     });
-    // The edit closes; the receipt arrives via the config-result event.
+    // The edit closes; feedback arrives later via the config-result event.
     expect(currentScreen(next)).not.toHaveProperty('editing.optionIndex');
   });
 
@@ -157,18 +160,84 @@ describe('configure screen', () => {
     expect(effect).toEqual({ kind: 'config-unset', key: 'relay.default', scope: 'project' });
   });
 
-  it('a config-result receipt bumps configVersion only on success', () => {
+  it('a landed write sets the status, logs the change, and bumps configVersion', () => {
     const ok = reduce(configure, {
       type: 'config-result',
       ok: true,
-      text: 'defaults.power = low (project)',
+      text: 'defaults.power = low',
       command: 'circuit config set defaults.power low',
+      change: { key: 'defaults.power', command: 'circuit config set defaults.power low' },
     }).state;
     expect(ok.configVersion).toBe(1);
-    expect(ok.receipts.at(-1)?.command).toBe('circuit config set defaults.power low');
+    expect(ok.status?.command).toBe('circuit config set defaults.power low');
+    expect(ok.configChanges).toEqual([
+      { key: 'defaults.power', command: 'circuit config set defaults.power low' },
+    ]);
+  });
+
+  it('a failure shows the status but touches neither the log nor configVersion', () => {
     const failed = reduce(configure, { type: 'config-result', ok: false, text: 'nope' }).state;
     expect(failed.configVersion).toBe(0);
-    expect(failed.receipts.at(-1)?.ok).toBe(false);
+    expect(failed.status?.ok).toBe(false);
+    expect(failed.configChanges).toHaveLength(0);
+  });
+
+  it('a no-op (already-unset) shows the status but logs nothing', () => {
+    // No `change` field: the write did not land.
+    const noop = reduce(configure, {
+      type: 'config-result',
+      ok: true,
+      text: 'relay.default already unset',
+      command: 'circuit config unset relay.default',
+    }).state;
+    expect(noop.configVersion).toBe(0);
+    expect(noop.configChanges).toHaveLength(0);
+    expect(noop.status?.text).toContain('already unset');
+  });
+
+  it('navigating away clears the status line so it never bleeds into another screen', () => {
+    const afterWrite = reduce(configure, {
+      type: 'config-result',
+      ok: true,
+      text: 'defaults.power = low',
+      command: 'circuit config set defaults.power low',
+      change: { key: 'defaults.power', command: 'circuit config set defaults.power low' },
+    }).state;
+    expect(afterWrite.status).not.toBeNull();
+    // Esc pops back to home; the ephemeral status must not survive the hop,
+    // but the durable session log must.
+    const home = press(afterWrite, ESC);
+    expect(currentScreen(home).kind).toBe('home');
+    expect(home.status).toBeNull();
+    expect(home.configChanges).toHaveLength(1);
+  });
+});
+
+describe('config-change summary', () => {
+  const change = (key: string, command: string) => ({ key, command });
+
+  it('is null when nothing was written', () => {
+    expect(formatConfigChangeSummary([])).toBeNull();
+  });
+
+  it('lists each write once, keeping the last value per key', () => {
+    const summary = formatConfigChangeSummary([
+      change('defaults.power', 'circuit config set defaults.power high'),
+      change('defaults.power', 'circuit config set defaults.power low'),
+      change('relay.default', 'circuit config set relay.default auto'),
+    ]);
+    expect(summary).toContain('config changes saved this session');
+    // The superseded first write does not appear; the last one does.
+    expect(summary).not.toContain('defaults.power high');
+    expect(summary).toContain('circuit config set defaults.power low');
+    expect(summary).toContain('circuit config set relay.default auto');
+  });
+
+  it('uses the singular for a single change', () => {
+    const summary = formatConfigChangeSummary([
+      change('defaults.power', 'circuit config set defaults.power low'),
+    ]);
+    expect(summary).toContain('config change saved this session');
   });
 });
 

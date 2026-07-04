@@ -92751,25 +92751,6 @@ var init_render_to_string = __esm({
 });
 
 // node_modules/ink/build/components/Static.js
-function Static(props) {
-  const { items, children: render2, style: customStyle } = props;
-  const [index, setIndex] = (0, import_react17.useState)(0);
-  const itemsToRender = (0, import_react17.useMemo)(() => {
-    return items.slice(index);
-  }, [items, index]);
-  (0, import_react17.useLayoutEffect)(() => {
-    setIndex(items.length);
-  }, [items.length]);
-  const children = itemsToRender.map((item, itemIndex) => {
-    return render2(item, index + itemIndex);
-  });
-  const style = (0, import_react17.useMemo)(() => ({
-    position: "absolute",
-    flexDirection: "column",
-    ...customStyle
-  }), [customStyle]);
-  return import_react17.default.createElement("ink-box", { internal_static: true, style }, children);
-}
 var import_react17;
 var init_Static = __esm({
   "node_modules/ink/build/components/Static.js"() {
@@ -93808,8 +93789,8 @@ function initialState(flows) {
   return {
     flows,
     stack: [{ kind: "home", cursor: 0 }],
-    receipts: [],
-    nextReceiptId: 1,
+    status: null,
+    configChanges: [],
     configVersion: 0,
     help: false
   };
@@ -93857,29 +93838,26 @@ function generateArgv(description, publish) {
 function generateCommand(description, publish) {
   return `circuit generate --description ${JSON.stringify(description)}${publish ? " --publish --yes" : ""}`;
 }
+function formatConfigChangeSummary(changes) {
+  if (changes.length === 0)
+    return null;
+  const byKey = /* @__PURE__ */ new Map();
+  for (const change of changes)
+    byKey.set(change.key, change.command);
+  const header = `config ${byKey.size === 1 ? "change" : "changes"} saved this session:`;
+  const lines = [...byKey.values()].map((command) => `  ${command}`);
+  return [header, ...lines].join("\n");
+}
 function replaceTop(state, screen) {
   return { ...state, stack: [...state.stack.slice(0, -1), screen] };
 }
 function push(state, screen) {
-  return { ...state, stack: [...state.stack, screen] };
+  return { ...state, stack: [...state.stack, screen], status: null };
 }
 function pop(state) {
   if (state.stack.length <= 1)
     return state;
-  return { ...state, stack: state.stack.slice(0, -1) };
-}
-function withReceipt(state, ok, text, command) {
-  const receipt = {
-    id: state.nextReceiptId,
-    ok,
-    text,
-    ...command === void 0 ? {} : { command }
-  };
-  return {
-    ...state,
-    receipts: [...state.receipts, receipt],
-    nextReceiptId: state.nextReceiptId + 1
-  };
+  return { ...state, stack: state.stack.slice(0, -1), status: null };
 }
 function quit(state) {
   return { ...state, outcome: { kind: "quit" } };
@@ -93992,9 +93970,8 @@ function reduceBrowse(state, screen, key) {
     const flow = flows[screen.cursor];
     if (flow === void 0)
       return { state };
-    const next = push(state, { kind: "flow", flowId: flow.id, dial: void 0, matrix: false });
     return {
-      state: withReceipt(next, true, `previewing ${flow.id}`, `circuit preview ${flow.id}`)
+      state: push(state, { kind: "flow", flowId: flow.id, dial: void 0, matrix: false })
     };
   }
   return { state };
@@ -94122,8 +94099,21 @@ function reduce(state, event) {
   if (state.outcome !== void 0)
     return { state };
   if (event.type === "config-result") {
-    const next = withReceipt(state, event.ok, event.text, event.command);
-    return { state: event.ok ? { ...next, configVersion: next.configVersion + 1 } : next };
+    const status = {
+      ok: event.ok,
+      text: event.text,
+      ...event.command === void 0 ? {} : { command: event.command }
+    };
+    if (event.change === void 0)
+      return { state: { ...state, status } };
+    return {
+      state: {
+        ...state,
+        status,
+        configChanges: [...state.configChanges, event.change],
+        configVersion: state.configVersion + 1
+      }
+    };
   }
   const key = event.key;
   const screen = currentScreen(state);
@@ -94190,34 +94180,32 @@ function executeEffect(effect, options) {
     const result2 = applyConfigSet(effect.key, effect.value, effect.scope, options ?? {});
     if (!result2.ok)
       return { type: "config-result", ok: false, text: result2.message };
-    const where = "noop" in result2 ? result2.layerName : `${result2.layerName}: ${result2.filePath}`;
+    const command2 = configSetCommand(effect.key, effect.value, effect.scope);
     return {
       type: "config-result",
       ok: true,
-      text: `${effect.key} = ${effect.value} (${where})`,
-      command: configSetCommand(effect.key, effect.value, effect.scope)
+      text: `${effect.key} = ${effect.value}`,
+      command: command2,
+      change: { key: effect.key, command: command2 }
     };
   }
   const result = applyConfigUnset(effect.key, effect.scope, options ?? {});
   if (!result.ok)
     return { type: "config-result", ok: false, text: result.message };
+  const command = configUnsetCommand(effect.key, effect.scope);
   if ("noop" in result) {
-    return {
-      type: "config-result",
-      ok: true,
-      text: `${effect.key} already unset (${result.layerName})`,
-      command: configUnsetCommand(effect.key, effect.scope)
-    };
+    return { type: "config-result", ok: true, text: `${effect.key} already unset`, command };
   }
   return {
     type: "config-result",
     ok: true,
-    text: `${effect.key} unset (${result.layerName}: ${result.filePath})`,
-    command: configUnsetCommand(effect.key, effect.scope)
+    text: `${effect.key} unset`,
+    command,
+    change: { key: effect.key, command }
   };
 }
-function ReceiptLine({ receipt }) {
-  return (0, import_jsx_runtime.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime.jsxs)(Text, { children: [(0, import_jsx_runtime.jsx)(Text, { color: receipt.ok ? "green" : "red", children: receipt.ok ? "\u2713" : "\u2717" }), " ", receipt.text] }), receipt.command === void 0 ? null : (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: `  \u21B3 ${receipt.command}` })] });
+function StatusRegion({ status }) {
+  return (0, import_jsx_runtime.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime.jsxs)(Text, { children: [(0, import_jsx_runtime.jsx)(Text, { color: status.ok ? "green" : "red", children: status.ok ? "\u2713" : "\u2717" }), " ", status.text] }), status.command === void 0 ? null : (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: `  \u21B3 ${status.command}` })] });
 }
 function HomeView({ cursor }) {
   return (0, import_jsx_runtime.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: HOME_ITEMS.map((item, index) => (0, import_jsx_runtime.jsxs)(Text, { ...index === cursor ? { color: "cyan" } : {}, children: [index === cursor ? "\u276F " : "  ", item] }, item)) });
@@ -94286,7 +94274,7 @@ function footerText(screen) {
   }
   return screen.stage === "describe" ? "type description \xB7 enter continue \xB7 esc back" : "enter start \xB7 p publish toggle \xB7 esc edit \xB7 ? help";
 }
-function App2({ flows, onOutcome, configOptions }) {
+function App2({ flows, onExit, configOptions }) {
   const { exit } = use_app_default();
   const [state, setState] = (0, import_react34.useState)(() => initialState(flows));
   const stateRef = (0, import_react34.useRef)(state);
@@ -94295,14 +94283,14 @@ function App2({ flows, onOutcome, configOptions }) {
     stateRef.current = next;
     setState(next);
     if (next.outcome !== void 0) {
-      onOutcome(next.outcome);
+      onExit({ outcome: next.outcome, configChanges: next.configChanges });
       exit();
       return;
     }
     if (effect !== void 0) {
       send(executeEffect(effect, configOptions));
     }
-  }, [onOutcome, exit, configOptions]);
+  }, [onExit, exit, configOptions]);
   use_input_default((input, key) => {
     send({
       type: "key",
@@ -94320,7 +94308,7 @@ function App2({ flows, onOutcome, configOptions }) {
     });
   });
   const screen = currentScreen(state);
-  return (0, import_jsx_runtime.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime.jsx)(Static, { items: [...state.receipts], children: (receipt) => (0, import_jsx_runtime.jsx)(ReceiptLine, { receipt }, receipt.id) }), (0, import_jsx_runtime.jsxs)(Text, { children: [(0, import_jsx_runtime.jsx)(Text, { color: "cyan", children: "\u25C6" }), " ", (0, import_jsx_runtime.jsx)(Text, { bold: true, children: "circuit" }), " ", (0, import_jsx_runtime.jsxs)(Text, { dimColor: true, children: ["\xB7 v", readSourceVersion(), " \xB7"] }), " ", breadcrumb(state)] }), state.help ? (0, import_jsx_runtime.jsx)(HelpView, { screen }) : screen.kind === "home" ? (0, import_jsx_runtime.jsx)(HomeView, { cursor: screen.cursor }) : screen.kind === "browse" ? (0, import_jsx_runtime.jsx)(BrowseView, { state, screen }) : screen.kind === "flow" ? (0, import_jsx_runtime.jsx)(FlowView, { screen, configVersion: state.configVersion, configOptions }) : screen.kind === "configure" ? (0, import_jsx_runtime.jsx)(ConfigureView, { screen, configVersion: state.configVersion, configOptions }) : (0, import_jsx_runtime.jsx)(CreateView, { screen }), (0, import_jsx_runtime.jsxs)(Box_default, { marginTop: 1, flexDirection: "column", children: [screen.kind === "flow" ? (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: `\u21B3 ${previewCommand(screen)}` }) : null, (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: footerText(screen) })] })] });
+  return (0, import_jsx_runtime.jsxs)(Box_default, { flexDirection: "column", children: [(0, import_jsx_runtime.jsxs)(Text, { children: [(0, import_jsx_runtime.jsx)(Text, { color: "cyan", children: "\u25C6" }), " ", (0, import_jsx_runtime.jsx)(Text, { bold: true, children: "circuit" }), " ", (0, import_jsx_runtime.jsxs)(Text, { dimColor: true, children: ["\xB7 v", readSourceVersion(), " \xB7"] }), " ", breadcrumb(state)] }), state.help ? (0, import_jsx_runtime.jsx)(HelpView, { screen }) : screen.kind === "home" ? (0, import_jsx_runtime.jsx)(HomeView, { cursor: screen.cursor }) : screen.kind === "browse" ? (0, import_jsx_runtime.jsx)(BrowseView, { state, screen }) : screen.kind === "flow" ? (0, import_jsx_runtime.jsx)(FlowView, { screen, configVersion: state.configVersion, configOptions }) : screen.kind === "configure" ? (0, import_jsx_runtime.jsx)(ConfigureView, { screen, configVersion: state.configVersion, configOptions }) : (0, import_jsx_runtime.jsx)(CreateView, { screen }), (0, import_jsx_runtime.jsxs)(Box_default, { marginTop: 1, flexDirection: "column", children: [state.status !== null ? (0, import_jsx_runtime.jsx)(StatusRegion, { status: state.status }) : null, screen.kind === "flow" ? (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: `\u21B3 ${previewCommand(screen)}` }) : null, (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: footerText(screen) })] })] });
 }
 var import_jsx_runtime, import_react34, HELP_LINES;
 var init_app = __esm({
@@ -94375,21 +94363,32 @@ __export(interactive_exports, {
   runInteractiveShell: () => runInteractiveShell
 });
 async function runInteractiveShell() {
-  let outcome = { kind: "quit" };
+  let session = { outcome: { kind: "quit" }, configChanges: [] };
   const instance = render_default((0, import_react35.createElement)(App2, {
     flows: flowCatalog.flows,
-    onOutcome: (value) => {
-      outcome = value;
+    onExit: (value) => {
+      session = value;
     }
   }));
   await instance.waitUntilExit();
-  const result = /* @__PURE__ */ (() => outcome)();
-  if (result.kind === "generate") {
-    const { runGenerateCommand: runGenerateCommand2 } = await Promise.resolve().then(() => (init_generate(), generate_exports));
-    return runGenerateCommand2([...result.argv]);
+  const result = /* @__PURE__ */ (() => session)();
+  const summary = formatConfigChangeSummary(result.configChanges);
+  if (summary !== null) {
+    const palette = terminalPalette(colorEnabled());
+    const [header, ...lines] = summary.split("\n");
+    process.stdout.write(`${palette.dim(header ?? "")}
+`);
+    for (const line of lines)
+      process.stdout.write(`${palette.dim(line)}
+`);
   }
-  if (result.kind === "run-template") {
-    process.stdout.write(`${result.command}
+  const { outcome } = result;
+  if (outcome.kind === "generate") {
+    const { runGenerateCommand: runGenerateCommand2 } = await Promise.resolve().then(() => (init_generate(), generate_exports));
+    return runGenerateCommand2([...outcome.argv]);
+  }
+  if (outcome.kind === "run-template") {
+    process.stdout.write(`${outcome.command}
 `);
     process.stdout.write("fill in the goal and run it when ready.\n");
     return 0;
@@ -94403,7 +94402,9 @@ var init_interactive = __esm({
     await init_build2();
     import_react35 = __toESM(require_react(), 1);
     init_catalog();
+    init_terminal_style();
     await init_app();
+    init_state();
   }
 });
 

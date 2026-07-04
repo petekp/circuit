@@ -1,4 +1,4 @@
-import { Box, Static, Text, useApp, useInput } from 'ink';
+import { Box, Text, useApp, useInput } from 'ink';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { LayeredConfig } from '../../schemas/config.js';
 import { discoverRuntimeConfigLayers } from '../../shared/config-loader.js';
@@ -12,11 +12,11 @@ import {
   type Effect,
   type FlowSummary,
   HOME_ITEMS,
-  type Receipt,
   type Screen,
+  type SessionResult,
   type ShellEvent,
-  type ShellOutcome,
   type ShellState,
+  type StatusLine,
   breadcrumb,
   configFields,
   configSetCommand,
@@ -32,14 +32,14 @@ import {
 // The Ink face of the interactive shell. All decisions live in the pure
 // reducer (state.ts); this file adapts keystrokes into events, executes the
 // reducer's effects through the same exported cores the flag commands use
-// (applyConfigSet/applyConfigUnset), and renders. Receipts go through
-// <Static> so they commit to scrollback and survive after the shell exits —
-// the session leaves a readable transcript of what was done and the flag
-// command that would do it again.
+// (applyConfigSet/applyConfigUnset), and renders. Feedback is an ephemeral
+// status line in the live region — replaced by the next action and cleared on
+// navigation, so nothing marches down the scrollback. The durable record of
+// what was written is printed once, after unmount, from the SessionResult.
 
 export interface AppProps {
   readonly flows: readonly FlowSummary[];
-  readonly onOutcome: (outcome: ShellOutcome) => void;
+  readonly onExit: (result: SessionResult) => void;
   // Test seam: points config reads/writes and preview layer discovery at a
   // temp home/project instead of the real machine.
   readonly configOptions?: { readonly homeDir?: string; readonly cwd?: string };
@@ -70,43 +70,48 @@ function effectiveValue(layers: readonly LayeredConfig[], key: string): Effectiv
   return found;
 }
 
+// Run the reducer's config effect through the shared write cores and turn the
+// result into a config-result event. The in-TUI text stays compact (no file
+// path — the configure field already shows project/global provenance); the
+// full teaching lives in `command`, and `change` is set only when a write
+// actually landed so the reducer knows to log it.
 function executeEffect(effect: Effect, options: AppProps['configOptions']): ShellEvent {
   if (effect.kind === 'config-set') {
     const result = applyConfigSet(effect.key, effect.value, effect.scope, options ?? {});
     if (!result.ok) return { type: 'config-result', ok: false, text: result.message };
-    const where = 'noop' in result ? result.layerName : `${result.layerName}: ${result.filePath}`;
+    const command = configSetCommand(effect.key, effect.value, effect.scope);
     return {
       type: 'config-result',
       ok: true,
-      text: `${effect.key} = ${effect.value} (${where})`,
-      command: configSetCommand(effect.key, effect.value, effect.scope),
+      text: `${effect.key} = ${effect.value}`,
+      command,
+      change: { key: effect.key, command },
     };
   }
   const result = applyConfigUnset(effect.key, effect.scope, options ?? {});
   if (!result.ok) return { type: 'config-result', ok: false, text: result.message };
+  const command = configUnsetCommand(effect.key, effect.scope);
   if ('noop' in result) {
-    return {
-      type: 'config-result',
-      ok: true,
-      text: `${effect.key} already unset (${result.layerName})`,
-      command: configUnsetCommand(effect.key, effect.scope),
-    };
+    // Nothing was written, so no `change`: the status line reports it but the
+    // session log and the derived config reads stay put.
+    return { type: 'config-result', ok: true, text: `${effect.key} already unset`, command };
   }
   return {
     type: 'config-result',
     ok: true,
-    text: `${effect.key} unset (${result.layerName}: ${result.filePath})`,
-    command: configUnsetCommand(effect.key, effect.scope),
+    text: `${effect.key} unset`,
+    command,
+    change: { key: effect.key, command },
   };
 }
 
-function ReceiptLine({ receipt }: { readonly receipt: Receipt }) {
+function StatusRegion({ status }: { readonly status: StatusLine }) {
   return (
     <Box flexDirection="column">
       <Text>
-        <Text color={receipt.ok ? 'green' : 'red'}>{receipt.ok ? '✓' : '✗'}</Text> {receipt.text}
+        <Text color={status.ok ? 'green' : 'red'}>{status.ok ? '✓' : '✗'}</Text> {status.text}
       </Text>
-      {receipt.command === undefined ? null : <Text dimColor>{`  ↳ ${receipt.command}`}</Text>}
+      {status.command === undefined ? null : <Text dimColor>{`  ↳ ${status.command}`}</Text>}
     </Box>
   );
 }
@@ -388,7 +393,7 @@ function footerText(screen: Screen): string {
     : 'enter start · p publish toggle · esc edit · ? help';
 }
 
-export function App({ flows, onOutcome, configOptions }: AppProps) {
+export function App({ flows, onExit, configOptions }: AppProps) {
   const { exit } = useApp();
   const [state, setState] = useState<ShellState>(() => initialState(flows));
   const stateRef = useRef(state);
@@ -399,17 +404,17 @@ export function App({ flows, onOutcome, configOptions }: AppProps) {
       stateRef.current = next;
       setState(next);
       if (next.outcome !== undefined) {
-        onOutcome(next.outcome);
+        onExit({ outcome: next.outcome, configChanges: next.configChanges });
         exit();
         return;
       }
       if (effect !== undefined) {
         // Config writes are synchronous; feed the result straight back so the
-        // receipt lands in the same keystroke.
+        // status line lands in the same keystroke.
         send(executeEffect(effect, configOptions));
       }
     },
-    [onOutcome, exit, configOptions],
+    [onExit, exit, configOptions],
   );
 
   useInput((input, key) => {
@@ -433,9 +438,6 @@ export function App({ flows, onOutcome, configOptions }: AppProps) {
 
   return (
     <Box flexDirection="column">
-      <Static items={[...state.receipts]}>
-        {(receipt) => <ReceiptLine key={receipt.id} receipt={receipt} />}
-      </Static>
       <Text>
         <Text color="cyan">◆</Text> <Text bold>circuit</Text>{' '}
         <Text dimColor>· v{readSourceVersion()} ·</Text> {breadcrumb(state)}
@@ -462,6 +464,7 @@ export function App({ flows, onOutcome, configOptions }: AppProps) {
         <CreateView screen={screen} />
       )}
       <Box marginTop={1} flexDirection="column">
+        {state.status !== null ? <StatusRegion status={state.status} /> : null}
         {screen.kind === 'flow' ? <Text dimColor>{`↳ ${previewCommand(screen)}`}</Text> : null}
         <Text dimColor>{footerText(screen)}</Text>
       </Box>
