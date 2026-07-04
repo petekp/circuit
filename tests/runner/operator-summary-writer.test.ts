@@ -1659,7 +1659,7 @@ describe('operator summary writer', () => {
     expect(html).toContain('Continue with a focused fix anyway');
     // The do-nothing outcome and the honest resume path are on the page.
     expect(html).toMatch(/If you do nothing/);
-    expect(html).toContain('--checkpoint-choice &#39;continue&#39;');
+    expect(html).toContain('--checkpoint-choice &#x27;continue&#x27;');
     expect(html).toContain('Depth high');
 
     const markdown = readFileSync(written.markdownPath, 'utf8');
@@ -1708,7 +1708,7 @@ describe('operator summary writer', () => {
     expect(html).toContain('Hold and stop');
     // No declared default: the page says the run stays parked.
     expect(html).toContain('stays parked');
-    expect(html).toContain('--checkpoint-choice &#39;publish&#39;');
+    expect(html).toContain('--checkpoint-choice &#x27;publish&#x27;');
   });
 
   it('emits generic checkpoint HTML for Explore waiting checkpoints before a decision exists', () => {
@@ -1753,7 +1753,7 @@ describe('operator summary writer', () => {
     expect(html).toContain('Choose the option Circuit should close with.');
     expect(html).toContain('Store notes as JSON files on disk');
     expect(html).toContain('Store notes in SQLite');
-    expect(html).toContain('--checkpoint-choice &#39;option-2&#39;');
+    expect(html).toContain('--checkpoint-choice &#x27;option-2&#x27;');
   });
 
   it('emits operator-summary.html for Prototype waiting checkpoints and links it from JSON and Markdown', () => {

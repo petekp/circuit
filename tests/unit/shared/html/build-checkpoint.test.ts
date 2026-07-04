@@ -139,8 +139,8 @@ describe('buildCheckpointProjector — rendering', () => {
   it('emits a complete report-first HTML document with recommendation, risk, proof, and choices', () => {
     const html = buildCheckpointProjector(buildContext()) as string;
     expect(html).toContain('<!doctype html>');
-    expect(html).toContain('<h1>Add checkpoint HTML</h1>');
-    expect(html).toContain('<span class="badge">Recommended</span>');
+    expect(html).toMatch(/<h1[^>]*>Add checkpoint HTML<\/h1>/);
+    expect(html).toMatch(/<span[^>]*data-slot="badge"[^>]*>Recommended</);
     expect(html).toContain('The scope is bounded and the proof plan is explicit.');
     expect(html).toContain('Touch Build checkpoint presentation only');
     expect(html).toContain('Scope mismatch is the meaningful risk.');
@@ -161,7 +161,7 @@ describe('buildCheckpointProjector — rendering', () => {
       buildContext({ runFolder: "/tmp/circuit run's" }),
     ) as string;
     expect(html).toContain(
-      'data-prompt="circuit resume --run-folder &#39;/tmp/circuit run&#39;\\&#39;&#39;s&#39; --checkpoint-choice &#39;continue&#39;"',
+      'data-prompt="circuit resume --run-folder &#x27;/tmp/circuit run&#x27;\\&#x27;&#x27;s&#x27; --checkpoint-choice &#x27;continue&#x27;"',
     );
   });
 

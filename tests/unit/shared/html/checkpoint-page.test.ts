@@ -56,7 +56,7 @@ describe('renderCheckpointPage', () => {
     });
 
     // The question is the hero headline.
-    expect(html).toContain('<h1>Diagnosis did not cleanly reproduce the bug.');
+    expect(html).toMatch(/<h1[^>]*>Diagnosis did not cleanly reproduce the bug\./);
     // Context ribbon chips are present.
     expect(html).toContain('Waiting for you');
     expect(html).toContain('Depth high');
@@ -65,11 +65,12 @@ describe('renderCheckpointPage', () => {
     expect(html).toMatch(/If you do nothing/);
     expect(html).toContain('Continue with a focused fix anyway');
     // Every option carries the real resume command for that choice.
+    // (&#x27; is React's apostrophe escape; the command text is what matters.)
     expect(html).toContain(
-      `circuit resume --run-folder &#39;${RUN_FOLDER}&#39; --checkpoint-choice &#39;continue&#39;`,
+      `circuit resume --run-folder &#x27;${RUN_FOLDER}&#x27; --checkpoint-choice &#x27;continue&#x27;`,
     );
     expect(html).toContain(
-      `circuit resume --run-folder &#39;${RUN_FOLDER}&#39; --checkpoint-choice &#39;stop&#39;`,
+      `circuit resume --run-folder &#x27;${RUN_FOLDER}&#x27; --checkpoint-choice &#x27;stop&#x27;`,
     );
     expect(html).toContain('Copy resume command');
   });
@@ -133,7 +134,7 @@ describe('genericCheckpointHtml', () => {
     expect(html).toContain('Diagnosis did not cleanly reproduce the bug.');
     expect(html).toContain('Continue with a focused fix anyway');
     expect(html).toContain('Stop and hand back');
-    expect(html).toContain('--checkpoint-choice &#39;continue&#39;');
+    expect(html).toContain('--checkpoint-choice &#x27;continue&#x27;');
     expect(html).toContain('Depth high');
   });
 

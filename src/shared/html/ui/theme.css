@@ -1,0 +1,143 @@
+/*
+ * Circuit design-system theme — Tailwind v4 entry.
+ *
+ * Compiled at build time by scripts/html/build-ui-css.ts into
+ * css.generated.ts, which page renderers inline into emitted
+ * operator-summary.html files. Nothing here is served; the output must
+ * stay self-contained and file://-safe.
+ *
+ * Tokens are the shadcn/ui "stone" theme (matching the vendored basecn
+ * components in this directory) plus Circuit's intent colors. Dark mode
+ * keys off prefers-color-scheme, which is also Tailwind v4's default
+ * `dark:` variant — emitted pages have no theme toggle.
+ */
+
+@import 'tailwindcss' source(none);
+
+/* Class sources: the design system + every page renderer that uses it. */
+@source '../';
+@source '../../../flows';
+/* Never scan the compiled output itself: its CSS text is full of
+ * class-shaped tokens, so scanning it feeds the compiler its own output
+ * and the build never reaches a fixpoint. */
+@source not './css.generated.ts';
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.147 0.004 49.25);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.147 0.004 49.25);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.147 0.004 49.25);
+  --primary: oklch(0.216 0.006 56.043);
+  --primary-foreground: oklch(0.985 0.001 106.423);
+  --secondary: oklch(0.97 0.001 106.424);
+  --secondary-foreground: oklch(0.216 0.006 56.043);
+  --muted: oklch(0.97 0.001 106.424);
+  --muted-foreground: oklch(0.553 0.013 58.071);
+  --accent: oklch(0.97 0.001 106.424);
+  --accent-foreground: oklch(0.216 0.006 56.043);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.923 0.003 48.717);
+  --input: oklch(0.923 0.003 48.717);
+  --ring: oklch(0.709 0.01 56.259);
+  /* Circuit intent colors (green-600 / amber-600 / blue-600). */
+  --positive: oklch(0.627 0.194 149.214);
+  --attention: oklch(0.666 0.179 58.318);
+  --info: oklch(0.546 0.245 262.881);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: oklch(0.147 0.004 49.25);
+    --foreground: oklch(0.985 0.001 106.423);
+    --card: oklch(0.216 0.006 56.043);
+    --card-foreground: oklch(0.985 0.001 106.423);
+    --popover: oklch(0.216 0.006 56.043);
+    --popover-foreground: oklch(0.985 0.001 106.423);
+    --primary: oklch(0.923 0.003 48.717);
+    --primary-foreground: oklch(0.216 0.006 56.043);
+    --secondary: oklch(0.268 0.007 34.298);
+    --secondary-foreground: oklch(0.985 0.001 106.423);
+    --muted: oklch(0.268 0.007 34.298);
+    --muted-foreground: oklch(0.709 0.01 56.259);
+    --accent: oklch(0.268 0.007 34.298);
+    --accent-foreground: oklch(0.985 0.001 106.423);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.553 0.013 58.071);
+    /* Circuit intent colors (green-400 / amber-400 / blue-400). */
+    --positive: oklch(0.792 0.209 151.711);
+    --attention: oklch(0.828 0.189 84.429);
+    --info: oklch(0.707 0.165 254.624);
+  }
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-positive: var(--positive);
+  --color-attention: var(--attention);
+  --color-info: var(--info);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/*
+ * Native control affordances. The vendored checkbox and radio are native
+ * inputs (the Base UI primitives need JavaScript, and these pages must
+ * work with zero script), so their checked indicators are drawn here
+ * instead of by lucide icons.
+ */
+@layer components {
+  input[data-slot='checkbox']:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fafaf9' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+    background-size: 0.75rem;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  input[data-slot='radio-group-item']:checked {
+    /* Dot tracks --primary in both schemes, like the upstream indicator. */
+    background-image: radial-gradient(
+      circle closest-side,
+      var(--primary) 45%,
+      transparent 50%
+    );
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Check glyph tracks --primary-foreground: stone-50 on light, stone-800 on dark. */
+  input[data-slot='checkbox']:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23292524' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+  }
+}

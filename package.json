@@ -25,6 +25,8 @@
     "check-evals": "node scripts/evals/check.ts",
     "evals:fix:dry-run": "node evals/fix-vs-vanilla/run-fix-comparison.ts --set held-out --dry-run",
     "evals:fix:matrix:dry-run": "node scripts/evals/fix-matrix.ts --dry-run",
+    "build-ui-css": "node scripts/html/build-ui-css.ts",
+    "check-ui-css": "node scripts/html/build-ui-css.ts --check",
     "check-ideas": "node scripts/docs/check-ideas-catalog.ts",
     "check-doc-paths": "node scripts/docs/check-doc-paths.ts",
     "soak:runtime:fast": "vitest run tests/soak tests/runner/cli-runtime.test.ts tests/runtime tests/flow-runtime-smoke",
@@ -62,19 +64,27 @@
     "circuit:run": "./bin/circuit"
   },
   "dependencies": {
+    "@base-ui/react": "^1.6.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "commander": "^14.0.3",
     "ink": "^7.1.0",
     "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tailwind-merge": "^3.6.0",
     "yaml": "^2.8.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@tailwindcss/cli": "^4.3.2",
     "@types/node": "^22.9.0",
     "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "^2.1.4",
     "esbuild": "^0.25.0",
     "ink-testing-library": "^4.0.0",
+    "tailwindcss": "^4.3.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.4"
   },
