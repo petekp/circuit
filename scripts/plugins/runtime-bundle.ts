@@ -69,6 +69,9 @@ async function buildRuntimeBundle(): Promise<string> {
       sourcemap: false,
       minify: false,
       legalComments: 'none',
+      // See react-devtools-stub.js for why Ink's optional devtools import
+      // must be aliased away rather than eliminated via `define`.
+      alias: { 'react-devtools-core': resolve(scriptDir, 'react-devtools-stub.js') },
       banner: {
         js: [
           '#!/usr/bin/env node',

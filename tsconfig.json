@@ -18,7 +18,8 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "jsx": "react-jsx"
   },
   "include": [
     "src/**/*.ts",
@@ -33,7 +34,9 @@
     "evals/circuit-vs-vanilla/**/*.ts",
     "evals/fix-vs-vanilla/*.ts",
     "evals/resumption-quiz/**/*.ts",
-    "experiments/**/*.ts"
+    "experiments/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.tsx"
   ],
   "exclude": [
     "node_modules",

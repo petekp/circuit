@@ -1,12 +1,11 @@
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Command, CommanderError } from 'commander';
 import type { BriefGitProbe } from '../app/continuity/brief.js';
 
 import { CLI_COMMAND_NAMES, type CliCommandName } from './command-vocabulary.js';
 import { parseCommanderOrThrow } from './commander-support.js';
+import { runConfigCommand } from './config-command.js';
 import { runCreateCommand } from './create.js';
+import { runFrontDoorCommand } from './front-door.js';
 import { runGenerateCommand } from './generate.js';
 import { runHandoffCommand } from './handoff.js';
 import { runHistoryCommand } from './history.js';
@@ -24,14 +23,13 @@ import {
 import { runRunsCommand } from './runs.js';
 import { CLI_RUNTIME_ROUTING_POLICY } from './runtime-routing-policy.js';
 import { runUninstallCommand } from './uninstall.js';
+import { readSourceVersion } from './version-info.js';
 
 // Runtime CLI entry point — invoked through ./bin/circuit.
 //
 // The root file owns top-level command dispatch and version output. Run/resume
 // argument parsing and orchestration live in src/cli/run.ts so the CLI front
 // door stays small.
-
-const DEFAULT_DEV_VERSION = '0.0.0-dev';
 
 // The TopLevelInvocation union is keyed off the shared CLI_COMMAND_NAMES
 // tuple (src/cli/command-vocabulary.ts), so adding a command word there
@@ -43,6 +41,9 @@ type TopLevelInvocation = {
 
 export interface CliMainOptions extends RunCommandOptions {
   briefGitProbe?: BriefGitProbe;
+  // Test seam for the bare-invocation TTY branch: replaces the interactive
+  // shell launcher (the TTY gate itself still applies).
+  interactiveShell?: () => Promise<number>;
 }
 
 export { CIRCUIT_HOST_KIND_ENV } from './run.js';
@@ -61,6 +62,7 @@ export function usage(): string {
     '       circuit uninstall [--dir <path>] [--json]',
     '       circuit reclaim [--json]',
     '       circuit preview [flow-name] [--power <auto|low|medium|high>] [--matrix] [--json]',
+    '       circuit config [show [--json] | set <key> <value> | unset <key>] [--project|--global]',
     '       circuit version [--json]',
     '',
     "Axes: `--depth` controls care level (`low`, `medium`, `high`); `--power` sets the model tier (`auto`, `low`, `medium`, `high`; default `medium`; `auto` lets the run's research read pick within configured bounds); `--tournament` turns on option fan-out; `--tournament-n` sets the option count in the v1 range [2, 4]; `--autonomous` auto-resolves supported checkpoints and runs a bounded continuation loop (recovery routed by unmet evidence kind; never completes by exhaustion). Unsupported tuples are rejected per flow with the flow allow-list.",
@@ -75,29 +77,6 @@ export function usage(): string {
     '',
     'Review evidence: untracked file contents are omitted by default. Add `--include-untracked-content` only when those files are safe to relay to the configured worker.',
   ].join('\n');
-}
-
-function readSourceVersion(): string {
-  // Marketplace-safe by build-time replacement: build-plugin-runtime.ts
-  // emits the bundled CLI with CIRCUIT_VERSION inlined as a literal,
-  // so this function returns the build-time version in every marketplace
-  // install and never reaches the path-resolution branches below. The
-  // fileURLToPath candidate is only ever exercised in a source-tree
-  // checkout where the env var is unset.
-  if (process.env.CIRCUIT_VERSION !== undefined) return process.env.CIRCUIT_VERSION;
-  const candidates = [
-    resolve(dirname(fileURLToPath(import.meta.url)), '../../plugins/version.json'),
-    resolve(process.cwd(), 'plugins/version.json'),
-  ];
-  for (const candidate of candidates) {
-    try {
-      const raw = JSON.parse(readFileSync(candidate, 'utf8')) as { version?: unknown };
-      if (typeof raw.version === 'string' && raw.version.length > 0) return raw.version;
-    } catch {
-      // Keep version reporting useful when the repo manifest is unavailable.
-    }
-  }
-  return DEFAULT_DEV_VERSION;
 }
 
 function versionInfo(): Record<string, unknown> {
@@ -165,13 +144,31 @@ function parseTopLevelInvocation(argv: readonly string[]): TopLevelInvocation {
 
   if (invocation === undefined) {
     throw new Error(
-      'missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, inbox, preview, or version',
+      'missing command: use run, resume, handoff, history, memory, create, generate, uninstall, runs, reclaim, inbox, preview, config, or version',
     );
   }
   return invocation;
 }
 
 export async function main(argv: readonly string[], options: CliMainOptions = {}): Promise<number> {
+  // Bare `circuit` is the front door, not an error. In a terminal it opens
+  // the interactive shell; piped or in CI it prints the static orientation
+  // page so agents get discovery instead of a failure.
+  if (argv.length === 0) {
+    if (process.stdin.isTTY === true && process.stdout.isTTY === true) {
+      const launch =
+        options.interactiveShell ??
+        (async () => {
+          // Lazy import: the Ink/React tree stays out of memory for every
+          // ordinary subcommand invocation.
+          const { runInteractiveShell } = await import('./interactive/index.js');
+          return runInteractiveShell();
+        });
+      return launch();
+    }
+    return runFrontDoorCommand();
+  }
+
   let invocation: TopLevelInvocation;
   try {
     invocation = parseTopLevelInvocation(argv);
@@ -225,6 +222,9 @@ export async function main(argv: readonly string[], options: CliMainOptions = {}
   }
   if (invocation.command === 'preview') {
     return runPreviewCommand(invocation.argv);
+  }
+  if (invocation.command === 'config') {
+    return runConfigCommand(invocation.argv);
   }
 
   let args: ParsedArgs;

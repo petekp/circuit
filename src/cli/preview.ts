@@ -83,7 +83,10 @@ function parsePreviewArgs(argv: readonly string[]): PreviewInvocation | string {
   };
 }
 
-function hostKindFromEnv(): HostKindValue | undefined {
+// Exported for the interactive shell: both surfaces must resolve previews
+// under the same host context or the shell would show different selections
+// than `circuit preview` for the same machine.
+export function hostKindFromEnv(): HostKindValue | undefined {
   const raw = process.env.CIRCUIT_HOST_KIND;
   if (raw === undefined) return undefined;
   const parsed = HostKind.safeParse(raw);
@@ -199,7 +202,12 @@ function problemBlock(palette: TerminalPalette, lines: readonly string[]): reado
   return ['', palette.warn('problems:'), ...lines.map((line) => palette.warn(line))];
 }
 
-function renderSinglePreview(palette: TerminalPalette, preview: FlowSelectionPreview): string {
+// Exported for the interactive shell: the browse screen renders the same
+// preview strings inside its live region, so the two surfaces cannot drift.
+export function renderSinglePreview(
+  palette: TerminalPalette,
+  preview: FlowSelectionPreview,
+): string {
   const dialLine =
     preview.dial === preview.dialResolvesTo
       ? `dial: ${preview.dial}`
@@ -286,7 +294,11 @@ function renderOverview(
   ].join('\n');
 }
 
-function renderMatrix(palette: TerminalPalette, previews: readonly FlowSelectionPreview[]): string {
+// Exported for the interactive shell (see renderSinglePreview).
+export function renderMatrix(
+  palette: TerminalPalette,
+  previews: readonly FlowSelectionPreview[],
+): string {
   const first = previews[0];
   if (first === undefined) return '';
   const header = headerLine(
