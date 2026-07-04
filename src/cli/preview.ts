@@ -6,6 +6,8 @@ import { discoverRuntimeConfigLayers } from '../shared/config-loader.js';
 import { commanderErrorMessage, configureCommanderProgram } from './commander-support.js';
 import {
   type FlowSelectionPreview,
+  type PreviewEffortSource,
+  type PreviewModelSource,
   type RelayStepSelectionPreview,
   resolveFlowSelectionPreview,
 } from './flow-selection-preview.js';
@@ -147,15 +149,48 @@ function columnHeader(palette: TerminalPalette, labels: readonly string[]): read
   return labels.map((label) => cell(label, palette.dim));
 }
 
+// `config` is an operator (or flow) decision; everything else is a default the
+// engine filled in. Weight carries that split: pinned values are bold, dial
+// defaults plain, absent values dim — so a fully-default table reads uniformly
+// calm, and anything you pinned stands out.
+function isExplicit(source: PreviewModelSource | PreviewEffortSource): boolean {
+  return source === 'config';
+}
+
+// The plain-characters form of the provenance split (styling is presentation
+// only, so pipes and NO_COLOR must still see it). The effort note appears only
+// when effort's explicit/default kind differs from the model's: unannotated
+// means "same kind as the model", and out of the box every row is a default.
+export function sourceCellText(
+  modelSource: PreviewModelSource,
+  effortSource: PreviewEffortSource,
+): string {
+  if (effortSource === 'unset' || isExplicit(effortSource) === isExplicit(modelSource)) {
+    return modelSource;
+  }
+  return `${modelSource} · effort:${effortSource}`;
+}
+
 function stepCells(palette: TerminalPalette, step: RelayStepSelectionPreview): readonly Cell[] {
+  const modelPaint =
+    step.model === undefined
+      ? palette.dim
+      : isExplicit(step.modelSource)
+        ? composePaints(palette.bold, palette.provider(step.provider))
+        : palette.provider(step.provider);
+  const effortPaint =
+    step.effort === undefined
+      ? palette.dim
+      : isExplicit(step.effortSource)
+        ? palette.bold
+        : undefined;
   return [
     cell(step.stepId),
     cell(step.role, palette.role(step.role)),
     cell(step.connector),
-    // Model stays bold (it is the payload); the hue says whose model it is.
-    cell(modelCell(step), composePaints(palette.bold, palette.provider(step.provider))),
-    cell(step.effort ?? '-', palette.effort(step.effort)),
-    cell(step.modelSource, palette.dim),
+    cell(modelCell(step), modelPaint),
+    cell(step.effort ?? '-', effortPaint),
+    cell(sourceCellText(step.modelSource, step.effortSource), palette.dim),
   ];
 }
 
@@ -272,10 +307,15 @@ function renderMatrix(palette: TerminalPalette, previews: readonly FlowSelection
       if (match === undefined) return cell('-', palette.dim);
       const model = modelCell(match);
       const effort = match.effort ?? '-';
-      // Same encoding as the step tables: weight is effort, hue is provider.
+      // Same encoding as the step tables: weight is provenance, hue is
+      // provider. A bold cell is (at least partly) pinned, so it will not
+      // fully follow the dial across the row.
+      const pinned = isExplicit(match.modelSource) || isExplicit(match.effortSource);
       return cell(
         `${model} / ${effort}`,
-        composePaints(palette.effort(match.effort), palette.provider(match.provider)),
+        pinned
+          ? composePaints(palette.bold, palette.provider(match.provider))
+          : palette.provider(match.provider),
       );
     });
     rows.push([

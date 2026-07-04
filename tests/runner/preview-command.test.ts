@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FlowSelectionPreview } from '../../src/cli/flow-selection-preview.js';
-import { runPreviewCommand } from '../../src/cli/preview.js';
+import { runPreviewCommand, sourceCellText } from '../../src/cli/preview.js';
 
 // End-to-end coverage of the `circuit preview` front door: argument parsing,
 // the real selection resolution, and rendering. Assertions stay on values that
@@ -118,6 +118,24 @@ describe('circuit preview: front door', () => {
       'plan-step',
       'verify-step',
     ]);
+    // Effort provenance is machine-independent (unlike the codex model, which
+    // reads the operator's cache): dial-filled reports power-tier, absent unset.
+    expect(byId['implement-step']?.effortSource).toBe('power-tier');
+    expect(byId['review-proposal-step']?.effortSource).toBe('unset');
+  });
+
+  it('the SOURCE cell notes effort provenance only when it differs in kind from the model', () => {
+    // Both defaults (tier-filled effort on a codex-default model): the note
+    // would be noise — every out-of-the-box row is a default, and that is
+    // exactly what an unannotated row means.
+    expect(sourceCellText('codex-default', 'power-tier')).toBe('codex-default');
+    expect(sourceCellText('power-tier', 'unset')).toBe('power-tier');
+    // Explicit and default mixed: the cell must say which half is which, in
+    // plain characters — brightness alone would hide it from pipes/NO_COLOR.
+    expect(sourceCellText('codex-default', 'config')).toBe('codex-default · effort:config');
+    expect(sourceCellText('config', 'power-tier')).toBe('config · effort:power-tier');
+    // Both explicit collapses back to one word.
+    expect(sourceCellText('config', 'config')).toBe('config');
   });
 
   it('--matrix returns one preview per fixed tier, high first, and the dial moves the implementer effort', () => {

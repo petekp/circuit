@@ -3,6 +3,7 @@ import {
   type FlowSelectionPreview,
   resolveFlowSelectionPreview,
 } from '../../src/cli/flow-selection-preview.js';
+import { LayeredConfig } from '../../src/schemas/config.js';
 
 // A deterministic stand-in for the codex default-model cache read, so these
 // tests never touch ~/.codex or spawn anything. The real CLI reads the cache
@@ -127,6 +128,35 @@ describe('resolveFlowSelectionPreview: auto dial and graceful codex-unresolved',
     // The claude-code reviewer still resolves fine; one unresolved connector
     // must not sink the whole preview.
     expect(relayStep(p, 'review-proposal-step').model).toBe('sonnet');
+  });
+});
+
+describe('resolveFlowSelectionPreview: effort provenance', () => {
+  it('dial-filled effort reports power-tier; absent effort reports unset', () => {
+    const p = preview('low');
+    expect(relayStep(p, 'implement-step').effortSource).toBe('power-tier');
+    // The researcher's constant `high` is the role allocation inside the tier
+    // machinery, not a pin — still a dial default, and it must say so.
+    expect(relayStep(p, 'propose-step').effortSource).toBe('power-tier');
+    const review = relayStep(p, 'review-proposal-step');
+    expect(review.effort).toBeUndefined();
+    expect(review.effortSource).toBe('unset');
+  });
+
+  it('an explicit config effort pin reports config and wins over the dial', () => {
+    const pin = LayeredConfig.parse({
+      layer: 'project',
+      config: {
+        schema_version: 1,
+        circuits: { 'cross-tool-build': { selection: { effort: 'low' } } },
+      },
+    });
+    const p = preview('high', { configLayers: [pin] });
+    const impl = relayStep(p, 'implement-step');
+    expect(impl.effort).toBe('low');
+    expect(impl.effortSource).toBe('config');
+    // The pin does not launder the model's provenance.
+    expect(impl.modelSource).toBe('codex-default');
   });
 });
 

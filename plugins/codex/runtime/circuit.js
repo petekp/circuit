@@ -60261,6 +60261,7 @@ function previewRelayStep(input) {
   const connectorName = connector.connectorName;
   const stackSelection = deriveResolvedSelection({ selectionConfigLayers: layers }, flow, step, input.depth);
   const modelFromStack = stackSelection.model !== void 0;
+  const effortFromStack = stackSelection.effort !== void 0;
   let resolved = materializePowerSelection({
     resolved: stackSelection,
     role,
@@ -60282,6 +60283,12 @@ function previewRelayStep(input) {
   } else {
     modelSource = "unset";
   }
+  let effortSource;
+  if (resolved.effort !== void 0) {
+    effortSource = effortFromStack ? "config" : "power-tier";
+  } else {
+    effortSource = "unset";
+  }
   let problem;
   try {
     assertConnectorSelectionCompatible(connectorName, resolved);
@@ -60299,6 +60306,7 @@ function previewRelayStep(input) {
     ...provider === void 0 ? {} : { provider },
     modelSource,
     ...resolved.effort === void 0 ? {} : { effort: resolved.effort },
+    effortSource,
     ...resolved.power === void 0 ? {} : { power: resolved.power },
     powerSource: resolved.power_source ?? "fixed",
     escalated: resolved.power_escalated === true,
@@ -60385,7 +60393,6 @@ function terminalPalette(enabled, env = process.env) {
       warn: identity,
       accent: identity,
       role: () => identity,
-      effort: () => identity,
       provider: () => identity
     };
   }
@@ -60400,13 +60407,6 @@ function terminalPalette(enabled, env = process.env) {
     role: (role) => {
       const code = ROLE_CODES[role];
       return code === void 0 ? identity : painter(code);
-    },
-    effort: (effort) => {
-      if (effort === "high")
-        return painter("1");
-      if (effort === "low")
-        return painter("2");
-      return identity;
     },
     provider: (provider) => {
       if (!truecolor || provider === void 0)
@@ -60506,15 +60506,25 @@ function headerLine(palette, subject, dialText) {
 function columnHeader(palette, labels) {
   return labels.map((label) => cell(label, palette.dim));
 }
+function isExplicit(source) {
+  return source === "config";
+}
+function sourceCellText(modelSource, effortSource) {
+  if (effortSource === "unset" || isExplicit(effortSource) === isExplicit(modelSource)) {
+    return modelSource;
+  }
+  return `${modelSource} \xB7 effort:${effortSource}`;
+}
 function stepCells(palette, step) {
+  const modelPaint = step.model === void 0 ? palette.dim : isExplicit(step.modelSource) ? composePaints(palette.bold, palette.provider(step.provider)) : palette.provider(step.provider);
+  const effortPaint = step.effort === void 0 ? palette.dim : isExplicit(step.effortSource) ? palette.bold : void 0;
   return [
     cell(step.stepId),
     cell(step.role, palette.role(step.role)),
     cell(step.connector),
-    // Model stays bold (it is the payload); the hue says whose model it is.
-    cell(modelCell(step), composePaints(palette.bold, palette.provider(step.provider))),
-    cell(step.effort ?? "-", palette.effort(step.effort)),
-    cell(step.modelSource, palette.dim)
+    cell(modelCell(step), modelPaint),
+    cell(step.effort ?? "-", effortPaint),
+    cell(sourceCellText(step.modelSource, step.effortSource), palette.dim)
   ];
 }
 function problemBlock(palette, lines) {
@@ -60603,7 +60613,8 @@ function renderMatrix(palette, previews) {
         return cell("-", palette.dim);
       const model = modelCell(match);
       const effort = match.effort ?? "-";
-      return cell(`${model} / ${effort}`, composePaints(palette.effort(match.effort), palette.provider(match.provider)));
+      const pinned = isExplicit(match.modelSource) || isExplicit(match.effortSource);
+      return cell(`${model} / ${effort}`, pinned ? composePaints(palette.bold, palette.provider(match.provider)) : palette.provider(match.provider));
     });
     rows.push([
       cell(step.stepId),

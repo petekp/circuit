@@ -38,15 +38,7 @@ describe('colorEnabled', () => {
 describe('terminalPalette', () => {
   it('disabled palette is the identity on every paint function', () => {
     const p = terminalPalette(false, {});
-    const paints = [
-      p.bold,
-      p.dim,
-      p.warn,
-      p.accent,
-      p.role('reviewer'),
-      p.effort('high'),
-      p.provider('anthropic'),
-    ];
+    const paints = [p.bold, p.dim, p.warn, p.accent, p.role('reviewer'), p.provider('anthropic')];
     for (const paint of paints) {
       expect(paint('sonnet')).toBe('sonnet');
     }
@@ -71,13 +63,6 @@ describe('terminalPalette', () => {
     expect(p.role('implementer')('x')).toContain(`${ESC}[32m`);
     expect(p.role('reviewer')('x')).toContain(`${ESC}[35m`);
     expect(p.role('mystery')('x')).toBe('x');
-  });
-
-  it('effort maps high to bold, low to dim, medium to plain', () => {
-    const p = terminalPalette(true, {});
-    expect(p.effort('high')('high')).toContain(`${ESC}[1m`);
-    expect(p.effort('low')('low')).toContain(`${ESC}[2m`);
-    expect(p.effort('medium')('medium')).toBe('medium');
   });
 
   it('providers get brand hues on truecolor terminals', () => {

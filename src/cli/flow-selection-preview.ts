@@ -59,6 +59,13 @@ export type PreviewModelSource =
   | 'codex-default-unresolved'
   | 'unset';
 
+// Where a relay step's effort came from. Same split as the model: `config` =
+// the explicit selection stack set it; `power-tier` = the dial's tier table
+// filled it (including the fixed role allocation, e.g. researchers pinned to
+// the top tier — a shipped default, not an operator choice); `unset` = the
+// connector takes no effort here.
+export type PreviewEffortSource = 'config' | 'power-tier' | 'unset';
+
 export interface RelayStepSelectionPreview {
   readonly stepId: string;
   readonly kind: 'relay';
@@ -71,6 +78,7 @@ export interface RelayStepSelectionPreview {
   readonly provider?: string;
   readonly modelSource: PreviewModelSource;
   readonly effort?: string;
+  readonly effortSource: PreviewEffortSource;
   readonly power?: Power;
   readonly powerSource: 'fixed' | 'auto';
   readonly escalated: boolean;
@@ -189,6 +197,7 @@ function previewRelayStep(input: {
     input.depth,
   );
   const modelFromStack = stackSelection.model !== undefined;
+  const effortFromStack = stackSelection.effort !== undefined;
   let resolved = materializePowerSelection({
     resolved: stackSelection,
     role,
@@ -216,6 +225,13 @@ function previewRelayStep(input: {
     modelSource = 'unset';
   }
 
+  let effortSource: PreviewEffortSource;
+  if (resolved.effort !== undefined) {
+    effortSource = effortFromStack ? 'config' : 'power-tier';
+  } else {
+    effortSource = 'unset';
+  }
+
   let problem: string | undefined;
   try {
     assertConnectorSelectionCompatible(connectorName, resolved);
@@ -234,6 +250,7 @@ function previewRelayStep(input: {
     ...(provider === undefined ? {} : { provider }),
     modelSource,
     ...(resolved.effort === undefined ? {} : { effort: resolved.effort }),
+    effortSource,
     ...(resolved.power === undefined ? {} : { power: resolved.power }),
     powerSource: resolved.power_source ?? 'fixed',
     escalated: resolved.power_escalated === true,

@@ -19,8 +19,6 @@ export interface TerminalPalette {
   readonly accent: Paint;
   /** Consistent per-role color so roles read the same on every surface. */
   role(role: string): Paint;
-  /** Effort as typographic weight: high bold, low dim, medium plain. */
-  effort(effort: string | undefined): Paint;
   /**
    * Model text is hued by the provider that serves it. Truecolor only: the
    * hues are picked against the rest of the table (OpenAI's brand teal would
@@ -84,7 +82,6 @@ export function terminalPalette(enabled: boolean, env: EnvSlice = process.env): 
       warn: identity,
       accent: identity,
       role: () => identity,
-      effort: () => identity,
       provider: () => identity,
     };
   }
@@ -99,11 +96,6 @@ export function terminalPalette(enabled: boolean, env: EnvSlice = process.env): 
     role: (role) => {
       const code = ROLE_CODES[role];
       return code === undefined ? identity : painter(code);
-    },
-    effort: (effort) => {
-      if (effort === 'high') return painter('1');
-      if (effort === 'low') return painter('2');
-      return identity;
     },
     provider: (provider) => {
       if (!truecolor || provider === undefined) return identity;
