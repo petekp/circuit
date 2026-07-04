@@ -9,6 +9,12 @@ import {
   type RelayStepSelectionPreview,
   resolveFlowSelectionPreview,
 } from './flow-selection-preview.js';
+import {
+  type Paint,
+  type TerminalPalette,
+  colorEnabled,
+  terminalPalette,
+} from './terminal-style.js';
 
 // `circuit preview [flow]` — a spawn-free look at what each relay step in a
 // flow would resolve to (connector, model, effort, and where each came from)
@@ -93,65 +99,105 @@ function modelCell(step: RelayStepSelectionPreview): string {
   return '(none)';
 }
 
-function pad(value: string, width: number): string {
-  return value.length >= width ? value : value + ' '.repeat(width - value.length);
+// A table cell carries its raw text plus an optional paint. Widths are
+// computed on raw text and styling is applied afterwards, because ANSI escape
+// sequences have no visible width and would wreck column alignment.
+interface Cell {
+  readonly text: string;
+  readonly paint?: Paint;
+}
+type TableRow = readonly Cell[] | 'rule' | 'gap';
+
+function cell(text: string, paint?: Paint): Cell {
+  return paint === undefined ? { text } : { text, paint };
 }
 
-function renderTable(rows: readonly (readonly string[])[]): string {
+function renderStyledTable(palette: TerminalPalette, rows: readonly TableRow[]): string {
+  const dataRows = rows.filter((row): row is readonly Cell[] => Array.isArray(row));
   const widths: number[] = [];
-  for (const row of rows) {
-    row.forEach((cell, i) => {
-      widths[i] = Math.max(widths[i] ?? 0, cell.length);
+  for (const row of dataRows) {
+    row.forEach((c, i) => {
+      widths[i] = Math.max(widths[i] ?? 0, c.text.length);
     });
   }
+  const tableWidth = widths.reduce((sum, w) => sum + w, 0) + 2 * Math.max(0, widths.length - 1);
   return rows
-    .map((row) =>
-      row
-        .map((cell, i) => pad(cell, widths[i] ?? 0))
+    .map((row) => {
+      if (row === 'gap') return '';
+      if (row === 'rule') return palette.dim('─'.repeat(tableWidth));
+      return row
+        .map((c, i) => {
+          const spaces = ' '.repeat(Math.max(0, (widths[i] ?? 0) - c.text.length));
+          const painted = c.text === '' || c.paint === undefined ? c.text : c.paint(c.text);
+          return painted + spaces;
+        })
         .join('  ')
-        .trimEnd(),
-    )
+        .trimEnd();
+    })
     .join('\n');
 }
 
-function renderSinglePreview(preview: FlowSelectionPreview): string {
+function headerLine(palette: TerminalPalette, subject: string, dialText: string): string {
+  const sep = palette.dim('·');
+  return `${palette.accent('◆')} ${palette.bold('circuit preview')} ${sep} ${subject} ${sep} ${dialText}`;
+}
+
+function columnHeader(palette: TerminalPalette, labels: readonly string[]): readonly Cell[] {
+  return labels.map((label) => cell(label, palette.dim));
+}
+
+function stepCells(palette: TerminalPalette, step: RelayStepSelectionPreview): readonly Cell[] {
+  return [
+    cell(step.stepId),
+    cell(step.role, palette.role(step.role)),
+    cell(step.connector),
+    cell(modelCell(step), palette.bold),
+    cell(step.effort ?? '-', palette.effort(step.effort)),
+    cell(step.modelSource, palette.dim),
+  ];
+}
+
+function problemBlock(palette: TerminalPalette, lines: readonly string[]): readonly string[] {
+  if (lines.length === 0) return [];
+  return ['', palette.warn('problems:'), ...lines.map((line) => palette.warn(line))];
+}
+
+function renderSinglePreview(palette: TerminalPalette, preview: FlowSelectionPreview): string {
   const dialLine =
     preview.dial === preview.dialResolvesTo
       ? `dial: ${preview.dial}`
       : `dial: ${preview.dial} (resolves to ${preview.dialResolvesTo})`;
-  const header = `flow: ${preview.flowId} (${preview.visibility})   ${dialLine}`;
+  const header = headerLine(palette, `${preview.flowId} (${preview.visibility})`, dialLine);
 
-  const rows: string[][] = [['STEP', 'ROLE', 'CONNECTOR', 'MODEL', 'EFFORT', 'SOURCE']];
+  const rows: TableRow[] = [
+    columnHeader(palette, ['STEP', 'ROLE', 'CONNECTOR', 'MODEL', 'EFFORT', 'SOURCE']),
+    'rule',
+  ];
   for (const step of preview.relaySteps) {
-    rows.push([
-      step.stepId,
-      step.role,
-      step.connector,
-      modelCell(step),
-      step.effort ?? '-',
-      step.modelSource,
-    ]);
+    rows.push(stepCells(palette, step));
   }
-  const table = renderTable(rows);
 
-  const problems = preview.relaySteps.filter((step) => step.problem !== undefined);
-  const problemLines = problems.map((step) => `  ! ${step.stepId}: ${step.problem}`);
+  const problemLines = preview.relaySteps
+    .filter((step) => step.problem !== undefined)
+    .map((step) => `  ! ${step.stepId}: ${step.problem}`);
 
   const nonRelay =
     preview.nonRelaySteps.length === 0
       ? []
       : [
           '',
-          `non-relay steps: ${preview.nonRelaySteps
-            .map((step) => `${step.stepId} (${step.kind})`)
-            .join(', ')}`,
+          palette.dim(
+            `non-relay steps: ${preview.nonRelaySteps
+              .map((step) => `${step.stepId} (${step.kind})`)
+              .join(', ')}`,
+          ),
         ];
 
   return [
     header,
     '',
-    table,
-    ...(problemLines.length === 0 ? [] : ['', 'problems:', ...problemLines]),
+    renderStyledTable(palette, rows),
+    ...problemBlock(palette, problemLines),
     ...nonRelay,
   ].join('\n');
 }
@@ -169,59 +215,71 @@ function overviewDialLine(previews: readonly FlowSelectionPreview[]): string {
   return `dial: ${first.dial}`;
 }
 
-function renderOverview(previews: readonly FlowSelectionPreview[]): string {
-  const header = `public flows   ${overviewDialLine(previews)}`;
+function renderOverview(
+  palette: TerminalPalette,
+  previews: readonly FlowSelectionPreview[],
+): string {
+  const header = headerLine(palette, 'public flows', overviewDialLine(previews));
 
-  const rows: string[][] = [['FLOW', 'STEP', 'ROLE', 'CONNECTOR', 'MODEL', 'EFFORT', 'SOURCE']];
+  const rows: TableRow[] = [
+    columnHeader(palette, ['FLOW', 'STEP', 'ROLE', 'CONNECTOR', 'MODEL', 'EFFORT', 'SOURCE']),
+    'rule',
+  ];
   const problemLines: string[] = [];
-  for (const preview of previews) {
+  previews.forEach((preview, flowIndex) => {
+    if (flowIndex > 0) rows.push('gap');
     preview.relaySteps.forEach((step, index) => {
       rows.push([
-        index === 0 ? preview.flowId : '',
-        step.stepId,
-        step.role,
-        step.connector,
-        modelCell(step),
-        step.effort ?? '-',
-        step.modelSource,
+        cell(index === 0 ? preview.flowId : '', palette.bold),
+        ...stepCells(palette, step),
       ]);
       if (step.problem !== undefined) {
         problemLines.push(`  ! ${preview.flowId} ${step.stepId}: ${step.problem}`);
       }
     });
-  }
+  });
 
   return [
     header,
     '',
-    renderTable(rows),
-    ...(problemLines.length === 0 ? [] : ['', 'problems:', ...problemLines]),
+    renderStyledTable(palette, rows),
+    ...problemBlock(palette, problemLines),
     '',
-    'one flow in depth: circuit preview <flow> [--matrix]',
+    palette.dim('one flow in depth: circuit preview <flow> [--matrix]'),
   ].join('\n');
 }
 
-function renderMatrix(previews: readonly FlowSelectionPreview[]): string {
+function renderMatrix(palette: TerminalPalette, previews: readonly FlowSelectionPreview[]): string {
   const first = previews[0];
   if (first === undefined) return '';
-  const header = `flow: ${first.flowId} (${first.visibility})   dial matrix: ${previews
-    .map((p) => p.dial)
-    .join(' / ')}`;
+  const header = headerLine(
+    palette,
+    `${first.flowId} (${first.visibility})`,
+    `dial matrix: ${previews.map((p) => p.dial).join(' / ')}`,
+  );
 
   // One row per relay step, one model+effort column per dial.
   const columnLabels = previews.map((p) => p.dial.toUpperCase());
-  const rows: string[][] = [['STEP', 'ROLE', 'CONNECTOR', ...columnLabels]];
+  const rows: TableRow[] = [
+    columnHeader(palette, ['STEP', 'ROLE', 'CONNECTOR', ...columnLabels]),
+    'rule',
+  ];
   for (const step of first.relaySteps) {
-    const cells = previews.map((p) => {
+    const dialCells = previews.map((p) => {
       const match = p.relaySteps.find((candidate) => candidate.stepId === step.stepId);
-      if (match === undefined) return '-';
+      if (match === undefined) return cell('-', palette.dim);
       const model = modelCell(match);
       const effort = match.effort ?? '-';
-      return `${model} / ${effort}`;
+      return cell(`${model} / ${effort}`, palette.effort(match.effort));
     });
-    rows.push([step.stepId, step.role, step.connector, ...cells]);
+    rows.push([
+      cell(step.stepId),
+      cell(step.role, palette.role(step.role)),
+      cell(step.connector),
+      ...dialCells,
+    ]);
   }
-  return [header, '', renderTable(rows)].join('\n');
+  return [header, '', renderStyledTable(palette, rows)].join('\n');
 }
 
 export function runPreviewCommand(argv: readonly string[]): number {
@@ -259,11 +317,12 @@ export function runPreviewCommand(argv: readonly string[]): number {
     return 0;
   }
 
+  const palette = terminalPalette(colorEnabled());
   const body = parsed.matrix
-    ? renderMatrix(previews)
+    ? renderMatrix(palette, previews)
     : parsed.flowId === undefined
-      ? renderOverview(previews)
-      : renderSinglePreview(previews[0] as FlowSelectionPreview);
+      ? renderOverview(palette, previews)
+      : renderSinglePreview(palette, previews[0] as FlowSelectionPreview);
   process.stdout.write(`${body}\n`);
   return 0;
 }

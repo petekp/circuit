@@ -33,13 +33,21 @@ function json<T>(): T {
   return JSON.parse(joined) as T;
 }
 
+// Text assertions are made on the raw characters: strip any ANSI styling so
+// the tests hold whether or not the environment reports color support.
+const ANSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
+
+function plainStdout(): string {
+  return stdout.join('').replace(ANSI_PATTERN, '');
+}
+
 const PUBLIC_FLOW_IDS = ['review', 'fix', 'pursue', 'prototype', 'build', 'explore'];
 
 describe('circuit preview: front door', () => {
   it('bare preview renders an overview of every public flow at the default dial', () => {
     const code = runPreviewCommand([]);
     expect(code).toBe(0);
-    const out = stdout.join('');
+    const out = plainStdout();
     for (const flowId of PUBLIC_FLOW_IDS) {
       expect(out).toContain(flowId);
     }
@@ -65,7 +73,7 @@ describe('circuit preview: front door', () => {
   it('bare preview honors --power', () => {
     const code = runPreviewCommand(['--power', 'high']);
     expect(code).toBe(0);
-    expect(stdout.join('')).toContain('dial: high');
+    expect(plainStdout()).toContain('dial: high');
   });
 
   it('rejects --matrix without a flow name with exit 2', () => {
