@@ -122,7 +122,7 @@ Handoff stays available as a visible continuity utility for saving, resuming,
 clearing, briefing, or installing continuity support. The CLI also has
 experimental utilities that are not published as host commands:
 `./bin/circuit create` drafts a reusable custom flow after explicit
-confirmation, `./bin/circuit generate` composes and runs a bespoke flow from a
+confirmation, `./bin/circuit generate` composes a runnable bespoke flow from a
 plain task description, and `./bin/circuit preview` shows which connector,
 model, and effort each step of a flow would get, without spawning anything. See
 [`docs/operator-guide.md`](docs/operator-guide.md) for direct commands, flags,
