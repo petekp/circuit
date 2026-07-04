@@ -75,21 +75,33 @@ function validateProjectRelativePath(value: string, ctx: z.RefinementCtx): void 
   }
 }
 
-// Workers sometimes emit a leading './' on otherwise-valid relative paths.
-// That prefix carries no escape risk, so strip it before validation instead
-// of aborting the run on it. Interior '.' or any '..' segments still reject.
-function stripLeadingDotSlash(value: string): string {
+// Workers sometimes emit a leading './' or a single stray '/' on
+// otherwise-valid relative paths (live example: a tournament variant
+// reported '/.circuit/runs/.../index.html' for a file that existed at the
+// relative path, and lost its branch over the one character). Neither
+// prefix carries escape risk, so strip both before validation instead of
+// aborting the run. '//' (UNC), '~', drive letters, and any '..' segments
+// still reject, and downstream existence checks still require every
+// reported path to exist on disk.
+function stripForgivablePrefixes(value: string): string {
   let result = value;
-  while (result.startsWith('./')) {
-    result = result.slice(2);
+  for (;;) {
+    if (result.startsWith('./')) {
+      result = result.slice(2);
+      continue;
+    }
+    if (result.startsWith('/') && !result.startsWith('//')) {
+      result = result.slice(1);
+      continue;
+    }
+    return result;
   }
-  return result;
 }
 
 export const PrototypeProjectRelativePath = z
   .string()
   .min(1)
-  .transform(stripLeadingDotSlash)
+  .transform(stripForgivablePrefixes)
   .superRefine(validateProjectRelativePath);
 export type PrototypeProjectRelativePath = z.infer<typeof PrototypeProjectRelativePath>;
 
